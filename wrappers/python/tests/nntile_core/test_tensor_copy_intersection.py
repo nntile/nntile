@@ -17,8 +17,7 @@ from numpy.testing import assert_equal
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
+nntile.nntile_init(ncpus=1, ncuda=0, cublas=0, ooc=0, logger=0, verbose=0)
 
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
@@ -39,13 +38,9 @@ def test_clear(dtype):
     B_offset = [7, 10, 13]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     B_traits = nntile.tensor.TensorTraits(B_shape, B_shape)
-    A_distr = [0]
-    B_distr = [0]
     # Tensor objects
-    next_tag = 0
-    A = Tensor[dtype](A_traits, A_distr, next_tag)
-    next_tag = A.next_tag
-    B = Tensor[dtype](B_traits, B_distr, next_tag)
+    A = Tensor[dtype](A_traits)
+    B = Tensor[dtype](B_traits)
     # Set initial values of tensors
 
     rng = np.random.default_rng(42)

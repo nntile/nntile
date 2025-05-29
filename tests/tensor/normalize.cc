@@ -35,14 +35,13 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
     // Generate single-tile destination tensor and init it
     TensorTraits dst_single_traits(shape, shape);
     std::vector<int> dist_root = {mpi_root};
-    Tensor<T> dst_single(dst_single_traits, dist_root, last_tag);
+    Tensor<T> dst_single(dst_single_traits, dist_root);
     if(mpi_rank == mpi_root)
     {
         auto tile = dst_single.get_tile(0);
@@ -60,7 +59,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     {
         dst_distr[i] = (i+1) % mpi_size;
     }
-    Tensor<T> dst(dst_traits, dst_distr, last_tag);
+    Tensor<T> dst(dst_traits, dst_distr);
     scatter<T>(dst_single, dst);
     // Define proper shape and basetile for the source tensor
     std::vector<Index> src_shape(dst_traits.ndim),
@@ -84,16 +83,16 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     {
         src_distr[i] = (i*i+1) % mpi_size;
     }
-    Tensor<T> src(src_traits, src_distr, last_tag);
+    Tensor<T> src(src_traits, src_distr);
     sumnorm<T>(dst, src, axis);
     // Collect source in a single-tile tensor
     TensorTraits src_single_traits(src_shape, src_shape);
-    Tensor<T> src_single(src_single_traits, dist_root, last_tag);
+    Tensor<T> src_single(src_single_traits, dist_root);
     gather<T>(src, src_single);
     // Prepare all other parameters
     std::vector<Index> gamma_beta_shape = {2};
     TensorTraits gamma_beta_traits(gamma_beta_shape, gamma_beta_shape);
-    Tensor<T> gamma_beta(gamma_beta_traits, dist_root, last_tag);
+    Tensor<T> gamma_beta(gamma_beta_traits, dist_root);
     if(mpi_rank == mpi_root)
     {
         auto gb_tile = gamma_beta.get_tile(0);
@@ -111,7 +110,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
                 dst_single.get_tile(0), shape[axis], eps, axis);
     }
     // Compare results
-    Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
+    Tensor<T> dst2_single(dst_single_traits, dist_root);
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {
@@ -142,17 +141,16 @@ void validate()
     // Sync to guarantee old data tags are cleaned up and can be reused
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
-    starpu_mpi_tag_t last_tag = 0;
     std::vector<Index> sh34 = {3, 4}, sh23 = {2, 3}, sh3 = {3}, sh24 = {2, 4},
         sh22 = {2, 2}, sh_ = {}, sh33 = {3, 3}, sh13 = {1, 3}, sh2 = {2};
     TensorTraits trA(sh34, sh23), trB(sh3, sh3), trC(sh24, sh22),
         trD(sh_, sh_), trE(sh33, sh23), trF(sh23, sh13), trG(sh23, sh23),
         trgb(sh2, sh2);
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0}, dist00 = {0, 0};
-    Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
-        C(trC, dist00, last_tag), D(trD, dist0, last_tag),
-        E(trE, dist00, last_tag), F(trF, dist00, last_tag),
-        G(trG, dist0, last_tag), gamma_beta(trgb, dist0, last_tag);
+    Tensor<T> A(trA, dist0000), B(trB, dist0),
+        C(trC, dist00), D(trD, dist0),
+        E(trE, dist00), F(trF, dist00),
+        G(trG, dist0), gamma_beta(trgb, dist0);
     Scalar eps = 1e-16, zero = 0;
     TEST_THROW(normalize<T>(gamma_beta, B, A, 1, eps, 0));
     TEST_THROW(normalize<T>(gamma_beta, D, D, 1, eps, 0));
@@ -171,19 +169,11 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::normalize::init();
-    starpu::sumnorm::init();
-    starpu::clear::init();
-    starpu::subcopy::init();
-    starpu::copy::init();
-    starpu::normalize::restrict_where(STARPU_CPU);
-    starpu::sumnorm::restrict_where(STARPU_CPU);
-    starpu::clear::restrict_where(STARPU_CPU);
-    starpu::subcopy::restrict_where(STARPU_CPU);
-    starpu::copy::restrict_where(STARPU_CPU);
+    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    starpu::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
+        ooc_disk_node_id, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

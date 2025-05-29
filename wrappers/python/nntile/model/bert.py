@@ -22,7 +22,6 @@ from .bert_modules import BertEmbeddings, BertLMPredictionHead
 
 
 class BertModel(BaseModel):
-    next_tag: int
 
     def __init__(self,
                   embed_layer: BertEmbeddings,
@@ -47,28 +46,27 @@ class BertModel(BaseModel):
     @staticmethod
     def from_torch(bert_torch, batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
-                   config: BertConfigNNTile,
-                   next_tag: int):
+                   config: BertConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
 
-        bert_embedding, next_tag = BertEmbeddings.from_torch(
+        bert_embedding = BertEmbeddings.from_torch(
                                                     bert_torch.embeddings,
                                                     batch_size,
                                                     batch_size_tile,
                                                     seq_len,
                                                     seq_len_tile,
-                                                    config, next_tag)
-        bert_encoder, next_tag = BertEncoder.from_torch(bert_torch.encoder,
-                                                        bert_embedding.activations[-1],
-                                                        config, next_tag)
+                                                    config)
+        bert_encoder = BertEncoder.from_torch(bert_torch.encoder,
+                                              bert_embedding.activations[-1],
+                                              config)
         bert_model_nntile = BertModel(bert_embedding,
                                       bert_encoder,
                                       config)
-        return bert_model_nntile, next_tag
+        return bert_model_nntile
 
     def _make_default_torch_model(self):
         config_torch = BertConfig_torch()
@@ -111,7 +109,6 @@ class BertModel(BaseModel):
 
 
 class BertForMaskedLM(BaseModel):
-    next_tag: int
 
     def __init__(self,
                   bert: BertModel,
@@ -137,29 +134,28 @@ class BertForMaskedLM(BaseModel):
     def from_torch(bert_for_masked_lm_torch,
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
-                   config: BertConfigNNTile,
-                   next_tag: int):
+                   config: BertConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
 
-        bert, next_tag = BertModel.from_torch(
+        bert = BertModel.from_torch(
                                             bert_for_masked_lm_torch.bert,
                                             batch_size,
                                             batch_size_tile,
                                             seq_len,
                                             seq_len_tile,
-                                            config, next_tag)
-        bert_cls, next_tag = BertLMPredictionHead.from_torch(
+                                            config)
+        bert_cls = BertLMPredictionHead.from_torch(
                             bert_for_masked_lm_torch.cls.predictions,
                             bert.activations[-1],
-                            config, next_tag)
+                            config)
         bert_model_nntile = BertForMaskedLM(bert,
                                       bert_cls,
                                       config)
-        return bert_model_nntile, next_tag
+        return bert_model_nntile
 
     def _make_default_torch_model(self):
         config_torch = BertConfig_torch()

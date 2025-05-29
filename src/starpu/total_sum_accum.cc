@@ -185,11 +185,11 @@ void submit(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
     args->ignore_index = ignore_index;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(logsumexp),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
-            STARPU_R, static_cast<starpu_data_handle_t>(class_labels),
+            STARPU_R, logsumexp.get(),
+            STARPU_R, src.get(),
+            STARPU_R, class_labels.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            Config::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(val),
+            Config::STARPU_RW_COMMUTE, val.get(),
             0);
     // Check submission
     if(ret != 0)

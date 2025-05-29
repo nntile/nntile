@@ -91,7 +91,7 @@ void submit(Handle data)
 {
     // Submit task
     int ret = starpu_task_insert(&codelet,
-            STARPU_W, static_cast<starpu_data_handle_t>(data),
+            STARPU_W, data.get(),
             0);
     // Check submission
     if(ret != 0)

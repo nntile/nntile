@@ -31,14 +31,13 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
     // Generate single-tile destination tensor
     TensorTraits dst_single_traits(shape, shape);
     std::vector<int> dist_root = {mpi_root};
-    Tensor<T> dst_single(dst_single_traits, dist_root, last_tag);
+    Tensor<T> dst_single(dst_single_traits, dist_root);
     using Y = typename nntile::kernel::CPUComputeType<T>::value;
     if(mpi_rank == mpi_root)
     {
@@ -57,7 +56,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     {
         dst_distr[i] = (i+1) % mpi_size;
     }
-    Tensor<T> dst(dst_traits, dst_distr, last_tag);
+    Tensor<T> dst(dst_traits, dst_distr);
     scatter(dst_single, dst);
     // Get relu
     if(mpi_rank == mpi_root)
@@ -67,7 +66,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     }
     sqrt_inplace<T>(dst);
     // Compare results
-    Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
+    Tensor<T> dst2_single(dst_single_traits, dist_root);
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {
@@ -98,15 +97,11 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::sqrt_inplace::init();
-    starpu::subcopy::init();
-    starpu::copy::init();
-    starpu::sqrt_inplace::restrict_where(STARPU_CPU);
-    starpu::subcopy::restrict_where(STARPU_CPU);
-    starpu::copy::restrict_where(STARPU_CPU);
+    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    starpu::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
+        ooc_disk_node_id, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

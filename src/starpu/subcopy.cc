@@ -205,9 +205,9 @@ void submit(Index ndim, const std::vector<Index> &src_start,
             STARPU_VALUE, &(copy_shape[0]), ndim*sizeof(copy_shape[0]),
             STARPU_VALUE, &(dst_start[0]), ndim*sizeof(dst_start[0]),
             STARPU_VALUE, &(dst_stride[0]), ndim*sizeof(dst_stride[0]),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
-            mode, static_cast<starpu_data_handle_t>(dst),
-            STARPU_SCRATCH, static_cast<starpu_data_handle_t>(tmp_index),
+            STARPU_R, src.get(),
+            mode, dst.get(),
+            STARPU_SCRATCH, tmp_index.get(),
             STARPU_FLOPS, nflops, // No floating point operations
             0);
     // Check submission

@@ -140,14 +140,14 @@ def generate_inputs(params: BertTestParams,
 
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
-    x_value = tensor_type(x_traits, x_distr, 0)
-    x_grad = tensor_type(x_traits, x_distr, 0)
+    x_value = tensor_type(x_traits, x_distr)
+    x_grad = tensor_type(x_traits, x_distr)
     X = TensorMoments(x_value, x_grad, True)
 
-    nntile_model, _ = BertLMPredictionHead.from_torch(
+    nntile_model = BertLMPredictionHead.from_torch(
             torch_model,
             X,
-            nntile_config, 0)
+            nntile_config)
     nntile_model.clear_gradients()
     x_random = gen.standard_normal((params.hidden_size,
                                     params.seq_len,

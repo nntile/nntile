@@ -14,13 +14,17 @@
 
 #pragma once
 
+// Compile-time definitions
+#include <nntile/defs.h>
+
+// Standard library headers
 #include <cstdint>
 #include <assert.h>
 #include <iostream>
 #include <limits>
+#include <string>
 
-// TODO: add conversions aside from CUDA
-#include <nntile/defs.h>
+// Third-party headers
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_bf16.h>
 #endif // NNTILE_USE_CUDA
@@ -35,202 +39,168 @@
 namespace nntile
 {
 
-//! Integer type for sizes and indices outside StarPU buffers
+//! Integer type for sizes and indices outside NNTile tensors
 using Index = std::int64_t;
 
-//! Floating point type for scalar values outside StarPU buffers
+//! Floating point type for scalar values outside NNTile tensors
 using Scalar = float;
 
-//! NNTile wrapper type for 64-bit signed integers inside NNTile tensors
-class int64_t
+//! Base type for all NNTile types inside NNTile tensors
+/*! It is used to avoid code duplication for all NNTile types. Each type only
+ * allows construction and assignment from a compatible standard type.
+ * Arithmetic operations are intentionally disabled.
+ *
+ * @tparam StorageT: memory layout type
+ * @tparam ReprT: standard type for representation, used for IO operations
+ */
+template<typename StorageT, typename ReprT = StorageT>
+class BaseType
 {
 public:
-    //! Basic type that must have the same size, as this type
-    using storage_t = std::int64_t;
-    //! Basic type that must cover all possible values of this type
-    using repr_t = std::int64_t;
-    //! Flag if copy from repr_t does not require conversion
-    static const bool trivial_copy_from_compat = true;
-    //! String to represent this type
-    static constexpr const char *type_repr = "int64_t";
-    //! Internal value of this type to hold actual data
+    //! Storage type of the value
+    using storage_t = StorageT;
+
+    //! Representation type of the value
+    using repr_t = ReprT;
+
+    //! Internal value of storage_t type to hold actual data
     storage_t value;
-    //! Constructor
-    NNTILE_HOST_DEVICE int64_t() = default;
-    //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE int64_t(const int64_t &other) = default;
-    //! Constructor from a repr_t value
-    NNTILE_HOST_DEVICE explicit int64_t(const repr_t &other):
-        value(other)
+
+    //! Default conversion function from storage_t to repr_t does nothing
+    /*! If a conversion is required, this function shall be overloaded with a
+     * corresponding conversion function.
+     */
+    static NNTILE_HOST_DEVICE repr_t to_repr(const storage_t &value)
+    {
+        return value;
+    }
+
+    //! Default conversion function from repr_t to storage_t does nothing
+    /*! If a conversion is required, this function shall be overloaded with a
+     * corresponding conversion function.
+     */
+    static NNTILE_HOST_DEVICE storage_t to_storage(const repr_t &value)
+    {
+        return value;
+    }
+
+    //! Default constructor with no arguments
+    NNTILE_HOST_DEVICE BaseType() = default;
+
+    //! Default copy constructor
+    NNTILE_HOST_DEVICE explicit BaseType(const BaseType &other) = default;
+
+    //! Constructor from a compatible standard type value
+    NNTILE_HOST_DEVICE explicit BaseType(const repr_t &other):
+        value(to_storage(other))
     {
     }
-    //! Assignment from another value of this type
-    NNTILE_HOST_DEVICE int64_t &operator=(const int64_t &other) = default;
-    //! Assignment from a repr_t value
-    NNTILE_HOST_DEVICE int64_t &operator=(const repr_t &other)
+
+    //! Default assignment from another value of this type
+    NNTILE_HOST_DEVICE BaseType &operator=(const BaseType &other) = default;
+
+    //! Assignment from a compatible standard type value
+    NNTILE_HOST_DEVICE BaseType &operator=(const repr_t &other)
     {
         value = other;
         return *this;
     }
-    //! Conversion to repr_t value
+
+    //! Conversion to compatible standard type value
     NNTILE_HOST_DEVICE explicit operator repr_t() const
     {
-        return value;
+        return to_repr(value);
     }
 };
 
-//! Print function for nntile::int64_t
-inline std::ostream &operator<<(std::ostream &os, const int64_t &value)
+//! Print function for nntile::BaseType
+template<typename StorageT, typename ReprT>
+inline std::ostream &operator<<(
+    std::ostream &os,
+    const BaseType<StorageT, ReprT> &value
+)
 {
-    os << static_cast<typename int64_t::repr_t>(value);
+    os << static_cast<ReprT>(value);
     return os;
+}
+
+//! Type postfix template function
+template<typename T>
+inline std::string type_postfix()
+{
+    return "NotSupportedType";
+}
+
+//! NNTile wrapper type for 64-bit signed integers inside NNTile tensors
+class int64_t: public BaseType<std::int64_t>
+{
+public:
+    // Inherit all constructors
+    using BaseType<std::int64_t>::BaseType;
+
+    // Inherit all assignment operators
+    using BaseType<std::int64_t>::operator=;
+};
+
+//! Type postfix template specialization for nntile::int64_t
+template<>
+inline std::string type_postfix<nntile::int64_t>()
+{
+    return "int64";
 }
 
 //! NNTile wrapper type for bool values inside NNTile tensors
-class bool_t
+class bool_t: public BaseType<bool>
 {
 public:
-    //! Basic type that must have the same size, as this type
-    using storage_t = bool;
-    //! Basic type that must cover all possible values of this type
-    using repr_t = bool;
-    //! Flag if copy from repr_t does not require conversion
-    static const bool trivial_copy_from_compat = true;
-    //! String to represent this type
-    static constexpr const char *type_repr = "bool_t";
-    //! Internal value of this type to hold actual data
-    storage_t value;
-    //! Constructor
-    bool_t() = default;
-    //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE bool_t(const bool_t &other) = default;
-    //! Constructor from a repr_t value
-    NNTILE_HOST_DEVICE explicit bool_t(const repr_t &other):
-        value(other)
-    {
-    }
-    //! Assignment from another value of this type
-    NNTILE_HOST_DEVICE bool_t &operator=(const bool_t &other) = default;
-    //! Assignment from a repr_t value
-    NNTILE_HOST_DEVICE bool_t &operator=(const repr_t &other)
-    {
-        value = other;
-        return *this;
-    }
-    //! Conversion to repr_t value
-    NNTILE_HOST_DEVICE explicit operator repr_t() const
-    {
-        return value;
-    }
+    // Inherit all constructors
+    using BaseType<bool>::BaseType;
+
+    // Inherit all assignment operators
+    using BaseType<bool>::operator=;
 };
 
-//! Print function for nntile::bool_t
-inline std::ostream &operator<<(std::ostream &os, const bool_t &value)
+//! Type postfix template specialization for nntile::bool_t
+template<>
+inline std::string type_postfix<nntile::bool_t>()
 {
-    os << static_cast<typename bool_t::repr_t>(value);
-    return os;
+    return "bool";
 }
 
 //! NNTile wrapper type for double inside NNTile tensors
-class fp64_t
+class fp64_t: public BaseType<double>
 {
 public:
-    //! Basic type that must have the same size, as this type
-    using storage_t = double;
-    //! Basic type that must cover all possible values of this type
-    using repr_t = double;
-    //! Flag if copy from repr_t does not require conversion
-    static const bool trivial_copy_from_compat = true;
-    //! String to represent this type
-    static constexpr const char *type_repr = "fp64_t";
-    //! Internal value of this type to hold actual data
-    storage_t value;
-    //! Constructor
-    NNTILE_HOST_DEVICE fp64_t() = default;
-    //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE fp64_t(const fp64_t &other) = default;
-    //! Constructor from a repr_t value
-    NNTILE_HOST_DEVICE explicit fp64_t(const repr_t &other):
-        value(other)
-    {
-    }
-    //! Assignment from another value of this type
-    NNTILE_HOST_DEVICE fp64_t &operator=(const fp64_t &other) = default;
-    //! Assignment from a repr_t value
-    NNTILE_HOST_DEVICE fp64_t &operator=(const repr_t &other)
-    {
-        value = other;
-        return *this;
-    }
-    //! Conversion to repr_t value
-    NNTILE_HOST_DEVICE explicit operator repr_t() const
-    {
-        return value;
-    }
-    //! Machine precision of this type
-    static repr_t epsilon()
-    {
-        // Just use std::numeric_limits
-        return std::numeric_limits<double>::epsilon();
-    }
+    // Inherit all constructors
+    using BaseType<double>::BaseType;
+
+    // Inherit all assignment operators
+    using BaseType<double>::operator=;
 };
 
-//! Print function for nntile::fp64_t
-inline std::ostream &operator<<(std::ostream &os, const fp64_t &value)
+//! Type postfix template specialization for nntile::fp64_t
+template<>
+inline std::string type_postfix<nntile::fp64_t>()
 {
-    os << static_cast<typename fp64_t::repr_t>(value);
-    return os;
+    return "fp64";
 }
 
 //! NNTile wrapper type for float inside NNTile tensors
-class fp32_t
+class fp32_t: public BaseType<float>
 {
 public:
-    //! Basic type that must have the same size, as this type
-    using storage_t = float;
-    //! Basic type that must cover all possible values of this type
-    using repr_t = float;
-    //! Flag if copy from repr_t does not require conversion
-    static const bool trivial_copy_from_compat = true;
-    //! String to represent this type
-    static constexpr const char *type_repr = "fp32_t";
-    //! Internal value of this type to hold actual data
-    storage_t value;
-    //! Constructor
-    NNTILE_HOST_DEVICE fp32_t() = default;
-    //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE fp32_t(const fp32_t &other) = default;
-    //! Constructor from a repr_t value
-    NNTILE_HOST_DEVICE explicit fp32_t(const repr_t &other):
-        value(other)
-    {
-    }
-    //! Assignment from another value of this type
-    NNTILE_HOST_DEVICE fp32_t &operator=(const fp32_t &other) = default;
-    //! Assignment from a repr_t value
-    NNTILE_HOST_DEVICE fp32_t &operator=(const repr_t &other)
-    {
-        value = other;
-        return *this;
-    }
-    //! Conversion to repr_t value
-    NNTILE_HOST_DEVICE explicit operator repr_t() const
-    {
-        return value;
-    }
-    //! Machine precision of this type
-    static repr_t epsilon()
-    {
-        // Just use std::numeric_limits
-        return std::numeric_limits<float>::epsilon();
-    }
+    // Inherit all constructors
+    using BaseType<float>::BaseType;
+
+    // Inherit all assignment operators
+    using BaseType<float>::operator=;
 };
 
-//! Print function for nntile::fp32_t
-inline std::ostream &operator<<(std::ostream &os, const fp32_t &value)
+//! Type postfix template specialization for nntile::fp32_t
+template<>
+inline std::string type_postfix<nntile::fp32_t>()
 {
-    os << static_cast<typename fp32_t::repr_t>(value);
-    return os;
+    return "fp32";
 }
 
 /*! NNTile wrapper type for TensorFloat32-accelerated float type inside tensors
@@ -238,240 +208,107 @@ inline std::ostream &operator<<(std::ostream &os, const fp32_t &value)
  * All memory-bound operations are performed in `float` precision, while
  * all compute-bound operations are performed in `TensorFloat32` type.
  */
-class fp32_fast_tf32_t
+class fp32_fast_tf32_t: public BaseType<float>
 {
 public:
-    //! Basic type that must have the same size, as this type
-    using storage_t = float;
-    //! Basic type that must cover all possible values of this type
-    using repr_t = float;
-    //! Flag if copy from repr_t does not require conversion
-    static const bool trivial_copy_from_compat = true;
-    //! String to represent this type
-    static constexpr const char *type_repr = "fp32_fast_tf32_t";
-    //! Internal value of this type to hold actual data
-    storage_t value;
-    //! Constructor
-    NNTILE_HOST_DEVICE fp32_fast_tf32_t() = default;
-    //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE fp32_fast_tf32_t(const fp32_fast_tf32_t &other) = default;
-    //! Constructor from a repr_t value
-    NNTILE_HOST_DEVICE explicit fp32_fast_tf32_t(const repr_t &other):
-        value(other)
-    {
-    }
-    //! Assignment from another value of this type
-    NNTILE_HOST_DEVICE fp32_fast_tf32_t &operator=(const fp32_fast_tf32_t &other) = default;
-    //! Assignment from a repr_t value
-    NNTILE_HOST_DEVICE fp32_fast_tf32_t &operator=(const repr_t &other)
-    {
-        value = other;
-        return *this;
-    }
-    //! Conversion to repr_t value
-    NNTILE_HOST_DEVICE explicit operator repr_t() const
-    {
-        return value;
-    }
-    //! Machine precision of this type
-    static repr_t epsilon()
-    {
-        // Init 1.0 and 1.0+eps identically
-        fp32_fast_tf32_t one{1.0}, one_p_eps{1.0};
-        auto uintptr = reinterpret_cast<std::uint32_t *>(&one_p_eps);
-        // Add a bit into mantissa of 1+eps to get actual value of 1+eps
-        *uintptr += 0x2000;
-        // Output difference of 1+eps and 1
-        return static_cast<repr_t>(one_p_eps) - static_cast<repr_t>(one);
-    }
+    // Inherit all constructors
+    using BaseType<float>::BaseType;
+
+    // Inherit all assignment operators
+    using BaseType<float>::operator=;
 };
 
-//! Print function for nntile::fp32_fast_tf32_t
-inline std::ostream &operator<<(std::ostream &os,
-        const fp32_fast_tf32_t &value)
+//! Type postfix template specialization for nntile::fp32_fast_tf32_t
+template<>
+inline std::string type_postfix<nntile::fp32_fast_tf32_t>()
 {
-    os << static_cast<typename fp32_fast_tf32_t::repr_t>(value);
-    return os;
+    return "fp32_fast_tf32";
 }
 
-class fp32_fast_fp16_t
+/*! NNTile wrapper type for FP16-accelerated float type inside tensors
+ *
+ * All memory-bound operations are performed in `float` precision, while
+ * all compute-bound operations are performed in `fp16` type.
+ */
+class fp32_fast_fp16_t: public BaseType<float>
 {
 public:
-    //! Basic type that must have the same size, as this type
-    using storage_t = float;
-    //! Basic type that must cover all possible values of this type
-    using repr_t = float;
-    //! Flag if copy from repr_t does not require conversion
-    static const bool trivial_copy_from_compat = true;
-    //! String to represent this type
-    static constexpr const char *type_repr = "fp32_fast_fp16_t";
-    //! Internal value of this type to hold actual data
-    storage_t value;
-    //! Constructor
-    NNTILE_HOST_DEVICE fp32_fast_fp16_t() = default;
-    //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE fp32_fast_fp16_t(const fp32_fast_fp16_t &other) = default;
-    //! Constructor from a repr_t value
-    NNTILE_HOST_DEVICE explicit fp32_fast_fp16_t(const repr_t &other):
-        value(other)
-    {
-    }
-    //! Assignment from another value of this type
-    NNTILE_HOST_DEVICE fp32_fast_fp16_t &operator=(const fp32_fast_fp16_t &other) = default;
-    //! Assignment from a repr_t value
-    NNTILE_HOST_DEVICE fp32_fast_fp16_t &operator=(const repr_t &other)
-    {
-        value = other;
-        return *this;
-    }
-    //! Conversion to repr_t value
-    NNTILE_HOST_DEVICE explicit operator repr_t() const
-    {
-        return value;
-    }
-    //! Machine precision of this type
-    static repr_t epsilon()
-    {
-        // Init 1.0 and 1.0+eps identically
-        fp32_fast_fp16_t one{1.0}, one_p_eps{1.0};
-        auto uintptr = reinterpret_cast<std::uint32_t *>(&one_p_eps);
-        // Add a bit into mantissa of 1+eps to get actual value of 1+eps
-        *uintptr += 0x10000;
-        // Output difference of 1+eps and 1
-        return static_cast<repr_t>(one_p_eps) - static_cast<repr_t>(one);
-    }
+    // Inherit all constructors
+    using BaseType<float>::BaseType;
+
+    // Inherit all assignment operators
+    using BaseType<float>::operator=;
 };
 
-//! Print function for nntile::fp32_fast_fp16_t
-inline std::ostream &operator<<(std::ostream &os,
-        const fp32_fast_fp16_t &value)
+//! Type postfix template specialization for nntile::fp32_fast_fp16_t
+template<>
+inline std::string type_postfix<nntile::fp32_fast_fp16_t>()
 {
-    os << static_cast<typename fp32_fast_fp16_t::repr_t>(value);
-    return os;
+    return "fp32_fast_fp16";
 }
 
-class fp32_fast_bf16_t
+/*! NNTile wrapper type for BF16-accelerated float type inside tensors
+ *
+ * All memory-bound operations are performed in `float` precision, while
+ * all compute-bound operations are performed in `bf16` type.
+ */
+class fp32_fast_bf16_t: public BaseType<float>
 {
 public:
-    //! Basic type that must have the same size, as this type
-    using storage_t = float;
-    //! Basic type that must cover all possible values of this type
-    using repr_t = float;
-    //! Flag if copy from repr_t does not require conversion
-    static const bool trivial_copy_from_compat = true;
-    //! String to represent this type
-    static constexpr const char *type_repr = "fp32_fast_bf16_t";
-    //! Internal value of this type to hold actual data
-    storage_t value;
-    //! Constructor
-    NNTILE_HOST_DEVICE fp32_fast_bf16_t() = default;
-    //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE fp32_fast_bf16_t(const fp32_fast_bf16_t &other) = default;
-    //! Constructor from a repr_t value
-    NNTILE_HOST_DEVICE explicit fp32_fast_bf16_t(const repr_t &other):
-        value(other)
-    {
-    }
-    //! Assignment from another value of this type
-    NNTILE_HOST_DEVICE fp32_fast_bf16_t &operator=(const fp32_fast_bf16_t &other) = default;
-    //! Assignment from a repr_t value
-    NNTILE_HOST_DEVICE fp32_fast_bf16_t &operator=(const repr_t &other)
-    {
-        value = other;
-        return *this;
-    }
-    //! Conversion to repr_t value
-    NNTILE_HOST_DEVICE explicit operator repr_t() const
-    {
-        return value;
-    }
-    //! Machine precision of this type
-    static repr_t epsilon()
-    {
-        // Init 1.0 and 1.0+eps identically
-        fp32_fast_bf16_t one{1.0}, one_p_eps{1.0};
-        auto uintptr = reinterpret_cast<std::uint32_t *>(&one_p_eps);
-        // Add a bit into mantissa of 1+eps to get actual value of 1+eps
-        *uintptr += 0x10000;
-        // Output difference of 1+eps and 1
-        return static_cast<repr_t>(one_p_eps) - static_cast<repr_t>(one);
-    }
+    // Inherit all constructors
+    using BaseType<float>::BaseType;
+
+    // Inherit all assignment operators
+    using BaseType<float>::operator=;
 };
 
-//! Print function for nntile::fp32_fast_bf16_t
-inline std::ostream &operator<<(std::ostream &os,
-        const fp32_fast_bf16_t &value)
+//! Type postfix template specialization for nntile::fp32_fast_bf16_t
+template<>
+inline std::string type_postfix<nntile::fp32_fast_bf16_t>()
 {
-    os << static_cast<typename fp32_fast_bf16_t::repr_t>(value);
-    return os;
+    return "fp32_fast_bf16";
 }
 
 //! NNTile wrapper type BrainFloat16 type inside tensors
-class bf16_t
+class bf16_t: public BaseType<std::uint16_t, float>
 {
 public:
-    //! Basic type that must have the same size, as this type
-    using storage_t = std::uint16_t;
-    //! Basic type that must cover all possible values of this type
-    using repr_t = float;
-    //! Flag if copy from repr_t does not require conversion
-    static const bool trivial_copy_from_compat = false;
-    //! String to represent this type
-    static constexpr const char *type_repr = "bf16_t";
-    //! Internal value of this type to hold actual data
-    storage_t value;
-    //! Constructor
-    NNTILE_HOST_DEVICE bf16_t() = default;
-    //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE bf16_t(const bf16_t &other) = default;
-    //! Constructor from a repr_t value
-    NNTILE_HOST_DEVICE explicit bf16_t(const repr_t &other)
+    // Inherit all constructors
+    using BaseType<std::uint16_t, float>::BaseType;
+
+    // Inherit all assignment operators
+    using BaseType<std::uint16_t, float>::operator=;
+
+    //! Conversion from repr_t to storage_t
+    static NNTILE_HOST_DEVICE storage_t to_storage(const repr_t &value)
     {
 #ifdef NNTILE_USE_CUDA
-        auto val = __float2bfloat16(other);
-        value = *reinterpret_cast<storage_t *>(&val);
+        auto val = __float2bfloat16(value);
+        return *reinterpret_cast<storage_t *>(&val);
 #else
-        auto raw_uint32 = reinterpret_cast<const std::uint32_t *>(&other);
-        value = static_cast<std::uint16_t>(*raw_uint32 >> 16);
+        auto raw_uint32 = *reinterpret_cast<const std::uint32_t *>(&value);
+        return static_cast<storage_t>(raw_uint32 >> 16);
 #endif
     }
-    //! Assignment from another value of this type
-    NNTILE_HOST_DEVICE bf16_t &operator=(const bf16_t &other) = default;
-    //! Assignment from a repr_t value
-    NNTILE_HOST_DEVICE bf16_t &operator=(const repr_t &other)
-    {
-        return *this = bf16_t(other);
-    }
-    //! Conversion to repr_t value
-    NNTILE_HOST_DEVICE explicit operator repr_t() const
+
+    //! Conversion from storage_t to repr_t
+    static NNTILE_HOST_DEVICE repr_t to_repr(const storage_t &value)
     {
 #ifdef NNTILE_USE_CUDA
-        auto val = reinterpret_cast<const __nv_bfloat16 *>(&value);
-        return __bfloat162float(*val);
+        auto val = *reinterpret_cast<const __nv_bfloat16 *>(&value);
+        return __bfloat162float(val);
 #else
-        auto raw_uint16 = reinterpret_cast<const std::uint16_t *>(&value);
-        auto raw_uint32 = static_cast<std::uint32_t>(*raw_uint16);
-        return *reinterpret_cast<repr_t *>(raw_uint32 << 16);
+        std::uint32_t raw_uint32 = value;
+        return *reinterpret_cast<repr_t *>(&raw_uint32);
 #endif
-    }
-    //! Machine precision of this type
-    static repr_t epsilon()
-    {
-        // Init 1.0 and 1.0+eps identically
-        bf16_t one{1.0}, one_p_eps{1.0};
-        auto uintptr = reinterpret_cast<std::uint16_t *>(&one_p_eps);
-        // Add a bit into mantissa of 1+eps to get actual value of 1+eps
-        *uintptr += 1;
-        // Output difference of 1+eps and 1
-        return static_cast<repr_t>(one_p_eps) - static_cast<repr_t>(one);
     }
 };
 
-//! Print function for nntile::bf16_t
-inline std::ostream &operator<<(std::ostream &os, const bf16_t &value)
+//! Type postfix template specialization for nntile::bf16_t
+template<>
+inline std::string type_postfix<nntile::bf16_t>()
 {
-    os << static_cast<typename bf16_t::repr_t>(value);
-    return os;
+    return "bf16";
 }
 
 } // namespace nntile

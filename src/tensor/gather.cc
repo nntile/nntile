@@ -62,7 +62,7 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
     // Do the slow complex copy
     // Temporary buffer for indexing, that is allocated per-worker when needed
     Index ndim = src.ndim;
-    starpu::VariableHandle scratch(2*ndim*sizeof(int64_t), STARPU_SCRATCH);
+    starpu::VariableHandle scratch(2*ndim*sizeof(int64_t));
     // We define starting coordinates and shapes for all complex copies of
     // tiles
     std::vector<Index> src_tile_start(ndim), dst_tile_start(ndim);
@@ -109,6 +109,8 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
                     src_tile_handle, dst_tile_handle, scratch, STARPU_RW);
         }
     }
+    // Unregister scratch buffer in an async manner
+    scratch.unregister_submit();
     // Flush cache for the output tile on every node
     dst_tile_handle.mpi_flush();
 }

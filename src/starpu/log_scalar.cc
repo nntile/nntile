@@ -104,7 +104,7 @@ void submit(const std::string &name, Handle value)
     args->name = name;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(value),
+            STARPU_R, value.get(),
             STARPU_CL_ARGS_NFREE, args, sizeof(*args),
             0);
     // Check submission

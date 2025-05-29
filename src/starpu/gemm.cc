@@ -636,9 +636,9 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
     double nflops = 2 * m * n * k * batch;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(transA, transB),
-            STARPU_R, static_cast<starpu_data_handle_t>(A),
-            STARPU_R, static_cast<starpu_data_handle_t>(B),
-            C_mode, static_cast<starpu_data_handle_t>(C),
+            STARPU_R, A.get(),
+            STARPU_R, B.get(),
+            C_mode, C.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);

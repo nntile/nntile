@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/starpu/config.hh"
 #include "nntile/starpu/randn.hh"
 #include "nntile/kernel/randn.hh"
 #include "../testing.hh"
@@ -37,7 +38,7 @@ void validate_cpu_empty()
     std::cout << "Run kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     kernel::randn::cpu_ndim0<T>(seed, mean, stddev, &data);
     // Check by actually submitting a task
-    VariableHandle data2_handle(&data2, sizeof(T), STARPU_RW);
+    VariableHandle data2_handle(&data2, sizeof(T));
     Handle null_handle;
     std::vector<Index> start, shape, stride, underlying_shape;
     randn::restrict_where(STARPU_CPU);
@@ -85,8 +86,8 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
             &shape[0], &underlying_shape[0], &data[0], &stride[0],
             &tmp_index[0]);
     // Check by actually submitting a task
-    VariableHandle data2_handle(&data2[0], sizeof(T)*size, STARPU_RW),
-        tmp_handle(&tmp_index[0], sizeof(Index)*NDIM, STARPU_R);
+    VariableHandle data2_handle(&data2[0], sizeof(T)*size),
+        tmp_handle(&tmp_index[0], sizeof(Index)*NDIM);
     std::vector<Index> start_(start.cbegin(), start.cend()),
         shape_(shape.cbegin(), shape.cend()),
         underlying_shape_(underlying_shape.cbegin(), underlying_shape.cend());
@@ -120,12 +121,17 @@ void validate_many()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 0, 0);
-    // Init codelet
-    randn::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto config = starpu::Config(
+        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
+    );
+
     // Launch all tests
     validate_many<fp32_t>();
     validate_many<fp64_t>();
+
     return 0;
 }

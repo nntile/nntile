@@ -153,11 +153,11 @@ void submit(Index m, Index n, Handle sin, Handle cos, Handle dy, Handle dx)
     args->n = n;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(sin),
-            STARPU_R, static_cast<starpu_data_handle_t>(cos),
-            STARPU_R, static_cast<starpu_data_handle_t>(dy),
+            STARPU_R, sin.get(),
+            STARPU_R, cos.get(),
+            STARPU_R, dy.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_W, static_cast<starpu_data_handle_t>(dx),
+            STARPU_W, dx.get(),
             0);
     // Check submission
     if(ret != 0)

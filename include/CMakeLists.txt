@@ -16,7 +16,7 @@ set(BASE_HDR
     "nntile.hh"
     "nntile/base_types.hh"
     "nntile/constants.hh"
-    "nntile/config.hh"
+    "nntile/context.hh"
     )
 
 set(KERNEL_HDR
@@ -153,7 +153,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/add_inplace/cuda.hh"
         "nntile/kernel/add_slice/cuda.hh"
         "nntile/kernel/add_fiber_inplace/cuda.hh"
-	"nntile/kernel/add_fiber/cuda.hh"
+        "nntile/kernel/add_fiber/cuda.hh"
         "nntile/kernel/prod_slice/cuda.hh"
         "nntile/kernel/prod_fiber/cuda.hh"
         "nntile/kernel/prod_fiber3/cuda.hh"
@@ -291,6 +291,7 @@ set(STARPU_HDR
     "nntile/starpu/rope.hh"
     "nntile/starpu/rope_backward.hh"
     "nntile/starpu/log_scalar.hh"
+    "nntile/starpu/flash_sdpa_fwd_cudnn.hh"
     )
 
 set(TILE_HDR

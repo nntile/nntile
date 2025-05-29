@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/starpu/config.hh"
 #include "nntile/starpu/gelutanh_inplace.hh"
 #include "nntile/kernel/gelutanh_inplace.hh"
 #include "../testing.hh"
@@ -41,8 +42,7 @@ void validate_cpu(Index nelems)
     std::cout << "Run kernel::gelutanh_inplace::cpu<" << T::type_repr << ">\n";
     kernel::gelutanh_inplace::cpu<T>(nelems, &data[0]);
     // Check by actually submitting a task
-    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems,
-            STARPU_RW);
+    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
     gelutanh_inplace::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::gelutanh_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
     gelutanh_inplace::submit<T>(nelems, data2_handle);
@@ -101,8 +101,7 @@ void validate_cuda(Index nelems)
     cuda_err = cudaFree(dev_data);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
-    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems,
-            STARPU_RW);
+    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
     gelutanh_inplace::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::gelutanh_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
     gelutanh_inplace::submit<T>(nelems, data2_handle);
@@ -119,10 +118,14 @@ void validate_cuda(Index nelems)
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 1, 0);
-    // Init codelet
-    gelutanh_inplace::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpus=1, ncuda=1, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto config = starpu::Config(
+        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
+    );
+
     // Launch all tests
     validate_cpu<fp32_t>(1);
     validate_cpu<fp32_t>(10000);
@@ -134,5 +137,6 @@ int main(int argc, char **argv)
     validate_cuda<fp64_t>(1);
     validate_cuda<fp64_t>(10000);
 #endif // NNTILE_USE_CUDA
+
     return 0;
 }

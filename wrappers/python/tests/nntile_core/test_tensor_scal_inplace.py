@@ -17,8 +17,7 @@ from numpy.testing import assert_equal
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
+nntile.nntile_init(ncpus=1, ncuda=0, cublas=0, ooc=0, logger=0, verbose=0)
 
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
@@ -34,12 +33,9 @@ def test_scal_inplace(dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
     alpha = -2.5
-    mpi_distr = [0]
-    next_tag = 0
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
+    A = Tensor[dtype](traits)
     # Set initial values of tensors
     rand_A = np.random.default_rng(42).standard_normal(shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')

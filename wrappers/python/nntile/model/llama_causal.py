@@ -30,7 +30,6 @@ from .llama_config import LlamaConfigNNTile
 
 
 class LlamaForCausalLM(BaseModel, LLMGenerationMixin):
-    next_tag: int
     llama_model_: Llama_nntile
     lin_: Linear
 
@@ -126,31 +125,29 @@ class LlamaForCausalLM(BaseModel, LLMGenerationMixin):
                    seq_len, seq_len_tile,
                    position_ids: np.ndarray,
                    mask: np.ndarray,
-                   config: LlamaConfigNNTile,
-                   next_tag: int):
+                   config: LlamaConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32 and bf16 are"
                             "supported for weight type")
 
-        llama_model, next_tag = Llama_nntile.from_torch(
+        llama_model = Llama_nntile.from_torch(
                    torch_llama_causal.model,
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
                    position_ids,
                    mask,
-                   config,
-                   next_tag)
-        lin_head, next_tag = Linear.from_torch(torch_llama_causal.lm_head,
+                   config)
+        lin_head = Linear.from_torch(torch_llama_causal.lm_head,
                                                llama_model.activations[-1],
                                                config.vocab_size,
-                                               config.redux, next_tag)
+                                               config.redux)
 
         causal_llama_nntile = LlamaForCausalLM(llama_model,
                                                lin_head,
                                                config)
 
-        return causal_llama_nntile, next_tag
+        return causal_llama_nntile
 
     def to_torch(self):
         config_torch = LlamaConfig_torch(
@@ -225,8 +222,7 @@ def create_llama_model_from_torch_pretrained(
     mask = np.array(np.triu(np.ones((seq_len, seq_len))),
                         dtype=bool, order="F")
 
-    next_tag = 0
-    llama_causal_nntile, next_tag = LlamaForCausalLM.from_torch(
+    llama_causal_nntile = LlamaForCausalLM.from_torch(
         model_torch,
         batch_size,
         batch_size_tile or batch_size,
@@ -234,11 +230,10 @@ def create_llama_model_from_torch_pretrained(
         seq_len_tile or seq_len,
         pos_ids,
         mask,
-        llama_config_nntile,
-        next_tag
+        llama_config_nntile
     )
 
-    return llama_causal_nntile, next_tag
+    return llama_causal_nntile
 
 
 def compare_shapes(iterable1, iterable2):

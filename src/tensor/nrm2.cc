@@ -67,34 +67,6 @@ void nrm2_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T>
         {
             starpu::nrm2::submit<T>(src_tile_traits.nelems, src_tile_handle,
                     tmp_tile_handle);
-            // Transfer result if needed
-            if(mpi_rank != tmp_tile_rank)
-            {
-                // No need to check for cached send, as output was just updated
-                //ret = starpu_mpi_isend_detached(
-                //        static_cast<starpu_data_handle_t>(tmp_tile_handle),
-                //        tmp_tile_rank, tmp_tile_tag, MPI_COMM_WORLD, nullptr,
-                //        nullptr);
-                //if(ret != 0)
-                //{
-                //    throw std::runtime_error("Error in starpu_mpi_isend_"
-                //            "detached");
-                //}
-            }
-        }
-        // Init receive of tmp tile
-        else if(mpi_rank == tmp_tile_rank)
-        {
-            // No need to check for cached recv, as output was just updated
-            //ret = starpu_mpi_irecv_detached(
-            //        static_cast<starpu_data_handle_t>(tmp_tile_handle),
-            //        src_tile_rank, tmp_tile_tag, MPI_COMM_WORLD, nullptr,
-            //        nullptr);
-            //if(ret != 0)
-            //{
-            //    throw std::runtime_error("Error in starpu_mpi_irecv_"
-            //            "detached");
-            //}
         }
         // Update total norm
         tmp_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);

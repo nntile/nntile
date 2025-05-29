@@ -79,7 +79,6 @@ def cifar_data_loader_to_nntile(
     batch_size,
     minibatch_size,
     patch_size,
-    next_tag,
 ):
     total_len, h, w, num_clr_channels = data_set.shape
     n_batches = total_len // batch_size
@@ -97,10 +96,8 @@ def cifar_data_loader_to_nntile(
     tmp_label_tensor = torch.empty(minibatch_size, dtype=torch.float32)
 
     x_traits = nntile.tensor.TensorTraits(X_shape, X_shape)
-    x_distr = [0] * x_traits.grid.nelems
 
     y_traits = nntile.tensor.TensorTraits(Y_shape, Y_shape)
-    y_distr = [0] * y_traits.grid.nelems
 
     for i in range(n_batches):
         minibatch_input = []
@@ -118,12 +115,10 @@ def cifar_data_loader_to_nntile(
                 tmp_label_tensor[k] = label_set[
                     i * batch_size + j * minibatch_size + k
                 ]
-            x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
-            next_tag = x.next_tag
+            x = nntile.tensor.Tensor_fp32(x_traits)
             x.from_array(np.asfortranarray(tmp_data_tensor.numpy()))
             minibatch_input.append(x)
-            y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
-            next_tag = y.next_tag
+            y = nntile.tensor.Tensor_int64(y_traits)
             y.from_array(
                 np.asfortranarray(tmp_label_tensor.numpy().reshape(-1))
             )
@@ -141,7 +136,6 @@ def mnist_data_loader_to_nntile(
     batch_size,
     minibatch_size,
     patch_size,
-    next_tag,
 ):
     total_len, h, w = data_set.shape
     n_batches = total_len // batch_size
@@ -160,10 +154,8 @@ def mnist_data_loader_to_nntile(
     tmp_label_tensor = np.empty(minibatch_size, dtype=np.float32)
 
     x_traits = nntile.tensor.TensorTraits(X_shape, X_shape)
-    x_distr = [0] * x_traits.grid.nelems
 
     y_traits = nntile.tensor.TensorTraits(Y_shape, Y_shape)
-    y_distr = [0] * y_traits.grid.nelems
 
     for i in range(n_batches):
         minibatch_input = []
@@ -179,12 +171,10 @@ def mnist_data_loader_to_nntile(
                 tmp_label_tensor[k] = label_set[
                     i * batch_size + j * minibatch_size + k
                 ]
-            x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
-            next_tag = x.next_tag
+            x = nntile.tensor.Tensor_fp32(x_traits)
             x.from_array(np.asfortranarray(tmp_data_tensor.numpy()))
             minibatch_input.append(x)
-            y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
-            next_tag = y.next_tag
+            y = nntile.tensor.Tensor_int64(y_traits)
             y.from_array(np.asfortranarray(tmp_label_tensor.reshape(-1)))
             minibatch_output.append(y)
         batch_input.append(minibatch_input)

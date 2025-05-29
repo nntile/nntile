@@ -261,11 +261,11 @@ void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
     // Submit task
     double nflops = 2 * seq * seq * head * batch;
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(K),
-            STARPU_R, static_cast<starpu_data_handle_t>(Q),
-            STARPU_R, static_cast<starpu_data_handle_t>(mask),
-            maxsumexp_mode, static_cast<starpu_data_handle_t>(maxsumexp),
-            STARPU_SCRATCH, static_cast<starpu_data_handle_t>(tmp),
+            STARPU_R, K.get(),
+            STARPU_R, Q.get(),
+            STARPU_R, mask.get(),
+            maxsumexp_mode, maxsumexp.get(),
+            STARPU_SCRATCH, tmp.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);

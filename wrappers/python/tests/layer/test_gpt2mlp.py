@@ -90,12 +90,17 @@ def test_gpt2mlp(
     torch_val.backward()
 
     time0 = -time.time()
-    # Set up StarPU+MPI and init codelets
-    _config = nntile.starpu.Config(1, 1, 1)
-    nntile.starpu.init()
+    # Initialize NNTile
+    nntile.nntile_init(
+        ncpus=1,
+        ncuda=0,
+        cublas=0,
+        ooc=0,
+        logger=0,
+        verbose=0,
+    )
     time0 += time.time()
     print("StarPU + NNTile + MPI init in {} seconds".format(time0))
-    next_tag = 0
 
     nntile_config = {
         "embed_dim": input_dim,
@@ -112,16 +117,15 @@ def test_gpt2mlp(
         [input_dim, batch_size], [input_dim_tile, batch_size_tile]
     )
     x_distr = [0] * x_traits.grid.nelems
-    x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
+    x = nntile.tensor.Tensor_fp32(x_traits, x_distr)
     x.from_array(test_input_np)
-    next_tag = x.next_tag
     x_grad = None
     x_grad_required = False
     x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
     print("Create model...")
-    gpt2mlp_nntile, next_tag = GPT2MLP_nntile.from_torch(
-        gpt2mlp_hug, x_moments, nntile_config, next_tag
+    gpt2mlp_nntile = GPT2MLP_nntile.from_torch(
+        gpt2mlp_hug, x_moments, nntile_config
     )
     print("Create model...done")
     print("Forward model...")
@@ -182,8 +186,6 @@ def test_gpt2mlp_dynamic(
         torch.from_numpy(test_input_half_np.T).to(device)
     )
 
-    next_tag = 0
-
     nntile_config = {
         "embed_dim": input_dim,
         "embed_dim_tile": input_dim_tile,
@@ -198,8 +200,8 @@ def test_gpt2mlp_dynamic(
     x = nntc.from_array(test_input_np)
     x_moments = nntile.tensor.TensorMoments(x, None, False)
 
-    gpt2mlp_nntile, next_tag = GPT2MLP_nntile.from_torch(
-        gpt2mlp_hug, x_moments, nntile_config, next_tag
+    gpt2mlp_nntile = GPT2MLP_nntile.from_torch(
+        gpt2mlp_hug, x_moments, nntile_config
     )
 
     # test with same tensor

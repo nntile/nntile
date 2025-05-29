@@ -16,6 +16,7 @@
 #include "nntile/kernel/randn.hh"
 #endif // STARPU_SIMGRID
 #include "nntile/starpu/randn.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::starpu::randn
 {
@@ -172,8 +173,8 @@ void submit(Index ndim, Index nelems, unsigned long long seed,
                 STARPU_VALUE, &stride[0], ndim*sizeof(stride[0]),
                 STARPU_VALUE, &underlying_shape[0],
                 ndim*sizeof(underlying_shape[0]),
-                STARPU_W, static_cast<starpu_data_handle_t>(data),
-                STARPU_SCRATCH, static_cast<starpu_data_handle_t>(tmp_index),
+                STARPU_W, data.get(),
+                STARPU_SCRATCH, tmp_index.get(),
                 STARPU_FLOPS, nflops,
                 0);
     }
@@ -183,7 +184,7 @@ void submit(Index ndim, Index nelems, unsigned long long seed,
                 STARPU_VALUE, &seed, sizeof(seed),
                 STARPU_VALUE, &mean, sizeof(mean),
                 STARPU_VALUE, &stddev, sizeof(stddev),
-                STARPU_W, static_cast<starpu_data_handle_t>(data),
+                STARPU_W, data.get(),
                 STARPU_FLOPS, nflops,
                 0);
     }

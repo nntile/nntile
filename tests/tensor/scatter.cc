@@ -28,7 +28,6 @@ void check(const std::vector<Index> &shape,
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     // Traits of source and destination tensors
@@ -42,7 +41,7 @@ void check(const std::vector<Index> &shape,
         dst_distr[i] = (i+1) % mpi_size;
     }
     // Init source tensor
-    Tensor<T> src(src_traits, src_distr, last_tag);
+    Tensor<T> src(src_traits, src_distr);
     if(mpi_rank == 0)
     {
         auto tile_handle = src.get_tile_handle(0);
@@ -56,7 +55,7 @@ void check(const std::vector<Index> &shape,
         tile_local.release();
     }
     // Define destination tensor
-    Tensor<T> dst(dst_traits, dst_distr, last_tag);
+    Tensor<T> dst(dst_traits, dst_distr);
     // Scatter
     scatter<T>(src, dst);
     // Check scatter
@@ -97,16 +96,15 @@ void validate()
     check<T>({768, 1000}, {384, 500});
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
-    starpu_mpi_tag_t last_tag = 0;
     std::vector<Index> sh234 = {2, 3, 4}, sh235 = {2, 3 ,5}, sh233 = {2, 3, 3},
         sh23 = {2, 3};
     std::vector<int> dist0 = {0}, dist00 = {0, 0};
     TensorTraits trA(sh234, sh234), trB(sh235, sh235), trC(sh234, sh233),
         trD(sh23, sh23);
-    Tensor<T> A(trA, dist0, last_tag),
-        B(trB, dist0, last_tag),
-        C(trC, dist00, last_tag),
-        D(trD, dist0, last_tag);
+    Tensor<T> A(trA, dist0),
+        B(trB, dist0),
+        C(trC, dist00),
+        D(trD, dist0);
     TEST_THROW(scatter<T>(C, A));
     TEST_THROW(scatter<T>(A, D));
     TEST_THROW(scatter<T>(A, B));
@@ -114,13 +112,11 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::subcopy::init();
-    starpu::copy::init();
-    starpu::subcopy::restrict_where(STARPU_CPU);
-    starpu::copy::restrict_where(STARPU_CPU);
+    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    starpu::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
+        ooc_disk_node_id, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

@@ -22,7 +22,6 @@ class SGD:
         self,
         params,
         lr,
-        next_tag,
         momentum=0.0,
         nesterov=False,
         weight_decay=0.0,
@@ -33,7 +32,6 @@ class SGD:
         self.nesterov = nesterov
         self.num_iter = 0
         self.dtype = dtype
-        self.next_tag = next_tag
         if dtype == np.float32:
             self.lr = np.float32(lr)
             self.momentum = np.float32(momentum)
@@ -50,13 +48,9 @@ class SGD:
                 p_traits = TensorTraits(p.value.shape, p.value.basetile_shape)
                 self.states.append(
                     type(p.value)(
-                        p_traits, p.value.distribution, self.next_tag
+                        p_traits, p.value.distribution
                     )
                 )
-                self.next_tag = self.states[-1].next_tag
-
-    def get_next_tag(self):
-        return self.next_tag
 
     def unregister(self):
         if self.momentum > 0:

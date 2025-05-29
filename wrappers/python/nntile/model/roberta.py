@@ -24,7 +24,6 @@ from .roberta_modules import RobertaLMHead
 
 
 class RobertaModel(BaseModel):
-    next_tag: int
 
     def __init__(self,
                   embed_layer: BertEmbeddings,
@@ -49,28 +48,27 @@ class RobertaModel(BaseModel):
     @staticmethod
     def from_torch(bert_torch, batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
-                   config: BertConfigNNTile,
-                   next_tag: int):
+                   config: BertConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
 
-        bert_embedding, next_tag = BertEmbeddings.from_torch(
+        bert_embedding = BertEmbeddings.from_torch(
                                                     bert_torch.embeddings,
                                                     batch_size,
                                                     batch_size_tile,
                                                     seq_len,
                                                     seq_len_tile,
-                                                    config, next_tag)
-        bert_encoder, next_tag = BertEncoder.from_torch(bert_torch.encoder,
-                                                        bert_embedding.activations[-1],
-                                                        config, next_tag)
+                                                    config)
+        bert_encoder = BertEncoder.from_torch(bert_torch.encoder,
+                                              bert_embedding.activations[-1],
+                                              config)
         bert_model_nntile = RobertaModel(bert_embedding,
                                       bert_encoder,
                                       config)
-        return bert_model_nntile, next_tag
+        return bert_model_nntile
 
     def _make_default_torch_model(self):
         config_torch = RobertaConfig_torch()
@@ -113,7 +111,6 @@ class RobertaModel(BaseModel):
 
 
 class RobertaForMaskedLM(BaseModel):
-    next_tag: int
 
     def __init__(self,
                   roberta: RobertaModel,
@@ -139,29 +136,28 @@ class RobertaForMaskedLM(BaseModel):
     def from_torch(bert_for_masked_lm_torch,
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
-                   config: BertConfigNNTile,
-                   next_tag: int):
+                   config: BertConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
 
-        roberta, next_tag = RobertaModel.from_torch(
+        roberta = RobertaModel.from_torch(
                                             bert_for_masked_lm_torch.roberta,
                                             batch_size,
                                             batch_size_tile,
                                             seq_len,
                                             seq_len_tile,
-                                            config, next_tag)
-        lm_head, next_tag = RobertaLMHead.from_torch(
+                                            config)
+        lm_head = RobertaLMHead.from_torch(
                             bert_for_masked_lm_torch.lm_head,
                             roberta.activations[-1],
-                            config, next_tag)
+                            config)
         bert_model_nntile = RobertaForMaskedLM(roberta,
                                       lm_head,
                                       config)
-        return bert_model_nntile, next_tag
+        return bert_model_nntile
 
     def _make_default_torch_model(self):
         config_torch = RobertaConfig_torch()

@@ -136,9 +136,9 @@ void submit(Scalar val, Scalar eps, Index nelems, Handle nom, Handle denom, Hand
     //double nflops = 5 * nelems;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(nom),
-            STARPU_R, static_cast<starpu_data_handle_t>(denom),
-            STARPU_RW, static_cast<starpu_data_handle_t>(src),
+            STARPU_R, nom.get(),
+            STARPU_R, denom.get(),
+            STARPU_RW, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             //STARPU_FLOPS, nflops,
             0);

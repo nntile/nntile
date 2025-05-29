@@ -14,31 +14,44 @@
 
 #pragma once
 
-#include <nntile/starpu/config.hh>
+// Compile-time definitions
+#include <nntile/defs.h>
+
+// NNTile headers
+#include <nntile/starpu/codelet.hh>
+#include <nntile/starpu/handle.hh>
 
 namespace nntile::starpu::clear
 {
 
-// Clear a StarPU buffer on CPU
-void cpu(void *buffers[], void *cl_args)
-    noexcept;
+//! Wrapper for all kernel functions
+struct KernelWrapper
+{
+    static void cpu(void *buffers[], void *cl_args)
+        noexcept;
+
+    static constexpr func_array cpu_funcs = {
+        cpu
+    };
 
 #ifdef NNTILE_USE_CUDA
-// Clear StarPU buffer on CUDA
-template<typename T>
-void cuda(void *buffers[], void *cl_args)
-    noexcept;
-#endif // NNTILE_USE_CUDA
+    static void cuda(void *buffers[], void *cl_args)
+        noexcept;
 
+    static constexpr func_array cuda_funcs = {
+        cuda
+    };
+#else // NNTILE_USE_CUDA
+    static constexpr func_array cuda_funcs = {};
+#endif // NNTILE_USE_CUDA
+};
+
+// Declare codelet
 extern Codelet codelet;
 
-void init();
-
-void restrict_where(uint32_t where);
-
-void restore_where();
-
 //! Insert task to clear buffer
-void submit(Handle data);
+void submit(
+    Handle data
+);
 
 } // namespace nntile::starpu::clear

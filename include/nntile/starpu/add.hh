@@ -14,9 +14,12 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
-#include <nntile/starpu/config.hh>
+// Compile-time definitions
 #include <nntile/defs.h>
+
+// NNTile headers
+#include <nntile/starpu/codelet.hh>
+#include <nntile/starpu/handle.hh>
 
 namespace nntile::starpu::add
 {
@@ -24,83 +27,64 @@ namespace nntile::starpu::add
 //! Structure for arguments
 struct args_t
 {
-    args_t(Index nelems_, Scalar alpha_, Scalar beta_) :
+    Index nelems;
+    Scalar alpha;
+    Scalar beta;
+
+    args_t(Index nelems_, Scalar alpha_, Scalar beta_):
         nelems(nelems_),
         alpha(alpha_),
         beta(beta_)
         {
         }
-    Index nelems;
-    Scalar alpha;
-    Scalar beta;
 };
 
-// Apply add for StarPU buffers on CPU
+//! Wrapper for all kernel functions
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
-    noexcept;
+struct KernelWrapper
+{
+    static void cpu(void *buffers[], void *cl_args)
+        noexcept;
+
+    static constexpr func_array cpu_funcs = {
+        cpu
+    };
 
 #ifdef NNTILE_USE_CUDA
-// Apply add for StarPU buffers on CUDA
-template<typename T>
-void cuda(void *buffers[], void *cl_args)
-    noexcept;
+    static void cuda(void *buffers[], void *cl_args)
+        noexcept;
+
+    static constexpr func_array cuda_funcs = {
+        cuda
+    };
+#else // NNTILE_USE_CUDA
+    static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
+};
 
-extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32,
-       codelet_bf16, codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
+//! Codelet pack type for the current operation
+using codelet_pack_t = CodeletPack<
+    KernelWrapper,
+    nntile::fp64_t,
+    nntile::fp32_t,
+    nntile::fp32_fast_tf32_t,
+    nntile::fp32_fast_fp16_t,
+    nntile::fp32_fast_bf16_t,
+    nntile::bf16_t
+>;
 
+// Declare codelet pack
+extern codelet_pack_t codelet_pack;
+
+//! Submit add task
 template<typename T>
-constexpr Codelet *codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_t>()
-{
-    return &codelet_fp32;
-}
-
-template<>
-constexpr Codelet *codelet<bf16_t>()
-{
-    return &codelet_bf16;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_fast_tf32_t>()
-{
-    return &codelet_fp32_fast_tf32;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_fast_fp16_t>()
-{
-    return &codelet_fp32_fast_fp16;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_fast_bf16_t>()
-{
-    return &codelet_fp32_fast_bf16;
-}
-
-template<>
-constexpr Codelet *codelet<fp64_t>()
-{
-    return &codelet_fp64;
-}
-
-void init();
-
-void restrict_where(uint32_t where);
-
-void restore_where();
-
-template<typename T>
-void submit(Index nelems, Scalar alpha, Handle src1, Scalar beta, Handle src2,
-        Handle dst);
+void submit(
+    Index nelems,
+    Scalar alpha,
+    Handle src1,
+    Scalar beta,
+    Handle src2,
+    Handle dst
+);
 
 } // namespace nntile::starpu::add

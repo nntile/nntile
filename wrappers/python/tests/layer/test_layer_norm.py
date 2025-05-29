@@ -89,7 +89,7 @@ def generate_inputs(dtype: str, params: LayerNormTestParams):
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
-    x_value = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
     x_grad = nntc.zeros_like(x_value)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     x_random = rng.standard_normal(x_shape)
@@ -98,7 +98,7 @@ def generate_inputs(dtype: str, params: LayerNormTestParams):
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_()
 
-    nntile_layer, _ = nntile.layer.LayerNorm.from_torch(torch_layer, X, 0)
+    nntile_layer = nntile.layer.LayerNorm.from_torch(torch_layer, X)
     y_grad_random = rng.standard_normal(x_shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.y.grad.from_array(y_grad_nntile)
@@ -129,7 +129,7 @@ def generate_inputs_dynamic(dtype: str, params: LayerNormTestParams):
     )
     x_torch = torch.Tensor(x_nntile.T)
 
-    nntile_layer, _ = nntile.layer.LayerNorm.from_torch(torch_layer, X, 0)
+    nntile_layer = nntile.layer.LayerNorm.from_torch(torch_layer, X)
 
     x_shape = [params.n_size, params.m_size_dyn]
     x_basetile_shape = [params.n_size_tile, params.m_size_dyn_tile]

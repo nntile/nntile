@@ -20,6 +20,9 @@
 // Constants (e.g., transposition for gemm)
 #include <nntile/constants.hh>
 
+// NNTile context
+#include <nntile/context.hh>
+
 // StarPU init/deinit and data handles
 #include <nntile/starpu.hh>
 

@@ -204,9 +204,9 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
     args->beta = beta;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            STARPU_R, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            dst_mode, static_cast<starpu_data_handle_t>(dst),
+            dst_mode, dst.get(),
             0);
     // Check submission
     if(ret != 0)

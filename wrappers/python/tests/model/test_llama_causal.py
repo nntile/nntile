@@ -155,10 +155,10 @@ def generate_inputs(params: LlamaTestParams,
                            dtype=np.int64)
     mask = np.array(np.triu(np.ones((params.seq_len, params.seq_len))),
                     dtype=bool, order="F")
-    nntile_model, _ = LlamaModel_nntile.from_torch(
+    nntile_model = LlamaModel_nntile.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
             params.seq_len, params.seq_len_tile, pos_ids,
-            mask, nntile_config, 0)
+            mask, nntile_config)
     nntile_model.clear_gradients()
     x_random = gen.integers(params.seq_len,
                             size=nntile_model.activations[0].value.shape,

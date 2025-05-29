@@ -157,9 +157,9 @@ void submit(Index nelems, Handle maxsumexp, Handle logsumexp)
     *nelems_ = nelems;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(maxsumexp),
+            STARPU_R, maxsumexp.get(),
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
-            STARPU_W, static_cast<starpu_data_handle_t>(logsumexp),
+            STARPU_W, logsumexp.get(),
             //STARPU_FLOPS, nflops,
             0);
     // Check submission

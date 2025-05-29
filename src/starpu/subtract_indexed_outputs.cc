@@ -179,10 +179,9 @@ void submit(Index n_labels, Index n_outputs, Index ignore_index,
     args->ignore_index = ignore_index;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(labels),
+            STARPU_R, labels.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
-            //Config::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(dst),
+            STARPU_RW, dst.get(),
             //STARPU_FLOPS, nflops,
             0);
     // Check submission
