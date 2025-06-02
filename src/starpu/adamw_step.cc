@@ -12,27 +12,30 @@
  * @version 1.1.0
  * */
 
-// Related header
+// Corresponding header
 #include "nntile/starpu/adamw_step.hh"
 
-// Standard library headers
+// Standard libraries
 #include <cstdlib>
-
-// Third-party headers
-#include <starpu.h>
+#include <stdexcept>
 
 // Other NNTile headers
-#ifndef STARPU_SIMGRID
-#   include "nntile/kernel/adamw_step.hh"
-#endif // STARPU_SIMGRID
+#include "nntile/kernel/adamw_step.hh"
 
 //! StarPU wrappers for one step of AdamW optimizer
-namespace nntile::starpu::adamw_step
+namespace nntile::starpu
 {
 
-//! Apply AdamW step on StarPU buffers on CPU
+//! Constructor
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+AdamWStep<std::tuple<T>>::AdamWStep():
+    codelet("nntile_adamw_step", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+//! Apply Adam step on StarPU buffers on CPU
+template<typename T>
+void AdamWStep<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -45,16 +48,51 @@ void cpu(void *buffers[], void *cl_args)
     T *second_moments = interfaces[2]->get_ptr<T>();
     T* p = interfaces[3]->get_ptr<T>();
     // Launch kernel
-    kernel::adamw_step::cpu<T>(args->num_iter, args->num_elems, args->beta_1,
-            args->beta_2, args->eps, args->lr, args->weight_decay, grad,
-            first_moments, second_moments, p);
+    kernel::adamw_step::cpu<T>(
+        args->num_iter,
+        args->num_elems,
+        args->beta_1,
+        args->beta_2,
+        args->eps,
+        args->lr,
+        args->weight_decay,
+        grad,
+        first_moments,
+        second_moments,
+        p
+    );
 #endif // STARPU_SIMGRID
 }
 
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AdamWStep<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AdamWStep<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AdamWStep<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AdamWStep<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AdamWStep<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AdamWStep<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
 #ifdef NNTILE_USE_CUDA
-//! Apply AdamW step operation on StarPU buffer on CUDA
+//! Apply Adam step operation on StarPU buffer on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void AdamWStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -69,92 +107,75 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::adamw_step::cuda<T>(stream, args->num_iter, args->num_elems,
-            args->beta_1, args->beta_2, args->eps, args->lr,
-            args->weight_decay, grad, first_moments, second_moments, p);
+    kernel::adamw_step::cuda<T>(
+        stream,
+        args->num_iter,
+        args->num_elems,
+        args->beta_1,
+        args->beta_2,
+        args->eps,
+        args->lr,
+        args->weight_decay,
+        grad,
+        first_moments,
+        second_moments,
+        p
+    );
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp64(
-    "nntile_adamw_step_fp64",
-    nullptr,
-    {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-    {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-    {}
-#endif // NNTILE_USE_CUDA
-);
-
-Codelet codelet_fp32(
-    "nntile_adamw_step_fp32",
-    nullptr,
-    {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-    {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-    {}
-#endif // NNTILE_USE_CUDA
-);
-
-Codelet codelet_fp32_fast_tf32(
-    "nntile_adamw_step_fp32_fast_tf32",
-    nullptr,
-    {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-    {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-    {}
-#endif // NNTILE_USE_CUDA
-);
-
-Codelet codelet_fp32_fast_fp16(
-    "nntile_adamw_step_fp32_fast_fp16",
-    nullptr,
-    {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-    {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-    {}
-#endif // NNTILE_USE_CUDA
-);
-
-Codelet codelet_fp32_fast_bf16(
-    "nntile_adamw_step_fp32_fast_bf16",
-    nullptr,
-    {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-    {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-    {}
-#endif // NNTILE_USE_CUDA
-);
-
-Codelet codelet_bf16(
-    "nntile_adamw_step_bf16",
-    nullptr,
-    {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-    {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-    {}
-#endif // NNTILE_USE_CUDA
-);
-
-void append_codelets(std::vector<Codelet> &codelets)
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void AdamWStep<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
 {
-    codelets.push_back(codelet_fp64);
-    codelets.push_back(codelet_fp32);
-    codelets.push_back(codelet_fp32_fast_tf32);
-    codelets.push_back(codelet_fp32_fast_fp16);
-    codelets.push_back(codelet_fp32_fast_bf16);
-    codelets.push_back(codelet_bf16);
+    // Fall back to FP32
+    AdamWStep<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
+template<>
+void AdamWStep<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AdamWStep<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AdamWStep<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AdamWStep<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+//! Footprint for adam_step tasks that depends only on cl_arg
 template<typename T>
-void submit(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-            Handle grad, Handle first_moment, Handle second_moment, Handle p)
+uint32_t AdamWStep<std::tuple<T>>::footprint(struct starpu_task *task)
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->num_elems, sizeof(args->num_elems), hash);
+    return hash;
+}
+
+//! Submit AdamW step task
+template<typename T>
+void AdamWStep<std::tuple<T>>::submit(
+    Index num_iter,
+    Index num_elems,
+    Scalar beta_1,
+    Scalar beta_2,
+    Scalar eps,
+    Scalar lr,
+    Scalar weight_decay,
+    Handle grad,
+    Handle first_moment,
+    Handle second_moment,
+    Handle param
+)
 {
     // Codelet arguments
     args_t* args = (args_t*)std::malloc(sizeof(*args));
@@ -176,11 +197,11 @@ void submit(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Scala
     {
         moments_mode = STARPU_RW;
     }
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(&codelet,
             STARPU_R, grad.get(),
             moments_mode, first_moment.get(),
             moments_mode, second_moment.get(),
-            STARPU_RW, p.get(),
+            STARPU_RW, param.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission
@@ -190,35 +211,7 @@ void submit(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Scala
     }
 }
 
-// Explicit instantiaion
-template
-void submit<fp32_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-            Scalar eps, Scalar lr, Scalar weight_decay,
-            Handle grad, Handle first_moment, Handle second_moment, Handle p);
+//! Pack of adamw_step operations for different types
+adamw_step_pack_t adamw_step;
 
-template
-void submit<fp32_fast_tf32_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-            Scalar eps, Scalar lr, Scalar weight_decay,
-            Handle grad, Handle first_moment, Handle second_moment, Handle p);
-
-template
-void submit<fp32_fast_fp16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-            Scalar eps, Scalar lr, Scalar weight_decay,
-            Handle grad, Handle first_moment, Handle second_moment, Handle p);
-
-template
-void submit<fp32_fast_bf16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-            Scalar eps, Scalar lr, Scalar weight_decay,
-            Handle grad, Handle first_moment, Handle second_moment, Handle p);
-
-template
-void submit<fp64_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-            Scalar eps, Scalar lr, Scalar weight_decay,
-            Handle grad, Handle first_moment, Handle second_moment, Handle p);
-
-template
-void submit<bf16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-            Scalar eps, Scalar lr, Scalar weight_decay,
-            Handle grad, Handle first_moment, Handle second_moment, Handle p);
-
-} // namespace nntile::starpu::adamw_step
+} // namespace nntile::starpu

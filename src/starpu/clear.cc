@@ -12,86 +12,79 @@
  * @version 1.1.0
  * */
 
+// Corresponding header
 #include "nntile/starpu/clear.hh"
+
+// Standard libraries
 #include <cstring>
-#ifndef STARPU_SIMGRID
-#   ifdef NNTILE_USE_CUDA
-#       include <cuda_runtime.h>
-#   endif // NNTILE_USE_CUDA
-#endif // STARPU_SIMGRID
+#include <stdexcept>
 
-#include <iostream>
-
-namespace nntile::starpu::clear
+namespace nntile::starpu
 {
 
+//! Constructor
+Clear::Clear():
+    codelet("nntile_clear", footprint, cpu_funcs, cuda_funcs)
+{
+    codelet.set_modes_fixed({STARPU_W});
+}
+
 //! Clear a StarPU buffer on CPU
-void cpu(void *buffers[], void *cl_args)
+void Clear::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
-    // No arguments
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    std::size_t size = interfaces[0]->elemsize;
     void *data = interfaces[0]->get_ptr<void>();
     // Clear buffer
-    std::memset(data, 0, size);
+    std::memset(data, 0, args->nbytes);
 #endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Clear a StarPU buffer on CUDA
-void cuda(void *buffers[], void *cl_args)
+void Clear::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
-    // No arguments
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    std::size_t size = interfaces[0]->elemsize;
     void *data = interfaces[0]->get_ptr<void>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Clear buffer
-    cudaMemsetAsync(data, 0, size, stream);
+    cudaMemsetAsync(data, 0, args->nbytes, stream);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet;
-
-void init()
+//! Footprint for clear tasks that depends only on cl_arg
+uint32_t Clear::footprint(struct starpu_task *task)
 {
-    codelet.init("nntile_clear",
-            nullptr,
-            {cpu},
-#ifdef NNTILE_USE_CUDA
-            {cuda}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet.nbuffers = 1;
-    codelet.modes[0] = STARPU_W;
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->nbytes, sizeof(args->nbytes), hash);
+    return hash;
 }
 
-void restrict_where(uint32_t where)
+//! Submit clear task
+void Clear::submit(Handle data)
 {
-    codelet.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet.restore_where();
-}
-
-//! Insert task to clear buffer
-void submit(Handle data)
-{
+    // Get number of bytes
+    std::size_t nbytes = starpu_variable_get_elemsize(data.get());
+    // Codelet arguments
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->nbytes = nbytes;
     // Submit task
     int ret = starpu_task_insert(&codelet,
             STARPU_W, data.get(),
+            STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission
     if(ret != 0)
@@ -100,4 +93,7 @@ void submit(Handle data)
     }
 }
 
-} // namespace nntile::starpu::clear
+//! Clear operation object
+Clear clear;
+
+} // namespace nntile::starpu
