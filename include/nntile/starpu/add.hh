@@ -17,74 +17,88 @@
 // Compile-time definitions
 #include <nntile/defs.h>
 
+// Standard headers
+#include <tuple>
+
 // NNTile headers
 #include <nntile/starpu/codelet.hh>
 #include <nntile/starpu/handle.hh>
 
-namespace nntile::starpu::add
+namespace nntile::starpu
 {
 
-//! Structure for arguments
-struct args_t
-{
-    Index nelems;
-    Scalar alpha;
-    Scalar beta;
-
-    args_t(Index nelems_, Scalar alpha_, Scalar beta_):
-        nelems(nelems_),
-        alpha(alpha_),
-        beta(beta_)
-        {
-        }
-};
-
-//! Wrapper for all kernel functions
+//! Generic wrapper class for add operation is not defined
 template<typename T>
-struct KernelWrapper
+class Add;
+
+//! Specialization of wrapper class for add operation via std::tuple
+template<typename T>
+class Add<std::tuple<T>>
 {
+public:
+    //! Codelet for the current operation
+    CodeletTyped<T> codelet;
+
+    //! Constructor
+    Add();
+
+    //! Structure for operation arguments
+    struct args_t
+    {
+        Index nelems;
+        Scalar alpha;
+        Scalar beta;
+    };
+
+    //! Footprint function for the current operation
+    static uint32_t footprint(struct starpu_task *task);
+
+    //! Wrapper for a generic CPU implementation
     static void cpu(void *buffers[], void *cl_args)
         noexcept;
 
+    //! Array of all wrappers for CPU implementations
     static constexpr func_array cpu_funcs = {
         cpu
     };
 
 #ifdef NNTILE_USE_CUDA
+    //! Wrapper for a generic CUDA implementation
     static void cuda(void *buffers[], void *cl_args)
         noexcept;
 
+    //! Array of all wrappers for CUDA implementations
     static constexpr func_array cuda_funcs = {
         cuda
     };
 #else // NNTILE_USE_CUDA
+    //! Array of all wrappers for CUDA implementations
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
+
+    //! Submit add task
+    void submit(
+        Index nelems,
+        Scalar alpha,
+        Handle src1,
+        Scalar beta,
+        Handle src2,
+        Handle dst
+    );
 };
 
-//! Codelet pack type for the current operation
-using codelet_pack_t = CodeletPack<
-    KernelWrapper,
-    nntile::fp64_t,
-    nntile::fp32_t,
-    nntile::fp32_fast_tf32_t,
-    nntile::fp32_fast_fp16_t,
-    nntile::fp32_fast_bf16_t,
-    nntile::bf16_t
+//! Pack of add operations for different types
+using add_pack_t = OperationPack<
+    Add,
+    std::tuple<nntile::fp64_t>,
+    std::tuple<nntile::fp32_t>,
+    std::tuple<nntile::fp32_fast_tf32_t>,
+    std::tuple<nntile::fp32_fast_fp16_t>,
+    std::tuple<nntile::fp32_fast_bf16_t>,
+    std::tuple<nntile::bf16_t>
 >;
 
-// Declare codelet pack
-extern codelet_pack_t codelet_pack;
+//! Pack of add operations for different types
+extern add_pack_t add;
 
-//! Submit add task
-template<typename T>
-void submit(
-    Index nelems,
-    Scalar alpha,
-    Handle src1,
-    Scalar beta,
-    Handle src2,
-    Handle dst
-);
-
-} // namespace nntile::starpu::add
+} // namespace nntile::starpu

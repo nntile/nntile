@@ -84,14 +84,14 @@ public:
 /*! Wrapping Codelet with additional type information allows easy Codelet
  * lookup procedure to be performed by compiler itself in a compile-time manner.
  * */
-template<typename T>
+template<typename... Ts>
 class CodeletTyped: public Codelet
 {
 public:
     //! Get name of the codelet including type information
     static std::string get_name(const char *base_name)
     {
-        return std::string(base_name) + "_" + nntile::type_postfix<T>();
+        return std::string(base_name) + "_" + nntile::type_postfix<Ts...>();
     }
 
     //! Constructor simply calls the base constructor
@@ -111,60 +111,35 @@ public:
     }
 };
 
-//! Codelet pack for multiple types
-/*! CodeletPack is a wrapper for multiple CodeletTyped instances. It allows
- * to create a single object that contains codelets for multiple types at once.
- * */
-template<template<typename> typename Functor, typename... Ts>
-class CodeletPack: public CodeletTyped<Ts>...
+//! Pack of operations for different types
+template<template<typename> typename Operation, typename... Ts>
+class OperationPack: public Operation<Ts>...
 {
 public:
-    CodeletPack(
-        const char *base_name,
-        uint32_t (*footprint)(starpu_task *)
-    ):
-        CodeletTyped<Ts>(
-            base_name,
-            footprint,
-            Functor<Ts>::cpu_funcs,
-            Functor<Ts>::cuda_funcs
-        )...
+    OperationPack():
+        Operation<Ts>()...
     {
     }
 
-    //! Set modes for the codelet pack
-    CodeletPack &set_modes_fixed(std::vector<starpu_data_access_mode> modes)
+    //! Restrict where the operation pack should be executed
+    OperationPack &restrict_where(uint32_t where)
     {
-        (static_cast<CodeletTyped<Ts> &>(*this).set_modes_fixed(modes), ...);
+        (static_cast<Operation<Ts> &>(*this).restrict_where(where), ...);
         return *this;
     }
 
-    //! Set runtime decision on number of buffers and access modes
-    CodeletPack &set_modes_variable()
+    //! Restore where the operation pack should be executed
+    OperationPack &restore_where()
     {
-        (static_cast<CodeletTyped<Ts> &>(*this).set_modes_variable(), ...);
+        (static_cast<Operation<Ts> &>(*this).restore_where(), ...);
         return *this;
     }
 
-    //! Get codelet for a specific type
-    template<typename U>
-    CodeletTyped<U> *get_codelet_ptr()
+    //! Generic submit function
+    template<typename T, typename... Args>
+    void submit(Args &&...args)
     {
-        return static_cast<CodeletTyped<U> *>(this);
-    }
-
-    //! Restrict where the codelet pack should be executed
-    CodeletPack &restrict_where(uint32_t where)
-    {
-        (static_cast<CodeletTyped<Ts> &>(*this).restrict_where(where), ...);
-        return *this;
-    }
-
-    //! Restore where the codelet pack should be executed
-    CodeletPack &restore_where()
-    {
-        (static_cast<CodeletTyped<Ts> &>(*this).restore_where(), ...);
-        return *this;
+        Operation<T>::submit(std::forward<Args>(args)...);
     }
 };
 

@@ -23,6 +23,7 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <sstream>
 
 // Third-party headers
 #ifdef NNTILE_USE_CUDA
@@ -125,10 +126,12 @@ inline std::ostream &operator<<(
 }
 
 //! Type postfix template function
-template<typename T>
+template<typename T, typename... Ts>
 inline std::string type_postfix()
 {
-    return "NotSupportedType";
+    std::stringstream result;
+    result << type_postfix<T>() << "_" << type_postfix<Ts...>();
+    return result.str();
 }
 
 //! NNTile wrapper type for 64-bit signed integers inside NNTile tensors

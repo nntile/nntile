@@ -12,22 +12,38 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/add.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/add.hh"
-#include "nntile/starpu/scal.hh"
-#include "nntile/starpu/clear.hh"
-#include "nntile/starpu/scal_inplace.hh"
-#include <cstdlib>
 
-//! StarPU wrappers for add operation
-namespace nntile::starpu::add
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Third-party headers
+#ifndef STARPU_SIMGRID
+#   ifdef NNTILE_USE_CUDA
+#       include <cuda_runtime.h>
+#   endif // NNTILE_USE_CUDA
+#endif // STARPU_SIMGRID
+
+// Other NNTile headers
+#include "nntile/kernel/add.hh"
+#include "nntile/starpu/scal.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+Add<std::tuple<T>>::Add():
+    codelet("nntile_add", footprint, cpu_funcs, cuda_funcs)
+{
+    codelet.set_modes_fixed({STARPU_R, STARPU_R, STARPU_W});
+}
 
 //! Apply add operation for StarPU buffers in CPU
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void Add<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -39,15 +55,40 @@ void cpu(void *buffers[], void *cl_args)
     const T *src2 = interfaces[1]->get_ptr<T>();
     T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::add::cpu<T>(args->nelems, args->alpha, src1, args->beta, src2,
-            dst);
+    kernel::add::cpu<T>(
+        args->nelems, args->alpha, src1, args->beta, src2, dst);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void Add<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Add<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void Add<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Add<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void Add<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Add<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Apply add for StarPU buffers on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void Add<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -68,8 +109,8 @@ void cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for add tasks that depends only on cl_arg
-static
-uint32_t footprint(struct starpu_task *task)
+template<typename T>
+uint32_t Add<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -79,103 +120,18 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
-
-void init()
-{
-    codelet_fp32.init("nntile_add_fp32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_bf16.init("nntile_add_bf16",
-            footprint,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_add_fp32_fast_tf32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_fp16.init("nntile_add_fp32_fast_fp16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_bf16.init("nntile_add_fp32_fast_bf16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp64.init("nntile_add_fp64",
-            footprint,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp32_fast_fp16.restrict_where(where);
-    codelet_fp32_fast_bf16.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp32_fast_fp16.restore_where();
-    codelet_fp32_fast_bf16.restore_where();
-    codelet_fp64.restore_where();
-}
-
 template<typename T>
-void submit(Index nelems, Scalar alpha, Handle src1, Scalar beta, Handle src2,
-        Handle dst)
-//! Insert add task into StarPU pool of tasks
-/*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
- * throws an std::runtime_error() exception.
- * */
+void Add<std::tuple<T>>::submit(
+    Index nelems,
+    Scalar alpha,
+    Handle src1,
+    Scalar beta,
+    Handle src2,
+    Handle dst
+)
 {
-    constexpr Scalar zero = 0, one = 1;
-    // If beta is zero this function reduces to scal
+    constexpr Scalar zero = 0;
+    // If beta is zero this function reduces to scal_inplace
     if(beta == zero)
     {
         // dst = alpha*src1
@@ -197,7 +153,7 @@ void submit(Index nelems, Scalar alpha, Handle src1, Scalar beta, Handle src2,
     // Put amount of bytes read and write inplace of gflops
     double nflops = sizeof(T) * 3 * nelems;
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(&codelet,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
@@ -211,29 +167,7 @@ void submit(Index nelems, Scalar alpha, Handle src1, Scalar beta, Handle src2,
     }
 }
 
-// Explicit instantiation
-template
-void submit<fp32_t>(Index nelems, Scalar alpha, Handle src1, Scalar beta,
-        Handle src2, Handle dst);
+//! Pack of add operations for different types
+add_pack_t add;
 
-template
-void submit<bf16_t>(Index nelems, Scalar alpha, Handle src1, Scalar beta,
-        Handle src2, Handle dst);
-
-template
-void submit<fp32_fast_tf32_t>(Index nelems, Scalar alpha, Handle src1,
-        Scalar beta, Handle src2, Handle dst);
-
-template
-void submit<fp32_fast_fp16_t>(Index nelems, Scalar alpha, Handle src1,
-        Scalar beta, Handle src2, Handle dst);
-
-template
-void submit<fp32_fast_bf16_t>(Index nelems, Scalar alpha, Handle src1,
-        Scalar beta, Handle src2, Handle dst);
-
-template
-void submit<fp64_t>(Index nelems, Scalar alpha, Handle src1, Scalar beta,
-        Handle src2, Handle dst);
-
-} // namespace nntile::starpu::add
+} // namespace nntile::starpu
