@@ -12,75 +12,59 @@
  * @version 1.1.0
  * */
 
+// Corresponding header
 #include "nntile/starpu/copy.hh"
+
+// Standard libraries
 #include <cstring>
 
-//! StarPU wrappers for copy operation
-namespace nntile::starpu::copy
+namespace nntile::starpu
 {
 
+//! Constructor
+Copy::Copy():
+    codelet("nntile_copy", footprint, cpu_funcs, cuda_funcs)
+{
+    codelet.set_modes_fixed({STARPU_R, STARPU_W});
+}
+
 //! Copy StarPU buffers on CPU
-void cpu(void *buffers[], void *cl_args)
+void Copy::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
-    // No arguments
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    std::size_t size = interfaces[0]->elemsize;
     const void *src = interfaces[0]->get_ptr<void>();
     void *dst = interfaces[1]->get_ptr<void>();
     // Launch kernel
-    std::memcpy(dst, src, size);
+    std::memcpy(dst, src, args->nbytes);
 #endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Copy StarPU buffers on CUDA
-void cuda(void *buffers[], void *cl_args)
+void Copy::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
-    // No arguments
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    std::size_t size = interfaces[0]->elemsize;
     const void *src = interfaces[0]->get_ptr<void>();
     void *dst = interfaces[1]->get_ptr<void>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    cudaMemcpyAsync(dst, src, size, cudaMemcpyDeviceToDevice, stream);
+    cudaMemcpyAsync(dst, src, args->nbytes, cudaMemcpyDeviceToDevice, stream);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet;
-
-void init()
-{
-    codelet.init("nntile_copy",
-            nullptr,
-            {cpu},
-#ifdef NNTILE_USE_CUDA
-            {cuda}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet.restore_where();
-}
-
-void submit(Handle src, Handle dst)
+void Copy::submit(Handle src, Handle dst)
 //! Insert copy task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -99,4 +83,4 @@ void submit(Handle src, Handle dst)
     }
 }
 
-} // namespace nntile::starpu::copy
+} // namespace nntile::starpu

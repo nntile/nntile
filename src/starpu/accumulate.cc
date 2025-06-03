@@ -17,17 +17,25 @@
 
 // Standard libraries
 #include <cstdlib>
+#include <stdexcept>
 
 // Other NNTile headers
 #include "nntile/kernel/add_inplace.hh"
 
-//! StarPU wrappers for accumulate operation
-namespace nntile::starpu::accumulate
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+Accumulate<std::tuple<T>>::Accumulate():
+    codelet("nntile_accumulate", footprint, cpu_funcs, cuda_funcs)
+{
+    codelet.set_modes_fixed({STARPU_RW | STARPU_COMMUTE, STARPU_R});
+}
 
 //! Apply accumulate operation for StarPU buffers in CPU
 template<typename T>
-void KernelWrapper<T>::cpu(void *buffers[], void *cl_args)
+void Accumulate<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -44,7 +52,7 @@ void KernelWrapper<T>::cpu(void *buffers[], void *cl_args)
 #ifdef NNTILE_USE_CUDA
 //! Apply accumulate for StarPU buffers on CUDA
 template<typename T>
-void KernelWrapper<T>::cuda(void *buffers[], void *cl_args)
+void Accumulate<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -61,37 +69,9 @@ void KernelWrapper<T>::cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-//! Define codelet pack
-codelet_pack_t codelet_pack = codelet_pack_t(
-    "nntile_accumulate",
-    nullptr
-).set_modes({
-    static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE),
-    STARPU_R
-});
-
-// void restrict_where(uint32_t where)
-// {
-//     codelet_fp64.restrict_where(where);
-//     codelet_fp32.restrict_where(where);
-//     codelet_fp32_fast_tf32.restrict_where(where);
-//     codelet_fp32_fast_fp16.restrict_where(where);
-//     codelet_fp32_fast_bf16.restrict_where(where);
-//     codelet_bf16.restrict_where(where);
-// }
-
-// void restore_where()
-// {
-//     codelet_fp64.restore_where();
-//     codelet_fp32.restore_where();
-//     codelet_fp32_fast_tf32.restore_where();
-//     codelet_fp32_fast_bf16.restore_where();
-//     codelet_fp32_fast_fp16.restore_where();
-//     codelet_bf16.restore_where();
-// }
-
+//! Submit accumulate task
 template<typename T>
-void submit(Handle src, Handle dst)
+void Accumulate<std::tuple<T>>::submit(Handle src, Handle dst)
 //! Insert accumulate task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -100,7 +80,7 @@ void submit(Handle src, Handle dst)
 {
     //double nflops;
     // Submit task
-    int ret = starpu_task_insert(codelet_pack.get_codelet<T>(),
+    int ret = starpu_task_insert(&codelet,
             STARPU_RW | STARPU_COMMUTE, dst.get(),
             STARPU_R, src.get(),
             // STARPU_FLOPS, nflops,
@@ -112,23 +92,7 @@ void submit(Handle src, Handle dst)
     }
 }
 
-// Explicit instantiation
-template
-void submit<fp64_t>(Handle src, Handle dst);
+//! Pack of accumulate operations for different types
+accumulate_pack_t accumulate;
 
-template
-void submit<fp32_t>(Handle src, Handle dst);
-
-template
-void submit<fp32_fast_tf32_t>(Handle src, Handle dst);
-
-template
-void submit<fp32_fast_fp16_t>(Handle src, Handle dst);
-
-template
-void submit<fp32_fast_bf16_t>(Handle src, Handle dst);
-
-template
-void submit<bf16_t>(Handle src, Handle dst);
-
-} // namespace nntile::starpu::accumulate
+} // namespace nntile::starpu

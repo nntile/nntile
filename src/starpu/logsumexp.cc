@@ -12,39 +12,51 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/logsumexp.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/logsumexp.hh"
-#include <cstdlib>
 
-namespace nntile::starpu::logsumexp
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/logsumexp.hh"
+
+namespace nntile::starpu
 {
 
+//! Constructor
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+LogSumExp<std::tuple<T>>::LogSumExp():
+    codelet("nntile_logsumexp", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+//! Apply logsumexp operation for StarPU buffers in CPU
+template<typename T>
+void LogSumExp<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *maxsumexp = interfaces[0]->get_ptr<T>();
     T *logsumexp = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::logsumexp::cpu<T>(nelems, maxsumexp, logsumexp);
+    kernel::logsumexp::cpu<T>(args->nelems, maxsumexp, logsumexp);
 #endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void LogSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *maxsumexp = interfaces[0]->get_ptr<T>();
@@ -52,100 +64,15 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::logsumexp::cuda<T>(stream, nelems, maxsumexp, logsumexp);
+    kernel::logsumexp::cuda<T>(stream, args->nelems, maxsumexp, logsumexp);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
-
-void init()
-{
-    codelet_fp32.init("nntile_logsumexp_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_bf16.init("nntile_logsumexp_bf16",
-            nullptr,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_logsumexp_fp32_fast_tf32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_fp16.init("nntile_logsumexp_fp32_fast_fp16",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_bf16.init("nntile_logsumexp_fp32_fast_bf16",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-
-    codelet_fp64.init("nntile_logsumexp_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp32_fast_fp16.restrict_where(where);
-    codelet_fp32_fast_bf16.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp32_fast_fp16.restore_where();
-    codelet_fp32_fast_bf16.restore_where();
-    codelet_fp64.restore_where();
-}
-
+//! Submit logsumexp task
 template<typename T>
-void submit(Index nelems, Handle maxsumexp, Handle logsumexp)
+void LogSumExp<std::tuple<T>>::submit(
+        Index nelems, Handle maxsumexp, Handle logsumexp)
 //! Insert logsumexp task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -153,14 +80,13 @@ void submit(Index nelems, Handle maxsumexp, Handle logsumexp)
  * */
 {
     // Codelet arguments
-    Index *nelems_ = (Index *)std::malloc(sizeof(*nelems_));
-    *nelems_ = nelems;
+    args_t *args = new args_t();
+    args->nelems = nelems;
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(&codelet,
             STARPU_R, maxsumexp.get(),
-            STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
+            STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_W, logsumexp.get(),
-            //STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
@@ -169,23 +95,7 @@ void submit(Index nelems, Handle maxsumexp, Handle logsumexp)
     }
 }
 
-// Explicit instantiation
-template
-void submit<fp32_t>(Index nelems, Handle maxsumexp, Handle logsumexp);
+//! Pack of logsumexp operations for different types
+logsumexp_pack_t logsumexp;
 
-template
-void submit<fp32_fast_tf32_t>(Index nelems, Handle maxsumexp, Handle logsumexp);
-
-template
-void submit<fp32_fast_fp16_t>(Index nelems, Handle maxsumexp, Handle logsumexp);
-
-template
-void submit<fp32_fast_bf16_t>(Index nelems, Handle maxsumexp, Handle logsumexp);
-
-template
-void submit<fp64_t>(Index nelems, Handle maxsumexp, Handle logsumexp);
-
-template
-void submit<bf16_t>(Index nelems, Handle maxsumexp, Handle logsumexp);
-
-} // namespace nntile::starpu::logsumexp
+} // namespace nntile::starpu

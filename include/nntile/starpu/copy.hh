@@ -21,38 +21,56 @@
 #include <nntile/starpu/codelet.hh>
 #include <nntile/starpu/handle.hh>
 
-namespace nntile::starpu::copy
+namespace nntile::starpu
 {
 
-//! Wrapper for all kernel functions
-struct KernelWrapper
+//! Wrapper class for copy operation
+class Copy
 {
+public:
+    //! Codelet for the current operation
+    Codelet codelet;
+
+    //! Constructor
+    Copy();
+
+    //! Structure for operation arguments
+    struct args_t
+    {
+        std::size_t nbytes;
+    };
+
+    //! Footprint function for the current operation
+    static uint32_t footprint(struct starpu_task *task);
+
+    //! Wrapper for a generic CPU implementation
     static void cpu(void *buffers[], void *cl_args)
         noexcept;
 
+    //! Array of all wrappers for CPU implementations
     static constexpr func_array cpu_funcs = {
         cpu
     };
 
 #ifdef NNTILE_USE_CUDA
+    //! Wrapper for a generic CUDA implementation
     static void cuda(void *buffers[], void *cl_args)
         noexcept;
 
+    //! Array of all wrappers for CUDA implementations
     static constexpr func_array cuda_funcs = {
         cuda
     };
 #else // NNTILE_USE_CUDA
+    //! Array of all wrappers for CUDA implementations
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
+
+    //! Submit copy task
+    void submit(Handle src, Handle dst);
 };
 
-// Declare codelet
-extern Codelet codelet;
+//! Copy operation object
+extern Copy copy;
 
-//! Insert task to copy buffer
-void submit(
-    Handle src,
-    Handle dst
-);
-
-} // namespace nntile::starpu::copy
+} // namespace nntile::starpu

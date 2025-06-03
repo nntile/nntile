@@ -12,18 +12,30 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/dgelu.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/dgelu.hh"
 
-//! StarPU wrappers for derivative of GeLU operation
-namespace nntile::starpu::dgelu
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// NNTile headers
+#include "nntile/kernel/dgelu.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+DGelu<std::tuple<T>>::DGelu():
+    codelet("nntile_dgelu", footprint, cpu_funcs, cuda_funcs)
+{
+    codelet.set_modes_fixed({STARPU_RW});
+}
 
 //! Apply dgelu on StarPU buffer on CPU
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void DGelu<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -40,7 +52,7 @@ void cpu(void *buffers[], void *cl_args)
 #ifdef NNTILE_USE_CUDA
 //! Apply dgelu on StarPU buffer on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void DGelu<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -57,48 +69,12 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64;
-
-void init()
-{
-    codelet_fp32.init("nntile_dgelu_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp64.init("nntile_dgelu_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_fp64.restore_where();
-}
-
 template<typename T>
-void submit(Index nelems, Handle data)
+void DGelu<std::tuple<T>>::submit(Index nelems, Handle data)
 {
     Index *nelems_ = new Index{nelems};
     //double nflops = 5 * nelems;
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(&codelet,
             STARPU_RW, data.get(),
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
             //STARPU_FLOPS, nflops,
@@ -110,11 +86,7 @@ void submit(Index nelems, Handle data)
     }
 }
 
-// Explicit instantiaion
-template
-void submit<fp32_t>(Index nelems, Handle data);
+//! Pack of dgelu operations for different types
+dgelu_pack_t dgelu;
 
-template
-void submit<fp64_t>(Index nelems, Handle data);
-
-} // namespace nntile::starpu::dgelu
+} // namespace nntile::starpu

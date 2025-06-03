@@ -17,6 +17,9 @@
 // Compile-time definitions
 #include <nntile/defs.h>
 
+// Standard headers
+#include <tuple>
+
 // NNTile headers
 #include <nntile/starpu/codelet.hh>
 #include <nntile/starpu/handle.hh>

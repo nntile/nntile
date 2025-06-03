@@ -12,41 +12,52 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/gelutanh.hh"
-#endif // STARPU_SIMGRID
+// Corresponding headers
 #include "nntile/starpu/gelutanh.hh"
+
+// Standard libraries
 #include <cstdlib>
 
-namespace nntile::starpu::gelutanh
+// Other NNTile headers
+#include "nntile/kernel/gelutanh.hh"
+
+namespace nntile::starpu
 {
 
-//! Apply approximate gelu on StarPU buffer on CPU
+//! Constructor
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+GeluTanh<std::tuple<T>>::GeluTanh():
+    codelet("nntile_gelutanh", footprint, cpu_funcs, cuda_funcs)
+{
+    codelet.set_modes_fixed({STARPU_R, STARPU_W});
+}
+
+//! Apply gelutanh on StarPU buffer on CPU
+template<typename T>
+void GeluTanh<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::gelutanh::cpu<T>(nelems, src, dst);
+    kernel::gelutanh::cpu<T>(args->nelems, src, dst);
 #endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply approximate gelu on StarPU buffer on CUDA
+//! Apply gelutanh on StarPU buffer on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void GeluTanh<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -54,108 +65,32 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::gelutanh::cuda<T>(stream, nelems, src, dst);
+    kernel::gelutanh::cuda<T>(stream, args->nelems, src, dst);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
-
-void init()
-{
-    codelet_fp32.init("nntile_gelutanh_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_bf16.init("nntile_gelutanh_bf16",
-            nullptr,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_gelutanh_fp32_fast_tf32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_fp16.init("nntile_gelutanh_fp32_fast_fp16",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_bf16.init("nntile_gelutanh_fp32_fast_bf16",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp64.init("nntile_gelutanh_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp32_fast_fp16.restrict_where(where);
-    codelet_fp32_fast_bf16.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp32_fast_fp16.restore_where();
-    codelet_fp32_fast_bf16.restore_where();
-    codelet_fp64.restore_where();
-}
-
+//! Submit gelutanh task
 template<typename T>
-void submit(Index nelems, Handle src, Handle dst)
+void GeluTanh<std::tuple<T>>::submit(
+    Index nelems,
+    Handle src,
+    Handle dst
+)
+//! Insert gelutanh task into StarPU pool of tasks
+/*! No argument checking is performed. All the inputs are packed and passed to
+ * starpu_task_insert() function. If task submission fails, this routines
+ * throws an std::runtime_error() exception.
+ * */
 {
     // Codelet arguments
-    Index *nelems_ = (Index *)std::malloc(sizeof(*nelems_));
-    *nelems_ = nelems;
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->nelems = nelems;
     //double nflops = 5 * nelems;
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(&codelet,
             STARPU_R, src.get(),
             STARPU_W, dst.get(),
-            STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
+            STARPU_CL_ARGS, args, sizeof(*args),
             //STARPU_FLOPS, nflops,
             0);
     // Check submission
@@ -165,23 +100,10 @@ void submit(Index nelems, Handle src, Handle dst)
     }
 }
 
-// Explicit instantiaion
-template
-void submit<fp32_t>(Index nelems, Handle src, Handle dst);
+//! Pack of gelutanh operations for different types
+gelutanh_pack_t gelutanh;
 
-template
-void submit<fp32_fast_tf32_t>(Index nelems, Handle src, Handle dst);
+//! Pack of gelutanh operations for different types
+extern gelutanh_pack_t gelutanh;
 
-template
-void submit<fp32_fast_fp16_t>(Index nelems, Handle src, Handle dst);
-
-template
-void submit<fp32_fast_bf16_t>(Index nelems, Handle src, Handle dst);
-
-template
-void submit<fp64_t>(Index nelems, Handle src, Handle dst);
-
-template
-void submit<bf16_t>(Index nelems, Handle src, Handle dst);
-
-} // namespace nntile::starpu::gelutanh
+} // namespace nntile::starpu

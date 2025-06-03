@@ -12,145 +12,76 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/gelu.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/gelu.hh"
 
-//! StarPU wrappers for GeLU operation
-namespace nntile::starpu::gelu
+// Standard libraries
+#include <cstdlib>
+
+// Other NNTile headers
+#include "nntile/kernel/gelu.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+Gelu<std::tuple<T>>::Gelu():
+    codelet("nntile_gelu", footprint, cpu_funcs, cuda_funcs)
+{
+    codelet.set_modes_fixed({STARPU_RW});
+}
 
 //! Apply gelu on StarPU buffer on CPU
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void Gelu<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
-    kernel::gelu::cpu<T>(nelems, data);
+    kernel::gelu::cpu<T>(args->nelems, data);
 #endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Apply gelu on StarPU buffer on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void Gelu<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::gelu::cuda<T>(stream, nelems, data);
+    kernel::gelu::cuda<T>(stream, args->nelems, data);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64, codelet_bf16,
-        codelet_fp32_fast_tf32, codelet_fp32_fast_bf16, codelet_fp32_fast_fp16;
-
-void init()
-{
-    codelet_fp32.init("nntile_gelu_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp64.init("nntile_gelu_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_bf16.init("nntile_gelu_fp32_fast_bf16",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_fp16.init("nntile_gelu_fp32_fast_fp16",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_gelu_fp32_fast_tf32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_bf16.init("nntile_gelu_bf16",
-            nullptr,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp32_fast_bf16.restrict_where(where);
-    codelet_fp32_fast_fp16.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_fp64.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp32_fast_bf16.restore_where();
-    codelet_fp32_fast_fp16.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-}
-
+//! Submit gelu task
 template<typename T>
-void submit(Index nelems, Handle data)
+void Gelu<std::tuple<T>>::submit(
+    Index nelems,
+    Handle data
+)
 {
-    Index *nelems_ = new Index{nelems};
-    //double nflops = 5 * nelems;
-    int ret = starpu_task_insert(codelet<T>(),
+    // Codelet arguments
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->nelems = nelems;
+    // Submit task
+    int ret = starpu_task_insert(&codelet,
             STARPU_RW, data.get(),
-            STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
-            //STARPU_FLOPS, nflops,
+            STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission
     if(ret != 0)
@@ -159,23 +90,7 @@ void submit(Index nelems, Handle data)
     }
 }
 
-// Explicit instantiaion
-template
-void submit<fp32_t>(Index nelems, Handle data);
+//! Pack of gelu operations for different types
+gelu_pack_t gelu;
 
-template
-void submit<fp64_t>(Index nelems, Handle data);
-
-template
-void submit<bf16_t>(Index nelems, Handle data);
-
-template
-void submit<fp32_fast_bf16_t>(Index nelems, Handle data);
-
-template
-void submit<fp32_fast_fp16_t>(Index nelems, Handle data);
-
-template
-void submit<fp32_fast_tf32_t>(Index nelems, Handle data);
-
-} // namespace nntile::starpu::gelu
+} // namespace nntile::starpu
