@@ -12,98 +12,84 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/sqrt_inplace.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/sqrt_inplace.hh"
-#include <cstdlib>
 
-namespace nntile::starpu::sqrt_inplace
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/sqrt_inplace.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+SqrtInplace<std::tuple<T>>::SqrtInplace():
+    codelet("nntile_sqrt_inplace", footprint, cpu_funcs, cuda_funcs)
+{
+}
 
 //! Apply sqrt inplace to StarPU buffer on CPU
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void SqrtInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
-    kernel::sqrt_inplace::cpu<T>(nelems, data);
+    kernel::sqrt_inplace::cpu<T>(args->nelems, data);
 #endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Apply sqrt inplace to StarPU buffer on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void SqrtInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::sqrt_inplace::cuda<T>(stream, nelems, data);
+    kernel::sqrt_inplace::cuda<T>(stream, args->nelems, data);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64;
-
-void init()
+//! Footprint for sqrt_inplace tasks that depends only on cl_arg
+template<typename T>
+uint32_t SqrtInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 {
-    codelet_fp32.init("nntile_sqrt_inplace_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp64.init("nntile_sqrt_inplace_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_fp64.restore_where();
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
+    return hash;
 }
 
 template<typename T>
-void submit(Index nelems, Handle data)
+void SqrtInplace<std::tuple<T>>::submit(Index nelems, Handle data)
 {
     // Codelet arguments
-    Index *nelems_ = (Index *)std::malloc(sizeof(*nelems_));
-    *nelems_ = nelems;
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->nelems = nelems;
     //double nflops = 5 * nelems;
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(&codelet,
             STARPU_RW, data.get(),
-            STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
+            STARPU_CL_ARGS, args, sizeof(*args),
             //STARPU_FLOPS, nflops,
             0);
     // Check submission
@@ -113,11 +99,7 @@ void submit(Index nelems, Handle data)
     }
 }
 
-// Explicit instantiaion
-template
-void submit<fp32_t>(Index nelems, Handle data);
+//! Pack of sqrt_inplace operations for different types
+sqrt_inplace_pack_t sqrt_inplace;
 
-template
-void submit<fp64_t>(Index nelems, Handle data);
-
-} // namespace nntile::starpu::sqrt_inplace
+} // namespace nntile::starpu

@@ -17,67 +17,89 @@
 // Compile-time definitions
 #include <nntile/defs.h>
 
+// Standard libraries
+#include <tuple>
+
 // NNTile headers
 #include <nntile/starpu/codelet.hh>
 #include <nntile/starpu/handle.hh>
 
-namespace nntile::starpu::subtract_indexed_outputs
+namespace nntile::starpu
 {
 
-struct args_t
-{
-    Index n_labels;
-    Index n_outputs;
-    Scalar value;
-    Index ignore_index;
-};
-
-//! Wrapper for all kernel functions
+//! Generic wrapper class for subtract_indexed_outputs operation is not defined
 template<typename T>
-struct KernelWrapper
+class SubtractIndexedOutputs;
+
+//! Specialization of wrapper class for subtract_indexed_outputs operation via std::tuple
+template<typename T>
+class SubtractIndexedOutputs<std::tuple<T>>
 {
+public:
+    //! Codelet for the current operation
+    CodeletTyped<T> codelet;
+
+    //! Constructor
+    SubtractIndexedOutputs();
+
+    //! Structure for operation arguments
+    struct args_t
+    {
+        Index n_labels;
+        Index n_outputs;
+        Scalar value;
+        Index ignore_index;
+    };
+
+    //! Footprint function for the current operation
+    static uint32_t footprint(struct starpu_task *task);
+
+    //! Wrapper for a generic CPU implementation
     static void cpu(void *buffers[], void *cl_args)
         noexcept;
 
+    //! Array of all wrappers for CPU implementations
     static constexpr func_array cpu_funcs = {
         cpu
     };
 
 #ifdef NNTILE_USE_CUDA
+    //! Wrapper for a generic CUDA implementation
     static void cuda(void *buffers[], void *cl_args)
         noexcept;
 
+    //! Array of all wrappers for CUDA implementations
     static constexpr func_array cuda_funcs = {
         cuda
     };
 #else // NNTILE_USE_CUDA
+    //! Array of all wrappers for CUDA implementations
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
+
+    //! Submit subtract_indexed_outputs task
+    void submit(
+        Index n_labels,
+        Index n_outputs,
+        Index ignore_index,
+        Scalar val,
+        Handle labels,
+        Handle dst
+    );
 };
 
-//! Codelet pack type for the current operation
-using codelet_pack_t = CodeletPack<
-    KernelWrapper,
-    nntile::fp64_t,
-    nntile::fp32_t,
-    nntile::fp32_fast_tf32_t,
-    nntile::fp32_fast_fp16_t,
-    nntile::fp32_fast_bf16_t,
-    nntile::bf16_t
+//! Pack of subtract_indexed_outputs operations for different types
+using subtract_indexed_outputs_pack_t = OperationPack<
+    SubtractIndexedOutputs,
+    std::tuple<nntile::fp64_t>,
+    std::tuple<nntile::fp32_t>,
+    std::tuple<nntile::fp32_fast_tf32_t>,
+    std::tuple<nntile::fp32_fast_fp16_t>,
+    std::tuple<nntile::fp32_fast_bf16_t>,
+    std::tuple<nntile::bf16_t>
 >;
 
-// Declare codelet pack
-extern codelet_pack_t codelet_pack;
+//! Pack of subtract_indexed_outputs operations for different types
+extern subtract_indexed_outputs_pack_t subtract_indexed_outputs;
 
-//! Submit subtract_indexed_outputs task
-template<typename T>
-void submit(
-    Index n_labels,
-    Index n_outputs,
-    Index ignore_index,
-    Scalar val,
-    Handle labels,
-    Handle dst
-);
-
-} // namespace nntile::starpu::subtract_indexed_outputs
+} // namespace nntile::starpu

@@ -12,19 +12,29 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/sumprod_fiber.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/sumprod_fiber.hh"
-#include <cstdlib>
 
-namespace nntile::starpu::sumprod_fiber
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/sumprod_fiber.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+SumProdFiber<std::tuple<T>>::SumProdFiber():
+    codelet("nntile_sumprod_fiber", footprint, cpu_funcs, cuda_funcs)
+{
+}
 
 //! StarPU wrapper for kernel::sumprod_fiber::cpu<T>
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
-    noexcept
+void SumProdFiber<std::tuple<T>>::cpu(void *buffers[], void *cl_args) noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
@@ -43,8 +53,7 @@ void cpu(void *buffers[], void *cl_args)
 #ifdef NNTILE_USE_CUDA
 //! StarPU wrapper for kernel::sumprod_fiber::cuda<T>
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
-    noexcept
+void SumProdFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args) noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
@@ -64,8 +73,8 @@ void cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for sumprod_fiber tasks
-static
-uint32_t footprint(struct starpu_task *task)
+template<typename T>
+uint32_t SumProdFiber<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -78,94 +87,8 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
-
-void init()
-{
-    codelet_fp32.init("nntile_sumprod_fiber_fp32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-        codelet_bf16.init("nntile_sumprod_fiber_bf16",
-            footprint,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_sumprod_fiber_fp32_fast_tf32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_fp16.init("nntile_sumprod_fiber_fp32_fast_fp16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_bf16.init("nntile_sumprod_fiber_fp32_fast_bf16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp64.init("nntile_sumprod_fiber_fp64",
-            footprint,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp32_fast_fp16.restrict_where(where);
-    codelet_fp32_fast_bf16.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp32_fast_fp16.restore_where();
-    codelet_fp32_fast_bf16.restore_where();
-    codelet_fp64.restore_where();
-}
-
 template<typename T>
-void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
+void SumProdFiber<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
         Scalar beta, Handle dst, int redux)
 //! Insert sumprod_fiber task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -185,11 +108,10 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
         if(redux != 0)
         {
             dst_mode = STARPU_REDUX;
-            //dst_mode = Config::STARPU_RW_COMMUTE;
         }
         else
         {
-            dst_mode = Config::STARPU_RW_COMMUTE;
+            dst_mode = STARPU_RW | STARPU_COMMUTE;
         }
     }
     else
@@ -209,7 +131,7 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
     double nflops = beta == 0.0 ? 2*src1_nbytes + dst_nbytes :
         2 * (src1_nbytes+dst_nbytes);
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(&codelet,
         STARPU_R, src1.get(),
         STARPU_R, src2.get(),
         STARPU_CL_ARGS, args, sizeof(*args),
@@ -223,29 +145,7 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
     }
 }
 
-// Explicit instantiation
-template
-void submit<fp32_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,
-        Handle src2, Scalar beta, Handle dst, int redux);
+//! Pack of sumprod_fiber operations for different types
+sumprod_fiber_pack_t sumprod_fiber;
 
-template
-void submit<bf16_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,
-        Handle src2, Scalar beta, Handle dst, int redux);
-
-template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha,
-        Handle src1, Handle src2, Scalar beta, Handle dst, int redux);
-
-template
-void submit<fp32_fast_fp16_t>(Index m, Index n, Index k, Scalar alpha,
-        Handle src1, Handle src2, Scalar beta, Handle dst, int redux);
-
-template
-void submit<fp32_fast_bf16_t>(Index m, Index n, Index k, Scalar alpha,
-        Handle src1, Handle src2, Scalar beta, Handle dst, int redux);
-
-template
-void submit<fp64_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,
-        Handle src2, Scalar beta, Handle dst, int redux);
-
-} // namespace nntile::starpu::sumprod_fiber
+} // namespace nntile::starpu

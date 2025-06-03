@@ -12,42 +12,53 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/silu_backward.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/silu_backward.hh"
-#include <cstdlib>
 
-namespace nntile::starpu::silu_backward
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/silu_backward.hh"
+
+namespace nntile::starpu
 {
 
-//! Apply backward silu
+//! Constructor
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+SiluBackward<std::tuple<T>>::SiluBackward():
+    codelet("nntile_silu_backward", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+//! StarPU wrapper for kernel::silu_backward::cpu<T>
+template<typename T>
+void SiluBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *x = interfaces[0]->get_ptr<T>();
     const T *dy = interfaces[1]->get_ptr<T>();
     T *dx = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::silu_backward::cpu<T>(nelems, x, dy, dx);
+    kernel::silu_backward::cpu<T>(args->nelems, x, dy, dx);
 #endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply silu along middle axis of StarPU buffer on CUDA
+//! StarPU wrapper for kernel::silu_backward::cuda<T>
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void SiluBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *x = interfaces[0]->get_ptr<T>();
@@ -56,80 +67,33 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::silu_backward::cuda<T>(stream, nelems, x, dy, dx);
+    kernel::silu_backward::cuda<T>(stream, args->nelems, x, dy, dx);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
-
-void init()
+//! Footprint for silu_backward tasks
+template<typename T>
+uint32_t SiluBackward<std::tuple<T>>::footprint(struct starpu_task *task)
 {
-    codelet_fp32.init("nntile_silu_backward_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_bf16.init("nntile_silu_backward_bf16",
-            nullptr,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_silu_backward_fp32_fast_tf32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp64.init("nntile_silu_backward_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp64.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
+    return hash;
 }
 
 template<typename T>
-void submit(Index nelems, Handle x, Handle dy, Handle dx)
+void SiluBackward<std::tuple<T>>::submit(Index nelems, Handle x, Handle dy, Handle dx)
 {
-    Index *nelems_ = (Index *)std::malloc(sizeof(*nelems_));
-    *nelems_ = nelems;
-    int ret = starpu_task_insert(codelet<T>(),
+    // Codelet arguments
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->nelems = nelems;
+    // Submit task
+    int ret = starpu_task_insert(&codelet,
             STARPU_R, x.get(),
             STARPU_R, dy.get(),
             STARPU_RW, dx.get(),
-            STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
+            STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission
     if(ret != 0)
@@ -138,65 +102,7 @@ void submit(Index nelems, Handle x, Handle dy, Handle dx)
     }
 }
 
-// Explicit instantiaion
-template
-void submit<fp32_t>(Index nelems, Handle x, Handle dy, Handle dx);
+//! Pack of silu_backward operations for different types
+silu_backward_pack_t silu_backward;
 
-template
-void submit<bf16_t>(Index nelems, Handle x, Handle dy, Handle dx);
-
-template
-void submit<fp32_fast_tf32_t>(Index nelems, Handle x, Handle dy, Handle dx);
-
-template
-void submit<fp64_t>(Index nelems, Handle x, Handle dy, Handle dx);
-
-template<typename T>
-void submit_mpi(Index nelems, Handle x, Handle dy, Handle dx, int exec_rank)
-{
-    // Build a task with initializing data transfers
-    struct starpu_task *task = starpu_task_build(
-            codelet<T>(),
-            STARPU_R, x.get(),
-            STARPU_R, dy.get(),
-            STARPU_RW, dx.get(),
-            0);
-    // Only execution node will have non-nullptr task
-    if(task)
-    {
-        // Define codelet arguments
-        Index *nelems_ = (Index *)std::malloc(sizeof(*nelems_));
-        task->cl_arg = nelems_;
-        task->cl_arg_size = sizeof(*nelems_);
-        task->cl_arg_free = 1;
-        // Set codelet arguments
-        *nelems_ = nelems;
-        // Submit task to the DAG
-        int ret = starpu_task_submit(task);
-        // Check submission
-        if(ret != 0)
-        {
-            throw std::runtime_error("Error in silu_backward MPI task "
-                    "submission");
-        }
-    }
-}
-
-// Explicit instantiaion
-template
-void submit_mpi<fp32_t>(Index nelems, Handle x, Handle dy, Handle dx,
-        int exec_rank);
-
-template
-void submit_mpi<bf16_t>(Index nelems, Handle x, Handle dy, Handle dx,
-        int exec_rank);
-
-template
-void submit_mpi<fp32_fast_tf32_t>(Index nelems, Handle x, Handle dy, Handle dx,
-        int exec_rank);
-
-template
-void submit_mpi<fp64_t>(Index nelems, Handle x, Handle dy, Handle dx,
-        int exec_rank);
-
-} // namespace nntile::starpu::silu_backward
+} // namespace nntile::starpu

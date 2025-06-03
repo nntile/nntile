@@ -12,40 +12,52 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/relu_forward.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/relu_forward.hh"
 
-namespace nntile::starpu::relu_forward
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/relu_forward.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+ReluForward<std::tuple<T>>::ReluForward():
+    codelet("nntile_relu_forward", footprint, cpu_funcs, cuda_funcs)
+{
+}
 
 //! StarPU wrapper for kernel::relu_forward::cpu<T>
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void ReluForward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::relu_forward::cpu<T>(nelems, src, dst);
+    kernel::relu_forward::cpu<T>(args->nelems, src, dst);
 #endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::relu_forward::cpu<T>
+//! StarPU wrapper for kernel::relu_forward::cuda<T>
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void ReluForward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -53,80 +65,31 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::relu_forward::cuda<T>(stream, nelems, src, dst);
+    kernel::relu_forward::cuda<T>(stream, args->nelems, src, dst);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
-
-void init()
+//! Define codelet pack
+template<typename T>
+uint32_t ReluForward<std::tuple<T>>::footprint(struct starpu_task *task)
 {
-    codelet_fp32.init("nntile_relu_forward_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp32_fast_tf32.init("nntile_relu_forward_fp32_fast_tf32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp64.init("nntile_relu_forward_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_bf16.init("nntile_relu_forward_bf16",
-            nullptr,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_fp64.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_bf16.restore_where();
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
+    return hash;
 }
 
 template<typename T>
-void submit(Index nelems, Handle src, Handle dst)
+void ReluForward<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
 {
-    Index *nelems_ = new Index{nelems};
-    //double nflops = 5 * nelems;
-    int ret = starpu_task_insert(codelet<T>(),
+    // Codelet arguments
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    *args = args_t{nelems};
+    int ret = starpu_task_insert(&codelet,
             STARPU_R, src.get(),
             STARPU_W, dst.get(),
-            STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
-            //STARPU_FLOPS, nflops,
+            STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission
     if(ret != 0)
@@ -135,17 +98,7 @@ void submit(Index nelems, Handle src, Handle dst)
     }
 }
 
-// Explicit instantiaion
-template
-void submit<fp32_t>(Index nelems, Handle src, Handle dst);
+//! Pack of relu_forward operations for different types
+relu_forward_pack_t relu_forward;
 
-template
-void submit<fp32_fast_tf32_t>(Index nelems, Handle src, Handle dst);
-
-template
-void submit<fp64_t>(Index nelems, Handle src, Handle dst);
-
-template
-void submit<bf16_t>(Index nelems, Handle src, Handle dst);
-
-} // namespace nntile::starpu::relu_forward
+} // namespace nntile::starpu

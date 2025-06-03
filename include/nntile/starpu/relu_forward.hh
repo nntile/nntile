@@ -17,56 +17,83 @@
 // Compile-time definitions
 #include <nntile/defs.h>
 
+// Standard headers
+#include <tuple>
+
 // NNTile headers
 #include <nntile/starpu/codelet.hh>
 #include <nntile/starpu/handle.hh>
 
-namespace nntile::starpu::relu_forward
+namespace nntile::starpu
 {
 
-//! Wrapper for all kernel functions
+//! Generic wrapper class for relu_forward operation is not defined
 template<typename T>
-struct KernelWrapper
+class ReluForward;
+
+//! Specialization of wrapper class for relu_forward operation via std::tuple
+template<typename T>
+class ReluForward<std::tuple<T>>
 {
+public:
+    //! Codelet for the current operation
+    CodeletTyped<T> codelet;
+
+    //! Constructor
+    ReluForward();
+
+    //! Structure for operation arguments
+    struct args_t
+    {
+        Index nelems;
+    };
+
+    //! Footprint function for the current operation
+    static uint32_t footprint(struct starpu_task *task);
+
+    //! Wrapper for a generic CPU implementation
     static void cpu(void *buffers[], void *cl_args)
         noexcept;
 
+    //! Array of all wrappers for CPU implementations
     static constexpr func_array cpu_funcs = {
         cpu
     };
 
 #ifdef NNTILE_USE_CUDA
+    //! Wrapper for a generic CUDA implementation
     static void cuda(void *buffers[], void *cl_args)
         noexcept;
 
+    //! Array of all wrappers for CUDA implementations
     static constexpr func_array cuda_funcs = {
         cuda
     };
 #else // NNTILE_USE_CUDA
+    //! Array of all wrappers for CUDA implementations
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
+
+    //! Submit relu_forward task
+    void submit(
+        Index nelems,
+        Handle src,
+        Handle dst
+    );
 };
 
-//! Codelet pack type for the current operation
-using codelet_pack_t = CodeletPack<
-    KernelWrapper,
-    nntile::fp64_t,
-    nntile::fp32_t,
-    nntile::fp32_fast_tf32_t,
-    nntile::fp32_fast_fp16_t,
-    nntile::fp32_fast_bf16_t,
-    nntile::bf16_t
+//! Pack of relu_forward operations for different types
+using relu_forward_pack_t = OperationPack<
+    ReluForward,
+    std::tuple<nntile::fp64_t>,
+    std::tuple<nntile::fp32_t>,
+    std::tuple<nntile::fp32_fast_tf32_t>,
+    std::tuple<nntile::fp32_fast_fp16_t>,
+    std::tuple<nntile::fp32_fast_bf16_t>,
+    std::tuple<nntile::bf16_t>
 >;
 
-// Declare codelet pack
-extern codelet_pack_t codelet_pack;
+//! Pack of relu_forward operations for different types
+extern relu_forward_pack_t relu_forward;
 
-//! Submit relu forward task
-template<typename T>
-void submit(
-    Index nelems,
-    Handle src,
-    Handle dst
-);
-
-} // namespace nntile::starpu::relu_forward
+} // namespace nntile::starpu
