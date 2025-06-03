@@ -54,10 +54,7 @@
 #include <nntile/tensor/norm_slice.hh>
 #include <nntile/tensor/pow.hh>
 #include <nntile/tensor/sumnorm.hh>
-#include <nntile/tensor/flash_maxsumexp.hh>
 #include <nntile/tensor/maxsumexp.hh>
-#include <nntile/tensor/flash_softmax_gemm.hh>
-#include <nntile/tensor/flash_softmax_gemm_backward.hh>
 #include <nntile/tensor/softmax.hh>
 #include <nntile/tensor/softmax_inplace.hh>
 #include <nntile/tensor/sqrt.hh>

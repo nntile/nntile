@@ -134,6 +134,10 @@ inline std::string type_postfix()
     return result.str();
 }
 
+//! Function to check if a type is a floating point type
+template<typename T>
+inline constexpr bool is_floating_point_type = false;
+
 //! NNTile wrapper type for 64-bit signed integers inside NNTile tensors
 class int64_t: public BaseType<std::int64_t>
 {
@@ -188,6 +192,10 @@ inline std::string type_postfix<nntile::fp64_t>()
     return "fp64";
 }
 
+//! Function to check if a type is a floating point type
+template<>
+inline constexpr bool is_floating_point_type<nntile::fp64_t> = true;
+
 //! NNTile wrapper type for float inside NNTile tensors
 class fp32_t: public BaseType<float>
 {
@@ -205,6 +213,10 @@ inline std::string type_postfix<nntile::fp32_t>()
 {
     return "fp32";
 }
+
+//! Function to check if a type is a floating point type
+template<>
+inline constexpr bool is_floating_point_type<nntile::fp32_t> = true;
 
 /*! NNTile wrapper type for TensorFloat32-accelerated float type inside tensors
  *
@@ -228,6 +240,10 @@ inline std::string type_postfix<nntile::fp32_fast_tf32_t>()
     return "fp32_fast_tf32";
 }
 
+//! Function to check if a type is a floating point type
+template<>
+inline constexpr bool is_floating_point_type<nntile::fp32_fast_tf32_t> = true;
+
 /*! NNTile wrapper type for FP16-accelerated float type inside tensors
  *
  * All memory-bound operations are performed in `float` precision, while
@@ -250,6 +266,10 @@ inline std::string type_postfix<nntile::fp32_fast_fp16_t>()
     return "fp32_fast_fp16";
 }
 
+//! Function to check if a type is a floating point type
+template<>
+inline constexpr bool is_floating_point_type<nntile::fp32_fast_fp16_t> = true;
+
 /*! NNTile wrapper type for BF16-accelerated float type inside tensors
  *
  * All memory-bound operations are performed in `float` precision, while
@@ -271,6 +291,10 @@ inline std::string type_postfix<nntile::fp32_fast_bf16_t>()
 {
     return "fp32_fast_bf16";
 }
+
+//! Function to check if a type is a floating point type
+template<>
+inline constexpr bool is_floating_point_type<nntile::fp32_fast_bf16_t> = true;
 
 //! NNTile wrapper type BrainFloat16 type inside tensors
 class bf16_t: public BaseType<std::uint16_t, float>
@@ -313,5 +337,9 @@ inline std::string type_postfix<nntile::bf16_t>()
 {
     return "bf16";
 }
+
+//! Function to check if a type is a floating point type
+template<>
+inline constexpr bool is_floating_point_type<nntile::bf16_t> = true;
 
 } // namespace nntile
