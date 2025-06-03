@@ -31,6 +31,7 @@ template<typename T>
 ScalInplace<std::tuple<T>>::ScalInplace():
     codelet("nntile_scal_inplace", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::scal_inplace::cpu<T>

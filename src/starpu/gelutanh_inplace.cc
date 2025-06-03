@@ -30,7 +30,7 @@ template<typename T>
 GeluTanhInplace<std::tuple<T>>::GeluTanhInplace():
     codelet("nntile_gelutanh_inplace", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_RW});
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply approximate gelu on StarPU buffer on CPU

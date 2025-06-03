@@ -19,8 +19,8 @@ import torch
 import nntile
 import nntile.utils.constructors as nntc
 from nntile.layer import (
-    Act, AddSlice, Attention, AttentionSingleHead, Embedding, FlashAttention,
-    LayerNorm, Linear)
+    Act, AddSlice, Attention, AttentionSingleHead, Embedding, LayerNorm,
+    Linear)
 from nntile.layer.add import Add
 from nntile.layer.cache_utils import KVCacheStorage
 from nntile.model.base_model import BaseModel
@@ -174,7 +174,7 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
             print("Set 1 head")
             AttLayer = AttentionSingleHead
         elif flashattention:
-            AttLayer = FlashAttention
+            AttLayer = Attention
         else:
             AttLayer = Attention
         seq_len = input_ids.value.shape[0]

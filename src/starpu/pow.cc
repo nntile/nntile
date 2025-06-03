@@ -30,6 +30,7 @@ template<typename T>
 Pow<std::tuple<T>>::Pow():
     codelet("nntile_pow", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::pow::cpu<T>

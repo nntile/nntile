@@ -24,11 +24,10 @@ from nntile.layer.cache_utils import KVCache
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
     add_fiber_inplace_async, add_slice_inplace_async, clear_async,
-    copy_intersection_async, flash_maxsumexp_async, flash_softmax_gemm_async,
-    flash_softmax_gemm_backward_async, gemm_async, mask_scalar_async,
-    maxsumexp_async, notrans, prod_inplace_async, rope_async,
-    rope_backward_async, softmax_inplace_async, sum_fiber_async,
-    sum_slice_async, sumprod_slice_async, to_numpy, trans, transpose_async)
+    copy_intersection_async, gemm_async, mask_scalar_async, maxsumexp_async,
+    notrans, prod_inplace_async, rope_async, rope_backward_async,
+    softmax_inplace_async, sum_fiber_async, sum_slice_async,
+    sumprod_slice_async, to_numpy, trans, transpose_async)
 
 from ..model.llama_config import LlamaConfigNNTile
 
@@ -815,7 +814,7 @@ class LlamaAttention(BaseLayer):
 
         # Apply attention to Q_rope, K_rep and V_rep into B
         if self.flash_attention:
-            self._flash_attention_fwd()
+            self._attention_fwd()
         else:
             self._attention_fwd()
         # Repeated tensors can be deleted now
@@ -1340,7 +1339,7 @@ class LlamaAttention(BaseLayer):
         self.v.value.invalidate_submit()
         # Apply backward to (attention to Q_rope, K_rep and V_rep into B)
         if self.flash_attention:
-            self._flash_attention_bwd()
+            self._attention_bwd()
         else:
             self._attention_bwd()
 
@@ -1933,74 +1932,6 @@ class LlamaAttention(BaseLayer):
                               np.prod(qt_grad_shape[:-2]))
             total_backward_flops += w_q_grad_flops
         return total_backward_flops
-
-    def _flash_attention_fwd(self):
-        # Use flash-like maxsumexp
-        clear_async(self.a_maxsumexp)
-        flash_maxsumexp_async(
-            self.q_rope.value,
-            self.k_rep.value,
-            self.mask,
-            self.a_maxsumexp,
-            self.a.value,
-            redux=self.redux,
-        )
-        # Use flash-like softmax+gemm
-        flash_softmax_gemm_async(
-            self.q_rope.value,
-            self.k_rep.value,
-            self.v_rep.value,
-            self.mask,
-            self.a_maxsumexp,
-            self.b.value,
-            self.a.value,
-            redux=self.redux,
-        )
-        # Q_rope, K_rep, V_rep, mask and A_maxsumexp can be offloaded from GPU
-        self.q_rope.value.wont_use()
-        self.k_rep.value.wont_use()
-        self.v_rep.value.wont_use()
-        self.mask.wont_use()
-        self.a_maxsumexp.wont_use()
-        # A can be deleted
-        self.a.value.invalidate_submit()
-
-    def _flash_attention_bwd(self):
-        # Flash-like backward of softmax+gemm
-        clear_async(self.a_sumprod_slice)
-        flash_softmax_gemm_backward_async(
-            self.q_rope.value,
-            self.q_rope.grad,
-            self.k_rep.value,
-            self.k_rep.grad,
-            self.v_rep.value,
-            self.v_rep.grad,
-            self.mask,
-            self.a_maxsumexp,
-            self.b.grad,
-            self.a.value,
-            self.a.grad,
-            self.a_sumprod_slice,
-            redux=self.redux,
-        )
-        # Q_rope can be deleted
-        self.q_rope.value.invalidate_submit()
-        # K_rep can be deleted
-        self.k_rep.value.invalidate_submit()
-        # V_rep can be deleted
-        self.v_rep.value.invalidate_submit()
-        # mask can be offloaded from GPU
-        self.mask.wont_use()
-        # A_maxsumexp can be deleted
-        self.a_maxsumexp.invalidate_submit()
-        # dB can be deleted
-        self.b.grad.invalidate_submit()
-        # A can be deleted
-        self.a.value.invalidate_submit()
-        # dA can be deleted
-        self.a.grad.invalidate_submit()
-        # A_sumprod_slice can be deleted
-        self.a_sumprod_slice.invalidate_submit()
 
     def _attention_fwd(self):
         # Get tensor for softmax

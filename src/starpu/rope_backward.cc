@@ -30,6 +30,7 @@ template<typename T>
 RopeBackward<std::tuple<T>>::RopeBackward():
     codelet("nntile_rope_backward", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::rope_backward::cpu<T>

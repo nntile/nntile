@@ -30,6 +30,7 @@ template<typename T>
 NormSlice<std::tuple<T>>::NormSlice():
     codelet("nntile_norm_slice", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::norm_slice::cpu<T>

@@ -30,6 +30,7 @@ template<typename T>
 LogScalar<std::tuple<T>>::LogScalar():
     codelet("nntile_log_scalar", nullptr, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply log_scalar operation for StarPU buffers in CPU

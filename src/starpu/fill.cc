@@ -30,7 +30,7 @@ template<typename T>
 Fill<std::tuple<T>>::Fill():
     codelet("nntile_fill", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_W});
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply fill on StarPU buffer on CPU

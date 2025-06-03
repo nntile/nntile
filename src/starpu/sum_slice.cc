@@ -30,6 +30,7 @@ template<typename T>
 SumSlice<std::tuple<T>>::SumSlice():
     codelet("nntile_sum_slice", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::sum_slice::cpu<T>

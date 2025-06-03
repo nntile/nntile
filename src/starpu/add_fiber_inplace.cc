@@ -30,6 +30,7 @@ template<typename T>
 AddFiberInplace<std::tuple<T>>::AddFiberInplace():
     codelet("nntile_add_fiber_inplace", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply add_fiber_inplace operation on StarPU buffers on CPU

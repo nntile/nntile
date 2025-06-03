@@ -30,6 +30,7 @@ template<typename T>
 NormFiber<std::tuple<T>>::NormFiber():
     codelet("nntile_norm_fiber", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::norm_fiber::cpu<T>

@@ -30,6 +30,7 @@ template<typename T>
 Softmax<std::tuple<T>>::Softmax():
     codelet("nntile_softmax", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::softmax::cpu<T>

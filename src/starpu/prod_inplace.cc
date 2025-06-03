@@ -30,6 +30,7 @@ template<typename T>
 ProdInplace<std::tuple<T>>::ProdInplace():
     codelet("nntile_prod_inplace", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply prod on StarPU buffers on CPU

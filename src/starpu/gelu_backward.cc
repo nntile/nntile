@@ -29,7 +29,7 @@ template<typename T>
 GeluBackward<std::tuple<T>>::GeluBackward():
     codelet("nntile_gelu_backward", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_R, STARPU_R, STARPU_W});
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply gelu_backward on StarPU buffer on CPU

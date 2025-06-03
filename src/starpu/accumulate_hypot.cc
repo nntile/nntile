@@ -30,7 +30,14 @@ template<typename T>
 AccumulateHypot<std::tuple<T>>::AccumulateHypot():
     codelet("nntile_accumulate_hypot", nullptr, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_RW | STARPU_COMMUTE, STARPU_R});
+    // Modes cannot be variable for accumulate_hypot operation
+    // Construct modes
+    constexpr std::array<starpu_data_access_mode, 2> modes = {
+        static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE),
+        STARPU_R
+    };
+    // Set modes
+    codelet.set_modes_fixed(modes);
 }
 
 //! Apply accumulate_hypot operation for StarPU buffers in CPU

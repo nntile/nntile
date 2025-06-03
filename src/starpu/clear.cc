@@ -26,7 +26,13 @@ namespace nntile::starpu
 Clear::Clear():
     codelet("nntile_clear", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_W});
+    // Modes cannot be variable for clear operation
+    // Construct modes
+    constexpr std::array<starpu_data_access_mode, 1> modes = {
+        STARPU_W
+    };
+    // Set modes
+    codelet.set_modes_fixed(modes);
 }
 
 //! Clear a StarPU buffer on CPU

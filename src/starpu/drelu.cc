@@ -29,7 +29,7 @@ template<typename T>
 DRelu<std::tuple<T>>::DRelu():
     codelet("nntile_drelu", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_RW});
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply drelu on StarPU buffer on CPU

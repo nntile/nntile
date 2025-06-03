@@ -30,6 +30,7 @@ template<typename T>
 ProdFiber3<std::tuple<T>>::ProdFiber3():
     codelet("nntile_prod_fiber3", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::prod_fiber3::cpu<T>

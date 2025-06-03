@@ -71,9 +71,29 @@ public:
     Codelet &restore_where();
 
     //! Set modes for the codelet
-    /*! @param[in] modes: Modes for the codelet
-     * */
-    Codelet &set_modes_fixed(const std::vector<starpu_data_access_mode> &modes);
+    template<size_t N>
+    Codelet &set_modes_fixed(const std::array<starpu_data_access_mode, N> &modes)
+    {
+        static_assert(N <= STARPU_NMAXBUFS, "Too many data access modes");
+
+        // Set number of buffers
+        starpu_codelet::nbuffers = N;
+
+        // Set modes
+        for(int i = 0; i < N; ++i)
+        {
+            starpu_codelet::modes[i] = modes[i];
+        }
+
+        // Clear all the remaining modes
+        for(int i = N; i < STARPU_NMAXBUFS; ++i)
+        {
+            starpu_codelet::modes[i] = STARPU_NONE;
+        }
+
+        // Return the codelet
+        return *this;
+    }
 
     //! Set runtime decision on number of buffers and access modes
     /*! This is done by default for all the codelets. */

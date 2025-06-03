@@ -30,7 +30,7 @@ template<typename T>
 DGelu<std::tuple<T>>::DGelu():
     codelet("nntile_dgelu", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_RW});
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply dgelu on StarPU buffer on CPU

@@ -30,6 +30,7 @@ template<typename T>
 MaskScalar<std::tuple<T>>::MaskScalar():
     codelet("nntile_mask_scalar", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Mask scalar operation for StarPU buffer on CPU

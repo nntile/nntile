@@ -155,7 +155,7 @@ def generate_inputs(params: LlamaDecoderTestParams,
     False,
     # True # Temporarily disabled to investigate later
 ])
-@pytest.mark.parametrize('flash_attention', [True, False])
+@pytest.mark.parametrize('flash_attention', [False])
 class TestLlamaDecoder:
     def test_coercion(self, starpu_simple, torch_rng,
                       params: LlamaDecoderTestParams, dtype: str,

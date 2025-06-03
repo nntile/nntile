@@ -30,6 +30,7 @@ template<typename T>
 ReluForward<std::tuple<T>>::ReluForward():
     codelet("nntile_relu_forward", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::relu_forward::cpu<T>

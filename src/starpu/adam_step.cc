@@ -31,6 +31,7 @@ template<typename T>
 AdamStep<std::tuple<T>>::AdamStep():
     codelet("nntile_adam_step", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply Adam step on StarPU buffers on CPU

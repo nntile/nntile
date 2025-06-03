@@ -30,7 +30,7 @@ template<typename T>
 GeluTanhBackward<std::tuple<T>>::GeluTanhBackward():
     codelet("nntile_gelutanh_backward", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_R, STARPU_R, STARPU_RW});
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 template<typename T>

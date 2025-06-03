@@ -30,6 +30,7 @@ template<typename T>
 AddCdiv<std::tuple<T>>::AddCdiv():
     codelet("nntile_addcdiv", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply addcdiv operation on StarPU buffers on CPU

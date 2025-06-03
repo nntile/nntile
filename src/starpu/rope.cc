@@ -30,6 +30,7 @@ template<typename T>
 Rope<std::tuple<T>>::Rope():
     codelet("nntile_rope", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::rope::cpu<T>

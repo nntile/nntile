@@ -30,6 +30,7 @@ template<typename T>
 Prod<std::tuple<T>>::Prod():
     codelet("nntile_prod", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::prod::cpu<T>

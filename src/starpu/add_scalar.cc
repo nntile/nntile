@@ -30,6 +30,7 @@ template<typename T>
 AddScalar<std::tuple<T>>::AddScalar():
     codelet("nntile_add_scalar", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply add_scalar for StarPU buffer in CPU

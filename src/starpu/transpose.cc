@@ -30,6 +30,7 @@ template<typename T>
 Transpose<std::tuple<T>>::Transpose():
     codelet("nntile_transpose", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::transpose::cpu<T>

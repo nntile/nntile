@@ -29,7 +29,7 @@ template<typename T>
 GeluTanh<std::tuple<T>>::GeluTanh():
     codelet("nntile_gelutanh", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_R, STARPU_W});
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply gelutanh on StarPU buffer on CPU

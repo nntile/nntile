@@ -30,6 +30,7 @@ template<typename T>
 SumProdSlice<std::tuple<T>>::SumProdSlice():
     codelet("nntile_sumprod_slice", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::sumprod_slice::cpu<T>

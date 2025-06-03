@@ -30,6 +30,7 @@ template<typename T>
 SubtractIndexedOutputs<std::tuple<T>>::SubtractIndexedOutputs():
     codelet("nntile_subtract_indexed_outputs", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 template<typename T>

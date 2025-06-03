@@ -30,6 +30,7 @@ template<typename T>
 ProdSlice<std::tuple<T>>::ProdSlice():
     codelet("nntile_prod_slice", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::prod_slice::cpu<T>

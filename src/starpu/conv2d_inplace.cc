@@ -31,7 +31,7 @@ template<typename T>
 Conv2dInplace<std::tuple<T>>::Conv2dInplace():
     codelet("nntile_conv2d_inplace", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_R, STARPU_R, STARPU_RW});
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply conv2d_inplace on StarPU buffer on CPU

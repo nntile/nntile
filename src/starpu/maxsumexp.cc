@@ -30,6 +30,7 @@ template<typename T>
 MaxSumExp<std::tuple<T>>::MaxSumExp():
     codelet("nntile_maxsumexp", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Max and sum of exponents along middle axis of StarPU buffer on CPU

@@ -30,7 +30,7 @@ template<typename T>
 Embedding<std::tuple<T>>::Embedding():
     codelet("nntile_embedding", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_R, STARPU_R, STARPU_RW});
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply embedding on StarPU buffer on CPU

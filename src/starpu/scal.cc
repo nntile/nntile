@@ -31,7 +31,7 @@ template<typename T>
 Scal<std::tuple<T>>::Scal():
     codelet("nntile_scal", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_R, STARPU_W});
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::scal::cpu<T>

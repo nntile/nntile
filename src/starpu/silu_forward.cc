@@ -30,6 +30,7 @@ template<typename T>
 SiluForward<std::tuple<T>>::SiluForward():
     codelet("nntile_silu_forward", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::silu_forward::cpu<T>

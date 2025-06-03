@@ -30,6 +30,7 @@ template<typename T>
 SumFiber<std::tuple<T>>::SumFiber():
     codelet("nntile_sum_fiber", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::sum_fiber::cpu<T>

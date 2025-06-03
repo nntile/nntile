@@ -29,7 +29,7 @@ template<typename T>
 Gelu<std::tuple<T>>::Gelu():
     codelet("nntile_gelu", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_RW});
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply gelu on StarPU buffer on CPU

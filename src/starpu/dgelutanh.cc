@@ -30,7 +30,7 @@ template<typename T>
 DGeluTanh<std::tuple<T>>::DGeluTanh():
     codelet("nntile_dgelutanh", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_RW});
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply dgelutanh on StarPU buffer on CPU

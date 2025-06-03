@@ -107,40 +107,6 @@ Codelet &Codelet::restore_where()
     return *this;
 }
 
-//! Set modes for the codelet
-Codelet &Codelet::set_modes_fixed(const std::vector<starpu_data_access_mode> &modes)
-{
-    // Check if the number of modes is too large
-    if(modes.size() > STARPU_NMAXBUFS)
-    {
-        std::cerr << modes.size() << " " << STARPU_NMAXBUFS << std::endl;
-        for(auto mode : modes)
-        {
-            std::cerr << mode << " ";
-        }
-        std::cerr << std::endl;
-        throw std::runtime_error("Too many data access modes");
-    }
-
-    // Set number of buffers
-    starpu_codelet::nbuffers = modes.size();
-
-    // Set modes
-    for(int i = 0; i < starpu_codelet::nbuffers; ++i)
-    {
-        starpu_codelet::modes[i] = modes[i];
-    }
-
-    // Clear all the remaining modes
-    for(int i = starpu_codelet::nbuffers; i < STARPU_NMAXBUFS; ++i)
-    {
-        starpu_codelet::modes[i] = STARPU_NONE;
-    }
-
-    // Return the codelet
-    return *this;
-}
-
 //! Set runtime decision on number of buffers and access modes
 Codelet &Codelet::set_modes_variable()
 {

@@ -30,6 +30,7 @@ template<typename T>
 Relu<std::tuple<T>>::Relu():
     codelet("nntile_relu", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::relu::cpu<T>

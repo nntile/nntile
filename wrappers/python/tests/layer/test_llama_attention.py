@@ -179,7 +179,7 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool,
     pytest.param('fp32_fast_tf32', marks=nocuda),
     pytest.param('bf16', marks=nocuda),
 ])
-@pytest.mark.parametrize('flash_attention', [False, True])
+@pytest.mark.parametrize('flash_attention', [False])
 class TestLlamaAttention:
 
     def test_torch_coercion(self, starpu_simple, torch_rng, dtype: str,

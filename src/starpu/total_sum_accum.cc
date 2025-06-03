@@ -30,6 +30,7 @@ template<typename T>
 TotalSumAccum<std::tuple<T>>::TotalSumAccum():
     codelet("nntile_total_sum_accum", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::total_sum_accum::cpu<T>

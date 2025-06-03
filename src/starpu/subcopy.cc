@@ -31,6 +31,7 @@ template<typename T>
 Subcopy<std::tuple<T>>::Subcopy():
     codelet("nntile_subcopy", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Complex copying through StarPU buffers on CPU

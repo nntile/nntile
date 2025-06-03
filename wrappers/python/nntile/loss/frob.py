@@ -12,8 +12,8 @@
 # @version 1.1.0
 
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, axpy_async, copy_async, nrm2_async,
-    prod_inplace_async, scal_inplace_async)
+    Tensor, TensorMoments, TensorTraits, add_inplace_async, copy_async,
+    nrm2_async, prod_inplace_async, scal_inplace_async)
 
 
 class Frob:
@@ -62,7 +62,7 @@ class Frob:
         # Put X into gradient grad X
         copy_async(self.x.value, self.x.grad)
         # Define gradient dX as X-Y
-        axpy_async(-1, self.y, self.x.grad)
+        add_inplace_async(-1, self.y, 1.0, self.x.grad)
         # Values Y are not needed anymore
         # self.y.invalidate_submit()
         # Get value ||grad X||

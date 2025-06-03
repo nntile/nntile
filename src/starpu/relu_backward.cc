@@ -30,6 +30,7 @@ template<typename T>
 ReluBackward<std::tuple<T>>::ReluBackward():
     codelet("nntile_relu_backward", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::relu_backward::cpu<T>

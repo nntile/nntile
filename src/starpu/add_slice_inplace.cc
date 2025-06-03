@@ -30,6 +30,7 @@ template<typename T>
 AddSliceInplace<std::tuple<T>>::AddSliceInplace():
     codelet("nntile_add_slice_inplace", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::add_slice_inplace::cpu<T>

@@ -25,7 +25,7 @@ namespace nntile::starpu
 Copy::Copy():
     codelet("nntile_copy", nullptr, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_R, STARPU_W});
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Copy StarPU buffers on CPU

@@ -30,6 +30,7 @@ template<typename T>
 SqrtInplace<std::tuple<T>>::SqrtInplace():
     codelet("nntile_sqrt_inplace", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply sqrt inplace to StarPU buffer on CPU

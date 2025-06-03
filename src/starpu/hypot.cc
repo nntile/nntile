@@ -33,6 +33,7 @@ template<typename T>
 Hypot<std::tuple<T>>::Hypot():
     codelet("nntile_hypot", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply hypot operation for StarPU buffers in CPU

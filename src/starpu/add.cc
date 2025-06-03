@@ -31,7 +31,7 @@ template<typename T>
 Add<std::tuple<T>>::Add():
     codelet("nntile_add", footprint, cpu_funcs, cuda_funcs)
 {
-    codelet.set_modes_fixed({STARPU_R, STARPU_R, STARPU_W});
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply add operation for StarPU buffers in CPU

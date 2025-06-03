@@ -30,6 +30,7 @@ template<typename T>
 SiluBackward<std::tuple<T>>::SiluBackward():
     codelet("nntile_silu_backward", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::silu_backward::cpu<T>

@@ -30,6 +30,7 @@ template<typename T>
 Maximum<std::tuple<T>>::Maximum():
     codelet("nntile_maximum", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply maximum operation on StarPU buffers on CPU

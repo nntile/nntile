@@ -30,6 +30,7 @@ template<typename T>
 HypotScalarInverse<std::tuple<T>>::HypotScalarInverse():
     codelet("nntile_hypot_scalar_inverse", footprint, cpu_funcs, cuda_funcs)
 {
+    // Modes are not fixed, they are decided during runtime by default
 }
 
 //! Apply hypot_scalar_inverse operation for StarPU buffers in CPU

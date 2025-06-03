@@ -70,7 +70,6 @@ parser.add_argument("--dtype", choices=["fp32", "fp32_fast_tf32", "bf16",
                     default="fp32")
 parser.add_argument("--restrict", choices=["cpu", "cuda", None],
                     default=None)
-parser.add_argument("--flash-attention", action="store_true")
 parser.add_argument("--use-redux", action="store_true")
 parser.add_argument("--torch-compile", action="store_true")
 parser.add_argument("--num-warmup-calls", type=int, default=1)
