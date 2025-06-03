@@ -28,7 +28,7 @@ namespace nntile::starpu
 //! Constructor
 template<typename T>
 LogScalar<std::tuple<T>>::LogScalar():
-    codelet("nntile_log_scalar", footprint, cpu_funcs, cuda_funcs)
+    codelet("nntile_log_scalar", nullptr, cpu_funcs, cuda_funcs)
 {
 }
 
@@ -49,6 +49,31 @@ void LogScalar<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Call destructor explicitly, since the object is C++ object
     delete args;
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void LogScalar<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    LogScalar<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void LogScalar<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    LogScalar<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void LogScalar<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    LogScalar<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 //! Submit log_scalar task
@@ -79,6 +104,16 @@ void LogScalar<std::tuple<T>>::submit(const std::string &name, Handle value)
         throw std::runtime_error("Error in log_scalar task submission");
     }
 }
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class LogScalar<std::tuple<nntile::fp64_t>>;
+template class LogScalar<std::tuple<nntile::fp32_t>>;
+template class LogScalar<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class LogScalar<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class LogScalar<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class LogScalar<std::tuple<nntile::bf16_t>>;
 
 //! Pack of log_scalar operations for different types
 log_scalar_pack_t log_scalar;

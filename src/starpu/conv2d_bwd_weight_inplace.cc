@@ -193,6 +193,16 @@ void Conv2dBwdWeightInplace<std::tuple<T>>::submit(
     }
 }
 
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class Conv2dBwdWeightInplace<std::tuple<nntile::fp64_t>>;
+template class Conv2dBwdWeightInplace<std::tuple<nntile::fp32_t>>;
+template class Conv2dBwdWeightInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class Conv2dBwdWeightInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class Conv2dBwdWeightInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class Conv2dBwdWeightInplace<std::tuple<nntile::bf16_t>>;
+
 //! Pack of conv2d_bwd_weight_inplace operations for different types
 conv2d_bwd_weight_inplace_pack_t conv2d_bwd_weight_inplace;
 

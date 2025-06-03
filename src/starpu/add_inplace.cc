@@ -99,7 +99,6 @@ void AddInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         stream, args->nelems, args->alpha, src, args->beta, dst);
 #endif // STARPU_SIMGRID
 }
-#endif // NNTILE_USE_CUDA
 
 // Specializations of CPU wrapper for accelerated types
 template<>
@@ -125,6 +124,18 @@ void AddInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_ar
     // Fall back to FP32
     AddInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
+#endif // NNTILE_USE_CUDA
+
+//! Footprint for add tasks that depends only on cl_arg
+template<typename T>
+uint32_t AddInplace<std::tuple<T>>::footprint(struct starpu_task *task)
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
+    return hash;
+}
 
 //! Submit add_inplace task
 template<typename T>
@@ -140,20 +151,20 @@ void AddInplace<std::tuple<T>>::submit(
     // If beta is zero this function reduces to scal
     if(beta == zero)
     {
-        scal.submit<T>(nelems, alpha, src, dst);
+        scal.submit<std::tuple<T>>(nelems, alpha, src, dst);
         return;
     }
     // If beta is non-zero and alpha is zero then reduce to scal_inplace
     if(alpha == zero)
     {
-        scal_inplace.submit<T>(nelems, beta, dst);
+        scal_inplace.submit<std::tuple<T>>(nelems, beta, dst);
         return;
     }
     // Access mode for the dst handle
     enum starpu_data_access_mode dst_mode;
     if(beta == one)
     {
-        dst_mode = STARPU_RW | STARPU_COMMUTE;
+        dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
     }
     else
     {
@@ -179,18 +190,17 @@ void AddInplace<std::tuple<T>>::submit(
     }
 }
 
-//! Pack of add_inplace operations for different types
-using add_inplace_pack_t = OperationPack<
-    AddInplace,
-    std::tuple<nntile::fp64_t>,
-    std::tuple<nntile::fp32_t>,
-    std::tuple<nntile::fp32_fast_tf32_t>,
-    std::tuple<nntile::fp32_fast_fp16_t>,
-    std::tuple<nntile::fp32_fast_bf16_t>,
-    std::tuple<nntile::bf16_t>
->;
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class AddInplace<std::tuple<nntile::fp64_t>>;
+template class AddInplace<std::tuple<nntile::fp32_t>>;
+template class AddInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class AddInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class AddInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class AddInplace<std::tuple<nntile::bf16_t>>;
 
 //! Pack of add_inplace operations for different types
-extern add_inplace_pack_t add_inplace;
+add_inplace_pack_t add_inplace;
 
 } // namespace nntile::starpu

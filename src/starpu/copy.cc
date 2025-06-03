@@ -23,7 +23,7 @@ namespace nntile::starpu
 
 //! Constructor
 Copy::Copy():
-    codelet("nntile_copy", footprint, cpu_funcs, cuda_funcs)
+    codelet("nntile_copy", nullptr, cpu_funcs, cuda_funcs)
 {
     codelet.set_modes_fixed({STARPU_R, STARPU_W});
 }

@@ -60,6 +60,31 @@ void EmbeddingBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 #endif // STARPU_SIMGRID
 }
 
+// Specializations of CPU wrapper for accelerated types
+template<>
+void EmbeddingBackward<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    EmbeddingBackward<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void EmbeddingBackward<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    EmbeddingBackward<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void EmbeddingBackward<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    EmbeddingBackward<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
 #ifdef NNTILE_USE_CUDA
 //! Apply embedding backward on StarPU buffer on CUDA
 template<typename T>
@@ -89,6 +114,31 @@ void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         vocab
     );
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void EmbeddingBackward<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    EmbeddingBackward<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void EmbeddingBackward<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    EmbeddingBackward<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void EmbeddingBackward<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    EmbeddingBackward<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -129,11 +179,10 @@ void EmbeddingBackward<std::tuple<T>>::submit(Index m, Index n, Index k, Index k
     if(redux != 0)
     {
         vocab_mode = STARPU_REDUX;
-        //vocab_mode = Config::STARPU_RW_COMMUTE;
     }
     else
     {
-        vocab_mode = STARPU_RW | STARPU_COMMUTE;
+        vocab_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
     }
     // Submit task
     int ret = starpu_task_insert(&codelet,
@@ -150,6 +199,16 @@ void EmbeddingBackward<std::tuple<T>>::submit(Index m, Index n, Index k, Index k
                 "submission");
     }
 }
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class EmbeddingBackward<std::tuple<nntile::fp64_t>>;
+template class EmbeddingBackward<std::tuple<nntile::fp32_t>>;
+template class EmbeddingBackward<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class EmbeddingBackward<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class EmbeddingBackward<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class EmbeddingBackward<std::tuple<nntile::bf16_t>>;
 
 //! Pack of embedding backward operations for different types
 embedding_backward_pack_t embedding_backward;

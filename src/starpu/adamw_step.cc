@@ -123,7 +123,6 @@ void AdamWStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     );
 #endif // STARPU_SIMGRID
 }
-#endif // NNTILE_USE_CUDA
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
@@ -149,6 +148,7 @@ void AdamWStep<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_arg
     // Fall back to FP32
     AdamWStep<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for adam_step tasks that depends only on cl_arg
 template<typename T>
@@ -210,6 +210,16 @@ void AdamWStep<std::tuple<T>>::submit(
         throw std::runtime_error("Error in adamw_step task submission");
     }
 }
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class AdamWStep<std::tuple<nntile::fp64_t>>;
+template class AdamWStep<std::tuple<nntile::fp32_t>>;
+template class AdamWStep<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class AdamWStep<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class AdamWStep<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class AdamWStep<std::tuple<nntile::bf16_t>>;
 
 //! Pack of adamw_step operations for different types
 adamw_step_pack_t adamw_step;

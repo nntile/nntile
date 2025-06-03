@@ -28,8 +28,9 @@ namespace nntile::starpu
 //! Constructor
 template<typename T>
 AccumulateMaxSumExp<std::tuple<T>>::AccumulateMaxSumExp():
-    codelet("nntile_accumulate_maxsumexp", footprint, cpu_funcs, cuda_funcs)
+    codelet("nntile_accumulate_maxsumexp", nullptr, cpu_funcs, cuda_funcs)
 {
+    codelet.set_modes_fixed({STARPU_RW | STARPU_COMMUTE, STARPU_R});
 }
 
 //! Apply accumulate_maxsumexp operation for StarPU buffers in CPU
@@ -46,6 +47,31 @@ void AccumulateMaxSumExp<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::accumulate_maxsumexp::cpu<T>(nelems, src, dst);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AccumulateMaxSumExp<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateMaxSumExp<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AccumulateMaxSumExp<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateMaxSumExp<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AccumulateMaxSumExp<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateMaxSumExp<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -65,6 +91,31 @@ void AccumulateMaxSumExp<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::accumulate_maxsumexp::cuda<T>(stream, nelems, src, dst);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AccumulateMaxSumExp<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateMaxSumExp<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AccumulateMaxSumExp<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateMaxSumExp<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AccumulateMaxSumExp<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateMaxSumExp<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -89,6 +140,17 @@ void AccumulateMaxSumExp<std::tuple<T>>::submit(Handle src, Handle dst)
         throw std::runtime_error("Error in accumulate_maxsumexp task submission");
     }
 }
+
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class AccumulateMaxSumExp<std::tuple<nntile::fp64_t>>;
+template class AccumulateMaxSumExp<std::tuple<nntile::fp32_t>>;
+template class AccumulateMaxSumExp<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class AccumulateMaxSumExp<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class AccumulateMaxSumExp<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class AccumulateMaxSumExp<std::tuple<nntile::bf16_t>>;
 
 //! Pack of accumulate_maxsumexp operations for different types
 accumulate_maxsumexp_pack_t accumulate_maxsumexp;

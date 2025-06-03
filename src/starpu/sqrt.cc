@@ -49,6 +49,31 @@ void Sqrt<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 #endif // STARPU_SIMGRID
 }
 
+// Specializations of CPU wrapper for accelerated types
+template<>
+void Sqrt<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Sqrt<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void Sqrt<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Sqrt<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void Sqrt<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Sqrt<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
 #ifdef NNTILE_USE_CUDA
 //! Apply sqrt to StarPU buffer on CUDA
 template<typename T>
@@ -67,6 +92,31 @@ void Sqrt<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::sqrt::cuda<T>(stream, args->nelems, src, dst);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void Sqrt<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Sqrt<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Sqrt<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Sqrt<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Sqrt<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Sqrt<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -101,6 +151,16 @@ void Sqrt<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
         throw std::runtime_error("Error in sqrt task submission");
     }
 }
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class Sqrt<std::tuple<nntile::fp64_t>>;
+template class Sqrt<std::tuple<nntile::fp32_t>>;
+template class Sqrt<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class Sqrt<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class Sqrt<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class Sqrt<std::tuple<nntile::bf16_t>>;
 
 //! Pack of sqrt operations for different types
 sqrt_pack_t sqrt;

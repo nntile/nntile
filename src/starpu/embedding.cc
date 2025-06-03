@@ -60,6 +60,31 @@ void Embedding<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 #endif // STARPU_SIMGRID
 }
 
+// Specializations of CPU wrapper for accelerated types
+template<>
+void Embedding<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Embedding<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void Embedding<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Embedding<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void Embedding<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Embedding<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
 #ifdef NNTILE_USE_CUDA
 //! Apply embedding on StarPU buffer on CUDA
 template<typename T>
@@ -90,6 +115,31 @@ void Embedding<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     );
 #endif // STARPU_SIMGRID
 };
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void Embedding<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Embedding<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Embedding<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Embedding<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Embedding<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Embedding<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for embedding tasks that depends only on cl_arg
@@ -138,6 +188,16 @@ void Embedding<std::tuple<T>>::submit(Index m, Index n, Index k, Index k_start, 
         throw std::runtime_error("Error in embedding task submission");
     }
 }
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class Embedding<std::tuple<nntile::fp64_t>>;
+template class Embedding<std::tuple<nntile::fp32_t>>;
+template class Embedding<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class Embedding<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class Embedding<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class Embedding<std::tuple<nntile::bf16_t>>;
 
 //! Pack of embedding operations for different types
 embedding_pack_t embedding;

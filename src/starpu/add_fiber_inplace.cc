@@ -112,7 +112,6 @@ void AddFiberInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     );
 #endif // STARPU_SIMGRID
 }
-#endif // NNTILE_USE_CUDA
 
 // Specializations of CPU wrapper for accelerated types
 template<>
@@ -138,6 +137,7 @@ void AddFiberInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *
     // Fall back to FP32
     AddFiberInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for add_fiber_inplace tasks
 template<typename T>
@@ -175,7 +175,7 @@ void AddFiberInplace<std::tuple<T>>::submit(
     }
     else if(beta == one)
     {
-        dst_mode = STARPU_RW | STARPU_COMMUTE;
+        dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
     }
     else
     {
@@ -214,6 +214,16 @@ using add_fiber_inplace_pack_t = OperationPack<
     std::tuple<nntile::fp32_fast_bf16_t>,
     std::tuple<nntile::bf16_t>
 >;
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class AddFiberInplace<std::tuple<nntile::fp64_t>>;
+template class AddFiberInplace<std::tuple<nntile::fp32_t>>;
+template class AddFiberInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class AddFiberInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class AddFiberInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class AddFiberInplace<std::tuple<nntile::bf16_t>>;
 
 //! Pack of add_fiber_inplace operations for different types
 extern add_fiber_inplace_pack_t add_fiber_inplace;

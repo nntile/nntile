@@ -48,6 +48,31 @@ void SqrtInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 #endif // STARPU_SIMGRID
 }
 
+// Specializations of CPU wrapper for accelerated types
+template<>
+void SqrtInplace<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SqrtInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void SqrtInplace<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SqrtInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void SqrtInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SqrtInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
 #ifdef NNTILE_USE_CUDA
 //! Apply sqrt inplace to StarPU buffer on CUDA
 template<typename T>
@@ -65,6 +90,31 @@ void SqrtInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::sqrt_inplace::cuda<T>(stream, args->nelems, data);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void SqrtInplace<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SqrtInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SqrtInplace<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SqrtInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SqrtInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SqrtInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -98,6 +148,16 @@ void SqrtInplace<std::tuple<T>>::submit(Index nelems, Handle data)
         throw std::runtime_error("Error in sqrt_inplace task submission");
     }
 }
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class SqrtInplace<std::tuple<nntile::fp64_t>>;
+template class SqrtInplace<std::tuple<nntile::fp32_t>>;
+template class SqrtInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class SqrtInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class SqrtInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class SqrtInplace<std::tuple<nntile::bf16_t>>;
 
 //! Pack of sqrt_inplace operations for different types
 sqrt_inplace_pack_t sqrt_inplace;

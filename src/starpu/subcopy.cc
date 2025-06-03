@@ -124,6 +124,18 @@ void Subcopy<std::tuple<T>>::submit(
     }
 }
 
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class Subcopy<std::tuple<nntile::int64_t>>;
+template class Subcopy<std::tuple<nntile::bool_t>>;
+template class Subcopy<std::tuple<nntile::fp64_t>>;
+template class Subcopy<std::tuple<nntile::fp32_t>>;
+template class Subcopy<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class Subcopy<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class Subcopy<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class Subcopy<std::tuple<nntile::bf16_t>>;
+
 //! Pack of subcopy operations for different types
 subcopy_pack_t subcopy;
 

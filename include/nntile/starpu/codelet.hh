@@ -139,7 +139,7 @@ public:
     template<typename T, typename... Args>
     void submit(Args &&...args)
     {
-        Operation<T>::submit(std::forward<Args>(args)...);
+        static_cast<Operation<T> &>(*this).submit(std::forward<Args>(args)...);
     }
 };
 

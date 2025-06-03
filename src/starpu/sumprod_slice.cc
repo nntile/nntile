@@ -50,6 +50,31 @@ void SumProdSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args) noexcept
 #endif // STARPU_SIMGRID
 }
 
+// Specializations of CPU wrapper for accelerated types
+template<>
+void SumProdSlice<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumProdSlice<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void SumProdSlice<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumProdSlice<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void SumProdSlice<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumProdSlice<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
 #ifdef NNTILE_USE_CUDA
 //! StarPU wrapper for kernel::sumprod_slice::cuda<T>
 template<typename T>
@@ -69,6 +94,31 @@ void SumProdSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args) noexcept
     kernel::sumprod_slice::cuda<T>(stream, args->m, args->n, args->k,
             args->alpha, src1, src2, args->beta, dst);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void SumProdSlice<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumProdSlice<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SumProdSlice<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumProdSlice<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SumProdSlice<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumProdSlice<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -110,7 +160,7 @@ void SumProdSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha
         }
         else
         {
-            dst_mode = STARPU_RW | STARPU_COMMUTE;
+            dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
         }
     }
     else
@@ -143,6 +193,16 @@ void SumProdSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha
         throw std::runtime_error("Error in sumprod_slice task submission");
     }
 }
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class SumProdSlice<std::tuple<nntile::fp64_t>>;
+template class SumProdSlice<std::tuple<nntile::fp32_t>>;
+template class SumProdSlice<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class SumProdSlice<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class SumProdSlice<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class SumProdSlice<std::tuple<nntile::bf16_t>>;
 
 //! Pack of sumprod_slice operations for different types
 sumprod_slice_pack_t sumprod_slice;

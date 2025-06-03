@@ -53,6 +53,31 @@ void SubtractIndexedOutputs<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 #endif // STARPU_SIMGRID
 }
 
+// Specializations of CPU wrapper for accelerated types
+template<>
+void SubtractIndexedOutputs<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SubtractIndexedOutputs<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void SubtractIndexedOutputs<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SubtractIndexedOutputs<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void SubtractIndexedOutputs<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SubtractIndexedOutputs<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
 #ifdef NNTILE_USE_CUDA
 //! Apply subtract_indexed_outputs operation on StarPU buffer on CUDA
 template<typename T>
@@ -75,6 +100,31 @@ void SubtractIndexedOutputs<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     kernel::subtract_indexed_outputs::cuda<T>(stream, n_labels, n_outputs,
             ignore_index, args->value, labels, dst);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void SubtractIndexedOutputs<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SubtractIndexedOutputs<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SubtractIndexedOutputs<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SubtractIndexedOutputs<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SubtractIndexedOutputs<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SubtractIndexedOutputs<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -118,6 +168,16 @@ void SubtractIndexedOutputs<std::tuple<T>>::submit(
                 "submission");
     }
 }
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class SubtractIndexedOutputs<std::tuple<nntile::fp64_t>>;
+template class SubtractIndexedOutputs<std::tuple<nntile::fp32_t>>;
+template class SubtractIndexedOutputs<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class SubtractIndexedOutputs<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class SubtractIndexedOutputs<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class SubtractIndexedOutputs<std::tuple<nntile::bf16_t>>;
 
 //! Pack of subtract_indexed_outputs operations for different types
 subtract_indexed_outputs_pack_t subtract_indexed_outputs;

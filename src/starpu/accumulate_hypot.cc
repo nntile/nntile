@@ -28,8 +28,9 @@ namespace nntile::starpu
 //! Constructor
 template<typename T>
 AccumulateHypot<std::tuple<T>>::AccumulateHypot():
-    codelet("nntile_accumulate_hypot", footprint, cpu_funcs, cuda_funcs)
+    codelet("nntile_accumulate_hypot", nullptr, cpu_funcs, cuda_funcs)
 {
+    codelet.set_modes_fixed({STARPU_RW | STARPU_COMMUTE, STARPU_R});
 }
 
 //! Apply accumulate_hypot operation for StarPU buffers in CPU
@@ -46,6 +47,31 @@ void AccumulateHypot<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::hypot::cpu<T>(nelems, 1.0, src, 1.0, dst);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -65,6 +91,31 @@ void AccumulateHypot<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::hypot::cuda<T>(stream, nelems, 1.0, src, 1.0, dst);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -89,6 +140,16 @@ void AccumulateHypot<std::tuple<T>>::submit(Handle src, Handle dst)
         throw std::runtime_error("Error in accumulate_hypot task submission");
     }
 }
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class AccumulateHypot<std::tuple<nntile::fp64_t>>;
+template class AccumulateHypot<std::tuple<nntile::fp32_t>>;
+template class AccumulateHypot<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class AccumulateHypot<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class AccumulateHypot<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class AccumulateHypot<std::tuple<nntile::bf16_t>>;
 
 //! Pack of accumulate_hypot operations for different types
 accumulate_hypot_pack_t accumulate_hypot;

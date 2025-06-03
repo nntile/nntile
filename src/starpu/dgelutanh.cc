@@ -49,6 +49,31 @@ void DGeluTanh<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 #endif // STARPU_SIMGRID
 }
 
+// Specializations of CPU wrapper for accelerated types
+template<>
+void DGeluTanh<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    DGeluTanh<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void DGeluTanh<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    DGeluTanh<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void DGeluTanh<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    DGeluTanh<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
 #ifdef NNTILE_USE_CUDA
 //! Apply dgelutanh on StarPU buffer on CUDA
 template<typename T>
@@ -67,7 +92,43 @@ void DGeluTanh<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     kernel::dgelutanh::cuda<T>(stream, args->nelems, data);
 #endif // STARPU_SIMGRID
 }
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void DGeluTanh<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    DGeluTanh<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void DGeluTanh<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    DGeluTanh<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void DGeluTanh<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    DGeluTanh<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
 #endif // NNTILE_USE_CUDA
+
+//! Footprint for add tasks that depends only on cl_arg
+template<typename T>
+uint32_t DGeluTanh<std::tuple<T>>::footprint(struct starpu_task *task)
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
+    return hash;
+}
 
 //! Submit dgelutanh task
 template<typename T>
@@ -92,6 +153,16 @@ void DGeluTanh<std::tuple<T>>::submit(
         throw std::runtime_error("Error in dgelutanh task submission");
     }
 }
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class DGeluTanh<std::tuple<nntile::fp64_t>>;
+template class DGeluTanh<std::tuple<nntile::fp32_t>>;
+template class DGeluTanh<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class DGeluTanh<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class DGeluTanh<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class DGeluTanh<std::tuple<nntile::bf16_t>>;
 
 //! Pack of dgelutanh operations for different types
 dgelutanh_pack_t dgelutanh;

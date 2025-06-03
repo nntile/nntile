@@ -117,7 +117,6 @@ void AddFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     );
 #endif // STARPU_SIMGRID
 }
-#endif // NNTILE_USE_CUDA
 
 // Specializations of CPU wrapper for accelerated types
 template<>
@@ -143,6 +142,7 @@ void AddFiber<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args
     // Fall back to FP32
     AddFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for add_fiber tasks
 template<typename T>
@@ -196,6 +196,16 @@ void AddFiber<std::tuple<T>>::submit(
         throw std::runtime_error("Error in add_fiber task submission");
     }
 }
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class AddFiber<std::tuple<nntile::fp64_t>>;
+template class AddFiber<std::tuple<nntile::fp32_t>>;
+template class AddFiber<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class AddFiber<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class AddFiber<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class AddFiber<std::tuple<nntile::bf16_t>>;
 
 //! Pack of add_fiber operations for different types
 add_fiber_pack_t add_fiber;

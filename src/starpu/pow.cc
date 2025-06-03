@@ -32,17 +32,6 @@ Pow<std::tuple<T>>::Pow():
 {
 }
 
-//! Footprint for pow tasks
-template<typename T>
-uint32_t Pow<std::tuple<T>>::footprint(struct starpu_task *task)
-{
-    // Get arguments
-    auto args = reinterpret_cast<args_t *>(task->cl_arg);
-    uint32_t hash = 0;
-    hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
-    return hash;
-}
-
 //! StarPU wrapper for kernel::pow::cpu<T>
 template<typename T>
 void Pow<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
@@ -57,6 +46,31 @@ void Pow<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::pow::cpu<T>(args->nelems, args->alpha, args->exp, data);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void Pow<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Pow<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void Pow<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Pow<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void Pow<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Pow<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -77,7 +91,43 @@ void Pow<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     kernel::pow::cuda<T>(stream, args->nelems, args->alpha, args->exp, data);
 #endif // STARPU_SIMGRID
 }
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void Pow<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Pow<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Pow<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Pow<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Pow<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Pow<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
 #endif // NNTILE_USE_CUDA
+
+//! Footprint for add tasks that depends only on cl_arg
+template<typename T>
+uint32_t Pow<std::tuple<T>>::footprint(struct starpu_task *task)
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
+    return hash;
+}
 
 template<typename T>
 void Pow<std::tuple<T>>::submit(Index nelems, Scalar alpha, Scalar exp, Handle data)
@@ -103,6 +153,16 @@ void Pow<std::tuple<T>>::submit(Index nelems, Scalar alpha, Scalar exp, Handle d
         throw std::runtime_error("Error in pow task submission");
     }
 }
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class Pow<std::tuple<nntile::fp64_t>>;
+template class Pow<std::tuple<nntile::fp32_t>>;
+template class Pow<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class Pow<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class Pow<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class Pow<std::tuple<nntile::bf16_t>>;
 
 //! Pack of pow operations for different types
 pow_pack_t pow;

@@ -50,6 +50,31 @@ void AddSliceInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 #endif // STARPU_SIMGRID
 }
 
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
 #ifdef NNTILE_USE_CUDA
 //! StarPU wrapper for kernel::add_slice_inplace::cuda<T>
 template<typename T>
@@ -69,6 +94,31 @@ void AddSliceInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     kernel::add_slice_inplace::cuda<T>(
         stream, args->m, args->n, args->k, args->alpha, src, args->beta, dst);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -105,7 +155,7 @@ void AddSliceInplace<std::tuple<T>>::submit(
     // If k is 1, then this operation reduces to add
     if(k == 1)
     {
-        add_inplace.submit<T>(m*n, alpha, src, beta, dst);
+        add_inplace.submit<std::tuple<T>>(m*n, alpha, src, beta, dst);
         return;
     }
     // Access mode for the dst handle
@@ -116,7 +166,7 @@ void AddSliceInplace<std::tuple<T>>::submit(
     }
     else if(beta == one)
     {
-        dst_mode = STARPU_RW | STARPU_COMMUTE;
+        dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
     }
     else
     {
@@ -145,6 +195,16 @@ void AddSliceInplace<std::tuple<T>>::submit(
         throw std::runtime_error("Error in add_slice_inplace task submission");
     }
 }
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class AddSliceInplace<std::tuple<nntile::fp64_t>>;
+template class AddSliceInplace<std::tuple<nntile::fp32_t>>;
+template class AddSliceInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class AddSliceInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class AddSliceInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class AddSliceInplace<std::tuple<nntile::bf16_t>>;
 
 //! Pack of add_slice_inplace operations for different types
 add_slice_inplace_pack_t add_slice_inplace;
