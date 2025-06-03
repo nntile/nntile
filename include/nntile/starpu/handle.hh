@@ -59,12 +59,6 @@ public:
         data_handle_push(handle);
     }
 
-    //! Destructor uses async unregistration
-    virtual ~Handle()
-    {
-        unregister_submit();
-    }
-
     //! Set name of the handle
     void set_name(const char *name);
 

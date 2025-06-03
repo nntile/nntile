@@ -39,12 +39,6 @@ std::mutex data_handles_mutex;
 //! Push a data handle into the list of registered data handles
 void data_handle_push(starpu_data_handle_t handle)
 {
-    // Check if the StarPU is initialized
-    if(starpu_is_initialized())
-    {
-        throw std::runtime_error("StarPU is not initialized");
-    }
-
     // Lock the data handles mutex to avoid race condition
     const std::lock_guard<std::mutex> lock(data_handles_mutex);
 
@@ -58,12 +52,6 @@ void data_handle_push(starpu_data_handle_t handle)
  * Otherwise, the function returns a nullptr. */
 starpu_data_handle_t data_handle_pop(starpu_data_handle_t handle)
 {
-    // Check if the StarPU is initialized
-    if(starpu_is_initialized())
-    {
-        throw std::runtime_error("StarPU is not initialized");
-    }
-
     // Lock the data handles mutex to avoid race condition
     const std::lock_guard<std::mutex> lock(data_handles_mutex);
 
@@ -87,7 +75,7 @@ starpu_data_handle_t data_handle_pop(starpu_data_handle_t handle)
 void data_handle_unregister_all()
 {
     // Check if the StarPU is initialized
-    if(starpu_is_initialized())
+    if(!starpu_is_initialized())
     {
         throw std::runtime_error("StarPU is not initialized");
     }
@@ -114,8 +102,10 @@ void Handle::set_name(const char *name)
 // Unregister the data handle in an async manner if it is not nullptr
 void Handle::_deleter_async(starpu_data_handle_t handle)
 {
-    if(handle != nullptr)
+    // Only unregister if the data handle is still registered
+    if(data_handle_pop(handle) != nullptr)
     {
+        // Unregister the data handle in an async manner
         starpu_data_unregister_submit(handle);
     }
 }
