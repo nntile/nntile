@@ -20,18 +20,20 @@ namespace nntile::kernel::add_scalar
 
 template<typename T>
 static __global__
-void cuda_kernel(Index num_elements, T alpha, T beta, T* dst)
+void cuda_kernel(Index num_elements, Scalar alpha_, Scalar beta_, T* dst)
 {
+    using Y = typename T::repr_t;
+    const Y alpha{alpha_}, beta{beta_};
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     if(i < num_elements)
     {
-        dst[i] = alpha + beta * dst[i];
+        dst[i] = T{alpha + beta*Y{dst[i]}};
     }
 }
 
 template<typename T>
 void cuda(cudaStream_t stream, Index num_elements, Scalar alpha, Scalar beta,
-        T *dst_)
+        T *dst)
     noexcept
 //! Add scalar to buffer buffers on CUDA
 /*! dst[i] = alpha + beta*dst[i], where alpha and beta are scalars
@@ -43,10 +45,7 @@ void cuda(cudaStream_t stream, Index num_elements, Scalar alpha, Scalar beta,
  * */
 {
     dim3 blocks((num_elements+255)/256), threads(256);
-    using Y = typename CUDAComputeType<T>::value;
-    auto dst = reinterpret_cast<Y *>(dst_);
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(num_elements, Y{alpha},
-            Y{beta}, dst);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(num_elements, alpha, beta, dst);
 }
 
 // Explicit instantiation

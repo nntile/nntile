@@ -625,32 +625,6 @@ void def_mod_tensor(py::module_ &m)
     m.def("sumnorm_fp64", &sumnorm<fp64_t>);
     m.def("sumnorm_fp32", &sumnorm<fp32_t>);
 
-    // m.def("flash_softmax_gemm_async_fp64", &flash_softmax_gemm_async<fp64_t>);
-    // m.def("flash_softmax_gemm_async_bf16", &flash_softmax_gemm_async<bf16_t>);
-    // m.def("flash_softmax_gemm_async_fp32", &flash_softmax_gemm_async<fp32_t>);
-    // m.def("flash_softmax_gemm_async_fp32_fast_tf32", &flash_softmax_gemm_async<fp32_fast_tf32_t>);
-    // m.def("flash_softmax_gemm_async_fp32_fast_fp16", &flash_softmax_gemm_async<fp32_fast_fp16_t>);
-    // m.def("flash_softmax_gemm_async_fp32_fast_bf16", &flash_softmax_gemm_async<fp32_fast_bf16_t>);
-    // m.def("flash_softmax_gemm_fp64", &flash_softmax_gemm<fp64_t>);
-    // m.def("flash_softmax_gemm_bf16", &flash_softmax_gemm<bf16_t>);
-    // m.def("flash_softmax_gemm_fp32", &flash_softmax_gemm<fp32_t>);
-    // m.def("flash_softmax_gemm_fp32_fast_tf32", &flash_softmax_gemm<fp32_fast_tf32_t>);
-    // m.def("flash_softmax_gemm_fp32_fast_fp16", &flash_softmax_gemm<fp32_fast_fp16_t>);
-    // m.def("flash_softmax_gemm_fp32_fast_bf16", &flash_softmax_gemm<fp32_fast_bf16_t>);
-
-    // m.def("flash_softmax_gemm_backward_async_fp64", &flash_softmax_gemm_backward_async<fp64_t>);
-    // m.def("flash_softmax_gemm_backward_async_bf16", &flash_softmax_gemm_backward_async<bf16_t>);
-    // m.def("flash_softmax_gemm_backward_async_fp32", &flash_softmax_gemm_backward_async<fp32_t>);
-    // m.def("flash_softmax_gemm_backward_async_fp32_fast_tf32", &flash_softmax_gemm_backward_async<fp32_fast_tf32_t>);
-    // m.def("flash_softmax_gemm_backward_async_fp32_fast_fp16", &flash_softmax_gemm_backward_async<fp32_fast_fp16_t>);
-    // m.def("flash_softmax_gemm_backward_async_fp32_fast_bf16", &flash_softmax_gemm_backward_async<fp32_fast_bf16_t>);
-    // m.def("flash_softmax_gemm_backward_fp64", &flash_softmax_gemm_backward<fp64_t>);
-    // m.def("flash_softmax_gemm_backward_fp32", &flash_softmax_gemm_backward<fp32_t>);
-    // m.def("flash_softmax_gemm_backward_bf16", &flash_softmax_gemm_backward<bf16_t>);
-    // m.def("flash_softmax_gemm_backward_fp32_fast_tf32", &flash_softmax_gemm_backward<fp32_fast_tf32_t>);
-    // m.def("flash_softmax_gemm_backward_fp32_fast_fp16", &flash_softmax_gemm_backward<fp32_fast_fp16_t>);
-    // m.def("flash_softmax_gemm_backward_fp32_fast_bf16", &flash_softmax_gemm_backward<fp32_fast_bf16_t>);
-
     m.def("softmax_async_fp64", &softmax_async<fp64_t>);
     m.def("softmax_async_bf16", &softmax_async<bf16_t>);
     m.def("softmax_async_fp32", &softmax_async<fp32_t>);
@@ -733,23 +707,6 @@ void def_mod_tensor(py::module_ &m)
     // m.def("nrm2_fp64", &nrm2<fp64_t>);
     // m.def("nrm2_fp32", &nrm2<fp32_t>);
 
-    m.def("normalize_async_fp64", &normalize_async<fp64_t>, "gamma_beta"_a, "src"_a, "dst"_a, "size"_a, "eps"_a, "axis"_a);
-    m.def("normalize_async_fp32", &normalize_async<fp32_t>, "gamma_beta"_a, "src"_a, "dst"_a, "size"_a, "eps"_a, "axis"_a);
-    m.def("normalize_fp64", &normalize<fp64_t>, "gamma_beta"_a, "src"_a, "dst"_a, "size"_a, "eps"_a, "axis"_a);
-    m.def("normalize_fp32", &normalize<fp32_t>, "gamma_beta"_a, "src"_a, "dst"_a, "size"_a, "eps"_a, "axis"_a);
-
-    // m.def("flash_maxsumexp_async_fp64", &flash_maxsumexp_async<fp64_t>);
-    // m.def("flash_maxsumexp_async_bf16", &flash_maxsumexp_async<bf16_t>);
-    // m.def("flash_maxsumexp_async_fp32", &flash_maxsumexp_async<fp32_t>);
-    // m.def("flash_maxsumexp_async_fp32_fast_tf32", &flash_maxsumexp_async<fp32_fast_tf32_t>);
-    // m.def("flash_maxsumexp_async_fp32_fast_fp16", &flash_maxsumexp_async<fp32_fast_fp16_t>);
-    // m.def("flash_maxsumexp_async_fp32_fast_bf16", &flash_maxsumexp_async<fp32_fast_bf16_t>);
-    // m.def("flash_maxsumexp_fp64", &flash_maxsumexp<fp64_t>);
-    // m.def("flash_maxsumexp_fp32", &flash_maxsumexp<fp32_t>);
-    // m.def("flash_maxsumexp_bf16", &flash_maxsumexp<bf16_t>);
-    // m.def("flash_maxsumexp_fp32_fast_tf32", &flash_maxsumexp<fp32_fast_tf32_t>);
-    // m.def("flash_maxsumexp_fp32_fast_fp16", &flash_maxsumexp<fp32_fast_fp16_t>);
-    // m.def("flash_maxsumexp_fp32_fast_bf16", &flash_maxsumexp<fp32_fast_bf16_t>);
 
     m.def("maxsumexp_async_fp64", &maxsumexp_async<fp64_t>);
     m.def("maxsumexp_async_bf16", &maxsumexp_async<bf16_t>);

@@ -29,7 +29,6 @@
 #include <nntile/kernel/dgelutanh.hh>
 #include <nntile/kernel/drelu.hh>
 #include <nntile/kernel/hypot.hh>
-#include <nntile/kernel/normalize.hh>
 #include <nntile/kernel/prod.hh>
 #include <nntile/kernel/prod_inplace.hh>
 #include <nntile/kernel/randn.hh>
