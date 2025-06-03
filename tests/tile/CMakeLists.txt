@@ -37,7 +37,6 @@ set(TESTS
     "maximum"
     "maxsumexp"
     "norm_slice"
-    "normalize"
     "nrm2"
     "pow"
     "prod_inplace"

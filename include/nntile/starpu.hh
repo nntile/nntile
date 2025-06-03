@@ -41,7 +41,6 @@
 #include <nntile/starpu/hypot.hh>
 #include <nntile/starpu/hypot_scalar_inverse.hh>
 #include <nntile/starpu/nrm2.hh>
-#include <nntile/starpu/normalize.hh>
 #include <nntile/starpu/prod.hh>
 #include <nntile/starpu/prod_inplace.hh>
 #include <nntile/starpu/randn.hh>
@@ -124,7 +123,6 @@ static void init()
     // hypot::init();
     // hypot_scalar_inverse::init();
     // nrm2::init();
-    // normalize::init();
     // randn::init();
     // relu::init();
     // relu_forward::init();
@@ -206,7 +204,6 @@ static void restrict_where(uint32_t where)
     // hypot::restrict_where(where);
     // hypot_scalar_inverse::restrict_where(where);
     // nrm2::restrict_where(where);
-    // normalize::restrict_where(where);
     // prod::restrict_where(where);
     // prod_inplace::restrict_where(where);
     // randn::restrict_where(where);
@@ -288,7 +285,6 @@ static void restore_where()
     // hypot::restore_where();
     // hypot_scalar_inverse::restore_where();
     // nrm2::restore_where();
-    // normalize::restore_where();
     // prod::restore_where();
     // prod_inplace::restore_where();
     // randn::restore_where();

@@ -44,7 +44,6 @@ set(TESTS_MPI
     "maximum"
     "maxsumexp"
     "norm_slice"
-    "normalize"
     "nrm2"
     "pow"
     "prod_inplace"
