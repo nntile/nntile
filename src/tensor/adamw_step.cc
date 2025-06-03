@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/adamw_step.hh"
 #include "nntile/starpu/adamw_step.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -62,7 +63,7 @@ void adamw_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, 
         if(mpi_rank == p_tile_rank)
         {
             auto traits = p.get_tile_traits(i);
-            starpu::adamw_step::submit<T>(num_iter, traits.nelems, beta_1, beta_2, eps, lr, weight_decay,
+            starpu::adamw_step.submit<std::tuple<T>>(num_iter, traits.nelems, beta_1, beta_2, eps, lr, weight_decay,
                                          grad_tile_handle, first_moment_tile_handle,
                                          second_moment_tile_handle, p_tile_handle);
         }

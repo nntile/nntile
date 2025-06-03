@@ -35,7 +35,7 @@ void gelu_backward_async(const Tile<T> &x, const Tile<T> &dy,
         throw std::runtime_error("x.shape != dx.shape");
     }
     // Submit task without any arguments checked
-    starpu::gelu_backward::submit<T>(x.nelems, x, dy, dx);
+    starpu::gelu_backward.submit<std::tuple<T>>(x.nelems, x, dy, dx);
 }
 
 //! Blocking version of tile-wise backward GeLU operation

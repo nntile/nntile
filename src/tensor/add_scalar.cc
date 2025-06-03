@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/add_scalar.hh"
 #include "nntile/starpu/add_scalar.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -39,7 +40,7 @@ void add_scalar_async(Scalar alpha, Scalar beta, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = dst.get_tile_traits(i);
-            starpu::add_scalar::submit<T>(traits.nelems, alpha, beta,
+            starpu::add_scalar.submit<std::tuple<T>>(traits.nelems, alpha, beta,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node

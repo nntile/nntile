@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/rope_backward.hh"
 #include "nntile/starpu/rope_backward.hh"
+#include "nntile/starpu/config.hh"
 #include <iostream>
 
 namespace nntile::tensor
@@ -126,7 +127,7 @@ void rope_backward_async(const Tensor<T> &sin, const Tensor<T> &cos,
               n{dydx_tile_traits.matrix_shape[sin.ndim][1]};
 
         // Insert corresponding task
-        starpu::rope_backward::submit<T>(m, n, sin_tile_handle, cos_tile_handle,
+        starpu::rope_backward.submit<std::tuple<T>>(m, n, sin_tile_handle, cos_tile_handle,
                 dy_tile_handle, dx_tile_handle);
     }
 }

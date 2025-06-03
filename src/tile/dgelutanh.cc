@@ -25,7 +25,7 @@ template<typename T>
 void dgelutanh_async(const Tile<T> &A)
 {
     // Submit task without any arguments checked
-    starpu::dgelutanh::submit<T>(A.nelems, A);
+    starpu::dgelutanh.submit<std::tuple<T>>(A.nelems, A);
 }
 
 //! Blocking version of tile-wise derivative of approximate GeLU operation

@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/rope.hh"
 #include "nntile/starpu/rope.hh"
+#include "nntile/starpu/config.hh"
 #include <iostream>
 
 namespace nntile::tensor
@@ -126,7 +127,7 @@ void rope_async(const Tensor<T> &sin, const Tensor<T> &cos,
               n{srcdst_tile_traits.matrix_shape[sin.ndim][1]};
 
         // Insert corresponding task
-        starpu::rope::submit<T>(m, n, sin_tile_handle, cos_tile_handle,
+        starpu::rope.submit<std::tuple<T>>(m, n, sin_tile_handle, cos_tile_handle,
                 src_tile_handle, dst_tile_handle);
     }
 }

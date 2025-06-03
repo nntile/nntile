@@ -87,7 +87,7 @@ void normalize_async(const Tile<T> &gamma_beta, const Tile<T> &sumnorm,
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert task
-    starpu::normalize::submit<T>(m, n, k, size, eps, gamma_beta, sumnorm, dst);
+    starpu::normalize.submit<std::tuple<T>>(m, n, k, size, eps, gamma_beta, sumnorm, dst);
 }
 
 //! Tile-wise average and deviation from sum and scaled sum of squares

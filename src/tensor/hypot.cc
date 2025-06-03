@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/hypot.hh"
 #include "nntile/starpu/hypot.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -60,7 +61,7 @@ void hypot_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::hypot::submit<T>(traits.nelems, alpha, src_tile_handle,
+            starpu::hypot.submit<std::tuple<T>>(traits.nelems, alpha, src_tile_handle,
                     beta, dst_tile_handle);
         }
         // Flush cache for the output tile on every node

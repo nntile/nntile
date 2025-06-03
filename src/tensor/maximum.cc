@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/maximum.hh"
 #include "nntile/starpu/maximum.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -49,7 +50,7 @@ void maximum_async(const Tensor<T> &src, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::maximum::submit<T>(traits.nelems, src_tile_handle,
+            starpu::maximum.submit<std::tuple<T>>(traits.nelems, src_tile_handle,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node

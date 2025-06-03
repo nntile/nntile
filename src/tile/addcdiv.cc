@@ -38,7 +38,7 @@ void addcdiv_async(Scalar val, Scalar eps, const Tile<T> &nom, const Tile<T> &de
         throw std::runtime_error("Nominator shape is not equal to src shape");
     }
     // Submit task
-    starpu::addcdiv::submit<T>(val, eps, src.nelems, nom, denom, src);
+    starpu::addcdiv.submit<std::tuple<T>>(val, eps, src.nelems, nom, denom, src);
 }
 
 //! Blocking version of tile-wise addcdiv operation

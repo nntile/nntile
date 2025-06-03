@@ -15,6 +15,7 @@
 #include "nntile/tensor/total_sum_accum.hh"
 #include "nntile/starpu/total_sum_accum.hh"
 #include "nntile/starpu/clear.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -83,7 +84,7 @@ void total_sum_accum_async(Scalar alpha, const Tensor<T> &logsumexp,
         if(mpi_rank == val_tile_rank)
         {
             // Insert task
-            starpu::total_sum_accum::submit<T>(alpha, src.shape[0],
+            starpu::total_sum_accum.submit<std::tuple<T>>(alpha, src.shape[0],
                     logsumexp_tile_traits.nelems, ignore_index, logsumexp_tile_handle,
                     src_tile_handle, labels_tile_handle, val_tile_handle);
         }

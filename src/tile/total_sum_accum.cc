@@ -50,7 +50,7 @@ void total_sum_accum_async(Scalar alpha, const Tile<T> &logsumexp,
         }
     }
     // Insert task
-    starpu::total_sum_accum::submit<T>(alpha, src.shape[0], logsumexp.nelems, ignore_index,
+    starpu::total_sum_accum.submit<std::tuple<T>>(alpha, src.shape[0], logsumexp.nelems, ignore_index,
             logsumexp, src, labels, val);
 }
 

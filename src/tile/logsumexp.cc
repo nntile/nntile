@@ -45,7 +45,7 @@ void logsumexp_async(const Tile<T> &src, const Tile<T> &dst)
         }
     }
     // Insert task
-    starpu::logsumexp::submit<T>(dst.nelems, src, dst);
+    starpu::logsumexp.submit<std::tuple<T>>(dst.nelems, src, dst);
 }
 
 //! Tile-wise logsumexp

@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/subtract_indexed_outputs.hh"
 #include "nntile/starpu/subtract_indexed_outputs.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -56,7 +57,7 @@ void subtract_indexed_outputs_async(Scalar val, const Tensor<int64_t> &labels,
         if(mpi_rank == dst_tile_rank)
         {
             // Insert task
-            starpu::subtract_indexed_outputs::submit<T>(dst.shape[0],
+            starpu::subtract_indexed_outputs.submit<std::tuple<T>>(dst.shape[0],
                     labels_traits.nelems, ignore_index, val, labels_tile_handle,
                     dst_tile_handle);
         }

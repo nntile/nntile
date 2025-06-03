@@ -12,9 +12,14 @@
  * @version 1.1.0
  * */
 
+// Corresponding header
 #include "nntile/tensor/clear.hh"
-#include "nntile/starpu/clear.hh"
 
+// Other NNTile headers
+#include "nntile/starpu/clear.hh"
+#include "nntile/starpu/config.hh"
+
+// Namespace
 namespace nntile::tensor
 {
 
@@ -28,7 +33,7 @@ void clear_async(const Tensor<T> &dst)
         int dst_tile_rank = dst_tile_handle.mpi_get_rank();
         if(mpi_rank == dst_tile_rank)
         {
-            starpu::clear::submit(dst_tile_handle);
+            starpu::clear.submit(dst_tile_handle);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();

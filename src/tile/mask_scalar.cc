@@ -25,7 +25,7 @@ template<typename T>
 void mask_scalar_async(const Tile<bool_t> &mask, Scalar val, const Tile<T> &A)
 {
     // Submit task without any arguments checked
-    starpu::mask_scalar::submit<T>(A.matrix_shape[A.ndim-1][0],
+    starpu::mask_scalar.submit<std::tuple<T>>(A.matrix_shape[A.ndim-1][0],
             A.shape[A.ndim-1], mask, val, A);
 }
 

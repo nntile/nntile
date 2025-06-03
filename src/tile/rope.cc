@@ -77,7 +77,7 @@ void rope_async(const Tile<T> &sin, const Tile<T> &cos, const Tile<T> &src,
     // Reshape inputs for simplicity: sin,cos -> (m), src,dst -> (2,m,n)
     Index m{sin.nelems}, n={src.matrix_shape[sin.ndim-1][1]};
     // Insert corresponding task
-    starpu::rope::submit<T>(m, n, sin, cos, src, dst);
+    starpu::rope.submit<std::tuple<T>>(m, n, sin, cos, src, dst);
 }
 
 template<typename T>

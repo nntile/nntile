@@ -67,7 +67,7 @@ void sumnorm_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
     n = src.matrix_shape[axis+1][1];
     k = src.shape[axis];
     // Insert task
-    starpu::sumnorm::submit<T>(m, n, k, src, dst);
+    starpu::sumnorm.submit<std::tuple<T>>(m, n, k, src, dst);
 }
 
 //! Tile-wise sum and scaled sum of squares along single given axis

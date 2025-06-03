@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/sqrt.hh"
 #include "nntile/starpu/sqrt.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -57,7 +58,7 @@ void sqrt_async(const Tensor<T> &src, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto tile_traits = src.get_tile_traits(i);
-            starpu::sqrt::submit<T>(tile_traits.nelems, src_tile_handle,
+            starpu::sqrt.submit<std::tuple<T>>(tile_traits.nelems, src_tile_handle,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node

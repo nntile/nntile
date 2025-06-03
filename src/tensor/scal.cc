@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/scal.hh"
 #include "nntile/starpu/scal.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -55,7 +56,7 @@ void scal_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::scal::submit<T>(traits.nelems, alpha, src_tile_handle,
+            starpu::scal.submit<std::tuple<T>>(traits.nelems, alpha, src_tile_handle,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node

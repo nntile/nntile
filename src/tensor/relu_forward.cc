@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/relu_forward.hh"
 #include "nntile/starpu/relu_forward.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -43,7 +44,7 @@ void relu_forward_async(const Tensor<T> &src, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto dst_tile_traits = dst.get_tile_traits(i);
-            starpu::relu_forward::submit<T>(dst_tile_traits.nelems,
+            starpu::relu_forward.submit<std::tuple<T>>(dst_tile_traits.nelems,
                     src_tile_handle, dst_tile_handle);
         }
         // Flush cache for the output tile on every node

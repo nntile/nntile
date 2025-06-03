@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/copy.hh"
 #include "nntile/starpu/copy.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -49,7 +50,7 @@ void copy_async(const Tensor<T> &src, const Tensor<T> &dst)
         // Execute on destination node
         if(mpi_rank == dst_tile_rank)
         {
-            starpu::copy::submit(src_tile_handle, dst_tile_handle);
+            starpu::copy.submit(src_tile_handle, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();

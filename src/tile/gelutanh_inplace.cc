@@ -25,7 +25,7 @@ template<typename T>
 void gelutanh_inplace_async(const Tile<T> &A)
 {
     // Submit task without any arguments checked
-    starpu::gelutanh_inplace::submit<T>(A.nelems, A);
+    starpu::gelutanh_inplace.submit<std::tuple<T>>(A.nelems, A);
 }
 
 //! Blocking version of tile-wise approximate GeLU operation

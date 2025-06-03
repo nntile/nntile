@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/silu_backward.hh"
 #include "nntile/starpu/silu_backward.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -55,16 +56,8 @@ void silu_backward_async(const Tensor<T> &x, const Tensor<T> &dy,
         if(mpi_rank == exec_rank)
         {
             auto x_tile_traits = x.get_tile_traits(i);
-            starpu::silu_backward::submit_mpi<T>(x_tile_traits.nelems,
-                    x_tile_handle, dy_tile_handle, dx_tile_handle, exec_rank);
-        }
-        // MPI transfers submission
-        else if(mpi_rank == x_tile_handle.mpi_get_rank()
-                or mpi_rank == dy_tile_handle.mpi_get_rank()
-                or mpi_rank == dx_tile_handle.mpi_get_rank())
-        {
-            starpu::silu_backward::submit_mpi<T>(0,
-                    x_tile_handle, dy_tile_handle, dx_tile_handle, exec_rank);
+            starpu::silu_backward.submit<std::tuple<T>>(x_tile_traits.nelems,
+                    x_tile_handle, dy_tile_handle, dx_tile_handle);
         }
         // Clear cached output value
         dx_tile_handle.mpi_flush();

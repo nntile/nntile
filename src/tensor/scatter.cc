@@ -15,6 +15,7 @@
 #include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/copy.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -54,7 +55,7 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
         // Execute on destination node
         if(mpi_rank == dst_tile_rank)
         {
-            starpu::copy::submit(src_tile_handle, dst_tile_handle);
+            starpu::copy.submit(src_tile_handle, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
@@ -84,7 +85,7 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
                 src_tile_start[k] = dst_tile_index[k] * dst.basetile_shape[k];
             }
             // Perform complex copy into local dst_tile_handle
-            starpu::subcopy::submit<T>(ndim, src_tile_start,
+            starpu::subcopy.submit<std::tuple<T>>(ndim, src_tile_start,
                     src_tile_traits.stride, dst_tile_start,
                     dst_tile_traits.stride, dst_tile_traits.shape,
                     src_tile_handle, dst_tile_handle, scratch, STARPU_W);

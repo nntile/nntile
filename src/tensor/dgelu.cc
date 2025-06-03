@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/dgelu.hh"
 #include "nntile/starpu/dgelu.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -33,7 +34,7 @@ void dgelu_async(const Tensor<T> &A)
         if(mpi_rank == tile_rank)
         {
             auto tile_traits = A.get_tile_traits(i);
-            starpu::dgelu::submit<T>(tile_traits.nelems, tile_handle);
+            starpu::dgelu.submit<std::tuple<T>>(tile_traits.nelems, tile_handle);
         }
         // Flush cache for the output tile on every node
         tile_handle.mpi_flush();

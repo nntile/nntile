@@ -113,7 +113,7 @@ void copy_intersection_async(const Tile<T> &src,
         }
     }
     // Insert task
-    starpu::subcopy::submit<T>(src.ndim, src_start, src.stride, dst_start,
+    starpu::subcopy.submit<std::tuple<T>>(src.ndim, src_start, src.stride, dst_start,
             dst.stride, copy_shape, src, dst, scratch, dst_tile_mode);
 }
 

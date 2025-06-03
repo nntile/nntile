@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/log_scalar.hh"
 #include "nntile/starpu/log_scalar.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -33,7 +34,7 @@ void log_scalar_async(const std::string &name, const Tensor<T> &value)
     // Execute on destination node
     if(mpi_rank == value_rank)
     {
-        starpu::log_scalar::submit<T>(name, value_handle);
+        starpu::log_scalar.submit<std::tuple<T>>(name, value_handle);
     }
 }
 

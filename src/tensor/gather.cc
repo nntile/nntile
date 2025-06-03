@@ -15,6 +15,7 @@
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/copy.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -53,7 +54,7 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
         // Execute on destination node
         if(mpi_rank == dst_tile_rank)
         {
-            starpu::copy::submit(src_tile_handle, dst_tile_handle);
+            starpu::copy.submit(src_tile_handle, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
@@ -75,7 +76,7 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
     if(mpi_rank == dst_tile_rank)
     {
         auto src_first_tile_traits = src.get_tile_traits(0);
-        starpu::subcopy::submit<T>(ndim, src_tile_start,
+        starpu::subcopy.submit<std::tuple<T>>(ndim, src_tile_start,
                 src_first_tile_traits.stride, dst_tile_start,
                 dst_tile_traits.stride, src_first_tile_traits.shape,
                 src_first_tile_handle, dst_tile_handle, scratch, STARPU_W);
@@ -103,7 +104,7 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
             {
                 dst_tile_start[k] = src_tile_index[k] * src.basetile_shape[k];
             }
-            starpu::subcopy::submit<T>(ndim, src_tile_start,
+            starpu::subcopy.submit<std::tuple<T>>(ndim, src_tile_start,
                     src_tile_traits.stride, dst_tile_start,
                     dst_tile_traits.stride, src_tile_traits.shape,
                     src_tile_handle, dst_tile_handle, scratch, STARPU_RW);

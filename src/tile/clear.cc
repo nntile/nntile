@@ -22,7 +22,7 @@ namespace nntile::tile
 template<typename T>
 void clear_async(const Tile<T> &tile)
 {
-    starpu::clear::submit(tile);
+    starpu::clear.submit(tile);
 }
 
 //! Asynchronously clear a tile

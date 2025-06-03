@@ -231,14 +231,12 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = tile_handles[i].get();
-            const auto accumulate_codelet_pack =
-                nntile::starpu::accumulate::codelet_pack;
-            const auto accumulate_codelet =
-                accumulate_codelet_pack.get_codelet_ptr<T>();
-            const auto clear_codelet = &nntile::starpu::clear::codelet;
+            const auto &accumulate_pack = nntile::starpu::accumulate;
+            const auto &accumulate_op = static_cast<starpu::Accumulate<T>>(accumulate_pack);
+            const auto clear_codelet = &nntile::starpu::clear.codelet;
             starpu_data_set_reduction_methods(
                 tmp,
-                accumulate_codelet,
+                &accumulate_op.codelet,
                 clear_codelet
             );
         }
@@ -249,14 +247,12 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = tile_handles[i].get();
-            const auto accumulate_codelet_pack =
-                nntile::starpu::accumulate_hypot::codelet_pack;
-            const auto accumulate_codelet =
-                accumulate_codelet_pack.get_codelet_ptr<T>();
-            const auto clear_codelet = &nntile::starpu::clear::codelet;
+            const auto &accumulate_pack = nntile::starpu::accumulate_hypot;
+            const auto &accumulate_op = static_cast<starpu::AccumulateHypot<T>>(accumulate_pack);
+            const auto clear_codelet = &nntile::starpu::clear.codelet;
             starpu_data_set_reduction_methods(
                 tmp,
-                accumulate_codelet,
+                &accumulate_op.codelet,
                 clear_codelet
             );
         }
@@ -267,14 +263,12 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = tile_handles[i].get();
-            const auto accumulate_codelet_pack =
-                nntile::starpu::accumulate_maxsumexp::codelet_pack;
-            const auto accumulate_codelet =
-                accumulate_codelet_pack.get_codelet_ptr<T>();
-            const auto clear_codelet = &nntile::starpu::clear::codelet;
+            const auto &accumulate_pack = nntile::starpu::accumulate_maxsumexp;
+            const auto &accumulate_op = static_cast<starpu::AccumulateMaxSumExp<T>>(accumulate_pack);
+            const auto clear_codelet = &(nntile::starpu::clear.codelet);
             starpu_data_set_reduction_methods(
                 tmp,
-                accumulate_codelet,
+                &accumulate_op.codelet,
                 clear_codelet
             );
         }

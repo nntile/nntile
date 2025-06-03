@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/normalize.hh"
 #include "nntile/starpu/normalize.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -166,7 +167,7 @@ void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
                 n = dst_tile_traits.matrix_shape[axis+1][1];
                 k = dst_tile_traits.shape[axis];
                 // Insert corresponding task
-                starpu::normalize::submit<T>(m, n, k, size, eps,
+                starpu::normalize.submit<std::tuple<T>>(m, n, k, size, eps,
                         gamma_beta_handle, src_tile_handle, dst_tile_handle);
             }
             // Flush cache for the output tile on every node

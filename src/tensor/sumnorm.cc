@@ -15,6 +15,7 @@
 #include "nntile/tensor/sumnorm.hh"
 #include "nntile/starpu/sumnorm.hh"
 #include "nntile/starpu/clear.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -86,7 +87,7 @@ void sumnorm_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
         int dst_tile_rank = dst_tile_handle.mpi_get_rank();
         if(mpi_rank == dst_tile_rank)
         {
-            starpu::clear::submit(dst_tile_handle);
+            starpu::clear.submit(dst_tile_handle);
         }
         // Obtain indices of applicable source tiles
         auto dst_tile_index = dst.grid.linear_to_index(i);
@@ -120,7 +121,7 @@ void sumnorm_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
                 n = src_tile_traits.matrix_shape[axis+1][1];
                 k = src_tile_traits.shape[axis];
                 // Insert task
-                starpu::sumnorm::submit<T>(m, n, k, src_tile_handle,
+                starpu::sumnorm.submit<std::tuple<T>>(m, n, k, src_tile_handle,
                         dst_tile_handle);
             }
         }

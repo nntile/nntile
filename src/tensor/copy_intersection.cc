@@ -14,7 +14,7 @@
 
 #include "nntile/tensor/copy_intersection.hh"
 #include "nntile/starpu/subcopy.hh"
-#include "nntile/config.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -290,7 +290,7 @@ void copy_intersection_async(const Tensor<T> &src,
             // Execute on dest node
             if(mpi_rank == dst_tile_rank)
             {
-                starpu::subcopy::submit<T>(ndim, src_tile_start,
+                starpu::subcopy.submit<std::tuple<T>>(ndim, src_tile_start,
                         src_first_tile_traits.stride, dst_tile_start,
                         dst_tile_traits.stride, copy_tile_shape,
                         src_first_tile_handle, dst_tile_handle,
@@ -379,7 +379,7 @@ void copy_intersection_async(const Tensor<T> &src,
                 {
                     auto src_tile_traits = src.get_tile_traits(
                             src_tile_offset);
-                    starpu::subcopy::submit<T>(ndim, src_tile_start,
+                    starpu::subcopy.submit<std::tuple<T>>(ndim, src_tile_start,
                             src_tile_traits.stride, dst_tile_start,
                             dst_tile_traits.stride, copy_tile_shape,
                             src_tile_handle, dst_tile_handle,

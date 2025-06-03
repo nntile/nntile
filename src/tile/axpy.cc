@@ -35,7 +35,7 @@ void axpy_async(const Tile<T> &alpha, const Tile<T> &src, const Tile<T> &dst)
         throw std::runtime_error("src.shape != dst.shape");
     }
     // Submit task
-    starpu::axpy::submit<T>(alpha, src.nelems, src, dst);
+    starpu::axpy.submit<std::tuple<T>>(alpha, src.nelems, src, dst);
 }
 
 //! Blocking version of tile-wise axpy operation

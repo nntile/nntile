@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/prod.hh"
 #include "nntile/starpu/prod.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -60,7 +61,7 @@ void prod_async(const Tensor<T> &src1, const Tensor<T> &src2,
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src1.get_tile_traits(i);
-            starpu::prod::submit<T>(traits.nelems, src1_tile_handle,
+            starpu::prod.submit<std::tuple<T>>(traits.nelems, src1_tile_handle,
                     src2_tile_handle, dst_tile_handle);
         }
         // Flush cache for the output tile on every node

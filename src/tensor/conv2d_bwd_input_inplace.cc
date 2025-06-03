@@ -20,6 +20,7 @@
 #include "nntile/starpu/clear.hh"
 #include "nntile/starpu/scal_inplace.hh"
 #include "nntile/starpu/conv2d_bwd_input_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -156,12 +157,12 @@ void conv2d_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &dY,
             // Clear if beta is zero
             if(beta == 0.0)
             {
-                starpu::clear::submit(dX_tile_handle);
+                starpu::clear.submit(dX_tile_handle);
             }
             // Scale inplace if beta is neither zero nor one
             else if(beta != 1.0)
             {
-                starpu::scal_inplace::submit<T>(dX_tile_traits.nelems, beta,
+                starpu::scal_inplace.submit<std::tuple<T>>(dX_tile_traits.nelems, beta,
                         dX_tile_handle);
             }
             // Do nothing if beta is one
@@ -187,7 +188,7 @@ void conv2d_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &dY,
                     - stride[0]*dY_i*dY.basetile_shape[0];
                 Index offset_n = dX_start_n + padding[1]
                     - stride[1]*dY_j*dY.basetile_shape[1];
-                starpu::conv2d_bwd_input_inplace::submit<T>(
+                starpu::conv2d_bwd_input_inplace.submit<std::tuple<T>>(
                         dY_tile_traits.shape[0], dY_tile_traits.shape[1],
                         stride[0], stride[1], dY_tile_traits.shape[2],
                         dY_tile_traits.shape[3], C.shape[0], C.shape[1],

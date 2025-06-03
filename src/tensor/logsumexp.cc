@@ -15,6 +15,7 @@
 #include "nntile/tensor/logsumexp.hh"
 #include "nntile/starpu/logsumexp.hh"
 #include "nntile/starpu/clear.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -70,7 +71,7 @@ void logsumexp_async(const Tensor<T> &src, const Tensor<T> &dst)
         if (mpi_rank == dst_tile_rank)
         {
             // Insert task
-            starpu::logsumexp::submit<T>(dst_tile_traits.nelems, src_tile_handle,
+            starpu::logsumexp.submit<std::tuple<T>>(dst_tile_traits.nelems, src_tile_handle,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node
