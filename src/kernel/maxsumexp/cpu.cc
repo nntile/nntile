@@ -34,9 +34,9 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
  *      maxsumexp[1,i,j] = old[1,i,j]*exp(old[0,i,j]-maxsumexp[0,i,j])
  *          + sum(exp(src[i,:,j]-maxsumexp[0,i,j])))
  *
- * @param[in] m: Size of the first mode of src and the second mode of sumnorm
+ * @param[in] m: Size of the first mode of src and the second mode of sumexp
  *      arrays.
- * @param[in] n: Size of the last mode of src and sumnorm arrays
+ * @param[in] n: Size of the last mode of src and sumexp arrays
  * @param[in] k: Size of the middle mode of src array
  * @param[in] src: Input contiguous m-by-k-by-n array
  * @param[inout] maxsumexp: Output contiguous 2-by-m-by-n array, that

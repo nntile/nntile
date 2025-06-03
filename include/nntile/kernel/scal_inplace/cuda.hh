@@ -6,24 +6,23 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/sumnorm.hh
- * Low-level kernels to compute sum and Euclidean norm along axis
+ * @file include/nntile/kernel/scal_inplace/cuda.hh
+ * Scal inplace operation on buffers on CUDA
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/kernel/sumnorm/cpu.hh>
-#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/sumnorm/cuda.hh>
-#endif // NNTILE_USE_CUDA
+#include <nntile/base_types.hh>
+#include <cuda_runtime.h>
 
-//! @namespace nntile::kernel::sumnorm
-/*! Low-level implementations of computing sum and norm operation
- * */
-namespace nntile::kernel::sumnorm
+namespace nntile::kernel::scal_inplace
 {
 
-} // namespace nntile::kernel::sumnorm
+// Apply scal for buffers on CUDA
+template<typename T>
+void cuda(cudaStream_t stream, Index nelems, Scalar alpha, T* data)
+    noexcept;
+
+} // namespace nntile::kernel::scal_inplace

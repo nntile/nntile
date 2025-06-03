@@ -54,7 +54,6 @@ set(TESTS
     "subtract_indexed_column"
     "sum_fiber"
     "sum_slice"
-    "sumnorm"
     "sumprod_fiber"
     "sumprod_slice"
     "tile"

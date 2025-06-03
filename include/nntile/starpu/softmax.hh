@@ -82,7 +82,7 @@ public:
         Index m,
         Index n,
         Index k,
-        Handle maxsumnorm,
+        Handle maxsumexp,
         Handle src,
         Scalar alpha,
         Handle dst

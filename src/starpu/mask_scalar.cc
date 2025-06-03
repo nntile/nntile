@@ -49,6 +49,30 @@ void MaskScalar<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
             data);
 #endif // STARPU_SIMGRID
 }
+// Specializations of CPU wrapper for accelerated types
+template<>
+void MaskScalar<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MaskScalar<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void MaskScalar<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MaskScalar<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void MaskScalar<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MaskScalar<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
 
 #ifdef NNTILE_USE_CUDA
 //! Mask scalar StarPU buffer on CUDA
@@ -69,6 +93,30 @@ void MaskScalar<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     kernel::mask_scalar::cuda<T>(stream, args->nrows, args->ncols, mask,
             args->val, data);
 #endif // STARPU_SIMGRID
+}
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void MaskScalar<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MaskScalar<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void MaskScalar<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MaskScalar<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void MaskScalar<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    MaskScalar<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 

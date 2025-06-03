@@ -52,7 +52,6 @@
 #include <nntile/tensor/sum_fiber.hh>
 #include <nntile/tensor/norm_slice.hh>
 #include <nntile/tensor/pow.hh>
-#include <nntile/tensor/sumnorm.hh>
 #include <nntile/tensor/maxsumexp.hh>
 #include <nntile/tensor/softmax.hh>
 #include <nntile/tensor/softmax_inplace.hh>

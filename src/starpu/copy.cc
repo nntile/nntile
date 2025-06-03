@@ -83,4 +83,7 @@ void Copy::submit(Handle src, Handle dst)
     }
 }
 
+//! Copy operation object
+Copy copy;
+
 } // namespace nntile::starpu

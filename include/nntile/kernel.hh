@@ -36,7 +36,6 @@
 #include <nntile/kernel/relu_forward.hh>
 #include <nntile/kernel/relu_backward.hh>
 #include <nntile/kernel/subcopy.hh>
-#include <nntile/kernel/sumnorm.hh>
 #include <nntile/kernel/fill.hh>
 #include <nntile/kernel/sum_slice.hh>
 #include <nntile/kernel/sum_fiber.hh>
@@ -65,6 +64,7 @@
 //#include <nntile/kernel/fp16_to_fp32.hh>
 #include <nntile/kernel/mask_scalar.hh>
 #include <nntile/kernel/scal.hh>
+#include <nntile/kernel/scal_inplace.hh>
 #include <nntile/kernel/adam_step.hh>
 #include <nntile/kernel/adamw_step.hh>
 #include <nntile/kernel/transpose.hh>

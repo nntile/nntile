@@ -164,6 +164,6 @@ template class GeluBackward<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class GeluBackward<std::tuple<nntile::bf16_t>>;
 
 //! Pack of gelu_backward operations for different types
-extern gelu_backward_pack_t gelu_backward;
+gelu_backward_pack_t gelu_backward;
 
 } // namespace nntile::starpu

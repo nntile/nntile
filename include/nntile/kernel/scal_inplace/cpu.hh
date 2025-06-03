@@ -6,23 +6,22 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/sumnorm.hh
- * Sum and Euclidean norm of Tensor<T> along axis
+ * @file include/nntile/kernel/scal_inplace/cpu.hh
+ * Scal inplace operation on buffers on CPU
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/tensor/tensor.hh>
+#include <nntile/base_types.hh>
 
-namespace nntile::tensor
+namespace nntile::kernel::scal_inplace
 {
 
+// Apply scal for buffers on CPU
 template<typename T>
-void sumnorm_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis);
+void cpu(Index nelems, Scalar alpha, T* data)
+    noexcept;
 
-template<typename T>
-void sumnorm(const Tensor<T> &src, const Tensor<T> &dst, Index axis);
-
-} // namespace nntile::tensor
+} // namespace nntile::kernel::scal_inplace

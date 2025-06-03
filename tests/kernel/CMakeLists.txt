@@ -54,7 +54,6 @@ set(TESTS
     "sum_fiber"
     "norm_fiber"
     "sum_slice"
-    "sumnorm"
     "sumprod_fiber"
     "sumprod_slice"
     "total_sum_accum"

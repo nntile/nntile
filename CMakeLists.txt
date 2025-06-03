@@ -168,10 +168,6 @@ configure_file("${PROJECT_SOURCE_DIR}/src/starpu/nrm2.cc.in"
 configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/nrm2.cc.in"
     "${PROJECT_BINARY_DIR}/tests/starpu/nrm2.cc" @ONLY)
 
-# Configure src/starpu/scal_inplace.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/src/starpu/scal_inplace.cc.in"
-    "${PROJECT_BINARY_DIR}/src/starpu/scal_inplace.cc" @ONLY)
-
 # Configure tests/starpu/scal_inplace.cc that relies on cblas
 configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/scal_inplace.cc.in"
     "${PROJECT_BINARY_DIR}/tests/starpu/scal_inplace.cc" @ONLY)

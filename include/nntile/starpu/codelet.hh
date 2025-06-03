@@ -73,7 +73,7 @@ public:
     //! Set modes for the codelet
     /*! @param[in] modes: Modes for the codelet
      * */
-    Codelet &set_modes_fixed(std::vector<starpu_data_access_mode> modes);
+    Codelet &set_modes_fixed(const std::vector<starpu_data_access_mode> &modes);
 
     //! Set runtime decision on number of buffers and access modes
     /*! This is done by default for all the codelets. */

@@ -472,20 +472,6 @@ def pow_async(alpha: float, exp: float, x: Tensor) -> None:
         core_tensor.pow_async_fp64(alpha, exp, x)
 
 
-def sumnorm_async(x: Tensor, sumnorm: Tensor, axis: int) -> None:
-    """
-    Wrapper for multiprecision sumnorm
-    """
-    if type(x) is not type(sumnorm):
-        raise TypeError
-    if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.sumnorm_async_fp32(x, sumnorm, axis)
-    elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.sumnorm_async_fp64(x, sumnorm, axis)
-    else:
-        raise TypeError
-
-
 def softmax_async(
     maxsumexp: Tensor, x: Tensor, alpha: float, y: Tensor, axis: int
 ) -> None:

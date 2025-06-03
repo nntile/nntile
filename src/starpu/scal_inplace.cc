@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/scal_inplace.cc.in
- * Inplace scal operation for StarPU buffers
+ * @file src/starpu/scal_inplace.cc
+ * Scal inplace operation on a StarPU buffers
  *
  * @version 1.1.0
  * */
@@ -20,43 +20,11 @@
 #include <stdexcept>
 
 // Other NNTile headers
-
-// Include CBLAS
-#ifndef STARPU_SIMGRID
-#   ifdef NNTILE_USE_CBLAS
-#       include <@CBLAS_H_NAME@>
-#       ifndef CBLAS_INT
-#           define CBLAS_INT @CBLAS_INT_TYPE@
-#       endif // CBLAS_INT
-#   endif // NNTILE_USE_CBLAS
-// Include CUBLAS
-#   ifdef NNTILE_USE_CUDA
-#       include <cublas_v2.h>
-#       include <starpu_cublas_v2.h>
-#   endif // NNTILE_USE_CUDA
-#endif // STARPU_SIMGRID
+#include "nntile/kernel/scal_inplace.hh"
+#include "nntile/starpu/clear.hh"
 
 namespace nntile::starpu
 {
-
-#ifdef NNTILE_USE_CBLAS
-#ifndef STARPU_SIMGRID
-// Overloaded call to CBLAS scal
-static inline
-void cblas(CBLAS_INT N, float alpha, fp32_t *X, CBLAS_INT incX)
-    noexcept
-{
-    cblas_sscal(N, alpha, (float *)X, incX);
-}
-
-// Overloaded call to CBLAS scal
-static inline
-void cblas(CBLAS_INT N, double alpha, fp64_t *X, CBLAS_INT incX)
-    noexcept
-{
-    cblas_dscal(N, alpha, (double *)X, incX);
-}
-#endif // STARPU_SIMGRID
 
 //! Constructor
 template<typename T>
@@ -75,12 +43,11 @@ void ScalInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    T *X = interfaces[0]->get_ptr<T>();
-    // Call corresponding CBLAS routine
-    cblas(args->nelems, args->alpha, X, 1);
+    T *data = interfaces[0]->get_ptr<T>();
+    // Launch kernel
+    kernel::scal_inplace::cpu<T>(args->nelems, args->alpha, data);
 #endif // STARPU_SIMGRID
 }
-#endif // NNTILE_USE_CBLAS
 
 // Specializations of CPU wrapper for accelerated types
 template<>
@@ -108,26 +75,7 @@ void ScalInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_ar
 }
 
 #ifdef NNTILE_USE_CUDA
-#ifndef STARPU_SIMGRID
-// Overloaded call to cuBLAS scal
-static inline
-void cublas(cublasHandle_t handle, int N, float alpha, fp32_t *X, int incX)
-    noexcept
-{
-    cublasSscal(handle, N, &alpha, (float *)X, incX);
-}
-
-// Overloaded call to cuBLAS scal
-static inline
-void cublas(cublasHandle_t handle, int N, double alpha, fp64_t *X, int incX)
-    noexcept
-{
-    cublasDscal(handle, N, &alpha, (double *)X, incX);
-}
-
-#endif // STARPU_SIMGRID
-
-//! StarPU wrapper for kernel::scal_inplace::cuda<T>
+//! StarPU wrapper for kernel::scal::cuda<T>
 template<typename T>
 void ScalInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -137,19 +85,15 @@ void ScalInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    T *X = interfaces[0]->get_ptr<T>();
-    // Get cuBLAS handle and CUDA stream
-    cublasHandle_t handle = starpu_cublas_get_local_handle();
+    T *data = interfaces[0]->get_ptr<T>();
+    // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
-    cublasSetStream(handle, stream);
-    // alpha and beta parameters of GEMM operation are on CPU host
-    cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
-    // Call corresponding cuBLAS routine
-    cublas(handle, args->nelems, args->alpha, X, 1);
+    // Launch kernel
+    kernel::scal_inplace::cuda<T>(stream, args->nelems, args->alpha, data);
 #endif // STARPU_SIMGRID
 }
 
-// Specializations of CPU wrapper for accelerated types
+// Specializations of CUDA wrapper for accelerated types
 template<>
 void ScalInplace<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -173,38 +117,44 @@ void ScalInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_a
     // Fall back to FP32
     ScalInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
-#endif //NNTILE_USE_CUDA
+#endif // NNTILE_USE_CUDA
+
+//! Footprint for scal tasks that depends only on cl_arg
+template<typename T>
+uint32_t ScalInplace<std::tuple<T>>::footprint(struct starpu_task *task)
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
+    return hash;
+}
 
 template<typename T>
-void ScalInplace<std::tuple<T>>::submit(Index nelems, Scalar alpha, Handle data)
+void ScalInplace<std::tuple<T>>::submit(
+    Index nelems, Scalar alpha, Handle data)
 {
-    // Check that matrix sizes fit proper types for underlying CBLAS
-#ifdef NNTILE_USE_CBLAS
-#ifndef STARPU_SIMGRID
-    if(static_cast<CBLAS_INT>(nelems) != nelems)
+    constexpr Scalar zero = 0.0;
+    // if alpha is zero, function reduces to clear
+    if(alpha == zero)
     {
-        throw std::runtime_error("scal_inplace size N does not fit CBLAS_INT");
+        clear.submit(data);
+        return;
     }
-#endif // STARPU_SIMGRID
-#endif // NNTILE_USE_CBLAS
-    // Check that matrix sizes fit proper types for underlying CUBLAS
-#ifdef NNTILE_USE_CUDA
-#ifndef STARPU_SIMGRID
-    if(static_cast<int>(nelems) != nelems)
+    // if alpha is one, function reduces to no-op
+    if(alpha == 1.0)
     {
-        throw std::runtime_error("CBLAS size N does not fit int");
+        return;
     }
-#endif // STARPU_SIMGRID
-#endif // NNTILE_USE_CUDA
     // Codelet arguments
-    args_t *cl_args = (args_t *)malloc(sizeof(*cl_args));
-    cl_args->nelems = nelems;
-    cl_args->alpha = alpha;
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->nelems = nelems;
+    args->alpha = alpha;
     // Submit task
     int ret = starpu_task_insert(&codelet,
             STARPU_RW, data.get(),
-            STARPU_CL_ARGS, cl_args, sizeof(*cl_args),
-            //STARPU_FLOPS, nflops,
+            STARPU_CL_ARGS, args, sizeof(*args),
+            // STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
@@ -213,7 +163,17 @@ void ScalInplace<std::tuple<T>>::submit(Index nelems, Scalar alpha, Handle data)
     }
 }
 
-//! Pack of add operations for different types
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class ScalInplace<std::tuple<nntile::fp64_t>>;
+template class ScalInplace<std::tuple<nntile::fp32_t>>;
+template class ScalInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class ScalInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class ScalInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class ScalInplace<std::tuple<nntile::bf16_t>>;
+
+//! Pack of scal_inplace operations for different types
 scal_inplace_pack_t scal_inplace;
 
 } // namespace nntile::starpu

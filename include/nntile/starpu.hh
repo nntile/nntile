@@ -48,7 +48,6 @@
 #include <nntile/starpu/relu_forward.hh>
 #include <nntile/starpu/relu_backward.hh>
 #include <nntile/starpu/subcopy.hh>
-#include <nntile/starpu/sumnorm.hh>
 #include <nntile/starpu/fill.hh>
 #include <nntile/starpu/sum_slice.hh>
 #include <nntile/starpu/sum_fiber.hh>
@@ -130,7 +129,6 @@ static void init()
     // prod::init();
     // prod_inplace::init();
     // subcopy::init();
-    // sumnorm::init();
     // fill::init();
     // sum_slice::init();
     // sum_fiber::init();
@@ -211,7 +209,6 @@ static void restrict_where(uint32_t where)
     // relu_forward::restrict_where(where);
     // relu_backward::restrict_where(where);
     // subcopy::restrict_where(where);
-    // sumnorm::restrict_where(where);
     // fill::restrict_where(where);
     // sum_slice::restrict_where(where);
     // sum_fiber::restrict_where(where);
@@ -292,7 +289,6 @@ static void restore_where()
     // relu_forward::restore_where();
     // relu_backward::restore_where();
     // subcopy::restore_where();
-    // sumnorm::restore_where();
     // fill::restore_where();
     // sum_slice::restore_where();
     // sum_fiber::restore_where();

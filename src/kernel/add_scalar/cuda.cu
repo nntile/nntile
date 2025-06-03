@@ -59,4 +59,9 @@ void cuda<fp64_t>(cudaStream_t stream, Index num_elements, Scalar alpha,
         Scalar beta, fp64_t *dst)
     noexcept;
 
+template
+void cuda<bf16_t>(cudaStream_t stream, Index num_elements, Scalar alpha,
+        Scalar beta, bf16_t *dst)
+    noexcept;
+
 } // namespace nntile::kernel::add_scalar

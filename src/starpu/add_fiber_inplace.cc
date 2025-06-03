@@ -204,17 +204,6 @@ void AddFiberInplace<std::tuple<T>>::submit(
     }
 }
 
-//! Pack of add_fiber_inplace operations for different types
-using add_fiber_inplace_pack_t = OperationPack<
-    AddFiberInplace,
-    std::tuple<nntile::fp64_t>,
-    std::tuple<nntile::fp32_t>,
-    std::tuple<nntile::fp32_fast_tf32_t>,
-    std::tuple<nntile::fp32_fast_fp16_t>,
-    std::tuple<nntile::fp32_fast_bf16_t>,
-    std::tuple<nntile::bf16_t>
->;
-
 // Explicit instantiation
 // For some strange reason, the compiler does not instantiate the template
 // automatically, so we need to do it manually
@@ -226,6 +215,6 @@ template class AddFiberInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class AddFiberInplace<std::tuple<nntile::bf16_t>>;
 
 //! Pack of add_fiber_inplace operations for different types
-extern add_fiber_inplace_pack_t add_fiber_inplace;
+add_fiber_inplace_pack_t add_fiber_inplace;
 
 } // namespace nntile::starpu
