@@ -12,18 +12,40 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/prod.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/prod.hh"
 
-//! StarPU wrappers for prod operation
-namespace nntile::starpu::prod
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/prod.hh"
+
+namespace nntile::starpu
 {
 
-//! Apply prod on StarPU buffers on CPU
+//! Constructor
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+Prod<std::tuple<T>>::Prod():
+    codelet("nntile_prod", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+//! Footprint for prod tasks
+template<typename T>
+uint32_t Prod<std::tuple<T>>::footprint(struct starpu_task *task)
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
+    return hash;
+}
+
+//! StarPU wrapper for kernel::prod::cpu<T>
+template<typename T>
+void Prod<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -40,9 +62,9 @@ void cpu(void *buffers[], void *cl_args)
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply gelu on StarPU buffer on CUDA
+//! Apply prod on StarPU buffer on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void Prod<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -61,74 +83,13 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
-
-void init()
-{
-    codelet_fp32.init("nntile_prod_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_bf16.init("nntile_prod_bf16",
-            nullptr,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_prod_fp32_fast_tf32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp64.init("nntile_prod_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp64.restore_where();
-}
-
 template<typename T>
-void submit(Index nelems, Handle src1, Handle src2, Handle dst)
+void Prod<std::tuple<T>>::submit(Index nelems, Handle src1, Handle src2, Handle dst)
 {
     Index *nelems_ = new Index{nelems};
     // Put amount of read-write bytes into flop count
     double nflops = sizeof(T) * 3 * nelems;
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(&codelet,
             STARPU_R, src1.get(),
             STARPU_R, src2.get(),
             STARPU_W, dst.get(),
@@ -142,18 +103,7 @@ void submit(Index nelems, Handle src1, Handle src2, Handle dst)
     }
 }
 
-// Explicit instantiaion
-template
-void submit<fp32_t>(Index nelems, Handle src1, Handle src2, Handle dst);
+//! Pack of prod operations for different types
+prod_pack_t prod;
 
-template
-void submit<bf16_t>(Index nelems, Handle src1, Handle src2, Handle dst);
-
-template
-void submit<fp32_fast_tf32_t>(Index nelems, Handle src1, Handle src2,
-        Handle dst);
-
-template
-void submit<fp64_t>(Index nelems, Handle src1, Handle src2, Handle dst);
-
-} // namespace nntile::starpu::prod
+} // namespace nntile::starpu

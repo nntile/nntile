@@ -7,22 +7,34 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/starpu/normalize.cc
- * Normalize operation for StarPU buffer
+ * Normalize operation for StarPU buffers
  *
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/normalize.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/normalize.hh"
 
-namespace nntile::starpu::normalize
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/normalize.hh"
+
+namespace nntile::starpu
 {
 
-//! Renormalize buffer along middle axis of StarPU buffer
+//! Constructor
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+Normalize<std::tuple<T>>::Normalize():
+    codelet("nntile_normalize", footprint, cpu_funcs, cuda_funcs)
+{
+}
+
+//! StarPU wrapper for kernel::normalize::cpu<T>
+template<typename T>
+void Normalize<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -43,7 +55,7 @@ void cpu(void *buffers[], void *cl_args)
 #ifdef NNTILE_USE_CUDA
 //! Renormalize buffer along middle axis of StarPU buffer
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void Normalize<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -64,10 +76,9 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for normalize tasks that depends only on m, n and k
+//! Footprint for normalize tasks
 template<typename T>
-static
-uint32_t footprint(struct starpu_task *task)
+uint32_t Normalize<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -81,44 +92,8 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64;
-
-void init()
-{
-    codelet_fp32.init("nntile_normalize_fp32",
-            footprint<fp32_t>,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp64.init("nntile_normalize_fp64",
-            footprint<fp64_t>,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_fp64.restore_where();
-}
-
 template<typename T>
-void submit(Index m, Index n, Index k, Index l, Scalar eps, Handle gamma_beta,
+void Normalize<std::tuple<T>>::submit(Index m, Index n, Index k, Index l, Scalar eps, Handle gamma_beta,
         Handle sumnorm, Handle dst)
 //! Insert normalize task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -137,7 +112,7 @@ void submit(Index m, Index n, Index k, Index l, Scalar eps, Handle gamma_beta,
     };
     double nflops = 14 * m * n * k;
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(&codelet,
             STARPU_R, gamma_beta.get(),
             STARPU_R, sumnorm.get(),
             STARPU_RW, dst.get(),
@@ -151,13 +126,7 @@ void submit(Index m, Index n, Index k, Index l, Scalar eps, Handle gamma_beta,
     }
 }
 
-// Explicit instantiation
-template
-void submit<fp32_t>(Index m, Index n, Index k, Index l, Scalar eps,
-        Handle gamma_beta, Handle sumnorm, Handle dst);
+//! Pack of normalize operations for different types
+normalize_pack_t normalize;
 
-template
-void submit<fp64_t>(Index m, Index n, Index k, Index l, Scalar eps,
-        Handle gamma_beta, Handle sumnorm, Handle dst);
-
-} // namespace nntile::starpu::normalize
+} // namespace nntile::starpu

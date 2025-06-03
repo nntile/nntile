@@ -12,42 +12,63 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/embedding_backward.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/embedding_backward.hh"
 
-namespace nntile::starpu::embedding_backward
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/embedding_backward.hh"
+
+namespace nntile::starpu
 {
 
-//! Copy embedding from vocabulary within StarPU buffers on CPU
+//! Constructor
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+EmbeddingBackward<std::tuple<T>>::EmbeddingBackward():
+    codelet("nntile_embedding_backward", footprint, cpu_funcs, cuda_funcs)
+{
+    codelet.set_modes_fixed({STARPU_R, STARPU_R, STARPU_RW});
+}
+
+//! Apply embedding backward on StarPU buffer on CPU
+template<typename T>
+void EmbeddingBackward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t *>(cl_args);
+    args_t *args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const int64_t *index = interfaces[0]->get_ptr<int64_t>();
     const T *embed = interfaces[1]->get_ptr<T>();
     T *vocab = interfaces[2]->get_ptr<T>();
     // Accumulate vocab gradients
-    kernel::embedding_backward::cpu<T>(args->m, args->n, args->k,
-            args->k_start, args->k_size, index, embed, vocab);
+    kernel::embedding_backward::cpu<T>(
+        args->m,
+        args->n,
+        args->k,
+        args->k_start,
+        args->k_size,
+        index,
+        embed,
+        vocab
+    );
 #endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Copy embedding from vocabulary within StarPU buffers on CUDA
+//! Apply embedding backward on StarPU buffer on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void EmbeddingBackward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t *>(cl_args);
+    args_t *args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const int64_t *index = interfaces[0]->get_ptr<int64_t>();
@@ -56,15 +77,24 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Accumulate vocab gradients
-    kernel::embedding_backward::cuda<T>(stream, args->m, args->n, args->k,
-            args->k_start, args->k_size, index, embed, vocab);
+    kernel::embedding_backward::cuda<T>(
+        stream,
+        args->m,
+        args->n,
+        args->k,
+        args->k_start,
+        args->k_size,
+        index,
+        embed,
+        vocab
+    );
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for embedding tasks that depends only on cl_arg
-static
-uint32_t footprint(struct starpu_task *task)
+template<typename T>
+uint32_t EmbeddingBackward<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -77,94 +107,8 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
-
-void init()
-{
-    codelet_fp32.init("nntile_embedding_backward_fp32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_bf16.init("nntile_embedding_backward_bf16",
-            footprint,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_embedding_backward_fp32_fast_tf32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_fp16.init("nntile_embedding_backward_fp32_fast_fp16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_bf16.init("nntile_embedding_backward_fp32_fast_bf16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp64.init("nntile_embedding_backward_fp64",
-            footprint,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp32_fast_fp16.restrict_where(where);
-    codelet_fp32_fast_bf16.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp32_fast_fp16.restore_where();
-    codelet_fp32_fast_bf16.restore_where();
-    codelet_fp64.restore_where();
-}
-
 template<typename T>
-void submit(Index m, Index n, Index k, Index k_start, Index k_size,
+void EmbeddingBackward<std::tuple<T>>::submit(Index m, Index n, Index k, Index k_start, Index k_size,
         Handle index, Handle embed, Handle vocab, int redux)
 //! Insert embedding_backward task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -189,10 +133,10 @@ void submit(Index m, Index n, Index k, Index k_start, Index k_size,
     }
     else
     {
-        vocab_mode = Config::STARPU_RW_COMMUTE;
+        vocab_mode = STARPU_RW | STARPU_COMMUTE;
     }
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(&codelet,
             STARPU_R, index.get(),
             STARPU_R, embed.get(),
             vocab_mode, vocab.get(),
@@ -207,29 +151,7 @@ void submit(Index m, Index n, Index k, Index k_start, Index k_size,
     }
 }
 
-// Explicit instantiation
-template
-void submit<fp32_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Handle index, Handle embed, Handle vocab, int redux);
+//! Pack of embedding backward operations for different types
+embedding_backward_pack_t embedding_backward;
 
-template
-void submit<bf16_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Handle index, Handle embed, Handle vocab, int redux);
-
-template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Handle index, Handle embed, Handle vocab, int redux);
-
-template
-void submit<fp32_fast_fp16_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Handle index, Handle embed, Handle vocab, int redux);
-
-template
-void submit<fp32_fast_bf16_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Handle index, Handle embed, Handle vocab, int redux);
-
-template
-void submit<fp64_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Handle index, Handle embed, Handle vocab, int redux);
-
-} // namespace nntile::starpu::embedding_backward
+} // namespace nntile::starpu

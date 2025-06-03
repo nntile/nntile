@@ -12,19 +12,29 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/norm_slice.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/norm_slice.hh"
-#include <cstdlib>
 
-//! StarPU wrappers for norm_slice operation
-namespace nntile::starpu::norm_slice
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/norm_slice.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+NormSlice<std::tuple<T>>::NormSlice():
+    codelet("nntile_norm_slice", footprint, cpu_funcs, cuda_funcs)
+{
+}
 
 //! StarPU wrapper for kernel::norm_slice::cpu<T>
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void NormSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -43,7 +53,7 @@ void cpu(void *buffers[], void *cl_args)
 #ifdef NNTILE_USE_CUDA
 //! StarPU wrapper for kernel::norm_slice::cuda<T>
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void NormSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -63,8 +73,8 @@ void cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for norm_slice tasks
-static
-uint32_t footprint(struct starpu_task *task)
+template<typename T>
+uint32_t NormSlice<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -76,94 +86,8 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
-
-void init()
-{
-    codelet_fp32.init("nntile_norm_slice_fp32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_bf16.init("nntile_norm_slice_bf16",
-            footprint,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_norm_slice_fp32_fast_tf32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_fp16.init("nntile_norm_slice_fp32_fast_fp16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_bf16.init("nntile_norm_slice_fp32_fast_bf16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp64.init("nntile_norm_slice_fp64",
-            footprint,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp32_fast_fp16.restrict_where(where);
-    codelet_fp32_fast_bf16.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp32_fast_fp16.restore_where();
-    codelet_fp32_fast_bf16.restore_where();
-    codelet_fp64.restore_where();
-}
-
 template<typename T>
-void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
+void NormSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
         Handle dst, int redux)
 //! Insert norm_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -183,11 +107,10 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
         if(redux != 0)
         {
             dst_mode = STARPU_REDUX;
-            //dst_mode = Config::STARPU_RW_COMMUTE;
         }
         else
         {
-            dst_mode = Config::STARPU_RW_COMMUTE;
+            dst_mode = STARPU_RW | STARPU_COMMUTE;
         }
     }
     else
@@ -207,7 +130,7 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
     double nflops = beta == 0.0 ? src_nbytes + dst_nbytes :
         src_nbytes + 2*dst_nbytes;
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(&codelet,
             STARPU_R, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             dst_mode, dst.get(),
@@ -220,29 +143,7 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
     }
 }
 
-// Explicit instantiation
-template
-void submit<fp32_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
-        Scalar beta, Handle dst, int redux);
+//! Pack of norm_slice operations for different types
+norm_slice_pack_t norm_slice;
 
-template
-void submit<bf16_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
-        Scalar beta, Handle dst, int redux);
-
-template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
-        Scalar beta, Handle dst, int redux);
-
-template
-void submit<fp32_fast_fp16_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
-        Scalar beta, Handle dst, int redux);
-
-template
-void submit<fp32_fast_bf16_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
-        Scalar beta, Handle dst, int redux);
-
-template
-void submit<fp64_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
-        Scalar beta, Handle dst, int redux);
-
-} // namespace nntile::starpu::norm_slice
+} // namespace nntile::starpu

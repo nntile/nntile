@@ -7,46 +7,57 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/starpu/maximum.cc
- * Per-element maximum of two StarPU buffers
+ * StarPU wrappers for maximum operation
  *
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/maximum.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/maximum.hh"
 
-//! StarPU wrappers for maximum operation
-namespace nntile::starpu::maximum
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/maximum.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+Maximum<std::tuple<T>>::Maximum():
+    codelet("nntile_maximum", footprint, cpu_funcs, cuda_funcs)
+{
+}
 
 //! Apply maximum operation on StarPU buffers on CPU
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void Maximum<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    args_t *args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::maximum::cpu<T>(nelems, src, dst);
+    kernel::maximum::cpu<T>(args->nelems, src, dst);
 #endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Apply per element maximum on StarPU buffer on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void Maximum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    args_t *args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -54,57 +65,20 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::maximum::cuda<T>(stream, nelems, src, dst);
+    kernel::maximum::cuda<T>(stream, args->nelems, src, dst);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64;
-
-void init()
-{
-    codelet_fp32.init("nntile_maximum_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp64.init("nntile_maximum_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_fp64.restore_where();
-}
-
 template<typename T>
-void submit(Index nelems, Handle src, Handle dst)
+void Maximum<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
 {
-    Index *nelems_ = new Index{nelems};
-    //double nflops = 5 * nelems;
-    int ret = starpu_task_insert(codelet<T>(),
+    args_t *args = (args_t *)malloc(sizeof(*args));
+    args->nelems = nelems;
+    int ret = starpu_task_insert(&codelet,
             STARPU_R, src.get(),
             STARPU_RW, dst.get(),
-            STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
-            //STARPU_FLOPS, nflops,
+            STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission
     if(ret != 0)
@@ -113,11 +87,7 @@ void submit(Index nelems, Handle src, Handle dst)
     }
 }
 
-// Explicit instantiaion
-template
-void submit<fp32_t>(Index nelems, Handle src, Handle dst);
+//! Pack of maximum operations for different types
+maximum_pack_t maximum;
 
-template
-void submit<fp64_t>(Index nelems, Handle src, Handle dst);
-
-} // namespace nntile::starpu::maximum
+} // namespace nntile::starpu

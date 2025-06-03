@@ -53,7 +53,7 @@ Codelet::Codelet(
     // Set footprint function
     starpu_perfmodel::footprint = footprint;
 
-    // Set runtime decision on number of buffers and access modes
+    // Set runtime decision on number of buffers and access modes by default
     starpu_codelet::nbuffers = STARPU_VARIABLE_NBUFFERS;
 
     // Add CPU implementations
@@ -107,8 +107,8 @@ Codelet &Codelet::restore_where()
     return *this;
 }
 
-//! Set modes for the codelet manually
-Codelet &Codelet::set_modes(std::vector<starpu_data_access_mode> modes)
+//! Set modes for the codelet
+Codelet &Codelet::set_modes_fixed(std::vector<starpu_data_access_mode> modes)
 {
     // Check if the number of modes is too large
     if(modes.size() > STARPU_NMAXBUFS)
@@ -123,6 +123,28 @@ Codelet &Codelet::set_modes(std::vector<starpu_data_access_mode> modes)
     for(int i = 0; i < starpu_codelet::nbuffers; ++i)
     {
         starpu_codelet::modes[i] = modes[i];
+    }
+
+    // Clear all the remaining modes
+    for(int i = starpu_codelet::nbuffers; i < STARPU_NMAXBUFS; ++i)
+    {
+        starpu_codelet::modes[i] = STARPU_NONE;
+    }
+
+    // Return the codelet
+    return *this;
+}
+
+//! Set runtime decision on number of buffers and access modes
+Codelet &Codelet::set_modes_variable()
+{
+    // Indicate that the number of buffers is decided during runtime
+    starpu_codelet::nbuffers = STARPU_VARIABLE_NBUFFERS;
+
+    // Clear all the modes
+    for(int i = 0; i < STARPU_NMAXBUFS; ++i)
+    {
+        starpu_codelet::modes[i] = STARPU_NONE;
     }
 
     // Return the codelet

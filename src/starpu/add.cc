@@ -19,13 +19,6 @@
 #include <cstdlib>
 #include <stdexcept>
 
-// Third-party headers
-#ifndef STARPU_SIMGRID
-#   ifdef NNTILE_USE_CUDA
-#       include <cuda_runtime.h>
-#   endif // NNTILE_USE_CUDA
-#endif // STARPU_SIMGRID
-
 // Other NNTile headers
 #include "nntile/kernel/add.hh"
 #include "nntile/starpu/scal.hh"
@@ -108,13 +101,37 @@ void Add<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void Add<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Add<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Add<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Add<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void Add<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    Add<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
 //! Footprint for add tasks that depends only on cl_arg
 template<typename T>
 uint32_t Add<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
-    // Apply hash over parameters m, n, k and k_size.
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
     return hash;
@@ -135,14 +152,14 @@ void Add<std::tuple<T>>::submit(
     if(beta == zero)
     {
         // dst = alpha*src1
-        scal::submit<T>(nelems, alpha, src1, dst);
+        scal.submit<T>(nelems, alpha, src1, dst);
         return;
     }
     // If beta is non-zero and alpha is zero then reduce to scal
     if(alpha == zero)
     {
         // dst = beta*src2
-        scal::submit<T>(nelems, beta, src2, dst);
+        scal.submit<T>(nelems, beta, src2, dst);
         return;
     }
     // Codelet arguments
