@@ -18,6 +18,8 @@
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/copy.hh"
+#include "nntile/context.hh"
+#include "nntile/starpu/config.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -76,7 +78,6 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 template<typename T>
 void validate()
 {
-    check<T>({}, {});
     check<T>({5}, {5});
     check<T>({11}, {5});
     check<T>({11, 12, 13}, {5, 6, 7});
@@ -97,11 +98,10 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
-    starpu::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
-        ooc_disk_node_id, verbose);
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

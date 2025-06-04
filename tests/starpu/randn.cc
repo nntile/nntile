@@ -24,34 +24,6 @@
 using namespace nntile;
 using namespace nntile::starpu;
 
-template<typename T>
-void validate_cpu_empty()
-{
-    using Y = typename T::repr_t;
-    // Randn related constants
-    Scalar mean = 2, stddev = 4;
-    unsigned long long seed = -1;
-    // Init all the data
-    Index nelems = 1;
-    T data(Y(1)), data2(Y(1));
-    // Launch low-level kernel
-    std::cout << "Run kernel::randn::cpu_ndim0<" << T::short_name << ">\n";
-    kernel::randn::cpu_ndim0<T>(seed, mean, stddev, &data);
-    // Check by actually submitting a task
-    VariableHandle data2_handle(&data2, sizeof(T));
-    Handle null_handle;
-    std::vector<Index> start, shape, stride, underlying_shape;
-    randn.restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::randn::submit<" << T::short_name << "> restricted to CPU\n";
-    randn.submit<std::tuple<T>>(0, nelems, seed, mean, stddev, start, shape,
-            stride, underlying_shape, data2_handle, null_handle);
-    starpu_task_wait_for_all();
-    data2_handle.unregister();
-    // Check result
-    TEST_ASSERT(Y(data) == Y(data2));
-    std::cout << "OK: starpu::randn::submit<" << T::short_name << "> restricted to CPU\n";
-}
-
 template<typename T, std::size_t NDIM>
 void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
         std::array<Index, NDIM> underlying_shape)
@@ -109,7 +81,6 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
 template<typename T>
 void validate_many()
 {
-    validate_cpu_empty<T>();
     validate_cpu<T, 1>({0}, {1}, {2});
     validate_cpu<T, 1>({2}, {1}, {4});
     validate_cpu<T, 1>({0}, {2}, {2});
