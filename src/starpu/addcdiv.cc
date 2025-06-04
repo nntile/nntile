@@ -148,9 +148,9 @@ void AddCdiv<std::tuple<T>>::submit(
 {
     // Codelet arguments
     args_t* args = (args_t*)std::malloc(sizeof(*args));
+    args->nelems = nelems;
     args->val = val;
     args->eps = eps;
-    args->nelems = nelems;
     //double nflops = 5 * nelems;
     // Submit task
     int ret = starpu_task_insert(&codelet,

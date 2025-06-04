@@ -81,6 +81,7 @@ set(TESTS_NOT_IMPLEMENTED
     "hypot"
     "add_slice"
     "prod_fiber3"
+    "maximum"
     )
 
 # Add target for local coverage

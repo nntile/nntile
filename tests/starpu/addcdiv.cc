@@ -51,7 +51,7 @@ void validate_cpu(Scalar val, Scalar eps, Index nelems)
     VariableHandle denom_handle(&denom[0], sizeof(T)*nelems);
     addcdiv.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::addcdiv::submit<" << T::short_name << "> restricted to CPU\n";
-    addcdiv.submit<std::tuple<T>>(val, eps, nelems, nom_handle, denom_handle, data2_handle);
+    addcdiv.submit<std::tuple<T>>(nelems, val, eps, nom_handle, denom_handle, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
