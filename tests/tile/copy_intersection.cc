@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/starpu/config.hh"
+#include "nntile/context.hh"
 #include "nntile/tile/copy_intersection.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "../testing.hh"
@@ -64,8 +64,18 @@ void validate()
     }
     tile2_copy_local.release();
     // Check complex copying on CPU, no CUDA implementation as of now
-    starpu::subcopy::submit<T>(3, {0, 0, 2}, tile3.stride, {0, 1, 0},
-            tile2.stride, {2, 1, 2}, tile3, tile2, scratch, STARPU_RW);
+    starpu::subcopy.submit<std::tuple<T>>(
+        3,
+        std::vector<Index>{0, 0, 2},
+        tile3.stride,
+        std::vector<Index>{0, 1, 0},
+        tile2.stride,
+        std::vector<Index>{2, 1, 2},
+        tile3,
+        tile2,
+        scratch,
+        STARPU_RW
+    );
     copy_intersection<T>(tile3, {0, 1, 0}, tile2_copy, {0, 0, 2}, scratch);
     tile2_local.acquire(STARPU_R);
     tile2_copy_local.acquire(STARPU_R);
@@ -87,18 +97,15 @@ void validate()
 int main(int argc, char **argv)
 {
     // Initialize StarPU
-    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
-    starpu::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
-        ooc_disk_node_id, verbose);
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
 
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
     validate<nntile::int64_t>();
 
-    // Shutdown StarPU
-    starpu::config.shutdown();
     return 0;
 }

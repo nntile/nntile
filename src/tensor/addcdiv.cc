@@ -52,7 +52,7 @@ void addcdiv_async(Scalar val, Scalar eps, const Tensor<T> &nom, const Tensor<T>
         if(mpi_rank == src_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::addcdiv.submit<std::tuple<T>>(val, eps, traits.nelems, nom_tile_handle,
+            starpu::addcdiv.submit<std::tuple<T>>(traits.nelems, val, eps, nom_tile_handle,
                                        denom_tile_handle, src_tile_handle);
         }
         // Flush cache for the output tile on every node

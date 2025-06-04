@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/starpu/config.hh"
+#include "nntile/context.hh"
 #include "nntile/tile/add_slice_inplace.hh"
 #include "nntile/starpu/add_slice_inplace.hh"
 #include "../testing.hh"
@@ -45,7 +45,7 @@ void check(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         n *= dst.shape[i];
     }
     Index k = dst.shape[axis];
-    starpu::add_slice_inplace::submit<T>(m, n, k, alpha, src, beta, dst2);
+    starpu::add_slice_inplace.submit<std::tuple<T>>(m, n, k, alpha, src, beta, dst2);
     starpu_task_wait_for_all();
     auto dst2_local = dst.acquire(STARPU_R);
     dst_local.acquire(STARPU_R);
@@ -107,17 +107,14 @@ void validate()
 int main(int argc, char **argv)
 {
     // Initialize StarPU
-    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
-    starpu::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
-        ooc_disk_node_id, verbose);
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
 
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
 
-    // Shutdown StarPU
-    starpu::config.shutdown();
     return 0;
 }
