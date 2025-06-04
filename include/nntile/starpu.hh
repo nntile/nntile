@@ -21,7 +21,6 @@
 #include <nntile/starpu/accumulate.hh>
 #include <nntile/starpu/accumulate_hypot.hh>
 #include <nntile/starpu/accumulate_maxsumexp.hh>
-#include <nntile/starpu/axpy.hh>
 #include <nntile/starpu/add_slice_inplace.hh>
 #include <nntile/starpu/add_slice.hh>
 #include <nntile/starpu/add_fiber_inplace.hh>
@@ -40,7 +39,6 @@
 #include <nntile/starpu/gemm.hh>
 #include <nntile/starpu/hypot.hh>
 #include <nntile/starpu/hypot_scalar_inverse.hh>
-#include <nntile/starpu/nrm2.hh>
 #include <nntile/starpu/prod.hh>
 #include <nntile/starpu/prod_inplace.hh>
 #include <nntile/starpu/randn.hh>
@@ -96,89 +94,12 @@
 namespace nntile::starpu
 {
 
-// Init all codelets
-static void init()
-{
-    // accumulate::init();
-    // accumulate_hypot::init();
-    // accumulate_maxsumexp::init();
-    // axpy::init();
-    // add_slice_inplace::init();
-    // add_slice::init();
-    // add_fiber_inplace::init();
-    // add_fiber::init();
-    // prod_slice::init();
-    // prod_fiber::init();
-    // prod_fiber3::init();
-    // clear::init();
-    // copy::init();
-    // gelu::init();
-    // gelutanh::init();
-    // gelutanh_inplace::init();
-    // dgelu::init();
-    // dgelutanh::init();
-    // drelu::init();
-    // gemm::init();
-    // hypot::init();
-    // hypot_scalar_inverse::init();
-    // nrm2::init();
-    // randn::init();
-    // relu::init();
-    // relu_forward::init();
-    // relu_backward::init();
-    // prod::init();
-    // prod_inplace::init();
-    // subcopy::init();
-    // fill::init();
-    // sum_slice::init();
-    // sum_fiber::init();
-    // norm_slice::init();
-    // norm_fiber::init();
-    // pow::init();
-    // softmax::init();
-    // softmax_inplace::init();
-    // maxsumexp::init();
-    // sqrt::init();
-    // sqrt_inplace::init();
-    // maximum::init();
-    // addcdiv::init();
-    // sumprod_slice::init();
-    // sumprod_fiber::init();
-    // logsumexp::init();
-    // total_sum_accum::init();
-    // subtract_indexed_outputs::init();
-    // scal::init();
-    // scal_inplace::init();
-    // gelu_backward::init();
-    // gelutanh_backward::init();
-    // add::init();
-    // add_inplace::init();
-    // add_scalar::init();
-    // embedding::init();
-    // embedding_backward::init();
-    // //fp32_to_fp16::init();
-    // //fp16_to_fp32::init();
-    // mask_scalar::init();
-    // adam_step::init();
-    // adamw_step::init();
-    // transpose::init();
-    // silu_forward::init();
-    // silu_backward::init();
-    // conv2d_inplace::init();
-    // conv2d_bwd_input_inplace::init();
-    // conv2d_bwd_weight_inplace::init();
-    // rope::init();
-    // rope_backward::init();
-    // log_scalar::init();
-}
-
 // Restrict StarPU codelets to certain computational units
 static void restrict_where(uint32_t where)
 {
     // accumulate::restrict_where(where);
     // accumulate_hypot::restrict_where(where);
     // accumulate_maxsumexp::restrict_where(where);
-    // axpy::restrict_where(where);
     // add_slice_inplace::restrict_where(where);
     // add_slice::restrict_where(where);
     // add_fiber_inplace::restrict_where(where);
@@ -197,7 +118,6 @@ static void restrict_where(uint32_t where)
     // gemm::restrict_where(where);
     // hypot::restrict_where(where);
     // hypot_scalar_inverse::restrict_where(where);
-    // nrm2::restrict_where(where);
     // prod::restrict_where(where);
     // prod_inplace::restrict_where(where);
     // randn::restrict_where(where);
@@ -254,7 +174,6 @@ static void restore_where()
     // accumulate::restore_where();
     // accumulate_hypot::restore_where();
     // accumulate_maxsumexp::restore_where();
-    // axpy::restore_where();
     // add_slice_inplace::restore_where();
     // add_slice::restore_where();
     // add_fiber_inplace::restore_where();
@@ -273,7 +192,6 @@ static void restore_where()
     // gemm::restore_where();
     // hypot::restore_where();
     // hypot_scalar_inverse::restore_where();
-    // nrm2::restore_where();
     // prod::restore_where();
     // prod_inplace::restore_where();
     // randn::restore_where();

@@ -234,12 +234,6 @@ set(STARPU_CODELET_SRC
     # "starpu/fp32_to_fp16.cc"
 )
 
-# Generated StarPU-related wrappers (codelets) for low-level kernels
-set(STARPU_CODELET_SRC_GENERATED
-    # "${CMAKE_CURRENT_BINARY_DIR}/starpu/axpy.cc"
-    # "${CMAKE_CURRENT_BINARY_DIR}/starpu/nrm2.cc"
-)
-
 # Basic Tile-related sources
 set(TILE_BASE_SRC "tile/traits.cc")
 
@@ -254,7 +248,6 @@ set(TILE_OPERATION_SRC
     "tile/add_slice.cc"
     "tile/add_slice_inplace.cc"
     "tile/addcdiv.cc"
-    # "tile/axpy.cc"
     "tile/clear.cc"
     "tile/copy.cc"
     "tile/copy_intersection.cc"
@@ -275,7 +268,6 @@ set(TILE_OPERATION_SRC
     "tile/maxsumexp.cc"
     "tile/norm_fiber.cc"
     "tile/norm_slice.cc"
-    # "tile/nrm2.cc"
     "tile/pow.cc"
     "tile/prod_fiber.cc"
     "tile/prod_fiber3.cc"
@@ -319,7 +311,6 @@ set(TENSOR_OPERATION_SRC
     "tensor/add_slice.cc"
     "tensor/add_slice_inplace.cc"
     "tensor/addcdiv.cc"
-    # "tensor/axpy.cc"
     "tensor/clear.cc"
     # "tensor/conv2d_bwd_input_inplace.cc"
     # "tensor/conv2d_bwd_weight_inplace.cc"
@@ -349,7 +340,6 @@ set(TENSOR_OPERATION_SRC
     "tensor/maxsumexp.cc"
     "tensor/norm_fiber.cc"
     "tensor/norm_slice.cc"
-    # "tensor/nrm2.cc"
     "tensor/pow.cc"
     "tensor/prod.cc"
     "tensor/prod_fiber.cc"
@@ -395,7 +385,6 @@ set(NNTILE_SRC
     ${KERNEL_CUDA_SRC}
     ${STARPU_BASE_SRC}
     ${STARPU_CODELET_SRC}
-    ${STARPU_CODELET_SRC_GENERATED}
     ${TILE_BASE_SRC}
     ${TILE_OPERATION_SRC}
     ${TENSOR_BASE_SRC}

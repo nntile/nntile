@@ -32,7 +32,6 @@ void def_mod_starpu(py::module_ &m)
 {
     using namespace nntile::starpu;
     using namespace std::chrono_literals;
-    m.def("init", init);
     m.def("pause", starpu_pause);
     m.def("resume", starpu_resume);
     m.def("wait_for_all", [](){
@@ -697,12 +696,6 @@ void def_mod_tensor(py::module_ &m)
     m.def("prod_inplace_fp32_fast_fp16", &prod_inplace<fp32_fast_fp16_t>);
     m.def("prod_inplace_fp32_fast_bf16", &prod_inplace<fp32_fast_bf16_t>);
 
-    // m.def("nrm2_async_fp64", &nrm2_async<fp64_t>);
-    // m.def("nrm2_async_fp32", &nrm2_async<fp32_t>);
-    // m.def("nrm2_fp64", &nrm2<fp64_t>);
-    // m.def("nrm2_fp32", &nrm2<fp32_t>);
-
-
     m.def("maxsumexp_async_fp64", &maxsumexp_async<fp64_t>);
     m.def("maxsumexp_async_bf16", &maxsumexp_async<bf16_t>);
     m.def("maxsumexp_async_fp32", &maxsumexp_async<fp32_t>);
@@ -882,30 +875,6 @@ void def_mod_tensor(py::module_ &m)
     m.def("clear_fp32_fast_fp16", &clear<fp32_fast_fp16_t>);
     m.def("clear_fp32_fast_bf16", &clear<fp32_fast_bf16_t>);
     //m.def("clear_fp16", &clear<fp16_t>);
-
-    // m.def("axpy_async_fp64", py::overload_cast<Scalar, const Tensor<fp64_t>&,
-    //         const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
-    // m.def("axpy_async_fp32", py::overload_cast<Scalar, const Tensor<fp32_t>&,
-    //         const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
-    // m.def("axpy_async_fp32_fast_tf32", py::overload_cast<Scalar, const Tensor<fp32_fast_tf32_t>&,
-    //         const Tensor<fp32_fast_tf32_t>&>(&axpy_async<fp32_fast_tf32_t>));
-    // m.def("axpy_fp64", py::overload_cast<Scalar, const Tensor<fp64_t>&,
-    //         const Tensor<fp64_t>&>(&axpy<fp64_t>));
-    // m.def("axpy_fp32", py::overload_cast<Scalar, const Tensor<fp32_t>&,
-    //         const Tensor<fp32_t>&>(&axpy<fp32_t>));
-    // m.def("axpy_fp32_fast_tf32", py::overload_cast<Scalar, const Tensor<fp32_fast_tf32_t>&,
-    //         const Tensor<fp32_fast_tf32_t>&>(&axpy<fp32_fast_tf32_t>));
-
-    // m.def("axpy_async_fp64", py::overload_cast<const Tensor<fp64_t>&,
-    //         const Tensor<fp64_t>&,
-    //         const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
-    // m.def("axpy_async_fp32", py::overload_cast<const Tensor<fp32_t>&,
-    //         const Tensor<fp32_t>&,
-    //         const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
-    // m.def("axpy_fp64", py::overload_cast<const Tensor<fp64_t>&,
-    //         const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy<fp64_t>));
-    // m.def("axpy_fp32", py::overload_cast<const Tensor<fp32_t>&,
-    //         const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy<fp32_t>));
 
     m.def("sqrt_async_fp64", &sqrt_async<fp64_t>);
     m.def("sqrt_async_fp32", &sqrt_async<fp32_t>);

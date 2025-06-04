@@ -18,7 +18,6 @@
 #include <nntile/tile/tile.hh>
 
 // Tile<T> operations
-#include <nntile/tile/axpy.hh>
 #include <nntile/tile/add_slice_inplace.hh>
 #include <nntile/tile/add_slice.hh>
 #include <nntile/tile/add_fiber_inplace.hh>
@@ -36,7 +35,6 @@
 #include <nntile/tile/dgelutanh.hh>
 #include <nntile/tile/drelu.hh>
 #include <nntile/tile/gemm.hh>
-#include <nntile/tile/nrm2.hh>
 #include <nntile/tile/prod_inplace.hh>
 #include <nntile/tile/randn.hh>
 #include <nntile/tile/relu.hh>

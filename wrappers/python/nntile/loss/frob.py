@@ -13,7 +13,7 @@
 
 from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, add_inplace_async, copy_async,
-    nrm2_async, prod_inplace_async, scal_inplace_async)
+    prod_inplace_async, scal_inplace_async)
 
 
 class Frob:
@@ -66,7 +66,8 @@ class Frob:
         # Values Y are not needed anymore
         # self.y.invalidate_submit()
         # Get value ||grad X||
-        nrm2_async(1.0, self.x.grad, 0.0, self.val_sqrt, self.tmp)
+        # The next function is temporary disabled because it is not used
+        # nrm2_async(1.0, self.x.grad, 0.0, self.val_sqrt, self.tmp)
         # Ignore temporary values
         # self.tmp.invalidate_submit()
         # Invalidate gradient if it is unnecessary

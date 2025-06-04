@@ -145,14 +145,6 @@ target_include_directories(nntile PRIVATE
 configure_file("${PROJECT_SOURCE_DIR}/include/nntile/defs.h.in"
     "${PROJECT_BINARY_DIR}/include/nntile/defs.h" @ONLY)
 
-# Configure src/starpu/axpy.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/src/starpu/axpy.cc.in"
-    "${PROJECT_BINARY_DIR}/src/starpu/axpy.cc" @ONLY)
-
-# Configure tests/starpu/axpy.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/axpy.cc.in"
-    "${PROJECT_BINARY_DIR}/tests/starpu/axpy.cc" @ONLY)
-
 # Configure include/nntile/kernel/gemm.hh.in that relies on cblas and cuda
 configure_file("${PROJECT_SOURCE_DIR}/include/nntile/kernel/gemm.hh.in"
     "${PROJECT_BINARY_DIR}/include/nntile/kernel/gemm.hh" @ONLY)
@@ -160,18 +152,6 @@ configure_file("${PROJECT_SOURCE_DIR}/include/nntile/kernel/gemm.hh.in"
 # Configure tests/starpu/gemm.cc that relies on cblas
 configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/gemm.cc.in"
     "${PROJECT_BINARY_DIR}/tests/starpu/gemm.cc" @ONLY)
-
-# Configure src/starpu/nrm2.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/src/starpu/nrm2.cc.in"
-    "${PROJECT_BINARY_DIR}/src/starpu/nrm2.cc" @ONLY)
-
-# Configure tests/starpu/nrm2.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/nrm2.cc.in"
-    "${PROJECT_BINARY_DIR}/tests/starpu/nrm2.cc" @ONLY)
-
-# Configure tests/starpu/scal_inplace.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/scal_inplace.cc.in"
-    "${PROJECT_BINARY_DIR}/tests/starpu/scal_inplace.cc" @ONLY)
 
 # Check if code coverage report is needed
 if(BUILD_COVERAGE)

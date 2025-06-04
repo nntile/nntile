@@ -20,7 +20,6 @@
 #include <nntile/tensor/distributions.hh>
 
 // Tensor operations
-#include <nntile/tensor/axpy.hh>
 #include <nntile/tensor/add_slice_inplace.hh>
 #include <nntile/tensor/add_slice.hh>
 #include <nntile/tensor/add_fiber_inplace.hh>
@@ -39,7 +38,6 @@
 #include <nntile/tensor/dgelutanh.hh>
 #include <nntile/tensor/drelu.hh>
 #include <nntile/tensor/gemm.hh>
-#include <nntile/tensor/nrm2.hh>
 #include <nntile/tensor/prod.hh>
 #include <nntile/tensor/prod_inplace.hh>
 #include <nntile/tensor/randn.hh>
