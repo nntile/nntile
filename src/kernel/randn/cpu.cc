@@ -12,11 +12,10 @@
  * @version 1.1.0
  * */
 
+// Corresponding header file
 #include "nntile/kernel/randn/cpu.hh"
 #include <cmath>
-#include <iostream>
-#include "../external/random.h" // from external
-#include "nntile/kernel/cpu.hh"
+#include "../external/random.h"
 
 namespace nntile::kernel::randn
 {
@@ -45,7 +44,7 @@ template<typename T>
 void cpu(Index ndim, Index nelems, unsigned long long seed,
         Scalar mean_, Scalar stddev_, const Index *start, const Index *shape,
         const Index *underlying_shape, T *data, const Index *stride,
-        int64_t *tmp_index_)
+        nntile::int64_t *tmp_index_)
     noexcept
 //! Fill manydimensional array with random normally distributed numbers
 /*! The output is generated as if it is a part of another many-dimensional
@@ -78,10 +77,8 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
  * */
 {
     using Y = typename T::repr_t;
-    // auto data = reinterpret_cast<Y *>(data_);
     Y mean{mean_}, stddev{stddev_};
-    using I = typename CPUComputeType<int64_t>::value;
-    auto tmp_index = reinterpret_cast<I *>(tmp_index_);
+    auto tmp_index = reinterpret_cast<std::int64_t *>(tmp_index_);
     // Jump to the first element to generate
     Index shift = start[ndim-1];
     for(Index i = ndim-2; i >= 0; --i)
@@ -152,6 +149,27 @@ void cpu<fp32_t>(Index ndim, Index nelems, unsigned long long seed,
     noexcept;
 
 template
+void cpu<fp32_fast_tf32_t>(Index ndim, Index nelems, unsigned long long seed,
+        Scalar mean, Scalar stddev, const Index *start, const Index *shape,
+        const Index *underlying_shape, fp32_fast_tf32_t *data, const Index *stride,
+        int64_t *tmp_index)
+    noexcept;
+
+template
+void cpu<fp32_fast_fp16_t>(Index ndim, Index nelems, unsigned long long seed,
+        Scalar mean, Scalar stddev, const Index *start, const Index *shape,
+        const Index *underlying_shape, fp32_fast_fp16_t *data, const Index *stride,
+        int64_t *tmp_index)
+    noexcept;
+
+template
+void cpu<fp32_fast_bf16_t>(Index ndim, Index nelems, unsigned long long seed,
+        Scalar mean, Scalar stddev, const Index *start, const Index *shape,
+        const Index *underlying_shape, fp32_fast_bf16_t *data, const Index *stride,
+        int64_t *tmp_index)
+    noexcept;
+
+template
 void cpu<fp64_t>(Index ndim, Index nelems, unsigned long long seed,
         Scalar mean, Scalar stddev, const Index *start, const Index *shape,
         const Index *underlying_shape, fp64_t *data, const Index *stride,
@@ -164,29 +182,5 @@ void cpu<bf16_t>(Index ndim, Index nelems, unsigned long long seed,
         const Index *underlying_shape, bf16_t *data, const Index *stride,
         int64_t *tmp_index)
     noexcept;
-
-template<typename T>
-void cpu_ndim0(unsigned long long seed, Scalar mean_, Scalar stddev_, T *data)
-    noexcept
-{
-    // 0-dimensional tensor is just a scalar
-    using Y = typename T::repr_t;
-    // auto data = reinterpret_cast<Y *>(data_);
-    Y mean{mean_}, stddev{stddev_};
-    *data = static_cast<T>(chameleon_randn(seed, mean, stddev));
-}
-
-// Explicit instantiation
-template
-void cpu_ndim0<fp32_t>(unsigned long long seed, Scalar mean, Scalar stddev,
-        fp32_t *data);
-
-template
-void cpu_ndim0<bf16_t>(unsigned long long seed, Scalar mean, Scalar stddev,
-        bf16_t *data);
-
-template
-void cpu_ndim0<fp64_t>(unsigned long long seed, Scalar mean, Scalar stddev,
-        fp64_t *data);
 
 } // namespace nntile::kernel::randn

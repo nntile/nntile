@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/randn.hh"
 #include "nntile/starpu/randn.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -61,22 +62,6 @@ void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
                     "underlying_shape[i]");
         }
     }
-    // Tackle ndim=0 case
-    if(ndim == 0)
-    {
-        auto tile_handle = dst.get_tile_handle(0);
-        int tile_rank = tile_handle.mpi_get_rank();
-        if(mpi_rank == tile_rank)
-        {
-            starpu::Handle null_handle;
-            starpu::randn::submit<T>(0, 1, seed, mean, stddev, start,
-                    dst.shape, dst.stride, underlying_shape, tile_handle,
-                    null_handle);
-        }
-        // Flush cache for the output tile on every node
-        tile_handle.mpi_flush();
-        return;
-    }
     // Temporary index
     starpu::VariableHandle tmp_index(sizeof(int64_t)*2*ndim);
     // Now do the job
@@ -90,9 +75,9 @@ void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
         if(mpi_rank == tile_rank)
         {
             auto tile_traits = dst.get_tile_traits(i);
-            starpu::randn::submit<T>(ndim, tile_traits.nelems, seed, mean,
-                    stddev, tile_start, tile_traits.shape, tile_traits.stride,
-                    underlying_shape, tile_handle, tmp_index);
+            starpu::randn.submit<std::tuple<T>>(ndim, tile_traits.nelems, seed, mean,
+                stddev, tile_start, tile_traits.shape, tile_traits.stride,
+                underlying_shape, tile_handle, tmp_index);
         }
         // Flush cache for the output tile on every node
         tile_handle.mpi_flush();

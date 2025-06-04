@@ -55,50 +55,6 @@ static inline void chameleon_randn(unsigned long long &seed, Scalar mean,
     res = fp64_t(stddev*t3 + mean);
 }
 
-template<typename T>
-void validate_empty_shape()
-{
-    using Y = typename T::repr_t;
-    // Set default values for tests
-    Scalar mean = 0, stddev = 1;
-    unsigned long long seed = CORE_rnd64_jump(1000, -1);
-    // Init reference array
-    T data_ref;
-    unsigned long long seed2 = seed;
-    chameleon_randn(seed2, mean, stddev, data_ref);
-    // Run kernel
-    T data;
-    std::cout << "Run kernel::randn::cpu_ndim0<" << T::short_name << ">\n";
-    cpu_ndim0<T>(seed, mean, stddev, &data);
-    // Check if the result is the same as the reference one
-    TEST_ASSERT(Y(data) == Y(data_ref));
-    std::cout << "OK: kernel::randn::cpu_ndim0<" << T::short_name << ">\n";
-    // Run kernel with a different seed that shall generate different result
-    seed2 = seed + std::numeric_limits<unsigned long long>::max()/2;
-    // Launch kernel
-    std::cout << "Run kernel::randn::cpu_ndim0<" << T::short_name << ">\n";
-    cpu_ndim0<T>(seed2, mean, stddev, &data);
-    // Check if result is different
-    TEST_ASSERT(Y(data) != Y(data_ref));
-    std::cout << "OK: kernel::randn::cpu_ndim0<" << T::short_name << ">\n";
-    // Run kernel with a different mean
-    Scalar mean2 = mean + 1.0;
-    // Launch kernel
-    std::cout << "Run kernel::randn::cpu_ndim0<" << T::short_name << ">\n";
-    cpu_ndim0(seed, mean2, stddev, &data);
-    // Check if result is different for the first element
-    TEST_ASSERT(Y(data) != Y(data_ref));
-    std::cout << "OK: kernel::randn::cpu_ndim0<" << T::short_name << ">\n";
-    // Run kernel with a different stddev
-    Scalar stddev2 = stddev + 1.0;
-    // Launch kernel
-    std::cout << "Run kernel::randn::cpu_ndim0<" << T::short_name << ">\n";
-    cpu_ndim0<T>(seed, mean, stddev2, &data);
-    // Check if result is different for the first element
-    TEST_ASSERT(Y(data) != Y(data_ref));
-    std::cout << "OK: kernel::randn::cpu_ndim0<" << T::short_name << ">\n";
-}
-
 // Check generation of a full contiguous array, which actually checks
 // parameters seed, mean and stddev of randn() function
 template<typename T, std::size_t NDIM>
@@ -297,7 +253,6 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
 template<typename T>
 void validate_many()
 {
-    validate_empty_shape<T>();
     validate_full<T, 1>({1});
     validate_full<T, 2>({2, 3});
     validate_full<T, 4>({3, 4, 5, 6});
