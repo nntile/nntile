@@ -71,10 +71,14 @@ void Copy::submit(Handle src, Handle dst)
  * throws an std::runtime_error() exception.
  * */
 {
+    // Get arguments
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->nbytes = starpu_variable_get_elemsize(src.get());
     // Submit task
     int ret = starpu_task_insert(&codelet,
             STARPU_R, src.get(),
             STARPU_W, dst.get(),
+            STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission
     if(ret != 0)

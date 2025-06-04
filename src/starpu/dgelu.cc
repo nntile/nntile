@@ -40,12 +40,12 @@ void DGelu<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
-    kernel::dgelu::cpu<T>(nelems, data);
+    kernel::dgelu::cpu<T>(args->nelems, data);
 #endif // STARPU_SIMGRID
 }
 
@@ -82,14 +82,14 @@ void DGelu<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::dgelu::cuda<T>(stream, nelems, data);
+    kernel::dgelu::cuda<T>(stream, args->nelems, data);
 #endif // STARPU_SIMGRID
 }
 
@@ -133,11 +133,14 @@ uint32_t DGelu<std::tuple<T>>::footprint(struct starpu_task *task)
 template<typename T>
 void DGelu<std::tuple<T>>::submit(Index nelems, Handle data)
 {
-    Index *nelems_ = new Index{nelems};
+    // Get arguments
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->nelems = nelems;
+    // Submit task
     //double nflops = 5 * nelems;
     int ret = starpu_task_insert(&codelet,
             STARPU_RW, data.get(),
-            STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
+            STARPU_CL_ARGS, args, sizeof(*args),
             //STARPU_FLOPS, nflops,
             0);
     // Check submission

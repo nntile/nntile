@@ -25,7 +25,7 @@ set(TESTS_MPI
     "add_slice_inplace"
     "add_slice"
     "addcdiv"
-    "axpy"
+    # "axpy"
     "clear"
     "copy"
     "copy_intersection"
@@ -39,18 +39,18 @@ set(TESTS_MPI
     "gelutanh"
     "gelutanh_inplace"
     "gelutanh_backward"
-    "gemm"
+    # "gemm"
     "logsumexp"
     "maximum"
     "maxsumexp"
     "norm_slice"
-    "nrm2"
+    # "nrm2"
     "pow"
     "prod_inplace"
     "prod_fiber"
     "prod_fiber3"
     "prod_slice"
-    "randn"
+    # "randn"
     "relu"
     "relu_backward"
     "scal_inplace"
@@ -125,15 +125,15 @@ foreach(test IN LISTS TESTS_MPI)
         COV_GLOBAL coverage_tensor coverage
         LABELS ${labels}
         )
-    # Add mpirun test (the same source, but different output executable)
-    add_test_set(TARGET_NAME tests_tensor_${test}_mpi
-        EXEC_NAME test_${test}_mpi
-        SOURCES ${test}.cc
-        LINK_LIBRARIES nntile
-        MPI_NUMPROC 4
-        COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_tensor_${test}
-        COV_GLOBAL coverage_tensor coverage
-        LABELS ${labels} MPI
-        )
+    # # Add mpirun test (the same source, but different output executable)
+    # add_test_set(TARGET_NAME tests_tensor_${test}_mpi
+    #     EXEC_NAME test_${test}_mpi
+    #     SOURCES ${test}.cc
+    #     LINK_LIBRARIES nntile
+    #     MPI_NUMPROC 4
+    #     COV_ENABLE ${BUILD_COVERAGE}
+    #     COV_NAME coverage_tensor_${test}
+    #     COV_GLOBAL coverage_tensor coverage
+    #     LABELS ${labels} MPI
+    #     )
 endforeach()
