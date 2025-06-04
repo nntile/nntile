@@ -8,5 +8,9 @@ FetchContent_Declare(
     URL_HASH SHA256=de723e07582603721c97dd4fd82bbad0020fa830d1d1eee6269ebf6950ed3128
 )
 
+# Disable cudnn frontend samples and tests
+set(CUDNN_FRONTEND_BUILD_SAMPLES OFF)
+set(CUDNN_FRONTEND_BUILD_TESTS OFF)
+
 # Acquire cudnn frontend
 FetchContent_MakeAvailable(cudnn_frontend)

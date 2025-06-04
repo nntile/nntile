@@ -57,7 +57,7 @@ template<typename T>
 void validate(Index nelems)
 {
     using Y = typename T::repr_t;
-    const Y eps = T::epsilon();
+    const Y eps = T::epsilon;
     // Init test input
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
@@ -66,7 +66,7 @@ void validate(Index nelems)
     }
     std::vector<T> data_save(data);
     // Check low-level kernel
-    std::cout << "Run kernel::sqrt_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::sqrt_inplace::cpu<" << T::short_name << ">\n";
     cpu<T>(nelems, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -74,11 +74,11 @@ void validate(Index nelems)
         Y val_ref = std::sqrt(x);
         TEST_ASSERT(Y(data[i]) == val_ref);
     }
-    std::cout << "OK: kernel::sqrt_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::sqrt_inplace::cpu<" << T::short_name << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     data = data_save;
-    std::cout << "Run kernel::sqrt_inplace::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::sqrt_inplace::cuda<" << T::short_name << ">\n";
     run_cuda<T>(nelems, data);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -86,7 +86,7 @@ void validate(Index nelems)
         Y val_ref = std::sqrt(x);
         TEST_ASSERT(Y(data[i]) == val_ref);
     }
-    std::cout << "OK: kernel::sqrt_inplace::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::sqrt_inplace::cuda<" << T::short_name << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

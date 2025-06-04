@@ -64,7 +64,7 @@ template<typename T>
 void validate(Index nelems)
 {
     using Y = typename T::repr_t;
-    const Y eps = 2 * T::epsilon();
+    const Y eps = 2 * T::epsilon;
     // Init test input
     std::vector<T> src(nelems), dst(nelems);
     for(Index i = 0; i < nelems; ++i)
@@ -74,7 +74,7 @@ void validate(Index nelems)
     }
     std::vector<T> dst_save(dst);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::prod_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::prod_inplace::cpu<" << T::short_name << ">\n";
     cpu<T>(nelems, &src[0], &dst[0]);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -95,11 +95,11 @@ void validate(Index nelems)
         // NaN-aware comparisons
         TEST_ASSERT(Y(dst[i]) >= val_ref_min and Y(dst[i]) <= val_ref_max);
     }
-    std::cout << "OK: kernel::prod_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::prod_inplace::cpu<" << T::short_name << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run kernel::prod_inplace::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::prod_inplace::cuda<" << T::short_name << ">\n";
     run_cuda<T>(nelems, src, dst);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -120,7 +120,7 @@ void validate(Index nelems)
         // NaN-aware comparisons
         TEST_ASSERT(Y(dst[i]) >= val_ref_min and Y(dst[i]) <= val_ref_max);
     }
-    std::cout << "OK: kernel::prod_inplace::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::prod_inplace::cuda<" << T::short_name << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

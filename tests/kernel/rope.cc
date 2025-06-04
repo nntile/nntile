@@ -83,7 +83,7 @@ template<typename T>
 void validate(Index m, Index n)
 {
     using Y = typename T::repr_t;
-    const Y eps = 2 * T::epsilon();
+    const Y eps = 2 * T::epsilon;
     Index num_data_elems{2*m*n};
     // Init test input
     std::vector<T> sin(m);
@@ -102,7 +102,7 @@ void validate(Index m, Index n)
     }
 
     // Check low-level CPU kernel
-    std::cout << "Run kernel::rope::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::rope::cpu<" << T::short_name << ">\n";
     cpu<T>(m, n, &sin[0], &cos[0], &src[0], &dst[0]);
     for(Index j = 0; j < n; ++j)
     {
@@ -144,11 +144,11 @@ void validate(Index m, Index n)
             TEST_ASSERT(Y(dst[l+1]) >= val_ref_b_min and Y(dst[l+1]) <= val_ref_b_max);
         }
     }
-    std::cout << "OK: kernel::rope::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::rope::cpu<" << T::short_name << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = src;
-    std::cout << "Run kernel::rope::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::rope::cuda<" << T::short_name << ">\n";
     run_cuda<T>(m, n, sin, cos, src, dst);
     for(Index j = 0; j < n; ++j)
     {
@@ -190,7 +190,7 @@ void validate(Index m, Index n)
             TEST_ASSERT(Y(dst[l+1]) >= val_ref_b_min and Y(dst[l+1]) <= val_ref_b_max);
         }
     }
-    std::cout << "OK: kernel::rope::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::rope::cuda<" << T::short_name << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

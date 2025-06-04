@@ -229,7 +229,7 @@ public:
     void set_reduction_add() const
     {
         // Only do something if T is a floating point type
-        if constexpr (is_floating_point_type<T>)
+        if constexpr (T::is_floating_point_type)
         {
             // Set reduction function for addition
             for(Index i = 0; i < grid.nelems; ++i)
@@ -250,7 +250,7 @@ public:
     void set_reduction_hypot() const
     {
         // Only do something if T is a floating point type
-        if constexpr (is_floating_point_type<T>)
+        if constexpr (T::is_floating_point_type)
         {
             // Set reduction function for hypot
             for(Index i = 0; i < grid.nelems; ++i)
@@ -271,7 +271,7 @@ public:
     void set_reduction_maxsumexp() const
     {
         // Only do something if T is a floating point type
-        if constexpr (is_floating_point_type<T>)
+        if constexpr (T::is_floating_point_type)
         {
             // Set reduction function for maxsumexp
             for(Index i = 0; i < grid.nelems; ++i)

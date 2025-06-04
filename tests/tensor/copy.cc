@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/copy.hh"
 #include "nntile/starpu/copy.hh"
+#include "nntile/starpu/config.hh"
 #include "../testing.hh"
 
 using namespace nntile;

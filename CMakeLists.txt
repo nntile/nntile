@@ -100,6 +100,7 @@ elseif(USE_CUDA)
         # Show paths to cudnn source and include corresponding CMake file
         message(STATUS "cuDNN frontend SOURCE: ${cudnn_frontend_SOURCE_DIR}")
         message(STATUS "cuDNN frontend BINARY: ${cudnn_frontend_BINARY_DIR}")
+        # Disable tests for cuDNN frontend
         include(${cudnn_frontend_SOURCE_DIR}/cmake/cuDNN.cmake)
         target_link_libraries(nntile PUBLIC CUDA::cublas CUDNN::cudnn_all)
         target_include_directories(nntile PRIVATE ${cudnn_frontend_SOURCE_DIR}/include)

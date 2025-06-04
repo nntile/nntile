@@ -68,7 +68,7 @@ template<typename T>
 void validate(Index m, Index n, Index k)
 {
     using Y = typename T::repr_t;
-    const Y eps = T::epsilon();
+    const Y eps = T::epsilon;
     constexpr Y alpha = 1.0;
     // Init test input
     std::vector<T> maxsumexp(2*m*n), dst(m*n*k);
@@ -93,7 +93,7 @@ void validate(Index m, Index n, Index k)
     }
     std::vector<T> dst_save(dst);
     // Check low-level kernel
-    std::cout << "Run kernel::softmax_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::softmax_inplace::cpu<" << T::short_name << ">\n";
     cpu<T>(m, n, k, &maxsumexp[0], alpha, &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -108,11 +108,11 @@ void validate(Index m, Index n, Index k)
             }
         }
     }
-    std::cout << "OK: kernel::softmax_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::softmax_inplace::cpu<" << T::short_name << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run kernel::softmax_inplace::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::softmax_inplace::cuda<" << T::short_name << ">\n";
     run_cuda<T>(m, n, k, maxsumexp, dst);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -127,7 +127,7 @@ void validate(Index m, Index n, Index k)
             }
         }
     }
-    std::cout << "OK: kernel::softmax_inplace::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::softmax_inplace::cuda<" << T::short_name << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

@@ -46,62 +46,49 @@ using Index = std::int64_t;
 //! Floating point type for scalar values outside NNTile tensors
 using Scalar = float;
 
-//! Base type for all NNTile types inside NNTile tensors
-/*! It is used to avoid code duplication for all NNTile types. Each type only
- * allows construction and assignment from a compatible standard type.
- * Arithmetic operations are intentionally disabled.
- *
- * @tparam StorageT: memory layout type
- * @tparam ReprT: standard type for representation, used for IO operations
- */
-template<typename StorageT, typename ReprT = StorageT>
-class BaseType
+//! Type postfix template function
+template<typename T, typename... Ts>
+inline std::string type_postfix()
+{
+    std::stringstream result;
+    result << T::short_name;
+    if constexpr (sizeof...(Ts) > 0)
+    {
+        result << "_" << type_postfix<Ts...>();
+    }
+    return result.str();
+}
+
+//! NNTile wrapper type for 64-bit signed integers inside NNTile tensors
+class int64_t
 {
 public:
     //! Storage type of the value
-    using storage_t = StorageT;
+    using storage_t = std::int64_t;
 
     //! Representation type of the value
-    using repr_t = ReprT;
+    using repr_t = std::int64_t;
 
     //! Internal value of storage_t type to hold actual data
     storage_t value;
 
-    //! Default conversion function from storage_t to repr_t does nothing
-    /*! If a conversion is required, this function shall be overloaded with a
-     * corresponding conversion function.
-     */
-    static NNTILE_HOST_DEVICE repr_t to_repr(const storage_t &value)
-    {
-        return value;
-    }
-
-    //! Default conversion function from repr_t to storage_t does nothing
-    /*! If a conversion is required, this function shall be overloaded with a
-     * corresponding conversion function.
-     */
-    static NNTILE_HOST_DEVICE storage_t to_storage(const repr_t &value)
-    {
-        return value;
-    }
-
     //! Default constructor with no arguments
-    NNTILE_HOST_DEVICE BaseType() = default;
+    NNTILE_HOST_DEVICE int64_t() = default;
 
     //! Default copy constructor
-    NNTILE_HOST_DEVICE explicit BaseType(const BaseType &other) = default;
+    NNTILE_HOST_DEVICE int64_t(const int64_t &other) = default;
 
     //! Constructor from a compatible standard type value
-    NNTILE_HOST_DEVICE explicit BaseType(const repr_t &other):
-        value(to_storage(other))
+    NNTILE_HOST_DEVICE int64_t(const repr_t &other):
+        value(other)
     {
     }
 
     //! Default assignment from another value of this type
-    NNTILE_HOST_DEVICE BaseType &operator=(const BaseType &other) = default;
+    NNTILE_HOST_DEVICE int64_t &operator=(const int64_t &other) = default;
 
     //! Assignment from a compatible standard type value
-    NNTILE_HOST_DEVICE BaseType &operator=(const repr_t &other)
+    NNTILE_HOST_DEVICE int64_t &operator=(const repr_t &other)
     {
         value = other;
         return *this;
@@ -110,201 +97,463 @@ public:
     //! Conversion to compatible standard type value
     NNTILE_HOST_DEVICE explicit operator repr_t() const
     {
-        return to_repr(value);
+        return value;
     }
+
+    // Short type name
+    static constexpr const char *short_name = "i64";
+
+    // Long type name
+    static constexpr const char *long_name = "int64_t";
+
+    // Function to check if a type is a floating point type
+    static constexpr bool is_floating_point_type = false;
 };
 
-//! Print function for nntile::BaseType
-template<typename StorageT, typename ReprT>
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const BaseType<StorageT, ReprT> &value
-)
+//! Print function for nntile::int64_t
+inline std::ostream &operator<<(std::ostream &os, const int64_t &value)
 {
-    os << static_cast<ReprT>(value);
+    os << value.value;
     return os;
 }
 
-//! Type postfix template function
-template<typename T, typename... Ts>
-inline std::string type_postfix()
-{
-    std::stringstream result;
-    result << type_postfix<T>() << "_" << type_postfix<Ts...>();
-    return result.str();
-}
-
-//! Function to check if a type is a floating point type
-template<typename T>
-inline constexpr bool is_floating_point_type = false;
-
-//! NNTile wrapper type for 64-bit signed integers inside NNTile tensors
-class int64_t: public BaseType<std::int64_t>
-{
-public:
-    // Inherit all constructors
-    using BaseType<std::int64_t>::BaseType;
-
-    // Inherit all assignment operators
-    using BaseType<std::int64_t>::operator=;
-};
-
-//! Type postfix template specialization for nntile::int64_t
-template<>
-inline std::string type_postfix<nntile::int64_t>()
-{
-    return "int64";
-}
-
 //! NNTile wrapper type for bool values inside NNTile tensors
-class bool_t: public BaseType<bool>
+class bool_t
 {
 public:
-    // Inherit all constructors
-    using BaseType<bool>::BaseType;
+    //! Storage type of the value
+    using storage_t = bool;
 
-    // Inherit all assignment operators
-    using BaseType<bool>::operator=;
+    //! Representation type of the value
+    using repr_t = bool;
+
+    //! Internal value of storage_t type to hold actual data
+    storage_t value;
+
+    //! Default constructor with no arguments
+    NNTILE_HOST_DEVICE bool_t() = default;
+
+    //! Default copy constructor
+    NNTILE_HOST_DEVICE bool_t(const bool_t &other) = default;
+
+    //! Constructor from a compatible standard type value
+    NNTILE_HOST_DEVICE bool_t(const repr_t &other):
+        value(other)
+    {
+    }
+
+    //! Default assignment from another value of this type
+    NNTILE_HOST_DEVICE bool_t &operator=(const bool_t &other) = default;
+
+    //! Assignment from a compatible standard type value
+    NNTILE_HOST_DEVICE bool_t &operator=(const repr_t &other)
+    {
+        value = other;
+        return *this;
+    }
+
+    //! Conversion to compatible standard type value
+    NNTILE_HOST_DEVICE explicit operator repr_t() const
+    {
+        return value;
+    }
+
+    // Short type name
+    // "b8" stands for "boolean 8-bit", as it occupies entire byte
+    static constexpr const char *short_name = "b8";
+
+    // Long type name
+    static constexpr const char *long_name = "bool_t";
+
+    // Function to check if a type is a floating point type
+    static constexpr bool is_floating_point_type = false;
 };
 
-//! Type postfix template specialization for nntile::bool_t
-template<>
-inline std::string type_postfix<nntile::bool_t>()
+//! Print function for nntile::bool_t
+inline std::ostream &operator<<(std::ostream &os, const bool_t &value)
 {
-    return "bool";
+    os << value.value;
+    return os;
 }
 
 //! NNTile wrapper type for double inside NNTile tensors
-class fp64_t: public BaseType<double>
+class fp64_t
 {
 public:
-    // Inherit all constructors
-    using BaseType<double>::BaseType;
+    //! Storage type of the value
+    using storage_t = double;
 
-    // Inherit all assignment operators
-    using BaseType<double>::operator=;
+    //! Representation type of the value
+    using repr_t = double;
+
+    //! Internal value of storage_t type to hold actual data
+    storage_t value;
+
+    //! Default constructor with no arguments
+    NNTILE_HOST_DEVICE fp64_t() = default;
+
+    //! Default copy constructor
+    NNTILE_HOST_DEVICE fp64_t(const fp64_t &other) = default;
+
+    //! Constructor from a compatible standard type value
+    NNTILE_HOST_DEVICE fp64_t(const repr_t &other):
+        value(other)
+    {
+    }
+
+    //! Default assignment from another value of this type
+    NNTILE_HOST_DEVICE fp64_t &operator=(const fp64_t &other) = default;
+
+    //! Assignment from a compatible standard type value
+    NNTILE_HOST_DEVICE fp64_t &operator=(const repr_t &other)
+    {
+        value = other;
+        return *this;
+    }
+
+    //! Conversion to compatible standard type value
+    NNTILE_HOST_DEVICE explicit operator repr_t() const
+    {
+        return value;
+    }
+
+    // Short type name
+    static constexpr const char *short_name = "fp64";
+
+    // Long type name
+    static constexpr const char *long_name = "fp64_t";
+
+    // Function to check if a type is a floating point type
+    static constexpr bool is_floating_point_type = true;
+
+    // Machine precision
+    static constexpr repr_t epsilon = std::numeric_limits<double>::epsilon();
 };
 
-//! Type postfix template specialization for nntile::fp64_t
-template<>
-inline std::string type_postfix<nntile::fp64_t>()
+//! Print function for nntile::fp64_t
+inline std::ostream &operator<<(std::ostream &os, const fp64_t &value)
 {
-    return "fp64";
+    os << value.value;
+    return os;
 }
-
-//! Function to check if a type is a floating point type
-template<>
-inline constexpr bool is_floating_point_type<nntile::fp64_t> = true;
 
 //! NNTile wrapper type for float inside NNTile tensors
-class fp32_t: public BaseType<float>
+class fp32_t
 {
 public:
-    // Inherit all constructors
-    using BaseType<float>::BaseType;
+    //! Storage type of the value
+    using storage_t = float;
 
-    // Inherit all assignment operators
-    using BaseType<float>::operator=;
+    //! Representation type of the value
+    using repr_t = float;
+
+    //! Internal value of storage_t type to hold actual data
+    storage_t value;
+
+    //! Default constructor with no arguments
+    NNTILE_HOST_DEVICE fp32_t() = default;
+
+    //! Default copy constructor
+    NNTILE_HOST_DEVICE fp32_t(const fp32_t &other) = default;
+
+    //! Constructor from a compatible standard type value
+    NNTILE_HOST_DEVICE fp32_t(const repr_t &other):
+        value(other)
+    {
+    }
+
+    //! Default assignment from another value of this type
+    NNTILE_HOST_DEVICE fp32_t &operator=(const fp32_t &other) = default;
+
+    //! Assignment from a compatible standard type value
+    NNTILE_HOST_DEVICE fp32_t &operator=(const repr_t &other)
+    {
+        value = other;
+        return *this;
+    }
+
+    //! Conversion to compatible standard type value
+    NNTILE_HOST_DEVICE explicit operator repr_t() const
+    {
+        return value;
+    }
+
+    // Short type name
+    static constexpr const char *short_name = "fp32";
+
+    // Long type name
+    static constexpr const char *long_name = "fp32_t";
+
+    // Function to check if a type is a floating point type
+    static constexpr bool is_floating_point_type = true;
+
+    // Machine precision
+    static constexpr repr_t epsilon = std::numeric_limits<float>::epsilon();
 };
 
-//! Type postfix template specialization for nntile::fp32_t
-template<>
-inline std::string type_postfix<nntile::fp32_t>()
+//! Print function for nntile::fp32_t
+inline std::ostream &operator<<(std::ostream &os, const fp32_t &value)
 {
-    return "fp32";
+    os << value.value;
+    return os;
 }
-
-//! Function to check if a type is a floating point type
-template<>
-inline constexpr bool is_floating_point_type<nntile::fp32_t> = true;
 
 /*! NNTile wrapper type for TensorFloat32-accelerated float type inside tensors
  *
  * All memory-bound operations are performed in `float` precision, while
  * all compute-bound operations are performed in `TensorFloat32` type.
  */
-class fp32_fast_tf32_t: public BaseType<float>
+class fp32_fast_tf32_t
 {
 public:
-    // Inherit all constructors
-    using BaseType<float>::BaseType;
+    //! Storage type of the value
+    using storage_t = float;
 
-    // Inherit all assignment operators
-    using BaseType<float>::operator=;
+    //! Representation type of the value
+    using repr_t = float;
+
+    //! Internal value of storage_t type to hold actual data
+    storage_t value;
+
+    //! Default constructor with no arguments
+    NNTILE_HOST_DEVICE fp32_fast_tf32_t() = default;
+
+    //! Default copy constructor
+    NNTILE_HOST_DEVICE fp32_fast_tf32_t(
+        const fp32_fast_tf32_t &other) = default;
+
+    //! Constructor from a compatible standard type value
+    NNTILE_HOST_DEVICE fp32_fast_tf32_t(const repr_t &other):
+        value(other)
+    {
+    }
+
+    //! Default assignment from another value of this type
+    NNTILE_HOST_DEVICE fp32_fast_tf32_t &operator=(
+        const fp32_fast_tf32_t &other) = default;
+
+    //! Assignment from a compatible standard type value
+    NNTILE_HOST_DEVICE fp32_fast_tf32_t &operator=(const repr_t &other)
+    {
+        value = other;
+        return *this;
+    }
+
+    //! Conversion to compatible standard type value
+    NNTILE_HOST_DEVICE explicit operator repr_t() const
+    {
+        return value;
+    }
+
+    // Short type name
+    static constexpr const char *short_name = "tf32";
+
+    // Long type name
+    static constexpr const char *long_name = "fp32_fast_tf32_t";
+
+    // Function to check if a type is a floating point type
+    static constexpr bool is_floating_point_type = true;
+
+    // Machine precision is 1/1024, as only 10 bits are used for the mantissa
+    static constexpr repr_t epsilon = double{1.0} / double{1024.0};
 };
 
-//! Type postfix template specialization for nntile::fp32_fast_tf32_t
-template<>
-inline std::string type_postfix<nntile::fp32_fast_tf32_t>()
+//! Print function for nntile::fp32_fast_tf32_t
+inline std::ostream &operator<<(
+    std::ostream &os, const fp32_fast_tf32_t &value)
 {
-    return "fp32_fast_tf32";
+    os << value.value;
+    return os;
 }
-
-//! Function to check if a type is a floating point type
-template<>
-inline constexpr bool is_floating_point_type<nntile::fp32_fast_tf32_t> = true;
 
 /*! NNTile wrapper type for FP16-accelerated float type inside tensors
  *
  * All memory-bound operations are performed in `float` precision, while
  * all compute-bound operations are performed in `fp16` type.
  */
-class fp32_fast_fp16_t: public BaseType<float>
+class fp32_fast_fp16_t
 {
 public:
-    // Inherit all constructors
-    using BaseType<float>::BaseType;
+    //! Storage type of the value
+    using storage_t = float;
 
-    // Inherit all assignment operators
-    using BaseType<float>::operator=;
+    //! Representation type of the value
+    using repr_t = float;
+
+    //! Internal value of storage_t type to hold actual data
+    storage_t value;
+
+    //! Default constructor with no arguments
+    NNTILE_HOST_DEVICE fp32_fast_fp16_t() = default;
+
+    //! Default copy constructor
+    NNTILE_HOST_DEVICE fp32_fast_fp16_t(
+        const fp32_fast_fp16_t &other) = default;
+
+    //! Constructor from a compatible standard type value
+    NNTILE_HOST_DEVICE fp32_fast_fp16_t(const repr_t &other):
+        value(other)
+    {
+    }
+
+    //! Default assignment from another value of this type
+    NNTILE_HOST_DEVICE fp32_fast_fp16_t &operator=(
+        const fp32_fast_fp16_t &other) = default;
+
+    //! Assignment from a compatible standard type value
+    NNTILE_HOST_DEVICE fp32_fast_fp16_t &operator=(const repr_t &other)
+    {
+        value = other;
+        return *this;
+    }
+
+    //! Conversion to compatible standard type value
+    NNTILE_HOST_DEVICE explicit operator repr_t() const
+    {
+        return value;
+    }
+
+    // Short type name
+    static constexpr const char *short_name = "fp32/fp16";
+
+    // Long type name
+    static constexpr const char *long_name = "fp32_fast_fp16_t";
+
+    // Function to check if a type is a floating point type
+    static constexpr bool is_floating_point_type = true;
+
+    // Machine precision is 1/1024, as only 10 bits are used for the mantissa
+    static constexpr repr_t epsilon = double{1.0} / double{1024.0};
 };
 
-//! Type postfix template specialization for nntile::fp32_fast_fp16_t
-template<>
-inline std::string type_postfix<nntile::fp32_fast_fp16_t>()
+//! Print function for nntile::fp32_fast_fp16_t
+inline std::ostream &operator<<(
+    std::ostream &os, const fp32_fast_fp16_t &value)
 {
-    return "fp32_fast_fp16";
+    os << value.value;
+    return os;
 }
-
-//! Function to check if a type is a floating point type
-template<>
-inline constexpr bool is_floating_point_type<nntile::fp32_fast_fp16_t> = true;
 
 /*! NNTile wrapper type for BF16-accelerated float type inside tensors
  *
  * All memory-bound operations are performed in `float` precision, while
  * all compute-bound operations are performed in `bf16` type.
  */
-class fp32_fast_bf16_t: public BaseType<float>
+class fp32_fast_bf16_t
 {
 public:
-    // Inherit all constructors
-    using BaseType<float>::BaseType;
+    //! Storage type of the value
+    using storage_t = float;
 
-    // Inherit all assignment operators
-    using BaseType<float>::operator=;
+    //! Representation type of the value
+    using repr_t = float;
+
+    //! Internal value of storage_t type to hold actual data
+    storage_t value;
+
+    //! Default constructor with no arguments
+    NNTILE_HOST_DEVICE fp32_fast_bf16_t() = default;
+
+    //! Default copy constructor
+    NNTILE_HOST_DEVICE fp32_fast_bf16_t(
+        const fp32_fast_bf16_t &other) = default;
+
+    //! Constructor from a compatible standard type value
+    NNTILE_HOST_DEVICE fp32_fast_bf16_t(const repr_t &other):
+        value(other)
+    {
+    }
+
+    //! Default assignment from another value of this type
+    NNTILE_HOST_DEVICE fp32_fast_bf16_t &operator=(
+        const fp32_fast_bf16_t &other) = default;
+
+    //! Assignment from a compatible standard type value
+    NNTILE_HOST_DEVICE fp32_fast_bf16_t &operator=(const repr_t &other)
+    {
+        value = other;
+        return *this;
+    }
+
+    //! Conversion to compatible standard type value
+    NNTILE_HOST_DEVICE explicit operator repr_t() const
+    {
+        return value;
+    }
+
+    // Short type name
+    static constexpr const char *short_name = "fp32/bf16";
+
+    // Long type name
+    static constexpr const char *long_name = "fp32_fast_bf16_t";
+
+    // Function to check if a type is a floating point type
+    static constexpr bool is_floating_point_type = true;
+
+    // Machine precision is 1/128, as only 7 bits are used for the mantissa
+    static constexpr repr_t epsilon = double{1.0} / double{128.0};
 };
 
-//! Type postfix template specialization for nntile::fp32_fast_bf16_t
-template<>
-inline std::string type_postfix<nntile::fp32_fast_bf16_t>()
+//! Print function for nntile::fp32_fast_bf16_t
+inline std::ostream &operator<<(
+    std::ostream &os, const fp32_fast_bf16_t &value)
 {
-    return "fp32_fast_bf16";
+    os << value.value;
+    return os;
 }
 
-//! Function to check if a type is a floating point type
-template<>
-inline constexpr bool is_floating_point_type<nntile::fp32_fast_bf16_t> = true;
-
 //! NNTile wrapper type BrainFloat16 type inside tensors
-class bf16_t: public BaseType<std::uint16_t, float>
+class bf16_t
 {
 public:
-    // Inherit all constructors
-    using BaseType<std::uint16_t, float>::BaseType;
+    //! Storage type of the value
+    using storage_t = std::uint16_t;
 
-    // Inherit all assignment operators
-    using BaseType<std::uint16_t, float>::operator=;
+    //! Representation type of the value
+    using repr_t = float;
+
+    //! Internal value of storage_t type to hold actual data
+    storage_t value;
+
+    //! Default constructor with no arguments
+    NNTILE_HOST_DEVICE bf16_t() = default;
+
+    //! Default copy constructor
+    NNTILE_HOST_DEVICE bf16_t(const bf16_t &other) = default;
+
+    //! Constructor from a compatible standard type value
+    NNTILE_HOST_DEVICE bf16_t(const repr_t &other):
+        value(to_storage(other))
+    {
+    }
+
+    //! Default assignment from another value of this type
+    NNTILE_HOST_DEVICE bf16_t &operator=(const bf16_t &other) = default;
+
+    //! Assignment from a compatible standard type value
+    NNTILE_HOST_DEVICE bf16_t &operator=(const repr_t &other)
+    {
+        value = to_storage(other);
+        return *this;
+    }
+
+    //! Conversion to compatible standard type value
+    NNTILE_HOST_DEVICE explicit operator repr_t() const
+    {
+        return to_repr(value);
+    }
+
+    // Short type name
+    static constexpr const char *short_name = "bf16";
+
+    // Long type name
+    static constexpr const char *long_name = "bf16_t";
+
+    // Function to check if a type is a floating point type
+    static constexpr bool is_floating_point_type = true;
+
+    // Machine precision is 1/128, as only 7 bits are used for the mantissa
+    static constexpr repr_t epsilon = double{1.0} / double{128.0};
 
     //! Conversion from repr_t to storage_t
     static NNTILE_HOST_DEVICE storage_t to_storage(const repr_t &value)
@@ -331,15 +580,11 @@ public:
     }
 };
 
-//! Type postfix template specialization for nntile::bf16_t
-template<>
-inline std::string type_postfix<nntile::bf16_t>()
+//! Print function for nntile::bf16_t
+inline std::ostream &operator<<(std::ostream &os, const bf16_t &value)
 {
-    return "bf16";
+    os << static_cast<float>(value);
+    return os;
 }
-
-//! Function to check if a type is a floating point type
-template<>
-inline constexpr bool is_floating_point_type<nntile::bf16_t> = true;
 
 } // namespace nntile
