@@ -76,6 +76,7 @@ Codelet::Codelet(
         {
             starpu_codelet::cuda_funcs[i] = cuda_funcs[i];
             where_default = where_default | STARPU_CUDA;
+            starpu_codelet::cuda_flags[i] = STARPU_CUDA_ASYNC;
         }
     }
 #endif // NNTILE_USE_CUDA

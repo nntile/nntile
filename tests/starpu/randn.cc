@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/starpu/config.hh"
+#include "nntile/context.hh"
 #include "nntile/starpu/randn.hh"
 #include "nntile/kernel/randn.hh"
 #include "../testing.hh"
@@ -35,21 +35,21 @@ void validate_cpu_empty()
     Index nelems = 1;
     T data(Y(1)), data2(Y(1));
     // Launch low-level kernel
-    std::cout << "Run kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::randn::cpu_ndim0<" << T::short_name << ">\n";
     kernel::randn::cpu_ndim0<T>(seed, mean, stddev, &data);
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2, sizeof(T));
     Handle null_handle;
     std::vector<Index> start, shape, stride, underlying_shape;
-    randn::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::randn::submit<" << T::type_repr << "> restricted to CPU\n";
-    randn::submit<T>(0, nelems, seed, mean, stddev, start, shape,
+    randn.restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::randn::submit<" << T::short_name << "> restricted to CPU\n";
+    randn.submit<std::tuple<T>>(0, nelems, seed, mean, stddev, start, shape,
             stride, underlying_shape, data2_handle, null_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
     TEST_ASSERT(Y(data) == Y(data2));
-    std::cout << "OK: starpu::randn::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::randn::submit<" << T::short_name << "> restricted to CPU\n";
 }
 
 template<typename T, std::size_t NDIM>
@@ -81,7 +81,7 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
     std::vector<T> data2(data);
     // Launch low-level kernel
     std::vector<nntile::int64_t> tmp_index(NDIM);
-    std::cout << "Run kernel::randn::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::randn::cpu<" << T::short_name << ">\n";
     kernel::randn::cpu<T>(NDIM, nelems, seed, mean, stddev, &start[0],
             &shape[0], &underlying_shape[0], &data[0], &stride[0],
             &tmp_index[0]);
@@ -91,9 +91,9 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
     std::vector<Index> start_(start.cbegin(), start.cend()),
         shape_(shape.cbegin(), shape.cend()),
         underlying_shape_(underlying_shape.cbegin(), underlying_shape.cend());
-    randn::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::randn::submit<" << T::type_repr << "> restricted to CPU\n";
-    randn::submit<T>(NDIM, nelems, seed, mean, stddev, start_, shape_,
+    randn.restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::randn::submit<" << T::short_name << "> restricted to CPU\n";
+    randn.submit<std::tuple<T>>(NDIM, nelems, seed, mean, stddev, start_, shape_,
             stride, underlying_shape_, data2_handle, tmp_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
@@ -102,7 +102,7 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
     {
         TEST_ASSERT(Y(data[i]) == Y(data2[i]));
     }
-    std::cout << "OK: starpu::randn::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::randn::submit<" << T::short_name << "> restricted to CPU\n";
 }
 
 // Run multiple tests for a given precision
@@ -122,12 +122,10 @@ void validate_many()
 int main(int argc, char **argv)
 {
     // Initialize StarPU (it will automatically shutdown itself on exit)
-    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
-    auto config = starpu::Config(
-        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
-    );
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
 
     // Launch all tests
     validate_many<fp32_t>();

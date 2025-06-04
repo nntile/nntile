@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/starpu/config.hh"
+#include "nntile/context.hh"
 #include "nntile/starpu/transpose.hh"
 #include "nntile/kernel/transpose.hh"
 #include "../testing.hh"
@@ -44,14 +44,14 @@ void validate_cpu(Index m, Index n)
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::transpose::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::transpose::cpu<" << T::short_name << ">\n";
     kernel::transpose::cpu<T>(m, n, 0.5, &src[0], &dst[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n),
         dst2_handle(&dst2[0], sizeof(T)*m*n);
-    transpose::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::transpose::submit<" << T::type_repr << "> restricted to CPU\n";
-    transpose::submit<T>(m, n, 0.5, src_handle, dst2_handle);
+    transpose.restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::transpose::submit<" << T::short_name << "> restricted to CPU\n";
+    transpose.submit<std::tuple<T>>(m, n, 0.5, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -59,7 +59,7 @@ void validate_cpu(Index m, Index n)
     {
         TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::transpose::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::transpose::submit<" << T::short_name << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -102,7 +102,7 @@ void validate_cuda(Index m, Index n)
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*m*n,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::transpose::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::transpose::cuda<" << T::short_name << ">\n";
     kernel::transpose::cuda<T>(stream, m, n, 0.5, dev_src, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
@@ -121,9 +121,9 @@ void validate_cuda(Index m, Index n)
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n),
         dst2_handle(&dst2[0], sizeof(T)*m*n);
-    transpose::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::transpose::submit<" << T::type_repr << "> restricted to CUDA\n";
-    transpose::submit<T>(m, n, 0.5, src_handle, dst2_handle);
+    transpose.restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::transpose::submit<" << T::short_name << "> restricted to CUDA\n";
+    transpose.submit<std::tuple<T>>(m, n, 0.5, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -131,19 +131,17 @@ void validate_cuda(Index m, Index n)
     {
         TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::transpose::submit<" << T::type_repr << "> restricted to CUDA\n";
+    std::cout << "OK: starpu::transpose::submit<" << T::short_name << "> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 
 int main(int argc, char **argv)
 {
     // Initialize StarPU (it will automatically shutdown itself on exit)
-    int ncpus=1, ncuda=1, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    int ncpu=1, ncuda=1, ooc=0, verbose=0;
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
-    auto config = starpu::Config(
-        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
-    );
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
 
     // Launch all tests
     // Bias for middle axis

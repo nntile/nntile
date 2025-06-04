@@ -151,7 +151,7 @@ add_test_set(TARGET_NAME tests_constants
 if(NOT HAVE_STARPU_SIMGRID)
     add_subdirectory("kernel")
 endif()
-# add_subdirectory("starpu")
+add_subdirectory("starpu")
 # add_subdirectory("tile")
 # add_subdirectory("tensor")
 # add_subdirectory("layer")

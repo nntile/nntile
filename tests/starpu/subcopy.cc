@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/starpu/config.hh"
+#include "nntile/context.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/kernel/subcopy.hh"
 #include "../testing.hh"
@@ -89,7 +89,7 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     std::vector<T> dst2_data(dst_data);
     // Launch low-level kernel
     std::vector<nntile::int64_t> tmp_index(2*NDIM);
-    std::cout << "Run kernel::subcopy::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::subcopy::cpu<" << T::short_name << ">\n";
     kernel::subcopy::cpu<T>(NDIM, &src_start[0], &src_stride[0],
             &copy_shape[0], &src_data[0], &dst_start[0], &dst_stride[0],
             &dst_data[0], &tmp_index[0]);
@@ -97,10 +97,10 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     VariableHandle src_handle(&src_data[0], sizeof(T)*src_nelems),
         dst2_handle(&dst2_data[0], sizeof(T)*dst_nelems),
         tmp_handle(&tmp_index[0], sizeof(Index)*NDIM*2);
-    subcopy::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::subcopy::submit<" << T::type_repr << "> restricted to "
+    subcopy.restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::subcopy::submit<" << T::short_name << "> restricted to "
         "CPU\n";
-    subcopy::submit<T>(NDIM, src_start, src_stride,
+    subcopy.submit<std::tuple<T>>(NDIM, src_start, src_stride,
             dst_start, dst_stride, copy_shape, src_handle, dst2_handle,
             tmp_handle, STARPU_RW);
     starpu_task_wait_for_all();
@@ -110,7 +110,7 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     {
         TEST_ASSERT(Y(dst_data[i]) == Y(dst2_data[i]));
     }
-    std::cout << "OK: starpu::subcopy::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::subcopy::submit<" << T::short_name << "> restricted to CPU\n";
 }
 
 // Run multiple tests for a given precision
@@ -131,12 +131,10 @@ void validate_many()
 int main(int argc, char **argv)
 {
     // Initialize StarPU (it will automatically shutdown itself on exit)
-    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
-    auto config = starpu::Config(
-        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
-    );
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
 
     // Launch all tests
     validate_many<fp32_t>();

@@ -144,14 +144,14 @@ public:
     //! Restrict where the operation pack should be executed
     OperationPack &restrict_where(uint32_t where)
     {
-        (static_cast<Operation<Ts> &>(*this).restrict_where(where), ...);
+        (static_cast<Operation<Ts> &>(*this).codelet.restrict_where(where), ...);
         return *this;
     }
 
     //! Restore where the operation pack should be executed
     OperationPack &restore_where()
     {
-        (static_cast<Operation<Ts> &>(*this).restore_where(), ...);
+        (static_cast<Operation<Ts> &>(*this).codelet.restore_where(), ...);
         return *this;
     }
 

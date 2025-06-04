@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/starpu/config.hh"
+#include "nntile/context.hh"
 #include "nntile/starpu/maxsumexp.hh"
 #include "nntile/kernel/maxsumexp.hh"
 #include "../testing.hh"
@@ -37,31 +37,31 @@ void validate_cpu(Index m, Index n, Index k)
     {
         src[i] = Y(i+1);
     }
-    std::vector<T> maxsumexp(2*m*n);
+    std::vector<T> dst(2*m*n);
     for(Index i = 0; i < 2*m*n; i += 2)
     {
-        maxsumexp[i] = Y(-i-1); // Max
-        maxsumexp[i+1] = Y(2*i); // Sum of exponents
+        dst[i] = Y(-i-1); // Max
+        dst[i+1] = Y(2*i); // Sum of exponents
     }
     // Create copies of destination
-    std::vector<T> maxsumexp2(maxsumexp);
+    std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::maxsumexp::cpu<" << T::type_repr << ">\n";
-    kernel::maxsumexp::cpu<T>(m, n, k, &src[0], &maxsumexp[0]);
+    std::cout << "Run kernel::maxsumexp::cpu<" << T::short_name << ">\n";
+    kernel::maxsumexp::cpu<T>(m, n, k, &src[0], &dst[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n*k),
-        maxsumexp2_handle(&maxsumexp2[0], sizeof(T)*2*m*n);
-    maxsumexp::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::maxsumexp::submit<" << T::type_repr << "> restricted to CPU\n";
-    maxsumexp::submit<T>(m, n, k, src_handle, maxsumexp2_handle);
+        dst2_handle(&dst2[0], sizeof(T)*2*m*n);
+    maxsumexp.restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::maxsumexp::submit<" << T::short_name << "> restricted to CPU\n";
+    maxsumexp.submit<std::tuple<T>>(m, n, k, src_handle, dst2_handle);
     starpu_task_wait_for_all();
-    maxsumexp2_handle.unregister();
+    dst2_handle.unregister();
     // Check result
     for(Index i = 0; i < m*n; ++i)
     {
-        TEST_ASSERT(Y(maxsumexp[i]) == Y(maxsumexp2[i]));
+        TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::maxsumexp::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::maxsumexp::submit<" << T::short_name << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -85,68 +85,66 @@ void validate_cuda(Index m, Index n, Index k)
     {
         src[i] = Y(i+1);
     }
-    std::vector<T> maxsumexp(2*m*n);
+    std::vector<T> dst(2*m*n);
     for(Index i = 0; i < 2*m*n; i += 2)
     {
-        maxsumexp[i] = Y(-i-1); // Max
-        maxsumexp[i+1] = Y(2*i); // Sum of exponents
+        dst[i] = Y(-i-1); // Max
+        dst[i+1] = Y(2*i); // Sum of exponents
     }
     // Create copies of destination
-    std::vector<T> maxsumexp2(maxsumexp);
+    std::vector<T> dst2(dst);
     // Launch low-level kernel
-    T *dev_src, *dev_maxsumexp;
+    T *dev_src, *dev_dst;
     cuda_err = cudaMalloc(&dev_src, sizeof(T)*m*n*k);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_maxsumexp, sizeof(T)*2*m*n);
+    cuda_err = cudaMalloc(&dev_dst, sizeof(T)*2*m*n);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*m*n*k,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_maxsumexp, &maxsumexp[0], sizeof(T)*2*m*n,
+    cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*2*m*n,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::maxsumexp::cuda<" << T::type_repr << ">\n";
-    kernel::maxsumexp::cuda<T>(stream, m, n, k, dev_src, dev_maxsumexp);
+    std::cout << "Run kernel::maxsumexp::cuda<" << T::short_name << ">\n";
+    kernel::maxsumexp::cuda<T>(stream, m, n, k, dev_src, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaStreamDestroy(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result back to CPU
-    cuda_err = cudaMemcpy(&maxsumexp[0], dev_maxsumexp, sizeof(T)*2*m*n,
+    cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*2*m*n,
             cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Deallocate CUDA memory
     cuda_err = cudaFree(dev_src);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaFree(dev_maxsumexp);
+    cuda_err = cudaFree(dev_dst);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n*k),
-        maxsumexp2_handle(&maxsumexp2[0], sizeof(T)*2*m*n);
-    maxsumexp::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::maxsumexp::submit<" << T::type_repr << "> restricted to CUDA\n";
-    maxsumexp::submit<T>(m, n, k, src_handle, maxsumexp2_handle);
+        dst2_handle(&dst2[0], sizeof(T)*2*m*n);
+    maxsumexp.restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::maxsumexp::submit<" << T::short_name << "> restricted to CUDA\n";
+    maxsumexp.submit<std::tuple<T>>(m, n, k, src_handle, dst2_handle);
     starpu_task_wait_for_all();
-    maxsumexp2_handle.unregister();
+    dst2_handle.unregister();
     // Check result
     for(Index i = 0; i < 2*m*n; ++i)
     {
-        TEST_ASSERT(Y(maxsumexp[i]) == Y(maxsumexp2[i]));
+        TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::maxsumexp::submit<" << T::type_repr << "> restricted to CUDA\n";
+    std::cout << "OK: starpu::maxsumexp::submit<" << T::short_name << "> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 
 int main(int argc, char **argv)
 {
     // Initialize StarPU (it will automatically shutdown itself on exit)
-    int ncpus=1, ncuda=1, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    int ncpu=1, ncuda=1, ooc=0, verbose=0;
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
-    auto config = starpu::Config(
-        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
-    );
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
 
     // Launch all tests
     validate_cpu<fp32_t>(3, 5, 7);

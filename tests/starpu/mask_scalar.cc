@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/starpu/config.hh"
+#include "nntile/context.hh"
 #include "nntile/starpu/mask_scalar.hh"
 #include "nntile/kernel/mask_scalar.hh"
 #include "../testing.hh"
@@ -54,14 +54,14 @@ void validate_cpu(Index nrows, Index ncols)
     // Create copies of destination
     std::vector<T> data2(data);
     // Launch low-level kernel
-    std::cout << "Run kernel::mask_scalar::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::mask_scalar::cpu<" << T::short_name << ">\n";
     kernel::mask_scalar::cpu<T>(nrows, ncols, &mask[0], val, &data[0]);
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
     VariableHandle mask_handle(&mask[0], sizeof(bool_t)*nrows);
-    mask_scalar::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::mask_scalar::submit<" << T::type_repr << "> restricted to CPU\n";
-    mask_scalar::submit<T>(nrows, ncols, mask_handle, val, data2_handle);
+    mask_scalar.restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::mask_scalar::submit<" << T::short_name << "> restricted to CPU\n";
+    mask_scalar.submit<std::tuple<T>>(nrows, ncols, mask_handle, val, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     mask_handle.unregister();
@@ -70,7 +70,7 @@ void validate_cpu(Index nrows, Index ncols)
     {
         TEST_ASSERT(Y(data[i]) == Y(data2[i]));
     }
-    std::cout << "OK: starpu::mask_scalar::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::mask_scalar::submit<" << T::short_name << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -123,7 +123,7 @@ void validate_cuda(Index nrows, Index ncols)
     cuda_err = cudaMemcpy(dev_mask, &mask[0], sizeof(bool_t)*nrows,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::mask_scalar::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::mask_scalar::cuda<" << T::short_name << ">\n";
     kernel::mask_scalar::cuda<T>(stream, nrows, ncols, dev_mask, val,
             dev_data);
     // Wait for result and destroy stream
@@ -143,9 +143,9 @@ void validate_cuda(Index nrows, Index ncols)
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
     VariableHandle mask_handle(&mask[0], sizeof(bool_t)*nrows);
-    mask_scalar::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::mask_scalar::submit<" << T::type_repr << "> restricted to CUDA\n";
-    mask_scalar::submit<T>(nrows, ncols, mask_handle, val, data2_handle);
+    mask_scalar.restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::mask_scalar::submit<" << T::short_name << "> restricted to CUDA\n";
+    mask_scalar.submit<std::tuple<T>>(nrows, ncols, mask_handle, val, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     mask_handle.unregister();
@@ -154,19 +154,17 @@ void validate_cuda(Index nrows, Index ncols)
     {
         TEST_ASSERT(Y(data[i]) == Y(data2[i]));
     }
-    std::cout << "OK: starpu::mask_scalar::submit<" << T::type_repr << "> restricted to CUDA\n";
+    std::cout << "OK: starpu::mask_scalar::submit<" << T::short_name << "> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 
 int main(int argc, char **argv)
 {
     // Initialize StarPU (it will automatically shutdown itself on exit)
-    int ncpus=1, ncuda=1, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    int ncpu=1, ncuda=1, ooc=0, verbose=0;
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
-    auto config = starpu::Config(
-        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
-    );
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
 
     // Launch all tests
     validate_cpu<fp32_t>(1000, 10);
