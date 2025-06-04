@@ -71,8 +71,6 @@
 #include <nntile/tensor/add_scalar.hh>
 #include <nntile/tensor/embedding.hh>
 #include <nntile/tensor/embedding_backward.hh>
-//#include <nntile/tensor/fp32_to_fp16.hh>
-//#include <nntile/tensor/fp16_to_fp32.hh>
 #include <nntile/tensor/mask_scalar.hh>
 #include <nntile/tensor/hypot.hh>
 #include <nntile/tensor/hypot_scalar_inverse.hh>

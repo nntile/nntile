@@ -1111,10 +1111,6 @@ void def_mod_tensor(py::module_ &m)
     m.def("embedding_backward_fp32_fast_fp16", &embedding_backward<fp32_fast_fp16_t>);
     m.def("embedding_backward_fp32_fast_bf16", &embedding_backward<fp32_fast_bf16_t>);
 
-    // FP32 <-> FP16
-    //m.def("fp32_to_fp16_async", &fp32_to_fp16_async);
-    //m.def("fp16_to_fp32_async", &fp16_to_fp32_async);
-
     m.def("mask_scalar_async_fp64", &mask_scalar_async<fp64_t>);
     m.def("mask_scalar_async_bf16", &mask_scalar_async<bf16_t>);
     m.def("mask_scalar_async_fp32", &mask_scalar_async<fp32_t>);

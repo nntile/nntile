@@ -81,8 +81,6 @@ if(NOT HAVE_STARPU_SIMGRID)
         "kernel/sumprod_slice/cpu.cc"
         "kernel/total_sum_accum/cpu.cc"
         "kernel/transpose/cpu.cc"
-        # "kernel/fp16_to_fp32/cpu.cc" # TODO: add this kernel
-        # "kernel/fp32_to_fp16/cpu.cc" # TODO: add this kernel
     )
 
     # CUDA-specific low-level kernels
@@ -148,9 +146,6 @@ if(NOT HAVE_STARPU_SIMGRID)
             "kernel/sumprod_slice/cuda.cu"
             "kernel/total_sum_accum/cuda.cu"
             "kernel/transpose/cuda.cu"
-            # "kernel/fp16_to_fp32/cuda.cu" # TODO: add this kernel
-            # "kernel/fp32_to_fp16/cuda.cu" # TODO: add this kernel
-            # "kernel/randn/cuda.cu" # TODO: add this kernel
         )
     endif(NNTILE_USE_CUDA)
 endif(HAVE_STARPU_SIMGRID)
@@ -230,8 +225,6 @@ set(STARPU_CODELET_SRC
     "starpu/sumprod_slice.cc"
     "starpu/total_sum_accum.cc"
     "starpu/transpose.cc"
-    # "starpu/fp16_to_fp32.cc"
-    # "starpu/fp32_to_fp16.cc"
 )
 
 # Basic Tile-related sources
@@ -292,8 +285,6 @@ set(TILE_OPERATION_SRC
     "tile/sumprod_fiber.cc"
     "tile/sumprod_slice.cc"
     "tile/total_sum_accum.cc"
-    # "tile/fp16_to_fp32.cc"
-    # "tile/fp32_to_fp16.cc"
 )
 
 # Tensor-related sources
@@ -368,8 +359,6 @@ set(TENSOR_OPERATION_SRC
     "tensor/sumprod_slice.cc"
     "tensor/total_sum_accum.cc"
     "tensor/transpose.cc"
-    # "tensor/fp16_to_fp32.cc"
-    # "tensor/fp32_to_fp16.cc"
 )
 
 # Logger-related sources

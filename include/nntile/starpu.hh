@@ -72,8 +72,6 @@
 #include <nntile/starpu/add_scalar.hh>
 #include <nntile/starpu/embedding.hh>
 #include <nntile/starpu/embedding_backward.hh>
-//#include <nntile/starpu/fp32_to_fp16.hh>
-//#include <nntile/starpu/fp16_to_fp32.hh>
 #include <nntile/starpu/mask_scalar.hh>
 #include <nntile/starpu/adam_step.hh>
 #include <nntile/starpu/adamw_step.hh>
@@ -152,8 +150,6 @@ static void restrict_where(uint32_t where)
     // add_scalar::restrict_where(where);
     // embedding::restrict_where(where);
     // embedding_backward::restrict_where(where);
-    // //fp32_to_fp16::restrict_where(where);
-    // //fp16_to_fp32::restrict_where(where);
     // mask_scalar::restrict_where(where);
     // adam_step::restrict_where(where);
     // adamw_step::restrict_where(where);
@@ -226,8 +222,6 @@ static void restore_where()
     // add_scalar::restore_where();
     // embedding::restore_where();
     // embedding_backward::restore_where();
-    // //fp32_to_fp16::restore_where();
-    // //fp16_to_fp32::restore_where();
     // mask_scalar::restore_where();
     // adam_step::restore_where();
     // adamw_step::restore_where();
