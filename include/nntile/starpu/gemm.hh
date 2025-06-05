@@ -29,16 +29,6 @@ namespace nntile::starpu
 template<typename T>
 class Gemm;
 
-// //! Helper to specialize supported CBLAS functions
-// template<typename T>
-// constexpr func_array _cpu_funcs = {};
-
-// template<>
-// constexpr func_array _cpu_funcs<fp64_t> = {Gemm<std::tuple<fp64_t>>::cpu};
-
-// template<>
-// constexpr func_array _cpu_funcs<fp32_t> = {Gemm<std::tuple<fp32_t>>::cpu};
-
 //! Specialization of wrapper class for gemm operation via std::tuple
 template<typename T>
 class Gemm<std::tuple<T>>

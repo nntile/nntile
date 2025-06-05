@@ -150,7 +150,7 @@ if(NOT HAVE_STARPU_SIMGRID)
             "kernel/transpose/cuda.cu"
         )
     endif(NNTILE_USE_CUDA)
-endif(HAVE_STARPU_SIMGRID)
+endif(NOT HAVE_STARPU_SIMGRID)
 
 # Basic StarPU-related sources
 set(STARPU_BASE_SRC

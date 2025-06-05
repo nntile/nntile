@@ -13,7 +13,7 @@
 
 # Base images could be unavailable due to NVidia policies on keeping track only
 # of the latest ones
-ARG BASE_IMAGE=nvidia/cuda:12.4.0-devel-ubuntu22.04
+ARG BASE_IMAGE=nvidia/cuda:12.9.0-cudnn-devel-ubuntu22.04
 
 FROM $BASE_IMAGE AS devbase
 

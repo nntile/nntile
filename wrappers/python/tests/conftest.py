@@ -21,7 +21,7 @@ import nntile
 
 @pytest.fixture(scope='session')
 def starpu_simple() -> Generator[None, None, None]:
-    context = nntile.Context(ncpus=1, ncuda=0, ooc=0, logger=0, verbose=0)
+    context = nntile.Context(ncpu=1, ncuda=1, ooc=0, logger=0, verbose=0)
     context.restrict_cpu()
     try:
         yield None
@@ -32,7 +32,7 @@ def starpu_simple() -> Generator[None, None, None]:
 
 @pytest.fixture(scope='session')
 def starpu_simple_cuda() -> Generator[None, None, None]:
-    context = nntile.Context(ncpus=1, ncuda=1, ooc=0, logger=0, verbose=0)
+    context = nntile.Context(ncpu=1, ncuda=1, ooc=0, logger=0, verbose=0)
     context.restrict_cuda()
     try:
         yield None

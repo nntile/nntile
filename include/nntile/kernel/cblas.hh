@@ -22,6 +22,11 @@
 
 #if __has_include(<cblas.h>) // Look for default CBLAS header
 #   include <cblas.h>
+#   ifdef OPENBLAS_VERSION // If we work with OpenBLAS
+#       define CBLAS_INT blasint
+#   else // Use standard int otherwise
+#       define CBLAS_INT int
+#   endif
 #elif __has_include(<mkl.h>) // Look for MKL (OneAPI) header
 #   include <mkl.h>
 #   define CBLAS_INT MKL_INT
@@ -75,13 +80,13 @@ void gemm(
 
 //! Helper to check if CBLAS supports the given type
 template<typename T>
-constexpr bool is_supported = false;
+constexpr bool gemm_is_supported = false;
 
 template<>
-constexpr bool is_supported<fp64_t> = true;
+constexpr bool gemm_is_supported<fp64_t> = true;
 
 template<>
-constexpr bool is_supported<fp32_t> = true;
+constexpr bool gemm_is_supported<fp32_t> = true;
 
 } // namespace nntile:kernel::cblas
 #endif // NNTILE_USE_CBLAS

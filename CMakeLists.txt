@@ -124,12 +124,6 @@ elseif(USE_CBLAS)
         target_link_libraries(nntile PUBLIC BLAS::BLAS)
         set(NNTILE_USE_CBLAS ON)
         set(NNTILE_LINK_CBLAS ON)
-        set(CBLAS_INT_TYPE "int" CACHE STRING
-            "CBLAS integer type: int, int32_t or int64_t")
-        set_property(CACHE CBLAS_INT_TYPE PROPERTY STRINGS "int" "int32_t"
-            "int64_t")
-        set(CBLAS_H_NAME "cblas.h" CACHE STRING
-            "Name of header file containing cblas routines")
     endif()
 endif()
 

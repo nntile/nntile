@@ -35,11 +35,14 @@ Gemm<std::tuple<T>>::Gemm():
 {
     // Modes are not fixed, they are decided during runtime by default
     // Tell StarPU that we do not support all types
-    if constexpr (!kernel::cblas::is_supported<T>)
+#ifdef NNTILE_USE_CBLAS
+    if constexpr (!kernel::cblas::gemm_is_supported<T>)
     {
         codelet.cpu_funcs[0] = nullptr;
         codelet.where_default = codelet.where_default ^ STARPU_CPU;
+        codelet.where = codelet.where_default;
     }
+#endif // NNTILE_USE_CBLAS
 }
 
 #ifdef NNTILE_USE_CBLAS // CPU implementation requires CBLAS
@@ -58,7 +61,7 @@ void Gemm<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     const T *B = interfaces[1]->get_ptr<T>();
     T *C = interfaces[2]->get_ptr<T>();
     // Call corresponding CBLAS routine if supported, otherwise do nothing
-    if constexpr (kernel::cblas::is_supported<T>)
+    if constexpr (kernel::cblas::gemm_is_supported<T>)
     {
         kernel::cblas::gemm<T>(
             args->transA,
