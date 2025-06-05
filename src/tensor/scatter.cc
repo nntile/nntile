@@ -132,10 +132,6 @@ void scatter(const Tensor<T> &src, const Tensor<T> &dst)
 }
 
 // Explicit instantiation
-//template
-//void scatter_async<fp16_t>(const Tensor<fp16_t> &src,
-//        const Tensor<fp16_t> &dst);
-
 template
 void scatter_async<fp32_t>(const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
@@ -169,9 +165,6 @@ void scatter_async<bf16_t>(const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst);
 
 // Explicit instantiation
-//template
-//void scatter<fp16_t>(const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
-
 template
 void scatter<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 

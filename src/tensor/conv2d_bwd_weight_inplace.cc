@@ -252,6 +252,20 @@ void conv2d_bwd_weight_inplace_async<fp32_fast_tf32_t>(Scalar alpha,
         std::array<Index, 2> dilation);
 
 template
+void conv2d_bwd_weight_inplace_async<fp32_fast_fp16_t>(Scalar alpha,
+        const Tensor<fp32_fast_fp16_t> &X, const Tensor<fp32_fast_fp16_t> &dY,
+        Scalar beta, const Tensor<fp32_fast_fp16_t> &dC,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
+
+template
+void conv2d_bwd_weight_inplace_async<fp32_fast_bf16_t>(Scalar alpha,
+        const Tensor<fp32_fast_bf16_t> &X, const Tensor<fp32_fast_bf16_t> &dY,
+        Scalar beta, const Tensor<fp32_fast_bf16_t> &dC,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
+
+template
 void conv2d_bwd_weight_inplace_async<fp64_t>(Scalar alpha,
         const Tensor<fp64_t> &X, const Tensor<fp64_t> &dY, Scalar beta,
         const Tensor<fp64_t> &dC, std::array<Index, 2> padding,
@@ -274,6 +288,20 @@ template
 void conv2d_bwd_weight_inplace<fp32_fast_tf32_t>(Scalar alpha,
         const Tensor<fp32_fast_tf32_t> &X, const Tensor<fp32_fast_tf32_t> &dY,
         Scalar beta, const Tensor<fp32_fast_tf32_t> &dC,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
+
+template
+void conv2d_bwd_weight_inplace<fp32_fast_fp16_t>(Scalar alpha,
+        const Tensor<fp32_fast_fp16_t> &X, const Tensor<fp32_fast_fp16_t> &dY,
+        Scalar beta, const Tensor<fp32_fast_fp16_t> &dC,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
+
+template
+void conv2d_bwd_weight_inplace<fp32_fast_bf16_t>(Scalar alpha,
+        const Tensor<fp32_fast_bf16_t> &X, const Tensor<fp32_fast_bf16_t> &dY,
+        Scalar beta, const Tensor<fp32_fast_bf16_t> &dC,
         std::array<Index, 2> padding, std::array<Index, 2> stride,
         std::array<Index, 2> dilation);
 

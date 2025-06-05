@@ -59,11 +59,35 @@ void gelutanh_inplace_async<fp32_t>(const Tensor<fp32_t> &A);
 template
 void gelutanh_inplace_async<fp64_t>(const Tensor<fp64_t> &A);
 
+template
+void gelutanh_inplace_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
+
+template
+void gelutanh_inplace_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
+
+template
+void gelutanh_inplace_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
+
+template
+void gelutanh_inplace_async<bf16_t>(const Tensor<bf16_t> &A);
+
 // Explicit instantiation
 template
 void gelutanh_inplace<fp32_t>(const Tensor<fp32_t> &A);
 
 template
 void gelutanh_inplace<fp64_t>(const Tensor<fp64_t> &A);
+
+template
+void gelutanh_inplace<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
+
+template
+void gelutanh_inplace<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
+
+template
+void gelutanh_inplace<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
+
+template
+void gelutanh_inplace<bf16_t>(const Tensor<bf16_t> &A);
 
 } // namespace nntile::tensor

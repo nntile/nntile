@@ -59,11 +59,35 @@ void dgelu_async<fp32_t>(const Tensor<fp32_t> &A);
 template
 void dgelu_async<fp64_t>(const Tensor<fp64_t> &A);
 
+template
+void dgelu_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
+
+template
+void dgelu_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
+
+template
+void dgelu_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
+
+template
+void dgelu_async<bf16_t>(const Tensor<bf16_t> &A);
+
 // Explicit instantiation
 template
 void dgelu<fp32_t>(const Tensor<fp32_t> &A);
 
 template
 void dgelu<fp64_t>(const Tensor<fp64_t> &A);
+
+template
+void dgelu<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
+
+template
+void dgelu<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
+
+template
+void dgelu<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
+
+template
+void dgelu<bf16_t>(const Tensor<bf16_t> &A);
 
 } // namespace nntile::tensor

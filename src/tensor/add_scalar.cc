@@ -66,6 +66,22 @@ template
 void add_scalar_async<fp64_t>(Scalar alpha, Scalar beta,
         const Tensor<fp64_t> &dst);
 
+template
+void add_scalar_async<fp32_fast_tf32_t>(Scalar alpha, Scalar beta,
+        const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void add_scalar_async<fp32_fast_fp16_t>(Scalar alpha, Scalar beta,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void add_scalar_async<fp32_fast_bf16_t>(Scalar alpha, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &dst);
+
+template
+void add_scalar_async<bf16_t>(Scalar alpha, Scalar beta,
+        const Tensor<bf16_t> &dst);
+
 // Explicit instantiation of template
 template
 void add_scalar<fp32_t>(Scalar alpha, Scalar beta,
@@ -74,5 +90,21 @@ void add_scalar<fp32_t>(Scalar alpha, Scalar beta,
 template
 void add_scalar<fp64_t>(Scalar alpha, Scalar beta,
         const Tensor<fp64_t> &dst);
+
+template
+void add_scalar<fp32_fast_tf32_t>(Scalar alpha, Scalar beta,
+        const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void add_scalar<fp32_fast_fp16_t>(Scalar alpha, Scalar beta,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void add_scalar<fp32_fast_bf16_t>(Scalar alpha, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &dst);
+
+template
+void add_scalar<bf16_t>(Scalar alpha, Scalar beta,
+        const Tensor<bf16_t> &dst);
 
 } // namespace nntile::tensor

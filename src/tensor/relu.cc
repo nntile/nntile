@@ -60,7 +60,16 @@ template
 void relu_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
 
 template
+void relu_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
+
+template
+void relu_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
+
+template
 void relu_async<fp64_t>(const Tensor<fp64_t> &A);
+
+template
+void relu_async<bf16_t>(const Tensor<bf16_t> &A);
 
 // Explicit instantiation
 template
@@ -70,6 +79,15 @@ template
 void relu<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
 
 template
+void relu<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
+
+template
+void relu<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
+
+template
 void relu<fp64_t>(const Tensor<fp64_t> &A);
+
+template
+void relu<bf16_t>(const Tensor<bf16_t> &A);
 
 } // namespace nntile::tensor

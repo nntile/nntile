@@ -84,11 +84,41 @@ void sqrt_async<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 template
 void sqrt_async<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
+template
+void sqrt_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+        const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void sqrt_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void sqrt_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+        const Tensor<fp32_fast_bf16_t> &dst);
+
+template
+void sqrt_async<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
+
 // Explicit instantiation
 template
 void sqrt<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 
 template
 void sqrt<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
+
+template
+void sqrt<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+        const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void sqrt<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void sqrt<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+        const Tensor<fp32_fast_bf16_t> &dst);
+
+template
+void sqrt<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
 
 } // namespace nntile::tensor

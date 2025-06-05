@@ -94,6 +94,9 @@ template
 void copy_async<int64_t>(const Tensor<int64_t> &src, const Tensor<int64_t> &dst);
 
 template
+void copy_async<bool_t>(const Tensor<bool_t> &src, const Tensor<bool_t> &dst);
+
+template
 void copy_async<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
 
 // Explicit instantiation
@@ -117,6 +120,9 @@ void copy<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 template
 void copy<int64_t>(const Tensor<int64_t> &src, const Tensor<int64_t> &dst);
+
+template
+void copy<bool_t>(const Tensor<bool_t> &src, const Tensor<bool_t> &dst);
 
 template
 void copy<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);

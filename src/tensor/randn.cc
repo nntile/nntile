@@ -140,6 +140,18 @@ void randn_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &dst,
         Scalar mean, Scalar stddev);
 
 template
+void randn_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &dst,
+        const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        Scalar mean, Scalar stddev);
+
+template
+void randn_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &dst,
+        const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        Scalar mean, Scalar stddev);
+
+template
 void randn_async<fp64_t>(const Tensor<fp64_t> &dst,
         const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
@@ -159,6 +171,16 @@ void randn<fp32_t>(const Tensor<fp32_t> &dst, const std::vector<Index> &start,
 
 template
 void randn<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &dst, const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        Scalar mean, Scalar stddev);
+
+template
+void randn<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &dst, const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        Scalar mean, Scalar stddev);
+
+template
+void randn<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 
