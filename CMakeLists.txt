@@ -145,14 +145,6 @@ target_include_directories(nntile PRIVATE
 configure_file("${PROJECT_SOURCE_DIR}/include/nntile/defs.h.in"
     "${PROJECT_BINARY_DIR}/include/nntile/defs.h" @ONLY)
 
-# Configure include/nntile/kernel/gemm.hh.in that relies on cblas and cuda
-configure_file("${PROJECT_SOURCE_DIR}/include/nntile/kernel/gemm.hh.in"
-    "${PROJECT_BINARY_DIR}/include/nntile/kernel/gemm.hh" @ONLY)
-
-# Configure tests/starpu/gemm.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/gemm.cc.in"
-    "${PROJECT_BINARY_DIR}/tests/starpu/gemm.cc" @ONLY)
-
 # Check if code coverage report is needed
 if(BUILD_COVERAGE)
     # Tell user what we are doing here
