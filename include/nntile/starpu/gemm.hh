@@ -14,286 +14,115 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
+// Compile-time definitions
+#include <nntile/defs.h>
+
+// NNTile headers
+#include <nntile/starpu/codelet.hh>
+#include <nntile/starpu/handle.hh>
 #include <nntile/constants.hh>
-// This also includes all definitions
-#include <nntile/starpu/config.hh>
 
-namespace nntile::starpu::gemm
+namespace nntile::starpu
 {
 
-//! Structure for arguments
-struct args_t
+//! Generic wrapper class for gemm operation is not defined
+template<typename T>
+class Gemm;
+
+// //! Helper to specialize supported CBLAS functions
+// template<typename T>
+// constexpr func_array _cpu_funcs = {};
+
+// template<>
+// constexpr func_array _cpu_funcs<fp64_t> = {Gemm<std::tuple<fp64_t>>::cpu};
+
+// template<>
+// constexpr func_array _cpu_funcs<fp32_t> = {Gemm<std::tuple<fp32_t>>::cpu};
+
+//! Specialization of wrapper class for gemm operation via std::tuple
+template<typename T>
+class Gemm<std::tuple<T>>
 {
-    TransOp transA; // op(A)
-    TransOp transB; // op(B)
-    Index m; // Number of rows of op(A) and C
-    Index n; // Number of columns of op(B) and C
-    Index k; // Number of columns of op(A) and number of rows of op(B)
-    Index batch; // Number of gemms in a batch
-    Scalar alpha;
-    Scalar beta;
-};
+public:
+    //! Codelet for the current operation
+    CodeletTyped<T> codelet;
+
+    //! Constructor
+    Gemm();
+
+    //! Structure for operation arguments
+    struct args_t
+    {
+        TransOp transA;
+        TransOp transB;
+        Index m;
+        Index n;
+        Index k;
+        Index batch;
+        Scalar alpha;
+        Scalar beta;
+    };
+
+    //! Footprint function for the current operation
+    static uint32_t footprint(struct starpu_task *task);
 
 #ifdef NNTILE_USE_CBLAS
-template<typename T>
-void cpu(void *buffers[], void *cl_args)
-    noexcept;
+    //! Wrapper for a generic CPU implementation
+    static void cpu(void *buffers[], void *cl_args)
+        noexcept;
+
+    //! Array of all wrappers for CPU implementations
+    static constexpr func_array cpu_funcs = {
+        cpu
+    };
+#else // NNTILE_USE_CBLAS
+    //! Array of all wrappers for CPU implementations
+    static constexpr func_array cpu_funcs = {};
 #endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
-template<typename T>
-void cuda(void *buffers[], void *cl_args)
-    noexcept;
+    //! Wrapper for a generic CUDA implementation
+    static void cuda(void *buffers[], void *cl_args)
+        noexcept;
+
+    //! Array of all wrappers for CUDA implementations
+    static constexpr func_array cuda_funcs = {
+        cuda
+    };
+#else // NNTILE_USE_CUDA
+    //! Array of all wrappers for CUDA implementations
+    static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-extern Codelet codelet_NN_fp32, codelet_NN_fp64,
-               codelet_NT_fp32, codelet_NT_fp64,
-               codelet_TN_fp32, codelet_TN_fp64,
-               codelet_TT_fp32, codelet_TT_fp64;
+    //! Submit gemm task
+    void submit(
+        const TransOp &transA,
+        const TransOp &transB,
+        Index m,
+        Index n,
+        Index k,
+        Index batch,
+        Scalar alpha,
+        Handle A,
+        Handle B,
+        Scalar beta,
+        Handle C,
+        int redux=0
+    );
+};
 
-//extern Codelet codelet_NN_fp16, codelet_NT_fp16,
-//       codelet_TN_fp16, codelet_TT_fp16;
+//! Pack of gemm operations for different types
+using gemm_pack_t = OperationPack<
+    Gemm,
+    std::tuple<nntile::fp64_t>,
+    std::tuple<nntile::fp32_t>,
+    std::tuple<nntile::fp32_fast_tf32_t>,
+    std::tuple<nntile::fp32_fast_fp16_t>,
+    std::tuple<nntile::fp32_fast_bf16_t>,
+    std::tuple<nntile::bf16_t>
+>;
 
-extern Codelet codelet_NN_fp32_fast_tf32, codelet_NT_fp32_fast_tf32,
-       codelet_TN_fp32_fast_tf32, codelet_TT_fp32_fast_tf32;
+//! Pack of gemm operations for different types
+extern gemm_pack_t gemm;
 
-extern Codelet codelet_NN_fp32_fast_fp16, codelet_NT_fp32_fast_fp16,
-       codelet_TN_fp32_fast_fp16, codelet_TT_fp32_fast_fp16;
-
-extern Codelet codelet_NN_fp32_fast_bf16, codelet_NT_fp32_fast_bf16,
-       codelet_TN_fp32_fast_bf16, codelet_TT_fp32_fast_bf16;
-
-extern Codelet codelet_NN_bf16, codelet_NT_bf16,
-       codelet_TN_bf16, codelet_TT_bf16;
-
-template<typename T>
-static
-Codelet *codelet(TransOp transA, TransOp transB)
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-Codelet *codelet<fp32_t>(TransOp transA, TransOp transB)
-{
-    switch(transA.value)
-    {
-        case TransOp::NoTrans:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &codelet_NN_fp32;
-                default:
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                    return &codelet_NT_fp32;
-            }
-        // This parameter was already checked in gemm_check_opA_opB
-        //case TransOp::Trans:
-        default:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &codelet_TN_fp32;
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                default:
-                    return &codelet_TT_fp32;
-            }
-    }
-}
-
-template<>
-Codelet *codelet<fp32_fast_tf32_t>(TransOp transA, TransOp transB)
-{
-    switch(transA.value)
-    {
-        case TransOp::NoTrans:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &codelet_NN_fp32_fast_tf32;
-                default:
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                    return &codelet_NT_fp32_fast_tf32;
-            }
-        // This parameter was already checked in gemm_check_opA_opB
-        //case TransOp::Trans:
-        default:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &codelet_TN_fp32_fast_tf32;
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                default:
-                    return &codelet_TT_fp32_fast_tf32;
-            }
-    }
-}
-
-template<>
-Codelet *codelet<fp32_fast_fp16_t>(TransOp transA, TransOp transB)
-{
-    switch(transA.value)
-    {
-        case TransOp::NoTrans:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &codelet_NN_fp32_fast_fp16;
-                default:
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                    return &codelet_NT_fp32_fast_fp16;
-            }
-        // This parameter was already checked in gemm_check_opA_opB
-        //case TransOp::Trans:
-        default:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &codelet_TN_fp32_fast_fp16;
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                default:
-                    return &codelet_TT_fp32_fast_fp16;
-            }
-    }
-}
-
-template<>
-Codelet *codelet<fp32_fast_bf16_t>(TransOp transA, TransOp transB)
-{
-    switch(transA.value)
-    {
-        case TransOp::NoTrans:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &codelet_NN_fp32_fast_bf16;
-                default:
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                    return &codelet_NT_fp32_fast_bf16;
-            }
-        // This parameter was already checked in gemm_check_opA_opB
-        //case TransOp::Trans:
-        default:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &codelet_TN_fp32_fast_bf16;
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                default:
-                    return &codelet_TT_fp32_fast_bf16;
-            }
-    }
-}
-
-template<>
-Codelet *codelet<bf16_t>(TransOp transA, TransOp transB)
-{
-    switch(transA.value)
-    {
-        case TransOp::NoTrans:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &codelet_NN_bf16;
-                default:
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                    return &codelet_NT_bf16;
-            }
-        // This parameter was already checked in gemm_check_opA_opB
-        //case TransOp::Trans:
-        default:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &codelet_TN_bf16;
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                default:
-                    return &codelet_TT_bf16;
-            }
-    }
-}
-
-template<>
-Codelet *codelet<fp64_t>(TransOp transA, TransOp transB)
-{
-    switch(transA.value)
-    {
-        case TransOp::NoTrans:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &codelet_NN_fp64;
-                default:
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                    return &codelet_NT_fp64;
-            }
-        // This parameter was already checked in gemm_check_opA_opB
-        //case TransOp::Trans:
-        default:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &codelet_TN_fp64;
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                default:
-                    return &codelet_TT_fp64;
-            }
-    }
-}
-
-//template<>
-//Codelet *codelet<fp16_t>(TransOp transA, TransOp transB)
-//{
-//    switch(transA.value)
-//    {
-//        case TransOp::NoTrans:
-//            switch(transB.value)
-//            {
-//                case TransOp::NoTrans:
-//                    return &codelet_NN_fp16;
-//                default:
-//                // This parameter was already checked in gemm_check_opA_opB
-//                //case TransOp::Trans:
-//                    return &codelet_NT_fp16;
-//            }
-//        // This parameter was already checked in gemm_check_opA_opB
-//        //case TransOp::Trans:
-//        default:
-//            switch(transB.value)
-//            {
-//                case TransOp::NoTrans:
-//                    return &codelet_TN_fp16;
-//                // This parameter was already checked in gemm_check_opA_opB
-//                //case TransOp::Trans:
-//                default:
-//                    return &codelet_TT_fp16;
-//            }
-//    }
-//}
-
-void init();
-
-void restrict_where(uint32_t where);
-
-void restore_where();
-
-template<typename T>
-void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
-        Index k, Index batch, Scalar alpha, Handle A, Handle B, Scalar beta,
-        Handle C, int redux=0);
-
-} // namespace nntile::starpu::gemm
+} // namespace nntile::starpu

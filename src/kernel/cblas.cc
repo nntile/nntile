@@ -34,8 +34,8 @@ void gemm(
     Index k,
     Index batch,
     Scalar alpha,
-    T *A,
-    T *B,
+    const T *A,
+    const T *B,
     Scalar beta,
     T *C
 ) noexcept
@@ -123,13 +123,11 @@ void gemm(
 // Explicit instantiation
 template void gemm<fp64_t>(
     TransOp transA, TransOp transB, Index m, Index n, Index k, Index batch,
-    Scalar alpha, fp64_t *A, fp64_t *B, Scalar beta, fp64_t *C) noexcept;
+    Scalar alpha, const fp64_t *A, const fp64_t *B, Scalar beta, fp64_t *C) noexcept;
 
 template void gemm<fp32_t>(
     TransOp transA, TransOp transB, Index m, Index n, Index k, Index batch,
-    Scalar alpha, fp32_t *A, fp32_t *B, Scalar beta, fp32_t *C) noexcept;
-
-// Other types are not supported by CBLAS
+    Scalar alpha, const fp32_t *A, const fp32_t *B, Scalar beta, fp32_t *C) noexcept;
 
 } // namespace nntile:kernel::cblas
 #endif // NNTILE_USE_CBLAS

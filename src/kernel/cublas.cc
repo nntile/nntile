@@ -42,8 +42,8 @@ void gemm(
     Index k,
     Index batch,
     Scalar alpha,
-    T *A,
-    T *B,
+    const T *A,
+    const T *B,
     Scalar beta,
     T *C
 ) noexcept
@@ -166,8 +166,8 @@ template void gemm<fp64_t>(
     Index k,
     Index batch,
     Scalar alpha,
-    fp64_t *A,
-    fp64_t *B,
+    const fp64_t *A,
+    const fp64_t *B,
     Scalar beta,
     fp64_t *C
 ) noexcept;
@@ -181,8 +181,8 @@ template void gemm<fp32_t>(
     Index k,
     Index batch,
     Scalar alpha,
-    fp32_t *A,
-    fp32_t *B,
+    const fp32_t *A,
+    const fp32_t *B,
     Scalar beta,
     fp32_t *C
 ) noexcept;
@@ -196,8 +196,8 @@ template void gemm<fp32_fast_tf32_t>(
     Index k,
     Index batch,
     Scalar alpha,
-    fp32_fast_tf32_t *A,
-    fp32_fast_tf32_t *B,
+    const fp32_fast_tf32_t *A,
+    const fp32_fast_tf32_t *B,
     Scalar beta,
     fp32_fast_tf32_t *C
 ) noexcept;
@@ -211,8 +211,8 @@ template void gemm<fp32_fast_fp16_t>(
     Index k,
     Index batch,
     Scalar alpha,
-    fp32_fast_fp16_t *A,
-    fp32_fast_fp16_t *B,
+    const fp32_fast_fp16_t *A,
+    const fp32_fast_fp16_t *B,
     Scalar beta,
     fp32_fast_fp16_t *C
 ) noexcept;
@@ -226,8 +226,8 @@ template void gemm<fp32_fast_bf16_t>(
     Index k,
     Index batch,
     Scalar alpha,
-    fp32_fast_bf16_t *A,
-    fp32_fast_bf16_t *B,
+    const fp32_fast_bf16_t *A,
+    const fp32_fast_bf16_t *B,
     Scalar beta,
     fp32_fast_bf16_t *C
 ) noexcept;
@@ -241,8 +241,8 @@ template void gemm<bf16_t>(
     Index k,
     Index batch,
     Scalar alpha,
-    bf16_t *A,
-    bf16_t *B,
+    const bf16_t *A,
+    const bf16_t *B,
     Scalar beta,
     bf16_t *C
 ) noexcept;

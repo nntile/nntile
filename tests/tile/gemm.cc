@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/starpu/config.hh"
+#include "nntile/context.hh"
 #include "nntile/tile/gemm.hh"
 #include "nntile/starpu/gemm.hh"
 #include "../testing.hh"
@@ -42,7 +42,7 @@ void check()
     C_local.release();
     D_local.release();
     // Check default parameters
-    starpu::gemm::submit<T>(opN, opN, 4, 4, 4, 2, one, A, B, zero, C);
+    starpu::gemm.submit<std::tuple<T>>(opN, opN, 4, 4, 4, 2, one, A, B, zero, C);
     gemm<T>(one, opN, A, opN, B, zero, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
@@ -53,7 +53,7 @@ void check()
     C_local.release();
     D_local.release();
     // Check transA=opT
-    starpu::gemm::submit<T>(opT, opN, 4, 4, 4, 2, one, A, B, zero, C);
+    starpu::gemm.submit<std::tuple<T>>(opT, opN, 4, 4, 4, 2, one, A, B, zero, C);
     gemm<T>(one, opT, A, opN, B, zero, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
@@ -64,7 +64,7 @@ void check()
     C_local.release();
     D_local.release();
     // Check transB=opT
-    starpu::gemm::submit<T>(opN, opT, 4, 4, 4, 2, one, A, B, zero, C);
+    starpu::gemm.submit<std::tuple<T>>(opN, opT, 4, 4, 4, 2, one, A, B, zero, C);
     gemm<T>(one, opN, A, opT, B, zero, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
@@ -75,7 +75,7 @@ void check()
     C_local.release();
     D_local.release();
     // Check transA=transB=opT
-    starpu::gemm::submit<T>(opT, opT, 4, 4, 4, 2, one, A, B, zero, C);
+    starpu::gemm.submit<std::tuple<T>>(opT, opT, 4, 4, 4, 2, one, A, B, zero, C);
     gemm<T>(one, opT, A, opT, B, zero, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
@@ -87,7 +87,7 @@ void check()
     D_local.release();
     // Check alpha=2
     Scalar two = 2;
-    starpu::gemm::submit<T>(opN, opN, 4, 4, 4, 2, two, A, B, zero, C);
+    starpu::gemm.submit<std::tuple<T>>(opN, opN, 4, 4, 4, 2, two, A, B, zero, C);
     gemm<T>(two, opN, A, opN, B, zero, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
@@ -98,7 +98,7 @@ void check()
     C_local.release();
     D_local.release();
     // Check beta=1
-    starpu::gemm::submit<T>(opN, opN, 4, 4, 4, 2, one, A, B, one, C);
+    starpu::gemm.submit<std::tuple<T>>(opN, opN, 4, 4, 4, 2, one, A, B, one, C);
     gemm<T>(one, opN, A, opN, B, one, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
@@ -110,7 +110,7 @@ void check()
     D_local.release();
     // Check beta=-1
     Scalar mone = -1;
-    starpu::gemm::submit<T>(opN, opN, 4, 4, 4, 2, one, A, B, mone, C);
+    starpu::gemm.submit<std::tuple<T>>(opN, opN, 4, 4, 4, 2, one, A, B, mone, C);
     gemm<T>(one, opN, A, opN, B, mone, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
@@ -161,22 +161,21 @@ void validate()
     // Check B and C compatibility
     TEST_THROW(gemm<T>(one, opN, mat11, opN, mat12, one, mat11, 1, 0));
     TEST_THROW(gemm<T>(one, opN, mat11, opT, mat21, one, mat11, 1, 0));
+    // Tell the user that the test passed
+    std::cout << "gemm<" << T::short_name << "> passed\n";
 }
 
 int main(int argc, char **argv)
 {
     // Initialize StarPU
-    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
-    starpu::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
-        ooc_disk_node_id, verbose);
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
 
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
 
-    // Shutdown StarPU
-    starpu::config.shutdown();
     return 0;
 }

@@ -67,11 +67,21 @@ void gemm(
     Index k,
     Index batch,
     Scalar alpha,
-    T *A,
-    T *B,
+    const T *A,
+    const T *B,
     Scalar beta,
     T *C
 ) noexcept;
+
+//! Helper to check if CBLAS supports the given type
+template<typename T>
+constexpr bool is_supported = false;
+
+template<>
+constexpr bool is_supported<fp64_t> = true;
+
+template<>
+constexpr bool is_supported<fp32_t> = true;
 
 } // namespace nntile:kernel::cblas
 #endif // NNTILE_USE_CBLAS

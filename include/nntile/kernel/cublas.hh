@@ -63,8 +63,8 @@ void gemm(
     Index k,
     Index batch,
     Scalar alpha,
-    T *A,
-    T *B,
+    const T *A,
+    const T *B,
     Scalar beta,
     T *C
 ) noexcept;

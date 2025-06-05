@@ -121,7 +121,7 @@ if(HAVE_STARPU_SIMGRID)
 elseif(USE_CBLAS)
     find_package(BLAS)
     if(BLAS_FOUND)
-        target_link_libraries(nntile PRIVATE BLAS::BLAS)
+        target_link_libraries(nntile PUBLIC BLAS::BLAS)
         set(NNTILE_USE_CBLAS ON)
         set(NNTILE_LINK_CBLAS ON)
         set(CBLAS_INT_TYPE "int" CACHE STRING

@@ -12,12 +12,14 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/tensor/gemm.hh"
 #include "nntile/tile/gemm.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/gemm.hh"
 #include "nntile/starpu/subcopy.hh"
+#include "nntile/starpu/config.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -274,15 +276,16 @@ void validate()
     TEST_THROW(gemm<T>(one, opN, mat11, opN, mat12_, one, mat12, 1, 0));
     TEST_THROW(gemm<T>(one, opN, mat11, opT, mat21, one, mat11, 1, 0));
     TEST_THROW(gemm<T>(one, opN, mat11, opT, mat21_, one, mat12, 1, 0));
+    // Tell the user that the test passed
+    std::cout << "gemm<" << T::short_name << "> passed\n";
 }
 
 int main(int argc, char **argv)
 {
-    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
-    starpu::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
-        ooc_disk_node_id, verbose);
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

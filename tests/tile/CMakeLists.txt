@@ -31,7 +31,7 @@ set(TESTS
     "gelutanh"
     "gelutanh_inplace"
     "gelutanh_backward"
-    # "gemm"
+    "gemm"
     "logsumexp"
     "maximum"
     "maxsumexp"
@@ -59,7 +59,7 @@ set(TESTS
     "traits"
     "scal"
     "hypot"
-    )
+)
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
@@ -84,7 +84,7 @@ set(TESTS_NOT_IMPLEMENTED
     "hypot"
     "add_slice"
     "prod_fiber3"
-    )
+)
 
 # Add target for local coverage
 if(BUILD_COVERAGE)
@@ -107,5 +107,5 @@ foreach(test IN LISTS TESTS)
         COV_NAME coverage_tile_${test}
         COV_GLOBAL coverage_tile coverage
         LABELS ${labels}
-        )
+    )
 endforeach()

@@ -38,7 +38,7 @@ set(TESTS_MPI
     "gelutanh"
     "gelutanh_inplace"
     "gelutanh_backward"
-    # "gemm"
+    "gemm"
     "logsumexp"
     "maximum"
     "maxsumexp"

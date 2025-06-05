@@ -6,29 +6,20 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/gemm.cc.in
+ * @file tests/starpu/gemm.cc
  * GEMM operation for StarPU buffers
  *
  * @version 1.1.0
  * */
 
-#include "nntile/starpu/config.hh"
+#include "nntile/context.hh"
 #include "nntile/starpu/gemm.hh"
+#include "nntile/kernel/cblas.hh"
+#include "nntile/kernel/cublas.hh"
 #include "../testing.hh"
 #include <vector>
 #include <stdexcept>
 #include <iostream>
-
-#ifdef NNTILE_USE_CBLAS
-#   include <@CBLAS_H_NAME@>
-#   ifndef CBLAS_INT
-#       define CBLAS_INT @CBLAS_INT_TYPE@
-#   endif // CBLAS_INT
-#endif // NNTILE_USE_CBLAS
-
-#ifdef NNTILE_USE_CUDA
-#   include <cublas_v2.h>
-#endif // NNTILE_USE_CUDA
 
 using namespace nntile;
 using namespace nntile::starpu;
@@ -102,7 +93,7 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
             transB_ = CblasTrans;
             ldB = n;
     }
-    std::cout << "Run cblas_gemm<" << T::type_repr << ">\n";
+    std::cout << "Run cblas_gemm<" << T::short_name << ">\n";
     for(Index b = 0; b < batch; ++b)
     {
         cblas_gemm(transA_, transB_, m, n, k, alpha, &A[b*m*k], ldA, &B[b*n*k],
@@ -112,18 +103,18 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
     VariableHandle A_handle(&A[0], sizeof(T)*A.size()),
         B_handle(&B[0], sizeof(T)*B.size()),
         C2_handle(&C2[0], sizeof(T)*C.size());
-    gemm::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::gemm::submit<" << T::type_repr << "> restricted to CPU\n";
-    gemm::submit<T>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
+    gemm.restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::gemm::submit<" << T::short_name << "> restricted to CPU\n";
+    gemm.submit<std::tuple<T>>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
             beta, C2_handle);
     starpu_task_wait_for_all();
     C2_handle.unregister();
     // Check result
     for(Index i = 0; i < C.size(); ++i)
     {
-        TEST_ASSERT(Y(C[i]) == Y(C2[i]));
+        TEST_ASSERT((Y(C[i])-Y(C2[i])) <= T::epsilon * std::abs(Y(C[i])));
     }
-    std::cout << "OK: starpu::gemm::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::gemm::submit<" << T::short_name << "> restricted to CPU\n";
 }
 
 template<typename T>
@@ -254,7 +245,7 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     cuda_err = cudaMemcpy(dev_C, &C[0], sizeof(T)*C.size(),
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run cublas_gemm<" << T::type_repr << ">\n";
+    std::cout << "Run cublas_gemm<" << T::short_name << ">\n";
     for(Index b = 0; b < batch; ++b)
     {
         cublas_gemm(cublas, transA_, transB_, m, n, k, alpha, &dev_A[b*m*k],
@@ -282,18 +273,18 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     VariableHandle A_handle(&A[0], sizeof(T)*A.size()),
         B_handle(&B[0], sizeof(T)*B.size()),
         C2_handle(&C2[0], sizeof(T)*C.size());
-    gemm::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::gemm::submit<" << T::type_repr << "> restricted to CUDA\n";
-    gemm::submit<T>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
+    gemm.restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::gemm::submit<" << T::short_name << "> restricted to CUDA\n";
+    gemm.submit<std::tuple<T>>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
             beta, C2_handle);
     starpu_task_wait_for_all();
     C2_handle.unregister();
     // Check result
     for(Index i = 0; i < C.size(); ++i)
     {
-        TEST_ASSERT(Y(C[i]) == Y(C2[i]));
+        TEST_ASSERT((Y(C[i])-Y(C2[i])) <= 2 * T::epsilon * std::abs(Y(C[i])));
     }
-    std::cout << "OK: starpu::gemm::submit<" << T::type_repr << "> restricted to CUDA\n";
+    std::cout << "OK: starpu::gemm::submit<" << T::short_name << "> restricted to CUDA\n";
 }
 
 template<typename T>
@@ -326,12 +317,10 @@ void validate_cuda_many()
 int main(int argc, char **argv)
 {
     // Initialize StarPU (it will automatically shutdown itself on exit)
-    int ncpus=1, ncuda=1, cublas=1, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    int ncpus=1, ncuda=1, ooc=0, verbose=0;
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
-    auto config = starpu::Config(
-        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
-    );
+    auto context = Context(ncpus, ncuda, ooc, ooc_path, ooc_size, verbose);
 
     // Launch all tests
 #ifdef NNTILE_USE_CBLAS

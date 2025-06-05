@@ -14,6 +14,9 @@
 
 #pragma once
 
+// Compile-time definitions
+#include <nntile/defs.h>
+
 // Base data types (e.g., Index, fp64_t, fp32_t)
 #include <nntile/base_types.hh>
 
@@ -36,9 +39,6 @@
 
 // Tensor as a set of tiles with its operations
 #include <nntile/tensor.hh>
-
-// Layers
-//#include <nntile/layer.hh>
 
 // Logger thread to log activities
 #include <nntile/logger.hh>
