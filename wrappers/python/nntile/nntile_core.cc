@@ -55,9 +55,6 @@ void def_mod_starpu(py::module_ &m)
                 }
             }
             starpu_mpi_wait_for_all(MPI_COMM_WORLD);});
-    m.def("restrict_cuda", [](){restrict_where(STARPU_CUDA);});
-    m.def("restrict_cpu", [](){restrict_where(STARPU_CPU);});
-    m.def("restrict_restore", [](){restore_where();});
     m.def("profiling_init", [](){
             starpu_profiling_init();
             });
@@ -411,7 +408,10 @@ void def_class_tensor(py::module_ &m, const char *name)
     using namespace nntile::tensor;
     py::class_<Tensor<T>, TensorTraits>(m, name, py::multiple_inheritance()).
         def(py::init<const TensorTraits &, const std::vector<int> &, const char *>(),
-            py::arg("traits"), py::arg("distr"), py::arg("name") = nullptr).
+            py::arg("traits"),
+            py::arg("distr") = std::vector<int>(),
+            py::arg("name") = nullptr
+        ).
         def("unregister", &Tensor<T>::unregister).
         def("unregister_submit", &Tensor<T>::unregister_submit).
         def("unregister_no_coherency", &Tensor<T>::unregister_no_coherency).
@@ -1491,7 +1491,10 @@ PYBIND11_MODULE(nntile_core, m)
             py::arg("logger_addr")="localhost",
             py::arg("logger_port")=5001,
             py::arg("verbose")=0)
-        .def("shutdown", &nntile::Context::shutdown);
+        .def("shutdown", &nntile::Context::shutdown)
+        .def("restrict_cpu", &nntile::Context::restrict_cpu)
+        .def("restrict_cuda", &nntile::Context::restrict_cuda)
+        .def("restore_where", &nntile::Context::restore_where);
 
     // Add starpu submodule
     auto starpu = m.def_submodule("starpu");

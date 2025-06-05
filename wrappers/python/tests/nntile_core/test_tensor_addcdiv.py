@@ -25,7 +25,7 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
 addcdiv = {np.float32: nntile.nntile_core.tensor.addcdiv_fp32,
            np.float64: nntile.nntile_core.tensor.addcdiv_fp64}
 
-nntile.nntile_init(ncpus=1, ncuda=0, cublas=0, ooc=0, logger=0, verbose=0)
+context = nntile.Context(ncpu=1, ncuda=0, ooc=0, logger=0, verbose=0)
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])

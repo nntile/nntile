@@ -86,6 +86,15 @@ public:
      * calls did not fail.
      */
     void shutdown();
+
+    //! Restrict computation to CPU
+    void restrict_cpu();
+
+    //! Restrict computation to CUDA
+    void restrict_cuda();
+
+    //! Restore computation to all devices
+    void restore_where();
 };
 
 } // namespace nntile

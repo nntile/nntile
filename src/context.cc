@@ -31,6 +31,7 @@
 // Other NNTile headers
 #include "nntile/logger.hh"
 #include "nntile/starpu/handle.hh"
+#include "nntile/starpu.hh"
 
 namespace nntile
 {
@@ -281,6 +282,225 @@ void Context::shutdown()
     {
         std::cout << "Finished shutdown of NNTile\n";
     }
+}
+
+//! Restrict computation to CPU
+void Context::restrict_cpu()
+{
+    using namespace starpu;
+    accumulate.restrict_where(STARPU_CPU);
+    accumulate_hypot.restrict_where(STARPU_CPU);
+    accumulate_maxsumexp.restrict_where(STARPU_CPU);
+    adam_step.restrict_where(STARPU_CPU);
+    adamw_step.restrict_where(STARPU_CPU);
+    add.restrict_where(STARPU_CPU);
+    add_fiber.restrict_where(STARPU_CPU);
+    add_fiber_inplace.restrict_where(STARPU_CPU);
+    add_inplace.restrict_where(STARPU_CPU);
+    add_scalar.restrict_where(STARPU_CPU);
+    add_slice.restrict_where(STARPU_CPU);
+    add_slice_inplace.restrict_where(STARPU_CPU);
+    addcdiv.restrict_where(STARPU_CPU);
+    clear.codelet.restrict_where(STARPU_CPU);
+    conv2d_bwd_input_inplace.restrict_where(STARPU_CPU);
+    conv2d_bwd_weight_inplace.restrict_where(STARPU_CPU);
+    conv2d_inplace.restrict_where(STARPU_CPU);
+    copy.codelet.restrict_where(STARPU_CPU);
+    dgelu.restrict_where(STARPU_CPU);
+    dgelutanh.restrict_where(STARPU_CPU);
+    drelu.restrict_where(STARPU_CPU);
+    embedding.restrict_where(STARPU_CPU);
+    embedding_backward.restrict_where(STARPU_CPU);
+    fill.restrict_where(STARPU_CPU);
+    gelu.restrict_where(STARPU_CPU);
+    gelu_backward.restrict_where(STARPU_CPU);
+    gelutanh.restrict_where(STARPU_CPU);
+    gelutanh_backward.restrict_where(STARPU_CPU);
+    gelutanh_inplace.restrict_where(STARPU_CPU);
+    gemm.restrict_where(STARPU_CPU);
+    hypot.restrict_where(STARPU_CPU);
+    hypot_scalar_inverse.restrict_where(STARPU_CPU);
+    log_scalar.restrict_where(STARPU_CPU);
+    logsumexp.restrict_where(STARPU_CPU);
+    mask_scalar.restrict_where(STARPU_CPU);
+    maximum.restrict_where(STARPU_CPU);
+    maxsumexp.restrict_where(STARPU_CPU);
+    norm_fiber.restrict_where(STARPU_CPU);
+    norm_slice.restrict_where(STARPU_CPU);
+    pow.restrict_where(STARPU_CPU);
+    prod.restrict_where(STARPU_CPU);
+    prod_fiber.restrict_where(STARPU_CPU);
+    prod_fiber3.restrict_where(STARPU_CPU);
+    prod_inplace.restrict_where(STARPU_CPU);
+    prod_slice.restrict_where(STARPU_CPU);
+    randn.restrict_where(STARPU_CPU);
+    relu.restrict_where(STARPU_CPU);
+    relu_backward.restrict_where(STARPU_CPU);
+    relu_forward.restrict_where(STARPU_CPU);
+    rope.restrict_where(STARPU_CPU);
+    rope_backward.restrict_where(STARPU_CPU);
+    scal.restrict_where(STARPU_CPU);
+    scal_inplace.restrict_where(STARPU_CPU);
+    silu_backward.restrict_where(STARPU_CPU);
+    silu_forward.restrict_where(STARPU_CPU);
+    softmax.restrict_where(STARPU_CPU);
+    softmax_inplace.restrict_where(STARPU_CPU);
+    sqrt.restrict_where(STARPU_CPU);
+    sqrt_inplace.restrict_where(STARPU_CPU);
+    subcopy.restrict_where(STARPU_CPU);
+    subtract_indexed_outputs.restrict_where(STARPU_CPU);
+    sum_fiber.restrict_where(STARPU_CPU);
+    sum_slice.restrict_where(STARPU_CPU);
+    sumprod_fiber.restrict_where(STARPU_CPU);
+    sumprod_slice.restrict_where(STARPU_CPU);
+    total_sum_accum.restrict_where(STARPU_CPU);
+    transpose.restrict_where(STARPU_CPU);
+}
+
+//! Restrict computation to CUDA
+void Context::restrict_cuda()
+{
+    using namespace starpu;
+    accumulate.restrict_where(STARPU_CUDA);
+    accumulate_hypot.restrict_where(STARPU_CUDA);
+    accumulate_maxsumexp.restrict_where(STARPU_CUDA);
+    adam_step.restrict_where(STARPU_CUDA);
+    adamw_step.restrict_where(STARPU_CUDA);
+    add.restrict_where(STARPU_CUDA);
+    add_fiber.restrict_where(STARPU_CUDA);
+    add_fiber_inplace.restrict_where(STARPU_CUDA);
+    add_inplace.restrict_where(STARPU_CUDA);
+    add_scalar.restrict_where(STARPU_CUDA);
+    add_slice.restrict_where(STARPU_CUDA);
+    add_slice_inplace.restrict_where(STARPU_CUDA);
+    addcdiv.restrict_where(STARPU_CUDA);
+    clear.codelet.restrict_where(STARPU_CUDA);
+    conv2d_bwd_input_inplace.restrict_where(STARPU_CUDA);
+    conv2d_bwd_weight_inplace.restrict_where(STARPU_CUDA);
+    conv2d_inplace.restrict_where(STARPU_CUDA);
+    copy.codelet.restrict_where(STARPU_CUDA);
+    dgelu.restrict_where(STARPU_CUDA);
+    dgelutanh.restrict_where(STARPU_CUDA);
+    drelu.restrict_where(STARPU_CUDA);
+    embedding.restrict_where(STARPU_CUDA);
+    embedding_backward.restrict_where(STARPU_CUDA);
+    fill.restrict_where(STARPU_CUDA);
+    gelu.restrict_where(STARPU_CUDA);
+    gelu_backward.restrict_where(STARPU_CUDA);
+    gelutanh.restrict_where(STARPU_CUDA);
+    gelutanh_backward.restrict_where(STARPU_CUDA);
+    gelutanh_inplace.restrict_where(STARPU_CUDA);
+    gemm.restrict_where(STARPU_CUDA);
+    hypot.restrict_where(STARPU_CUDA);
+    hypot_scalar_inverse.restrict_where(STARPU_CUDA);
+    log_scalar.restrict_where(STARPU_CUDA);
+    logsumexp.restrict_where(STARPU_CUDA);
+    mask_scalar.restrict_where(STARPU_CUDA);
+    maximum.restrict_where(STARPU_CUDA);
+    maxsumexp.restrict_where(STARPU_CUDA);
+    norm_fiber.restrict_where(STARPU_CUDA);
+    norm_slice.restrict_where(STARPU_CUDA);
+    pow.restrict_where(STARPU_CUDA);
+    prod.restrict_where(STARPU_CUDA);
+    prod_fiber.restrict_where(STARPU_CUDA);
+    prod_fiber3.restrict_where(STARPU_CUDA);
+    prod_inplace.restrict_where(STARPU_CUDA);
+    prod_slice.restrict_where(STARPU_CUDA);
+    randn.restrict_where(STARPU_CUDA);
+    relu.restrict_where(STARPU_CUDA);
+    relu_backward.restrict_where(STARPU_CUDA);
+    relu_forward.restrict_where(STARPU_CUDA);
+    rope.restrict_where(STARPU_CUDA);
+    rope_backward.restrict_where(STARPU_CUDA);
+    scal.restrict_where(STARPU_CUDA);
+    scal_inplace.restrict_where(STARPU_CUDA);
+    silu_backward.restrict_where(STARPU_CUDA);
+    silu_forward.restrict_where(STARPU_CUDA);
+    softmax.restrict_where(STARPU_CUDA);
+    softmax_inplace.restrict_where(STARPU_CUDA);
+    sqrt.restrict_where(STARPU_CUDA);
+    sqrt_inplace.restrict_where(STARPU_CUDA);
+    subcopy.restrict_where(STARPU_CUDA);
+    subtract_indexed_outputs.restrict_where(STARPU_CUDA);
+    sum_fiber.restrict_where(STARPU_CUDA);
+    sum_slice.restrict_where(STARPU_CUDA);
+    sumprod_fiber.restrict_where(STARPU_CUDA);
+    sumprod_slice.restrict_where(STARPU_CUDA);
+    total_sum_accum.restrict_where(STARPU_CUDA);
+    transpose.restrict_where(STARPU_CUDA);
+}
+
+//! Restore computation to all devices
+void Context::restore_where()
+{
+    using namespace starpu;
+    accumulate.restore_where();
+    accumulate_hypot.restore_where();
+    accumulate_maxsumexp.restore_where();
+    adam_step.restore_where();
+    adamw_step.restore_where();
+    add.restore_where();
+    add_fiber.restore_where();
+    add_fiber_inplace.restore_where();
+    add_inplace.restore_where();
+    add_scalar.restore_where();
+    add_slice.restore_where();
+    add_slice_inplace.restore_where();
+    addcdiv.restore_where();
+    clear.codelet.restore_where();
+    conv2d_bwd_input_inplace.restore_where();
+    conv2d_bwd_weight_inplace.restore_where();
+    conv2d_inplace.restore_where();
+    copy.codelet.restore_where();
+    dgelu.restore_where();
+    dgelutanh.restore_where();
+    drelu.restore_where();
+    embedding.restore_where();
+    embedding_backward.restore_where();
+    fill.restore_where();
+    gelu.restore_where();
+    gelu_backward.restore_where();
+    gelutanh.restore_where();
+    gelutanh_backward.restore_where();
+    gelutanh_inplace.restore_where();
+    gemm.restore_where();
+    hypot.restore_where();
+    hypot_scalar_inverse.restore_where();
+    log_scalar.restore_where();
+    logsumexp.restore_where();
+    mask_scalar.restore_where();
+    maximum.restore_where();
+    maxsumexp.restore_where();
+    norm_fiber.restore_where();
+    norm_slice.restore_where();
+    pow.restore_where();
+    prod.restore_where();
+    prod_fiber.restore_where();
+    prod_fiber3.restore_where();
+    prod_inplace.restore_where();
+    prod_slice.restore_where();
+    randn.restore_where();
+    relu.restore_where();
+    relu_backward.restore_where();
+    relu_forward.restore_where();
+    rope.restore_where();
+    rope_backward.restore_where();
+    scal.restore_where();
+    scal_inplace.restore_where();
+    silu_backward.restore_where();
+    silu_forward.restore_where();
+    softmax.restore_where();
+    softmax_inplace.restore_where();
+    sqrt.restore_where();
+    sqrt_inplace.restore_where();
+    subcopy.restore_where();
+    subtract_indexed_outputs.restore_where();
+    sum_fiber.restore_where();
+    sum_slice.restore_where();
+    sumprod_fiber.restore_where();
+    sumprod_slice.restore_where();
+    total_sum_accum.restore_where();
+    transpose.restore_where();
 }
 
 } // namespace nntile

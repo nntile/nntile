@@ -18,7 +18,7 @@ import torch
 import nntile
 
 # Set up StarPU configuration and init it
-nntile.nntile_init(ncpus=1, ncuda=0, cublas=0, ooc=0, logger=0, verbose=0)
+context = nntile.Context(ncpu=1, ncuda=0, ooc=0, logger=0, verbose=0)
 # Define list of tested types
 dtypes = [np.float32, np.float64]
 # Define mapping between numpy and nntile types
