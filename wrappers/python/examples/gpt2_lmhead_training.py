@@ -310,8 +310,7 @@ elif args.optimizer == "adamw":
             args.lr)
 elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(gpt2lmhead_nntile.get_parameters(),
-            args.lr, next_tag)
-next_tag = optimizer.get_next_tag()
+            args.lr)
 
 # Set OOC force for optimizer
 optimizer.force_offload_disk(args.force_offload_disk_portion_optimizer)
