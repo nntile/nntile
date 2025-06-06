@@ -11,8 +11,6 @@
 #
 # @version 1.1.0
 
-import time
-
 import numpy as np
 import pytest
 import torch
@@ -94,27 +92,14 @@ class ToyFC_SkipConnection(BaseModel):
         return nntile_model
 
 
-@pytest.mark.xfail(reason='not implemented')
-def test_add(n=100, hidden_dim=50, num_samples=1000):
+@pytest.mark.skip(reason='Frob loss is not working now')
+def test_add(context, n=100, hidden_dim=50, num_samples=1000):
     torch_input = torch.randn(num_samples, n)
     torch_model = ToyFC_SkipConnectionTorch(n, hidden_dim)
     torch_output = torch_model(torch_input)
     torch_loss = 0.5 * torch.sum(torch.square(torch_output))
     torch_loss.backward()
     print("Torch loss = {}".format(torch_loss.item()))
-
-    time0 = -time.time()
-    # Set up StarPU+MPI and init codelets
-    nntile.nntile_init(
-        ncpus=1,
-        ncuda=0,
-        cublas=0,
-        ooc=0,
-        logger=0,
-        verbose=0,
-    )
-    time0 += time.time()
-    print("StarPU + NNTile + MPI init in {} seconds".format(time0))
 
     x_traits = TensorTraits([num_samples, n], [num_samples, n])
     x_distr = [0] * x_traits.grid.nelems

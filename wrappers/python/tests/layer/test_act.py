@@ -22,15 +22,6 @@ import nntile.tensor
 import nntile.utils.constructors as nntc
 from nntile.layer import Act
 
-nntile.nntile_init(
-    ncpus=1,
-    ncuda=0,
-    cublas=0,
-    ooc=0,
-    logger=0,
-    verbose=0,
-)
-
 # Define mapping between numpy and nntile types
 Tensor = {
     np.float32: nntile.tensor.Tensor_fp32,
@@ -64,7 +55,7 @@ def setup(name: str, dtype: np.dtype):
 @pytest.mark.parametrize("name", ["relu", "gelu", "gelutanh", "silu"])
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
 class TestAct:
-    def test_forward(self, name: str, dtype: np.dtype):
+    def test_forward(self, context, name: str, dtype: np.dtype):
         if dtype == np.float32:
             tol = 1e-5
         elif dtype == np.float64:
@@ -91,7 +82,7 @@ class TestAct:
         A_moments.unregister()
         layer.unregister()
 
-    def test_backward(self, name: str, dtype: np.dtype):
+    def test_backward(self, context, name: str, dtype: np.dtype):
         if dtype == np.float32:
             tol = 1e-5
         elif dtype == np.float64:
@@ -131,7 +122,7 @@ class TestAct:
         A_moments.unregister()
         layer.unregister()
 
-    def test_dynamic(self, name: str, dtype: np.dtype):
+    def test_dynamic(self, context, name: str, dtype: np.dtype):
         if dtype == np.float32:
             tol = 1e-5
         elif dtype == np.float64:

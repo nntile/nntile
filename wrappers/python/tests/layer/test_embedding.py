@@ -20,15 +20,6 @@ import nntile
 import nntile.utils.constructors as nntc
 from nntile.layer import Embedding
 
-nntile.nntile_init(
-    ncpus=1,
-    ncuda=0,
-    cublas=0,
-    ooc=0,
-    logger=0,
-    verbose=0,
-)
-
 # Define mapping between numpy and nntile types
 Tensor = {
     np.float32: nntile.tensor.Tensor_fp32,
@@ -37,7 +28,7 @@ Tensor = {
 
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
-def test_embedding(dtype: np.dtype):
+def test_embedding(context, dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     index_shape = [4, 5, 6]
     vocab_size = 1000
@@ -98,7 +89,7 @@ def test_embedding(dtype: np.dtype):
 
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
-def test_embedding_dynamic(numpy_rng, dtype):
+def test_embedding_dynamic(context, numpy_rng, dtype):
     # Describe single-tile tensor, located at node 0
     index_shape = [4, 5, 6]
     vocab_size = 1000

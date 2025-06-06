@@ -24,16 +24,6 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 
 
-nntile.nntile_init(
-    ncpus=1,
-    ncuda=0,
-    cublas=0,
-    ooc=0,
-    logger=0,
-    verbose=0,
-)
-
-
 class RMSNorm(torch.nn.Module):
     """See `original`_ implementation.
 
@@ -88,7 +78,7 @@ class RMSNorm(torch.nn.Module):
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_rms_norm(dtype: np.dtype):
+def test_rms_norm(context, dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [20, 30]
     ndim = len(A_shape)
@@ -151,7 +141,7 @@ def test_rms_norm(dtype: np.dtype):
 
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
-def test_rms_norm_dynamic(numpy_rng, dtype: np.dtype):
+def test_rms_norm_dynamic(context, numpy_rng, dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [20, 30]
     ndim = len(A_shape)

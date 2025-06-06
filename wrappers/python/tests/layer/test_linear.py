@@ -26,19 +26,10 @@ Tensor = {
     np.float64: nntile.tensor.Tensor_fp64,
 }
 
-nntile.nntile_init(
-    ncpus=1,
-    ncuda=0,
-    cublas=0,
-    ooc=0,
-    logger=0,
-    verbose=0,
-)
-
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
 @pytest.mark.parametrize('side', ['L', 'R'])
-def test_linear(side: str, dtype: np.dtype):
+def test_linear(context, side: str, dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [4, 5, 6]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
@@ -101,7 +92,7 @@ def test_linear(side: str, dtype: np.dtype):
 
 
 @pytest.mark.skip(reason='not implemented')
-def test_linear_fp32_fast_fp16():
+def test_linear_fp32_fast_fp16(context):
     dtype = np.float32
     # Describe single-tile tensor, located at node 0
     A_shape = [4, 5, 6]
@@ -155,7 +146,7 @@ def test_linear_fp32_fast_fp16():
     ('R', [5, 7, 2], [10, 5, 7], [10], 2),
     ('R', [7, 3, 10], [5, 7], [5], 1),
 ])
-def test_linear_with_torch(side: str, x_shape, w_shape, b_shape,
+def test_linear_with_torch(context, side: str, x_shape, w_shape, b_shape,
                            n_contracted_dim):
     """Compare :py:class:`nntile.layer.Linear` and :py:class:`torch.nn.Linear`.
 
@@ -253,7 +244,7 @@ def test_linear_with_torch(side: str, x_shape, w_shape, b_shape,
     ([64, 100], [100, 10]),
     ([64, 128, 100], [100, 20]),
 ])
-def test_linear_with_torch_init(x_shape, w_shape):
+def test_linear_with_torch_init(context, x_shape, w_shape):
     """Similar to `test_linear_with_torch` but weights are initialized with
     :py:class:`torch.nn.Linear`.
     """
@@ -328,7 +319,7 @@ def test_linear_with_torch_init(x_shape, w_shape):
         ([64, 128, 100], [100, 20]),
     ],
 )
-def test_dynamic(numpy_rng, x_shape, w_shape):
+def test_dynamic(context, numpy_rng, x_shape, w_shape):
     """Similar to `test_linear_with_torch` but weights are initialized with
     :py:class:`torch.nn.Linear`.
     """
@@ -387,7 +378,7 @@ def test_dynamic(numpy_rng, x_shape, w_shape):
     ('R', [5, 7, 2], [10, 5, 7], [10], 2),
     ('R', [7, 3, 10], [5, 7], [5], 1),
 ])
-def test_linear_flops(side: str, x_shape, w_shape, b_shape,
+def test_linear_flops(context, side: str, x_shape, w_shape, b_shape,
                            n_contracted_dim):
     """Compare flops counting in :py:class:`nntile.layer.Linear`
     and analytical formulas

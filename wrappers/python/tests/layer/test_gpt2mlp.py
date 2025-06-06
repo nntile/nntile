@@ -12,8 +12,6 @@
 #
 # @version 1.1.0
 
-import time
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -68,7 +66,11 @@ class GPT2MLP(nn.Module):
 
 
 def test_gpt2mlp(
-    batch_size=100, batch_size_tile=10, interm_size=1000, interm_size_tile=100
+    context,
+    batch_size=100,
+    batch_size_tile=10,
+    interm_size=1000,
+    interm_size_tile=100,
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     gpt2_config = GPT2Config(activation_function="relu", resid_pdrop=0.0)
@@ -88,19 +90,6 @@ def test_gpt2mlp(
 
     torch_val = torch.square(torch.norm(hug_result)) * 0.5
     torch_val.backward()
-
-    time0 = -time.time()
-    # Initialize NNTile
-    nntile.nntile_init(
-        ncpus=1,
-        ncuda=0,
-        cublas=0,
-        ooc=0,
-        logger=0,
-        verbose=0,
-    )
-    time0 += time.time()
-    print("StarPU + NNTile + MPI init in {} seconds".format(time0))
 
     nntile_config = {
         "embed_dim": input_dim,

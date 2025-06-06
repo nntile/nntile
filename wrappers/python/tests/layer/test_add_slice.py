@@ -16,7 +16,6 @@ import pytest
 import torch
 import torch.nn as nn
 
-import nntile
 from nntile.layer.act import Act
 from nntile.layer.add_slice import AddSlice
 from nntile.layer.linear import Linear
@@ -103,8 +102,8 @@ class NNTileToyModel(BaseModel):
         return nntile_model
 
 
-@pytest.mark.xfail(reason='not implemented')
-def test_add_slice(batch_size=10, input_dim=15):
+@pytest.mark.skip(reason='Frob loss is not working now')
+def test_add_slice(context, batch_size=10, input_dim=15):
     x_input_torch = torch.randn(batch_size, input_dim)
     y_input_torch = torch.randn(10)
     torch_model = ToyModel()
@@ -114,14 +113,6 @@ def test_add_slice(batch_size=10, input_dim=15):
     torch_loss_val = torch_loss.item()
     print("Torch loss = {}".format(torch_loss_val))
 
-    nntile.nntile_init(
-        ncpus=1,
-        ncuda=0,
-        cublas=0,
-        ooc=0,
-        logger=0,
-        verbose=0,
-    )
     axis = 0
     nntile_model = NNTileToyModel.from_torch(
         torch_model, batch_size, input_dim, axis
