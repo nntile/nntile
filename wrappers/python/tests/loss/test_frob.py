@@ -18,22 +18,13 @@ from numpy.testing import assert_equal
 import nntile
 from nntile.loss import Frob
 
-nntile.nntile_init(
-    ncpus=1,
-    ncuda=0,
-    cublas=0,
-    ooc=0,
-    logger=0,
-    verbose=0,
-)
-
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_frob(dtype: np.dtype):
+def test_frob(context, dtype: np.dtype):
     """Helper function returns bool value true if test passes."""
     rng = np.random.default_rng(42)
 

@@ -18,8 +18,6 @@ from scipy.special import erf
 
 import nntile
 
-context = nntile.Context(ncpu=1, ncuda=0, ooc=0, logger=0, verbose=0)
-
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
@@ -46,7 +44,7 @@ def dgelu_numpy(x, approximate=True):
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_dgelutanh(dtype, approximate=True):
+def test_dgelutanh(context, dtype, approximate=True):
     # Describe single-tile tensor, located at node 0
     shape = [2, 2]
     traits = nntile.tensor.TensorTraits(shape, shape)

@@ -16,8 +16,6 @@ import pytest
 
 import nntile
 
-context = nntile.Context(ncpu=1, ncuda=0, ooc=0, logger=0, verbose=0)
-
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
@@ -28,7 +26,7 @@ randn = {np.float32: nntile.nntile_core.tensor.randn_fp32,
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_randn(dtype):
+def test_randn(context, dtype):
     # Describe single-tile tensor, located at node 0
     shape = [100, 100, 100]
     ndim = len(shape)

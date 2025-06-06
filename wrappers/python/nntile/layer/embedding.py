@@ -105,7 +105,7 @@ class Embedding(BaseLayer):
 
     @classmethod
     def from_torch(
-        cls, torch_embedding, x, next_tag, dtype=Tensor_fp32, embedding_tile_size=None
+        cls, torch_embedding, x, dtype=Tensor_fp32, embedding_tile_size=None
     ):
         # Get embedding dimensions
         vocab_size = torch_embedding.weight.shape[0]
@@ -115,21 +115,20 @@ class Embedding(BaseLayer):
             embedding_tile_size = emb_size
 
         # Create embedding layer
-        layer, next_tag = cls.generate_simple(
+        layer = cls.generate_simple(
             x.value,
             dtype,
             0,  # axis
             vocab_size,
             emb_size,
             embedding_tile_size,
-            embedding_tile_size,
-            next_tag,
+            embedding_tile_size
         )
 
         # Copy weights from PyTorch
         layer.w.value.from_array(torch_embedding.weight.cpu().detach().numpy().T)
 
-        return layer, next_tag
+        return layer
 
     def to_torch(self):
         torch_emb = Embedding_torch(self.w.value.shape[1], self.w.value.shape[0])

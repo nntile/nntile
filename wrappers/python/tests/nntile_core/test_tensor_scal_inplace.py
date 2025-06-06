@@ -17,8 +17,6 @@ from numpy.testing import assert_equal
 
 import nntile
 
-context = nntile.Context(ncpu=1, ncuda=0, ooc=0, logger=0, verbose=0)
-
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
@@ -29,7 +27,7 @@ scal_inplace = {np.float32: nntile.nntile_core.tensor.scal_inplace_fp32,
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_scal_inplace(dtype):
+def test_scal_inplace(context, dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
     alpha = -2.5

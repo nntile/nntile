@@ -153,7 +153,6 @@ elif args.restrict == "cpu":
     nntile.starpu.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
-next_tag = 0
 
 time0 = time.time()
 if args.n_head_tile == -1:
@@ -187,9 +186,9 @@ print(gpt_neo_config_nntile)
 
 
 # Convert PyTorch model to NNTile
-gpt_neo_model, next_tag = GPTNeoForCausalLM.from_torch(
+gpt_neo_model = GPTNeoForCausalLM.from_torch(
     model_torch, args.minibatch_size, args.minibatch_size_tile,
-    args.seq_len, args.seq_len_tile, gpt_neo_config_nntile, next_tag
+    args.seq_len, args.seq_len_tile, gpt_neo_config_nntile
 )
 time1 = time.time() - time0
 print("Converting PyTorch model to NNTile", "requires {} seconds".format(time1))
@@ -247,16 +246,14 @@ for i in range(num_train_batches):
         end_idx = start_idx + args.minibatch_size
 
         # Create input tensor
-        x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = x.next_tag
+        x = nntile.tensor.Tensor_int64(x_traits, x_distr)
         # print(np.linalg.norm(train_input_ids[start_idx:end_idx, :].T))
         x.from_array(np.asfortranarray(train_input_ids[start_idx:end_idx, :].T))
         # print("add minibatch x: ", x.shape)
         minibatch_input.append(x)
 
         # Create output tensor (labels)
-        y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = y.next_tag
+        y = nntile.tensor.Tensor_int64(x_traits, x_distr)
         # print(np.linalg.norm(train_labels[start_idx:end_idx, :].T))
         y.from_array(np.asfortranarray(train_labels[start_idx:end_idx, :].T))
         # print("add minibatch y: ", y.shape)
@@ -269,16 +266,15 @@ print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
 
 # Set up learning rate and optimizer for training
 if args.optimizer == "adam":
-    optimizer = nntile.optimizer.Adam(gpt_neo_model.get_parameters(), args.lr, next_tag)
+    optimizer = nntile.optimizer.Adam(gpt_neo_model.get_parameters(), args.lr)
 elif args.optimizer == "adamw":
-    optimizer = nntile.optimizer.AdamW(gpt_neo_model.get_parameters(), args.lr, next_tag)
+    optimizer = nntile.optimizer.AdamW(gpt_neo_model.get_parameters(), args.lr)
 elif args.optimizer == "sgd":
-    optimizer = nntile.optimizer.SGD(gpt_neo_model.get_parameters(), args.lr, next_tag)
-next_tag = optimizer.get_next_tag()
+    optimizer = nntile.optimizer.SGD(gpt_neo_model.get_parameters(), args.lr)
 
 # Define Cross Entropy loss function for classification
-loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-    gpt_neo_model.activations[-1], next_tag, scale=1.0 / (args.batch_size * args.seq_len)
+loss = nntile.loss.CrossEntropy.generate_simple(
+    gpt_neo_model.activations[-1], scale=1.0 / (args.batch_size * args.seq_len)
 )
 
 # Set up training pipeline

@@ -45,7 +45,7 @@ TEST_LLM_INF_ENGINE_INPUT_PARAMS = [
 
 @pytest.mark.slow
 @pytest.mark.parametrize("params", TEST_LLM_INF_ENGINE_INPUT_PARAMS)
-def test_sync_llm_inference_engine_from_pretrained(starpu_simple, params):
+def test_sync_llm_inference_engine_from_pretrained(context, params):
     tokenizer = GPT2Tokenizer.from_pretrained(params.model_name)
     model_nnt = GPT2Model_nnt.from_pretrained(
         params.model_name,

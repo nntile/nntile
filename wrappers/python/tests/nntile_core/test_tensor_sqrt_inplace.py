@@ -16,8 +16,6 @@ import pytest
 
 import nntile
 
-context = nntile.Context(ncpu=1, ncuda=0, ooc=0, logger=0, verbose=0)
-
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
@@ -28,7 +26,7 @@ sqrt_inplace = {np.float32: nntile.nntile_core.tensor.sqrt_inplace_fp32,
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_sqrt_inplace(dtype):
+def test_sqrt_inplace(context, dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 2]
     traits = nntile.tensor.TensorTraits(shape, shape)

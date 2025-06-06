@@ -136,7 +136,7 @@ def generate_inputs(params: LlamaMLPTestParams, dtype: str):
 ])
 class TestLlamaMLP:
 
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: LlamaMLPTestParams, dtype: str):
         torch_layer, nntile_layer, _, _ = generate_inputs(params, dtype)
         torch_layer_other = nntile_layer.to_torch()
@@ -148,7 +148,7 @@ class TestLlamaMLP:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: LlamaMLPTestParams,
                      dtype: str):
         torch_layer, nntile_layer, x, _ = generate_inputs(params, dtype)
@@ -159,7 +159,7 @@ class TestLlamaMLP:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_forward_backward(self, starpu_simple, torch_rng,
+    def test_forward_backward(self, context, torch_rng,
                               params: LlamaMLPTestParams,
                               dtype: str):
         torch_layer, nntile_layer, x, y_grad = generate_inputs(params, dtype)

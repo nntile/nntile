@@ -164,7 +164,7 @@ def test_gpt2mlp(
 
 
 def test_gpt2mlp_dynamic(
-    starpu_simple, batch_size=100, interm_size=1000, interm_size_tile=1000
+    context, batch_size=100, interm_size=1000, interm_size_tile=1000
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     gpt2_config = GPT2Config(activation_function="relu", resid_pdrop=0.0)

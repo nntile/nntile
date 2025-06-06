@@ -157,7 +157,7 @@ def generate_inputs(params: LlamaDecoderTestParams,
 ])
 @pytest.mark.parametrize('flash_attention', [False])
 class TestLlamaDecoder:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: LlamaDecoderTestParams, dtype: str,
                       att_bias: bool, flash_attention: bool):
         torch_layer, nntile_layer, *_ = generate_inputs(
@@ -171,7 +171,7 @@ class TestLlamaDecoder:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: LlamaDecoderTestParams,
                      dtype: str,
                      att_bias: bool,
@@ -191,7 +191,7 @@ class TestLlamaDecoder:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng,
+    def test_backward(self, context, torch_rng,
                       params: LlamaDecoderTestParams, dtype: str,
                       att_bias: bool, flash_attention: bool):
         torch_layer, nntile_layer, x, y_grad, pos_ids, pos_embs, mask = \

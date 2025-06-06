@@ -23,15 +23,6 @@ import nntile
 from nntile.model.mlp_mixer import MlpMixer as MlpMixerTile
 from nntile.torch_models.mlp_mixer import MlpMixer
 
-nntile.nntile_init(
-    ncpus=1,
-    ncuda=0,
-    cublas=0,
-    ooc=0,
-    logger=0,
-    verbose=0,
-)
-
 
 def image_patching(image, patch_size):
     c, h, w = image.shape
@@ -74,7 +65,7 @@ def data_loader_to_tensor(data_set, label_set, trns, batch_size, minibatch_size,
 
 
 @pytest.mark.slow
-def test_mlp_mixer():
+def test_mlp_mixer(context):
     patch_size = 16
     batch_size = 6
     minibatch_size = 3

@@ -142,7 +142,6 @@ elif args.restrict == "cpu":
     nntile.starpu.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
-next_tag = 0
 
 time0 = time.time()
 if args.num_heads_tile == -1:
@@ -180,24 +179,22 @@ x_traits = nntile.tensor.TensorTraits(
     [args.seq_len, args.minibatch_size], [args.seq_len_tile, args.minibatch_size_tile]
 )
 x_distr = [0] * x_traits.grid.nelems
-x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-x_grad = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-next_tag = x.next_tag
+x = nntile.tensor.Tensor_int64(x_traits, x_distr)
+x_grad = nntile.tensor.Tensor_int64(x_traits, x_distr)
 
 # Create dummy array with input tokens for initialization
 x_np = np.ones((args.seq_len, args.minibatch_size), dtype=np.int64, order="F")
 x.from_array(x_np)
 x_tm = TensorMoments(x, None, False)
 
-x_decoder = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-x_decoder_grad = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-next_tag = x_decoder.next_tag
+x_decoder = nntile.tensor.Tensor_int64(x_traits, x_distr)
+x_decoder_grad = nntile.tensor.Tensor_int64(x_traits, x_distr)
 
 # x_tm_decoder = TensorMoments(x_decoder, None, False)
 
 # Convert PyTorch model to NNTile
-t5_model, next_tag = T5ForSequenceClassification.from_torch(
-    model_torch, x_tm, x_tm, t5_config_nntile, next_tag
+t5_model = T5ForSequenceClassification.from_torch(
+    model_torch, x_tm, x_tm, t5_config_nntile
 )
 time1 = time.time() - time0
 print("Converting PyTorch model to NNTile", "requires {} seconds".format(time1))
@@ -265,15 +262,13 @@ for i in range(num_train_batches):
         end_idx = start_idx + args.minibatch_size
 
         # Create input tensor
-        x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = x.next_tag
+        x = nntile.tensor.Tensor_int64(x_traits, x_distr)
         x.from_array(np.asfortranarray(train_input_ids[start_idx:end_idx, :].T))
         # print("add minibatch x: ", x.shape)
         minibatch_input.append(x)
 
         # Create output tensor (labels)
-        y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = y.next_tag
+        y = nntile.tensor.Tensor_int64(x_traits, x_distr)
         y.from_array(np.asfortranarray(train_labels[start_idx:end_idx, :].T))
         # print("add minibatch y: ", y.shape)
         minibatch_output.append(y)
@@ -285,16 +280,15 @@ print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
 
 # Set up learning rate and optimizer for training
 if args.optimizer == "adam":
-    optimizer = nntile.optimizer.Adam(t5_model.get_parameters(), args.lr, next_tag)
+    optimizer = nntile.optimizer.Adam(t5_model.get_parameters(), args.lr)
 elif args.optimizer == "adamw":
-    optimizer = nntile.optimizer.AdamW(t5_model.get_parameters(), args.lr, next_tag)
+    optimizer = nntile.optimizer.AdamW(t5_model.get_parameters(), args.lr)
 elif args.optimizer == "sgd":
-    optimizer = nntile.optimizer.SGD(t5_model.get_parameters(), args.lr, next_tag)
-next_tag = optimizer.get_next_tag()
+    optimizer = nntile.optimizer.SGD(t5_model.get_parameters(), args.lr)
 
 # Define Cross Entropy loss function for classification
-loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-    t5_model.activations[-1], next_tag, scale=1.0 / (args.batch_size * args.seq_len)
+loss = nntile.loss.CrossEntropy.generate_simple(
+    t5_model.activations[-1], scale=1.0 / (args.batch_size * args.seq_len)
 )
 
 # Set up training pipeline

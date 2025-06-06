@@ -85,7 +85,7 @@ def generate_inputs(numpy_rng, dtype: str, in_channels: int, out_channels: int,
 @pytest.mark.parametrize('padding', [[2, 4]])
 @pytest.mark.parametrize('stride', [[2, 3]])
 @pytest.mark.parametrize('dilation', [[3, 2]])
-def test_coercion(starpu_simple, numpy_rng, dtype: str,
+def test_coercion(context, numpy_rng, dtype: str,
         in_channels: int, out_channels: int, kernel: Sequence[int],
         H_in: int, H_in_tile: int, W_in: int, W_in_tile: int, batch: int,
         batch_tile: int, padding: Sequence[int], stride: Sequence[int],
@@ -138,7 +138,7 @@ def test_coercion(starpu_simple, numpy_rng, dtype: str,
 @pytest.mark.parametrize('dilation', [[3, 2]])
 class TestConv2d:
 
-    def test_forward(self, starpu_simple, numpy_rng, dtype: str,
+    def test_forward(self, context, numpy_rng, dtype: str,
             in_channels: int, out_channels: int, kernel: Sequence[int],
             H_in: int, H_in_tile: int, W_in: int, W_in_tile: int, batch: int,
             batch_tile: int, padding: Sequence[int], stride: Sequence[int],
@@ -162,7 +162,7 @@ class TestConv2d:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, numpy_rng, dtype: str,
+    def test_backward(self, context, numpy_rng, dtype: str,
             in_channels: int, out_channels: int, kernel: Sequence[int],
             H_in: int, H_in_tile: int, W_in: int, W_in_tile: int, batch: int,
             batch_tile: int, padding: Sequence[int], stride: Sequence[int],

@@ -16,8 +16,6 @@ import pytest
 
 import nntile
 
-context = nntile.Context(ncpu=1, ncuda=0, ooc=0, logger=0, verbose=0)
-
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
@@ -30,7 +28,7 @@ add_slice_inplace = {
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_add_slice_inplace(dtype):
+def test_add_slice_inplace(context, dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [2, 3, 4]
     B_shape = []

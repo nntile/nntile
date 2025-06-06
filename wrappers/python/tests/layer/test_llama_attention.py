@@ -182,7 +182,7 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool,
 @pytest.mark.parametrize('flash_attention', [False])
 class TestLlamaAttention:
 
-    def test_torch_coercion(self, starpu_simple, torch_rng, dtype: str,
+    def test_torch_coercion(self, context, torch_rng, dtype: str,
                             params: LlamaAttentionTestParams, bias: bool,
                             flash_attention: bool):
         torch_layer, nntile_layer, *_ = \
@@ -198,7 +198,7 @@ class TestLlamaAttention:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng, dtype: str,
+    def test_forward(self, context, torch_rng, dtype: str,
                      params: LlamaAttentionTestParams, bias: bool,
                             flash_attention: bool):
         torch_layer, nntile_layer, x, pos_ids, pos_embs, mask, *_ = \
@@ -214,7 +214,7 @@ class TestLlamaAttention:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng, dtype: str,
+    def test_backward(self, context, torch_rng, dtype: str,
                               params: LlamaAttentionTestParams, bias: bool,
                             flash_attention: bool):
         torch_layer, nntile_layer, x, pos_ids, pos_embs, mask, y_grad = \
@@ -245,7 +245,7 @@ class TestLlamaAttention:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
 
-    def test_flops_counting(self, starpu_simple, torch_rng, dtype: str,
+    def test_flops_counting(self, context, torch_rng, dtype: str,
                             params: LlamaAttentionTestParams, bias: bool,
                             flash_attention: bool):
 
@@ -280,7 +280,7 @@ class TestLlamaAttention:
 )
 @pytest.mark.parametrize("flash_attention", [False])
 def test_llama_attn_forward_dynamic(
-    starpu_simple,
+    context,
     torch_rng,
     dtype: str,
     params: LlamaAttentionTestParams,
@@ -344,7 +344,7 @@ def test_llama_attn_forward_dynamic(
 )
 @pytest.mark.parametrize("flash_attention", [False])
 def test_llama_attn_kvcache(
-    starpu_simple,
+    context,
     torch_rng,
     dtype: str,
     params: LlamaAttentionTestParams,

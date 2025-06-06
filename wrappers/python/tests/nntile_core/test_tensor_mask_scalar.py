@@ -17,8 +17,6 @@ from numpy.testing import assert_equal
 
 import nntile
 
-context = nntile.Context(ncpu=1, ncuda=0, ooc=0, logger=0, verbose=0)
-
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64,
@@ -30,7 +28,7 @@ mask_scalar_func = {np.float32: nntile.nntile_core.tensor.mask_scalar_fp32,
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_mask_scalar(dtype):
+def test_mask_scalar(context, dtype):
     # Describe single-tile tensor, located at node 0
     shape = [3, 3, 10]
     traits = nntile.tensor.TensorTraits(shape, shape)

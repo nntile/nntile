@@ -67,29 +67,24 @@ class T5Model(BaseModel):
         x: TensorMoments,
         decoder_x: TensorMoments,
         config: T5ConfigNNTile,
-        next_tag: int = 0,
     ):
         encoder_config = copy.deepcopy(config)
         encoder_config.is_decoder = False
         decoder_config = copy.deepcopy(config)
         decoder_config.is_decoder = True
 
-        encoder, next_tag = T5Stack.from_torch(
-            torch_model.encoder, x, encoder_config, next_tag=next_tag
+        encoder = T5Stack.from_torch(
+            torch_model.encoder, x, encoder_config
         )
         encoder_output = encoder.activations[-1]
-        decoder, next_tag = T5Stack.from_torch(
+        decoder = T5Stack.from_torch(
             torch_model.decoder,
             decoder_x,
             decoder_config,
-            next_tag=next_tag,
             encoder_output=encoder_output,
         )
 
-        return (
-            cls(x, decoder_x, encoder, decoder, encoder_config, decoder_config),
-            next_tag,
-        )
+        return cls(x, decoder_x, encoder, decoder, encoder_config, decoder_config)
 
     def to_torch(self):
         """Convert NNTile T5Model to PyTorch T5Model"""
@@ -125,7 +120,6 @@ class T5ForSequenceClassification(BaseModel):
         embedding_layer_decoder,
         transformer: T5Model,
         lm_head: T5ClassificationHead,
-        next_tag: int,
     ):
         self.embedding = embedding_layer
         self.embedding_decoder = embedding_layer_decoder
@@ -153,7 +147,6 @@ class T5ForSequenceClassification(BaseModel):
         x: TensorMoments,
         decoder_x: TensorMoments,
         config: T5ConfigNNTile,
-        next_tag: int = 0,
     ):
         dtype2tensor_type = {
             "fp32": Tensor_fp32,
@@ -165,47 +158,39 @@ class T5ForSequenceClassification(BaseModel):
 
         tensor_type = dtype2tensor_type[config.dtype]
 
-        embedding_layer, next_tag = nntile.layer.embedding.Embedding.from_torch(
+        embedding_layer = nntile.layer.embedding.Embedding.from_torch(
             torch_model.transformer.shared,
             x,
-            next_tag,
             dtype=tensor_type,
             embedding_tile_size=config.d_model_tile,
         )
-        embedding_layer_decoder, next_tag = nntile.layer.embedding.Embedding.from_torch(
+        embedding_layer_decoder = nntile.layer.embedding.Embedding.from_torch(
             torch_model.transformer.shared,
             decoder_x,
-            next_tag,
             dtype=tensor_type,
             embedding_tile_size=config.d_model_tile,
         )
-        transformer, next_tag = T5Model.from_torch(
+        transformer = T5Model.from_torch(
             torch_model.transformer,
             embedding_layer.activations_output[0],
             embedding_layer_decoder.activations_output[0],
             config,
-            next_tag,
         )
-        lm_head, next_tag = T5ClassificationHead.from_torch(
+        lm_head = T5ClassificationHead.from_torch(
             torch_model.classification_head,
             transformer.activations[-1],
             config,
             torch_model.config.num_labels,
-            next_tag,
         )
 
-        return (
-            cls(
+        return cls(
                 x,
                 decoder_x,
                 embedding_layer,
                 embedding_layer_decoder,
                 transformer,
                 lm_head,
-                next_tag,
-            ),
-            next_tag,
-        )
+            )
 
     def to_torch(self):
         """Convert NNTile T5ForSequenceClassification

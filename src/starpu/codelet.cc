@@ -34,7 +34,7 @@ namespace nntile::starpu
 
 //! Default constructor
 Codelet::Codelet(
-    const char *name,
+    const std::string &name,
     uint32_t (*footprint)(starpu_task *),
     func_array cpu_funcs,
     func_array cuda_funcs
@@ -47,8 +47,9 @@ Codelet::Codelet(
     starpu_perfmodel::type = STARPU_HISTORY_BASED;
 
     // Set codelet name and performance model symbol
-    starpu_codelet::name = name;
-    starpu_perfmodel::symbol = name;
+    name_as_string = name;
+    starpu_codelet::name = name_as_string.c_str();
+    starpu_perfmodel::symbol = name_as_string.c_str();
 
     // Set footprint function
     starpu_perfmodel::footprint = footprint;

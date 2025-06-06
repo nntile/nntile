@@ -163,7 +163,7 @@ def generate_inputs(params: GPTNeoTestParams,
                           ["local"]])
 @pytest.mark.parametrize('pattern_mult', [0, 1, 2])
 class TestGPTNeoModel:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: GPTNeoTestParams,
                       dtype: str,
                       attn_pattern: list,
@@ -180,7 +180,7 @@ class TestGPTNeoModel:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: GPTNeoTestParams,
                      dtype: str,
                      attn_pattern: list,
@@ -197,7 +197,7 @@ class TestGPTNeoModel:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
 
-    def test_backward(self, starpu_simple, torch_rng,
+    def test_backward(self, context, torch_rng,
                               params: GPTNeoTestParams,
                               dtype: str,
                               attn_pattern: list,

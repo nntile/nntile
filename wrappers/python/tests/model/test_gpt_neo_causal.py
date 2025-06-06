@@ -129,9 +129,9 @@ def generate_inputs(params: GPTNeoTestParams,
     )
     gen = np.random.default_rng(42)
 
-    nntile_model, _ = GPTNeoForCausalLM.from_torch(
+    nntile_model = GPTNeoForCausalLM.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
-            params.seq_len, params.seq_len_tile, nntile_config, 0)
+            params.seq_len, params.seq_len_tile, nntile_config)
     nntile_model.clear_gradients()
     x_random = gen.integers(params.seq_len,
                             size=nntile_model.activations[0].value.shape,
@@ -168,7 +168,7 @@ def generate_inputs(params: GPTNeoTestParams,
                           ])
 @pytest.mark.parametrize('pattern_mult', [0, 1, 2])
 class TestGPTNeoForCausalLM:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: GPTNeoTestParams,
                       dtype: str,
                       attn_pattern: list,
@@ -185,7 +185,7 @@ class TestGPTNeoForCausalLM:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: GPTNeoTestParams,
                      dtype: str,
                      attn_pattern: list,
@@ -204,7 +204,7 @@ class TestGPTNeoForCausalLM:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
 
-    def test_forward_backward(self, starpu_simple, torch_rng,
+    def test_forward_backward(self, context, torch_rng,
                               params: GPTNeoTestParams,
                               dtype: str,
                               attn_pattern: list,

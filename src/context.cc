@@ -240,6 +240,9 @@ void Context::shutdown()
         throw std::runtime_error("StarPU must be still initialized");
     }
 
+    // Wait for all tasks to finish
+    starpu_task_wait_for_all();
+
     // Shutdown logger if it is running
     if(logger::logger_running)
     {

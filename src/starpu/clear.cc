@@ -16,6 +16,7 @@
 #include "nntile/starpu/clear.hh"
 
 // Standard libraries
+#include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 
@@ -82,11 +83,9 @@ uint32_t Clear::footprint(struct starpu_task *task)
 //! Submit clear task
 void Clear::submit(Handle data)
 {
-    // Get number of bytes
-    std::size_t nbytes = starpu_variable_get_elemsize(data.get());
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
-    args->nbytes = nbytes;
+    args->nbytes = starpu_variable_get_elemsize(data.get());
     // Submit task
     int ret = starpu_task_insert(&codelet,
             STARPU_W, data.get(),

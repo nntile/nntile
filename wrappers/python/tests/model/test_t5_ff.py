@@ -70,7 +70,7 @@ multiple_tiles = T5FFTestParams(
     d_model=128,
     d_model_tile=32,
     d_ff=128,
-    d_ff_tile=32,
+    d_ff_tile=64,
     seq_len=64,
     seq_len_tile=16,
     n_batch=4,
@@ -119,8 +119,8 @@ def generate_inputs(params: T5FFTestParams, dtype: str):
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
-    x_value = x_type(x_traits, x_distr, 0)
-    x_grad = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
+    x_grad = x_type(x_traits, x_distr)
     X = TensorMoments(x_value, x_grad, grad_required=True)
 
     # Generate random input data
@@ -132,7 +132,7 @@ def generate_inputs(params: T5FFTestParams, dtype: str):
     x_torch.requires_grad_()
 
     # Initialize NNTile layer from PyTorch layer
-    nntile_layer, _ = T5LayerFF.from_torch(torch_layer, X, nntile_config, 0)
+    nntile_layer = T5LayerFF.from_torch(torch_layer, X, nntile_config)
     nntile_layer.clear_gradients()
 
     # Generate random gradient for backward pass
@@ -162,7 +162,7 @@ def generate_inputs(params: T5FFTestParams, dtype: str):
 class TestT5LayerFF:
 
     def test_coercion(
-        self, starpu_simple, torch_rng, params: T5FFTestParams, dtype: str
+        self, context, torch_rng, params: T5FFTestParams, dtype: str
     ):
         """Test that weights from PyTorch can be converted to NNTile and back"""
         torch_layer, nntile_layer, _, _ = generate_inputs(params, dtype)
@@ -177,7 +177,7 @@ class TestT5LayerFF:
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
     def test_forward(
-        self, starpu_simple, torch_rng, params: T5FFTestParams, dtype: str
+        self, context, torch_rng, params: T5FFTestParams, dtype: str
     ):
         """Test that forward pass gives same results in PyTorch and NNTile"""
         torch_layer, nntile_layer, x, _ = generate_inputs(params, dtype)
@@ -189,7 +189,7 @@ class TestT5LayerFF:
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
     def test_backward(
-        self, starpu_simple, torch_rng, params: T5FFTestParams, dtype: str
+        self, context, torch_rng, params: T5FFTestParams, dtype: str
     ):
         """Test that backward pass gives same results in PyTorch and NNTile"""
         torch_layer, nntile_layer, x, y_grad = generate_inputs(params, dtype)

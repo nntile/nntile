@@ -15,5 +15,5 @@ import pytest
 
 
 @pytest.mark.xfail(reason='not implemented')
-def test_gelu_backward_async():
+def test_gelu_backward_async(context):
     pass

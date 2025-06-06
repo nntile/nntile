@@ -26,7 +26,6 @@ from .gpt_neo_model import GPTNeoModel
 
 
 class GPTNeoForCausalLM(BaseModel, LLMGenerationMixin):
-    next_tag: int
     gpt_neo_model_: GPTNeoModel
     lin_: Linear
 
@@ -81,7 +80,7 @@ class GPTNeoForCausalLM(BaseModel, LLMGenerationMixin):
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
                    config: GPTNeoConfig,
-                   next_tag: int):
+                   ):
 
         if config.dtype not in ["fp32", "tf32",
                               "bf16", "fp32_fast_fp16",
@@ -90,22 +89,22 @@ class GPTNeoForCausalLM(BaseModel, LLMGenerationMixin):
                             "fp32_fast_bf16 are"
                             "supported for weight type")
 
-        nntile_gpt_neo, next_tag = GPTNeoModel.from_torch(
+        nntile_gpt_neo = GPTNeoModel.from_torch(
                    torch_gpt_neo_causal.transformer,
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
-                   config,
-                   next_tag)
-        lin_head, next_tag = Linear.from_torch(torch_gpt_neo_causal.lm_head,
+                   config
+                   )
+        lin_head = Linear.from_torch(torch_gpt_neo_causal.lm_head,
                                                nntile_gpt_neo.activations[-1],
                                                config.vocab_size,
-                                               config.redux, next_tag)
+                                               config.redux)
 
         nntile_gpt_neo_causal = GPTNeoForCausalLM(nntile_gpt_neo,
                                                lin_head,
                                                config)
 
-        return nntile_gpt_neo_causal, next_tag
+        return nntile_gpt_neo_causal
 
     def to_torch(self):
         config_torch = ConfigTorch(
@@ -156,7 +155,6 @@ class GPTNeoForCausalLM(BaseModel, LLMGenerationMixin):
         batch_size: int,
         batch_size_tile: int,
         seq_len_tile: int,
-        next_tag: int,
         cache_dir: str | None = None,
     ):
         # TODO: where should be global repo with all this logic.
@@ -167,7 +165,6 @@ class GPTNeoForCausalLM(BaseModel, LLMGenerationMixin):
             batch_size,
             batch_size_tile,
             seq_len_tile,
-            next_tag,
             cache_dir=cache_dir,
         )
 
@@ -214,18 +211,16 @@ def create_gpt_neo_model_from_torch_pretrained(
         dtype=dtype,
     )
 
-    next_tag = 0
-    causal_nntile, next_tag = GPTNeoForCausalLM.from_torch(
+    causal_nntile = GPTNeoForCausalLM.from_torch(
         model_torch,
         batch_size,
         batch_size_tile or batch_size,
         seq_len,
         seq_len_tile or seq_len,
-        config_nntile,
-        next_tag
+        config_nntile
     )
 
-    return causal_nntile, next_tag
+    return causal_nntile
 
 
 def compare_shapes(iterable1, iterable2):

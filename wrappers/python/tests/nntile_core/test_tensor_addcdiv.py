@@ -25,11 +25,9 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
 addcdiv = {np.float32: nntile.nntile_core.tensor.addcdiv_fp32,
            np.float64: nntile.nntile_core.tensor.addcdiv_fp64}
 
-context = nntile.Context(ncpu=1, ncuda=0, ooc=0, logger=0, verbose=0)
-
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_addcdiv(dtype):
+def test_addcdiv(context, dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
     traits = nntile.tensor.TensorTraits(shape, shape)

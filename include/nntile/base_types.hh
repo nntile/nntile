@@ -23,7 +23,6 @@
 #include <iostream>
 #include <limits>
 #include <string>
-#include <sstream>
 
 // Third-party headers
 #ifdef NNTILE_USE_CUDA
@@ -50,13 +49,12 @@ using Scalar = float;
 template<typename T, typename... Ts>
 inline std::string type_postfix()
 {
-    std::stringstream result;
-    result << T::short_name;
+    std::string result(T::short_name);
     if constexpr (sizeof...(Ts) > 0)
     {
-        result << "_" << type_postfix<Ts...>();
+        result += "_" + type_postfix<Ts...>();
     }
-    return result.str();
+    return result;
 }
 
 //! NNTile wrapper type for 64-bit signed integers inside NNTile tensors
@@ -414,7 +412,7 @@ public:
     }
 
     // Short type name
-    static constexpr const char *short_name = "fp32/fp16";
+    static constexpr const char *short_name = "fp32=fp16";
 
     // Long type name
     static constexpr const char *long_name = "fp32_fast_fp16_t";
@@ -482,7 +480,7 @@ public:
     }
 
     // Short type name
-    static constexpr const char *short_name = "fp32/bf16";
+    static constexpr const char *short_name = "fp32=bf16";
 
     // Long type name
     static constexpr const char *long_name = "fp32_fast_bf16_t";

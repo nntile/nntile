@@ -26,7 +26,6 @@ from .gpt_neox_mlp import GPTNeoXMLP
 
 
 class GPTNeoXBlock(BaseModel):
-    next_tag: int
     gpt_neox_mlp: GPTNeoXMLP
     input_norm: LayerNorm
     post_attn_norm: LayerNorm
@@ -64,42 +63,36 @@ class GPTNeoXBlock(BaseModel):
         x: TensorMoments,
         position_ids: np.ndarray,
         mask: np.ndarray,
-        config: GPTNeoXConfig,
-        next_tag: int,
+        config: GPTNeoXConfig
     ):
         """
         torch_layer is HF module for GPT-NeoX Layer
         """
-        layer_norm_input_layer, next_tag = LayerNorm.from_torch(
+        layer_norm_input_layer = LayerNorm.from_torch(
             torch_layer.input_layernorm,
-            x,
-            next_tag
+            x
         )
-        attention_layer, next_tag = GPTNeoXAttention.from_torch(
+        attention_layer = GPTNeoXAttention.from_torch(
             torch_layer.attention,
             layer_norm_input_layer.activations_output[0],
             position_ids,
             mask,
-            config,
-            next_tag
+            config
         )
-        post_attn_add, next_tag = Add.generate_simple(
-            x, attention_layer.activations_output[0],
-            next_tag)
+        post_attn_add = Add.generate_simple(
+            x, attention_layer.activations_output[0])
 
-        layer_norm_post_attn_layer, next_tag = LayerNorm.from_torch(
+        layer_norm_post_attn_layer = LayerNorm.from_torch(
             torch_layer.post_attention_layernorm,
-            post_attn_add.activations_output[0],
-            next_tag
+            post_attn_add.activations_output[0]
         )
-        mlp_layer, next_tag = GPTNeoXMLP.from_torch(
+        mlp_layer = GPTNeoXMLP.from_torch(
             torch_layer.mlp,
             layer_norm_post_attn_layer.activations_output[0],
-            config, next_tag)
-        post_mlp_add, next_tag = Add.generate_simple(
+            config)
+        post_mlp_add = Add.generate_simple(
             mlp_layer.activations[-1],
-            post_attn_add.activations_output[0],
-            next_tag)
+            post_attn_add.activations_output[0])
 
         gpt_neox_block = GPTNeoXBlock(x, attention_layer,
                                             mlp_layer,
@@ -109,7 +102,7 @@ class GPTNeoXBlock(BaseModel):
                                             post_mlp_add,
                                             config)
 
-        return gpt_neox_block, next_tag
+        return gpt_neox_block
 
     def to_torch(self):
         torch_config = ConfigTorch(

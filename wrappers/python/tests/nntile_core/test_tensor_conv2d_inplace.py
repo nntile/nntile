@@ -17,8 +17,6 @@ import torch
 
 import nntile
 
-# Set up StarPU configuration and init it
-context = nntile.Context(ncpu=1, ncuda=0, ooc=0, logger=0, verbose=0)
 # Define list of tested types
 dtypes = [np.float32, np.float64]
 # Define mapping between numpy and nntile types
@@ -50,7 +48,7 @@ conv2d_inplace = {
 @pytest.mark.parametrize('stride', [[1, 1], [2, 3]])
 @pytest.mark.parametrize('dilation', [[1, 1], [2, 2]])
 def test_conv2d(
-    starpu_simple,
+    context,
     numpy_rng,
     dtype,
     shape_X,

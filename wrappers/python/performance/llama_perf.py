@@ -197,8 +197,8 @@ if args.submodule == "mlp":
         X = TensorMoments(x_value, x_grad, grad_required=True)
 
         time0 = time.time()
-        nntile_module, _ = LlamaMLP_nntile.from_torch(torch_layer_, X,
-                                                    llama_config_nntile, 0)
+        nntile_module = LlamaMLP_nntile.from_torch(torch_layer_, X,
+                                                    llama_config_nntile)
         time1 = time.time() - time0
         print("Converting PyTorch model to NNTile requires ",
             "{} seconds".format(time1))
@@ -286,8 +286,8 @@ elif args.submodule == "attention":
                             size=(args.minibatch_size, args.seq_len),
                             dtype=np.int64)
         time0 = time.time()
-        nntile_module, _ = LlamaAttention_nntile.from_torch(
-                torch_layer_, X, pos_ids, mask, llama_config_nntile, 0)
+        nntile_module = LlamaAttention_nntile.from_torch(
+                torch_layer_, X, pos_ids, mask, llama_config_nntile)
         time1 = time.time() - time0
         print("Converting PyTorch model to NNTile requires ",
             "{} seconds".format(time1))

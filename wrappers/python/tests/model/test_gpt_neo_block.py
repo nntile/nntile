@@ -150,7 +150,7 @@ def generate_inputs(params: GPTNeoBlockTestParams,
     pytest.param(2, id='even_layer_id'),
 ])
 class TestGPTNeoBlock:
-    def test_coercion(self, starpu_simple, torch_rng, layer_id: int,
+    def test_coercion(self, context, torch_rng, layer_id: int,
                       params: GPTNeoBlockTestParams, dtype: str):
         torch_module, nntile_layer, *_ = generate_inputs(
             params, layer_id, dtype
@@ -164,7 +164,7 @@ class TestGPTNeoBlock:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng, layer_id: int,
+    def test_forward(self, context, torch_rng, layer_id: int,
                      params: GPTNeoBlockTestParams, dtype: str):
         torch_module, nntile_module, x, _ = generate_inputs(
             params, layer_id, dtype
@@ -178,7 +178,7 @@ class TestGPTNeoBlock:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng, layer_id: int,
+    def test_backward(self, context, torch_rng, layer_id: int,
                       params: GPTNeoBlockTestParams, dtype: str):
         torch_module, nntile_module, x, y_grad = generate_inputs(
             params, layer_id, dtype

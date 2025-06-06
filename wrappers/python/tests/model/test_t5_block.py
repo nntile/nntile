@@ -157,8 +157,8 @@ def generate_inputs(params: T5BlockTestParams, dtype: str):
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
-    x_value = x_type(x_traits, x_distr, 0)
-    x_grad = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
+    x_grad = x_type(x_traits, x_distr)
     X = TensorMoments(x_value, x_grad, grad_required=True)
 
     # Generate random input data
@@ -181,8 +181,8 @@ def generate_inputs(params: T5BlockTestParams, dtype: str):
         )
 
     # Initialize NNTile layer from PyTorch layer
-    nntile_block, _ = T5Block.from_torch(
-        torch_block, X, nntile_config, 0, encoder_output=eo_nnt
+    nntile_block = T5Block.from_torch(
+        torch_block, X, nntile_config, encoder_output=eo_nnt
     )
     nntile_block.clear_gradients()
 
@@ -213,7 +213,7 @@ def generate_inputs(params: T5BlockTestParams, dtype: str):
 )
 class TestT5Block:
     def test_forward(
-        self, starpu_simple, torch_rng, params: T5BlockTestParams, dtype: str
+        self, context, torch_rng, params: T5BlockTestParams, dtype: str
     ):
         """Test that forward pass gives same results in PyTorch and NNTile"""
         torch_block, nntile_block, x, _, eo_torch, _eo_nnt = generate_inputs(
@@ -233,7 +233,7 @@ class TestT5Block:
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
     def test_backward(
-        self, starpu_simple, torch_rng, params: T5BlockTestParams, dtype: str
+        self, context, torch_rng, params: T5BlockTestParams, dtype: str
     ):
         """Test that backward pass gives same results in PyTorch and NNTile"""
         torch_block, nntile_block, x, y_grad, eo_torch, _eo_nnt = generate_inputs(

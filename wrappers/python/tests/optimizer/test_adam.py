@@ -27,7 +27,7 @@ import nntile
     (1000, 10, 'cpu', 1e-4),
     (1000, 100, 'cpu', 1e-4),
 ])
-def test_adam(starpu_simple, dim, num_steps, device, lr, tol=1e-5):
+def test_adam(context, dim, num_steps, device, lr, tol=1e-5):
     torch_param = torch.randn((dim, ), device=device, requires_grad=True,
                               dtype=torch.float32)
     x_traits = nntile.tensor.TensorTraits([dim], [dim])

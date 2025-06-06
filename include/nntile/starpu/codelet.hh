@@ -46,6 +46,14 @@ public:
      * */
     uint32_t where_default = STARPU_NOWHERE;
 
+    //! Name of the codelet
+    /*! This variable is used to store the name of the codelet. It is set in
+     * the constructor and can be accessed through the name member variable.
+     * It cannot be changed after the constructor is called, as a pointer to
+     * raw C string will be still used in StarPU.
+     * */
+    std::string name_as_string = "nntile_codelet_undefined";
+
     //! Constructor
     /*! @param[in] name: Name of the codelet, that will be seen in StarPU
      *      graphs and performance modeling files
@@ -54,7 +62,7 @@ public:
      *  @param[in] cuda_funcs: CUDA implementations of the codelet
      * */
     Codelet(
-        const char *name,
+        const std::string &name,
         uint32_t (*footprint)(starpu_task *),
         func_array cpu_funcs,
         func_array cuda_funcs
@@ -109,20 +117,20 @@ class CodeletTyped: public Codelet
 {
 public:
     //! Get name of the codelet including type information
-    static std::string get_name(const char *base_name)
+    static std::string get_name(const std::string &base_name)
     {
-        return std::string(base_name) + "_" + nntile::type_postfix<Ts...>();
+        return base_name + "_" + nntile::type_postfix<Ts...>();
     }
 
     //! Constructor simply calls the base constructor
     CodeletTyped(
-        const char *base_name,
+        const std::string &base_name,
         uint32_t (*footprint)(starpu_task *),
         func_array cpu_funcs,
         func_array cuda_funcs
     ):
         Codelet(
-            get_name(base_name).c_str(),
+            get_name(base_name),
             footprint,
             cpu_funcs,
             cuda_funcs

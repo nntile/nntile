@@ -15,5 +15,5 @@ import pytest
 
 
 @pytest.mark.xfail(reason='not implemented')
-def test_total_sum_accum_async():
+def test_total_sum_accum_async(context):
     pass

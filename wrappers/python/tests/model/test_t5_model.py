@@ -156,8 +156,8 @@ def generate_inputs(params: T5ModelTestParams, dtype: str):
     enc_traits = TensorTraits(enc_shape, enc_basetile)
     enc_distr = [0] * enc_traits.grid.nelems
     enc_type = dtype2nntile[dtype]
-    enc_value = enc_type(enc_traits, enc_distr, 0)
-    enc_grad = enc_type(enc_traits, enc_distr, 0)
+    enc_value = enc_type(enc_traits, enc_distr)
+    enc_grad = enc_type(enc_traits, enc_distr)
     enc_X = TensorMoments(enc_value, enc_grad, grad_required=True)
     nntile.functions.fill_async(0.0, enc_X.grad)
 
@@ -174,8 +174,8 @@ def generate_inputs(params: T5ModelTestParams, dtype: str):
     dec_traits = TensorTraits(dec_shape, dec_basetile)
     dec_distr = [0] * dec_traits.grid.nelems
     dec_type = dtype2nntile[dtype]
-    dec_value = dec_type(dec_traits, dec_distr, 0)
-    dec_grad = dec_type(dec_traits, dec_distr, 0)
+    dec_value = dec_type(dec_traits, dec_distr)
+    dec_grad = dec_type(dec_traits, dec_distr)
     dec_X = TensorMoments(dec_value, dec_grad, grad_required=True)
     nntile.functions.fill_async(0.0, dec_X.grad)
 
@@ -187,8 +187,8 @@ def generate_inputs(params: T5ModelTestParams, dtype: str):
     dec_torch.requires_grad_()
 
     # Initialize NNTile model from PyTorch model
-    nntile_model, _ = T5Model.from_torch(
-        torch_model, enc_X, dec_X, nntile_config, next_tag=0
+    nntile_model = T5Model.from_torch(
+        torch_model, enc_X, dec_X, nntile_config
     )
 
     # for test_forward_decoder_only
@@ -235,7 +235,7 @@ def generate_inputs(params: T5ModelTestParams, dtype: str):
 )
 class TestT5Model:
     def test_decoder_forward_only(
-        self, starpu_simple, torch_rng, params: T5ModelTestParams, dtype: str
+        self, context, torch_rng, params: T5ModelTestParams, dtype: str
     ):
         """Test that forward pass gives same results in PyTorch and NNTile"""
         torch_model, nntile_model, enc_x, dec_x, _, _enc_attn_mask, _dec_attn_mask = (
@@ -273,7 +273,7 @@ class TestT5Model:
         nntile_model.unregister()
 
     def test_forward(
-        self, starpu_simple, torch_rng, params: T5ModelTestParams, dtype: str
+        self, context, torch_rng, params: T5ModelTestParams, dtype: str
     ):
         """Test that forward pass gives same results in PyTorch and NNTile"""
         torch_model, nntile_model, enc_x, dec_x, _, _enc_attn_mask, _dec_attn_mask = (
@@ -310,7 +310,7 @@ class TestT5Model:
         nntile_model.unregister()
 
     def test_backward(
-        self, starpu_simple, torch_rng, params: T5ModelTestParams, dtype: str
+        self, context, torch_rng, params: T5ModelTestParams, dtype: str
     ):
         """Test that backward pass gives same results in PyTorch and NNTile"""
         (
@@ -320,7 +320,7 @@ class TestT5Model:
             dec_x,
             dec_grad,
             enc_attn_mask,
-            dec_attn_mask,
+            dec_attn_mask
         ) = generate_inputs(params, dtype)
 
         # PyTorch forward and backward pass
@@ -359,7 +359,7 @@ class TestT5Model:
         nntile_model.unregister()
 
     def test_t5_to_torch_for_sequence_classification(
-        self, starpu_simple, torch_rng, params: T5ModelTestParams, dtype: str
+        self, context, torch_rng, params: T5ModelTestParams, dtype: str
     ):
         """Test that converting T5ForSequenceClassification to torch and back gives same results"""
         # Create PyTorch T5ForSequenceClassification model
@@ -402,8 +402,8 @@ class TestT5Model:
         enc_basetile = [params.enc_seq_len_tile, params.n_batch_tile]
         enc_traits = TensorTraits(enc_shape, enc_basetile)
         enc_distr = [0] * enc_traits.grid.nelems
-        enc_value = nntile.tensor.Tensor_int64(enc_traits, enc_distr, 0)
-        nntile.tensor.Tensor_int64(enc_traits, enc_distr, 0)
+        enc_value = nntile.tensor.Tensor_int64(enc_traits, enc_distr)
+        nntile.tensor.Tensor_int64(enc_traits, enc_distr)
         enc_X = TensorMoments(enc_value, None, False)
 
         # Set decoder input tensor dimensions
@@ -411,13 +411,13 @@ class TestT5Model:
         dec_basetile = [params.dec_seq_len_tile, params.n_batch_tile]
         dec_traits = TensorTraits(dec_shape, dec_basetile)
         dec_distr = [0] * dec_traits.grid.nelems
-        dec_value = nntile.tensor.Tensor_int64(dec_traits, dec_distr, 0)
-        nntile.tensor.Tensor_int64(dec_traits, dec_distr, 0)
+        dec_value = nntile.tensor.Tensor_int64(dec_traits, dec_distr)
+        nntile.tensor.Tensor_int64(dec_traits, dec_distr)
         dec_X = TensorMoments(dec_value, None, False)
 
         # Convert to NNTile model
-        nntile_model, _ = T5ForSequenceClassification.from_torch(
-            torch_model, enc_X, dec_X, nntile_config, next_tag=0
+        nntile_model = T5ForSequenceClassification.from_torch(
+            torch_model, enc_X, dec_X, nntile_config
         )
 
         # Convert back to PyTorch

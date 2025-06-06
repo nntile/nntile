@@ -31,7 +31,7 @@ Tensor = {
 
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
-def test_attention(starpu_simple, dtype: np.dtype):
+def test_attention(context, dtype: np.dtype):
     n_emb = 128
     n_emb_k = 112
     n_emb_v = 96
@@ -255,7 +255,7 @@ def test_attention(starpu_simple, dtype: np.dtype):
     "n_head,n_head_tile,n_emb,n_emb_tile,seq_size", [(2, 1, 6, 2, 10)]
 )
 def test_dynamic(
-    starpu_simple, numpy_rng, n_head, n_head_tile, n_emb, n_emb_tile, seq_size
+    context, numpy_rng, n_head, n_head_tile, n_emb, n_emb_tile, seq_size
 ):
     input_shape = (n_emb, seq_size, 1)
     inp_np = np.asfortranarray(numpy_rng.random(input_shape))
@@ -299,7 +299,7 @@ def test_dynamic(
 
 
 @pytest.mark.parametrize("n_head,n_head_tile", [(1, 1)])
-def test_kvcache(starpu_simple, numpy_rng, n_head, n_head_tile):
+def test_kvcache(context, numpy_rng, n_head, n_head_tile):
     prefill_size = 4
     max_tokens = 8
 

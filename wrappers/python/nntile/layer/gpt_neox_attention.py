@@ -208,7 +208,6 @@ class GPTNeoXAttention(BaseLayer):
         n_head_tile: int,
         position_ids: np.ndarray,
         theta: float,
-        next_tag: int,
         bias: bool = False,
         mask: np.ndarray = None,
         redux: bool = False,
@@ -391,188 +390,145 @@ class GPTNeoXAttention(BaseLayer):
         sin_distr = [0] * sin_traits.grid.nelems
         # Define all the lists
         # w_q
-        w_q_value = type(x.value)(w_q_traits, w_q_distr, next_tag)
-        next_tag = w_q_value.next_tag
-        w_q_grad = type(x.value)(w_q_traits, w_q_distr, next_tag)
-        next_tag = w_q_grad.next_tag
+        w_q_value = type(x.value)(w_q_traits, w_q_distr)
+        w_q_grad = type(x.value)(w_q_traits, w_q_distr)
         w_q = TensorMoments(w_q_value, w_q_grad, True)
         if bias:
             in_proj_bias_q_value = type(x.value)(
-                in_proj_bias_q_traits, in_proj_bias_q_distr, next_tag
+                in_proj_bias_q_traits, in_proj_bias_q_distr
             )
-            next_tag = in_proj_bias_q_value.next_tag
             in_proj_bias_q_grad = type(x.value)(
-                in_proj_bias_q_traits, in_proj_bias_q_distr, next_tag
+                in_proj_bias_q_traits, in_proj_bias_q_distr
             )
-            next_tag = in_proj_bias_q_grad.next_tag
             bias_inproj_q = TensorMoments(
                 in_proj_bias_q_value, in_proj_bias_q_grad, True
             )
         else:
             bias_inproj_q = None
         # w_k
-        w_k_value = type(x.value)(w_k_traits, w_k_distr, next_tag)
-        next_tag = w_k_value.next_tag
-        w_k_grad = type(x.value)(w_k_traits, w_k_distr, next_tag)
-        next_tag = w_k_grad.next_tag
+        w_k_value = type(x.value)(w_k_traits, w_k_distr)
+        w_k_grad = type(x.value)(w_k_traits, w_k_distr)
         w_k = TensorMoments(w_k_value, w_k_grad, True)
         if bias:
             in_proj_bias_k_value = type(x.value)(
-                in_proj_bias_kv_traits, in_proj_bias_kv_distr, next_tag
+                in_proj_bias_kv_traits, in_proj_bias_kv_distr
             )
-            next_tag = in_proj_bias_k_value.next_tag
             in_proj_bias_k_grad = type(x.value)(
-                in_proj_bias_kv_traits, in_proj_bias_kv_distr, next_tag
+                in_proj_bias_kv_traits, in_proj_bias_kv_distr
             )
-            next_tag = in_proj_bias_k_grad.next_tag
             bias_inproj_k = TensorMoments(
                 in_proj_bias_k_value, in_proj_bias_k_grad, True
             )
         else:
             bias_inproj_k = None
         # w_v
-        w_v_value = type(x.value)(w_v_traits, w_v_distr, next_tag)
-        next_tag = w_v_value.next_tag
-        w_v_grad = type(x.value)(w_v_traits, w_v_distr, next_tag)
-        next_tag = w_v_grad.next_tag
+        w_v_value = type(x.value)(w_v_traits, w_v_distr)
+        w_v_grad = type(x.value)(w_v_traits, w_v_distr)
         w_v = TensorMoments(w_v_value, w_v_grad, True)
         if bias:
             in_proj_bias_v_value = type(x.value)(
-                in_proj_bias_kv_traits, in_proj_bias_kv_distr, next_tag
+                in_proj_bias_kv_traits, in_proj_bias_kv_distr
             )
-            next_tag = in_proj_bias_v_value.next_tag
             in_proj_bias_v_grad = type(x.value)(
-                in_proj_bias_kv_traits, in_proj_bias_kv_distr, next_tag
+                in_proj_bias_kv_traits, in_proj_bias_kv_distr
             )
-            next_tag = in_proj_bias_v_grad.next_tag
             bias_inproj_v = TensorMoments(
                 in_proj_bias_v_value, in_proj_bias_v_grad, True
             )
         else:
             bias_inproj_v = None
         # w
-        w_value = type(x.value)(w_traits, w_distr, next_tag)
-        next_tag = w_value.next_tag
-        w_grad = type(x.value)(w_traits, w_distr, next_tag)
-        next_tag = w_grad.next_tag
+        w_value = type(x.value)(w_traits, w_distr)
+        w_grad = type(x.value)(w_traits, w_distr)
         w = TensorMoments(w_value, w_grad, True)
         # q_transposed
         q_transposed_value = type(x.value)(
-            q_transposed_traits, q_transposed_distr, next_tag
+            q_transposed_traits, q_transposed_distr
         )
-        next_tag = q_transposed_value.next_tag
         q_transposed_grad = type(x.value)(
-            q_transposed_traits, q_transposed_distr, next_tag
+            q_transposed_traits, q_transposed_distr
         )
-        next_tag = q_transposed_grad.next_tag
         q_transposed = TensorMoments(
             q_transposed_value, q_transposed_grad, True
         )
         # q
-        q_value = type(x.value)(q_traits, q_distr, next_tag)
-        next_tag = q_value.next_tag
-        q_grad = type(x.value)(q_traits, q_distr, next_tag)
-        next_tag = q_grad.next_tag
+        q_value = type(x.value)(q_traits, q_distr)
+        q_grad = type(x.value)(q_traits, q_distr)
         q = TensorMoments(q_value, q_grad, True)
         # q_rope
-        q_rope_value = type(x.value)(q_rope_traits, q_rope_distr, next_tag)
-        next_tag = q_rope_value.next_tag
-        q_rope_grad = type(x.value)(q_rope_traits, q_rope_distr, next_tag)
-        next_tag = q_rope_grad.next_tag
+        q_rope_value = type(x.value)(q_rope_traits, q_rope_distr)
+        q_rope_grad = type(x.value)(q_rope_traits, q_rope_distr)
         q_rope = TensorMoments(q_rope_value, q_rope_grad, True)
         # k_transposed
         k_transposed_value = type(x.value)(
-            k_transposed_traits, k_transposed_distr, next_tag
+            k_transposed_traits, k_transposed_distr
         )
-        next_tag = k_transposed_value.next_tag
         k_transposed_grad = type(x.value)(
-            k_transposed_traits, k_transposed_distr, next_tag
+            k_transposed_traits, k_transposed_distr
         )
-        next_tag = k_transposed_grad.next_tag
         k_transposed = TensorMoments(
             k_transposed_value, k_transposed_grad, True
         )
         # k
-        k_value = type(x.value)(k_traits, k_distr, next_tag)
-        next_tag = k_value.next_tag
-        k_grad = type(x.value)(k_traits, k_distr, next_tag)
-        next_tag = k_grad.next_tag
+        k_value = type(x.value)(k_traits, k_distr)
+        k_grad = type(x.value)(k_traits, k_distr)
         k = TensorMoments(k_value, k_grad, True)
         # k_rope
-        k_rope_value = type(x.value)(k_rope_traits, k_rope_distr, next_tag)
-        next_tag = k_rope_value.next_tag
-        k_rope_grad = type(x.value)(k_rope_traits, k_rope_distr, next_tag)
-        next_tag = k_rope_grad.next_tag
+        k_rope_value = type(x.value)(k_rope_traits, k_rope_distr)
+        k_rope_grad = type(x.value)(k_rope_traits, k_rope_distr)
         k_rope = TensorMoments(k_rope_value, k_rope_grad, True)
         # v_transposed
         v_transposed_value = type(x.value)(
-            v_transposed_traits, v_transposed_distr, next_tag
+            v_transposed_traits, v_transposed_distr
         )
-        next_tag = v_transposed_value.next_tag
         v_transposed_grad = type(x.value)(
-            v_transposed_traits, v_transposed_distr, next_tag
+            v_transposed_traits, v_transposed_distr
         )
-        next_tag = v_transposed_grad.next_tag
         v_transposed = TensorMoments(
             v_transposed_value, v_transposed_grad, True
         )
         # v
-        v_value = type(x.value)(v_traits, v_distr, next_tag)
-        next_tag = v_value.next_tag
-        v_grad = type(x.value)(v_traits, v_distr, next_tag)
-        next_tag = v_grad.next_tag
+        v_value = type(x.value)(v_traits, v_distr)
+        v_grad = type(x.value)(v_traits, v_distr)
         v = TensorMoments(v_value, v_grad, True)
         # a
-        a_value = type(x.value)(a_traits, a_distr, next_tag)
-        next_tag = a_value.next_tag
-        a_grad = type(x.value)(a_traits, a_distr, next_tag)
-        next_tag = a_grad.next_tag
+        a_value = type(x.value)(a_traits, a_distr)
+        a_grad = type(x.value)(a_traits, a_distr)
         a = TensorMoments(a_value, a_grad, True)
         # a_maxsumexp
         a_maxsumexp = type(x.value)(
-            a_maxsumexp_traits, a_maxsumexp_distr, next_tag
+            a_maxsumexp_traits, a_maxsumexp_distr
         )
-        next_tag = a_maxsumexp.next_tag
         # a_sumprod_slice
         a_sumprod_slice = type(x.value)(
-            a_sumprod_slice_traits, a_sumprod_slice_distr, next_tag
+            a_sumprod_slice_traits, a_sumprod_slice_distr
         )
-        next_tag = a_sumprod_slice.next_tag
         # b
-        b_value = type(x.value)(b_traits, b_distr, next_tag)
-        next_tag = b_value.next_tag
-        b_grad = type(x.value)(b_traits, b_distr, next_tag)
-        next_tag = b_grad.next_tag
+        b_value = type(x.value)(b_traits, b_distr)
+        b_grad = type(x.value)(b_traits, b_distr)
         b = TensorMoments(b_value, b_grad, True)
         # b_transposed
         b_transposed_value = type(x.value)(
-            b_transposed_traits, b_transposed_distr, next_tag
+            b_transposed_traits, b_transposed_distr
         )
-        next_tag = b_transposed_value.next_tag
         b_transposed_grad = type(x.value)(
-            b_transposed_traits, b_transposed_distr, next_tag
+            b_transposed_traits, b_transposed_distr
         )
-        next_tag = b_transposed_grad.next_tag
         b_transposed = TensorMoments(
             b_transposed_value, b_transposed_grad, True
         )
-        cos = type(x.value)(cos_traits, cos_distr, next_tag)
-        next_tag = cos.next_tag
-
-        sin = type(x.value)(sin_traits, sin_distr, next_tag)
-        next_tag = sin.next_tag
+        cos = type(x.value)(cos_traits, cos_distr)
+        sin = type(x.value)(sin_traits, sin_distr)
         # Allocate tensors for bias for q, k, v and output projection
         if bias:
             out_proj_bias_traits = TensorTraits([n_emb], [n_emb_tile])
             out_proj_bias_distr = [0] * out_proj_bias_traits.grid.nelems
             out_proj_bias_value = type(x.value)(
-                out_proj_bias_traits, out_proj_bias_distr, next_tag
+                out_proj_bias_traits, out_proj_bias_distr
             )
-            next_tag = out_proj_bias_value.next_tag
             out_proj_bias_grad = type(x.value)(
-                out_proj_bias_traits, out_proj_bias_distr, next_tag
+                out_proj_bias_traits, out_proj_bias_distr
             )
-            next_tag = out_proj_bias_grad.next_tag
             out_proj_bias = TensorMoments(
                 out_proj_bias_value, out_proj_bias_grad, True
             )
@@ -580,10 +536,8 @@ class GPTNeoXAttention(BaseLayer):
             out_proj_bias = None
         # Allocate tensor for output y
         y_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
-        y_value = type(x.value)(y_traits, x.value.distribution, next_tag)
-        next_tag = y_value.next_tag
-        y_grad = type(x.value)(y_traits, x.value.distribution, next_tag)
-        next_tag = y_grad.next_tag
+        y_value = type(x.value)(y_traits, x.value.distribution)
+        y_grad = type(x.value)(y_traits, x.value.distribution)
         y = TensorMoments(y_value, y_grad, True)
 
         # Fill sin, cos tensors:
@@ -610,9 +564,7 @@ class GPTNeoXAttention(BaseLayer):
             layer_mask = Tensor_bool(
                     layer_mask_traits,
                     [0] * layer_mask_traits.grid.nelems,
-                    next_tag
             )
-            next_tag = layer_mask.next_tag
             layer_mask.from_array(mask)
         else:
             layer_mask = None
@@ -648,7 +600,7 @@ class GPTNeoXAttention(BaseLayer):
             redux=redux,
         )
         # Return layer and next tag to be used
-        return (layer, next_tag)
+        return layer
 
     # Forward propagation of the attention layer
     def forward_async(self):
@@ -1091,16 +1043,14 @@ class GPTNeoXAttention(BaseLayer):
         position_ids: np.ndarray,
         mask: np.ndarray,
         config: GPTNeoXConfig,
-        next_tag: int
     ):  # -> Self: does not work with Python 3.10
         n_emb, _, _ = x.value.shape
-        layer, next_tag = cls.generate_simple(
+        layer = cls.generate_simple(
             x,
             n_head=torch_layer.config.num_attention_heads,
             n_head_tile=config.num_heads_tile,
             position_ids=position_ids,
             theta=config.rotary_emb_base,
-            next_tag=next_tag,
             mask=mask,
             redux=config.redux,
         )
@@ -1166,7 +1116,7 @@ class GPTNeoXAttention(BaseLayer):
                 .reshape(layer.n_head, layer.head_size)
                 .T
             )
-        return layer, next_tag
+        return layer
 
     def to_torch(self) -> GPTNeoXAttention_torch:
         bias = self.in_proj_bias_q is not None

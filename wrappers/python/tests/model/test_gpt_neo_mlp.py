@@ -143,7 +143,7 @@ def generate_inputs(params: GPTNeoMLPTestParams, dtype: str):
 ])
 class TestGPTNeoMLP:
 
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: GPTNeoMLPTestParams, dtype: str):
         torch_layer, nntile_layer, _, _ = generate_inputs(params, dtype)
         torch_layer_other = nntile_layer.to_torch()
@@ -155,7 +155,7 @@ class TestGPTNeoMLP:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: GPTNeoMLPTestParams,
                      dtype: str):
         torch_layer, nntile_layer, x, _ = generate_inputs(params, dtype)
@@ -166,7 +166,7 @@ class TestGPTNeoMLP:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng,
+    def test_backward(self, context, torch_rng,
                               params: GPTNeoMLPTestParams,
                               dtype: str):
         torch_layer, nntile_layer, x, y_grad = generate_inputs(params, dtype)

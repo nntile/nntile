@@ -19,15 +19,6 @@ import nntile
 from nntile.loss import CrossEntropy as cross_entropy
 from nntile.tensor import TensorMoments
 
-nntile.nntile_init(
-    ncpus=1,
-    ncuda=0,
-    cublas=0,
-    ooc=0,
-    logger=0,
-    verbose=0,
-)
-
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
@@ -62,7 +53,7 @@ nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
     True,
     False
 ])
-def test_cross_entropy(dtype: np.dtype, reduction: str,
+def test_cross_entropy(context, dtype: np.dtype, reduction: str,
                        ignore_index: bool):
     """Helper function returns bool value true if test passes."""
     rng = np.random.default_rng(42)

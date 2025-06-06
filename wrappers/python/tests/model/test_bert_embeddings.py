@@ -161,7 +161,7 @@ def generate_inputs(params: BertTestParams,
     pytest.param('fp32_fast_bf16', marks=nocuda),
 ])
 class TestBertEmbeddings:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: BertTestParams,
                       dtype: str):
 
@@ -175,7 +175,7 @@ class TestBertEmbeddings:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: BertTestParams,
                      dtype: str):
         torch_model, nntile_model, x, _ = generate_inputs(params, dtype)
@@ -187,7 +187,7 @@ class TestBertEmbeddings:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
 
-    def test_backward(self, starpu_simple, torch_rng,
+    def test_backward(self, context, torch_rng,
                       params: BertTestParams,
                       dtype: str):
         torch_model, nntile_model, x, y_grad = generate_inputs(params, dtype)
