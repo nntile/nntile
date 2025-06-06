@@ -37,11 +37,7 @@ public:
     //! Structure for operation arguments
     struct args_t
     {
-        std::size_t nbytes;
     };
-
-    //! Footprint function for the current operation
-    static uint32_t footprint(struct starpu_task *task);
 
     //! Wrapper for a generic CPU implementation
     static void cpu(void *buffers[], void *cl_args)

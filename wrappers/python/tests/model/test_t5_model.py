@@ -187,7 +187,7 @@ def generate_inputs(params: T5ModelTestParams, dtype: str):
     dec_torch.requires_grad_()
 
     # Initialize NNTile model from PyTorch model
-    nntile_model = T5Model.from_torch(
+    nntile_model, _ = T5Model.from_torch(
         torch_model, enc_X, dec_X, nntile_config
     )
 

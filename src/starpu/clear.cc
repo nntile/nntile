@@ -25,7 +25,7 @@ namespace nntile::starpu
 
 //! Constructor
 Clear::Clear():
-    codelet("nntile_clear", footprint, cpu_funcs, cuda_funcs)
+    codelet("nntile_clear", nullptr, cpu_funcs, cuda_funcs)
 {
     // Modes cannot be variable for clear operation
     // Construct modes
@@ -41,13 +41,12 @@ void Clear::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
-    // Get arguments
-    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    std::size_t nbytes = interfaces[0]->elemsize;
     void *data = interfaces[0]->get_ptr<void>();
     // Clear buffer
-    std::memset(data, 0, args->nbytes);
+    std::memset(data, 0, nbytes);
 #endif // STARPU_SIMGRID
 }
 
@@ -57,39 +56,24 @@ void Clear::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
-    // Get arguments
-    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    std::size_t nbytes = interfaces[0]->elemsize;
     void *data = interfaces[0]->get_ptr<void>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Clear buffer
-    cudaMemsetAsync(data, 0, args->nbytes, stream);
+    cudaMemsetAsync(data, 0, nbytes, stream);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for clear tasks that depends only on cl_arg
-uint32_t Clear::footprint(struct starpu_task *task)
-{
-    // Get arguments
-    auto args = reinterpret_cast<args_t *>(task->cl_arg);
-    uint32_t hash = 0;
-    hash = starpu_hash_crc32c_be_n(&args->nbytes, sizeof(args->nbytes), hash);
-    return hash;
-}
-
 //! Submit clear task
 void Clear::submit(Handle data)
 {
-    // Codelet arguments
-    args_t *args = (args_t *)std::malloc(sizeof(*args));
-    args->nbytes = starpu_variable_get_elemsize(data.get());
     // Submit task
     int ret = starpu_task_insert(&codelet,
             STARPU_W, data.get(),
-            STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission
     if(ret != 0)
