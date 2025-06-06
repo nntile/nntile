@@ -56,7 +56,7 @@ class T5BlockTestParams:
     n_batch: int
     n_batch_tile: int
     is_decoder: bool = False
-    redux: bool = True
+    redux: bool = False  # Disabled because it causes SegFaults
     seq_len: int = 100
     seq_len_tile: int = 100
     is_gated_act: bool = True

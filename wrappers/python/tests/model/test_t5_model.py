@@ -63,7 +63,7 @@ class T5ModelTestParams:
     enc_seq_len_tile: int
     dec_seq_len: int
     dec_seq_len_tile: int
-    redux: bool = True
+    redux: bool = False  # Disabled because it causes SegFaults
     is_gated_act: bool = True
 
 

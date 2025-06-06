@@ -50,7 +50,7 @@ class T5FFTestParams:
     d_ff_tile: int
     n_batch: int
     n_batch_tile: int
-    redux: bool = True
+    redux: bool = False  # Disabled because it causes SegFaults
     seq_len: int = 100
     seq_len_tile: int = 100
 

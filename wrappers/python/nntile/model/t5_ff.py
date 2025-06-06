@@ -163,9 +163,7 @@ class T5LayerFF(BaseModel):
             x, dense_relu_dense.activations[-1]
         )
 
-        return (
-            cls(x, dense_relu_dense, rms_norm, residual_add, config)
-        )
+        return cls(x, dense_relu_dense, rms_norm, residual_add, config)
 
     def to_torch(self):
         """Convert NNTile T5LayerFF to PyTorch T5LayerFF"""
