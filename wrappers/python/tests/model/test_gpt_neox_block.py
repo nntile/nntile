@@ -161,8 +161,8 @@ def generate_inputs(dtype: str, params: GPTNeoXBlockTestParams):
             * torch.finfo(torch.float32).min
     mask_torch = mask_torch[None, None, :, :].expand(n_batch, 1, -1, -1)
 
-    nntile_layer, _ = GPTNeoXBlock.from_torch(
-        torch_layer, X, pos_ids, mask_np, nntile_config, 0
+    nntile_layer = GPTNeoXBlock.from_torch(
+        torch_layer, X, pos_ids, mask_np, nntile_config
     )
 
     nntile_layer.clear_gradients()
