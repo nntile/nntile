@@ -177,7 +177,7 @@ def generate_inputs(params: T5AttentionTestParams, dtype: str, is_cross_attn: bo
         )
     else:
         nntile_layer = T5Attention.from_torch(torch_layer, X, None, nntile_config)
-    # nntile_layer.clear_gradients()
+    nntile_layer.clear_gradients()
 
     # Generate random gradient for backward pass
     y_grad_random = gen.standard_normal(x_shape, dtype=np.float32)
@@ -223,10 +223,11 @@ class TestT5Attention:
         torch_layer, nntile_layer, x, _, encoder_output_torch = generate_inputs(
             params, dtype, is_cross_attn
         )
+        cache_position = torch.arange(x.shape[1], dtype=torch.long, device=x.device)
         if is_cross_attn:
-            y, _, _ = torch_layer(x, key_value_states=encoder_output_torch)
+            y, _, _ = torch_layer(x, key_value_states=encoder_output_torch, cache_position=cache_position)
         else:
-            y, _, _ = torch_layer(x)
+            y, _, _ = torch_layer(x, cache_position=cache_position)
 
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations_output[0].value).T)
@@ -249,10 +250,11 @@ class TestT5Attention:
             params, dtype, is_cross_attn
         )
 
+        cache_position = torch.arange(x.shape[1], dtype=torch.long, device=x.device)
         if is_cross_attn:
-            y, _, _ = torch_layer(x, key_value_states=encoder_output_torch)
+            y, _, _ = torch_layer(x, key_value_states=encoder_output_torch, cache_position=cache_position)
         else:
-            y, _, _ = torch_layer(x)
+            y, _, _ = torch_layer(x, cache_position=cache_position)
 
         nntile_layer.forward_async()
         res = (y * y_grad).sum()

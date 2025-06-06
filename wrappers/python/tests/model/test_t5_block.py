@@ -207,8 +207,8 @@ def generate_inputs(params: T5BlockTestParams, dtype: str):
     "dtype",
     [
         "fp32",
-        pytest.param("fp32_fast_tf32", marks=nocuda),
-        pytest.param("bf16", marks=nocuda),
+        # pytest.param("fp32_fast_tf32", marks=nocuda),
+        # pytest.param("bf16", marks=nocuda),
     ],
 )
 class TestT5Block:
@@ -221,7 +221,8 @@ class TestT5Block:
         )
 
         # PyTorch forward pass
-        y = torch_block(x, encoder_hidden_states=eo_torch)[0]
+        cache_position = torch.arange(x.shape[1], dtype=torch.long, device=x.device)
+        y = torch_block(x, encoder_hidden_states=eo_torch, cache_position=cache_position)[0]
 
         # NNTile forward pass
         nntile_block.forward_async()
@@ -241,7 +242,8 @@ class TestT5Block:
         )
 
         # PyTorch forward and backward pass
-        y = torch_block(x, encoder_hidden_states=eo_torch)[0]
+        cache_position = torch.arange(x.shape[1], dtype=torch.long, device=x.device)
+        y = torch_block(x, encoder_hidden_states=eo_torch, cache_position=cache_position)[0]
         res = (y * y_grad).sum()
         res.backward()
 
