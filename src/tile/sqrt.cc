@@ -25,7 +25,7 @@ template<typename T>
 void sqrt_async(const Tile<T> &src, const Tile<T> &dst)
 {
     // Submit task without any arguments checked
-    starpu::sqrt::submit<T>(src.nelems, src, dst);
+    starpu::sqrt.submit<std::tuple<T>>(src.nelems, src, dst);
 }
 
 //! Blocking version of tile-wise sqrt operation

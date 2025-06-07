@@ -64,7 +64,7 @@ void prod_fiber3_async(const Tile<T> &src1, Scalar alpha, const Tile<T> &src2,
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::prod_fiber3::submit<T>(m, n, k, alpha, src1, src2, dst);
+    starpu::prod_fiber3.submit<std::tuple<T>>(m, n, k, alpha, src1, src2, dst);
 }
 
 template<typename T>

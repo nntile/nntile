@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/addcdiv.hh"
 #include "nntile/starpu/addcdiv.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -51,7 +52,7 @@ void addcdiv_async(Scalar val, Scalar eps, const Tensor<T> &nom, const Tensor<T>
         if(mpi_rank == src_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::addcdiv::submit<T>(val, eps, traits.nelems, nom_tile_handle,
+            starpu::addcdiv.submit<std::tuple<T>>(traits.nelems, val, eps, nom_tile_handle,
                                        denom_tile_handle, src_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -79,6 +80,14 @@ void addcdiv_async<fp32_fast_tf32_t>(Scalar val, Scalar eps, const Tensor<fp32_f
         const Tensor<fp32_fast_tf32_t> &denom, const Tensor<fp32_fast_tf32_t> &src);
 
 template
+void addcdiv_async<fp32_fast_fp16_t>(Scalar val, Scalar eps, const Tensor<fp32_fast_fp16_t> &nom,
+        const Tensor<fp32_fast_fp16_t> &denom, const Tensor<fp32_fast_fp16_t> &src);
+
+template
+void addcdiv_async<fp32_fast_bf16_t>(Scalar val, Scalar eps, const Tensor<fp32_fast_bf16_t> &nom,
+        const Tensor<fp32_fast_bf16_t> &denom, const Tensor<fp32_fast_bf16_t> &src);
+
+template
 void addcdiv_async<fp64_t>(Scalar val, Scalar eps, const Tensor<fp64_t> &nom,
         const Tensor<fp64_t> &denom, const Tensor<fp64_t> &src);
 
@@ -94,6 +103,14 @@ void addcdiv<fp32_t>(Scalar val, Scalar eps, const Tensor<fp32_t> &nom,
 template
 void addcdiv<fp32_fast_tf32_t>(Scalar val, Scalar eps, const Tensor<fp32_fast_tf32_t> &nom,
         const Tensor<fp32_fast_tf32_t> &denom, const Tensor<fp32_fast_tf32_t> &src);
+
+template
+void addcdiv<fp32_fast_fp16_t>(Scalar val, Scalar eps, const Tensor<fp32_fast_fp16_t> &nom,
+        const Tensor<fp32_fast_fp16_t> &denom, const Tensor<fp32_fast_fp16_t> &src);
+
+template
+void addcdiv<fp32_fast_bf16_t>(Scalar val, Scalar eps, const Tensor<fp32_fast_bf16_t> &nom,
+        const Tensor<fp32_fast_bf16_t> &denom, const Tensor<fp32_fast_bf16_t> &src);
 
 template
 void addcdiv<fp64_t>(Scalar val, Scalar eps, const Tensor<fp64_t> &nom,

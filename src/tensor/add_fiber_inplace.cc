@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/add_fiber_inplace.hh"
 #include "nntile/starpu/add_fiber_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -105,7 +106,7 @@ void add_fiber_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
             n = dst_tile_traits.matrix_shape[axis+1][1] / batch;
             k = dst_tile_traits.shape[axis];
             // Insert corresponding task
-            starpu::add_fiber_inplace::submit<T>(m, n, k, batch, alpha,
+            starpu::add_fiber_inplace.submit<std::tuple<T>>(m, n, k, batch, alpha,
                     src_tile_handle, beta, dst_tile_handle);
         }
         // Flush cache for the output tile on every node

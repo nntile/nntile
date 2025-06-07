@@ -57,7 +57,7 @@ template<typename T>
 void validate(Index nelems)
 {
     using Y = typename T::repr_t;
-    const Y eps = T::epsilon();
+    const Y eps = T::epsilon;
     Scalar val = -1.0;
     // Init test input
     std::vector<T> data(nelems);
@@ -67,23 +67,23 @@ void validate(Index nelems)
     }
     std::vector<T> data_save(data);
     // Check low-level kernel
-    std::cout << "Run kernel::fill::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::fill::cpu<" << T::short_name << ">\n";
     cpu<T>(nelems, val, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
         TEST_ASSERT(Y(data[i]) == val);
     }
-    std::cout << "OK: kernel::fill::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::fill::cpu<" << T::short_name << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     data = data_save;
-    std::cout << "Run kernel::fill::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::fill::cuda<" << T::short_name << ">\n";
     run_cuda<T>(nelems, val, data);
     for(Index i = 0; i < nelems; ++i)
     {
         TEST_ASSERT(Y(data[i]) == val);
     }
-    std::cout << "OK: kernel::fill::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::fill::cuda<" << T::short_name << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

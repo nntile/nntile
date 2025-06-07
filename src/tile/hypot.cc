@@ -41,7 +41,7 @@ void hypot_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &d
         return;
     }
     // Insert corresponding task
-    starpu::hypot::submit<T>(src.nelems, alpha, src, beta, dst);
+    starpu::hypot.submit<std::tuple<T>>(src.nelems, alpha, src, beta, dst);
 }
 
 //! Tile-wise hypot operation

@@ -58,7 +58,7 @@ template<typename T>
 void validate(Index nelems)
 {
     using Y = typename T::repr_t;
-    const Y eps = T::epsilon();
+    const Y eps = T::epsilon;
     constexpr Y pi = 3.141592653589793238462643383279502884L;
     // Init test input
     std::vector<T> data(nelems);
@@ -68,7 +68,7 @@ void validate(Index nelems)
     }
     std::vector<T> data_save(data);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::gelutanh_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::gelutanh_inplace::cpu<" << T::short_name << ">\n";
     cpu<T>(nelems, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -91,11 +91,11 @@ void validate(Index nelems)
         // NaN-aware comparisons
         TEST_ASSERT(Y(data[i]) >= val_ref_min and Y(data[i]) <= val_ref_max);
     }
-    std::cout << "OK: kernel::gelutanh_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::gelutanh_inplace::cpu<" << T::short_name << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     data = data_save;
-    std::cout << "Run kernel::gelutanh_inplace::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::gelutanh_inplace::cuda<" << T::short_name << ">\n";
     run_cuda<T>(nelems, data);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -118,7 +118,7 @@ void validate(Index nelems)
         // NaN-aware comparisons
         TEST_ASSERT(Y(data[i]) >= val_ref_min and Y(data[i]) <= val_ref_max);
     }
-    std::cout << "OK: kernel::gelutanh_inplace::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::gelutanh_inplace::cuda<" << T::short_name << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

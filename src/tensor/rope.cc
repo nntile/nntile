@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/rope.hh"
 #include "nntile/starpu/rope.hh"
+#include "nntile/starpu/config.hh"
 #include <iostream>
 
 namespace nntile::tensor
@@ -126,7 +127,7 @@ void rope_async(const Tensor<T> &sin, const Tensor<T> &cos,
               n{srcdst_tile_traits.matrix_shape[sin.ndim][1]};
 
         // Insert corresponding task
-        starpu::rope::submit<T>(m, n, sin_tile_handle, cos_tile_handle,
+        starpu::rope.submit<std::tuple<T>>(m, n, sin_tile_handle, cos_tile_handle,
                 src_tile_handle, dst_tile_handle);
     }
 }
@@ -164,6 +165,18 @@ void rope_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &sin,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
+void rope_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &sin,
+        const Tensor<fp32_fast_fp16_t> &cos,
+        const Tensor<fp32_fast_fp16_t> &src,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void rope_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &sin,
+        const Tensor<fp32_fast_bf16_t> &cos,
+        const Tensor<fp32_fast_bf16_t> &src,
+        const Tensor<fp32_fast_bf16_t> &dst);
+
+template
 void rope_async<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,
         const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
 
@@ -181,6 +194,18 @@ void rope<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &sin,
         const Tensor<fp32_fast_tf32_t> &cos,
         const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void rope<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &sin,
+        const Tensor<fp32_fast_fp16_t> &cos,
+        const Tensor<fp32_fast_fp16_t> &src,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void rope<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &sin,
+        const Tensor<fp32_fast_bf16_t> &cos,
+        const Tensor<fp32_fast_bf16_t> &src,
+        const Tensor<fp32_fast_bf16_t> &dst);
 
 template
 void rope<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,

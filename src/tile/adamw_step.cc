@@ -48,7 +48,7 @@ void adamw_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, 
         throw std::runtime_error("Shapes of first_moment and parameters are not equal");
     }
     // Submit task
-    starpu::adamw_step::submit<T>(num_iter, p.nelems, beta_1, beta_2, eps, lr, weight_decay,
+    starpu::adamw_step.submit<std::tuple<T>>(num_iter, p.nelems, beta_1, beta_2, eps, lr, weight_decay,
                                  grad, first_moment, second_moment, p);
 }
 

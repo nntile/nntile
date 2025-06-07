@@ -19,6 +19,8 @@
 #include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/copy.hh"
+#include "nntile/context.hh"
+#include "nntile/starpu/config.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -32,17 +34,16 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
     Scalar val = -0.5;
-    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
     // Generate single-tile destination tensor
     TensorTraits data_single_traits(shape, shape);
     std::vector<int> dist_root = {mpi_root};
-    Tensor<T> data_single(data_single_traits, dist_root, last_tag);
+    Tensor<T> data_single(data_single_traits, dist_root);
     std::vector<Index> mask_shape{shape[0], shape[1]};
     TensorTraits mask_single_traits(mask_shape, mask_shape);
-    Tensor<bool_t> mask_single(mask_single_traits, dist_root, last_tag);
+    Tensor<bool_t> mask_single(mask_single_traits, dist_root);
     if(mpi_rank == mpi_root)
     {
         auto tile = data_single.get_tile(0);
@@ -83,7 +84,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     {
         dst_distr[i] = (i+1) % mpi_size;
     }
-    Tensor<T> dst(dst_traits, dst_distr, last_tag);
+    Tensor<T> dst(dst_traits, dst_distr);
     std::vector<Index> mask_basetile{basetile[0], basetile[1]};
     TensorTraits mask_traits(mask_shape, mask_basetile);
     std::vector<int> mask_distr(mask_traits.grid.nelems);
@@ -91,7 +92,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     {
         mask_distr[i] = (i+1) % mpi_size;
     }
-    Tensor<bool_t> mask(mask_traits, mask_distr, last_tag);
+    Tensor<bool_t> mask(mask_traits, mask_distr);
     scatter<T>(data_single, dst);
     scatter<bool_t>(mask_single, mask);
     std::cout << "Scatter mask is done" << std::endl;
@@ -99,7 +100,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     mask_scalar<T>(mask, val, dst, 1);
     std::cout << "Mask scalar is done" << std::endl;
     // Compare results
-    Tensor<T> dst2_single(data_single_traits, dist_root, last_tag);
+    Tensor<T> dst2_single(data_single_traits, dist_root);
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {
@@ -129,15 +130,10 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::mask_scalar::init();
-    starpu::subcopy::init();
-    starpu::copy::init();
-    starpu::mask_scalar::restrict_where(STARPU_CPU);
-    starpu::subcopy::restrict_where(STARPU_CPU);
-    starpu::copy::restrict_where(STARPU_CPU);
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

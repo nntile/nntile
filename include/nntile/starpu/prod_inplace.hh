@@ -14,77 +14,86 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
-#include <nntile/starpu/config.hh>
+// Compile-time definitions
+#include <nntile/defs.h>
 
-namespace nntile::starpu::prod_inplace
+// Standard headers
+#include <tuple>
+
+// NNTile headers
+#include <nntile/starpu/codelet.hh>
+#include <nntile/starpu/handle.hh>
+
+namespace nntile::starpu
 {
 
-// Apply gelu along middle axis of StarPU buffer on CPU
+//! Generic wrapper class for prod_inplace operation is not defined
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
-    noexcept;
+class ProdInplace;
+
+//! Specialization of wrapper class for prod_inplace operation via std::tuple
+template<typename T>
+class ProdInplace<std::tuple<T>>
+{
+public:
+    //! Codelet for the current operation
+    CodeletTyped<T> codelet;
+
+    //! Constructor
+    ProdInplace();
+
+    //! Structure for operation arguments
+    struct args_t
+    {
+        Index nelems;
+    };
+
+    //! Footprint function for the current operation
+    static uint32_t footprint(struct starpu_task *task);
+
+    //! Wrapper for a generic CPU implementation
+    static void cpu(void *buffers[], void *cl_args)
+        noexcept;
+
+    //! Array of all wrappers for CPU implementations
+    static constexpr func_array cpu_funcs = {
+        cpu
+    };
 
 #ifdef NNTILE_USE_CUDA
-// Apply gelu along middle axis of StarPU buffer on CUDA
-template<typename T>
-void cuda(void *buffers[], void *cl_args)
-    noexcept;
+    //! Wrapper for a generic CUDA implementation
+    static void cuda(void *buffers[], void *cl_args)
+        noexcept;
+
+    //! Array of all wrappers for CUDA implementations
+    static constexpr func_array cuda_funcs = {
+        cuda
+    };
+#else // NNTILE_USE_CUDA
+    //! Array of all wrappers for CUDA implementations
+    static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-               codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
+    //! Submit prod_inplace task
+    void submit(
+        Index nelems,
+        Handle src,
+        Handle dst
+    );
+};
 
-template<typename T>
-constexpr Codelet *codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
+//! Pack of prod_inplace operations for different types
+using prod_inplace_pack_t = OperationPack<
+    ProdInplace,
+    std::tuple<nntile::fp64_t>,
+    std::tuple<nntile::fp32_t>,
+    std::tuple<nntile::fp32_fast_tf32_t>,
+    std::tuple<nntile::fp32_fast_fp16_t>,
+    std::tuple<nntile::fp32_fast_bf16_t>,
+    std::tuple<nntile::bf16_t>
+>;
 
-template<>
-constexpr Codelet *codelet<fp32_t>()
-{
-    return &codelet_fp32;
-}
+//! Pack of prod_inplace operations for different types
+extern prod_inplace_pack_t prod_inplace;
 
-template<>
-constexpr Codelet *codelet<bf16_t>()
-{
-    return &codelet_bf16;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_fast_tf32_t>()
-{
-    return &codelet_fp32_fast_tf32;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_fast_fp16_t>()
-{
-    return &codelet_fp32_fast_fp16;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_fast_bf16_t>()
-{
-    return &codelet_fp32_fast_bf16;
-}
-
-template<>
-constexpr Codelet *codelet<fp64_t>()
-{
-    return &codelet_fp64;
-}
-
-void init();
-
-void restrict_where(uint32_t where);
-
-void restore_where();
-
-template<typename T>
-void submit(Index nelems, Handle src, Handle dst);
-
-} // namespace nntile::starpu::prod_inplace
+} // namespace nntile::starpu

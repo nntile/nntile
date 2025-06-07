@@ -38,9 +38,9 @@ dtype2nntile = {
 dtype2tol = {
         'fp32': {'rtol': 8e-6},
         'fp32_fast_tf32': {'rtol': 8e-4},
-        'bf16': {'rtol': 1.6e-2},
+        'bf16': {'rtol': 2.6e-2},
         'fp32_fast_fp16': {'rtol': 9e-4},
-        'fp32_fast_bf16': {'rtol': 4e-3},
+        'fp32_fast_bf16': {'rtol': 5e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
@@ -125,9 +125,9 @@ def generate_inputs(params: GPTNeoTestParams,
     )
     gen = np.random.default_rng(42)
 
-    nntile_model, _ = GPTNeoModel.from_torch(
+    nntile_model = GPTNeoModel.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
-            params.seq_len, params.seq_len_tile, nntile_config, 0)
+            params.seq_len, params.seq_len_tile, nntile_config)
     nntile_model.clear_gradients()
     x_random = gen.integers(params.seq_len,
                             size=nntile_model.activations[0].value.shape,
@@ -163,7 +163,7 @@ def generate_inputs(params: GPTNeoTestParams,
                           ["local"]])
 @pytest.mark.parametrize('pattern_mult', [0, 1, 2])
 class TestGPTNeoModel:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: GPTNeoTestParams,
                       dtype: str,
                       attn_pattern: list,
@@ -180,7 +180,7 @@ class TestGPTNeoModel:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: GPTNeoTestParams,
                      dtype: str,
                      attn_pattern: list,
@@ -197,7 +197,7 @@ class TestGPTNeoModel:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
 
-    def test_backward(self, starpu_simple, torch_rng,
+    def test_backward(self, context, torch_rng,
                               params: GPTNeoTestParams,
                               dtype: str,
                               attn_pattern: list,

@@ -51,7 +51,7 @@ void run_cuda(const std::array<Index, NDIM> &src_start,
     cuda_err = cudaStreamCreate(&stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Launch low-level CUDA kernel
-    std::cout << "Run kernel::subcopy::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::subcopy::cuda<" << T::short_name << ">\n";
     cuda<T>(stream, NDIM, &src_start[0], &src_stride[0], &copy_shape[0],
             dev_src, &dst_start[0], &dst_stride[0], dev_dst);
     cuda_err = cudaStreamSynchronize(stream);
@@ -152,7 +152,7 @@ void validate(const std::array<Index, NDIM> &src,
     std::vector<T> src2_data(src_data);
     // Check low-level kernel
     std::array<nntile::int64_t, 2*NDIM> tmp_index;
-    std::cout << "Run kernel::subcopy::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::subcopy::cpu<" << T::short_name << ">\n";
     cpu<T>(NDIM, &src_start[0], &src_stride[0], &copy_shape[0],
             &src_data[0], &dst_start[0], &dst_stride[0], &dst_data[0],
             &tmp_index[0]);
@@ -201,7 +201,7 @@ void validate(const std::array<Index, NDIM> &src,
             ++dst_index[j];
         }
     }
-    std::cout << "Ok: kernel::subcopy::cpu<" << T::type_repr << ">\n";
+    std::cout << "Ok: kernel::subcopy::cpu<" << T::short_name << ">\n";
 #ifdef NNTILE_USE_CUDA
     dst_data = dst2_data;
     run_cuda<T, NDIM>(src_start, src_stride, copy_shape, src_data, dst_start,
@@ -246,7 +246,7 @@ void validate(const std::array<Index, NDIM> &src,
             ++dst_index[j];
         }
     }
-    std::cout << "Ok: kernel::subcopy::cuda<" << T::type_repr << ">\n";
+    std::cout << "Ok: kernel::subcopy::cuda<" << T::short_name << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

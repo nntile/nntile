@@ -17,9 +17,6 @@ from numpy.testing import assert_equal
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
-
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
@@ -30,16 +27,13 @@ prod_inplace = {np.float32: nntile.nntile_core.tensor.prod_inplace_fp32,
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_prod_inplace(dtype):
+def test_prod_inplace(context, dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
-    mpi_distr = [0]
-    next_tag = 0
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    B = Tensor[dtype](traits, mpi_distr, next_tag)
+    A = Tensor[dtype](traits)
+    B = Tensor[dtype](traits)
     # Set initial values of tensors
     rng = np.random.default_rng(42)
     rand_A = rng.standard_normal(shape)

@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/starpu/sqrt_inplace.hh"
 #include "nntile/kernel/sqrt_inplace.hh"
 #include "../testing.hh"
@@ -38,13 +39,13 @@ void validate_cpu(Index nelems)
     // Create copies of destination
     std::vector<T> data2(data);
     // Launch low-level kernel
-    std::cout << "Run kernel::sqrt_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::sqrt_inplace::cpu<" << T::short_name << ">\n";
     kernel::sqrt_inplace::cpu<T>(nelems, &data[0]);
     // Check by actually submitting a task
-    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
-    sqrt_inplace::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::sqrt_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
-    sqrt_inplace::submit<T>(nelems, data2_handle);
+    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
+    sqrt_inplace.restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::sqrt_inplace::submit<" << T::short_name << "> restricted to CPU\n";
+    sqrt_inplace.submit<std::tuple<T>>(nelems, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
@@ -52,7 +53,7 @@ void validate_cpu(Index nelems)
     {
         TEST_ASSERT(Y(data[i]) == Y(data2[i]));
     }
-    std::cout << "OK: starpu::sqrt_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::sqrt_inplace::submit<" << T::short_name << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -99,7 +100,7 @@ void validate_cuda(Index nelems)
     // cuda_err = cudaFree(dev_data);
     // TEST_ASSERT(cuda_err == cudaSuccess);
     // // Check by actually submitting a task
-    // VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
+    // VariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
     // relu::restrict_where(STARPU_CUDA);
     // std::cout << "Run starpu::relu::submit<T> restricted to CUDA\n";
     // relu::submit<T>(nelems, data2_handle);
@@ -116,10 +117,12 @@ void validate_cuda(Index nelems)
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 1, 0);
-    // Init codelet
-    sqrt_inplace::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
     // Launch all tests
     validate_cpu<fp32_t>(1);
     validate_cpu<fp32_t>(10000);
@@ -131,5 +134,6 @@ int main(int argc, char **argv)
     // validate_cuda<fp64_t>(1);
     // validate_cuda<fp64_t>(10000);
 #endif // NNTILE_USE_CUDA
+
     return 0;
 }

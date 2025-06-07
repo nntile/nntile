@@ -12,19 +12,30 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/addcdiv.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/addcdiv.hh"
-#include <cstdlib>
 
-//! StarPU wrappers for addcdiv operation
-namespace nntile::starpu::addcdiv
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/addcdiv.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+AddCdiv<std::tuple<T>>::AddCdiv():
+    codelet("nntile_addcdiv", footprint, cpu_funcs, cuda_funcs)
+{
+    // Modes are not fixed, they are decided during runtime by default
+}
 
 //! Apply addcdiv operation on StarPU buffers on CPU
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void AddCdiv<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -36,15 +47,40 @@ void cpu(void *buffers[], void *cl_args)
     const T *denom = interfaces[1]->get_ptr<T>();
     T *src = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::addcdiv::cpu<T>(args->val, args->eps, args->nelems, nom, denom,
-            src);
+    kernel::addcdiv::cpu<T>(
+        args->val, args->eps, args->nelems, nom, denom, src);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AddCdiv<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddCdiv<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AddCdiv<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddCdiv<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AddCdiv<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddCdiv<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Apply addcdiv on StarPU buffer on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void AddCdiv<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -58,87 +94,69 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::addcdiv::cuda<T>(stream, args->val, args->eps, args->nelems, nom,
-            denom, src);
+    kernel::addcdiv::cuda<T>(
+        stream, args->val, args->eps, args->nelems, nom, denom, src);
 #endif // STARPU_SIMGRID
 }
-#endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
-
-void init()
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AddCdiv<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
 {
-    codelet_fp32.init("nntile_addcdiv_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_bf16.init("nntile_addcdiv_bf16",
-            nullptr,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_addcdiv_fp32_fast_tf32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp64.init("nntile_addcdiv_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
+    // Fall back to FP32
+    AddCdiv<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
-void restrict_where(uint32_t where)
+template<>
+void AddCdiv<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
 {
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp64.restrict_where(where);
+    // Fall back to FP32
+    AddCdiv<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
-void restore_where()
+template<>
+void AddCdiv<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
 {
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp64.restore_where();
+    // Fall back to FP32
+    AddCdiv<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
+
+//! Footprint for add tasks that depends only on cl_arg
+template<typename T>
+uint32_t AddCdiv<std::tuple<T>>::footprint(struct starpu_task *task)
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
+    return hash;
 }
 
 template<typename T>
-void submit(Scalar val, Scalar eps, Index nelems, Handle nom, Handle denom, Handle src)
+void AddCdiv<std::tuple<T>>::submit(
+    Index nelems,
+    Scalar val,
+    Scalar eps,
+    Handle nom,
+    Handle denom,
+    Handle src
+)
 {
     // Codelet arguments
     args_t* args = (args_t*)std::malloc(sizeof(*args));
+    args->nelems = nelems;
     args->val = val;
     args->eps = eps;
-    args->nelems = nelems;
     //double nflops = 5 * nelems;
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(nom),
-            STARPU_R, static_cast<starpu_data_handle_t>(denom),
-            STARPU_RW, static_cast<starpu_data_handle_t>(src),
+    int ret = starpu_task_insert(&codelet,
+            STARPU_R, nom.get(),
+            STARPU_R, denom.get(),
+            STARPU_RW, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             //STARPU_FLOPS, nflops,
             0);
@@ -149,21 +167,17 @@ void submit(Scalar val, Scalar eps, Index nelems, Handle nom, Handle denom, Hand
     }
 }
 
-// Explicit instantiaion
-template
-void submit<fp32_t>(Scalar val, Scalar eps, Index nelems, Handle nom,
-        Handle denom, Handle src);
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class AddCdiv<std::tuple<nntile::fp64_t>>;
+template class AddCdiv<std::tuple<nntile::fp32_t>>;
+template class AddCdiv<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class AddCdiv<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class AddCdiv<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class AddCdiv<std::tuple<nntile::bf16_t>>;
 
-template
-void submit<bf16_t>(Scalar val, Scalar eps, Index nelems, Handle nom,
-        Handle denom, Handle src);
+//! Pack of addcdiv operations for different types
+addcdiv_pack_t addcdiv;
 
-template
-void submit<fp32_fast_tf32_t>(Scalar val, Scalar eps, Index nelems, Handle nom,
-        Handle denom, Handle src);
-
-template
-void submit<fp64_t>(Scalar val, Scalar eps, Index nelems, Handle nom,
-        Handle denom, Handle src);
-
-} // namespace nntile::starpu::addcdiv
+} // namespace nntile::starpu

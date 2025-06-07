@@ -123,8 +123,8 @@ def generate_inputs(dtype: str, params: GPTNeoXAttentionTestParams):
 
     x_q_traits = TensorTraits(x_shape, x_basetile)
     x_q_distr = [0] * x_q_traits.grid.nelems
-    x_value = x_type(x_q_traits, x_q_distr, 0)
-    x_grad = x_type(x_q_traits, x_q_distr, 0)
+    x_value = x_type(x_q_traits, x_q_distr)
+    x_grad = x_type(x_q_traits, x_q_distr)
     X = TensorMoments(x_value, x_grad, grad_required=True)
 
     x_random = rng.standard_normal(x_shape)
@@ -149,8 +149,8 @@ def generate_inputs(dtype: str, params: GPTNeoXAttentionTestParams):
             * torch.finfo(torch.float32).min
     mask_torch = mask_torch[None, None, :, :].expand(n_batch, 1, -1, -1)
 
-    nntile_layer, _ = nntile.layer.GPTNeoXAttention.from_torch(
-        torch_layer, X, pos_ids, mask_np, nntile_config, 0
+    nntile_layer = nntile.layer.GPTNeoXAttention.from_torch(
+        torch_layer, X, pos_ids, mask_np, nntile_config
     )
 
     y_grad_random = rng.standard_normal(nntile_layer.y.grad.shape)
@@ -173,7 +173,7 @@ def generate_inputs(dtype: str, params: GPTNeoXAttentionTestParams):
 ])
 class TestGPTNeoXAttention:
 
-    def test_torch_coercion(self, starpu_simple, torch_rng, dtype: str,
+    def test_torch_coercion(self, context, torch_rng, dtype: str,
                             params: GPTNeoXAttentionTestParams):
         torch_layer, nntile_layer, *_ = generate_inputs(dtype, params)
         torch_layer_other = nntile_layer.to_torch()
@@ -187,7 +187,7 @@ class TestGPTNeoXAttention:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng, dtype: str,
+    def test_forward(self, context, torch_rng, dtype: str,
                      params: GPTNeoXAttentionTestParams):
         torch_layer, nntile_layer, x, pos_embs, mask, *_ = \
             generate_inputs(dtype, params)
@@ -202,7 +202,7 @@ class TestGPTNeoXAttention:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng, dtype: str,
+    def test_backward(self, context, torch_rng, dtype: str,
                       params: GPTNeoXAttentionTestParams):
         torch_layer, nntile_layer, x, pos_embs, mask, y_grad = \
             generate_inputs(dtype, params)

@@ -22,9 +22,6 @@ import nntile.tensor
 import nntile.utils.constructors as nntc
 from nntile.layer import Act
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
-
 # Define mapping between numpy and nntile types
 Tensor = {
     np.float32: nntile.tensor.Tensor_fp32,
@@ -37,12 +34,9 @@ def setup(name: str, dtype: np.dtype):
     A_shape = [4, 5, 6]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
-    next_tag = 0
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
+    A = Tensor[dtype](A_traits, mpi_distr)
+    A_grad = Tensor[dtype](A_traits, mpi_distr)
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Set initial values of tensors
     rand_A = np.random.default_rng(42).standard_normal(A_shape)
@@ -53,7 +47,7 @@ def setup(name: str, dtype: np.dtype):
     A.from_array(np_A)
     nntile.tensor.clear_async(A_grad)
     # Set up activation layer
-    layer, _ = Act.generate_simple(A_moments, name, next_tag)
+    layer = Act.generate_simple(A_moments, name)
 
     return np_A, np_B, A_moments, layer
 
@@ -61,7 +55,7 @@ def setup(name: str, dtype: np.dtype):
 @pytest.mark.parametrize("name", ["relu", "gelu", "gelutanh", "silu"])
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
 class TestAct:
-    def test_forward(self, name: str, dtype: np.dtype):
+    def test_forward(self, context, name: str, dtype: np.dtype):
         if dtype == np.float32:
             tol = 1e-5
         elif dtype == np.float64:
@@ -88,7 +82,7 @@ class TestAct:
         A_moments.unregister()
         layer.unregister()
 
-    def test_backward(self, name: str, dtype: np.dtype):
+    def test_backward(self, context, name: str, dtype: np.dtype):
         if dtype == np.float32:
             tol = 1e-5
         elif dtype == np.float64:
@@ -128,7 +122,7 @@ class TestAct:
         A_moments.unregister()
         layer.unregister()
 
-    def test_dynamic(self, name: str, dtype: np.dtype):
+    def test_dynamic(self, context, name: str, dtype: np.dtype):
         if dtype == np.float32:
             tol = 1e-5
         elif dtype == np.float64:

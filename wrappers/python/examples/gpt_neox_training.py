@@ -132,19 +132,24 @@ print(model_torch.config)
 time0 = time.time()
 # Set up StarPU+MPI and init codelets
 verbose = 0
-nntile_config = nntile.starpu.Config(-1, -1, 1, args.logger,
-        args.logger_server_addr, args.logger_server_port)
+context = nntile.Context(
+    ncpu=-1,
+    ncuda=-1,
+    ooc=0,
+    logger=args.logger,
+    logger_addr=args.logger_server_addr,
+    logger_port=args.logger_server_port,
+    verbose=0
+)
 nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
-nntile.starpu.init()
 # Restrict computations to CUDA if possible
 if args.restrict == "cuda":
-    nntile.starpu.restrict_cuda()
+    context.restrict_cuda()
 elif args.restrict == "cpu":
-    nntile.starpu.restrict_cpu()
+    context.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
-next_tag = 0
 
 time0 = time.time()
 if args.n_head_tile == -1:
@@ -184,15 +189,14 @@ mask = np.array(
             dtype=bool, order="F"
         )
 
-gpt_neox_nntile, next_tag = GPTNeoXForCausalLM.from_torch(model_torch,
+gpt_neox_nntile = GPTNeoXForCausalLM.from_torch(model_torch,
                                                 args.minibatch_size,
                                                 args.minibatch_size_tile,
                                                 args.seq_len,
                                                 args.seq_len_tile,
                                                 pos_ids,
                                                 mask,
-                                                config_nntile,
-                                                next_tag)
+                                                config_nntile)
 time1 = time.time() - time0
 print("Converting PyTorch model to NNTile",
         "requires {} seconds".format(time1))
@@ -235,12 +239,10 @@ for i in range(num_train_batches):
     minibatch_input = []
     minibatch_output = []
     for j in range(num_minibatch):
-        x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = x.next_tag
+        x = nntile.tensor.Tensor_int64(x_traits, x_distr)
         x.from_array(np.asfortranarray(train_tokens[i, j, :, :-1].T))
         minibatch_input.append(x)
-        y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = y.next_tag
+        y = nntile.tensor.Tensor_int64(x_traits, x_distr)
         y.from_array(np.asfortranarray(train_tokens[i, j, :, 1:].T))
         minibatch_output.append(y)
     batch_input.append(minibatch_input)
@@ -250,19 +252,17 @@ print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
 # Set up learning rate and optimizer for training
 if args.optimizer == "adam":
     optimizer = nntile.optimizer.Adam(gpt_neox_nntile.get_parameters(),
-            args.lr, next_tag)
+            args.lr)
 elif args.optimizer == "adamw":
     optimizer = nntile.optimizer.AdamW(gpt_neox_nntile.get_parameters(),
-            args.lr, next_tag)
+            args.lr)
 elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(gpt_neox_nntile.get_parameters(),
-            args.lr, next_tag)
-next_tag = optimizer.get_next_tag()
-
+            args.lr)
 
 # Define Cross Entropy loss function
-loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-        gpt_neox_nntile.activations[-1], next_tag,
+loss = nntile.loss.CrossEntropy.generate_simple(
+        gpt_neox_nntile.activations[-1],
         scale=1.0 / (args.batch_size * args.seq_len))
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_input, batch_output,

@@ -67,7 +67,7 @@ void maxsumexp_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
     n = src.matrix_shape[axis+1][1];
     k = src.shape[axis];
     // Insert task
-    starpu::maxsumexp::submit<T>(m, n, k, src, dst);
+    starpu::maxsumexp.submit<std::tuple<T>>(m, n, k, src, dst);
 }
 
 //! Tile-wise max and sum of exponents along single given axis

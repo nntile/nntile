@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/starpu/sumprod_slice.hh"
 #include "nntile/kernel/sumprod_slice.hh"
 #include "../testing.hh"
@@ -45,16 +46,16 @@ void validate_cpu(Index m, Index n, Index k, Scalar alpha, Scalar beta)
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::sumprod_slice::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::sumprod_slice::cpu<" << T::short_name << ">\n";
     kernel::sumprod_slice::cpu<T>(m, n, k, alpha, &src1[0], &src2[0], beta,
             &dst[0]);
     // Check by actually submitting a task
-    VariableHandle src1_handle(&src1[0], sizeof(T)*m*n*k, STARPU_R),
-        src2_handle(&src2[0], sizeof(T)*m*n*k, STARPU_R),
-        dst2_handle(&dst2[0], sizeof(T)*m*n, STARPU_RW);
-    sumprod_slice::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::sumprod_slice::submit<" << T::type_repr << "> restricted to CPU\n";
-    sumprod_slice::submit<T>(m, n, k, alpha, src1_handle, src2_handle, beta,
+    VariableHandle src1_handle(&src1[0], sizeof(T)*m*n*k),
+        src2_handle(&src2[0], sizeof(T)*m*n*k),
+        dst2_handle(&dst2[0], sizeof(T)*m*n);
+    sumprod_slice.restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::sumprod_slice::submit<" << T::short_name << "> restricted to CPU\n";
+    sumprod_slice.submit<std::tuple<T>>(m, n, k, alpha, src1_handle, src2_handle, beta,
             dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
@@ -63,7 +64,7 @@ void validate_cpu(Index m, Index n, Index k, Scalar alpha, Scalar beta)
     {
         TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::sumprod_slice::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::sumprod_slice::submit<" << T::short_name << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -112,7 +113,7 @@ void validate_cuda(Index m, Index n, Index k, Scalar alpha, Scalar beta)
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*m*n,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::sumprod_slice::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::sumprod_slice::cuda<" << T::short_name << ">\n";
     kernel::sumprod_slice::cuda<T>(stream, m, n, k, alpha, dev_src1, dev_src2,
             beta, dev_dst);
     // Wait for result and destroy stream
@@ -132,12 +133,12 @@ void validate_cuda(Index m, Index n, Index k, Scalar alpha, Scalar beta)
     cuda_err = cudaFree(dev_dst);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
-    VariableHandle src1_handle(&src1[0], sizeof(T)*m*n*k, STARPU_R),
-        src2_handle(&src2[0], sizeof(T)*m*n*k, STARPU_R),
-        dst2_handle(&dst2[0], sizeof(T)*m*n, STARPU_RW);
-    sumprod_slice::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::sumprod_slice::submit<" << T::type_repr << "> restricted to CUDA\n";
-    sumprod_slice::submit<T>(m, n, k, alpha, src1_handle, src2_handle, beta,
+    VariableHandle src1_handle(&src1[0], sizeof(T)*m*n*k),
+        src2_handle(&src2[0], sizeof(T)*m*n*k),
+        dst2_handle(&dst2[0], sizeof(T)*m*n);
+    sumprod_slice.restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::sumprod_slice::submit<" << T::short_name << "> restricted to CUDA\n";
+    sumprod_slice.submit<std::tuple<T>>(m, n, k, alpha, src1_handle, src2_handle, beta,
             dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
@@ -146,16 +147,18 @@ void validate_cuda(Index m, Index n, Index k, Scalar alpha, Scalar beta)
     {
         TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::sumprod_slice::submit<" << T::type_repr << "> restricted to CUDA\n";
+    std::cout << "OK: starpu::sumprod_slice::submit<" << T::short_name << "> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 1, 0);
-    // Init codelet
-    sumprod_slice::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpu=1, ncuda=1, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
     // Launch all tests
     validate_cpu<fp32_t>(3, 5, 7, 2.0, -1.0);
     validate_cpu<fp32_t>(3, 5, 7, -1.0, 0.0);
@@ -167,5 +170,6 @@ int main(int argc, char **argv)
     validate_cuda<fp64_t>(3, 5, 7, 2.0, -1.0);
     validate_cuda<fp64_t>(3, 5, 7, -1.0, 0.0);
 #endif // NNTILE_USE_CUDA
+
     return 0;
 }

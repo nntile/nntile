@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/log_scalar.hh"
 #include "nntile/starpu/log_scalar.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -33,7 +34,7 @@ void log_scalar_async(const std::string &name, const Tensor<T> &value)
     // Execute on destination node
     if(mpi_rank == value_rank)
     {
-        starpu::log_scalar::submit<T>(name, value_handle);
+        starpu::log_scalar.submit<std::tuple<T>>(name, value_handle);
     }
 }
 
@@ -59,6 +60,14 @@ void log_scalar_async<fp32_fast_tf32_t>(const std::string &name,
         const Tensor<fp32_fast_tf32_t> &value);
 
 template
+void log_scalar_async<fp32_fast_fp16_t>(const std::string &name,
+        const Tensor<fp32_fast_fp16_t> &value);
+
+template
+void log_scalar_async<fp32_fast_bf16_t>(const std::string &name,
+        const Tensor<fp32_fast_bf16_t> &value);
+
+template
 void log_scalar_async<bf16_t>(const std::string &name,
         const Tensor<bf16_t> &value);
 
@@ -71,6 +80,14 @@ void log_scalar<fp64_t>(const std::string &name, const Tensor<fp64_t> &value);
 template
 void log_scalar<fp32_fast_tf32_t>(const std::string &name,
         const Tensor<fp32_fast_tf32_t> &value);
+
+template
+void log_scalar<fp32_fast_fp16_t>(const std::string &name,
+        const Tensor<fp32_fast_fp16_t> &value);
+
+template
+void log_scalar<fp32_fast_bf16_t>(const std::string &name,
+        const Tensor<fp32_fast_bf16_t> &value);
 
 template
 void log_scalar<bf16_t>(const std::string &name, const Tensor<bf16_t> &value);

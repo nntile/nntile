@@ -24,11 +24,10 @@ from .gpt_neo_config import GPTNeoConfig
 
 
 class GPTNeoMLP(BaseModel):
-    next_tag: int
 
     # Construct model with all the provided data
     def __init__(self, x: TensorMoments,
-                 config: GPTNeoConfig, next_tag: int):
+                 config: GPTNeoConfig):
         # Init activations and list of layers
         activations = [x]
         layers = []
@@ -40,53 +39,50 @@ class GPTNeoMLP(BaseModel):
         redux = config.redux
         gemm_ndim = 1
         # Initial linear layer that converts input to internal shape
-        new_layer, next_tag = Linear.generate_simple(
+        new_layer = Linear.generate_simple(
             x,
             "R",
             notrans,
             gemm_ndim,
             [self.intermediate_size],
             [intermediate_size_tile],
-            next_tag,
             redux=redux,
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Act.generate_simple(
-            activations[-1], activation_function, next_tag
+        new_layer = Act.generate_simple(
+            activations[-1], activation_function
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Linear.generate_simple(
+        new_layer = Linear.generate_simple(
             activations[-1],
             "R",
             notrans,
             gemm_ndim,
             [self.hidden_size],
             [hidden_size_tile],
-            next_tag,
             redux=redux,
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
-        self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(
-        mlp_torch, x: TensorMoments, config: GPTNeoConfig, next_tag: int
+        mlp_torch, x: TensorMoments, config: GPTNeoConfig
     ):
         """
         torch_mlp is PyTorch MLP where no biases in linear layers
         """
-        mlp_nntile = GPTNeoMLP(x, config, next_tag)
+        mlp_nntile = GPTNeoMLP(x, config)
         torch_params = list(mlp_torch.parameters())
         for i, p in enumerate(mlp_nntile.parameters):
             p.value.from_array(torch_params[i].cpu().detach().numpy())
-        return mlp_nntile, mlp_nntile.next_tag
+        return mlp_nntile
 
     def to_torch(self):
         config_torch = GPTNeoConfigTorch()

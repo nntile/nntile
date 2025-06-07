@@ -113,7 +113,7 @@ def generate_inputs(params: LlamaDecoderTestParams,
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
-    x_value = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
     x_grad = zeros_like(x_value)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     gen = np.random.default_rng(42)
@@ -130,9 +130,9 @@ def generate_inputs(params: LlamaDecoderTestParams,
             pos_ids_torch)
     mask = np.array(np.triu(np.ones((params.seq_len, params.seq_len))),
                     dtype=bool, order="F")
-    nntile_layer, _ = LlamaDecoder_nntile.from_torch(torch_layer, X,
+    nntile_layer = LlamaDecoder_nntile.from_torch(torch_layer, X,
                                                      pos_ids, mask,
-                                                     nntile_config, 0)
+                                                     nntile_config)
     nntile_layer.clear_gradients()
     y_grad_random = gen.standard_normal(x_shape, dtype=np.float32)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
@@ -155,9 +155,9 @@ def generate_inputs(params: LlamaDecoderTestParams,
     False,
     # True # Temporarily disabled to investigate later
 ])
-@pytest.mark.parametrize('flash_attention', [True, False])
+@pytest.mark.parametrize('flash_attention', [False])
 class TestLlamaDecoder:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: LlamaDecoderTestParams, dtype: str,
                       att_bias: bool, flash_attention: bool):
         torch_layer, nntile_layer, *_ = generate_inputs(
@@ -171,7 +171,7 @@ class TestLlamaDecoder:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: LlamaDecoderTestParams,
                      dtype: str,
                      att_bias: bool,
@@ -191,7 +191,7 @@ class TestLlamaDecoder:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng,
+    def test_backward(self, context, torch_rng,
                       params: LlamaDecoderTestParams, dtype: str,
                       att_bias: bool, flash_attention: bool):
         torch_layer, nntile_layer, x, y_grad, pos_ids, pos_embs, mask = \

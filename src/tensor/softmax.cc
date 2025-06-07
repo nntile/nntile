@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/softmax.hh"
 #include "nntile/starpu/softmax.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -154,7 +155,7 @@ void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &src,
                     k = dst_tile_traits.shape[axis];
                 }
                 // Insert corresponding task
-                starpu::softmax::submit<T>(m, n, k, maxsumexp_tile_handle,
+                starpu::softmax.submit<std::tuple<T>>(m, n, k, maxsumexp_tile_handle,
                         src_tile_handle, alpha, dst_tile_handle);
             }
             // Flush cache for the output tile on every node

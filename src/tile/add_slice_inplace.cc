@@ -67,7 +67,7 @@ void add_slice_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta, cons
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::add_slice_inplace::submit<T>(m, n, k, alpha, src, beta, dst);
+    starpu::add_slice_inplace.submit<std::tuple<T>>(m, n, k, alpha, src, beta, dst);
 }
 
 template<typename T>

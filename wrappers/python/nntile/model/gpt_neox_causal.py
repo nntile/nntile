@@ -26,7 +26,6 @@ from .gpt_neox_model import GPTNeoXModel
 
 
 class GPTNeoXForCausalLM(BaseModel, LLMGenerationMixin):
-    next_tag: int
     gpt_neox_model_: GPTNeoXModel
     lin_: Linear
 
@@ -83,7 +82,7 @@ class GPTNeoXForCausalLM(BaseModel, LLMGenerationMixin):
                    position_ids: np.ndarray,
                    mask: np.ndarray,
                    config: GPTNeoXConfig,
-                   next_tag: int):
+                   ):
 
         if config.dtype not in ["fp32", "tf32",
                               "bf16", "fp32_fast_fp16",
@@ -92,24 +91,23 @@ class GPTNeoXForCausalLM(BaseModel, LLMGenerationMixin):
                             "fp32_fast_bf16 are"
                             "supported for weight type")
 
-        neox_model, next_tag = GPTNeoXModel.from_torch(
+        neox_model = GPTNeoXModel.from_torch(
                    torch_causal.gpt_neox,
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
                    position_ids,
                    mask,
-                   config,
-                   next_tag)
-        lin_head, next_tag = Linear.from_torch(torch_causal.embed_out,
+                   config)
+        lin_head = Linear.from_torch(torch_causal.embed_out,
                                                neox_model.activations[-1],
                                                config.vocab_size,
-                                               config.redux, next_tag)
+                                               config.redux)
 
         nntile_causal = GPTNeoXForCausalLM(neox_model,
                                           lin_head,
                                           config)
 
-        return nntile_causal, next_tag
+        return nntile_causal
 
     def to_torch(self):
         config_torch = ConfigTorch(
@@ -160,7 +158,6 @@ class GPTNeoXForCausalLM(BaseModel, LLMGenerationMixin):
         batch_size: int,
         batch_size_tile: int,
         seq_len_tile: int,
-        next_tag: int,
         cache_dir: str | None = None,
     ):
         # TODO: where should be global repo with all this logic.
@@ -171,7 +168,6 @@ class GPTNeoXForCausalLM(BaseModel, LLMGenerationMixin):
             batch_size,
             batch_size_tile,
             seq_len_tile,
-            next_tag,
             cache_dir=cache_dir,
         )
 
@@ -218,8 +214,7 @@ def create_gpt_neox_model_from_torch_pretrained(
     mask = np.array(np.triu(np.ones((seq_len, seq_len))),
                         dtype=bool, order="F")
 
-    next_tag = 0
-    causal_nntile, next_tag = GPTNeoXForCausalLM.from_torch(
+    causal_nntile = GPTNeoXForCausalLM.from_torch(
         model_torch,
         batch_size,
         batch_size_tile or batch_size,
@@ -227,8 +222,7 @@ def create_gpt_neox_model_from_torch_pretrained(
         seq_len_tile or seq_len,
         pos_ids,
         mask,
-        config_nntile,
-        next_tag
+        config_nntile
     )
 
-    return causal_nntile, next_tag
+    return causal_nntile

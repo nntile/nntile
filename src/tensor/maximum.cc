@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/maximum.hh"
 #include "nntile/starpu/maximum.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -49,7 +50,7 @@ void maximum_async(const Tensor<T> &src, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::maximum::submit<T>(traits.nelems, src_tile_handle,
+            starpu::maximum.submit<std::tuple<T>>(traits.nelems, src_tile_handle,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -76,11 +77,37 @@ void maximum_async<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst)
 template
 void maximum_async<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
+template
+void maximum_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void maximum_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src, const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void maximum_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src, const Tensor<fp32_fast_bf16_t> &dst);
+
+template
+void maximum_async<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
+
+
 // Explicit instantiation
 template
 void maximum<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 
 template
 void maximum<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
+
+template
+void maximum<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void maximum<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src, const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void maximum<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src, const Tensor<fp32_fast_bf16_t> &dst);
+
+template
+void maximum<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
+
 
 } // namespace nntile::tensor

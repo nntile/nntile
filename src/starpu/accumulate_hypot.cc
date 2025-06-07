@@ -12,19 +12,37 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/hypot.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/accumulate_hypot.hh"
-#include <cstdlib>
 
-//! StarPU wrappers for accumulate_hypot operation
-namespace nntile::starpu::accumulate_hypot
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/hypot.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+AccumulateHypot<std::tuple<T>>::AccumulateHypot():
+    codelet("nntile_accumulate_hypot", nullptr, cpu_funcs, cuda_funcs)
+{
+    // Modes cannot be variable for accumulate_hypot operation
+    // Construct modes
+    constexpr std::array<starpu_data_access_mode, 2> modes = {
+        static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE),
+        STARPU_R
+    };
+    // Set modes
+    codelet.set_modes_fixed(modes);
+}
 
 //! Apply accumulate_hypot operation for StarPU buffers in CPU
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void AccumulateHypot<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -38,10 +56,35 @@ void cpu(void *buffers[], void *cl_args)
 #endif // STARPU_SIMGRID
 }
 
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
 #ifdef NNTILE_USE_CUDA
 //! Apply accumulate_hypot for StarPU buffers on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void AccumulateHypot<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -56,121 +99,35 @@ void cuda(void *buffers[], void *cl_args)
     kernel::hypot::cuda<T>(stream, nelems, 1.0, src, 1.0, dst);
 #endif // STARPU_SIMGRID
 }
-#endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
-
-void init()
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
 {
-    codelet_fp32.init("nntile_accumulate_hypot_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp32.nbuffers = 2;
-    codelet_fp32.modes[0] = static_cast<starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
-    codelet_fp32.modes[1] = STARPU_R;
-
-    codelet_bf16.init("nntile_accumulate_hypot_bf16",
-            nullptr,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_bf16.nbuffers = 2;
-    codelet_bf16.modes[0] = static_cast<starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
-    codelet_bf16.modes[1] = STARPU_R;
-
-
-    codelet_fp32_fast_tf32.init("nntile_accumulate_hypot_fp32_fast_tf32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp32_fast_tf32.nbuffers = 2;
-    codelet_fp32_fast_tf32.modes[0] = static_cast<starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
-    codelet_fp32_fast_tf32.modes[1] = STARPU_R;
-
-    codelet_fp32_fast_fp16.init("nntile_accumulate_hypot_fp32_fast_fp16",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp32_fast_fp16.nbuffers = 2;
-    codelet_fp32_fast_fp16.modes[0] = static_cast<starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
-    codelet_fp32_fast_fp16.modes[1] = STARPU_R;
-
-    codelet_fp32_fast_bf16.init("nntile_accumulate_hypot_fp32_fast_bf16",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp32_fast_bf16.nbuffers = 2;
-    codelet_fp32_fast_bf16.modes[0] = static_cast<starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
-    codelet_fp32_fast_bf16.modes[1] = STARPU_R;
-
-    codelet_fp64.init("nntile_accumulate_hypot_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp64.nbuffers = 2;
-    codelet_fp64.modes[0] = static_cast<starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
-    codelet_fp64.modes[1] = STARPU_R;
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
-void restrict_where(uint32_t where)
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
 {
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp32_fast_fp16.restrict_where(where);
-    codelet_fp32_fast_bf16.restrict_where(where);
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
-void restore_where()
+template<>
+void AccumulateHypot<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
 {
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp64.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp32_fast_fp16.restore_where();
-    codelet_fp32_fast_bf16.restore_where();
+    // Fall back to FP32
+    AccumulateHypot<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
+#endif // NNTILE_USE_CUDA
 
 template<typename T>
-void submit(Handle src, Handle dst)
+void AccumulateHypot<std::tuple<T>>::submit(Handle src, Handle dst)
 //! Insert accumulate hypoy task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -179,9 +136,9 @@ void submit(Handle src, Handle dst)
 {
     //double nflops;
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
-            STARPU_RW|STARPU_COMMUTE, static_cast<starpu_data_handle_t>(dst),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
+    int ret = starpu_task_insert(&codelet,
+            STARPU_RW | STARPU_COMMUTE, dst.get(),
+            STARPU_R, src.get(),
             // STARPU_FLOPS, nflops,
             0);
     // Check submission
@@ -192,22 +149,16 @@ void submit(Handle src, Handle dst)
 }
 
 // Explicit instantiation
-template
-void submit<fp32_t>(Handle src, Handle dst);
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class AccumulateHypot<std::tuple<nntile::fp64_t>>;
+template class AccumulateHypot<std::tuple<nntile::fp32_t>>;
+template class AccumulateHypot<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class AccumulateHypot<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class AccumulateHypot<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class AccumulateHypot<std::tuple<nntile::bf16_t>>;
 
-template
-void submit<bf16_t>(Handle src, Handle dst);
+//! Pack of accumulate_hypot operations for different types
+accumulate_hypot_pack_t accumulate_hypot;
 
-template
-void submit<fp32_fast_tf32_t>(Handle src, Handle dst);
-
-template
-void submit<fp32_fast_fp16_t>(Handle src, Handle dst);
-
-template
-void submit<fp32_fast_bf16_t>(Handle src, Handle dst);
-
-template
-void submit<fp64_t>(Handle src, Handle dst);
-
-} // namespace nntile::starpu::accumulate_hypot
+} // namespace nntile::starpu

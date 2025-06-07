@@ -31,7 +31,7 @@ void prod_inplace_async(const Tile<T> &src, const Tile<T> &dst)
         throw std::runtime_error("src.shape != dst.shape");
     }
     // Submit task
-    starpu::prod_inplace::submit<T>(src.nelems, src, dst);
+    starpu::prod_inplace.submit<std::tuple<T>>(src.nelems, src, dst);
 }
 
 //! Blocking version of tile-wise prod operation

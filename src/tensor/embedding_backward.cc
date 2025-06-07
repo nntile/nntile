@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/embedding_backward.hh"
 #include "nntile/starpu/embedding_backward.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -103,7 +104,7 @@ void embedding_backward_async(const Tensor<int64_t> &index,
             k = embed_tile_traits.shape[axis];
             k_start = (j-vocab_start) * vocab.basetile_shape[0];
             k_size = vocab_tile_traits.shape[0];
-            starpu::embedding_backward::submit<T>(m, n, k, k_start, k_size,
+            starpu::embedding_backward.submit<std::tuple<T>>(m, n, k, k_start, k_size,
                     index_tile_handle, embed_tile_handle, vocab_tile_handle,
                     redux);
         }

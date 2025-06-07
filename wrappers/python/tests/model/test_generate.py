@@ -45,15 +45,13 @@ TEST_GENERATE_INPUT_PARAMS = [
 
 @pytest.mark.slow
 @pytest.mark.parametrize("params", TEST_GENERATE_INPUT_PARAMS)
-def test_generation_from_pretrained(starpu_simple, params):
+def test_generation_from_pretrained(context, params):
     tokenizer = GPT2Tokenizer.from_pretrained(params.model_name)
-    next_tag = 0
-    model_nnt, next_tag = GPT2Model_nnt.from_pretrained(
+    model_nnt = GPT2Model_nnt.from_pretrained(
         params.model_name,
         params.minibatch_size,
         params.minibatch_size_tile,
         params.seq_len_tile,
-        next_tag,
     )
 
     inputs = tokenizer(params.prompt, return_tensors="np")

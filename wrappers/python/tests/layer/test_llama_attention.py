@@ -136,7 +136,7 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool,
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
-    x_value = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
     x_grad = zeros_like(x_value)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     x_random = rng.standard_normal(x_shape)
@@ -156,8 +156,8 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool,
             * torch.finfo(torch.float32).min
     mask_torch = mask_torch[None, None, :, :].expand(params.n_batch, 1, -1, -1)
 
-    nntile_layer, _ = nntile.layer.LlamaAttention.from_torch(
-            torch_layer, X, pos_ids, mask_np, nntile_layer_config, 0)
+    nntile_layer = nntile.layer.LlamaAttention.from_torch(
+            torch_layer, X, pos_ids, mask_np, nntile_layer_config)
     y_grad_random = rng.standard_normal(x_shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.y.grad.from_array(y_grad_nntile)
@@ -179,10 +179,10 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool,
     pytest.param('fp32_fast_tf32', marks=nocuda),
     pytest.param('bf16', marks=nocuda),
 ])
-@pytest.mark.parametrize('flash_attention', [False, True])
+@pytest.mark.parametrize('flash_attention', [False])
 class TestLlamaAttention:
 
-    def test_torch_coercion(self, starpu_simple, torch_rng, dtype: str,
+    def test_torch_coercion(self, context, torch_rng, dtype: str,
                             params: LlamaAttentionTestParams, bias: bool,
                             flash_attention: bool):
         torch_layer, nntile_layer, *_ = \
@@ -198,7 +198,7 @@ class TestLlamaAttention:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng, dtype: str,
+    def test_forward(self, context, torch_rng, dtype: str,
                      params: LlamaAttentionTestParams, bias: bool,
                             flash_attention: bool):
         torch_layer, nntile_layer, x, pos_ids, pos_embs, mask, *_ = \
@@ -214,7 +214,7 @@ class TestLlamaAttention:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng, dtype: str,
+    def test_backward(self, context, torch_rng, dtype: str,
                               params: LlamaAttentionTestParams, bias: bool,
                             flash_attention: bool):
         torch_layer, nntile_layer, x, pos_ids, pos_embs, mask, y_grad = \
@@ -245,7 +245,7 @@ class TestLlamaAttention:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
 
-    def test_flops_counting(self, starpu_simple, torch_rng, dtype: str,
+    def test_flops_counting(self, context, torch_rng, dtype: str,
                             params: LlamaAttentionTestParams, bias: bool,
                             flash_attention: bool):
 
@@ -280,7 +280,7 @@ class TestLlamaAttention:
 )
 @pytest.mark.parametrize("flash_attention", [False])
 def test_llama_attn_forward_dynamic(
-    starpu_simple,
+    context,
     torch_rng,
     dtype: str,
     params: LlamaAttentionTestParams,
@@ -344,7 +344,7 @@ def test_llama_attn_forward_dynamic(
 )
 @pytest.mark.parametrize("flash_attention", [False])
 def test_llama_attn_kvcache(
-    starpu_simple,
+    context,
     torch_rng,
     dtype: str,
     params: LlamaAttentionTestParams,

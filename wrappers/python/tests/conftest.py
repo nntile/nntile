@@ -19,26 +19,26 @@ import pytest
 import nntile
 
 
-@pytest.fixture(scope='function')
-def starpu_simple() -> Generator[nntile.starpu.Config, None, None]:
-    config = nntile.starpu.Config(1, 1, 1)
-    nntile.starpu.init()
-    nntile.starpu.restrict_cpu()
+@pytest.fixture(scope='session')
+def context() -> Generator[None, None, None]:
+    context = nntile.Context(ncpu=1, ncuda=1, ooc=0, logger=0, verbose=0)
+    context.restrict_cpu()
     try:
-        yield config
+        yield None
     finally:
         nntile.starpu.wait_for_all()
+        context.shutdown()
 
 
-@pytest.fixture(scope='function')
-def starpu_simple_cuda() -> Generator[nntile.starpu.Config, None, None]:
-    config = nntile.starpu.Config(1, 1, 1)
-    nntile.starpu.init()
-    nntile.starpu.restrict_cuda()
+@pytest.fixture(scope='session')
+def context_cuda() -> Generator[None, None, None]:
+    context = nntile.Context(ncpu=1, ncuda=1, ooc=0, logger=0, verbose=0)
+    context.restrict_cuda()
     try:
-        yield config
+        yield None
     finally:
         nntile.starpu.wait_for_all()
+        context.shutdown()
 
 
 @pytest.fixture(scope='function')

@@ -66,7 +66,7 @@ template<typename T>
 void validate(Index m, Index n, Index k, Scalar alpha, Scalar beta)
 {
     using Y = typename T::repr_t;
-    const Y eps = T::epsilon();
+    const Y eps = T::epsilon;
     // Init test input
     std::vector<T> src(m*n*k), sum_dst(m*n);
     for(Index i0 = 0; i0 < m; ++i0)
@@ -82,7 +82,7 @@ void validate(Index m, Index n, Index k, Scalar alpha, Scalar beta)
     }
     std::vector<T> sum_copy(sum_dst);
     // Check low-level kernel
-    std::cout << "Run kernel::sum_slice::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::sum_slice::cpu<" << T::short_name << ">\n";
     cpu<T>(m, n, k, alpha, &src[0], beta, &sum_dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -102,11 +102,11 @@ void validate(Index m, Index n, Index k, Scalar alpha, Scalar beta)
             }
         }
     }
-    std::cout << "OK: kernel::sum_slice::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::sum_slice::cpu<" << T::short_name << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     std::vector<T> sum_cuda(sum_copy);
-    std::cout << "Run kernel::sum_slice::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::sum_slice::cuda<" << T::short_name << ">\n";
     run_cuda<T>(m, n, k, alpha, src, beta, sum_cuda);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -124,7 +124,7 @@ void validate(Index m, Index n, Index k, Scalar alpha, Scalar beta)
 
         }
     }
-    std::cout << "OK: kernel::sum_slice::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::sum_slice::cuda<" << T::short_name << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

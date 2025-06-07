@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/relu.hh"
 #include "nntile/starpu/relu.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -33,7 +34,7 @@ void relu_async(const Tensor<T> &A)
         if(mpi_rank == tile_rank)
         {
             auto tile_traits = A.get_tile_traits(i);
-            starpu::relu::submit<T>(tile_traits.nelems, tile_handle);
+            starpu::relu.submit<std::tuple<T>>(tile_traits.nelems, tile_handle);
         }
         // Flush cache for the output tile on every node
         tile_handle.mpi_flush();
@@ -59,7 +60,16 @@ template
 void relu_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
 
 template
+void relu_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
+
+template
+void relu_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
+
+template
 void relu_async<fp64_t>(const Tensor<fp64_t> &A);
+
+template
+void relu_async<bf16_t>(const Tensor<bf16_t> &A);
 
 // Explicit instantiation
 template
@@ -69,6 +79,15 @@ template
 void relu<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
 
 template
+void relu<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
+
+template
+void relu<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
+
+template
 void relu<fp64_t>(const Tensor<fp64_t> &A);
+
+template
+void relu<bf16_t>(const Tensor<bf16_t> &A);
 
 } // namespace nntile::tensor

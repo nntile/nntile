@@ -89,7 +89,7 @@ def generate_inputs(dtype: str, params: LayerNormTestParams):
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
-    x_value = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
     x_grad = nntc.zeros_like(x_value)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     x_random = rng.standard_normal(x_shape)
@@ -98,7 +98,7 @@ def generate_inputs(dtype: str, params: LayerNormTestParams):
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_()
 
-    nntile_layer, _ = nntile.layer.LayerNorm.from_torch(torch_layer, X, 0)
+    nntile_layer = nntile.layer.LayerNorm.from_torch(torch_layer, X)
     y_grad_random = rng.standard_normal(x_shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.y.grad.from_array(y_grad_nntile)
@@ -129,7 +129,7 @@ def generate_inputs_dynamic(dtype: str, params: LayerNormTestParams):
     )
     x_torch = torch.Tensor(x_nntile.T)
 
-    nntile_layer, _ = nntile.layer.LayerNorm.from_torch(torch_layer, X, 0)
+    nntile_layer = nntile.layer.LayerNorm.from_torch(torch_layer, X)
 
     x_shape = [params.n_size, params.m_size_dyn]
     x_basetile_shape = [params.n_size_tile, params.m_size_dyn_tile]
@@ -153,7 +153,7 @@ def generate_inputs_dynamic(dtype: str, params: LayerNormTestParams):
 ])
 class TestLayerNorm:
 
-    def test_torch_coercion(self, starpu_simple, torch_rng, dtype: str,
+    def test_torch_coercion(self, context, torch_rng, dtype: str,
                             params: LayerNormTestParams):
         torch_layer, nntile_layer, *_ = generate_inputs(dtype, params)
         torch_layer_other = nntile_layer.to_torch()
@@ -167,7 +167,7 @@ class TestLayerNorm:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng, dtype: str,
+    def test_forward(self, context, torch_rng, dtype: str,
                      params: LayerNormTestParams):
         torch_layer, nntile_layer, x, *_ = generate_inputs(dtype, params)
         y = torch_layer(x)
@@ -180,7 +180,7 @@ class TestLayerNorm:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_forward_dynamic(self, starpu_simple, torch_rng, dtype: str,
+    def test_forward_dynamic(self, context, torch_rng, dtype: str,
                              params: LayerNormTestParams):
         torch_layer, nntile_layer, torch_inputs, nntile_inputs = \
             generate_inputs_dynamic(dtype, params)
@@ -200,7 +200,7 @@ class TestLayerNorm:
         nntile_layer.y.unregister()
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng, dtype: str,
+    def test_backward(self, context, torch_rng, dtype: str,
                               params: LayerNormTestParams):
         torch_layer, nntile_layer, x, y_grad = generate_inputs(dtype, params)
         y = torch_layer(x)

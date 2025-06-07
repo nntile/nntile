@@ -60,11 +60,6 @@ void cpu<fp64_t>(Index nrows, Index ncols, const bool_t *mask, Scalar val,
     noexcept;
 
 template
-void cpu<fp32_fast_tf32_t>(Index nrows, Index ncols, const bool_t *mask, Scalar val,
-        fp32_fast_tf32_t *data)
-    noexcept;
-
-template
 void cpu<bf16_t>(Index nrows, Index ncols, const bool_t *mask, Scalar val,
         bf16_t *data)
     noexcept;

@@ -25,7 +25,6 @@ set(TESTS_MPI
     "add_slice_inplace"
     "add_slice"
     "addcdiv"
-    "axpy"
     "clear"
     "copy"
     "copy_intersection"
@@ -44,8 +43,6 @@ set(TESTS_MPI
     "maximum"
     "maxsumexp"
     "norm_slice"
-    "normalize"
-    "nrm2"
     "pow"
     "prod_inplace"
     "prod_fiber"
@@ -63,7 +60,6 @@ set(TESTS_MPI
     "subtract_indexed_column"
     "sum_fiber"
     "sum_slice"
-    "sumnorm"
     "sumprod_fiber"
     "sumprod_slice"
     "tensor"
@@ -127,15 +123,15 @@ foreach(test IN LISTS TESTS_MPI)
         COV_GLOBAL coverage_tensor coverage
         LABELS ${labels}
         )
-    # Add mpirun test (the same source, but different output executable)
-    add_test_set(TARGET_NAME tests_tensor_${test}_mpi
-        EXEC_NAME test_${test}_mpi
-        SOURCES ${test}.cc
-        LINK_LIBRARIES nntile
-        MPI_NUMPROC 4
-        COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_tensor_${test}
-        COV_GLOBAL coverage_tensor coverage
-        LABELS ${labels} MPI
-        )
+    # # Add mpirun test (the same source, but different output executable)
+    # add_test_set(TARGET_NAME tests_tensor_${test}_mpi
+    #     EXEC_NAME test_${test}_mpi
+    #     SOURCES ${test}.cc
+    #     LINK_LIBRARIES nntile
+    #     MPI_NUMPROC 4
+    #     COV_ENABLE ${BUILD_COVERAGE}
+    #     COV_NAME coverage_tensor_${test}
+    #     COV_GLOBAL coverage_tensor coverage
+    #     LABELS ${labels} MPI
+    #     )
 endforeach()

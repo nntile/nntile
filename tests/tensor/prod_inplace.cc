@@ -19,6 +19,8 @@
 #include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/copy.hh"
+#include "nntile/context.hh"
+#include "nntile/starpu/config.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -31,15 +33,14 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
     // Generate single-tile source and destination tensors
     TensorTraits single_traits(shape, shape);
     std::vector<int> dist_root = {mpi_root};
-    Tensor<T> src_single(single_traits, dist_root, last_tag),
-        dst_single(single_traits, dist_root, last_tag);
+    Tensor<T> src_single(single_traits, dist_root),
+        dst_single(single_traits, dist_root);
     if(mpi_rank == mpi_root)
     {
         auto src_tile = src_single.get_tile(0);
@@ -62,8 +63,8 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         src_distr[i] = (i+1) % mpi_size;
         dst_distr[i] = (i+2) % mpi_size;
     }
-    Tensor<T> src(traits, src_distr, last_tag),
-        dst(traits, dst_distr, last_tag);
+    Tensor<T> src(traits, src_distr),
+        dst(traits, dst_distr);
     scatter(src_single, src);
     scatter(dst_single, dst);
     // Get prod_inplace
@@ -75,7 +76,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     }
     prod_inplace<T>(src, dst);
     // Compare results
-    Tensor<T> dst2_single(single_traits, dist_root, last_tag);
+    Tensor<T> dst2_single(single_traits, dist_root);
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {
@@ -107,15 +108,10 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::prod_inplace::init();
-    starpu::subcopy::init();
-    starpu::copy::init();
-    starpu::prod_inplace::restrict_where(STARPU_CPU);
-    starpu::subcopy::restrict_where(STARPU_CPU);
-    starpu::copy::restrict_where(STARPU_CPU);
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

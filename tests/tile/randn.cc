@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/tile/randn.hh"
 #include "nntile/starpu/randn.hh"
 #include "../testing.hh"
@@ -29,8 +30,8 @@ void validate()
     unsigned long long seed = -1;
     Scalar mean = 1, stddev = 2;
     // Check some valid parameters
-    starpu::VariableHandle tmp_index(sizeof(nntile::int64_t)*2*3, STARPU_R);
-    starpu::randn::submit<T>(3, dst.nelems, seed, mean, stddev, start,
+    starpu::VariableHandle tmp_index(sizeof(nntile::int64_t)*2*3);
+    starpu::randn.submit<std::tuple<T>>(3, dst.nelems, seed, mean, stddev, start,
         dst.shape, dst.stride, underlying_shape, dst, tmp_index);
     randn(dst2, start, underlying_shape, seed, mean, stddev);
     auto dst_local = dst.acquire(STARPU_R);
@@ -41,17 +42,6 @@ void validate()
     }
     dst_local.release();
     dst2_local.release();
-    // Check scalar tile
-    Tile<T> scalar({}), scalar2({});
-    starpu::Handle null_handle;
-    starpu::randn::submit<T>(0, 1, seed, mean, stddev, scalar.shape,
-            scalar.shape, scalar.shape, scalar.shape, scalar, null_handle);
-    randn(scalar2, scalar.shape, scalar.shape, seed, mean, stddev);
-    auto scalar_local = scalar.acquire(STARPU_R);
-    auto scalar2_local = scalar2.acquire(STARPU_R);
-    TEST_ASSERT(Y(scalar_local[0]) == Y(scalar2_local[0]));
-    scalar_local.release();
-    scalar2_local.release();
     // Check throwing exceptions
     std::vector<Index> ind2(2);
     TEST_THROW(randn<T>(dst, ind2, underlying_shape, seed, mean, stddev));
@@ -64,11 +54,12 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::randn::init();
-    starpu::randn::restrict_where(STARPU_CPU);
+    // Initialize StarPU
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

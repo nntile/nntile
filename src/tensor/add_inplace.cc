@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/add_inplace.hh"
 #include "nntile/starpu/add_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -61,7 +62,7 @@ void add_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::add_inplace::submit<T>(traits.nelems, alpha,
+            starpu::add_inplace.submit<std::tuple<T>>(traits.nelems, alpha,
                     src_tile_handle, beta, dst_tile_handle);
         }
         // Flush cache for the output tile on every node

@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/copy.hh"
 #include "nntile/starpu/copy.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -49,7 +50,7 @@ void copy_async(const Tensor<T> &src, const Tensor<T> &dst)
         // Execute on destination node
         if(mpi_rank == dst_tile_rank)
         {
-            starpu::copy::submit(src_tile_handle, dst_tile_handle);
+            starpu::copy.submit(src_tile_handle, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
@@ -93,6 +94,9 @@ template
 void copy_async<int64_t>(const Tensor<int64_t> &src, const Tensor<int64_t> &dst);
 
 template
+void copy_async<bool_t>(const Tensor<bool_t> &src, const Tensor<bool_t> &dst);
+
+template
 void copy_async<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
 
 // Explicit instantiation
@@ -116,6 +120,9 @@ void copy<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 template
 void copy<int64_t>(const Tensor<int64_t> &src, const Tensor<int64_t> &dst);
+
+template
+void copy<bool_t>(const Tensor<bool_t> &src, const Tensor<bool_t> &dst);
 
 template
 void copy<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);

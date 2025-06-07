@@ -20,7 +20,7 @@ namespace nntile::kernel::dgelu
 {
 
 template<typename T>
-void cpu(Index nelems, T *data_)
+void cpu(Index nelems, T *data)
     noexcept
 //! Inplace derivative of GeLU operation performed on CPU
 /*! Uses very slow std::erfc() function, so consider using approximated version
@@ -33,17 +33,16 @@ void cpu(Index nelems, T *data_)
  * @params[inout] data_: Buffer to apply derivative of GeLU
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto data = reinterpret_cast<Y *>(data_);
+    using Y = typename T::repr_t;
     constexpr Y pi{3.141592653589793238462643383279502884L},
         one{1.0}, mone{-1.0}, pt5{0.5};
     const Y f1 = mone / std::sqrt(Y{2.0}), f2 = one / std::sqrt(2*pi);
     for(Index i = 0; i < nelems; ++i)
     {
-        Y z = data[i];
+        Y z = static_cast<Y>(data[i]);
         Y x = std::exp(-pt5 * z * z);
         Y y = std::erfc(f1 * z);
-        data[i] = z*f2*x + pt5*y;
+        data[i] = T{z*f2*x + pt5*y};
     }
 }
 
@@ -54,6 +53,10 @@ void cpu<fp32_t>(Index nelems, fp32_t *data)
 
 template
 void cpu<fp64_t>(Index nelems, fp64_t *data)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index nelems, bf16_t *data)
     noexcept;
 
 } // namespace nntile::kernel::dgelu

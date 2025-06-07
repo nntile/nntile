@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/sum_fiber.hh"
 #include "nntile/starpu/sum_fiber.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -110,12 +111,12 @@ void sum_fiber_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
             // Insert task
             if(init_first)
             {
-                starpu::sum_fiber::submit<T>(m, n, k, batch, alpha,
+                starpu::sum_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha,
                         src_tile_handle, beta, dst_tile_handle);
             }
             else
             {
-                starpu::sum_fiber::submit<T>(m, n, k, batch, alpha,
+                starpu::sum_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha,
                         src_tile_handle, one, dst_tile_handle, redux);
             }
         }

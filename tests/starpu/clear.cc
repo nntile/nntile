@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/starpu/clear.hh"
 #include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
@@ -35,10 +36,10 @@ void validate(std::size_t size)
     // Create copy of data
     std::vector<char> data(data_init);
     // Check by actually submitting a task
-    VariableHandle data_handle(&data[0], size, STARPU_RW);
-    clear::restrict_where(STARPU_CPU);
+    VariableHandle data_handle(&data[0], size);
+    clear.codelet.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::clear::submit restricted to CPU\n";
-    clear::submit(data_handle);
+    clear.submit(data_handle);
     starpu_task_wait_for_all();
     data_handle.unregister();
     // Check result
@@ -50,10 +51,10 @@ void validate(std::size_t size)
 #ifdef NNTILE_USE_CUDA
     // Check by actually submitting a task
     data = data_init;
-    data_handle = VariableHandle(&data[0], size, STARPU_RW);
-    clear::restrict_where(STARPU_CUDA);
+    data_handle = VariableHandle(&data[0], size);
+    clear.codelet.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::clear::submit restricted to CUDA\n";
-    clear::submit(data_handle);
+    clear.submit(data_handle);
     starpu_task_wait_for_all();
     data_handle.unregister();
     // Check result
@@ -67,12 +68,15 @@ void validate(std::size_t size)
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 1, 0);
-    // Init codelet
-    clear::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpu=1, ncuda=1, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
     // Launch all tests
     validate(1);
     validate(100000);
+
     return 0;
 }

@@ -20,7 +20,7 @@ namespace nntile::kernel::relu
 {
 
 template<typename T>
-void cpu(Index nelems, T *data_)
+void cpu(Index nelems, T *data)
     noexcept
 //! Inplace ReLU operation on CPU
 /*! Does the following per-element operation:
@@ -30,13 +30,12 @@ void cpu(Index nelems, T *data_)
  * @params[inout] data_: Buffer to apply ReLU
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto data = reinterpret_cast<Y *>(data_);
+    using Y = typename T::repr_t;
     constexpr Y zero{0.0};
     for(Index i = 0; i < nelems; ++i)
     {
-        Y z = data[i];
-        data[i] = std::fmax(z, zero);
+        Y z = Y(data[i]);
+        data[i] = T{std::fmax(z, zero)};
     }
 }
 
@@ -47,6 +46,10 @@ void cpu<fp32_t>(Index nelems, fp32_t *data)
 
 template
 void cpu<fp64_t>(Index nelems, fp64_t *data)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index nelems, bf16_t *data)
     noexcept;
 
 } // namespace nntile::kernel::relu

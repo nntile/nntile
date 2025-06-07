@@ -19,6 +19,8 @@
 #include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/copy.hh"
+#include "nntile/context.hh"
+#include "nntile/starpu/config.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -32,16 +34,15 @@ void check(Scalar val, Scalar eps, const std::vector<Index> &shape,
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
     // Generate single-tile source, nom and denom tensors
     TensorTraits single_traits(shape, shape);
     std::vector<int> dist_root = {mpi_root};
-    Tensor<T> src_single(single_traits, dist_root, last_tag),
-              nom_single(single_traits, dist_root, last_tag),
-              denom_single(single_traits, dist_root, last_tag);
+    Tensor<T> src_single(single_traits, dist_root),
+              nom_single(single_traits, dist_root),
+              denom_single(single_traits, dist_root);
     if(mpi_rank == mpi_root)
     {
         // Get the only tiles of single-tiled tensors
@@ -75,9 +76,9 @@ void check(Scalar val, Scalar eps, const std::vector<Index> &shape,
         nom_distr[i] = (i+2) % mpi_size;
         denom_distr[i] = (i+3) % mpi_size;
     }
-    Tensor<T> src(traits, src_distr, last_tag),
-              nom(traits, nom_distr, last_tag),
-              denom(traits, denom_distr, last_tag);
+    Tensor<T> src(traits, src_distr),
+              nom(traits, nom_distr),
+              denom(traits, denom_distr);
     scatter(src_single, src);
     scatter(nom_single, nom);
     scatter(denom_single, denom);
@@ -92,7 +93,7 @@ void check(Scalar val, Scalar eps, const std::vector<Index> &shape,
     }
     addcdiv<T>(val, eps, nom, denom, src);
     // Compare results
-    Tensor<T> src2_single(single_traits, dist_root, last_tag);
+    Tensor<T> src2_single(single_traits, dist_root);
     gather<T>(src, src2_single);
     if(mpi_rank == mpi_root)
     {
@@ -123,15 +124,10 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::addcdiv::init();
-    starpu::subcopy::init();
-    starpu::copy::init();
-    starpu::addcdiv::restrict_where(STARPU_CPU);
-    starpu::subcopy::restrict_where(STARPU_CPU);
-    starpu::copy::restrict_where(STARPU_CPU);
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

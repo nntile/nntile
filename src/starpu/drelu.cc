@@ -12,95 +12,138 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/drelu.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/drelu.hh"
 
-//! StarPU wrappers for derivative of ReLU operation
-namespace nntile::starpu::drelu
+// Standard libraries
+#include <cstdlib>
+
+// Other NNTile headers
+#include "nntile/kernel/drelu.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+DRelu<std::tuple<T>>::DRelu():
+    codelet("nntile_drelu", footprint, cpu_funcs, cuda_funcs)
+{
+    // Modes are not fixed, they are decided during runtime by default
+}
 
 //! Apply drelu on StarPU buffer on CPU
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void DRelu<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
-    kernel::drelu::cpu<T>(nelems, data);
+    kernel::drelu::cpu<T>(args->nelems, data);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void DRelu<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    DRelu<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void DRelu<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    DRelu<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void DRelu<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    DRelu<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Apply drelu on StarPU buffer on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void DRelu<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::drelu::cuda<T>(stream, nelems, data);
+    kernel::drelu::cuda<T>(stream, args->nelems, data);
 #endif // STARPU_SIMGRID
 }
-#endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64;
-
-void init()
+// Specializations of CPU wrapper for accelerated types
+template<>
+void DRelu<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
 {
-    codelet_fp32.init("nntile_drelu_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp64.init("nntile_drelu_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
+    // Fall back to FP32
+    DRelu<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
-void restrict_where(uint32_t where)
+template<>
+void DRelu<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
 {
-    codelet_fp32.restrict_where(where);
-    codelet_fp64.restrict_where(where);
+    // Fall back to FP32
+    DRelu<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
-void restore_where()
+template<>
+void DRelu<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
 {
-    codelet_fp32.restore_where();
-    codelet_fp64.restore_where();
+    // Fall back to FP32
+    DRelu<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
+#endif // NNTILE_USE_CUDA
 
+//! Footprint for add tasks that depends only on cl_arg
 template<typename T>
-void submit(Index nelems, Handle data)
+uint32_t DRelu<std::tuple<T>>::footprint(struct starpu_task *task)
 {
-    Index *nelems_ = new Index{nelems};
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
+    return hash;
+}
+
+//! Submit drelu task
+template<typename T>
+void DRelu<std::tuple<T>>::submit(
+    Index nelems,
+    Handle data
+)
+{
+    // Codelet arguments
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->nelems = nelems;
+    // Submit task
     //double nflops = 5 * nelems;
-    int ret = starpu_task_insert(codelet<T>(),
-            STARPU_RW, static_cast<starpu_data_handle_t>(data),
-            STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
+    int ret = starpu_task_insert(&codelet,
+            STARPU_RW, data.get(),
+            STARPU_CL_ARGS, args, sizeof(*args),
             //STARPU_FLOPS, nflops,
             0);
     // Check submission
@@ -110,11 +153,17 @@ void submit(Index nelems, Handle data)
     }
 }
 
-// Explicit instantiaion
-template
-void submit<fp32_t>(Index nelems, Handle data);
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class DRelu<std::tuple<nntile::fp64_t>>;
+template class DRelu<std::tuple<nntile::fp32_t>>;
+template class DRelu<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class DRelu<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class DRelu<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class DRelu<std::tuple<nntile::bf16_t>>;
 
-template
-void submit<fp64_t>(Index nelems, Handle data);
+//! Pack of drelu operations for different types
+drelu_pack_t drelu;
 
-} // namespace nntile::starpu::drelu
+} // namespace nntile::starpu

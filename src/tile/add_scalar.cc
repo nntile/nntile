@@ -28,7 +28,7 @@ void add_scalar_async(Scalar alpha, Scalar beta, const Tile<T> &dst)
         return;
     }
     // Insert corresponding task
-    starpu::add_scalar::submit<T>(dst.nelems, alpha, beta, dst);
+    starpu::add_scalar.submit<std::tuple<T>>(dst.nelems, alpha, beta, dst);
 }
 
 //! Tile-wise add_scalar operation

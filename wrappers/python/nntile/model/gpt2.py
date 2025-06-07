@@ -19,8 +19,8 @@ import torch
 import nntile
 import nntile.utils.constructors as nntc
 from nntile.layer import (
-    Act, AddSlice, Attention, AttentionSingleHead, Embedding, FlashAttention,
-    LayerNorm, Linear)
+    Act, AddSlice, Attention, AttentionSingleHead, Embedding, LayerNorm,
+    Linear)
 from nntile.layer.add import Add
 from nntile.layer.cache_utils import KVCacheStorage
 from nntile.model.base_model import BaseModel
@@ -73,10 +73,9 @@ class GPT2Config(Dict):
 
 
 class GPT2MLP(BaseModel):
-    next_tag: int
 
     # Construct model with all the provided data
-    def __init__(self, x: TensorMoments, config: GPT2Config, next_tag: int):
+    def __init__(self, x: TensorMoments, config: GPT2Config):
         # Init activations and list of layers
         activations = [x]
         layers = []
@@ -88,38 +87,35 @@ class GPT2MLP(BaseModel):
         redux = config["redux"]
         gemm_ndim = 1
         # Initial linear layer that converts input to internal shape
-        new_layer, next_tag = Linear.generate_simple(
+        new_layer = Linear.generate_simple(
             x,
             "R",
             notrans,
             gemm_ndim,
             [inner_dim],
             [inner_dim_tile],
-            next_tag,
             redux=redux,
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Act.generate_simple(
-            activations[-1], activation_function, next_tag
+        new_layer = Act.generate_simple(
+            activations[-1], activation_function
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Linear.generate_simple(
+        new_layer = Linear.generate_simple(
             activations[-1],
             "R",
             notrans,
             gemm_ndim,
             [embed_dim],
             [embed_dim_tile],
-            next_tag,
             redux=redux,
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
-        self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers, config)
 
@@ -131,20 +127,19 @@ class GPT2MLP(BaseModel):
 
     @staticmethod
     def from_torch(
-        torch_mlp, x: TensorMoments, config: GPT2Config, next_tag: int
+        torch_mlp, x: TensorMoments, config: GPT2Config
     ):
         """
         torch_mlp is PyTorch MLP where no biases in linear layers
         """
-        gpt2mlp_nntile = GPT2MLP(x, config, next_tag)
+        gpt2mlp_nntile = GPT2MLP(x, config)
         torch_params = list(torch_mlp.parameters())
         for i, p in enumerate(gpt2mlp_nntile.parameters):
             p.value.from_array(torch_params[i].cpu().detach().numpy().T)
-        return gpt2mlp_nntile, gpt2mlp_nntile.next_tag
+        return gpt2mlp_nntile
 
 
 class GPT2Model(BaseModel, LLMGenerationMixin):
-    next_tag: int
 
     # Construct model with all the provided data
     def __init__(
@@ -152,7 +147,6 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         input_ids: TensorMoments,
         positional_ids: TensorMoments,
         config: GPT2Config,
-        next_tag: int,
     ):
         # Check parameter side
         vocab_size = config["vocab_size"]
@@ -180,7 +174,7 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
             print("Set 1 head")
             AttLayer = AttentionSingleHead
         elif flashattention:
-            AttLayer = FlashAttention
+            AttLayer = Attention
         else:
             AttLayer = Attention
         seq_len = input_ids.value.shape[0]
@@ -191,8 +185,7 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
             (seq_len, seq_len), (seq_len_tile, seq_len_tile)
         )
         mask_distr = [0] * mask_traits.grid.nelems
-        self.mask = Tensor_bool(mask_traits, mask_distr, next_tag)
-        next_tag = self.mask.next_tag
+        self.mask = Tensor_bool(mask_traits, mask_distr)
         mask_np = np.array(
             np.triu(np.ones((seq_len, seq_len))), dtype=bool, order="F"
         )
@@ -205,7 +198,7 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
                              "fp32_fast_bf16": Tensor_fp32_fast_bf16
                             }
 
-        wte_layer, next_tag = Embedding.generate_simple(
+        wte_layer = Embedding.generate_simple(
                                 input_ids.value,
                                 dtype2tensor_type[self.dtype],
                                 0,
@@ -213,12 +206,11 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
                                 self.embed_dim,
                                 embed_dim_tile,
                                 vocab_embed_dim_tile,
-                                next_tag,
                             )
         layers.append(wte_layer)
         activations.extend(wte_layer.activations_output)
 
-        wpe_layer, next_tag = Embedding.generate_simple(
+        wpe_layer = Embedding.generate_simple(
                 positional_ids.value,
                 dtype2tensor_type[self.dtype],
                 0,
@@ -226,43 +218,40 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
                 self.embed_dim,
                 embed_dim_tile,
                 vocab_embed_dim_tile,
-                next_tag,
             )
 
         layers.append(wpe_layer)
         activations.extend(wpe_layer.activations_output)
 
-        add_slice_layer, next_tag = AddSlice.generate_simple(
-            activations[-2], activations[-1], 2, next_tag, redux=redux
+        add_slice_layer = AddSlice.generate_simple(
+            activations[-2], activations[-1], 2, redux=redux
         )
         layers.append(add_slice_layer)
         activations.extend(add_slice_layer.activations_output)
 
         for h_idx in range(num_hidden_layers):
-            l_norm, next_tag = LayerNorm.generate_simple(
-                activations[-1], 0, layer_norm_epsilon, next_tag, redux=redux
+            l_norm = LayerNorm.generate_simple(
+                activations[-1], 0, layer_norm_epsilon, redux=redux
             )
             layers.append(l_norm)
             activations.extend(l_norm.activations_output)
 
             if self.n_head == 1:
-                attn_layer, next_tag = AttLayer.generate_simple(
+                attn_layer = AttLayer.generate_simple(
                     activations[-1],
                     activations[-1],
                     activations[-1],
-                    next_tag,
                     True,
                     self.mask,
                     redux=redux,
                 )
             else:
-                attn_layer, next_tag = AttLayer.generate_simple(
+                attn_layer = AttLayer.generate_simple(
                     activations[-1],
                     activations[-1],
                     activations[-1],
                     self.n_head,
                     n_head_tile,
-                    next_tag,
                     True,
                     self.mask,
                     redux=redux,
@@ -270,45 +259,43 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
             layers.append(attn_layer)
             activations.extend(attn_layer.activations_output)
 
-            new_layer, next_tag = Add.generate_simple(
-                activations[-3], activations[-1], next_tag
+            new_layer = Add.generate_simple(
+                activations[-3], activations[-1]
             )
             layers.append(new_layer)
             activations.extend(new_layer.activations_output)
 
-            l_norm, next_tag = LayerNorm.generate_simple(
-                activations[-1], 0, layer_norm_epsilon, next_tag, redux=redux
+            l_norm = LayerNorm.generate_simple(
+                activations[-1], 0, layer_norm_epsilon, redux=redux
             )
             layers.append(l_norm)
             activations.extend(l_norm.activations_output)
 
-            gpt_block = GPT2MLP(activations[-1], config, next_tag)
-            next_tag = gpt_block.next_tag
+            gpt_block = GPT2MLP(activations[-1], config)
 
             activations.extend(gpt_block.activations[1:])
             layers.extend(gpt_block.layers)
 
-            new_layer, next_tag = Add.generate_simple(
-                activations[-5], activations[-1], next_tag
+            new_layer = Add.generate_simple(
+                activations[-5], activations[-1]
             )
             layers.append(new_layer)
             activations.extend(new_layer.activations_output)
 
-        l_norm, next_tag = LayerNorm.generate_simple(
-            activations[-1], 0, layer_norm_epsilon, next_tag, redux=redux
+        l_norm = LayerNorm.generate_simple(
+            activations[-1], 0, layer_norm_epsilon, redux=redux
         )
 
         layers.append(l_norm)
         activations.extend(l_norm.activations_output)
 
-        lm_head_layer, next_tag = Linear.generate_simple(
+        lm_head_layer = Linear.generate_simple(
             activations[-1],
             "R",
             notrans,
             1,
             [vocab_size],
             [vocab_size],
-            next_tag,
             False,
             redux=redux,
         )
@@ -318,7 +305,6 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
 
         self.seq_len = seq_len
         self.num_hidden_layers = num_hidden_layers
-        self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
 
@@ -424,14 +410,12 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         seq_len: int,
         seq_len_tile: int,
         config: GPT2Config,
-        next_tag: int,
     ):
         positional_ids_traits = TensorTraits([seq_len], [seq_len_tile])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
         positional_ids_value = Tensor_int64(
-            positional_ids_traits, positional_ids_distr, next_tag
+            positional_ids_traits, positional_ids_distr
         )
-        next_tag = positional_ids_value.next_tag
         positional_ids_value.from_array(
             np.array(np.arange(seq_len), order="F", dtype=np.int64)
         )
@@ -441,13 +425,12 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
             [seq_len, batch_size], [seq_len_tile, batch_size_tile]
         )
         x_distr = [0] * x_traits.grid.nelems
-        x = Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = x.next_tag
+        x = Tensor_int64(x_traits, x_distr)
         x_grad = None
         x_grad_required = False
         x_moments = TensorMoments(x, x_grad, x_grad_required)
 
-        gpt2_nntile = GPT2Model(x_moments, positional_ids, config, next_tag)
+        gpt2_nntile = GPT2Model(x_moments, positional_ids, config)
         nntile_p_idx = 0
         attn_embed_dim = config["embed_dim"]
         attn_nheads = config["n_head"]
@@ -527,7 +510,7 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
                 p_nntile.value.from_array(p_torch.cpu().detach().numpy().T)
                 nntile_p_idx += 1
 
-        return gpt2_nntile, gpt2_nntile.next_tag
+        return gpt2_nntile
 
     @classmethod
     def from_pretrained(
@@ -536,7 +519,6 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         batch_size: int,
         batch_size_tile: int,
         seq_len_tile: int,
-        next_tag: int,
         cache_dir: str | None = None,
     ):
         # TODO: where should be global repo with all this logic.
@@ -547,7 +529,6 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
             batch_size,
             batch_size_tile,
             seq_len_tile,
-            next_tag,
             cache_dir=cache_dir,
         )
 
@@ -691,7 +672,6 @@ def create_gpt2_model_from_torch_pretrained(
     batch_size: int,
     batch_size_tile: int,
     seq_len_tile: int,
-    next_tag: int,
     cache_dir: str | None = None,
 ):
     if model_name not in PretrainedGpt2Configs:
@@ -726,14 +706,13 @@ def create_gpt2_model_from_torch_pretrained(
     )
     config.n_inner = inner_dim
 
-    nntile_model, next_tag = GPT2Model.from_torch(
+    nntile_model = GPT2Model.from_torch(
         model_torch,
         batch_size,
         batch_size_tile,
         config.n_positions,
         seq_len_tile,
         nntile_model_config,
-        next_tag,
     )
 
-    return nntile_model, next_tag
+    return nntile_model

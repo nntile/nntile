@@ -163,10 +163,10 @@ def generate_inputs(params: GPTNeoXModelTestParams,
             * torch.finfo(torch.float32).min
     mask_torch = mask_torch[None, None, :, :].expand(n_batch, 1, -1, -1)
 
-    nntile_model, _ = GPTNeoXModel.from_torch(
+    nntile_model = GPTNeoXModel.from_torch(
             torch_model, params.n_batch, params.n_batch_tile,
             params.n_seq, params.n_seq_tile, pos_ids,
-            mask_np, nntile_config, 0)
+            mask_np, nntile_config)
 
     nntile_model.clear_gradients()
     x_random = rng.integers(params.n_seq,
@@ -202,7 +202,7 @@ def generate_inputs(params: GPTNeoXModelTestParams,
     False,
 ])
 class TestGPTNeoXModel:
-    def test_torch_coercion(self, starpu_simple, torch_rng,
+    def test_torch_coercion(self, context, torch_rng,
                       params: GPTNeoXModelTestParams,
                       dtype: str,
                       num_hidden_layers: int,
@@ -220,7 +220,7 @@ class TestGPTNeoXModel:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: GPTNeoXModelTestParams,
                      dtype: str,
                      num_hidden_layers: int,
@@ -241,7 +241,7 @@ class TestGPTNeoXModel:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
 
-    def test_forward_backward(self, starpu_simple, torch_rng,
+    def test_forward_backward(self, context, torch_rng,
                               params: GPTNeoXModelTestParams,
                               dtype: str,
                               num_hidden_layers: int,

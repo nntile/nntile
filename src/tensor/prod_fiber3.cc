@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/prod_fiber3.hh"
 #include "nntile/starpu/prod_fiber3.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -92,7 +93,7 @@ void prod_fiber3_async(const Tensor<T> &src1, Scalar alpha, const Tensor<T> &src
             n = dst_tile_traits.matrix_shape[axis+1][1];
             k = dst_tile_traits.shape[axis];
             // Insert corresponding task
-            starpu::prod_fiber3::submit<T>(m, n, k, alpha, src1_tile_handle,
+            starpu::prod_fiber3.submit<std::tuple<T>>(m, n, k, alpha, src1_tile_handle,
                     src2_tile_handle, dst_tile_handle);
         }
         // Flush cache for the output tile on every node

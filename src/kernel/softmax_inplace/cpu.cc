@@ -25,8 +25,8 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, Scalar alpha_, T *dst)
 //! Compute softmax on a buffer along middle axis
 /*!
  *
- * @param[in] m: Size of the first mode of dst and sumnorm arrays
- * @param[in] n: Size of the last mode of dst and sumnorm arrays
+ * @param[in] m: Size of the first mode of dst and sumexp arrays
+ * @param[in] n: Size of the last mode of dst and sumexp arrays
  * @param[in] k: Size of the middle mode of dst array
  * @param[in] maxsumexp: Maximums and sums of exponents of slices
  * @param[in] alpha_: Scalar multiplier for the output
@@ -37,14 +37,14 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, Scalar alpha_, T *dst)
     const Y alpha{alpha_};
     Index dst_offset = 0;
     constexpr Y zero{0.0};
-    // Outer loop by the last mode of dst and sumnorm arrays
+    // Outer loop by the last mode of dst and sumexp arrays
     for(Index i2 = 0; i2 < n; ++i2)
     {
         // Middle loop by the middle mode of dst array
         for(Index i1 = 0; i1 < k; ++i1)
         {
             Index src_offset = 2 * m * i2;
-            // Inner loop by the first mode of dst and sumnorm arrays
+            // Inner loop by the first mode of dst and sumexp arrays
             for(Index i0 = 0; i0 < m; ++i0)
             {
                 // Value-to-update

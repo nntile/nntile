@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/tile/prod_inplace.hh"
 #include "nntile/starpu/prod_inplace.hh"
 #include "../testing.hh"
@@ -46,14 +47,14 @@ void validate()
     src2_local.release();
     dst2_local.release();
     dst2_copy_local.release();
-    starpu::prod_inplace::submit<T>(1, src1, dst1);
+    starpu::prod_inplace.submit<std::tuple<T>>(1, src1, dst1);
     prod_inplace<T>(src1, dst1_copy);
     dst1_local.acquire(STARPU_R);
     dst1_copy_local.acquire(STARPU_R);
     TEST_ASSERT(Y(dst1_local[0]) == Y(dst1_copy_local[0]));
     dst1_local.release();
     dst1_copy_local.release();
-    starpu::prod_inplace::submit<T>(src2.nelems, src2, dst2);
+    starpu::prod_inplace.submit<std::tuple<T>>(src2.nelems, src2, dst2);
     prod_inplace<T>(src2, dst2_copy);
     dst2_local.acquire(STARPU_R);
     dst2_copy_local.acquire(STARPU_R);
@@ -67,13 +68,15 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::prod_inplace::init();
-    starpu::prod_inplace::restrict_where(STARPU_CPU);
+    // Initialize StarPU
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
+
     return 0;
 }

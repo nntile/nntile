@@ -115,8 +115,8 @@ def generate_inputs(params: GPTNeoBlockTestParams,
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
-    x_value = x_type(x_traits, x_distr, 0)
-    x_grad = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
+    x_grad = x_type(x_traits, x_distr)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     gen = np.random.default_rng(42)
     x_random = gen.standard_normal(x_shape, dtype=np.float32)
@@ -124,8 +124,8 @@ def generate_inputs(params: GPTNeoBlockTestParams,
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_()
-    nntile_module, _ = GPTNeoBlock.from_torch(torch_module, X,
-                                                     nntile_config, 0)
+    nntile_module = GPTNeoBlock.from_torch(torch_module, X,
+                                                     nntile_config)
     nntile_module.clear_gradients()
     y_grad_random = gen.standard_normal(x_shape, dtype=np.float32)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
@@ -150,7 +150,7 @@ def generate_inputs(params: GPTNeoBlockTestParams,
     pytest.param(2, id='even_layer_id'),
 ])
 class TestGPTNeoBlock:
-    def test_coercion(self, starpu_simple, torch_rng, layer_id: int,
+    def test_coercion(self, context, torch_rng, layer_id: int,
                       params: GPTNeoBlockTestParams, dtype: str):
         torch_module, nntile_layer, *_ = generate_inputs(
             params, layer_id, dtype
@@ -164,7 +164,7 @@ class TestGPTNeoBlock:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng, layer_id: int,
+    def test_forward(self, context, torch_rng, layer_id: int,
                      params: GPTNeoBlockTestParams, dtype: str):
         torch_module, nntile_module, x, _ = generate_inputs(
             params, layer_id, dtype
@@ -178,7 +178,7 @@ class TestGPTNeoBlock:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng, layer_id: int,
+    def test_backward(self, context, torch_rng, layer_id: int,
                       params: GPTNeoBlockTestParams, dtype: str):
         torch_module, nntile_module, x, y_grad = generate_inputs(
             params, layer_id, dtype

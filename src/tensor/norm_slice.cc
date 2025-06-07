@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/norm_slice.hh"
 #include "nntile/starpu/norm_slice.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -110,13 +111,13 @@ void norm_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
                 // Insert initial task
                 if(j == 0)
                 {
-                    starpu::norm_slice::submit<T>(m, n, k, alpha,
+                    starpu::norm_slice.submit<std::tuple<T>>(m, n, k, alpha,
                             src_tile_handle, beta, dst_tile_handle, redux);
                 }
                 // Insert all consequent tasks
                 else
                 {
-                    starpu::norm_slice::submit<T>(m, n, k, alpha,
+                    starpu::norm_slice.submit<std::tuple<T>>(m, n, k, alpha,
                             src_tile_handle, one, dst_tile_handle, redux);
                 }
             }

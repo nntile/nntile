@@ -155,10 +155,10 @@ def generate_inputs(params: LlamaTestParams,
                            dtype=np.int64)
     mask = np.array(np.triu(np.ones((params.seq_len, params.seq_len))),
                     dtype=bool, order="F")
-    nntile_model, _ = LlamaModel_nntile.from_torch(
+    nntile_model = LlamaModel_nntile.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
             params.seq_len, params.seq_len_tile, pos_ids,
-            mask, nntile_config, 0)
+            mask, nntile_config)
     nntile_model.clear_gradients()
     x_random = gen.integers(params.seq_len,
                             size=nntile_model.activations[0].value.shape,
@@ -192,7 +192,7 @@ def generate_inputs(params: LlamaTestParams,
     # True # Temporarily disabled to investigate later
 ])
 class TestLlama:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: LlamaTestParams,
                       dtype: str,
                       num_hidden_layers: int,
@@ -211,7 +211,7 @@ class TestLlama:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: LlamaTestParams,
                      dtype: str,
                      num_hidden_layers: int,
@@ -228,7 +228,7 @@ class TestLlama:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
 
-    def test_forward_backward(self, starpu_simple, torch_rng,
+    def test_forward_backward(self, context, torch_rng,
                               params: LlamaTestParams,
                               dtype: str,
                               num_hidden_layers: int,

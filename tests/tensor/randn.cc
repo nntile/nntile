@@ -18,6 +18,8 @@
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/copy.hh"
+#include "nntile/context.hh"
+#include "nntile/starpu/config.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -30,7 +32,6 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
@@ -41,7 +42,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     // Generate single-tile destination tensor
     TensorTraits dst_single_traits(shape, shape);
     std::vector<int> dist_root = {mpi_root};
-    Tensor<T> dst_single(dst_single_traits, dist_root, last_tag);
+    Tensor<T> dst_single(dst_single_traits, dist_root);
     if(mpi_rank == mpi_root)
     {
         tile::randn<T>(dst_single.get_tile(0), start, shape, seed, mean,
@@ -54,10 +55,10 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     {
         dst_distr[i] = (i+1) % mpi_size;
     }
-    Tensor<T> dst(dst_traits, dst_distr, last_tag);
+    Tensor<T> dst(dst_traits, dst_distr);
     randn<T>(dst, start, shape, seed, mean, stddev);
     // Compare results
-    Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
+    Tensor<T> dst2_single(dst_single_traits, dist_root);
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {
@@ -77,7 +78,6 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 template<typename T>
 void validate()
 {
-    check<T>({}, {});
     check<T>({5}, {5});
     check<T>({11}, {5});
     check<T>({11, 12, 13}, {5, 6, 7});
@@ -86,11 +86,10 @@ void validate()
     // Check throwing exceptions
     unsigned long long seed = -1;
     Scalar mean = 1, stddev = 2;
-    starpu_mpi_tag_t last_tag = 0;
     std::vector<Index> sh34 = {3, 4}, sh23 = {2,3};
     std::vector<int> dist0000 = {0, 0, 0, 0};
     TensorTraits trA(sh34, sh23);
-    Tensor<T> A(trA, dist0000, last_tag);
+    Tensor<T> A(trA, dist0000);
     TEST_THROW(randn<T>(A, {0}, {3, 4}, seed, mean, stddev));
     TEST_THROW(randn<T>(A, {0, 0}, {3}, seed, mean, stddev));
     TEST_THROW(randn<T>(A, {0, -1}, {3, 4}, seed, mean, stddev));
@@ -99,15 +98,10 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::randn::init();
-    starpu::subcopy::init();
-    starpu::copy::init();
-    starpu::randn::restrict_where(STARPU_CPU);
-    starpu::subcopy::restrict_where(STARPU_CPU);
-    starpu::copy::restrict_where(STARPU_CPU);
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

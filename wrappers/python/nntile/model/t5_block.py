@@ -62,30 +62,27 @@ class T5LayerSelfAttention(BaseModel):
         torch_layer: T5LayerSelfAttentionTorch,
         x: TensorMoments,
         config: T5ConfigNNTile,
-        next_tag: int,
         attention_mask: Tensor = None,
     ):
-        layer_norm, next_tag = RMSNorm.from_torch(
+        layer_norm = RMSNorm.from_torch(
             torch_layer.layer_norm,
             x,
             0,
             config.layer_norm_epsilon,
-            next_tag,
             redux=config.redux,
         )
 
-        attention, next_tag = T5Attention.from_torch(
+        attention = T5Attention.from_torch(
             torch_layer.SelfAttention,
             layer_norm.activations_output[0],
             attention_mask,
             config,
-            next_tag,
         )
-        add, next_tag = Add.generate_simple(
-            x, attention.activations_output[0], next_tag
+        add = Add.generate_simple(
+            x, attention.activations_output[0]
         )
         layer = cls(x, attention, layer_norm, add, config)
-        return layer, next_tag
+        return layer
 
     def to_torch(self):
         """Convert NNTile T5LayerSelfAttention
@@ -145,29 +142,26 @@ class T5LayerCrossAttention(BaseModel):
         x: TensorMoments,
         encoder_output: TensorMoments,
         config: T5ConfigNNTile,
-        next_tag: int,
     ):
-        layer_norm, next_tag = RMSNorm.from_torch(
+        layer_norm = RMSNorm.from_torch(
             torch_layer.layer_norm,
             x,
             0,
             config.layer_norm_epsilon,
-            next_tag,
             redux=config.redux,
         )
-        attention, next_tag = T5Attention.from_torch(
+        attention = T5Attention.from_torch(
             torch_layer.EncDecAttention,
             layer_norm.activations_output[0],
             None,
             config,
-            next_tag,
             encoder_output=encoder_output,
         )
-        add, next_tag = Add.generate_simple(
-            x, attention.activations_output[0], next_tag
+        add = Add.generate_simple(
+            x, attention.activations_output[0]
         )
         layer = cls(x, encoder_output, attention, layer_norm, add, config)
-        return layer, next_tag
+        return layer
 
     def to_torch(self):
         """Convert NNTile T5LayerCrossAttention
@@ -234,23 +228,21 @@ class T5Block(BaseModel):
         torch_block: T5BlockTorch,
         x: TensorMoments,
         config: T5ConfigNNTile,
-        next_tag: int,
         attention_mask: Tensor = None,
         encoder_output: TensorMoments = None,
     ):
-        attention, next_tag = T5LayerSelfAttention.from_torch(
-            torch_block.layer[0], x, config, next_tag, attention_mask=attention_mask
+        attention = T5LayerSelfAttention.from_torch(
+            torch_block.layer[0], x, config, attention_mask=attention_mask
         )
-        cross_attention, next_tag = (
+        cross_attention = (
             T5LayerCrossAttention.from_torch(
                 torch_block.layer[1],
                 attention.activations[-1],
                 encoder_output,
                 config,
-                next_tag,
             )
             if config.is_decoder
-            else (None, next_tag)
+            else None
         )
         ff_layer_torch = (
             torch_block.layer[2] if config.is_decoder else torch_block.layer[1]
@@ -260,11 +252,11 @@ class T5Block(BaseModel):
             if cross_attention is not None
             else attention.activations[-1]
         )
-        feed_forward, next_tag = T5LayerFF.from_torch(
-            ff_layer_torch, ff_input, config, next_tag
+        feed_forward = T5LayerFF.from_torch(
+            ff_layer_torch, ff_input, config
         )
         block = cls(x, attention, feed_forward, config, cross_attention=cross_attention)
-        return block, next_tag
+        return block
 
     def to_torch(self):
         """Convert NNTile T5Block to PyTorch T5Block"""
@@ -324,7 +316,6 @@ class T5Stack(BaseModel):
         torch_stack: T5StackTorch,
         x: TensorMoments,
         config: T5ConfigNNTile,
-        next_tag: int,
         encoder_output: TensorMoments = None,
     ):
         attention_mask = None
@@ -341,11 +332,10 @@ class T5Stack(BaseModel):
         next_inp = x
         for layer_idx in range(len(torch_stack.block)):
             torch_block = torch_stack.block[layer_idx]
-            block, next_tag = T5Block.from_torch(
+            block = T5Block.from_torch(
                 torch_block,
                 next_inp,
                 config,
-                next_tag,
                 encoder_output=encoder_output,
                 attention_mask=attention_mask,
             )
@@ -362,17 +352,16 @@ class T5Stack(BaseModel):
             blocks.append(block)
             next_inp = block.activations[-1]
 
-        final_layer_norm, next_tag = RMSNorm.from_torch(
+        final_layer_norm = RMSNorm.from_torch(
             torch_stack.final_layer_norm,
             next_inp,
             0,
             config.layer_norm_epsilon,
-            next_tag,
             redux=config.redux,
         )
 
         stack = cls(x, blocks, final_layer_norm, config)
-        return stack, next_tag
+        return stack
 
     def to_torch(self):
         """Convert NNTile T5Stack to PyTorch T5Stack"""

@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/hypot.hh"
 #include "nntile/starpu/hypot.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -60,7 +61,7 @@ void hypot_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::hypot::submit<T>(traits.nelems, alpha, src_tile_handle,
+            starpu::hypot.submit<std::tuple<T>>(traits.nelems, alpha, src_tile_handle,
                     beta, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -87,6 +88,14 @@ void hypot_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> 
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
+void hypot_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void hypot_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &dst);
+
+template
 void hypot_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst);
 
@@ -102,6 +111,14 @@ void hypot<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
 template
 void hypot<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
         const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void hypot<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void hypot<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &dst);
 
 template
 void hypot<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,

@@ -62,7 +62,7 @@ void sum_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta,
     n = src.matrix_shape[axis+1][1];
     k = src.shape[axis];
     // Insert task
-    starpu::sum_slice::submit<T>(m, n, k, alpha, src, beta, dst);
+    starpu::sum_slice.submit<std::tuple<T>>(m, n, k, alpha, src, beta, dst);
 }
 
 //! Tile-wise sum_slice

@@ -58,7 +58,7 @@ void sumprod_fiber_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
     n = src1.matrix_shape[axis+1][1];
     k = src1.shape[axis];
     // Insert task
-    starpu::sumprod_fiber::submit<T>(m, n, k, alpha, src1, src2, beta, dst);
+    starpu::sumprod_fiber.submit<std::tuple<T>>(m, n, k, alpha, src1, src2, beta, dst);
 }
 
 //! Tile-wise scalar products along outer axes

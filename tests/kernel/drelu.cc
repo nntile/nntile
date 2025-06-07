@@ -66,7 +66,7 @@ void validate(Index nelems)
     }
     std::vector<T> data_save(data);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::drelu::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::drelu::cpu<" << T::short_name << ">\n";
     cpu<T>(nelems, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -80,11 +80,11 @@ void validate(Index nelems)
             TEST_ASSERT(Y(data[i]) == 0.0);
         }
     }
-    std::cout << "OK: kernel::drelu::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::drelu::cpu<" << T::short_name << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     data = data_save;
-    std::cout << "Run kernel::drelu::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::drelu::cuda<" << T::short_name << ">\n";
     run_cuda<T>(nelems, data);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -98,7 +98,7 @@ void validate(Index nelems)
             TEST_ASSERT(Y(data[i]) == 0.0);
         }
     }
-    std::cout << "OK: kernel::drelu::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::drelu::cuda<" << T::short_name << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

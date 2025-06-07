@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/transpose.hh"
 #include "nntile/starpu/transpose.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -65,7 +66,7 @@ void transpose_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
             if(mpi_rank == dst_tile_rank)
             {
                 auto traits = src.get_tile_traits(i+j*grid_m);
-                starpu::transpose::submit<T>(traits.matrix_shape[ndim][0],
+                starpu::transpose.submit<std::tuple<T>>(traits.matrix_shape[ndim][0],
                         traits.matrix_shape[ndim][1], alpha, src_tile_handle,
                         dst_tile_handle);
             }

@@ -75,7 +75,7 @@ void add_fiber_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<
     n = dst.matrix_shape[axis+1][1] / batch;
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::add_fiber::submit<T>(m, n, k, batch, alpha, src1, beta, src2, dst);
+    starpu::add_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src1, beta, src2, dst);
 }
 
 template<typename T>

@@ -36,7 +36,7 @@ void scal_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
         }
     }
     // Insert corresponding task
-    starpu::scal::submit<T>(src.nelems, alpha, src, dst);
+    starpu::scal.submit<std::tuple<T>>(src.nelems, alpha, src, dst);
 }
 
 //! Tile-wise scal operation

@@ -14,100 +14,82 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
-#include <nntile/starpu/config.hh>
+// Compile-time definitions
+#include <nntile/defs.h>
 
-namespace nntile::starpu::randn
+// Standard headers
+#include <tuple>
+
+// NNTile headers
+#include <nntile/starpu/codelet.hh>
+#include <nntile/starpu/handle.hh>
+
+namespace nntile::starpu
 {
 
-// Randn operation on StarPU buffers
+//! Generic wrapper class for randn operation is not defined
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
-    noexcept;
+class Randn;
 
-// Randn operation on StarPU buffers
+//! Specialization of wrapper class for randn operation via std::tuple
 template<typename T>
-void cpu_ndim0(void *buffers[], void *cl_args)
-    noexcept;
-
-extern Codelet codelet_fp32, codelet_fp64, codelet_bf16,
-       codelet_fp32_ndim0, codelet_fp64_ndim0, codelet_bf16_ndim0;
-
-extern Codelet codelet_fp32_fast_tf32, codelet_fp32_fast_tf32_ndim0;
-
-template<typename T>
-constexpr Codelet *codelet()
+class Randn<std::tuple<T>>
 {
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
+public:
+    //! Codelet for the current operation
+    CodeletTyped<T> codelet;
 
-template<>
-constexpr Codelet *codelet<fp32_t>()
-{
-    return &codelet_fp32;
-}
+    //! Constructor
+    Randn();
 
-template<>
-constexpr Codelet *codelet<bf16_t>()
-{
-    return &codelet_bf16;
-}
+    //! Structure for operation arguments
+    struct args_t
+    {
+    };
 
-template<>
-constexpr Codelet *codelet<fp32_fast_tf32_t>()
-{
-    return &codelet_fp32_fast_tf32;
-}
+    //! Footprint function for the current operation
+    static uint32_t footprint(struct starpu_task *task);
 
-template<>
-constexpr Codelet *codelet<fp64_t>()
-{
-    return &codelet_fp64;
-}
+    //! Wrapper for a generic CPU implementation
+    static void cpu(void *buffers[], void *cl_args)
+        noexcept;
 
-template<typename T>
-constexpr Codelet *codelet_ndim0()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
+    //! Array of all wrappers for CPU implementations
+    static constexpr func_array cpu_funcs = {
+        cpu
+    };
 
-template<>
-constexpr Codelet *codelet_ndim0<fp32_t>()
-{
-    return &codelet_fp32_ndim0;
-}
+    //! No CUDA implementations
+    static constexpr func_array cuda_funcs = {};
 
-template<>
-constexpr Codelet *codelet_ndim0<bf16_t>()
-{
-    return &codelet_bf16_ndim0;
-}
+    //! Submit randn task
+    void submit(
+        Index ndim,
+        Index nelems,
+        unsigned long long seed,
+        Scalar mean,
+        Scalar stddev,
+        const std::vector<Index> &start,
+        const std::vector<Index> &shape,
+        const std::vector<Index> &stride,
+        const std::vector<Index> &underlying_shape,
+        Handle data,
+        Handle tmp_index
+    );
+};
 
-template<>
-constexpr Codelet *codelet_ndim0<fp32_fast_tf32_t>()
-{
-    return &codelet_fp32_fast_tf32_ndim0;
-}
+//! Pack of randn operations for different types
+using randn_pack_t = OperationPack<
+    Randn,
+    std::tuple<nntile::fp64_t>,
+    std::tuple<nntile::fp32_t>,
+    std::tuple<nntile::fp32_fast_tf32_t>,
+    std::tuple<nntile::fp32_fast_fp16_t>,
+    std::tuple<nntile::fp32_fast_bf16_t>,
+    std::tuple<nntile::bf16_t>
+>;
 
-template<>
-constexpr Codelet *codelet_ndim0<fp64_t>()
-{
-    return &codelet_fp64_ndim0;
-}
+//! Pack of randn operations for different types
+extern randn_pack_t randn;
 
-void init();
-
-void restrict_where(uint32_t where);
-
-void restore_where();
-
-template<typename T>
-void submit(Index ndim, Index nelems, unsigned long long seed,
-        Scalar mean, Scalar stddev, const std::vector<Index> &start,
-        const std::vector<Index> &shape, const std::vector<Index> &stride,
-        const std::vector<Index> &underlying_shape, Handle data,
-        Handle tmp_index);
-
-} // namespace nntile::starpu::randn
+} // namespace nntile::starpu

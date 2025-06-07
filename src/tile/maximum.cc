@@ -31,7 +31,7 @@ void maximum_async(const Tile<T> &src, const Tile<T> &dst)
         throw std::runtime_error("src.shape != dst.shape");
     }
     // Submit task
-    starpu::maximum::submit<T>(src.nelems, src, dst);
+    starpu::maximum.submit<std::tuple<T>>(src.nelems, src, dst);
 }
 
 //! Blocking version of tile-wise maximum operation

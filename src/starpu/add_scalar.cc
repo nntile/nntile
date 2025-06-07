@@ -12,19 +12,30 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/add_scalar.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/add_scalar.hh"
-#include <cstdlib>
 
-//! StarPU wrappers for add_scalar operation
-namespace nntile::starpu::add_scalar
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/add_scalar.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+AddScalar<std::tuple<T>>::AddScalar():
+    codelet("nntile_add_scalar", footprint, cpu_funcs, cuda_funcs)
+{
+    // Modes are not fixed, they are decided during runtime by default
+}
 
 //! Apply add_scalar for StarPU buffer in CPU
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void AddScalar<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -34,14 +45,44 @@ void cpu(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *dst = interfaces[0]->get_ptr<T>();
     // Launch kernel
-    kernel::add_scalar::cpu<T>(args->num_elements, args->alpha, args->beta, dst);
+    kernel::add_scalar::cpu<T>(
+        args->nelems,
+        args->alpha,
+        args->beta,
+        dst
+    );
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AddScalar<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddScalar<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AddScalar<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddScalar<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AddScalar<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddScalar<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Apply add_scalar for StarPU buffers on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void AddScalar<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -53,78 +94,74 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::add_scalar::cuda<T>(stream, args->num_elements, args->alpha, args->beta, dst);
+    kernel::add_scalar::cuda<T>(
+        stream,
+        args->nelems,
+        args->alpha,
+        args->beta,
+        dst
+    );
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AddScalar<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddScalar<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AddScalar<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddScalar<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AddScalar<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddScalar<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for add_fiber tasks
-static
-uint32_t footprint(struct starpu_task *task)
+//! Footprint for add_scalar tasks
+template<typename T>
+uint32_t AddScalar<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
-    // Apply hash over parameters m, n and k
     uint32_t hash = 0;
-    hash = starpu_hash_crc32c_be_n(&args->num_elements,
-            sizeof(args->num_elements), hash);
+    hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64;
-
-void init()
-{
-    codelet_fp32.init("nntile_add_scalar_fp32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp64.init("nntile_add_scalar_fp64",
-            footprint,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_fp64.restore_where();
-}
-
+//! Submit add_scalar task
 template<typename T>
-void submit(Index num_elements, Scalar alpha, Scalar beta, Handle dst)
-//! Insert add_scalar task into StarPU pool of tasks
-/*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
- * throws an std::runtime_error() exception.
- * */
+void AddScalar<std::tuple<T>>::submit(
+    Index nelems,
+    Scalar alpha,
+    Scalar beta,
+    Handle dst
+)
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
-    args->num_elements = num_elements;
+    args->nelems = nelems;
     args->alpha = alpha;
     args->beta = beta;
+    double nflops = 2 * nelems;
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(&codelet,
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst), 0);
-            // STARPU_FLOPS, nflops);
+            STARPU_RW, dst.get(),
+            STARPU_FLOPS, nflops,
+            0);
     // Check submission
     if(ret != 0)
     {
@@ -133,10 +170,16 @@ void submit(Index num_elements, Scalar alpha, Scalar beta, Handle dst)
 }
 
 // Explicit instantiation
-template
-void submit<fp32_t>(Index num_elements, Scalar alpha, Scalar beta, Handle dst);
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class AddScalar<std::tuple<nntile::fp64_t>>;
+template class AddScalar<std::tuple<nntile::fp32_t>>;
+template class AddScalar<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class AddScalar<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class AddScalar<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class AddScalar<std::tuple<nntile::bf16_t>>;
 
-template
-void submit<fp64_t>(Index num_elements, Scalar alpha, Scalar beta, Handle dst);
+//! Pack of add_scalar operations for different types
+add_scalar_pack_t add_scalar;
 
-} // namespace nntile::starpu::add_scalar
+} // namespace nntile::starpu

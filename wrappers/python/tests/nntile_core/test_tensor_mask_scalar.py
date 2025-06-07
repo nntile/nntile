@@ -17,9 +17,6 @@ from numpy.testing import assert_equal
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
-
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64,
@@ -31,17 +28,14 @@ mask_scalar_func = {np.float32: nntile.nntile_core.tensor.mask_scalar_fp32,
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_mask_scalar(dtype):
+def test_mask_scalar(context, dtype):
     # Describe single-tile tensor, located at node 0
     shape = [3, 3, 10]
-    mpi_distr = [0]
-    next_tag = 0
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
+    A = Tensor[dtype](traits)
     mask_traits = nntile.tensor.TensorTraits(shape[:2], shape[:2])
-    mask = Tensor[bool](mask_traits, mpi_distr, next_tag)
+    mask = Tensor[bool](mask_traits)
     # Set initial values of tensors
     rand_A = np.random.default_rng(42).standard_normal(shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')

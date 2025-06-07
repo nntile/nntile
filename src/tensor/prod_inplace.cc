@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/prod_inplace.hh"
 #include "nntile/starpu/prod_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -49,7 +50,7 @@ void prod_inplace_async(const Tensor<T> &src, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::prod_inplace::submit<T>(traits.nelems, src_tile_handle,
+            starpu::prod_inplace.submit<std::tuple<T>>(traits.nelems, src_tile_handle,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node

@@ -70,7 +70,6 @@ parser.add_argument("--dtype", choices=["fp32", "fp32_fast_tf32", "bf16",
                     default="fp32")
 parser.add_argument("--restrict", choices=["cpu", "cuda", None],
                     default=None)
-parser.add_argument("--flash-attention", action="store_true")
 parser.add_argument("--use-redux", action="store_true")
 parser.add_argument("--torch-compile", action="store_true")
 parser.add_argument("--num-warmup-calls", type=int, default=1)
@@ -123,15 +122,18 @@ llama_torch_config._attn_implementation = args.attn_implementation
 if args.use_nntile:
     # Initialize NNTile and StarPU
     time0 = time.time()
-    # Set up StarPU+MPI and init codelets
-    nntile_config = nntile.starpu.Config(-1, -1, 1, args.logger,
-            args.logger_server_addr, args.logger_server_port)
+    nntile.nntile_init(
+        ncpus=-1,
+        ncuda=-1,
+        cublas=1,
+        ooc=0,
+        logger=args.logger,
+        logger_server_addr=args.logger_server_addr,
+        logger_server_port=args.logger_server_port)
     nntile.starpu.profiling_init()
     nntile.starpu.profiling_disable()
-    nntile.starpu.init()
     time1 = time.time() - time0
     print("StarPU + NNTile + MPI init in {} seconds".format(time1))
-    next_tag = 0
 # Restrict computations to CUDA if possible
 if args.restrict == "cuda":
     if args.use_nntile:
@@ -189,15 +191,14 @@ if args.submodule == "mlp":
                     args.seq_len_tile,
                     args.minibatch_size_tile]
         x_traits = TensorTraits(x_shape, x_basetile)
-        x_distr = [0] * x_traits.grid.nelems
-        x_value = x_type(x_traits, x_distr, 0)
+        x_value = x_type(x_traits)
         x_value.from_array(x_nntile)
-        x_grad = x_type(x_traits, x_distr, 0)
+        x_grad = x_type(x_traits)
         X = TensorMoments(x_value, x_grad, grad_required=True)
 
         time0 = time.time()
-        nntile_module, _ = LlamaMLP_nntile.from_torch(torch_layer_, X,
-                                                    llama_config_nntile, 0)
+        nntile_module = LlamaMLP_nntile.from_torch(torch_layer_, X,
+                                                    llama_config_nntile)
         time1 = time.time() - time0
         print("Converting PyTorch model to NNTile requires ",
             "{} seconds".format(time1))
@@ -230,10 +231,9 @@ elif args.submodule == "decoder":
                     args.seq_len_tile,
                     args.minibatch_size_tile]
         x_traits = TensorTraits(x_shape, x_basetile)
-        x_distr = [0] * x_traits.grid.nelems
         x_type = dtype2nntile[args.dtype]
-        x_value = x_type(x_traits, x_distr, 0)
-        x_grad = x_type(x_traits, x_distr, 0)
+        x_value = x_type(x_traits)
+        x_grad = x_type(x_traits)
         X = TensorMoments(x_value, x_grad, grad_required=True)
         x_nntile = np.array(x_random, dtype=np.float32, order="F")
         x_value.from_array(x_nntile)
@@ -275,10 +275,9 @@ elif args.submodule == "attention":
                     args.seq_len_tile,
                     args.minibatch_size_tile]
         x_traits = TensorTraits(x_shape, x_basetile)
-        x_distr = [0] * x_traits.grid.nelems
         x_type = dtype2nntile[args.dtype]
-        x_value = x_type(x_traits, x_distr, 0)
-        x_grad = x_type(x_traits, x_distr, 0)
+        x_value = x_type(x_traits)
+        x_grad = x_type(x_traits)
         X = TensorMoments(x_value, x_grad, grad_required=True)
         x_nntile = np.array(x_random, dtype=np.float32, order="F")
         x_value.from_array(x_nntile)
@@ -287,8 +286,8 @@ elif args.submodule == "attention":
                             size=(args.minibatch_size, args.seq_len),
                             dtype=np.int64)
         time0 = time.time()
-        nntile_module, _ = LlamaAttention_nntile.from_torch(
-                torch_layer_, X, pos_ids, mask, llama_config_nntile, 0)
+        nntile_module = LlamaAttention_nntile.from_torch(
+                torch_layer_, X, pos_ids, mask, llama_config_nntile)
         time1 = time.time() - time0
         print("Converting PyTorch model to NNTile requires ",
             "{} seconds".format(time1))

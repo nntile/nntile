@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/sumprod_slice.hh"
 #include "nntile/starpu/sumprod_slice.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -113,7 +114,7 @@ void sumprod_slice_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &s
             n = src_tile_traits.matrix_shape[axis+1][1];
             k = src_tile_traits.shape[axis];
             // Insert task
-            starpu::sumprod_slice::submit<T>(m, n, k, alpha, src1_tile_handle,
+            starpu::sumprod_slice.submit<std::tuple<T>>(m, n, k, alpha, src1_tile_handle,
                     src2_tile_handle, beta, dst_tile_handle, redux);
         }
         // Launch kernel for all other appropriate source tiles with beta=1
@@ -138,7 +139,7 @@ void sumprod_slice_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &s
                 n = src_tile_traits.matrix_shape[axis+1][1];
                 k = src_tile_traits.shape[axis];
                 // Insert task
-                starpu::sumprod_slice::submit<T>(m, n, k, alpha,
+                starpu::sumprod_slice.submit<std::tuple<T>>(m, n, k, alpha,
                         src1_tile_handle, src2_tile_handle, 1.0,
                         dst_tile_handle, redux);
             }

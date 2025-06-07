@@ -39,7 +39,6 @@ from .bert_config import BertConfigNNTile
 
 
 class BertEmbeddings(BaseModel):
-    next_tag: int
 
     def __init__(self, input_ids: TensorMoments,
                   token_type_ids: TensorMoments,
@@ -81,8 +80,7 @@ class BertEmbeddings(BaseModel):
 
     @staticmethod
     def from_torch(bert_embedding_torch, batch_size, batch_size_tile,
-                   seq_len, seq_len_tile, config: BertConfigNNTile,
-                   next_tag: int):
+                   seq_len, seq_len_tile, config: BertConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
@@ -92,9 +90,8 @@ class BertEmbeddings(BaseModel):
         positional_ids_traits = TensorTraits([seq_len], [seq_len_tile])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
         positional_ids_value = Tensor_int64(
-            positional_ids_traits, positional_ids_distr, next_tag
+            positional_ids_traits, positional_ids_distr
         )
-        next_tag = positional_ids_value.next_tag
         positional_ids_value.from_array(
             np.array(np.arange(seq_len), order="F", dtype=np.int64)
         )
@@ -104,7 +101,7 @@ class BertEmbeddings(BaseModel):
         x_basetile = [seq_len_tile, batch_size_tile]
         x_traits = TensorTraits(x_shape, x_basetile)
         x_distr = [0] * x_traits.grid.nelems
-        x_value = Tensor_int64(x_traits, x_distr, 0)
+        x_value = Tensor_int64(x_traits, x_distr)
         X = TensorMoments(x_value, None, False)
 
         dtype2tensor_type = {"fp32": Tensor_fp32,
@@ -116,46 +113,42 @@ class BertEmbeddings(BaseModel):
 
         tensor_type = dtype2tensor_type[config.dtype]
 
-        word_embed_layer, next_tag = Embedding.generate_simple(
+        word_embed_layer = Embedding.generate_simple(
                                 x_value,
                                 tensor_type,
                                 0,
                                 config.vocab_size,
                                 config.hidden_size,
                                 config.hidden_size_tile,
-                                config.vocab_embed_dim_tile,
-                                next_tag)
+                                config.vocab_embed_dim_tile)
 
-        pos_embed_layer, next_tag = Embedding.generate_simple(
+        pos_embed_layer = Embedding.generate_simple(
                                 positional_ids.value,
                                 tensor_type,
                                 0,
                                 config.max_position_embeddings,
                                 config.hidden_size,
                                 config.hidden_size_tile,
-                                config.vocab_embed_dim_tile,
-                                next_tag)
+                                config.vocab_embed_dim_tile)
 
         token_type_ids_traits = TensorTraits([seq_len], [seq_len_tile])
         token_type_ids_distr = [0] * token_type_ids_traits.grid.nelems
         token_type_ids_value = Tensor_int64(
-            token_type_ids_traits, token_type_ids_distr, next_tag
+            token_type_ids_traits, token_type_ids_distr
         )
-        next_tag = token_type_ids_value.next_tag
         token_type_ids_value.from_array(
             np.array(np.zeros((seq_len,)), order="F", dtype=np.int64)
         )
         token_type_ids = TensorMoments(token_type_ids_value, None, False)
 
-        token_type_embed_layer, next_tag = Embedding.generate_simple(
+        token_type_embed_layer = Embedding.generate_simple(
                                 token_type_ids.value,
                                 tensor_type,
                                 0,
                                 config.type_vocab_size,
                                 config.hidden_size,
                                 config.hidden_size_tile,
-                                config.vocab_embed_dim_tile,
-                                next_tag)
+                                config.vocab_embed_dim_tile)
 
         word_embed_layer.w.value.from_array(
             bert_embedding_torch.word_embeddings.weight.cpu().detach().numpy().T
@@ -167,20 +160,20 @@ class BertEmbeddings(BaseModel):
             bert_embedding_torch.token_type_embeddings.weight.cpu().detach().numpy().T
         )
 
-        add_slice_wt_layer, next_tag = AddSlice.generate_simple(
+        add_slice_wt_layer = AddSlice.generate_simple(
                 word_embed_layer.activations_output[0],
                 token_type_embed_layer.activations_output[0],
-                2, next_tag, redux=config.redux
+                2, redux=config.redux
             )
-        add_slice_pos_layer, next_tag = AddSlice.generate_simple(
+        add_slice_pos_layer = AddSlice.generate_simple(
                 add_slice_wt_layer.activations_output[0],
                 pos_embed_layer.activations_output[0],
-                2, next_tag, redux=config.redux
+                2, redux=config.redux
             )
-        lnorm, next_tag = LayerNorm.from_torch(
+        lnorm = LayerNorm.from_torch(
                                 bert_embedding_torch.LayerNorm,
                                 add_slice_pos_layer.activations_output[0],
-                                next_tag, config.redux)
+                                config.redux)
 
         bert_embedding_nntile = BertEmbeddings(X,
                                                 token_type_ids,
@@ -191,7 +184,7 @@ class BertEmbeddings(BaseModel):
                                                 add_slice_wt_layer,
                                                 add_slice_pos_layer,
                                                 lnorm, config)
-        return bert_embedding_nntile, next_tag
+        return bert_embedding_nntile
 
     def to_torch(self):
         config_torch = BertConfig_torch()
@@ -235,7 +228,6 @@ class BertEmbeddings(BaseModel):
 
 
 class BertSelfOutput(BaseModel):
-    next_tag: int
 
     def __init__(self, hidden_states: TensorMoments,
                   input_tensor: TensorMoments,
@@ -266,20 +258,19 @@ class BertSelfOutput(BaseModel):
                    input_tensor,
                    hidden_dim,
                    hidden_dim_tile,
-                   config: BertConfigNNTile, next_tag: int):
+                   config: BertConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
 
-        lin_layer, next_tag = Linear.generate_simple(X,
-                                                     "R",
-                                                     notrans,
-                                                     2,
-                                                     [hidden_dim],
-                                                     [hidden_dim_tile],
-                                                     next_tag)
+        lin_layer = Linear.generate_simple(X,
+                                            "R",
+                                            notrans,
+                                            2,
+                                            [hidden_dim],
+                                            [hidden_dim_tile])
         w_torch = bert_selfoutput_torch.dense.weight.data
 
         target_w_shape = lin_layer.w.value.shape
@@ -290,20 +281,19 @@ class BertSelfOutput(BaseModel):
         b_torch = bert_selfoutput_torch.dense.bias.data.numpy()
         lin_layer.b.value.from_array(b_torch)
 
-        add_layer, next_tag = Add.generate_simple(
+        add_layer = Add.generate_simple(
                                 lin_layer.activations_output[0],
-                                input_tensor,
-                                next_tag)
-        lnorm, next_tag = LayerNorm.from_torch(
+                                input_tensor)
+        lnorm = LayerNorm.from_torch(
                                 bert_selfoutput_torch.LayerNorm,
                                 add_layer.activations_output[0],
-                                next_tag, config.redux)
+                                config.redux)
 
         bert_selfoutput_nntile = BertSelfOutput(X,
                                                 input_tensor,
                                                 lin_layer, add_layer,
                                                 lnorm, config)
-        return bert_selfoutput_nntile, next_tag
+        return bert_selfoutput_nntile
 
     def to_torch(self):
         config_torch = BertConfig_torch()
@@ -346,7 +336,6 @@ class BertSelfOutput(BaseModel):
 
 
 class BertIntermediate(BaseModel):
-    next_tag: int
 
     def __init__(self, hidden_states: TensorMoments,
                   lin_layer: Linear,
@@ -370,26 +359,26 @@ class BertIntermediate(BaseModel):
     @staticmethod
     def from_torch(bert_intermediate_torch, X,
                    intermediate_size_tile,
-                   config: BertConfigNNTile, next_tag: int):
+                   config: BertConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
 
-        lin_layer, next_tag = Linear.from_torch(bert_intermediate_torch.dense,
-                                                X,
-                                                intermediate_size_tile,
-                                                config.redux, next_tag)
+        lin_layer = Linear.from_torch(bert_intermediate_torch.dense,
+                                      X,
+                                      intermediate_size_tile,
+                                      config.redux)
 
-        activation_layer, next_tag = Act.generate_simple(
+        activation_layer = Act.generate_simple(
             lin_layer.activations_output[0],
-            config.activation_function, next_tag
+            config.activation_function
         )
 
         bert_intermediate_nntile = BertIntermediate(X, lin_layer,
                                                     activation_layer, config)
-        return bert_intermediate_nntile, next_tag
+        return bert_intermediate_nntile
 
     def to_torch(self):
         config_torch = BertConfig_torch()
@@ -414,7 +403,6 @@ class BertIntermediate(BaseModel):
 
 
 class BertOutput(BaseModel):
-    next_tag: int
 
     def __init__(self, hidden_states: TensorMoments,
                   input_tensor: TensorMoments,
@@ -442,31 +430,30 @@ class BertOutput(BaseModel):
     @staticmethod
     def from_torch(bert_output_torch, X, input_tensor,
                    hidden_size_tile,
-                   config: BertConfigNNTile, next_tag: int):
+                   config: BertConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
 
-        lin_layer, next_tag = Linear.from_torch(bert_output_torch.dense, X,
-                                                hidden_size_tile,
-                                                config.redux, next_tag)
+        lin_layer = Linear.from_torch(bert_output_torch.dense, X,
+                                      hidden_size_tile,
+                                      config.redux)
 
-        add_layer, next_tag = Add.generate_simple(
+        add_layer = Add.generate_simple(
                                 lin_layer.activations_output[0],
-                                input_tensor,
-                                next_tag)
-        lnorm, next_tag = LayerNorm.from_torch(
+                                input_tensor)
+        lnorm = LayerNorm.from_torch(
                                 bert_output_torch.LayerNorm,
                                 add_layer.activations_output[0],
-                                next_tag, config.redux)
+                                config.redux)
 
         bert_output_nntile = BertOutput(X,
                                         input_tensor,
                                         lin_layer, add_layer,
                                         lnorm, config)
-        return bert_output_nntile, next_tag
+        return bert_output_nntile
 
     def to_torch(self):
         config_torch = BertConfig_torch()
@@ -491,7 +478,6 @@ class BertOutput(BaseModel):
 
 
 class BertAttention(BaseModel):
-    next_tag: int
 
     def __init__(self, hidden_states: TensorMoments,
                   attention: BertSelfAttention,
@@ -515,28 +501,28 @@ class BertAttention(BaseModel):
 
     @staticmethod
     def from_torch(bert_attention_torch, X,
-                   config: BertConfigNNTile, next_tag: int):
+                   config: BertConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
 
-        selfattention_layer, next_tag = BertSelfAttention.from_torch(
-            bert_attention_torch.self, X, X, X, config, next_tag)
+        selfattention_layer = BertSelfAttention.from_torch(
+            bert_attention_torch.self, X, X, X, config)
 
-        selfoutput_layer, next_tag = BertSelfOutput.from_torch(
+        selfoutput_layer = BertSelfOutput.from_torch(
             bert_attention_torch.output,
             selfattention_layer.activations_output[0],
             X,
             config.hidden_size,
             config.hidden_size_tile,
-            config, next_tag)
+            config)
         bert_attention_nntile = BertAttention(X,
                                               selfattention_layer,
                                               selfoutput_layer,
                                               config)
-        return bert_attention_nntile, next_tag
+        return bert_attention_nntile
 
     def to_torch(self):
         config_torch = BertConfig_torch()
@@ -565,7 +551,6 @@ class BertAttention(BaseModel):
 
 
 class BertPredictionHeadTransform(BaseModel):
-    next_tag: int
 
     def __init__(self, hidden_states: TensorMoments,
                   lin_layer: Linear,
@@ -592,31 +577,31 @@ class BertPredictionHeadTransform(BaseModel):
     @staticmethod
     def from_torch(bert_pred_head_trans_torch, X,
                    hidden_size_tile,
-                   config: BertConfigNNTile, next_tag: int):
+                   config: BertConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
 
-        lin_layer, next_tag = Linear.from_torch(
+        lin_layer = Linear.from_torch(
                                     bert_pred_head_trans_torch.dense, X,
                                     hidden_size_tile,
-                                    config.redux, next_tag)
+                                    config.redux)
 
-        activation_layer, next_tag = Act.generate_simple(
+        activation_layer = Act.generate_simple(
             lin_layer.activations_output[0],
-            config.activation_function, next_tag
+            config.activation_function
         )
-        lnorm, next_tag = LayerNorm.from_torch(
+        lnorm = LayerNorm.from_torch(
                                 bert_pred_head_trans_torch.LayerNorm,
                                 activation_layer.activations_output[0],
-                                next_tag, config.redux)
+                                config.redux)
 
         bert_output_nntile = BertPredictionHeadTransform(X,
                                         lin_layer, activation_layer,
                                         lnorm, config)
-        return bert_output_nntile, next_tag
+        return bert_output_nntile
 
     def to_torch(self):
         config_torch = BertConfig_torch()
@@ -643,7 +628,6 @@ class BertPredictionHeadTransform(BaseModel):
 
 
 class BertLMPredictionHead(BaseModel):
-    next_tag: int
 
     def __init__(self,
                  transform: BertPredictionHeadTransform,
@@ -669,26 +653,26 @@ class BertLMPredictionHead(BaseModel):
 
     @staticmethod
     def from_torch(bert_lm_pred_head, X,
-                   config: BertConfigNNTile, next_tag: int):
+                   config: BertConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
 
-        transform, next_tag = BertPredictionHeadTransform.from_torch(
+        transform = BertPredictionHeadTransform.from_torch(
                                         bert_lm_pred_head.transform,
                                         X, config.hidden_size_tile,
-                                        config, next_tag)
-        lin_layer, next_tag = Linear.from_torch(
+                                        config)
+        lin_layer = Linear.from_torch(
                                     bert_lm_pred_head.decoder,
                                     transform.activations[-1],
                                     config.vocab_size,
-                                    config.redux, next_tag)
+                                    config.redux)
 
         bert_output_nntile = BertLMPredictionHead(transform,
                                             lin_layer, config)
-        return bert_output_nntile, next_tag
+        return bert_output_nntile
 
     def to_torch(self):
         config_torch = BertConfig_torch()

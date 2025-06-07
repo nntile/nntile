@@ -235,26 +235,23 @@ nflops_seq = nflops_seq_fwd + nflops_seq_bwd
 
 # Initialize NNTile and StarPU
 time0 = time.time()
-# Set up StarPU+MPI and init codelets
-nntile_config = nntile.starpu.Config(
-    -1,
-    -1,
-    1,
-    args.nntile_logger,
-    args.nntile_logger_server_addr,
-    args.nntile_logger_server_port,
+context = nntile.Context(
+    ncpu=-1,
+    cublas=1,
+    ooc=0,
+    logger=args.nntile_logger,
+    logger_addr=args.nntile_logger_server_addr,
+    logger_port=args.nntile_logger_server_port,
 )
 nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
-nntile.starpu.init()
 # Restrict computations to CUDA if possible
 if args.nntile_restrict == "cuda":
-    nntile.starpu.restrict_cuda()
+    context.restrict_cuda()
 elif args.nntile_restrict == "cpu":
-    nntile.starpu.restrict_cpu()
+    context.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
-next_tag = 0
 
 # optim = torch.optim.SGD(model_torch.parameters(), lr=1e-1)
 # input_value = torch.randint(config.vocab_size, \
@@ -283,14 +280,13 @@ nntile_model_config = GPT2Config_nntile(
     args.nntile_use_redux,
     args.nntile_dtype,
 )
-nntile_model, next_tag = GPT2Model_nntile.from_torch(
+nntile_model = GPT2Model_nntile.from_torch(
     model_torch,
     args.minibatch_size,
     args.minibatch_size_tile,
     config.n_positions,
     args.seq_len_tile,
     nntile_model_config,
-    next_tag,
 )
 
 # Move model to the designated device or delete model if it will not be used
@@ -684,9 +680,8 @@ if args.check_fp64:
     print("NNTile forward pass relative accuracy: {}".format(diff / norm))
     print("Model output norm: {}".format(norm))
     # Run backward pass by the NNTile to get gradients of parameters
-    loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
+    loss = nntile.loss.CrossEntropy.generate_simple(
         nntile_model.activations[-1],
-        next_tag,
         scale=1.0 / (args.batch_size * config.n_positions),
     )
     loss.y.from_array(train_tokens[5, 0, :, 1:].T)
@@ -708,17 +703,14 @@ if args.nntile_nepochs > 0:
         [config.n_positions, args.minibatch_size],
         [args.seq_len_tile, args.minibatch_size_tile],
     )
-    x_distr = [0] * x_traits.grid.nelems
     for i in range(num_train_batches):
         minibatch_input = []
         minibatch_output = []
         for j in range(num_minibatch):
-            x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-            next_tag = x.next_tag
+            x = nntile.tensor.Tensor_int64(x_traits)
             x.from_array(np.asfortranarray(train_tokens[i, j, :, :-1].T))
             minibatch_input.append(x)
-            y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-            next_tag = y.next_tag
+            y = nntile.tensor.Tensor_int64(x_traits)
             y.from_array(np.asfortranarray(train_tokens[i, j, :, 1:].T))
             minibatch_output.append(y)
         batch_input.append(minibatch_input)
@@ -728,21 +720,19 @@ if args.nntile_nepochs > 0:
     # Set up learning rate and optimizer for training
     if args.optimizer == "adam":
         optimizer = nntile.optimizer.Adam(
-            nntile_model.get_parameters(), args.lr, next_tag
+            nntile_model.get_parameters(), args.lr
         )
     elif args.optimizer == "adamw":
         optimizer = nntile.optimizer.AdamW(
-            nntile_model.get_parameters(), args.lr, next_tag
+            nntile_model.get_parameters(), args.lr
         )
     elif args.optimizer == "sgd":
         optimizer = nntile.optimizer.SGD(
-            nntile_model.get_parameters(), args.lr, next_tag
+            nntile_model.get_parameters(), args.lr
         )
-    next_tag = optimizer.get_next_tag()
     # Define Cross Entropy loss function
-    loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
+    loss = nntile.loss.CrossEntropy.generate_simple(
         nntile_model.activations[-1],
-        next_tag,
         scale=1.0 / (args.batch_size * config.n_positions),
     )
     # Set up training pipeline

@@ -22,8 +22,13 @@ from nntile.model.generation.llm_params import (
     GenerationMode, GenerationParams, ParallelSamplingMode)
 from nntile.model.gpt2 import GPT2Model as GPT2Model_nnt
 
-starpu_config = nntile.starpu.Config(ncpus_=4, ncuda_=1, cublas_=1)
-nntile.starpu.init()
+context = nntile.Context(
+    ncpus=-1,
+    ncuda=-1,
+    ooc=0,
+    logger=0,
+    verbose=0,
+)
 
 
 def parse_args():
@@ -69,9 +74,9 @@ def main():
     args = parse_args()
 
     if args.restrict == "cuda":
-        nntile.starpu.restrict_cuda()
+        context.restrict_cuda()
     elif args.restrict == "cpu":
-        nntile.starpu.restrict_cpu()
+        context.restrict_cpu()
 
     tokenizer = GPT2TokenizerFast.from_pretrained("gpt2",
             cache_dir=args.cache_dir)

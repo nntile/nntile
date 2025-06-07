@@ -26,10 +26,9 @@ from nntile.tensor import TensorMoments, notrans, to_numpy
 
 
 class T5ClassificationHead(BaseModel):
-    next_tag: int
 
     def __init__(
-        self, x: TensorMoments, config: T5ConfigNNTile, num_labels: int, next_tag: int
+        self, x: TensorMoments, config: T5ConfigNNTile, num_labels: int
     ):
         """Head for sentence-level classification tasks."""
         activations = [x]
@@ -42,14 +41,13 @@ class T5ClassificationHead(BaseModel):
         gemm_ndim = 1
 
         # First linear layer (dense)
-        dense, next_tag = Linear.generate_simple(
+        dense = Linear.generate_simple(
             x,
             "R",
             notrans,
             gemm_ndim,
             [self.d_model],
             [self.d_model_tile],
-            next_tag,
             redux=self.redux,
             bias=True,
         )
@@ -59,22 +57,21 @@ class T5ClassificationHead(BaseModel):
 
         # Using gelutanh activation since tanh is not directly implemented
         # This provides a non-linear activation similar to tanh
-        act_fn_layer, next_tag = Act.generate_simple(
-            activations[-1], "gelutanh", next_tag
+        act_fn_layer = Act.generate_simple(
+            activations[-1], "gelutanh"
         )
 
         layers.append(act_fn_layer)
         activations.extend(act_fn_layer.activations_output)
 
         # Output projection layer
-        out_proj, next_tag = Linear.generate_simple(
+        out_proj = Linear.generate_simple(
             activations[-1],
             "R",
             notrans,
             gemm_ndim,
             [self.num_labels],
             [self.num_labels],  # Using num_labels as tile size
-            next_tag,
             redux=self.redux,
             bias=True,
         )
@@ -87,8 +84,6 @@ class T5ClassificationHead(BaseModel):
         self.act_fn_layer = act_fn_layer
         self.out_proj = out_proj
 
-        self.next_tag = next_tag
-
         # Initialize base model
         super().__init__(activations, layers, config)
 
@@ -99,10 +94,9 @@ class T5ClassificationHead(BaseModel):
         x: TensorMoments,
         config: T5ConfigNNTile,
         num_labels: int,
-        next_tag: int,
     ):
         """Create T5ClassificationHead from PyTorch model"""
-        t5_head_nntile = cls(x, config, num_labels, next_tag)
+        t5_head_nntile = cls(x, config, num_labels)
 
         # Transfer parameters from PyTorch model to NNTile
         # First dense layer
@@ -121,7 +115,7 @@ class T5ClassificationHead(BaseModel):
             torch_head.out_proj.bias.cpu().detach().numpy()
         )
 
-        return t5_head_nntile, t5_head_nntile.next_tag
+        return t5_head_nntile
 
     def to_torch(self):
         """Convert NNTile T5ClassificationHead to PyTorch T5ClassificationHead"""

@@ -20,7 +20,7 @@ namespace nntile::kernel::sqrt_inplace
 {
 
 template<typename T>
-void cpu(Index nelems, T *data_)
+void cpu(Index nelems, T *data)
     noexcept
 //! Inplace sqrt operation on CPU
 /*
@@ -28,21 +28,24 @@ void cpu(Index nelems, T *data_)
  * @params[inout] data_: Buffer to apply sqrt
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto data = reinterpret_cast<Y *>(data_);
+    using Y = typename T::repr_t;
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = std::sqrt(data[i]);
+        data[i] = T{std::sqrt(static_cast<Y>(data[i]))};
     }
 }
 
 // Explicit instantiation
 template
+void cpu<fp64_t>(Index nelems, fp64_t *data)
+    noexcept;
+
+template
 void cpu<fp32_t>(Index nelems, fp32_t *data)
     noexcept;
 
 template
-void cpu<fp64_t>(Index nelems, fp64_t *data)
+void cpu<bf16_t>(Index nelems, bf16_t *data)
     noexcept;
 
 } // namespace nntile::kernel::sqrt_inplace

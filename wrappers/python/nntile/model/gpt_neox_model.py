@@ -28,7 +28,6 @@ from .gpt_neox_config import GPTNeoXConfig
 
 
 class GPTNeoXModel(BaseModel):
-    next_tag: int
     emb_layer: Embedding
     final_lnorm: LayerNorm
     gpt_neox_blocks: List[GPTNeoXBlock]
@@ -38,7 +37,7 @@ class GPTNeoXModel(BaseModel):
                  emb_layer_: Embedding,
                  gpt_neox_blocks: List[GPTNeoXBlock],
                  lnorm_layer: LayerNorm,
-                 config: GPTNeoXConfig,
+                 config: GPTNeoXConfig
                  ):
         self.dtype = config.dtype
 
@@ -46,9 +45,10 @@ class GPTNeoXModel(BaseModel):
 
         if self.dtype not in ["fp32", "tf32",
                               "bf16", "fp32_fast_fp16",
+                              "fp32_fast_tf32",
                               "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
-                            "fp32_fast_bf16 are"
+            raise TypeError("Only fp32, tf32, bf16, fp32_fast_tf32, "
+                            "fp32_fast_fp16 and fp32_fast_bf16 are"
                             "supported for weight type")
         activations = [input_ids]
         activations += emb_layer_.activations_output
@@ -74,22 +74,24 @@ class GPTNeoXModel(BaseModel):
                    position_ids: np.ndarray,
                    mask: np.ndarray,
                    config: GPTNeoXConfig,
-                   next_tag: int):
+                   ):
 
         if config.dtype not in ["fp32", "tf32",
                               "bf16", "fp32_fast_fp16",
+                              "fp32_fast_tf32",
                               "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
-                            "fp32_fast_bf16 are"
+            raise TypeError("Only fp32, tf32, bf16, fp32_fast_tf32, "
+                            "fp32_fast_fp16 and fp32_fast_bf16 are"
                             "supported for weight type")
         x_shape = [seq_len, batch_size]
         x_basetile = [seq_len_tile, batch_size_tile]
         x_traits = TensorTraits(x_shape, x_basetile)
         x_distr = [0] * x_traits.grid.nelems
-        x_value = Tensor_int64(x_traits, x_distr, 0)
+        x_value = Tensor_int64(x_traits, x_distr)
 
         dtype2tensor_type = {"fp32": Tensor_fp32,
                              "tf32": Tensor_fp32_fast_tf32,
+                             "fp32_fast_tf32": Tensor_fp32_fast_tf32,
                              "bf16": Tensor_bf16,
                              "fp32_fast_fp16": Tensor_fp32_fast_fp16,
                              "fp32_fast_bf16": Tensor_fp32_fast_bf16
@@ -97,7 +99,7 @@ class GPTNeoXModel(BaseModel):
 
         tensor_type = dtype2tensor_type[config.dtype]
 
-        emb_layer, next_tag = Embedding.generate_simple(
+        emb_layer = Embedding.generate_simple(
                                 x_value,
                                 tensor_type,
                                 0,
@@ -105,7 +107,7 @@ class GPTNeoXModel(BaseModel):
                                 config.hidden_size,
                                 config.hidden_size_tile,
                                 config.hidden_size_tile,
-                                next_tag)
+                                )
 
         emb_layer.w.value.from_array(
             model_torch.embed_in.weight.cpu().detach().numpy().T
@@ -115,16 +117,16 @@ class GPTNeoXModel(BaseModel):
         gpt_neox_block_list = []
 
         for block_torch in model_torch.layers:
-            block_nntile, next_tag = GPTNeoXBlock.from_torch(
-                block_torch, U, position_ids, mask, config, next_tag
+            block_nntile = GPTNeoXBlock.from_torch(
+                block_torch, U, position_ids, mask, config
             )
             U = block_nntile.activations[-1]
             gpt_neox_block_list.append(block_nntile)
 
-        lnorm_final, next_tag = LayerNorm.from_torch(
+        lnorm_final = LayerNorm.from_torch(
                                     model_torch.final_layer_norm,
                                     U,
-                                    next_tag, config.redux)
+                                    config.redux)
         X = TensorMoments(x_value, None, False)
         nntile_model = GPTNeoXModel(X,
                             emb_layer,
@@ -132,7 +134,7 @@ class GPTNeoXModel(BaseModel):
                             lnorm_final,
                             config)
 
-        return nntile_model, next_tag
+        return nntile_model
 
     def to_torch(self):
         config_torch = ConfigTorch(

@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/starpu/prod_inplace.hh"
 #include "nntile/kernel/prod_inplace.hh"
 #include "../testing.hh"
@@ -39,14 +40,14 @@ void validate_cpu(Index nelems)
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::prod_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::prod_inplace::cpu<" << T::short_name << ">\n";
     kernel::prod_inplace::cpu<T>(nelems, &src[0], &dst[0]);
     // Check by actually submitting a task
-    VariableHandle src_handle(&src[0], sizeof(T)*nelems, STARPU_R),
-        dst2_handle(&dst2[0], sizeof(T)*nelems, STARPU_RW);
-    prod_inplace::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::prod_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
-    prod_inplace::submit<T>(nelems, src_handle, dst2_handle);
+    VariableHandle src_handle(&src[0], sizeof(T)*nelems),
+        dst2_handle(&dst2[0], sizeof(T)*nelems);
+    prod_inplace.restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::prod_inplace::submit<" << T::short_name << "> restricted to CPU\n";
+    prod_inplace.submit<std::tuple<T>>(nelems, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     src_handle.unregister();
     dst2_handle.unregister();
@@ -55,7 +56,7 @@ void validate_cpu(Index nelems)
     {
         TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::prod_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::prod_inplace::submit<" << T::short_name << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -94,7 +95,7 @@ void validate_cuda(Index nelems)
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::prod_inplace::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::prod_inplace::cuda<" << T::short_name << ">\n";
     kernel::prod_inplace::cuda<T>(stream, nelems, dev_src, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
@@ -111,11 +112,11 @@ void validate_cuda(Index nelems)
     cuda_err = cudaFree(dev_dst);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
-    VariableHandle src_handle(&src[0], sizeof(T)*nelems, STARPU_R),
-        dst2_handle(&dst2[0], sizeof(T)*nelems, STARPU_RW);
-    prod_inplace::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::prod_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
-    prod_inplace::submit<T>(nelems, src_handle, dst2_handle);
+    VariableHandle src_handle(&src[0], sizeof(T)*nelems),
+        dst2_handle(&dst2[0], sizeof(T)*nelems);
+    prod_inplace.restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::prod_inplace::submit<" << T::short_name << "> restricted to CUDA\n";
+    prod_inplace.submit<std::tuple<T>>(nelems, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     src_handle.unregister();
     dst2_handle.unregister();
@@ -124,16 +125,18 @@ void validate_cuda(Index nelems)
     {
         TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::prod_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
+    std::cout << "OK: starpu::prod_inplace::submit<" << T::short_name << "> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 1, 0);
-    // Init codelet
-    prod_inplace::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpu=1, ncuda=1, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
     // Launch all tests
     validate_cpu<fp32_t>(1);
     validate_cpu<fp32_t>(10000);
@@ -145,5 +148,6 @@ int main(int argc, char **argv)
     validate_cuda<fp64_t>(1);
     validate_cuda<fp64_t>(10000);
 #endif // NNTILE_USE_CUDA
+
     return 0;
 }

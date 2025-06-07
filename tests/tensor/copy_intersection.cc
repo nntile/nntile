@@ -14,6 +14,8 @@
 
 #include "nntile/tensor/copy_intersection.hh"
 #include "nntile/starpu/subcopy.hh"
+#include "nntile/context.hh"
+#include "nntile/starpu/config.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -32,7 +34,6 @@ void check(const std::vector<Index> &shape,
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     // Traits of source and destination tensors
@@ -52,7 +53,7 @@ void check(const std::vector<Index> &shape,
         dst_distr[i] = (i*i+2) % mpi_size;
     }
     // Init source tensor
-    Tensor<T> src(src_traits, src_distr, last_tag);
+    Tensor<T> src(src_traits, src_distr);
     for(Index i = 0; i < src_ntiles; ++i)
     {
         if(src_distr[i] == mpi_rank)
@@ -80,7 +81,7 @@ void check(const std::vector<Index> &shape,
         }
     }
     // Define destination tensor and init it with -1
-    Tensor<T> dst(dst_traits, dst_distr, last_tag);
+    Tensor<T> dst(dst_traits, dst_distr);
     for(Index i = 0; i < dst_ntiles; ++i)
     {
         if(dst_distr[i] == mpi_rank)
@@ -174,14 +175,13 @@ void validate()
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
-    starpu_mpi_tag_t last_tag = 0;
     std::vector<Index> sh34 = {3, 4}, sh23 = {2, 3}, sh33 = {3, 3},
         sh333 = {3, 3, 3}, sh233 = {2, 3, 3};
     TensorTraits trA(sh34, sh23), trB(sh33, sh23), trC(sh333, sh233);
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist00 = {0, 0};
-    Tensor<T> A(trA, dist0000, last_tag),
-        B(trB, dist00, last_tag),
-        C(trC, dist00, last_tag);
+    Tensor<T> A(trA, dist0000),
+        B(trB, dist00),
+        C(trC, dist00);
     TEST_THROW(copy_intersection<T>(A, {0}, B, {0, 0}));
     TEST_THROW(copy_intersection<T>(A, {0, 0}, C, {0, 0}));
     TEST_THROW(copy_intersection<T>(A, {0, 0}, B, {0}));
@@ -189,11 +189,10 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::subcopy::init();
-    starpu::subcopy::restrict_where(STARPU_CPU);
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
