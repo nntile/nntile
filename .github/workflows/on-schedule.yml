@@ -155,20 +155,19 @@ jobs:
           ln -rs \
             build/wrappers/python/nntile/nntile_core.so \
             wrappers/python/nntile/nntile_core.so
-      # TODO(@daskol): Clean up and prepare `pyproject.toml` for packaging and
-      # proper dependency resolution. We must reuse dependency list from
-      # `pyproject.toml`.
+      # TODO(@daskol): We should rely on `uv` or any other package managing
+      # utility here.
       - name: Install Python dependencies
         run: |
-          python -m pip install -U pip
-          # Mandatory dependencies.
-          python -m pip install fastapi 'numpy<2' pydantic uvicorn
-          # Optional dependencies.
-          python -m pip install -i https://download.pytorch.org/whl/cpu \
-            torch torchvision
-          python -m pip install datasets scipy tokenizers transformers
-          # Testing dependencies.
-          python -m pip install mypy 'pytest>=8.2' pytest-cov pytest-dirty
+          # Use `uv` for syncing dependencies directly from `pyproject.toml`
+          # (but without`uv.lock` file at the moment).
+          python -m pip install uv --root-user-action=ignore
+          uv sync --extra ci --extra test \
+            --no-install-project --no-build-isolation \
+            --default-index https://download.pytorch.org/whl/cpu \
+            --index https://download.pytorch.org/whl/cpu \
+            --index https://pypi.org/simple \
+            --index-strategy unsafe-best-match
       - name: Run all tests with PyTest
         run: |
           export PYTHON_TAG=$(
