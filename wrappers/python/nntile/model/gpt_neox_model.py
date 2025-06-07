@@ -45,9 +45,10 @@ class GPTNeoXModel(BaseModel):
 
         if self.dtype not in ["fp32", "tf32",
                               "bf16", "fp32_fast_fp16",
+                              "fp32_fast_tf32",
                               "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
-                            "fp32_fast_bf16 are"
+            raise TypeError("Only fp32, tf32, bf16, fp32_fast_tf32, "
+                            "fp32_fast_fp16 and fp32_fast_bf16 are"
                             "supported for weight type")
         activations = [input_ids]
         activations += emb_layer_.activations_output
@@ -77,9 +78,10 @@ class GPTNeoXModel(BaseModel):
 
         if config.dtype not in ["fp32", "tf32",
                               "bf16", "fp32_fast_fp16",
+                              "fp32_fast_tf32",
                               "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
-                            "fp32_fast_bf16 are"
+            raise TypeError("Only fp32, tf32, bf16, fp32_fast_tf32, "
+                            "fp32_fast_fp16 and fp32_fast_bf16 are"
                             "supported for weight type")
         x_shape = [seq_len, batch_size]
         x_basetile = [seq_len_tile, batch_size_tile]
@@ -89,6 +91,7 @@ class GPTNeoXModel(BaseModel):
 
         dtype2tensor_type = {"fp32": Tensor_fp32,
                              "tf32": Tensor_fp32_fast_tf32,
+                             "fp32_fast_tf32": Tensor_fp32_fast_tf32,
                              "bf16": Tensor_bf16,
                              "fp32_fast_fp16": Tensor_fp32_fast_fp16,
                              "fp32_fast_bf16": Tensor_fp32_fast_bf16

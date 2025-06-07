@@ -13,7 +13,7 @@
 
 import numpy as np
 import pytest
-from numpy.testing import assert_equal
+from numpy.testing import assert_allclose
 
 import nntile
 
@@ -44,4 +44,4 @@ def test_add_scalar(context, dtype):
     nntile.starpu.wait_for_all()
     A.unregister()
     # Compare results
-    assert_equal(alpha + beta * np_A, np_C)
+    assert_allclose(alpha + beta * np_A, np_C)

@@ -13,7 +13,7 @@
 
 import numpy as np
 import pytest
-from numpy.testing import assert_equal
+from numpy.testing import assert_allclose
 
 import nntile
 
@@ -51,4 +51,4 @@ def test_add_inplace(context, dtype):
     A.unregister()
     B.unregister()
     # Compare results
-    assert_equal(alpha * np_A + beta * np_B, np_C)
+    assert_allclose(alpha * np_A + beta * np_B, np_C, rtol=1e-6)

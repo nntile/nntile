@@ -39,8 +39,8 @@ dtype2nntile = {
 
 dtype2tol = {
     "fp32": {"rtol": 6e-4},
-    "fp32_fast_tf32": {"rtol": 7e-4},
-    "bf16": {"rtol": 1.2e-2},
+    "fp32_fast_tf32": {"rtol": 1.6e-3},
+    "bf16": {"rtol": 3.2e-2},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="no cuda")

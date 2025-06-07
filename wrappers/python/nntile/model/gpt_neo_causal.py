@@ -40,9 +40,10 @@ class GPTNeoForCausalLM(BaseModel, LLMGenerationMixin):
 
         if self.dtype not in ["fp32", "tf32",
                               "bf16", "fp32_fast_fp16",
+                              "fp32_fast_tf32",
                               "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
-                            "fp32_fast_bf16 are"
+            raise TypeError("Only fp32, tf32, bf16, fp32_fast_tf32, "
+                            "fp32_fast_fp16 and fp32_fast_bf16 are "
                             "supported for weight type")
         activations = []
         activations.extend(gpt_neo_model_.activations)
@@ -84,9 +85,10 @@ class GPTNeoForCausalLM(BaseModel, LLMGenerationMixin):
 
         if config.dtype not in ["fp32", "tf32",
                               "bf16", "fp32_fast_fp16",
+                              "fp32_fast_tf32",
                               "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
-                            "fp32_fast_bf16 are"
+            raise TypeError("Only fp32, tf32, bf16, fp32_fast_tf32, "
+                            "fp32_fast_fp16 and fp32_fast_bf16 are "
                             "supported for weight type")
 
         nntile_gpt_neo = GPTNeoModel.from_torch(
