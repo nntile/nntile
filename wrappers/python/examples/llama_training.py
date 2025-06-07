@@ -132,8 +132,8 @@ context = nntile.Context(
     ncpu=-1,
     ncuda=-1,
     logger=args.logger,
-    logger_server_addr=args.logger_server_addr,
-    logger_server_port=args.logger_server_port,
+    logger_addr=args.logger_server_addr,
+    logger_port=args.logger_server_port,
     verbose=0
 )
 nntile.starpu.profiling_init()

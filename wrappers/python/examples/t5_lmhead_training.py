@@ -272,7 +272,7 @@ elif args.optimizer == "sgd":
 
 # Define Cross Entropy loss function for classification
 loss = nntile.loss.CrossEntropy.generate_simple(
-    t5_model.activations[-1], scale=1.0 / (args.batch_size)
+    t5_model.activations[-1], scale=1.0 / (args.batch_size * args.seq_len)
 )
 
 # Set up training pipeline

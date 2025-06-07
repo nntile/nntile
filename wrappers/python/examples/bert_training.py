@@ -21,7 +21,7 @@ import torch
 from torch.optim import SGD, Adam, AdamW
 from transformers import BertConfig, BertForMaskedLM
 
-import nntile  # Import nntile before torch to avoid library problems
+import nntile
 from nntile.model.bert import BertForMaskedLM as BertForMaskedLM_nntile
 from nntile.model.bert_config import BertConfigNNTile
 
