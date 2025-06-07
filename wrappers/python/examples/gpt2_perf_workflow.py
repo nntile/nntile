@@ -147,10 +147,9 @@ if args.mode == "train":
     # Create Nntile copy of the loaded model
     # Initialize NNTile and StarPU
     time0 = time.time()
-    nntile.nntile_init(
+    context = nntile.Context(
         ncpus=-1,
         ncuda=-1,
-        cublas=1,
         ooc=0,
         logger=0,
         verbose=0)
@@ -158,7 +157,7 @@ if args.mode == "train":
     nntile.starpu.profiling_disable()
     # Restrict computations to CUDA if possible
     if args.nntile_restrict == "cuda":
-        nntile.starpu.restrict_cuda()
+        context.restrict_cuda()
     # elif args.nntile_restrict == "cpu":
     #     nntile.starpu.restrict_cpu()
     time1 = time.time() - time0

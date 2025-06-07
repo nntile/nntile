@@ -21,7 +21,7 @@ import torch
 from torch.optim import SGD, Adam, AdamW
 from transformers import BertConfig, BertForMaskedLM
 
-import nntile
+import nntile  # Import nntile before torch to avoid library problems
 from nntile.model.bert import BertForMaskedLM as BertForMaskedLM_nntile
 from nntile.model.bert_config import BertConfigNNTile
 
@@ -132,10 +132,9 @@ print(model_torch.config)
 
 # Initialize NNTile and StarPU
 time0 = time.time()
-nntile.nntile_init(
-    ncpus=1,
-    ncuda=0,
-    cublas=0,
+context = nntile.Context(
+    ncpu=-1,
+    ncuda=-1,
     ooc=0,
     logger=args.logger,
     logger_addr=args.logger_server_addr,
@@ -145,9 +144,9 @@ nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
 # Restrict computations to CUDA if possible
 if args.restrict == "cuda":
-    nntile.starpu.restrict_cuda()
+    context.restrict_cuda()
 elif args.restrict == "cpu":
-    nntile.starpu.restrict_cpu()
+    context.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
 

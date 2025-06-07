@@ -77,7 +77,13 @@ if batch_size % minibatch_size != 0:
     raise ValueError("Batch must consist of integer number of minibatches")
 
 # Set up StarPU configuration and init it
-nntile.nntile_init(ncpus=-1, ncuda=-1, cublas=1, ooc=0, logger=0, verbose=0)
+context = nntile.Context(
+    ncpu=-1,
+    ncuda=-1,
+    ooc=0,
+    logger=0,
+    verbose=0
+)
 
 # Prepare data for NNTile training
 batch_input = []

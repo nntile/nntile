@@ -141,16 +141,22 @@ model_torch.config.intermediate_size = inner_dim
 time0 = time.time()
 # Set up StarPU+MPI and init codelets
 verbose = 0
-nntile_config = nntile.starpu.Config(
-    -1, -1, 1, args.logger, args.logger_server_addr, args.logger_server_port, verbose)
+context = nntile.Context(
+    ncpu=-1,
+    ncuda=-1,
+    ooc=0,
+    logger=args.logger,
+    logger_addr=args.logger_server_addr,
+    logger_port=args.logger_server_port,
+    verbose=verbose
+)
 nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
-nntile.starpu.init()
 # Restrict computations to CUDA if possible
 if args.restrict == "cuda":
-    nntile.starpu.restrict_cuda()
+    context.restrict_cuda()
 elif args.restrict == "cpu":
-    nntile.starpu.restrict_cpu()
+    context.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
 

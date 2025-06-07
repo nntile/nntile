@@ -128,10 +128,9 @@ nflops_seq = nflops_seq_fwd
 
 # Initialize NNTile and StarPU
 time0 = time.time()
-nntile.nntile_init(
-    ncpus=-1,
+context = nntile.Context(
+    ncpu=-1,
     ncuda=-1,
-    cublas=1,
     ooc=0,
     logger=0,
     verbose=0)
@@ -139,9 +138,9 @@ nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
 # Restrict computations to CUDA if possible
 if args.restrict == "cuda":
-    nntile.starpu.restrict_cuda()
+    context.restrict_cuda()
 elif args.restrict == "cpu":
-    nntile.starpu.restrict_cpu()
+    context.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1), flush=True)
 
