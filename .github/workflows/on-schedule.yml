@@ -170,6 +170,7 @@ jobs:
             --index-strategy unsafe-best-match
       - name: Run all tests with PyTest
         run: |
+          . .venv/bin/activate
           export PYTHON_TAG=$(
             python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
@@ -187,5 +188,7 @@ jobs:
             pytest
       # This step never fails but it is useful to monitor status of type
       # corectness.
-      - name: Check typing
-        run: mypy wrappers/python/nntile || true
+      - name: Run type checking
+        run: |
+          . .venv/bin/activate
+          mypy wrappers/python/nntile || true
