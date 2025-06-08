@@ -2,6 +2,8 @@
 # TODO(@dakol): We should wrap this script into action for convinient use with
 # GitHub Actions.
 
+set -e
+
 function name-status() {
     git diff --name-only main..$branch -- "$@"
 }
