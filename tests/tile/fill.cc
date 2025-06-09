@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/tile/fill.hh"
 #include "nntile/starpu/fill.hh"
 #include "../testing.hh"
@@ -40,14 +41,14 @@ void validate()
     }
     tile2_local.release();
     tile2_copy_local.release();
-    starpu::fill::submit<T>(1, val, tile1);
+    starpu::fill.submit<std::tuple<T>>(1, val, tile1);
     fill<T>(val, tile1_copy);
     tile1_local.acquire(STARPU_R);
     tile1_copy_local.acquire(STARPU_R);
     TEST_ASSERT(Y(tile1_local[0]) == Y(tile1_copy_local[0]));
     tile1_local.release();
     tile1_copy_local.release();
-    starpu::fill::submit<T>(tile2.nelems, val, tile2);
+    starpu::fill.submit<std::tuple<T>>(tile2.nelems, val, tile2);
     fill<T>(val, tile2_copy);
     tile2_local.acquire(STARPU_R);
     tile2_copy_local.acquire(STARPU_R);
@@ -61,13 +62,15 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::fill::init();
-    starpu::fill::restrict_where(STARPU_CPU);
+    // Initialize StarPU
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
+
     return 0;
 }

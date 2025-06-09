@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/pow.hh"
 #include "nntile/starpu/pow.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -33,7 +34,7 @@ void pow_async(Scalar alpha, Scalar exp, const Tensor<T> &A)
         if(mpi_rank == tile_rank)
         {
             auto tile_traits = A.get_tile_traits(i);
-            starpu::pow::submit<T>(tile_traits.nelems, alpha, exp,
+            starpu::pow.submit<std::tuple<T>>(tile_traits.nelems, alpha, exp,
                     tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -59,11 +60,36 @@ void pow_async<fp32_t>(Scalar alpha, Scalar exp, const Tensor<fp32_t> &A);
 template
 void pow_async<fp64_t>(Scalar alpha, Scalar exp, const Tensor<fp64_t> &A);
 
+template
+void pow_async<fp32_fast_tf32_t>(Scalar alpha, Scalar exp, const Tensor<fp32_fast_tf32_t> &A);
+
+template
+void pow_async<fp32_fast_fp16_t>(Scalar alpha, Scalar exp, const Tensor<fp32_fast_fp16_t> &A);
+
+template
+void pow_async<fp32_fast_bf16_t>(Scalar alpha, Scalar exp, const Tensor<fp32_fast_bf16_t> &A);
+
+template
+void pow_async<bf16_t>(Scalar alpha, Scalar exp, const Tensor<bf16_t> &A);
+
+
 // Explicit instantiation
 template
 void pow<fp32_t>(Scalar alpha, Scalar exp, const Tensor<fp32_t> &A);
 
 template
 void pow<fp64_t>(Scalar alpha, Scalar exp, const Tensor<fp64_t> &A);
+
+template
+void pow<fp32_fast_tf32_t>(Scalar alpha, Scalar exp, const Tensor<fp32_fast_tf32_t> &A);
+
+template
+void pow<fp32_fast_fp16_t>(Scalar alpha, Scalar exp, const Tensor<fp32_fast_fp16_t> &A);
+
+template
+void pow<fp32_fast_bf16_t>(Scalar alpha, Scalar exp, const Tensor<fp32_fast_bf16_t> &A);
+
+template
+void pow<bf16_t>(Scalar alpha, Scalar exp, const Tensor<bf16_t> &A);
 
 } // namespace nntile::tensor

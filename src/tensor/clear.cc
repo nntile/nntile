@@ -12,9 +12,14 @@
  * @version 1.1.0
  * */
 
+// Corresponding header
 #include "nntile/tensor/clear.hh"
-#include "nntile/starpu/clear.hh"
 
+// Other NNTile headers
+#include "nntile/starpu/clear.hh"
+#include "nntile/starpu/config.hh"
+
+// Namespace
 namespace nntile::tensor
 {
 
@@ -28,7 +33,7 @@ void clear_async(const Tensor<T> &dst)
         int dst_tile_rank = dst_tile_handle.mpi_get_rank();
         if(mpi_rank == dst_tile_rank)
         {
-            starpu::clear::submit(dst_tile_handle);
+            starpu::clear.submit(dst_tile_handle);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
@@ -44,6 +49,12 @@ void clear(const Tensor<T> &dst)
 }
 
 // Explicit instantiation
+template
+void clear_async<int64_t>(const Tensor<int64_t> &dst);
+
+template
+void clear_async<bool_t>(const Tensor<bool_t> &dst);
+
 template
 void clear_async<fp32_t>(const Tensor<fp32_t> &dst);
 
@@ -62,10 +73,13 @@ void clear_async<fp64_t>(const Tensor<fp64_t> &dst);
 template
 void clear_async<bf16_t>(const Tensor<bf16_t> &dst);
 
-//template
-//void clear_async<fp16_t>(const Tensor<fp16_t> &dst);
-
 // Explicit instantiation
+template
+void clear<int64_t>(const Tensor<int64_t> &dst);
+
+template
+void clear<bool_t>(const Tensor<bool_t> &dst);
+
 template
 void clear<fp32_t>(const Tensor<fp32_t> &dst);
 
@@ -83,8 +97,5 @@ void clear<fp64_t>(const Tensor<fp64_t> &dst);
 
 template
 void clear<bf16_t>(const Tensor<bf16_t> &dst);
-
-//template
-//void clear<fp16_t>(const Tensor<fp16_t> &dst);
 
 } // namespace nntile::tensor

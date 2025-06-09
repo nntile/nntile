@@ -20,9 +20,6 @@ import nntile
 import nntile.utils.constructors as nntc
 from nntile.layer import Embedding
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
-
 # Define mapping between numpy and nntile types
 Tensor = {
     np.float32: nntile.tensor.Tensor_fp32,
@@ -31,7 +28,7 @@ Tensor = {
 
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
-def test_embedding(dtype: np.dtype):
+def test_embedding(context, dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     index_shape = [4, 5, 6]
     vocab_size = 1000
@@ -41,12 +38,10 @@ def test_embedding(dtype: np.dtype):
     axis = ndim
     index_traits = nntile.tensor.TensorTraits(index_shape, index_shape)
     mpi_distr = [0]
-    next_tag = 0
     # Tensor objects
     nntile_index = nntile.tensor.Tensor_int64(
-        index_traits, mpi_distr, next_tag
+        index_traits, mpi_distr
     )
-    next_tag = nntile_index.next_tag
     # Set initial values of tensors
     rng = np.random.default_rng(42)
     rand_index = rng.integers(0, vocab_size, index_shape)
@@ -58,7 +53,7 @@ def test_embedding(dtype: np.dtype):
     rand_embed_grad = rng.standard_normal(index_shape + [emb_size])
     np_embed_grad = np.array(rand_embed_grad, dtype=dtype, order="F")
     # Define NNTile embedding layer
-    nntile_layer, next_tag = Embedding.generate_simple(
+    nntile_layer = Embedding.generate_simple(
         nntile_index,
         Tensor[dtype],
         axis,
@@ -66,7 +61,6 @@ def test_embedding(dtype: np.dtype):
         emb_size,
         emb_size_tile,
         emb_size_tile,
-        next_tag,
     )
     nntile_layer.w.value.from_array(np_vocab)
     # Define PyTorch embedding layer
@@ -95,7 +89,7 @@ def test_embedding(dtype: np.dtype):
 
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
-def test_embedding_dynamic(numpy_rng, dtype):
+def test_embedding_dynamic(context, numpy_rng, dtype):
     # Describe single-tile tensor, located at node 0
     index_shape = [4, 5, 6]
     vocab_size = 1000
@@ -103,7 +97,6 @@ def test_embedding_dynamic(numpy_rng, dtype):
     emb_size_tile = 60
     ndim = len(index_shape)
     axis = ndim
-    next_tag = 0
 
     # # Set initial values of tensors
     np_index = np.asfortranarray(
@@ -117,7 +110,7 @@ def test_embedding_dynamic(numpy_rng, dtype):
     )
 
     # Define NNTile embedding layer
-    nntile_layer, next_tag = Embedding.generate_simple(
+    nntile_layer = Embedding.generate_simple(
         nntile_index,
         Tensor[dtype],
         axis,
@@ -125,7 +118,6 @@ def test_embedding_dynamic(numpy_rng, dtype):
         emb_size,
         emb_size_tile,
         emb_size_tile,
-        next_tag,
     )
     nntile_layer.w.value.from_array(np_vocab)
     # Define PyTorch embedding layer

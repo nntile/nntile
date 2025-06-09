@@ -12,19 +12,30 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/add_fiber.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/add_fiber.hh"
-#include <cstdlib>
 
-//! StarPU wrappers for add_fiber operation
-namespace nntile::starpu::add_fiber
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/add_fiber.hh"
+
+namespace nntile::starpu
 {
 
-//! StarPU wrapper for kernel::add_fiber::cpu<T>
+//! Constructor
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+AddFiber<std::tuple<T>>::AddFiber():
+    codelet("nntile_add_fiber", footprint, cpu_funcs, cuda_funcs)
+{
+    // Modes are not fixed, they are decided during runtime by default
+}
+
+//! Apply add_fiber operation on StarPU buffers on CPU
+template<typename T>
+void AddFiber<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -36,15 +47,49 @@ void cpu(void *buffers[], void *cl_args)
     const T *src2 = interfaces[1]->get_ptr<T>();
     T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::add_fiber::cpu<T>(args->m, args->n, args->k, args->batch,
-            args->alpha, src1, args->beta, src2, dst);
+    kernel::add_fiber::cpu<T>(
+        args->m,
+        args->n,
+        args->k,
+        args->batch,
+        args->alpha,
+        src1,
+        args->beta,
+        src2,
+        dst
+    );
 #endif // STARPU_SIMGRID
 }
 
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AddFiber<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AddFiber<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AddFiber<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::add_fiber::cuda<T>
+//! Apply add_fiber operation on StarPU buffer on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void AddFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -58,15 +103,50 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::add_fiber::cuda<T>(stream, args->m, args->n, args->k, args->batch,
-            args->alpha, src1, args->beta, src2, dst);
+    kernel::add_fiber::cuda<T>(
+        stream,
+        args->m,
+        args->n,
+        args->k,
+        args->batch,
+        args->alpha,
+        src1,
+        args->beta,
+        src2,
+        dst
+    );
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AddFiber<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AddFiber<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AddFiber<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for add_fiber tasks
-static
-uint32_t footprint(struct starpu_task *task)
+template<typename T>
+uint32_t AddFiber<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t*>(task->cl_arg);
@@ -79,74 +159,19 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
-
-void init()
-{
-    codelet_fp32.init("nntile_add_fiber_fp32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_bf16.init("nntile_add_fiber_bf16",
-            footprint,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp64.init("nntile_add_fiber_fp64",
-            footprint,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp32_fast_tf32.init("nntile_add_fiber_fp32_fast_tf32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp64.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-}
-
+//! Submit add_fiber task
 template<typename T>
-void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src1,
-        Scalar beta, Handle src2, Handle dst)
-//! Insert add_fiber task into StarPU pool of tasks
-/*! No argument checking is performed. All the inputs are packed and passed to
- * starpu_task_insert() function. If task submission fails, this routines
- * throws an std::runtime_error() exception.
- * */
+void AddFiber<std::tuple<T>>::submit(
+    Index m,
+    Index n,
+    Index k,
+    Index batch,
+    Scalar alpha,
+    Handle src1,
+    Scalar beta,
+    Handle src2,
+    Handle dst
+)
 {
     // Codelet arguments
     args_t* args = (args_t*)std::malloc(sizeof(*args));
@@ -158,11 +183,11 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src1,
     args->beta = beta;
     double nflops = batch * k * (2*m*n+1);
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src1),
-            STARPU_R, static_cast<starpu_data_handle_t>(src2),
+    int ret = starpu_task_insert(&codelet,
+            STARPU_R, src1.get(),
+            STARPU_R, src2.get(),
+            STARPU_W, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_W, static_cast<starpu_data_handle_t>(dst),
             STARPU_FLOPS, nflops,
             0);
     // Check submission
@@ -173,20 +198,16 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src1,
 }
 
 // Explicit instantiation
-template
-void submit<fp32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        Handle src1, Scalar beta, Handle src2, Handle dst);
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class AddFiber<std::tuple<nntile::fp64_t>>;
+template class AddFiber<std::tuple<nntile::fp32_t>>;
+template class AddFiber<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class AddFiber<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class AddFiber<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class AddFiber<std::tuple<nntile::bf16_t>>;
 
-template
-void submit<bf16_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        Handle src1, Scalar beta, Handle src2, Handle dst);
+//! Pack of add_fiber operations for different types
+add_fiber_pack_t add_fiber;
 
-template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        Handle src1, Scalar beta, Handle src2, Handle dst);
-
-template
-void submit<fp64_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        Handle src1, Scalar beta, Handle src2, Handle dst);
-
-} // namespace nntile::starpu::add_fiber
+} // namespace nntile::starpu

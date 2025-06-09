@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/tile/tile.hh"
 #include <limits>
 #include "../testing.hh"
@@ -25,7 +26,7 @@ void check_tile(const std::vector<Index> &shape)
     using Y = typename T::repr_t;
     // Check temporary tile with allocation done by StarPU
     Tile<T> tile1(shape);
-    TEST_ASSERT(static_cast<starpu_data_handle_t>(tile1) != nullptr);
+    TEST_ASSERT(tile1.get() != nullptr);
     auto tile1_local = tile1.acquire(STARPU_W);
     TEST_ASSERT(tile1_local.get_ptr() != nullptr);
     for(Index i = 0; i < tile1.nelems; ++i)
@@ -35,16 +36,13 @@ void check_tile(const std::vector<Index> &shape)
     tile1_local.release();
     // Check copy construction
     Tile<T> tile2(tile1);
-    TEST_ASSERT(static_cast<starpu_data_handle_t>(tile2) ==
-            static_cast<starpu_data_handle_t>(tile1));
+    TEST_ASSERT(tile2.get() == tile1.get());
     // Check constructor from TileTraits
     Tile<T> tile3(static_cast<TileTraits>(tile2));
-    TEST_ASSERT(static_cast<starpu_data_handle_t>(tile3) != nullptr);
-    TEST_ASSERT(static_cast<starpu_data_handle_t>(tile2) !=
-            static_cast<starpu_data_handle_t>(tile3));
+    TEST_ASSERT(tile3.get() != nullptr);
+    TEST_ASSERT(tile2.get() != tile3.get());
     // Check if acquire, release and copy are working together
-    starpu_data_cpy(static_cast<starpu_data_handle_t>(tile3),
-            static_cast<starpu_data_handle_t>(tile2), 0, nullptr, nullptr);
+    starpu_data_cpy(tile3.get(), tile2.get(), 0, nullptr, nullptr);
     auto tile3_local = tile3.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
@@ -59,9 +57,8 @@ void check_tile(const std::vector<Index> &shape)
     }
     TEST_THROW(Tile<T>(shape, &data[0], tile1.nelems-1));
     Tile<T> tile4(shape, &data[0], tile1.nelems);
-    TEST_ASSERT(static_cast<starpu_data_handle_t>(tile4) != nullptr);
-    starpu_data_cpy(static_cast<starpu_data_handle_t>(tile3),
-            static_cast<starpu_data_handle_t>(tile4), 0, nullptr, nullptr);
+    TEST_ASSERT(tile4.get() != nullptr);
+    starpu_data_cpy(tile3.get(), tile4.get(), 0, nullptr, nullptr);
     tile3_local.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
@@ -71,11 +68,9 @@ void check_tile(const std::vector<Index> &shape)
     // Check with TileTraits and pointer
     TEST_THROW(Tile<T>(tile4, &data[0], tile4.nelems-1));
     Tile<T> tile5(tile4, &data[0], tile4.nelems);
-    TEST_ASSERT(static_cast<starpu_data_handle_t>(tile5) != nullptr);
-    TEST_ASSERT(static_cast<starpu_data_handle_t>(tile5) !=
-            static_cast<starpu_data_handle_t>(tile4));
-    starpu_data_cpy(static_cast<starpu_data_handle_t>(tile3),
-            static_cast<starpu_data_handle_t>(tile5), 0, nullptr, nullptr);
+    TEST_ASSERT(tile5.get() != nullptr);
+    TEST_ASSERT(tile5.get() != tile4.get());
+    starpu_data_cpy(tile3.get(), tile5.get(), 0, nullptr, nullptr);
     tile3_local.acquire(STARPU_RW);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
@@ -96,10 +91,15 @@ void validate_tile()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
+    // Initialize StarPU
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
     // Launch all tests
     validate_tile<fp64_t>();
     validate_tile<fp32_t>();
+
     return 0;
 }

@@ -20,7 +20,7 @@ namespace nntile::kernel::dgelutanh
 {
 
 template<typename T>
-void cpu(Index nelems, T *data_)
+void cpu(Index nelems, T *data)
     noexcept
 //! Derivative of approximate GeLU operation on CPU
 /*! Applies the following derivative of approximation of the GeLU function:
@@ -36,8 +36,7 @@ void cpu(Index nelems, T *data_)
  * */
 {
     // Constants
-    using Y = typename CPUComputeType<T>::value;
-    auto data = reinterpret_cast<Y *>(data_);
+    using Y = typename T::repr_t;
     constexpr Y pi{3.141592653589793238462643383279502884L},
         zero{0.0}, one{1.0}, pt5{0.5}, f1 = Y{0.044715};
     // Square root is not constexpr by standard, proceed with a static const
@@ -45,19 +44,19 @@ void cpu(Index nelems, T *data_)
         f2 = sqrt_2/sqrt_pi, f3 = -Y{2.0}*f2, f4 = f3*f1, f5 = Y{3.0}*f4;
     for(Index i = 0; i < nelems; ++i)
     {
-        Y z = data[i];
+        Y z = static_cast<Y>(data[i]);
         Y z2 = z * z;
         Y y1 = z * (f3 + f4*z2);
         Y y2 = z * (f3 + f5*z2);
         Y expy1 = std::exp(y1);
         if(std::isinf(expy1))
         {
-            data[i] = zero;
+            data[i] = T{zero};
         }
         else
         {
             Y inv_expy1p1 = one / (expy1 + one);
-            data[i] = (one-y2*(one-inv_expy1p1)) * inv_expy1p1;
+            data[i] = T{(one-y2*(one-inv_expy1p1)) * inv_expy1p1};
         }
     }
 }
@@ -69,6 +68,10 @@ void cpu<fp32_t>(Index nelems, fp32_t *data)
 
 template
 void cpu<fp64_t>(Index nelems, fp64_t *data)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index nelems, bf16_t *data)
     noexcept;
 
 } // namespace nntile::kernel::dgelutanh

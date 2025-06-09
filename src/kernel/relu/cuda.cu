@@ -22,16 +22,17 @@ template<typename T>
 static __global__
 void cuda_kernel(Index nelems, T *data)
 {
+    using Y = typename T::repr_t;
     int i = threadIdx.x + blockIdx.x*blockDim.x;
-    constexpr T zero = 0;
+    constexpr Y zero = 0;
     if(i < nelems)
     {
-        data[i] = ::fmax(data[i], zero);
+        data[i] = T{::fmax(Y(data[i]), zero)};
     }
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T *data_)
+void cuda(cudaStream_t stream, Index nelems, T *data)
     noexcept
 //! Inplace ReLU operation on CUDA
 /*! Does the following per-element operation:
@@ -42,9 +43,7 @@ void cuda(cudaStream_t stream, Index nelems, T *data_)
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    using Y = typename CUDAComputeType<T>::value;
-    auto data = reinterpret_cast<Y *>(data_);
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, data);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, data);
 }
 
 // Explicit instantiation
@@ -54,6 +53,10 @@ void cuda<fp32_t>(cudaStream_t stream, Index nelems, fp32_t *data)
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t *data)
+    noexcept;
+
+template
+void cuda<bf16_t>(cudaStream_t stream, Index nelems, bf16_t *data)
     noexcept;
 
 } // namespace nntile::kernel::relu

@@ -21,7 +21,7 @@ namespace nntile::kernel::prod_fiber
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T *dst)
+void cuda_kernel(Index m, Index n, Index k, Scalar alpha_, const T *src, T *dst)
 //! Per-element product of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
  *      dst[i,l,j] = alpha * dst[i,l,j] * src[l]
@@ -35,22 +35,24 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T *dst)
  * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
+    using Y = typename T::repr_t;
+    const Y alpha{alpha_};
     Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
           i1 = threadIdx.y + blockIdx.y*blockDim.y,
           i2 = threadIdx.z + blockIdx.z*blockDim.z;
     if(i0 < m and i1 < n and i2 < k)
     {
-        const T src_val = alpha * src[i2];
+        const Y src_val = alpha * Y{src[i2]};
         // Output fiber to be updated
         T *dst_fiber = dst + (i1*k+i2)*m;
         // Update output value
-        dst_fiber[i0] *= src_val;
+        dst_fiber[i0] = static_cast<T>(src_val * Y{dst_fiber[i0]});
     }
 }
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
-        const T *src_, T *dst_)
+        const T *src, T *dst)
     noexcept
 //! Per-element product of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
@@ -70,11 +72,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
             std::min(int(k), 16));
     dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y,
             (k+threads.z-1)/threads.z);
-    using Y = typename CUDAComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, n, k, Y{alpha}, src,
-            dst);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, alpha, src, dst);
 }
 
 // Explicit instantiation
@@ -86,6 +84,11 @@ void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
 template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const fp64_t *src, fp64_t *dst)
+    noexcept;
+
+template
+void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
+        const bf16_t *src, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::prod_fiber

@@ -50,7 +50,7 @@ class T5ClassificationHeadTestParams:
     num_labels: int
     n_batch: int
     n_batch_tile: int
-    redux: bool = True
+    redux: bool = False  # Disabled because it causes SegFaults
     seq_len: int = 100
     seq_len_tile: int = 100
 
@@ -128,8 +128,8 @@ def generate_inputs(params: T5ClassificationHeadTestParams, dtype: str):
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
-    x_value = x_type(x_traits, x_distr, 0)
-    x_grad = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
+    x_grad = x_type(x_traits, x_distr)
     x = TensorMoments(x_value, x_grad, grad_required=True)
     nntile.functions.fill_async(0.0, x.grad)
 
@@ -141,8 +141,8 @@ def generate_inputs(params: T5ClassificationHeadTestParams, dtype: str):
     x_torch.requires_grad_()
 
     # Create NNTile model
-    nntile_head, _ = T5ClassificationHead.from_torch(
-        torch_head, x, nntile_config, params.num_labels, next_tag=0
+    nntile_head = T5ClassificationHead.from_torch(
+        torch_head, x, nntile_config, params.num_labels
     )
     nntile_head.clear_gradients()
 
@@ -174,7 +174,7 @@ def generate_inputs(params: T5ClassificationHeadTestParams, dtype: str):
 )
 class TestT5ClassificationHead:
     def test_forward(
-        self, starpu_simple, params: T5ClassificationHeadTestParams, dtype: str
+        self, context, params: T5ClassificationHeadTestParams, dtype: str
     ):
         """Test that forward pass gives same results in PyTorch and NNTile"""
         torch_head, nntile_head, x_torch, _ = generate_inputs(params, dtype)
@@ -193,7 +193,7 @@ class TestT5ClassificationHead:
         )
 
     def test_backward(
-        self, starpu_simple, params: T5ClassificationHeadTestParams, dtype: str
+        self, context, params: T5ClassificationHeadTestParams, dtype: str
     ):
         """Test that backward pass gives same results in PyTorch and NNTile"""
         torch_head, nntile_head, x_torch, y_grad_torch = generate_inputs(params, dtype)

@@ -300,8 +300,8 @@ void gemm_async(Scalar alpha, const TransOp &transA, const Tile<T> &A,
             break;
     }
     // Insert task
-    starpu::gemm::submit<T>(transA, transB, m, n, k, batch, alpha, A,
-            B, beta, C);
+    starpu::gemm.submit<std::tuple<T>>(
+        transA, transB, m, n, k, batch, alpha, A, B, beta, C);
 }
 
 //! Blocking version of tile-wise gemm operation

@@ -12,8 +12,12 @@
  * @version 1.1.0
  * */
 
+// Corresponding header
 #include "nntile/tensor/adam_step.hh"
+
+// Other NNTile headers
 #include "nntile/starpu/adam_step.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -62,7 +66,7 @@ void adam_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, S
         if(mpi_rank == p_tile_rank)
         {
             auto traits = p.get_tile_traits(i);
-            starpu::adam_step::submit<T>(num_iter, traits.nelems, beta_1, beta_2, eps, lr, weight_decay,
+            starpu::adam_step.submit<std::tuple<T>>(num_iter, traits.nelems, beta_1, beta_2, eps, lr, weight_decay,
                                          grad_tile_handle, first_moment_tile_handle,
                                          second_moment_tile_handle, p_tile_handle);
         }

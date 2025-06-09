@@ -63,17 +63,19 @@ class RMSNorm(BaseLayer):
 
     # Simple generator for the normalization layer
     @staticmethod
-    def generate_simple(x: TensorMoments, axis: int, eps: float,
-            next_tag: int, redux: bool = False):
+    def generate_simple(
+        x: TensorMoments,
+        axis: int,
+        eps: float,
+        redux: bool = False
+    ):
         # Get traits of X
         x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
         x_distr = x.value.distribution
-        y_value = type(x.value)(x_traits, x_distr, next_tag)
-        next_tag = y_value.next_tag
+        y_value = type(x.value)(x_traits, x_distr)
         # Create grad Y with the same traits and distribution as X
-        y_grad = type(x.value)(x_traits, x_distr, next_tag)
-        next_tag = y_grad.next_tag
+        y_grad = type(x.value)(x_traits, x_distr)
         # Wrap Y
         y = TensorMoments(y_value, y_grad, True)
         # Gamma parameter
@@ -83,17 +85,13 @@ class RMSNorm(BaseLayer):
         gamma_distr = []
         for i in range(x.value.grid.shape[axis]):
             gamma_distr.append(x_distr[x.value.grid.stride[axis] * i])
-        gamma_value = type(x.value)(gamma_traits, gamma_distr, next_tag)
-        next_tag = gamma_value.next_tag
-        gamma_grad = type(x.value)(gamma_traits, gamma_distr, next_tag)
-        next_tag = gamma_grad.next_tag
+        gamma_value = type(x.value)(gamma_traits, gamma_distr)
+        gamma_grad = type(x.value)(gamma_traits, gamma_distr)
         gamma = TensorMoments(gamma_value, gamma_grad, True)
         # Temporary tensor for normalized input
-        tmp_y_value = type(x.value)(x_traits, x_distr, next_tag)
-        next_tag = tmp_y_value.next_tag
+        tmp_y_value = type(x.value)(x_traits, x_distr)
         # Temporary tensor for gradient of normalized input
-        tmp_y_grad = type(x.value)(x_traits, x_distr, next_tag)
-        next_tag = tmp_y_grad.next_tag
+        tmp_y_grad = type(x.value)(x_traits, x_distr)
         inv_stddev_shape = x.value.shape[:axis] + x.value.shape[axis + 1:]
         inv_stddev_basetile = x.value.basetile_shape[:axis] \
                 + x.value.basetile_shape[axis + 1:]
@@ -107,19 +105,16 @@ class RMSNorm(BaseLayer):
                     + inv_stddev_tile_index[axis:]
             x_tile_offset = x.value.grid.index_to_linear(x_tile_index)
             inv_stddev_distr.append(x_distr[x_tile_offset])
-        inv_stddev = type(x.value)(inv_stddev_traits, inv_stddev_distr,
-                                   next_tag)
-        next_tag = inv_stddev.next_tag
-        mean = type(x.value)(inv_stddev_traits, inv_stddev_distr, next_tag)
-        next_tag = mean.next_tag
+        inv_stddev = type(x.value)(inv_stddev_traits, inv_stddev_distr)
+        mean = type(x.value)(inv_stddev_traits, inv_stddev_distr)
 
         # Create RMSNorm object with all the provided tensors
         layer = RMSNorm(x, y, gamma, tmp_y_value, tmp_y_grad, mean,
                 inv_stddev, axis, eps, redux=redux)
         # Init gamma and beta
         fill_async(1.0, gamma.value)
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer
 
     # Forward propagation of the normalization layer
     def forward_async(self):
@@ -213,15 +208,12 @@ class RMSNorm(BaseLayer):
 
     @staticmethod
     def from_torch(torch_rmsnorm, x: TensorMoments,
-                   axis: int, eps: float,
-                   next_tag: int, redux: bool = False):
-        rmsnorm_layer, next_tag = RMSNorm.generate_simple(x, axis,
-                                                          eps, next_tag,
-                                                          redux)
+                   axis: int, eps: float, redux: bool = False):
+        rmsnorm_layer = RMSNorm.generate_simple(x, axis, eps, redux)
         rmsnorm_layer.parameters[0].value.from_array(
             torch_rmsnorm.weight.data.cpu().detach().numpy())
 
-        return rmsnorm_layer, next_tag
+        return rmsnorm_layer
 
     def to_torch(self):
         target_shape = self.activations_input[0].value.shape

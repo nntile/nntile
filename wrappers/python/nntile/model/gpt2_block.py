@@ -25,7 +25,6 @@ from .gpt2_mlp import GPT2MLP
 
 
 class GPT2Block(BaseModel):
-    next_tag: int
     gpt2_mlp: GPT2MLP
     input_norm: LayerNorm
     post_attn_norm: LayerNorm
@@ -60,38 +59,34 @@ class GPT2Block(BaseModel):
     @staticmethod
     def from_torch(
         torch_gpt2_block, x: TensorMoments,
-        config: GPT2ConfigNNTile, next_tag: int):
+        config: GPT2ConfigNNTile):
         """
         torch_gpt2_block is HF module for GPT2 Block
         """
-        layer_norm_input_layer, next_tag = LayerNorm.from_torch(
+        layer_norm_input_layer = LayerNorm.from_torch(
             torch_gpt2_block.ln_1,
-            x,
-            next_tag
+            x
         )
-        attention_layer, next_tag = GPT2Attention.from_torch(
+        attention_layer = GPT2Attention.from_torch(
             torch_gpt2_block.attn,
             layer_norm_input_layer.activations_output[0],
             layer_norm_input_layer.activations_output[0],
             layer_norm_input_layer.activations_output[0],
-            config, next_tag)
-        post_attn_add, next_tag = Add.generate_simple(
-            x, attention_layer.activations_output[0],
-            next_tag)
+            config)
+        post_attn_add = Add.generate_simple(
+            x, attention_layer.activations_output[0])
 
-        layer_norm_post_attn_layer, next_tag = LayerNorm.from_torch(
+        layer_norm_post_attn_layer = LayerNorm.from_torch(
             torch_gpt2_block.ln_2,
-            post_attn_add.activations_output[0],
-            next_tag
+            post_attn_add.activations_output[0]
         )
-        gpt2_mlp_module, next_tag = GPT2MLP.from_torch(
+        gpt2_mlp_module = GPT2MLP.from_torch(
             torch_gpt2_block.mlp,
             layer_norm_post_attn_layer.activations_output[0],
-            config, next_tag)
-        post_mlp_add, next_tag = Add.generate_simple(
+            config)
+        post_mlp_add = Add.generate_simple(
             gpt2_mlp_module.activations[-1],
-            post_attn_add.activations_output[0],
-            next_tag)
+            post_attn_add.activations_output[0])
 
         nntile_gpt2_decoder = GPT2Block(x, attention_layer,
                                             gpt2_mlp_module,
@@ -101,7 +96,7 @@ class GPT2Block(BaseModel):
                                             post_mlp_add,
                                             config)
 
-        return nntile_gpt2_decoder, next_tag
+        return nntile_gpt2_decoder
 
     def to_torch(self):
         config_torch = GPT2ConfigTorch(

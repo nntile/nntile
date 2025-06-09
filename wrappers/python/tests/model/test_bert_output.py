@@ -136,8 +136,8 @@ def generate_inputs(params: BertTestParams,
     x_distr = [0] * x_traits.grid.nelems
 
     tensor_type = dtype2nntile[dtype]
-    x_value = tensor_type(x_traits, x_distr, 0)
-    x_grad = tensor_type(x_traits, x_distr, 0)
+    x_value = tensor_type(x_traits, x_distr)
+    x_grad = tensor_type(x_traits, x_distr)
     X = TensorMoments(x_value, x_grad, True)
 
     input_tensor_shape = [params.hidden_size,
@@ -150,17 +150,17 @@ def generate_inputs(params: BertTestParams,
                                         input_tensor_basetile)
     input_tensor_distr = [0] * input_tensor_traits.grid.nelems
     input_tensor_value = tensor_type(input_tensor_traits,
-                                        input_tensor_distr, 0)
+                                        input_tensor_distr)
     input_tensor_grad = tensor_type(input_tensor_traits,
-                                    input_tensor_distr, 0)
+                                    input_tensor_distr)
     input_tensor = TensorMoments(input_tensor_value,
                                     input_tensor_grad,
                                     True)
 
-    nntile_model, _ = BertOutputNNTile.from_torch(
+    nntile_model = BertOutputNNTile.from_torch(
             torch_model, X, input_tensor,
             params.hidden_size_tile,
-            nntile_config, 0)
+            nntile_config)
     nntile_model.clear_gradients()
     x_random = gen.standard_normal((params.intermediate_size,
                                     params.seq_len,
@@ -202,7 +202,7 @@ def generate_inputs(params: BertTestParams,
     pytest.param('fp32_fast_bf16', marks=nocuda),
 ])
 class TestBertOutput:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: BertTestParams,
                       dtype: str):
 
@@ -216,7 +216,7 @@ class TestBertOutput:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: BertTestParams,
                      dtype: str):
         torch_model, nntile_model, x, input_tensor, _ = \
@@ -230,7 +230,7 @@ class TestBertOutput:
         assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
         nntile_model.unregister()
 
-    def test_backward(self, starpu_simple, torch_rng,
+    def test_backward(self, context, torch_rng,
                       params: BertTestParams,
                       dtype: str):
         torch_model, nntile_model, x, input_tensor, y_grad = \

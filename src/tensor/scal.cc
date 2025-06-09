@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/scal.hh"
 #include "nntile/starpu/scal.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -55,7 +56,7 @@ void scal_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::scal::submit<T>(traits.nelems, alpha, src_tile_handle,
+            starpu::scal.submit<std::tuple<T>>(traits.nelems, alpha, src_tile_handle,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -90,6 +91,10 @@ void scal_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &
         const Tensor<fp32_fast_fp16_t> &dst);
 
 template
+void scal_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
+        const Tensor<fp32_fast_bf16_t> &dst);
+
+template
 void scal_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
@@ -109,6 +114,10 @@ void scal<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
 template
 void scal<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src,
         const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void scal<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
+        const Tensor<fp32_fast_bf16_t> &dst);
 
 template
 void scal<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,

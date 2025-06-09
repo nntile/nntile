@@ -17,8 +17,6 @@ from numpy.testing import assert_equal
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
-
 Tile = {np.float32: nntile.tile.Tile_fp32,
         np.float64: nntile.tile.Tile_fp64}
 
@@ -26,7 +24,7 @@ Tile = {np.float32: nntile.tile.Tile_fp32,
 class TestTile:
 
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-    def test_init(self, dtype, shape=(3, 4)):
+    def test_init(self, context, dtype, shape=(3, 4)):
         traits = nntile.tile.TileTraits(shape)
         tile = Tile[dtype](traits)
         src = np.random.default_rng(42) \

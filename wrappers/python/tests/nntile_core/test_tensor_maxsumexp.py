@@ -16,9 +16,6 @@ import pytest
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
-
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
@@ -29,26 +26,22 @@ maxsumexp = {np.float32: nntile.nntile_core.tensor.maxsumexp_fp32,
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_maxsumexp(dtype):
+def test_maxsumexp(context, dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [2, 3, 4]
     B_shape = []
     ndim = len(A_shape)
     for i in range(ndim):
         B_shape.append([2] + A_shape[:i] + A_shape[i + 1:])
-    mpi_distr = [0]
-    next_tag = 0
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     B_traits = []
     for i in range(ndim):
         B_traits.append(nntile.tensor.TensorTraits(B_shape[i], B_shape[i]))
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
+    A = Tensor[dtype](A_traits)
     B = []
     for i in range(ndim):
-        B.append(Tensor[dtype](B_traits[i], mpi_distr, next_tag))
-        next_tag = B[-1].next_tag
+        B.append(Tensor[dtype](B_traits[i]))
     # Set initial values of tensors
     rand_A = np.random.default_rng(42).standard_normal(A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')

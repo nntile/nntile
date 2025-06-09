@@ -15,5 +15,5 @@ import pytest
 
 
 @pytest.mark.xfail(reason='not implemented')
-def test_logsumexp_async():
+def test_logsumexp_async(context):
     pass

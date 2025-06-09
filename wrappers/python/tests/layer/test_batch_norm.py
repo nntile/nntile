@@ -91,7 +91,7 @@ def generate_input(params: BatchNormTestParams, rng):
 @pytest.mark.parametrize("params", BATCH_NORM_2D_TEST_PARAMS)
 class TestBatchNorm2d:
     def test_batchnorm_forward(
-        self, starpu_simple, numpy_rng, torch_rng, params: BatchNormTestParams
+        self, context, numpy_rng, torch_rng, params: BatchNormTestParams
     ):
         (
             (input_moment, _, weights_nnt, bias_nnt),
@@ -124,7 +124,7 @@ class TestBatchNorm2d:
         )
 
     def test_batchnorm_backward(
-        self, starpu_simple, numpy_rng, torch_rng, params: BatchNormTestParams
+        self, context, numpy_rng, torch_rng, params: BatchNormTestParams
     ):
         (
             (input_moment, output_grad_nnt, weights_nnt, bias_nnt),

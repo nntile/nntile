@@ -22,7 +22,6 @@ from nntile.tensor import (
 
 
 class MlpMixer(BaseModel):
-    next_tag: int
 
     # Construct model with all the provided data
     def __init__(
@@ -31,7 +30,6 @@ class MlpMixer(BaseModel):
         embedding_dim: int,
         n_layers: int,
         n_classes: int,
-        next_tag: int,
     ):
         # Check number of layers
         if n_layers < 1:
@@ -47,46 +45,43 @@ class MlpMixer(BaseModel):
         layers = []
 
         # Initial linear layer that converts input to internal shape
-        new_layer, next_tag = Linear.generate_simple(
+        new_layer = Linear.generate_simple(
             x,
             "L",
             notrans,
             1,
             [embedding_dim],
             [embedding_dim],
-            next_tag,
             bias=False,
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
         for _ in range(1, n_layers + 1):
-            new_layer, next_tag = Mixer.generate_simple(
-                activations[-1], next_tag
+            new_layer = Mixer.generate_simple(
+                activations[-1]
             )
             layers.append(new_layer)
             activations.extend(new_layer.activations_output)
 
         # Global Average Pooling Layer
-        new_layer, next_tag = GAP.generate_simple(activations[-1], next_tag)
+        new_layer = GAP.generate_simple(activations[-1])
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
         # Final classification fully connected layer
-        new_layer, next_tag = Linear.generate_simple(
+        new_layer = Linear.generate_simple(
             activations[-1],
             "R",
             notrans,
             1,
             [n_classes],
             [n_classes],
-            next_tag,
             bias=False,
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
 
@@ -122,7 +117,7 @@ class MlpMixer(BaseModel):
 
     @staticmethod
     def from_torch(
-        torch_mlp_mixer, batch_size: int, n_classes: int, next_tag: int
+        torch_mlp_mixer, batch_size: int, n_classes: int
     ):
         n_mixer_layers = int((len(list(torch_mlp_mixer.parameters())) - 2) / 8)
         for i, p in enumerate(torch_mlp_mixer.parameters()):
@@ -139,14 +134,13 @@ class MlpMixer(BaseModel):
             [n_patches, batch_size, n_pixels],
         )
         x_distr = [0]
-        x = Tensor_fp32(x_traits, x_distr, next_tag)
-        next_tag = x.next_tag
+        x = Tensor_fp32(x_traits, x_distr)
         x_grad = None
         x_grad_required = False
         x_moments = TensorMoments(x, x_grad, x_grad_required)
 
         mlp_mixer_nntile = MlpMixer(
-            x_moments, hidden_layer_dim, n_mixer_layers, n_classes, next_tag
+            x_moments, hidden_layer_dim, n_mixer_layers, n_classes
         )
         for p, p_torch in zip(
             mlp_mixer_nntile.parameters, torch_mlp_mixer.parameters()
@@ -155,7 +149,7 @@ class MlpMixer(BaseModel):
                 p.value.from_array(p_torch.detach().numpy().T)
             else:
                 p.value.from_array(p_torch.detach().numpy())
-        return mlp_mixer_nntile, mlp_mixer_nntile.next_tag
+        return mlp_mixer_nntile
 
     def to_torch(self, torch_mlp_mixer):
         with torch.no_grad():

@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/tile/addcdiv.hh"
 #include "nntile/starpu/addcdiv.hh"
 #include "../testing.hh"
@@ -51,7 +52,7 @@ void validate(Scalar val, Scalar eps)
     // tile2_local.release();
     // tile2_copy_local.release();
 
-    starpu::addcdiv::submit<T>(val, eps, src1.nelems, nom1, denom1, src1);
+    starpu::addcdiv.submit<std::tuple<T>>(src1.nelems, val, eps, nom1, denom1, src1);
     addcdiv<T>(val, eps, nom1, denom1, src1_copy);
     src1_local.acquire(STARPU_R);
     src1_copy_local.acquire(STARPU_R);
@@ -73,13 +74,15 @@ void validate(Scalar val, Scalar eps)
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::addcdiv::init();
-    starpu::addcdiv::restrict_where(STARPU_CPU);
+    // Initialize StarPU
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
     // Launch all tests
     validate<fp32_t>(-1, 1e-3);
     validate<fp64_t>(1000, 1e-9);
+
     return 0;
 }

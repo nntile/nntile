@@ -22,7 +22,6 @@ from .bert_modules import BertAttention, BertIntermediate, BertOutput
 
 
 class BertLayer(BaseModel):
-    next_tag: int
 
     def __init__(self, hidden_states: TensorMoments,
                   attention: BertAttention,
@@ -51,39 +50,36 @@ class BertLayer(BaseModel):
 
     @staticmethod
     def from_torch(bert_layer_torch, hidden_states: TensorMoments,
-                   config: BertConfigNNTile,
-                   next_tag: int):
+                   config: BertConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
 
-        bert_attention_nntile, next_tag = BertAttention.from_torch(
+        bert_attention_nntile = BertAttention.from_torch(
                                             bert_layer_torch.attention,
                                             hidden_states,
-                                            config,
-                                            next_tag)
-        bert_interm_nntile, next_tag = BertIntermediate.from_torch(
+                                            config)
+        bert_interm_nntile = BertIntermediate.from_torch(
                                             bert_layer_torch.intermediate,
                                             bert_attention_nntile.activations[-1],
                                             config.intermediate_size_tile,
-                                            config, next_tag)
+                                            config)
 
-        bert_output_nntile, next_tag = BertOutput.from_torch(
+        bert_output_nntile = BertOutput.from_torch(
                                             bert_layer_torch.output,
                                             bert_interm_nntile.activations[-1],
                                             bert_attention_nntile.activations[-1],
                                             config.hidden_size_tile,
-                                            config,
-                                            next_tag)
+                                            config)
         bert_layer_nntile = BertLayer(hidden_states,
                                       bert_attention_nntile,
                                       bert_interm_nntile,
                                       bert_output_nntile,
                                       config)
 
-        return bert_layer_nntile, next_tag
+        return bert_layer_nntile
 
     def _make_default_torch_model(self):
         config_torch = BertConfig_torch()

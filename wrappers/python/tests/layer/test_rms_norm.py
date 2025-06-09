@@ -24,10 +24,6 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
-
-
 class RMSNorm(torch.nn.Module):
     """See `original`_ implementation.
 
@@ -82,19 +78,16 @@ class RMSNorm(torch.nn.Module):
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_rms_norm(dtype: np.dtype):
+def test_rms_norm(context, dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [20, 30]
     ndim = len(A_shape)
     eps = 1e-5
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
-    next_tag = 0
     # Tensor objects
-    A_value = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A_value.next_tag
-    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
+    A_value = Tensor[dtype](A_traits, mpi_distr)
+    A_grad = Tensor[dtype](A_traits, mpi_distr)
     A = nntile.tensor.TensorMoments(A_value, A_grad, True)
     # Set initial values of tensors
     gen = np.random.default_rng()
@@ -107,8 +100,7 @@ def test_rms_norm(dtype: np.dtype):
     rand_gamma = gen.standard_normal(size=A_shape[-1], dtype=np.float32)
     np_gamma = np.array(rand_gamma, dtype=dtype, order='F')
     # Init NNTile LayerNorm
-    nntile_layer, next_tag = nntile.layer.RMSNorm.generate_simple(A,
-            ndim - 1, eps, next_tag)
+    nntile_layer = nntile.layer.RMSNorm.generate_simple(A, ndim - 1, eps)
     nntile_layer.gamma.value.from_array(np_gamma)
     # Init PyTorch LayerNorm
     torch_layer = RMSNorm(A_shape[-1], eps=eps)
@@ -149,7 +141,7 @@ def test_rms_norm(dtype: np.dtype):
 
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
-def test_rms_norm_dynamic(numpy_rng, dtype: np.dtype):
+def test_rms_norm_dynamic(context, numpy_rng, dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [20, 30]
     ndim = len(A_shape)
@@ -167,7 +159,7 @@ def test_rms_norm_dynamic(numpy_rng, dtype: np.dtype):
     torch_A = torch.tensor(np_A)
 
     # Init NNTile LayerNorm
-    nntile_layer, _ = nntile.layer.RMSNorm.generate_simple(A, ndim - 1, eps, 0)
+    nntile_layer = nntile.layer.RMSNorm.generate_simple(A, ndim - 1, eps)
     nntile_layer.gamma.value.from_array(np_gamma)
     # Init PyTorch LayerNorm
     torch_layer = RMSNorm(A_shape[-1], eps=eps)

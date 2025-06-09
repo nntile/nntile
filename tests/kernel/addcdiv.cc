@@ -72,7 +72,7 @@ template<typename T>
 void validate(Scalar val, Scalar eps, Index nelems)
 {
     using Y = typename T::repr_t;
-    const Y epsilon = 2 * T::epsilon();
+    const Y epsilon = 2 * T::epsilon;
     // Init test input
     std::vector<T> src(nelems), nom(nelems), denom(nelems);
     Y sign_factor = Y(-1.);
@@ -85,24 +85,24 @@ void validate(Scalar val, Scalar eps, Index nelems)
     }
     std::vector<T> src_copy(src);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::addcdiv::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::addcdiv::cpu<" << T::short_name << ">\n";
     cpu<T>(val, eps, nelems, &nom[0], &denom[0], &src[0]);
     Y ref_val;
     for(Index i = 0; i < nelems; ++i)
     {
         TEST_ASSERT(Y(src[i]) == (Y(src_copy[i]) + val*Y(nom[i]) / (Y(denom[i]) + eps)));
     }
-    std::cout << "OK: kernel::addcdiv::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::addcdiv::cpu<" << T::short_name << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     src = src_copy;
-    std::cout << "Run kernel::addcdiv::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::addcdiv::cuda<" << T::short_name << ">\n";
     run_cuda<T>(val, eps, nelems, &nom[0], &denom[0], &src[0]);
     for(Index i = 0; i < nelems; ++i)
     {
         TEST_ASSERT(Y(src[i]) == (Y(src_copy[i]) + val*Y(nom[i]) / (Y(denom[i]) + eps)));
     }
-    std::cout << "OK: kernel::addcdiv::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::addcdiv::cuda<" << T::short_name << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

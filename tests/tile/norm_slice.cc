@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/tile/norm_slice.hh"
 #include "nntile/starpu/norm_slice.hh"
 #include "../testing.hh"
@@ -51,7 +52,7 @@ void check()
     }
     // Check axis=0
     {
-        starpu::norm_slice::submit<T>(1, 20, 3, alpha, src, beta, dst[0]);
+        starpu::norm_slice.submit<std::tuple<T>>(1, 20, 3, alpha, src, beta, dst[0]);
         norm_slice<T>(alpha, src, beta, dst2[0], 0);
         auto dst_local = dst[0].acquire(STARPU_R);
         auto dst2_local = dst2[0].acquire(STARPU_R);
@@ -64,7 +65,7 @@ void check()
     }
     // Check axis=1
     {
-        starpu::norm_slice::submit<T>(3, 5, 4, alpha, src, beta, dst[1]);
+        starpu::norm_slice.submit<std::tuple<T>>(3, 5, 4, alpha, src, beta, dst[1]);
         norm_slice<T>(alpha, src, beta, dst2[1], 1);
         auto dst_local = dst[1].acquire(STARPU_R);
         auto dst2_local = dst2[1].acquire(STARPU_R);
@@ -77,7 +78,7 @@ void check()
     }
     // Check axis=2
     {
-        starpu::norm_slice::submit<T>(12, 1, 5, alpha, src, beta, dst[2]);
+        starpu::norm_slice.submit<std::tuple<T>>(12, 1, 5, alpha, src, beta, dst[2]);
         norm_slice<T>(alpha, src, beta, dst2[2], 2);
         auto dst_local = dst[2].acquire(STARPU_R);
         auto dst2_local = dst2[2].acquire(STARPU_R);
@@ -111,13 +112,15 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::norm_slice::init();
-    starpu::norm_slice::restrict_where(STARPU_CPU);
+    // Initialize StarPU
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
+
     return 0;
 }

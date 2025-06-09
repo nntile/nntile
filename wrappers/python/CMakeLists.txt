@@ -17,7 +17,7 @@ add_subdirectory("../../external/pybind11" "pybind11")
 # If a single source file will become huge, it will be split into several files
 set(EXT_SRC
     "nntile/nntile_core.cc"
-    )
+)
 
 # Set up python extension module nntile_core and its properties
 pybind11_add_module(nntile_core ${EXT_SRC})

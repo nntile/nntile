@@ -15,5 +15,5 @@ import pytest
 
 
 @pytest.mark.xfail(reason='not implemented')
-def test_hypot_async():
+def test_hypot_async(context):
     pass

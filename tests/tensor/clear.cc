@@ -17,6 +17,8 @@
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/copy.hh"
+#include "nntile/context.hh"
+#include "nntile/starpu/config.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -29,7 +31,6 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     // Traits
@@ -42,7 +43,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         src_distr[i] = (i+1) % mpi_size;
     }
     // Init source tensor
-    Tensor<T> src(src_traits, src_distr, last_tag);
+    Tensor<T> src(src_traits, src_distr);
     for(Index i = 0; i < src_ntiles; ++i)
     {
         if(src_distr[i] == mpi_rank)
@@ -59,7 +60,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         }
     }
     // Define destination tensor
-    Tensor<T> dst(dst_traits, dst_distr, last_tag);
+    Tensor<T> dst(dst_traits, dst_distr);
     // Clear source and gather into destination
     clear<T>(src);
     gather<T>(src, dst);
@@ -87,15 +88,10 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::clear::init();
-    starpu::subcopy::init();
-    starpu::copy::init();
-    starpu::clear::restrict_where(STARPU_CPU);
-    starpu::subcopy::restrict_where(STARPU_CPU);
-    starpu::copy::restrict_where(STARPU_CPU);
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

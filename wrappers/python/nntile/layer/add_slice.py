@@ -70,18 +70,15 @@ class AddSlice(BaseLayer):
         x: TensorMoments,
         y: TensorMoments,
         axis: int,
-        next_tag: int,
         redux: bool = False,
     ):
         # Get traits of X
         u_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
-        u_value = type(x.value)(u_traits, x.value.distribution, next_tag)
-        next_tag = u_value.next_tag
-        u_grad = type(x.value)(u_traits, x.value.distribution, next_tag)
-        next_tag = u_grad.next_tag
+        u_value = type(x.value)(u_traits, x.value.distribution)
+        u_grad = type(x.value)(u_traits, x.value.distribution)
         u = TensorMoments(u_value, u_grad, True)
         # Create activation layer with all the provided tensors
         layer = AddSlice(x, y, u, axis, redux)
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer

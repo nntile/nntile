@@ -27,7 +27,7 @@ void relu_forward_async(const Tile<T> &src, const Tile<T> &dst)
         throw std::runtime_error("src.shape != dst.shape");
     }
     // Submit forward relu
-    starpu::relu_forward::submit<T>(src.nelems, src, dst);
+    starpu::relu_forward.submit<std::tuple<T>>(src.nelems, src, dst);
 }
 
 template<typename T>

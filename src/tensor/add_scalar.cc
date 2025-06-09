@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/add_scalar.hh"
 #include "nntile/starpu/add_scalar.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -39,7 +40,7 @@ void add_scalar_async(Scalar alpha, Scalar beta, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = dst.get_tile_traits(i);
-            starpu::add_scalar::submit<T>(traits.nelems, alpha, beta,
+            starpu::add_scalar.submit<std::tuple<T>>(traits.nelems, alpha, beta,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -65,6 +66,22 @@ template
 void add_scalar_async<fp64_t>(Scalar alpha, Scalar beta,
         const Tensor<fp64_t> &dst);
 
+template
+void add_scalar_async<fp32_fast_tf32_t>(Scalar alpha, Scalar beta,
+        const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void add_scalar_async<fp32_fast_fp16_t>(Scalar alpha, Scalar beta,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void add_scalar_async<fp32_fast_bf16_t>(Scalar alpha, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &dst);
+
+template
+void add_scalar_async<bf16_t>(Scalar alpha, Scalar beta,
+        const Tensor<bf16_t> &dst);
+
 // Explicit instantiation of template
 template
 void add_scalar<fp32_t>(Scalar alpha, Scalar beta,
@@ -73,5 +90,21 @@ void add_scalar<fp32_t>(Scalar alpha, Scalar beta,
 template
 void add_scalar<fp64_t>(Scalar alpha, Scalar beta,
         const Tensor<fp64_t> &dst);
+
+template
+void add_scalar<fp32_fast_tf32_t>(Scalar alpha, Scalar beta,
+        const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void add_scalar<fp32_fast_fp16_t>(Scalar alpha, Scalar beta,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void add_scalar<fp32_fast_bf16_t>(Scalar alpha, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &dst);
+
+template
+void add_scalar<bf16_t>(Scalar alpha, Scalar beta,
+        const Tensor<bf16_t> &dst);
 
 } // namespace nntile::tensor

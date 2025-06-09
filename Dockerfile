@@ -13,7 +13,7 @@
 
 # Base images could be unavailable due to NVidia policies on keeping track only
 # of the latest ones
-ARG BASE_IMAGE=nvidia/cuda:12.4.0-devel-ubuntu22.04
+ARG BASE_IMAGE=nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04
 
 FROM $BASE_IMAGE AS devbase
 
@@ -87,7 +87,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install tomli && \
     GIST_PEDS=https://gist.githubusercontent.com/daskol/5513ff9c5b8a2d6b2a0e78f522dd2800 && \
     curl -SL $GIST_PEDS/raw/4e7b80e5f9d49c2e39cf8aa4e6b6b8b951724730/peds.py | \
-    python - -i -e test .
+    python - -i -e test . && \
+    pip install sentencepiece
 
 # Install helpful developer tools, Jupyter Lab and TensorFlow-cpu for logger
 RUN --mount=type=cache,target=/root/.cache/pip \

@@ -23,8 +23,7 @@ from nntile.inference.llm_async_engine import LlmAsyncInferenceEngine
 from nntile.inference.llm_sync_engine import LlmSyncInferenceEngine
 from nntile.model.gpt2 import GPT2Model as GPT2Model_nnt
 
-starpu_config = nntile.starpu.Config(ncpus_=4, ncuda_=0, cublas_=0)
-nntile.starpu.init()
+context = nntile.Context(ncpu=-1, ncuda=-1, ooc=0, logger=0, verbose=0)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -59,8 +58,8 @@ def main():
 
     tokenizer = GPT2TokenizerFast.from_pretrained("gpt2",
             cache_dir=args.cache_dir)
-    model_nnt, _ = GPT2Model_nnt.from_pretrained(
-        "gpt2", 1, 1, args.max_seq_len, 0, cache_dir=args.cache_dir
+    model_nnt = GPT2Model_nnt.from_pretrained(
+        "gpt2", 1, 1, args.max_seq_len, cache_dir=args.cache_dir
     )
 
     if args.async_server:

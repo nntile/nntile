@@ -66,7 +66,7 @@ void prod_slice_async(const Tile<T> &src, Scalar alpha, const Tile<T> &dst,
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::prod_slice::submit<T>(m, n, k, alpha, src, dst);
+    starpu::prod_slice.submit<std::tuple<T>>(m, n, k, alpha, src, dst);
 }
 
 template<typename T>

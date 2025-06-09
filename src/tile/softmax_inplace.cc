@@ -67,7 +67,7 @@ void softmax_inplace_async(const Tile<T> &maxsumexp, Scalar alpha,
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert task
-    starpu::softmax_inplace::submit<T>(m, n, k, maxsumexp, alpha, dst);
+    starpu::softmax_inplace.submit<std::tuple<T>>(m, n, k, maxsumexp, alpha, dst);
 }
 
 //! Tile-wise average and deviation from sum and scaled sum of squares

@@ -34,7 +34,7 @@ void subtract_indexed_outputs_async(Scalar val, const Tile<int64_t> &labels,
         }
     }
     // Insert task
-    starpu::subtract_indexed_outputs::submit<T>(dst.shape[0], labels.nelems, ignore_index,
+    starpu::subtract_indexed_outputs.submit<std::tuple<T>>(dst.shape[0], labels.nelems, ignore_index,
             val, labels, dst);
 }
 

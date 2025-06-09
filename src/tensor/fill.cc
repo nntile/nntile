@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/fill.hh"
 #include "nntile/starpu/fill.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -33,7 +34,7 @@ void fill_async(Scalar val, const Tensor<T> &A)
         if(mpi_rank == tile_rank)
         {
             auto tile_traits = A.get_tile_traits(i);
-            starpu::fill::submit<T>(tile_traits.nelems, val, tile_handle);
+            starpu::fill.submit<std::tuple<T>>(tile_traits.nelems, val, tile_handle);
         }
         // Flush cache for the output tile on every node
         tile_handle.mpi_flush();
