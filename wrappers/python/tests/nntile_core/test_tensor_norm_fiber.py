@@ -16,9 +16,6 @@ import pytest
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
-
 # Define mapping between numpy and nntile types
 Tensor = {
     np.float32: nntile.tensor.Tensor_fp32,
@@ -60,13 +57,10 @@ def get_ref_value(beta, dst, alpha, src):
     [3, 5, 20, 20],
     [7, 5, 21, 21]
 ])
-def test_norm_fiber_async(dtype, inplace, input_shape):
-    # Describe single-tile tensor, located at node 0
-    mpi_distr = [0]
-    next_tag = 0
+def test_norm_fiber_async(context, dtype, inplace, input_shape):
+    # Describe single-tile tensor
     alpha = float(1.0)
     beta = float(0.0)
-    next_tag = 0
     shape_A = np.array(input_shape)
     shape_B = shape_A[1:2]
     shape_C = shape_A[1:2]
@@ -75,22 +69,19 @@ def test_norm_fiber_async(dtype, inplace, input_shape):
 
     # data generation
     traits_A = nntile.tensor.TensorTraits(shape_A, shape_A)
-    A = Tensor[dtype](traits_A, mpi_distr, next_tag)
+    A = Tensor[dtype](traits_A)
     np_A = rng.random(shape_A).astype(dtype, order='F')
     A.from_array(np_A)
-    next_tag = A.next_tag
 
     traits_B = nntile.tensor.TensorTraits(shape_B, shape_B)
-    B = Tensor[dtype](traits_B, mpi_distr, next_tag)
+    B = Tensor[dtype](traits_B)
     np_B = rng.random(shape_B).astype(dtype, order='F')
     B.from_array(np_B)
-    next_tag = B.next_tag
 
     traits_C = nntile.tensor.TensorTraits(shape_C, shape_C)
-    C = Tensor[dtype](traits_C, mpi_distr, next_tag)
+    C = Tensor[dtype](traits_C)
     np_C = rng.random(shape_C).astype(dtype, order='F')
     C.from_array(np_C)
-    next_tag = C.next_tag
 
     # acutal calculations
     if inplace:

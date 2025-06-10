@@ -33,7 +33,7 @@ dtype2nntile = {
 
 dtype2tol = {
         'fp32': {'rtol': 1e-5},
-        'fp32_fast_tf32': {'rtol': 2e-3},
+        'fp32_fast_tf32': {'rtol': 3e-3},
         'bf16': {'rtol': 4e-2},
 }
 

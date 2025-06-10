@@ -20,7 +20,7 @@ import nntile
 
 
 @pytest.fixture(scope='session')
-def context() -> Generator[None, None, None]:
+def context_cpu() -> Generator[None, None, None]:
     context = nntile.Context(ncpu=1, ncuda=1, ooc=0, logger=0, verbose=0)
     context.restrict_cpu()
     try:
@@ -31,7 +31,7 @@ def context() -> Generator[None, None, None]:
 
 
 @pytest.fixture(scope='session')
-def context_cuda() -> Generator[None, None, None]:
+def context() -> Generator[None, None, None]:
     context = nntile.Context(ncpu=1, ncuda=1, ooc=0, logger=0, verbose=0)
     context.restrict_cuda()
     try:
@@ -43,7 +43,7 @@ def context_cuda() -> Generator[None, None, None]:
 
 @pytest.fixture(scope='function')
 def numpy_rng():
-    bits = np.random.MT19937()
+    bits = np.random.MT19937(42)
     return np.random.Generator(bits)
 
 
