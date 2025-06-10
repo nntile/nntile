@@ -62,7 +62,7 @@ void sum_fiber_async(Scalar alpha, const Tile<T> &src, Scalar beta,
     n = src.matrix_shape[axis+1][1] / batch;
     k = src.shape[axis];
     // Insert task
-    starpu::sum_fiber::submit<T>(m, n, k, batch, alpha, src, beta, dst);
+    starpu::sum_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src, beta, dst);
 }
 
 template<typename T>

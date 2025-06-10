@@ -12,17 +12,31 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/subcopy.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/subcopy.hh"
 
-namespace nntile::starpu::subcopy
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/subcopy.hh"
+#include "nntile/starpu/config.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+Subcopy<std::tuple<T>>::Subcopy():
+    codelet("nntile_subcopy", footprint, cpu_funcs, cuda_funcs)
+{
+    // Modes are not fixed, they are decided during runtime by default
+}
 
 //! Complex copying through StarPU buffers on CPU
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void Subcopy<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -45,7 +59,7 @@ void cpu(void *buffers[], void *cl_args)
 #ifdef NNTILE_USE_CUDA
 //! Complex copying through StarPU buffers on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void Subcopy<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -67,9 +81,9 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for copy tasks that depend on copy shape
-static
-uint32_t footprint(struct starpu_task *task)
+//! Footprint for subcopy tasks that depend on copy shape
+template<typename T>
+uint32_t Subcopy<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     const Index *ndim_ptr, *src_start, *src_stride, *copy_shape, *dst_start,
@@ -81,115 +95,9 @@ uint32_t footprint(struct starpu_task *task)
     return starpu_hash_crc32c_be_n(copy_shape, copy_shape_size, 0);
 }
 
-//Codelet codelet_fp16;
-Codelet codelet_fp32, codelet_fp64, codelet_int64,
-        codelet_bool, codelet_fp32_fast_tf32, codelet_bf16,
-        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
-
-void init()
-{
-    codelet_fp32.init("nntile_subcopy_fp32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp64.init("nntile_subcopy_fp64",
-            footprint,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_int64.init("nntile_subcopy_int64",
-            footprint,
-            {cpu<int64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<int64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_bool.init("nntile_subcopy_bool",
-            footprint,
-            {cpu<bool_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bool_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp32_fast_tf32.init("nntile_subcopy_fp32_fast_tf32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp32_fast_fp16.init("nntile_subcopy_fp32_fast_fp16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp32_fast_bf16.init("nntile_subcopy_fp32_fast_bf16",
-                footprint,
-                {cpu<fp32_t>},
-        #ifdef NNTILE_USE_CUDA
-                {cuda<fp32_t>}
-        #else // NNTILE_USE_CUDA
-                {}
-        #endif // NNTILE_USE_CUDA
-                );
-    codelet_bf16.init("nntile_subcopy_bf16",
-            footprint,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    //codelet_fp16.restrict_where(where);
-    codelet_fp32.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-    codelet_int64.restrict_where(where);
-    codelet_bool.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp32_fast_fp16.restrict_where(where);
-    codelet_fp32_fast_bf16.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-}
-
-void restore_where()
-{
-    //codelet_fp16.restore_where();
-    codelet_fp32.restore_where();
-    codelet_fp64.restore_where();
-    codelet_int64.restore_where();
-    codelet_bool.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp32_fast_fp16.restore_where();
-    codelet_fp32_fast_bf16.restore_where();
-    codelet_bf16.restore_where();
-}
-
 template<typename T>
-void submit(Index ndim, const std::vector<Index> &src_start,
+void Subcopy<std::tuple<T>>::submit(
+        Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,
         const std::vector<Index> &dst_start,
         const std::vector<Index> &dst_stride,
@@ -198,16 +106,16 @@ void submit(Index ndim, const std::vector<Index> &src_start,
 {
     constexpr double nflops = 0;
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(&codelet,
             STARPU_VALUE, &(ndim), sizeof(ndim),
             STARPU_VALUE, &(src_start[0]), ndim*sizeof(src_start[0]),
             STARPU_VALUE, &(src_stride[0]), ndim*sizeof(src_stride[0]),
             STARPU_VALUE, &(copy_shape[0]), ndim*sizeof(copy_shape[0]),
             STARPU_VALUE, &(dst_start[0]), ndim*sizeof(dst_start[0]),
             STARPU_VALUE, &(dst_stride[0]), ndim*sizeof(dst_stride[0]),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
-            mode, static_cast<starpu_data_handle_t>(dst),
-            STARPU_SCRATCH, static_cast<starpu_data_handle_t>(tmp_index),
+            STARPU_R, src.get(),
+            mode, dst.get(),
+            STARPU_SCRATCH, tmp_index.get(),
             STARPU_FLOPS, nflops, // No floating point operations
             0);
     // Check submission
@@ -218,76 +126,18 @@ void submit(Index ndim, const std::vector<Index> &src_start,
 }
 
 // Explicit instantiation
-//template
-//void submit<fp16_t>(Index ndim, const std::vector<Index> &src_start,
-//        const std::vector<Index> &src_stride,
-//        const std::vector<Index> &dst_start,
-//        const std::vector<Index> &dst_stride,
-//        const std::vector<Index> &copy_shape, Handle src, Handle dst,
-//        Handle tmp_index, starpu_data_access_mode mode);
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class Subcopy<std::tuple<nntile::int64_t>>;
+template class Subcopy<std::tuple<nntile::bool_t>>;
+template class Subcopy<std::tuple<nntile::fp64_t>>;
+template class Subcopy<std::tuple<nntile::fp32_t>>;
+template class Subcopy<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class Subcopy<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class Subcopy<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class Subcopy<std::tuple<nntile::bf16_t>>;
 
-template
-void submit<fp32_t>(Index ndim, const std::vector<Index> &src_start,
-        const std::vector<Index> &src_stride,
-        const std::vector<Index> &dst_start,
-        const std::vector<Index> &dst_stride,
-        const std::vector<Index> &copy_shape, Handle src, Handle dst,
-        Handle tmp_index, starpu_data_access_mode mode);
+//! Pack of subcopy operations for different types
+subcopy_pack_t subcopy;
 
-template
-void submit<fp32_fast_tf32_t>(Index ndim, const std::vector<Index> &src_start,
-        const std::vector<Index> &src_stride,
-        const std::vector<Index> &dst_start,
-        const std::vector<Index> &dst_stride,
-        const std::vector<Index> &copy_shape, Handle src, Handle dst,
-        Handle tmp_index, starpu_data_access_mode mode);
-
-template
-void submit<fp32_fast_fp16_t>(Index ndim, const std::vector<Index> &src_start,
-        const std::vector<Index> &src_stride,
-        const std::vector<Index> &dst_start,
-        const std::vector<Index> &dst_stride,
-        const std::vector<Index> &copy_shape, Handle src, Handle dst,
-        Handle tmp_index, starpu_data_access_mode mode);
-
-template
-void submit<fp32_fast_bf16_t>(Index ndim, const std::vector<Index> &src_start,
-        const std::vector<Index> &src_stride,
-        const std::vector<Index> &dst_start,
-        const std::vector<Index> &dst_stride,
-        const std::vector<Index> &copy_shape, Handle src, Handle dst,
-        Handle tmp_index, starpu_data_access_mode mode);
-
-template
-void submit<fp64_t>(Index ndim, const std::vector<Index> &src_start,
-        const std::vector<Index> &src_stride,
-        const std::vector<Index> &dst_start,
-        const std::vector<Index> &dst_stride,
-        const std::vector<Index> &copy_shape, Handle src, Handle dst,
-        Handle tmp_index, starpu_data_access_mode mode);
-
-template
-void submit<int64_t>(Index ndim, const std::vector<Index> &src_start,
-        const std::vector<Index> &src_stride,
-        const std::vector<Index> &dst_start,
-        const std::vector<Index> &dst_stride,
-        const std::vector<Index> &copy_shape, Handle src, Handle dst,
-        Handle tmp_index, starpu_data_access_mode mode);
-
-template
-void submit<bool_t>(Index ndim, const std::vector<Index> &src_start,
-        const std::vector<Index> &src_stride,
-        const std::vector<Index> &dst_start,
-        const std::vector<Index> &dst_stride,
-        const std::vector<Index> &copy_shape, Handle src, Handle dst,
-        Handle tmp_index, starpu_data_access_mode mode);
-
-template
-void submit<bf16_t>(Index ndim, const std::vector<Index> &src_start,
-        const std::vector<Index> &src_stride,
-        const std::vector<Index> &dst_start,
-        const std::vector<Index> &dst_stride,
-        const std::vector<Index> &copy_shape, Handle src, Handle dst,
-        Handle tmp_index, starpu_data_access_mode mode);
-
-} // namespace nntile::starpu::subcopy
+} // namespace nntile::starpu

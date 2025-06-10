@@ -65,7 +65,7 @@ template<typename T>
 void validate(Index m, Index n, Index k)
 {
     using Y = typename T::repr_t;
-    const Y eps = 2 * T::epsilon();
+    const Y eps = 2 * T::epsilon;
     // Init test input
     std::vector<T> src(m*n), dst(m*n*k);
     for(Index i0 = 0; i0 < m; ++i0)
@@ -88,7 +88,7 @@ void validate(Index m, Index n, Index k)
     // Save original dst
     std::vector<T> dst_save(dst);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::add_slice_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::add_slice_inplace::cpu<" << T::short_name << ">\n";
     cpu<T>(m, n, k, -2.0, &src[0], 3.0, &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -105,11 +105,11 @@ void validate(Index m, Index n, Index k)
             }
         }
     }
-    std::cout << "OK: kernel::add_slice_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::add_slice_inplace::cpu<" << T::short_name << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run kernel::add_slice_inplace::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::add_slice_inplace::cuda<" << T::short_name << ">\n";
     run_cuda<T>(m, n, k, -2.0, src, 3.0, dst);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -126,7 +126,7 @@ void validate(Index m, Index n, Index k)
             }
         }
     }
-    std::cout << "OK: kernel::add_slice_inplace::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::add_slice_inplace::cuda<" << T::short_name << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/dgelu.hh"
 #include "nntile/starpu/dgelu.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -33,7 +34,7 @@ void dgelu_async(const Tensor<T> &A)
         if(mpi_rank == tile_rank)
         {
             auto tile_traits = A.get_tile_traits(i);
-            starpu::dgelu::submit<T>(tile_traits.nelems, tile_handle);
+            starpu::dgelu.submit<std::tuple<T>>(tile_traits.nelems, tile_handle);
         }
         // Flush cache for the output tile on every node
         tile_handle.mpi_flush();
@@ -58,11 +59,35 @@ void dgelu_async<fp32_t>(const Tensor<fp32_t> &A);
 template
 void dgelu_async<fp64_t>(const Tensor<fp64_t> &A);
 
+template
+void dgelu_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
+
+template
+void dgelu_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
+
+template
+void dgelu_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
+
+template
+void dgelu_async<bf16_t>(const Tensor<bf16_t> &A);
+
 // Explicit instantiation
 template
 void dgelu<fp32_t>(const Tensor<fp32_t> &A);
 
 template
 void dgelu<fp64_t>(const Tensor<fp64_t> &A);
+
+template
+void dgelu<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
+
+template
+void dgelu<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
+
+template
+void dgelu<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
+
+template
+void dgelu<bf16_t>(const Tensor<bf16_t> &A);
 
 } // namespace nntile::tensor

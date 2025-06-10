@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/prod_fiber.hh"
 #include "nntile/starpu/prod_fiber.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -79,7 +80,7 @@ void prod_fiber_async(const Tensor<T> &src, Scalar alpha, const Tensor<T> &dst,
             n = dst_tile_traits.matrix_shape[axis+1][1];
             k = dst_tile_traits.shape[axis];
             // Insert corresponding task
-            starpu::prod_fiber::submit<T>(m, n, k, alpha, src_tile_handle,
+            starpu::prod_fiber.submit<std::tuple<T>>(m, n, k, alpha, src_tile_handle,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -108,20 +109,52 @@ void prod_fiber(const Tensor<T> &src, Scalar alpha, const Tensor<T> &dst,
 
 // Explicit instantiation of template
 template
+void prod_fiber_async<fp64_t>(const Tensor<fp64_t> &src, Scalar alpha,
+        const Tensor<fp64_t> &dst, Index axis);
+
+template
 void prod_fiber_async<fp32_t>(const Tensor<fp32_t> &src, Scalar alpha,
         const Tensor<fp32_t> &dst, Index axis);
 
 template
-void prod_fiber_async<fp64_t>(const Tensor<fp64_t> &src, Scalar alpha,
-        const Tensor<fp64_t> &dst, Index axis);
+void prod_fiber_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, Scalar alpha,
+        const Tensor<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void prod_fiber_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src, Scalar alpha,
+        const Tensor<fp32_fast_fp16_t> &dst, Index axis);
+
+template
+void prod_fiber_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src, Scalar alpha,
+        const Tensor<fp32_fast_bf16_t> &dst, Index axis);
+
+template
+void prod_fiber_async<bf16_t>(const Tensor<bf16_t> &src, Scalar alpha,
+        const Tensor<bf16_t> &dst, Index axis);
 
 // Explicit instantiation of template
+template
+void prod_fiber<fp64_t>(const Tensor<fp64_t> &src, Scalar alpha,
+        const Tensor<fp64_t> &dst, Index axis);
+
 template
 void prod_fiber<fp32_t>(const Tensor<fp32_t> &src, Scalar alpha,
         const Tensor<fp32_t> &dst, Index axis);
 
 template
-void prod_fiber<fp64_t>(const Tensor<fp64_t> &src, Scalar alpha,
-        const Tensor<fp64_t> &dst, Index axis);
+void prod_fiber<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, Scalar alpha,
+        const Tensor<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void prod_fiber<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src, Scalar alpha,
+        const Tensor<fp32_fast_fp16_t> &dst, Index axis);
+
+template
+void prod_fiber<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src, Scalar alpha,
+        const Tensor<fp32_fast_bf16_t> &dst, Index axis);
+
+template
+void prod_fiber<bf16_t>(const Tensor<bf16_t> &src, Scalar alpha,
+        const Tensor<bf16_t> &dst, Index axis);
 
 } // namespace nntile::tensor

@@ -25,7 +25,7 @@ template<typename T>
 void pow_async(Scalar alpha, Scalar exp, const Tile<T> &A)
 {
     // Submit task without any arguments checked
-    starpu::pow::submit<T>(A.nelems, alpha, exp, A);
+    starpu::pow.submit<std::tuple<T>>(A.nelems, alpha, exp, A);
 }
 
 //! Blocking version of tile-wise power operation

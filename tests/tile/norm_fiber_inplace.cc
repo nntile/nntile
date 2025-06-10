@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/tile/norm_fiber_inplace.hh"
 #include "nntile/starpu/norm_fiber_inplace.hh"
 #include "../testing.hh"
@@ -24,7 +25,7 @@ template<typename T>
 void validate()
 {
     using Y = typename T::repr_t;
-    const Y eps = T::epsilon();
+    const Y eps = T::epsilon;
     // constants
     Index batch = 5;
     Index m = 3;
@@ -55,23 +56,24 @@ void validate()
     src1_local.release();
     dst_local_w.release();
 
-    std::cout << "Run tile::norm_fiber_inplace<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "Run tile::norm_fiber_inplace<" << T::short_name << "> restricted to CPU\n";
     norm_fiber_inplace<T>(alpha, src1, beta, dst, axis, batch_ndim, redux);
     auto dst_local = dst.acquire(STARPU_R);
     auto val = Y(dst_local[0]);
     auto ref = Y(std::sqrt((m*n*k)));
     TEST_ASSERT(std::abs(val/ref-Y{1}) <= 10*eps)
-    std::cout << "OK: tile::norm_fiber_inplace<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: tile::norm_fiber_inplace<" << T::short_name << "> restricted to CPU\n";
     dst_local.release();
 }
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::norm_fiber_inplace::init();
-    starpu::norm_fiber_inplace::restrict_where(STARPU_CPU);
+    // Initialize StarPU
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

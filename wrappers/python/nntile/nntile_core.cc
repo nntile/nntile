@@ -32,14 +32,6 @@ void def_mod_starpu(py::module_ &m)
 {
     using namespace nntile::starpu;
     using namespace std::chrono_literals;
-    py::class_<Config>(m, "Config").
-        def(py::init<int, int, int, int, const char *, int>(),
-                py::arg("ncpus_")=-1, py::arg("ncuda_")=-1,
-                py::arg("cublas_")=-1, py::arg("logger")=0,
-                py::arg("logger_server_addr")="",
-                py::arg("logger_server_port")=5001).
-        def("shutdown", &Config::shutdown);
-    m.def("init", init);
     m.def("pause", starpu_pause);
     m.def("resume", starpu_resume);
     m.def("wait_for_all", [](){
@@ -63,18 +55,17 @@ void def_mod_starpu(py::module_ &m)
                 }
             }
             starpu_mpi_wait_for_all(MPI_COMM_WORLD);});
-    m.def("restrict_cuda", [](){restrict_where(STARPU_CUDA);});
-    m.def("restrict_cpu", [](){restrict_where(STARPU_CPU);});
-    m.def("restrict_restore", [](){restore_where();});
     m.def("profiling_init", [](){
-            //starpu_profiling_init();
+            starpu_profiling_init();
             });
     m.def("profiling_enable", [](){
-            //starpu_profiling_status_set(STARPU_PROFILING_ENABLE);
+            starpu_profiling_status_set(STARPU_PROFILING_ENABLE);
             starpu_fxt_start_profiling();});
     m.def("profiling_disable", [](){
-            //starpu_profiling_status_set(STARPU_PROFILING_DISABLE);
+            starpu_profiling_status_set(STARPU_PROFILING_DISABLE);
             starpu_fxt_stop_profiling();});
+    m.def("profiling_bus_display_summary", [](){
+            starpu_profiling_bus_helper_display_summary();});
     m.def("iteration_push", &starpu_iteration_push);
     m.def("iteration_pop", &starpu_iteration_pop);
 }
@@ -118,7 +109,7 @@ void tile_from_array(const tile::Tile<T> &tile,
         auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
         using Y = typename T::repr_t;
-        constexpr bool triv = T::trivial_copy_from_compat;
+        constexpr bool triv = std::is_same<typename T::storage_t, Y>::value;
         copy_raw<Y, T, triv>(1, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
         tile_local.release();
@@ -140,7 +131,7 @@ void tile_from_array(const tile::Tile<T> &tile,
     auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
     using Y = typename T::repr_t;
-    constexpr bool triv = T::trivial_copy_from_compat;
+    constexpr bool triv = std::is_same<typename T::storage_t, Y>::value;
     copy_raw<Y, T, triv>(tile.nelems, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
     tile_local.release();
@@ -167,7 +158,7 @@ void tile_to_array(const tile::Tile<T> &tile,
         auto tile_local = tile.acquire(STARPU_R);
 #ifndef STARPU_SIMGRID
         using Y = typename T::repr_t;
-        constexpr bool triv = T::trivial_copy_from_compat;
+        constexpr bool triv = std::is_same<typename T::storage_t, Y>::value;
         copy_raw<T, Y, triv>(1, tile_local.get_ptr(), array.mutable_data());
 #endif // STARPU_SIMGRID
         tile_local.release();
@@ -189,7 +180,7 @@ void tile_to_array(const tile::Tile<T> &tile,
     auto tile_local = tile.acquire(STARPU_R);
 #ifndef STARPU_SIMGRID
     using Y = typename T::repr_t;
-    constexpr bool triv = T::trivial_copy_from_compat;
+    constexpr bool triv = std::is_same<typename T::storage_t, Y>::value;
     copy_raw<T, Y, triv>(tile.nelems, tile_local.get_ptr(),
         array.mutable_data());
 #endif // STARPU_SIMGRID
@@ -204,6 +195,9 @@ void def_class_tile(py::module_ &m, const char *name)
     py::class_<Tile<T>, TileTraits>(m, name, py::multiple_inheritance()).
         def(py::init<const TileTraits &>()).
         def("unregister", &Tile<T>::unregister).
+        def("unregister_submit", &Tile<T>::unregister_submit).
+        def("unregister_no_coherency", &Tile<T>::unregister_no_coherency).
+        def("invalidate_submit", &Tile<T>::invalidate_submit).
         def("from_array", tile_from_array<T>).
         def("to_array", tile_to_array<T>);
     m.def("tile_from_array", tile_from_array<T>);
@@ -270,7 +264,7 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
             auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
             using Y = typename T::repr_t;
-            constexpr bool triv = T::trivial_copy_from_compat;
+            constexpr bool triv = std::is_same<typename T::storage_t, Y>::value;
             copy_raw<Y, T, triv>(1, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
             tile_local.release();
@@ -292,12 +286,8 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
     }
     // Create temporary single-tile tensor
     tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
-    std::int64_t tmp_tag = 0;
-    int flag;
-    //starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
-    //        &flag);
     std::vector<int> tmp_distr{0};
-    tensor::Tensor<T> tmp(tmp_traits, tmp_distr, tmp_tag);
+    tensor::Tensor<T> tmp(tmp_traits, tmp_distr);
     // Acquire tile and copy data
     int mpi_rank = starpu_mpi_world_rank();
     auto tile = tmp.get_tile(0);
@@ -306,13 +296,14 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
         auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
         using Y = typename T::repr_t;
-        constexpr bool triv = T::trivial_copy_from_compat;
+        constexpr bool triv = std::is_same<typename T::storage_t, Y>::value;
         copy_raw<Y, T, triv>(tile.nelems, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
         tile_local.release();
     }
     tensor::scatter_async<T>(tmp, tensor);
     tensor.mpi_flush();
+    tmp.unregister_submit();
 }
 
 // Tensor -> numpy.ndarray
@@ -340,7 +331,7 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
             auto tile_local = tile.acquire(STARPU_R);
 #ifndef STARPU_SIMGRID
             using Y = typename T::repr_t;
-            constexpr bool triv = T::trivial_copy_from_compat;
+            constexpr bool triv = std::is_same<typename T::storage_t, Y>::value;
             copy_raw<T, Y, triv>(1, tile_local.get_ptr(),
                 array.mutable_data());
 #endif // STARPU_SIMGRID
@@ -363,12 +354,8 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
     }
     // Create temporary single-tile tensor
     tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
-    std::int64_t tmp_tag = 0;
-    int flag;
-    //starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
-            &flag);
     std::vector<int> tmp_distr{0};
-    tensor::Tensor<T> tmp(tmp_traits, tmp_distr, tmp_tag);
+    tensor::Tensor<T> tmp(tmp_traits, tmp_distr);
     tensor::gather_async<T>(tensor, tmp);
     // Acquire tile and copy data
     int mpi_rank = starpu_mpi_world_rank();
@@ -378,13 +365,13 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
         auto tile_local = tile.acquire(STARPU_R);
 #ifndef STARPU_SIMGRID
         using Y = typename T::repr_t;
-        constexpr bool triv = T::trivial_copy_from_compat;
+        constexpr bool triv = std::is_same<typename T::storage_t, Y>::value;
         copy_raw<T, Y, triv>(tile.nelems, tile_local.get_ptr(),
             array.mutable_data());
 #endif // STARPU_SIMGRID
         tile_local.release();
     }
-    tmp.unregister();
+    tmp.unregister_submit();
 }
 
 template<typename T>
@@ -404,7 +391,7 @@ bool tensor_try_gathered_to_array(const tensor::Tensor<T> &tensor,
         }
         #ifndef STARPU_SIMGRID
             using Y = typename T::repr_t;
-            constexpr bool triv = T::trivial_copy_from_compat;
+            constexpr bool triv = std::is_same<typename T::storage_t, Y>::value;
             copy_raw<T, Y, triv>(tile.nelems, tile_local_future.get_ptr(),
                 array.mutable_data());
         #endif // STARPU_SIMGRID
@@ -420,18 +407,19 @@ void def_class_tensor(py::module_ &m, const char *name)
 {
     using namespace nntile::tensor;
     py::class_<Tensor<T>, TensorTraits>(m, name, py::multiple_inheritance()).
-        def(py::init<const TensorTraits &, const std::vector<int> &,
-                starpu_mpi_tag_t &>()).
-        def_readonly("next_tag", &Tensor<T>::next_tag).
+        def(py::init<const TensorTraits &, const std::vector<int> &, const char *>(),
+            py::arg("traits"),
+            py::arg("distr") = std::vector<int>(),
+            py::arg("name") = nullptr
+        ).
         def("unregister", &Tensor<T>::unregister).
-        // Temporary disable invalidate_submit and use wont_use instead
+        def("unregister_submit", &Tensor<T>::unregister_submit).
+        def("unregister_no_coherency", &Tensor<T>::unregister_no_coherency).
         def("invalidate_submit", &Tensor<T>::invalidate_submit).
-        //def("invalidate_submit", &Tensor<T>::wont_use).
         def("wont_use", &Tensor<T>::wont_use).
         def("from_array", &tensor_from_array<T>).
         def("to_array", &tensor_to_array<T>).
         def("try_gathered_to_array", &tensor_try_gathered_to_array<T>).
-
         def("set_reduction_add", &Tensor<T>::set_reduction_add).
         def("set_reduction_hypot", &Tensor<T>::set_reduction_hypot).
         def("set_reduction_maxsumexp", &Tensor<T>::set_reduction_maxsumexp).
@@ -440,6 +428,14 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("get_tile", static_cast<tile::Tile<T>(Tensor<T>::*)(Index) const>(
                     &Tensor<T>::get_tile)).
         def("get_nbytes", &Tensor<T>::get_nbytes).
+        // Enable offloading to RAM
+        def("force_offload_ram_enable", &Tensor<T>::force_offload_ram_enable).
+        // Disable offloading to RAM
+        def("force_offload_ram_disable", &Tensor<T>::force_offload_ram_disable).
+        // Enable offloading to disk
+        def("force_offload_disk_enable", &Tensor<T>::force_offload_disk_enable).
+        // Disable offloading to disk
+        def("force_offload_disk_disable", &Tensor<T>::force_offload_disk_disable).
         def_readonly("distribution", &Tensor<T>::tile_distr);
     m.def("tensor_to_array", tensor_to_array<T>);
     m.def("tensor_from_array", tensor_from_array<T>);
@@ -498,7 +494,6 @@ void def_mod_tensor(py::module_ &m)
     m.def("gemm_async_fp32_fast_fp16", &gemm_async<fp32_fast_fp16_t>);
     m.def("gemm_async_fp32_fast_bf16", &gemm_async<fp32_fast_bf16_t>);
     m.def("gemm_async_bf16", &gemm_async<bf16_t>);
-    //m.def("gemm_async_fp16", &gemm_async<fp16_t>);
 
     m.def("gemm_fp64", &gemm<fp64_t>);
     m.def("gemm_fp32", &gemm<fp32_t>);
@@ -506,76 +501,114 @@ void def_mod_tensor(py::module_ &m)
     m.def("gemm_fp32_fast_fp16", &gemm<fp32_fast_fp16_t>);
     m.def("gemm_fp32_fast_bf16", &gemm<fp32_fast_bf16_t>);
     m.def("gemm_bf16", &gemm<bf16_t>);
-    //m.def("gemm_fp16", &gemm<fp16_t>);
 
     // Add activation functions for Tensor<T>
     m.def("relu_async_fp64", &relu_async<fp64_t>);
-    m.def("relu_async_fp32_fast_tf32", &relu_async<fp32_fast_tf32_t>);
     m.def("relu_async_fp32", &relu_async<fp32_t>);
+    m.def("relu_async_fp32_fast_tf32", &relu_async<fp32_fast_tf32_t>);
+    m.def("relu_async_fp32_fast_fp16", &relu_async<fp32_fast_fp16_t>);
+    m.def("relu_async_fp32_fast_bf16", &relu_async<fp32_fast_bf16_t>);
+    m.def("relu_async_bf16", &relu_async<bf16_t>);
+
     m.def("relu_fp64", &relu<fp64_t>);
     m.def("relu_fp32", &relu<fp32_t>);
     m.def("relu_fp32_fast_tf32", &relu<fp32_fast_tf32_t>);
+    m.def("relu_fp32_fast_fp16", &relu<fp32_fast_fp16_t>);
+    m.def("relu_fp32_fast_bf16", &relu<fp32_fast_bf16_t>);
+    m.def("relu_bf16", &relu<bf16_t>);
 
     m.def("relu_forward_async_fp64", &relu_forward_async<fp64_t>);
     m.def("relu_forward_async_fp32", &relu_forward_async<fp32_t>);
-    m.def("relu_forward_async_bf16", &relu_forward_async<bf16_t>);
     m.def("relu_forward_async_fp32_fast_tf32", &relu_forward_async<fp32_fast_tf32_t>);
+    m.def("relu_forward_async_fp32_fast_fp16", &relu_forward_async<fp32_fast_fp16_t>);
+    m.def("relu_forward_async_fp32_fast_bf16", &relu_forward_async<fp32_fast_bf16_t>);
+    m.def("relu_forward_async_bf16", &relu_forward_async<bf16_t>);
+
     m.def("relu_forward_fp64", &relu_forward<fp64_t>);
     m.def("relu_forward_fp32", &relu_forward<fp32_t>);
-    m.def("relu_forward_bf16", &relu_forward<bf16_t>);
     m.def("relu_forward_fp32_fast_tf32", &relu_forward<fp32_fast_tf32_t>);
+    m.def("relu_forward_fp32_fast_fp16", &relu_forward<fp32_fast_fp16_t>);
+    m.def("relu_forward_fp32_fast_bf16", &relu_forward<fp32_fast_bf16_t>);
+    m.def("relu_forward_bf16", &relu_forward<bf16_t>);
 
     m.def("silu_forward_async_fp64", &silu_forward_async<fp64_t>);
     m.def("silu_forward_async_fp32", &silu_forward_async<fp32_t>);
-    m.def("silu_forward_async_bf16", &silu_forward_async<bf16_t>);
     m.def("silu_forward_async_fp32_fast_tf32", &silu_forward_async<fp32_fast_tf32_t>);
+    m.def("silu_forward_async_fp32_fast_fp16", &silu_forward_async<fp32_fast_fp16_t>);
+    m.def("silu_forward_async_fp32_fast_bf16", &silu_forward_async<fp32_fast_bf16_t>);
+    m.def("silu_forward_async_bf16", &silu_forward_async<bf16_t>);
+
     m.def("silu_forward_fp64", &silu_forward<fp64_t>);
     m.def("silu_forward_fp32", &silu_forward<fp32_t>);
-    m.def("silu_forward_bf16", &silu_forward<bf16_t>);
     m.def("silu_forward_fp32_fast_tf32", &silu_forward<fp32_fast_tf32_t>);
+    m.def("silu_forward_fp32_fast_fp16", &silu_forward<fp32_fast_fp16_t>);
+    m.def("silu_forward_fp32_fast_bf16", &silu_forward<fp32_fast_bf16_t>);
+    m.def("silu_forward_bf16", &silu_forward<bf16_t>);
 
     m.def("relu_backward_async_fp64", &relu_backward_async<fp64_t>);
-    m.def("relu_backward_async_bf16", &relu_backward_async<bf16_t>);
     m.def("relu_backward_async_fp32", &relu_backward_async<fp32_t>);
     m.def("relu_backward_async_fp32_fast_tf32", &relu_backward_async<fp32_fast_tf32_t>);
+    m.def("relu_backward_async_fp32_fast_fp16", &relu_backward_async<fp32_fast_fp16_t>);
+    m.def("relu_backward_async_fp32_fast_bf16", &relu_backward_async<fp32_fast_bf16_t>);
+    m.def("relu_backward_async_bf16", &relu_backward_async<bf16_t>);
+
     m.def("relu_backward_fp64", &relu_backward<fp64_t>);
-    m.def("relu_backward_bf16", &relu_backward<bf16_t>);
     m.def("relu_backward_fp32", &relu_backward<fp32_t>);
     m.def("relu_backward_fp32_fast_tf32", &relu_backward<fp32_fast_tf32_t>);
+    m.def("relu_backward_fp32_fast_fp16", &relu_backward<fp32_fast_fp16_t>);
+    m.def("relu_backward_fp32_fast_bf16", &relu_backward<fp32_fast_bf16_t>);
+    m.def("relu_backward_bf16", &relu_backward<bf16_t>);
 
     m.def("silu_backward_async_fp64", &silu_backward_async<fp64_t>);
-    m.def("silu_backward_async_bf16", &silu_backward_async<bf16_t>);
     m.def("silu_backward_async_fp32", &silu_backward_async<fp32_t>);
     m.def("silu_backward_async_fp32_fast_tf32", &silu_backward_async<fp32_fast_tf32_t>);
+    m.def("silu_backward_async_fp32_fast_fp16", &silu_backward_async<fp32_fast_fp16_t>);
+    m.def("silu_backward_async_fp32_fast_bf16", &silu_backward_async<fp32_fast_bf16_t>);
+    m.def("silu_backward_async_bf16", &silu_backward_async<bf16_t>);
+
     m.def("silu_backward_fp64", &silu_backward<fp64_t>);
-    m.def("silu_backward_bf16", &silu_backward<bf16_t>);
     m.def("silu_backward_fp32", &silu_backward<fp32_t>);
     m.def("silu_backward_fp32_fast_tf32", &silu_backward<fp32_fast_tf32_t>);
+    m.def("silu_backward_fp32_fast_fp16", &silu_backward<fp32_fast_fp16_t>);
+    m.def("silu_backward_fp32_fast_bf16", &silu_backward<fp32_fast_bf16_t>);
+    m.def("silu_backward_bf16", &silu_backward<bf16_t>);
 
     m.def("drelu_async_fp64", &drelu_async<fp64_t>);
     m.def("drelu_async_fp32", &drelu_async<fp32_t>);
+    m.def("drelu_async_fp32_fast_tf32", &drelu_async<fp32_fast_tf32_t>);
+    m.def("drelu_async_fp32_fast_fp16", &drelu_async<fp32_fast_fp16_t>);
+    m.def("drelu_async_fp32_fast_bf16", &drelu_async<fp32_fast_bf16_t>);
+    m.def("drelu_async_bf16", &drelu_async<bf16_t>);
+
     m.def("drelu_fp64", &drelu<fp64_t>);
     m.def("drelu_fp32", &drelu<fp32_t>);
+    m.def("drelu_fp32_fast_tf32", &drelu<fp32_fast_tf32_t>);
+    m.def("drelu_fp32_fast_fp16", &drelu<fp32_fast_fp16_t>);
+    m.def("drelu_fp32_fast_bf16", &drelu<fp32_fast_bf16_t>);
+    m.def("drelu_bf16", &drelu<bf16_t>);
+
     // Add other functions for Tensor<T>
     m.def("fill_async_fp64", &fill_async<fp64_t>);
-    m.def("fill_async_bf16", &fill_async<bf16_t>);
     m.def("fill_async_fp32", &fill_async<fp32_t>);
     m.def("fill_async_fp32_fast_tf32", &fill_async<fp32_fast_tf32_t>);
     m.def("fill_async_fp32_fast_fp16", &fill_async<fp32_fast_fp16_t>);
     m.def("fill_async_fp32_fast_bf16", &fill_async<fp32_fast_bf16_t>);
+    m.def("fill_async_bf16", &fill_async<bf16_t>);
+
     m.def("fill_fp64", &fill<fp64_t>);
-    m.def("fill_bf16", &fill<bf16_t>);
     m.def("fill_fp32", &fill<fp32_t>);
     m.def("fill_fp32_fast_tf32", &fill<fp32_fast_tf32_t>);
     m.def("fill_fp32_fast_fp16", &fill<fp32_fast_fp16_t>);
     m.def("fill_fp32_fast_bf16", &fill<fp32_fast_bf16_t>);
+    m.def("fill_bf16", &fill<bf16_t>);
 
     m.def("sum_slice_async_fp64", &sum_slice_async<fp64_t>);
-    m.def("sum_slice_async_bf16", &sum_slice_async<bf16_t>);
     m.def("sum_slice_async_fp32", &sum_slice_async<fp32_t>);
     m.def("sum_slice_async_fp32_fast_tf32", &sum_slice_async<fp32_fast_tf32_t>);
     m.def("sum_slice_async_fp32_fast_fp16", &sum_slice_async<fp32_fast_fp16_t>);
     m.def("sum_slice_async_fp32_fast_bf16", &sum_slice_async<fp32_fast_bf16_t>);
+    m.def("sum_slice_async_bf16", &sum_slice_async<bf16_t>);
+
     m.def("sum_slice_fp64", &sum_slice<fp64_t>);
     m.def("sum_slice_fp32", &sum_slice<fp32_t>);
     m.def("sum_slice_fp32_fast_tf32", &sum_slice<fp32_fast_tf32_t>);
@@ -584,17 +617,18 @@ void def_mod_tensor(py::module_ &m)
     m.def("sum_slice_bf16", &sum_slice<bf16_t>);
 
     m.def("sum_fiber_async_fp64", &sum_fiber_async<fp64_t>);
-    m.def("sum_fiber_async_bf16", &sum_fiber_async<bf16_t>);
     m.def("sum_fiber_async_fp32", &sum_fiber_async<fp32_t>);
     m.def("sum_fiber_async_fp32_fast_tf32", &sum_fiber_async<fp32_fast_tf32_t>);
     m.def("sum_fiber_async_fp32_fast_fp16", &sum_fiber_async<fp32_fast_fp16_t>);
     m.def("sum_fiber_async_fp32_fast_bf16", &sum_fiber_async<fp32_fast_bf16_t>);
+    m.def("sum_fiber_async_bf16", &sum_fiber_async<bf16_t>);
+
     m.def("sum_fiber_fp64", &sum_fiber<fp64_t>);
     m.def("sum_fiber_fp32", &sum_fiber<fp32_t>);
-    m.def("sum_fiber_bf16", &sum_fiber<bf16_t>);
     m.def("sum_fiber_fp32_fast_tf32", &sum_fiber<fp32_fast_tf32_t>);
     m.def("sum_fiber_fp32_fast_fp16", &sum_fiber<fp32_fast_fp16_t>);
     m.def("sum_fiber_fp32_fast_bf16", &sum_fiber<fp32_fast_bf16_t>);
+    m.def("sum_fiber_bf16", &sum_fiber<bf16_t>);
 
     m.def("norm_fiber_inplace_async_fp64", &norm_fiber_inplace_async<fp64_t>);
     m.def("norm_fiber_inplace_async_bf16", &norm_fiber_inplace_async<bf16_t>);
@@ -606,126 +640,122 @@ void def_mod_tensor(py::module_ &m)
     m.def("norm_fiber_inplace_fp32_fast_tf32", &norm_fiber_inplace<fp32_fast_tf32_t>);
 
     m.def("norm_fiber_async_fp64", &norm_fiber_async<fp64_t>);
-    m.def("norm_fiber_async_bf16", &norm_fiber_async<bf16_t>);
     m.def("norm_fiber_async_fp32", &norm_fiber_async<fp32_t>);
     m.def("norm_fiber_async_fp32_fast_tf32", &norm_fiber_async<fp32_fast_tf32_t>);
+    m.def("norm_fiber_async_fp32_fast_fp16", &norm_fiber_async<fp32_fast_fp16_t>);
+    m.def("norm_fiber_async_fp32_fast_bf16", &norm_fiber_async<fp32_fast_bf16_t>);
+    m.def("norm_fiber_async_bf16", &norm_fiber_async<bf16_t>);
+
     m.def("norm_fiber_fp64", &norm_fiber<fp64_t>);
     m.def("norm_fiber_fp32", &norm_fiber<fp32_t>);
-    m.def("norm_fiber_bf16", &norm_fiber<bf16_t>);
     m.def("norm_fiber_fp32_fast_tf32", &norm_fiber<fp32_fast_tf32_t>);
+    m.def("norm_fiber_fp32_fast_fp16", &norm_fiber<fp32_fast_fp16_t>);
+    m.def("norm_fiber_fp32_fast_bf16", &norm_fiber<fp32_fast_bf16_t>);
+    m.def("norm_fiber_bf16", &norm_fiber<bf16_t>);
 
     m.def("norm_slice_async_fp64", &norm_slice_async<fp64_t>);
-    m.def("norm_slice_async_bf16", &norm_slice_async<bf16_t>);
     m.def("norm_slice_async_fp32", &norm_slice_async<fp32_t>);
     m.def("norm_slice_async_fp32_fast_tf32", &norm_slice_async<fp32_fast_tf32_t>);
     m.def("norm_slice_async_fp32_fast_fp16", &norm_slice_async<fp32_fast_fp16_t>);
     m.def("norm_slice_async_fp32_fast_bf16", &norm_slice_async<fp32_fast_bf16_t>);
+    m.def("norm_slice_async_bf16", &norm_slice_async<bf16_t>);
+
     m.def("norm_slice_fp64", &norm_slice<fp64_t>);
     m.def("norm_slice_fp32", &norm_slice<fp32_t>);
-    m.def("norm_slice_bf16", &norm_slice<bf16_t>);
     m.def("norm_slice_fp32_fast_tf32", &norm_slice<fp32_fast_tf32_t>);
     m.def("norm_slice_fp32_fast_fp16", &norm_slice<fp32_fast_fp16_t>);
     m.def("norm_slice_fp32_fast_bf16", &norm_slice<fp32_fast_bf16_t>);
+    m.def("norm_slice_bf16", &norm_slice<bf16_t>);
 
     m.def("pow_async_fp64", &pow_async<fp64_t>);
     m.def("pow_async_fp32", &pow_async<fp32_t>);
+    m.def("pow_async_fp32_fast_tf32", &pow_async<fp32_fast_tf32_t>);
+    m.def("pow_async_fp32_fast_fp16", &pow_async<fp32_fast_fp16_t>);
+    m.def("pow_async_fp32_fast_bf16", &pow_async<fp32_fast_bf16_t>);
+    m.def("pow_async_bf16", &pow_async<bf16_t>);
+
     m.def("pow_fp64", &pow<fp64_t>);
     m.def("pow_fp32", &pow<fp32_t>);
-
-    m.def("sumnorm_async_fp64", &sumnorm_async<fp64_t>);
-    m.def("sumnorm_async_fp32", &sumnorm_async<fp32_t>);
-    m.def("sumnorm_fp64", &sumnorm<fp64_t>);
-    m.def("sumnorm_fp32", &sumnorm<fp32_t>);
-
-    m.def("flash_softmax_gemm_async_fp64", &flash_softmax_gemm_async<fp64_t>);
-    m.def("flash_softmax_gemm_async_bf16", &flash_softmax_gemm_async<bf16_t>);
-    m.def("flash_softmax_gemm_async_fp32", &flash_softmax_gemm_async<fp32_t>);
-    m.def("flash_softmax_gemm_async_fp32_fast_tf32", &flash_softmax_gemm_async<fp32_fast_tf32_t>);
-    m.def("flash_softmax_gemm_async_fp32_fast_fp16", &flash_softmax_gemm_async<fp32_fast_fp16_t>);
-    m.def("flash_softmax_gemm_async_fp32_fast_bf16", &flash_softmax_gemm_async<fp32_fast_bf16_t>);
-    m.def("flash_softmax_gemm_fp64", &flash_softmax_gemm<fp64_t>);
-    m.def("flash_softmax_gemm_bf16", &flash_softmax_gemm<bf16_t>);
-    m.def("flash_softmax_gemm_fp32", &flash_softmax_gemm<fp32_t>);
-    m.def("flash_softmax_gemm_fp32_fast_tf32", &flash_softmax_gemm<fp32_fast_tf32_t>);
-    m.def("flash_softmax_gemm_fp32_fast_fp16", &flash_softmax_gemm<fp32_fast_fp16_t>);
-    m.def("flash_softmax_gemm_fp32_fast_bf16", &flash_softmax_gemm<fp32_fast_bf16_t>);
-
-    m.def("flash_softmax_gemm_backward_async_fp64", &flash_softmax_gemm_backward_async<fp64_t>);
-    m.def("flash_softmax_gemm_backward_async_bf16", &flash_softmax_gemm_backward_async<bf16_t>);
-    m.def("flash_softmax_gemm_backward_async_fp32", &flash_softmax_gemm_backward_async<fp32_t>);
-    m.def("flash_softmax_gemm_backward_async_fp32_fast_tf32", &flash_softmax_gemm_backward_async<fp32_fast_tf32_t>);
-    m.def("flash_softmax_gemm_backward_async_fp32_fast_fp16", &flash_softmax_gemm_backward_async<fp32_fast_fp16_t>);
-    m.def("flash_softmax_gemm_backward_async_fp32_fast_bf16", &flash_softmax_gemm_backward_async<fp32_fast_bf16_t>);
-    m.def("flash_softmax_gemm_backward_fp64", &flash_softmax_gemm_backward<fp64_t>);
-    m.def("flash_softmax_gemm_backward_fp32", &flash_softmax_gemm_backward<fp32_t>);
-    m.def("flash_softmax_gemm_backward_bf16", &flash_softmax_gemm_backward<bf16_t>);
-    m.def("flash_softmax_gemm_backward_fp32_fast_tf32", &flash_softmax_gemm_backward<fp32_fast_tf32_t>);
-    m.def("flash_softmax_gemm_backward_fp32_fast_fp16", &flash_softmax_gemm_backward<fp32_fast_fp16_t>);
-    m.def("flash_softmax_gemm_backward_fp32_fast_bf16", &flash_softmax_gemm_backward<fp32_fast_bf16_t>);
+    m.def("pow_fp32_fast_tf32", &pow<fp32_fast_tf32_t>);
+    m.def("pow_fp32_fast_fp16", &pow<fp32_fast_fp16_t>);
+    m.def("pow_fp32_fast_bf16", &pow<fp32_fast_bf16_t>);
+    m.def("pow_bf16", &pow<bf16_t>);
 
     m.def("softmax_async_fp64", &softmax_async<fp64_t>);
-    m.def("softmax_async_bf16", &softmax_async<bf16_t>);
     m.def("softmax_async_fp32", &softmax_async<fp32_t>);
     m.def("softmax_async_fp32_fast_tf32", &softmax_async<fp32_fast_tf32_t>);
     m.def("softmax_async_fp32_fast_fp16", &softmax_async<fp32_fast_fp16_t>);
     m.def("softmax_async_fp32_fast_bf16", &softmax_async<fp32_fast_bf16_t>);
+    m.def("softmax_async_bf16", &softmax_async<bf16_t>);
+
     m.def("softmax_fp64", &softmax<fp64_t>);
     m.def("softmax_fp32", &softmax<fp32_t>);
-    m.def("softmax_bf16", &softmax<bf16_t>);
     m.def("softmax_fp32_fast_tf32", &softmax<fp32_fast_tf32_t>);
     m.def("softmax_fp32_fast_fp16", &softmax<fp32_fast_fp16_t>);
     m.def("softmax_fp32_fast_bf16", &softmax<fp32_fast_bf16_t>);
+    m.def("softmax_bf16", &softmax<bf16_t>);
 
     m.def("softmax_inplace_async_fp64", &softmax_inplace_async<fp64_t>);
-    m.def("softmax_inplace_async_bf16", &softmax_inplace_async<bf16_t>);
     m.def("softmax_inplace_async_fp32", &softmax_inplace_async<fp32_t>);
     m.def("softmax_inplace_async_fp32_fast_tf32", &softmax_inplace_async<fp32_fast_tf32_t>);
     m.def("softmax_inplace_async_fp32_fast_fp16", &softmax_inplace_async<fp32_fast_fp16_t>);
     m.def("softmax_inplace_async_fp32_fast_bf16", &softmax_inplace_async<fp32_fast_bf16_t>);
+    m.def("softmax_inplace_async_bf16", &softmax_inplace_async<bf16_t>);
+
     m.def("softmax_inplace_fp64", &softmax_inplace<fp64_t>);
-    m.def("softmax_inplace_bf16", &softmax_inplace<bf16_t>);
     m.def("softmax_inplace_fp32", &softmax_inplace<fp32_t>);
     m.def("softmax_inplace_fp32_fast_tf32", &softmax_inplace<fp32_fast_tf32_t>);
     m.def("softmax_inplace_fp32_fast_fp16", &softmax_inplace<fp32_fast_fp16_t>);
     m.def("softmax_inplace_fp32_fast_bf16", &softmax_inplace<fp32_fast_bf16_t>);
+    m.def("softmax_inplace_bf16", &softmax_inplace<bf16_t>);
 
-    m.def("scatter_async_fp64", &scatter_async<fp64_t>);
-    m.def("scatter_async_fp32", &scatter_async<fp32_t>);
     m.def("scatter_async_int64", &scatter_async<nntile::int64_t>);
     m.def("scatter_async_bool", &scatter_async<bool_t>);
-    m.def("scatter_async_bf16", &scatter_async<bf16_t>);
+    m.def("scatter_async_fp64", &scatter_async<fp64_t>);
+    m.def("scatter_async_fp32", &scatter_async<fp32_t>);
     m.def("scatter_async_fp32_fast_bf16", &scatter_async<fp32_fast_bf16_t>);
     m.def("scatter_async_fp32_fast_fp16", &scatter_async<fp32_fast_fp16_t>);
     m.def("scatter_async_fp32_fast_tf32", &scatter_async<fp32_fast_tf32_t>);
-    m.def("scatter_fp64", &scatter<fp64_t>);
-    m.def("scatter_fp32", &scatter<fp32_t>);
+    m.def("scatter_async_bf16", &scatter_async<bf16_t>);
+
     m.def("scatter_int64", &scatter<nntile::int64_t>);
     m.def("scatter_bool", &scatter<bool_t>);
-    m.def("scatter_bf16", &scatter<bf16_t>);
+    m.def("scatter_fp64", &scatter<fp64_t>);
+    m.def("scatter_fp32", &scatter<fp32_t>);
     m.def("scatter_fp32_fast_bf16", &scatter<fp32_fast_bf16_t>);
     m.def("scatter_fp32_fast_fp16", &scatter<fp32_fast_fp16_t>);
     m.def("scatter_fp32_fast_tf32", &scatter<fp32_fast_tf32_t>);
+    m.def("scatter_bf16", &scatter<bf16_t>);
 
     m.def("randn_async_fp64", &randn_async<fp64_t>);
     m.def("randn_async_fp32", &randn_async<fp32_t>);
     m.def("randn_async_fp32_fast_tf32", &randn_async<fp32_fast_tf32_t>);
+    m.def("randn_async_fp32_fast_fp16", &randn_async<fp32_fast_fp16_t>);
+    m.def("randn_async_fp32_fast_bf16", &randn_async<fp32_fast_bf16_t>);
     m.def("randn_async_bf16", &randn_async<bf16_t>);
+
     m.def("randn_fp64", &randn<fp64_t>);
     m.def("randn_fp32", &randn<fp32_t>);
     m.def("randn_fp32_fast_tf32", &randn<fp32_fast_tf32_t>);
+    m.def("randn_fp32_fast_fp16", &randn<fp32_fast_fp16_t>);
+    m.def("randn_fp32_fast_bf16", &randn<fp32_fast_bf16_t>);
     m.def("randn_bf16", &randn<bf16_t>);
 
     m.def("prod_async_fp64", &prod_async<fp64_t>);
-    m.def("prod_async_bf16", &prod_async<bf16_t>);
     m.def("prod_async_fp32", &prod_async<fp32_t>);
     m.def("prod_async_fp32_fast_tf32", &prod_async<fp32_fast_tf32_t>);
+    m.def("prod_async_fp32_fast_fp16", &prod_async<fp32_fast_fp16_t>);
+    m.def("prod_async_fp32_fast_bf16", &prod_async<fp32_fast_bf16_t>);
+    m.def("prod_async_bf16", &prod_async<bf16_t>);
+
     m.def("prod_fp64", &prod<fp64_t>);
     m.def("prod_fp32", &prod<fp32_t>);
-    m.def("prod_bf16", &prod<bf16_t>);
     m.def("prod_fp32_fast_tf32", &prod<fp32_fast_tf32_t>);
+    m.def("prod_fp32_fast_fp16", &prod<fp32_fast_fp16_t>);
+    m.def("prod_fp32_fast_bf16", &prod<fp32_fast_bf16_t>);
+    m.def("prod_bf16", &prod<bf16_t>);
 
     m.def("prod_inplace_async_fp64", &prod_inplace_async<fp64_t>);
-    m.def("prod_inplace_async_bf16", &prod_inplace_async<bf16_t>);
     m.def("prod_inplace_async_fp32", &prod_inplace_async<fp32_t>);
     m.def("prod_inplace_async_fp32_fast_tf32",
             &prod_inplace_async<fp32_fast_tf32_t>);
@@ -733,74 +763,56 @@ void def_mod_tensor(py::module_ &m)
             &prod_inplace_async<fp32_fast_fp16_t>);
     m.def("prod_inplace_async_fp32_fast_bf16",
             &prod_inplace_async<fp32_fast_bf16_t>);
+    m.def("prod_inplace_async_bf16", &prod_inplace_async<bf16_t>);
+
     m.def("prod_inplace_fp64", &prod_inplace<fp64_t>);
     m.def("prod_inplace_fp32", &prod_inplace<fp32_t>);
-    m.def("prod_inplace_bf16", &prod_inplace<bf16_t>);
     m.def("prod_inplace_fp32_fast_tf32", &prod_inplace<fp32_fast_tf32_t>);
     m.def("prod_inplace_fp32_fast_fp16", &prod_inplace<fp32_fast_fp16_t>);
     m.def("prod_inplace_fp32_fast_bf16", &prod_inplace<fp32_fast_bf16_t>);
-
-    m.def("nrm2_async_fp64", &nrm2_async<fp64_t>);
-    m.def("nrm2_async_fp32", &nrm2_async<fp32_t>);
-    m.def("nrm2_fp64", &nrm2<fp64_t>);
-    m.def("nrm2_fp32", &nrm2<fp32_t>);
-
-    m.def("normalize_async_fp64", &normalize_async<fp64_t>, "gamma_beta"_a, "src"_a, "dst"_a, "size"_a, "eps"_a, "axis"_a);
-    m.def("normalize_async_fp32", &normalize_async<fp32_t>, "gamma_beta"_a, "src"_a, "dst"_a, "size"_a, "eps"_a, "axis"_a);
-    m.def("normalize_fp64", &normalize<fp64_t>, "gamma_beta"_a, "src"_a, "dst"_a, "size"_a, "eps"_a, "axis"_a);
-    m.def("normalize_fp32", &normalize<fp32_t>, "gamma_beta"_a, "src"_a, "dst"_a, "size"_a, "eps"_a, "axis"_a);
-
-    m.def("flash_maxsumexp_async_fp64", &flash_maxsumexp_async<fp64_t>);
-    m.def("flash_maxsumexp_async_bf16", &flash_maxsumexp_async<bf16_t>);
-    m.def("flash_maxsumexp_async_fp32", &flash_maxsumexp_async<fp32_t>);
-    m.def("flash_maxsumexp_async_fp32_fast_tf32", &flash_maxsumexp_async<fp32_fast_tf32_t>);
-    m.def("flash_maxsumexp_async_fp32_fast_fp16", &flash_maxsumexp_async<fp32_fast_fp16_t>);
-    m.def("flash_maxsumexp_async_fp32_fast_bf16", &flash_maxsumexp_async<fp32_fast_bf16_t>);
-    m.def("flash_maxsumexp_fp64", &flash_maxsumexp<fp64_t>);
-    m.def("flash_maxsumexp_fp32", &flash_maxsumexp<fp32_t>);
-    m.def("flash_maxsumexp_bf16", &flash_maxsumexp<bf16_t>);
-    m.def("flash_maxsumexp_fp32_fast_tf32", &flash_maxsumexp<fp32_fast_tf32_t>);
-    m.def("flash_maxsumexp_fp32_fast_fp16", &flash_maxsumexp<fp32_fast_fp16_t>);
-    m.def("flash_maxsumexp_fp32_fast_bf16", &flash_maxsumexp<fp32_fast_bf16_t>);
+    m.def("prod_inplace_bf16", &prod_inplace<bf16_t>);
 
     m.def("maxsumexp_async_fp64", &maxsumexp_async<fp64_t>);
-    m.def("maxsumexp_async_bf16", &maxsumexp_async<bf16_t>);
     m.def("maxsumexp_async_fp32", &maxsumexp_async<fp32_t>);
     m.def("maxsumexp_async_fp32_fast_tf32", &maxsumexp_async<fp32_fast_tf32_t>);
     m.def("maxsumexp_async_fp32_fast_fp16", &maxsumexp_async<fp32_fast_fp16_t>);
     m.def("maxsumexp_async_fp32_fast_bf16", &maxsumexp_async<fp32_fast_bf16_t>);
+    m.def("maxsumexp_async_bf16", &maxsumexp_async<bf16_t>);
+
     m.def("maxsumexp_fp64", &maxsumexp<fp64_t>);
-    m.def("maxsumexp_bf16", &maxsumexp<bf16_t>);
     m.def("maxsumexp_fp32", &maxsumexp<fp32_t>);
     m.def("maxsumexp_fp32_fast_tf32", &maxsumexp<fp32_fast_tf32_t>);
     m.def("maxsumexp_fp32_fast_fp16", &maxsumexp<fp32_fast_fp16_t>);
     m.def("maxsumexp_fp32_fast_bf16", &maxsumexp<fp32_fast_bf16_t>);
+    m.def("maxsumexp_bf16", &maxsumexp<bf16_t>);
 
     m.def("add_slice_inplace_async_fp64", &add_slice_inplace_async<fp64_t>);
-    m.def("add_slice_inplace_async_bf16", &add_slice_inplace_async<bf16_t>);
     m.def("add_slice_inplace_async_fp32", &add_slice_inplace_async<fp32_t>);
     m.def("add_slice_inplace_async_fp32_fast_tf32", &add_slice_inplace_async<fp32_fast_tf32_t>);
     m.def("add_slice_inplace_async_fp32_fast_fp16", &add_slice_inplace_async<fp32_fast_fp16_t>);
     m.def("add_slice_inplace_async_fp32_fast_bf16", &add_slice_inplace_async<fp32_fast_bf16_t>);
+    m.def("add_slice_inplace_async_bf16", &add_slice_inplace_async<bf16_t>);
+
     m.def("add_slice_inplace_fp64", &add_slice_inplace<fp64_t>);
-    m.def("add_slice_inplace_bf16", &add_slice_inplace<bf16_t>);
     m.def("add_slice_inplace_fp32", &add_slice_inplace<fp32_t>);
     m.def("add_slice_inplace_fp32_fast_tf32", &add_slice_inplace<fp32_fast_tf32_t>);
     m.def("add_slice_inplace_fp32_fast_fp16", &add_slice_inplace<fp32_fast_fp16_t>);
     m.def("add_slice_inplace_fp32_fast_bf16", &add_slice_inplace<fp32_fast_bf16_t>);
+    m.def("add_slice_inplace_bf16", &add_slice_inplace<bf16_t>);
 
     m.def("add_slice_async_fp64", &add_slice_async<fp64_t>);
-    m.def("add_slice_async_bf16", &add_slice_async<bf16_t>);
     m.def("add_slice_async_fp32", &add_slice_async<fp32_t>);
     m.def("add_slice_async_fp32_fast_tf32", &add_slice_async<fp32_fast_tf32_t>);
     m.def("add_slice_async_fp32_fast_fp16", &add_slice_async<fp32_fast_fp16_t>);
     m.def("add_slice_async_fp32_fast_bf16", &add_slice_async<fp32_fast_bf16_t>);
+    m.def("add_slice_async_bf16", &add_slice_async<bf16_t>);
+
     m.def("add_slice_fp64", &add_slice<fp64_t>);
     m.def("add_slice_fp32", &add_slice<fp32_t>);
-    m.def("add_slice_bf16", &add_slice<bf16_t>);
     m.def("add_slice_fp32_fast_tf32", &add_slice<fp32_fast_tf32_t>);
     m.def("add_slice_fp32_fast_fp16", &add_slice<fp32_fast_fp16_t>);
     m.def("add_slice_fp32_fast_bf16", &add_slice<fp32_fast_bf16_t>);
+    m.def("add_slice_bf16", &add_slice<bf16_t>);
 
     m.def("add_async_fp64", &add_async<fp64_t>);
     m.def("add_async_fp32", &add_async<fp32_t>);
@@ -808,12 +820,13 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_async_fp32_fast_fp16", &add_async<fp32_fast_fp16_t>);
     m.def("add_async_fp32_fast_bf16", &add_async<fp32_fast_bf16_t>);
     m.def("add_async_bf16", &add_async<bf16_t>);
+
     m.def("add_fp64", &add<fp64_t>);
-    m.def("add_bf16", &add<bf16_t>);
     m.def("add_fp32", &add<fp32_t>);
     m.def("add_fp32_fast_tf32", &add<fp32_fast_tf32_t>);
     m.def("add_fp32_fast_fp16", &add<fp32_fast_fp16_t>);
     m.def("add_fp32_fast_bf16", &add<fp32_fast_bf16_t>);
+    m.def("add_bf16", &add<bf16_t>);
 
     m.def("add_inplace_async_fp64", &add_inplace_async<fp64_t>);
     m.def("add_inplace_async_fp32", &add_inplace_async<fp32_t>);
@@ -821,204 +834,256 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_inplace_async_fp32_fast_fp16", &add_inplace_async<fp32_fast_fp16_t>);
     m.def("add_inplace_async_fp32_fast_bf16", &add_inplace_async<fp32_fast_bf16_t>);
     m.def("add_inplace_async_bf16", &add_inplace_async<bf16_t>);
+
     m.def("add_inplace_fp64", &add_inplace<fp64_t>);
-    m.def("add_inplace_bf16", &add_inplace<bf16_t>);
     m.def("add_inplace_fp32", &add_inplace<fp32_t>);
     m.def("add_inplace_fp32_fast_tf32", &add_inplace<fp32_fast_tf32_t>);
     m.def("add_inplace_fp32_fast_fp16", &add_inplace<fp32_fast_fp16_t>);
     m.def("add_inplace_fp32_fast_bf16", &add_inplace<fp32_fast_bf16_t>);
+    m.def("add_inplace_bf16", &add_inplace<bf16_t>);
 
     m.def("add_scalar_async_fp64", &add_scalar_async<fp64_t>);
     m.def("add_scalar_async_fp32", &add_scalar_async<fp32_t>);
+    m.def("add_scalar_async_fp32_fast_tf32", &add_scalar_async<fp32_fast_tf32_t>);
+    m.def("add_scalar_async_fp32_fast_fp16", &add_scalar_async<fp32_fast_fp16_t>);
+    m.def("add_scalar_async_fp32_fast_bf16", &add_scalar_async<fp32_fast_bf16_t>);
+    m.def("add_scalar_async_bf16", &add_scalar_async<bf16_t>);
+
     m.def("add_scalar_fp64", &add_scalar<fp64_t>);
     m.def("add_scalar_fp32", &add_scalar<fp32_t>);
+    m.def("add_scalar_fp32_fast_tf32", &add_scalar<fp32_fast_tf32_t>);
+    m.def("add_scalar_fp32_fast_fp16", &add_scalar<fp32_fast_fp16_t>);
+    m.def("add_scalar_fp32_fast_bf16", &add_scalar<fp32_fast_bf16_t>);
+    m.def("add_scalar_bf16", &add_scalar<bf16_t>);
 
     m.def("add_fiber_inplace_async_fp64", &add_fiber_inplace_async<fp64_t>);
-    m.def("add_fiber_inplace_async_bf16", &add_fiber_inplace_async<bf16_t>);
     m.def("add_fiber_inplace_async_fp32", &add_fiber_inplace_async<fp32_t>);
     m.def("add_fiber_inplace_async_fp32_fast_tf32", &add_fiber_inplace_async<fp32_fast_tf32_t>);
     m.def("add_fiber_inplace_async_fp32_fast_fp16", &add_fiber_inplace_async<fp32_fast_fp16_t>);
     m.def("add_fiber_inplace_async_fp32_fast_bf16", &add_fiber_inplace_async<fp32_fast_bf16_t>);
+    m.def("add_fiber_inplace_async_bf16", &add_fiber_inplace_async<bf16_t>);
+
     m.def("add_fiber_inplace_fp64", &add_fiber_inplace<fp64_t>);
     m.def("add_fiber_inplace_fp32", &add_fiber_inplace<fp32_t>);
-    m.def("add_fiber_inplace_bf16", &add_fiber_inplace<bf16_t>);
     m.def("add_fiber_inplace_fp32_fast_tf32", &add_fiber_inplace<fp32_fast_tf32_t>);
     m.def("add_fiber_inplace_fp32_fast_fp16", &add_fiber_inplace<fp32_fast_fp16_t>);
     m.def("add_fiber_inplace_fp32_fast_bf16", &add_fiber_inplace<fp32_fast_bf16_t>);
+    m.def("add_fiber_inplace_bf16", &add_fiber_inplace<bf16_t>);
 
     m.def("add_fiber_async_fp64", &add_fiber_async<fp64_t>);
-    m.def("add_fiber_async_bf16", &add_fiber_async<bf16_t>);
     m.def("add_fiber_async_fp32", &add_fiber_async<fp32_t>);
     m.def("add_fiber_async_fp32_fast_tf32", &add_fiber_async<fp32_fast_tf32_t>);
+    m.def("add_fiber_async_fp32_fast_fp16", &add_fiber_async<fp32_fast_fp16_t>);
+    m.def("add_fiber_async_fp32_fast_bf16", &add_fiber_async<fp32_fast_bf16_t>);
+    m.def("add_fiber_async_bf16", &add_fiber_async<bf16_t>);
+
     m.def("add_fiber_fp64", &add_fiber<fp64_t>);
     m.def("add_fiber_fp32", &add_fiber<fp32_t>);
-    m.def("add_fiber_bf16", &add_fiber<bf16_t>);
     m.def("add_fiber_fp32_fast_tf32", &add_fiber<fp32_fast_tf32_t>);
+    m.def("add_fiber_fp32_fast_fp16", &add_fiber<fp32_fast_fp16_t>);
+    m.def("add_fiber_fp32_fast_bf16", &add_fiber<fp32_fast_bf16_t>);
+    m.def("add_fiber_bf16", &add_fiber<bf16_t>);
 
     m.def("prod_slice_async_fp64", &prod_slice_async<fp64_t>);
-    m.def("prod_slice_async_bf16", &prod_slice_async<bf16_t>);
     m.def("prod_slice_async_fp32", &prod_slice_async<fp32_t>);
     m.def("prod_slice_async_fp32_fast_tf32", &prod_slice_async<fp32_fast_tf32_t>);
     m.def("prod_slice_async_fp32_fast_fp16", &prod_slice_async<fp32_fast_fp16_t>);
     m.def("prod_slice_async_fp32_fast_bf16", &prod_slice_async<fp32_fast_bf16_t>);
+    m.def("prod_slice_async_bf16", &prod_slice_async<bf16_t>);
+
     m.def("prod_slice_fp64", &prod_slice<fp64_t>);
     m.def("prod_slice_fp32", &prod_slice<fp32_t>);
-    m.def("prod_slice_bf16", &prod_slice<bf16_t>);
     m.def("prod_slice_fp32_fast_tf32", &prod_slice<fp32_fast_tf32_t>);
     m.def("prod_slice_fp32_fast_fp16", &prod_slice<fp32_fast_fp16_t>);
     m.def("prod_slice_fp32_fast_bf16", &prod_slice<fp32_fast_bf16_t>);
+    m.def("prod_slice_bf16", &prod_slice<bf16_t>);
 
     m.def("prod_fiber_async_fp64", &prod_fiber_async<fp64_t>);
     m.def("prod_fiber_async_fp32", &prod_fiber_async<fp32_t>);
+    m.def("prod_fiber_async_fp32_fast_tf32", &prod_fiber_async<fp32_fast_tf32_t>);
+    m.def("prod_fiber_async_fp32_fast_fp16", &prod_fiber_async<fp32_fast_fp16_t>);
+    m.def("prod_fiber_async_fp32_fast_bf16", &prod_fiber_async<fp32_fast_bf16_t>);
+    m.def("prod_fiber_async_bf16", &prod_fiber_async<bf16_t>);
+
     m.def("prod_fiber_fp64", &prod_fiber<fp64_t>);
     m.def("prod_fiber_fp32", &prod_fiber<fp32_t>);
+    m.def("prod_fiber_fp32_fast_tf32", &prod_fiber<fp32_fast_tf32_t>);
+    m.def("prod_fiber_fp32_fast_fp16", &prod_fiber<fp32_fast_fp16_t>);
+    m.def("prod_fiber_fp32_fast_bf16", &prod_fiber<fp32_fast_bf16_t>);
+    m.def("prod_fiber_bf16", &prod_fiber<bf16_t>);
 
     m.def("prod_fiber3_async_fp64", &prod_fiber3_async<fp64_t>);
-    m.def("prod_fiber3_async_bf16", &prod_fiber3_async<bf16_t>);
     m.def("prod_fiber3_async_fp32", &prod_fiber3_async<fp32_t>);
     m.def("prod_fiber3_async_fp32_fast_tf32", &prod_fiber3_async<fp32_fast_tf32_t>);
     m.def("prod_fiber3_async_fp32_fast_fp16", &prod_fiber3_async<fp32_fast_fp16_t>);
     m.def("prod_fiber3_async_fp32_fast_bf16", &prod_fiber3_async<fp32_fast_bf16_t>);
+    m.def("prod_fiber3_async_bf16", &prod_fiber3_async<bf16_t>);
+
     m.def("prod_fiber3_fp64", &prod_fiber3<fp64_t>);
     m.def("prod_fiber3_fp32", &prod_fiber3<fp32_t>);
-    m.def("prod_fiber3_bf16", &prod_fiber3<bf16_t>);
     m.def("prod_fiber3_fp32_fast_tf32", &prod_fiber3<fp32_fast_tf32_t>);
     m.def("prod_fiber3_fp32_fast_fp16", &prod_fiber3<fp32_fast_fp16_t>);
     m.def("prod_fiber3_fp32_fast_bf16", &prod_fiber3<fp32_fast_bf16_t>);
+    m.def("prod_fiber3_bf16", &prod_fiber3<bf16_t>);
 
-    m.def("gather_async_fp64", &gather_async<fp64_t>);
-    m.def("gather_async_fp32", &gather_async<fp32_t>);
     m.def("gather_async_int64", &gather_async<nntile::int64_t>);
     m.def("gather_async_bool", &gather_async<bool_t>);
-    m.def("gather_async_bf16", &gather_async<bf16_t>);
+    m.def("gather_async_fp64", &gather_async<fp64_t>);
+    m.def("gather_async_fp32", &gather_async<fp32_t>);
     m.def("gather_async_fp32_fast_bf16", &gather_async<fp32_fast_bf16_t>);
     m.def("gather_async_fp32_fast_fp16", &gather_async<fp32_fast_fp16_t>);
     m.def("gather_async_fp32_fast_tf32", &gather_async<fp32_fast_tf32_t>);
-    m.def("gather_fp64", &gather<fp64_t>);
-    m.def("gather_fp32", &gather<fp32_t>);
+    m.def("gather_async_bf16", &gather_async<bf16_t>);
+
     m.def("gather_int64", &gather<nntile::int64_t>);
     m.def("gather_bool", &gather<bool_t>);
-    m.def("gather_bf16", &gather<bf16_t>);
+    m.def("gather_fp64", &gather<fp64_t>);
+    m.def("gather_fp32", &gather<fp32_t>);
     m.def("gather_fp32_fast_bf16", &gather<fp32_fast_bf16_t>);
     m.def("gather_fp32_fast_fp16", &gather<fp32_fast_fp16_t>);
     m.def("gather_fp32_fast_tf32", &gather<fp32_fast_tf32_t>);
+    m.def("gather_bf16", &gather<bf16_t>);
 
+    m.def("copy_intersection_async_int64", &copy_intersection_async<nntile::int64_t>);
     m.def("copy_intersection_async_bool", &copy_intersection_async<bool_t>);
     m.def("copy_intersection_async_fp64", &copy_intersection_async<fp64_t>);
     m.def("copy_intersection_async_fp32", &copy_intersection_async<fp32_t>);
-    m.def("copy_intersection_async_int64", &copy_intersection_async<nntile::int64_t>);
+    m.def("copy_intersection_async_fp32_fast_tf32", &copy_intersection_async<fp32_fast_tf32_t>);
+    m.def("copy_intersection_async_fp32_fast_fp16", &copy_intersection_async<fp32_fast_fp16_t>);
+    m.def("copy_intersection_async_fp32_fast_bf16", &copy_intersection_async<fp32_fast_bf16_t>);
+    m.def("copy_intersection_async_bf16", &copy_intersection_async<bf16_t>);
 
+    m.def("copy_intersection_int64", &copy_intersection<nntile::int64_t>);
     m.def("copy_intersection_bool", &copy_intersection<bool_t>);
     m.def("copy_intersection_fp64", &copy_intersection<fp64_t>);
     m.def("copy_intersection_fp32", &copy_intersection<fp32_t>);
-    m.def("copy_intersection_int64", &copy_intersection<nntile::int64_t>);
+    m.def("copy_intersection_fp32_fast_tf32", &copy_intersection<fp32_fast_tf32_t>);
+    m.def("copy_intersection_fp32_fast_fp16", &copy_intersection<fp32_fast_fp16_t>);
+    m.def("copy_intersection_fp32_fast_bf16", &copy_intersection<fp32_fast_bf16_t>);
+    m.def("copy_intersection_bf16", &copy_intersection<bf16_t>);
 
+    m.def("copy_async_int64", &copy_async<nntile::int64_t>);
+    m.def("copy_async_bool", &copy_async<bool_t>);
     m.def("copy_async_fp64", &copy_async<fp64_t>);
-    m.def("copy_async_bf16", &copy_async<bf16_t>);
     m.def("copy_async_fp32", &copy_async<fp32_t>);
     m.def("copy_async_fp32_fast_tf32", &copy_async<fp32_fast_tf32_t>);
     m.def("copy_async_fp32_fast_fp16", &copy_async<fp32_fast_fp16_t>);
     m.def("copy_async_fp32_fast_bf16", &copy_async<fp32_fast_bf16_t>);
-    m.def("copy_async_int64", &copy_async<nntile::int64_t>);
+    m.def("copy_async_bf16", &copy_async<bf16_t>);
 
+    m.def("copy_int64", &copy<nntile::int64_t>);
+    m.def("copy_bool", &copy<bool_t>);
     m.def("copy_fp64", &copy<fp64_t>);
-    m.def("copy_bf16", &copy<bf16_t>);
     m.def("copy_fp32", &copy<fp32_t>);
     m.def("copy_fp32_fast_tf32", &copy<fp32_fast_tf32_t>);
     m.def("copy_fp32_fast_fp16", &copy<fp32_fast_fp16_t>);
-    m.def("copy_int64", &copy<nntile::int64_t>);
+    m.def("copy_fp32_fast_bf16", &copy<fp32_fast_bf16_t>);
+    m.def("copy_bf16", &copy<bf16_t>);
 
+    m.def("clear_async_int64", &clear_async<nntile::int64_t>);
+    m.def("clear_async_bool", &clear_async<bool_t>);
     m.def("clear_async_fp64", &clear_async<fp64_t>);
     m.def("clear_async_fp32", &clear_async<fp32_t>);
     m.def("clear_async_fp32_fast_tf32", &clear_async<fp32_fast_tf32_t>);
     m.def("clear_async_fp32_fast_fp16", &clear_async<fp32_fast_fp16_t>);
     m.def("clear_async_fp32_fast_bf16", &clear_async<fp32_fast_bf16_t>);
     m.def("clear_async_bf16", &clear_async<bf16_t>);
-    //m.def("clear_async_fp16", &clear_async<fp16_t>);
+
+    m.def("clear_int64", &clear<nntile::int64_t>);
+    m.def("clear_bool", &clear<bool_t>);
     m.def("clear_fp64", &clear<fp64_t>);
     m.def("clear_fp32", &clear<fp32_t>);
-    m.def("clear_bf16", &clear<bf16_t>);
     m.def("clear_fp32_fast_tf32", &clear<fp32_fast_tf32_t>);
     m.def("clear_fp32_fast_fp16", &clear<fp32_fast_fp16_t>);
     m.def("clear_fp32_fast_bf16", &clear<fp32_fast_bf16_t>);
-    //m.def("clear_fp16", &clear<fp16_t>);
-
-    m.def("axpy_async_fp64", py::overload_cast<Scalar, const Tensor<fp64_t>&,
-            const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
-    m.def("axpy_async_fp32", py::overload_cast<Scalar, const Tensor<fp32_t>&,
-            const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
-    m.def("axpy_async_fp32_fast_tf32", py::overload_cast<Scalar, const Tensor<fp32_fast_tf32_t>&,
-            const Tensor<fp32_fast_tf32_t>&>(&axpy_async<fp32_fast_tf32_t>));
-    m.def("axpy_fp64", py::overload_cast<Scalar, const Tensor<fp64_t>&,
-            const Tensor<fp64_t>&>(&axpy<fp64_t>));
-    m.def("axpy_fp32", py::overload_cast<Scalar, const Tensor<fp32_t>&,
-            const Tensor<fp32_t>&>(&axpy<fp32_t>));
-    m.def("axpy_fp32_fast_tf32", py::overload_cast<Scalar, const Tensor<fp32_fast_tf32_t>&,
-            const Tensor<fp32_fast_tf32_t>&>(&axpy<fp32_fast_tf32_t>));
-
-    m.def("axpy_async_fp64", py::overload_cast<const Tensor<fp64_t>&,
-            const Tensor<fp64_t>&,
-            const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
-    m.def("axpy_async_fp32", py::overload_cast<const Tensor<fp32_t>&,
-            const Tensor<fp32_t>&,
-            const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
-    m.def("axpy_fp64", py::overload_cast<const Tensor<fp64_t>&,
-            const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy<fp64_t>));
-    m.def("axpy_fp32", py::overload_cast<const Tensor<fp32_t>&,
-            const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy<fp32_t>));
+    m.def("clear_bf16", &clear<bf16_t>);
 
     m.def("sqrt_async_fp64", &sqrt_async<fp64_t>);
     m.def("sqrt_async_fp32", &sqrt_async<fp32_t>);
+    m.def("sqrt_async_fp32_fast_tf32", &sqrt_async<fp32_fast_tf32_t>);
+    m.def("sqrt_async_fp32_fast_fp16", &sqrt_async<fp32_fast_fp16_t>);
+    m.def("sqrt_async_fp32_fast_bf16", &sqrt_async<fp32_fast_bf16_t>);
+    m.def("sqrt_async_bf16", &sqrt_async<bf16_t>);
+
     m.def("sqrt_fp64", &sqrt<fp64_t>);
     m.def("sqrt_fp32", &sqrt<fp32_t>);
+    m.def("sqrt_fp32_fast_tf32", &sqrt<fp32_fast_tf32_t>);
+    m.def("sqrt_fp32_fast_fp16", &sqrt<fp32_fast_fp16_t>);
+    m.def("sqrt_fp32_fast_bf16", &sqrt<fp32_fast_bf16_t>);
+    m.def("sqrt_bf16", &sqrt<bf16_t>);
+
     m.def("sqrt_inplace_async_fp64", &sqrt_inplace_async<fp64_t>);
     m.def("sqrt_inplace_async_fp32", &sqrt_inplace_async<fp32_t>);
+    m.def("sqrt_inplace_async_fp32_fast_tf32", &sqrt_inplace_async<fp32_fast_tf32_t>);
+    m.def("sqrt_inplace_async_fp32_fast_fp16", &sqrt_inplace_async<fp32_fast_fp16_t>);
+    m.def("sqrt_inplace_async_fp32_fast_bf16", &sqrt_inplace_async<fp32_fast_bf16_t>);
+    m.def("sqrt_inplace_async_bf16", &sqrt_inplace_async<bf16_t>);
+
     m.def("sqrt_inplace_fp64", &sqrt_inplace<fp64_t>);
     m.def("sqrt_inplace_fp32", &sqrt_inplace<fp32_t>);
+    m.def("sqrt_inplace_fp32_fast_tf32", &sqrt_inplace<fp32_fast_tf32_t>);
+    m.def("sqrt_inplace_fp32_fast_fp16", &sqrt_inplace<fp32_fast_fp16_t>);
+    m.def("sqrt_inplace_fp32_fast_bf16", &sqrt_inplace<fp32_fast_bf16_t>);
+    m.def("sqrt_inplace_bf16", &sqrt_inplace<bf16_t>);
+
     m.def("maximum_async_fp64", &maximum_async<fp64_t>);
     m.def("maximum_async_fp32", &maximum_async<fp32_t>);
+    m.def("maximum_async_fp32_fast_tf32", &maximum_async<fp32_fast_tf32_t>);
+    m.def("maximum_async_fp32_fast_fp16", &maximum_async<fp32_fast_fp16_t>);
+    m.def("maximum_async_fp32_fast_bf16", &maximum_async<fp32_fast_bf16_t>);
+    m.def("maximum_async_bf16", &maximum_async<bf16_t>);
+
     m.def("maximum_fp64", &maximum<fp64_t>);
     m.def("maximum_fp32", &maximum<fp32_t>);
+    m.def("maximum_fp32_fast_tf32", &maximum<fp32_fast_tf32_t>);
+    m.def("maximum_fp32_fast_fp16", &maximum<fp32_fast_fp16_t>);
+    m.def("maximum_fp32_fast_bf16", &maximum<fp32_fast_bf16_t>);
+    m.def("maximum_bf16", &maximum<bf16_t>);
 
     m.def("addcdiv_async_fp64", &addcdiv_async<fp64_t>);
-    m.def("addcdiv_async_bf16", &addcdiv_async<bf16_t>);
     m.def("addcdiv_async_fp32", &addcdiv_async<fp32_t>);
     m.def("addcdiv_async_fp32_fast_tf32", &addcdiv_async<fp32_fast_tf32_t>);
+    m.def("addcdiv_async_fp32_fast_fp16", &addcdiv_async<fp32_fast_fp16_t>);
+    m.def("addcdiv_async_fp32_fast_bf16", &addcdiv_async<fp32_fast_bf16_t>);
+    m.def("addcdiv_async_bf16", &addcdiv_async<bf16_t>);
+
     m.def("addcdiv_fp64", &addcdiv<fp64_t>);
     m.def("addcdiv_fp32", &addcdiv<fp32_t>);
-    m.def("addcdiv_bf16", &addcdiv<bf16_t>);
     m.def("addcdiv_fp32_fast_tf32", &addcdiv<fp32_fast_tf32_t>);
+    m.def("addcdiv_fp32_fast_fp16", &addcdiv<fp32_fast_fp16_t>);
+    m.def("addcdiv_fp32_fast_bf16", &addcdiv<fp32_fast_bf16_t>);
+    m.def("addcdiv_bf16", &addcdiv<bf16_t>);
 
     m.def("logsumexp_async_fp64", &logsumexp_async<fp64_t>);
-    m.def("logsumexp_async_bf16", &logsumexp_async<bf16_t>);
     m.def("logsumexp_async_fp32", &logsumexp_async<fp32_t>);
     m.def("logsumexp_async_fp32_fast_tf32", &logsumexp_async<fp32_fast_tf32_t>);
     m.def("logsumexp_async_fp32_fast_fp16", &logsumexp_async<fp32_fast_fp16_t>);
     m.def("logsumexp_async_fp32_fast_bf16", &logsumexp_async<fp32_fast_bf16_t>);
+    m.def("logsumexp_async_bf16", &logsumexp_async<bf16_t>);
+
     m.def("logsumexp_fp64", &logsumexp<fp64_t>);
-    m.def("logsumexp_bf16", &logsumexp<bf16_t>);
     m.def("logsumexp_fp32", &logsumexp<fp32_t>);
     m.def("logsumexp_fp32_fast_tf32", &logsumexp<fp32_fast_tf32_t>);
     m.def("logsumexp_fp32_fast_fp16", &logsumexp<fp32_fast_fp16_t>);
     m.def("logsumexp_fp32_fast_bf16", &logsumexp<fp32_fast_bf16_t>);
+    m.def("logsumexp_bf16", &logsumexp<bf16_t>);
 
     m.def("total_sum_accum_async_fp64", &total_sum_accum_async<fp64_t>);
-    m.def("total_sum_accum_async_bf16", &total_sum_accum_async<bf16_t>);
     m.def("total_sum_accum_async_fp32", &total_sum_accum_async<fp32_t>);
     m.def("total_sum_accum_async_fp32_fast_tf32", &total_sum_accum_async<fp32_fast_tf32_t>);
     m.def("total_sum_accum_async_fp32_fast_fp16", &total_sum_accum_async<fp32_fast_fp16_t>);
     m.def("total_sum_accum_async_fp32_fast_bf16", &total_sum_accum_async<fp32_fast_bf16_t>);
+    m.def("total_sum_accum_async_bf16", &total_sum_accum_async<bf16_t>);
+
     m.def("total_sum_accum_fp64", &total_sum_accum<fp64_t>);
     m.def("total_sum_accum_fp32", &total_sum_accum<fp32_t>);
-    m.def("total_sum_accum_bf16", &total_sum_accum<bf16_t>);
     m.def("total_sum_accum_fp32_fast_tf32", &total_sum_accum<fp32_fast_tf32_t>);
     m.def("total_sum_accum_fp32_fast_fp16", &total_sum_accum<fp32_fast_fp16_t>);
     m.def("total_sum_accum_fp32_fast_bf16", &total_sum_accum<fp32_fast_bf16_t>);
+    m.def("total_sum_accum_bf16", &total_sum_accum<bf16_t>);
 
     m.def("subtract_indexed_outputs_async_fp64",
             &subtract_indexed_outputs_async<fp64_t>);
-    m.def("subtract_indexed_outputs_async_bf16",
-            &subtract_indexed_outputs_async<bf16_t>);
     m.def("subtract_indexed_outputs_async_fp32",
             &subtract_indexed_outputs_async<fp32_t>);
     m.def("subtract_indexed_outputs_async_fp32_fast_tf32",
@@ -1027,313 +1092,419 @@ void def_mod_tensor(py::module_ &m)
             &subtract_indexed_outputs_async<fp32_fast_fp16_t>);
     m.def("subtract_indexed_outputs_async_fp32_fast_bf16",
             &subtract_indexed_outputs_async<fp32_fast_bf16_t>);
+    m.def("subtract_indexed_outputs_async_bf16",
+            &subtract_indexed_outputs_async<bf16_t>);
+
     m.def("subtract_indexed_outputs_fp64", &subtract_indexed_outputs<fp64_t>);
-    m.def("subtract_indexed_outputs_bf16", &subtract_indexed_outputs<bf16_t>);
     m.def("subtract_indexed_outputs_fp32", &subtract_indexed_outputs<fp32_t>);
     m.def("subtract_indexed_outputs_fp32_fast_tf32", &subtract_indexed_outputs<fp32_fast_tf32_t>);
     m.def("subtract_indexed_outputs_fp32_fast_fp16", &subtract_indexed_outputs<fp32_fast_fp16_t>);
     m.def("subtract_indexed_outputs_fp32_fast_bf16", &subtract_indexed_outputs<fp32_fast_bf16_t>);
+    m.def("subtract_indexed_outputs_bf16", &subtract_indexed_outputs<bf16_t>);
 
     m.def("scal_async_fp64", &scal_async<fp64_t>);
-    m.def("scal_async_bf16", &scal_async<bf16_t>);
     m.def("scal_async_fp32", &scal_async<fp32_t>);
     m.def("scal_async_fp32_fast_tf32", &scal_async<fp32_fast_tf32_t>);
     m.def("scal_async_fp32_fast_fp16", &scal_async<fp32_fast_fp16_t>);
+    m.def("scal_async_fp32_fast_bf16", &scal_async<fp32_fast_bf16_t>);
+    m.def("scal_async_bf16", &scal_async<bf16_t>);
+
     m.def("scal_fp64", &scal<fp64_t>);
     m.def("scal_fp32", &scal<fp32_t>);
-    m.def("scal_bf16", &scal<bf16_t>);
     m.def("scal_fp32_fast_tf32", &scal<fp32_fast_tf32_t>);
     m.def("scal_fp32_fast_fp16", &scal<fp32_fast_fp16_t>);
+    m.def("scal_fp32_fast_bf16", &scal<fp32_fast_bf16_t>);
+    m.def("scal_bf16", &scal<bf16_t>);
 
     m.def("adam_step_async_fp64", &adam_step_async<fp64_t>);
-    m.def("adam_step_async_bf16", &adam_step_async<bf16_t>);
     m.def("adam_step_async_fp32", &adam_step_async<fp32_t>);
     m.def("adam_step_async_fp32_fast_tf32", &adam_step_async<fp32_fast_tf32_t>);
     m.def("adam_step_async_fp32_fast_fp16", &adam_step_async<fp32_fast_fp16_t>);
     m.def("adam_step_async_fp32_fast_bf16", &adam_step_async<fp32_fast_bf16_t>);
+    m.def("adam_step_async_bf16", &adam_step_async<bf16_t>);
+
     m.def("adam_step_fp64", &adam_step<fp64_t>);
-    m.def("adam_step_bf16", &adam_step<bf16_t>);
     m.def("adam_step_fp32", &adam_step<fp32_t>);
     m.def("adam_step_fp32_fast_tf32", &adam_step<fp32_fast_tf32_t>);
     m.def("adam_step_fp32_fast_fp16", &adam_step<fp32_fast_fp16_t>);
     m.def("adam_step_fp32_fast_bf16", &adam_step<fp32_fast_bf16_t>);
+    m.def("adam_step_bf16", &adam_step<bf16_t>);
 
     m.def("adamw_step_async_fp64", &adamw_step_async<fp64_t>);
-    m.def("adamw_step_async_bf16", &adamw_step_async<bf16_t>);
     m.def("adamw_step_async_fp32", &adamw_step_async<fp32_t>);
     m.def("adamw_step_async_fp32_fast_tf32", &adamw_step_async<fp32_fast_tf32_t>);
     m.def("adamw_step_async_fp32_fast_fp16", &adamw_step_async<fp32_fast_fp16_t>);
     m.def("adamw_step_async_fp32_fast_bf16", &adamw_step_async<fp32_fast_bf16_t>);
+    m.def("adamw_step_async_bf16", &adamw_step_async<bf16_t>);
+
     m.def("adamw_step_fp64", &adamw_step<fp64_t>);
-    m.def("adamw_step_bf16", &adamw_step<bf16_t>);
     m.def("adamw_step_fp32", &adamw_step<fp32_t>);
     m.def("adamw_step_fp32_fast_tf32", &adamw_step<fp32_fast_tf32_t>);
     m.def("adamw_step_fp32_fast_fp16", &adamw_step<fp32_fast_fp16_t>);
     m.def("adamw_step_fp32_fast_bf16", &adamw_step<fp32_fast_bf16_t>);
+    m.def("adamw_step_bf16", &adamw_step<bf16_t>);
 
     m.def("scal_inplace_async_fp64", &scal_inplace_async<fp64_t>);
     m.def("scal_inplace_async_fp32", &scal_inplace_async<fp32_t>);
     m.def("scal_inplace_async_fp32_fast_tf32", &scal_inplace_async<fp32_fast_tf32_t>);
     m.def("scal_inplace_async_fp32_fast_fp16", &scal_inplace_async<fp32_fast_fp16_t>);
-    m.def("scal_inplace_fp64", &scal_inplace<fp64_t>);
+    m.def("scal_inplace_async_fp32_fast_bf16", &scal_inplace_async<fp32_fast_bf16_t>);
+    m.def("scal_inplace_async_bf16", &scal_inplace_async<bf16_t>);
+
     m.def("scal_inplace_fp64", &scal_inplace<fp64_t>);
     m.def("scal_inplace_fp32", &scal_inplace<fp32_t>);
     m.def("scal_inplace_fp32_fast_tf32", &scal_inplace<fp32_fast_tf32_t>);
     m.def("scal_inplace_fp32_fast_fp16", &scal_inplace<fp32_fast_fp16_t>);
+    m.def("scal_inplace_fp32_fast_bf16", &scal_inplace<fp32_fast_bf16_t>);
+    m.def("scal_inplace_bf16", &scal_inplace<bf16_t>);
 
     m.def("sumprod_slice_async_fp64", &sumprod_slice_async<fp64_t>);
-    m.def("sumprod_slice_async_bf16", &sumprod_slice_async<bf16_t>);
     m.def("sumprod_slice_async_fp32", &sumprod_slice_async<fp32_t>);
     m.def("sumprod_slice_async_fp32_fast_tf32", &sumprod_slice_async<fp32_fast_tf32_t>);
     m.def("sumprod_slice_async_fp32_fast_fp16", &sumprod_slice_async<fp32_fast_fp16_t>);
     m.def("sumprod_slice_async_fp32_fast_bf16", &sumprod_slice_async<fp32_fast_bf16_t>);
+    m.def("sumprod_slice_async_bf16", &sumprod_slice_async<bf16_t>);
+
     m.def("sumprod_slice_fp64", &sumprod_slice<fp64_t>);
     m.def("sumprod_slice_fp32", &sumprod_slice<fp32_t>);
-    m.def("sumprod_slice_bf16", &sumprod_slice<bf16_t>);
     m.def("sumprod_slice_fp32_fast_tf32", &sumprod_slice<fp32_fast_tf32_t>);
     m.def("sumprod_slice_fp32_fast_fp16", &sumprod_slice<fp32_fast_fp16_t>);
     m.def("sumprod_slice_fp32_fast_bf16", &sumprod_slice<fp32_fast_bf16_t>);
+    m.def("sumprod_slice_bf16", &sumprod_slice<bf16_t>);
 
     m.def("sumprod_fiber_async_fp64", &sumprod_fiber_async<fp64_t>);
-    m.def("sumprod_fiber_async_bf16", &sumprod_fiber_async<bf16_t>);
     m.def("sumprod_fiber_async_fp32", &sumprod_fiber_async<fp32_t>);
     m.def("sumprod_fiber_async_fp32_fast_tf32", &sumprod_fiber_async<fp32_fast_tf32_t>);
     m.def("sumprod_fiber_async_fp32_fast_fp16", &sumprod_fiber_async<fp32_fast_fp16_t>);
     m.def("sumprod_fiber_async_fp32_fast_bf16", &sumprod_fiber_async<fp32_fast_bf16_t>);
+    m.def("sumprod_fiber_async_bf16", &sumprod_fiber_async<bf16_t>);
+
     m.def("sumprod_fiber_fp64", &sumprod_fiber<fp64_t>);
     m.def("sumprod_fiber_fp32", &sumprod_fiber<fp32_t>);
-    m.def("sumprod_fiber_bf16", &sumprod_fiber<bf16_t>);
     m.def("sumprod_fiber_fp32_fast_tf32", &sumprod_fiber<fp32_fast_tf32_t>);
     m.def("sumprod_fiber_fp32_fast_fp16", &sumprod_fiber<fp32_fast_fp16_t>);
     m.def("sumprod_fiber_fp32_fast_bf16", &sumprod_fiber<fp32_fast_bf16_t>);
+    m.def("sumprod_fiber_bf16", &sumprod_fiber<bf16_t>);
 
     // gelu and dgelu
     m.def("gelu_async_fp64", &gelu_async<fp64_t>);
     m.def("gelu_async_fp32", &gelu_async<fp32_t>);
-    m.def("gelu_async_bf16", &gelu_async<bf16_t>);
     m.def("gelu_async_fp32_fast_bf16", &gelu_async<fp32_fast_bf16_t>);
     m.def("gelu_async_fp32_fast_fp16", &gelu_async<fp32_fast_fp16_t>);
     m.def("gelu_async_fp32_fast_tf32", &gelu_async<fp32_fast_tf32_t>);
+    m.def("gelu_async_bf16", &gelu_async<bf16_t>);
+
     m.def("gelu_fp64", &gelu<fp64_t>);
     m.def("gelu_fp32", &gelu<fp32_t>);
-    m.def("gelu_bf16", &gelu<bf16_t>);
     m.def("gelu_fp32_fast_bf16", &gelu<fp32_fast_bf16_t>);
     m.def("gelu_fp32_fast_fp16", &gelu<fp32_fast_fp16_t>);
     m.def("gelu_fp32_fast_tf32", &gelu<fp32_fast_tf32_t>);
+    m.def("gelu_bf16", &gelu<bf16_t>);
 
     m.def("gelu_backward_async_fp64", &gelu_backward_async<fp64_t>);
     m.def("gelu_backward_async_fp32", &gelu_backward_async<fp32_t>);
-    m.def("gelu_backward_async_bf16", &gelu_backward_async<bf16_t>);
     m.def("gelu_backward_async_fp32_fast_bf16", &gelu_backward_async<fp32_fast_bf16_t>);
     m.def("gelu_backward_async_fp32_fast_fp16", &gelu_backward_async<fp32_fast_fp16_t>);
     m.def("gelu_backward_async_fp32_fast_tf32", &gelu_backward_async<fp32_fast_tf32_t>);
+    m.def("gelu_backward_async_bf16", &gelu_backward_async<bf16_t>);
+
     m.def("gelu_backward_fp64", &gelu_backward<fp64_t>);
     m.def("gelu_backward_fp32", &gelu_backward<fp32_t>);
-    m.def("gelu_backward_bf16", &gelu_backward<bf16_t>);
     m.def("gelu_backward_fp32_fast_bf16", &gelu_backward<fp32_fast_bf16_t>);
     m.def("gelu_backward_fp32_fast_fp16", &gelu_backward<fp32_fast_fp16_t>);
     m.def("gelu_backward_fp32_fast_tf32", &gelu_backward<fp32_fast_tf32_t>);
+    m.def("gelu_backward_bf16", &gelu_backward<bf16_t>);
 
     m.def("gelutanh_async_fp64", &gelutanh_async<fp64_t>);
-    m.def("gelutanh_async_bf16", &gelutanh_async<bf16_t>);
     m.def("gelutanh_async_fp32", &gelutanh_async<fp32_t>);
     m.def("gelutanh_async_fp32_fast_tf32", &gelutanh_async<fp32_fast_tf32_t>);
     m.def("gelutanh_async_fp32_fast_fp16", &gelutanh_async<fp32_fast_fp16_t>);
     m.def("gelutanh_async_fp32_fast_bf16", &gelutanh_async<fp32_fast_bf16_t>);
+    m.def("gelutanh_async_bf16", &gelutanh_async<bf16_t>);
+
     m.def("gelutanh_fp64", &gelutanh<fp64_t>);
     m.def("gelutanh_fp32", &gelutanh<fp32_t>);
-    m.def("gelutanh_bf16", &gelutanh<bf16_t>);
     m.def("gelutanh_fp32_fast_tf32", &gelutanh<fp32_fast_tf32_t>);
     m.def("gelutanh_fp32_fast_fp16", &gelutanh<fp32_fast_fp16_t>);
     m.def("gelutanh_fp32_fast_bf16", &gelutanh<fp32_fast_bf16_t>);
+    m.def("gelutanh_bf16", &gelutanh<bf16_t>);
 
     m.def("gelutanh_inplace_async_fp64", &gelutanh_inplace_async<fp64_t>);
     m.def("gelutanh_inplace_async_fp32", &gelutanh_inplace_async<fp32_t>);
+    m.def("gelutanh_inplace_async_fp32_fast_tf32", &gelutanh_inplace_async<fp32_fast_tf32_t>);
+    m.def("gelutanh_inplace_async_fp32_fast_fp16", &gelutanh_inplace_async<fp32_fast_fp16_t>);
+    m.def("gelutanh_inplace_async_fp32_fast_bf16", &gelutanh_inplace_async<fp32_fast_bf16_t>);
+    m.def("gelutanh_inplace_async_bf16", &gelutanh_inplace_async<bf16_t>);
+
     m.def("gelutanh_inplace_fp64", &gelutanh_inplace<fp64_t>);
     m.def("gelutanh_inplace_fp32", &gelutanh_inplace<fp32_t>);
+    m.def("gelutanh_inplace_fp32_fast_tf32", &gelutanh_inplace<fp32_fast_tf32_t>);
+    m.def("gelutanh_inplace_fp32_fast_fp16", &gelutanh_inplace<fp32_fast_fp16_t>);
+    m.def("gelutanh_inplace_fp32_fast_bf16", &gelutanh_inplace<fp32_fast_bf16_t>);
+    m.def("gelutanh_inplace_bf16", &gelutanh_inplace<bf16_t>);
 
     m.def("gelutanh_backward_async_fp64", &gelutanh_backward_async<fp64_t>);
-    m.def("gelutanh_backward_async_bf16", &gelutanh_backward_async<bf16_t>);
     m.def("gelutanh_backward_async_fp32", &gelutanh_backward_async<fp32_t>);
     m.def("gelutanh_backward_async_fp32_fast_tf32", &gelutanh_backward_async<fp32_fast_tf32_t>);
     m.def("gelutanh_backward_async_fp32_fast_fp16", &gelutanh_backward_async<fp32_fast_fp16_t>);
     m.def("gelutanh_backward_async_fp32_fast_bf16", &gelutanh_backward_async<fp32_fast_bf16_t>);
+    m.def("gelutanh_backward_async_bf16", &gelutanh_backward_async<bf16_t>);
+
     m.def("gelutanh_backward_fp64", &gelutanh_backward<fp64_t>);
     m.def("gelutanh_backward_fp32", &gelutanh_backward<fp32_t>);
-    m.def("gelutanh_backward_bf16", &gelutanh_backward<bf16_t>);
     m.def("gelutanh_backward_fp32_fast_tf32", &gelutanh_backward<fp32_fast_tf32_t>);
     m.def("gelutanh_backward_fp32_fast_fp16", &gelutanh_backward<fp32_fast_fp16_t>);
     m.def("gelutanh_backward_fp32_fast_bf16", &gelutanh_backward<fp32_fast_bf16_t>);
+    m.def("gelutanh_backward_bf16", &gelutanh_backward<bf16_t>);
 
     m.def("dgelu_async_fp64", &dgelu_async<fp64_t>);
     m.def("dgelu_async_fp32", &dgelu_async<fp32_t>);
+    m.def("dgelu_async_fp32_fast_tf32", &dgelu_async<fp32_fast_tf32_t>);
+    m.def("dgelu_async_fp32_fast_fp16", &dgelu_async<fp32_fast_fp16_t>);
+    m.def("dgelu_async_fp32_fast_bf16", &dgelu_async<fp32_fast_bf16_t>);
+    m.def("dgelu_async_bf16", &dgelu_async<bf16_t>);
+
     m.def("dgelu_fp64", &dgelu<fp64_t>);
     m.def("dgelu_fp32", &dgelu<fp32_t>);
+    m.def("dgelu_fp32_fast_tf32", &dgelu<fp32_fast_tf32_t>);
+    m.def("dgelu_fp32_fast_fp16", &dgelu<fp32_fast_fp16_t>);
+    m.def("dgelu_fp32_fast_bf16", &dgelu<fp32_fast_bf16_t>);
+    m.def("dgelu_bf16", &dgelu<bf16_t>);
+
     m.def("dgelutanh_async_fp64", &dgelutanh_async<fp64_t>);
     m.def("dgelutanh_async_fp32", &dgelutanh_async<fp32_t>);
+    m.def("dgelutanh_async_fp32_fast_tf32", &dgelutanh_async<fp32_fast_tf32_t>);
+    m.def("dgelutanh_async_fp32_fast_fp16", &dgelutanh_async<fp32_fast_fp16_t>);
+    m.def("dgelutanh_async_fp32_fast_bf16", &dgelutanh_async<fp32_fast_bf16_t>);
+    m.def("dgelutanh_async_bf16", &dgelutanh_async<bf16_t>);
+
     m.def("dgelutanh_fp64", &dgelutanh<fp64_t>);
     m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);
+    m.def("dgelutanh_fp32_fast_tf32", &dgelutanh<fp32_fast_tf32_t>);
+    m.def("dgelutanh_fp32_fast_fp16", &dgelutanh<fp32_fast_fp16_t>);
+    m.def("dgelutanh_fp32_fast_bf16", &dgelutanh<fp32_fast_bf16_t>);
+    m.def("dgelutanh_bf16", &dgelutanh<bf16_t>);
 
     // Embedding forward pass
     m.def("embedding_async_fp64", &embedding_async<fp64_t>);
     m.def("embedding_async_fp32", &embedding_async<fp32_t>);
-    m.def("embedding_async_bf16", &embedding_async<bf16_t>);
     m.def("embedding_async_fp32_fast_tf32", &embedding_async<fp32_fast_tf32_t>);
     m.def("embedding_async_fp32_fast_fp16", &embedding_async<fp32_fast_fp16_t>);
     m.def("embedding_async_fp32_fast_bf16", &embedding_async<fp32_fast_bf16_t>);
+    m.def("embedding_async_bf16", &embedding_async<bf16_t>);
+
     m.def("embedding_fp64", &embedding<fp64_t>);
     m.def("embedding_fp32", &embedding<fp32_t>);
-    m.def("embedding_bf16", &embedding<bf16_t>);
     m.def("embedding_fp32_fast_tf32", &embedding<fp32_fast_tf32_t>);
     m.def("embedding_fp32_fast_fp16", &embedding<fp32_fast_fp16_t>);
     m.def("embedding_fp32_fast_bf16", &embedding<fp32_fast_bf16_t>);
+    m.def("embedding_bf16", &embedding<bf16_t>);
 
     // Embedding backward pass
     m.def("embedding_backward_async_fp64", &embedding_backward_async<fp64_t>);
-    m.def("embedding_backward_async_bf16", &embedding_backward_async<bf16_t>);
     m.def("embedding_backward_async_fp32", &embedding_backward_async<fp32_t>);
     m.def("embedding_backward_async_fp32_fast_tf32", &embedding_backward_async<fp32_fast_tf32_t>);
     m.def("embedding_backward_async_fp32_fast_fp16", &embedding_backward_async<fp32_fast_fp16_t>);
     m.def("embedding_backward_async_fp32_fast_bf16", &embedding_backward_async<fp32_fast_bf16_t>);
+    m.def("embedding_backward_async_bf16", &embedding_backward_async<bf16_t>);
+
     m.def("embedding_backward_fp64", &embedding_backward<fp64_t>);
     m.def("embedding_backward_fp32", &embedding_backward<fp32_t>);
-    m.def("embedding_backward_bf16", &embedding_backward<bf16_t>);
     m.def("embedding_backward_fp32_fast_tf32", &embedding_backward<fp32_fast_tf32_t>);
     m.def("embedding_backward_fp32_fast_fp16", &embedding_backward<fp32_fast_fp16_t>);
     m.def("embedding_backward_fp32_fast_bf16", &embedding_backward<fp32_fast_bf16_t>);
-
-    // FP32 <-> FP16
-    //m.def("fp32_to_fp16_async", &fp32_to_fp16_async);
-    //m.def("fp16_to_fp32_async", &fp16_to_fp32_async);
+    m.def("embedding_backward_bf16", &embedding_backward<bf16_t>);
 
     m.def("mask_scalar_async_fp64", &mask_scalar_async<fp64_t>);
-    m.def("mask_scalar_async_bf16", &mask_scalar_async<bf16_t>);
     m.def("mask_scalar_async_fp32", &mask_scalar_async<fp32_t>);
     m.def("mask_scalar_async_fp32_fast_tf32", &mask_scalar_async<fp32_fast_tf32_t>);
     m.def("mask_scalar_async_fp32_fast_fp16", &mask_scalar_async<fp32_fast_fp16_t>);
     m.def("mask_scalar_async_fp32_fast_bf16", &mask_scalar_async<fp32_fast_bf16_t>);
+    m.def("mask_scalar_async_bf16", &mask_scalar_async<bf16_t>);
+
     m.def("mask_scalar_fp64", &mask_scalar<fp64_t>);
     m.def("mask_scalar_fp32", &mask_scalar<fp32_t>);
-    m.def("mask_scalar_bf16", &mask_scalar<bf16_t>);
     m.def("mask_scalar_fp32_fast_tf32", &mask_scalar<fp32_fast_tf32_t>);
     m.def("mask_scalar_fp32_fast_fp16", &mask_scalar<fp32_fast_fp16_t>);
     m.def("mask_scalar_fp32_fast_bf16", &mask_scalar<fp32_fast_bf16_t>);
+    m.def("mask_scalar_bf16", &mask_scalar<bf16_t>);
 
     m.def("hypot_async_fp64", &hypot_async<fp64_t>);
-    m.def("hypot_async_bf16", &hypot_async<bf16_t>);
     m.def("hypot_async_fp32", &hypot_async<fp32_t>);
     m.def("hypot_async_fp32_fast_tf32", &hypot_async<fp32_fast_tf32_t>);
+    m.def("hypot_async_fp32_fast_fp16", &hypot_async<fp32_fast_fp16_t>);
+    m.def("hypot_async_fp32_fast_bf16", &hypot_async<fp32_fast_bf16_t>);
+    m.def("hypot_async_bf16", &hypot_async<bf16_t>);
+
     m.def("hypot_fp64", &hypot<fp64_t>);
-    m.def("hypot_bf16", &hypot<bf16_t>);
     m.def("hypot_fp32", &hypot<fp32_t>);
-    m.def("hypot_fp32", &hypot<fp32_fast_tf32_t>);
+    m.def("hypot_fp32_fast_tf32", &hypot<fp32_fast_tf32_t>);
+    m.def("hypot_fp32_fast_fp16", &hypot<fp32_fast_fp16_t>);
+    m.def("hypot_fp32_fast_bf16", &hypot<fp32_fast_bf16_t>);
+    m.def("hypot_bf16", &hypot<bf16_t>);
 
     m.def("hypot_scalar_inverse_async_fp64", &hypot_scalar_inverse_async<fp64_t>);
-    m.def("hypot_scalar_inverse_async_bf16", &hypot_scalar_inverse_async<bf16_t>);
     m.def("hypot_scalar_inverse_async_fp32", &hypot_scalar_inverse_async<fp32_t>);
     m.def("hypot_scalar_inverse_async_fp32_fast_tf32", &hypot_scalar_inverse_async<fp32_fast_tf32_t>);
     m.def("hypot_scalar_inverse_async_fp32_fast_fp16", &hypot_scalar_inverse_async<fp32_fast_fp16_t>);
     m.def("hypot_scalar_inverse_async_fp32_fast_bf16", &hypot_scalar_inverse_async<fp32_fast_bf16_t>);
+    m.def("hypot_scalar_inverse_async_bf16", &hypot_scalar_inverse_async<bf16_t>);
+
     m.def("hypot_scalar_inverse_fp64", &hypot_scalar_inverse<fp64_t>);
-    m.def("hypot_scalar_inverse_bf16", &hypot_scalar_inverse<bf16_t>);
     m.def("hypot_scalar_inverse_fp32", &hypot_scalar_inverse<fp32_t>);
     m.def("hypot_scalar_inverse_fp32_fast_tf32", &hypot_scalar_inverse<fp32_fast_tf32_t>);
     m.def("hypot_scalar_inverse_fp32_fast_fp16", &hypot_scalar_inverse<fp32_fast_fp16_t>);
     m.def("hypot_scalar_inverse_fp32_fast_bf16", &hypot_scalar_inverse<fp32_fast_bf16_t>);
+    m.def("hypot_scalar_inverse_bf16", &hypot_scalar_inverse<bf16_t>);
 
     m.def("transpose_async_fp64", &transpose_async<fp64_t>);
-    m.def("transpose_async_bf16", &transpose_async<bf16_t>);
     m.def("transpose_async_fp32", &transpose_async<fp32_t>);
     m.def("transpose_async_fp32_fast_tf32", &transpose_async<fp32_fast_tf32_t>);
     m.def("transpose_async_fp32_fast_fp16", &transpose_async<fp32_fast_fp16_t>);
     m.def("transpose_async_fp32_fast_bf16", &transpose_async<fp32_fast_bf16_t>);
+    m.def("transpose_async_bf16", &transpose_async<bf16_t>);
+
     m.def("transpose_fp64", &transpose<fp64_t>);
     m.def("transpose_fp32", &transpose<fp32_t>);
-    m.def("transpose_bf16", &transpose<bf16_t>);
     m.def("transpose_fp32_fast_tf32", &transpose<fp32_fast_tf32_t>);
     m.def("transpose_fp32_fast_fp16", &transpose<fp32_fast_fp16_t>);
     m.def("transpose_fp32_fast_bf16", &transpose<fp32_fast_bf16_t>);
+    m.def("transpose_bf16", &transpose<bf16_t>);
 
     m.def("conv2d_inplace_async_fp64", &conv2d_inplace_async<fp64_t>);
     m.def("conv2d_inplace_async_fp32", &conv2d_inplace_async<fp32_t>);
-    m.def("conv2d_inplace_async_fp32_fast_tf32",
-            &conv2d_inplace_async<fp32_fast_tf32_t>);
+    m.def("conv2d_inplace_async_fp32_fast_tf32", &conv2d_inplace_async<fp32_fast_tf32_t>);
+    m.def("conv2d_inplace_async_fp32_fast_fp16", &conv2d_inplace_async<fp32_fast_fp16_t>);
+    m.def("conv2d_inplace_async_fp32_fast_bf16", &conv2d_inplace_async<fp32_fast_bf16_t>);
     m.def("conv2d_inplace_async_bf16", &conv2d_inplace_async<bf16_t>);
+
     m.def("conv2d_inplace_fp64", &conv2d_inplace<fp64_t>);
     m.def("conv2d_inplace_fp32", &conv2d_inplace<fp32_t>);
-    m.def("conv2d_inplace_fp32_fast_tf32",
-            &conv2d_inplace<fp32_fast_tf32_t>);
+    m.def("conv2d_inplace_fp32_fast_tf32", &conv2d_inplace<fp32_fast_tf32_t>);
+    m.def("conv2d_inplace_fp32_fast_fp16", &conv2d_inplace<fp32_fast_fp16_t>);
+    m.def("conv2d_inplace_fp32_fast_bf16", &conv2d_inplace<fp32_fast_bf16_t>);
+    m.def("conv2d_inplace_bf16", &conv2d_inplace<bf16_t>);
 
-    m.def("conv2d_bwd_input_inplace_bf16",
-            &conv2d_bwd_input_inplace<bf16_t>);
     m.def("conv2d_bwd_input_inplace_async_fp64",
             &conv2d_bwd_input_inplace_async<fp64_t>);
     m.def("conv2d_bwd_input_inplace_async_fp32",
             &conv2d_bwd_input_inplace_async<fp32_t>);
     m.def("conv2d_bwd_input_inplace_async_fp32_fast_tf32",
             &conv2d_bwd_input_inplace_async<fp32_fast_tf32_t>);
+    m.def("conv2d_bwd_input_inplace_async_fp32_fast_fp16",
+            &conv2d_bwd_input_inplace_async<fp32_fast_fp16_t>);
+    m.def("conv2d_bwd_input_inplace_async_fp32_fast_bf16",
+            &conv2d_bwd_input_inplace_async<fp32_fast_bf16_t>);
     m.def("conv2d_bwd_input_inplace_async_bf16",
             &conv2d_bwd_input_inplace_async<bf16_t>);
+
     m.def("conv2d_bwd_input_inplace_fp64",
             &conv2d_bwd_input_inplace<fp64_t>);
     m.def("conv2d_bwd_input_inplace_fp32",
             &conv2d_bwd_input_inplace<fp32_t>);
     m.def("conv2d_bwd_input_inplace_fp32_fast_tf32",
             &conv2d_bwd_input_inplace<fp32_fast_tf32_t>);
+    m.def("conv2d_bwd_input_inplace_fp32_fast_fp16",
+            &conv2d_bwd_input_inplace<fp32_fast_fp16_t>);
+    m.def("conv2d_bwd_input_inplace_fp32_fast_bf16",
+            &conv2d_bwd_input_inplace<fp32_fast_bf16_t>);
     m.def("conv2d_bwd_input_inplace_bf16",
             &conv2d_bwd_input_inplace<bf16_t>);
 
-    m.def("conv2d_bwd_weight_inplace_bf16",
-            &conv2d_bwd_weight_inplace<bf16_t>);
     m.def("conv2d_bwd_weight_inplace_async_fp64",
             &conv2d_bwd_weight_inplace_async<fp64_t>);
     m.def("conv2d_bwd_weight_inplace_async_fp32",
             &conv2d_bwd_weight_inplace_async<fp32_t>);
     m.def("conv2d_bwd_weight_inplace_async_fp32_fast_tf32",
             &conv2d_bwd_weight_inplace_async<fp32_fast_tf32_t>);
+    m.def("conv2d_bwd_weight_inplace_async_fp32_fast_fp16",
+            &conv2d_bwd_weight_inplace_async<fp32_fast_fp16_t>);
+    m.def("conv2d_bwd_weight_inplace_async_fp32_fast_bf16",
+            &conv2d_bwd_weight_inplace_async<fp32_fast_bf16_t>);
     m.def("conv2d_bwd_weight_inplace_async_bf16",
             &conv2d_bwd_weight_inplace_async<bf16_t>);
+
     m.def("conv2d_bwd_weight_inplace_fp64",
             &conv2d_bwd_weight_inplace<fp64_t>);
     m.def("conv2d_bwd_weight_inplace_fp32",
             &conv2d_bwd_weight_inplace<fp32_t>);
     m.def("conv2d_bwd_weight_inplace_fp32_fast_tf32",
             &conv2d_bwd_weight_inplace<fp32_fast_tf32_t>);
+    m.def("conv2d_bwd_weight_inplace_fp32_fast_fp16",
+            &conv2d_bwd_weight_inplace<fp32_fast_fp16_t>);
+    m.def("conv2d_bwd_weight_inplace_fp32_fast_bf16",
+            &conv2d_bwd_weight_inplace<fp32_fast_bf16_t>);
     m.def("conv2d_bwd_weight_inplace_bf16",
             &conv2d_bwd_weight_inplace<bf16_t>);
 
     m.def("rope_async_fp64", &rope_async<fp64_t>);
     m.def("rope_async_fp32", &rope_async<fp32_t>);
     m.def("rope_async_fp32_fast_tf32", &rope_async<fp32_fast_tf32_t>);
+    m.def("rope_async_fp32_fast_fp16", &rope_async<fp32_fast_fp16_t>);
+    m.def("rope_async_fp32_fast_bf16", &rope_async<fp32_fast_bf16_t>);
     m.def("rope_async_bf16", &rope_async<bf16_t>);
+
     m.def("rope_fp64", &rope<fp64_t>);
     m.def("rope_fp32", &rope<fp32_t>);
     m.def("rope_fp32_fast_tf32", &rope<fp32_fast_tf32_t>);
+    m.def("rope_fp32_fast_fp16", &rope<fp32_fast_fp16_t>);
+    m.def("rope_fp32_fast_bf16", &rope<fp32_fast_bf16_t>);
     m.def("rope_bf16", &rope<bf16_t>);
 
     m.def("rope_backward_async_fp64", &rope_backward_async<fp64_t>);
     m.def("rope_backward_async_fp32", &rope_backward_async<fp32_t>);
     m.def("rope_backward_async_fp32_fast_tf32",
             &rope_backward_async<fp32_fast_tf32_t>);
+    m.def("rope_backward_async_fp32_fast_fp16",
+            &rope_backward_async<fp32_fast_fp16_t>);
+    m.def("rope_backward_async_fp32_fast_bf16",
+            &rope_backward_async<fp32_fast_bf16_t>);
     m.def("rope_backward_async_bf16", &rope_backward_async<bf16_t>);
+
     m.def("rope_backward_fp64", &rope_backward<fp64_t>);
     m.def("rope_backward_fp32", &rope_backward<fp32_t>);
     m.def("rope_backward_fp32_fast_tf32", &rope_backward<fp32_fast_tf32_t>);
+    m.def("rope_backward_fp32_fast_fp16", &rope_backward<fp32_fast_fp16_t>);
+    m.def("rope_backward_fp32_fast_bf16", &rope_backward<fp32_fast_bf16_t>);
     m.def("rope_backward_bf16", &rope_backward<bf16_t>);
 
     m.def("log_scalar_async_fp64", &log_scalar_async<fp64_t>);
     m.def("log_scalar_async_fp32", &log_scalar_async<fp32_t>);
     m.def("log_scalar_async_fp32_fast_tf32", &log_scalar_async<fp32_fast_tf32_t>);
+    m.def("log_scalar_async_fp32_fast_fp16", &log_scalar_async<fp32_fast_fp16_t>);
+    m.def("log_scalar_async_fp32_fast_bf16", &log_scalar_async<fp32_fast_bf16_t>);
     m.def("log_scalar_async_bf16", &log_scalar_async<bf16_t>);
+
     m.def("log_scalar_fp64", &log_scalar<fp64_t>);
     m.def("log_scalar_fp32", &log_scalar<fp32_t>);
     m.def("log_scalar_fp32_fast_tf32", &log_scalar<fp32_fast_tf32_t>);
+    m.def("log_scalar_fp32_fast_fp16", &log_scalar<fp32_fast_fp16_t>);
+    m.def("log_scalar_fp32_fast_bf16", &log_scalar<fp32_fast_bf16_t>);
     m.def("log_scalar_bf16", &log_scalar<bf16_t>);
 }
 
 // Main extension module with all wrappers
 PYBIND11_MODULE(nntile_core, m)
 {
+    // Add NNTile configuration class
+    py::class_<nntile::Context>(m, "Context")
+        .def(
+            py::init<int, int, int, const char *, size_t, int,
+                const char *, int, int>(),
+            py::arg("ncpu")=-1,
+            py::arg("ncuda")=-1,
+            py::arg("ooc")=0,
+            py::arg("ooc_path")="/tmp/nntile_ooc",
+            py::arg("ooc_size")=16777216,
+            py::arg("logger")=0,
+            py::arg("logger_addr")="localhost",
+            py::arg("logger_port")=5001,
+            py::arg("verbose")=0)
+        .def("shutdown", &nntile::Context::shutdown)
+        .def("restrict_cpu", &nntile::Context::restrict_cpu)
+        .def("restrict_cuda", &nntile::Context::restrict_cuda)
+        .def("restore_where", &nntile::Context::restore_where);
+
     // Add starpu submodule
     auto starpu = m.def_submodule("starpu");
     def_mod_starpu(starpu);

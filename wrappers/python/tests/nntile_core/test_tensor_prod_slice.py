@@ -15,5 +15,5 @@ import pytest
 
 
 @pytest.mark.xfail(reason='not implemented')
-def test_prod_slice_async():
+def test_prod_slice_async(context):
     pass

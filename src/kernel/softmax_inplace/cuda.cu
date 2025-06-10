@@ -143,8 +143,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
 //! softmax of a buffer along middle axis
 /*!
  *
- * @param[in] m: Size of the first mode of dst and sumnorm arrays
- * @param[in] n: Size of the last mode of dst and sumnorm arrays
+ * @param[in] m: Size of the first mode of dst and sumexp arrays
+ * @param[in] n: Size of the last mode of dst and sumexp arrays
  * @param[in] k: Size of the middle mode of dst array
  * @param[in] maxsumexp: Maximums and sums of exponents of slices
  * @param[in] alpha: Scalar multiplier for the output

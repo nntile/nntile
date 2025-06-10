@@ -16,9 +16,9 @@ include(FetchContent)
 #add_subdirectory(googletest)
 #add_subdirectory(nvbench)
 add_subdirectory(pybind11)
-
-#FetchContent_MakeAvailable(googletest nvbench pybind11)
 FetchContent_MakeAvailable(pybind11)
+
+#add_subdirectory(cudnn_frontend)
 
 #include(GoogleTest)
 

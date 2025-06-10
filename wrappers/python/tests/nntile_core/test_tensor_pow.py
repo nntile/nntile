@@ -15,5 +15,5 @@ import pytest
 
 
 @pytest.mark.xfail(reason='not implemented')
-def test_pow_async():
+def test_pow_async(context):
     pass

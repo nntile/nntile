@@ -19,6 +19,8 @@
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/copy.hh"
+#include "nntile/context.hh"
+#include "nntile/starpu/config.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -32,7 +34,6 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
@@ -40,7 +41,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     // Generate single-tile destination tensor and init it
     TensorTraits dst_single_traits(shape, shape);
     std::vector<int> dist_root = {mpi_root};
-    Tensor<T> dst_single(dst_single_traits, dist_root, last_tag);
+    Tensor<T> dst_single(dst_single_traits, dist_root);
     if(mpi_rank == mpi_root)
     {
         auto tile = dst_single.get_tile(0);
@@ -58,7 +59,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     {
         dst_distr[i] = (i+1) % mpi_size;
     }
-    Tensor<T> dst(dst_traits, dst_distr, last_tag);
+    Tensor<T> dst(dst_traits, dst_distr);
     scatter<T>(dst_single, dst);
     // Define proper shape and basetile for the source tensor
     std::vector<Index> src_shape(dst_traits.ndim-1),
@@ -75,7 +76,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     }
     // Generate single-tile source tensor and init it
     TensorTraits src_single_traits(src_shape, src_shape);
-    Tensor<T> src_single(src_single_traits, dist_root, last_tag);
+    Tensor<T> src_single(src_single_traits, dist_root);
     if(mpi_rank == mpi_root)
     {
         auto tile = src_single.get_tile(0);
@@ -93,7 +94,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     {
         src_distr[i] = (i*i+1) % mpi_size;
     }
-    Tensor<T> src(src_traits, src_distr, last_tag);
+    Tensor<T> src(src_traits, src_distr);
     scatter<T>(src_single, src);
     // Perform tensor-wise and tile-wise prod_slice operations
     prod_slice<T>(src, alpha, dst, axis);
@@ -103,7 +104,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
                 dst_single.get_tile(0), axis);
     }
     // Compare results
-    Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
+    Tensor<T> dst2_single(dst_single_traits, dist_root);
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {
@@ -134,12 +135,11 @@ void validate()
     // Sync to guarantee old data tags are cleaned up and can be reused
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
-    starpu_mpi_tag_t last_tag = 0;
     std::vector<Index> sh34 = {3, 4}, sh23 = {2, 3}, sh3 = {3}, sh4 = {4};
     TensorTraits trA(sh34, sh23), trB(sh3, sh3), trC(sh4, sh4);
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
-    Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
-        C(trC, dist0, last_tag);
+    Tensor<T> A(trA, dist0000), B(trB, dist0),
+        C(trC, dist0);
     TEST_THROW(prod_slice<T>(A, 1.0, A, 0));
     TEST_THROW(prod_slice<T>(B, 1.0, A, -1));
     TEST_THROW(prod_slice<T>(B, 1.0, A, 2));
@@ -151,15 +151,10 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::prod_slice::init();
-    starpu::subcopy::init();
-    starpu::copy::init();
-    starpu::prod_slice::restrict_where(STARPU_CPU);
-    starpu::subcopy::restrict_where(STARPU_CPU);
-    starpu::copy::restrict_where(STARPU_CPU);
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

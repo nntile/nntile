@@ -15,5 +15,5 @@ import pytest
 
 
 @pytest.mark.xfail(reason='not implemented')
-def test_subtract_indexed_column_async():
+def test_subtract_indexed_column_async(context):
     pass

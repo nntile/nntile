@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/norm_fiber_inplace.hh"
 #include "nntile/starpu/norm_fiber_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -110,12 +111,12 @@ void norm_fiber_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
             // Insert task
             if(init_first)
             {
-                starpu::norm_fiber_inplace::submit<T>(m, n, k, batch, alpha,
+                starpu::norm_fiber_inplace.submit<std::tuple<T>>(m, n, k, batch, alpha,
                         src_tile_handle, beta, dst_tile_handle);
             }
             else
             {
-                starpu::norm_fiber_inplace::submit<T>(m, n, k, batch, alpha,
+                starpu::norm_fiber_inplace.submit<std::tuple<T>>(m, n, k, batch, alpha,
                         src_tile_handle, one, dst_tile_handle, redux);
             }
         }
@@ -149,6 +150,16 @@ void norm_fiber_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_
         int redux);
 
 template
+void norm_fiber_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src,
+        Scalar beta, const Tensor<fp32_fast_fp16_t> &dst, Index axis, Index batch_ndim,
+        int redux);
+
+template
+void norm_fiber_inplace_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
+        Scalar beta, const Tensor<fp32_fast_bf16_t> &dst, Index axis, Index batch_ndim,
+        int redux);
+
+template
 void norm_fiber_inplace_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         Scalar beta, const Tensor<fp64_t> &dst, Index axis, Index batch_ndim,
         int redux);
@@ -167,6 +178,16 @@ void norm_fiber_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar 
 template
 void norm_fiber_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim,
+        int redux);
+
+template
+void norm_fiber_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
+        const Tensor<fp32_fast_fp16_t> &dst, Index axis, Index batch_ndim,
+        int redux);
+
+template
+void norm_fiber_inplace<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &dst, Index axis, Index batch_ndim,
         int redux);
 
 template

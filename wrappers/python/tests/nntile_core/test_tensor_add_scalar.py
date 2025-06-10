@@ -13,12 +13,9 @@
 
 import numpy as np
 import pytest
-from numpy.testing import assert_equal
+from numpy.testing import assert_allclose
 
 import nntile
-
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
 
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
@@ -29,16 +26,14 @@ add_scalar = {np.float32: nntile.nntile_core.tensor.add_scalar_fp32,
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_add_scalar(dtype):
+def test_add_scalar(context, dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
-    mpi_distr = [0]
-    next_tag = 0
     alpha = 10.
     beta = -5.5
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)
+    A = Tensor[dtype](traits)
     # Set initial values of tensors
     rand_A = np.random.default_rng(42).standard_normal(shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
@@ -49,4 +44,4 @@ def test_add_scalar(dtype):
     nntile.starpu.wait_for_all()
     A.unregister()
     # Compare results
-    assert_equal(alpha + beta * np_A, np_C)
+    assert_allclose(alpha + beta * np_A, np_C)

@@ -33,17 +33,15 @@ class GAP(BaseLayer):
         super().__init__([x], [y], [], [yT])
 
     @staticmethod
-    def generate_simple(x: TensorMoments, next_tag: int):
+    def generate_simple(x: TensorMoments):
         yT_shape = x.value.shape[1:]
         yT_basetile_shape = x.value.basetile_shape[1:]
         yT_traits = TensorTraits(yT_shape, yT_basetile_shape)
         yT_distr = [0] * yT_traits.grid.nelems
-        yT_value = type(x.value)(yT_traits, yT_distr, next_tag)
-        next_tag = yT_value.next_tag
+        yT_value = type(x.value)(yT_traits, yT_distr)
 
         # Create gradient of Y with the same traits and distribution as Y
-        yT_grad = type(x.value)(yT_traits, yT_distr, next_tag)
-        next_tag = yT_grad.next_tag
+        yT_grad = type(x.value)(yT_traits, yT_distr)
         # Define Y as TensorMoments
         yT = TensorMoments(yT_value, yT_grad, True)
 
@@ -51,19 +49,17 @@ class GAP(BaseLayer):
         y_basetile_shape = yT_basetile_shape[::-1]
         y_traits = TensorTraits(y_shape, y_basetile_shape)
         y_distr = [0] * y_traits.grid.nelems
-        y_value = type(x.value)(y_traits, y_distr, next_tag)
-        next_tag = y_value.next_tag
+        y_value = type(x.value)(y_traits, y_distr)
 
         # Create gradient of Y with the same traits and distribution as Y
-        y_grad = type(x.value)(y_traits, y_distr, next_tag)
-        next_tag = y_grad.next_tag
+        y_grad = type(x.value)(y_traits, y_distr)
         # Define Y as TensorMoments
         y = TensorMoments(y_value, y_grad, True)
 
         # Create GAP layer with all the provided data
         layer = GAP(x, y, yT)
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer
 
     def forward_async(self):
         alpha = 1 / (self.x.value.shape[0])
@@ -116,7 +112,7 @@ class MixerMlp(BaseLayer):
                 clear_async(t.grad)
 
     @staticmethod
-    def generate_simple(x: TensorMoments, side: str, next_tag: int):
+    def generate_simple(x: TensorMoments, side: str):
         if side == 'R':
             add_shape = x.value.shape[0] * 4
             add_basetile_shape = x.value.shape[0] * 4
@@ -125,16 +121,15 @@ class MixerMlp(BaseLayer):
             add_shape = x.value.shape[-1] * 4
             add_basetile_shape = x.value.shape[-1] * 4
             init_shape = x.value.shape[-1]
-        linear_1_layer, next_tag = Linear.generate_simple(x, side, notrans, 1,
-                [add_shape], [add_basetile_shape], next_tag, bias=False)
-        act_layer, next_tag = Act.generate_simple(linear_1_layer.y, 'gelu',
-                next_tag)
-        linear_2_layer, next_tag = Linear.generate_simple(act_layer.y, side,
-                notrans, 1, [init_shape], [init_shape], next_tag, bias=False)
+        linear_1_layer = Linear.generate_simple(x, side, notrans, 1,
+                [add_shape], [add_basetile_shape], bias=False)
+        act_layer = Act.generate_simple(linear_1_layer.y, 'gelu')
+        linear_2_layer = Linear.generate_simple(act_layer.y, side,
+                notrans, 1, [init_shape], [init_shape], bias=False)
         layer = MixerMlp(side, x, linear_2_layer.y, linear_1_layer,
                 linear_2_layer, act_layer)
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer
 
     def forward_async(self):
         self.linear_1.forward_async()
@@ -195,18 +190,15 @@ class Mixer(BaseLayer):
 
     # Simple generator for the mixer layer
     @staticmethod
-    def generate_simple(x: TensorMoments, next_tag: int):
+    def generate_simple(x: TensorMoments):
         eps = 1e-5
-        norm_1_layer, next_tag = LayerNorm.generate_simple(x, 2, eps, next_tag)
-        mlp_layer1, next_tag = MixerMlp.generate_simple(norm_1_layer.y, 'R',
-                next_tag)
-        norm_2_layer, next_tag = LayerNorm.generate_simple(mlp_layer1.y, 2,
-                eps, next_tag)
-        mlp_layer2, next_tag = MixerMlp.generate_simple(norm_2_layer.y, 'L',
-                next_tag)
+        norm_1_layer = LayerNorm.generate_simple(x, 2, eps)
+        mlp_layer1 = MixerMlp.generate_simple(norm_1_layer.y, 'R')
+        norm_2_layer = LayerNorm.generate_simple(mlp_layer1.y, 2, eps)
+        mlp_layer2 = MixerMlp.generate_simple(norm_2_layer.y, 'L')
         layer = Mixer(x, mlp_layer2.y, norm_1_layer, norm_2_layer, mlp_layer1,
                 mlp_layer2)
-        return layer, next_tag
+        return layer
 
     # Forward propagation of the mixer layer
     def forward_async(self):

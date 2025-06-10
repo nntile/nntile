@@ -17,7 +17,6 @@ from nntile.tensor import TensorMoments, notrans
 
 
 class DeepLinear(BaseModel):
-    next_tag: int
 
     # Construct model with all the provided data
     def __init__(
@@ -28,7 +27,6 @@ class DeepLinear(BaseModel):
         add_shape: int,
         add_basetile_shape: int,
         nlayers: int,
-        next_tag: int,
     ):
         # Check parameter side
         if side != "L" and side != "R":
@@ -43,21 +41,20 @@ class DeepLinear(BaseModel):
         activations = [x]
         layers = []
         # Initial linear layer that converts input to internal shape
-        new_layer, next_tag = Linear.generate_simple(
-            x, side, notrans, ndim, [add_shape], [add_basetile_shape], next_tag
+        new_layer = Linear.generate_simple(
+            x, side, notrans, ndim, [add_shape], [add_basetile_shape]
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         # Internal linear layers with the same internal shape
         for i in range(1, nlayers - 1):
-            new_layer, next_tag = Linear.generate_simple(
+            new_layer = Linear.generate_simple(
                 activations[-1],
                 side,
                 notrans,
                 1,
                 [add_shape],
                 [add_basetile_shape],
-                next_tag,
             )
             layers.append(new_layer)
             activations.extend(new_layer.activations_output)
@@ -68,12 +65,11 @@ class DeepLinear(BaseModel):
         else:
             new_shape = x.value.shape[:ndim]
             new_base = x.value.basetile_shape[:ndim]
-        new_layer, next_tag = Linear.generate_simple(
-            activations[-1], side, notrans, 1, new_shape, new_base, next_tag
+        new_layer = Linear.generate_simple(
+            activations[-1], side, notrans, 1, new_shape, new_base
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
-        self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
 

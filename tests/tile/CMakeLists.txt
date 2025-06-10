@@ -19,7 +19,6 @@ set(TESTS
     "add_slice_inplace"
     "add_slice"
     "addcdiv"
-    "axpy"
     "clear"
     "copy"
     "copy_intersection"
@@ -36,9 +35,9 @@ set(TESTS
     "logsumexp"
     "maximum"
     "maxsumexp"
+    "norm_fiber"
+    "norm_fiber_inplace"
     "norm_slice"
-    "normalize"
-    "nrm2"
     "pow"
     "prod_inplace"
     "prod_fiber"
@@ -55,7 +54,6 @@ set(TESTS
     "subtract_indexed_column"
     "sum_fiber"
     "sum_slice"
-    "sumnorm"
     "sumprod_fiber"
     "sumprod_slice"
     "tile"
@@ -63,9 +61,7 @@ set(TESTS
     "traits"
     "scal"
     "hypot"
-    "norm_fiber"
-    "norm_fiber_inplace"
-    )
+)
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
@@ -90,7 +86,7 @@ set(TESTS_NOT_IMPLEMENTED
     "hypot"
     "add_slice"
     "prod_fiber3"
-    )
+)
 
 # Add target for local coverage
 if(BUILD_COVERAGE)
@@ -113,5 +109,5 @@ foreach(test IN LISTS TESTS)
         COV_NAME coverage_tile_${test}
         COV_GLOBAL coverage_tile coverage
         LABELS ${labels}
-        )
+    )
 endforeach()

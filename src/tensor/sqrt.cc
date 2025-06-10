@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/sqrt.hh"
 #include "nntile/starpu/sqrt.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -57,7 +58,7 @@ void sqrt_async(const Tensor<T> &src, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto tile_traits = src.get_tile_traits(i);
-            starpu::sqrt::submit<T>(tile_traits.nelems, src_tile_handle,
+            starpu::sqrt.submit<std::tuple<T>>(tile_traits.nelems, src_tile_handle,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -83,11 +84,41 @@ void sqrt_async<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 template
 void sqrt_async<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
+template
+void sqrt_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+        const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void sqrt_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void sqrt_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+        const Tensor<fp32_fast_bf16_t> &dst);
+
+template
+void sqrt_async<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
+
 // Explicit instantiation
 template
 void sqrt<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 
 template
 void sqrt<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
+
+template
+void sqrt<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+        const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void sqrt<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void sqrt<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+        const Tensor<fp32_fast_bf16_t> &dst);
+
+template
+void sqrt<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
 
 } // namespace nntile::tensor

@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/starpu/norm_fiber_inplace.hh"
 #include "nntile/kernel/norm_fiber_inplace.hh"
 #include "../testing.hh"
@@ -30,7 +31,7 @@ template<typename T>
 void validate_cpu(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
 {
     using Y = typename T::repr_t;
-    const Y eps = T::epsilon();
+    const Y eps = T::epsilon;
     // Init all the data
     std::vector<T> src1(m*n*k*batch);
     std::vector<T> dst(k*batch);
@@ -52,15 +53,15 @@ void validate_cpu(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar b
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::norm_fiber_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::norm_fiber_inplace::cpu<" << T::short_name << ">\n";
     kernel::norm_fiber_inplace::cpu<T>(m, n, k, batch, alpha, &src1[0], beta, &dst[0]);
     // Check by actually submitting a task
-    VariableHandle src1_handle(&src1[0], sizeof(T)*m*n*k*batch, STARPU_R);
-    VariableHandle dst2_handle(&dst2[0], sizeof(T)*k*batch, STARPU_RW);
-    norm_fiber_inplace::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::norm_fiber_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
+    VariableHandle src1_handle(&src1[0], sizeof(T)*m*n*k*batch);
+    VariableHandle dst2_handle(&dst2[0], sizeof(T)*k*batch);
+    norm_fiber_inplace.restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::norm_fiber_inplace::submit<" << T::short_name << "> restricted to CPU\n";
     int redux = 0;
-    norm_fiber_inplace::submit<T>(m, n, k, batch, alpha, src1_handle, beta, dst2_handle, redux);
+    norm_fiber_inplace.submit<std::tuple<T>>(m, n, k, batch, alpha, src1_handle, beta, dst2_handle, redux);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -68,15 +69,17 @@ void validate_cpu(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar b
     {
         TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::norm_fiber_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::norm_fiber_inplace::submit<" << T::short_name << "> restricted to CPU\n";
 }
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 1, 0);
-    // Init codelet
-    norm_fiber_inplace::init();
+    // Initialize StarPU
+    int ncpu=1, ncuda=1, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
     // Launch all tests
     validate_cpu<fp64_t>(32, 32, 10, 1, 1.0, 0.0);
     validate_cpu<fp64_t>(32, 9, 10, 1, 1.0, 0.0);

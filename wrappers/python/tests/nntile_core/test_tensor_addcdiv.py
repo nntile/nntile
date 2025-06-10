@@ -25,24 +25,16 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
 addcdiv = {np.float32: nntile.nntile_core.tensor.addcdiv_fp32,
            np.float64: nntile.nntile_core.tensor.addcdiv_fp64}
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
-
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_addcdiv(dtype):
+def test_addcdiv(context, dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
-    mpi_distr = [0]
-    next_tag = 0
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    B = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = B.next_tag
-    C = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = C.next_tag
+    A = Tensor[dtype](traits)
+    B = Tensor[dtype](traits)
+    C = Tensor[dtype](traits)
 
     # Set initial values of tensors
     rng = np.random.default_rng(42)

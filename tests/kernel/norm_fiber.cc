@@ -74,7 +74,7 @@ template<typename T>
 void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
 {
     using Y = typename T::repr_t;
-    const Y eps = T::epsilon();
+    const Y eps = T::epsilon;
     // Init test input
     std::vector<T> src1(m*n*k*batch);
     std::vector<T> src2(k*batch);
@@ -99,7 +99,7 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     constexpr Y zero{0.0}, one{1.0};
     std::vector<T> dst_copy(dst);
     // Check low-level kernel
-    std::cout << "OK: kernel::norm_fiber::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::norm_fiber::cpu<" << T::short_name << ">\n";
     cpu<T>(m, n, k, batch, alpha, &src1[0], beta, &src2[0], &dst[0]);
     Y ref = std::sqrt(m*n + beta*10.0*10.0);
     for(Index i = 0; i < dst.size(); ++i)
@@ -114,12 +114,12 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
             TEST_ASSERT(std::abs(val/ref-Y{1}) <= 10*eps);
         }
     }
-    std::cout << "OK: kernel::norm_fiber::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::norm_fiber::cpu<" << T::short_name << ">\n";
 
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     std::vector<T> dst_cuda(dst_copy);
-    std::cout << "Run kernel::norm_fiber::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::norm_fiber::cuda<" << T::short_name << ">\n";
     run_cuda<T>(m, n, k, batch, alpha, src1, beta, src2, dst_cuda);
     for(Index i = 0; i < dst_cuda.size(); ++i)
     {
@@ -133,7 +133,7 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
             TEST_ASSERT(std::abs(val_cuda/ref-Y{1}) <= 10*eps);
         }
     }
-    std::cout << "OK: kernel::norm_fiber::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::norm_fiber::cuda<" << T::short_name << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

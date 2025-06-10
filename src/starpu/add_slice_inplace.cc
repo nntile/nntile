@@ -12,20 +12,30 @@
  * @version 1.1.0
  * */
 
+// Corresponding header
 #include "nntile/starpu/add_slice_inplace.hh"
-#include "nntile/starpu/add_inplace.hh"
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/add_slice_inplace.hh"
-#endif // STARPU_SIMGRID
+
+// Standard libraries
 #include <cstdlib>
 
-//! StarPU wrappers for add_slice_inplace operation
-namespace nntile::starpu::add_slice_inplace
+// Other NNTile headers
+#include "nntile/kernel/add_slice_inplace.hh"
+#include "nntile/starpu/add_inplace.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+AddSliceInplace<std::tuple<T>>::AddSliceInplace():
+    codelet("nntile_add_slice_inplace", footprint, cpu_funcs, cuda_funcs)
+{
+    // Modes are not fixed, they are decided during runtime by default
+}
 
 //! StarPU wrapper for kernel::add_slice_inplace::cpu<T>
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void AddSliceInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -36,15 +46,40 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::add_slice_inplace::cpu<T>(args->m, args->n, args->k, args->alpha, src,
-            args->beta, dst);
+    kernel::add_slice_inplace::cpu<T>(
+        args->m, args->n, args->k, args->alpha, src, args->beta, dst);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! StarPU wrapper for kernel::add_slice_inplace::cuda<T>
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void AddSliceInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -57,19 +92,43 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::add_slice_inplace::cuda<T>(stream, args->m, args->n, args->k, args->alpha,
-            src, args->beta, dst);
+    kernel::add_slice_inplace::cuda<T>(
+        stream, args->m, args->n, args->k, args->alpha, src, args->beta, dst);
 #endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void AddSliceInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    AddSliceInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for add_slice_inplace tasks
-static
-uint32_t footprint(struct starpu_task *task)
+template<typename T>
+uint32_t AddSliceInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t*>(task->cl_arg);
-    // Apply hash over parameters m, n and k
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
     hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
@@ -77,94 +136,16 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
-
-void init()
-{
-    codelet_fp32.init("nntile_add_slice_inplace_fp32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_bf16.init("nntile_add_slice_inplace_bf16",
-            footprint,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_fp16.init("nntile_add_slice_inplace_fp32_fast_fp16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_bf16.init("nntile_add_slice_inplace_fp32_fast_bf16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp64.init("nntile_add_slice_inplace_fp64",
-            footprint,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_add_slice_inplace_fp32_fast_tf32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp32_fast_fp16.restrict_where(where);
-    codelet_fp32_fast_bf16.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp32_fast_fp16.restore_where();
-    codelet_fp32_fast_bf16.restore_where();
-    codelet_fp64.restore_where();
-}
-
 template<typename T>
-void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta, Handle dst)
+void AddSliceInplace<std::tuple<T>>::submit(
+    Index m,
+    Index n,
+    Index k,
+    Scalar alpha,
+    Handle src,
+    Scalar beta,
+    Handle dst
+)
 //! Insert add_slice_inplace task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -175,7 +156,7 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta, Ha
     // If k is 1, then this operation reduces to add
     if(k == 1)
     {
-        add_inplace::submit<T>(m*n, alpha, src, beta, dst);
+        add_inplace.submit<std::tuple<T>>(m*n, alpha, src, beta, dst);
         return;
     }
     // Access mode for the dst handle
@@ -186,7 +167,7 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta, Ha
     }
     else if(beta == one)
     {
-        dst_mode = Config::STARPU_RW_COMMUTE;
+        dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
     }
     else
     {
@@ -203,10 +184,10 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta, Ha
     double nflops = beta == zero ? sizeof(T)*m*(k+1)*n :
             sizeof(T)*m*(2*k+1)*n;
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
+    int ret = starpu_task_insert(&codelet,
+            STARPU_R, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            dst_mode, static_cast<starpu_data_handle_t>(dst),
+            dst_mode, dst.get(),
             STARPU_FLOPS, nflops,
             0);
     // Check submission
@@ -217,28 +198,16 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta, Ha
 }
 
 // Explicit instantiation
-template
-void submit<fp32_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
-        Scalar beta, Handle dst);
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class AddSliceInplace<std::tuple<nntile::fp64_t>>;
+template class AddSliceInplace<std::tuple<nntile::fp32_t>>;
+template class AddSliceInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class AddSliceInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class AddSliceInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class AddSliceInplace<std::tuple<nntile::bf16_t>>;
 
-template
-void submit<bf16_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
-        Scalar beta, Handle dst);
+//! Pack of add_slice_inplace operations for different types
+add_slice_inplace_pack_t add_slice_inplace;
 
-template
-void submit<fp32_fast_fp16_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
-        Scalar beta, Handle dst);
-
-template
-void submit<fp32_fast_bf16_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
-        Scalar beta, Handle dst);
-
-template
-void submit<fp64_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
-        Scalar beta, Handle dst);
-
-template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha,
-        Handle src, Scalar beta, Handle dst);
-
-} // namespace nntile::starpu::add_slice_inplace
+} // namespace nntile::starpu

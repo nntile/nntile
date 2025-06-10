@@ -132,20 +132,23 @@ print(model_torch.config)
 
 # Initialize NNTile and StarPU
 time0 = time.time()
-# Set up StarPU+MPI and init codelets
-nntile_config = nntile.starpu.Config(-1, -1, 1, args.logger,
-        args.logger_server_addr, args.logger_server_port)
+context = nntile.Context(
+    ncpu=-1,
+    ncuda=-1,
+    ooc=0,
+    logger=args.logger,
+    logger_addr=args.logger_server_addr,
+    logger_port=args.logger_server_port,
+    verbose=0)
 nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
-nntile.starpu.init()
 # Restrict computations to CUDA if possible
 if args.restrict == "cuda":
-    nntile.starpu.restrict_cuda()
+    context.restrict_cuda()
 elif args.restrict == "cpu":
-    nntile.starpu.restrict_cpu()
+    context.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
-next_tag = 0
 
 time0 = time.time()
 if args.n_head_tile == -1:
@@ -167,18 +170,18 @@ bert_config_nntile = BertConfigNNTile(
     intermediate_size_tile=args.intermediate_size_tile,
     n_head_tile=args.n_head_tile,
     dtype=args.dtype,
-    # flash_attention=args.flash_attention
+    redux=args.use_redux,
+    flashattention=args.flash_attention
 )
 
 print(bert_config_nntile)
 
-bert_nntile, next_tag = BertForMaskedLM_nntile.from_torch(model_torch,
+bert_nntile = BertForMaskedLM_nntile.from_torch(model_torch,
                                                 args.minibatch_size,
                                                 args.minibatch_size_tile,
                                                 args.seq_len,
                                                 args.seq_len_tile,
-                                                bert_config_nntile,
-                                                next_tag)
+                                                bert_config_nntile)
 time1 = time.time() - time0
 print("Converting PyTorch model to NNTile",
         "requires {} seconds".format(time1))
@@ -215,30 +218,27 @@ batch_labels = []
 x_traits = nntile.tensor.TensorTraits(
         [args.seq_len, args.minibatch_size],
         [args.seq_len_tile, args.minibatch_size_tile])
-x_distr = [0] * x_traits.grid.nelems
 
 rng = np.random.default_rng()
 for mask_idx in range(args.n_masks_per_seq):
     for i in range(num_train_batches):
         minibatch_masked_data = []
         minibatch_labels = []
+        current_mask = np.zeros((args.minibatch_size,
+                                 args.seq_len), dtype=bool)
+        idx_masked_tokens = rng.choice(args.seq_len,
+                                       size=(args.n_masked_tokens_per_seq,),
+                                       replace=False)
+        current_mask[:, idx_masked_tokens] = 1
+        inverse_current_mask = np.array(1 - current_mask, dtype=bool)
         for j in range(num_minibatch):
-            current_mask = np.zeros((args.minibatch_size,
-                                     args.seq_len), dtype=bool)
-            idx_masked_tokens = rng.choice(args.seq_len,
-                                           size=(args.minibatch_size,
-                                                 args.n_masked_tokens_per_seq))
-            current_mask[:, idx_masked_tokens] = 1
-            x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-            next_tag = x.next_tag
+            x = nntile.tensor.Tensor_int64(x_traits)
             current_minibatch = train_tokens[i, j, :, :].copy()
             current_minibatch[current_mask] = args.label_mask_token
             x.from_array(np.asfortranarray(current_minibatch).T)
             minibatch_masked_data.append(x)
-            y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-            next_tag = y.next_tag
+            y = nntile.tensor.Tensor_int64(x_traits)
             current_label = train_tokens[i, j, :, :].copy()
-            inverse_current_mask = np.array(1 - current_mask, dtype=bool)
             # Ignore index -100
             current_label[inverse_current_mask] = -100
             y.from_array(np.asfortranarray(current_label.T))
@@ -250,19 +250,17 @@ print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
 # Set up learning rate and optimizer for training
 if args.optimizer == "adam":
     optimizer = nntile.optimizer.Adam(bert_nntile.get_parameters(),
-            args.lr, next_tag)
+            args.lr)
 elif args.optimizer == "adamw":
     optimizer = nntile.optimizer.AdamW(bert_nntile.get_parameters(),
-            args.lr, next_tag)
+            args.lr)
 elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(bert_nntile.get_parameters(),
-            args.lr, next_tag)
-next_tag = optimizer.get_next_tag()
+            args.lr)
 # Define Cross Entropy loss function
-loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-        bert_nntile.activations[-1], next_tag,
-        scale=1.0 / (args.batch_size * args.n_masks_per_seq *
-                     args.n_masked_tokens_per_seq))
+loss = nntile.loss.CrossEntropy.generate_simple(
+        bert_nntile.activations[-1],
+        scale=1.0 / (args.batch_size * args.n_masked_tokens_per_seq))
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_masked_data, batch_labels,
         bert_nntile, optimizer, loss, args.nepochs)

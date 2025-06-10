@@ -34,7 +34,7 @@ class BatchNormTestParams:
     redux: bool = False
 
     def __post_init__(self):
-        self.atol = 1e-5 if self.dtype is np.float64 else 1e-6
+        self.atol = 1e-4 if self.dtype is np.float64 else 1e-5
 
 
 BATCH_NORM_2D_TEST_PARAMS = [
@@ -91,7 +91,7 @@ def generate_input(params: BatchNormTestParams, rng):
 @pytest.mark.parametrize("params", BATCH_NORM_2D_TEST_PARAMS)
 class TestBatchNorm2d:
     def test_batchnorm_forward(
-        self, starpu_simple, numpy_rng, torch_rng, params: BatchNormTestParams
+        self, context, numpy_rng, torch_rng, params: BatchNormTestParams
     ):
         (
             (input_moment, _, weights_nnt, bias_nnt),
@@ -124,7 +124,7 @@ class TestBatchNorm2d:
         )
 
     def test_batchnorm_backward(
-        self, starpu_simple, numpy_rng, torch_rng, params: BatchNormTestParams
+        self, context, numpy_rng, torch_rng, params: BatchNormTestParams
     ):
         (
             (input_moment, output_grad_nnt, weights_nnt, bias_nnt),

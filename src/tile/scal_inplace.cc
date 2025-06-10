@@ -23,7 +23,7 @@ template<typename T>
 void scal_inplace_async(Scalar alpha, const Tile<T> &data)
 {
     // Insert task
-    starpu::scal_inplace::submit<T>(data.nelems, alpha, data);
+    starpu::scal_inplace.submit<std::tuple<T>>(data.nelems, alpha, data);
 }
 
 //! Tile-wise scal_inplaceing

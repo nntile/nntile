@@ -125,9 +125,9 @@ def generate_inputs(params: GPT2TestParams,
     )
     gen = np.random.default_rng(42)
 
-    nntile_model, _ = GPT2Model.from_torch(
+    nntile_model = GPT2Model.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
-            params.seq_len, params.seq_len_tile, nntile_config, 0)
+            params.seq_len, params.seq_len_tile, nntile_config)
     nntile_model.clear_gradients()
     x_random = gen.integers(params.seq_len,
                             size=nntile_model.activations[0].value.shape,
@@ -159,7 +159,7 @@ def generate_inputs(params: GPT2TestParams,
 ])
 @pytest.mark.parametrize('num_hidden_layers', [1, 2, 3])
 class TestGPT2Model:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: GPT2TestParams,
                       dtype: str,
                       num_hidden_layers: int):
@@ -175,7 +175,7 @@ class TestGPT2Model:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: GPT2TestParams,
                      dtype: str,
                      num_hidden_layers: int):
@@ -190,7 +190,7 @@ class TestGPT2Model:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
 
-    def test_backward(self, starpu_simple, torch_rng,
+    def test_backward(self, context, torch_rng,
                               params: GPT2TestParams,
                               dtype: str,
                               num_hidden_layers: int):

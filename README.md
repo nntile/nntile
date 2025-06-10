@@ -44,11 +44,14 @@ Main contributors are:
 
 Authors of the **NNTile** would like to thank Ivan Oseledets for bringing idea
 of this project to life.
+
 The work was generously supported by the Center in the field of Artificial
 Intelligence in the direction of optimizing management decisions to reduce the
 carbon footprint on the basis of the Skolkovo Institute of Science and
 Technology under Contract No. 70-2021-00145/10841 dated 02.11.2021 (items
 2.3.1, 2.3.3, 3.3.2 and 3.3.4) and Contract No. 10825/3978620 dated 26.08.2021.
+
+This work was supported by FASIE (fasie.ru).
 
 ## Assembly
 
@@ -86,6 +89,14 @@ Argument `CUDA_ARCHS` defines target CUDA architectures to be supported by
 
 NNTile does supports CUDA devices only of compute capability 8.0 or higher
 
+## Jupyter notebook examples
+
+Several examples (GPT2, LLaMa) can be found in `notebooks` directory. With a present
+docker image one can launch Jupyter server with a help of the following command:
+```shell
+docker run -it --gpus all -p 8888:8888 nntile /bin/bash -c "jupyter notebook --notebook-dir=/workspace/nntile --ip='*' --port=8888 --no-browser --allow-root"
+```
+
 ## Minimal working GPT example
 
 To make **NNTile** train your custom GPT model there is a minimal working example
@@ -97,7 +108,7 @@ does it with a help of its special script
 [prepare.py](https://github.com/karpathy/nanogpt/data/openwebtext/prepare.py)
 for the OpenWebText.
 
-To try the example, launch a docker container based on the `ghcr.io/skolai/nntile:1.0.0-starpu1.3.11-cuda12.2.0-ubuntu22.04` docker image. Once inside the sandbo environment (docker container), try the following command:
+To try the example, launch a docker container based on the `ghcr.io/nntile/nntile:1.1.0-starpu1.4.7-cuda12.4.0-ubuntu22.04` docker image. Once inside the sandbo environment (docker container), try the following command:
 ```shell
 CUDA_VISIBLE_DEVICES=0 STARPU_NCPU=2 python /workspace/nntile/wrappers/python/examples/gpt2_custom_training.py --config-path=/workspace/nntile/wrappers/python/examples/gpt2_default_config.json --tokenizer=gpt2 --tokenizer-path=data --batch=1024 --minibatch=4 --minibatch-tile=4 --seq-tile=1024 --embd-tile=768 --inner-tile=3072 --head-tile=12 --restrict=cuda --flashattention --nforward=10 --nforward-warmup=10 --nbackward=10 --nbackward-warmup=10 --dataset=WikiText-103 --dataset-path=data --dataset-select=40000 --optimizer=fusedadamw --optimizer-eps=1e-8 --weight-decay=0.1 --loss-reduction=mean --lr=3e-4 --start-lr=0 --full-lr-iter=10 --nepochs=1 --nepochs-warmup=1
 ```

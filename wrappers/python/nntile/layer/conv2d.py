@@ -56,7 +56,7 @@ class Conv2d(BaseLayer):
     def generate_simple(x: TensorMoments, kernel_shape: Sequence[int],
             out_channels: int, padding: Sequence[int] = [0, 0],
             stride: Sequence[int] = [1, 1], dilation: Sequence[int] = [1, 1],
-            next_tag: int = 0, redux: bool = False):
+            redux: bool = False):
         # Define shapes
         w_shape = kernel_shape + [x.value.shape[2], out_channels]
         y_shape_w = x.value.shape[0] + 2 * padding[0] - 1 \
@@ -71,29 +71,25 @@ class Conv2d(BaseLayer):
         # Define W
         w_traits = TensorTraits(w_shape, w_shape)
         w_distr = [0]
-        w_value = type(x.value)(w_traits, w_distr, next_tag)
-        next_tag = w_value.next_tag
+        w_value = type(x.value)(w_traits, w_distr)
         # Create gradient of W with the same traits and distribution as W
-        w_grad = type(x.value)(w_traits, w_distr, next_tag)
-        next_tag = w_grad.next_tag
+        w_grad = type(x.value)(w_traits, w_distr)
         # Define W as TensorMoments
         w = TensorMoments(w_value, w_grad, True)
         # Define Y
         y_traits = TensorTraits(y_shape, y_tile)
         # TODO change distribution
         y_distr = [0] * y_traits.grid.nelems
-        y_value = type(x.value)(y_traits, y_distr, next_tag)
-        next_tag = y_value.next_tag
+        y_value = type(x.value)(y_traits, y_distr)
         # Create gradient of Y with the same traits and distribution as Y
-        y_grad = type(x.value)(y_traits, y_distr, next_tag)
-        next_tag = y_grad.next_tag
+        y_grad = type(x.value)(y_traits, y_distr)
         # Define Y as TensorMoments
         y = TensorMoments(y_value, y_grad, True)
         # Create linear layer with all the provided data
         layer = Conv2d(x, y, w, padding=padding, stride=stride,
                 dilation=dilation, redux=redux)
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer
 
     # Forward propagation of the conv2d layer
     def forward_async(self):
@@ -129,18 +125,17 @@ class Conv2d(BaseLayer):
         return torch_layer
 
     @classmethod
-    def from_torch(cls, torch_layer, x, next_tag):
+    def from_torch(cls, torch_layer, x):
         redux = 0
-        nntile_layer, next_tag = cls.generate_simple(x,
+        nntile_layer = cls.generate_simple(x,
                 list(torch_layer.kernel_size[::-1]),
                 torch_layer.out_channels,
                 padding=torch_layer.padding[::-1],
                 stride=torch_layer.stride[::-1],
                 dilation=torch_layer.dilation[::-1],
-                next_tag=next_tag,
                 redux=redux
         )
         nntile_layer.w.value.from_array(
                 torch_layer.weight.detach().cpu().numpy().T
         )
-        return nntile_layer, next_tag
+        return nntile_layer

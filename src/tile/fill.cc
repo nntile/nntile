@@ -25,7 +25,7 @@ template<typename T>
 void fill_async(Scalar val, const Tile<T> &A)
 {
     // Submit task without any arguments checked
-    starpu::fill::submit<T>(A.nelems, val, A);
+    starpu::fill.submit<std::tuple<T>>(A.nelems, val, A);
 }
 
 //! Blocking version of tile-wise flll operation

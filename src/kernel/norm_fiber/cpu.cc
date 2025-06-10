@@ -141,9 +141,4 @@ void cpu<bf16_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
         const bf16_t *src1, Scalar beta, const bf16_t *src2, bf16_t *dst)
     noexcept;
 
-template
-void cpu<fp32_fast_tf32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        const fp32_fast_tf32_t *src1, Scalar beta, const fp32_fast_tf32_t *src2, fp32_fast_tf32_t *dst)
-    noexcept;
-
 } // namespace nntile::kernel::norm_fiber

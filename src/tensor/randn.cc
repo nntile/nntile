@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/randn.hh"
 #include "nntile/starpu/randn.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -61,24 +62,8 @@ void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
                     "underlying_shape[i]");
         }
     }
-    // Tackle ndim=0 case
-    if(ndim == 0)
-    {
-        auto tile_handle = dst.get_tile_handle(0);
-        int tile_rank = tile_handle.mpi_get_rank();
-        if(mpi_rank == tile_rank)
-        {
-            starpu::Handle null_handle;
-            starpu::randn::submit<T>(0, 1, seed, mean, stddev, start,
-                    dst.shape, dst.stride, underlying_shape, tile_handle,
-                    null_handle);
-        }
-        // Flush cache for the output tile on every node
-        tile_handle.mpi_flush();
-        return;
-    }
     // Temporary index
-    starpu::VariableHandle tmp_index(sizeof(int64_t)*2*ndim, STARPU_SCRATCH);
+    starpu::VariableHandle tmp_index(sizeof(int64_t)*2*ndim);
     // Now do the job
     std::vector<Index> tile_start(start), tile_index(dst.ndim);
     for(Index i = 0; i < dst.grid.nelems; ++i)
@@ -90,9 +75,9 @@ void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
         if(mpi_rank == tile_rank)
         {
             auto tile_traits = dst.get_tile_traits(i);
-            starpu::randn::submit<T>(ndim, tile_traits.nelems, seed, mean,
-                    stddev, tile_start, tile_traits.shape, tile_traits.stride,
-                    underlying_shape, tile_handle, tmp_index);
+            starpu::randn.submit<std::tuple<T>>(ndim, tile_traits.nelems, seed, mean,
+                stddev, tile_start, tile_traits.shape, tile_traits.stride,
+                underlying_shape, tile_handle, tmp_index);
         }
         // Flush cache for the output tile on every node
         tile_handle.mpi_flush();
@@ -113,6 +98,8 @@ void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
             tile_start[j] += dst.basetile_shape[j];
         }
     }
+    // Unregister scratch buffer in an async manner
+    tmp_index.unregister_submit();
 }
 
 //! Blocking version of tensor-wise random generation operation
@@ -153,6 +140,18 @@ void randn_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &dst,
         Scalar mean, Scalar stddev);
 
 template
+void randn_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &dst,
+        const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        Scalar mean, Scalar stddev);
+
+template
+void randn_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &dst,
+        const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        Scalar mean, Scalar stddev);
+
+template
 void randn_async<fp64_t>(const Tensor<fp64_t> &dst,
         const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
@@ -172,6 +171,16 @@ void randn<fp32_t>(const Tensor<fp32_t> &dst, const std::vector<Index> &start,
 
 template
 void randn<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &dst, const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        Scalar mean, Scalar stddev);
+
+template
+void randn<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &dst, const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        Scalar mean, Scalar stddev);
+
+template
+void randn<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 

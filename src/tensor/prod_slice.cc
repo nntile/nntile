@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/prod_slice.hh"
 #include "nntile/starpu/prod_slice.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -115,7 +116,7 @@ void prod_slice_async(const Tensor<T> &src, Scalar alpha, const Tensor<T> &dst,
                 n = dst_tile_traits.matrix_shape[axis+1][1];
                 k = dst_tile_traits.shape[axis];
                 // Insert corresponding task
-                starpu::prod_slice::submit<T>(m, n, k, alpha, src_tile_handle,
+                starpu::prod_slice.submit<std::tuple<T>>(m, n, k, alpha, src_tile_handle,
                         dst_tile_handle);
             }
             // Flush cache for the output tile on every node

@@ -72,7 +72,7 @@ template<typename T>
 void validate(Index nelems, int test_index_a, int test_index_b)
 {
     using Y = typename T::repr_t;
-    const Y eps = 2 * T::epsilon();
+    const Y eps = 2 * T::epsilon;
     // Init test input
     Scalar alpha = (1.0)/Scalar(test_index_a);
     Scalar beta = (1.0)/Scalar(test_index_b);
@@ -83,25 +83,25 @@ void validate(Index nelems, int test_index_a, int test_index_b)
         dst[i] = Y(2*nelems-i);
     }
     std::vector<T> dst_save(dst);
-    std::cout << "Run kernel::add_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::add_inplace::cpu<" << T::short_name << ">\n";
     add_inplace::cpu<T>(nelems, alpha, &src[0], beta, &dst[0]);
     for(Index i = 0; i < nelems; ++i)
     {
         Y val_ref = alpha*Y(2*i+1-nelems) + beta*Y(2*nelems-i);
         TEST_ASSERT(std::abs(Y{dst[i]}-val_ref)/std::abs(val_ref) <= eps);
     }
-    std::cout << "OK: kernel::add_inplace::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::add_inplace::cpu<" << T::short_name << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run kernel::add_inplace::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::add_inplace::cuda<" << T::short_name << ">\n";
     run_cuda<T>(nelems, alpha, src, beta, dst);
     for(Index i = 0; i < nelems; ++i)
     {
         Y val_ref = alpha*Y(2*i+1-nelems) + beta*Y(2*nelems-i);
         TEST_ASSERT(std::abs(Y{dst[i]}-val_ref)/std::abs(val_ref) <= eps);
     }
-    std::cout << "OK: kernel::add_inplace::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::add_inplace::cuda<" << T::short_name << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

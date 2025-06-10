@@ -35,7 +35,7 @@ void gelu_backward_async(const Tile<T> &x, const Tile<T> &dy,
         throw std::runtime_error("x.shape != dx.shape");
     }
     // Submit task without any arguments checked
-    starpu::gelu_backward::submit<T>(x.nelems, x, dy, dx);
+    starpu::gelu_backward.submit<std::tuple<T>>(x.nelems, x, dy, dx);
 }
 
 //! Blocking version of tile-wise backward GeLU operation
@@ -54,6 +54,22 @@ void gelu_backward_async<fp32_t>(const Tile<fp32_t> &x, const Tile<fp32_t> &dy,
         const Tile<fp32_t> &dx);
 
 template
+void gelu_backward_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &x,
+        const Tile<fp32_fast_tf32_t> &dy, const Tile<fp32_fast_tf32_t> &dx);
+
+template
+void gelu_backward_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &x,
+        const Tile<fp32_fast_bf16_t> &dy, const Tile<fp32_fast_bf16_t> &dx);
+
+template
+void gelu_backward_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &x,
+        const Tile<fp32_fast_fp16_t> &dy, const Tile<fp32_fast_fp16_t> &dx);
+
+template
+void gelu_backward_async<bf16_t>(const Tile<bf16_t> &x,
+        const Tile<bf16_t> &dy, const Tile<bf16_t> &dx);
+
+template
 void gelu_backward_async<fp64_t>(const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
         const Tile<fp64_t> &dx);
 
@@ -61,6 +77,22 @@ void gelu_backward_async<fp64_t>(const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
 template
 void gelu_backward<fp32_t>(const Tile<fp32_t> &x, const Tile<fp32_t> &dy,
         const Tile<fp32_t> &dx);
+
+template
+void gelu_backward<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &x,
+        const Tile<fp32_fast_tf32_t> &dy, const Tile<fp32_fast_tf32_t> &dx);
+
+template
+void gelu_backward<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &x,
+        const Tile<fp32_fast_bf16_t> &dy, const Tile<fp32_fast_bf16_t> &dx);
+
+template
+void gelu_backward<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &x,
+        const Tile<fp32_fast_fp16_t> &dy, const Tile<fp32_fast_fp16_t> &dx);
+
+template
+void gelu_backward<bf16_t>(const Tile<bf16_t> &x,
+        const Tile<bf16_t> &dy, const Tile<bf16_t> &dx);
 
 template
 void gelu_backward<fp64_t>(const Tile<fp64_t> &x, const Tile<fp64_t> &dy,

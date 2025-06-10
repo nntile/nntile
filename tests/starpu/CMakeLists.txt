@@ -29,12 +29,12 @@ set(TESTS
     "gelutanh"
     "gelutanh_inplace"
     "gelutanh_backward"
+    "gemm"
     "hypot"
     "logsumexp"
     "maximum"
     "maxsumexp"
     "norm_slice"
-    "normalize"
     "pow"
     "prod_inplace"
     "prod_fiber"
@@ -51,7 +51,6 @@ set(TESTS
     "subtract_indexed_column"
     "sum_fiber"
     "sum_slice"
-    "sumnorm"
     "sumprod_fiber"
     "sumprod_slice"
     "total_sum_accum"
@@ -85,6 +84,7 @@ set(TESTS_NOT_IMPLEMENTED
     "hypot"
     "add_slice"
     "prod_fiber3"
+    "maximum"
     )
 
 # Add target for local coverage
@@ -120,63 +120,3 @@ foreach(test IN LISTS TESTS)
         LABELS ${labels}
         )
 endforeach()
-
-# Add include path for generated axpy.cc
-set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/axpy.cc" PROPERTIES
-    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
-
-# Explicitly add axpy test since it was generated from axpy.cc.in
-add_test_set(TARGET_NAME tests_starpu_axpy
-    EXEC_NAME test_axpy
-    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/axpy.cc"
-    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CBLAS}>:BLAS::BLAS>
-    "$<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cublas;CUDA::cudart>"
-    COV_ENABLE ${BUILD_COVERAGE}
-    COV_NAME coverage_starpu_axpy
-    COV_GLOBAL coverage_starpu
-    )
-
-# Add include path for generated nrm2.cc
-set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/nrm2.cc" PROPERTIES
-    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
-
-# Explicitly add axpy test since it was generated from nrm2.cc.in
-add_test_set(TARGET_NAME tests_starpu_nrm2
-    EXEC_NAME test_nrm2
-    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/nrm2.cc"
-    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CBLAS}>:BLAS::BLAS>
-    "$<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cublas;CUDA::cudart>"
-    COV_ENABLE ${BUILD_COVERAGE}
-    COV_NAME coverage_starpu_nrm2
-    COV_GLOBAL coverage_starpu
-    )
-
-# Add include path for generated gemm.cc
-set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/gemm.cc" PROPERTIES
-    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
-
-# Explicitly add gemm test since it was generated from gemm.cc.in
-add_test_set(TARGET_NAME tests_starpu_gemm
-    EXEC_NAME test_gemm
-    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/gemm.cc"
-    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CBLAS}>:BLAS::BLAS>
-    "$<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cublas;CUDA::cudart>"
-    COV_ENABLE ${BUILD_COVERAGE}
-    COV_NAME coverage_starpu_gemm
-    COV_GLOBAL coverage_starpu
-    )
-
-# Add include path for generated scal_inplace.cc
-set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/scal_inplace.cc"
-    PROPERTIES INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
-
-# Explicitly add axpy test since it was generated from scal_inplace.cc.in
-add_test_set(TARGET_NAME tests_starpu_scal_inplace
-    EXEC_NAME test_scal_inplace
-    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/scal_inplace.cc"
-    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CBLAS}>:BLAS::BLAS>
-    "$<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cublas;CUDA::cudart>"
-    COV_ENABLE ${BUILD_COVERAGE}
-    COV_NAME coverage_starpu_scal_inplace
-    COV_GLOBAL coverage_starpu
-    )

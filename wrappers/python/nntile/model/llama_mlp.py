@@ -25,11 +25,9 @@ from .llama_config import LlamaConfigNNTile
 
 
 class LlamaMLP(BaseModel):
-    next_tag: int
 
     # Construct model with all the provided data
-    def __init__(self, x: TensorMoments, config: LlamaConfigNNTile,
-                 next_tag: int):
+    def __init__(self, x: TensorMoments, config: LlamaConfigNNTile):
         # Init activations and list of layers
         activations = [x]
         layers = []
@@ -42,61 +40,56 @@ class LlamaMLP(BaseModel):
         gemm_ndim = 1
         self.bias = config.mlp_bias
         # Initial linear layer that converts input to internal shape
-        gate_proj, next_tag = Linear.generate_simple(
+        gate_proj = Linear.generate_simple(
             x,
             "R",
             notrans,
             gemm_ndim,
             [self.intermediate_size],
             [intermediate_size_tile],
-            next_tag,
             redux=redux,
             bias=self.bias
         )
         layers.append(gate_proj)
         activations.extend(gate_proj.activations_output)
 
-        new_layer, next_tag = Act.generate_simple(
-            activations[-1], activation_function, next_tag
+        new_layer = Act.generate_simple(
+            activations[-1], activation_function
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        up_proj, next_tag = Linear.generate_simple(
+        up_proj = Linear.generate_simple(
             x,
             "R",
             notrans,
             gemm_ndim,
             [self.intermediate_size],
             [intermediate_size_tile],
-            next_tag,
             redux=redux,
             bias=self.bias
         )
         layers.append(up_proj)
         activations.extend(up_proj.activations_output)
-        self.next_tag = next_tag
 
-        prod_layer, next_tag = Prod.generate_simple(
-            activations[-2], activations[-1], next_tag
+        prod_layer = Prod.generate_simple(
+            activations[-2], activations[-1]
         )
         layers.append(prod_layer)
         activations.extend(prod_layer.activations_output)
 
-        down_proj, next_tag = Linear.generate_simple(
+        down_proj = Linear.generate_simple(
             activations[-1],
             "R",
             notrans,
             gemm_ndim,
             [self.hidden_size],
             [hidden_size_tile],
-            next_tag,
             redux=redux,
             bias=self.bias
         )
         layers.append(down_proj)
         activations.extend(down_proj.activations_output)
-        self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers, config)
 
@@ -120,16 +113,16 @@ class LlamaMLP(BaseModel):
 
     @staticmethod
     def from_torch(
-        torch_mlp, x: TensorMoments, config: LlamaConfigNNTile, next_tag: int
+        torch_mlp, x: TensorMoments, config: LlamaConfigNNTile
     ):
         """
         torch_mlp is PyTorch MLP where no biases in linear layers
         """
-        llama_mlp_nntile = LlamaMLP(x, config, next_tag)
+        llama_mlp_nntile = LlamaMLP(x, config)
         torch_params = list(torch_mlp.parameters())
         for i, p in enumerate(llama_mlp_nntile.parameters):
             p.value.from_array(torch_params[i].cpu().detach().numpy())
-        return llama_mlp_nntile, llama_mlp_nntile.next_tag
+        return llama_mlp_nntile
 
     def to_torch(self):
         config_torch = LlamaConfig_torch(hidden_size=self.hidden_size,

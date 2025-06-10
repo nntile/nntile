@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/maxsumexp.hh"
 #include "nntile/starpu/maxsumexp.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -116,7 +117,7 @@ void maxsumexp_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis,
                 n = src_tile_traits.matrix_shape[axis+1][1];
                 k = src_tile_traits.shape[axis];
                 // Insert task
-                starpu::maxsumexp::submit<T>(m, n, k, src_tile_handle,
+                starpu::maxsumexp.submit<std::tuple<T>>(m, n, k, src_tile_handle,
                         dst_tile_handle, redux);
             }
         }

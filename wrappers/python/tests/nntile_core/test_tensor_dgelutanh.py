@@ -18,9 +18,6 @@ from scipy.special import erf
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
-
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
@@ -47,14 +44,12 @@ def dgelu_numpy(x, approximate=True):
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_dgelutanh(dtype, approximate=True):
+def test_dgelutanh(context, dtype, approximate=True):
     # Describe single-tile tensor, located at node 0
     shape = [2, 2]
-    mpi_distr = [0]
-    next_tag = 0
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)
+    A = Tensor[dtype](traits)
     # Set initial values of tensors
     rand = np.random.default_rng(42).standard_normal(shape)
     src_A = np.array(rand, dtype=dtype, order='F')

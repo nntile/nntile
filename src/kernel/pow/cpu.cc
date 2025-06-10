@@ -20,7 +20,7 @@ namespace nntile::kernel::pow
 {
 
 template<typename T>
-void cpu(Index nelems, Scalar alpha_, Scalar exp_, T *data_)
+void cpu(Index nelems, Scalar alpha_, Scalar exp_, T *data)
     noexcept
 //! Inplace power operation on CPU
 /*! Does the following per-element operation:
@@ -32,19 +32,18 @@ void cpu(Index nelems, Scalar alpha_, Scalar exp_, T *data_)
  * @params[inout] data_: Buffer to apply power function
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto data = reinterpret_cast<Y *>(data_);
+    using Y = typename T::repr_t;
     const Y alpha{alpha_}, exp{exp_};
     for(Index i = 0; i < nelems; ++i)
     {
-        Y z = data[i];
+        Y z = Y{data[i]};
         if(exp == -1)
         {
-            data[i] = alpha / z;
+            data[i] = T{alpha / z};
         }
         else
         {
-            data[i] = alpha * std::pow(z, exp);
+            data[i] = T{alpha * std::pow(z, exp)};
         }
     }
 }
@@ -56,6 +55,10 @@ void cpu<fp32_t>(Index nelems, Scalar alpha, Scalar exp, fp32_t *data)
 
 template
 void cpu<fp64_t>(Index nelems, Scalar alpha, Scalar exp, fp64_t *data)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index nelems, Scalar alpha, Scalar exp, bf16_t *data)
     noexcept;
 
 } // namespace nntile::kernel::pow

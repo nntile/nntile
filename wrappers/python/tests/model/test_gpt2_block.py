@@ -115,8 +115,8 @@ def generate_inputs(params: GPT2BlockTestParams,
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
-    x_value = x_type(x_traits, x_distr, 0)
-    x_grad = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
+    x_grad = x_type(x_traits, x_distr)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     gen = np.random.default_rng(42)
     x_random = gen.standard_normal(x_shape, dtype=np.float32)
@@ -124,8 +124,8 @@ def generate_inputs(params: GPT2BlockTestParams,
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_()
-    nntile_layer, _ = GPT2Block_nntile.from_torch(torch_layer, X,
-                                                     nntile_config, 0)
+    nntile_layer = GPT2Block_nntile.from_torch(torch_layer, X,
+                                                     nntile_config)
     nntile_layer.clear_gradients()
     y_grad_random = gen.standard_normal(x_shape, dtype=np.float32)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
@@ -146,7 +146,7 @@ def generate_inputs(params: GPT2BlockTestParams,
     pytest.param('fp32_fast_bf16', marks=nocuda),
 ])
 class TestGPT2Decoder:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: GPT2BlockTestParams, dtype: str):
         torch_layer, nntile_layer, *_ = generate_inputs(params, dtype)
         torch_layer_other = nntile_layer.to_torch()
@@ -158,7 +158,7 @@ class TestGPT2Decoder:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: GPT2BlockTestParams,
                      dtype: str):
         torch_layer, nntile_layer, x, _ = generate_inputs(params, dtype)
@@ -169,7 +169,7 @@ class TestGPT2Decoder:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng,
+    def test_backward(self, context, torch_rng,
                       params: GPT2BlockTestParams,
                       dtype: str):
         torch_layer, nntile_layer, x, y_grad = generate_inputs(params, dtype)
