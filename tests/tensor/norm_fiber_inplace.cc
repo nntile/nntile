@@ -6,22 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/norm_fiber/cpu.hh
- * Euclidean norms over slices into a fiber of a product of buffers on CPU
+ * @file tests/tensor/norm_fiber_inplace.cc
+ * Norm fiber in-place operation for Tensor<T>
  *
  * @version 1.1.0
  * */
 
-#pragma once
+#include <iostream>
 
-#include <nntile/base_types.hh>
-
-namespace nntile::kernel::norm_fiber
+int main(int argc, char **argv)
 {
-
-// Euclidean norms over slices into a fiber of a product of buffers on CPU
-template<typename T>
-void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1, Scalar beta_, const T *src2, T *dst)
-    noexcept;
-
-} // namespace nntile::kernel::norm_fiber
+    // Not implemented
+    std::cout << "This test is not yet implemented\n";
+    return -1;
+}

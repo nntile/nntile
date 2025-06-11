@@ -35,6 +35,8 @@ set(TESTS
     "logsumexp"
     "maximum"
     "maxsumexp"
+    "norm_fiber"
+    "norm_fiber_inplace"
     "norm_slice"
     "pow"
     "prod_inplace"

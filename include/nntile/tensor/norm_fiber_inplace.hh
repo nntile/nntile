@@ -6,27 +6,27 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/norm_fiber.hh
- * Euclidean norms over slices into a fiber of a Tile<T>
+ * @file include/nntile/tensor/norm_fiber_inplace.hh
+ * Euclidean norms over slices into a fiber of a product of a Tensor<T>
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/tile/tile.hh>
+#include <nntile/tensor/tensor.hh>
 
-namespace nntile::tile
+namespace nntile::tensor
 {
 
-// Tile-wise norm_fiber
+// Tensor-wise norm_fiber_inplace
 template<typename T>
-void norm_fiber_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2, const Tile<T> &dst,
+void norm_fiber_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
+        const Tensor<T> &dst, Index axis, Index batch_ndim, int redux=0);
+
+// Tensor-wise norm_fiber_inplace
+template<typename T>
+void norm_fiber_inplace(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
         Index axis, Index batch_ndim, int redux=0);
 
-// Tile-wise norm_fiber
-template<typename T>
-void norm_fiber(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2, const Tile<T> &dst,
-        Index axis, Index batch_ndim, int redux=0);
-
-} // namespace nntile::tile
+} // namespace nntile::tensor

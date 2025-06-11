@@ -43,7 +43,7 @@ def context_cuda() -> Generator[None, None, None]:
 
 @pytest.fixture(scope='function')
 def numpy_rng():
-    bits = np.random.MT19937()
+    bits = np.random.MT19937(42)
     return np.random.Generator(bits)
 
 

@@ -42,6 +42,8 @@ set(TESTS_MPI
     "logsumexp"
     "maximum"
     "maxsumexp"
+    "norm_fiber"
+    "norm_fiber_inplace"
     "norm_slice"
     "pow"
     "prod_inplace"
@@ -87,6 +89,8 @@ set(TESTS_NOT_IMPLEMENTED
     "add_slice"
     "prod_fiber3"
     "tensor"
+    "norm_fiber"
+    "norm_fiber_inplace"
     )
 
 # Add target for local coverage
