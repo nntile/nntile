@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/norm_fiber.hh"
 #include "nntile/starpu/norm_fiber.hh"
+#include "nntile/starpu/norm_fiber_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -30,6 +31,10 @@ void norm_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
     {
         throw std::runtime_error("dst.ndim != batch_ndim+1");
     }
+    if(src2.ndim != dst.ndim)
+    {
+        throw std::runtime_error("src2.ndim != dst.ndim");
+    }
     // Treat special case of src1.ndim=0
     if(src1.ndim == 0)
     {
@@ -45,6 +50,14 @@ void norm_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
         throw std::runtime_error("axis >= src1.ndim-batch_ndim");
     }
     // Check shapes
+    if(dst.shape != src2.shape)
+    {
+        throw std::runtime_error("dst.shape != src2.shape");
+    }
+    if(dst.basetile_shape != src2.basetile_shape)
+    {
+        throw std::runtime_error("dst.basetile_shape != src2.basetile_shape");
+    }
     if(dst.shape[0] != src1.shape[axis])
     {
         throw std::runtime_error("dst.shape[0] != src1.shape[axis]");
@@ -118,20 +131,20 @@ void norm_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
             // Insert corresponding task
             if(init_first)
             {
+                // The first time we need to take into account src2
                 starpu::norm_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha,
                     src1_tile_handle, beta, src2_tile_handle, dst_tile_handle);
             }
             else
             {
-                starpu::norm_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha,
-                    src1_tile_handle, one, src2_tile_handle, dst_tile_handle);
+                // The rest of the times we shall rely on an inplace update (without src2)
+                starpu::norm_fiber_inplace.submit<std::tuple<T>>(m, n, k, batch, alpha,
+                    src1_tile_handle, one, dst_tile_handle);
             }
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
-
     }
-
 }
 
 //! Tensor-wise norm_fiber

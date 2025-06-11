@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_norm_fiber.py
-# Test for tensor::norm_fiber<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/test_tensor_norm_fiber_inplace.py
+# Test for tensor::norm_fiber_inplace<T> Python wrapper
 #
 # @version 1.1.0
 
@@ -82,7 +82,7 @@ def get_ref_value(alpha, src1, beta, src2, axis):
     pytest.param(single_tile, id='single_tile'),
     pytest.param(multiple_tiles, id='multiple_tiles'),
 ])
-def test_norm_fiber_async(context, dtype, params):
+def test_norm_fiber_inplace(context, dtype, params):
     alpha = float(1.0)
     beta = float(-1.0)
     src1_shape = params.shape
@@ -114,10 +114,10 @@ def test_norm_fiber_async(context, dtype, params):
 
     # actual calculations
     redux = 0
-    norm_fiber[dtype](
-        alpha, src1, beta, src2, dst, params.axis, params.batch_ndim, redux)
+    norm_fiber_inplace[dtype](
+        alpha, src1, beta, dst, params.axis, params.batch_ndim, redux)
     # reference value
-    ref = get_ref_value(alpha, np_src1, beta, np_src2, params.axis)
+    ref = get_ref_value(alpha, np_src1, beta, np_dst, params.axis)
     nntile_result = nntc.to_numpy(dst)
     nntile.starpu.wait_for_all()
     assert np.allclose(nntile_result.flatten(), ref.flatten())
