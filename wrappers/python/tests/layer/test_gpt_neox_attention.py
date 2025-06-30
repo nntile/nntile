@@ -24,6 +24,8 @@ import nntile
 from nntile.model.gpt_neox_config import GPTNeoXConfig
 from nntile.tensor import TensorMoments, TensorTraits, clear_async
 from nntile.utils.constructors import to_numpy
+from gen_utils import (
+    generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding)
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -232,3 +234,95 @@ class TestGPTNeoXAttention:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+
+@pytest.mark.parametrize(
+    "n_head,n_head_tile,n_emb,n_emb_tile,seq_size", [(2, 1, 8, 2, 10)]
+)
+def test_dynamic(
+    starpu_simple, numpy_rng, n_head, n_head_tile, n_emb, n_emb_tile, seq_size
+):
+    input_shape = (n_emb, seq_size, 1)
+    inp_np = np.asfortranarray(numpy_rng.random(input_shape))
+
+    inp = nntile.utils.constructors.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
+
+    inp_tm = nntile.tensor.TensorMoments(
+        inp, grad=nntile.utils.constructors.zeros(inp.shape, dtype=type(inp)), grad_required=False
+    )
+
+    # Create position_ids for the GPTNeoXAttention layer
+    position_ids = np.arange(seq_size, dtype=np.int64)[None, :]  # (1, seq_size)
+
+    # Create causal mask
+    causal_mask = np.array(
+        np.triu(np.ones((seq_size, seq_size))), dtype=bool, order="F"
+    )
+
+    attn, _ = nntile.layer.GPTNeoXAttention.generate_simple(
+        inp_tm, n_head, n_head_tile, position_ids, theta=10000.0, next_tag=0, 
+        bias=False, mask=causal_mask, redux=False
+    )
+    attn.init_randn_async()
+    
+    attn.forward_async()
+    out_dynamic_expected_np = nntile.utils.constructors.to_numpy(attn.y.value)
+
+    out_dynamic_actual, _ = attn.forward_dynamic(inp_tm)
+    out_dynamic_actual_np = nntile.utils.constructors.to_numpy(out_dynamic_actual.value)
+
+    np.testing.assert_allclose(
+        out_dynamic_actual_np,
+        out_dynamic_expected_np,
+        err_msg="Dynamic does not match static",
+    )
+
+
+@pytest.mark.parametrize("n_head,n_head_tile", [(1, 1)])
+def test_kvcache(starpu_simple, numpy_rng, n_head, n_head_tile):
+    prefill_size = 4
+    max_tokens = 8
+
+    inp_np = np.asfortranarray(numpy_rng.random((4, 8, 1)))
+    inp_np[:, prefill_size:, :] = 0
+
+    inp = nntile.utils.constructors.from_array(inp_np)
+
+    inp_tm = nntile.tensor.TensorMoments(
+        inp, grad=nntile.utils.constructors.zeros(inp.shape, dtype=type(inp)), grad_required=False
+    )
+
+    # Create position_ids for the GPTNeoXAttention layer
+    position_ids = np.arange(8, dtype=np.int64)[None, :]  # (1, 8)
+
+    # Create causal mask
+    causal_mask = np.array(
+        np.triu(np.ones((8, 8))), dtype=bool, order="F"
+    )
+
+    attn, _ = nntile.layer.GPTNeoXAttention.generate_simple(
+        inp_tm, n_head, n_head_tile, position_ids, theta=10000.0, next_tag=0, 
+        bias=False, mask=causal_mask, redux=False
+    )
+    attn.init_randn_async()
+
+    # slice to prefill size
+    inp_prefill = nntile.utils.constructors.from_array(inp_np[:, :prefill_size, :])
+    outs_dyn = generate_greedy_logits_dynamic_kvcache(
+        attn, inp_prefill, prefill_size, max_tokens
+    )
+    outs_dyn_np = nntile.utils.constructors.to_numpy(outs_dyn)
+
+    inp_prefill = nntile.utils.constructors.from_array(inp_np[:, :prefill_size, :])
+    outs_stat = generate_greedy_logits_padding(
+        attn, inp_prefill, prefill_size, max_tokens
+    )
+    outs_stat_np = nntile.utils.constructors.to_numpy(outs_stat)
+
+    np.testing.assert_allclose(
+        outs_stat_np,
+        outs_dyn_np,
+        err_msg="test_kvcache: Dynamic does not match static",
+    )

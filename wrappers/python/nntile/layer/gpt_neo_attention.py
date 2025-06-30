@@ -11,17 +11,22 @@
 #
 # @version 1.1.0
 
+from typing import Optional
+
 import numpy as np
 import torch
 from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoAttention as GPTNeoAttentionTorch, GPTNeoConfig as GPTNeoConfigTorch)
 
+import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
+from nntile.layer.cache_utils import KVCache
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_inplace_async,
-    add_slice_inplace_async, clear_async, gemm_async, mask_scalar_async,
-    maxsumexp_async, notrans, prod_inplace_async, softmax_inplace_async,
-    sum_fiber_async, sumprod_slice_async, to_numpy, trans, transpose_async)
+    add_slice_inplace_async, clear_async, copy_intersection_async, gemm_async, 
+    mask_scalar_async, maxsumexp_async, notrans, prod_inplace_async, 
+    softmax_inplace_async, sum_fiber_async, sumprod_slice_async, to_numpy, trans, 
+    transpose_async)
 
 from ..model.gpt_neo_config import GPTNeoConfig
 
@@ -57,6 +62,10 @@ class GPTNeoAttention(BaseLayer):
     n_head: int
     attention_type: str
     layer_id: int
+    out_proj_bias: TensorMoments
+    n_head_tile: int
+    n_emb: int
+    n_emb_tile: int
 
     # Construct attention layer with all the provided data
     def __init__(
@@ -155,6 +164,9 @@ class GPTNeoAttention(BaseLayer):
         self.b_transposed.grad.set_reduction_add()
         self.out_proj_bias = out_proj_bias
         self.n_head = w_q.value.shape[0]
+        self.n_head_tile = w_q.value.basetile_shape[0]
+        self.n_emb = x_q.value.shape[0]
+        self.n_emb_tile = x_q.value.basetile_shape[0]
         n_emb = x_q.value.shape[0]
         head_size = n_emb // self.n_head
         # Stupid check, that is not necessary, as the code shall work
@@ -748,6 +760,232 @@ class GPTNeoAttention(BaseLayer):
         # dQ_transposed can be deleted
         # self.q_transposed.grad.wont_use()
         self.q_transposed.grad.invalidate_submit()
+
+    def _get_tmp_tr_for_cache(self, x):
+        partial_tr_shape = (self.n_head, self.head_size) + tuple(x.shape[1:])
+        partial_tr_basetile_shape = (self.n_head_tile, self.head_size) + tuple(
+            x.shape[1:]
+        )
+        return nntc.empty(
+            partial_tr_shape,
+            dtype=type(x),
+            basetile_shape=partial_tr_basetile_shape,
+        )
+
+    def _get_tmp_for_cache(self, x):
+        partial_shape = (self.head_size,) + tuple(x.shape[1:]) + (self.n_head,)
+        partial_basetile_shape = (
+            (self.head_size,) + tuple(x.shape[1:]) + (self.n_head_tile,)
+        )
+        return nntc.empty(
+            partial_shape, dtype=type(x), basetile_shape=partial_basetile_shape
+        )
+
+    def _forward_mlp_q_dynamic(self, x: Tensor):
+        q_partial_tr = self._get_tmp_tr_for_cache(x)
+        q_partial = self._get_tmp_for_cache(x)
+
+        gemm_async(
+            1.0,
+            notrans,
+            self.w_q.value,
+            notrans,
+            x,
+            0.0,
+            q_partial_tr,
+            1,
+            0,
+            redux=self.redux,
+        )
+
+        transpose_async(1.0, q_partial_tr, q_partial, 1)
+
+        return q_partial
+
+    def _forward_mlp_k_dynamic(self, x: Tensor):
+        k_partial_tr = self._get_tmp_tr_for_cache(x)
+        k_partial = self._get_tmp_for_cache(x)
+
+        gemm_async(
+            1.0,
+            notrans,
+            self.w_k.value,
+            notrans,
+            x,
+            0.0,
+            k_partial_tr,
+            1,
+            0,
+            redux=self.redux,
+        )
+
+        transpose_async(1.0, k_partial_tr, k_partial, 1)
+
+        return k_partial
+
+    def _forward_mlp_v_dynamic(self, x: Tensor):
+        v_partial_tr = self._get_tmp_tr_for_cache(x)
+        v_partial = self._get_tmp_for_cache(x)
+
+        gemm_async(
+            1.0,
+            notrans,
+            self.w_v.value,
+            notrans,
+            x,
+            0.0,
+            v_partial_tr,
+            1,
+            0,
+            redux=self.redux,
+        )
+
+        transpose_async(1.0, v_partial_tr, v_partial, 1)
+
+        return v_partial
+
+    def _forward_attn_dynamic(self, q, k, v):
+        a_tmp = nntc.empty(
+            (k.shape[1],) + (q.shape[1],) + tuple(k.shape[2:]),
+            dtype=type(q),
+            basetile_shape=(k.shape[1],)
+            + (q.shape[1],)
+            + (k.shape[2],)
+            + (self.n_head_tile,),
+        )  # (n_seq, n_seq, batch=n_batch, batch=n_head)
+        a_maxsumexp_tmp = nntc.empty(
+            (2,) + tuple(a_tmp.shape[1:]),
+            dtype=type(q),
+            basetile_shape=(2,)
+            + tuple(a_tmp.shape[1:-1])
+            + (self.n_head_tile,),
+        )
+        b_tmp = nntc.empty(
+            q.shape,
+            dtype=type(q),
+            basetile_shape=tuple(q.shape[:-1]) + (self.n_head_tile,),
+        )  # (head_size, n_seq, n_batch, n_head)
+        b_tr_tmp = nntc.empty(
+            (self.n_head, self.head_size) + tuple(q.shape[1:3]),
+            dtype=type(q),
+            basetile_shape=(self.n_head_tile, self.head_size)
+            + tuple(q.shape[1:3]),
+        )  # (n_head, head_size, n_seq, n_batch)
+        self.y_tensor = nntc.empty(
+            (self.n_emb,) + tuple(q.shape[1:3]),
+            dtype=type(q),
+            basetile_shape=(self.n_emb_tile,) + tuple(q.shape[1:3]),
+        )  # (n_emb, n_seq, n_batch)
+        y_tensor = self.y_tensor
+        
+        # Get tensor for softmax
+        # A = einsum('jklb,jmlb->kmlb', K, Q)
+        # single batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
+        # by (head_size, n_seq, batch=n_batch, batch=n_head) into
+        # (n_seq, n_seq, batch=n_batch, batch=n_head)
+        # Note: no scaling factor applied here, unlike in the regular Attention class
+        gemm_async(
+            1.0,
+            trans,
+            k,
+            notrans,
+            q,
+            0.0,
+            a_tmp,
+            1,
+            2,
+            redux=self.redux,
+        )
+
+        clear_async(a_maxsumexp_tmp)
+        # Q and K can be offloaded from GPU
+        q.wont_use()
+        k.wont_use()
+
+        # Calculate softmax inplace
+        # A = softmax(A, axis=0)
+        # Apply mask if needed
+        if self.mask:
+            mask_tmp = nntc.empty(a_tmp.shape[:2], dtype=Tensor_bool)
+            copy_intersection_async(
+                self.mask, [0, 0], mask_tmp, [0, k.shape[1] - q.shape[1]]
+            )
+            mask_scalar_async(mask_tmp, self.val, a_tmp, 2)
+
+        # Calculate max and sumexp along axis
+        maxsumexp_async(a_tmp, a_maxsumexp_tmp, 0, redux=self.redux)
+        # Finally, get the inplace softmax
+        softmax_inplace_async(a_maxsumexp_tmp, 1.0, a_tmp, 0)
+
+        # Apply value tensor
+        # B = einsum('jklb,kmlb->jmlb', V, A)
+        # batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
+        # by (n_seq, n_seq, batch=n_batch, batch=n_head) into
+        # (head_size, n_seq, batch=n_batch, batch=n_head)
+        gemm_async(
+            1.0, notrans, v, notrans, a_tmp, 0.0, b_tmp, 1, 2, redux=self.redux
+        )
+        # V and A can be offloaded from GPU
+        v.wont_use()
+        a_tmp.wont_use()
+
+        # Accumulate result from all the heads
+        # rotate axes (head_size, n_seq, n_batch, n_head) into
+        # (n_head, head_size, n_seq, n_batch) and then
+        transpose_async(1.0, b_tmp, b_tr_tmp, 3)
+        # Y = einsum('jkl,klmn->jmn', W, B_transposed)
+        # gemm (n_emb, n_head, head_size) by
+        # (n_head, head_size, n_seq, n_batch) into (n_emb, n_seq, n_batch)
+        gemm_async(
+            1.0,
+            notrans,
+            self.w.value,
+            notrans,
+            b_tr_tmp,
+            0.0,
+            y_tensor,
+            2,
+            0,
+            redux=self.redux,
+        )
+        # W, B and B_transposed can be offloaded from GPU
+        self.w.value.wont_use()
+        b_tr_tmp.wont_use()
+
+        # Apply bias if needed
+        if self.out_proj_bias is not None:
+            add_fiber_inplace_async(
+                1.0, self.out_proj_bias.value, 1.0, y_tensor, 0, 0
+            )
+            self.out_proj_bias.value.wont_use()
+        return y_tensor
+
+    def forward_dynamic(
+            self, x: TensorMoments, kv_cache: Optional[KVCache] = None
+        ):
+        if (kv_cache is not None) and (x.value.shape[1] + len(kv_cache) > self.x_v.value.shape[1]):  # noqa: E501
+            raise Exception(
+                "Overload internal state: "
+                f"try add {x.value.shape[1]} "
+                f"to {len(kv_cache)}, max: {self.x_v.value.shape[1]}. "
+            )
+
+        # Compute query, key and value tensors
+        q_partial = self._forward_mlp_q_dynamic(x.value)
+        k_partial = self._forward_mlp_k_dynamic(x.value)
+        v_partial = self._forward_mlp_v_dynamic(x.value)
+
+        if kv_cache is not None:
+            kv_cache.append(k_partial, v_partial)
+            k = kv_cache.k_partial
+            v = kv_cache.v_partial
+        else:
+            k = k_partial
+            v = v_partial
+
+        # compute attention and weight result
+        y_tensor = self._forward_attn_dynamic(q_partial, k, v)
+        return TensorMoments(y_tensor, None, False), kv_cache
 
     @classmethod
     def from_torch(cls,
