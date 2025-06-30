@@ -11,13 +11,17 @@
 #
 # @version 1.1.0
 
+from typing import Optional
+
 import torch.nn as nn
 from transformers import GPTNeoConfig as ConfigTorch
 from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoForCausalLM as ModelTorch)
 
 import nntile
+from nntile.layer.cache_utils import KVCacheStorage
 from nntile.model.generation.llm import LLMGenerationMixin
+from nntile.types import TensorMoments
 
 from ..layer import Linear
 from .base_model import BaseModel
@@ -75,6 +79,17 @@ class GPTNeoForCausalLM(BaseModel, LLMGenerationMixin):
         self.set_input(x)
         self.forward_async()
         return self.get_output()
+
+    def forward_dynamic(
+            self, x: TensorMoments,
+            use_cache: bool = False,
+            kv_caches: Optional[KVCacheStorage] = None
+        ):
+        gpt_neo_logits, kv_caches = self.gpt_neo_model_.forward_dynamic(
+            x, use_cache=use_cache, kv_caches=kv_caches
+        )
+        out_logits = self.lin_.forward_dynamic(gpt_neo_logits)
+        return out_logits, kv_caches
 
     @staticmethod
     def from_torch(torch_gpt_neo_causal,

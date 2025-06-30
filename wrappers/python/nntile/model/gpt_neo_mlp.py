@@ -71,6 +71,13 @@ class GPTNeoMLP(BaseModel):
         # Fill Base Model with the generated data
         super().__init__(activations, layers, config)
 
+    def forward_dynamic(self, x: TensorMoments):
+        up_proj, up_proj_act, down_proj = self.layers
+        up_proj_outs = up_proj.forward_dynamic(x)
+        up_proj_act_outs = up_proj_act.forward_dynamic(up_proj_outs)
+        down_proj_outs = down_proj.forward_dynamic(up_proj_act_outs)
+        return down_proj_outs
+
     @staticmethod
     def from_torch(
         mlp_torch, x: TensorMoments, config: GPTNeoConfig
