@@ -968,6 +968,8 @@ def copy_intersection_async(
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.copy_intersection_async_fp32(x, x_offset, y, y_offset)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.copy_intersection_async_bf16(x, x_offset, y, y_offset)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.copy_intersection_async_fp64(x, x_offset, y, y_offset)
     elif type(x) is core_tensor.Tensor_int64:
