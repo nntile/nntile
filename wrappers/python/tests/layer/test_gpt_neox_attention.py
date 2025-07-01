@@ -25,7 +25,8 @@ from nntile.model.gpt_neox_config import GPTNeoXConfig
 from nntile.tensor import TensorMoments, TensorTraits, clear_async
 from nntile.utils.constructors import to_numpy
 from gen_utils import (
-    generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding)
+    generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding
+)
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -240,7 +241,7 @@ class TestGPTNeoXAttention:
     "n_head,n_head_tile,n_emb,n_emb_tile,seq_size", [(2, 1, 8, 2, 10)]
 )
 def test_dynamic(
-    starpu_simple, numpy_rng, n_head, n_head_tile, n_emb, n_emb_tile, seq_size
+    context, numpy_rng, n_head, n_head_tile, n_emb, n_emb_tile, seq_size
 ):
     input_shape = (n_emb, seq_size, 1)
     inp_np = np.asfortranarray(numpy_rng.random(input_shape))
@@ -261,8 +262,8 @@ def test_dynamic(
         np.triu(np.ones((seq_size, seq_size))), dtype=bool, order="F"
     )
 
-    attn, _ = nntile.layer.GPTNeoXAttention.generate_simple(
-        inp_tm, n_head, n_head_tile, position_ids, theta=10000.0, next_tag=0, 
+    attn = nntile.layer.GPTNeoXAttention.generate_simple(
+        inp_tm, n_head, n_head_tile, position_ids, theta=10000.0,
         bias=False, mask=causal_mask, redux=False
     )
     attn.init_randn_async()
@@ -281,7 +282,7 @@ def test_dynamic(
 
 
 @pytest.mark.parametrize("n_head,n_head_tile", [(1, 1)])
-def test_kvcache(starpu_simple, numpy_rng, n_head, n_head_tile):
+def test_kvcache(context, numpy_rng, n_head, n_head_tile):
     prefill_size = 4
     max_tokens = 8
 
@@ -302,8 +303,8 @@ def test_kvcache(starpu_simple, numpy_rng, n_head, n_head_tile):
         np.triu(np.ones((8, 8))), dtype=bool, order="F"
     )
 
-    attn, _ = nntile.layer.GPTNeoXAttention.generate_simple(
-        inp_tm, n_head, n_head_tile, position_ids, theta=10000.0, next_tag=0, 
+    attn = nntile.layer.GPTNeoXAttention.generate_simple(
+        inp_tm, n_head, n_head_tile, position_ids, theta=10000.0,
         bias=False, mask=causal_mask, redux=False
     )
     attn.init_randn_async()

@@ -24,7 +24,8 @@ from nntile.model.gpt_neo_config import GPTNeoConfig
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
 from gen_utils import (
-    generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding)
+    generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding
+)
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -231,7 +232,7 @@ class TestGPTNeoAttention:
     "n_head,n_head_tile,n_emb,n_emb_tile,seq_size", [(2, 1, 6, 2, 10)]
 )
 def test_dynamic(
-    starpu_simple, numpy_rng, n_head, n_head_tile, n_emb, n_emb_tile, seq_size
+    context, numpy_rng, n_head, n_head_tile, n_emb, n_emb_tile, seq_size
 ):
     input_shape = (n_emb, seq_size, 1)
     inp_np = np.asfortranarray(numpy_rng.random(input_shape))
@@ -256,8 +257,8 @@ def test_dynamic(
         inp3, grad=nntile.utils.constructors.zeros(inp3.shape, dtype=type(inp)), grad_required=False
     )
 
-    attn, _ = nntile.layer.GPTNeoAttention.generate_simple(
-        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, 0, layer_id=0, attention_type="global"
+    attn = nntile.layer.GPTNeoAttention.generate_simple(
+        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, layer_id=0, attention_type="global"
     )
     attn.init_randn_async()
 
@@ -275,7 +276,7 @@ def test_dynamic(
 
 
 @pytest.mark.parametrize("n_head,n_head_tile", [(1, 1)])
-def test_kvcache(starpu_simple, numpy_rng, n_head, n_head_tile):
+def test_kvcache(context, numpy_rng, n_head, n_head_tile):
     prefill_size = 4
     max_tokens = 8
 
@@ -296,8 +297,8 @@ def test_kvcache(starpu_simple, numpy_rng, n_head, n_head_tile):
         inp3, grad=nntile.utils.constructors.zeros(inp3.shape, dtype=type(inp)), grad_required=False
     )
 
-    attn, _ = nntile.layer.GPTNeoAttention.generate_simple(
-        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, 0, layer_id=0, attention_type="global"
+    attn = nntile.layer.GPTNeoAttention.generate_simple(
+        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, layer_id=0, attention_type="global"
     )
     attn.init_randn_async()
 
