@@ -17,6 +17,8 @@
 #endif // STARPU_SIMGRID
 #include "nntile/starpu/prod_inplace.hh"
 
+#include <cstdlib>
+
 //! StarPU wrappers for prod_inplace operation
 namespace nntile::starpu::prod_inplace
 {
@@ -148,7 +150,8 @@ void restore_where()
 template<typename T>
 void submit(Index nelems, Handle src, Handle dst)
 {
-    Index *nelems_ = (Index*)malloc(nelems * sizeof(Index));
+    Index *nelems_ = (Index*)std::malloc(sizeof(Index));
+    *nelems_ = nelems;
     // Put amount of read-write bytes into flop count
     double nflops = sizeof(T) * 3 * nelems;
     int ret = starpu_task_insert(codelet<T>(),
