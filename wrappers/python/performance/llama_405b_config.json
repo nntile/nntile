@@ -31,5 +31,6 @@
     "torch_dtype": "bfloat16",
     "transformers_version": "4.44.0.dev0",
     "use_cache": true,
-    "vocab_size": 128256
+    "vocab_size_default": 128256,
+    "vocab_size": 10
   }

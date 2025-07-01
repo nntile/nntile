@@ -36,11 +36,11 @@ mode = args.mode
 num_warmup_calls = 5
 
 hidden_size = 16384
-hidden_size_tiles = [hidden_size // (2 ** i) for i in range(5, 6)]
+hidden_size_tiles = [hidden_size // (2 ** i) for i in range(0, 5)]
 
 seqlen = 4096
-# seqlen = 16384
-seqlen_tiles = [seqlen // (2 ** i) for i in range(0, 5)]
+seqlen_tiles = [seqlen // (2 ** i) for i in range(0, 4)]
+nhead_tiles = [128 // (2 ** i) for i in range(0, 4)]
 
 config_path = "./llama_405b_config.json"
 model_name = config_path.split("/")[1][:-5]
@@ -58,10 +58,12 @@ elif backend == "torch-compile":
     cmd_string = cmd_string + " --use-torch --torch-compile"
 current_cmd = cmd_string + " --seq-len={}".format(seqlen)
 current_cmd = current_cmd + " --hidden-size=-1"
-current_cmd = current_cmd + " --results-folder=.results/gpu" + str(num_cuda) + "/" + model_name + "/attention_" + mode + "/seqlen_{}".format(seqlen)
+current_cmd = current_cmd + " --results-folder=.results/gpu" + str(num_cuda) + "/" + model_name + "/attention2_" + mode + "/seqlen_{}".format(seqlen)
 
 for j, hsize_tile in enumerate(hidden_size_tiles):
     current_cmd_h  = current_cmd + " --hidden-size-tile=" + str(hsize_tile)
     for i, slen_tile in enumerate(seqlen_tiles):
         current_cmd_h_seqlen = current_cmd_h + " --seq-len-tile=" + str(slen_tile)
-        os.system(current_cmd_h_seqlen)
+        for head_dim_tile in nhead_tiles:
+            current_cmd_h_seqlen_hdimtiles = current_cmd_h_seqlen + " --n-head-tile=" + str(head_dim_tile)
+            os.system(current_cmd_h_seqlen_hdimtiles)

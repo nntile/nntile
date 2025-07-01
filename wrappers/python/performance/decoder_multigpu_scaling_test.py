@@ -31,31 +31,34 @@ else:
     num_cuda = len(cuda_device.split(","))
 print(num_cuda)
 
-n_iters = 1
+n_iters = 20
 mode = args.mode
-num_warmup_calls = 1 # 5
+num_warmup_calls = 5 # 5
 
-hidden_size = 24576
+hidden_size = 16384
 seqlen = 4096
-intermediatesize = 79872
+intermediatesize = 53248
 if num_cuda == 1:
-    hidden_size_tiles = [hidden_size // ht for ht in [2]]
-    seqlen_tiles = [seqlen // stile for stile in [1]]
-    # intermsize_tiles = [intermediatesize // itile for itile in [2, 4, 8]]
-    intermsize_tiles = [intermediatesize // itile for itile in [4]]
+    hidden_size_tiles = [hidden_size // ht for ht in [1, 2, 4]]
+    seqlen_tiles = [seqlen // stile for stile in [1, 2]]
+    intermsize_tiles = [intermediatesize // itile for itile in [1, 2, 4]]
+    # intermsize_tiles = [intermediatesize // itile for itile in [4]]
+    nhead_tiles = [128 // nh_tile for nh_tile in [1, 2, 4]]
 elif num_cuda == 4:
     hidden_size_tiles = [hidden_size // ht for ht in [2, 4, 8]]
     seqlen_tiles = [seqlen // stile for stile in [2, 4, 8]]
-    intermsize_tiles = [intermediatesize // itile for itile in [1]]
+    intermsize_tiles = [intermediatesize // itile for itile in [1,2,4,8]]
     # intermsize_tiles = [intermediatesize // itile for itile in [8]]
+    nhead_tiles = [128 // nh_tile for nh_tile in [1, 2, 4, 8]]
 elif num_cuda == 2:
     hidden_size_tiles = [hidden_size // ht for ht in [2, 4, 8]]
     seqlen_tiles = [seqlen // stile for stile in [1, 2, 4]]
     # seqlen_tiles = [seqlen // stile for stile in [2]]
-    intermsize_tiles = [intermediatesize // itile for itile in [1]]
+    intermsize_tiles = [intermediatesize // itile for itile in [1,2,4,8]]
     # intermsize_tiles = [intermediatesize // itile for itile in [2]]
+    nhead_tiles = [128 // nh_tile for nh_tile in [1, 2, 4, 8]]
 
-config_path = "./llama_405b_config_modified.json"
+config_path = "./llama_405b_config.json"
 model_name = config_path.split("/")[1][:-5]
 
 cmd_string = "STARPU_MAX_MEMORY_USE=1 STARPU_ENABLE_STATS=1 STARPU_PROFILING=1 STARPU_SCHED=dmdasd "
@@ -71,7 +74,7 @@ elif backend == "torch-compile":
     cmd_string = cmd_string + " --use-torch --torch-compile"
 current_cmd = cmd_string + " --seq-len={}".format(seqlen)
 current_cmd = current_cmd + " --hidden-size=-1"
-current_cmd = current_cmd + " --results-folder=.results/gpu" + str(num_cuda) + "/" + model_name + "/decoder_" + mode + "/seqlen_{}".format(seqlen)
+current_cmd = current_cmd + " --results-folder=.results/gpu" + str(num_cuda) + "/" + model_name + "/decoder2_" + mode + "/seqlen_{}".format(seqlen)
 
 for hsize_tile in hidden_size_tiles:
     current_cmd_h  = current_cmd + " --hidden-size-tile=" + str(hsize_tile)
@@ -79,5 +82,7 @@ for hsize_tile in hidden_size_tiles:
         current_cmd_h_seqlen = current_cmd_h + " --seq-len-tile=" + str(slen_tile)
         for intermtile in intermsize_tiles:
             current_cmd_h_seqlen_interm = current_cmd_h_seqlen + " --intermediate-size-tile=" + str(intermtile)
-            print(current_cmd_h_seqlen_interm)
-            os.system(current_cmd_h_seqlen_interm)
+            for nh_tile in nhead_tiles:
+                current_cmd_h_seqlen_interm_nhead = current_cmd_h_seqlen_interm + " --n-head-tile=" + str(nh_tile)
+                print(current_cmd_h_seqlen_interm_nhead)
+                os.system(current_cmd_h_seqlen_interm_nhead)

@@ -33,10 +33,10 @@ else:
     device, num_cuda = args.device.split(":")
     num_cuda = int(num_cuda)
 
-n_iters = 1
+n_iters = 50
 submodule = args.submodule
 mode = args.mode
-num_warmup_calls = 5
+num_warmup_calls = 10
 
 config_path = "./llama_1.3b_config.json"
 model_name = config_path.split("/")[1][:-5]
@@ -54,7 +54,7 @@ elif backend == "nntile":
 elif backend == "torch-compile":
     cmd_string = cmd_string + " --use-torch --torch-compile"
 for seq_len in seq_len_list:
-    current_cmd = cmd_string + " --seq-len=" + str(seq_len)
+    current_cmd = cmd_string + " --seq-len=" + str(seq_len) + " --seq-len-tile=" + str(seq_len//2)
     if submodule == "causal-llama":
         current_cmd = current_cmd + " --results-folder=.results/fixed_numheads/" + submodule + "_" + model_name + "_" + mode
     else:

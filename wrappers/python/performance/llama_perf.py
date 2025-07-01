@@ -570,15 +570,22 @@ elif args.use_torch and args.torch_compile:
 # filename = "hsizetile_{}_intermsizetile_{}".format(args.hidden_size_tile,
 #                                                     args.intermediate_size_tile)
 
-filename = "hsizetile_{}_seqlentile_{}_intermtile_{}".format(
-                                            args.hidden_size_tile,
-                                            args.seq_len_tile,
-                                            args.intermediate_size_tile)
-# if args.seq_len_tile != -1:
-#     filename = filename + "seqlentile_" + str(args.seq_len_tile)
+# filename = "hsizetile_{}_seqlentile_{}_intermtile_{}".format(
+#                                             args.hidden_size_tile,
+#                                             args.seq_len_tile,
+#                                             args.intermediate_size_tile)
 
-# if args.hidden_size_tile != -1:
-#     filename = filename + "hsizetile_" + str(args.hidden_size_tile)
+filename = ""
+if args.hidden_size_tile != -1:
+    filename = filename + "hsizetile_" + str(args.hidden_size_tile)
+if args.seq_len_tile != -1:
+    filename = filename + "_seqlentile_" + str(args.seq_len_tile)
+
+if args.n_head_tile != -1:
+    filename = filename + "_nheadtile_" + str(args.n_head_tile)
+
+if args.intermediate_size_tile != -1:
+    filename = filename + "_intermtile_" + str(args.intermediate_size_tile)
 
 # np.savez(args.results_folder + "/" + filename, timings=timings,
 #          hidden_size=llama_torch_config.hidden_size)
