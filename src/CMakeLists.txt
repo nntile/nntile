@@ -368,6 +368,17 @@ set(TENSOR_OPERATION_SRC
     "tensor/transpose.cc"
 )
 
+# Autograd-related sources
+set(AUTOGRAD_BASE_SRC
+    "autograd/tensor.cc"
+    "autograd/function.cc"
+    "autograd/visualize.cc"
+)
+
+set(AUTOGRAD_OPERATION_SRC
+    "autograd/add.cc"
+)
+
 # Logger-related sources
 set(LOGGER_SRC
     "logger/logger_thread.cc"
@@ -385,6 +396,8 @@ set(NNTILE_SRC
     ${TILE_OPERATION_SRC}
     ${TENSOR_BASE_SRC}
     ${TENSOR_OPERATION_SRC}
+    ${AUTOGRAD_BASE_SRC}
+    ${AUTOGRAD_OPERATION_SRC}
     ${LOGGER_SRC}
 )
 
