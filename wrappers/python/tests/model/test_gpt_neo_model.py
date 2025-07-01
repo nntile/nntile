@@ -19,9 +19,11 @@ import numpy as np
 import pytest
 import torch
 from transformers.models.gpt_neo.modeling_gpt_neo import (
-    GPTNeoConfig as GPTNeoConfigTorch, GPTNeoModel as GPTNeoModelTorch)
+    GPTNeoConfig as GPTNeoConfigTorch, GPTNeoModel as GPTNeoModelTorch
+)
 
 import nntile
+import nntile.utils.constructors as nntc
 from nntile.model.gpt_neo_config import GPTNeoConfig
 from nntile.model.gpt_neo_model import GPTNeoModel
 from nntile.tensor import to_numpy
@@ -221,3 +223,49 @@ class TestGPTNeoModel:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+
+@pytest.mark.parametrize('params', [
+    pytest.param(single_tile, id='single_tile'),
+])
+@pytest.mark.parametrize('dtype', [
+    'fp32',
+])
+@pytest.mark.parametrize('attn_pattern',
+                         [["global", "local"]])
+@pytest.mark.parametrize('pattern_mult', [2])
+def test_forward_dynamic(context, torch_rng,
+                     params: GPTNeoTestParams,
+                     dtype: str,
+                     attn_pattern: list,
+                     pattern_mult: int):
+    torch_model, nntile_model, x, _ = generate_inputs(
+            params, dtype, attn_pattern, pattern_mult
+        )
+    y = torch_model(x)
+    y_torch = y.last_hidden_state
+
+    x_np = x.cpu().detach().numpy()
+    x_nnt = nntile.tensor.TensorMoments(nntc.from_array(x_np.T), None, False)
+
+    logits_nnt, _ = nntile_model.forward_dynamic(x_nnt)
+    y_nntile = torch.Tensor(nntc.to_numpy(logits_nnt.value).T)
+
+    rtol = dtype2tol[dtype]['rtol']
+    assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
+
+    x_np_trunc = x_np[:x_np.shape[0] // 2, :x_np.shape[1] // 2]
+    x_trunc_nnt = nntile.tensor.TensorMoments(
+        nntc.from_array(x_np_trunc.T), None, False
+    )
+
+    y_trunc = torch_model(torch.tensor(x_np_trunc))
+    y_trunc_torch = y_trunc.last_hidden_state
+
+    logits_trunc_nnt, _ = nntile_model.forward_dynamic(x_trunc_nnt)
+    y_trunc_nntile = torch.Tensor(nntc.to_numpy(logits_trunc_nnt.value).T)
+    nntile_model.unregister()
+
+    actual_diff = torch.norm(y_trunc_torch - y_trunc_nntile)
+    upper_bound_diff = rtol * torch.norm(y_trunc_torch)
+    assert actual_diff <= upper_bound_diff
