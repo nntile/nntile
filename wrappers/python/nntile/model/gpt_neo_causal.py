@@ -168,38 +168,33 @@ class GPTNeoForCausalLM(BaseModel, LLMGenerationMixin):
     @classmethod
     def from_pretrained(
         cls,
-        model_name: str,
         batch_size: int,
         batch_size_tile: int,
-        seq_len_tile: int,
+        seq_len: int,
         cache_dir: str | None = None,
+        remote_model_name: str = "EleutherAI/gpt-neo-1.3B",
+        dtype: str = "fp32"
     ):
-        # TODO: where should be global repo with all this logic.
-        # We need to design it.
-        # For now, manual code for usability
         return create_gpt_neo_model_from_torch_pretrained(
-            model_name,
             batch_size,
             batch_size_tile,
-            seq_len_tile,
+            seq_len,
             cache_dir=cache_dir,
+            remote_model_name=remote_model_name,
+            dtype=dtype
         )
 
 
 def create_gpt_neo_model_from_torch_pretrained(
-    model_name: str,
     batch_size: int,
-    batch_size_tile: int | None,
+    batch_size_tile: int,
     seq_len: int,
-    seq_len_tile: int | None,
-    hidden_size_tile: int | None,
-    intermediate_size_tile: int | None,
-    num_heads_tile: int | None,
-    dtype: str,
-    cache_dir: str | None = None
+    cache_dir: str | None = None,
+    remote_model_name: str = "EleutherAI/gpt-neo-1.3B",
+    dtype: str = "fp32"
 ):
     model_torch = ModelTorch.from_pretrained(
-        model_name, cache_dir=cache_dir
+        remote_model_name, cache_dir=cache_dir
     )
     config = model_torch.config
     config.attention_dropout = 0.0
@@ -210,22 +205,29 @@ def create_gpt_neo_model_from_torch_pretrained(
     model_torch.lm_head.weight = nn.Parameter(
         model_torch.lm_head.weight.detach().clone()
     )
-
+    model_torch.config.intermediate_size = (
+        model_torch.config.intermediate_size or
+        4 * model_torch.config.hidden_size
+    )
     model_torch.eval()
 
     config_nntile = GPTNeoConfig(
-        vocab_size=model_torch.vocab_size,
+        vocab_size=model_torch.config.vocab_size,
         vocab_embed_dim_tile=model_torch.config.hidden_size,
         hidden_size=model_torch.config.hidden_size,
-        hidden_size_tile=hidden_size_tile or model_torch.config.hidden_size,
+        hidden_size_tile=model_torch.config.hidden_size,
+        intermediate_size=model_torch.config.intermediate_size,
+        intermediate_size_tile=model_torch.config.intermediate_size,
+        num_heads=model_torch.config.num_heads,
+        num_heads_tile=model_torch.config.num_heads,
+        attention_types=model_torch.config.attention_types,
+        dtype=dtype,
+        layer_norm_epsilon=model_torch.config.layer_norm_epsilon,
         max_position_embeddings=model_torch.config.max_position_embeddings,
         num_hidden_layers=model_torch.config.num_layers,
-        layer_norm_epsilon=model_torch.config.layer_norm_epsilon,
-        num_heads=model_torch.config.num_heads,
-        intermediate_size=model_torch.config.intermediate_size,
-        intermediate_size_tile=intermediate_size_tile or model_torch.config.intermediate_size,  # noqa: E501
-        num_heads_tile=num_heads_tile or model_torch.config.num_heads,
-        dtype=dtype,
+        bos_token_id=model_torch.config.bos_token_id,
+        eos_token_id=model_torch.config.eos_token_id,
+        window_size=model_torch.config.window_size
     )
 
     causal_nntile = GPTNeoForCausalLM.from_torch(
@@ -233,10 +235,9 @@ def create_gpt_neo_model_from_torch_pretrained(
         batch_size,
         batch_size_tile or batch_size,
         seq_len,
-        seq_len_tile or seq_len,
+        seq_len,
         config_nntile
     )
-
     return causal_nntile
 
 
