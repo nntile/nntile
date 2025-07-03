@@ -1418,6 +1418,7 @@ class GPTNeoXAttention(BaseLayer):
         )
 
     def _forward_mlp_q_dynamic(self, x: Tensor):
+        print("forward_dynamic x input: ", x.shape)
         q_partial_tr = self._get_tmp_tr_for_cache(x)
         q_partial = self._get_tmp_for_cache(x)
 
@@ -1435,6 +1436,8 @@ class GPTNeoXAttention(BaseLayer):
         )
 
         transpose_async(1.0, q_partial_tr, q_partial, 1)
+        
+        print("forward_dynamic MLP Q OUTPUT: ", q_partial.shape)
 
         # Apply bias if needed
         if self.in_proj_bias_q is not None:
@@ -1445,17 +1448,19 @@ class GPTNeoXAttention(BaseLayer):
         # Apply RoPE to Q
         q_rope_partial = self._get_tmp_for_cache(x)
         current_seq_len = q_partial.shape[1]
+        print("q_partial: ", q_partial.shape)
+        print("q_rope_partial shape: ", q_rope_partial.shape)
         
         # Create sliced sin/cos tensors to match current sequence length
         sin_sliced = nntc.empty(
-            (self.sin.shape[0], current_seq_len, self.sin.shape[2]),
+            (self.sin.shape[0], current_seq_len, q_partial.shape[2]),
             dtype=type(self.sin),
-            basetile_shape=(self.sin.shape[0], current_seq_len, self.sin.shape[2]),
+            basetile_shape=(self.sin.shape[0], current_seq_len, q_partial.shape[2]),
         )
         cos_sliced = nntc.empty(
-            (self.cos.shape[0], current_seq_len, self.cos.shape[2]),
+            (self.cos.shape[0], current_seq_len, q_partial.shape[2]),
             dtype=type(self.cos),
-            basetile_shape=(self.cos.shape[0], current_seq_len, self.cos.shape[2]),
+            basetile_shape=(self.cos.shape[0], current_seq_len, q_partial.shape[2]),
         )
         
         # Copy the relevant slice from the original sin/cos tensors
@@ -1501,14 +1506,14 @@ class GPTNeoXAttention(BaseLayer):
         
         # Create sliced sin/cos tensors to match current sequence length
         sin_sliced = nntc.empty(
-            (self.sin.shape[0], current_seq_len, self.sin.shape[2]),
+            (self.sin.shape[0], current_seq_len, k_partial.shape[2]),
             dtype=type(self.sin),
-            basetile_shape=(self.sin.shape[0], current_seq_len, self.sin.shape[2]),
+            basetile_shape=(self.sin.shape[0], current_seq_len, k_partial.shape[2]),
         )
         cos_sliced = nntc.empty(
-            (self.cos.shape[0], current_seq_len, self.cos.shape[2]),
+            (self.cos.shape[0], current_seq_len, k_partial.shape[2]),
             dtype=type(self.cos),
-            basetile_shape=(self.cos.shape[0], current_seq_len, self.cos.shape[2]),
+            basetile_shape=(self.cos.shape[0], current_seq_len, k_partial.shape[2]),
         )
         
         # Copy the relevant slice from the original sin/cos tensors
@@ -1676,10 +1681,14 @@ class GPTNeoXAttention(BaseLayer):
                 f"to {len(kv_cache)}, max: {self.x.value.shape[1]}. "
             )
 
+        print("forward_dynamic INPUT: ", x.value.shape)
+
         # Compute query, key and value tensors
         q_partial = self._forward_mlp_q_dynamic(x.value)
         k_partial = self._forward_mlp_k_dynamic(x.value)
         v_partial = self._forward_mlp_v_dynamic(x.value)
+        
+        print("forward_dynamic MLP OUTPUT: ", q_partial.shape, k_partial.shape, v_partial.shape)
 
         if kv_cache is not None:
             kv_cache.append(k_partial, v_partial)
