@@ -6,23 +6,23 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/examples/gpt_neo_generate.py
-# GPT-Neo generate example
+# @file wrappers/python/examples/gpt_neox_generate.py
+# GPT-NeoX generate example
 #
 # @version 1.1.0
 
 import argparse
-
+import torch
 import numpy as np
-from transformers import AutoTokenizer
+from transformers import GPTNeoXTokenizerFast
 
 import nntile
 import nntile.utils.constructors as nntc
 from nntile.model.generation.llm_params import (
     GenerationMode, GenerationParams, ParallelSamplingMode
 )
-from nntile.model.gpt_neo_causal import (
-    GPTNeoForCausalLM as GPTNeoModel
+from nntile.model.gpt_neox_causal import (
+    GPTNeoXForCausalLM as GPTNeoXModel
 )
 
 context = nntile.Context(
@@ -36,7 +36,7 @@ context = nntile.Context(
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Example with LLM inference for GPT-Neo model",
+        description="Example with LLM inference for GPT-NeoX model",
     )
 
     parser.add_argument(
@@ -46,11 +46,7 @@ def parse_args():
         help="cache dir for huggingface objects",
     )
     parser.add_argument("--max-seq-len", type=int, default=1024)
-    parser.add_argument(
-        "--remote-model-name",
-        type=str,
-        default="EleutherAI/gpt-neo-1.3B"
-    )
+    parser.add_argument("--remote-model-name", type=str, default="EleutherAI/gpt-neox-20b")
     parser.add_argument(
         "--dtype",
         choices=["fp32", "fp64", "tf32", "bf16", "fp32_fast_fp16", "fp32_fast_bf16"],
@@ -90,10 +86,11 @@ def main():
     elif args.restrict == "cpu":
         context.restrict_cpu()
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        args.remote_model_name, cache_dir=args.cache_dir
+    tokenizer = GPTNeoXTokenizerFast.from_pretrained(
+        args.remote_model_name,
+        cache_dir=args.cache_dir
     )
-    model_nnt = GPTNeoModel.from_pretrained(
+    model_nnt = GPTNeoXModel.from_pretrained(
         batch_size=1,
         batch_size_tile=1,
         seq_len=args.max_seq_len,
