@@ -11,12 +11,13 @@
 #
 # @version 1.1.0
 
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from transformers.models.gpt_neox.modeling_gpt_neox import (
     GPTNeoXConfig as ConfigTorch, GPTNeoXModel as ModelTorch)
 
+from nntile.layer.cache_utils import KVCacheStorage
 from nntile.tensor import (
     Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_bf16, Tensor_fp32_fast_fp16,
     Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments, TensorTraits)
@@ -66,6 +67,31 @@ class GPTNeoXModel(BaseModel):
         activations.extend(lnorm_layer.activations_output)
 
         super().__init__(activations, layers, config)
+
+    def forward_dynamic(
+            self,
+            x: TensorMoments,
+            use_cache: bool = False,
+            kv_caches: Optional[KVCacheStorage] = None
+        ):
+        cache_list = None
+        if kv_caches is not None:
+            if not kv_caches.is_initialized():
+                kv_caches.init(len(self.gpt_neox_blocks), self.seq_len, 1)
+            cache_list = kv_caches.get_cache()
+
+        x_emb = self.emb_layer.forward_dynamic(x)
+
+        block_out = x_emb
+        for lid, block_layer in enumerate(self.gpt_neox_blocks):
+            block_out, updated_cache = block_layer.forward_dynamic(
+                block_out,
+                kv_cache=cache_list[lid] if cache_list else None
+            )
+            if cache_list:
+                cache_list[lid] = updated_cache
+        normalized_outs = self.final_lnorm.forward_dynamic(block_out)
+        return normalized_outs, kv_caches
 
     @staticmethod
     def from_torch(model_torch: ModelTorch,

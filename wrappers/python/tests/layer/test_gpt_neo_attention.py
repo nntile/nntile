@@ -23,6 +23,9 @@ import nntile
 from nntile.model.gpt_neo_config import GPTNeoConfig
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
+from gen_utils import (
+    generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding
+)
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -223,3 +226,97 @@ class TestGPTNeoAttention:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+
+@pytest.mark.parametrize(
+    "n_head,n_head_tile,n_emb,n_emb_tile,seq_size", [(2, 1, 6, 2, 10)]
+)
+def test_dynamic(
+    context, numpy_rng, n_head, n_head_tile, n_emb, n_emb_tile, seq_size
+):
+    input_shape = (n_emb, seq_size, 1)
+    inp_np = np.asfortranarray(numpy_rng.random(input_shape))
+
+    inp = nntile.utils.constructors.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
+    inp2 = nntile.utils.constructors.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
+    inp3 = nntile.utils.constructors.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
+
+    inp_tm = nntile.tensor.TensorMoments(
+        inp, grad=nntile.utils.constructors.zeros(inp.shape, dtype=type(inp)), grad_required=False
+    )
+    inp_tm2 = nntile.tensor.TensorMoments(
+        inp2, grad=nntile.utils.constructors.zeros(inp2.shape, dtype=type(inp)), grad_required=False
+    )
+    inp_tm3 = nntile.tensor.TensorMoments(
+        inp3, grad=nntile.utils.constructors.zeros(inp3.shape, dtype=type(inp)), grad_required=False
+    )
+
+    attn = nntile.layer.GPTNeoAttention.generate_simple(
+        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, layer_id=0, attention_type="global"
+    )
+    attn.init_randn_async()
+
+    attn.forward_async()
+    out_dynamic_expected_np = nntile.utils.constructors.to_numpy(attn.y.value)
+
+    out_dynamic_actual, _ = attn.forward_dynamic(inp_tm)
+    out_dynamic_actual_np = nntile.utils.constructors.to_numpy(out_dynamic_actual.value)
+
+    np.testing.assert_allclose(
+        out_dynamic_actual_np,
+        out_dynamic_expected_np,
+        err_msg="Dynamic does not match static",
+    )
+
+
+@pytest.mark.parametrize("n_head,n_head_tile", [(1, 1)])
+def test_kvcache(context, numpy_rng, n_head, n_head_tile):
+    prefill_size = 4
+    max_tokens = 8
+
+    inp_np = np.asfortranarray(numpy_rng.random((3, 8, 1)))
+    inp_np[:, prefill_size:, :] = 0
+
+    inp = nntile.utils.constructors.from_array(inp_np)
+    inp2 = nntile.utils.constructors.from_array(inp_np)
+    inp3 = nntile.utils.constructors.from_array(inp_np)
+
+    inp_tm = nntile.tensor.TensorMoments(
+        inp, grad=nntile.utils.constructors.zeros(inp.shape, dtype=type(inp)), grad_required=False
+    )
+    inp_tm2 = nntile.tensor.TensorMoments(
+        inp2, grad=nntile.utils.constructors.zeros(inp2.shape, dtype=type(inp)), grad_required=False
+    )
+    inp_tm3 = nntile.tensor.TensorMoments(
+        inp3, grad=nntile.utils.constructors.zeros(inp3.shape, dtype=type(inp)), grad_required=False
+    )
+
+    attn = nntile.layer.GPTNeoAttention.generate_simple(
+        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, layer_id=0, attention_type="global"
+    )
+    attn.init_randn_async()
+
+    # slice to prefill size
+    inp_prefill = nntile.utils.constructors.from_array(inp_np[:, :prefill_size, :])
+    outs_dyn = generate_greedy_logits_dynamic_kvcache(
+        attn, inp_prefill, prefill_size, max_tokens
+    )
+    outs_dyn_np = nntile.utils.constructors.to_numpy(outs_dyn)
+
+    inp_prefill = nntile.utils.constructors.from_array(inp_np[:, :prefill_size, :])
+    outs_stat = generate_greedy_logits_padding(
+        attn, inp_prefill, prefill_size, max_tokens
+    )
+    outs_stat_np = nntile.utils.constructors.to_numpy(outs_stat)
+
+    np.testing.assert_allclose(
+        outs_stat_np,
+        outs_dyn_np,
+        err_msg="test_kvcache: Dynamic does not match static",
+    )

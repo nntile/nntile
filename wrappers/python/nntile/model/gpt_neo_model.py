@@ -11,12 +11,14 @@
 #
 # @version 1.1.0
 
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoConfig as GPTNeoConfigTorch, GPTNeoModel as GPTNeoModelTorch)
 
+import nntile.utils.constructors as nntc
+from nntile.layer.cache_utils import KVCacheStorage
 from nntile.tensor import (
     Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_bf16, Tensor_fp32_fast_fp16,
     Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments, TensorTraits)
@@ -75,6 +77,48 @@ class GPTNeoModel(BaseModel):
         activations.extend(lnorm_layer.activations_output)
 
         super().__init__(activations, layers, config)
+
+    def forward_dynamic(
+            self,
+            x: TensorMoments,
+            use_cache: bool = False,
+            kv_caches: Optional[KVCacheStorage] = None
+        ):
+        seq_size = x.value.shape[0]
+        cache_list = None
+        if kv_caches is not None:
+            if not kv_caches.is_initialized():
+                kv_caches.init(len(self.gpt_neo_blocks), self.seq_len, 1)
+            cache_list = kv_caches.get_cache()
+
+        kvcache_size = len(cache_list[0]) if kv_caches else 0
+        pos_ids_np = np.asfortranarray(
+            np.arange(
+                kvcache_size, kvcache_size + seq_size, dtype=np.int64
+            )
+        )
+        pos_ids_nnt_tm = TensorMoments(
+            nntc.from_array(
+                pos_ids_np, basetile_shape=(x.value.basetile_shape[0],)
+            ),
+            None,
+            False,
+        )
+
+        outs_inp = self.wte_layer.forward_dynamic(x)
+        outs_pos = self.wpe_layer.forward_dynamic(pos_ids_nnt_tm)
+        embedded_input = self.add_slice_layer.forward_dynamic(outs_inp, outs_pos)
+
+        block_out = embedded_input
+        for lid, block_layer in enumerate(self.gpt_neo_blocks):
+            block_out, updated_cache = block_layer.forward_dynamic(
+                block_out,
+                kv_cache=cache_list[lid] if cache_list else None
+            )
+            if cache_list:
+                cache_list[lid] = updated_cache
+        normalized_outs = self.final_lnorm.forward_dynamic(block_out)
+        return normalized_outs, kv_caches
 
     @staticmethod
     def from_torch(torch_gpt_neo: GPTNeoModelTorch,

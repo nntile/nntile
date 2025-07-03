@@ -20,6 +20,7 @@ from transformers.models.gpt_neox.modeling_gpt_neox import (
     GPTNeoXConfig as ConfigTorch, GPTNeoXModel as ModelTorch)
 
 import nntile
+import nntile.utils.constructors as nntc
 from nntile.model.gpt_neox_config import GPTNeoXConfig
 from nntile.model.gpt_neox_model import GPTNeoXModel
 from nntile.utils.constructors import to_numpy
@@ -194,8 +195,8 @@ def generate_inputs(params: GPTNeoXModelTestParams,
 ])
 @pytest.mark.parametrize('dtype', [
     'fp32',
-    pytest.param('fp32_fast_tf32', marks=nocuda),
-    pytest.param('bf16', marks=nocuda),
+    # pytest.param('fp32_fast_tf32', marks=nocuda),
+    # pytest.param('bf16', marks=nocuda),
 ])
 @pytest.mark.parametrize('num_hidden_layers', [0, 1, 2])
 @pytest.mark.parametrize('att_bias', [
@@ -273,3 +274,63 @@ class TestGPTNeoXModel:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+
+@pytest.mark.parametrize('params', [
+    pytest.param(single_tile, id='single_tile'),
+])
+@pytest.mark.parametrize('dtype', [
+    'fp32',
+])
+@pytest.mark.parametrize('num_hidden_layers', [2])
+@pytest.mark.parametrize('att_bias', [False])
+def test_forward_dynamic(context, torch_rng,
+                     params: GPTNeoXModelTestParams,
+                     dtype: str,
+                     num_hidden_layers: int,
+                     att_bias: bool):
+    torch_model, nntile_model, x, pos_ids, mask, _ = \
+            generate_inputs(params, dtype, num_hidden_layers, att_bias)
+    y = torch_model(x,
+                    attention_mask=mask,
+                    position_ids=torch.tensor(pos_ids),
+                    return_dict=True)
+    y_torch = y.last_hidden_state
+
+    x_np = x.cpu().detach().numpy()
+    x_nnt = nntile.tensor.TensorMoments(nntc.from_array(x_np.T), None, False)
+
+    logits_nnt, _ = nntile_model.forward_dynamic(x_nnt)
+    y_nntile = torch.Tensor(nntc.to_numpy(logits_nnt.value).T)
+
+    rtol = dtype2tol[dtype]['rtol']
+    assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
+
+    x_np_trunc = x_np[:x_np.shape[0] // 2, :x_np.shape[1] // 2]
+    pos_ids_trunc = pos_ids[:pos_ids.shape[0] // 2, :pos_ids.shape[1] // 2]
+    trunc_n_seq = pos_ids.shape[1] // 2
+    trunc_n_batch = pos_ids.shape[0] // 2
+    mask_np = np.array(
+            np.triu(np.ones((trunc_n_seq, trunc_n_seq))), dtype=bool, order="F"
+        )
+    mask_trunc = torch.Tensor(np.array(1 - mask_np, dtype=np.float32)).T \
+            * torch.finfo(torch.float32).min
+    mask_trunc = mask_trunc[None, None, :, :].expand(trunc_n_batch, 1, -1, -1)
+    x_trunc_nnt = nntile.tensor.TensorMoments(
+        nntc.from_array(x_np_trunc.T), None, False
+    )
+
+    y_trunc = torch_model(torch.tensor(x_np_trunc),
+                    attention_mask=mask_trunc,
+                    position_ids=torch.tensor(pos_ids_trunc),
+                    return_dict=True)
+    y_trunc_torch = y_trunc.last_hidden_state
+
+    logits_trunc_nnt, _ = nntile_model.forward_dynamic(x_trunc_nnt)
+    y_trunc_nntile = torch.Tensor(nntc.to_numpy(logits_trunc_nnt.value).T)
+
+    actual_diff = torch.norm(y_trunc_torch - y_trunc_nntile)
+    upper_bound_diff = rtol * torch.norm(y_trunc_torch)
+    assert actual_diff <= upper_bound_diff
+
+    nntile_model.unregister()

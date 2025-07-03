@@ -11,13 +11,20 @@
 #
 # @version 1.1.0
 
+from typing import Optional
+
+import torch
+import torch.nn as nn
 import numpy as np
 from transformers import GPTNeoXConfig as ConfigTorch
 from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXForCausalLM as ModelTorch)
+    GPTNeoXForCausalLM as ModelTorch
+)
 
 import nntile
+from nntile.layer.cache_utils import KVCacheStorage
 from nntile.model.generation.llm import LLMGenerationMixin
+from nntile.types import TensorMoments
 
 from ..layer import Linear
 from .base_model import BaseModel
@@ -74,6 +81,17 @@ class GPTNeoXForCausalLM(BaseModel, LLMGenerationMixin):
         self.set_input(x)
         self.forward_async()
         return self.get_output()
+
+    def forward_dynamic(
+            self, x: TensorMoments,
+            use_cache: bool = False,
+            kv_caches: Optional[KVCacheStorage] = None
+        ):
+        gpt_neox_logits, kv_caches = self.gpt_neox_model_.forward_dynamic(
+            x, use_cache=use_cache, kv_caches=kv_caches
+        )
+        out_logits = self.lin_.forward_dynamic(gpt_neox_logits)
+        return out_logits, kv_caches
 
     @staticmethod
     def from_torch(torch_causal,
@@ -154,21 +172,20 @@ class GPTNeoXForCausalLM(BaseModel, LLMGenerationMixin):
     @classmethod
     def from_pretrained(
         cls,
-        model_name: str,
         batch_size: int,
         batch_size_tile: int,
-        seq_len_tile: int,
+        seq_len: int,
         cache_dir: str | None = None,
+        remote_model_name: str = "EleutherAI/gpt-neox-20b",
+        dtype: str = "fp32"
     ):
-        # TODO: where should be global repo with all this logic.
-        # We need to design it.
-        # For now, manual code for usability
         return create_gpt_neox_model_from_torch_pretrained(
-            model_name,
             batch_size,
             batch_size_tile,
-            seq_len_tile,
+            seq_len,
             cache_dir=cache_dir,
+            remote_model_name=remote_model_name,
+            dtype=dtype
         )
 
 
@@ -177,35 +194,40 @@ def compare_shapes(iterable1, iterable2):
 
 
 def create_gpt_neox_model_from_torch_pretrained(
-    model_name: str,
     batch_size: int,
-    batch_size_tile: int | None,
+    batch_size_tile: int,
     seq_len: int,
-    seq_len_tile: int | None,
-    hidden_size_tile: int | None,
-    intermediate_size_tile: int | None,
-    num_heads_tile: int | None,
-    dtype: str,
-    cache_dir: str | None = None
+    cache_dir: str | None = None,
+    remote_model_name: str = "EleutherAI/gpt-neox-20b",
+    dtype: str = "fp32"
 ):
     model_torch = ModelTorch.from_pretrained(
-        model_name, cache_dir=cache_dir
+        remote_model_name,
+        cache_dir=cache_dir,
+        torch_dtype=torch.float16
+    )
+    model_torch.embed_out.weight = nn.Parameter(
+        model_torch.embed_out.weight.detach().clone()
     )
     model_torch.eval()
 
     config_nntile = GPTNeoXConfig(
-        vocab_size=model_torch.vocab_size,
+        vocab_size=model_torch.config.vocab_size,
         vocab_embed_dim_tile=model_torch.config.hidden_size,
         hidden_size=model_torch.config.hidden_size,
-        hidden_size_tile=hidden_size_tile or model_torch.config.hidden_size,
+        hidden_size_tile=model_torch.config.hidden_size,
+        intermediate_size=model_torch.config.intermediate_size,
+        intermediate_size_tile=model_torch.config.intermediate_size,
+        num_heads=model_torch.config.num_attention_heads,
+        num_heads_tile=model_torch.config.num_attention_heads,
+        dtype=dtype,
+        layer_norm_epsilon=model_torch.config.layer_norm_eps,
         max_position_embeddings=model_torch.config.max_position_embeddings,
         num_hidden_layers=model_torch.config.num_hidden_layers,
-        layer_norm_epsilon=model_torch.config.layer_norm_eps,
-        num_heads=model_torch.config.num_attention_heads,
-        intermediate_size=model_torch.config.intermediate_size,
-        intermediate_size_tile=intermediate_size_tile or model_torch.config.intermediate_size,  # noqa: E501
-        num_heads_tile=num_heads_tile or model_torch.config.num_attention_heads,  # noqa: E501
-        dtype=dtype,
+        redux=False,
+        bos_token_id=model_torch.config.bos_token_id,
+        eos_token_id=model_torch.config.eos_token_id,
+        rotary_emb_base=model_torch.config.rotary_emb_base,
     )
 
     single_batch_pos_ids = np.arange(seq_len).reshape(1, seq_len)
@@ -219,7 +241,7 @@ def create_gpt_neox_model_from_torch_pretrained(
         batch_size,
         batch_size_tile or batch_size,
         seq_len,
-        seq_len_tile or seq_len,
+        seq_len,
         pos_ids,
         mask,
         config_nntile

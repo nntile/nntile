@@ -11,10 +11,13 @@
 #
 # @version 1.1.0
 
+from typing import Optional
+
 import numpy as np
 from transformers.models.gpt_neox.modeling_gpt_neox import (
     GPTNeoXConfig as ConfigTorch, GPTNeoXLayer as BlockTorch)
 
+from nntile.layer.cache_utils import KVCache
 from nntile.tensor import TensorMoments
 
 from ..layer.add import Add
@@ -56,6 +59,26 @@ class GPTNeoXBlock(BaseModel):
         self.attn = self.layers[1]
         self.ln_2 = self.layers[3]
         self.mlp = mlp_layer
+
+    def forward_dynamic(
+        self,
+        x: TensorMoments,
+        kv_cache: Optional[KVCache] = None
+    ):
+        (input_norm, attention_layer, post_attn_add, post_attn_norm) = self.layers[:4]  # noqa: E501
+        post_mlp_add = self.layers[-1]
+
+        x_normalized = input_norm.forward_dynamic(x)
+        attn_outs, kv_cache = attention_layer.forward_dynamic(
+            x_normalized, kv_cache=kv_cache
+        )
+        post_attn_outs = post_attn_add.forward_dynamic(attn_outs, x)
+        post_attn_norm_outs = post_attn_norm.forward_dynamic(post_attn_outs)
+
+        mlp_outs = self.mlp.forward_dynamic(post_attn_norm_outs)
+        post_mlp_outs = post_mlp_add.forward_dynamic(mlp_outs, post_attn_outs)
+
+        return post_mlp_outs, kv_cache
 
     @staticmethod
     def from_torch(

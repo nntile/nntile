@@ -11,9 +11,12 @@
 #
 # @version 1.1.0
 
+from typing import Optional
+
 from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoBlock as GPTNeoBlockTorch, GPTNeoConfig as GPTNeoConfigTorch)
 
+from nntile.layer.cache_utils import KVCache
 from nntile.tensor import TensorMoments
 
 from ..layer.add import Add
@@ -34,19 +37,19 @@ class GPTNeoBlock(BaseModel):
 
     # Construct model with all the provided data
     def __init__(self, x: TensorMoments, attention_layer: GPTNeoAttention,
-                 gpt2_mlp: GPTNeoMLP, input_norm: LayerNorm,
+                 mlp_layer: GPTNeoMLP, input_norm: LayerNorm,
                  post_attn_norm: LayerNorm,
                  post_attn_add: Add, post_mlp_add: Add,
                  config: GPTNeoConfig,
                  ):
         # Init activations and list of layers
         layers = [input_norm, attention_layer, post_attn_add, post_attn_norm]
-        layers = layers + gpt2_mlp.layers + [post_mlp_add]
+        layers = layers + mlp_layer.layers + [post_mlp_add]
         activations = [x] + input_norm.activations_output + \
                       attention_layer.activations_output + \
                       post_attn_add.activations_output + \
                       post_attn_norm.activations_output + \
-                      gpt2_mlp.activations[1:] + \
+                      mlp_layer.activations[1:] + \
                       post_mlp_add.activations_output
         self.config = config
         # Fill Base Model with the generated data
@@ -54,7 +57,27 @@ class GPTNeoBlock(BaseModel):
         self.ln_1 = self.layers[0]
         self.attn = self.layers[1]
         self.ln_2 = self.layers[3]
-        self.mlp = gpt2_mlp
+        self.mlp = mlp_layer
+
+    def forward_dynamic(
+        self,
+        x: TensorMoments,
+        kv_cache: Optional[KVCache] = None
+    ):
+        (input_norm, attention_layer, post_attn_add, post_attn_norm) = self.layers[:4]  # noqa: E501
+        post_mlp_add = self.layers[-1]
+
+        x_normalized = input_norm.forward_dynamic(x)
+        attn_outs, kv_cache = attention_layer.forward_dynamic(
+            x_normalized, kv_cache=kv_cache
+        )
+        post_attn_outs = post_attn_add.forward_dynamic(attn_outs, x)
+        post_attn_norm_outs = post_attn_norm.forward_dynamic(post_attn_outs)
+
+        mlp_outs = self.mlp.forward_dynamic(post_attn_norm_outs)
+        post_mlp_outs = post_mlp_add.forward_dynamic(mlp_outs, post_attn_outs)
+
+        return post_mlp_outs, kv_cache
 
     @staticmethod
     def from_torch(
