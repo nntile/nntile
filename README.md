@@ -73,14 +73,14 @@ command:
 docker build . \
     -t nntile:latest \
     --build-arg MAKE_JOBS=4 \
-    --build-arg BASE_IMAGE=nvidia/cuda:12.4.0-devel-ubuntu22.04 \
+    --build-arg BASE_IMAGE=nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04 \
     --build-arg CUDA_ARCHS="80;86;89;90"
 ```
 
 During image building `StarPU` is compiled with `make`. This process can be
 adjusted with degree of parallelism with `MAKE_JOBS` option (default no
 parallelism). Due to Nvidia pruning their old docker images, it could be
-possible that a default `nvidia/cuda:12.4.0-devel-ubuntu-22.04` is not
+possible that a default `nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04` is not
 available. In such a case, input name of an appropriate available image.
 Argument `CUDA_ARCHS` defines target CUDA architectures to be supported by
 **NNTile**.
