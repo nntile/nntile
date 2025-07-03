@@ -46,7 +46,11 @@ def parse_args():
         help="cache dir for huggingface objects",
     )
     parser.add_argument("--max-seq-len", type=int, default=1024)
-    parser.add_argument("--remote-model-name", type=str, default="EleutherAI/gpt-neox-20b")
+    parser.add_argument(
+        "--remote-model-name",
+        type=str,
+        default="EleutherAI/gpt-neox-20b"
+    )
     parser.add_argument(
         "--dtype",
         choices=["fp32", "fp64", "tf32", "bf16", "fp32_fast_fp16", "fp32_fast_bf16"],

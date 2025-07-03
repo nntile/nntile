@@ -14,6 +14,7 @@
 from typing import Optional
 
 import torch
+import torch.nn as nn
 import numpy as np
 from transformers import GPTNeoXConfig as ConfigTorch
 from transformers.models.gpt_neox.modeling_gpt_neox import (
@@ -204,6 +205,9 @@ def create_gpt_neox_model_from_torch_pretrained(
         remote_model_name,
         cache_dir=cache_dir,
         torch_dtype=torch.float16
+    )
+    model_torch.embed_out.weight = nn.Parameter(
+        model_torch.embed_out.weight.detach().clone()
     )
     model_torch.eval()
 
