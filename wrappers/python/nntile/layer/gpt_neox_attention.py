@@ -1448,14 +1448,14 @@ class GPTNeoXAttention(BaseLayer):
         
         # Create sliced sin/cos tensors to match current sequence length
         sin_sliced = nntc.empty(
-            (self.sin.shape[0], current_seq_len, self.sin.shape[2]),
+            (self.sin.shape[0], current_seq_len, q_partial.shape[2]),
             dtype=type(self.sin),
-            basetile_shape=(self.sin.shape[0], current_seq_len, self.sin.shape[2]),
+            basetile_shape=(self.sin.shape[0], current_seq_len, q_partial.shape[2]),
         )
         cos_sliced = nntc.empty(
-            (self.cos.shape[0], current_seq_len, self.cos.shape[2]),
+            (self.cos.shape[0], current_seq_len, q_partial.shape[2]),
             dtype=type(self.cos),
-            basetile_shape=(self.cos.shape[0], current_seq_len, self.cos.shape[2]),
+            basetile_shape=(self.cos.shape[0], current_seq_len, q_partial.shape[2]),
         )
         
         # Copy the relevant slice from the original sin/cos tensors
@@ -1501,14 +1501,14 @@ class GPTNeoXAttention(BaseLayer):
         
         # Create sliced sin/cos tensors to match current sequence length
         sin_sliced = nntc.empty(
-            (self.sin.shape[0], current_seq_len, self.sin.shape[2]),
+            (self.sin.shape[0], current_seq_len, k_partial.shape[2]),
             dtype=type(self.sin),
-            basetile_shape=(self.sin.shape[0], current_seq_len, self.sin.shape[2]),
+            basetile_shape=(self.sin.shape[0], current_seq_len, k_partial.shape[2]),
         )
         cos_sliced = nntc.empty(
-            (self.cos.shape[0], current_seq_len, self.cos.shape[2]),
+            (self.cos.shape[0], current_seq_len, k_partial.shape[2]),
             dtype=type(self.cos),
-            basetile_shape=(self.cos.shape[0], current_seq_len, self.cos.shape[2]),
+            basetile_shape=(self.cos.shape[0], current_seq_len, k_partial.shape[2]),
         )
         
         # Copy the relevant slice from the original sin/cos tensors
