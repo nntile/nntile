@@ -17,7 +17,8 @@ import numpy as np
 import torch
 from transformers.models.gpt_neox.modeling_gpt_neox import (
     GPTNeoXAttention as GPTNeoXAttention_torch,
-    GPTNeoXConfig as GPTNeoXConfig_torch)
+    GPTNeoXConfig as GPTNeoXConfig_torch
+)
 
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
@@ -25,9 +26,9 @@ from nntile.layer.cache_utils import KVCache
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
     add_fiber_inplace_async, add_slice_inplace_async, clear_async, 
-    copy_intersection_async, gemm_async, mask_scalar_async, maxsumexp_async, 
-    notrans, prod_inplace_async, rope_async, rope_backward_async, 
-    softmax_inplace_async, sum_fiber_async, sumprod_slice_async, to_numpy, 
+    copy_intersection_async, gemm_async, mask_scalar_async, maxsumexp_async,
+    notrans, prod_inplace_async, rope_async, rope_backward_async,
+    softmax_inplace_async, sum_fiber_async, sumprod_slice_async, to_numpy,
     trans, transpose_async)
 
 from ..model.gpt_neox_config import GPTNeoXConfig
@@ -217,7 +218,7 @@ class GPTNeoXAttention(BaseLayer):
         n_head_tile: int,
         position_ids: np.ndarray,
         theta: float,
-        bias: bool = False,
+        attention_bias: bool = False,
         mask: np.ndarray = None,
         redux: bool = False,
     ):
@@ -385,7 +386,7 @@ class GPTNeoXAttention(BaseLayer):
         a_sumprod_slice_distr = [0] * a_sumprod_slice_traits.grid.nelems
         b_distr = [0] * b_traits.grid.nelems
         b_transposed_distr = [0] * b_transposed_traits.grid.nelems
-        if bias:
+        if attention_bias:
             in_proj_bias_q_traits = TensorTraits(
                 [head_size, n_head],
                 [head_size_tile, n_head_tile],
@@ -402,7 +403,7 @@ class GPTNeoXAttention(BaseLayer):
         w_q_value = type(x.value)(w_q_traits, w_q_distr)
         w_q_grad = type(x.value)(w_q_traits, w_q_distr)
         w_q = TensorMoments(w_q_value, w_q_grad, True)
-        if bias:
+        if attention_bias:
             in_proj_bias_q_value = type(x.value)(
                 in_proj_bias_q_traits, in_proj_bias_q_distr
             )
@@ -418,7 +419,7 @@ class GPTNeoXAttention(BaseLayer):
         w_k_value = type(x.value)(w_k_traits, w_k_distr)
         w_k_grad = type(x.value)(w_k_traits, w_k_distr)
         w_k = TensorMoments(w_k_value, w_k_grad, True)
-        if bias:
+        if attention_bias:
             in_proj_bias_k_value = type(x.value)(
                 in_proj_bias_kv_traits, in_proj_bias_kv_distr
             )
@@ -434,7 +435,7 @@ class GPTNeoXAttention(BaseLayer):
         w_v_value = type(x.value)(w_v_traits, w_v_distr)
         w_v_grad = type(x.value)(w_v_traits, w_v_distr)
         w_v = TensorMoments(w_v_value, w_v_grad, True)
-        if bias:
+        if attention_bias:
             in_proj_bias_v_value = type(x.value)(
                 in_proj_bias_kv_traits, in_proj_bias_kv_distr
             )
@@ -529,7 +530,7 @@ class GPTNeoXAttention(BaseLayer):
         cos = type(x.value)(cos_traits, cos_distr)
         sin = type(x.value)(sin_traits, sin_distr)
         # Allocate tensors for bias for q, k, v and output projection
-        if bias:
+        if attention_bias:
             out_proj_bias_traits = TensorTraits([n_emb], [n_emb_tile])
             out_proj_bias_distr = [0] * out_proj_bias_traits.grid.nelems
             out_proj_bias_value = type(x.value)(
@@ -953,7 +954,7 @@ class GPTNeoXAttention(BaseLayer):
                     1,
                     self.in_proj_bias_q.grad,
                     0,
-                    2,
+                    1,
                     redux=self.redux,
                 )
                 self.in_proj_bias_q.grad.wont_use()
@@ -1060,6 +1061,7 @@ class GPTNeoXAttention(BaseLayer):
             n_head_tile=config.num_heads_tile,
             position_ids=position_ids,
             theta=config.rotary_emb_base,
+            attention_bias=config.attention_bias,
             mask=mask,
             redux=config.redux,
         )
@@ -1101,29 +1103,27 @@ class GPTNeoXAttention(BaseLayer):
                 .detach()
                 .numpy()
             )
-            bias_torch_np = (
+            bias_torch = (
                 torch_layer.query_key_value.bias.cpu().detach().numpy()
             )
+            bias_qkv = bias_torch.reshape(layer.n_head, 3 * layer.head_size)
+            bias_q = bias_qkv[:, :layer.head_size]
+            bias_k = bias_qkv[:, layer.head_size: 2 * layer.head_size]
+            bias_v = bias_qkv[:, 2 * layer.head_size: 3 * layer.head_size]
             layer.in_proj_bias_q.value.from_array(
                 cls.rotate_tensor_in(
-                    bias_torch_np[0 : n_emb]
-                    .reshape(layer.n_head, layer.head_size)
-                    .T,
+                    bias_q.reshape(layer.n_head, layer.head_size).T,
                     0
                 )
             )
             layer.in_proj_bias_k.value.from_array(
                 cls.rotate_tensor_in(
-                    bias_torch_np[n_emb : 2 * n_emb]
-                    .reshape(layer.n_head, layer.head_size)
-                    .T,
+                    bias_k.reshape(layer.n_head, layer.head_size).T,
                     0
                 )
             )
             layer.in_proj_bias_v.value.from_array(
-                bias_torch_np[2 * n_emb : 3 * n_emb]
-                .reshape(layer.n_head, layer.head_size)
-                .T
+                bias_v.reshape(layer.n_head, layer.head_size).T
             )
         return layer
 
@@ -1132,7 +1132,7 @@ class GPTNeoXAttention(BaseLayer):
         torch_layer_config = GPTNeoXConfig_torch(
             hidden_size=self.n_emb,
             num_attention_heads=self.n_head,
-            attention_bias=False,
+            attention_bias=bias,
             use_cache=False,
             attention_dropout=0.0,
         )
@@ -1170,24 +1170,24 @@ class GPTNeoXAttention(BaseLayer):
                 to_numpy(self.out_proj_bias.value).flatten(),
                 requires_grad=True,
             )
-            bias_torch_np = np.empty((3 * self.n_emb,))
-            bias_torch_np[: self.n_emb] = (
-                __class__.rotate_tensor_out(
+            bias_qkv = np.empty((self.n_head, 3 * self.head_size))
+            bias_q = __class__.rotate_tensor_out(
                     to_numpy(self.in_proj_bias_q.value),
                     0
-                ).T.flatten()
-            )
-            bias_torch_np[self.n_emb : 2 * self.n_emb] = (
-                __class__.rotate_tensor_out(
+                ).T
+            bias_k = __class__.rotate_tensor_out(
                     to_numpy(self.in_proj_bias_k.value),
                     0
-                ).T.flatten()
-            )
-            bias_torch_np[2 * self.n_emb : 3 * self.n_emb] = to_numpy(
+                ).T
+            bias_v = to_numpy(
                 self.in_proj_bias_v.value
-            ).T.flatten()
+            ).T
+            bias_qkv[:, :self.head_size] = bias_q
+            bias_qkv[:, self.head_size: 2 * self.head_size] = bias_k
+            bias_qkv[:, 2 * self.head_size: 3 * self.head_size] = bias_v
+            bias_qkv = bias_qkv.reshape(3 * self.n_emb)
             torch_layer.query_key_value.bias.data = torch.tensor(
-                bias_torch_np,
+                bias_qkv,
                 requires_grad=True,
             )
         return torch_layer
@@ -1225,22 +1225,24 @@ class GPTNeoXAttention(BaseLayer):
             torch_layer.dense.bias.grad = torch.tensor(
                 to_numpy(self.out_proj_bias.grad).flatten()
             )
-            bias_torch_np = np.empty((3 * self.n_emb,))
-            bias_torch_np[: self.n_emb] = __class__.rotate_tensor_out(
-                to_numpy(self.in_proj_bias_q.grad),
-                0
-            ).T.flatten()
-            bias_torch_np[self.n_emb : 2 * self.n_emb] = (
-                __class__.rotate_tensor_out(
+            bias_qkv = np.empty((self.n_head, 3 * self.head_size))
+            bias_q = __class__.rotate_tensor_out(
+                    to_numpy(self.in_proj_bias_q.grad),
+                    0
+                ).T
+            bias_k = __class__.rotate_tensor_out(
                     to_numpy(self.in_proj_bias_k.grad),
                     0
-                ).T.flatten()
-            )
-            bias_torch_np[2 * self.n_emb : 3 * self.n_emb] = (
-                to_numpy(self.in_proj_bias_v.grad).T.flatten()
-            )
+                ).T
+            bias_v = to_numpy(
+                self.in_proj_bias_v.grad
+            ).T
+            bias_qkv[:, :self.head_size] = bias_q
+            bias_qkv[:, self.head_size: 2 * self.head_size] = bias_k
+            bias_qkv[:, 2 * self.head_size: 3 * self.head_size] = bias_v
+            bias_qkv = bias_qkv.reshape(3 * self.n_emb)
             torch_layer.query_key_value.bias.grad = torch.tensor(
-                bias_torch_np
+                bias_qkv
             )
         return torch_layer
 

@@ -92,14 +92,16 @@ multiple_tiles = GPTNeoXAttentionTestParams(
 )
 
 
-def generate_inputs(dtype: str, params: GPTNeoXAttentionTestParams):
+def generate_inputs(params: GPTNeoXAttentionTestParams,
+                    dtype: str,
+                    att_bias: bool):
     rng = np.random.default_rng(42)
     torch_layer_config = ConfigTorch(
         hidden_size=params.n_emb,
         num_attention_heads=params.n_head,
         rotary_pct=1.0,
         use_cache=False,
-        attention_bias=False,
+        attention_bias=att_bias,
         attention_dropout=0.0,
     )
 
@@ -114,6 +116,7 @@ def generate_inputs(dtype: str, params: GPTNeoXAttentionTestParams):
         num_heads_tile=params.n_head_tile,
         dtype=dtype,
         redux=False,
+        attention_bias=att_bias,
     )
 
     torch_layer = AttentionTorch(
@@ -165,8 +168,8 @@ def generate_inputs(dtype: str, params: GPTNeoXAttentionTestParams):
 
 
 @pytest.mark.parametrize('params', [
-    pytest.param(single_tile, id='single_tile'),
     pytest.param(single_tile_trivial, id='single_tile_trivial'),
+    pytest.param(single_tile, id='single_tile'),
     pytest.param(multiple_tiles, id='multiple_tiles'),
 ])
 @pytest.mark.parametrize('dtype', [
@@ -174,11 +177,17 @@ def generate_inputs(dtype: str, params: GPTNeoXAttentionTestParams):
     pytest.param('fp32_fast_tf32', marks=nocuda),
     pytest.param('bf16', marks=nocuda),
 ])
+@pytest.mark.parametrize('att_bias', [
+    False, True,
+])
 class TestGPTNeoXAttention:
 
-    def test_torch_coercion(self, context, torch_rng, dtype: str,
-                            params: GPTNeoXAttentionTestParams):
-        torch_layer, nntile_layer, *_ = generate_inputs(dtype, params)
+    def test_torch_coercion(self, context, torch_rng,
+                            params: GPTNeoXAttentionTestParams,
+                            dtype: str,
+                            att_bias: bool):
+        torch_layer, nntile_layer, *_ = \
+            generate_inputs(params, dtype, att_bias)
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
         nntile_layer.x.unregister()
@@ -190,10 +199,12 @@ class TestGPTNeoXAttention:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, context, torch_rng, dtype: str,
-                     params: GPTNeoXAttentionTestParams):
+    def test_forward(self, context, torch_rng,
+                     params: GPTNeoXAttentionTestParams,
+                     dtype: str,
+                     att_bias: bool):
         torch_layer, nntile_layer, x, pos_embs, mask, *_ = \
-            generate_inputs(dtype, params)
+            generate_inputs(params, dtype, att_bias)
         y, _ = torch_layer(
             x, attention_mask=mask, position_embeddings=pos_embs
         )
@@ -205,10 +216,12 @@ class TestGPTNeoXAttention:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, context, torch_rng, dtype: str,
-                      params: GPTNeoXAttentionTestParams):
+    def test_backward(self, context, torch_rng,
+                      params: GPTNeoXAttentionTestParams,
+                      dtype: str,
+                      att_bias: bool):
         torch_layer, nntile_layer, x, pos_embs, mask, y_grad = \
-            generate_inputs(dtype, params)
+            generate_inputs(params, dtype, att_bias)
         y, _ = torch_layer(
             x, attention_mask=mask, position_embeddings=pos_embs
         )
@@ -251,20 +264,19 @@ def test_dynamic(
     )
 
     inp_tm = nntile.tensor.TensorMoments(
-        inp, grad=nntile.utils.constructors.zeros(inp.shape, dtype=type(inp)), grad_required=False
+        inp, grad=nntile.utils.constructors.zeros(inp.shape, dtype=type(inp)),
+        grad_required=False
     )
 
-    # Create position_ids for the GPTNeoXAttention layer
-    position_ids = np.arange(seq_size, dtype=np.int64)[None, :]  # (1, seq_size)
+    position_ids = np.arange(seq_size, dtype=np.int64)[None, :]
 
-    # Create causal mask
     causal_mask = np.array(
         np.triu(np.ones((seq_size, seq_size))), dtype=bool, order="F"
     )
 
     attn = nntile.layer.GPTNeoXAttention.generate_simple(
         inp_tm, n_head, n_head_tile, position_ids, theta=10000.0,
-        bias=False, mask=causal_mask, redux=False
+        attention_bias=True, mask=causal_mask, redux=False
     )
     attn.init_randn_async()
     
@@ -272,7 +284,9 @@ def test_dynamic(
     out_dynamic_expected_np = nntile.utils.constructors.to_numpy(attn.y.value)
 
     out_dynamic_actual, _ = attn.forward_dynamic(inp_tm)
-    out_dynamic_actual_np = nntile.utils.constructors.to_numpy(out_dynamic_actual.value)
+    out_dynamic_actual_np = (
+        nntile.utils.constructors.to_numpy(out_dynamic_actual.value)
+    )
 
     np.testing.assert_allclose(
         out_dynamic_actual_np,
@@ -292,31 +306,34 @@ def test_kvcache(context, numpy_rng, n_head, n_head_tile):
     inp = nntile.utils.constructors.from_array(inp_np)
 
     inp_tm = nntile.tensor.TensorMoments(
-        inp, grad=nntile.utils.constructors.zeros(inp.shape, dtype=type(inp)), grad_required=False
+        inp, grad=nntile.utils.constructors.zeros(inp.shape, dtype=type(inp)),
+        grad_required=False
     )
 
-    # Create position_ids for the GPTNeoXAttention layer
-    position_ids = np.arange(8, dtype=np.int64)[None, :]  # (1, 8)
+    position_ids = np.arange(8, dtype=np.int64)[None, :]
 
-    # Create causal mask
     causal_mask = np.array(
         np.triu(np.ones((8, 8))), dtype=bool, order="F"
     )
 
     attn = nntile.layer.GPTNeoXAttention.generate_simple(
         inp_tm, n_head, n_head_tile, position_ids, theta=10000.0,
-        bias=False, mask=causal_mask, redux=False
+        attention_bias=True, mask=causal_mask, redux=False
     )
     attn.init_randn_async()
 
     # slice to prefill size
-    inp_prefill = nntile.utils.constructors.from_array(inp_np[:, :prefill_size, :])
+    inp_prefill = (
+        nntile.utils.constructors.from_array(inp_np[:, :prefill_size, :])
+    )
     outs_dyn = generate_greedy_logits_dynamic_kvcache(
         attn, inp_prefill, prefill_size, max_tokens
     )
     outs_dyn_np = nntile.utils.constructors.to_numpy(outs_dyn)
 
-    inp_prefill = nntile.utils.constructors.from_array(inp_np[:, :prefill_size, :])
+    inp_prefill = (
+        nntile.utils.constructors.from_array(inp_np[:, :prefill_size, :])
+    )
     outs_stat = generate_greedy_logits_padding(
         attn, inp_prefill, prefill_size, max_tokens
     )

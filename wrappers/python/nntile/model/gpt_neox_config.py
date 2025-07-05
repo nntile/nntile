@@ -34,4 +34,5 @@ class GPTNeoXConfig:
     bos_token_id: int = 50256
     eos_token_id: int = 50256
     rotary_emb_base: int = 10000
+    attention_bias: bool = False
     name: str = "gpt-neox"
