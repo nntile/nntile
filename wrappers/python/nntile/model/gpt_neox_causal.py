@@ -13,13 +13,12 @@
 
 from typing import Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
 from transformers import GPTNeoXConfig as ConfigTorch
 from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXForCausalLM as ModelTorch
-)
+    GPTNeoXForCausalLM as ModelTorch)
 
 import nntile
 from nntile.layer.cache_utils import KVCacheStorage
@@ -134,8 +133,9 @@ class GPTNeoXForCausalLM(BaseModel, LLMGenerationMixin):
             num_hidden_layers=self.config.num_hidden_layers,
             num_attention_heads=self.config.num_heads,
             intermediate_size=self.config.intermediate_size,
-            rotary_pct=1.0,
-            attention_bias=False,
+            rotary_pct=self.config.rotary_pct,
+            rotary_emb_base=self.config.rotary_emb_base,
+            attention_bias=self.config.attention_bias,
             attention_dropout=0.0,
             hidden_dropout=0.0,
             max_position_embeddings=self.config.max_position_embeddings,
@@ -155,8 +155,9 @@ class GPTNeoXForCausalLM(BaseModel, LLMGenerationMixin):
             num_hidden_layers=self.config.num_hidden_layers,
             num_attention_heads=self.config.num_heads,
             intermediate_size=self.config.intermediate_size,
-            rotary_pct=1.0,
-            attention_bias=False,
+            rotary_pct=self.config.rotary_pct,
+            rotary_emb_base=self.config.rotary_emb_base,
+            attention_bias=self.config.attention_bias,
             attention_dropout=0.0,
             hidden_dropout=0.0,
             max_position_embeddings=self.config.max_position_embeddings,
@@ -227,7 +228,9 @@ def create_gpt_neox_model_from_torch_pretrained(
         redux=False,
         bos_token_id=model_torch.config.bos_token_id,
         eos_token_id=model_torch.config.eos_token_id,
+        rotary_pct=model_torch.config.rotary_pct,
         rotary_emb_base=model_torch.config.rotary_emb_base,
+        attention_bias=model_torch.config.attention_bias,
     )
 
     single_batch_pos_ids = np.arange(seq_len).reshape(1, seq_len)
