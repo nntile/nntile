@@ -13,13 +13,13 @@
 
 from typing import Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
+
 from transformers import GPTNeoXConfig as ConfigTorch
 from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXForCausalLM as ModelTorch
-)
+    GPTNeoXForCausalLM as ModelTorch)
 
 import nntile
 from nntile.layer.cache_utils import KVCacheStorage
