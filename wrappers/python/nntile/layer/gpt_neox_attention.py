@@ -554,10 +554,10 @@ class GPTNeoXAttention(BaseLayer):
         y = TensorMoments(y_value, y_grad, True)
 
         # Fill sin, cos tensors:
-        l = int((head_size // 2) * rotary_pct)
-        dim = int(head_size * rotary_pct)
+        rot_imitation_border = int((head_size // 2) * rotary_pct)
+        rope_size = int(head_size * rotary_pct)
         inv_freq = 1.0 / (theta
-                ** (np.arange(0, head_size, 2, dtype=np.float32) / dim))
+                ** (np.arange(0, head_size, 2, dtype=np.float32) / rope_size))
         freq_frame = np.empty((head_size // 2, n_seq, n_batch))
         for i in range(n_batch):
             freq_frame[:, :, i] = np.outer(inv_freq, position_ids[i, :])
@@ -565,11 +565,11 @@ class GPTNeoXAttention(BaseLayer):
         np_cos = np.cos(np_freqs)
         np_sin = np.sin(np_freqs)
 
-        # Set the "dummy" rotations to 1.0 and 0.0 so trigonometric tensors
+        # Set up the "dummy" rotations so trigonometric tensors
         # are always of the same shape but elements outside the "rotary" part
         # in the target tensors Q and K are not actually moved
-        np_cos[l:, :, :] = 1.0
-        np_sin[l:, :, :] = 0.0
+        np_cos[rot_imitation_border:, :, :] = 1.0
+        np_sin[rot_imitation_border:, :, :] = 0.0
         cos.from_array(np_cos)
         sin.from_array(np_sin)
 
