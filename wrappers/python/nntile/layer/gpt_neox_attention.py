@@ -70,6 +70,7 @@ class GPTNeoXAttention(BaseLayer):
     redux: bool
     n_head_tile: int
     n_emb_tile: int
+    rotary_pct: float
 
     # Construct attention layer with all the provided data
     def __init__(
@@ -99,6 +100,7 @@ class GPTNeoXAttention(BaseLayer):
         in_proj_bias_k: TensorMoments,
         in_proj_bias_v: TensorMoments,
         out_proj_bias: TensorMoments,
+        rotary_pct: float,
         mask: TensorOrNone = None,
         redux: bool = False,
     ):
@@ -201,6 +203,7 @@ class GPTNeoXAttention(BaseLayer):
         self.n_seq = n_seq
         self.n_batch = n_batch
         self.head_size = head_size
+        self.rotary_pct = rotary_pct
         self.causal_mask = mask
         if mask:
             self.val = -np.float32(np.inf)
@@ -216,6 +219,7 @@ class GPTNeoXAttention(BaseLayer):
         n_head: int,
         n_head_tile: int,
         position_ids: np.ndarray,
+        rotary_pct: float,
         theta: float,
         attention_bias: bool = False,
         mask: np.ndarray = None,
@@ -550,8 +554,10 @@ class GPTNeoXAttention(BaseLayer):
         y = TensorMoments(y_value, y_grad, True)
 
         # Fill sin, cos tensors:
+        l = int((head_size // 2) * rotary_pct)
+        dim = int(head_size * rotary_pct)
         inv_freq = 1.0 / (theta
-                ** (np.arange(0, head_size, 2, dtype=np.float32) / head_size))
+                ** (np.arange(0, head_size, 2, dtype=np.float32) / dim))
         freq_frame = np.empty((head_size // 2, n_seq, n_batch))
         for i in range(n_batch):
             freq_frame[:, :, i] = np.outer(inv_freq, position_ids[i, :])
@@ -559,6 +565,11 @@ class GPTNeoXAttention(BaseLayer):
         np_cos = np.cos(np_freqs)
         np_sin = np.sin(np_freqs)
 
+        # Set the "dummy" rotations to 1.0 and 0.0 so trigonometric tensors
+        # are always of the same shape but elements outside the "rotary" part
+        # in the target tensors Q and K are not actually moved
+        np_cos[l:, :, :] = 1.0
+        np_sin[l:, :, :] = 0.0
         cos.from_array(np_cos)
         sin.from_array(np_sin)
 
@@ -605,6 +616,7 @@ class GPTNeoXAttention(BaseLayer):
             bias_inproj_k,
             bias_inproj_v,
             out_proj_bias,
+            rotary_pct,
             layer_mask,
             redux=redux,
         )
@@ -1008,42 +1020,102 @@ class GPTNeoXAttention(BaseLayer):
         self.q_transposed.grad.invalidate_submit()
 
     @staticmethod
-    def rotate_tensor_in(x: np.ndarray, axis: int) -> np.ndarray:
+    def rotate_tensor_in(
+        x: np.ndarray,
+        axis: int,
+        rotary_pct: float
+    ) -> np.ndarray:
+        # Calculate the number of elements to rotate based on the rotary_pct
+        k_elements = int(x.shape[axis] * rotary_pct)
         if axis == 0:
-            new_shape = (1, x.shape[0], np.prod(x.shape[1:]))
+            new_shape = (1, k_elements, np.prod(x.shape[1:]))
         elif axis == x.ndim - 1:
-            new_shape = (np.prod(x.shape[:-1]), x.shape[-1], 1)
+            new_shape = (np.prod(x.shape[:-1]), k_elements, 1)
         else:
             new_shape = (
                     np.prod(x.shape[:axis]),
-                    x.shape[axis],
+                    k_elements,
                     np.prod(x.shape[axis + 1:])
             )
-        x_reshaped = x.reshape(new_shape)
-        mid = x.shape[axis] // 2
+        # Select first k_elements from the target axis
+        if axis == 0:
+            x_selected = x[:k_elements, ...]
+        elif axis == x.ndim - 1:
+            x_selected = x[..., :k_elements]
+        else:
+            # Create slice for the target axis
+            slice_obj = [slice(None)] * x.ndim
+            slice_obj[axis] = slice(0, k_elements)
+            x_selected = x[tuple(slice_obj)]
+
+        x_reshaped = x_selected.reshape(new_shape)
+        mid = k_elements // 2
         y_reshaped = np.empty_like(x_reshaped)
         y_reshaped[:, 0::2, :] = x_reshaped[:, :mid, :]
         y_reshaped[:, 1::2, :] = x_reshaped[:, mid:, :]
-        return y_reshaped.reshape(x.shape)
+
+        # Create output tensor with same shape as input
+        result = x.copy()
+
+        # Place the rotated sub-tensor into the output tensor
+        if axis == 0:
+            result[:k_elements, ...] = y_reshaped.reshape(x_selected.shape)
+        elif axis == x.ndim - 1:
+            result[..., :k_elements] = y_reshaped.reshape(x_selected.shape)
+        else:
+            slice_obj = [slice(None)] * x.ndim
+            slice_obj[axis] = slice(0, k_elements)
+            result[tuple(slice_obj)] = y_reshaped.reshape(x_selected.shape)
+        return result
 
     @staticmethod
-    def rotate_tensor_out(x: np.ndarray, axis: int) -> np.ndarray:
+    def rotate_tensor_out(
+        x: np.ndarray,
+        axis: int,
+        rotary_pct: float
+    ) -> np.ndarray:
+        # Calculate the number of elements to rotate based on the rotary_pct
+        k_elements = int(x.shape[axis] * rotary_pct)
         if axis == 0:
-            new_shape = (1, x.shape[0], np.prod(x.shape[1:]))
+            new_shape = (1, k_elements, np.prod(x.shape[1:]))
         elif axis == x.ndim - 1:
-            new_shape = (np.prod(x.shape[:-1]), x.shape[-1], 1)
+            new_shape = (np.prod(x.shape[:-1]), k_elements, 1)
         else:
             new_shape = (
                     np.prod(x.shape[:axis]),
-                    x.shape[axis],
+                    k_elements,
                     np.prod(x.shape[axis + 1:])
             )
-        x_reshaped = x.reshape(new_shape)
-        mid = x.shape[axis] // 2
+        # Select first k_elements from the target axis
+        if axis == 0:
+            x_selected = x[:k_elements, ...]
+        elif axis == x.ndim - 1:
+            x_selected = x[..., :k_elements]
+        else:
+            # Create slice for the target axis
+            slice_obj = [slice(None)] * x.ndim
+            slice_obj[axis] = slice(0, k_elements)
+            x_selected = x[tuple(slice_obj)]
+
+        x_reshaped = x_selected.reshape(new_shape)
+        mid = k_elements // 2
         y_reshaped = np.empty_like(x_reshaped)
         y_reshaped[:, :mid, :] = x_reshaped[:, 0::2, :]
         y_reshaped[:, mid:, :] = x_reshaped[:, 1::2, :]
-        return y_reshaped.reshape(x.shape)
+
+        # Create output tensor with same shape as input
+        result = x.copy()
+
+        # Place the rotated sub-tensor into the output tensor
+        if axis == 0:
+            result[:k_elements, ...] = y_reshaped.reshape(x_selected.shape)
+        elif axis == x.ndim - 1:
+            result[..., :k_elements] = y_reshaped.reshape(x_selected.shape)
+        else:
+            slice_obj = [slice(None)] * x.ndim
+            slice_obj[axis] = slice(0, k_elements)
+            result[tuple(slice_obj)] = y_reshaped.reshape(x_selected.shape)
+        return result
 
     @classmethod
     def from_torch(cls,
@@ -1059,8 +1131,9 @@ class GPTNeoXAttention(BaseLayer):
             n_head=torch_layer.config.num_attention_heads,
             n_head_tile=config.num_heads_tile,
             position_ids=position_ids,
-            theta=config.rotary_emb_base,
-            attention_bias=config.attention_bias,
+            rotary_pct=torch_layer.config.rotary_pct,
+            theta=torch_layer.config.rotary_emb_base,
+            attention_bias=torch_layer.config.attention_bias,
             mask=mask,
             redux=config.redux,
         )
@@ -1074,13 +1147,15 @@ class GPTNeoXAttention(BaseLayer):
         layer.w_q.value.from_array(
             cls.rotate_tensor_in(
                 w_q_parts.reshape(*layer.w_q.value.shape),
-                1
+                1,
+                layer.rotary_pct
             )
         )
         layer.w_k.value.from_array(
             cls.rotate_tensor_in(
                 w_k_parts.reshape(*layer.w_k.value.shape),
-                1
+                1,
+                layer.rotary_pct
             )
         )
         layer.w_v.value.from_array(
@@ -1112,13 +1187,15 @@ class GPTNeoXAttention(BaseLayer):
             layer.in_proj_bias_q.value.from_array(
                 cls.rotate_tensor_in(
                     bias_q.reshape(layer.n_head, layer.head_size).T,
-                    0
+                    0,
+                    layer.rotary_pct
                 )
             )
             layer.in_proj_bias_k.value.from_array(
                 cls.rotate_tensor_in(
                     bias_k.reshape(layer.n_head, layer.head_size).T,
-                    0
+                    0,
+                    layer.rotary_pct
                 )
             )
             layer.in_proj_bias_v.value.from_array(
@@ -1134,15 +1211,16 @@ class GPTNeoXAttention(BaseLayer):
             attention_bias=bias,
             use_cache=False,
             attention_dropout=0.0,
+            rotary_pct=self.rotary_pct,
         )
         torch_layer = GPTNeoXAttention_torch(torch_layer_config)
         w_qkv_np = np.empty((self.n_head, 3 * self.head_size, self.n_emb))
 
         w_q_parts = __class__.rotate_tensor_out(
-            to_numpy(self.w_q.value), 1
+            to_numpy(self.w_q.value), 1, self.rotary_pct
         ).reshape(self.n_head, self.head_size, self.n_emb)
         w_k_parts = __class__.rotate_tensor_out(
-            to_numpy(self.w_k.value), 1
+            to_numpy(self.w_k.value), 1, self.rotary_pct
         ).reshape(self.n_head, self.head_size, self.n_emb)
         w_v_parts = to_numpy(self.w_v.value).reshape(
             self.n_head, self.head_size, self.n_emb
@@ -1172,11 +1250,13 @@ class GPTNeoXAttention(BaseLayer):
             bias_qkv = np.empty((self.n_head, 3 * self.head_size))
             bias_q = __class__.rotate_tensor_out(
                     to_numpy(self.in_proj_bias_q.value),
-                    0
+                    0,
+                    self.rotary_pct
                 ).T
             bias_k = __class__.rotate_tensor_out(
                     to_numpy(self.in_proj_bias_k.value),
-                    0
+                    0,
+                    self.rotary_pct
                 ).T
             bias_v = to_numpy(
                 self.in_proj_bias_v.value
@@ -1197,10 +1277,10 @@ class GPTNeoXAttention(BaseLayer):
         w_qkv_np = np.empty((self.n_head, 3 * self.head_size, self.n_emb))
 
         w_q_parts = __class__.rotate_tensor_out(
-            to_numpy(self.w_q.grad), 1
+            to_numpy(self.w_q.grad), 1, self.rotary_pct
         ).reshape(self.n_head, self.head_size, self.n_emb)
         w_k_parts = __class__.rotate_tensor_out(
-            to_numpy(self.w_k.grad), 1
+            to_numpy(self.w_k.grad), 1, self.rotary_pct
         ).reshape(self.n_head, self.head_size, self.n_emb)
         w_v_parts = to_numpy(self.w_v.grad).reshape(
             self.n_head, self.head_size, self.n_emb
@@ -1227,11 +1307,13 @@ class GPTNeoXAttention(BaseLayer):
             bias_qkv = np.empty((self.n_head, 3 * self.head_size))
             bias_q = __class__.rotate_tensor_out(
                     to_numpy(self.in_proj_bias_q.grad),
-                    0
+                    0,
+                    self.rotary_pct
                 ).T
             bias_k = __class__.rotate_tensor_out(
                     to_numpy(self.in_proj_bias_k.grad),
-                    0
+                    0,
+                    self.rotary_pct
                 ).T
             bias_v = to_numpy(
                 self.in_proj_bias_v.grad

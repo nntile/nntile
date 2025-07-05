@@ -57,8 +57,8 @@ class GPTNeoXAttentionTestParams:
 
 
 single_tile_trivial = GPTNeoXAttentionTestParams(
-    n_emb=4,
-    n_emb_tile=4,
+    n_emb=16,
+    n_emb_tile=16,
     n_seq=10,
     n_seq_tile=10,
     n_batch=1,
@@ -93,12 +93,13 @@ multiple_tiles = GPTNeoXAttentionTestParams(
 
 def generate_inputs(params: GPTNeoXAttentionTestParams,
                     dtype: str,
+                    rotary_pct: float,
                     att_bias: bool):
     rng = np.random.default_rng(42)
     torch_layer_config = ConfigTorch(
         hidden_size=params.n_emb,
         num_attention_heads=params.n_head,
-        rotary_pct=1.0,
+        rotary_pct=rotary_pct,
         use_cache=False,
         attention_bias=att_bias,
         attention_dropout=0.0,
@@ -115,6 +116,7 @@ def generate_inputs(params: GPTNeoXAttentionTestParams,
         num_heads_tile=params.n_head_tile,
         dtype=dtype,
         redux=False,
+        rotary_pct=rotary_pct,
         attention_bias=att_bias,
     )
 
@@ -171,6 +173,9 @@ def generate_inputs(params: GPTNeoXAttentionTestParams,
     pytest.param(single_tile, id='single_tile'),
     pytest.param(multiple_tiles, id='multiple_tiles'),
 ])
+@pytest.mark.parametrize('rotary_pct', [
+    0.25, 0.5, 0.75, 1.0,
+])
 @pytest.mark.parametrize('dtype', [
     'fp32',
     pytest.param('fp32_fast_tf32', marks=nocuda),
@@ -184,9 +189,10 @@ class TestGPTNeoXAttention:
     def test_torch_coercion(self, context, torch_rng,
                             params: GPTNeoXAttentionTestParams,
                             dtype: str,
+                            rotary_pct: float,
                             att_bias: bool):
         torch_layer, nntile_layer, *_ = \
-            generate_inputs(params, dtype, att_bias)
+            generate_inputs(params, dtype, rotary_pct, att_bias)
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
         nntile_layer.x.unregister()
@@ -201,9 +207,10 @@ class TestGPTNeoXAttention:
     def test_forward(self, context, torch_rng,
                      params: GPTNeoXAttentionTestParams,
                      dtype: str,
+                     rotary_pct: float,
                      att_bias: bool):
         torch_layer, nntile_layer, x, pos_embs, mask, *_ = \
-            generate_inputs(params, dtype, att_bias)
+            generate_inputs(params, dtype, rotary_pct, att_bias)
         y, _ = torch_layer(
             x, attention_mask=mask, position_embeddings=pos_embs
         )
@@ -218,9 +225,10 @@ class TestGPTNeoXAttention:
     def test_backward(self, context, torch_rng,
                       params: GPTNeoXAttentionTestParams,
                       dtype: str,
+                      rotary_pct: float,
                       att_bias: bool):
         torch_layer, nntile_layer, x, pos_embs, mask, y_grad = \
-            generate_inputs(params, dtype, att_bias)
+            generate_inputs(params, dtype, rotary_pct, att_bias)
         y, _ = torch_layer(
             x, attention_mask=mask, position_embeddings=pos_embs
         )
@@ -274,7 +282,8 @@ def test_dynamic(
     )
 
     attn = nntile.layer.GPTNeoXAttention.generate_simple(
-        inp_tm, n_head, n_head_tile, position_ids, theta=10000.0,
+        inp_tm, n_head, n_head_tile, position_ids,
+        rotary_pct=0.5, theta=10000.0,
         attention_bias=True, mask=causal_mask, redux=False
     )
     attn.init_randn_async()
@@ -316,7 +325,8 @@ def test_kvcache(context, numpy_rng, n_head, n_head_tile):
     )
 
     attn = nntile.layer.GPTNeoXAttention.generate_simple(
-        inp_tm, n_head, n_head_tile, position_ids, theta=10000.0,
+        inp_tm, n_head, n_head_tile, position_ids,
+        rotary_pct=0.5, theta=10000.0,
         attention_bias=True, mask=causal_mask, redux=False
     )
     attn.init_randn_async()
