@@ -31,8 +31,9 @@ class GPTNeoXConfig:
     max_position_embeddings: int = 2048
     num_hidden_layers: int = 24
     redux: bool = False
-    bos_token_id: int = 50256
-    eos_token_id: int = 50256
+    bos_token_id: int = 0
+    eos_token_id: int = 2
+    rotary_pct: float = 0.25
     rotary_emb_base: int = 10000
     attention_bias: bool = False
     name: str = "gpt-neox"
