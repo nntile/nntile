@@ -16,6 +16,8 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
+from gen_utils import (
+    generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding)
 from transformers.models.gpt_neox.modeling_gpt_neox import (
     GPTNeoXAttention as AttentionTorch, GPTNeoXConfig as ConfigTorch,
     GPTNeoXRotaryEmbedding as RotaryEmbeddingTorch)
@@ -24,9 +26,6 @@ import nntile
 from nntile.model.gpt_neox_config import GPTNeoXConfig
 from nntile.tensor import TensorMoments, TensorTraits, clear_async
 from nntile.utils.constructors import to_numpy
-from gen_utils import (
-    generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding
-)
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -279,7 +278,7 @@ def test_dynamic(
         attention_bias=True, mask=causal_mask, redux=False
     )
     attn.init_randn_async()
-    
+
     attn.forward_async()
     out_dynamic_expected_np = nntile.utils.constructors.to_numpy(attn.y.value)
 

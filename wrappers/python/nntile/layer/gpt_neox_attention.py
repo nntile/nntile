@@ -17,15 +17,14 @@ import numpy as np
 import torch
 from transformers.models.gpt_neox.modeling_gpt_neox import (
     GPTNeoXAttention as GPTNeoXAttention_torch,
-    GPTNeoXConfig as GPTNeoXConfig_torch
-)
+    GPTNeoXConfig as GPTNeoXConfig_torch)
 
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.layer.cache_utils import KVCache
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
-    add_fiber_inplace_async, add_slice_inplace_async, clear_async, 
+    add_fiber_inplace_async, add_slice_inplace_async, clear_async,
     copy_intersection_async, gemm_async, mask_scalar_async, maxsumexp_async,
     notrans, prod_inplace_async, rope_async, rope_backward_async,
     softmax_inplace_async, sum_fiber_async, sumprod_slice_async, to_numpy,
@@ -1447,19 +1446,27 @@ class GPTNeoXAttention(BaseLayer):
         # Apply RoPE to Q
         q_rope_partial = self._get_tmp_for_cache(x)
         current_seq_len = q_partial.shape[1]
-        
+
         # Create sliced sin/cos tensors to match current sequence length
         sin_sliced = nntc.empty(
             (self.sin.shape[0], current_seq_len, q_partial.shape[2]),
             dtype=type(self.sin),
-            basetile_shape=(self.sin.shape[0], current_seq_len, q_partial.shape[2]),
+            basetile_shape=(
+                self.sin.shape[0],
+                current_seq_len,
+                q_partial.shape[2]
+            ),
         )
         cos_sliced = nntc.empty(
             (self.cos.shape[0], current_seq_len, q_partial.shape[2]),
             dtype=type(self.cos),
-            basetile_shape=(self.cos.shape[0], current_seq_len, q_partial.shape[2]),
+            basetile_shape=(
+                self.cos.shape[0],
+                current_seq_len,
+                q_partial.shape[2]
+            ),
         )
-        
+
         # Copy the relevant slice from the original sin/cos tensors
         copy_intersection_async(
             self.sin, [0, 0, 0], sin_sliced, [0, 0, 0]
@@ -1467,7 +1474,7 @@ class GPTNeoXAttention(BaseLayer):
         copy_intersection_async(
             self.cos, [0, 0, 0], cos_sliced, [0, 0, 0]
         )
-        
+
         rope_async(sin_sliced, cos_sliced, q_partial, q_rope_partial)
 
         return q_rope_partial
@@ -1500,19 +1507,27 @@ class GPTNeoXAttention(BaseLayer):
         # Apply RoPE to K
         k_rope_partial = self._get_tmp_for_cache(x)
         current_seq_len = k_partial.shape[1]
-        
+
         # Create sliced sin/cos tensors to match current sequence length
         sin_sliced = nntc.empty(
             (self.sin.shape[0], current_seq_len, k_partial.shape[2]),
             dtype=type(self.sin),
-            basetile_shape=(self.sin.shape[0], current_seq_len, k_partial.shape[2]),
+            basetile_shape=(
+                self.sin.shape[0],
+                current_seq_len,
+                k_partial.shape[2]
+            ),
         )
         cos_sliced = nntc.empty(
             (self.cos.shape[0], current_seq_len, k_partial.shape[2]),
             dtype=type(self.cos),
-            basetile_shape=(self.cos.shape[0], current_seq_len, k_partial.shape[2]),
+            basetile_shape=(
+                self.cos.shape[0],
+                current_seq_len,
+                k_partial.shape[2]
+            ),
         )
-        
+
         # Copy the relevant slice from the original sin/cos tensors
         copy_intersection_async(
             self.sin, [0, 0, 0], sin_sliced, [0, 0, 0]
@@ -1520,7 +1535,7 @@ class GPTNeoXAttention(BaseLayer):
         copy_intersection_async(
             self.cos, [0, 0, 0], cos_sliced, [0, 0, 0]
         )
-        
+
         rope_async(sin_sliced, cos_sliced, k_partial, k_rope_partial)
 
         return k_rope_partial
@@ -1585,7 +1600,7 @@ class GPTNeoXAttention(BaseLayer):
             basetile_shape=(self.n_emb_tile,) + tuple(q.shape[1:3]),
         )  # (n_emb, n_seq, n_batch)
         y_tensor = self.y_tensor
-        
+
         # Get tensor for softmax
         # A = 1.0/sqrt(head_size) * einsum('jklb,jmlb->kmlb', K_rope, Q_rope)
         # single batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
@@ -1616,7 +1631,10 @@ class GPTNeoXAttention(BaseLayer):
         if self.causal_mask:
             mask_tmp = nntc.empty(a_tmp.shape[:2], dtype=Tensor_bool)
             copy_intersection_async(
-                self.causal_mask, [0, 0], mask_tmp, [0, k.shape[1] - q.shape[1]]
+                self.causal_mask,
+                [0, 0],
+                mask_tmp,
+                [0, k.shape[1] - q.shape[1]]
             )
             mask_scalar_async(mask_tmp, self.val, a_tmp, 2)
 
