@@ -1561,7 +1561,7 @@ class GPTNeoXAttention(BaseLayer):
 
         return q_rope_partial
 
-    def _forward_mlp_k_dynamic(self, x: Tensor):
+    def _forward_mlp_k_dynamic(self, x: Tensor, kv_cache_size: int):
         k_partial_tr = self._get_tmp_tr_for_cache(x)
         k_partial = self._get_tmp_for_cache(x)
 
@@ -1612,10 +1612,10 @@ class GPTNeoXAttention(BaseLayer):
 
         # Copy the relevant slice from the original sin/cos tensors
         copy_intersection_async(
-            self.sin, [0, 0, 0], sin_sliced, [0, 0, 0]
+            self.sin, [0, 0, 0], sin_sliced, [0, kv_cache_size, 0]
         )
         copy_intersection_async(
-            self.cos, [0, 0, 0], cos_sliced, [0, 0, 0]
+            self.cos, [0, 0, 0], cos_sliced, [0, kv_cache_size, 0]
         )
 
         rope_async(sin_sliced, cos_sliced, k_partial, k_rope_partial)
@@ -1780,7 +1780,7 @@ class GPTNeoXAttention(BaseLayer):
 
         # Compute query, key and value tensors
         q_partial = self._forward_mlp_q_dynamic(x.value)
-        k_partial = self._forward_mlp_k_dynamic(x.value)
+        k_partial = self._forward_mlp_k_dynamic(x.value, len(kv_cache))
         v_partial = self._forward_mlp_v_dynamic(x.value)
 
         if kv_cache is not None:
