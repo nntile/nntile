@@ -102,12 +102,12 @@ class GPTNeoXBlock(BaseModel):
             x
         )
         attention_layer = GPTNeoXAttention.from_torch(
-                torch_layer.attention,
-                layer_norm_1.activations_output[0],
-                position_ids,
-                mask,
-                config
-            )
+            torch_layer.attention,
+            layer_norm_1.activations_output[0],
+            position_ids,
+            mask,
+            config
+        )
         post_attn_add = Add.generate_simple(
                 x, attention_layer.activations_output[0])
         if use_parallel_residual:
@@ -128,13 +128,16 @@ class GPTNeoXBlock(BaseModel):
             mlp_layer.activations[-1],
             post_attn_add.activations_output[0])
 
-        gpt_neox_block = GPTNeoXBlock(x, attention_layer,
-                                            mlp_layer,
-                                            layer_norm_1,
-                                            layer_norm_2,
-                                            post_attn_add,
-                                            post_mlp_add,
-                                            config)
+        gpt_neox_block = GPTNeoXBlock(
+            x,
+            attention_layer,
+            mlp_layer,
+            layer_norm_1,
+            layer_norm_2,
+            post_attn_add,
+            post_mlp_add,
+            config
+        )
 
         return gpt_neox_block
 
