@@ -57,6 +57,7 @@ class GPTNeoXModelTestParams:
     max_position_embeddings: int
     layer_norm_epsilon: float
     rotary_pct: float
+    use_parallel_residual: bool
 
 
 single_tile_trivial = GPTNeoXModelTestParams(
@@ -75,6 +76,7 @@ single_tile_trivial = GPTNeoXModelTestParams(
     max_position_embeddings=2048,
     layer_norm_epsilon=1e-5,
     rotary_pct=1.0,
+    use_parallel_residual=False,
 )
 
 
@@ -93,7 +95,8 @@ single_tile = GPTNeoXModelTestParams(
     n_head_tile=8,
     max_position_embeddings=2048,
     layer_norm_epsilon=1e-5,
-    rotary_pct=0.5
+    rotary_pct=0.5,
+    use_parallel_residual=False,
 )
 
 multiple_tiles = GPTNeoXModelTestParams(
@@ -112,6 +115,7 @@ multiple_tiles = GPTNeoXModelTestParams(
     max_position_embeddings=2048,
     layer_norm_epsilon=1e-5,
     rotary_pct=0.25,
+    use_parallel_residual=True,
 )
 
 
@@ -133,7 +137,7 @@ def generate_inputs(params: GPTNeoXModelTestParams,
         max_position_embeddings=params.max_position_embeddings,
         layer_norm_eps=params.layer_norm_epsilon,
         use_cache=False,
-        use_parallel_residual=False,
+        use_parallel_residual=params.use_parallel_residual,
     )
 
     nntile_config = GPTNeoXConfig(
@@ -152,6 +156,7 @@ def generate_inputs(params: GPTNeoXModelTestParams,
         redux=False,
         rotary_pct=params.rotary_pct,
         rotary_emb_base=torch_model_config.rotary_emb_base,
+        use_parallel_residual=params.use_parallel_residual,
         attention_bias=att_bias,
     )
     torch_model = ModelTorch(

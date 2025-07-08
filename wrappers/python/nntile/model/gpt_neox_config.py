@@ -35,5 +35,6 @@ class GPTNeoXConfig:
     eos_token_id: int = 2
     rotary_pct: float = 0.25
     rotary_emb_base: int = 10000
+    use_parallel_residual: bool = False
     attention_bias: bool = False
     name: str = "gpt-neox"

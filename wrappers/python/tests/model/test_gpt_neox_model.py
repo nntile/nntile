@@ -116,6 +116,7 @@ def generate_inputs(params: GPTNeoXModelTestParams,
                     dtype: str,
                     num_hidden_layers: int,
                     rotary_pct: float,
+                    use_parallel_residual: bool,
                     att_bias: bool):
     rng = np.random.default_rng(42)
     torch_model_config = ConfigTorch(
@@ -131,7 +132,7 @@ def generate_inputs(params: GPTNeoXModelTestParams,
         max_position_embeddings=params.max_position_embeddings,
         layer_norm_eps=params.layer_norm_epsilon,
         use_cache=False,
-        use_parallel_residual=False,
+        use_parallel_residual=use_parallel_residual,
     )
 
     nntile_config = GPTNeoXConfig(
@@ -149,6 +150,7 @@ def generate_inputs(params: GPTNeoXModelTestParams,
         num_hidden_layers=num_hidden_layers,
         redux=False,
         rotary_pct=rotary_pct,
+        use_parallel_residual=use_parallel_residual,
         attention_bias=att_bias,
     )
     torch_model = ModelTorch(
@@ -208,15 +210,18 @@ def generate_inputs(params: GPTNeoXModelTestParams,
 @pytest.mark.parametrize('rotary_pct', [
     0.25, 0.5, 1.0,
 ])
+@pytest.mark.parametrize('use_parallel_residual', [False, True])
 class TestGPTNeoXModel:
     def test_torch_coercion(self, context, torch_rng,
                       params: GPTNeoXModelTestParams,
                       dtype: str,
                       num_hidden_layers: int,
                       rotary_pct: float,
+                      use_parallel_residual: bool,
                       att_bias: bool):
         torch_model, nntile_model, *_ = generate_inputs(
-            params, dtype, num_hidden_layers, rotary_pct, att_bias
+            params, dtype, num_hidden_layers, rotary_pct,
+            use_parallel_residual, att_bias
         )
         torch_model_other = nntile_model.to_torch()
         nntile_model.unregister()
@@ -232,10 +237,12 @@ class TestGPTNeoXModel:
                      dtype: str,
                      num_hidden_layers: int,
                      rotary_pct: float,
+                     use_parallel_residual: bool,
                      att_bias: bool):
         torch_model, nntile_model, x, pos_ids, mask, _ = \
             generate_inputs(
-                params, dtype, num_hidden_layers, rotary_pct, att_bias
+                params, dtype, num_hidden_layers, rotary_pct,
+                use_parallel_residual, att_bias
             )
         y = torch_model(x,
                         attention_mask=mask,
@@ -256,10 +263,11 @@ class TestGPTNeoXModel:
                               dtype: str,
                               num_hidden_layers: int,
                               rotary_pct: float,
+                              use_parallel_residual: bool,
                               att_bias: bool):
         torch_model, nntile_model, x, pos_ids, mask, y_grad = \
-            generate_inputs(
-                params, dtype, num_hidden_layers, rotary_pct, att_bias
+            generate_inputs(params, dtype, num_hidden_layers, rotary_pct,
+                            use_parallel_residual, att_bias
             )
         y = torch_model(x,
                         attention_mask=mask,
@@ -297,15 +305,18 @@ class TestGPTNeoXModel:
 @pytest.mark.parametrize('num_hidden_layers', [2])
 @pytest.mark.parametrize('rotary_pct', [0.25])
 @pytest.mark.parametrize('att_bias', [False, True])
+@pytest.mark.parametrize('use_parallel_residual', [False, True])
 def test_forward_dynamic(context, torch_rng,
                      params: GPTNeoXModelTestParams,
                      dtype: str,
                      num_hidden_layers: int,
                      rotary_pct: float,
+                     use_parallel_residual: bool,
                      att_bias: bool):
     torch_model, nntile_model, x, pos_ids, mask, _ = \
             generate_inputs(
-                params, dtype, num_hidden_layers, rotary_pct, att_bias
+                params, dtype, num_hidden_layers, rotary_pct,
+                use_parallel_residual, att_bias
             )
     y = torch_model(x,
                     attention_mask=mask,

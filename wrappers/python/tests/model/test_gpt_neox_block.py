@@ -101,6 +101,7 @@ multiple_tiles = GPTNeoXBlockTestParams(
 def generate_inputs(params: GPTNeoXBlockTestParams,
                     dtype: str,
                     rotary_pct: float,
+                    use_parallel_residual: bool,
                     att_bias: bool):
     rng = np.random.default_rng(42)
     torch_layer_config = ConfigTorch(
@@ -112,7 +113,7 @@ def generate_inputs(params: GPTNeoXBlockTestParams,
         attention_bias=att_bias,
         attention_dropout=0.0,
         hidden_dropout=0.0,
-        use_parallel_residual=False,
+        use_parallel_residual=use_parallel_residual,
     )
 
     nntile_config = GPTNeoXConfig(
@@ -127,6 +128,7 @@ def generate_inputs(params: GPTNeoXBlockTestParams,
         dtype=dtype,
         redux=False,
         rotary_pct=rotary_pct,
+        use_parallel_residual=use_parallel_residual,
         attention_bias=att_bias,
     )
     layer_id = 0
@@ -195,15 +197,20 @@ def generate_inputs(params: GPTNeoXBlockTestParams,
 @pytest.mark.parametrize('att_bias', [
     False, True,
 ])
+@pytest.mark.parametrize('use_parallel_residual', [
+    False, True,
+])
 class TestGPTNeoXBlock:
 
     def test_torch_coercion(self, context, torch_rng,
                             params: GPTNeoXBlockTestParams,
                             dtype: str,
                             rotary_pct: float,
+                            use_parallel_residual: bool,
                             att_bias: bool):
         torch_layer, nntile_layer, *_ = \
-            generate_inputs(params, dtype, rotary_pct, att_bias)
+            generate_inputs(params, dtype, rotary_pct,
+                            use_parallel_residual, att_bias)
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
 
@@ -217,9 +224,11 @@ class TestGPTNeoXBlock:
                      params: GPTNeoXBlockTestParams,
                      dtype: str,
                      rotary_pct: float,
+                     use_parallel_residual: bool,
                      att_bias: bool):
         torch_layer, nntile_layer, x, pos_embs, mask, *_ = \
-            generate_inputs(params, dtype, rotary_pct, att_bias)
+            generate_inputs(params, dtype, rotary_pct,
+                            use_parallel_residual, att_bias)
         y = torch_layer(
             x, attention_mask=mask, position_embeddings=pos_embs
         )[0]
@@ -235,9 +244,11 @@ class TestGPTNeoXBlock:
                       params: GPTNeoXBlockTestParams,
                       dtype: str,
                       rotary_pct: float,
+                      use_parallel_residual: bool,
                       att_bias: bool):
         torch_layer, nntile_layer, x, pos_embs, mask, y_grad = \
-            generate_inputs(params, dtype, rotary_pct, att_bias)
+            generate_inputs(params, dtype, rotary_pct,
+                            use_parallel_residual, att_bias)
         y = torch_layer(
             x, attention_mask=mask, position_embeddings=pos_embs
         )[0]

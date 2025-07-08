@@ -141,6 +141,7 @@ class GPTNeoXForCausalLM(BaseModel, LLMGenerationMixin):
             max_position_embeddings=self.config.max_position_embeddings,
             layer_norm_eps=self.config.layer_norm_epsilon,
             use_cache=False,
+            use_parallel_residual=self.config.use_parallel_residual,
         )
 
         causal_torch = ModelTorch(config_torch)
@@ -163,6 +164,7 @@ class GPTNeoXForCausalLM(BaseModel, LLMGenerationMixin):
             max_position_embeddings=self.config.max_position_embeddings,
             layer_norm_eps=self.config.layer_norm_epsilon,
             use_cache=False,
+            use_parallel_residual=self.config.use_parallel_residual,
         )
 
         causal_torch = ModelTorch(config_torch)
@@ -230,6 +232,7 @@ def create_gpt_neox_model_from_torch_pretrained(
         eos_token_id=model_torch.config.eos_token_id,
         rotary_pct=model_torch.config.rotary_pct,
         rotary_emb_base=model_torch.config.rotary_emb_base,
+        use_parallel_residual=model_torch.config.use_parallel_residual,
         attention_bias=model_torch.config.attention_bias,
     )
 

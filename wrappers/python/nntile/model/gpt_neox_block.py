@@ -35,6 +35,7 @@ class GPTNeoXBlock(BaseModel):
     post_attn_add: Add
     attention_layer: GPTNeoXAttention
     post_mlp_add: Add
+    config: GPTNeoXConfig
 
     # Construct model with all the provided data
     def __init__(self, x: TensorMoments, attention_layer: GPTNeoXAttention,
@@ -52,7 +53,6 @@ class GPTNeoXBlock(BaseModel):
                       post_attn_norm.activations_output + \
                       mlp_layer.activations[1:] + \
                       post_mlp_add.activations_output
-        self.config = config
         # Fill Base Model with the generated data
         super().__init__(activations, layers, config)
         self.ln_1 = self.layers[0]
@@ -65,17 +65,22 @@ class GPTNeoXBlock(BaseModel):
         x: TensorMoments,
         kv_cache: Optional[KVCache] = None
     ):
-        (input_norm, attention_layer, post_attn_add, post_attn_norm) = self.layers[:4]  # noqa: E501
+        use_parallel_residual = self.config.use_parallel_residual
+        (ln_1, attention_layer, post_attn_add, ln_2) = self.layers[:4]
         post_mlp_add = self.layers[-1]
 
-        x_normalized = input_norm.forward_dynamic(x)
+        x_normalized = ln_1.forward_dynamic(x)
         attn_outs, kv_cache = attention_layer.forward_dynamic(
             x_normalized, kv_cache=kv_cache
         )
         post_attn_outs = post_attn_add.forward_dynamic(attn_outs, x)
-        post_attn_norm_outs = post_attn_norm.forward_dynamic(post_attn_outs)
 
-        mlp_outs = self.mlp.forward_dynamic(post_attn_norm_outs)
+        if use_parallel_residual:
+            ln_2_outs = ln_2.forward_dynamic(x)
+        else:
+            ln_2_outs = ln_2.forward_dynamic(post_attn_outs)
+
+        mlp_outs = self.mlp.forward_dynamic(ln_2_outs)
         post_mlp_outs = post_mlp_add.forward_dynamic(mlp_outs, post_attn_outs)
 
         return post_mlp_outs, kv_cache
@@ -91,27 +96,33 @@ class GPTNeoXBlock(BaseModel):
         """
         torch_layer is HF module for GPT-NeoX Layer
         """
-        layer_norm_input_layer = LayerNorm.from_torch(
+        use_parallel_residual = torch_layer.use_parallel_residual
+        layer_norm_1 = LayerNorm.from_torch(
             torch_layer.input_layernorm,
             x
         )
         attention_layer = GPTNeoXAttention.from_torch(
-            torch_layer.attention,
-            layer_norm_input_layer.activations_output[0],
-            position_ids,
-            mask,
-            config
-        )
+                torch_layer.attention,
+                layer_norm_1.activations_output[0],
+                position_ids,
+                mask,
+                config
+            )
         post_attn_add = Add.generate_simple(
-            x, attention_layer.activations_output[0])
-
-        layer_norm_post_attn_layer = LayerNorm.from_torch(
-            torch_layer.post_attention_layernorm,
-            post_attn_add.activations_output[0]
-        )
+                x, attention_layer.activations_output[0])
+        if use_parallel_residual:
+            layer_norm_2 = LayerNorm.from_torch(
+                torch_layer.post_attention_layernorm,
+                x
+            )
+        else:
+            layer_norm_2 = LayerNorm.from_torch(
+                torch_layer.post_attention_layernorm,
+                post_attn_add.activations_output[0]
+            )
         mlp_layer = GPTNeoXMLP.from_torch(
             torch_layer.mlp,
-            layer_norm_post_attn_layer.activations_output[0],
+            layer_norm_2.activations_output[0],
             config)
         post_mlp_add = Add.generate_simple(
             mlp_layer.activations[-1],
@@ -119,8 +130,8 @@ class GPTNeoXBlock(BaseModel):
 
         gpt_neox_block = GPTNeoXBlock(x, attention_layer,
                                             mlp_layer,
-                                            layer_norm_input_layer,
-                                            layer_norm_post_attn_layer,
+                                            layer_norm_1,
+                                            layer_norm_2,
                                             post_attn_add,
                                             post_mlp_add,
                                             config)
@@ -139,6 +150,7 @@ class GPTNeoXBlock(BaseModel):
             attention_dropout=0.0,
             hidden_dropout=0.0,
             layer_norm_eps=self.config.layer_norm_epsilon,
+            use_parallel_residual=self.config.use_parallel_residual,
         )
         layer_id = 0
         block_torch = BlockTorch(torch_config, layer_id)
@@ -160,6 +172,7 @@ class GPTNeoXBlock(BaseModel):
             attention_dropout=0.0,
             hidden_dropout=0.0,
             layer_norm_eps=self.config.layer_norm_epsilon,
+            use_parallel_residual=self.config.use_parallel_residual,
         )
         layer_id = 0
         block_torch = BlockTorch(torch_config, layer_id)

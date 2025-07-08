@@ -177,6 +177,7 @@ class GPTNeoXModel(BaseModel):
             max_position_embeddings=self.config.max_position_embeddings,
             layer_norm_eps=self.config.layer_norm_epsilon,
             use_cache=False,
+            use_parallel_residual=self.config.use_parallel_residual,
         )
 
         torch_model = ModelTorch(config_torch)
@@ -203,6 +204,7 @@ class GPTNeoXModel(BaseModel):
             max_position_embeddings=self.config.max_position_embeddings,
             layer_norm_eps=self.config.layer_norm_epsilon,
             use_cache=False,
+            use_parallel_residual=self.config.use_parallel_residual,
         )
 
         torch_model = ModelTorch(config_torch)
