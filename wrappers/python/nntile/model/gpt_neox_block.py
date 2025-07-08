@@ -35,6 +35,7 @@ class GPTNeoXBlock(BaseModel):
     post_attn_add: Add
     attention_layer: GPTNeoXAttention
     post_mlp_add: Add
+    use_parallel_residual: bool
     config: GPTNeoXConfig
 
     # Construct model with all the provided data
@@ -42,6 +43,7 @@ class GPTNeoXBlock(BaseModel):
                  mlp_layer: GPTNeoXMLP, input_norm: LayerNorm,
                  post_attn_norm: LayerNorm,
                  post_attn_add: Add, post_mlp_add: Add,
+                 use_parallel_residual: bool,
                  config: GPTNeoXConfig,
                  ):
         # Init activations and list of layers
@@ -59,13 +61,13 @@ class GPTNeoXBlock(BaseModel):
         self.attn = self.layers[1]
         self.ln_2 = self.layers[3]
         self.mlp = mlp_layer
+        self.use_parallel_residual = use_parallel_residual
 
     def forward_dynamic(
         self,
         x: TensorMoments,
         kv_cache: Optional[KVCache] = None
     ):
-        use_parallel_residual = self.config.use_parallel_residual
         (ln_1, attention_layer, post_attn_add, ln_2) = self.layers[:4]
         post_mlp_add = self.layers[-1]
 
@@ -75,7 +77,7 @@ class GPTNeoXBlock(BaseModel):
         )
         post_attn_outs = post_attn_add.forward_dynamic(attn_outs, x)
 
-        if use_parallel_residual:
+        if self.use_parallel_residual:
             ln_2_outs = ln_2.forward_dynamic(x)
         else:
             ln_2_outs = ln_2.forward_dynamic(post_attn_outs)
@@ -136,6 +138,7 @@ class GPTNeoXBlock(BaseModel):
             layer_norm_2,
             post_attn_add,
             post_mlp_add,
+            use_parallel_residual,
             config
         )
 
@@ -153,7 +156,7 @@ class GPTNeoXBlock(BaseModel):
             attention_dropout=0.0,
             hidden_dropout=0.0,
             layer_norm_eps=self.config.layer_norm_epsilon,
-            use_parallel_residual=self.config.use_parallel_residual,
+            use_parallel_residual=self.use_parallel_residual,
         )
         layer_id = 0
         block_torch = BlockTorch(torch_config, layer_id)
@@ -175,7 +178,7 @@ class GPTNeoXBlock(BaseModel):
             attention_dropout=0.0,
             hidden_dropout=0.0,
             layer_norm_eps=self.config.layer_norm_epsilon,
-            use_parallel_residual=self.config.use_parallel_residual,
+            use_parallel_residual=self.use_parallel_residual,
         )
         layer_id = 0
         block_torch = BlockTorch(torch_config, layer_id)

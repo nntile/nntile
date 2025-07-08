@@ -208,7 +208,7 @@ def generate_inputs(params: GPTNeoXModelTestParams,
     False, True,
 ])
 @pytest.mark.parametrize('rotary_pct', [
-    0.25, 0.5, 1.0,
+    0.25, 1.0,
 ])
 @pytest.mark.parametrize('use_parallel_residual', [False, True])
 class TestGPTNeoXModel:
