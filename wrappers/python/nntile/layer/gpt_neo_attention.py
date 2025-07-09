@@ -23,10 +23,10 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.layer.cache_utils import KVCache
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_inplace_async,
-    add_slice_inplace_async, clear_async, copy_intersection_async, gemm_async, 
-    mask_scalar_async, maxsumexp_async, notrans, prod_inplace_async, 
-    softmax_inplace_async, sum_fiber_async, sumprod_slice_async, to_numpy, trans, 
-    transpose_async)
+    add_slice_inplace_async, clear_async, copy_intersection_async, gemm_async,
+    mask_scalar_async, maxsumexp_async, notrans, prod_inplace_async,
+    softmax_inplace_async, sum_fiber_async, sumprod_slice_async, to_numpy,
+    trans, transpose_async)
 
 from ..model.gpt_neo_config import GPTNeoConfig
 
@@ -877,13 +877,14 @@ class GPTNeoAttention(BaseLayer):
             basetile_shape=(self.n_emb_tile,) + tuple(q.shape[1:3]),
         )  # (n_emb, n_seq, n_batch)
         y_tensor = self.y_tensor
-        
+
         # Get tensor for softmax
         # A = einsum('jklb,jmlb->kmlb', K, Q)
         # single batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
         # by (head_size, n_seq, batch=n_batch, batch=n_head) into
         # (n_seq, n_seq, batch=n_batch, batch=n_head)
-        # Note: no scaling factor applied here, unlike in the regular Attention class
+        # Note: no scaling factor applied here, unlike in the regular
+        # Attention class
         gemm_async(
             1.0,
             trans,

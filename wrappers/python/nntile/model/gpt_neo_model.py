@@ -107,7 +107,8 @@ class GPTNeoModel(BaseModel):
 
         outs_inp = self.wte_layer.forward_dynamic(x)
         outs_pos = self.wpe_layer.forward_dynamic(pos_ids_nnt_tm)
-        embedded_input = self.add_slice_layer.forward_dynamic(outs_inp, outs_pos)
+        embedded_input = self.add_slice_layer.forward_dynamic(
+            outs_inp, outs_pos)
 
         block_out = embedded_input
         for lid, block_layer in enumerate(self.gpt_neo_blocks):

@@ -40,7 +40,11 @@ class Prod(BaseLayer):
         self.res.value.wont_use()
 
     def forward_dynamic(self, x: TensorMoments, y: TensorMoments):
-        res = nntc.empty(x.value.shape, basetile_shape=x.value.basetile_shape, dtype=type(x.value))
+        res = nntc.empty(
+            x.value.shape,
+            basetile_shape=x.value.basetile_shape,
+            dtype=type(x.value)
+        )
         prod_async(x.value, y.value, res)
         return TensorMoments(res, None, False)
 
