@@ -16,6 +16,8 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
+from gen_utils import (
+    generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding)
 from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoAttention as GPTNeoAttentionTorch, GPTNeoConfig as GPTNeoConfigTorch)
 
@@ -23,9 +25,6 @@ import nntile
 from nntile.model.gpt_neo_config import GPTNeoConfig
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
-from gen_utils import (
-    generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding
-)
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -248,25 +247,39 @@ def test_dynamic(
     )
 
     inp_tm = nntile.tensor.TensorMoments(
-        inp, grad=nntile.utils.constructors.zeros(inp.shape, dtype=type(inp)), grad_required=False
+        inp,
+        grad=nntile.utils.constructors.zeros(inp.shape, dtype=type(inp)),
+        grad_required=False
     )
     inp_tm2 = nntile.tensor.TensorMoments(
-        inp2, grad=nntile.utils.constructors.zeros(inp2.shape, dtype=type(inp)), grad_required=False
+        inp2,
+        grad=nntile.utils.constructors.zeros(inp2.shape, dtype=type(inp)),
+        grad_required=False
     )
     inp_tm3 = nntile.tensor.TensorMoments(
-        inp3, grad=nntile.utils.constructors.zeros(inp3.shape, dtype=type(inp)), grad_required=False
+        inp3,
+        grad=nntile.utils.constructors.zeros(inp3.shape, dtype=type(inp)),
+        grad_required=False
     )
 
     attn = nntile.layer.GPTNeoAttention.generate_simple(
-        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, layer_id=0, attention_type="global"
+        inp_tm,
+        inp_tm2,
+        inp_tm3,
+        n_head,
+        n_head_tile,
+        layer_id=0,
+        attention_type="global"
     )
     attn.init_randn_async()
 
     attn.forward_async()
-    out_dynamic_expected_np = nntile.utils.constructors.to_numpy(attn.y.value)
+    out_dynamic_expected_np = nntile.utils.constructors.to_numpy(
+        attn.y.value)
 
     out_dynamic_actual, _ = attn.forward_dynamic(inp_tm)
-    out_dynamic_actual_np = nntile.utils.constructors.to_numpy(out_dynamic_actual.value)
+    out_dynamic_actual_np = nntile.utils.constructors.to_numpy(
+        out_dynamic_actual.value)
 
     np.testing.assert_allclose(
         out_dynamic_actual_np,
@@ -288,28 +301,42 @@ def test_kvcache(context, numpy_rng, n_head, n_head_tile):
     inp3 = nntile.utils.constructors.from_array(inp_np)
 
     inp_tm = nntile.tensor.TensorMoments(
-        inp, grad=nntile.utils.constructors.zeros(inp.shape, dtype=type(inp)), grad_required=False
+        inp,
+        grad=nntile.utils.constructors.zeros(inp.shape, dtype=type(inp)),
+        grad_required=False
     )
     inp_tm2 = nntile.tensor.TensorMoments(
-        inp2, grad=nntile.utils.constructors.zeros(inp2.shape, dtype=type(inp)), grad_required=False
+        inp2,
+        grad=nntile.utils.constructors.zeros(inp2.shape, dtype=type(inp)),
+        grad_required=False
     )
     inp_tm3 = nntile.tensor.TensorMoments(
-        inp3, grad=nntile.utils.constructors.zeros(inp3.shape, dtype=type(inp)), grad_required=False
+        inp3,
+        grad=nntile.utils.constructors.zeros(inp3.shape, dtype=type(inp)),
+        grad_required=False
     )
 
     attn = nntile.layer.GPTNeoAttention.generate_simple(
-        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, layer_id=0, attention_type="global"
+        inp_tm,
+        inp_tm2,
+        inp_tm3,
+        n_head,
+        n_head_tile,
+        layer_id=0,
+        attention_type="global"
     )
     attn.init_randn_async()
 
     # slice to prefill size
-    inp_prefill = nntile.utils.constructors.from_array(inp_np[:, :prefill_size, :])
+    inp_prefill = nntile.utils.constructors.from_array(
+        inp_np[:, :prefill_size, :])
     outs_dyn = generate_greedy_logits_dynamic_kvcache(
         attn, inp_prefill, prefill_size, max_tokens
     )
     outs_dyn_np = nntile.utils.constructors.to_numpy(outs_dyn)
 
-    inp_prefill = nntile.utils.constructors.from_array(inp_np[:, :prefill_size, :])
+    inp_prefill = nntile.utils.constructors.from_array(
+        inp_np[:, :prefill_size, :])
     outs_stat = generate_greedy_logits_padding(
         attn, inp_prefill, prefill_size, max_tokens
     )

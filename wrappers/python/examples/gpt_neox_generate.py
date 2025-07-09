@@ -12,18 +12,15 @@
 # @version 1.1.0
 
 import argparse
-import torch
+
 import numpy as np
 from transformers import GPTNeoXTokenizerFast
 
 import nntile
 import nntile.utils.constructors as nntc
 from nntile.model.generation.llm_params import (
-    GenerationMode, GenerationParams, ParallelSamplingMode
-)
-from nntile.model.gpt_neox_causal import (
-    GPTNeoXForCausalLM as GPTNeoXModel
-)
+    GenerationMode, GenerationParams, ParallelSamplingMode)
+from nntile.model.gpt_neox_causal import GPTNeoXForCausalLM as GPTNeoXModel
 
 context = nntile.Context(
     ncpu=-1,
@@ -53,7 +50,14 @@ def parse_args():
     )
     parser.add_argument(
         "--dtype",
-        choices=["fp32", "fp64", "tf32", "bf16", "fp32_fast_fp16", "fp32_fast_bf16"],
+        choices=[
+            "fp32",
+            "fp64",
+            "tf32",
+            "bf16",
+            "fp32_fast_fp16",
+            "fp32_fast_bf16"
+        ],
         default="fp32",
     )
     parser.add_argument("--restrict", choices=["cpu", "cuda", None],
