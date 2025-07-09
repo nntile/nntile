@@ -56,6 +56,8 @@ class GPTNeoXModelTestParams:
     n_head_tile: int
     max_position_embeddings: int
     layer_norm_epsilon: float
+    rotary_pct: float
+    use_parallel_residual: bool
 
 
 single_tile_trivial = GPTNeoXModelTestParams(
@@ -73,6 +75,8 @@ single_tile_trivial = GPTNeoXModelTestParams(
     n_head_tile=2,
     max_position_embeddings=2048,
     layer_norm_epsilon=1e-5,
+    rotary_pct=1.0,
+    use_parallel_residual=False,
 )
 
 
@@ -91,6 +95,8 @@ single_tile = GPTNeoXModelTestParams(
     n_head_tile=8,
     max_position_embeddings=2048,
     layer_norm_epsilon=1e-5,
+    rotary_pct=0.5,
+    use_parallel_residual=False,
 )
 
 multiple_tiles = GPTNeoXModelTestParams(
@@ -108,6 +114,8 @@ multiple_tiles = GPTNeoXModelTestParams(
     n_head_tile=8,
     max_position_embeddings=2048,
     layer_norm_epsilon=1e-5,
+    rotary_pct=0.25,
+    use_parallel_residual=True,
 )
 
 
@@ -122,14 +130,14 @@ def generate_inputs(params: GPTNeoXModelTestParams,
         num_hidden_layers=num_hidden_layers,
         num_attention_heads=params.n_head,
         intermediate_size=params.intermediate_size,
-        rotary_pct=1.0,
+        rotary_pct=params.rotary_pct,
         attention_bias=att_bias,
         attention_dropout=0.0,
         hidden_dropout=0.0,
         max_position_embeddings=params.max_position_embeddings,
         layer_norm_eps=params.layer_norm_epsilon,
         use_cache=False,
-        use_parallel_residual=False,
+        use_parallel_residual=params.use_parallel_residual,
     )
 
     nntile_config = GPTNeoXConfig(
@@ -146,6 +154,10 @@ def generate_inputs(params: GPTNeoXModelTestParams,
         max_position_embeddings=params.max_position_embeddings,
         num_hidden_layers=num_hidden_layers,
         redux=False,
+        rotary_pct=params.rotary_pct,
+        rotary_emb_base=torch_model_config.rotary_emb_base,
+        use_parallel_residual=params.use_parallel_residual,
+        attention_bias=att_bias,
     )
     torch_model = ModelTorch(
         torch_model_config,
@@ -199,7 +211,7 @@ def generate_inputs(params: GPTNeoXModelTestParams,
 ])
 @pytest.mark.parametrize('num_hidden_layers', [0, 1, 2])
 @pytest.mark.parametrize('att_bias', [
-    False,
+    False, True
 ])
 class TestGPTNeoXForCausalLM:
     def test_torch_coercion(self, context, torch_rng,

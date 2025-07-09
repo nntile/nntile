@@ -62,8 +62,8 @@ class GPTNeoXModelTestParams:
 single_tile_trivial = GPTNeoXModelTestParams(
     vocab_size=1024,
     vocab_embed_dim_tile=128,
-    n_emb=4,
-    n_emb_tile=4,
+    n_emb=16,
+    n_emb_tile=16,
     n_seq=10,
     n_seq_tile=10,
     intermediate_size=16,
@@ -115,6 +115,8 @@ multiple_tiles = GPTNeoXModelTestParams(
 def generate_inputs(params: GPTNeoXModelTestParams,
                     dtype: str,
                     num_hidden_layers: int,
+                    rotary_pct: float,
+                    use_parallel_residual: bool,
                     att_bias: bool):
     rng = np.random.default_rng(42)
     torch_model_config = ConfigTorch(
@@ -123,14 +125,14 @@ def generate_inputs(params: GPTNeoXModelTestParams,
         num_hidden_layers=num_hidden_layers,
         num_attention_heads=params.n_head,
         intermediate_size=params.intermediate_size,
-        rotary_pct=1.0,
+        rotary_pct=rotary_pct,
         attention_bias=att_bias,
         attention_dropout=0.0,
         hidden_dropout=0.0,
         max_position_embeddings=params.max_position_embeddings,
         layer_norm_eps=params.layer_norm_epsilon,
         use_cache=False,
-        use_parallel_residual=False,
+        use_parallel_residual=use_parallel_residual,
     )
 
     nntile_config = GPTNeoXConfig(
@@ -147,6 +149,9 @@ def generate_inputs(params: GPTNeoXModelTestParams,
         max_position_embeddings=params.max_position_embeddings,
         num_hidden_layers=num_hidden_layers,
         redux=False,
+        rotary_pct=rotary_pct,
+        use_parallel_residual=use_parallel_residual,
+        attention_bias=att_bias,
     )
     torch_model = ModelTorch(
         torch_model_config,
@@ -195,23 +200,29 @@ def generate_inputs(params: GPTNeoXModelTestParams,
 ])
 @pytest.mark.parametrize('dtype', [
     'fp32',
-    # pytest.param('fp32_fast_tf32', marks=nocuda),
-    # pytest.param('bf16', marks=nocuda),
+    pytest.param('fp32_fast_tf32', marks=nocuda),
+    pytest.param('bf16', marks=nocuda),
 ])
 @pytest.mark.parametrize('num_hidden_layers', [0, 1, 2])
 @pytest.mark.parametrize('att_bias', [
-    False,
+    False, True,
 ])
+@pytest.mark.parametrize('rotary_pct', [
+    0.25, 1.0,
+])
+@pytest.mark.parametrize('use_parallel_residual', [False, True])
 class TestGPTNeoXModel:
     def test_torch_coercion(self, context, torch_rng,
                       params: GPTNeoXModelTestParams,
                       dtype: str,
                       num_hidden_layers: int,
+                      rotary_pct: float,
+                      use_parallel_residual: bool,
                       att_bias: bool):
-        torch_model, nntile_model, *_ = generate_inputs(params,
-                                                        dtype,
-                                                        num_hidden_layers,
-                                                        att_bias)
+        torch_model, nntile_model, *_ = generate_inputs(
+            params, dtype, num_hidden_layers, rotary_pct,
+            use_parallel_residual, att_bias
+        )
         torch_model_other = nntile_model.to_torch()
         nntile_model.unregister()
 
@@ -225,9 +236,14 @@ class TestGPTNeoXModel:
                      params: GPTNeoXModelTestParams,
                      dtype: str,
                      num_hidden_layers: int,
+                     rotary_pct: float,
+                     use_parallel_residual: bool,
                      att_bias: bool):
         torch_model, nntile_model, x, pos_ids, mask, _ = \
-            generate_inputs(params, dtype, num_hidden_layers, att_bias)
+            generate_inputs(
+                params, dtype, num_hidden_layers, rotary_pct,
+                use_parallel_residual, att_bias
+            )
         y = torch_model(x,
                         attention_mask=mask,
                         position_ids=torch.tensor(pos_ids),
@@ -246,9 +262,13 @@ class TestGPTNeoXModel:
                               params: GPTNeoXModelTestParams,
                               dtype: str,
                               num_hidden_layers: int,
+                              rotary_pct: float,
+                              use_parallel_residual: bool,
                               att_bias: bool):
         torch_model, nntile_model, x, pos_ids, mask, y_grad = \
-            generate_inputs(params, dtype, num_hidden_layers, att_bias)
+            generate_inputs(params, dtype, num_hidden_layers, rotary_pct,
+                            use_parallel_residual, att_bias
+            )
         y = torch_model(x,
                         attention_mask=mask,
                         position_ids=torch.tensor(pos_ids),
@@ -283,14 +303,21 @@ class TestGPTNeoXModel:
     'fp32',
 ])
 @pytest.mark.parametrize('num_hidden_layers', [2])
-@pytest.mark.parametrize('att_bias', [False])
+@pytest.mark.parametrize('rotary_pct', [0.25])
+@pytest.mark.parametrize('att_bias', [False, True])
+@pytest.mark.parametrize('use_parallel_residual', [False, True])
 def test_forward_dynamic(context, torch_rng,
                      params: GPTNeoXModelTestParams,
                      dtype: str,
                      num_hidden_layers: int,
+                     rotary_pct: float,
+                     use_parallel_residual: bool,
                      att_bias: bool):
     torch_model, nntile_model, x, pos_ids, mask, _ = \
-            generate_inputs(params, dtype, num_hidden_layers, att_bias)
+            generate_inputs(
+                params, dtype, num_hidden_layers, rotary_pct,
+                use_parallel_residual, att_bias
+            )
     y = torch_model(x,
                     attention_mask=mask,
                     position_ids=torch.tensor(pos_ids),

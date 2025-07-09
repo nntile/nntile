@@ -35,12 +35,15 @@ class GPTNeoXBlock(BaseModel):
     post_attn_add: Add
     attention_layer: GPTNeoXAttention
     post_mlp_add: Add
+    use_parallel_residual: bool
+    config: GPTNeoXConfig
 
     # Construct model with all the provided data
     def __init__(self, x: TensorMoments, attention_layer: GPTNeoXAttention,
                  mlp_layer: GPTNeoXMLP, input_norm: LayerNorm,
                  post_attn_norm: LayerNorm,
                  post_attn_add: Add, post_mlp_add: Add,
+                 use_parallel_residual: bool,
                  config: GPTNeoXConfig,
                  ):
         # Init activations and list of layers
@@ -52,30 +55,34 @@ class GPTNeoXBlock(BaseModel):
                       post_attn_norm.activations_output + \
                       mlp_layer.activations[1:] + \
                       post_mlp_add.activations_output
-        self.config = config
         # Fill Base Model with the generated data
         super().__init__(activations, layers, config)
         self.ln_1 = self.layers[0]
         self.attn = self.layers[1]
         self.ln_2 = self.layers[3]
         self.mlp = mlp_layer
+        self.use_parallel_residual = use_parallel_residual
 
     def forward_dynamic(
         self,
         x: TensorMoments,
         kv_cache: Optional[KVCache] = None
     ):
-        (input_norm, attention_layer, post_attn_add, post_attn_norm) = self.layers[:4]  # noqa: E501
+        (ln_1, attention_layer, post_attn_add, ln_2) = self.layers[:4]
         post_mlp_add = self.layers[-1]
 
-        x_normalized = input_norm.forward_dynamic(x)
+        x_normalized = ln_1.forward_dynamic(x)
         attn_outs, kv_cache = attention_layer.forward_dynamic(
             x_normalized, kv_cache=kv_cache
         )
         post_attn_outs = post_attn_add.forward_dynamic(attn_outs, x)
-        post_attn_norm_outs = post_attn_norm.forward_dynamic(post_attn_outs)
 
-        mlp_outs = self.mlp.forward_dynamic(post_attn_norm_outs)
+        if self.use_parallel_residual:
+            ln_2_outs = ln_2.forward_dynamic(x)
+        else:
+            ln_2_outs = ln_2.forward_dynamic(post_attn_outs)
+
+        mlp_outs = self.mlp.forward_dynamic(ln_2_outs)
         post_mlp_outs = post_mlp_add.forward_dynamic(mlp_outs, post_attn_outs)
 
         return post_mlp_outs, kv_cache
@@ -91,39 +98,49 @@ class GPTNeoXBlock(BaseModel):
         """
         torch_layer is HF module for GPT-NeoX Layer
         """
-        layer_norm_input_layer = LayerNorm.from_torch(
+        use_parallel_residual = torch_layer.use_parallel_residual
+        layer_norm_1 = LayerNorm.from_torch(
             torch_layer.input_layernorm,
             x
         )
         attention_layer = GPTNeoXAttention.from_torch(
             torch_layer.attention,
-            layer_norm_input_layer.activations_output[0],
+            layer_norm_1.activations_output[0],
             position_ids,
             mask,
             config
         )
         post_attn_add = Add.generate_simple(
-            x, attention_layer.activations_output[0])
-
-        layer_norm_post_attn_layer = LayerNorm.from_torch(
-            torch_layer.post_attention_layernorm,
-            post_attn_add.activations_output[0]
-        )
+                x, attention_layer.activations_output[0])
+        if use_parallel_residual:
+            layer_norm_2 = LayerNorm.from_torch(
+                torch_layer.post_attention_layernorm,
+                x
+            )
+        else:
+            layer_norm_2 = LayerNorm.from_torch(
+                torch_layer.post_attention_layernorm,
+                post_attn_add.activations_output[0]
+            )
         mlp_layer = GPTNeoXMLP.from_torch(
             torch_layer.mlp,
-            layer_norm_post_attn_layer.activations_output[0],
+            layer_norm_2.activations_output[0],
             config)
         post_mlp_add = Add.generate_simple(
             mlp_layer.activations[-1],
             post_attn_add.activations_output[0])
 
-        gpt_neox_block = GPTNeoXBlock(x, attention_layer,
-                                            mlp_layer,
-                                            layer_norm_input_layer,
-                                            layer_norm_post_attn_layer,
-                                            post_attn_add,
-                                            post_mlp_add,
-                                            config)
+        gpt_neox_block = GPTNeoXBlock(
+            x,
+            attention_layer,
+            mlp_layer,
+            layer_norm_1,
+            layer_norm_2,
+            post_attn_add,
+            post_mlp_add,
+            use_parallel_residual,
+            config
+        )
 
         return gpt_neox_block
 
@@ -132,12 +149,14 @@ class GPTNeoXBlock(BaseModel):
             hidden_size=self.config.hidden_size,
             num_attention_heads=self.config.num_heads,
             intermediate_size=self.config.intermediate_size,
-            rotary_pct=1.0,
-            attention_bias=False,
+            rotary_pct=self.config.rotary_pct,
+            rotary_emb_base=self.config.rotary_emb_base,
+            attention_bias=self.config.attention_bias,
             use_cache=False,
             attention_dropout=0.0,
             hidden_dropout=0.0,
             layer_norm_eps=self.config.layer_norm_epsilon,
+            use_parallel_residual=self.use_parallel_residual,
         )
         layer_id = 0
         block_torch = BlockTorch(torch_config, layer_id)
@@ -152,12 +171,14 @@ class GPTNeoXBlock(BaseModel):
             hidden_size=self.config.hidden_size,
             num_attention_heads=self.config.num_heads,
             intermediate_size=self.config.intermediate_size,
-            rotary_pct=1.0,
-            attention_bias=False,
+            rotary_pct=self.config.rotary_pct,
+            rotary_emb_base=self.config.rotary_emb_base,
+            attention_bias=self.config.attention_bias,
             use_cache=False,
             attention_dropout=0.0,
             hidden_dropout=0.0,
             layer_norm_eps=self.config.layer_norm_epsilon,
+            use_parallel_residual=self.use_parallel_residual,
         )
         layer_id = 0
         block_torch = BlockTorch(torch_config, layer_id)
