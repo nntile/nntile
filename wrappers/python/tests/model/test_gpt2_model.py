@@ -129,7 +129,7 @@ def generate_inputs(params: GPT2TestParams,
             torch_model, params.batch_size, params.batch_size_tile,
             params.seq_len, params.seq_len_tile, nntile_config)
     nntile_model.clear_gradients()
-    x_random = gen.integers(params.seq_len,
+    x_random = gen.integers(params.vocab_size,
                             size=nntile_model.activations[0].value.shape,
                             dtype=np.int64)
 

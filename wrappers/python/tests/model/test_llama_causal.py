@@ -160,7 +160,7 @@ def generate_inputs(params: LlamaTestParams,
             params.seq_len, params.seq_len_tile, pos_ids,
             mask, nntile_config)
     nntile_model.clear_gradients()
-    x_random = gen.integers(params.seq_len,
+    x_random = gen.integers(params.vocab_size,
                             size=nntile_model.activations[0].value.shape,
                             dtype=np.int64)
 
