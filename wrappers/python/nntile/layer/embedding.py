@@ -18,8 +18,8 @@ from torch.nn import Embedding as Embedding_torch
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor_fp32, Tensor_int64, TensorMoments, TensorTraits, clear_async,
-    embedding_async, embedding_backward_async, to_numpy)
+    Tensor_fp32, Tensor_int64, TensorMoments, TensorTraits, embedding_async,
+    embedding_backward_async, to_numpy)
 
 
 class Embedding(BaseLayer):
@@ -77,7 +77,6 @@ class Embedding(BaseLayer):
 
     # Forward propagation of the embedding layer
     def forward_async(self):
-        clear_async(self.y.value)
         embedding_async(self.x, self.w.value, self.y.value, self.axis)
         self.x.wont_use()
         self.w.value.wont_use()
