@@ -24,8 +24,8 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.layer.cache_utils import KVCache
 from nntile.model.t5_config import T5ConfigNNTile
 from nntile.tensor import (
-    Tensor, Tensor_bool, TensorMoments, TensorTraits, add_async,
-    add_fiber_inplace_async, add_slice_inplace_async, clear_async, copy_async,
+    Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_inplace_async,
+    add_inplace_async, add_slice_inplace_async, clear_async, copy_async,
     copy_intersection_async, embedding_async, embedding_backward_async,
     gemm_async, mask_scalar_async, maxsumexp_async, notrans,
     prod_inplace_async, softmax_inplace_async, sum_fiber_async,
@@ -932,7 +932,7 @@ class T5Attention(BaseLayer):
             axis=3,  # so result will batch self.a.shape
         )
 
-        add_async(1.0, self.a.value, 1.0, self.relative_bias.value, self.a.value)
+        add_inplace_async(1.0, self.relative_bias.value, 1.0, self.a.value)
 
     def _add_positional_bias_backward(self):
         copy_async(self.a.grad, self.relative_bias.grad)
@@ -955,7 +955,7 @@ class T5Attention(BaseLayer):
         )
 
         # Add the temporary gradient to the original grad tensor
-        add_async(1.0, self.temp_grad_relative_bias_embedding, 1.0, self.relative_bias_embedding.grad, self.relative_bias_embedding.grad)
+        add_inplace_async(1.0, self.temp_grad_relative_bias_embedding, 1.0, self.relative_bias_embedding.grad)
 
     def _forward_attn_async(self):
         # Get tensor for softmax

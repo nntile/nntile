@@ -178,6 +178,10 @@ void Embedding<std::tuple<T>>::submit(Index m, Index n, Index k, Index k_start, 
     int ret = starpu_task_insert(&codelet,
             STARPU_R, index.get(),
             STARPU_R, vocab.get(),
+            // In case of tiling of vocab along vocab_size dimension,
+            // tile of embed is only partially filled in with a single task.
+            // Several tasks are required to fill in embed, leading to RW
+            // data dependency.
             STARPU_RW, embed.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
