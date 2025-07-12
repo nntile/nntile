@@ -60,7 +60,7 @@ dependencies = [
     "typing_extensions>=4.6.0; python_version<'3.12'",
     "uvicorn",
 ]
-requires-python = ">=3.10,<4"
+requires-python = ">=3.10,<=3.12"
 
 [project.optional-dependencies]
 dev = ["isort", "mypy", "ruff"]
