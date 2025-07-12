@@ -55,7 +55,7 @@ dependencies = [
     "numpy>=2.1.0; python_version>='3.13'",
     "pydantic",
     "scipy",
-    "torch",
+    "torch<=2.6.0",
     "transformers",
     "typing_extensions>=4.6.0; python_version<'3.12'",
     "uvicorn",
