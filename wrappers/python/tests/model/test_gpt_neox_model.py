@@ -175,7 +175,7 @@ def generate_inputs(params: GPTNeoXModelTestParams,
             mask_np, nntile_config)
 
     nntile_model.clear_gradients()
-    x_random = rng.integers(params.n_seq,
+    x_random = rng.integers(params.vocab_size,
                             size=nntile_model.activations[0].value.shape,
                             dtype=np.int64)
 

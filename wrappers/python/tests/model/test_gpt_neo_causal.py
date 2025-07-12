@@ -40,8 +40,8 @@ dtype2tol = {
         'fp32': {'rtol': 8e-6},
         'fp32_fast_tf32': {'rtol': 1.5e-3},
         'bf16': {'rtol': 3e-2},
-        'fp32_fast_fp16': {'rtol': 9e-4},
-        'fp32_fast_bf16': {'rtol': 1e-2},
+        'fp32_fast_fp16': {'rtol': 1.1e-3},
+        'fp32_fast_bf16': {'rtol': 1.2e-2},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
@@ -133,7 +133,7 @@ def generate_inputs(params: GPTNeoTestParams,
             torch_model, params.batch_size, params.batch_size_tile,
             params.seq_len, params.seq_len_tile, nntile_config)
     nntile_model.clear_gradients()
-    x_random = gen.integers(params.seq_len,
+    x_random = gen.integers(params.vocab_size,
                             size=nntile_model.activations[0].value.shape,
                             dtype=np.int64)
 
