@@ -76,7 +76,7 @@ ci = [
     # mandatory dependency `torch` to `torch==2.7.1+cpu` since it is
     # explicitely specified in extras despite tha is extra (i.e. optional).
     # Wtf?!
-    "torch==2.7.1+cpu",
+    "torch==2.6.0+cpu",
     # For some reason, PyTorch's package index provides only cp313 wheel for
     # `markupsafe==3.0.2` and `uv` could to discover older version and fails!
     # Wtf!?
