@@ -54,7 +54,7 @@ jobs:
           apt install -y --no-install-recommends \
               autoconf automake binutils build-essential ca-certificates \
               clang cmake curl fxt-tools gdb git lcov libfxt-dev libhwloc-dev \
-              libopenblas-dev libopenmpi-dev libopenmpi3 libtool-bin \
+              libopenblas-serial-dev libopenmpi-dev libopenmpi3 libtool-bin \
               lsb-release ninja-build openmpi-bin pkg-config
       - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
@@ -132,7 +132,7 @@ jobs:
           apt install -y --no-install-recommends \
               autoconf automake binutils build-essential ca-certificates \
               clang cmake curl fxt-tools git lcov libfxt-dev libhwloc-dev \
-              libopenblas-dev libopenmpi-dev libopenmpi3 libtool-bin \
+              libopenblas-serial-dev libopenmpi-dev libopenmpi3 libtool-bin \
               lsb-release ninja-build openmpi-bin pkg-config sqlite3
       - name: Download StarPU libraries (*.so)
         uses: actions/download-artifact@v4
