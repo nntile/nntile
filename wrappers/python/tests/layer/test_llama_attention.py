@@ -158,6 +158,7 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool,
 
     nntile_layer = nntile.layer.LlamaAttention.from_torch(
             torch_layer, X, pos_ids, mask_np, nntile_layer_config)
+    nntile_layer.clear_gradients()
     y_grad_random = rng.standard_normal(x_shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.y.grad.from_array(y_grad_nntile)

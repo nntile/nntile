@@ -103,6 +103,7 @@ class CrossEntropy:
             self.model_output.value, self.maxsumexp, 0, redux=self.redux
         )
         logsumexp_async(self.maxsumexp, self.logsumexp)
+        clear_async(self.val)
         total_sum_accum_async(
             self.scale,
             self.logsumexp,

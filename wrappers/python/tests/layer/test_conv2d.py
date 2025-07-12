@@ -64,6 +64,7 @@ def generate_inputs(numpy_rng, dtype: str, in_channels: int, out_channels: int,
     x_torch = torch.tensor(x_nntile.T, requires_grad=True)
 
     nntile_layer = nntile.layer.Conv2d.from_torch(torch_layer, X)
+    nntile_layer.clear_gradients()
     y_grad_random = numpy_rng.standard_normal(nntile_layer.y.value.shape,
             dtype=np.float32)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
