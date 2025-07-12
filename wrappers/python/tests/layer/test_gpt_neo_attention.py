@@ -146,6 +146,7 @@ def generate_inputs(dtype: str, params: GPTNeoAttentionTestParams):
     nntile_layer = nntile.layer.GPTNeoAttention.from_torch(
             torch_layer, X, X, X, nntile_config
     )
+    nntile_layer.clear_gradients()
 
     y_grad_random = rng.standard_normal(nntile_layer.y.grad.shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
