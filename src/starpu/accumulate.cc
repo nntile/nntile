@@ -136,6 +136,7 @@ void Accumulate<std::tuple<T>>::submit(Handle src, Handle dst)
  * */
 {
     //double nflops;
+    std::cout << "ACCUMULATE\n";
     // Submit task
     int ret = starpu_task_insert(&codelet,
             STARPU_RW | STARPU_COMMUTE, dst.get(),

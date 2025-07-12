@@ -238,11 +238,11 @@ public:
                 auto accumulate_pack = nntile::starpu::accumulate;
                 auto accumulate_op = static_cast<starpu::Accumulate<std::tuple<T>>>(accumulate_pack);
                 auto clear_codelet = &nntile::starpu::clear.codelet;
-                starpu_data_set_reduction_methods(
-                    tmp,
-                    &accumulate_op.codelet,
-                    clear_codelet
-                );
+                // starpu_data_set_reduction_methods(
+                //     tmp,
+                //     &accumulate_op.codelet,
+                //     clear_codelet
+                // );
             }
         }
     }
@@ -259,11 +259,11 @@ public:
                 auto accumulate_pack = nntile::starpu::accumulate_hypot;
                 auto accumulate_op = static_cast<starpu::AccumulateHypot<std::tuple<T>>>(accumulate_pack);
                 auto clear_codelet = &nntile::starpu::clear.codelet;
-                starpu_data_set_reduction_methods(
-                    tmp,
-                    &accumulate_op.codelet,
-                    clear_codelet
-                );
+                // starpu_data_set_reduction_methods(
+                //     tmp,
+                //     &accumulate_op.codelet,
+                //     clear_codelet
+                // );
             }
         }
     }
@@ -280,11 +280,11 @@ public:
                 auto accumulate_pack = nntile::starpu::accumulate_maxsumexp;
                 auto accumulate_op = static_cast<starpu::AccumulateMaxSumExp<std::tuple<T>>>(accumulate_pack);
                 auto clear_codelet = &(nntile::starpu::clear.codelet);
-                starpu_data_set_reduction_methods(
-                    tmp,
-                    &accumulate_op.codelet,
-                    clear_codelet
-                );
+                // starpu_data_set_reduction_methods(
+                //     tmp,
+                //     &accumulate_op.codelet,
+                //     clear_codelet
+                // );
             }
         }
     }
