@@ -24,6 +24,10 @@
 // NNTile headers
 #include "nntile/base_types.hh"
 
+// Disable STARPU_COMMUTE access mode
+#undef STARPU_COMMUTE
+#define STARPU_COMMUTE 0
+
 namespace nntile::starpu
 {
 
