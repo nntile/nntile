@@ -223,6 +223,7 @@ jobs:
           export PYTHON_TAG=$(
             python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
+          export OMP_NUM_THREADS=1
           .github/scripts/run-dirty-tests.sh \
             ${{ github.event.pull_request.head.ref }}
       # Full testing is temporary enabled even for PRs, as dirty testing is broken
@@ -233,6 +234,7 @@ jobs:
           export PYTHON_TAG=$(
             python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
+          export OMP_NUM_THREADS=1
           pytest -vv \
             --cov=wrappers/python/nntile \
             --cov-report=html:coverage/html/${PYTHON_TAG} \
