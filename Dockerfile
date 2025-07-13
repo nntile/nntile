@@ -47,15 +47,21 @@ FROM devbase AS sandbox
 # parallel build
 ARG MAKE_JOBS=1
 
-# Use starpu-1.4 commit 9b274af
-ARG STARPU_VERSION=9b274af
+# Use starpu-1.4.8 tag
+ARG STARPU_VERSION=1.4.8
+
+ENV STARPU_LABEL=starpu-${STARPU_VERSION}
+
+ENV STARPU_URL=https://gitlab.inria.fr/starpu/starpu/-/archive
+
+ENV STARPU_URL=${STARPU_URL}/${STARPU_LABEL}/starpu-${STARPU_LABEL}.tar.gz
 
 WORKDIR /usr/src
 
 RUN set -xe && \
-    git clone https://github.com/starpu-runtime/starpu.git && \
+    curl -SL ${STARPU_URL} | tar -xzC /usr/src && \
+    ln -s /usr/src/starpu-$STARPU_LABEL /usr/src/starpu && \
     cd /usr/src/starpu && \
-    git checkout 9b274afb95c02675e9e5d46cdcfc9191ec257fed && \
     ./autogen.sh && \
     ./configure \
         --disable-build-doc \
@@ -102,7 +108,7 @@ FROM sandbox AS nntile
 # Build NNTile inplace without installation
 ADD . /workspace/nntile
 
-ARG CUDA_ARCHS=70;75;80;86;89;90
+ARG CUDA_ARCHS=70;75;80;86;89;90;100;120
 
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS} -GNinja
