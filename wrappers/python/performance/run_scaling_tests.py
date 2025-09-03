@@ -10,7 +10,7 @@ parser.add_argument("--mode",
                     choices=["fwd", "fwd-bwd"],
                     default="fwd")
 parser.add_argument("--submodule",
-                    choices=["attention", "decoder"],
+                    choices=["attention", "decoder", "mlp"],
                     default="attention")
 parser.add_argument("--kv-heads-ratio",
                     type=int,
