@@ -1334,6 +1334,8 @@ def embedding_async(
         core_tensor.embedding_async_fp64(index, vocab, embed, axis)
     elif type(embed) is core_tensor.Tensor_bf16:
         core_tensor.embedding_async_bf16(index, vocab, embed, axis)
+    elif type(embed) is core_tensor.Tensor_fp16:
+        core_tensor.embedding_async_fp16(index, vocab, embed, axis)
     else:
         raise TypeError
 

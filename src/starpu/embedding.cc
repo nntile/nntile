@@ -202,6 +202,7 @@ template class Embedding<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class Embedding<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class Embedding<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class Embedding<std::tuple<nntile::bf16_t>>;
+template class Embedding<std::tuple<nntile::fp16_t>>;
 
 //! Pack of embedding operations for different types
 embedding_pack_t embedding;
