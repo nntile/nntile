@@ -673,6 +673,8 @@ def add_async(alpha: float, x: Tensor, beta: float, y: Tensor,
         core_tensor.add_async_fp64(alpha, x, beta, y, z)
     elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.add_async_bf16(alpha, x, beta, y, z)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.add_async_fp16(alpha, x, beta, y, z)
     else:
         raise TypeError
 
@@ -785,6 +787,8 @@ def add_slice_async(
         )
     elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.add_slice_async_bf16(alpha, add_slice, beta, x, y, axis)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.add_slice_async_fp16(alpha, add_slice, beta, x, y, axis)
     else:
         raise TypeError
 
@@ -1275,6 +1279,8 @@ def scal_async(alpha: float, x: Tensor, y: Tensor) -> None:
         core_tensor.scal_async_fp64(alpha, x, y)
     elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.scal_async_bf16(alpha, x, y)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.scal_async_fp16(alpha, x, y)
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.scal_async_fp32_fast_fp16(alpha, x, y)
     else:

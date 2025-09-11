@@ -55,4 +55,8 @@ template
 void cpu<bf16_t>(Index nelems, Scalar alpha, const bf16_t* src, bf16_t* dst)
     noexcept;
 
+template
+void cpu<fp16_t>(Index nelems, Scalar alpha, const fp16_t* src, fp16_t* dst)
+    noexcept;
+
 } // namespace nntile::kernel::scal

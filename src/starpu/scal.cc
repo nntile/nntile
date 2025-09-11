@@ -171,6 +171,7 @@ template class Scal<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class Scal<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class Scal<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class Scal<std::tuple<nntile::bf16_t>>;
+template class Scal<std::tuple<nntile::fp16_t>>;
 
 //! Pack of scal operations for different types
 scal_pack_t scal;

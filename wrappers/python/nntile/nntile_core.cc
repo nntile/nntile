@@ -816,6 +816,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_slice_async_fp32_fast_fp16", &add_slice_async<fp32_fast_fp16_t>);
     m.def("add_slice_async_fp32_fast_bf16", &add_slice_async<fp32_fast_bf16_t>);
     m.def("add_slice_async_bf16", &add_slice_async<bf16_t>);
+    m.def("add_slice_async_fp16", &add_slice_async<fp16_t>);
 
     m.def("add_slice_fp64", &add_slice<fp64_t>);
     m.def("add_slice_fp32", &add_slice<fp32_t>);
@@ -823,6 +824,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_slice_fp32_fast_fp16", &add_slice<fp32_fast_fp16_t>);
     m.def("add_slice_fp32_fast_bf16", &add_slice<fp32_fast_bf16_t>);
     m.def("add_slice_bf16", &add_slice<bf16_t>);
+    m.def("add_slice_fp16", &add_slice<fp16_t>);
 
     m.def("add_async_fp64", &add_async<fp64_t>);
     m.def("add_async_fp32", &add_async<fp32_t>);
@@ -830,6 +832,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_async_fp32_fast_fp16", &add_async<fp32_fast_fp16_t>);
     m.def("add_async_fp32_fast_bf16", &add_async<fp32_fast_bf16_t>);
     m.def("add_async_bf16", &add_async<bf16_t>);
+    m.def("add_async_fp16", &add_async<fp16_t>);
 
     m.def("add_fp64", &add<fp64_t>);
     m.def("add_fp32", &add<fp32_t>);
@@ -837,6 +840,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_fp32_fast_fp16", &add<fp32_fast_fp16_t>);
     m.def("add_fp32_fast_bf16", &add<fp32_fast_bf16_t>);
     m.def("add_bf16", &add<bf16_t>);
+    m.def("add_fp16", &add<fp16_t>);
 
     m.def("add_inplace_async_fp64", &add_inplace_async<fp64_t>);
     m.def("add_inplace_async_fp32", &add_inplace_async<fp32_t>);
@@ -1122,6 +1126,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("scal_async_fp32_fast_fp16", &scal_async<fp32_fast_fp16_t>);
     m.def("scal_async_fp32_fast_bf16", &scal_async<fp32_fast_bf16_t>);
     m.def("scal_async_bf16", &scal_async<bf16_t>);
+    m.def("scal_async_fp16", &scal_async<fp16_t>);
 
     m.def("scal_fp64", &scal<fp64_t>);
     m.def("scal_fp32", &scal<fp32_t>);
@@ -1129,6 +1134,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("scal_fp32_fast_fp16", &scal<fp32_fast_fp16_t>);
     m.def("scal_fp32_fast_bf16", &scal<fp32_fast_bf16_t>);
     m.def("scal_bf16", &scal<bf16_t>);
+    m.def("scal_fp16", &scal<fp16_t>);
 
     m.def("adam_step_async_fp64", &adam_step_async<fp64_t>);
     m.def("adam_step_async_fp32", &adam_step_async<fp32_t>);
