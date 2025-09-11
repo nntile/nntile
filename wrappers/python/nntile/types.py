@@ -20,7 +20,7 @@ else:
     from typing_extensions import Buffer
 
 from .nntile_core.tensor import (
-    Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_fp64, Tensor_int64,
+    Tensor_bf16, Tensor_fp16, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_fp64, Tensor_int64,
     TensorTraits)
 from .nntile_core.tile import TileTraits
 
@@ -61,7 +61,7 @@ else:
 
 
 # Multiprecision tensor as a union type for all precisions
-Tensor = Tensor_fp32 | Tensor_fp64 | Tensor_fp32_fast_tf32 | Tensor_bf16
+Tensor = Tensor_fp32 | Tensor_fp64 | Tensor_fp32_fast_tf32 | Tensor_bf16 | Tensor_fp16
 # Optional tensor argument
 TensorOrNone = Tensor | None
 # Union of multiprecision tensor and float

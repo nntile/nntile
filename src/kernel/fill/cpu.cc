@@ -49,4 +49,8 @@ template
 void cpu<bf16_t>(Index nelems, Scalar val, bf16_t *data)
     noexcept;
 
+template
+void cpu<fp16_t>(Index nelems, Scalar val, fp16_t *data)
+    noexcept;
+
 } // namespace nntile::kernel::fill

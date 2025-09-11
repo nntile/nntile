@@ -18,7 +18,7 @@ from transformers import GPT2Config as GPT2ConfigTorch
 from transformers.models.gpt2.modeling_gpt2 import GPT2Model as GPT2Model_torch
 
 from nntile.tensor import (
-    Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_bf16, Tensor_fp32_fast_fp16,
+    Tensor_bf16, Tensor_fp16, Tensor_fp32, Tensor_fp32_fast_bf16, Tensor_fp32_fast_fp16,
     Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments, TensorTraits)
 
 from ..layer import AddSlice, Embedding, LayerNorm
@@ -48,11 +48,11 @@ class GPT2Model(BaseModel):
 
         self.config = config
 
-        if self.dtype not in ["fp32", "tf32",
+        if self.dtype not in ["fp32", "fp16", "tf32",
                               "bf16", "fp32_fast_fp16",
                               "fp32_fast_tf32",
                               "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, tf32, bf16, fp32_fast_tf32, "
+            raise TypeError("Only fp32, fp16, tf32, bf16, fp32_fast_tf32, "
                             "fp32_fast_fp16 and fp32_fast_bf16 are "
                             "supported for weight type")
         activations = [input_ids, positional_ids]
@@ -81,12 +81,11 @@ class GPT2Model(BaseModel):
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
                    config: GPT2ConfigNNTile):
-
-        if config.dtype not in ["fp32", "tf32",
+        if config.dtype not in ["fp32", "fp16", "tf32",
                               "bf16", "fp32_fast_fp16",
                               "fp32_fast_tf32",
                               "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, tf32, bf16, fp32_fast_tf32, "
+            raise TypeError("Only fp32, fp16, tf32, bf16, fp32_fast_tf32, "
                             "fp32_fast_fp16 and fp32_fast_bf16 are "
                             "supported for weight type")
         positional_ids_traits = TensorTraits([seq_len], [seq_len_tile])
@@ -110,7 +109,8 @@ class GPT2Model(BaseModel):
                              "fp32_fast_tf32": Tensor_fp32_fast_tf32,
                              "bf16": Tensor_bf16,
                              "fp32_fast_fp16": Tensor_fp32_fast_fp16,
-                             "fp32_fast_bf16": Tensor_fp32_fast_bf16
+                             "fp32_fast_bf16": Tensor_fp32_fast_bf16,
+                             "fp16": Tensor_fp16
                             }
 
         tensor_type = dtype2tensor_type[config.dtype]

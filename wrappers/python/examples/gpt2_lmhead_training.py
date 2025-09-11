@@ -63,7 +63,7 @@ parser.add_argument("--n-head-tile", type=int, default=-1)
 parser.add_argument(
     "--dtype", choices=["fp32", "fp64", "tf32",
                                "bf16", "fp32_fast_fp16",
-                               "fp32_fast_bf16"], default="fp32")
+                               "fp32_fast_bf16", "fp16"], default="fp32")
 parser.add_argument("--restrict", choices=["cpu", "cuda", None],
         default=None)
 parser.add_argument("--flash-attention", action="store_true")
@@ -110,7 +110,6 @@ parser.add_argument("--force-offload-ram-portion-optimizer", type=float,
 # Parse arguments
 args = parser.parse_args()
 print(args)
-
 if args.seq_len_tile == -1:
     args.seq_len_tile = args.seq_len
 if args.minibatch_size == -1:
@@ -350,4 +349,4 @@ print("NNTile loss on the last batch: {}".format(loss_np[0]))
 model_torch = gpt2lmhead_nntile.to_torch()
 torch.save({
             'model_state_dict': model_torch.state_dict(),
-            }, args.save_checkpoint_path)
+            }, args.save_checkpoint_path + "/test_gpt2_lmhead.pt")

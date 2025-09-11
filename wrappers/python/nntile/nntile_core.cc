@@ -236,6 +236,7 @@ void def_mod_tile(py::module_ &m)
     def_class_tile<fp32_fast_bf16_t>(m, "Tile_fp32_fast_bf16");
     def_class_tile<fp64_t>(m, "Tile_fp64");
     def_class_tile<bf16_t>(m, "Tile_bf16");
+    def_class_tile<fp16_t>(m, "Tile_fp16");
 }
 
 // numpy.ndarray -> Tensor
@@ -482,7 +483,7 @@ void def_mod_tensor(py::module_ &m)
     def_class_tensor<fp32_fast_bf16_t>(m, "Tensor_fp32_fast_bf16");
     def_class_tensor<fp32_t>(m, "Tensor_fp32");
     def_class_tensor<bf16_t>(m, "Tensor_bf16");
-    // def_class_tensor<fp16_t>(m, "Tensor_fp16");
+    def_class_tensor<fp16_t>(m, "Tensor_fp16");
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
@@ -594,6 +595,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("fill_async_fp32_fast_fp16", &fill_async<fp32_fast_fp16_t>);
     m.def("fill_async_fp32_fast_bf16", &fill_async<fp32_fast_bf16_t>);
     m.def("fill_async_bf16", &fill_async<bf16_t>);
+    m.def("fill_async_fp16", &fill_async<fp16_t>);
 
     m.def("fill_fp64", &fill<fp64_t>);
     m.def("fill_fp32", &fill<fp32_t>);
@@ -601,6 +603,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("fill_fp32_fast_fp16", &fill<fp32_fast_fp16_t>);
     m.def("fill_fp32_fast_bf16", &fill<fp32_fast_bf16_t>);
     m.def("fill_bf16", &fill<bf16_t>);
+    m.def("fill_fp16", &fill<fp16_t>);
 
     m.def("sum_slice_async_fp64", &sum_slice_async<fp64_t>);
     m.def("sum_slice_async_fp32", &sum_slice_async<fp32_t>);
@@ -722,6 +725,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("scatter_async_fp32_fast_fp16", &scatter_async<fp32_fast_fp16_t>);
     m.def("scatter_async_fp32_fast_tf32", &scatter_async<fp32_fast_tf32_t>);
     m.def("scatter_async_bf16", &scatter_async<bf16_t>);
+    m.def("scatter_async_fp16", &scatter_async<fp16_t>);
 
     m.def("scatter_int64", &scatter<nntile::int64_t>);
     m.def("scatter_bool", &scatter<bool_t>);
@@ -731,6 +735,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("scatter_fp32_fast_fp16", &scatter<fp32_fast_fp16_t>);
     m.def("scatter_fp32_fast_tf32", &scatter<fp32_fast_tf32_t>);
     m.def("scatter_bf16", &scatter<bf16_t>);
+    m.def("scatter_fp16", &scatter<fp16_t>);
 
     m.def("randn_async_fp64", &randn_async<fp64_t>);
     m.def("randn_async_fp32", &randn_async<fp32_t>);
@@ -939,6 +944,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("gather_async_fp32_fast_fp16", &gather_async<fp32_fast_fp16_t>);
     m.def("gather_async_fp32_fast_tf32", &gather_async<fp32_fast_tf32_t>);
     m.def("gather_async_bf16", &gather_async<bf16_t>);
+    m.def("gather_async_fp16", &gather_async<fp16_t>);
 
     m.def("gather_int64", &gather<nntile::int64_t>);
     m.def("gather_bool", &gather<bool_t>);
@@ -948,6 +954,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("gather_fp32_fast_fp16", &gather<fp32_fast_fp16_t>);
     m.def("gather_fp32_fast_tf32", &gather<fp32_fast_tf32_t>);
     m.def("gather_bf16", &gather<bf16_t>);
+    m.def("gather_fp16", &gather<fp16_t>);
 
     m.def("copy_intersection_async_int64", &copy_intersection_async<nntile::int64_t>);
     m.def("copy_intersection_async_bool", &copy_intersection_async<bool_t>);
@@ -993,6 +1000,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("clear_async_fp32_fast_fp16", &clear_async<fp32_fast_fp16_t>);
     m.def("clear_async_fp32_fast_bf16", &clear_async<fp32_fast_bf16_t>);
     m.def("clear_async_bf16", &clear_async<bf16_t>);
+    m.def("clear_async_fp16", &clear_async<fp16_t>);
 
     m.def("clear_int64", &clear<nntile::int64_t>);
     m.def("clear_bool", &clear<bool_t>);
@@ -1002,6 +1010,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("clear_fp32_fast_fp16", &clear<fp32_fast_fp16_t>);
     m.def("clear_fp32_fast_bf16", &clear<fp32_fast_bf16_t>);
     m.def("clear_bf16", &clear<bf16_t>);
+    m.def("clear_fp16", &clear<fp16_t>);
 
     m.def("sqrt_async_fp64", &sqrt_async<fp64_t>);
     m.def("sqrt_async_fp32", &sqrt_async<fp32_t>);

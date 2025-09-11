@@ -154,4 +154,10 @@ void cpu<bf16_t>(Index ndim, const Index *src_start, const Index *src_stride,
         const Index *dst_stride, bf16_t *dst, int64_t *tmp_index)
     noexcept;
 
+template
+void cpu<fp16_t>(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const fp16_t *src, const Index *dst_start,
+        const Index *dst_stride, fp16_t *dst, int64_t *tmp_index)
+    noexcept;
+
 } // namespace nntile::kernel::subcopy
