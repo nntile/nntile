@@ -1415,6 +1415,8 @@ def embedding_backward_async(index: Tensor_int64, embed: Tensor, vocab: Tensor,
     ts = (embed, vocab)
     if is_tensor_of(ts, Tensor_bf16):
         ops.embedding_backward_async_bf16(index, ts[0], ts[1], axis, redux)
+    elif is_tensor_of(ts, Tensor_fp16):
+        ops.embedding_backward_async_fp16(index, ts[0], ts[1], axis, redux)
     elif is_tensor_of(ts, Tensor_fp32):
         ops.embedding_backward_async_fp32(index, ts[0], ts[1], axis, redux)
     elif is_tensor_of(ts, Tensor_fp32_fast_tf32):

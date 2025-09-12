@@ -1372,6 +1372,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("embedding_backward_async_fp32_fast_fp16", &embedding_backward_async<fp32_fast_fp16_t>);
     m.def("embedding_backward_async_fp32_fast_bf16", &embedding_backward_async<fp32_fast_bf16_t>);
     m.def("embedding_backward_async_bf16", &embedding_backward_async<bf16_t>);
+    m.def("embedding_backward_async_fp16", &embedding_backward_async<fp16_t>);
 
     m.def("embedding_backward_fp64", &embedding_backward<fp64_t>);
     m.def("embedding_backward_fp32", &embedding_backward<fp32_t>);
@@ -1379,6 +1380,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("embedding_backward_fp32_fast_fp16", &embedding_backward<fp32_fast_fp16_t>);
     m.def("embedding_backward_fp32_fast_bf16", &embedding_backward<fp32_fast_bf16_t>);
     m.def("embedding_backward_bf16", &embedding_backward<bf16_t>);
+    m.def("embedding_backward_fp16", &embedding_backward<fp16_t>);
 
     m.def("mask_scalar_async_fp64", &mask_scalar_async<fp64_t>);
     m.def("mask_scalar_async_fp32", &mask_scalar_async<fp32_t>);

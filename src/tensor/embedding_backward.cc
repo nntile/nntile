@@ -187,4 +187,9 @@ void embedding_backward<bf16_t>(const Tensor<int64_t> &index,
         const Tensor<bf16_t> &embed, const Tensor<bf16_t> &vocab, Index axis,
         int redux);
 
+template
+void embedding_backward<fp16_t>(const Tensor<int64_t> &index,
+        const Tensor<fp16_t> &embed, const Tensor<fp16_t> &vocab, Index axis,
+        int redux);
+
 } // namespace nntile::tensor
