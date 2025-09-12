@@ -1175,6 +1175,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("adam_step_async_fp32_fast_fp16", &adam_step_async<fp32_fast_fp16_t>);
     m.def("adam_step_async_fp32_fast_bf16", &adam_step_async<fp32_fast_bf16_t>);
     m.def("adam_step_async_bf16", &adam_step_async<bf16_t>);
+    m.def("adam_step_async_fp16", &adam_step_async<fp16_t>);
 
     m.def("adam_step_fp64", &adam_step<fp64_t>);
     m.def("adam_step_fp32", &adam_step<fp32_t>);
@@ -1182,6 +1183,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("adam_step_fp32_fast_fp16", &adam_step<fp32_fast_fp16_t>);
     m.def("adam_step_fp32_fast_bf16", &adam_step<fp32_fast_bf16_t>);
     m.def("adam_step_bf16", &adam_step<bf16_t>);
+    m.def("adam_step_fp16", &adam_step<fp16_t>);
 
     m.def("adamw_step_async_fp64", &adamw_step_async<fp64_t>);
     m.def("adamw_step_async_fp32", &adamw_step_async<fp32_t>);
@@ -1189,6 +1191,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("adamw_step_async_fp32_fast_fp16", &adamw_step_async<fp32_fast_fp16_t>);
     m.def("adamw_step_async_fp32_fast_bf16", &adamw_step_async<fp32_fast_bf16_t>);
     m.def("adamw_step_async_bf16", &adamw_step_async<bf16_t>);
+    m.def("adamw_step_async_fp16", &adamw_step_async<fp16_t>);
 
     m.def("adamw_step_fp64", &adamw_step<fp64_t>);
     m.def("adamw_step_fp32", &adamw_step<fp32_t>);
@@ -1196,6 +1199,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("adamw_step_fp32_fast_fp16", &adamw_step<fp32_fast_fp16_t>);
     m.def("adamw_step_fp32_fast_bf16", &adamw_step<fp32_fast_bf16_t>);
     m.def("adamw_step_bf16", &adamw_step<bf16_t>);
+    m.def("adamw_step_fp16", &adamw_step<fp16_t>);
 
     m.def("scal_inplace_async_fp64", &scal_inplace_async<fp64_t>);
     m.def("scal_inplace_async_fp32", &scal_inplace_async<fp32_t>);

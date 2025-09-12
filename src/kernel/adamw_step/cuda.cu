@@ -112,4 +112,11 @@ void cuda<bf16_t>(cudaStream_t stream, Index num_iter, Index num_elems,
         bf16_t *second_moment, bf16_t *p)
     noexcept;
 
+template
+void cuda<fp16_t>(cudaStream_t stream, Index num_iter, Index num_elems,
+        Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr,
+        Scalar weight_decay, const fp16_t *grad, fp16_t *first_moment,
+        fp16_t *second_moment, fp16_t *p)
+    noexcept;
+
 } // namespace nntile::kernel::adamw_step

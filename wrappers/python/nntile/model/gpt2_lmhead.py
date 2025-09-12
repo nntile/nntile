@@ -80,7 +80,6 @@ class GPT2LMHead(BaseModel, LLMGenerationMixin):
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
                    config: GPT2ConfigNNTile):
-        print(config.dtype)
         if config.dtype not in ["fp32", "fp16", "tf32",
                               "bf16", "fp32_fast_fp16",
                               "fp32_fast_tf32",

@@ -117,6 +117,11 @@ void adam_step_async<bf16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scala
     const Tensor<bf16_t> &grad, const Tensor<bf16_t> &first_moment, const Tensor<bf16_t> &second_moment,
                    const Tensor<bf16_t> &p);
 
+template
+void adam_step_async<fp16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+    const Tensor<fp16_t> &grad, const Tensor<fp16_t> &first_moment, const Tensor<fp16_t> &second_moment,
+                   const Tensor<fp16_t> &p);
+
 // Explicit instantiation
 template
 void adam_step<fp32_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
@@ -147,5 +152,10 @@ template
 void adam_step<bf16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
     const Tensor<bf16_t> &grad, const Tensor<bf16_t> &first_moment, const Tensor<bf16_t> &second_moment,
                    const Tensor<bf16_t> &p);
+
+template
+void adam_step<fp16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+    const Tensor<fp16_t> &grad, const Tensor<fp16_t> &first_moment, const Tensor<fp16_t> &second_moment,
+                   const Tensor<fp16_t> &p);
 
 } // namespace nntile::tensor
