@@ -145,6 +145,10 @@ template
 void prod_fiber3_async<bf16_t>(const Tensor<bf16_t> &src1, Scalar alpha,
         const Tensor<bf16_t> &src2, const Tensor<bf16_t> &dst, Index axis);
 
+template
+void prod_fiber3_async<fp16_t>(const Tensor<fp16_t> &src1, Scalar alpha,
+        const Tensor<fp16_t> &src2, const Tensor<fp16_t> &dst, Index axis);
+
 // Explicit instantiation of template
 template
 void prod_fiber3<fp32_t>(const Tensor<fp32_t> &src1, Scalar alpha,
@@ -169,5 +173,9 @@ void prod_fiber3<fp64_t>(const Tensor<fp64_t> &src1, Scalar alpha,
 template
 void prod_fiber3<bf16_t>(const Tensor<bf16_t> &src1, Scalar alpha,
         const Tensor<bf16_t> &src2, const Tensor<bf16_t> &dst, Index axis);
+
+template
+void prod_fiber3<fp16_t>(const Tensor<fp16_t> &src1, Scalar alpha,
+        const Tensor<fp16_t> &src2, const Tensor<fp16_t> &dst, Index axis);
 
 } // namespace nntile::tensor

@@ -203,6 +203,7 @@ template class NormSlice<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class NormSlice<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class NormSlice<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class NormSlice<std::tuple<nntile::bf16_t>>;
+template class NormSlice<std::tuple<nntile::fp16_t>>;
 
 //! Pack of norm_slice operations for different types
 norm_slice_pack_t norm_slice;

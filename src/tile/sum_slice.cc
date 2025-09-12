@@ -124,4 +124,8 @@ template
 void sum_slice<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis);
 
+template
+void sum_slice<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
+        const Tile<fp16_t> &dst, Index axis);
+
 } // namespace nntile::tile

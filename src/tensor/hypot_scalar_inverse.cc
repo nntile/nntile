@@ -74,6 +74,10 @@ template
 void hypot_scalar_inverse_async<fp64_t>(Scalar eps, Scalar alpha,
         const Tensor<fp64_t> &dst);
 
+template
+void hypot_scalar_inverse_async<fp16_t>(Scalar eps, Scalar alpha,
+        const Tensor<fp16_t> &dst);
+
 // Explicit instantiation of template
 template
 void hypot_scalar_inverse<fp32_t>(Scalar eps, Scalar alpha,
@@ -99,4 +103,7 @@ template
 void hypot_scalar_inverse<bf16_t>(Scalar eps, Scalar alpha,
         const Tensor<bf16_t> &dst);
 
+template
+void hypot_scalar_inverse<fp16_t>(Scalar eps, Scalar alpha,
+        const Tensor<fp16_t> &dst);
 } // namespace nntile::tensor

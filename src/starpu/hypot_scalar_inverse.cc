@@ -168,6 +168,7 @@ template class HypotScalarInverse<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class HypotScalarInverse<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class HypotScalarInverse<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class HypotScalarInverse<std::tuple<nntile::bf16_t>>;
+template class HypotScalarInverse<std::tuple<nntile::fp16_t>>;
 
 //! Pack of hypot_scalar_inverse operations for different types
 hypot_scalar_inverse_pack_t hypot_scalar_inverse;

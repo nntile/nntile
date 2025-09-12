@@ -159,6 +159,10 @@ template
 void add_fiber_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis, Index batch_ndim);
 
+template
+void add_fiber_inplace_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, Scalar beta,
+        const Tensor<fp16_t> &dst, Index axis, Index batch_ndim);
+
 // Explicit instantiation of template
 template
 void add_fiber_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
@@ -183,5 +187,9 @@ void add_fiber_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar b
 template
 void add_fiber_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis, Index batch_ndim);
+
+template
+void add_fiber_inplace<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, Scalar beta,
+        const Tensor<fp16_t> &dst, Index axis, Index batch_ndim);
 
 } // namespace nntile::tensor

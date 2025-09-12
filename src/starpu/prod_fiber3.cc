@@ -180,6 +180,7 @@ template class ProdFiber3<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class ProdFiber3<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class ProdFiber3<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class ProdFiber3<std::tuple<nntile::bf16_t>>;
+template class ProdFiber3<std::tuple<nntile::fp16_t>>;
 
 //! Pack of prod_fiber3 operations for different types
 prod_fiber3_pack_t prod_fiber3;
