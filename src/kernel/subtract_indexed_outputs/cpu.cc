@@ -74,4 +74,9 @@ void cpu<bf16_t>(Index n_labels, Index n_outputs, Index ignore_index, Scalar val
         const int64_t* labels, bf16_t *dst)
     noexcept;
 
+template
+void cpu<fp16_t>(Index n_labels, Index n_outputs, Index ignore_index, Scalar val,
+        const int64_t* labels, fp16_t *dst)
+    noexcept;
+
 } // namespace nntile::kernel::subtract_indexed_outputs

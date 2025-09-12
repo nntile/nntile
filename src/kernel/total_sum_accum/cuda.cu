@@ -91,4 +91,10 @@ void cuda<bf16_t>(cudaStream_t stream, Scalar alpha, Index n_labels,
         const int64_t* labels, float *val)
     noexcept;
 
+template
+void cuda<fp16_t>(cudaStream_t stream, Scalar alpha, Index n_labels,
+        Index n_outputs, Index ignore_index, const fp16_t* logsumexp, const fp16_t* src,
+        const int64_t* labels, float *val)
+    noexcept;
+
 } // namespace nntile::kernel::total_sum_accum

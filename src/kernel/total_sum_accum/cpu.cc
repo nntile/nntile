@@ -83,4 +83,10 @@ void cpu<bf16_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_ind
         float *val)
     noexcept;
 
+template
+void cpu<fp16_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
+        const fp16_t* logsumexp, const fp16_t* src, const int64_t* labels,
+        float *val)
+    noexcept;
+
 } // namespace nntile::kernel::total_sum_accum
