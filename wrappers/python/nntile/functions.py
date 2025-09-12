@@ -670,6 +670,8 @@ def prod_inplace_async(x: Tensor, y: Tensor) -> None:
         core_tensor.prod_inplace_async_fp64(x, y)
     elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.prod_inplace_async_bf16(x, y)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.prod_inplace_async_fp16(x, y)
     else:
         raise TypeError
 

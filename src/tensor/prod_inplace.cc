@@ -95,6 +95,10 @@ template
 void prod_inplace_async<bf16_t>(const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst);
 
+template
+void prod_inplace_async<fp16_t>(const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst);
+
 // Explicit instantiation
 template
 void prod_inplace<fp32_t>(const Tensor<fp32_t> &src,
@@ -119,5 +123,9 @@ void prod_inplace<fp64_t>(const Tensor<fp64_t> &src,
 template
 void prod_inplace<bf16_t>(const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst);
+
+template
+void prod_inplace<fp16_t>(const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst);
 
 } // namespace nntile::tensor

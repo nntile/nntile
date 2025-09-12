@@ -786,6 +786,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("prod_inplace_async_fp32_fast_bf16",
             &prod_inplace_async<fp32_fast_bf16_t>);
     m.def("prod_inplace_async_bf16", &prod_inplace_async<bf16_t>);
+    m.def("prod_inplace_async_fp16", &prod_inplace_async<fp16_t>);
 
     m.def("prod_inplace_fp64", &prod_inplace<fp64_t>);
     m.def("prod_inplace_fp32", &prod_inplace<fp32_t>);
@@ -793,6 +794,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("prod_inplace_fp32_fast_fp16", &prod_inplace<fp32_fast_fp16_t>);
     m.def("prod_inplace_fp32_fast_bf16", &prod_inplace<fp32_fast_bf16_t>);
     m.def("prod_inplace_bf16", &prod_inplace<bf16_t>);
+    m.def("prod_inplace_fp16", &prod_inplace<fp16_t>);
 
     m.def("maxsumexp_async_fp64", &maxsumexp_async<fp64_t>);
     m.def("maxsumexp_async_fp32", &maxsumexp_async<fp32_t>);
