@@ -163,6 +163,7 @@ template class GeluTanhBackward<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class GeluTanhBackward<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class GeluTanhBackward<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class GeluTanhBackward<std::tuple<nntile::bf16_t>>;
+template class GeluTanhBackward<std::tuple<nntile::fp16_t>>;
 
 //! Pack of gelutanh_backward operations for different types
 gelutanh_backward_pack_t gelutanh_backward;

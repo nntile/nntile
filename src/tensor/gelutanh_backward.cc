@@ -101,6 +101,10 @@ template
 void gelutanh_backward_async<bf16_t>(const Tensor<bf16_t> &x,
         const Tensor<bf16_t> &dy, const Tensor<bf16_t> &dx);
 
+template
+void gelutanh_backward_async<fp16_t>(const Tensor<fp16_t> &x,
+        const Tensor<fp16_t> &dy, const Tensor<fp16_t> &dx);
+
 // Explicit instantiation
 template
 void gelutanh_backward<fp32_t>(const Tensor<fp32_t> &x,
@@ -125,5 +129,9 @@ void gelutanh_backward<fp64_t>(const Tensor<fp64_t> &x,
 template
 void gelutanh_backward<bf16_t>(const Tensor<bf16_t> &x,
         const Tensor<bf16_t> &dy, const Tensor<bf16_t> &dx);
+
+template
+void gelutanh_backward<fp16_t>(const Tensor<fp16_t> &x,
+        const Tensor<fp16_t> &dy, const Tensor<fp16_t> &dx);
 
 } // namespace nntile::tensor
