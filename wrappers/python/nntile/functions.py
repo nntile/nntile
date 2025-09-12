@@ -393,6 +393,10 @@ def sum_fiber_async(
         core_tensor.sum_fiber_async_bf16(
             alpha, x, beta, sum_fiber, axis, batch_ndim, redux
         )
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.sum_fiber_async_fp16(
+            alpha, x, beta, sum_fiber, axis, batch_ndim, redux
+        )
     else:
         raise TypeError
 
@@ -713,6 +717,8 @@ def add_inplace_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
         core_tensor.add_inplace_async_fp64(alpha, x, beta, y)
     elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.add_inplace_async_bf16(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.add_inplace_async_fp16(alpha, x, beta, y)
     else:
         raise TypeError
 
@@ -773,6 +779,10 @@ def add_slice_inplace_async(
         )
     elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.add_slice_inplace_async_bf16(
+            alpha, add_slice, beta, x, axis
+        )
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.add_slice_inplace_async_fp16(
             alpha, add_slice, beta, x, axis
         )
     else:
@@ -1164,6 +1174,10 @@ def sumprod_slice_async(
         core_tensor.sumprod_slice_async_bf16(
             alpha, src1, src2, beta, dst, axis, redux
         )
+    elif type(src1) is core_tensor.Tensor_fp16:
+        core_tensor.sumprod_slice_async_fp16(
+            alpha, src1, src2, beta, dst, axis, redux
+        )
     else:
         raise TypeError
 
@@ -1206,6 +1220,10 @@ def sumprod_fiber_async(
         )
     elif type(src1) is core_tensor.Tensor_bf16:
         core_tensor.sumprod_fiber_async_bf16(
+            alpha, src1, src2, beta, dst, axis, redux
+        )
+    elif type(src1) is core_tensor.Tensor_fp16:
+        core_tensor.sumprod_fiber_async_fp16(
             alpha, src1, src2, beta, dst, axis, redux
         )
     else:
@@ -1332,6 +1350,10 @@ def scal_inplace_async(alpha: float, x: Tensor) -> None:
         core_tensor.scal_inplace_async_fp32_fast_tf32(alpha, x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.scal_inplace_async_fp64(alpha, x)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.scal_inplace_async_fp16(alpha, x)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.scal_inplace_async_bf16(alpha, x)
     else:
         raise TypeError
 

@@ -68,6 +68,9 @@ void scal_inplace_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &data);
 template
 void scal_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &data);
 
+template
+void scal_inplace_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &data);
+
 // Explicit instantiation
 template
 void scal_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &data);
@@ -86,5 +89,8 @@ void scal_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &data);
 
 template
 void scal_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &data);
+
+template
+void scal_inplace<fp16_t>(Scalar alpha, const Tensor<fp16_t> &data);
 
 } // namespace nntile::tensor

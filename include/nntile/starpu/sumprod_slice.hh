@@ -100,7 +100,8 @@ using sumprod_slice_pack_t = OperationPack<
     std::tuple<nntile::fp32_fast_tf32_t>,
     std::tuple<nntile::fp32_fast_fp16_t>,
     std::tuple<nntile::fp32_fast_bf16_t>,
-    std::tuple<nntile::bf16_t>
+    std::tuple<nntile::bf16_t>,
+    std::tuple<nntile::fp16_t>
 >;
 
 //! Pack of sumprod_slice operations for different types

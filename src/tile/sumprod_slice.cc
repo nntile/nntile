@@ -110,6 +110,11 @@ void sumprod_slice_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1,
         const Tile<bf16_t> &src2, Scalar beta, const Tile<bf16_t> &dst,
         Index axis);
 
+template
+void sumprod_slice_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src1,
+        const Tile<fp16_t> &src2, Scalar beta, const Tile<fp16_t> &dst,
+        Index axis);
+
 // Explicit instantiation
 template
 void sumprod_slice<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1,
@@ -139,6 +144,11 @@ void sumprod_slice<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1,
 template
 void sumprod_slice<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1,
         const Tile<bf16_t> &src2, Scalar beta, const Tile<bf16_t> &dst,
+        Index axis);
+
+template
+void sumprod_slice<fp16_t>(Scalar alpha, const Tile<fp16_t> &src1,
+        const Tile<fp16_t> &src2, Scalar beta, const Tile<fp16_t> &dst,
         Index axis);
 
 } // namespace nntile::tile

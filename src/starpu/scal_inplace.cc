@@ -173,6 +173,7 @@ template class ScalInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class ScalInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class ScalInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class ScalInplace<std::tuple<nntile::bf16_t>>;
+template class ScalInplace<std::tuple<nntile::fp16_t>>;
 
 //! Pack of scal_inplace operations for different types
 scal_inplace_pack_t scal_inplace;

@@ -200,6 +200,7 @@ template class SumFiber<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class SumFiber<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class SumFiber<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class SumFiber<std::tuple<nntile::bf16_t>>;
+template class SumFiber<std::tuple<nntile::fp16_t>>;
 
 //! Pack of sum_fiber operations for different types
 sum_fiber_pack_t sum_fiber;

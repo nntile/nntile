@@ -206,6 +206,7 @@ template class AddSliceInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class AddSliceInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class AddSliceInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class AddSliceInplace<std::tuple<nntile::bf16_t>>;
+template class AddSliceInplace<std::tuple<nntile::fp16_t>>;
 
 //! Pack of add_slice_inplace operations for different types
 add_slice_inplace_pack_t add_slice_inplace;

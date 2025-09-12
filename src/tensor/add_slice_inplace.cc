@@ -171,6 +171,10 @@ template
 void add_slice_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis);
 
+template
+void add_slice_inplace_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, Scalar beta,
+        const Tensor<fp16_t> &dst, Index axis);
+
 // Explicit instantiation of template
 template
 void add_slice_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
@@ -195,5 +199,9 @@ void add_slice_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar b
 template
 void add_slice_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis);
+
+template
+void add_slice_inplace<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, Scalar beta,
+        const Tensor<fp16_t> &dst, Index axis);
 
 } // namespace nntile::tensor

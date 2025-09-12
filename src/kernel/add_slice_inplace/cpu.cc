@@ -90,6 +90,11 @@ void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src,
     noexcept;
 
 template
+void cpu<fp16_t>(Index m, Index n, Index k, Scalar alpha, const fp16_t *src,
+        Scalar beta, fp16_t *dst)
+    noexcept;
+
+template
 void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src,
         Scalar beta, fp64_t *dst)
     noexcept;
