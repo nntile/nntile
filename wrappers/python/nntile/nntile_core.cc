@@ -1257,6 +1257,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelutanh_async_fp32_fast_fp16", &gelutanh_async<fp32_fast_fp16_t>);
     m.def("gelutanh_async_fp32_fast_bf16", &gelutanh_async<fp32_fast_bf16_t>);
     m.def("gelutanh_async_bf16", &gelutanh_async<bf16_t>);
+    m.def("gelutanh_async_fp16", &gelutanh_async<fp16_t>);
 
     m.def("gelutanh_fp64", &gelutanh<fp64_t>);
     m.def("gelutanh_fp32", &gelutanh<fp32_t>);
@@ -1264,6 +1265,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelutanh_fp32_fast_fp16", &gelutanh<fp32_fast_fp16_t>);
     m.def("gelutanh_fp32_fast_bf16", &gelutanh<fp32_fast_bf16_t>);
     m.def("gelutanh_bf16", &gelutanh<bf16_t>);
+    m.def("gelutanh_fp16", &gelutanh<fp16_t>);
 
     m.def("gelutanh_inplace_async_fp64", &gelutanh_inplace_async<fp64_t>);
     m.def("gelutanh_inplace_async_fp32", &gelutanh_inplace_async<fp32_t>);
