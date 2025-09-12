@@ -110,6 +110,10 @@ template
 void transpose_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst, Index ndim);
 
+template
+void transpose_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst, Index ndim);
+
 // Explicit instantiation of template
 template
 void transpose<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
@@ -134,5 +138,9 @@ void transpose<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
 template
 void transpose<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst, Index ndim);
+
+template
+void transpose<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst, Index ndim);
 
 } // namespace nntile::tensor

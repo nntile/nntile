@@ -172,6 +172,7 @@ template class MaskScalar<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class MaskScalar<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class MaskScalar<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class MaskScalar<std::tuple<nntile::bf16_t>>;
+template class MaskScalar<std::tuple<nntile::fp16_t>>;
 
 //! Pack of mask_scalar operations for different types
 mask_scalar_pack_t mask_scalar;

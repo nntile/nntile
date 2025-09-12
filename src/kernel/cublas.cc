@@ -127,6 +127,13 @@ void gemm(
         typeC = CUDA_R_16BF;
         computeType = CUBLAS_COMPUTE_32F;
     }
+    else if constexpr(std::is_same_v<T, fp16_t>)
+    {
+        typeA = CUDA_R_16F;
+        typeB = CUDA_R_16F;
+        typeC = CUDA_R_16F;
+        computeType = CUBLAS_COMPUTE_16F;
+    }
 
     // Call corresponding CUBLAS routine
     cublasGemmStridedBatchedEx(
@@ -245,6 +252,21 @@ template void gemm<bf16_t>(
     const bf16_t *B,
     Scalar beta,
     bf16_t *C
+) noexcept;
+
+template void gemm<fp16_t>(
+    cublasHandle_t handle,
+    TransOp transA,
+    TransOp transB,
+    Index m,
+    Index n,
+    Index k,
+    Index batch,
+    Scalar alpha,
+    const fp16_t *A,
+    const fp16_t *B,
+    Scalar beta,
+    fp16_t *C
 ) noexcept;
 
 } // namespace nntile:kernel::cblas

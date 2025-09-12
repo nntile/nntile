@@ -88,6 +88,10 @@ def gemm_async(
         core_tensor.gemm_async_bf16(
             alpha, trans_A, A, trans_B, B, beta, C, ndim, batch_ndim, redux
         )
+    elif type(A) is core_tensor.Tensor_fp16:
+        core_tensor.gemm_async_fp16(
+            alpha, trans_A, A, trans_B, B, beta, C, ndim, batch_ndim, redux
+        )
     else:
         raise TypeError
 
@@ -569,6 +573,8 @@ def softmax_inplace_async(
         core_tensor.softmax_inplace_async_fp64(maxsumexp, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.softmax_inplace_async_bf16(maxsumexp, alpha, x, axis)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.softmax_inplace_async_fp16(maxsumexp, alpha, x, axis)
     else:
         raise TypeError
 
@@ -727,6 +733,8 @@ def maxsumexp_async(
         core_tensor.maxsumexp_async_fp64(x, maxsumexp, axis, redux)
     elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.maxsumexp_async_bf16(x, maxsumexp, axis, redux)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.maxsumexp_async_fp16(x, maxsumexp, axis, redux)
     else:
         raise TypeError
 
@@ -1320,6 +1328,8 @@ def mask_scalar_async(mask: Tensor_bool, alpha: float, x: Tensor,
     """Wrapper for multiprecision scaling."""
     if isinstance(x, Tensor_bf16):
         ops.mask_scalar_async_bf16(mask, alpha, x, batch_ndim)
+    elif isinstance(x, Tensor_fp16):
+        ops.mask_scalar_async_fp16(mask, alpha, x, batch_ndim)
     elif isinstance(x, Tensor_fp32):
         ops.mask_scalar_async_fp32(mask, alpha, x, batch_ndim)
     elif isinstance(x, Tensor_fp32_fast_tf32):
@@ -1643,6 +1653,8 @@ def transpose_async(alpha: float, src: Tensor, dst: Tensor, ndim: int) -> None:
         core_tensor.transpose_async_fp64(alpha, src, dst, ndim)
     elif type(src) is core_tensor.Tensor_bf16:
         core_tensor.transpose_async_bf16(alpha, src, dst, ndim)
+    elif type(src) is core_tensor.Tensor_fp16:
+        core_tensor.transpose_async_fp16(alpha, src, dst, ndim)
     else:
         raise TypeError
 
