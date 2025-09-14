@@ -132,7 +132,7 @@ void gemm(
         typeA = CUDA_R_16F;
         typeB = CUDA_R_16F;
         typeC = CUDA_R_16F;
-        computeType = CUBLAS_COMPUTE_16F;
+        computeType = CUBLAS_COMPUTE_32F;
     }
 
     // Call corresponding CUBLAS routine

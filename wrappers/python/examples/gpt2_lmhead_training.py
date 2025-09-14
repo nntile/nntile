@@ -62,8 +62,8 @@ parser.add_argument("--n-head-tile", type=int, default=-1)
 
 parser.add_argument(
     "--dtype", choices=["fp32", "fp64", "tf32",
-                               "bf16", "fp32_fast_fp16",
-                               "fp32_fast_bf16", "fp16"], default="fp32")
+                        "bf16", "fp32_fast_fp16",
+                        "fp32_fast_bf16", "fp16"], default="fp32")
 parser.add_argument("--restrict", choices=["cpu", "cuda", None],
         default=None)
 parser.add_argument("--flash-attention", action="store_true")
@@ -346,7 +346,7 @@ print("NNTile performance (model flops): {} Tflops/s".format(nflops_minibatch
 loss_np = np.zeros((1), dtype=np.float32)
 loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
-model_torch = gpt2lmhead_nntile.to_torch()
-torch.save({
-            'model_state_dict': model_torch.state_dict(),
-            }, args.save_checkpoint_path + "/test_gpt2_lmhead.pt")
+# model_torch = gpt2lmhead_nntile.to_torch()
+# torch.save({
+#             'model_state_dict': model_torch.state_dict(),
+#             }, args.save_checkpoint_path + "/test_gpt2_lmhead.pt")
