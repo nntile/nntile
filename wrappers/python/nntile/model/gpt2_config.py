@@ -22,7 +22,7 @@ class GPT2ConfigNNTile:
     hidden_size_tile: int
     intermediate_size: int
     intermediate_size_tile: int
-    num_heads: int
+    n_head: int
     n_head_tile: int
     activation_function: str = "gelutanh"
     dtype: str = "fp32"
