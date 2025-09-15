@@ -29,12 +29,14 @@ dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
 }
 
 dtype2tol = {
         'fp32': {'rtol': 1e-6},
         'fp32_fast_tf32': {'rtol': 6e-4},
         'bf16': {'rtol': 1.6e-2},
+        'fp16': {'rtol': 5e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
@@ -48,7 +50,7 @@ class GPT2AttentionTestParams:
     n_seq_tile: int
     n_batch: int
     n_batch_tile: int
-    num_heads: int
+    n_head: int
     n_head_tile: int
     layer_idx: int = 0
 
@@ -60,7 +62,7 @@ single_tile = GPT2AttentionTestParams(
     n_seq_tile=64,
     n_batch=3,
     n_batch_tile=3,
-    num_heads=4,
+    n_head=4,
     n_head_tile=4,
 )
 
@@ -71,7 +73,7 @@ multiple_tiles = GPT2AttentionTestParams(
     n_seq_tile=16,
     n_batch=4,
     n_batch_tile=1,
-    num_heads=16,
+    n_head=16,
     n_head_tile=8,
 )
 
@@ -93,7 +95,7 @@ def generate_inputs(dtype: str, params: GPT2AttentionTestParams):
         hidden_size_tile=params.n_emb_tile,
         intermediate_size=torch_layer_config.n_inner,
         intermediate_size_tile=torch_layer_config.n_inner,
-        num_heads=params.n_head,
+        n_head=params.n_head,
         n_head_tile=params.n_head_tile,
         dtype=dtype
     )
@@ -139,6 +141,7 @@ def generate_inputs(dtype: str, params: GPT2AttentionTestParams):
     'fp32',
     pytest.param('fp32_fast_tf32', marks=nocuda),
     pytest.param('bf16', marks=nocuda),
+    pytest.param('fp16', marks=nocuda),
 ])
 class TestGPT2Attention:
 
