@@ -648,7 +648,7 @@ public:
         return *reinterpret_cast<storage_t *>(&val);
 #else
         uint32_t x;
-        std::memcpy(&x, &f32, sizeof(f32));
+        memcpy(&x, &value, sizeof(value));
 
         uint32_t sign = (x >> 31) & 0x1;
         uint32_t exp = (x >> 23) & 0xFF;
@@ -703,9 +703,9 @@ public:
         auto val = *reinterpret_cast<const __half *>(&value);
         return __half2float(val);
 #else
-        uint32_t sign = (f16 >> 15) & 0x1;
-        uint32_t exp = (f16 >> 10) & 0x1F;
-        uint32_t mantissa = f16 & 0x3FF;
+        uint32_t sign = (value >> 15) & 0x1;
+        uint32_t exp = (value >> 10) & 0x1F;
+        uint32_t mantissa = value & 0x3FF;
 
         if (exp == 0x1F) // NaN or Inf
         {
