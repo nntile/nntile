@@ -12,7 +12,7 @@
     "model_type": "gpt2",
     "n_ctx": 1024,
     "n_embd": 768,
-    "n_head": 12,
+    "num_heads": 12,
     "n_layer": 12,
     "n_positions": 1024,
     "resid_pdrop": 0.1,
