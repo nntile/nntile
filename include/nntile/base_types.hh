@@ -648,37 +648,37 @@ public:
 #else
         uint32_t x;
         std::memcpy(&x, &f32, sizeof(f32));
-        
+
         uint32_t sign = (x >> 31) & 0x1;
         uint32_t exp = (x >> 23) & 0xFF;
         uint32_t mantissa = x & 0x7FFFFF;
-        
+
         // Handle special cases
         if (exp == 0xFF) // NaN or Inf
         {
             return (sign << 15) | 0x7C00 | (mantissa ? 0x200 : 0);
         }
-    
+
         // Convert exponent (bias adjustment: 127 to 15)
         int32_t exp32 = static_cast<int32_t>(exp) - 127;
         uint32_t exp16;
-    
+
         if (exp32 > 15) // Overflow -> convert to Inf
         {
             exp16 = 0x1F;
             mantissa = 0;
-        } 
+        }
         else if (exp32 < -14) // Underflow -> denormal or zero
         {
             // For very small numbers, we'll flush to zero
             exp16 = 0;
             mantissa = 0;
-        } 
-        else 
+        }
+        else
         {
             exp16 = static_cast<uint32_t>(exp32 + 15);
         }
-        
+
         // Round mantissa (10 bits for float16)
         uint32_t mantissa16 = (mantissa + 0x400) >> 13;
         if (mantissa16 & 0x400) // Check for rounding overflow
@@ -705,7 +705,7 @@ public:
         uint32_t sign = (f16 >> 15) & 0x1;
         uint32_t exp = (f16 >> 10) & 0x1F;
         uint32_t mantissa = f16 & 0x3FF;
-        
+
         if (exp == 0x1F) // NaN or Inf
         {
             uint32_t result = (sign << 31) | 0x7F800000 | (mantissa << 13);
@@ -713,7 +713,7 @@ public:
             std::memcpy(&f, &result, sizeof(f));
             return f;
         }
-        
+
         if (exp == 0) // Zero or denormal
         {
             if (mantissa == 0)
@@ -723,11 +723,11 @@ public:
             // Handle denormal numbers (simplified)
             exp = 1; // Make it normal
         }
-        
+
         uint32_t exp32 = exp + 112; // Adjust bias (15 to 127)
         uint32_t mantissa32 = mantissa << 13;
         uint32_t result = (sign << 31) | (exp32 << 23) | mantissa32;
-        
+
         float f;
         std::memcpy(&f, &result, sizeof(f));
         return f;

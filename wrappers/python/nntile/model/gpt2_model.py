@@ -18,8 +18,9 @@ from transformers import GPT2Config as GPT2ConfigTorch
 from transformers.models.gpt2.modeling_gpt2 import GPT2Model as GPT2Model_torch
 
 from nntile.tensor import (
-    Tensor_bf16, Tensor_fp16, Tensor_fp32, Tensor_fp32_fast_bf16, Tensor_fp32_fast_fp16,
-    Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments, TensorTraits)
+    Tensor_bf16, Tensor_fp16, Tensor_fp32, Tensor_fp32_fast_bf16,
+    Tensor_fp32_fast_fp16, Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments,
+    TensorTraits)
 
 from ..layer import AddSlice, Embedding, LayerNorm
 from .base_model import BaseModel
