@@ -23,6 +23,7 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <cstring>
 
 // Third-party headers
 #ifdef NNTILE_USE_CUDA
@@ -710,7 +711,7 @@ public:
         {
             uint32_t result = (sign << 31) | 0x7F800000 | (mantissa << 13);
             float f;
-            std::memcpy(&f, &result, sizeof(f));
+            memcpy(&f, &result, sizeof(f));
             return f;
         }
 
@@ -729,7 +730,7 @@ public:
         uint32_t result = (sign << 31) | (exp32 << 23) | mantissa32;
 
         float f;
-        std::memcpy(&f, &result, sizeof(f));
+        memcpy(&f, &result, sizeof(f));
         return f;
 #endif
     }
