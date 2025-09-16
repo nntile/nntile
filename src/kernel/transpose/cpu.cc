@@ -62,4 +62,5 @@ template
 void cpu<fp16_t>(Index m, Index n, Scalar alpha, const fp16_t* src,
         fp16_t* dst)
     noexcept;
+
 } // namespace nntile::kernel::tranpose

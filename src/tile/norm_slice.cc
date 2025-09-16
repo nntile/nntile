@@ -99,6 +99,10 @@ template
 void norm_slice_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis);
 
+template
+void norm_slice_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
+        const Tile<fp16_t> &dst, Index axis);
+
 // Explicit instantiation
 template
 void norm_slice<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,

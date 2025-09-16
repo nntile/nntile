@@ -94,4 +94,5 @@ template
 void cpu<fp16_t>(Index m, Index n, Index k, const fp16_t *maxsumexp,
         Scalar alpha, fp16_t *dst)
     noexcept;
+
 } // namespace nntile::kernel::softmax_inplace

@@ -346,7 +346,7 @@ print("NNTile performance (model flops): {} Tflops/s".format(nflops_minibatch
 loss_np = np.zeros((1), dtype=np.float32)
 loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
-# model_torch = gpt2lmhead_nntile.to_torch()
-# torch.save({
-#             'model_state_dict': model_torch.state_dict(),
-#             }, args.save_checkpoint_path + "/test_gpt2_lmhead.pt")
+model_torch = gpt2lmhead_nntile.to_torch()
+torch.save({
+            'model_state_dict': model_torch.state_dict(),
+            }, args.save_checkpoint_path + "/test_gpt2_lmhead.pt")

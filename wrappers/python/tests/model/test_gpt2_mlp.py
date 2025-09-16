@@ -141,7 +141,6 @@ def generate_inputs(params: GPT2MLPTestParams, dtype: str):
     pytest.param('fp16', marks=nocuda),
     pytest.param('fp32_fast_fp16', marks=nocuda),
     pytest.param('fp32_fast_bf16', marks=nocuda),
-
 ])
 class TestGPT2MLP:
 

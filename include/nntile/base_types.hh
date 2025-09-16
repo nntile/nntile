@@ -736,7 +736,7 @@ public:
     }
 };
 
-//! Print function for nntile::bf16_t
+//! Print function for nntile::fp16_t
 inline std::ostream &operator<<(std::ostream &os, const fp16_t &value)
 {
     os << static_cast<float>(value);
