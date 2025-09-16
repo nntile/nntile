@@ -92,6 +92,14 @@ struct CUDAComputeType<bf16_t>
 #endif
 };
 
+template<>
+struct CUDAComputeType<fp16_t>
+{
+#ifdef NNTILE_USE_CUDA
+    using value = __half;
+#endif
+};
+
 //! Convert any NNTile wrapped type value into a corresponding CUDA value
 template<typename T>
 typename CUDAComputeType<T>::value cast_scalar_cuda(const Scalar &value)

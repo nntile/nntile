@@ -68,6 +68,10 @@ template
 void scal_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
         const Tile<bf16_t> &dst);
 
+template
+void scal_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src,
+        const Tile<fp16_t> &dst);
+
 // Explicit instantiation of template
 template
 void scal<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
@@ -88,5 +92,9 @@ void scal<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
 template
 void scal<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
         const Tile<bf16_t> &dst);
+
+template
+void scal<fp16_t>(Scalar alpha, const Tile<fp16_t> &src,
+        const Tile<fp16_t> &dst);
 
 } // namespace nntile::tile

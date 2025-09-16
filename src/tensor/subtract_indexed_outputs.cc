@@ -101,6 +101,10 @@ template
 void subtract_indexed_outputs_async<bf16_t>(Scalar val, const Tensor<int64_t> &labels,
         const Tensor<bf16_t> &dst, Index ignore_index);
 
+template
+void subtract_indexed_outputs_async<fp16_t>(Scalar val, const Tensor<int64_t> &labels,
+        const Tensor<fp16_t> &dst, Index ignore_index);
+
 // Explicit instantiation
 template
 void subtract_indexed_outputs<fp32_t>(Scalar val, const Tensor<int64_t> &labels,
@@ -125,5 +129,9 @@ void subtract_indexed_outputs<fp64_t>(Scalar val, const Tensor<int64_t> &labels,
 template
 void subtract_indexed_outputs<bf16_t>(Scalar val, const Tensor<int64_t> &labels,
         const Tensor<bf16_t> &dst, Index ignore_index);
+
+template
+void subtract_indexed_outputs<fp16_t>(Scalar val, const Tensor<int64_t> &labels,
+        const Tensor<fp16_t> &dst, Index ignore_index);
 
 } // namespace nntile::tensor

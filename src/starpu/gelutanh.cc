@@ -170,6 +170,7 @@ template class GeluTanh<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class GeluTanh<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class GeluTanh<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class GeluTanh<std::tuple<nntile::bf16_t>>;
+template class GeluTanh<std::tuple<nntile::fp16_t>>;
 
 //! Pack of gelutanh operations for different types
 gelutanh_pack_t gelutanh;

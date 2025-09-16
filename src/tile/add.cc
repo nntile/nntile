@@ -76,6 +76,10 @@ void add_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1, Scalar beta,
         const Tile<bf16_t> &src2, const Tile<bf16_t> &dst);
 
 template
+void add_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src1, Scalar beta,
+        const Tile<fp16_t> &src2, const Tile<fp16_t> &dst);
+
+template
 void add_async<fp32_fast_tf32_t>(Scalar alpha,
         const Tile<fp32_fast_tf32_t> &src1, Scalar beta,
         const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst);
@@ -102,6 +106,10 @@ void add<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1, Scalar beta,
 template
 void add<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1, Scalar beta,
         const Tile<bf16_t> &src2, const Tile<bf16_t> &dst);
+
+template
+void add<fp16_t>(Scalar alpha, const Tile<fp16_t> &src1, Scalar beta,
+        const Tile<fp16_t> &src2, const Tile<fp16_t> &dst);
 
 template
 void add<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,

@@ -32,7 +32,8 @@ dtype2nntile = {
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'bf16': nntile.tensor.Tensor_bf16,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
-        'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16
+        'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
+        'fp16': nntile.tensor.Tensor_fp16
 }
 
 dtype2tol = {
@@ -41,6 +42,7 @@ dtype2tol = {
         'bf16': {'rtol': 1.6e-2},
         'fp32_fast_fp16': {'rtol': 6e-4},
         'fp32_fast_bf16': {'rtol': 4e-3},
+        'fp16': {'rtol': 5e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
@@ -136,6 +138,7 @@ def generate_inputs(params: GPT2MLPTestParams, dtype: str):
     'fp32',
     pytest.param('fp32_fast_tf32', marks=nocuda),
     pytest.param('bf16', marks=nocuda),
+    pytest.param('fp16', marks=nocuda),
     pytest.param('fp32_fast_fp16', marks=nocuda),
     pytest.param('fp32_fast_bf16', marks=nocuda),
 ])

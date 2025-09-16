@@ -213,7 +213,7 @@ def test_gpt2(device, num_samples, batch_size, minibatch_size,
     # further processing.
     config = GPT2Config.from_json_file(data_dir / 'gpt2_test_config.json')
 
-    n_head_tile = config.n_head
+    n_head_tile = config.num_heads
     assert config.n_positions % seq_len_tile == 0
     config.attn_pdrop = 0
     config.embd_pdrop = 0

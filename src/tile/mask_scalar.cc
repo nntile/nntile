@@ -64,6 +64,10 @@ template
 void mask_scalar_async<bf16_t>(const Tile<bool_t> &mask, Scalar val,
         const Tile<bf16_t> &A);
 
+template
+void mask_scalar_async<fp16_t>(const Tile<bool_t> &mask, Scalar val,
+        const Tile<fp16_t> &A);
+
 // Explicit instantiation
 template
 void mask_scalar<fp32_t>(const Tile<bool_t> &mask, Scalar val,
@@ -88,5 +92,9 @@ void mask_scalar<fp64_t>(const Tile<bool_t> &mask, Scalar val,
 template
 void mask_scalar<bf16_t>(const Tile<bool_t> &mask, Scalar val,
         const Tile<bf16_t> &A);
+
+template
+void mask_scalar<fp16_t>(const Tile<bool_t> &mask, Scalar val,
+        const Tile<fp16_t> &A);
 
 } // namespace nntile::tile

@@ -78,6 +78,9 @@ void logsumexp_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 template
 void logsumexp_async<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
+template
+void logsumexp_async<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
+
 // Explicit instantiation
 template
 void logsumexp<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
@@ -99,5 +102,8 @@ void logsumexp<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
 void logsumexp<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+
+template
+void logsumexp<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
 
 } // namespace nntile::tile

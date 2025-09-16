@@ -23,10 +23,12 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <cstring>
 
 // Third-party headers
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_bf16.h>
+#   include <cuda_fp16.h>
 #endif // NNTILE_USE_CUDA
 
 // Copy definition of HOST_DEVICE from NVIDIA/cutlass
@@ -580,6 +582,162 @@ public:
 
 //! Print function for nntile::bf16_t
 inline std::ostream &operator<<(std::ostream &os, const bf16_t &value)
+{
+    os << static_cast<float>(value);
+    return os;
+}
+
+//! NNTile wrapper type Float16 type inside tensors
+class fp16_t
+{
+public:
+    //! Storage type of the value
+    using storage_t = std::uint16_t;
+
+    //! Representation type of the value
+    using repr_t = float;
+
+    //! Internal value of storage_t type to hold actual data
+    storage_t value;
+
+    //! Default constructor with no arguments
+    NNTILE_HOST_DEVICE fp16_t() = default;
+
+    //! Default copy constructor
+    NNTILE_HOST_DEVICE fp16_t(const fp16_t &other) = default;
+
+    //! Constructor from a compatible standard type value
+    NNTILE_HOST_DEVICE fp16_t(const repr_t &other):
+        value(to_storage(other))
+    {
+    }
+
+    //! Default assignment from another value of this type
+    NNTILE_HOST_DEVICE fp16_t &operator=(const fp16_t &other) = default;
+
+    //! Assignment from a compatible standard type value
+    NNTILE_HOST_DEVICE fp16_t &operator=(const repr_t &other)
+    {
+        value = to_storage(other);
+        return *this;
+    }
+
+    //! Conversion to compatible standard type value
+    NNTILE_HOST_DEVICE explicit operator repr_t() const
+    {
+        return to_repr(value);
+    }
+
+    // Short type name
+    static constexpr const char *short_name = "fp16";
+
+    // Long type name
+    static constexpr const char *long_name = "fp16_t";
+
+    // Function to check if a type is a floating point type
+    static constexpr bool is_floating_point_type = true;
+
+    // Machine precision is 1/128, as only 7 bits are used for the mantissa
+    static constexpr repr_t epsilon = double{1.0} / double{128.0};
+
+    //! Conversion from repr_t to storage_t
+    static NNTILE_HOST_DEVICE storage_t to_storage(const repr_t &value)
+    {
+#ifdef NNTILE_USE_CUDA
+        auto val = __float2half(value);
+        return *reinterpret_cast<storage_t *>(&val);
+#else
+        uint32_t x;
+        memcpy(&x, &value, sizeof(value));
+
+        uint32_t sign = (x >> 31) & 0x1;
+        uint32_t exp = (x >> 23) & 0xFF;
+        uint32_t mantissa = x & 0x7FFFFF;
+
+        // Handle special cases
+        if (exp == 0xFF) // NaN or Inf
+        {
+            return (sign << 15) | 0x7C00 | (mantissa ? 0x200 : 0);
+        }
+
+        // Convert exponent (bias adjustment: 127 to 15)
+        int32_t exp32 = static_cast<int32_t>(exp) - 127;
+        uint32_t exp16;
+
+        if (exp32 > 15) // Overflow -> convert to Inf
+        {
+            exp16 = 0x1F;
+            mantissa = 0;
+        }
+        else if (exp32 < -14) // Underflow -> denormal or zero
+        {
+            // For very small numbers, we'll flush to zero
+            exp16 = 0;
+            mantissa = 0;
+        }
+        else
+        {
+            exp16 = static_cast<uint32_t>(exp32 + 15);
+        }
+
+        // Round mantissa (10 bits for float16)
+        uint32_t mantissa16 = (mantissa + 0x400) >> 13;
+        if (mantissa16 & 0x400) // Check for rounding overflow
+        {
+            mantissa16 = 0;
+            exp16++;
+            if (exp16 > 30) // Handle exponent overflow after rounding
+            {
+                exp16 = 0x1F;
+                mantissa16 = 0;
+            }
+        }
+        return (sign << 15) | (exp16 << 10) | (mantissa16 & 0x3FF);
+#endif
+    }
+
+    //! Conversion from storage_t to repr_t
+    static NNTILE_HOST_DEVICE repr_t to_repr(const storage_t &value)
+    {
+#ifdef NNTILE_USE_CUDA
+        auto val = *reinterpret_cast<const __half *>(&value);
+        return __half2float(val);
+#else
+        uint32_t sign = (value >> 15) & 0x1;
+        uint32_t exp = (value >> 10) & 0x1F;
+        uint32_t mantissa = value & 0x3FF;
+
+        if (exp == 0x1F) // NaN or Inf
+        {
+            uint32_t result = (sign << 31) | 0x7F800000 | (mantissa << 13);
+            float f;
+            memcpy(&f, &result, sizeof(f));
+            return f;
+        }
+
+        if (exp == 0) // Zero or denormal
+        {
+            if (mantissa == 0)
+            {
+                return 0.0f;
+            }
+            // Handle denormal numbers (simplified)
+            exp = 1; // Make it normal
+        }
+
+        uint32_t exp32 = exp + 112; // Adjust bias (15 to 127)
+        uint32_t mantissa32 = mantissa << 13;
+        uint32_t result = (sign << 31) | (exp32 << 23) | mantissa32;
+
+        float f;
+        memcpy(&f, &result, sizeof(f));
+        return f;
+#endif
+    }
+};
+
+//! Print function for nntile::fp16_t
+inline std::ostream &operator<<(std::ostream &os, const fp16_t &value)
 {
     os << static_cast<float>(value);
     return os;

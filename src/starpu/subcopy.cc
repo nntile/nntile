@@ -136,6 +136,7 @@ template class Subcopy<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class Subcopy<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class Subcopy<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class Subcopy<std::tuple<nntile::bf16_t>>;
+template class Subcopy<std::tuple<nntile::fp16_t>>;
 
 //! Pack of subcopy operations for different types
 subcopy_pack_t subcopy;

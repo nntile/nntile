@@ -179,6 +179,7 @@ template class SoftmaxInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class SoftmaxInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class SoftmaxInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class SoftmaxInplace<std::tuple<nntile::bf16_t>>;
+template class SoftmaxInplace<std::tuple<nntile::fp16_t>>;
 
 //! Pack of softmax_inplace operations for different types
 softmax_inplace_pack_t softmax_inplace;

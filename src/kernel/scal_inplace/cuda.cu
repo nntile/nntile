@@ -69,6 +69,11 @@ void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
     noexcept;
 
 template
+void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        fp16_t *data)
+    noexcept;
+
+template
 void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         fp64_t *data)
     noexcept;

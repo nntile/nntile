@@ -182,6 +182,7 @@ template class MaxSumExp<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class MaxSumExp<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class MaxSumExp<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class MaxSumExp<std::tuple<nntile::bf16_t>>;
+template class MaxSumExp<std::tuple<nntile::fp16_t>>;
 
 //! Pack of maxsumexp operations for different types
 maxsumexp_pack_t maxsumexp;

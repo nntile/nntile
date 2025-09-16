@@ -97,4 +97,10 @@ void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
         bf16_t *vocab)
     noexcept;
 
+template
+void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, Index k,
+        Index k_start, Index k_size, const int64_t *index, const fp16_t *embed,
+        fp16_t *vocab)
+    noexcept;
+
 } // namespace nntile::kernel::embedding_backward

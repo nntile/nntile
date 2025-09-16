@@ -115,6 +115,10 @@ template
 void softmax_async<bf16_t>(const Tile<bf16_t> &maxsumexp, const Tile<bf16_t> &src,
         Scalar alpha, const Tile<bf16_t> &dst, Index axis);
 
+template
+void softmax_async<fp16_t>(const Tile<fp16_t> &maxsumexp, const Tile<fp16_t> &src,
+        Scalar alpha, const Tile<fp16_t> &dst, Index axis);
+
 // Explicit instantiation
 template
 void softmax<fp32_t>(const Tile<fp32_t> &maxsumexp, const Tile<fp32_t> &src,
@@ -139,5 +143,9 @@ void softmax<fp64_t>(const Tile<fp64_t> &maxsumexp, const Tile<fp64_t> &src,
 template
 void softmax<bf16_t>(const Tile<bf16_t> &maxsumexp, const Tile<bf16_t> &src,
         Scalar alpha, const Tile<bf16_t> &dst, Index axis);
+
+template
+void softmax<fp16_t>(const Tile<fp16_t> &maxsumexp, const Tile<fp16_t> &src,
+        Scalar alpha, const Tile<fp16_t> &dst, Index axis);
 
 } // namespace nntile::tile

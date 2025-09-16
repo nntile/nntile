@@ -104,4 +104,9 @@ void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const bf16_t *src1, Scalar beta, const bf16_t *src2, bf16_t *dst)
     noexcept;
 
+template
+void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp16_t *src1, Scalar beta, const fp16_t *src2, fp16_t *dst)
+    noexcept;
+
 } // namespace nntile::kernel::add

@@ -110,6 +110,9 @@ void logsumexp_async<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &ds
 template
 void logsumexp_async<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
 
+template
+void logsumexp_async<fp16_t>(const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
+
 // Explicit instantiation
 template
 void logsumexp<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
@@ -131,5 +134,8 @@ void logsumexp<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 template
 void logsumexp<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
+
+template
+void logsumexp<fp16_t>(const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
 
 } // namespace nntile::tensor

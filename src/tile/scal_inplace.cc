@@ -47,6 +47,12 @@ void scal_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp1
 template
 void scal_inplace_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &data);
 
+template
+void scal_inplace_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &data);
+
+template
+void scal_inplace_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &data);
+
 // Explicit instantiation
 template
 void scal_inplace<fp32_t>(Scalar alpha, const Tile<fp32_t> &data);
@@ -59,5 +65,11 @@ void scal_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &
 
 template
 void scal_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &data);
+
+template
+void scal_inplace<fp16_t>(Scalar alpha, const Tile<fp16_t> &data);
+
+template
+void scal_inplace<bf16_t>(Scalar alpha, const Tile<bf16_t> &data);
 
 } // namespace nntile::tile

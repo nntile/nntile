@@ -164,6 +164,10 @@ template
 void scatter_async<bf16_t>(const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst);
 
+template
+void scatter_async<fp16_t>(const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst);
+
 // Explicit instantiation
 template
 void scatter<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
@@ -191,5 +195,9 @@ void scatter<bool_t>(const Tensor<bool_t> &src, const Tensor<bool_t> &dst);
 
 template
 void scatter<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
+
+template
+void scatter<fp16_t>(const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst);
 
 } // namespace nntile::tensor

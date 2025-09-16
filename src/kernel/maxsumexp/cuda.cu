@@ -334,4 +334,8 @@ template void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
         const bf16_t *src, bf16_t *maxsumexp)
     noexcept;
 
+template void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, Index k,
+        const fp16_t *src, fp16_t *maxsumexp)
+    noexcept;
+
 } // namespace nntile::kernel::maxsumexp

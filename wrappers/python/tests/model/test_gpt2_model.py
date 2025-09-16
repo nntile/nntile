@@ -33,6 +33,7 @@ dtype2nntile = {
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
 }
 
 dtype2tol = {
@@ -41,6 +42,7 @@ dtype2tol = {
         'fp32_fast_tf32': {'rtol': 2e-3},
         'fp32_fast_fp16': {'rtol': 8e-3},
         'fp32_fast_bf16': {'rtol': 8e-3},
+        'fp16': {'rtol': 5e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
@@ -156,6 +158,7 @@ def generate_inputs(params: GPT2TestParams,
     pytest.param('fp32_fast_tf32', marks=nocuda),
     pytest.param('fp32_fast_fp16', marks=nocuda),
     pytest.param('fp32_fast_bf16', marks=nocuda),
+    pytest.param('fp16', marks=nocuda),
 ])
 @pytest.mark.parametrize('num_hidden_layers', [1, 2, 3])
 class TestGPT2Model:

@@ -200,4 +200,9 @@ void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
         const bf16_t *maxsumexp, const bf16_t *src, Scalar alpha, bf16_t *dst)
     noexcept;
 
+template
+void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, Index k,
+        const fp16_t *maxsumexp, const fp16_t *src, Scalar alpha, fp16_t *dst)
+    noexcept;
+
 } // namespace nntile::kernel::softmax

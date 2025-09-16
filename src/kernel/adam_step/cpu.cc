@@ -100,4 +100,10 @@ void cpu<bf16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
         bf16_t *first_moment, bf16_t *second_moment, bf16_t *p)
     noexcept;
 
+template
+void cpu<fp16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
+        Scalar eps, Scalar lr, Scalar weight_decay, const fp16_t *grad,
+        fp16_t *first_moment, fp16_t *second_moment, fp16_t *p)
+    noexcept;
+
 } // namespace nntile::kernel::adam_step

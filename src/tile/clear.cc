@@ -41,6 +41,9 @@ template
 void clear_async<bf16_t>(const Tile<bf16_t> &tile);
 
 template
+void clear_async<fp16_t>(const Tile<fp16_t> &tile);
+
+template
 void clear_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &tile);
 
 template
@@ -58,6 +61,9 @@ void clear<fp32_t>(const Tile<fp32_t> &tile);
 
 template
 void clear<bf16_t>(const Tile<bf16_t> &tile);
+
+template
+void clear<fp16_t>(const Tile<fp16_t> &tile);
 
 template
 void clear<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &tile);

@@ -91,4 +91,9 @@ void cuda<bf16_t>(cudaStream_t stream, Index nrows, Index ncols,
         const bool_t *mask, Scalar val, bf16_t *data)
     noexcept;
 
+template
+void cuda<fp16_t>(cudaStream_t stream, Index nrows, Index ncols,
+        const bool_t *mask, Scalar val, fp16_t *data)
+    noexcept;
+
 } // namespace nntile::kernel::mask_scalar

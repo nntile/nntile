@@ -73,6 +73,9 @@ void clear_async<fp64_t>(const Tensor<fp64_t> &dst);
 template
 void clear_async<bf16_t>(const Tensor<bf16_t> &dst);
 
+template
+void clear_async<fp16_t>(const Tensor<fp16_t> &dst);
+
 // Explicit instantiation
 template
 void clear<int64_t>(const Tensor<int64_t> &dst);
@@ -97,5 +100,8 @@ void clear<fp64_t>(const Tensor<fp64_t> &dst);
 
 template
 void clear<bf16_t>(const Tensor<bf16_t> &dst);
+
+template
+void clear<fp16_t>(const Tensor<fp16_t> &dst);
 
 } // namespace nntile::tensor

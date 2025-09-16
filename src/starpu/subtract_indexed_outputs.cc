@@ -179,6 +179,7 @@ template class SubtractIndexedOutputs<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class SubtractIndexedOutputs<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class SubtractIndexedOutputs<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class SubtractIndexedOutputs<std::tuple<nntile::bf16_t>>;
+template class SubtractIndexedOutputs<std::tuple<nntile::fp16_t>>;
 
 //! Pack of subtract_indexed_outputs operations for different types
 subtract_indexed_outputs_pack_t subtract_indexed_outputs;

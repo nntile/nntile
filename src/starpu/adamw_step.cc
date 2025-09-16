@@ -221,6 +221,7 @@ template class AdamWStep<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class AdamWStep<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class AdamWStep<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class AdamWStep<std::tuple<nntile::bf16_t>>;
+template class AdamWStep<std::tuple<nntile::fp16_t>>;
 
 //! Pack of adamw_step operations for different types
 adamw_step_pack_t adamw_step;

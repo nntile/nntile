@@ -37,11 +37,11 @@ class GPT2LMHead(BaseModel, LLMGenerationMixin):
         self.config = config
         self.eos_token_id = self.config.eos_token_id
 
-        if self.dtype not in ["fp32", "tf32",
+        if self.dtype not in ["fp32", "fp16", "tf32",
                               "bf16", "fp32_fast_fp16",
                               "fp32_fast_tf32",
                               "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, tf32, bf16, fp32_fast_tf32, "
+            raise TypeError("Only fp32, fp16, tf32, bf16, fp32_fast_tf32, "
                             "fp32_fast_fp16 and fp32_fast_bf16 are "
                             "supported for weight type")
         activations = []
@@ -80,12 +80,11 @@ class GPT2LMHead(BaseModel, LLMGenerationMixin):
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
                    config: GPT2ConfigNNTile):
-
-        if config.dtype not in ["fp32", "tf32",
+        if config.dtype not in ["fp32", "fp16", "tf32",
                               "bf16", "fp32_fast_fp16",
                               "fp32_fast_tf32",
                               "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, tf32, bf16, fp32_fast_tf32, "
+            raise TypeError("Only fp32, fp16, tf32, bf16, fp32_fast_tf32, "
                             "fp32_fast_fp16 and fp32_fast_bf16 are "
                             "supported for weight type")
 

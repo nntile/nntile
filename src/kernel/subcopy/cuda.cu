@@ -259,4 +259,10 @@ void cuda<bf16_t>(cudaStream_t stream, Index ndim, const Index *src_start,
         const Index *dst_start, const Index *dst_stride, bf16_t *dst_)
     noexcept;
 
+template
+void cuda<fp16_t>(cudaStream_t stream, Index ndim, const Index *src_start,
+        const Index *src_stride, const Index *copy_shape, const fp16_t *src_,
+        const Index *dst_start, const Index *dst_stride, fp16_t *dst_)
+    noexcept;
+
 } // namespace nntile::kernel::subcopy

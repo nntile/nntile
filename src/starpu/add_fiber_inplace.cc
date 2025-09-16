@@ -214,6 +214,7 @@ template class AddFiberInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class AddFiberInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class AddFiberInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class AddFiberInplace<std::tuple<nntile::bf16_t>>;
+template class AddFiberInplace<std::tuple<nntile::fp16_t>>;
 
 //! Pack of add_fiber_inplace operations for different types
 add_fiber_inplace_pack_t add_fiber_inplace;
