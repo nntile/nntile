@@ -135,4 +135,5 @@ void maxsumexp<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst,
 template
 void maxsumexp<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst,
         Index axis);
+
 } // namespace nntile::tile

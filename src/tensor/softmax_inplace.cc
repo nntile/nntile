@@ -215,4 +215,5 @@ void softmax_inplace<bf16_t>(const Tensor<bf16_t> &maxsumexp, Scalar alpha,
 template
 void softmax_inplace<fp16_t>(const Tensor<fp16_t> &maxsumexp, Scalar alpha,
         const Tensor<fp16_t> &dst, Index axis);
+
 } // namespace nntile::tensor

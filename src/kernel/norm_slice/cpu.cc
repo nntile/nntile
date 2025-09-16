@@ -142,5 +142,5 @@ template
 void cpu<fp16_t>(Index m, Index n, Index k, Scalar alpha, const fp16_t *src,
         Scalar beta, fp16_t *norm_dst)
     noexcept;
-    
+
 } // namespace nntile::kernel::norm_slice
