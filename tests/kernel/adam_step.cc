@@ -103,6 +103,10 @@ void validate(Index num_elems)
     {
         eps_check = 1e-1;
     }
+    else if (std::is_same<T, fp16_t>::value)
+    {
+        eps_check = 1e-2;
+    }
     else if (std::is_same<T, fp32_t>::value)
     {
         eps_check = 1e-5;
@@ -219,5 +223,6 @@ int main(int argc, char **argv)
         validate<fp32_t>(nelems);
         validate<fp64_t>(nelems);
         validate<bf16_t>(nelems);
+        validate<fp16_t>(nelems);
     }
 }
