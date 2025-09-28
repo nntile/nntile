@@ -22,6 +22,6 @@ using namespace nntile::kernel;
 int main(int argc, char **argv)
 {
     // This is a placeholder test.
-    std::cout << "STUB: This is a placeholder for the embedding kernel test.\n";
+    std::cout << "STUB: This is a placeholder for the embedding kernel test." << std::endl;
     return 0;
 }
