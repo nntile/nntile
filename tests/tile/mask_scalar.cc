@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/tile/mask_scalar.cc
- * Per-element addition of tensors
+ * Placeholder for mask_scalar test
  *
  * @version 1.1.0
  * */

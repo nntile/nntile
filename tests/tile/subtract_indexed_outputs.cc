@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/tile/subtract_indexed_outputs.cc
- * Per-element addition of tensors
+ * Placeholder for subtract_indexed_outputs test
  *
  * @version 1.1.0
  * */

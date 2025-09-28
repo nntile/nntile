@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/tile/relu_forward.cc
- * Per-element addition of tensors
+ * Placeholder for relu_forward test
  *
  * @version 1.1.0
  * */

@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/tile/silu_backward.cc
- * Per-element addition of tensors
+ * Placeholder for silu_backward test
  *
  * @version 1.1.0
  * */

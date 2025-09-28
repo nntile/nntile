@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/tile/rope.cc
- * Per-element addition of tensors
+ * Placeholder for rope test
  *
  * @version 1.1.0
  * */

@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/tile/add_scalar.cc
- * Per-element addition of tensors
+ * Placeholder for add_scalar test
  *
  * @version 1.1.0
  * */
