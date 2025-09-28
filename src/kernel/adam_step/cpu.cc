@@ -34,10 +34,10 @@ void cpu(Index num_iter, Index num_elems, Scalar beta_1_, Scalar beta_2_,
  * @param[in] eps_: small scalar to avoid division by zero
  * @param[in] lr_: learning rate
  * @param[in] weight_decay_: coefficient for l2 regularizer
- * @param[in] grad_: Input buffer stored gradient, can be updated if weight_decay > 0
- * @param[inout] first_moment_: Input buffer stored first moments
- * @param[inout] second_moment_: Input buffer stored square root of second moments for stability
- * @param[inout] p_: Input buffers with parameter that are updated in the end
+ * @param[in] grad: Input buffer stored gradient
+ * @param[inout] first_moment: Input buffer stored first moments
+ * @param[inout] second_moment: Input buffer stored second moments
+ * @param[inout] p: Input buffers with parameter that are updated in the end
  * */
 {
     using Y = typename T::repr_t;
