@@ -95,7 +95,7 @@ void cuda(cudaStream_t stream, Index num_iter, Index num_elems, Scalar beta_1,
     const Scalar beta = 1.0 / std::sqrt(1.0 - std::pow(beta_2, num_iter));
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(num_iter, num_elems,
             Y{beta_1}, Y{beta_2}, Y{eps}, Y{lr}, Y{weight_decay}, Y{alpha},
-            Y{beta}, grad_, first_moment_, second_moment_, p_);
+            Y{beta}, grad, first_moment, second_moment, p);
 }
 
 // Explicit instantiation
