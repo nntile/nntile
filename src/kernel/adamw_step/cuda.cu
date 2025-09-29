@@ -64,21 +64,29 @@ void cuda_kernel(Index num_iter, Index num_elems, typename T::repr_t beta_1,
 template<typename T>
 void cuda(cudaStream_t stream, Index num_iter, Index num_elems, Scalar beta_1,
         Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-        const T *grad_, T *first_moment_, T *second_moment_, T *p_)
+        const T *grad, T *first_moment, T *second_moment, T *p)
     noexcept
-//! Fused AdamW step operation of buffers
-/*!
+//! Fused AdamW step on buffers
+/*! This routine performs a single AdamW step described by the following
+ * formulas:
+ *      p_val *= 1 - lr * weight_decay
+ *      f_val = beta_1*f_val + (1-beta_1)*grad_val
+ *      s_val = hypot(sqrt(beta_2)*s_val, sqrt(1-beta_2)*grad_val)
+ *      p_val -= alpha*f_val / (s_val*beta + eps)
+ * where alpha is a learning rate and beta is a correction for moments.
  *
-* @param[in] num_iters: current iteration number
-* @param[in] num_elems: Number of elements in buffers
-* @param[in] beta_1: parameter for moving average of first moments
-* @param[in] beta_2: parameter for moving average of second moments
-* @param[in] eps: small scalar to avoid division by zero
-* @param[in] lr: learning rate
-* @param[in] grad_: Input buffer stored gradient
-* @param[in] first_moment_: Input buffer stored first moments
-* @param[in] second_moment_: Input buffer stored second moments
-* @param[inout] p_: Input buffers with parameter that are updated in the end
+ * @param[in] stream: CUDA stream
+ * @param[in] num_iter: current iteration number
+ * @param[in] num_elems: Number of elements in buffers
+ * @param[in] beta_1: parameter for moving average of first moments
+ * @param[in] beta_2: parameter for moving average of second moments
+ * @param[in] eps: small scalar to avoid division by zero
+ * @param[in] lr: learning rate
+ * @param[in] weight_decay: coefficient for l2 regularizer
+ * @param[in] grad: Input buffer stored gradient
+ * @param[inout] first_moment: Input/output buffer stored first moments
+ * @param[inout] second_moment: Input/output buffer stored second moments
+ * @param[inout] p: Input/output buffer with parameters that are updated
  * */
 {
     dim3 blocks((num_elems+255)/256), threads(256);
