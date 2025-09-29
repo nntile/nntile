@@ -80,7 +80,6 @@ set(TESTS
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
     "accumulate_maxsumexp"
-    "adam_step"
     "adamw_step"
     "add_fiber"
     "add_fiber_inplace"

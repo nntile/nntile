@@ -68,17 +68,18 @@ void cuda(cudaStream_t stream, Index num_iter, Index num_elems, Scalar beta_1,
     noexcept
 //! Fused Adam step operation of buffers
 /*!
- *
-* @param[in] num_iters: current iteration number
+* @param[in] stream: CUDA stream
+* @param[in] num_iter: current iteration number
 * @param[in] num_elems: Number of elements in buffers
 * @param[in] beta_1: parameter for moving average of first moments
 * @param[in] beta_2: parameter for moving average of second moments
 * @param[in] eps: small scalar to avoid division by zero
 * @param[in] lr: learning rate
-* @param[in] grad_: Input buffer stored gradient
-* @param[in] first_moment_: Input buffer stored first moments
-* @param[in] second_moment_: Input buffer stored second moments
-* @param[inout] p_: Input buffers with parameter that are updated in the end
+* @param[in] weight_decay: coefficient for l2 regularizer
+* @param[in] grad: Input buffer stored gradient
+* @param[inout] first_moment: Input buffer stored first moments
+* @param[inout] second_moment: Input buffer stored second moments
+* @param[inout] p: Input buffers with parameter that are updated in the end
  * */
 {
     dim3 blocks((num_elems+255)/256), threads(256);
