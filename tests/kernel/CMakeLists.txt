@@ -82,7 +82,6 @@ set(TESTS_NOT_IMPLEMENTED
     "accumulate_maxsumexp"
     "adamw_step"
     "add_fiber"
-    "add_fiber_inplace"
     "add_scalar"
     "add_slice"
     "conv2d_bwd_input_inplace"
