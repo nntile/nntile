@@ -91,7 +91,7 @@ void run_cuda(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Sca
 
 // Templated validation
 template<typename T>
-void validate(Index num_elems)
+void validate(Index num_iter, Index num_elems)
 {
     if (num_elems == 0)
     {
@@ -118,22 +118,27 @@ void validate(Index num_elems)
     // Parameters
     Scalar beta_1_s = 0.9, beta_2_s = 0.999, eps_s = 1e-8, lr_s = 0.01, weight_decay_s=0.1;
     const Y beta_1{beta_1_s}, beta_2{beta_2_s}, eps{eps_s}, lr{lr_s}, weight_decay{weight_decay_s};
-    Index num_iter_max = 3;
 
     // CPU reference implementation
-    std::vector<T> grad(num_elems), first_moment(num_elems, T{0.0}),
-        second_moment(num_elems, T{0.0}), p(num_elems);
-    std::vector<T> first_moment_ref(num_elems, T{0.0}), second_moment_ref(num_elems, T{0.0}), p_ref(num_elems);
+    std::vector<T> grad(num_elems), p(num_elems);
+    std::vector<T> p_input, first_moment_input, second_moment_input;
 
     for(Index i = 0; i < num_elems; ++i)
     {
         grad[i] = Y(2*i+1-num_elems);
         p[i] = Y(num_elems-i);
-        p_ref[i] = Y(num_elems-i);
     }
 
-    for(Index iter = 1; iter <= num_iter_max; ++iter)
+    std::vector<T> p_ref(p), first_moment_ref(num_elems, T{0.0}),
+        second_moment_ref(num_elems, T{0.0});
+    for(Index iter = 1; iter <= num_iter; ++iter)
     {
+        if(iter == num_iter)
+        {
+            p_input = p_ref;
+            first_moment_input = first_moment_ref;
+            second_moment_input = second_moment_ref;
+        }
         // CPU reference
         const Y alpha = lr / (Y{1.0} - std::pow(beta_1, iter));
         const Y beta = Y{1.0} / std::sqrt(Y{1.0} - std::pow(beta_2, iter));
@@ -167,13 +172,12 @@ void validate(Index num_elems)
     }
 
     // Run CPU kernel
-    std::vector<T> p_cpu(p), first_moment_cpu(num_elems, T{0.0}), second_moment_cpu(num_elems, T{0.0});
+    std::vector<T> p_cpu(p_input), first_moment_cpu(first_moment_input),
+        second_moment_cpu(second_moment_input);
     std::cout << "Run kernel::adam_step::cpu<" << T::short_name << ">\n";
-    for(Index iter = 1; iter <= num_iter_max; ++iter)
-    {
-        adam_step::cpu<T>(iter, num_elems, beta_1_s, beta_2_s, eps_s, lr_s, weight_decay_s,
-            &grad[0], &first_moment_cpu[0], &second_moment_cpu[0], &p_cpu[0]);
-    }
+    adam_step::cpu<T>(num_iter, num_elems, beta_1_s, beta_2_s, eps_s, lr_s,
+        weight_decay_s, &grad[0], &first_moment_cpu[0],
+        &second_moment_cpu[0], &p_cpu[0]);
 
     for(Index i = 0; i < num_elems; ++i)
     {
@@ -191,13 +195,11 @@ void validate(Index num_elems)
 
 #ifdef NNTILE_USE_CUDA
     // Run CUDA kernel
-    std::vector<T> p_cuda(p), first_moment_cuda(num_elems, T{0.0}), second_moment_cuda(num_elems, T{0.0});
+    std::vector<T> p_cuda(p_input), first_moment_cuda(first_moment_input),
+        second_moment_cuda(second_moment_input);
     std::cout << "Run kernel::adam_step::cuda<" << T::short_name << ">\n";
-    for(Index iter = 1; iter <= num_iter_max; ++iter)
-    {
-        run_cuda<T>(iter, num_elems, beta_1_s, beta_2_s, eps_s, lr_s, weight_decay_s, grad,
-            first_moment_cuda, second_moment_cuda, p_cuda);
-    }
+    run_cuda<T>(num_iter, num_elems, beta_1_s, beta_2_s, eps_s, lr_s,
+        weight_decay_s, grad, first_moment_cuda, second_moment_cuda, p_cuda);
 
     for(Index i = 0; i < num_elems; ++i)
     {
@@ -218,11 +220,15 @@ void validate(Index num_elems)
 int main(int argc, char **argv)
 {
     const Index test_nelems[] = {0, 1, 10, 1024};
+    const Index test_niter[] = {1, 2, 5};
     for(Index nelems : test_nelems)
     {
-        validate<fp32_t>(nelems);
-        validate<fp64_t>(nelems);
-        validate<bf16_t>(nelems);
-        validate<fp16_t>(nelems);
+        for(Index niter : test_niter)
+        {
+            validate<fp32_t>(niter, nelems);
+            validate<fp64_t>(niter, nelems);
+            validate<bf16_t>(niter, nelems);
+            validate<fp16_t>(niter, nelems);
+        }
     }
 }
