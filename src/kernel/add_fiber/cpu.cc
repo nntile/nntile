@@ -96,11 +96,9 @@ void cpu<bf16_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
         const bf16_t *src1, Scalar beta, const bf16_t *src2, bf16_t *dst)
     noexcept;
 
-#ifdef NNTILE_USE_FP16
 template
 void cpu<fp16_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
         const fp16_t *src1, Scalar beta, const fp16_t *src2, fp16_t *dst)
     noexcept;
-#endif // NNTILE_USE_FP16
 
 } // namespace nntile::kernel::add_fiber

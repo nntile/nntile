@@ -28,11 +28,13 @@
 
 using namespace nntile;
 using namespace nntile::kernel;
+using namespace nntile::kernel::add_fiber;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void run_cuda(Index m, Index n, Index k, Index batch, Scalar alpha, const std::vector<T> &src1,
-        Scalar beta, const std::vector<T> &src2, std::vector<T> &dst)
+void run_cuda(Index m, Index n, Index k, Index batch, Scalar alpha,
+    const std::vector<T> &src1, Scalar beta, const std::vector<T> &src2,
+    std::vector<T> &dst)
 {
     // Copy to device
     T *dev_src1, *dev_src2, *dev_dst;
@@ -56,7 +58,7 @@ void run_cuda(Index m, Index n, Index k, Index batch, Scalar alpha, const std::v
     cuda_err = cudaStreamCreate(&stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Launch low-level CUDA kernel
-    add_fiber::cuda<T>(stream, m, n, k, batch, alpha, dev_src1, beta, dev_src2, dev_dst);
+    cuda<T>(stream, m, n, k, batch, alpha, dev_src1, beta, dev_src2, dev_dst);
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result and deallocate device memory
@@ -100,7 +102,7 @@ void validate(Index m, Index n, Index k, Index batch)
     }
     std::vector<T> dst_save(dst);
     std::cout << "Run kernel::add_fiber::cpu<" << T::short_name << ">\n";
-    add_fiber::cpu<T>(m, n, k, batch, alpha, &src1[0], beta, &src2[0], &dst[0]);
+    cpu<T>(m, n, k, batch, alpha, &src1[0], beta, &src2[0], &dst[0]);
     for(Index b = 0; b < batch; ++b)
     {
         for(Index i2 = 0; i2 < k; ++i2)
@@ -115,7 +117,8 @@ void validate(Index m, Index n, Index k, Index batch)
                     Y val = Y(dst[linear_idx]);
                     if (std::abs(val_ref) > 10 * eps)
                     {
-                        TEST_ASSERT(std::abs(val-val_ref)/std::abs(val_ref) <= eps);
+                        TEST_ASSERT(
+                            std::abs(val-val_ref)/std::abs(val_ref) <= eps);
                     }
                     else
                     {
@@ -145,7 +148,8 @@ void validate(Index m, Index n, Index k, Index batch)
                     Y val = Y(dst[linear_idx]);
                     if (std::abs(val_ref) > 10 * eps)
                     {
-                        TEST_ASSERT(std::abs(val-val_ref)/std::abs(val_ref) <= eps);
+                        TEST_ASSERT(
+                            std::abs(val-val_ref)/std::abs(val_ref) <= eps);
                     }
                     else
                     {
@@ -177,9 +181,7 @@ int main(int argc, char **argv)
                     validate<fp32_t>(m, n, k, batch);
                     validate<fp64_t>(m, n, k, batch);
                     validate<bf16_t>(m, n, k, batch);
-#ifdef NNTILE_USE_FP16
                     validate<fp16_t>(m, n, k, batch);
-#endif // NNTILE_USE_FP16
                 }
             }
         }
