@@ -26,16 +26,16 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1,
 /*! Performs the following operations:
  *      dst[i,l,j,b] = beta*src2[i,l,j,b] + alpha*src1[l,b]
  *
- * @param[in] m: Size of the first mode of dst tensor
- * @param[in] n: Size of the last mode of dst tensor
- * @param[in] k: Size of the middle mode of dst and src2 tensors and the only mode of src1
- *  tensors
- * @param[in] batch: Size of the batch dimension
- * @param[in] alpha_: Scalar factor for src1
- * @param[in] src1: Input contiguous vector with k*batch elements
- * @param[in] beta_: Scaling factor for src2
- * @param[in] src2: Input contiguous tensor with m*k*n*batch elements
- * @param[inout] dst: Output contiguous m-by-k-by-n array
+ * @param[in] m: Size of the first mode of dst tensor.
+ * @param[in] n: Size of the last mode of dst tensor.
+ * @param[in] k: Size of the middle mode of dst and src2 tensors, and the first
+ * mode of src1.
+ * @param[in] batch: Size of the batch dimension.
+ * @param[in] alpha_: Scalar factor for src1.
+ * @param[in] src1: Input contiguous vector with k*batch elements.
+ * @param[in] beta_: Scaling factor for src2.
+ * @param[in] src2: Input contiguous tensor with m*k*n*batch elements.
+ * @param[inout] dst: Output contiguous m-by-k-by-n-by-batch tensor.
  * */
 {
     using Y = typename T::repr_t;
@@ -95,5 +95,12 @@ template
 void cpu<bf16_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
         const bf16_t *src1, Scalar beta, const bf16_t *src2, bf16_t *dst)
     noexcept;
+
+#ifdef NNTILE_USE_FP16
+template
+void cpu<fp16_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
+        const fp16_t *src1, Scalar beta, const fp16_t *src2, fp16_t *dst)
+    noexcept;
+#endif // NNTILE_USE_FP16
 
 } // namespace nntile::kernel::add_fiber

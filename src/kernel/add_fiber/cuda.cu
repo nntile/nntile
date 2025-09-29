@@ -16,6 +16,10 @@
 #include <algorithm>
 #include "nntile/kernel/cuda.hh"
 
+#ifdef NNTILE_USE_FP16
+#include <cuda_fp16.h>
+#endif // NNTILE_USE_FP16
+
 namespace nntile::kernel::add_fiber
 {
 
@@ -23,20 +27,20 @@ template<typename T>
 static __global__
 void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1,
         Scalar beta_, const T *src2, T *dst)
-//! Per-element addition of a tensor and a broadcasted fiber on CPU
+//! Per-element addition of a tensor and a broadcasted fiber on CUDA
 /*! Performs the following operations:
  *	dst[i,l,j,b] = beta*src2[i,l,j,b] + alpha*src1[l,b]
  *
- * @param[in] m: Size of the first mode of dst tensor
- * @param[in] n: Size of the last mode of dst tensor
- * @param[in] k: Size of the middle mode of dst and src2 tensor and the only mode of src1
- *     tensors
- * @param[in] batch: Size of the batch dimension
- * @param[in] alpha_: Scalar factor for src1
- * @param[in] src1: Input contiguous vector with k elements
- * @param[in] beta_: Scaling factor for src2
- * @param[in] src2: Input contiguous tensor with m*k*n*batch elements
- * @param[inout] dst: Output contiguous m-by-k-by-n array
+ * @param[in] m: Size of the first mode of dst tensor.
+ * @param[in] n: Size of the last mode of dst tensor.
+ * @param[in] k: Size of the middle mode of dst and src2 tensors, and the first
+ * mode of src1.
+ * @param[in] batch: Size of the batch dimension.
+ * @param[in] alpha_: Scalar factor for src1.
+ * @param[in] src1: Input contiguous vector with k*batch elements.
+ * @param[in] beta_: Scaling factor for src2.
+ * @param[in] src2: Input contiguous tensor with m*k*n*batch elements.
+ * @param[inout] dst: Output contiguous m-by-k-by-n-by-batch tensor.
  * */
 {
     Index i2 = threadIdx.x + blockIdx.x*blockDim.x,
@@ -66,20 +70,20 @@ template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
         Scalar alpha, const T *src1, Scalar beta, const T *src2, T *dst)
     noexcept
-//! Per-element addition of a tensor and a broadcasted fiber on CPU
+//! Per-element addition of a tensor and a broadcasted fiber on CUDA
 /*! Performs the following operations:
- *	dst[i,l,j] = beta*src2[i,l,j] + alpha*src1[l]
+ *	dst[i,l,j,b] = beta*src2[i,l,j,b] + alpha*src1[l,b]
  *
- * @param[in] m: Size of the first mode of dst tensor
- * @param[in] n: Size of the last mode of dst tensor
- * @param[in] k: Size of the middle mode of dst tensor and the only mode of src1
- *  	tensors
- * @param[in] batch: Size of the batch dimension
- * @param[in] alpha: Scalar factor for src1
- * @param[in] src1: Input contiguous vector with k elements
- * @param[in] beta: Scaling factor for src2
- * @param[in] src2: Input contiguous tensor with m*k*n*batch elements
- * @param[inout] dst: Output contiguous m-by-k-by-n array
+ * @param[in] m: Size of the first mode of dst tensor.
+ * @param[in] n: Size of the last mode of dst tensor.
+ * @param[in] k: Size of the middle mode of dst and src2 tensors, and the first
+ * mode of src1.
+ * @param[in] batch: Size of the batch dimension.
+ * @param[in] alpha: Scalar factor for src1.
+ * @param[in] src1: Input contiguous vector with k*batch elements.
+ * @param[in] beta: Scaling factor for src2.
+ * @param[in] src2: Input contiguous tensor with m*k*n*batch elements.
+ * @param[inout] dst: Output contiguous m-by-k-by-n-by-batch tensor.
  * */
 {
     // Both source and destination are Fortran-contiguous
@@ -109,5 +113,13 @@ void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
         Scalar alpha, const bf16_t *src1, Scalar beta,
 	const bf16_t *src2, bf16_t *dst)
     noexcept;
+
+#ifdef NNTILE_USE_FP16
+template
+void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
+        Scalar alpha, const fp16_t *src1, Scalar beta,
+	const fp16_t *src2, fp16_t *dst)
+    noexcept;
+#endif // NNTILE_USE_FP16
 
 } // namespace nntile::kernel::add_fiber
