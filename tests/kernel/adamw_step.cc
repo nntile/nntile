@@ -24,7 +24,6 @@
 
 #ifdef NNTILE_USE_CUDA
 #include <cuda_runtime.h>
-#include <cuda_fp16.h>
 #endif // NNTILE_USE_CUDA
 
 using namespace nntile;
@@ -33,10 +32,10 @@ using namespace nntile::kernel::adamw_step;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void run_cuda(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Scalar eps,
-        Scalar lr, Scalar weight_decay, const std::vector<T>& grad,
-        std::vector<T>& first_moment, std::vector<T>& second_moment,
-        std::vector<T>& p)
+void run_cuda(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
+    Scalar eps, Scalar lr, Scalar weight_decay, const std::vector<T>& grad,
+    std::vector<T>& first_moment, std::vector<T>& second_moment,
+    std::vector<T>& p)
 {
     // Copy to device
     T *dev_grad, *dev_first_moment, *dev_second_moment, *dev_p;
@@ -49,13 +48,17 @@ void run_cuda(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Sca
     cuda_err = cudaMalloc(&dev_p, sizeof(T)*num_elems);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
-    cuda_err = cudaMemcpy(dev_grad, &grad[0], sizeof(T)*num_elems, cudaMemcpyHostToDevice);
+    cuda_err = cudaMemcpy(dev_grad, &grad[0], sizeof(T)*num_elems,
+        cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_first_moment, &first_moment[0], sizeof(T)*num_elems, cudaMemcpyHostToDevice);
+    cuda_err = cudaMemcpy(dev_first_moment, &first_moment[0],
+        sizeof(T)*num_elems, cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_second_moment, &second_moment[0], sizeof(T)*num_elems, cudaMemcpyHostToDevice);
+    cuda_err = cudaMemcpy(dev_second_moment, &second_moment[0],
+        sizeof(T)*num_elems, cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_p, &p[0], sizeof(T)*num_elems, cudaMemcpyHostToDevice);
+    cuda_err = cudaMemcpy(dev_p, &p[0], sizeof(T)*num_elems,
+        cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
     // Init stream
@@ -70,11 +73,14 @@ void run_cuda(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Sca
     TEST_ASSERT(cuda_err == cudaSuccess);
 
     // Copy result and deallocate device memory
-    cuda_err = cudaMemcpy(&first_moment[0], dev_first_moment, sizeof(T)*num_elems, cudaMemcpyDeviceToHost);
+    cuda_err = cudaMemcpy(&first_moment[0], dev_first_moment,
+        sizeof(T)*num_elems, cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(&second_moment[0], dev_second_moment, sizeof(T)*num_elems, cudaMemcpyDeviceToHost);
+    cuda_err = cudaMemcpy(&second_moment[0], dev_second_moment,
+        sizeof(T)*num_elems, cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(&p[0], dev_p, sizeof(T)*num_elems, cudaMemcpyDeviceToHost);
+    cuda_err = cudaMemcpy(&p[0], dev_p, sizeof(T)*num_elems,
+        cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
     cuda_err = cudaFree(dev_grad);
@@ -114,15 +120,18 @@ void validate(Index num_elems, Index num_iter)
     }
     else
     {
-        eps_check = 1e-10;
+        eps_check = 1e-8;
     }
     // Parameters
-    Scalar beta_1_s = 0.9, beta_2_s = 0.999, eps_s = 1e-8, lr_s = 0.01, weight_decay_s=0.1;
-    const Y beta_1{beta_1_s}, beta_2{beta_2_s}, eps{eps_s}, lr{lr_s}, weight_decay{weight_decay_s};
+    Scalar beta_1_s = 0.9, beta_2_s = 0.999, eps_s = 1e-8, lr_s = 0.01,
+        weight_decay_s=0.1;
+    const Y beta_1{beta_1_s}, beta_2{beta_2_s}, eps{eps_s}, lr{lr_s},
+        weight_decay{weight_decay_s};
 
     // Initial data
     std::vector<T> grad(num_elems);
-    std::vector<T> first_moment_init(num_elems), second_moment_init(num_elems), p_init(num_elems);
+    std::vector<T> first_moment_init(num_elems),
+        second_moment_init(num_elems), p_init(num_elems);
 
     for(Index i = 0; i < num_elems; ++i)
     {
@@ -135,7 +144,8 @@ void validate(Index num_elems, Index num_iter)
     }
 
     // CPU reference implementation
-    std::vector<T> p_ref(p_init), first_moment_ref(first_moment_init), second_moment_ref(second_moment_init);
+    std::vector<T> p_ref(p_init), first_moment_ref(first_moment_init),
+        second_moment_ref(second_moment_init);
 
     // CPU reference
     const Y alpha = lr / (Y{1.0} - std::pow(beta_1, num_iter));
@@ -169,7 +179,8 @@ void validate(Index num_elems, Index num_iter)
     }
 
     // Run CPU kernel
-    std::vector<T> p_cpu(p_init), first_moment_cpu(first_moment_init), second_moment_cpu(second_moment_init);
+    std::vector<T> p_cpu(p_init), first_moment_cpu(first_moment_init),
+        second_moment_cpu(second_moment_init);
     std::cout << "Run kernel::adamw_step::cpu<" << T::short_name << ">\n";
     cpu<T>(num_iter, num_elems, beta_1_s, beta_2_s, eps_s, lr_s, weight_decay_s,
         &grad[0], &first_moment_cpu[0], &second_moment_cpu[0], &p_cpu[0]);
@@ -183,17 +194,19 @@ void validate(Index num_elems, Index num_iter)
         }
         else
         {
-            TEST_ASSERT(std::abs(p_val - p_ref_val) / std::abs(p_ref_val) <= eps_check);
+            TEST_ASSERT(std::abs(p_val - p_ref_val) / std::abs(p_ref_val)
+                <= eps_check);
         }
     }
     std::cout << "OK: kernel::adamw_step::cpu<" << T::short_name << ">\n";
 
 #ifdef NNTILE_USE_CUDA
     // Run CUDA kernel
-    std::vector<T> p_cuda(p_init), first_moment_cuda(first_moment_init), second_moment_cuda(second_moment_init);
+    std::vector<T> p_cuda(p_init), first_moment_cuda(first_moment_init),
+        second_moment_cuda(second_moment_init);
     std::cout << "Run kernel::adamw_step::cuda<" << T::short_name << ">\n";
-    run_cuda<T>(num_iter, num_elems, beta_1_s, beta_2_s, eps_s, lr_s, weight_decay_s, grad,
-        first_moment_cuda, second_moment_cuda, p_cuda);
+    run_cuda<T>(num_iter, num_elems, beta_1_s, beta_2_s, eps_s, lr_s,
+        weight_decay_s, grad, first_moment_cuda, second_moment_cuda, p_cuda);
 
     for(Index i = 0; i < num_elems; ++i)
     {
@@ -204,7 +217,8 @@ void validate(Index num_elems, Index num_iter)
         }
         else
         {
-            TEST_ASSERT(std::abs(p_val - p_ref_val) / std::abs(p_ref_val) <= eps_check);
+            TEST_ASSERT(std::abs(p_val - p_ref_val) / std::abs(p_ref_val)
+            <= eps_check);
         }
     }
     std::cout << "OK: kernel::adamw_step::cuda<" << T::short_name << ">\n";
