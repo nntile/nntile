@@ -26,15 +26,15 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src,
 /*! Performs the following operations:
  *      dst[i,l,j,b] = beta*dst[i,l,j,b] + alpha*src[l,b]
  *
- * @param[in] m: Size of the first mode of dst tensor
- * @param[in] n: Size of the last mode of dst tensor
+ * @param[in] m: Size of the first mode of dst tensor.
+ * @param[in] n: Size of the last mode of dst tensor.
  * @param[in] k: Size of the middle mode of dst tensor and the only mode of src
- *      tensors
- * @param[in] batch: Size of the batch dimension
- * @param[in] alpha_: Scalar factor for src
- * @param[in] src: Input contiguous vector with k elements
- * @param[in] beta_: Scaling factor for dst
- * @param[inout] dst: Input and output contiguous m-by-k-by-n array
+ *      tensors.
+ * @param[in] batch: Size of the batch dimension.
+ * @param[in] alpha_: Scalar factor for src.
+ * @param[in] src: Input contiguous vector with k*batch elements.
+ * @param[in] beta_: Scaling factor for dst.
+ * @param[inout] dst: Input and output contiguous m-by-k-by-n-by-batch array.
  * */
 {
     using Y = typename T::repr_t;
