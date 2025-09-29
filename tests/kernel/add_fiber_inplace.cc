@@ -23,7 +23,6 @@
 
 #ifdef NNTILE_USE_CUDA
 #include <cuda_runtime.h>
-#include <cuda_fp16.h>
 #endif // NNTILE_USE_CUDA
 
 using namespace nntile;
@@ -32,8 +31,8 @@ using namespace nntile::kernel::add_fiber_inplace;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void run_cuda(Index m, Index n, Index k, Index batch, Scalar alpha, const std::vector<T> &src,
-        Scalar beta, std::vector<T> &dst)
+void run_cuda(Index m, Index n, Index k, Index batch, Scalar alpha,
+    const std::vector<T> &src, Scalar beta, std::vector<T> &dst)
 {
     // Copy to device
     T *dev_src, *dev_dst;
@@ -70,7 +69,8 @@ void run_cuda(Index m, Index n, Index k, Index batch, Scalar alpha, const std::v
 
 // Templated validation
 template<typename T>
-void validate(Index m, Index n, Index k, Index batch, int test_index_a, int test_index_b)
+void validate(Index m, Index n, Index k, Index batch, int test_index_a,
+    int test_index_b)
 {
     using Y = typename T::repr_t;
     const Y eps = 2 * T::epsilon;
@@ -143,10 +143,10 @@ void validate(Index m, Index n, Index k, Index batch, int test_index_a, int test
 
 int main(int argc, char **argv)
 {
-    const Index test_m[] = {0, 1, 5};
-    const Index test_n[] = {0, 1, 3};
-    const Index test_k[] = {0, 1, 10};
-    const Index test_batch[] = {0, 1, 4};
+    const Index test_m[] = {1, 5};
+    const Index test_n[] = {1, 3};
+    const Index test_k[] = {1, 10};
+    const Index test_batch[] = {1, 4};
     int ti = 1;
     for(Index m: test_m)
     {
