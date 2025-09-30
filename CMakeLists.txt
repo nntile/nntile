@@ -95,7 +95,7 @@ elseif(USE_CUDA)
     check_language(CUDA)
     if(CMAKE_CUDA_COMPILER)
         enable_language(CUDA)
-        find_package(CUDAToolkit 10.1 REQUIRED)
+        find_package(CUDAToolkit 11.0 REQUIRED)
         add_subdirectory("external/cudnn_frontend")
         # Show paths to cudnn source and include corresponding CMake file
         message(STATUS "cuDNN frontend SOURCE: ${cudnn_frontend_SOURCE_DIR}")
