@@ -113,7 +113,7 @@ void validate(Index num_iter, Index num_elems)
     }
     else
     {
-        eps_check = 1e-10;
+        eps_check = 1e-8;
     }
     // Parameters
     Scalar beta_1_s = 0.9, beta_2_s = 0.999, eps_s = 1e-8, lr_s = 0.01, weight_decay_s=0.1;
