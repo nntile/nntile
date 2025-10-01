@@ -22,6 +22,7 @@
 #include <iostream>
 #include <cmath>
 #include <random>
+#include <string>
 
 // Third-party libraries
 #include <catch2/catch_all.hpp>
@@ -33,6 +34,9 @@ using namespace Catch;
 using namespace nntile;
 using namespace nntile::kernel;
 using namespace nntile::kernel::adam_step;
+
+// Type to acuiqre reference values
+using ref_t = double;
 
 // Struct to hold test data and reference results
 template<typename T>
@@ -67,33 +71,40 @@ void reference_adam_step(TestData<T>& data)
     {
         return;
     }
-    Scalar alpha_s = data.lr / (1.0 - std::pow(data.beta_1, data.num_iter));
-    const Y alpha = static_cast<Y>(alpha_s);
-    Scalar beta_s = 1.0 / (1.0 - std::pow(data.beta_2, data.num_iter));
-    const Y beta = static_cast<Y>(std::sqrt(beta_s));
+    const ref_t beta_1_r = data.beta_1;
+    const ref_t beta_2_r = data.beta_2;
+    const ref_t lr_r = data.lr;
+    const ref_t weight_decay_r = data.weight_decay;
+    const ref_t eps_r = data.eps;
+    constexpr ref_t one = 1.0;
+    const ref_t alpha = lr_r / (one - std::pow(beta_1_r, data.num_iter));
+    const ref_t beta = one / std::sqrt(one - std::pow(beta_2_r, data.num_iter));
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        Y p_val = static_cast<Y>(data.p_ref[i]);
-        Y grad_val = static_cast<Y>(data.grad[i]);
-        grad_val += static_cast<Y>(data.weight_decay) * p_val;
-        Y f_val, s_val;
+        ref_t p_val = static_cast<Y>(data.p_ref[i]);
+        ref_t grad_val = static_cast<Y>(data.grad[i]);
+        grad_val += weight_decay_r * p_val;
+        ref_t f_val, s_val;
         if(data.num_iter == 1)
         {
-            f_val = (1.0 - data.beta_1) * grad_val;
-            s_val = std::sqrt(1.0 - data.beta_2) * std::fabs(grad_val);
+            f_val = (one - beta_1_r) * grad_val;
+            s_val = std::sqrt(one - beta_2_r) * std::fabs(grad_val);
         }
         else
         {
             f_val = static_cast<Y>(data.first_moment_ref[i]);
             s_val = static_cast<Y>(data.second_moment_ref[i]);
-            f_val = data.beta_1 * f_val + (Y{1.0} - data.beta_1) * grad_val;
-            s_val = std::hypot(std::sqrt(data.beta_2) * s_val,
-                             std::sqrt(Y{1.0} - data.beta_2) * grad_val);
+            f_val = beta_1_r * f_val + (one - beta_1_r) * grad_val;
+            s_val = std::hypot(
+                std::sqrt(beta_2_r) * s_val,
+                std::sqrt(one - beta_2_r) * grad_val
+            );
         }
-        data.first_moment_ref[i] = static_cast<T>(f_val);
-        data.second_moment_ref[i] = static_cast<T>(s_val);
-        const Y denom = s_val * beta + data.eps;
-        data.p_ref[i] = static_cast<T>(p_val - alpha * f_val / denom);
+        data.first_moment_ref[i] = static_cast<T>(static_cast<Y>(f_val));
+        data.second_moment_ref[i] = static_cast<T>(static_cast<Y>(s_val));
+        const ref_t denom = s_val * beta + eps_r;
+        const ref_t p_ref = p_val - alpha * f_val / denom;
+        data.p_ref[i] = static_cast<T>(static_cast<Y>(p_ref));
     }
 }
 
@@ -216,33 +227,60 @@ void verify_results(const TestData<T>& data, const std::vector<T>& p_out,
 }
 
 // Helper function to run CPU test and verify results
-template<typename T>
+template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
     std::vector<T> p_cpu(data.p_init);
     std::vector<T> first_moment_cpu(data.first_moment_init);
     std::vector<T> second_moment_cpu(data.second_moment_init);
 
-    cpu<T>(
-        data.num_iter,
-        data.num_elems,
-        data.beta_1,
-        data.beta_2,
-        data.eps,
-        data.lr,
-        data.weight_decay,
-        &data.grad[0],
-        &first_moment_cpu[0],
-        &second_moment_cpu[0],
-        &p_cpu[0]
-    );
-
-    verify_results(data, p_cpu, first_moment_cpu, second_moment_cpu);
+    if constexpr (run_bench)
+    {
+        BENCHMARK(
+            "[kernel][adam_step][cpu][nelems=" +
+            std::to_string(data.num_elems) +
+            "][weight_decay=" +
+            std::to_string(data.weight_decay) +
+            "]"
+        )
+        {
+            cpu<T>(
+                data.num_iter,
+                data.num_elems,
+                data.beta_1,
+                data.beta_2,
+                data.eps,
+                data.lr,
+                data.weight_decay,
+                &data.grad[0],
+                &first_moment_cpu[0],
+                &second_moment_cpu[0],
+                &p_cpu[0]
+            );
+        };
+    }
+    else
+    {
+        cpu<T>(
+            data.num_iter,
+            data.num_elems,
+            data.beta_1,
+            data.beta_2,
+            data.eps,
+            data.lr,
+            data.weight_decay,
+            &data.grad[0],
+            &first_moment_cpu[0],
+            &second_moment_cpu[0],
+            &p_cpu[0]
+        );
+        verify_results(data, p_cpu, first_moment_cpu, second_moment_cpu);
+    }
 }
 
 #ifdef NNTILE_USE_CUDA
 // Helper function to run CUDA test and verify results
-template<typename T>
+template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_grad, *dev_first_moment, *dev_second_moment, *dev_p;
@@ -267,36 +305,66 @@ void run_cuda_test(TestData<T>& data)
     cudaStream_t stream;
     cudaStreamCreate(&stream);
 
-    cuda<T>(
-        stream,
-        data.num_iter,
-        data.num_elems,
-        data.beta_1,
-        data.beta_2,
-        data.eps,
-        data.lr,
-        data.weight_decay,
-        dev_grad,
-        dev_first_moment,
-        dev_second_moment,
-        dev_p
-    );
+    if constexpr (run_bench)
+    {
+        BENCHMARK(
+            "[kernel][adam_step][cuda][nelems=" +
+            std::to_string(data.num_elems) +
+            "][weight_decay=" +
+            std::to_string(data.weight_decay) +
+            "]"
+        )
+        {
+            cuda<T>(
+                stream,
+                data.num_iter,
+                data.num_elems,
+                data.beta_1,
+                data.beta_2,
+                data.eps,
+                data.lr,
+                data.weight_decay,
+                dev_grad,
+                dev_first_moment,
+                dev_second_moment,
+                dev_p
+            );
+            cudaStreamSynchronize(stream);
+        };
+    }
+    else
+    {
+        cuda<T>(
+            stream,
+            data.num_iter,
+            data.num_elems,
+            data.beta_1,
+            data.beta_2,
+            data.eps,
+            data.lr,
+            data.weight_decay,
+            dev_grad,
+            dev_first_moment,
+            dev_second_moment,
+            dev_p
+        );
+        cudaStreamSynchronize(stream);
 
-    cudaStreamSynchronize(stream);
+        cudaMemcpy(&first_moment_cuda[0], dev_first_moment,
+            sizeof(T) * data.num_elems, cudaMemcpyDeviceToHost);
+        cudaMemcpy(&second_moment_cuda[0], dev_second_moment,
+            sizeof(T) * data.num_elems, cudaMemcpyDeviceToHost);
+        cudaMemcpy(&p_cuda[0], dev_p, sizeof(T) * data.num_elems,
+            cudaMemcpyDeviceToHost);
 
-    cudaMemcpy(&first_moment_cuda[0], dev_first_moment,
-        sizeof(T) * data.num_elems, cudaMemcpyDeviceToHost);
-    cudaMemcpy(&second_moment_cuda[0], dev_second_moment,
-        sizeof(T) * data.num_elems, cudaMemcpyDeviceToHost);
-    cudaMemcpy(&p_cuda[0], dev_p, sizeof(T) * data.num_elems,
-        cudaMemcpyDeviceToHost);
+        verify_results(data, p_cuda, first_moment_cuda, second_moment_cuda);
+    }
 
     cudaFree(dev_grad);
     cudaFree(dev_first_moment);
     cudaFree(dev_second_moment);
     cudaFree(dev_p);
     cudaStreamDestroy(stream);
-    verify_results(data, p_cuda, first_moment_cuda, second_moment_cuda);
 }
 #endif
 
@@ -331,15 +399,59 @@ TEMPLATE_TEST_CASE(
         strategy
     );
 
-    SECTION("CPU Execution", "[cpu]")
+    SECTION("cpu")
     {
-        run_cpu_test(data);
+        run_cpu_test<T, false>(data);
     }
 
 #ifdef NNTILE_USE_CUDA
-    SECTION("CUDA Execution", "[cuda]")
+    SECTION("cuda")
     {
-        run_cuda_test(data);
+        run_cuda_test<T, false>(data);
+    }
+#endif
+}
+
+// Catch2-based benchmarks
+TEMPLATE_TEST_CASE(
+    "Adam Step Kernel Benchmark",
+    "[adam_step][!benchmark]",
+    fp64_t,
+    fp32_t,
+    fp16_t,
+    bf16_t
+)
+{
+    using T = TestType;
+    const Index num_elems = GENERATE(512, 1024*1024);
+    const Index num_iter = GENERATE(2);
+    const Scalar beta_1 = GENERATE(0.9);
+    const Scalar beta_2 = GENERATE(0.999);
+    const Scalar eps = GENERATE(1e-8);
+    const Scalar lr = GENERATE(1e-2);
+    const Scalar weight_decay = GENERATE(0.0, 0.1);
+    const DataGen strategy = GENERATE(DataGen::PRESET);
+
+    auto data = get_test_data<T>(
+        num_elems,
+        num_iter,
+        beta_1,
+        beta_2,
+        eps,
+        lr,
+        weight_decay,
+        strategy
+    );
+
+    SECTION("cpu")
+    {
+        run_cpu_test<T, true>(data);
+    }
+
+#ifdef NNTILE_USE_CUDA
+    SECTION("cuda")
+    {
+        run_cuda_test<T, true>(data);
     }
 #endif
 }
