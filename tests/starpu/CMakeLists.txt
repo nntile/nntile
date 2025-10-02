@@ -38,6 +38,7 @@ set(TESTS
     "embedding"
     "embedding_backward"
     "fill"
+    "flash_attention"
     "flash_sdpa_fwd_cudnn"
     "gelu"
     "gelu_backward"

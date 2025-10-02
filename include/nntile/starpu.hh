@@ -42,6 +42,7 @@
 #include <nntile/starpu/embedding.hh>
 #include <nntile/starpu/embedding_backward.hh>
 #include <nntile/starpu/fill.hh>
+#include <nntile/starpu/flash_attention.hh>
 #include <nntile/starpu/gelu.hh>
 #include <nntile/starpu/gelu_backward.hh>
 #include <nntile/starpu/gelutanh.hh>
