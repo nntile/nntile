@@ -138,8 +138,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             {
                 data.grad[i] = Y(2 * i + 1 - num_elems);
                 data.p_init[i] = Y(num_elems - i);
-                data.first_moment_init[i] = Y(i + 1);
-                data.second_moment_init[i] = Y(num_elems - i);
+                data.first_moment_init[i] = Y(0);  // Initialize to zero for first iteration
+                data.second_moment_init[i] = Y(0);  // Initialize to zero for first iteration
             }
             break;
         // Specific random initialization
@@ -285,31 +285,40 @@ void run_cpu_test(TestData<T>& data)
 }
 
 #ifdef NNTILE_USE_CUDA
+// Helper function to check CUDA errors
+void check_cuda_error(cudaError_t error, const char* message)
+{
+    if (error != cudaSuccess)
+    {
+        throw std::runtime_error(std::string(message) + ": " + cudaGetErrorString(error));
+    }
+}
+
 // Helper function to run CUDA test and verify results
 template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_grad, *dev_first_moment, *dev_second_moment, *dev_p;
-    cudaMalloc(&dev_grad, sizeof(T) * data.num_elems);
-    cudaMalloc(&dev_first_moment, sizeof(T) * data.num_elems);
-    cudaMalloc(&dev_second_moment, sizeof(T) * data.num_elems);
-    cudaMalloc(&dev_p, sizeof(T) * data.num_elems);
+    check_cuda_error(cudaMalloc(&dev_grad, sizeof(T) * data.num_elems), "cudaMalloc dev_grad");
+    check_cuda_error(cudaMalloc(&dev_first_moment, sizeof(T) * data.num_elems), "cudaMalloc dev_first_moment");
+    check_cuda_error(cudaMalloc(&dev_second_moment, sizeof(T) * data.num_elems), "cudaMalloc dev_second_moment");
+    check_cuda_error(cudaMalloc(&dev_p, sizeof(T) * data.num_elems), "cudaMalloc dev_p");
 
     std::vector<T> p_cuda(data.p_init);
     std::vector<T> first_moment_cuda(data.first_moment_init);
     std::vector<T> second_moment_cuda(data.second_moment_init);
 
-    cudaMemcpy(dev_grad, &data.grad[0], sizeof(T) * data.num_elems,
-        cudaMemcpyHostToDevice);
-    cudaMemcpy(dev_first_moment, &first_moment_cuda[0],
-        sizeof(T) * data.num_elems, cudaMemcpyHostToDevice);
-    cudaMemcpy(dev_second_moment, &second_moment_cuda[0],
-        sizeof(T) * data.num_elems, cudaMemcpyHostToDevice);
-    cudaMemcpy(dev_p, &p_cuda[0], sizeof(T) * data.num_elems,
-        cudaMemcpyHostToDevice);
+    check_cuda_error(cudaMemcpy(dev_grad, &data.grad[0], sizeof(T) * data.num_elems,
+        cudaMemcpyHostToDevice), "cudaMemcpy dev_grad");
+    check_cuda_error(cudaMemcpy(dev_first_moment, &first_moment_cuda[0],
+        sizeof(T) * data.num_elems, cudaMemcpyHostToDevice), "cudaMemcpy dev_first_moment");
+    check_cuda_error(cudaMemcpy(dev_second_moment, &second_moment_cuda[0],
+        sizeof(T) * data.num_elems, cudaMemcpyHostToDevice), "cudaMemcpy dev_second_moment");
+    check_cuda_error(cudaMemcpy(dev_p, &p_cuda[0], sizeof(T) * data.num_elems,
+        cudaMemcpyHostToDevice), "cudaMemcpy dev_p");
 
     cudaStream_t stream;
-    cudaStreamCreate(&stream);
+    check_cuda_error(cudaStreamCreate(&stream), "cudaStreamCreate");
 
     if constexpr (run_bench)
     {
@@ -354,23 +363,23 @@ void run_cuda_test(TestData<T>& data)
             dev_second_moment,
             dev_p
         );
-        cudaStreamSynchronize(stream);
+        check_cuda_error(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        cudaMemcpy(&first_moment_cuda[0], dev_first_moment,
-            sizeof(T) * data.num_elems, cudaMemcpyDeviceToHost);
-        cudaMemcpy(&second_moment_cuda[0], dev_second_moment,
-            sizeof(T) * data.num_elems, cudaMemcpyDeviceToHost);
-        cudaMemcpy(&p_cuda[0], dev_p, sizeof(T) * data.num_elems,
-            cudaMemcpyDeviceToHost);
+        check_cuda_error(cudaMemcpy(&first_moment_cuda[0], dev_first_moment,
+            sizeof(T) * data.num_elems, cudaMemcpyDeviceToHost), "cudaMemcpy first_moment_cuda");
+        check_cuda_error(cudaMemcpy(&second_moment_cuda[0], dev_second_moment,
+            sizeof(T) * data.num_elems, cudaMemcpyDeviceToHost), "cudaMemcpy second_moment_cuda");
+        check_cuda_error(cudaMemcpy(&p_cuda[0], dev_p, sizeof(T) * data.num_elems,
+            cudaMemcpyDeviceToHost), "cudaMemcpy p_cuda");
 
         verify_results(data, p_cuda, first_moment_cuda, second_moment_cuda);
     }
 
-    cudaFree(dev_grad);
-    cudaFree(dev_first_moment);
-    cudaFree(dev_second_moment);
-    cudaFree(dev_p);
-    cudaStreamDestroy(stream);
+    check_cuda_error(cudaFree(dev_grad), "cudaFree dev_grad");
+    check_cuda_error(cudaFree(dev_first_moment), "cudaFree dev_first_moment");
+    check_cuda_error(cudaFree(dev_second_moment), "cudaFree dev_second_moment");
+    check_cuda_error(cudaFree(dev_p), "cudaFree dev_p");
+    check_cuda_error(cudaStreamDestroy(stream), "cudaStreamDestroy");
 }
 #endif
 
