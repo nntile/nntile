@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/kernel/adam_step.cc
- * Fused Adam optimizer step with Catch2 testing framework
+ * Fused Adam optimizer step
  *
  * @version 1.1.0
  * */
