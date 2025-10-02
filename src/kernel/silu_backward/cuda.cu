@@ -77,4 +77,9 @@ void cuda<bf16_t>(cudaStream_t stream, Index nelems, const bf16_t *x,
         const bf16_t *dy, bf16_t *dx)
     noexcept;
 
+template
+void cuda<fp16_t>(cudaStream_t stream, Index nelems, const fp16_t *x,
+        const fp16_t *dy, fp16_t *dx)
+    noexcept;
+
 } // namespace nntile::kernel::silu_backward
