@@ -19,22 +19,25 @@ namespace nntile::kernel::add_scalar
 {
 
 template<typename T>
-void cpu(Index num_elements, Scalar alpha_, Scalar beta_, T* dst)
+void cpu(Index num_elements, Scalar alpha, Scalar beta, T* dst)
     noexcept
-//! Add scalar to buffer buffers on CPU
-/*! dst[i] = alpha + beta*dst[i], where alpha and beta are scalars
+//! Add scalar to buffer on CPU
+/*! Perform element-wise operation: dst[i] = alpha + beta * dst[i]
  *
- * @param[in] num_elements: Size of the src and dst tensors
- * @param[in] alpha_: Scalar bias for the dst tensor
- * @param[in] beta_: Scalar multiplier for the dst tensor
- * @param[inout] dst_: Destination of the add_scalar operation
+ * This operation modifies the destination buffer in-place by adding a scalar
+ * value (alpha) and scaling the existing values by a scalar factor (beta).
+ *
+ * @param[in] num_elements: Number of elements in the destination buffer
+ * @param[in] alpha: Scalar value to add to each element
+ * @param[in] beta: Scalar multiplier for each element before adding alpha
+ * @param[inout] dst: Destination buffer to modify in-place
  * */
 {
     using Y = typename T::repr_t;
-    const Y alpha{alpha_}, beta{beta_};
+    const Y alpha_val{alpha}, beta_val{beta};
     for(Index i = 0; i < num_elements; ++i)
     {
-        dst[i] = T{alpha + beta*Y{dst[i]}};
+        dst[i] = T{alpha_val + beta_val * Y{dst[i]}};
     }
 }
 
@@ -45,6 +48,10 @@ void cpu<fp32_t>(Index num_elements, Scalar alpha, Scalar beta, fp32_t* dst)
 
 template
 void cpu<fp64_t>(Index num_elements, Scalar alpha, Scalar beta, fp64_t* dst)
+    noexcept;
+
+template
+void cpu<fp16_t>(Index num_elements, Scalar alpha, Scalar beta, fp16_t* dst)
     noexcept;
 
 template
