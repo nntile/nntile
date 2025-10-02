@@ -61,7 +61,7 @@ void reference_softmax(TestData<T>& data)
     using Y = typename T::repr_t;
     const ref_t alpha = data.alpha;
     Index src_dst_offset = 0;
-    
+
     // Outer loop by the last mode
     for(Index i2 = 0; i2 < data.n; ++i2)
     {

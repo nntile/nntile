@@ -61,7 +61,7 @@ void reference_scal(TestData<T>& data)
         return;
     }
     const ref_t alpha = data.alpha;
-    
+
     for(Index i = 0; i < data.num_elems; ++i)
     {
         ref_t src_val = static_cast<Y>(data.src[i]);

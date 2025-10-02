@@ -55,7 +55,7 @@ template<typename T>
 void reference_logsumexp(TestData<T>& data)
 {
     using Y = typename T::repr_t;
-    
+
     for(Index i = 0; i < data.num_elems; ++i)
     {
         ref_t max_val = static_cast<Y>(data.maxsumexp[2*i]);

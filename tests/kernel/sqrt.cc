@@ -59,7 +59,7 @@ void reference_sqrt(TestData<T>& data)
     {
         return;
     }
-    
+
     for(Index i = 0; i < data.num_elems; ++i)
     {
         ref_t src_val = static_cast<Y>(data.src[i]);

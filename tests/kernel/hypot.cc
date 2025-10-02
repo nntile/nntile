@@ -65,12 +65,12 @@ void reference_hypot(TestData<T>& data)
     const ref_t alpha = data.alpha;
     const ref_t beta = data.beta;
     const ref_t zero = 0.0;
-    
+
     for(Index i = 0; i < data.num_elems; ++i)
     {
         ref_t src_val = static_cast<Y>(data.src[i]);
         ref_t dst_val = static_cast<Y>(data.dst_init[i]);
-        
+
         ref_t result;
         if(alpha == zero)
         {

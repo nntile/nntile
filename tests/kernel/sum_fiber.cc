@@ -64,7 +64,7 @@ void reference_sum_fiber(TestData<T>& data)
     const ref_t alpha = data.alpha;
     const ref_t beta = data.beta;
     const ref_t zero = 0.0;
-    
+
     // Cycle over batch
     for(Index b = 0; b < data.batch; ++b)
     {
