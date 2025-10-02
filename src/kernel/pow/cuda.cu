@@ -9,6 +9,8 @@
  * @file src/kernel/pow/cuda.cu
  * Power operation on CUDA
  *
+ * Supports fp64_t, fp32_t, fp16_t, and bf16_t data types.
+ *
  * @version 1.1.0
  * */
 
@@ -64,6 +66,11 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha, Scalar exp,
 template
 void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha, Scalar exp,
         bf16_t *data)
+    noexcept;
+
+template
+void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha, Scalar exp,
+        fp16_t *data)
     noexcept;
 
 } // namespace nntile::kernel::pow

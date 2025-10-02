@@ -9,6 +9,8 @@
  * @file src/kernel/sqrt/cuda.cu
  * Sqrt of buffer on CUDA
  *
+ * Supports fp64_t, fp32_t, fp16_t, and bf16_t data types.
+ *
  * @version 1.1.0
  * */
 
@@ -58,6 +60,11 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, const fp64_t *src,
 template
 void cuda<bf16_t>(cudaStream_t stream, Index nelems, const bf16_t *src,
         bf16_t *dst)
+    noexcept;
+
+template
+void cuda<fp16_t>(cudaStream_t stream, Index nelems, const fp16_t *src,
+        fp16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::sqrt

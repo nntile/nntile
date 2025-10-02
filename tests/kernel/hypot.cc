@@ -312,6 +312,7 @@ TEMPLATE_TEST_CASE(
     "[hypot]",
     fp64_t,
     fp32_t,
+    fp16_t,
     bf16_t
 )
 {
@@ -347,6 +348,7 @@ TEMPLATE_TEST_CASE(
     "[hypot][!benchmark]",
     fp64_t,
     fp32_t,
+    fp16_t,
     bf16_t
 )
 {

@@ -9,6 +9,8 @@
  * @file src/kernel/sqrt/cpu.cc
  * Sqrt operation on CPU
  *
+ * Supports fp64_t, fp32_t, fp16_t, and bf16_t data types.
+ *
  * @version 1.1.0
  * */
 
@@ -47,6 +49,10 @@ void cpu<fp64_t>(Index nelems, const fp64_t *src, fp64_t *dst)
 
 template
 void cpu<bf16_t>(Index nelems, const bf16_t *src, bf16_t *dst)
+    noexcept;
+
+template
+void cpu<fp16_t>(Index nelems, const fp16_t *src, fp16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::sqrt

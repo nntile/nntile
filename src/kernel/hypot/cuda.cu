@@ -9,6 +9,8 @@
  * @file src/kernel/hypot/cuda.cu
  * hypot operation on buffers on CUDA
  *
+ * Supports fp64_t, fp32_t, fp16_t, and bf16_t data types.
+ *
  * @version 1.1.0
  * */
 
@@ -100,6 +102,11 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
 template
 void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const bf16_t *src, Scalar beta, bf16_t *dst)
+    noexcept;
+
+template
+void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp16_t *src, Scalar beta, fp16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::hypot

@@ -9,6 +9,8 @@
  * @file src/kernel/hypot/cpu.cc
  * hypot operation on buffers on CPU
  *
+ * Supports fp64_t, fp32_t, fp16_t, and bf16_t data types.
+ *
  * @version 1.1.0
  * */
 
@@ -87,6 +89,11 @@ void cpu<fp64_t>(Index nelems, Scalar alpha, const fp64_t* src, Scalar beta,
 template
 void cpu<bf16_t>(Index nelems, Scalar alpha, const bf16_t* src, Scalar beta,
         bf16_t* dst)
+    noexcept;
+
+template
+void cpu<fp16_t>(Index nelems, Scalar alpha, const fp16_t* src, Scalar beta,
+        fp16_t* dst)
     noexcept;
 
 } // namespace nntile::kernel::hypot

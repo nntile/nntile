@@ -9,6 +9,8 @@
  * @file src/kernel/prod/cpu.cc
  * Per-element product of two buffers on CPU
  *
+ * Supports fp64_t, fp32_t, fp32_fast_tf32_t, fp16_t, and bf16_t data types.
+ *
  * @version 1.1.0
  * */
 
@@ -56,6 +58,11 @@ void cpu<fp64_t>(Index nelems, const fp64_t *src1, const fp64_t *src2,
 template
 void cpu<bf16_t>(Index nelems, const bf16_t *src1, const bf16_t *src2,
         bf16_t *dst)
+    noexcept;
+
+template
+void cpu<fp16_t>(Index nelems, const fp16_t *src1, const fp16_t *src2,
+        fp16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::prod

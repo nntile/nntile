@@ -9,6 +9,8 @@
  * @file src/kernel/pow/cpu.cc
  * Power operation on CPU
  *
+ * Supports fp64_t, fp32_t, fp16_t, and bf16_t data types.
+ *
  * @version 1.1.0
  * */
 
@@ -59,6 +61,10 @@ void cpu<fp64_t>(Index nelems, Scalar alpha, Scalar exp, fp64_t *data)
 
 template
 void cpu<bf16_t>(Index nelems, Scalar alpha, Scalar exp, bf16_t *data)
+    noexcept;
+
+template
+void cpu<fp16_t>(Index nelems, Scalar alpha, Scalar exp, fp16_t *data)
     noexcept;
 
 } // namespace nntile::kernel::pow
