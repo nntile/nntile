@@ -18,7 +18,6 @@ set(TESTS
     "add_fiber"
     "add_fiber_inplace"
     "add_inplace"
-    "add_scalar"
     "add_slice"
     "add_slice_inplace"
     "addcdiv"
@@ -78,7 +77,6 @@ set(TESTS
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
     "accumulate_maxsumexp"
-    "add_scalar"
     "add_slice"
     "conv2d_bwd_input_inplace"
     "conv2d_bwd_weight_inplace"
@@ -138,6 +136,7 @@ endforeach()
 set(TESTS_CATCH2
     "adam_step"
     "adamw_step"
+    "add_scalar"
 )
 
 foreach(test IN LISTS TESTS_CATCH2)
