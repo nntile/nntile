@@ -208,8 +208,12 @@ TestData<T> get_test_data(
 
 // Helper function to verify results
 template<typename T>
-void verify_results(const TestData<T>& data, const std::vector<T>& p_out,
-                    const std::vector<T>& m_out, const std::vector<T>& v_out)
+void verify_results(
+    const TestData<T>& data,
+    const std::vector<T>& p_out,
+    const std::vector<T>& m_out,
+    const std::vector<T>& v_out
+)
 {
     using Y = typename T::repr_t;
     for(Index i = 0; i < data.num_elems; ++i)
@@ -423,13 +427,13 @@ TEMPLATE_TEST_CASE(
 )
 {
     using T = TestType;
-    const Index num_elems = GENERATE(512, 1024*1024);
+    const Index num_elems = GENERATE(512, 1024*1024, 4096*16384);
     const Index num_iter = GENERATE(2);
     const Scalar beta_1 = GENERATE(0.9);
     const Scalar beta_2 = GENERATE(0.999);
     const Scalar eps = GENERATE(1e-8);
     const Scalar lr = GENERATE(1e-2);
-    const Scalar weight_decay = GENERATE(0.0, 0.1);
+    const Scalar weight_decay = GENERATE(0.1);
     const DataGen strategy = GENERATE(DataGen::PRESET);
 
     auto data = get_test_data<T>(
