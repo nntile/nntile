@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/adam_step_catch2.cc
+ * @file tests/kernel/adam_step.cc
  * Fused Adam optimizer step with Catch2 testing framework
  *
  * @version 1.1.0
@@ -35,7 +35,7 @@ using namespace nntile;
 using namespace nntile::kernel;
 using namespace nntile::kernel::adam_step;
 
-// Type to acuiqre reference values
+// Type to acquire reference values
 using ref_t = double;
 
 // Struct to hold test data and reference results
@@ -141,8 +141,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             break;
         // Specific random initialization
         case DataGen::RANDOM:
-            std::random_device rd;
-            std::mt19937 gen(rd());
+            std::mt19937 gen(42);
             std::uniform_real_distribution<Y> dist(1.0, 2.0);
             for(Index i = 0; i < num_elems; ++i)
             {

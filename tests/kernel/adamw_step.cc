@@ -35,7 +35,7 @@ using namespace nntile;
 using namespace nntile::kernel;
 using namespace nntile::kernel::adamw_step;
 
-// Type to acuiqre reference values
+// Type to acquire reference values
 using ref_t = double;
 
 // Struct to hold test data and reference results
@@ -144,8 +144,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             break;
         // Specific random initialization
         case DataGen::RANDOM:
-            std::random_device rd;
-            std::mt19937 gen(rd());
+            std::mt19937 gen(42);
             std::uniform_real_distribution<Y> dist(1.0, 2.0);
             for(Index i = 0; i < num_elems; ++i)
             {
