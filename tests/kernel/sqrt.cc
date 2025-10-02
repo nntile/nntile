@@ -190,7 +190,6 @@ void run_cpu_test(TestData<T>& data)
 }
 
 #ifdef NNTILE_USE_CUDA
-
 // Helper function to run CUDA test and verify results
 template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
@@ -247,7 +246,7 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaFree(dev_dst), "cudaFree dev_dst");
     CUDA_CHECK(cudaStreamDestroy(stream), "cudaStreamDestroy");
 }
-#endif
+#endif // NNTILE_USE_CUDA
 
 // Catch2-based tests
 TEMPLATE_TEST_CASE(
@@ -255,6 +254,7 @@ TEMPLATE_TEST_CASE(
     "[sqrt]",
     fp64_t,
     fp32_t,
+    fp16_t,
     bf16_t
 )
 {
@@ -277,7 +277,7 @@ TEMPLATE_TEST_CASE(
     {
         run_cuda_test<T, false>(data);
     }
-#endif
+#endif // NNTILE_USE_CUDA
 }
 
 // Catch2-based benchmarks
@@ -286,6 +286,7 @@ TEMPLATE_TEST_CASE(
     "[sqrt][!benchmark]",
     fp64_t,
     fp32_t,
+    fp16_t,
     bf16_t
 )
 {
@@ -308,5 +309,5 @@ TEMPLATE_TEST_CASE(
     {
         run_cuda_test<T, true>(data);
     }
-#endif
+#endif // NNTILE_USE_CUDA
 }

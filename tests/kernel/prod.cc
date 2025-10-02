@@ -261,7 +261,7 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaFree(dev_dst), "cudaFree dev_dst");
     CUDA_CHECK(cudaStreamDestroy(stream), "cudaStreamDestroy");
 }
-#endif
+#endif // NNTILE_USE_CUDA
 
 // Catch2-based tests
 TEMPLATE_TEST_CASE(
@@ -292,7 +292,7 @@ TEMPLATE_TEST_CASE(
     {
         run_cuda_test<T, false>(data);
     }
-#endif
+#endif // NNTILE_USE_CUDA
 }
 
 // Catch2-based benchmarks
@@ -324,5 +324,5 @@ TEMPLATE_TEST_CASE(
     {
         run_cuda_test<T, true>(data);
     }
-#endif
+#endif // NNTILE_USE_CUDA
 }
