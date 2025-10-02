@@ -75,7 +75,7 @@ set(TESTS
     "sumprod_slice"
     "total_sum_accum"
     "transpose"
-    )
+)
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
@@ -111,7 +111,7 @@ set(TESTS_NOT_IMPLEMENTED
     "sum_fiber"
     "sumprod_fiber"
     "total_sum_accum"
-    )
+)
 
 # Setup a target for coverage of kernels
 if(BUILD_COVERAGE)
@@ -134,7 +134,30 @@ foreach(test IN LISTS TESTS)
         COV_NAME coverage_kernel_${test}
         COV_GLOBAL coverage_kernel coverage
         LABELS ${labels}
-        )
+    )
+endforeach()
+
+set(TESTS_CATCH2
+    "adam_step_catch2"
+)
+
+foreach(test IN LISTS TESTS_CATCH2)
+    set(labels)
+    if(test IN_LIST TESTS_NOT_IMPLEMENTED)
+        set(labels "NotImplemented")
+    endif()
+    add_test_set(TARGET_NAME tests_kernel_${test}
+        EXEC_NAME test_${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES
+            nntile
+            $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
+            Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_kernel_${test}
+        COV_GLOBAL coverage_kernel coverage
+        LABELS ${labels}
+    )
 endforeach()
 
 #add_executable("tests_kernel_maxsumexp" maxsumexp.cc)
