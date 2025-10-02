@@ -122,6 +122,15 @@ const typename CUDAComputeType<T>::value *cast_pointer_cuda(const T *ptr)
     return reinterpret_cast<const typename CUDAComputeType<T>::value *>(ptr);
 }
 
+//! Check CUDA error and throw runtime_error if error occurs
+#define CUDA_CHECK(error, message) \
+    do { \
+        cudaError_t _err = (error); \
+        if (_err != cudaSuccess) { \
+            throw std::runtime_error(std::string(message) + ": " + cudaGetErrorString(_err)); \
+        } \
+    } while (0)
+
 } // namespace nntile::kernel
 
 #endif // NNTILE_USE_CUDA
