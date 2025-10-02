@@ -210,15 +210,32 @@ template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_dst;
-    cudaMalloc(&dev_dst, sizeof(T) * data.num_elems);
+    cudaError_t err = cudaMalloc(&dev_dst, sizeof(T) * data.num_elems);
+    if (err != cudaSuccess)
+    {
+        throw std::runtime_error("cudaMalloc failed: " +
+            std::string(cudaGetErrorString(err)));
+    }
 
     std::vector<T> dst_cuda(data.dst_init);
 
-    cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.num_elems,
+    err = cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.num_elems,
         cudaMemcpyHostToDevice);
+    if (err != cudaSuccess)
+    {
+        cudaFree(dev_dst);
+        throw std::runtime_error("cudaMemcpy H2D failed: " +
+            std::string(cudaGetErrorString(err)));
+    }
 
     cudaStream_t stream;
-    cudaStreamCreate(&stream);
+    err = cudaStreamCreate(&stream);
+    if (err != cudaSuccess)
+    {
+        cudaFree(dev_dst);
+        throw std::runtime_error("cudaStreamCreate failed: " +
+            std::string(cudaGetErrorString(err)));
+    }
 
     if constexpr (run_bench)
     {
@@ -239,7 +256,12 @@ void run_cuda_test(TestData<T>& data)
                 data.beta,
                 dev_dst
             );
-            cudaStreamSynchronize(stream);
+            err = cudaStreamSynchronize(stream);
+            if (err != cudaSuccess)
+            {
+                throw std::runtime_error("cudaStreamSynchronize failed: " +
+                    std::string(cudaGetErrorString(err)));
+            }
         };
     }
     else
@@ -251,16 +273,36 @@ void run_cuda_test(TestData<T>& data)
             data.beta,
             dev_dst
         );
-        cudaStreamSynchronize(stream);
+        err = cudaStreamSynchronize(stream);
+        if (err != cudaSuccess)
+        {
+            throw std::runtime_error("cudaStreamSynchronize failed: " +
+                std::string(cudaGetErrorString(err)));
+        }
 
-        cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.num_elems,
+        err = cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.num_elems,
             cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess)
+        {
+            throw std::runtime_error("cudaMemcpy D2H failed: " +
+                std::string(cudaGetErrorString(err)));
+        }
 
         verify_results(data, dst_cuda);
     }
 
-    cudaFree(dev_dst);
-    cudaStreamDestroy(stream);
+    err = cudaFree(dev_dst);
+    if (err != cudaSuccess)
+    {
+        throw std::runtime_error("cudaFree failed: " +
+            std::string(cudaGetErrorString(err)));
+    }
+    err = cudaStreamDestroy(stream);
+    if (err != cudaSuccess)
+    {
+        throw std::runtime_error("cudaStreamDestroy failed: " +
+            std::string(cudaGetErrorString(err)));
+    }
 }
 #endif
 
