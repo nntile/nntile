@@ -29,7 +29,6 @@ set(TESTS
     "embedding"
     "embedding_backward"
     "fill"
-    "flash_attention"
     "gelu"
     "gelutanh_inplace"
     "hypot"

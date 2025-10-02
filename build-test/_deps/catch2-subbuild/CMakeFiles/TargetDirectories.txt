@@ -1,0 +1,3 @@
+/workspace/build-test/_deps/catch2-subbuild/CMakeFiles/catch2-populate.dir
+/workspace/build-test/_deps/catch2-subbuild/CMakeFiles/edit_cache.dir
+/workspace/build-test/_deps/catch2-subbuild/CMakeFiles/rebuild_cache.dir
