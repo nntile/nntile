@@ -57,4 +57,8 @@ template
 void cpu<bf16_t>(Index nelems, const bf16_t *x, const bf16_t *dy, bf16_t *dx)
     noexcept;
 
+template
+void cpu<fp16_t>(Index nelems, const fp16_t *x, const fp16_t *dy, fp16_t *dx)
+    noexcept;
+
 } // namespace nntile::kernel::gelu_backward

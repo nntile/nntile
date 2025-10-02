@@ -167,7 +167,7 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> dx_cpu(data.dx_ref); // Initialize with zeros
+    std::vector<T> dx_cpu(data.nelems, T{0}); // Initialize with zeros
 
     if constexpr (run_bench)
     {
