@@ -14,8 +14,6 @@
 # All unit tests without arguments to test executable
 set(TESTS
     "accumulate_maxsumexp"
-    "adam_step"
-    "adamw_step"
     "add"
     "add_fiber"
     "add_fiber_inplace"
@@ -138,7 +136,8 @@ foreach(test IN LISTS TESTS)
 endforeach()
 
 set(TESTS_CATCH2
-    "adam_step_catch2"
+    "adam_step"
+    "adamw_step"
 )
 
 foreach(test IN LISTS TESTS_CATCH2)
