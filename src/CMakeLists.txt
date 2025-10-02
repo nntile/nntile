@@ -32,6 +32,7 @@ if(NOT HAVE_STARPU_SIMGRID)
         "kernel/add_slice_inplace/cpu.cc"
         "kernel/addcdiv/cpu.cc"
         "kernel/cblas.cc"
+        "kernel/cudnn.cc"
         "kernel/conv2d_bwd_input_inplace/cpu.cc"
         "kernel/conv2d_bwd_weight_inplace/cpu.cc"
         "kernel/conv2d_inplace/cpu.cc"

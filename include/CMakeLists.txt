@@ -44,6 +44,7 @@ set(KERNEL_HDR
     "nntile/kernel/addcdiv/cpu.hh"
     "nntile/kernel/cblas.hh"
     "nntile/kernel/cublas.hh"
+    "nntile/kernel/cudnn.hh"
     "nntile/kernel/conv2d_bwd_input_inplace.hh"
     "nntile/kernel/conv2d_bwd_input_inplace/cpu.hh"
     "nntile/kernel/conv2d_bwd_weight_inplace.hh"

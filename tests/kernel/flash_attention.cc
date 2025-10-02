@@ -411,10 +411,7 @@ TEMPLATE_TEST_CASE(
 #ifdef NNTILE_USE_CUDA
     SECTION("cuda")
     {
-        // Note: CUDA implementation is a placeholder and won't produce correct results
-        // until cuDNN integration is completed
-        // run_cuda_test<T, false>(data);
-        SKIP("CUDA implementation requires cuDNN integration");
+        run_cuda_test<T, false>(data);
     }
 #endif
 }
@@ -446,8 +443,7 @@ TEMPLATE_TEST_CASE(
 #ifdef NNTILE_USE_CUDA
     SECTION("cuda")
     {
-        // run_cuda_test<T, true>(data);
-        SKIP("CUDA implementation requires cuDNN integration");
+        run_cuda_test<T, true>(data);
     }
 #endif
 }

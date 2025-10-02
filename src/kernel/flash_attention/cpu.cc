@@ -29,7 +29,7 @@ void cpu(Index batch, Index num_heads, Index seq_len, Index head_dim,
 //! Vanilla attention implementation as reference for flash attention
 /*!
  * Computes attention: O = softmax(Q @ K^T / scale) @ V
- * 
+ *
  * Input shapes:
  *   Q: [batch, num_heads, seq_len, head_dim]
  *   K: [batch, num_heads, seq_len, head_dim]
@@ -49,7 +49,7 @@ void cpu(Index batch, Index num_heads, Index seq_len, Index head_dim,
 {
     using Y = typename T::repr_t;
     const Y scale{scale_};
-    
+
     // Iterate over batch and heads
     for(Index b = 0; b < batch; ++b)
     {
@@ -57,7 +57,7 @@ void cpu(Index batch, Index num_heads, Index seq_len, Index head_dim,
         {
             // Base offset for current batch and head
             Index base_offset = (b * num_heads + h) * seq_len * head_dim;
-            
+
             // For each query position
             for(Index i = 0; i < seq_len; ++i)
             {
@@ -65,7 +65,7 @@ void cpu(Index batch, Index num_heads, Index seq_len, Index head_dim,
                 // scores[j] = Q[i] · K[j] / scale
                 std::vector<Y> scores(seq_len);
                 Y max_score = -std::numeric_limits<Y>::infinity();
-                
+
                 for(Index j = 0; j < seq_len; ++j)
                 {
                     Y score = Y{0.0};
@@ -82,7 +82,7 @@ void cpu(Index batch, Index num_heads, Index seq_len, Index head_dim,
                     scores[j] = score;
                     max_score = std::max(max_score, score);
                 }
-                
+
                 // Apply softmax: compute exp and sum
                 Y sum_exp = Y{0.0};
                 for(Index j = 0; j < seq_len; ++j)
@@ -90,13 +90,13 @@ void cpu(Index batch, Index num_heads, Index seq_len, Index head_dim,
                     scores[j] = std::exp(scores[j] - max_score);
                     sum_exp += scores[j];
                 }
-                
+
                 // Normalize
                 for(Index j = 0; j < seq_len; ++j)
                 {
                     scores[j] = scores[j] / sum_exp;
                 }
-                
+
                 // Compute output: O[i] = sum_j(scores[j] * V[j])
                 for(Index d = 0; d < head_dim; ++d)
                 {
