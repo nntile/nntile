@@ -12,213 +12,449 @@
  * @version 1.1.0
  * */
 
+ // Corresponding header
 #include "nntile/kernel/adam_step.hh"
-#include "../testing.hh"
+
+// Standard libraries
 #include <vector>
 #include <stdexcept>
 #include <limits>
 #include <iostream>
 #include <cmath>
+#include <random>
+#include <string>
 
+// Third-party libraries
+#include <catch2/catch_all.hpp>
+
+// Use namespaces for shorter code
+using namespace Catch;
+
+// Use tested NNTile namespaces
 using namespace nntile;
 using namespace nntile::kernel;
 using namespace nntile::kernel::adam_step;
 
-#ifdef NNTILE_USE_CUDA
+// Type to acquire reference values
+using ref_t = double;
+
+// Struct to hold test data and reference results
 template<typename T>
-void run_cuda(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-    Scalar eps, Scalar lr, Scalar weight_decay, const std::vector<T>& grad,
-    std::vector<T>& first_moment, std::vector<T>& second_moment,
-    std::vector<T>& p)
+struct TestData
 {
-    // Copy to device
-    T *dev_grad, *dev_first_moment, *dev_second_moment, *dev_p;
-    cudaError_t cuda_err = cudaMalloc(&dev_grad, sizeof(T)*num_elems);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_first_moment, sizeof(T)*num_elems);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_second_moment, sizeof(T)*num_elems);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_p, sizeof(T)*num_elems);
-    TEST_ASSERT(cuda_err == cudaSuccess);
+    using Y = typename T::repr_t;
+    Index num_elems; // Number of data elements
+    Index num_iter; // Iteration number
+    Scalar beta_1;
+    Scalar beta_2;
+    Scalar eps;
+    Scalar lr;
+    Scalar weight_decay;
+    Scalar eps_check;
 
-    cuda_err = cudaMemcpy(dev_grad, &grad[0], sizeof(T)*num_elems, cudaMemcpyHostToDevice);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_first_moment, &first_moment[0], sizeof(T)*num_elems, cudaMemcpyHostToDevice);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_second_moment, &second_moment[0], sizeof(T)*num_elems, cudaMemcpyHostToDevice);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_p, &p[0], sizeof(T)*num_elems, cudaMemcpyHostToDevice);
-    TEST_ASSERT(cuda_err == cudaSuccess);
+    std::vector<T> grad;
+    std::vector<T> p_init;
+    std::vector<T> first_moment_init;
+    std::vector<T> second_moment_init;
 
-    // Init stream
-    cudaStream_t stream;
-    cuda_err = cudaStreamCreate(&stream);
-    TEST_ASSERT(cuda_err == cudaSuccess);
+    std::vector<T> p_ref;
+    std::vector<T> first_moment_ref;
+    std::vector<T> second_moment_ref;
+};
 
-    // Launch low-level CUDA kernel
-    cuda<T>(stream, num_iter, num_elems, beta_1, beta_2, eps, lr, weight_decay,
-        dev_grad, dev_first_moment, dev_second_moment, dev_p);
-    cuda_err = cudaStreamSynchronize(stream);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-
-    // Copy result and deallocate device memory
-    cuda_err = cudaMemcpy(&first_moment[0], dev_first_moment, sizeof(T)*num_elems, cudaMemcpyDeviceToHost);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(&second_moment[0], dev_second_moment, sizeof(T)*num_elems, cudaMemcpyDeviceToHost);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(&p[0], dev_p, sizeof(T)*num_elems, cudaMemcpyDeviceToHost);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-
-    cuda_err = cudaFree(dev_grad);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaFree(dev_first_moment);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaFree(dev_second_moment);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaFree(dev_p);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaStreamDestroy(stream);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-}
-#endif // NNTILE_USE_CUDA
-
-// Templated validation
+// Reference implementation of the Adam step
 template<typename T>
-void validate(Index num_elems, Index num_iter)
+void reference_adam_step(TestData<T>& data)
 {
-    if (num_elems == 0)
+    using Y = typename T::repr_t;
+    if (data.num_elems == 0)
     {
         return;
     }
+    const ref_t beta_1_r = data.beta_1;
+    const ref_t beta_2_r = data.beta_2;
+    const ref_t lr_r = data.lr;
+    const ref_t weight_decay_r = data.weight_decay;
+    const ref_t eps_r = data.eps;
+    constexpr ref_t one = 1.0;
+    const ref_t alpha = lr_r / (one - std::pow(beta_1_r, data.num_iter));
+    const ref_t beta = one / std::sqrt(one - std::pow(beta_2_r, data.num_iter));
+    for(Index i = 0; i < data.num_elems; ++i)
+    {
+        ref_t p_val = static_cast<Y>(data.p_ref[i]);
+        ref_t grad_val = static_cast<Y>(data.grad[i]);
+        grad_val += weight_decay_r * p_val;
+        ref_t f_val, s_val;
+        if(data.num_iter == 1)
+        {
+            f_val = (one - beta_1_r) * grad_val;
+            s_val = std::sqrt(one - beta_2_r) * std::fabs(grad_val);
+        }
+        else
+        {
+            f_val = static_cast<Y>(data.first_moment_ref[i]);
+            s_val = static_cast<Y>(data.second_moment_ref[i]);
+            f_val = beta_1_r * f_val + (one - beta_1_r) * grad_val;
+            s_val = std::hypot(
+                std::sqrt(beta_2_r) * s_val,
+                std::sqrt(one - beta_2_r) * grad_val
+            );
+        }
+        data.first_moment_ref[i] = static_cast<T>(static_cast<Y>(f_val));
+        data.second_moment_ref[i] = static_cast<T>(static_cast<Y>(s_val));
+        const ref_t denom = s_val * beta + eps_r;
+        const ref_t p_ref = p_val - alpha * f_val / denom;
+        data.p_ref[i] = static_cast<T>(static_cast<Y>(p_ref));
+    }
+}
+
+// Enum for data generation strategies
+enum class DataGen
+{
+    PRESET,
+    RANDOM
+};
+
+// Generates data with preset, deterministic values
+template<typename T>
+void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
+{
     using Y = typename T::repr_t;
-    Y eps_check;
-    if (std::is_same<T, bf16_t>::value)
+    data.num_elems = num_elems;
+
+    data.grad.resize(num_elems);
+    data.p_init.resize(num_elems);
+    data.first_moment_init.resize(num_elems);
+    data.second_moment_init.resize(num_elems);
+
+    switch(strategy)
     {
-        eps_check = 1e-1;
+        // Non-random input generation
+        case DataGen::PRESET:
+            for(Index i = 0; i < num_elems; ++i)
+            {
+                data.grad[i] = Y(2 * i + 1 - num_elems);
+                data.p_init[i] = Y(num_elems - i);
+                data.first_moment_init[i] = Y(i + 1);
+                data.second_moment_init[i] = Y(num_elems - i);
+            }
+            break;
+        // Specific random initialization
+        case DataGen::RANDOM:
+            std::mt19937 gen(42);
+            std::uniform_real_distribution<Y> dist(1.0, 2.0);
+            for(Index i = 0; i < num_elems; ++i)
+            {
+                data.grad[i] = dist(gen);
+                data.p_init[i] = 2 * dist(gen);
+                data.first_moment_init[i] = 3 * dist(gen);
+                data.second_moment_init[i] = std::abs(4 * dist(gen));
+            }
     }
-    else if (std::is_same<T, fp16_t>::value)
+}
+
+// Get test data and reference results
+template<typename T>
+TestData<T> get_test_data(
+    Index num_elems,
+    Index num_iter,
+    Scalar beta_1,
+    Scalar beta_2,
+    Scalar eps,
+    Scalar lr,
+    Scalar weight_decay,
+    DataGen strategy
+)
+{
+    TestData<T> data;
+    // Generate data by a provided strategy
+    generate_data(data, num_elems, strategy);
+    // Fill in remaining fields of TestData
+    data.num_iter = num_iter;
+    data.beta_1 = beta_1;
+    data.beta_2 = beta_2;
+    data.eps = eps;
+    data.lr = lr;
+    data.weight_decay = weight_decay;
+    // Set accuracy threshold for each precision
+    if (std::is_same_v<T, bf16_t>)
     {
-        eps_check = 1e-2;
+        data.eps_check = 1e-1;
     }
-    else if (std::is_same<T, fp32_t>::value)
+    else if (std::is_same_v<T, fp16_t>)
     {
-        eps_check = 1e-5;
+        data.eps_check = 1e-2;
+    }
+    else if (std::is_same_v<T, fp32_t>)
+    {
+        data.eps_check = 3.1e-3;
+    }
+    else if (std::is_same_v<T, fp64_t>)
+    {
+        data.eps_check = 1e-7;
     }
     else
     {
-        eps_check = 1e-8;
+        throw std::runtime_error("Unsupported data type");
     }
-    // Parameters
-    Scalar beta_1_s = 0.9, beta_2_s = 0.999, eps_s = 1e-8, lr_s = 0.01, weight_decay_s=0.1;
-    const Y beta_1{beta_1_s}, beta_2{beta_2_s}, eps{eps_s}, lr{lr_s}, weight_decay{weight_decay_s};
-
-    // Initial data
-    std::vector<T> grad(num_elems), p_init(num_elems);
-    std::vector<T> first_moment_init(num_elems, T{0.0}), second_moment_init(num_elems, T{0.0});
-
-    for(Index i = 0; i < num_elems; ++i)
-    {
-        grad[i] = Y(2*i+1-num_elems);
-        p_init[i] = Y(num_elems-i);
-        if (num_iter > 1) {
-            first_moment_init[i] = Y(i+1);
-            second_moment_init[i] = Y(num_elems-i);
-        }
-    }
-
-    // CPU reference implementation
-    std::vector<T> p_ref(p_init), first_moment_ref(first_moment_init),
-        second_moment_ref(second_moment_init);
-
-    const Y alpha = lr / (Y{1.0} - std::pow(beta_1, num_iter));
-    const Y beta = Y{1.0} / std::sqrt(Y{1.0} - std::pow(beta_2, num_iter));
-    for(Index i = 0; i < num_elems; ++i)
-    {
-        Y p_val = static_cast<Y>(p_ref[i]);
-        Y grad_val = static_cast<Y>(grad[i]);
-        if (weight_decay != 0)
-        {
-            grad_val += weight_decay * p_val;
-        }
-        Y f_val, s_val;
-        if(num_iter == 1)
-        {
-            f_val = (Y{1.0} - beta_1) * grad_val;
-            s_val = std::sqrt(Y{1.0}-beta_2) * std::fabs(grad_val);
-        }
-        else
-        {
-            f_val = static_cast<Y>(first_moment_ref[i]);
-            s_val = static_cast<Y>(second_moment_ref[i]);
-            f_val = beta_1*f_val + (Y{1.0}-beta_1)*grad_val;
-            s_val = std::hypot(std::sqrt(beta_2)*s_val,
-                    std::sqrt(Y{1.0}-beta_2)*grad_val);
-        }
-        first_moment_ref[i] = static_cast<T>(f_val);
-        second_moment_ref[i] = static_cast<T>(s_val);
-        const Y denom = s_val*beta + eps;
-        p_ref[i] = static_cast<T>(p_val - alpha*f_val/denom);
-    }
-
-    // Run CPU kernel
-    std::vector<T> p_cpu(p_init), first_moment_cpu(first_moment_init),
-        second_moment_cpu(second_moment_init);
-    std::cout << "Run kernel::adam_step::cpu<" << T::short_name << ">\n";
-    cpu<T>(num_iter, num_elems, beta_1_s, beta_2_s, eps_s, lr_s,
-        weight_decay_s, &grad[0], &first_moment_cpu[0],
-        &second_moment_cpu[0], &p_cpu[0]);
-
-    for(Index i = 0; i < num_elems; ++i)
-    {
-        Y p_val = Y{p_cpu[i]}, p_ref_val = Y{p_ref[i]};
-        if (p_ref_val == Y{0.0})
-        {
-            TEST_ASSERT(std::abs(p_val) <= eps_check);
-        }
-        else
-        {
-            TEST_ASSERT(std::abs(p_val - p_ref_val) / std::abs(p_ref_val) <= eps_check);
-        }
-    }
-    std::cout << "OK: kernel::adam_step::cpu<" << T::short_name << ">\n";
-
-#ifdef NNTILE_USE_CUDA
-    // Run CUDA kernel
-    std::vector<T> p_cuda(p_init), first_moment_cuda(first_moment_init),
-        second_moment_cuda(second_moment_init);
-    std::cout << "Run kernel::adam_step::cuda<" << T::short_name << ">\n";
-    run_cuda<T>(num_iter, num_elems, beta_1_s, beta_2_s, eps_s, lr_s,
-        weight_decay_s, grad, first_moment_cuda, second_moment_cuda, p_cuda);
-
-    for(Index i = 0; i < num_elems; ++i)
-    {
-        Y p_val = Y{p_cuda[i]}, p_ref_val = Y{p_ref[i]};
-        if (p_ref_val == Y{0.0})
-        {
-            TEST_ASSERT(std::abs(p_val) <= eps_check);
-        }
-        else
-        {
-            TEST_ASSERT(std::abs(p_val - p_ref_val) / std::abs(p_ref_val) <= eps_check);
-        }
-    }
-    std::cout << "OK: kernel::adam_step::cuda<" << T::short_name << ">\n";
-#endif // NNTILE_USE_CUDA
+    // Compute reference outputs
+    data.p_ref = data.p_init;
+    data.first_moment_ref = data.first_moment_init;
+    data.second_moment_ref = data.second_moment_init;
+    reference_adam_step(data);
+    return data;
 }
 
-int main(int argc, char **argv)
+// Helper function to verify results
+template<typename T>
+void verify_results(
+    const TestData<T>& data,
+    const std::vector<T>& p_out,
+    const std::vector<T>& m_out,
+    const std::vector<T>& v_out
+)
 {
-    const Index test_nelems[] = {0, 1, 10, 1024};
-    const Index test_niter[] = {1, 5};
-    for(Index nelems : test_nelems)
+    using Y = typename T::repr_t;
+    for(Index i = 0; i < data.num_elems; ++i)
     {
-        for(Index niter : test_niter)
-        {
-            validate<fp32_t>(nelems, niter);
-            validate<fp64_t>(nelems, niter);
-            validate<bf16_t>(nelems, niter);
-            validate<fp16_t>(nelems, niter);
-        }
+        Y p_ref = static_cast<Y>(data.p_ref[i]);
+        Y m_ref = static_cast<Y>(data.first_moment_ref[i]);
+        Y v_ref = static_cast<Y>(data.second_moment_ref[i]);
+        auto p_approx = Approx(p_ref).epsilon(data.eps_check);
+        auto m_approx = Approx(m_ref).epsilon(data.eps_check);
+        auto v_approx = Approx(v_ref).epsilon(data.eps_check);
+        REQUIRE(static_cast<Y>(p_out[i]) == p_approx);
+        REQUIRE(static_cast<Y>(m_out[i]) == m_approx);
+        REQUIRE(static_cast<Y>(v_out[i]) == v_approx);
     }
+}
+
+// Helper function to run CPU test and verify results
+template<typename T, bool run_bench>
+void run_cpu_test(TestData<T>& data)
+{
+    std::vector<T> p_cpu(data.p_init);
+    std::vector<T> first_moment_cpu(data.first_moment_init);
+    std::vector<T> second_moment_cpu(data.second_moment_init);
+
+    if constexpr (run_bench)
+    {
+        BENCHMARK(
+            "[kernel][adam_step][cpu][nelems=" +
+            std::to_string(data.num_elems) +
+            "][weight_decay=" +
+            std::to_string(data.weight_decay) +
+            "]"
+        )
+        {
+            cpu<T>(
+                data.num_iter,
+                data.num_elems,
+                data.beta_1,
+                data.beta_2,
+                data.eps,
+                data.lr,
+                data.weight_decay,
+                &data.grad[0],
+                &first_moment_cpu[0],
+                &second_moment_cpu[0],
+                &p_cpu[0]
+            );
+        };
+    }
+    else
+    {
+        cpu<T>(
+            data.num_iter,
+            data.num_elems,
+            data.beta_1,
+            data.beta_2,
+            data.eps,
+            data.lr,
+            data.weight_decay,
+            &data.grad[0],
+            &first_moment_cpu[0],
+            &second_moment_cpu[0],
+            &p_cpu[0]
+        );
+        verify_results(data, p_cpu, first_moment_cpu, second_moment_cpu);
+    }
+}
+
+#ifdef NNTILE_USE_CUDA
+// Helper function to run CUDA test and verify results
+template<typename T, bool run_bench>
+void run_cuda_test(TestData<T>& data)
+{
+    T *dev_grad, *dev_first_moment, *dev_second_moment, *dev_p;
+    cudaMalloc(&dev_grad, sizeof(T) * data.num_elems);
+    cudaMalloc(&dev_first_moment, sizeof(T) * data.num_elems);
+    cudaMalloc(&dev_second_moment, sizeof(T) * data.num_elems);
+    cudaMalloc(&dev_p, sizeof(T) * data.num_elems);
+
+    std::vector<T> p_cuda(data.p_init);
+    std::vector<T> first_moment_cuda(data.first_moment_init);
+    std::vector<T> second_moment_cuda(data.second_moment_init);
+
+    cudaMemcpy(dev_grad, &data.grad[0], sizeof(T) * data.num_elems,
+        cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_first_moment, &first_moment_cuda[0],
+        sizeof(T) * data.num_elems, cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_second_moment, &second_moment_cuda[0],
+        sizeof(T) * data.num_elems, cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_p, &p_cuda[0], sizeof(T) * data.num_elems,
+        cudaMemcpyHostToDevice);
+
+    cudaStream_t stream;
+    cudaStreamCreate(&stream);
+
+    if constexpr (run_bench)
+    {
+        BENCHMARK(
+            "[kernel][adam_step][cuda][nelems=" +
+            std::to_string(data.num_elems) +
+            "][weight_decay=" +
+            std::to_string(data.weight_decay) +
+            "]"
+        )
+        {
+            cuda<T>(
+                stream,
+                data.num_iter,
+                data.num_elems,
+                data.beta_1,
+                data.beta_2,
+                data.eps,
+                data.lr,
+                data.weight_decay,
+                dev_grad,
+                dev_first_moment,
+                dev_second_moment,
+                dev_p
+            );
+            cudaStreamSynchronize(stream);
+        };
+    }
+    else
+    {
+        cuda<T>(
+            stream,
+            data.num_iter,
+            data.num_elems,
+            data.beta_1,
+            data.beta_2,
+            data.eps,
+            data.lr,
+            data.weight_decay,
+            dev_grad,
+            dev_first_moment,
+            dev_second_moment,
+            dev_p
+        );
+        cudaStreamSynchronize(stream);
+
+        cudaMemcpy(&first_moment_cuda[0], dev_first_moment,
+            sizeof(T) * data.num_elems, cudaMemcpyDeviceToHost);
+        cudaMemcpy(&second_moment_cuda[0], dev_second_moment,
+            sizeof(T) * data.num_elems, cudaMemcpyDeviceToHost);
+        cudaMemcpy(&p_cuda[0], dev_p, sizeof(T) * data.num_elems,
+            cudaMemcpyDeviceToHost);
+
+        verify_results(data, p_cuda, first_moment_cuda, second_moment_cuda);
+    }
+
+    cudaFree(dev_grad);
+    cudaFree(dev_first_moment);
+    cudaFree(dev_second_moment);
+    cudaFree(dev_p);
+    cudaStreamDestroy(stream);
+}
+#endif
+
+// Catch2-based tests
+TEMPLATE_TEST_CASE(
+    "Adam Step Kernel Verification",
+    "[adam_step]",
+    fp64_t,
+    fp32_t,
+    fp16_t,
+    bf16_t
+)
+{
+    using T = TestType;
+    const Index num_elems = GENERATE(5, 129);
+    const Index num_iter = GENERATE(1, 5);
+    const Scalar beta_1 = GENERATE(0.9, 0.1);
+    const Scalar beta_2 = GENERATE(0.999, 0.9, 0.1);
+    const Scalar eps = GENERATE(1e-1, 1e-2, 1e-4);
+    const Scalar lr = GENERATE(1e-1, 1e-3);
+    const Scalar weight_decay = GENERATE(0.0, 0.1, 0.2);
+    const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
+
+    auto data = get_test_data<T>(
+        num_elems,
+        num_iter,
+        beta_1,
+        beta_2,
+        eps,
+        lr,
+        weight_decay,
+        strategy
+    );
+
+    SECTION("cpu")
+    {
+        run_cpu_test<T, false>(data);
+    }
+
+#ifdef NNTILE_USE_CUDA
+    SECTION("cuda")
+    {
+        run_cuda_test<T, false>(data);
+    }
+#endif
+}
+
+// Catch2-based benchmarks
+TEMPLATE_TEST_CASE(
+    "Adam Step Kernel Benchmark",
+    "[adam_step][!benchmark]",
+    fp64_t,
+    fp32_t,
+    fp16_t,
+    bf16_t
+)
+{
+    using T = TestType;
+    const Index num_elems = GENERATE(512, 1024*1024, 4096*16384);
+    const Index num_iter = GENERATE(2);
+    const Scalar beta_1 = GENERATE(0.9);
+    const Scalar beta_2 = GENERATE(0.999);
+    const Scalar eps = GENERATE(1e-8);
+    const Scalar lr = GENERATE(1e-2);
+    const Scalar weight_decay = GENERATE(0.1);
+    const DataGen strategy = GENERATE(DataGen::PRESET);
+
+    auto data = get_test_data<T>(
+        num_elems,
+        num_iter,
+        beta_1,
+        beta_2,
+        eps,
+        lr,
+        weight_decay,
+        strategy
+    );
+
+    SECTION("cpu")
+    {
+        run_cpu_test<T, true>(data);
+    }
+
+#ifdef NNTILE_USE_CUDA
+    SECTION("cuda")
+    {
+        run_cuda_test<T, true>(data);
+    }
+#endif
 }
