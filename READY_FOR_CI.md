@@ -137,11 +137,11 @@ cmake --build build
 compute_scores_kernel
   ↓ Computes Q @ K^T / scale
   ↓ Tracks max_score per query
-  
+
 softmax_kernel
   ↓ Applies stable softmax
   ↓ Normalizes attention weights
-  
+
 compute_output_kernel
   ↓ Computes weighted sum with V
   ↓ Produces final output

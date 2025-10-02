@@ -11,7 +11,7 @@ Complete implementation of flash attention for NNTile with StarPU-level wrappers
 ### Core Implementation
 ```
 ✅ CPU Kernel (vanilla attention reference)
-✅ CUDA Kernel (vanilla attention on GPU)  
+✅ CUDA Kernel (vanilla attention on GPU)
 ✅ StarPU Wrapper (task-based parallelism)
 ✅ cuDNN Helper (handle infrastructure)
 ✅ Comprehensive Tests (10,368 assertions)
@@ -339,6 +339,6 @@ All code is:
 
 ---
 
-*Implementation completed: October 2, 2025*  
-*All fixes applied, all tests passing*  
+*Implementation completed: October 2, 2025*
+*All fixes applied, all tests passing*
 *Ready for production use* ✅

@@ -47,7 +47,7 @@ ctest -R flash_attention -V
 # Just kernel tests
 ctest -R tests_kernel_flash_attention
 
-# Just StarPU tests  
+# Just StarPU tests
 ctest -R tests_starpu_flash_attention
 ```
 
@@ -80,16 +80,16 @@ std::vector<fp32_t> O_data(batch * num_heads * seq_len * head_dim);
 // Create StarPU handles
 Handle Q_handle, K_handle, V_handle, O_handle;
 Q_handle.acquire(STARPU_W);
-Q_handle.own(reinterpret_cast<void*>(&Q_data[0]), 
+Q_handle.own(reinterpret_cast<void*>(&Q_data[0]),
              sizeof(fp32_t) * Q_data.size());
 K_handle.acquire(STARPU_W);
-K_handle.own(reinterpret_cast<void*>(&K_data[0]), 
+K_handle.own(reinterpret_cast<void*>(&K_data[0]),
              sizeof(fp32_t) * K_data.size());
 V_handle.acquire(STARPU_W);
-V_handle.own(reinterpret_cast<void*>(&V_data[0]), 
+V_handle.own(reinterpret_cast<void*>(&V_data[0]),
              sizeof(fp32_t) * V_data.size());
 O_handle.acquire(STARPU_W);
-O_handle.own(reinterpret_cast<void*>(&O_data[0]), 
+O_handle.own(reinterpret_cast<void*>(&O_data[0]),
              sizeof(fp32_t) * O_data.size());
 
 // Submit flash attention task
@@ -123,11 +123,11 @@ Input Tensors (all same shape):
 For each batch b, head h, query position i:
   1. Compute attention scores:
      scores[j] = (Q[b,h,i,:] · K[b,h,j,:]) * scale
-  
+
   2. Apply softmax (numerically stable):
      max_score = max(scores)
      scores = exp(scores - max_score) / sum(exp(scores - max_score))
-  
+
   3. Compute output:
      O[b,h,i,:] = Σ_j (scores[j] * V[b,h,j,:])
 
@@ -165,7 +165,7 @@ Linear index = batch * (num_heads * seq_len * head_dim)
 
 ### Kernel Tests
 - **Types**: fp32, fp64, fp16, bf16
-- **Configurations**: 
+- **Configurations**:
   - Batch: 1, 2
   - Heads: 1, 2
   - Seq length: 4, 8
@@ -193,7 +193,7 @@ namespace nntile::kernel::flash_attention {
 // CUDA implementation (stub)
 namespace nntile::kernel::flash_attention {
   template<typename T>
-  void cuda(cudaStream_t stream, Index batch, Index num_heads, 
+  void cuda(cudaStream_t stream, Index batch, Index num_heads,
             Index seq_len, Index head_dim,
             const T *Q, const T *K, const T *V, Scalar scale, T *O) noexcept;
 }
@@ -204,7 +204,7 @@ namespace nntile::kernel::flash_attention {
 namespace nntile::starpu {
   // Operation pack
   extern flash_attention_pack_t flash_attention;
-  
+
   // Template class
   template<typename T>
   class FlashAttention<std::tuple<T>> {
@@ -255,10 +255,10 @@ namespace nntile::starpu {
 
 ## Status
 
-✅ **CPU Implementation**: Fully working  
-⏳ **CUDA Implementation**: Ready for cuDNN integration  
-✅ **Tests**: Comprehensive coverage  
-✅ **Build System**: Fully integrated  
-✅ **Documentation**: Complete  
+✅ **CPU Implementation**: Fully working
+⏳ **CUDA Implementation**: Ready for cuDNN integration
+✅ **Tests**: Comprehensive coverage
+✅ **Build System**: Fully integrated
+✅ **Documentation**: Complete
 
 **Ready for production use on CPU, prepared for GPU acceleration.**

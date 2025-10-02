@@ -74,7 +74,7 @@ template<typename T>
 void reference_flash_attention(TestData<T>& data)
 {
     using Y = typename T::repr_t;
-    
+
     // Iterate over batch and heads
     for(Index b = 0; b < data.batch; ++b)
     {
@@ -82,14 +82,14 @@ void reference_flash_attention(TestData<T>& data)
         {
             // Base offset for current batch and head
             Index base_offset = (b * data.num_heads + h) * data.seq_len * data.head_dim;
-            
+
             // For each query position
             for(Index i = 0; i < data.seq_len; ++i)
             {
                 // Compute attention scores: Q[i] @ K^T / scale
                 std::vector<ref_t> scores(data.seq_len);
                 ref_t max_score = -std::numeric_limits<ref_t>::infinity();
-                
+
                 for(Index j = 0; j < data.seq_len; ++j)
                 {
                     ref_t score = 0.0;
@@ -106,7 +106,7 @@ void reference_flash_attention(TestData<T>& data)
                     scores[j] = score;
                     max_score = std::max(max_score, score);
                 }
-                
+
                 // Apply softmax: compute exp and sum
                 ref_t sum_exp = 0.0;
                 for(Index j = 0; j < data.seq_len; ++j)
@@ -114,13 +114,13 @@ void reference_flash_attention(TestData<T>& data)
                     scores[j] = std::exp(scores[j] - max_score);
                     sum_exp += scores[j];
                 }
-                
+
                 // Normalize
                 for(Index j = 0; j < data.seq_len; ++j)
                 {
                     scores[j] = scores[j] / sum_exp;
                 }
-                
+
                 // Compute output: O[i] = sum_j(scores[j] * V[j])
                 for(Index d = 0; d < data.head_dim; ++d)
                 {
@@ -145,19 +145,19 @@ void generate_data(TestData<T>& data, Index batch, Index num_heads,
         Index seq_len, Index head_dim, DataGen strategy)
 {
     using Y = typename T::repr_t;
-    
+
     data.batch = batch;
     data.num_heads = num_heads;
     data.seq_len = seq_len;
     data.head_dim = head_dim;
     data.scale = 1.0 / std::sqrt(static_cast<float>(head_dim));
-    
+
     Index total_size = batch * num_heads * seq_len * head_dim;
     data.Q.resize(total_size);
     data.K.resize(total_size);
     data.V.resize(total_size);
     data.O_ref.resize(total_size);
-    
+
     switch(strategy)
     {
         // Non-random input generation
@@ -169,7 +169,7 @@ void generate_data(TestData<T>& data, Index batch, Index num_heads,
                 data.V[i] = Y(0.2 * ((i + 2) % 10));
             }
             break;
-        
+
         // Identity attention (Q = K leads to uniform attention over all positions)
         case DataGen::IDENTITY:
             for(Index i = 0; i < total_size; ++i)
@@ -180,7 +180,7 @@ void generate_data(TestData<T>& data, Index batch, Index num_heads,
                 data.V[i] = Y(0.5 * (i % seq_len));
             }
             break;
-        
+
         // Random initialization
         case DataGen::RANDOM:
             std::mt19937 gen(42);
@@ -201,10 +201,10 @@ TestData<T> get_test_data(Index batch, Index num_heads, Index seq_len,
         Index head_dim, DataGen strategy)
 {
     TestData<T> data;
-    
+
     // Generate data by a provided strategy
     generate_data(data, batch, num_heads, seq_len, head_dim, strategy);
-    
+
     // Set accuracy threshold for each precision
     if (std::is_same_v<T, bf16_t>)
     {
@@ -226,10 +226,10 @@ TestData<T> get_test_data(Index batch, Index num_heads, Index seq_len,
     {
         throw std::runtime_error("Unsupported data type");
     }
-    
+
     // Compute reference outputs
     reference_flash_attention(data);
-    
+
     return data;
 }
 
@@ -239,7 +239,7 @@ void verify_results(const TestData<T>& data, const std::vector<T>& O_out)
 {
     using Y = typename T::repr_t;
     Index total_size = data.batch * data.num_heads * data.seq_len * data.head_dim;
-    
+
     for(Index i = 0; i < total_size; ++i)
     {
         Y ref_val = static_cast<Y>(data.O_ref[i]);
@@ -254,7 +254,7 @@ template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
     std::vector<T> O_cpu(data.O_ref.size());
-    
+
     if constexpr (run_bench)
     {
         BENCHMARK(
@@ -306,25 +306,25 @@ template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     Index total_size = data.batch * data.num_heads * data.seq_len * data.head_dim;
-    
+
     T *dev_Q, *dev_K, *dev_V, *dev_O;
     CUDA_CHECK(cudaMalloc(&dev_Q, sizeof(T) * total_size), "cudaMalloc dev_Q");
     CUDA_CHECK(cudaMalloc(&dev_K, sizeof(T) * total_size), "cudaMalloc dev_K");
     CUDA_CHECK(cudaMalloc(&dev_V, sizeof(T) * total_size), "cudaMalloc dev_V");
     CUDA_CHECK(cudaMalloc(&dev_O, sizeof(T) * total_size), "cudaMalloc dev_O");
-    
+
     std::vector<T> O_cuda(total_size);
-    
+
     CUDA_CHECK(cudaMemcpy(dev_Q, &data.Q[0], sizeof(T) * total_size,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_Q");
     CUDA_CHECK(cudaMemcpy(dev_K, &data.K[0], sizeof(T) * total_size,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_K");
     CUDA_CHECK(cudaMemcpy(dev_V, &data.V[0], sizeof(T) * total_size,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_V");
-    
+
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
-    
+
     if constexpr (run_bench)
     {
         BENCHMARK(
@@ -369,13 +369,13 @@ void run_cuda_test(TestData<T>& data)
             dev_O
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
-        
+
         CUDA_CHECK(cudaMemcpy(&O_cuda[0], dev_O, sizeof(T) * total_size,
                               cudaMemcpyDeviceToHost), "cudaMemcpy O_cuda");
-        
+
         verify_results(data, O_cuda);
     }
-    
+
     CUDA_CHECK(cudaFree(dev_Q), "cudaFree dev_Q");
     CUDA_CHECK(cudaFree(dev_K), "cudaFree dev_K");
     CUDA_CHECK(cudaFree(dev_V), "cudaFree dev_V");
@@ -400,14 +400,14 @@ TEMPLATE_TEST_CASE(
     const Index seq_len = GENERATE(4, 8);
     const Index head_dim = GENERATE(4, 8);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
-    
+
     auto data = get_test_data<T>(batch, num_heads, seq_len, head_dim, strategy);
-    
+
     SECTION("cpu")
     {
         run_cpu_test<T, false>(data);
     }
-    
+
 #ifdef NNTILE_USE_CUDA
     SECTION("cuda")
     {
@@ -432,14 +432,14 @@ TEMPLATE_TEST_CASE(
     const Index seq_len = GENERATE(64, 128);
     const Index head_dim = GENERATE(64);
     const DataGen strategy = GENERATE(DataGen::RANDOM);
-    
+
     auto data = get_test_data<T>(batch, num_heads, seq_len, head_dim, strategy);
-    
+
     SECTION("cpu")
     {
         run_cpu_test<T, true>(data);
     }
-    
+
 #ifdef NNTILE_USE_CUDA
     SECTION("cuda")
     {

@@ -25,7 +25,7 @@ Located in `src/kernel/flash_attention/` and `include/nntile/kernel/flash_attent
 #### CUDA Implementation (`cuda.cu`)
 - **Purpose**: Placeholder for cuDNN-based flash attention
 - **Status**: Stubbed out (requires CUDA toolkit and cuDNN 8.9.0+)
-- **Future Integration**: 
+- **Future Integration**:
   - Will use `cudnnMultiHeadAttnForward()` or cudnn_frontend SDPA APIs
   - Optimized for memory efficiency using tiling
   - Will support both training and inference modes

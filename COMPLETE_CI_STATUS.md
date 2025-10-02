@@ -174,7 +174,7 @@ tests/kernel/flash_attention.cc - Tolerance adjustment
 ### Configuration Matrix
 ```
 Batch sizes: [1, 2]
-Number of heads: [1, 2]  
+Number of heads: [1, 2]
 Sequence lengths: [4, 8]
 Head dimensions: [4, 8]
 Data patterns: [PRESET, RANDOM]
