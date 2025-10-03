@@ -59,6 +59,7 @@ struct TestData
 
     std::vector<int64_t> index;
     std::vector<T> embed;
+    std::vector<T> vocab_init;
     std::vector<T> vocab;
     std::vector<T> vocab_ref;
 };
@@ -146,6 +147,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
     }
 
     // Initialize vocabulary gradients (zeros initially)
+    data.vocab_init.resize(data.k_size * data.vocab_size);
     data.vocab.resize(data.k_size * data.vocab_size);
     data.vocab_ref.resize(data.k_size * data.vocab_size);
 }
@@ -222,7 +224,7 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> vocab_cpu(data.vocab);
+    std::vector<T> vocab_cpu(data.vocab_init);
 
     if constexpr (run_bench)
     {

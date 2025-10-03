@@ -53,6 +53,7 @@ struct TestData
 
     Y eps_check;
 
+    std::vector<T> data_init;
     std::vector<T> data;
     std::vector<T> data_ref;
 };
@@ -104,6 +105,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
     using Y = typename T::repr_t;
     data.num_elems = num_elems;
 
+    data.data_init.resize(num_elems);
     data.data.resize(num_elems);
     data.data_ref.resize(num_elems);
 
@@ -113,7 +115,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < num_elems; ++i)
             {
-                data.data[i] = Y(2 * i + 1 - num_elems) / Y{1000};
+                data.data_init[i] = Y(2 * i + 1 - num_elems) / Y{1000};
+                data.data[i] = data.data_init[i]; // Copy to data for processing
             }
             break;
         // Specific random initialization
@@ -122,7 +125,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             std::uniform_real_distribution<Y> dist(-2.0, 2.0);
             for(Index i = 0; i < num_elems; ++i)
             {
-                data.data[i] = dist(gen);
+                data.data_init[i] = dist(gen);
+                data.data[i] = data.data_init[i]; // Copy to data for processing
             }
     }
 }
@@ -196,7 +200,7 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> data_cpu(data.data);
+    std::vector<T> data_cpu(data.data_init);
 
     if constexpr (run_bench)
     {

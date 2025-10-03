@@ -56,6 +56,7 @@ struct TestData
 
     std::vector<T> src1;
     std::vector<T> src2;
+    std::vector<T> dst_init;
     std::vector<T> dst_ref;
 };
 
@@ -96,6 +97,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
 
     data.src1.resize(num_elems);
     data.src2.resize(num_elems);
+    data.dst_init.resize(num_elems);
     data.dst_ref.resize(num_elems);
 
     switch(strategy)
@@ -106,6 +108,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             {
                 data.src1[i] = Y(2 * i + 1 - num_elems);
                 data.src2[i] = Y(2 * num_elems - i);
+                data.dst_init[i] = Y(5 * num_elems - 2 * i); // Initial destination values
             }
             break;
         // Specific random initialization
@@ -116,6 +119,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             {
                 data.src1[i] = dist(gen);
                 data.src2[i] = dist(gen);
+                data.dst_init[i] = 2.0 * dist(gen); // Initial destination values
             }
     }
 }
@@ -183,7 +187,7 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> dst_cpu(data.num_elems);
+    std::vector<T> dst_cpu(data.dst_init);
 
     if constexpr (run_bench)
     {

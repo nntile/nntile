@@ -56,6 +56,7 @@ struct TestData
 
     std::vector<T> nom;
     std::vector<T> denom;
+    std::vector<T> src_init;
     std::vector<T> src;
     std::vector<T> src_ref;
 };
@@ -98,6 +99,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
 
     data.nom.resize(num_elems);
     data.denom.resize(num_elems);
+    data.src_init.resize(num_elems);
     data.src.resize(num_elems);
     data.src_ref.resize(num_elems);
 
@@ -109,7 +111,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
                 Y sign_factor = Y(-1.);
                 for(Index i = 0; i < num_elems; ++i)
                 {
-                    data.src[i] = Y(2 * i + 1 - num_elems) * sign_factor;
+                    data.src_init[i] = Y(2 * i + 1 - num_elems) * sign_factor;
+                    data.src[i] = data.src_init[i]; // Copy to src for processing
                     data.nom[i] = Y(num_elems - i);
                     data.denom[i] = Y(i + 1);
                     sign_factor *= Y(-1.);
@@ -122,7 +125,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             std::uniform_real_distribution<Y> dist(1.0, 2.0);
             for(Index i = 0; i < num_elems; ++i)
             {
-                data.src[i] = dist(gen);
+                data.src_init[i] = dist(gen);
+                data.src[i] = data.src_init[i]; // Copy to src for processing
                 data.nom[i] = dist(gen);
                 data.denom[i] = 0.5 * dist(gen) + 0.1; // Avoid division by zero in reference
             }
@@ -192,7 +196,7 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> src_cpu(data.src);
+    std::vector<T> src_cpu(data.src_init);
 
     if constexpr (run_bench)
     {

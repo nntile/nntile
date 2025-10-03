@@ -59,6 +59,7 @@ struct TestData
 
     std::vector<int64_t> index;
     std::vector<T> vocab;
+    std::vector<T> embed_init;
     std::vector<T> embed;
     std::vector<T> embed_ref;
 };
@@ -143,6 +144,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
     }
 
     // Initialize output embedding tensor
+    data.embed_init.resize(data.m * data.n * data.k);
     data.embed.resize(data.m * data.n * data.k);
     data.embed_ref.resize(data.m * data.n * data.k);
 }
@@ -219,7 +221,7 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> embed_cpu(data.embed);
+    std::vector<T> embed_cpu(data.embed_init);
 
     if constexpr (run_bench)
     {
