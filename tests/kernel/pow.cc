@@ -213,7 +213,6 @@ void run_cpu_test(TestData<T>& data)
 }
 
 #ifdef NNTILE_USE_CUDA
-
 // Helper function to run CUDA test and verify results
 template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)

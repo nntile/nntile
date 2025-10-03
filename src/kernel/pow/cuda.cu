@@ -9,8 +9,6 @@
  * @file src/kernel/pow/cuda.cu
  * Power operation on CUDA
  *
- * Supports fp64_t, fp32_t, fp16_t, and bf16_t data types.
- *
  * @version 1.1.0
  * */
 
