@@ -29,6 +29,7 @@
 #endif
 
 #include <cstdint>
+#include <cudnn.h>
 
 namespace nntile::kernel
 {
@@ -128,6 +129,15 @@ const typename CUDAComputeType<T>::value *cast_pointer_cuda(const T *ptr)
         cudaError_t _err = (error); \
         if (_err != cudaSuccess) { \
             throw std::runtime_error(std::string(message) + ": " + cudaGetErrorString(_err)); \
+        } \
+    } while (0)
+
+//! Check cuDNN error and throw runtime_error if error occurs
+#define CUDNN_CHECK(error, message) \
+    do { \
+        cudnnStatus_t _err = (error); \
+        if (_err != CUDNN_STATUS_SUCCESS) { \
+            throw std::runtime_error(std::string(message) + ": " + cudnnGetErrorString(_err)); \
         } \
     } while (0)
 
