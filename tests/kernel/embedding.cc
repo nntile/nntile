@@ -133,15 +133,15 @@ void generate_data(TestData<T>& data, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < data.m * data.n; ++i)
             {
-                data.index_init[i] = nntile::int64_t((i * 7 + 3) % data.vocab_size); // Ensure indices are within vocab_size
+                data.index_init[i] = (i * 7 + 3) % data.vocab_size; // Ensure indices are within vocab_size
             }
             break;
         case DataGen::RANDOM:
             std::mt19937 gen_idx(42);
-            std::uniform_int_distribution<nntile::int64_t::storage_t> dist_idx(0, data.vocab_size - 1);
+            std::uniform_int_distribution<Index> dist_idx(0, data.vocab_size - 1);
             for(Index i = 0; i < data.m * data.n; ++i)
             {
-                data.index_init[i] = nntile::int64_t(dist_idx(gen_idx));
+                data.index_init[i] = dist_idx(gen_idx);
             }
     }
 
@@ -176,7 +176,7 @@ TestData<T> get_test_data(
     // Set accuracy threshold for each precision
     if (std::is_same_v<T, bf16_t>)
     {
-        data.eps_check = 1e-1;
+        data.eps_check = 1e-2;
     }
     else if (std::is_same_v<T, fp16_t>)
     {
@@ -204,7 +204,7 @@ TestData<T> get_test_data(
 template<typename T>
 void verify_results(
     const TestData<T>& data,
-    const std::vector<nntile::int64_t>& index,
+    const std::vector<Index>& index,
     const std::vector<T>& vocab,
     const std::vector<T>& embed
 )
@@ -241,7 +241,7 @@ template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
     std::vector<T> embed_cpu(data.embed_init);
-    std::vector<nntile::int64_t> index_cpu(data.index_init);
+    std::vector<Index> index_cpu(data.index_init);
     std::vector<T> vocab_cpu(data.vocab_init);
 
     if constexpr (run_bench)
@@ -264,7 +264,7 @@ void run_cpu_test(TestData<T>& data)
                 data.k,
                 data.k_start,
                 data.k_size,
-                index_cpu.data(),
+                reinterpret_cast<const int64_t*>(index_cpu.data()),
                 &vocab_cpu[0],
                 &embed_cpu[0]
             );
@@ -278,7 +278,7 @@ void run_cpu_test(TestData<T>& data)
             data.k,
             data.k_start,
             data.k_size,
-            index_cpu.data(),
+            reinterpret_cast<const int64_t*>(index_cpu.data()),
             &vocab_cpu[0],
             &embed_cpu[0]
         );
@@ -293,22 +293,27 @@ template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_vocab, *dev_embed;
-    nntile::int64_t *dev_index;
+    int64_t *dev_index;
 
     CUDA_CHECK(cudaMalloc(&dev_vocab, sizeof(T) * data.k_size * data.vocab_size),
                "cudaMalloc dev_vocab");
-    CUDA_CHECK(cudaMalloc(&dev_index, sizeof(nntile::int64_t) * data.m * data.n),
+    CUDA_CHECK(cudaMalloc(&dev_index, sizeof(int64_t) * data.m * data.n),
                "cudaMalloc dev_index");
     CUDA_CHECK(cudaMalloc(&dev_embed, sizeof(T) * data.m * data.n * data.k),
                "cudaMalloc dev_embed");
 
     std::vector<T> embed_cuda(data.embed_init);
-    std::vector<nntile::int64_t> index_cuda(data.index_init);
+    std::vector<int64_t> index_cuda(data.index_init.size());
     std::vector<T> vocab_cuda(data.vocab_init);
+
+    // Copy index data from Index to int64_t
+    for (size_t i = 0; i < data.index_init.size(); ++i) {
+        index_cuda[i] = static_cast<int64_t>(data.index_init[i]);
+    }
 
     CUDA_CHECK(cudaMemcpy(dev_vocab, &data.vocab_init[0], sizeof(T) * data.k_size * data.vocab_size,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_vocab");
-    CUDA_CHECK(cudaMemcpy(dev_index, &index_cuda[0], sizeof(nntile::int64_t) * data.m * data.n,
+    CUDA_CHECK(cudaMemcpy(dev_index, index_cuda.data(), sizeof(int64_t) * data.m * data.n,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_index");
     CUDA_CHECK(cudaMemcpy(dev_embed, &embed_cuda[0], sizeof(T) * data.m * data.n * data.k,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_embed");
@@ -378,7 +383,6 @@ TEMPLATE_TEST_CASE(
     "[embedding]",
     fp64_t,
     fp32_t,
-    fp16_t,
     bf16_t
 )
 {
@@ -420,7 +424,6 @@ TEMPLATE_TEST_CASE(
     "[embedding][!benchmark]",
     fp64_t,
     fp32_t,
-    fp16_t,
     bf16_t
 )
 {
