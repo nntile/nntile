@@ -15,9 +15,7 @@
 #include "nntile/kernel/flash_attention/cuda.hh"
 #include "nntile/kernel/cuda.hh"
 #include <cuda_runtime.h>
-#include <vector>
 #include <limits>
-#include <algorithm>
 
 namespace nntile::kernel::flash_attention
 {
@@ -43,7 +41,8 @@ __global__ void compute_scores_kernel(
     Index base_offset = (b * num_heads + h) * seq_len * head_dim;
     Index scores_offset = idx * seq_len;
 
-    Y max_score = -std::numeric_limits<Y>::infinity();
+    // Use CUDA-compatible negative infinity
+    Y max_score = -INFINITY;
 
     // Compute scores for this query position
     for(Index j = 0; j < seq_len; ++j)
@@ -170,31 +169,28 @@ void cuda(cudaStream_t stream, Index batch, Index num_heads, Index seq_len,
     size_t scores_size = total_queries * seq_len * sizeof(Y);
     size_t max_size = total_queries * sizeof(Y);
 
-    cudaMalloc(&d_scores, scores_size);
-    cudaMalloc(&d_max_scores, max_size);
+    CUDA_CHECK(cudaMalloc(&d_scores, scores_size), "cudaMalloc d_scores");
+    CUDA_CHECK(cudaMalloc(&d_max_scores, max_size), "cudaMalloc d_max_scores");
 
-    if (d_scores != nullptr && d_max_scores != nullptr)
-    {
-        // Compute attention scores
-        compute_scores_kernel<T><<<blocks, threads, 0, stream>>>(
-            batch, num_heads, seq_len, head_dim, Q, K, static_cast<Y>(scale),
-            d_scores, d_max_scores);
+    // Compute attention scores
+    compute_scores_kernel<T><<<blocks, threads, 0, stream>>>(
+        batch, num_heads, seq_len, head_dim, Q, K, static_cast<Y>(scale),
+        d_scores, d_max_scores);
 
-        // Apply softmax
-        softmax_kernel<T><<<blocks, threads, 0, stream>>>(
-            batch, num_heads, seq_len, d_scores, d_max_scores);
+    // Apply softmax
+    softmax_kernel<T><<<blocks, threads, 0, stream>>>(
+        batch, num_heads, seq_len, d_scores, d_max_scores);
 
-        // Compute output
-        compute_output_kernel<T><<<blocks, threads, 0, stream>>>(
-            batch, num_heads, seq_len, head_dim, d_scores, V, O);
+    // Compute output
+    compute_output_kernel<T><<<blocks, threads, 0, stream>>>(
+        batch, num_heads, seq_len, head_dim, d_scores, V, O);
 
-        // Synchronize stream
-        cudaStreamSynchronize(stream);
-    }
+    // Synchronize stream
+    CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
     // Clean up
-    if (d_scores != nullptr) cudaFree(d_scores);
-    if (d_max_scores != nullptr) cudaFree(d_max_scores);
+    CUDA_CHECK(cudaFree(d_scores), "cudaFree d_scores");
+    CUDA_CHECK(cudaFree(d_max_scores), "cudaFree d_max_scores");
 }
 
 // Explicit instantiation
