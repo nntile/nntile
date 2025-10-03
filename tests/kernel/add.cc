@@ -170,15 +170,35 @@ TestData<T> get_test_data(
 template<typename T>
 void verify_results(
     const TestData<T>& data,
-    const std::vector<T>& dst_out
+    const std::vector<T>& src1,
+    const std::vector<T>& src2,
+    const std::vector<T>& dst
 )
 {
     using Y = typename T::repr_t;
+
+    // Check that src1 was not changed during kernel execution
+    for(Index i = 0; i < data.num_elems; ++i)
+    {
+        Y src1_val = static_cast<Y>(src1[i]);
+        Y src1_init_val = static_cast<Y>(data.src1_init[i]);
+        REQUIRE(src1_val == src1_init_val);
+    }
+
+    // Check that src2 was not changed during kernel execution
+    for(Index i = 0; i < data.num_elems; ++i)
+    {
+        Y src2_val = static_cast<Y>(src2[i]);
+        Y src2_init_val = static_cast<Y>(data.src2_init[i]);
+        REQUIRE(src2_val == src2_init_val);
+    }
+
+    // Check that dst (output) matches reference
     for(Index i = 0; i < data.num_elems; ++i)
     {
         Y dst_ref = static_cast<Y>(data.dst_ref[i]);
         REQUIRE_THAT(
-            static_cast<Y>(dst_out[i]),
+            static_cast<Y>(dst[i]),
             WithinRel(dst_ref, data.eps_check)
         );
     }
@@ -189,6 +209,8 @@ template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
     std::vector<T> dst_cpu(data.dst_init);
+    std::vector<T> src1_cpu(data.src1_init);
+    std::vector<T> src2_cpu(data.src2_init);
 
     if constexpr (run_bench)
     {
@@ -205,9 +227,9 @@ void run_cpu_test(TestData<T>& data)
             cpu<T>(
                 data.num_elems,
                 data.alpha,
-                &data.src1_init[0],
+                &src1_cpu[0],
                 data.beta,
-                &data.src2_init[0],
+                &src2_cpu[0],
                 &dst_cpu[0]
             );
         };
@@ -217,12 +239,12 @@ void run_cpu_test(TestData<T>& data)
         cpu<T>(
             data.num_elems,
             data.alpha,
-            &data.src1_init[0],
+            &src1_cpu[0],
             data.beta,
-            &data.src2_init[0],
+            &src2_cpu[0],
             &dst_cpu[0]
         );
-        verify_results(data, dst_cpu);
+        verify_results(data, src1_cpu, src2_cpu, dst_cpu);
     }
 }
 
@@ -241,6 +263,8 @@ void run_cuda_test(TestData<T>& data)
                "cudaMalloc dev_dst");
 
     std::vector<T> dst_cuda(data.dst_init);
+    std::vector<T> src1_cuda(data.src1_init);
+    std::vector<T> src2_cuda(data.src2_init);
 
     CUDA_CHECK(cudaMemcpy(dev_src1, &data.src1_init[0], sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src1");
@@ -292,7 +316,7 @@ void run_cuda_test(TestData<T>& data)
         CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.num_elems,
                               cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
 
-        verify_results(data, dst_cuda);
+        verify_results(data, src1_cuda, src2_cuda, dst_cuda);
     }
 
     CUDA_CHECK(cudaFree(dev_src1), "cudaFree dev_src1");

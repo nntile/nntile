@@ -175,15 +175,35 @@ TestData<T> get_test_data(
 template<typename T>
 void verify_results(
     const TestData<T>& data,
-    const std::vector<T>& src_out
+    const std::vector<T>& nom,
+    const std::vector<T>& denom,
+    const std::vector<T>& src
 )
 {
     using Y = typename T::repr_t;
+
+    // Check that nom was not changed during kernel execution
+    for(Index i = 0; i < data.num_elems; ++i)
+    {
+        Y nom_val = static_cast<Y>(nom[i]);
+        Y nom_init_val = static_cast<Y>(data.nom_init[i]);
+        REQUIRE(nom_val == nom_init_val);
+    }
+
+    // Check that denom was not changed during kernel execution
+    for(Index i = 0; i < data.num_elems; ++i)
+    {
+        Y denom_val = static_cast<Y>(denom[i]);
+        Y denom_init_val = static_cast<Y>(data.denom_init[i]);
+        REQUIRE(denom_val == denom_init_val);
+    }
+
+    // Check that src (output) matches reference
     for(Index i = 0; i < data.num_elems; ++i)
     {
         Y src_ref = static_cast<Y>(data.src_ref[i]);
         REQUIRE_THAT(
-            static_cast<Y>(src_out[i]),
+            static_cast<Y>(src[i]),
             WithinRel(src_ref, data.eps_check)
         );
     }
@@ -194,6 +214,8 @@ template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
     std::vector<T> src_cpu(data.src_init);
+    std::vector<T> nom_cpu(data.nom_init);
+    std::vector<T> denom_cpu(data.denom_init);
 
     if constexpr (run_bench)
     {
@@ -211,8 +233,8 @@ void run_cpu_test(TestData<T>& data)
                 data.val,
                 data.eps,
                 data.num_elems,
-                &data.nom_init[0],
-                &data.denom_init[0],
+                &nom_cpu[0],
+                &denom_cpu[0],
                 &src_cpu[0]
             );
         };
@@ -223,11 +245,11 @@ void run_cpu_test(TestData<T>& data)
             data.val,
             data.eps,
             data.num_elems,
-            &data.nom_init[0],
-            &data.denom_init[0],
+            &nom_cpu[0],
+            &denom_cpu[0],
             &src_cpu[0]
         );
-        verify_results(data, src_cpu);
+        verify_results(data, nom_cpu, denom_cpu, src_cpu);
     }
 }
 
@@ -246,6 +268,8 @@ void run_cuda_test(TestData<T>& data)
                "cudaMalloc dev_denom");
 
     std::vector<T> src_cuda(data.src_init);
+    std::vector<T> nom_cuda(data.nom_init);
+    std::vector<T> denom_cuda(data.denom_init);
 
     CUDA_CHECK(cudaMemcpy(dev_src, &data.src_init[0], sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src");
@@ -297,7 +321,7 @@ void run_cuda_test(TestData<T>& data)
         CUDA_CHECK(cudaMemcpy(&src_cuda[0], dev_src, sizeof(T) * data.num_elems,
                               cudaMemcpyDeviceToHost), "cudaMemcpy src_cuda");
 
-        verify_results(data, src_cuda);
+        verify_results(data, nom_cuda, denom_cuda, src_cuda);
     }
 
     CUDA_CHECK(cudaFree(dev_src), "cudaFree dev_src");
