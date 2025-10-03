@@ -66,4 +66,9 @@ void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha, Scalar exp,
         bf16_t *data)
     noexcept;
 
+template
+void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha, Scalar exp,
+        fp16_t *data)
+    noexcept;
+
 } // namespace nntile::kernel::pow

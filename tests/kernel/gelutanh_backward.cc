@@ -27,8 +27,13 @@
 // Third-party libraries
 #include <catch2/catch_all.hpp>
 
+// Other NNTile headers
+// CUDA_CHECK definition
+#include <nntile/kernel/cuda.hh>
+
 // Use namespaces for shorter code
 using namespace Catch;
+using namespace Catch::Matchers;
 
 // Use tested NNTile namespaces
 using namespace nntile;
@@ -44,10 +49,12 @@ struct TestData
 {
     using Y = typename T::repr_t;
     Index nelems; // Number of elements
-    Scalar eps_check;
+
+    Y eps_check;
 
     std::vector<T> x;
     std::vector<T> dy;
+    std::vector<T> dx_init;
     std::vector<T> dx_ref;
 };
 
@@ -61,23 +68,30 @@ void reference_gelutanh_backward(TestData<T>& data)
         return;
     }
     // Constants
-    constexpr Y pi{3.141592653589793238462643383279502884L},
-        zero{0.0}, one{1.0}, pt5{0.5}, f1{0.044715};
+    constexpr ref_t pi = 3.141592653589793238462643383279502884L;
+    constexpr ref_t one = 1.0, zero = 0.0, pt5 = 0.5, f1 = 0.044715;
     // Square root is not constexpr by standard, proceed with a static const
-    static const Y sqrt_pi = std::sqrt(pi), sqrt_2 = std::sqrt(Y{2.0}),
-        f2 = sqrt_2/sqrt_pi, f3 = -Y{2.0}*f2, f4 = f3*f1, f5 = Y{3.0}*f4;
+    static const ref_t sqrt_pi = std::sqrt(pi), sqrt_2 = std::sqrt(2.0),
+        f2 = sqrt_2/sqrt_pi, f3 = -2.0*f2, f4 = f3*f1, f5 = 3.0*f4;
 
     for(Index i = 0; i < data.nelems; ++i)
     {
-        Y x_val = Y{data.x[i]};
-        Y z2 = x_val * x_val;
-        Y y1 = x_val * (f3 + f4*z2);
-        Y y2 = x_val * (f3 + f5*z2);
-        Y expy1 = std::exp(y1);
+        ref_t x = static_cast<Y>(data.x[i]);
+        ref_t z2 = x * x;
+        ref_t y1 = x * (f3 + f4*z2);
+        ref_t y2 = x * (f3 + f5*z2);
+        ref_t expy1 = std::exp(y1);
         if(not std::isinf(expy1))
         {
-            Y inv_expy1p1 = one / (expy1 + one);
-            data.dx_ref[i] = T{(one-y2*(one-inv_expy1p1)) * inv_expy1p1 * Y{data.dy[i]}};
+            ref_t inv_expy1p1 = one / (expy1 + one);
+            ref_t dy = static_cast<Y>(data.dy[i]);
+            ref_t dx = static_cast<Y>(data.dx_init[i]);
+            dx += (one-y2*(one-inv_expy1p1)) * inv_expy1p1 * dy;
+            data.dx_ref[i] = static_cast<T>(static_cast<Y>(dx));
+        }
+        else
+        {
+            data.dx_ref[i] = data.dx_init[i];
         }
     }
 }
@@ -101,8 +115,10 @@ void generate_data(TestData<T>& data, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < data.nelems; ++i)
             {
-                data.x[i] = Y(2 * i + 1 - data.nelems);
-                data.dy[i] = Y(i + 1);
+                data.x[i] = static_cast<T>(
+                    static_cast<Y>(2 * i + 1 - data.nelems));
+                data.dy[i] = static_cast<T>(static_cast<Y>(i + 1));
+                data.dx_init[i] = static_cast<T>(static_cast<Y>(i - 1));
             }
             break;
         // Specific random initialization
@@ -111,8 +127,9 @@ void generate_data(TestData<T>& data, DataGen strategy)
             std::uniform_real_distribution<Y> dist(-2.0, 2.0);
             for(Index i = 0; i < data.nelems; ++i)
             {
-                data.x[i] = dist(gen);
-                data.dy[i] = dist(gen) * 0.1; // Smaller gradients for stability
+                data.x[i] = static_cast<T>(dist(gen));
+                data.dy[i] = static_cast<T>(dist(gen) * 0.1);
+                data.dx_init[i] = static_cast<T>(dist(gen));
             }
     }
 }
@@ -129,6 +146,7 @@ TestData<T> get_test_data(
     data.nelems = nelems;
     data.x.resize(nelems);
     data.dy.resize(nelems);
+    data.dx_init.resize(nelems);
     data.dx_ref.resize(nelems);
     generate_data(data, strategy);
 
@@ -170,8 +188,10 @@ void verify_results(
     for(Index i = 0; i < data.nelems; ++i)
     {
         Y dx_ref = static_cast<Y>(data.dx_ref[i]);
-        auto dx_approx = Approx(dx_ref).epsilon(data.eps_check);
-        REQUIRE(static_cast<Y>(dx_out[i]) == dx_approx);
+        REQUIRE_THAT(
+            static_cast<Y>(dx_out[i]),
+            WithinRel(dx_ref, data.eps_check)
+        );
     }
 }
 
@@ -179,7 +199,7 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> dx_cpu(data.nelems, T{0}); // Initialize with zeros
+    std::vector<T> dx_cpu(data.dx_init);
 
     if constexpr (run_bench)
     {
@@ -223,7 +243,7 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_dx, sizeof(T) * data.nelems),
                "cudaMalloc dev_dx");
 
-    std::vector<T> dx_cuda(data.dx_ref); // Initialize with zeros
+    std::vector<T> dx_cuda(data.dx_init);
 
     CUDA_CHECK(cudaMemcpy(dev_x, &data.x[0], sizeof(T) * data.nelems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_x");

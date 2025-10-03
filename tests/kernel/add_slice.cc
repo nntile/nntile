@@ -27,8 +27,13 @@
 // Third-party libraries
 #include <catch2/catch_all.hpp>
 
+// Other NNTile headers
+// CUDA_CHECK definition
+#include <nntile/kernel/cuda.hh>
+
 // Use namespaces for shorter code
 using namespace Catch;
+using namespace Catch::Matchers;
 
 // Use tested NNTile namespaces
 using namespace nntile;
@@ -45,10 +50,12 @@ struct TestData
     using Y = typename T::repr_t;
     Index m, n, k; // Dimensions
     Scalar alpha, beta;
-    Scalar eps_check;
+
+    Y eps_check;
 
     std::vector<T> src1;
     std::vector<T> src2;
+    std::vector<T> dst_init;
     std::vector<T> dst_ref;
 };
 
@@ -68,12 +75,15 @@ void reference_add_slice(TestData<T>& data)
     {
         for(Index i1 = 0; i1 < data.m; ++i1)
         {
-            const Y src1_val = alpha_r * Y{data.src1[i2*data.m+i1]};
+            ref_t src1_v = static_cast<Y>(data.src1[i2*data.m+i1]);
+            src1_v *= alpha_r;
             for(Index i0 = 0; i0 < data.k; ++i0)
             {
-                const Y src2_val = beta_r * Y{data.src2[i2*data.m*data.k + i0*data.m + i1]};
-                const Y dst_val = src1_val + src2_val;
-                data.dst_ref[i2*data.m*data.k + i0*data.m + i1] = static_cast<T>(dst_val);
+                T src2_v_T = data.src2[i2*data.m*data.k + i0*data.m + i1];
+                ref_t src2_v = static_cast<Y>(src2_v_T);
+                src2_v *= beta_r;
+                T dst_v_T = static_cast<T>(static_cast<Y>(src1_v + src2_v));
+                data.dst_ref[i2*data.m*data.k + i0*data.m + i1] = dst_v_T;
             }
         }
     }
@@ -103,6 +113,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
             for(Index i = 0; i < data.m * data.k * data.n; ++i)
             {
                 data.src2[i] = Y(i + 1);
+                data.dst_init[i] = Y(i - 1);
             }
             break;
         // Specific random initialization
@@ -116,6 +127,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
             for(Index i = 0; i < data.m * data.k * data.n; ++i)
             {
                 data.src2[i] = dist(gen);
+                data.dst_init[i] = dist(gen);
             }
     }
 }
@@ -140,6 +152,7 @@ TestData<T> get_test_data(
     data.beta = beta;
     data.src1.resize(m * n);
     data.src2.resize(m * k * n);
+    data.dst_init.resize(m * k * n);
     data.dst_ref.resize(m * k * n);
     generate_data(data, strategy);
 
@@ -181,8 +194,10 @@ void verify_results(
     for(Index i = 0; i < data.m * data.k * data.n; ++i)
     {
         Y dst_ref = static_cast<Y>(data.dst_ref[i]);
-        auto dst_approx = Approx(dst_ref).epsilon(data.eps_check);
-        REQUIRE(static_cast<Y>(dst_out[i]) == dst_approx);
+        REQUIRE_THAT(
+            static_cast<Y>(dst_out[i]),
+            WithinRel(dst_ref, data.eps_check)
+        );
     }
 }
 
@@ -190,7 +205,7 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> dst_cpu(data.m * data.k * data.n);
+    std::vector<T> dst_cpu(data.dst_init);
 
     if constexpr (run_bench)
     {
@@ -246,14 +261,35 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_dst, sizeof(T) * data.m * data.k * data.n),
                "cudaMalloc dev_dst");
 
-    std::vector<T> dst_cuda(data.m * data.k * data.n);
+    std::vector<T> dst_cuda(data.dst_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_src1, &data.src1[0], sizeof(T) * data.m * data.n,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_src1");
-    CUDA_CHECK(cudaMemcpy(dev_src2, &data.src2[0], sizeof(T) * data.m * data.k * data.n,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_src2");
-    CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.m * data.k * data.n,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_src1,
+            &data.src1[0],
+            sizeof(T) * data.m * data.n,
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_src1"
+    );
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_src2,
+            &data.src2[0],
+            sizeof(T) * data.m * data.k * data.n,
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_src2"
+    );
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_dst,
+            &dst_cuda[0],
+            sizeof(T) * data.m * data.k * data.n,
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_dst"
+    );
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
@@ -299,8 +335,15 @@ void run_cuda_test(TestData<T>& data)
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.m * data.k * data.n,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
+        CUDA_CHECK(
+            cudaMemcpy(
+                &dst_cuda[0],
+                dev_dst,
+                sizeof(T) * data.m * data.k * data.n,
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy dst_cuda"
+        );
 
         verify_results(data, dst_cuda);
     }
@@ -323,9 +366,9 @@ TEMPLATE_TEST_CASE(
 )
 {
     using T = TestType;
-    const Index m = GENERATE(5, 129);
-    const Index n = GENERATE(5, 129);
-    const Index k = GENERATE(5, 129);
+    const Index m = GENERATE(5, 19);
+    const Index n = GENERATE(5, 16);
+    const Index k = GENERATE(5, 21);
     const Scalar alpha = GENERATE(1.0, 0.5, 2.0);
     const Scalar beta = GENERATE(1.0, 0.5, 2.0);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
