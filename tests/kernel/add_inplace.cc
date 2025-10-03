@@ -40,8 +40,6 @@ using namespace nntile;
 using namespace nntile::kernel;
 using namespace nntile::kernel::add_inplace;
 
-// Type to acquire reference values
-using ref_t = double;
 
 #ifdef NNTILE_USE_CUDA
 
@@ -133,7 +131,7 @@ struct TestData
 
     std::vector<T> dst_ref;
 
-    ref_t eps_check;
+    Y eps_check;
 };
 
 // Reference implementation of the add inplace operation
@@ -196,6 +194,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
 template<typename T>
 TestData<T> get_test_data(Index nelems, Scalar alpha, Scalar beta, DataGen strategy)
 {
+    using Y = typename T::repr_t;
     TestData<T> data;
     data.nelems = nelems;
     data.alpha = alpha;
@@ -207,19 +206,19 @@ TestData<T> get_test_data(Index nelems, Scalar alpha, Scalar beta, DataGen strat
     // Set accuracy threshold for each precision
     if (std::is_same_v<T, bf16_t>)
     {
-        data.eps_check = 1e-1;
+        data.eps_check = Y{1e-1};
     }
     else if (std::is_same_v<T, fp16_t>)
     {
-        data.eps_check = 1e-2;
+        data.eps_check = Y{1e-2};
     }
     else if (std::is_same_v<T, fp32_t>)
     {
-        data.eps_check = 1e-6;
+        data.eps_check = Y{1e-6};
     }
     else if (std::is_same_v<T, fp64_t>)
     {
-        data.eps_check = 1e-12;
+        data.eps_check = Y{1e-12};
     }
     else
     {

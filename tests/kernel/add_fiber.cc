@@ -40,8 +40,6 @@ using namespace nntile;
 using namespace nntile::kernel;
 using namespace nntile::kernel::add_fiber;
 
-// Type to acquire reference values
-using ref_t = double;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
@@ -101,7 +99,7 @@ struct TestData
     std::vector<T> src2;
     std::vector<T> dst_ref;
 
-    ref_t eps_check;
+    Y eps_check;
 };
 
 // Reference implementation of the add fiber operation
@@ -126,7 +124,7 @@ void reference_add_fiber(TestData<T>& data)
                     Y src2_val = static_cast<Y>(data.src2[src2_idx]);
                     Y& dst_val = reinterpret_cast<Y&>(data.dst_ref[dst_idx]);
 
-                    if(data.beta == 0.0)
+                    if(data.beta == Y(0.0))
                     {
                         dst_val = src1_val;
                     }
@@ -191,6 +189,7 @@ template<typename T>
 TestData<T> get_test_data(Index m, Index n, Index k, Index batch,
                          Scalar alpha, Scalar beta, DataGen strategy)
 {
+    using Y = typename T::repr_t;
     TestData<T> data;
     data.m = m;
     data.n = n;
@@ -205,19 +204,19 @@ TestData<T> get_test_data(Index m, Index n, Index k, Index batch,
     // Set accuracy threshold for each precision
     if (std::is_same_v<T, bf16_t>)
     {
-        data.eps_check = 1e-1;
+        data.eps_check = Y{1e-1};
     }
     else if (std::is_same_v<T, fp16_t>)
     {
-        data.eps_check = 1e-2;
+        data.eps_check = Y{1e-2};
     }
     else if (std::is_same_v<T, fp32_t>)
     {
-        data.eps_check = 1e-6;
+        data.eps_check = Y{1e-6};
     }
     else if (std::is_same_v<T, fp64_t>)
     {
-        data.eps_check = 1e-12;
+        data.eps_check = Y{1e-12};
     }
     else
     {

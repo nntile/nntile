@@ -40,8 +40,6 @@ using namespace nntile;
 using namespace nntile::kernel;
 using namespace nntile::kernel::accumulate_maxsumexp;
 
-// Type to acquire reference values
-using ref_t = double;
 
 // Struct to hold test data and reference results
 template<typename T>
@@ -55,7 +53,7 @@ struct TestData
 
     std::vector<T> dst_ref;
 
-    ref_t eps_check;
+    Y eps_check;
 };
 
 // Reference implementation of the accumulate maxsumexp operation
@@ -72,16 +70,16 @@ void reference_accumulate_maxsumexp(TestData<T>& data)
 
     for(Index i = 0; i < data.nelems; ++i)
     {
-        const ref_t src_max = static_cast<Y>(data.src[2*i]);
-        const ref_t src_sumexp = static_cast<Y>(data.src[2*i+1]);
-        const ref_t dst_max = static_cast<Y>(data.dst_ref[2*i]);
-        const ref_t dst_sumexp = static_cast<Y>(data.dst_ref[2*i+1]);
+        const Y src_max = static_cast<Y>(data.src[2*i]);
+        const Y src_sumexp = static_cast<Y>(data.src[2*i+1]);
+        const Y dst_max = static_cast<Y>(data.dst_ref[2*i]);
+        const Y dst_sumexp = static_cast<Y>(data.dst_ref[2*i+1]);
 
         // Do nothing if sum of exponents of source is zero
-        if(src_sumexp != 0.0)
+        if(src_sumexp != Y(0.0))
         {
             // Overwrite if old value of sum is zero
-            if(dst_sumexp == 0.0)
+            if(dst_sumexp == Y(0.0))
             {
                 data.dst_ref[2*i] = data.src[2*i];
                 data.dst_ref[2*i+1] = data.src[2*i+1];
@@ -89,15 +87,15 @@ void reference_accumulate_maxsumexp(TestData<T>& data)
             // Otherwise update based on maximum
             else if(dst_max < src_max)
             {
-                const ref_t diff = dst_max - src_max;
-                const ref_t new_sumexp = src_sumexp + dst_sumexp * std::exp(diff);
+                const Y diff = dst_max - src_max;
+                const Y new_sumexp = src_sumexp + dst_sumexp * std::exp(diff);
                 data.dst_ref[2*i+1] = static_cast<T>(new_sumexp);
                 data.dst_ref[2*i] = data.src[2*i];
             }
             else
             {
-                const ref_t diff = src_max - dst_max;
-                const ref_t new_sumexp = dst_sumexp + src_sumexp * std::exp(diff);
+                const Y diff = src_max - dst_max;
+                const Y new_sumexp = dst_sumexp + src_sumexp * std::exp(diff);
                 data.dst_ref[2*i+1] = static_cast<T>(new_sumexp);
             }
         }
@@ -157,6 +155,7 @@ void generate_data(TestData<T>& data, Index nelems, DataGen strategy)
 template<typename T>
 TestData<T> get_test_data(Index nelems, DataGen strategy)
 {
+    using Y = typename T::repr_t;
     TestData<T> data;
     // Generate data by a provided strategy
     generate_data(data, nelems, strategy);
@@ -164,19 +163,19 @@ TestData<T> get_test_data(Index nelems, DataGen strategy)
     // Set accuracy threshold for each precision
     if (std::is_same_v<T, bf16_t>)
     {
-        data.eps_check = 1e-1;
+        data.eps_check = Y{1e-1};
     }
     else if (std::is_same_v<T, fp16_t>)
     {
-        data.eps_check = 1e-2;
+        data.eps_check = Y{1e-2};
     }
     else if (std::is_same_v<T, fp32_t>)
     {
-        data.eps_check = 1e-5;
+        data.eps_check = Y{1e-5};
     }
     else if (std::is_same_v<T, fp64_t>)
     {
-        data.eps_check = 1e-12;
+        data.eps_check = Y{1e-12};
     }
     else
     {
