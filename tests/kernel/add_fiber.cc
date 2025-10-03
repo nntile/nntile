@@ -99,6 +99,7 @@ struct TestData
 
     std::vector<T> src1;
     std::vector<T> src2;
+    std::vector<T> dst_init;
     std::vector<T> dst_ref;
 };
 
@@ -153,6 +154,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
 
     data.src1.resize(data.k * data.batch);
     data.src2.resize(data.m * data.n * data.k * data.batch);
+    data.dst_init.resize(data.m * data.n * data.k * data.batch);
     data.dst_ref.resize(data.m * data.n * data.k * data.batch);
 
     switch(strategy)
@@ -166,6 +168,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
             for(Index i = 0; i < data.m * data.n * data.k * data.batch; ++i)
             {
                 data.src2[i] = Y(5 * data.m * data.n * data.k * data.batch - 2 * i);
+                data.dst_init[i] = Y(3 * data.m * data.n * data.k * data.batch - i);
             }
             break;
         // Specific random initialization
@@ -179,6 +182,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
             for(Index i = 0; i < data.m * data.n * data.k * data.batch; ++i)
             {
                 data.src2[i] = dist(gen);
+                data.dst_init[i] = dist(gen);
             }
             break;
     }
@@ -262,7 +266,7 @@ void verify_results(const TestData<T>& data, const std::vector<T>& dst_out)
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> dst_cpu(data.m * data.n * data.k * data.batch);
+    std::vector<T> dst_cpu(data.dst_init);
 
     if constexpr (run_bench)
     {
