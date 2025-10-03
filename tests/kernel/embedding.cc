@@ -59,7 +59,7 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<nntile::int64_t> index_init;
+    std::vector<Index> index_init;
     std::vector<T> vocab_init;
     std::vector<T> embed_init;
 
@@ -264,7 +264,7 @@ void run_cpu_test(TestData<T>& data)
                 data.k,
                 data.k_start,
                 data.k_size,
-                reinterpret_cast<const std::int64_t*>(&index_cpu[0]),
+                index_cpu.data(),
                 &vocab_cpu[0],
                 &embed_cpu[0]
             );
@@ -278,7 +278,7 @@ void run_cpu_test(TestData<T>& data)
             data.k,
             data.k_start,
             data.k_size,
-            reinterpret_cast<const std::int64_t*>(&index_cpu[0]),
+            index_cpu.data(),
             &vocab_cpu[0],
             &embed_cpu[0]
         );
