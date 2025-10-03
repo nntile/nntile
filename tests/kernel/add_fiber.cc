@@ -97,9 +97,10 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<T> src1;
-    std::vector<T> src2;
+    std::vector<T> src1_init;
+    std::vector<T> src2_init;
     std::vector<T> dst_init;
+
     std::vector<T> dst_ref;
 };
 
@@ -113,7 +114,7 @@ void reference_add_fiber(TestData<T>& data)
     {
         for(Index i2 = 0; i2 < data.k; ++i2)
         {
-            const Y src1_val = data.alpha * static_cast<Y>(data.src1[i2 + b * data.k]);
+            const Y src1_val = data.alpha * static_cast<Y>(data.src1_init[i2 + b * data.k]);
 
             for(Index i1 = 0; i1 < data.n; ++i1)
             {
@@ -122,7 +123,7 @@ void reference_add_fiber(TestData<T>& data)
                     Index src2_idx = ((i1 + b * data.n) * data.k + i2) * data.m + i0;
                     Index dst_idx = ((i1 + b * data.n) * data.k + i2) * data.m + i0;
 
-                    Y src2_val = static_cast<Y>(data.src2[src2_idx]);
+                    Y src2_val = static_cast<Y>(data.src2_init[src2_idx]);
                     Y& dst_val = reinterpret_cast<Y&>(data.dst_ref[dst_idx]);
 
                     if(std::abs(data.beta) <= Y(1e-6))
@@ -152,8 +153,8 @@ void generate_data(TestData<T>& data, DataGen strategy)
 {
     using Y = typename T::repr_t;
 
-    data.src1.resize(data.k * data.batch);
-    data.src2.resize(data.m * data.n * data.k * data.batch);
+    data.src1_init_init.resize(data.k * data.batch);
+    data.src2_init_init.resize(data.m * data.n * data.k * data.batch);
     data.dst_init.resize(data.m * data.n * data.k * data.batch);
     data.dst_ref.resize(data.m * data.n * data.k * data.batch);
 
@@ -163,11 +164,11 @@ void generate_data(TestData<T>& data, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < data.k * data.batch; ++i)
             {
-                data.src1[i] = Y(2 * i + 1 - data.k * data.batch);
+                data.src1_init_init[i] = Y(2 * i + 1 - data.k * data.batch);
             }
             for(Index i = 0; i < data.m * data.n * data.k * data.batch; ++i)
             {
-                data.src2[i] = Y(5 * data.m * data.n * data.k * data.batch - 2 * i);
+                data.src2_init_init[i] = Y(5 * data.m * data.n * data.k * data.batch - 2 * i);
                 data.dst_init[i] = Y(3 * data.m * data.n * data.k * data.batch - i);
             }
             break;
@@ -177,11 +178,11 @@ void generate_data(TestData<T>& data, DataGen strategy)
             std::uniform_real_distribution<Y> dist(-2.0, 2.0);
             for(Index i = 0; i < data.k * data.batch; ++i)
             {
-                data.src1[i] = dist(gen);
+                data.src1_init_init[i] = dist(gen);
             }
             for(Index i = 0; i < data.m * data.n * data.k * data.batch; ++i)
             {
-                data.src2[i] = dist(gen);
+                data.src2_init_init[i] = dist(gen);
                 data.dst_init[i] = dist(gen);
             }
             break;
@@ -242,7 +243,7 @@ void verify_results(const TestData<T>& data, const std::vector<T>& dst_out)
     {
         for(Index i2 = 0; i2 < data.k; ++i2)
         {
-            const Y src1_val = data.alpha * static_cast<Y>(data.src1[i2 + b * data.k]);
+            const Y src1_val = data.alpha * static_cast<Y>(data.src1_init[i2 + b * data.k]);
 
             for(Index i1 = 0; i1 < data.n; ++i1)
             {
@@ -277,12 +278,12 @@ void run_cpu_test(TestData<T>& data)
             "][alpha=" + std::to_string(data.alpha) + "][beta=" + std::to_string(data.beta) + "]"
         )
         {
-            cpu<T>(data.m, data.n, data.k, data.batch, data.alpha, &data.src1[0], data.beta, &data.src2[0], &dst_cpu[0]);
+            cpu<T>(data.m, data.n, data.k, data.batch, data.alpha, &data.src1_init[0], data.beta, &data.src2_init[0], &dst_cpu[0]);
         };
     }
     else
     {
-        cpu<T>(data.m, data.n, data.k, data.batch, data.alpha, &data.src1[0], data.beta, &data.src2[0], &dst_cpu[0]);
+        cpu<T>(data.m, data.n, data.k, data.batch, data.alpha, &data.src1_init[0], data.beta, &data.src2_init[0], &dst_cpu[0]);
         verify_results(data, dst_cpu);
     }
 }
@@ -303,9 +304,9 @@ void run_cuda_test(TestData<T>& data)
 
     std::vector<T> dst_cuda(data.m * data.n * data.k * data.batch);
 
-    CUDA_CHECK(cudaMemcpy(dev_src1, &data.src1[0], sizeof(T) * data.k * data.batch,
+    CUDA_CHECK(cudaMemcpy(dev_src1, &data.src1_init[0], sizeof(T) * data.k * data.batch,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src1");
-    CUDA_CHECK(cudaMemcpy(dev_src2, &data.src2[0], sizeof(T) * data.m * data.n * data.k * data.batch,
+    CUDA_CHECK(cudaMemcpy(dev_src2, &data.src2_init[0], sizeof(T) * data.m * data.n * data.k * data.batch,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src2");
     CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.m * data.n * data.k * data.batch,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");

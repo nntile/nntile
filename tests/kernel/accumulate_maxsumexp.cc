@@ -50,7 +50,7 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<T> src;
+    std::vector<T> src_init;
     std::vector<T> dst_init;
 
     std::vector<T> dst_ref;
@@ -70,8 +70,8 @@ void reference_accumulate_maxsumexp(TestData<T>& data)
 
     for(Index i = 0; i < data.nelems; ++i)
     {
-        const Y src_max = static_cast<Y>(data.src[2*i]);
-        const Y src_sumexp = static_cast<Y>(data.src[2*i+1]);
+        const Y src_max = static_cast<Y>(data.src_init[2*i]);
+        const Y src_sumexp = static_cast<Y>(data.src_init[2*i+1]);
         const Y dst_max = static_cast<Y>(data.dst_ref[2*i]);
         const Y dst_sumexp = static_cast<Y>(data.dst_ref[2*i+1]);
 
@@ -81,8 +81,8 @@ void reference_accumulate_maxsumexp(TestData<T>& data)
             // Overwrite if old value of sum is zero
             if(std::abs(dst_sumexp) <= Y(1e-6))
             {
-                data.dst_ref[2*i] = data.src[2*i];
-                data.dst_ref[2*i+1] = data.src[2*i+1];
+                data.dst_ref[2*i] = data.src_init[2*i];
+                data.dst_ref[2*i+1] = data.src_init[2*i+1];
             }
             // Otherwise update based on maximum
             else if(dst_max < src_max)
@@ -90,7 +90,7 @@ void reference_accumulate_maxsumexp(TestData<T>& data)
                 const Y diff = dst_max - src_max;
                 const Y new_sumexp = src_sumexp + dst_sumexp * std::exp(diff);
                 data.dst_ref[2*i+1] = static_cast<T>(new_sumexp);
-                data.dst_ref[2*i] = data.src[2*i];
+                data.dst_ref[2*i] = data.src_init[2*i];
             }
             else
             {
@@ -116,7 +116,7 @@ void generate_data(TestData<T>& data, Index nelems, DataGen strategy)
     using Y = typename T::repr_t;
     data.nelems = nelems;
 
-    data.src.resize(2 * nelems);
+    data.src_init.resize(2 * nelems);
     data.dst_init.resize(2 * nelems);
     data.dst_ref.resize(2 * nelems);
 
@@ -127,8 +127,8 @@ void generate_data(TestData<T>& data, Index nelems, DataGen strategy)
             for(Index i = 0; i < nelems; ++i)
             {
                 // Set src values - mix of positive and negative values
-                data.src[2*i] = Y(-2.0 + i * 0.5); // max values
-                data.src[2*i+1] = Y(0.1 + i * 0.1); // sumexp values
+                data.src_init[2*i] = Y(-2.0 + i * 0.5); // max values
+                data.src_init[2*i+1] = Y(0.1 + i * 0.1); // sumexp values
 
                 // Set initial dst values
                 data.dst_init[2*i] = Y(-1.0 + i * 0.3); // max values
@@ -142,8 +142,8 @@ void generate_data(TestData<T>& data, Index nelems, DataGen strategy)
             std::uniform_real_distribution<Y> dist_sumexp(0.01, 2.0);
             for(Index i = 0; i < nelems; ++i)
             {
-                data.src[2*i] = dist_max(gen);
-                data.src[2*i+1] = dist_sumexp(gen);
+                data.src_init[2*i] = dist_max(gen);
+                data.src_init[2*i+1] = dist_sumexp(gen);
                 data.dst_init[2*i] = dist_max(gen);
                 data.dst_init[2*i+1] = dist_sumexp(gen);
             }
@@ -225,7 +225,7 @@ void run_cpu_test(TestData<T>& data)
             "]"
         )
         {
-            cpu<T>(data.nelems, &data.src[0], &dst_cpu[0]);
+            cpu<T>(data.nelems, &data.src_init[0], &dst_cpu[0]);
         };
     }
     else
@@ -249,7 +249,7 @@ void run_cuda_test(TestData<T>& data)
 
     std::vector<T> dst_cuda(data.dst_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_src, &data.src[0], sizeof(T) * 2 * data.nelems,
+    CUDA_CHECK(cudaMemcpy(dev_src, &data.src_init[0], sizeof(T) * 2 * data.nelems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src");
     CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * 2 * data.nelems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");
