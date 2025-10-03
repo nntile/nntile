@@ -14,20 +14,13 @@
 # All unit tests without arguments to test executable
 set(TESTS
     "accumulate_maxsumexp"
-    "add"
     "add_fiber"
     "add_fiber_inplace"
     "add_inplace"
     "add_slice_inplace"
-    "addcdiv"
     "conv2d_bwd_input_inplace"
     "conv2d_bwd_weight_inplace"
     "conv2d_inplace"
-    "dgelu"
-    "dgelutanh"
-    "drelu"
-    "embedding"
-    "embedding_backward"
     "fill"
     "gelu"
     "gelutanh_inplace"
@@ -102,10 +95,17 @@ foreach(test IN LISTS TESTS)
 endforeach()
 
 set(TESTS_CATCH2
+    "add"
+    "addcdiv"
     "adam_step"
     "adamw_step"
     "add_scalar"
     "add_slice"
+    "dgelu"
+    "dgelutanh"
+    "drelu"
+    "embedding"
+    "embedding_backward"
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"
