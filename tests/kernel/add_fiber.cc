@@ -153,8 +153,8 @@ void generate_data(TestData<T>& data, DataGen strategy)
 {
     using Y = typename T::repr_t;
 
-    data.src1_init_init.resize(data.k * data.batch);
-    data.src2_init_init.resize(data.m * data.n * data.k * data.batch);
+    data.src1_init.resize(data.k * data.batch);
+    data.src2_init.resize(data.m * data.n * data.k * data.batch);
     data.dst_init.resize(data.m * data.n * data.k * data.batch);
     data.dst_ref.resize(data.m * data.n * data.k * data.batch);
 
@@ -164,11 +164,11 @@ void generate_data(TestData<T>& data, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < data.k * data.batch; ++i)
             {
-                data.src1_init_init[i] = Y(2 * i + 1 - data.k * data.batch);
+                data.src1_init[i] = Y(2 * i + 1 - data.k * data.batch);
             }
             for(Index i = 0; i < data.m * data.n * data.k * data.batch; ++i)
             {
-                data.src2_init_init[i] = Y(5 * data.m * data.n * data.k * data.batch - 2 * i);
+                data.src2_init[i] = Y(5 * data.m * data.n * data.k * data.batch - 2 * i);
                 data.dst_init[i] = Y(3 * data.m * data.n * data.k * data.batch - i);
             }
             break;
@@ -178,11 +178,11 @@ void generate_data(TestData<T>& data, DataGen strategy)
             std::uniform_real_distribution<Y> dist(-2.0, 2.0);
             for(Index i = 0; i < data.k * data.batch; ++i)
             {
-                data.src1_init_init[i] = dist(gen);
+                data.src1_init[i] = dist(gen);
             }
             for(Index i = 0; i < data.m * data.n * data.k * data.batch; ++i)
             {
-                data.src2_init_init[i] = dist(gen);
+                data.src2_init[i] = dist(gen);
                 data.dst_init[i] = dist(gen);
             }
             break;
@@ -235,9 +235,19 @@ TestData<T> get_test_data(Index m, Index n, Index k, Index batch,
 
 // Helper function to verify results
 template<typename T>
-void verify_results(const TestData<T>& data, const std::vector<T>& dst_out)
+void verify_results(const TestData<T>& data, const std::vector<T>& src1, const std::vector<T>& src2, const std::vector<T>& dst_out)
 {
     using Y = typename T::repr_t;
+
+    // Check that source data was not modified
+    for(Index i = 0; i < data.k * data.batch; ++i)
+    {
+        REQUIRE(static_cast<Y>(src1[i]) == static_cast<Y>(data.src1_init[i]));
+    }
+    for(Index i = 0; i < data.m * data.n * data.k * data.batch; ++i)
+    {
+        REQUIRE(static_cast<Y>(src2[i]) == static_cast<Y>(data.src2_init[i]));
+    }
 
     for(Index b = 0; b < data.batch; ++b)
     {
@@ -268,6 +278,8 @@ template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
     std::vector<T> dst_cpu(data.dst_init);
+    std::vector<T> src1_cpu(data.src1_init); // Copy source data to verify it wasn't modified
+    std::vector<T> src2_cpu(data.src2_init); // Copy source data to verify it wasn't modified
 
     if constexpr (run_bench)
     {
@@ -278,13 +290,13 @@ void run_cpu_test(TestData<T>& data)
             "][alpha=" + std::to_string(data.alpha) + "][beta=" + std::to_string(data.beta) + "]"
         )
         {
-            cpu<T>(data.m, data.n, data.k, data.batch, data.alpha, &data.src1_init[0], data.beta, &data.src2_init[0], &dst_cpu[0]);
+            cpu<T>(data.m, data.n, data.k, data.batch, data.alpha, &src1_cpu[0], data.beta, &src2_cpu[0], &dst_cpu[0]);
         };
     }
     else
     {
-        cpu<T>(data.m, data.n, data.k, data.batch, data.alpha, &data.src1_init[0], data.beta, &data.src2_init[0], &dst_cpu[0]);
-        verify_results(data, dst_cpu);
+        cpu<T>(data.m, data.n, data.k, data.batch, data.alpha, &src1_cpu[0], data.beta, &src2_cpu[0], &dst_cpu[0]);
+        verify_results(data, src1_cpu, src2_cpu, dst_cpu);
     }
 }
 
@@ -303,10 +315,12 @@ void run_cuda_test(TestData<T>& data)
                "cudaMalloc dev_dst");
 
     std::vector<T> dst_cuda(data.m * data.n * data.k * data.batch);
+    std::vector<T> src1_cuda(data.src1_init); // Copy source data to verify it wasn't modified
+    std::vector<T> src2_cuda(data.src2_init); // Copy source data to verify it wasn't modified
 
-    CUDA_CHECK(cudaMemcpy(dev_src1, &data.src1_init[0], sizeof(T) * data.k * data.batch,
+    CUDA_CHECK(cudaMemcpy(dev_src1, &src1_cuda[0], sizeof(T) * data.k * data.batch,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src1");
-    CUDA_CHECK(cudaMemcpy(dev_src2, &data.src2_init[0], sizeof(T) * data.m * data.n * data.k * data.batch,
+    CUDA_CHECK(cudaMemcpy(dev_src2, &src2_cuda[0], sizeof(T) * data.m * data.n * data.k * data.batch,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src2");
     CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.m * data.n * data.k * data.batch,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");
@@ -335,7 +349,7 @@ void run_cuda_test(TestData<T>& data)
         CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.m * data.n * data.k * data.batch,
                               cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
 
-        verify_results(data, dst_cuda);
+        verify_results(data, src1_cuda, src2_cuda, dst_cuda);
     }
 
     CUDA_CHECK(cudaFree(dev_src1), "cudaFree dev_src1");

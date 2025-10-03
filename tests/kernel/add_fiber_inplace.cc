@@ -53,8 +53,9 @@ void run_cuda_test(TestData<T>& data)
                "cudaMalloc dev_dst");
 
     std::vector<T> dst_cuda(data.dst_init);
+    std::vector<T> src_cuda(data.src_init); // Copy source data to verify it wasn't modified
 
-    CUDA_CHECK(cudaMemcpy(dev_src, &data.src_init[0], sizeof(T) * data.k * data.batch,
+    CUDA_CHECK(cudaMemcpy(dev_src, &src_cuda[0], sizeof(T) * data.k * data.batch,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src");
     CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.m * data.n * data.k * data.batch,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");
@@ -83,7 +84,7 @@ void run_cuda_test(TestData<T>& data)
         CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.m * data.n * data.k * data.batch,
                               cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
 
-        verify_results(data, dst_cuda);
+        verify_results(data, src_cuda, dst_cuda);
     }
 
     CUDA_CHECK(cudaFree(dev_src), "cudaFree dev_src");
@@ -236,9 +237,15 @@ TestData<T> get_test_data(Index m, Index n, Index k, Index batch,
 
 // Helper function to verify results
 template<typename T>
-void verify_results(const TestData<T>& data, const std::vector<T>& dst_out)
+void verify_results(const TestData<T>& data, const std::vector<T>& src, const std::vector<T>& dst_out)
 {
     using Y = typename T::repr_t;
+
+    // Check that source data was not modified
+    for(Index i = 0; i < data.k * data.batch; ++i)
+    {
+        REQUIRE(static_cast<Y>(src[i]) == static_cast<Y>(data.src_init[i]));
+    }
 
     for(Index b = 0; b < data.batch; ++b)
     {
@@ -269,6 +276,7 @@ template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
     std::vector<T> dst_cpu(data.dst_init);
+    std::vector<T> src_cpu(data.src_init); // Copy source data to verify it wasn't modified
 
     if constexpr (run_bench)
     {
@@ -279,13 +287,13 @@ void run_cpu_test(TestData<T>& data)
             "][alpha=" + std::to_string(data.alpha) + "][beta=" + std::to_string(data.beta) + "]"
         )
         {
-            cpu<T>(data.m, data.n, data.k, data.batch, data.alpha, &data.src_init[0], data.beta, &dst_cpu[0]);
+            cpu<T>(data.m, data.n, data.k, data.batch, data.alpha, &src_cpu[0], data.beta, &dst_cpu[0]);
         };
     }
     else
     {
-        cpu<T>(data.m, data.n, data.k, data.batch, data.alpha, &data.src_init[0], data.beta, &dst_cpu[0]);
-        verify_results(data, dst_cpu);
+        cpu<T>(data.m, data.n, data.k, data.batch, data.alpha, &src_cpu[0], data.beta, &dst_cpu[0]);
+        verify_results(data, src_cpu, dst_cpu);
     }
 }
 
