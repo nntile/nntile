@@ -57,10 +57,10 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<int64_t> index;
-    std::vector<T> embed;
+    std::vector<int64_t> index_init;
+    std::vector<T> embed_init;
     std::vector<T> vocab_init;
-    std::vector<T> vocab;
+
     std::vector<T> vocab_ref;
 };
 
@@ -81,11 +81,11 @@ void reference_embedding_backward(TestData<T>& data)
     {
         for(Index i1 = 0; i1 < data.m; ++i1)
         {
-            int64_t idx = data.index[i2 * data.m + i1];
+            int64_t idx = data.index_init[i2 * data.m + i1];
             // Output slice of vocabulary
             T *vocab_slice = &data.vocab_ref[data.k_size * idx];
             // Input slice of embedding
-            const T *embed_slice = &data.embed[(i2 * data.k + data.k_start) * data.m + i1];
+            const T *embed_slice = &data.embed_init[(i2 * data.k + data.k_start) * data.m + i1];
 
             for(Index i0 = 0; i0 < data.k_size; ++i0)
             {
@@ -109,13 +109,13 @@ void generate_data(TestData<T>& data, DataGen strategy)
     using Y = typename T::repr_t;
 
     // Initialize indices
-    data.index.resize(data.m * data.n);
+    data.index_init.resize(data.m * data.n);
     switch(strategy)
     {
         case DataGen::PRESET:
             for(Index i = 0; i < data.m * data.n; ++i)
             {
-                data.index[i] = (i * 7 + 3) % data.vocab_size; // Ensure indices are within vocab_size
+                data.index_init[i] = (i * 7 + 3) % data.vocab_size; // Ensure indices are within vocab_size
             }
             break;
         case DataGen::RANDOM:
@@ -123,18 +123,18 @@ void generate_data(TestData<T>& data, DataGen strategy)
             std::uniform_int_distribution<int64_t> dist_idx(0, data.vocab_size - 1);
             for(Index i = 0; i < data.m * data.n; ++i)
             {
-                data.index[i] = dist_idx(gen_idx);
+                data.index_init[i] = dist_idx(gen_idx);
             }
     }
 
     // Initialize embedding gradients
-    data.embed.resize(data.m * data.n * data.k);
+    data.embed_init.resize(data.m * data.n * data.k);
     switch(strategy)
     {
         case DataGen::PRESET:
             for(Index i = 0; i < data.m * data.n * data.k; ++i)
             {
-                data.embed[i] = Y(i + 1) / Y{1000};
+                data.embed_init[i] = Y(i + 1) / Y{1000};
             }
             break;
         case DataGen::RANDOM:
@@ -142,13 +142,12 @@ void generate_data(TestData<T>& data, DataGen strategy)
             std::uniform_real_distribution<Y> dist(0.1, 2.0);
             for(Index i = 0; i < data.m * data.n * data.k; ++i)
             {
-                data.embed[i] = dist(gen);
+                data.embed_init[i] = dist(gen);
             }
     }
 
     // Initialize vocabulary gradients (zeros initially)
     data.vocab_init.resize(data.k_size * data.vocab_size);
-    data.vocab.resize(data.k_size * data.vocab_size);
     data.vocab_ref.resize(data.k_size * data.vocab_size);
 }
 
@@ -206,15 +205,33 @@ TestData<T> get_test_data(
 template<typename T>
 void verify_results(
     const TestData<T>& data,
-    const std::vector<T>& vocab_out
+    const std::vector<int64_t>& index,
+    const std::vector<T>& embed,
+    const std::vector<T>& vocab
 )
 {
     using Y = typename T::repr_t;
+
+    // Check that index was not changed during kernel execution
+    for(Index i = 0; i < data.m * data.n; ++i)
+    {
+        REQUIRE(index[i] == data.index_init[i]);
+    }
+
+    // Check that embed was not changed during kernel execution
+    for(Index i = 0; i < data.m * data.n * data.k; ++i)
+    {
+        Y embed_val = static_cast<Y>(embed[i]);
+        Y embed_init_val = static_cast<Y>(data.embed_init[i]);
+        REQUIRE(embed_val == embed_init_val);
+    }
+
+    // Check that vocab (output) matches reference
     for(Index i = 0; i < data.k_size * data.vocab_size; ++i)
     {
         Y vocab_ref = static_cast<Y>(data.vocab_ref[i]);
         REQUIRE_THAT(
-            static_cast<Y>(vocab_out[i]),
+            static_cast<Y>(vocab[i]),
             WithinRel(vocab_ref, data.eps_check)
         );
     }
