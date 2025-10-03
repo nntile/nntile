@@ -163,6 +163,8 @@ struct TestData
     std::vector<T> dst_init;
 
     std::vector<T> dst_ref;
+
+    ref_t eps_check;
 };
 
 // Reference implementation of the add slice inplace operation
@@ -277,6 +279,28 @@ TestData<T> get_test_data(Index m, Index n, Index k, Scalar alpha, Scalar beta, 
     // Generate data by a provided strategy
     generate_data(data, strategy);
 
+    // Set accuracy threshold for each precision
+    if (std::is_same_v<T, bf16_t>)
+    {
+        data.eps_check = 1e-1;
+    }
+    else if (std::is_same_v<T, fp16_t>)
+    {
+        data.eps_check = 1e-2;
+    }
+    else if (std::is_same_v<T, fp32_t>)
+    {
+        data.eps_check = 1e-5;
+    }
+    else if (std::is_same_v<T, fp64_t>)
+    {
+        data.eps_check = 1e-12;
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type");
+    }
+
     // Compute reference outputs
     reference_add_slice_inplace(data);
     return data;
@@ -287,29 +311,6 @@ template<typename T>
 void verify_results(const TestData<T>& data, const std::vector<T>& dst_out)
 {
     using Y = typename T::repr_t;
-
-    // Set accuracy threshold for each precision
-    ref_t eps_check;
-    if (std::is_same_v<T, bf16_t>)
-    {
-        eps_check = 1e-1;
-    }
-    else if (std::is_same_v<T, fp16_t>)
-    {
-        eps_check = 1e-2;
-    }
-    else if (std::is_same_v<T, fp32_t>)
-    {
-        eps_check = 1e-5;
-    }
-    else if (std::is_same_v<T, fp64_t>)
-    {
-        eps_check = 1e-12;
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data type");
-    }
 
     for(Index i0 = 0; i0 < data.m; ++i0)
     {
@@ -324,7 +325,7 @@ void verify_results(const TestData<T>& data, const std::vector<T>& dst_out)
 
                 REQUIRE_THAT(
                     static_cast<Y>(dst_out[dst_idx]),
-                    WithinAbs(dst_ref, eps_check) || WithinRel(dst_ref, eps_check)
+                    WithinAbs(dst_ref, data.eps_check) || WithinRel(dst_ref, data.eps_check)
                 );
             }
         }

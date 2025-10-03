@@ -54,6 +54,8 @@ struct TestData
     std::vector<T> dst_init;
 
     std::vector<T> dst_ref;
+
+    ref_t eps_check;
 };
 
 // Reference implementation of the accumulate maxsumexp operation
@@ -159,6 +161,28 @@ TestData<T> get_test_data(Index nelems, DataGen strategy)
     // Generate data by a provided strategy
     generate_data(data, nelems, strategy);
 
+    // Set accuracy threshold for each precision
+    if (std::is_same_v<T, bf16_t>)
+    {
+        data.eps_check = 1e-1;
+    }
+    else if (std::is_same_v<T, fp16_t>)
+    {
+        data.eps_check = 1e-2;
+    }
+    else if (std::is_same_v<T, fp32_t>)
+    {
+        data.eps_check = 1e-5;
+    }
+    else if (std::is_same_v<T, fp64_t>)
+    {
+        data.eps_check = 1e-12;
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type");
+    }
+
     // Compute reference outputs
     reference_accumulate_maxsumexp(data);
     return data;
@@ -170,29 +194,6 @@ void verify_results(const TestData<T>& data, const std::vector<T>& dst_out)
 {
     using Y = typename T::repr_t;
 
-    // Set accuracy threshold for each precision
-    ref_t eps_check;
-    if (std::is_same_v<T, bf16_t>)
-    {
-        eps_check = 1e-1;
-    }
-    else if (std::is_same_v<T, fp16_t>)
-    {
-        eps_check = 1e-2;
-    }
-    else if (std::is_same_v<T, fp32_t>)
-    {
-        eps_check = 1e-5;
-    }
-    else if (std::is_same_v<T, fp64_t>)
-    {
-        eps_check = 1e-12;
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data type");
-    }
-
     for(Index i = 0; i < data.nelems; ++i)
     {
         Y dst_max_ref = static_cast<Y>(data.dst_ref[2*i]);
@@ -200,11 +201,11 @@ void verify_results(const TestData<T>& data, const std::vector<T>& dst_out)
 
         REQUIRE_THAT(
             static_cast<Y>(dst_out[2*i]),
-            WithinAbs(dst_max_ref, eps_check) || WithinRel(dst_max_ref, eps_check)
+            WithinAbs(dst_max_ref, data.eps_check) || WithinRel(dst_max_ref, data.eps_check)
         );
         REQUIRE_THAT(
             static_cast<Y>(dst_out[2*i+1]),
-            WithinAbs(dst_sumexp_ref, eps_check) || WithinRel(dst_sumexp_ref, eps_check)
+            WithinAbs(dst_sumexp_ref, data.eps_check) || WithinRel(dst_sumexp_ref, data.eps_check)
         );
     }
 }
