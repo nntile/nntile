@@ -54,9 +54,10 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<T> src1;
-    std::vector<T> src2;
+    std::vector<T> src1_init;
+    std::vector<T> src2_init;
     std::vector<T> dst_init;
+
     std::vector<T> dst_ref;
 };
 
@@ -74,8 +75,8 @@ void reference_add(TestData<T>& data)
 
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        ref_t src1_val = static_cast<Y>(data.src1[i]);
-        ref_t src2_val = static_cast<Y>(data.src2[i]);
+        ref_t src1_val = static_cast<Y>(data.src1_init[i]);
+        ref_t src2_val = static_cast<Y>(data.src2_init[i]);
         ref_t result = alpha_r * src1_val + beta_r * src2_val;
         data.dst_ref[i] = static_cast<T>(static_cast<Y>(result));
     }
@@ -95,8 +96,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
     using Y = typename T::repr_t;
     data.num_elems = num_elems;
 
-    data.src1.resize(num_elems);
-    data.src2.resize(num_elems);
+    data.src1_init.resize(num_elems);
+    data.src2_init.resize(num_elems);
     data.dst_init.resize(num_elems);
     data.dst_ref.resize(num_elems);
 
@@ -106,8 +107,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < num_elems; ++i)
             {
-                data.src1[i] = Y(2 * i + 1 - num_elems);
-                data.src2[i] = Y(2 * num_elems - i);
+                data.src1_init[i] = Y(2 * i + 1 - num_elems);
+                data.src2_init[i] = Y(2 * num_elems - i);
                 data.dst_init[i] = Y(5 * num_elems - 2 * i); // Initial destination values
             }
             break;
@@ -117,8 +118,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             std::uniform_real_distribution<Y> dist(1.0, 2.0);
             for(Index i = 0; i < num_elems; ++i)
             {
-                data.src1[i] = dist(gen);
-                data.src2[i] = dist(gen);
+                data.src1_init[i] = dist(gen);
+                data.src2_init[i] = dist(gen);
                 data.dst_init[i] = 2.0 * dist(gen); // Initial destination values
             }
     }
@@ -204,9 +205,9 @@ void run_cpu_test(TestData<T>& data)
             cpu<T>(
                 data.num_elems,
                 data.alpha,
-                &data.src1[0],
+                &data.src1_init[0],
                 data.beta,
-                &data.src2[0],
+                &data.src2_init[0],
                 &dst_cpu[0]
             );
         };
@@ -216,9 +217,9 @@ void run_cpu_test(TestData<T>& data)
         cpu<T>(
             data.num_elems,
             data.alpha,
-            &data.src1[0],
+            &data.src1_init[0],
             data.beta,
-            &data.src2[0],
+            &data.src2_init[0],
             &dst_cpu[0]
         );
         verify_results(data, dst_cpu);
@@ -239,11 +240,11 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_dst, sizeof(T) * data.num_elems),
                "cudaMalloc dev_dst");
 
-    std::vector<T> dst_cuda(data.num_elems);
+    std::vector<T> dst_cuda(data.dst_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_src1, &data.src1[0], sizeof(T) * data.num_elems,
+    CUDA_CHECK(cudaMemcpy(dev_src1, &data.src1_init[0], sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src1");
-    CUDA_CHECK(cudaMemcpy(dev_src2, &data.src2[0], sizeof(T) * data.num_elems,
+    CUDA_CHECK(cudaMemcpy(dev_src2, &data.src2_init[0], sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src2");
     CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");

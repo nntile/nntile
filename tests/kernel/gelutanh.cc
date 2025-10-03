@@ -52,8 +52,9 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<T> src;
+    std::vector<T> src_init;
     std::vector<T> dst_init;
+
     std::vector<T> dst_ref;
 };
 
@@ -75,7 +76,7 @@ void reference_gelutanh(TestData<T>& data)
 
     for(Index i = 0; i < data.nelems; ++i)
     {
-        ref_t z = static_cast<Y>(data.src[i]);
+        ref_t z = static_cast<Y>(data.src_init[i]);
         ref_t y1 = f4 * z * z;
         ref_t y2 = f3 + y1;
         ref_t c = y1 - (y2-f3);
@@ -99,13 +100,15 @@ void generate_data(TestData<T>& data, DataGen strategy)
 {
     using Y = typename T::repr_t;
 
+    data.src_init.resize(data.nelems);
+
     switch(strategy)
     {
         // Non-random input generation
         case DataGen::PRESET:
             for(Index i = 0; i < data.nelems; ++i)
             {
-                data.src[i] = Y(2 * i + 1 - data.nelems);
+                data.src_init[i] = Y(2 * i + 1 - data.nelems);
                 data.dst_init[i] = Y(i - 1);
             }
             break;
@@ -115,7 +118,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
             std::uniform_real_distribution<Y> dist(-3.0, 3.0);
             for(Index i = 0; i < data.nelems; ++i)
             {
-                data.src[i] = dist(gen);
+                data.src_init[i] = dist(gen);
                 data.dst_init[i] = dist(gen);
             }
     }
@@ -131,7 +134,6 @@ TestData<T> get_test_data(
     TestData<T> data;
     // Generate data by a provided strategy
     data.nelems = nelems;
-    data.src.resize(nelems);
     data.dst_init.resize(nelems);
     data.dst_ref.resize(nelems);
     generate_data(data, strategy);
@@ -197,7 +199,7 @@ void run_cpu_test(TestData<T>& data)
         {
             cpu<T>(
                 data.nelems,
-                &data.src[0],
+                &data.src_init[0],
                 &dst_cpu[0]
             );
         };
@@ -206,7 +208,7 @@ void run_cpu_test(TestData<T>& data)
     {
         cpu<T>(
             data.nelems,
-            &data.src[0],
+            &data.src_init[0],
             &dst_cpu[0]
         );
         verify_results(data, dst_cpu);
@@ -227,7 +229,7 @@ void run_cuda_test(TestData<T>& data)
 
     std::vector<T> dst_cuda(data.dst_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_src, &data.src[0], sizeof(T) * data.nelems,
+    CUDA_CHECK(cudaMemcpy(dev_src, &data.src_init[0], sizeof(T) * data.nelems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src");
     CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.nelems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");

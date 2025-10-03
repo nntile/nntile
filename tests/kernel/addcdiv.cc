@@ -54,10 +54,10 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<T> nom;
-    std::vector<T> denom;
+    std::vector<T> nom_init;
+    std::vector<T> denom_init;
     std::vector<T> src_init;
-    std::vector<T> src;
+
     std::vector<T> src_ref;
 };
 
@@ -75,9 +75,9 @@ void reference_addcdiv(TestData<T>& data)
 
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        ref_t src_val = static_cast<Y>(data.src[i]);
-        ref_t nom_val = static_cast<Y>(data.nom[i]);
-        ref_t denom_val = static_cast<Y>(data.denom[i]);
+        ref_t src_val = static_cast<Y>(data.src_init[i]);
+        ref_t nom_val = static_cast<Y>(data.nom_init[i]);
+        ref_t denom_val = static_cast<Y>(data.denom_init[i]);
         ref_t result = src_val + val_r * nom_val / (denom_val + eps_r);
         data.src_ref[i] = static_cast<T>(static_cast<Y>(result));
     }
@@ -97,10 +97,9 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
     using Y = typename T::repr_t;
     data.num_elems = num_elems;
 
-    data.nom.resize(num_elems);
-    data.denom.resize(num_elems);
+    data.nom_init.resize(num_elems);
+    data.denom_init.resize(num_elems);
     data.src_init.resize(num_elems);
-    data.src.resize(num_elems);
     data.src_ref.resize(num_elems);
 
     switch(strategy)
@@ -112,9 +111,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
                 for(Index i = 0; i < num_elems; ++i)
                 {
                     data.src_init[i] = Y(2 * i + 1 - num_elems) * sign_factor;
-                    data.src[i] = data.src_init[i]; // Copy to src for processing
-                    data.nom[i] = Y(num_elems - i);
-                    data.denom[i] = Y(i + 1);
+                    data.nom_init[i] = Y(num_elems - i);
+                    data.denom_init[i] = Y(i + 1);
                     sign_factor *= Y(-1.);
                 }
             }
@@ -126,9 +124,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             for(Index i = 0; i < num_elems; ++i)
             {
                 data.src_init[i] = dist(gen);
-                data.src[i] = data.src_init[i]; // Copy to src for processing
-                data.nom[i] = dist(gen);
-                data.denom[i] = 0.5 * dist(gen) + 0.1; // Avoid division by zero in reference
+                data.nom_init[i] = dist(gen);
+                data.denom_init[i] = 0.5 * dist(gen) + 0.1; // Avoid division by zero in reference
             }
     }
 }
@@ -214,8 +211,8 @@ void run_cpu_test(TestData<T>& data)
                 data.val,
                 data.eps,
                 data.num_elems,
-                &data.nom[0],
-                &data.denom[0],
+                &data.nom_init[0],
+                &data.denom_init[0],
                 &src_cpu[0]
             );
         };
@@ -226,8 +223,8 @@ void run_cpu_test(TestData<T>& data)
             data.val,
             data.eps,
             data.num_elems,
-            &data.nom[0],
-            &data.denom[0],
+            &data.nom_init[0],
+            &data.denom_init[0],
             &src_cpu[0]
         );
         verify_results(data, src_cpu);
@@ -248,13 +245,13 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_denom, sizeof(T) * data.num_elems),
                "cudaMalloc dev_denom");
 
-    std::vector<T> src_cuda(data.src);
+    std::vector<T> src_cuda(data.src_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_src, &data.src[0], sizeof(T) * data.num_elems,
+    CUDA_CHECK(cudaMemcpy(dev_src, &data.src_init[0], sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src");
-    CUDA_CHECK(cudaMemcpy(dev_nom, &data.nom[0], sizeof(T) * data.num_elems,
+    CUDA_CHECK(cudaMemcpy(dev_nom, &data.nom_init[0], sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_nom");
-    CUDA_CHECK(cudaMemcpy(dev_denom, &data.denom[0], sizeof(T) * data.num_elems,
+    CUDA_CHECK(cudaMemcpy(dev_denom, &data.denom_init[0], sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_denom");
 
     cudaStream_t stream;
