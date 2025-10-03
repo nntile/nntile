@@ -126,12 +126,12 @@ struct TestData
     Index nelems; // Number of elements
     Scalar alpha, beta; // Scalar factors
 
+    Y eps_check;
+
     std::vector<T> src;
     std::vector<T> dst_init;
 
     std::vector<T> dst_ref;
-
-    Y eps_check;
 };
 
 // Reference implementation of the add inplace operation
@@ -242,7 +242,8 @@ void verify_results(const TestData<T>& data, const std::vector<T>& dst_out)
 
         REQUIRE_THAT(
             static_cast<Y>(dst_out[i]),
-            WithinAbs(dst_ref, data.eps_check) || WithinRel(dst_ref, data.eps_check)
+            WithinAbs(dst_ref, data.eps_check) ||
+            WithinRel(dst_ref, data.eps_check)
         );
     }
 }

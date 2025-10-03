@@ -157,12 +157,12 @@ struct TestData
     Index m, n, k; // Tensor dimensions
     Scalar alpha, beta; // Scalar factors
 
+    Y eps_check;
+
     std::vector<T> src;
     std::vector<T> dst_init;
 
     std::vector<T> dst_ref;
-
-    Y eps_check;
 };
 
 // Reference implementation of the add slice inplace operation
@@ -184,7 +184,7 @@ void reference_add_slice_inplace(TestData<T>& data)
                 Index dst_idx = (i1 * data.k + i2) * data.m + i0;
                 Y& dst_val = reinterpret_cast<Y&>(data.dst_ref[dst_idx]);
 
-                if(data.beta == Y(0.0))
+                if(std::abs(data.beta) <= Y(1e-6))
                 {
                     dst_val = data.alpha * src_val;
                 }
@@ -324,7 +324,8 @@ void verify_results(const TestData<T>& data, const std::vector<T>& dst_out)
 
                 REQUIRE_THAT(
                     static_cast<Y>(dst_out[dst_idx]),
-                    WithinAbs(dst_ref, data.eps_check) || WithinRel(dst_ref, data.eps_check)
+                    WithinAbs(dst_ref, data.eps_check) ||
+                    WithinRel(dst_ref, data.eps_check)
                 );
             }
         }

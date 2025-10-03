@@ -48,12 +48,12 @@ struct TestData
     using Y = typename T::repr_t;
     Index nelems; // Number of (max,sumexp) pairs
 
+    Y eps_check;
+
     std::vector<T> src;
     std::vector<T> dst_init;
 
     std::vector<T> dst_ref;
-
-    Y eps_check;
 };
 
 // Reference implementation of the accumulate maxsumexp operation
@@ -76,10 +76,10 @@ void reference_accumulate_maxsumexp(TestData<T>& data)
         const Y dst_sumexp = static_cast<Y>(data.dst_ref[2*i+1]);
 
         // Do nothing if sum of exponents of source is zero
-        if(src_sumexp != Y(0.0))
+        if(std::abs(src_sumexp) > Y(1e-6))
         {
             // Overwrite if old value of sum is zero
-            if(dst_sumexp == Y(0.0))
+            if(std::abs(dst_sumexp) <= Y(1e-6))
             {
                 data.dst_ref[2*i] = data.src[2*i];
                 data.dst_ref[2*i+1] = data.src[2*i+1];
@@ -200,11 +200,13 @@ void verify_results(const TestData<T>& data, const std::vector<T>& dst_out)
 
         REQUIRE_THAT(
             static_cast<Y>(dst_out[2*i]),
-            WithinAbs(dst_max_ref, data.eps_check) || WithinRel(dst_max_ref, data.eps_check)
+            WithinAbs(dst_max_ref, data.eps_check) ||
+            WithinRel(dst_max_ref, data.eps_check)
         );
         REQUIRE_THAT(
             static_cast<Y>(dst_out[2*i+1]),
-            WithinAbs(dst_sumexp_ref, data.eps_check) || WithinRel(dst_sumexp_ref, data.eps_check)
+            WithinAbs(dst_sumexp_ref, data.eps_check) ||
+            WithinRel(dst_sumexp_ref, data.eps_check)
         );
     }
 }

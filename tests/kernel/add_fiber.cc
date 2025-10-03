@@ -95,11 +95,11 @@ struct TestData
     Index m, n, k, batch; // Tensor dimensions
     Scalar alpha, beta;   // Scalar factors
 
+    Y eps_check;
+
     std::vector<T> src1;
     std::vector<T> src2;
     std::vector<T> dst_ref;
-
-    Y eps_check;
 };
 
 // Reference implementation of the add fiber operation
@@ -124,7 +124,7 @@ void reference_add_fiber(TestData<T>& data)
                     Y src2_val = static_cast<Y>(data.src2[src2_idx]);
                     Y& dst_val = reinterpret_cast<Y&>(data.dst_ref[dst_idx]);
 
-                    if(data.beta == Y(0.0))
+                    if(std::abs(data.beta) <= Y(1e-6))
                     {
                         dst_val = src1_val;
                     }
@@ -249,7 +249,8 @@ void verify_results(const TestData<T>& data, const std::vector<T>& dst_out)
 
                     REQUIRE_THAT(
                         static_cast<Y>(dst_out[dst_idx]),
-                        WithinAbs(dst_ref, data.eps_check) || WithinRel(dst_ref, data.eps_check)
+                        WithinAbs(dst_ref, data.eps_check) ||
+                        WithinRel(dst_ref, data.eps_check)
                     );
                 }
             }
