@@ -264,7 +264,7 @@ void run_cpu_test(TestData<T>& data)
                 data.k,
                 data.k_start,
                 data.k_size,
-                reinterpret_cast<const int64_t*>(index_cpu.data()),
+                index_cpu.data(),
                 &vocab_cpu[0],
                 &embed_cpu[0]
             );
@@ -278,7 +278,7 @@ void run_cpu_test(TestData<T>& data)
             data.k,
             data.k_start,
             data.k_size,
-            reinterpret_cast<const int64_t*>(index_cpu.data()),
+            index_cpu.data(),
             &vocab_cpu[0],
             &embed_cpu[0]
         );
