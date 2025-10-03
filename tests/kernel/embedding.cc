@@ -263,7 +263,7 @@ void run_cpu_test(TestData<T>& data)
                 data.k,
                 data.k_start,
                 data.k_size,
-                &index_cpu[0],
+                reinterpret_cast<const int64_t*>(&index_cpu[0]),
                 &vocab_cpu[0],
                 &embed_cpu[0]
             );
@@ -302,12 +302,12 @@ void run_cuda_test(TestData<T>& data)
                "cudaMalloc dev_embed");
 
     std::vector<T> embed_cuda(data.embed_init);
-    std::vector<std::int64_t> index_cuda(data.index_init);
+    std::vector<int64_t> index_cuda(data.index_init);
     std::vector<T> vocab_cuda(data.vocab_init);
 
     CUDA_CHECK(cudaMemcpy(dev_vocab, &data.vocab_init[0], sizeof(T) * data.k_size * data.vocab_size,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_vocab");
-    CUDA_CHECK(cudaMemcpy(dev_index, &data.index_init[0], sizeof(std::int64_t) * data.m * data.n,
+    CUDA_CHECK(cudaMemcpy(dev_index, &index_cuda[0], sizeof(int64_t) * data.m * data.n,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_index");
     CUDA_CHECK(cudaMemcpy(dev_embed, &embed_cuda[0], sizeof(T) * data.m * data.n * data.k,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_embed");
