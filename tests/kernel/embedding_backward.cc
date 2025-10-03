@@ -361,7 +361,7 @@ void run_cuda_test(TestData<T>& data)
         CUDA_CHECK(cudaMemcpy(&vocab_cuda[0], dev_vocab, sizeof(T) * data.k_size * data.vocab_size,
                               cudaMemcpyDeviceToHost), "cudaMemcpy vocab_cuda");
 
-        verify_results(data, vocab_cuda);
+        verify_results(data, index_cuda, embed_cuda, vocab_cuda);
     }
 
     CUDA_CHECK(cudaFree(dev_vocab), "cudaFree dev_vocab");
