@@ -57,10 +57,10 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<int64_t> index;
-    std::vector<T> vocab;
+    std::vector<int64_t> index_init;
+    std::vector<T> vocab_init;
     std::vector<T> embed_init;
-    std::vector<T> embed;
+
     std::vector<T> embed_ref;
 };
 
@@ -78,11 +78,11 @@ void reference_embedding(TestData<T>& data)
     {
         for(Index i1 = 0; i1 < data.m; ++i1)
         {
-            int64_t idx = data.index[i2 * data.m + i1];
+            int64_t idx = data.index_init[i2 * data.m + i1];
             // Input slice of vocabulary
-            const T *vocab_slice = &data.vocab[data.k_size * idx];
+            const T *vocab_slice = &data.vocab_init[data.k_size * idx];
             // Output slice to be updated
-            T *embed_slice = &data.embed[(i2 * data.k + data.k_start) * data.m + i1];
+            T *embed_slice = &data.embed_init[(i2 * data.k + data.k_start) * data.m + i1];
 
             for(Index i0 = 0; i0 < data.k_size; ++i0)
             {
@@ -106,13 +106,13 @@ void generate_data(TestData<T>& data, DataGen strategy)
     using Y = typename T::repr_t;
 
     // Initialize vocabulary
-    data.vocab.resize(data.k_size * data.vocab_size);
+    data.vocab_init.resize(data.k_size * data.vocab_size);
     switch(strategy)
     {
         case DataGen::PRESET:
             for(Index i = 0; i < data.k_size * data.vocab_size; ++i)
             {
-                data.vocab[i] = Y(i + 1) / Y{1000};
+                data.vocab_init[i] = Y(i + 1) / Y{1000};
             }
             break;
         case DataGen::RANDOM:
@@ -120,18 +120,18 @@ void generate_data(TestData<T>& data, DataGen strategy)
             std::uniform_real_distribution<Y> dist(0.1, 2.0);
             for(Index i = 0; i < data.k_size * data.vocab_size; ++i)
             {
-                data.vocab[i] = dist(gen);
+                data.vocab_init[i] = dist(gen);
             }
     }
 
     // Initialize indices
-    data.index.resize(data.m * data.n);
+    data.index_init.resize(data.m * data.n);
     switch(strategy)
     {
         case DataGen::PRESET:
             for(Index i = 0; i < data.m * data.n; ++i)
             {
-                data.index[i] = (i * 7 + 3) % data.vocab_size; // Ensure indices are within vocab_size
+                data.index_init[i] = (i * 7 + 3) % data.vocab_size; // Ensure indices are within vocab_size
             }
             break;
         case DataGen::RANDOM:
@@ -139,13 +139,12 @@ void generate_data(TestData<T>& data, DataGen strategy)
             std::uniform_int_distribution<int64_t> dist_idx(0, data.vocab_size - 1);
             for(Index i = 0; i < data.m * data.n; ++i)
             {
-                data.index[i] = dist_idx(gen_idx);
+                data.index_init[i] = dist_idx(gen_idx);
             }
     }
 
     // Initialize output embedding tensor
     data.embed_init.resize(data.m * data.n * data.k);
-    data.embed.resize(data.m * data.n * data.k);
     data.embed_ref.resize(data.m * data.n * data.k);
 }
 
@@ -203,15 +202,33 @@ TestData<T> get_test_data(
 template<typename T>
 void verify_results(
     const TestData<T>& data,
-    const std::vector<T>& embed_out
+    const std::vector<int64_t>& index,
+    const std::vector<T>& vocab,
+    const std::vector<T>& embed
 )
 {
     using Y = typename T::repr_t;
+
+    // Check that index was not changed during kernel execution
+    for(Index i = 0; i < data.m * data.n; ++i)
+    {
+        REQUIRE(index[i] == data.index_init[i]);
+    }
+
+    // Check that vocab was not changed during kernel execution
+    for(Index i = 0; i < data.k_size * data.vocab_size; ++i)
+    {
+        Y vocab_val = static_cast<Y>(vocab[i]);
+        Y vocab_init_val = static_cast<Y>(data.vocab_init[i]);
+        REQUIRE(vocab_val == vocab_init_val);
+    }
+
+    // Check that embed (output) matches reference
     for(Index i = 0; i < data.m * data.n * data.k; ++i)
     {
         Y embed_ref = static_cast<Y>(data.embed_ref[i]);
         REQUIRE_THAT(
-            static_cast<Y>(embed_out[i]),
+            static_cast<Y>(embed[i]),
             WithinRel(embed_ref, data.eps_check)
         );
     }
@@ -222,6 +239,8 @@ template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
     std::vector<T> embed_cpu(data.embed_init);
+    std::vector<int64_t> index_cpu(data.index_init);
+    std::vector<T> vocab_cpu(data.vocab_init);
 
     if constexpr (run_bench)
     {
@@ -243,8 +262,8 @@ void run_cpu_test(TestData<T>& data)
                 data.k,
                 data.k_start,
                 data.k_size,
-                &data.index[0],
-                &data.vocab[0],
+                &index_cpu[0],
+                &vocab_cpu[0],
                 &embed_cpu[0]
             );
         };
@@ -257,11 +276,11 @@ void run_cpu_test(TestData<T>& data)
             data.k,
             data.k_start,
             data.k_size,
-            &data.index[0],
-            &data.vocab[0],
+            &index_cpu[0],
+            &vocab_cpu[0],
             &embed_cpu[0]
         );
-        verify_results(data, embed_cpu);
+        verify_results(data, index_cpu, vocab_cpu, embed_cpu);
     }
 }
 
@@ -281,11 +300,13 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_embed, sizeof(T) * data.m * data.n * data.k),
                "cudaMalloc dev_embed");
 
-    std::vector<T> embed_cuda(data.embed);
+    std::vector<T> embed_cuda(data.embed_init);
+    std::vector<int64_t> index_cuda(data.index_init);
+    std::vector<T> vocab_cuda(data.vocab_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_vocab, &data.vocab[0], sizeof(T) * data.k_size * data.vocab_size,
+    CUDA_CHECK(cudaMemcpy(dev_vocab, &data.vocab_init[0], sizeof(T) * data.k_size * data.vocab_size,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_vocab");
-    CUDA_CHECK(cudaMemcpy(dev_index, &data.index[0], sizeof(int64_t) * data.m * data.n,
+    CUDA_CHECK(cudaMemcpy(dev_index, &data.index_init[0], sizeof(int64_t) * data.m * data.n,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_index");
     CUDA_CHECK(cudaMemcpy(dev_embed, &embed_cuda[0], sizeof(T) * data.m * data.n * data.k,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_embed");
@@ -339,7 +360,7 @@ void run_cuda_test(TestData<T>& data)
         CUDA_CHECK(cudaMemcpy(&embed_cuda[0], dev_embed, sizeof(T) * data.m * data.n * data.k,
                               cudaMemcpyDeviceToHost), "cudaMemcpy embed_cuda");
 
-        verify_results(data, embed_cuda);
+        verify_results(data, index_cuda, vocab_cuda, embed_cuda);
     }
 
     CUDA_CHECK(cudaFree(dev_vocab), "cudaFree dev_vocab");
