@@ -80,7 +80,7 @@ void reference_embedding(TestData<T>& data)
     {
         for(Index i1 = 0; i1 < data.m; ++i1)
         {
-            Index idx = data.index_init[i2 * data.m + i1];
+            Index idx = static_cast<Index>(data.index_init[i2 * data.m + i1]);
             // Input slice of vocabulary
             const T *vocab_slice = &data.vocab_init[data.k_size * idx];
             // Output slice to be updated
