@@ -59,7 +59,7 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<Index> index_init;
+    std::vector<nntile::int64_t> index_init;
     std::vector<T> vocab_init;
     std::vector<T> embed_init;
 
@@ -133,7 +133,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < data.m * data.n; ++i)
             {
-                data.index_init[i] = (i * 7 + 3) % data.vocab_size; // Ensure indices are within vocab_size
+                data.index_init[i] = nntile::int64_t((i * 7 + 3) % data.vocab_size); // Ensure indices are within vocab_size
             }
             break;
         case DataGen::RANDOM:
@@ -141,7 +141,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
             std::uniform_int_distribution<Index> dist_idx(0, data.vocab_size - 1);
             for(Index i = 0; i < data.m * data.n; ++i)
             {
-                data.index_init[i] = dist_idx(gen_idx);
+                data.index_init[i] = nntile::int64_t(dist_idx(gen_idx));
             }
     }
 
