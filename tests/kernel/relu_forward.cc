@@ -27,8 +27,13 @@
 // Third-party libraries
 #include <catch2/catch_all.hpp>
 
+// Other NNTile headers
+// CUDA_CHECK definition
+#include <nntile/kernel/cuda.hh>
+
 // Use namespaces for shorter code
 using namespace Catch;
+using namespace Catch::Matchers;
 
 // Use tested NNTile namespaces
 using namespace nntile;
@@ -44,9 +49,11 @@ struct TestData
 {
     using Y = typename T::repr_t;
     Index nelems; // Number of elements
-    Scalar eps_check;
+
+    Y eps_check;
 
     std::vector<T> src;
+    std::vector<T> dst_init;
     std::vector<T> dst_ref;
 };
 
@@ -59,12 +66,13 @@ void reference_relu_forward(TestData<T>& data)
     {
         return;
     }
-    constexpr Y zero{0.0};
+    constexpr ref_t zero = 0.0;
 
     for(Index i = 0; i < data.nelems; ++i)
     {
-        Y src_val = Y{data.src[i]};
-        data.dst_ref[i] = T{std::fmax(src_val, zero)};
+        ref_t x = static_cast<Y>(data.src[i]);
+        ref_t y = std::fmax(x, zero);
+        data.dst_ref[i] = static_cast<T>(static_cast<Y>(y));
     }
 }
 
@@ -88,6 +96,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
             for(Index i = 0; i < data.nelems; ++i)
             {
                 data.src[i] = Y(2 * i + 1 - data.nelems);
+                data.dst_init[i] = Y(i - 1);
             }
             break;
         // Specific random initialization
@@ -97,6 +106,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
             for(Index i = 0; i < data.nelems; ++i)
             {
                 data.src[i] = dist(gen);
+                data.dst_init[i] = dist(gen);
             }
     }
 }
@@ -112,6 +122,7 @@ TestData<T> get_test_data(
     // Generate data by a provided strategy
     data.nelems = nelems;
     data.src.resize(nelems);
+    data.dst_init.resize(nelems);
     data.dst_ref.resize(nelems);
     generate_data(data, strategy);
 
@@ -153,8 +164,10 @@ void verify_results(
     for(Index i = 0; i < data.nelems; ++i)
     {
         Y dst_ref = static_cast<Y>(data.dst_ref[i]);
-        auto dst_approx = Approx(dst_ref).epsilon(data.eps_check);
-        REQUIRE(static_cast<Y>(dst_out[i]) == dst_approx);
+        REQUIRE_THAT(
+            static_cast<Y>(dst_out[i]),
+            WithinRel(dst_ref, data.eps_check)
+        );
     }
 }
 
@@ -162,7 +175,7 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> dst_cpu(data.nelems);
+    std::vector<T> dst_cpu(data.dst_init);
 
     if constexpr (run_bench)
     {
@@ -202,7 +215,7 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_dst, sizeof(T) * data.nelems),
                "cudaMalloc dev_dst");
 
-    std::vector<T> dst_cuda(data.nelems);
+    std::vector<T> dst_cuda(data.dst_init);
 
     CUDA_CHECK(cudaMemcpy(dev_src, &data.src[0], sizeof(T) * data.nelems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src");

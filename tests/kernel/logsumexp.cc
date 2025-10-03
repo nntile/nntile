@@ -27,8 +27,13 @@
 // Third-party libraries
 #include <catch2/catch_all.hpp>
 
+// Other NNTile headers
+// CUDA_CHECK definition
+#include <nntile/kernel/cuda.hh>
+
 // Use namespaces for shorter code
 using namespace Catch;
+using namespace Catch::Matchers;
 
 // Use tested NNTile namespaces
 using namespace nntile;
@@ -44,9 +49,11 @@ struct TestData
 {
     using Y = typename T::repr_t;
     Index num_elems; // Number of elements in logsumexp output
-    Scalar eps_check;
+
+    Y eps_check;
 
     std::vector<T> maxsumexp;    // Size: 2*num_elems (interleaved max and sumexp)
+    std::vector<T> logsumexp_init; // Size: num_elems
     std::vector<T> logsumexp_ref; // Size: num_elems
 };
 
@@ -60,8 +67,8 @@ void reference_logsumexp(TestData<T>& data)
     {
         ref_t max_val = static_cast<Y>(data.maxsumexp[2*i]);
         ref_t sum_val = static_cast<Y>(data.maxsumexp[2*i+1]);
-        ref_t result = max_val + std::log(sum_val);
-        data.logsumexp_ref[i] = static_cast<T>(static_cast<Y>(result));
+        data.logsumexp_ref[i] = static_cast<T>(
+            static_cast<Y>(max_val + std::log(sum_val)));
     }
 }
 
@@ -80,6 +87,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
     data.num_elems = num_elems;
 
     data.maxsumexp.resize(2 * num_elems);
+    data.logsumexp_init.resize(num_elems);
     data.logsumexp_ref.resize(num_elems);
 
     switch(strategy)
@@ -90,6 +98,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             {
                 data.maxsumexp[2*i] = Y(i + 1);      // max value
                 data.maxsumexp[2*i+1] = Y(10.0 + i); // sum of exponents
+                data.logsumexp_init[i] = Y(i - 1);
             }
             break;
         // Specific random initialization
@@ -97,10 +106,12 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             std::mt19937 gen(42);
             std::uniform_real_distribution<Y> dist_max(-2.0, 2.0);
             std::uniform_real_distribution<Y> dist_sum(1.0, 20.0);
+            std::uniform_real_distribution<Y> dist_init(-1.0, 1.0);
             for(Index i = 0; i < num_elems; ++i)
             {
                 data.maxsumexp[2*i] = dist_max(gen);     // max value
                 data.maxsumexp[2*i+1] = dist_sum(gen);   // sum of exponents
+                data.logsumexp_init[i] = dist_init(gen);
             }
     }
 }
@@ -152,8 +163,10 @@ void verify_results(
     for(Index i = 0; i < data.num_elems; ++i)
     {
         Y logsumexp_ref = static_cast<Y>(data.logsumexp_ref[i]);
-        auto logsumexp_approx = Approx(logsumexp_ref).epsilon(data.eps_check);
-        REQUIRE(static_cast<Y>(logsumexp_out[i]) == logsumexp_approx);
+        REQUIRE_THAT(
+            static_cast<Y>(logsumexp_out[i]),
+            WithinRel(logsumexp_ref, data.eps_check)
+        );
     }
 }
 
@@ -161,7 +174,7 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> logsumexp_cpu(data.num_elems);
+    std::vector<T> logsumexp_cpu(data.logsumexp_init);
 
     if constexpr (run_bench)
     {
@@ -200,7 +213,7 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_logsumexp, sizeof(T) * data.num_elems),
                "cudaMalloc dev_logsumexp");
 
-    std::vector<T> logsumexp_cuda(data.num_elems);
+    std::vector<T> logsumexp_cuda(data.logsumexp_init);
 
     CUDA_CHECK(cudaMemcpy(dev_maxsumexp, &data.maxsumexp[0],
                           sizeof(T) * 2 * data.num_elems,

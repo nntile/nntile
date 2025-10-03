@@ -27,8 +27,13 @@
 // Third-party libraries
 #include <catch2/catch_all.hpp>
 
+// Other NNTile headers
+// CUDA_CHECK definition
+#include <nntile/kernel/cuda.hh>
+
 // Use namespaces for shorter code
 using namespace Catch;
+using namespace Catch::Matchers;
 
 // Use tested NNTile namespaces
 using namespace nntile;
@@ -49,7 +54,8 @@ struct TestData
     Index batch; // Batch dimension
     Scalar alpha;
     Scalar beta;
-    Scalar eps_check;
+
+    Y eps_check;
 
     std::vector<T> src;      // Size: m*k*n*batch
     std::vector<T> dst_init; // Size: k*batch
@@ -207,8 +213,10 @@ void verify_results(
     for(Index i = 0; i < data.k * data.batch; ++i)
     {
         Y dst_ref = static_cast<Y>(data.dst_ref[i]);
-        auto dst_approx = Approx(dst_ref).epsilon(data.eps_check);
-        REQUIRE(static_cast<Y>(dst_out[i]) == dst_approx);
+        REQUIRE_THAT(
+            static_cast<Y>(dst_out[i]),
+            WithinRel(dst_ref, data.eps_check)
+        );
     }
 }
 

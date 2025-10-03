@@ -27,8 +27,13 @@
 // Third-party libraries
 #include <catch2/catch_all.hpp>
 
+// Other NNTile headers
+// CUDA_CHECK definition
+#include <nntile/kernel/cuda.hh>
+
 // Use namespaces for shorter code
 using namespace Catch;
+using namespace Catch::Matchers;
 
 // Use tested NNTile namespaces
 using namespace nntile;
@@ -46,7 +51,8 @@ struct TestData
     Index num_elems; // Number of data elements
     Scalar alpha;
     Scalar exp;
-    Scalar eps_check;
+
+    Y eps_check;
 
     std::vector<T> data_init;
     std::vector<T> data_ref;
@@ -169,8 +175,10 @@ void verify_results(
     for(Index i = 0; i < data.num_elems; ++i)
     {
         Y data_ref = static_cast<Y>(data.data_ref[i]);
-        auto data_approx = Approx(data_ref).epsilon(data.eps_check);
-        REQUIRE(static_cast<Y>(data_out[i]) == data_approx);
+        REQUIRE_THAT(
+            static_cast<Y>(data_out[i]),
+            WithinRel(data_ref, data.eps_check)
+        );
     }
 }
 

@@ -27,8 +27,13 @@
 // Third-party libraries
 #include <catch2/catch_all.hpp>
 
+// Other NNTile headers
+// CUDA_CHECK definition
+#include <nntile/kernel/cuda.hh>
+
 // Use namespaces for shorter code
 using namespace Catch;
+using namespace Catch::Matchers;
 
 // Use tested NNTile namespaces
 using namespace nntile;
@@ -50,7 +55,8 @@ struct TestData
     Scalar eps;
     Scalar lr;
     Scalar weight_decay;
-    Scalar eps_check;
+
+    Y eps_check;
 
     std::vector<T> grad;
     std::vector<T> p_init;
@@ -81,7 +87,7 @@ void reference_adam_step(TestData<T>& data)
     const ref_t beta = one / std::sqrt(one - std::pow(beta_2_r, data.num_iter));
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        ref_t p_val = static_cast<Y>(data.p_ref[i]);
+        ref_t p_val = static_cast<Y>(data.p_init[i]);
         ref_t grad_val = static_cast<Y>(data.grad[i]);
         grad_val += weight_decay_r * p_val;
         ref_t f_val, s_val;
@@ -92,8 +98,8 @@ void reference_adam_step(TestData<T>& data)
         }
         else
         {
-            f_val = static_cast<Y>(data.first_moment_ref[i]);
-            s_val = static_cast<Y>(data.second_moment_ref[i]);
+            f_val = static_cast<Y>(data.first_moment_init[i]);
+            s_val = static_cast<Y>(data.second_moment_init[i]);
             f_val = beta_1_r * f_val + (one - beta_1_r) * grad_val;
             s_val = std::hypot(
                 std::sqrt(beta_2_r) * s_val,
@@ -126,6 +132,10 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
     data.p_init.resize(num_elems);
     data.first_moment_init.resize(num_elems);
     data.second_moment_init.resize(num_elems);
+
+    data.p_ref.resize(num_elems);
+    data.first_moment_ref.resize(num_elems);
+    data.second_moment_ref.resize(num_elems);
 
     switch(strategy)
     {
@@ -198,9 +208,6 @@ TestData<T> get_test_data(
         throw std::runtime_error("Unsupported data type");
     }
     // Compute reference outputs
-    data.p_ref = data.p_init;
-    data.first_moment_ref = data.first_moment_init;
-    data.second_moment_ref = data.second_moment_init;
     reference_adam_step(data);
     return data;
 }
@@ -220,12 +227,18 @@ void verify_results(
         Y p_ref = static_cast<Y>(data.p_ref[i]);
         Y m_ref = static_cast<Y>(data.first_moment_ref[i]);
         Y v_ref = static_cast<Y>(data.second_moment_ref[i]);
-        auto p_approx = Approx(p_ref).epsilon(data.eps_check);
-        auto m_approx = Approx(m_ref).epsilon(data.eps_check);
-        auto v_approx = Approx(v_ref).epsilon(data.eps_check);
-        REQUIRE(static_cast<Y>(p_out[i]) == p_approx);
-        REQUIRE(static_cast<Y>(m_out[i]) == m_approx);
-        REQUIRE(static_cast<Y>(v_out[i]) == v_approx);
+        REQUIRE_THAT(
+            static_cast<Y>(p_out[i]),
+            WithinRel(p_ref, data.eps_check)
+        );
+        REQUIRE_THAT(
+            static_cast<Y>(m_out[i]),
+            WithinRel(m_ref, data.eps_check)
+        );
+        REQUIRE_THAT(
+            static_cast<Y>(v_out[i]),
+            WithinRel(v_ref, data.eps_check)
+        );
     }
 }
 

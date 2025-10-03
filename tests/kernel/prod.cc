@@ -27,8 +27,13 @@
 // Third-party libraries
 #include <catch2/catch_all.hpp>
 
+// Other NNTile headers
+// CUDA_CHECK definition
+#include <nntile/kernel/cuda.hh>
+
 // Use namespaces for shorter code
 using namespace Catch;
+using namespace Catch::Matchers;
 
 // Use tested NNTile namespaces
 using namespace nntile;
@@ -44,10 +49,12 @@ struct TestData
 {
     using Y = typename T::repr_t;
     Index num_elems; // Number of data elements
-    Scalar eps_check;
+
+    Y eps_check;
 
     std::vector<T> src1;
     std::vector<T> src2;
+    std::vector<T> dst_init;
     std::vector<T> dst_ref;
 };
 
@@ -86,6 +93,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
 
     data.src1.resize(num_elems);
     data.src2.resize(num_elems);
+    data.dst_init.resize(num_elems);
     data.dst_ref.resize(num_elems);
 
     switch(strategy)
@@ -96,6 +104,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             {
                 data.src1[i] = Y(2 * i + 1 - num_elems);
                 data.src2[i] = Y(num_elems - i);
+                data.dst_init[i] = Y(i - 1);
             }
             break;
         // Specific random initialization
@@ -106,6 +115,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             {
                 data.src1[i] = dist(gen);
                 data.src2[i] = dist(gen);
+                data.dst_init[i] = dist(gen);
             }
     }
 }
@@ -157,8 +167,10 @@ void verify_results(
     for(Index i = 0; i < data.num_elems; ++i)
     {
         Y dst_ref = static_cast<Y>(data.dst_ref[i]);
-        auto dst_approx = Approx(dst_ref).epsilon(data.eps_check);
-        REQUIRE(static_cast<Y>(dst_out[i]) == dst_approx);
+        REQUIRE_THAT(
+            static_cast<Y>(dst_out[i]),
+            WithinRel(dst_ref, data.eps_check)
+        );
     }
 }
 
@@ -166,7 +178,7 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> dst_cpu(data.num_elems);
+    std::vector<T> dst_cpu(data.dst_init);
 
     if constexpr (run_bench)
     {
@@ -209,7 +221,7 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_dst, sizeof(T) * data.num_elems),
                "cudaMalloc dev_dst");
 
-    std::vector<T> dst_cuda(data.num_elems);
+    std::vector<T> dst_cuda(data.dst_init);
 
     CUDA_CHECK(cudaMemcpy(dev_src1, &data.src1[0], sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src1");

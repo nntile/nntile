@@ -27,8 +27,13 @@
 // Third-party libraries
 #include <catch2/catch_all.hpp>
 
+// Other NNTile headers
+// CUDA_CHECK definition
+#include <nntile/kernel/cuda.hh>
+
 // Use namespaces for shorter code
 using namespace Catch;
+using namespace Catch::Matchers;
 
 // Use tested NNTile namespaces
 using namespace nntile;
@@ -47,10 +52,12 @@ struct TestData
     Index n; // Last mode size
     Index k; // Middle mode size
     Scalar alpha;
-    Scalar eps_check;
+
+    Y eps_check;
 
     std::vector<T> maxsumexp; // Size: 2*m*n (interleaved max and sumexp)
     std::vector<T> src;       // Size: m*n*k
+    std::vector<T> dst_init;  // Size: m*n*k
     std::vector<T> dst_ref;   // Size: m*n*k
 };
 
@@ -78,14 +85,10 @@ void reference_softmax(TestData<T>& data)
                 const ref_t max = static_cast<Y>(data.maxsumexp[maxsumexp_offset]);
                 const ref_t sum = static_cast<Y>(data.maxsumexp[maxsumexp_offset+1]);
                 // Update value
-                ref_t result;
+                ref_t result = 0.0;
                 if(not std::isinf(val))
                 {
                     result = alpha * std::exp(val - max) / sum;
-                }
-                else
-                {
-                    result = 0.0;
                 }
                 data.dst_ref[src_dst_offset] = static_cast<T>(static_cast<Y>(result));
                 // Update pointers
@@ -115,6 +118,7 @@ void generate_data(TestData<T>& data, Index m, Index n, Index k, DataGen strateg
     data.maxsumexp.resize(2 * m * n);
     data.src.resize(m * n * k);
     data.dst_ref.resize(m * n * k);
+    data.dst_init.resize(m * n * k);
 
     switch(strategy)
     {
@@ -127,7 +131,13 @@ void generate_data(TestData<T>& data, Index m, Index n, Index k, DataGen strateg
             }
             for(Index i = 0; i < m * n * k; ++i)
             {
-                data.src[i] = Y(i % 10 - 5);
+                Y src_val = Y(i % 10 - 5);
+                if(src_val < -3)
+                {
+                    src_val = -std::numeric_limits<Y>::infinity();
+                }
+                data.src[i] = src_val;
+                data.dst_init[i] = Y(i % 3 - 1);
             }
             break;
         // Specific random initialization
@@ -143,7 +153,13 @@ void generate_data(TestData<T>& data, Index m, Index n, Index k, DataGen strateg
             }
             for(Index i = 0; i < m * n * k; ++i)
             {
-                data.src[i] = dist_src(gen);
+                Y src_val = dist_src(gen);
+                if(src_val < -1)
+                {
+                    src_val = -std::numeric_limits<Y>::infinity();
+                }
+                data.src[i] = src_val;
+                data.dst_init[i] = dist_src(gen);
             }
     }
 }
@@ -200,8 +216,10 @@ void verify_results(
     for(Index i = 0; i < data.m * data.n * data.k; ++i)
     {
         Y dst_ref = static_cast<Y>(data.dst_ref[i]);
-        auto dst_approx = Approx(dst_ref).epsilon(data.eps_check);
-        REQUIRE(static_cast<Y>(dst_out[i]) == dst_approx);
+        REQUIRE_THAT(
+            static_cast<Y>(dst_out[i]),
+            WithinRel(dst_ref, data.eps_check)
+        );
     }
 }
 
@@ -209,7 +227,7 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> dst_cpu(data.m * data.n * data.k);
+    std::vector<T> dst_cpu(data.dst_init);
 
     if constexpr (run_bench)
     {
@@ -262,7 +280,7 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_dst, sizeof(T) * data.m * data.n * data.k),
                "cudaMalloc dev_dst");
 
-    std::vector<T> dst_cuda(data.m * data.n * data.k);
+    std::vector<T> dst_cuda(data.dst_init);
 
     CUDA_CHECK(cudaMemcpy(dev_maxsumexp, &data.maxsumexp[0],
                           sizeof(T) * 2 * data.m * data.n,
@@ -339,9 +357,9 @@ TEMPLATE_TEST_CASE(
 )
 {
     using T = TestType;
-    const Index m = GENERATE(3, 8);
-    const Index n = GENERATE(2, 5);
-    const Index k = GENERATE(4, 10);
+    const Index m = GENERATE(3, 45);
+    const Index n = GENERATE(2, 49);
+    const Index k = GENERATE(4, 37);
     const Scalar alpha = GENERATE(1.0, 2.0);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
 
