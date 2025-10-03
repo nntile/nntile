@@ -53,7 +53,7 @@ struct TestData
     Y eps_check;
 
     std::vector<T> data_init;
-    std::vector<T> data;
+
     std::vector<T> data_ref;
 };
 
@@ -70,7 +70,7 @@ void reference_drelu(TestData<T>& data)
 
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        Y x = static_cast<Y>(data.data[i]);
+        Y x = static_cast<Y>(data.data_init[i]);
         if(x > zero)
         {
             data.data_ref[i] = static_cast<T>(one);
@@ -97,7 +97,6 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
     data.num_elems = num_elems;
 
     data.data_init.resize(num_elems);
-    data.data.resize(num_elems);
     data.data_ref.resize(num_elems);
 
     switch(strategy)
@@ -107,7 +106,6 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             for(Index i = 0; i < num_elems; ++i)
             {
                 data.data_init[i] = Y(2 * i + 1 - num_elems) / Y{1000};
-                data.data[i] = data.data_init[i]; // Copy to data for processing
             }
             break;
         // Specific random initialization
@@ -117,7 +115,6 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             for(Index i = 0; i < num_elems; ++i)
             {
                 data.data_init[i] = dist(gen);
-                data.data[i] = data.data_init[i]; // Copy to data for processing
             }
     }
 }
@@ -216,9 +213,9 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_data, sizeof(T) * data.num_elems),
                "cudaMalloc dev_data");
 
-    std::vector<T> data_cuda(data.data);
+    std::vector<T> data_cuda(data.data_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_data, &data.data[0], sizeof(T) * data.num_elems,
+    CUDA_CHECK(cudaMemcpy(dev_data, &data.data_init[0], sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_data");
 
     cudaStream_t stream;

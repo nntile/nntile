@@ -54,7 +54,7 @@ struct TestData
     Y eps_check;
 
     std::vector<T> data_init;
-    std::vector<T> data;
+
     std::vector<T> data_ref;
 };
 
@@ -71,7 +71,7 @@ void reference_dgelu(TestData<T>& data)
 
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        Y x = static_cast<Y>(data.data[i]);
+        Y x = static_cast<Y>(data.data_init[i]);
         Y val_ref = 0.5 * std::erfc(-x/std::sqrt(Y(2)));
         val_ref += x / std::sqrt(2*pi) * std::exp(-0.5*x*x);
         data.data_ref[i] = static_cast<T>(static_cast<Y>(val_ref));
@@ -93,7 +93,6 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
     data.num_elems = num_elems;
 
     data.data_init.resize(num_elems);
-    data.data.resize(num_elems);
     data.data_ref.resize(num_elems);
 
     switch(strategy)
@@ -103,7 +102,6 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             for(Index i = 0; i < num_elems; ++i)
             {
                 data.data_init[i] = Y(2 * i + 1 - num_elems) / Y{1000};
-                data.data[i] = data.data_init[i]; // Copy to data for processing
             }
             break;
         // Specific random initialization
@@ -113,7 +111,6 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             for(Index i = 0; i < num_elems; ++i)
             {
                 data.data_init[i] = dist(gen);
-                data.data[i] = data.data_init[i]; // Copy to data for processing
             }
     }
 }
@@ -223,9 +220,9 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_data, sizeof(T) * data.num_elems),
                "cudaMalloc dev_data");
 
-    std::vector<T> data_cuda(data.data);
+    std::vector<T> data_cuda(data.data_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_data, &data.data[0], sizeof(T) * data.num_elems,
+    CUDA_CHECK(cudaMemcpy(dev_data, &data.data_init[0], sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_data");
 
     cudaStream_t stream;
@@ -274,6 +271,7 @@ void verify_derivative(TestData<T>& data)
     using Y = typename T::repr_t;
     constexpr Y h = 1e-3, inv_h = 1/h;
 
+    // Create input data for numerical differentiation (original input values)
     std::vector<T> data2(data.data_init), data3(data.data_init);
 
     for(Index i = 0; i < data.num_elems; ++i)
@@ -288,7 +286,7 @@ void verify_derivative(TestData<T>& data)
     for(Index i = 0; i < data.num_elems; ++i)
     {
         Y num_x = inv_h * (static_cast<Y>(data2[i]) - static_cast<Y>(data3[i]));
-        Y diff = std::abs(num_x - static_cast<Y>(data.data[i]));
+        Y diff = std::abs(num_x - static_cast<Y>(data.data_ref[i]));
         Y abs = std::abs(static_cast<Y>(data.data_init[i]));
         Y threshold = abs * 5e-2;
         // NaN-aware comparisons
@@ -317,9 +315,9 @@ TEMPLATE_TEST_CASE(
 
     SECTION("cpu")
     {
-        run_cpu_test<T, false>(data);
-        // TODO: Fix numerical derivative verification
+        // TODO: Fix numerical derivative verification for fp16_t
         // verify_derivative(data);
+        run_cpu_test<T, false>(data);
     }
 
 #ifdef NNTILE_USE_CUDA
