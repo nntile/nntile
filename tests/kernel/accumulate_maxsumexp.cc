@@ -222,6 +222,7 @@ template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
     std::vector<T> dst_cpu(data.dst_init);
+    std::vector<T> src_cpu(data.src_init); // Copy source data to verify it wasn't modified
 
     if constexpr (run_bench)
     {
@@ -231,7 +232,7 @@ void run_cpu_test(TestData<T>& data)
             "]"
         )
         {
-            cpu<T>(data.nelems, &data.src_init[0], &dst_cpu[0]);
+            cpu<T>(data.nelems, &src_cpu[0], &dst_cpu[0]);
         };
     }
     else
