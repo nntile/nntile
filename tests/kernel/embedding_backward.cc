@@ -356,6 +356,10 @@ void run_cuda_test(TestData<T>& data)
 
         CUDA_CHECK(cudaMemcpy(&vocab_cuda[0], dev_vocab, sizeof(T) * data.k_size * data.vocab_size,
                               cudaMemcpyDeviceToHost), "cudaMemcpy vocab_cuda");
+        CUDA_CHECK(cudaMemcpy(&index_cuda[0], dev_index, sizeof(nntile::int64_t) * data.m * data.n,
+                              cudaMemcpyDeviceToHost), "cudaMemcpy index_cuda");
+        CUDA_CHECK(cudaMemcpy(&embed_cuda[0], dev_embed, sizeof(T) * data.m * data.n * data.k,
+                              cudaMemcpyDeviceToHost), "cudaMemcpy embed_cuda");
 
         verify_results(data, index_cuda, embed_cuda, vocab_cuda);
     }
