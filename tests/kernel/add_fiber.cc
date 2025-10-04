@@ -40,8 +40,6 @@ using namespace nntile;
 using namespace nntile::kernel;
 using namespace nntile::kernel::add_fiber;
 
-
-
 // Struct to hold test data and reference results
 template<typename T>
 struct TestData
@@ -79,7 +77,7 @@ void reference_add_fiber(TestData<T>& data)
                     Index dst_idx = ((i1 + b * data.n) * data.k + i2) * data.m + i0;
 
                     Y src2_val = static_cast<Y>(data.src2_init[src2_idx]);
-                    Y& dst_val = reinterpret_cast<Y&>(data.dst_ref[dst_idx]);
+                    Y dst_val = static_cast<Y>(data.dst_ref[dst_idx]);
 
                     if(std::abs(data.beta) <= Y(1e-6))
                     {

@@ -40,9 +40,6 @@ using namespace nntile;
 using namespace nntile::kernel;
 using namespace nntile::kernel::add_inplace;
 
-
-
-
 // Struct to hold test data and reference results
 template<typename T>
 struct TestData

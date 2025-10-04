@@ -40,7 +40,6 @@ using namespace nntile;
 using namespace nntile::kernel;
 using namespace nntile::kernel::accumulate_maxsumexp;
 
-
 // Struct to hold test data and reference results
 template<typename T>
 struct TestData
