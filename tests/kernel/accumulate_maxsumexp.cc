@@ -129,16 +129,16 @@ void generate_data(TestData<T>& data, Index nelems, DataGen strategy)
             for(Index i = 0; i < nelems; ++i)
             {
                 // Set src values - mix of positive and negative values
-                Index tmp_i = -2.0 + i * 0.5;
-                data.src_init[2*i] = static_cast<Y>(tmp_i); // max value
-                Index tmp_i2 = 0.1 + i * 0.1;
-                data.src_init[2*i+1] = static_cast<Y>(tmp_i2); // sumexp value
+                Y src_max = -2.0 + i * 0.5;
+                data.src_init[2*i] = src_max;
+                Y src_sumexp = 0.1 + i * 0.1;
+                data.src_init[2*i+1] = src_sumexp;
 
                 // Set initial dst values
-                Index tmp_i3 = -1.0 + i * 0.3;
-                data.dst_init[2*i] = static_cast<Y>(tmp_i3); // max value
-                Index tmp_i4 = 0.05 + i * 0.05;
-                data.dst_init[2*i+1] = static_cast<Y>(tmp_i4); // sumexp value
+                Y dst_max = -1.0 + i * 0.3;
+                data.dst_init[2*i] = dst_max;
+                Y dst_sumexp = 0.05 + i * 0.05;
+                data.dst_init[2*i+1] = dst_sumexp;
             }
             break;
         // Specific random initialization
