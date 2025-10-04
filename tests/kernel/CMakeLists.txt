@@ -13,11 +13,6 @@
 
 # All unit tests without arguments to test executable
 set(TESTS
-    "accumulate_maxsumexp"
-    "add_fiber"
-    "add_fiber_inplace"
-    "add_inplace"
-    "add_slice_inplace"
     "conv2d_bwd_input_inplace"
     "conv2d_bwd_weight_inplace"
     "conv2d_inplace"
@@ -53,7 +48,6 @@ set(TESTS
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
-    "accumulate_maxsumexp"
     "conv2d_bwd_input_inplace"
     "conv2d_bwd_weight_inplace"
     "conv2d_inplace"
@@ -97,6 +91,11 @@ endforeach()
 set(TESTS_CATCH2
     "add"
     "addcdiv"
+    "accumulate_maxsumexp"
+    "add_fiber"
+    "add_fiber_inplace"
+    "add_inplace"
+    "add_slice_inplace"
     "adam_step"
     "adamw_step"
     "add_scalar"
