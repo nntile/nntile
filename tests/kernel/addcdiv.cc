@@ -125,7 +125,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             {
                 data.src_init[i] = dist(gen);
                 data.nom_init[i] = dist(gen);
-                data.denom_init[i] = 0.5 * dist(gen) + 0.1; // Avoid division by zero in reference
+                // Avoid division by zero in reference
+                data.denom_init[i] = 0.5 * dist(gen) + 0.1;
             }
     }
 }
@@ -271,11 +272,14 @@ void run_cuda_test(TestData<T>& data)
     std::vector<T> nom_cuda(data.nom_init);
     std::vector<T> denom_cuda(data.denom_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_src, &data.src_init[0], sizeof(T) * data.num_elems,
+    CUDA_CHECK(cudaMemcpy(dev_src, &data.src_init[0],
+                          sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src");
-    CUDA_CHECK(cudaMemcpy(dev_nom, &data.nom_init[0], sizeof(T) * data.num_elems,
+    CUDA_CHECK(cudaMemcpy(dev_nom, &data.nom_init[0],
+                          sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_nom");
-    CUDA_CHECK(cudaMemcpy(dev_denom, &data.denom_init[0], sizeof(T) * data.num_elems,
+    CUDA_CHECK(cudaMemcpy(dev_denom, &data.denom_init[0],
+                          sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_denom");
 
     cudaStream_t stream;
@@ -318,8 +322,10 @@ void run_cuda_test(TestData<T>& data)
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        CUDA_CHECK(cudaMemcpy(&src_cuda[0], dev_src, sizeof(T) * data.num_elems,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy src_cuda");
+        CUDA_CHECK(cudaMemcpy(&src_cuda[0], dev_src,
+                              sizeof(T) * data.num_elems,
+                              cudaMemcpyDeviceToHost),
+                   "cudaMemcpy src_cuda");
 
         verify_results(data, nom_cuda, denom_cuda, src_cuda);
     }

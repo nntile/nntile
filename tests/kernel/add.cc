@@ -109,7 +109,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             {
                 data.src1_init[i] = Y(2 * i + 1 - num_elems);
                 data.src2_init[i] = Y(2 * num_elems - i);
-                data.dst_init[i] = Y(5 * num_elems - 2 * i); // Initial destination values
+                // Initial destination values
+                data.dst_init[i] = Y(5 * num_elems - 2 * i);
             }
             break;
         // Specific random initialization
@@ -120,7 +121,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             {
                 data.src1_init[i] = dist(gen);
                 data.src2_init[i] = dist(gen);
-                data.dst_init[i] = 2.0 * dist(gen); // Initial destination values
+                // Initial destination values
+                data.dst_init[i] = 2.0 * dist(gen);
             }
     }
 }
@@ -266,9 +268,11 @@ void run_cuda_test(TestData<T>& data)
     std::vector<T> src1_cuda(data.src1_init);
     std::vector<T> src2_cuda(data.src2_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_src1, &data.src1_init[0], sizeof(T) * data.num_elems,
+    CUDA_CHECK(cudaMemcpy(dev_src1, &data.src1_init[0],
+                          sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src1");
-    CUDA_CHECK(cudaMemcpy(dev_src2, &data.src2_init[0], sizeof(T) * data.num_elems,
+    CUDA_CHECK(cudaMemcpy(dev_src2, &data.src2_init[0],
+                          sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src2");
     CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");
@@ -313,8 +317,10 @@ void run_cuda_test(TestData<T>& data)
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.num_elems,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
+        CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst,
+                              sizeof(T) * data.num_elems,
+                              cudaMemcpyDeviceToHost),
+                   "cudaMemcpy dst_cuda");
 
         verify_results(data, src1_cuda, src2_cuda, dst_cuda);
     }
