@@ -129,15 +129,15 @@ void generate_data(TestData<T>& data, Index nelems, DataGen strategy)
             for(Index i = 0; i < nelems; ++i)
             {
                 // Set src values - mix of positive and negative values
-                Y src_max = -2.0 + i * 0.5;
+                const Y src_max = -2.0 + i * 0.5;
                 data.src_init[2*i] = src_max;
-                Y src_sumexp = 0.1 + i * 0.1;
+                const Y src_sumexp = 0.1 + i * 0.1;
                 data.src_init[2*i+1] = src_sumexp;
 
                 // Set initial dst values
-                Y dst_max = -1.0 + i * 0.3;
+                const Y dst_max = -1.0 + i * 0.3;
                 data.dst_init[2*i] = dst_max;
-                Y dst_sumexp = 0.05 + i * 0.05;
+                const Y dst_sumexp = 0.05 + i * 0.05;
                 data.dst_init[2*i+1] = dst_sumexp;
             }
             break;
