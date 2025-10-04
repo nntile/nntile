@@ -40,6 +40,9 @@ using namespace nntile;
 using namespace nntile::kernel;
 using namespace nntile::kernel::add_inplace;
 
+// Type to acquire reference values
+using ref_t = double;
+
 // Struct to hold test data and reference results
 template<typename T>
 struct TestData
@@ -66,9 +69,10 @@ void reference_add_inplace(TestData<T>& data)
 
     for(Index i = 0; i < data.nelems; ++i)
     {
-        Y src_val = static_cast<Y>(data.src_init[i]);
-        Y dst_val = static_cast<Y>(data.dst_ref[i]);
-        data.dst_ref[i] = static_cast<T>(data.alpha * src_val + data.beta * dst_val);
+        const ref_t src_val = static_cast<Y>(data.src_init[i]);
+        ref_t dst_val = static_cast<Y>(data.dst_ref[i]);
+        dst_val = data.beta * dst_val + src_val * data.alpha;
+        data.dst_ref[i] = static_cast<Y>(dst_val);
     }
 }
 
@@ -95,8 +99,10 @@ void generate_data(TestData<T>& data, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < data.nelems; ++i)
             {
-                data.src_init[i] = Y(2 * i + 1 - data.nelems);
-                data.dst_init[i] = Y(2 * data.nelems - i);
+                Index tmp_i = 2 * i + 1 - data.nelems;
+                data.src_init[i] = static_cast<Y>(tmp_i);
+                Index tmp_i2 = 2 * data.nelems - i;
+                data.dst_init[i] = static_cast<Y>(tmp_i2);
             }
             break;
         // Specific random initialization
@@ -114,7 +120,12 @@ void generate_data(TestData<T>& data, DataGen strategy)
 
 // Get test data and reference results
 template<typename T>
-TestData<T> get_test_data(Index nelems, Scalar alpha, Scalar beta, DataGen strategy)
+TestData<T> get_test_data(
+    Index nelems,
+    Scalar alpha,
+    Scalar beta,
+    DataGen strategy
+)
 {
     using Y = typename T::repr_t;
     TestData<T> data;
@@ -154,7 +165,11 @@ TestData<T> get_test_data(Index nelems, Scalar alpha, Scalar beta, DataGen strat
 
 // Helper function to verify results
 template<typename T>
-void verify_results(const TestData<T>& data, const std::vector<T>& src, const std::vector<T>& dst_out)
+void verify_results(
+    const TestData<T>& data,
+    const std::vector<T>& src,
+    const std::vector<T>& dst
+)
 {
     using Y = typename T::repr_t;
 
@@ -166,12 +181,9 @@ void verify_results(const TestData<T>& data, const std::vector<T>& src, const st
 
     for(Index i = 0; i < data.nelems; ++i)
     {
-        Y dst_ref = static_cast<Y>(data.dst_ref[i]);
-
         REQUIRE_THAT(
-            static_cast<Y>(dst_out[i]),
-            WithinAbs(dst_ref, data.eps_check) ||
-            WithinRel(dst_ref, data.eps_check)
+            static_cast<Y>(dst[i]),
+            WithinRel(static_cast<Y>(data.dst_ref[i]), data.eps_check)
         );
     }
 }
@@ -181,7 +193,7 @@ template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
     std::vector<T> dst_cpu(data.dst_init);
-    std::vector<T> src_cpu(data.src_init); // Copy source data to verify it wasn't modified
+    std::vector<T> src_cpu(data.src_init);
 
     if constexpr (run_bench)
     {
@@ -192,7 +204,13 @@ void run_cpu_test(TestData<T>& data)
             "][beta=" + std::to_string(data.beta) + "]"
         )
         {
-            cpu<T>(data.nelems, data.alpha, &src_cpu[0], data.beta, &dst_cpu[0]);
+            cpu<T>(
+                data.nelems,
+                data.alpha,
+                &src_cpu[0],
+                data.beta,
+                &dst_cpu[0]
+            );
         };
     }
     else
@@ -209,18 +227,36 @@ template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_src, *dev_dst;
-    CUDA_CHECK(cudaMalloc(&dev_src, sizeof(T) * data.nelems),
-               "cudaMalloc dev_src");
-    CUDA_CHECK(cudaMalloc(&dev_dst, sizeof(T) * data.nelems),
-               "cudaMalloc dev_dst");
+    CUDA_CHECK(
+        cudaMalloc(&dev_src, sizeof(T) * data.nelems),
+        "cudaMalloc dev_src"
+    );
+    CUDA_CHECK(
+        cudaMalloc(&dev_dst, sizeof(T) * data.nelems),
+        "cudaMalloc dev_dst"
+    );
 
     std::vector<T> dst_cuda(data.dst_init);
-    std::vector<T> src_cuda(data.src_init); // Copy source data to verify it wasn't modified
+    std::vector<T> src_cuda(data.src_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_src, &src_cuda[0], sizeof(T) * data.nelems,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_src");
-    CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.nelems,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_src,
+            &src_cuda[0],
+            sizeof(T) * data.nelems,
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_src"
+    );
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_dst,
+            &dst_cuda[0],
+            sizeof(T) * data.nelems,
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_dst"
+    );
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
@@ -234,7 +270,14 @@ void run_cuda_test(TestData<T>& data)
             "][beta=" + std::to_string(data.beta) + "]"
         )
         {
-            cuda<T>(stream, data.nelems, data.alpha, dev_src, data.beta, dev_dst);
+            cuda<T>(
+                stream,
+                data.nelems,
+                data.alpha,
+                dev_src,
+                data.beta,
+                dev_dst
+            );
             cudaStreamSynchronize(stream);
         };
     }
@@ -243,10 +286,24 @@ void run_cuda_test(TestData<T>& data)
         cuda<T>(stream, data.nelems, data.alpha, dev_src, data.beta, dev_dst);
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.nelems,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
-        CUDA_CHECK(cudaMemcpy(&src_cuda[0], dev_src, sizeof(T) * data.nelems,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy src_cuda");
+        CUDA_CHECK(
+            cudaMemcpy(
+                &dst_cuda[0],
+                dev_dst,
+                sizeof(T) * data.nelems,
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy dst_cuda"
+        );
+        CUDA_CHECK(
+            cudaMemcpy(
+                &src_cuda[0],
+                dev_src,
+                sizeof(T) * data.nelems,
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy src_cuda"
+        );
 
         verify_results(data, src_cuda, dst_cuda);
     }
