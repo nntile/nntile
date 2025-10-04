@@ -106,6 +106,7 @@ set(TESTS_CATCH2
     "adamw_step"
     "add_scalar"
     "add_slice"
+    "flash_attention"
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"

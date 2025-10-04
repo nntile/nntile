@@ -37,6 +37,7 @@
 #include <nntile/kernel/relu_backward.hh>
 #include <nntile/kernel/subcopy.hh>
 #include <nntile/kernel/fill.hh>
+#include <nntile/kernel/flash_attention.hh>
 #include <nntile/kernel/sum_slice.hh>
 #include <nntile/kernel/sum_fiber.hh>
 #include <nntile/kernel/norm_slice.hh>

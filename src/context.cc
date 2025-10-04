@@ -38,17 +38,17 @@ namespace nntile
 
 #ifdef NNTILE_USE_CUDA
 //! Global variable for cuDNN handles
-static cudnnHandle_t cudnn_handles[STARPU_NMAXWORKERS];
+cudnnHandle_t nntile_cudnn_handles[STARPU_NMAXWORKERS];
 
 //! Specific function to initialize cuDNN per CUDA worker
 static void cudnn_init(void *args [[maybe_unused]])
 {
     // Get current worker ID and initialize cuDNN handle
     int worker_id = starpu_worker_get_id();
-    cudnnCreate(&cudnn_handles[worker_id]);
+    cudnnCreate(&nntile_cudnn_handles[worker_id]);
     // Get CUDA stream for the current worker and set it to the cuDNN handle
     auto stream = starpu_cuda_get_local_stream();
-    cudnnSetStream(cudnn_handles[worker_id], stream);
+    cudnnSetStream(nntile_cudnn_handles[worker_id], stream);
 }
 
 //! Specific function to shut down cuDNN per CUDA worker
@@ -56,7 +56,7 @@ static void cudnn_shutdown(void *args [[maybe_unused]])
 {
     // Get current worker ID and initialize cuDNN handle
     int worker_id = starpu_worker_get_id();
-    cudnnDestroy(cudnn_handles[worker_id]);
+    cudnnDestroy(nntile_cudnn_handles[worker_id]);
 }
 #endif // NNTILE_USE_CUDA
 
