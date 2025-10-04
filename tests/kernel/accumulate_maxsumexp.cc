@@ -40,6 +40,9 @@ using namespace nntile;
 using namespace nntile::kernel;
 using namespace nntile::kernel::accumulate_maxsumexp;
 
+// Type to acquire reference values
+using ref_t = double;
+
 // Struct to hold test data and reference results
 template<typename T>
 struct TestData
@@ -69,16 +72,16 @@ void reference_accumulate_maxsumexp(TestData<T>& data)
 
     for(Index i = 0; i < data.nelems; ++i)
     {
-        const Y src_max = static_cast<Y>(data.src_init[2*i]);
-        const Y src_sumexp = static_cast<Y>(data.src_init[2*i+1]);
-        const Y dst_max = static_cast<Y>(data.dst_ref[2*i]);
-        const Y dst_sumexp = static_cast<Y>(data.dst_ref[2*i+1]);
+        const ref_t src_max = static_cast<Y>(data.src_init[2*i]);
+        const ref_t src_sumexp = static_cast<Y>(data.src_init[2*i+1]);
+        const ref_t dst_max = static_cast<Y>(data.dst_ref[2*i]);
+        const ref_t dst_sumexp = static_cast<Y>(data.dst_ref[2*i+1]);
 
         // Do nothing if sum of exponents of source is zero
-        if(std::abs(src_sumexp) > Y(1e-6))
+        if(src_sumexp != 0.0)
         {
             // Overwrite if old value of sum is zero
-            if(std::abs(dst_sumexp) <= Y(1e-6))
+            if(dst_sumexp == 0.0)
             {
                 data.dst_ref[2*i] = data.src_init[2*i];
                 data.dst_ref[2*i+1] = data.src_init[2*i+1];
@@ -86,16 +89,16 @@ void reference_accumulate_maxsumexp(TestData<T>& data)
             // Otherwise update based on maximum
             else if(dst_max < src_max)
             {
-                const Y diff = dst_max - src_max;
-                const Y new_sumexp = src_sumexp + dst_sumexp * std::exp(diff);
-                data.dst_ref[2*i+1] = static_cast<T>(new_sumexp);
+                const ref_t diff = dst_max - src_max;
+                ref_t new_sumexp = src_sumexp + dst_sumexp * std::exp(diff);
+                data.dst_ref[2*i+1] = static_cast<Y>(new_sumexp);
                 data.dst_ref[2*i] = data.src_init[2*i];
             }
             else
             {
-                const Y diff = src_max - dst_max;
-                const Y new_sumexp = dst_sumexp + src_sumexp * std::exp(diff);
-                data.dst_ref[2*i+1] = static_cast<T>(new_sumexp);
+                const ref_t diff = src_max - dst_max;
+                ref_t new_sumexp = dst_sumexp + src_sumexp * std::exp(diff);
+                data.dst_ref[2*i+1] = static_cast<Y>(new_sumexp);
             }
         }
     }
@@ -126,12 +129,16 @@ void generate_data(TestData<T>& data, Index nelems, DataGen strategy)
             for(Index i = 0; i < nelems; ++i)
             {
                 // Set src values - mix of positive and negative values
-                data.src_init[2*i] = Y(-2.0 + i * 0.5); // max values
-                data.src_init[2*i+1] = Y(0.1 + i * 0.1); // sumexp values
+                Index tmp_i = -2.0 + i * 0.5;
+                data.src_init[2*i] = static_cast<Y>(tmp_i); // max value
+                Index tmp_i2 = 0.1 + i * 0.1;
+                data.src_init[2*i+1] = static_cast<Y>(tmp_i2); // sumexp value
 
                 // Set initial dst values
-                data.dst_init[2*i] = Y(-1.0 + i * 0.3); // max values
-                data.dst_init[2*i+1] = Y(0.05 + i * 0.05); // sumexp values
+                Index tmp_i3 = -1.0 + i * 0.3;
+                data.dst_init[2*i] = static_cast<Y>(tmp_i3); // max value
+                Index tmp_i4 = 0.05 + i * 0.05;
+                data.dst_init[2*i+1] = static_cast<Y>(tmp_i4); // sumexp value
             }
             break;
         // Specific random initialization
@@ -188,7 +195,11 @@ TestData<T> get_test_data(Index nelems, DataGen strategy)
 
 // Helper function to verify results
 template<typename T>
-void verify_results(const TestData<T>& data, const std::vector<T>& src, const std::vector<T>& dst_out)
+void verify_results(
+    const TestData<T>& data,
+    const std::vector<T>& src,
+    const std::vector<T>& dst
+)
 {
     using Y = typename T::repr_t;
 
@@ -203,14 +214,9 @@ void verify_results(const TestData<T>& data, const std::vector<T>& src, const st
         Y dst_max_ref = static_cast<Y>(data.dst_ref[2*i]);
         Y dst_sumexp_ref = static_cast<Y>(data.dst_ref[2*i+1]);
 
+        REQUIRE(static_cast<Y>(dst[2*i]) == dst_max_ref);
         REQUIRE_THAT(
-            static_cast<Y>(dst_out[2*i]),
-            WithinAbs(dst_max_ref, data.eps_check) ||
-            WithinRel(dst_max_ref, data.eps_check)
-        );
-        REQUIRE_THAT(
-            static_cast<Y>(dst_out[2*i+1]),
-            WithinAbs(dst_sumexp_ref, data.eps_check) ||
+            static_cast<Y>(dst[2*i+1]),
             WithinRel(dst_sumexp_ref, data.eps_check)
         );
     }
@@ -221,7 +227,7 @@ template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
     std::vector<T> dst_cpu(data.dst_init);
-    std::vector<T> src_cpu(data.src_init); // Copy source data to verify it wasn't modified
+    std::vector<T> src_cpu(data.src_init);
 
     if constexpr (run_bench)
     {
@@ -248,18 +254,36 @@ template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_src, *dev_dst;
-    CUDA_CHECK(cudaMalloc(&dev_src, sizeof(T) * 2 * data.nelems),
-               "cudaMalloc dev_src");
-    CUDA_CHECK(cudaMalloc(&dev_dst, sizeof(T) * 2 * data.nelems),
-               "cudaMalloc dev_dst");
+    CUDA_CHECK(
+        cudaMalloc(&dev_src, sizeof(T) * data.src_init.size()),
+        "cudaMalloc dev_src"
+    );
+    CUDA_CHECK(
+        cudaMalloc(&dev_dst, sizeof(T) * data.dst_init.size()),
+        "cudaMalloc dev_dst"
+    );
 
     std::vector<T> dst_cuda(data.dst_init);
-    std::vector<T> src_cuda(data.src_init); // Copy source data to verify it wasn't modified
+    std::vector<T> src_cuda(data.src_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_src, &src_cuda[0], sizeof(T) * 2 * data.nelems,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_src");
-    CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * 2 * data.nelems,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_src,
+            &src_cuda[0],
+            sizeof(T) * data.src_init.size(),
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_src"
+    );
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_dst,
+            &dst_cuda[0],
+            sizeof(T) * data.dst_init.size(),
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_dst"
+    );
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
@@ -281,10 +305,24 @@ void run_cuda_test(TestData<T>& data)
         cuda<T>(stream, data.nelems, dev_src, dev_dst);
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * 2 * data.nelems,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
-        CUDA_CHECK(cudaMemcpy(&src_cuda[0], dev_src, sizeof(T) * 2 * data.nelems,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy src_cuda");
+        CUDA_CHECK(
+            cudaMemcpy(
+                &dst_cuda[0],
+                dev_dst,
+                sizeof(T) * data.dst_init.size(),
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy dst_cuda"
+        );
+        CUDA_CHECK(
+            cudaMemcpy(
+                &src_cuda[0],
+                dev_src,
+                sizeof(T) * data.src_init.size(),
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy src_cuda"
+        );
 
         verify_results(data, src_cuda, dst_cuda);
     }
