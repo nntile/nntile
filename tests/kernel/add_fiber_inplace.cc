@@ -40,58 +40,6 @@ using namespace nntile;
 using namespace nntile::kernel;
 using namespace nntile::kernel::add_fiber_inplace;
 
-#ifdef NNTILE_USE_CUDA
-
-// Helper function to run CUDA test and verify results
-template<typename T, bool run_bench>
-void run_cuda_test(TestData<T>& data)
-{
-    T *dev_src, *dev_dst;
-    CUDA_CHECK(cudaMalloc(&dev_src, sizeof(T) * data.k * data.batch),
-               "cudaMalloc dev_src");
-    CUDA_CHECK(cudaMalloc(&dev_dst, sizeof(T) * data.m * data.n * data.k * data.batch),
-               "cudaMalloc dev_dst");
-
-    std::vector<T> dst_cuda(data.dst_init);
-    std::vector<T> src_cuda(data.src_init); // Copy source data to verify it wasn't modified
-
-    CUDA_CHECK(cudaMemcpy(dev_src, &src_cuda[0], sizeof(T) * data.k * data.batch,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_src");
-    CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.m * data.n * data.k * data.batch,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");
-
-    cudaStream_t stream;
-    CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
-
-    if constexpr (run_bench)
-    {
-        BENCHMARK(
-            "[kernel][add_fiber_inplace][cuda][m=" +
-            std::to_string(data.m) + "][n=" + std::to_string(data.n) +
-            "][k=" + std::to_string(data.k) + "][batch=" + std::to_string(data.batch) +
-            "][alpha=" + std::to_string(data.alpha) + "][beta=" + std::to_string(data.beta) + "]"
-        )
-        {
-            cuda<T>(stream, data.m, data.n, data.k, data.batch, data.alpha, dev_src, data.beta, dev_dst);
-            cudaStreamSynchronize(stream);
-        };
-    }
-    else
-    {
-        cuda<T>(stream, data.m, data.n, data.k, data.batch, data.alpha, dev_src, data.beta, dev_dst);
-        CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
-
-        CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.m * data.n * data.k * data.batch,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
-
-        verify_results(data, src_cuda, dst_cuda);
-    }
-
-    CUDA_CHECK(cudaFree(dev_src), "cudaFree dev_src");
-    CUDA_CHECK(cudaFree(dev_dst), "cudaFree dev_dst");
-    CUDA_CHECK(cudaStreamDestroy(stream), "cudaStreamDestroy");
-}
-#endif
 
 
 // Struct to hold test data and reference results
@@ -296,6 +244,61 @@ void run_cpu_test(TestData<T>& data)
         verify_results(data, src_cpu, dst_cpu);
     }
 }
+
+#ifdef NNTILE_USE_CUDA
+
+// Helper function to run CUDA test and verify results
+template<typename T, bool run_bench>
+void run_cuda_test(TestData<T>& data)
+{
+    T *dev_src, *dev_dst;
+    CUDA_CHECK(cudaMalloc(&dev_src, sizeof(T) * data.k * data.batch),
+               "cudaMalloc dev_src");
+    CUDA_CHECK(cudaMalloc(&dev_dst, sizeof(T) * data.m * data.n * data.k * data.batch),
+               "cudaMalloc dev_dst");
+
+    std::vector<T> dst_cuda(data.dst_init);
+    std::vector<T> src_cuda(data.src_init); // Copy source data to verify it wasn't modified
+
+    CUDA_CHECK(cudaMemcpy(dev_src, &src_cuda[0], sizeof(T) * data.k * data.batch,
+                          cudaMemcpyHostToDevice), "cudaMemcpy dev_src");
+    CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.m * data.n * data.k * data.batch,
+                          cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");
+
+    cudaStream_t stream;
+    CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
+
+    if constexpr (run_bench)
+    {
+        BENCHMARK(
+            "[kernel][add_fiber_inplace][cuda][m=" +
+            std::to_string(data.m) + "][n=" + std::to_string(data.n) +
+            "][k=" + std::to_string(data.k) + "][batch=" + std::to_string(data.batch) +
+            "][alpha=" + std::to_string(data.alpha) + "][beta=" + std::to_string(data.beta) + "]"
+        )
+        {
+            cuda<T>(stream, data.m, data.n, data.k, data.batch, data.alpha, dev_src, data.beta, dev_dst);
+            cudaStreamSynchronize(stream);
+        };
+    }
+    else
+    {
+        cuda<T>(stream, data.m, data.n, data.k, data.batch, data.alpha, dev_src, data.beta, dev_dst);
+        CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
+
+        CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.m * data.n * data.k * data.batch,
+                              cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
+        CUDA_CHECK(cudaMemcpy(&src_cuda[0], dev_src, sizeof(T) * data.k * data.batch,
+                              cudaMemcpyDeviceToHost), "cudaMemcpy src_cuda");
+
+        verify_results(data, src_cuda, dst_cuda);
+    }
+
+    CUDA_CHECK(cudaFree(dev_src), "cudaFree dev_src");
+    CUDA_CHECK(cudaFree(dev_dst), "cudaFree dev_dst");
+    CUDA_CHECK(cudaStreamDestroy(stream), "cudaStreamDestroy");
+}
+#endif
 
 // Catch2-based tests
 TEMPLATE_TEST_CASE(

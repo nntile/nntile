@@ -348,6 +348,10 @@ void run_cuda_test(TestData<T>& data)
 
         CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.m * data.n * data.k * data.batch,
                               cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
+        CUDA_CHECK(cudaMemcpy(&src1_cuda[0], dev_src1, sizeof(T) * data.k * data.batch,
+                              cudaMemcpyDeviceToHost), "cudaMemcpy src1_cuda");
+        CUDA_CHECK(cudaMemcpy(&src2_cuda[0], dev_src2, sizeof(T) * data.m * data.n * data.k * data.batch,
+                              cudaMemcpyDeviceToHost), "cudaMemcpy src2_cuda");
 
         verify_results(data, src1_cuda, src2_cuda, dst_cuda);
     }

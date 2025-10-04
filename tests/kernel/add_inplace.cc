@@ -323,6 +323,8 @@ void run_cuda_test(TestData<T>& data)
 
         CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.nelems,
                               cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
+        CUDA_CHECK(cudaMemcpy(&src_cuda[0], dev_src, sizeof(T) * data.nelems,
+                              cudaMemcpyDeviceToHost), "cudaMemcpy src_cuda");
 
         verify_results(data, src_cuda, dst_cuda);
     }
