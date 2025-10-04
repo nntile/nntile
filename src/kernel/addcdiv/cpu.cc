@@ -63,4 +63,9 @@ void cpu<bf16_t>(Scalar val, Scalar eps, Index nelems,
                  const bf16_t* nom, const bf16_t* denom, bf16_t* res)
     noexcept;
 
+template
+void cpu<fp16_t>(Scalar val, Scalar eps, Index nelems,
+                 const fp16_t* nom, const fp16_t* denom, fp16_t* res)
+    noexcept;
+
 } // namespace nntile::kernel::addcdiv

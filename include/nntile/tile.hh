@@ -31,9 +31,6 @@
 #include <nntile/tile/gelu.hh>
 #include <nntile/tile/gelutanh.hh>
 #include <nntile/tile/gelutanh_inplace.hh>
-#include <nntile/tile/dgelu.hh>
-#include <nntile/tile/dgelutanh.hh>
-#include <nntile/tile/drelu.hh>
 #include <nntile/tile/gemm.hh>
 #include <nntile/tile/prod_inplace.hh>
 #include <nntile/tile/randn.hh>

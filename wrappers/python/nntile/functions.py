@@ -174,18 +174,6 @@ def silu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         raise TypeError
 
 
-def drelu_async(x: Tensor) -> None:
-    """
-    Wrapper for multiprecision derivative of ReLU
-    """
-    if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.drelu_async_fp32(x)
-    elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.drelu_async_fp64(x)
-    else:
-        raise TypeError
-
-
 def gelu_async(x: Tensor) -> None:
     """
     Wrapper for multiprecision GELU
@@ -202,18 +190,6 @@ def gelu_async(x: Tensor) -> None:
         core_tensor.gelu_async_fp32_fast_fp16(x)
     elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
         core_tensor.gelu_async_fp32_fast_bf16(x)
-    else:
-        raise TypeError
-
-
-def dgelu_async(x: Tensor) -> None:
-    """
-    Wrapper for multiprecision derivative of GELU
-    """
-    if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.dgelu_async_fp32(x)
-    elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.dgelu_async_fp64(x)
     else:
         raise TypeError
 
@@ -270,18 +246,6 @@ def gelutanh_inplace_async(x: Tensor) -> None:
         core_tensor.gelutanh_inplace_async_fp32(x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.gelutanh_inplace_async_fp64(x)
-    else:
-        raise TypeError
-
-
-def dgelutanh_async(x: Tensor) -> None:
-    """
-    Wrapper for multiprecision derivative of approximate GELU
-    """
-    if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.dgelutanh_async_fp32(x)
-    elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.dgelutanh_async_fp64(x)
     else:
         raise TypeError
 

@@ -36,9 +36,6 @@
 #include <nntile/starpu/conv2d_bwd_weight_inplace.hh>
 #include <nntile/starpu/conv2d_inplace.hh>
 #include <nntile/starpu/copy.hh>
-#include <nntile/starpu/dgelu.hh>
-#include <nntile/starpu/dgelutanh.hh>
-#include <nntile/starpu/drelu.hh>
 #include <nntile/starpu/embedding.hh>
 #include <nntile/starpu/embedding_backward.hh>
 #include <nntile/starpu/fill.hh>
