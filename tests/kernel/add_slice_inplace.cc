@@ -40,6 +40,9 @@ using namespace nntile;
 using namespace nntile::kernel;
 using namespace nntile::kernel::add_slice_inplace;
 
+// Type to acquire reference values
+using ref_t = double;
+
 // Struct to hold test data and reference results
 template<typename T>
 struct TestData
@@ -68,12 +71,12 @@ void reference_add_slice_inplace(TestData<T>& data)
     {
         for(Index i1 = 0; i1 < data.n; ++i1)
         {
-            Y src_val = static_cast<Y>(data.src_init[i1 * data.m + i0]);
-
+            ref_t src_val = static_cast<Y>(data.src_init[i1 * data.m + i0]);
+            Index dst_idx_base = i1 * data.k * data.m + i0;
             for(Index i2 = 0; i2 < data.k; ++i2)
             {
-                Index dst_idx = (i1 * data.k + i2) * data.m + i0;
-                Y dst_val = static_cast<Y>(data.dst_ref[dst_idx]);
+                Index dst_idx = i2 * data.m + dst_idx_base;
+                ref_t dst_val = static_cast<Y>(data.dst_ref[dst_idx]);
 
                 if(data.beta == 0.0)
                 {
@@ -84,7 +87,7 @@ void reference_add_slice_inplace(TestData<T>& data)
                     dst_val = data.alpha * src_val + data.beta * dst_val;
                 }
 
-                data.dst_ref[dst_idx] = static_cast<T>(dst_val);
+                data.dst_ref[dst_idx] = static_cast<Y>(dst_val);
             }
         }
     }
@@ -115,17 +118,20 @@ void generate_data(TestData<T>& data, DataGen strategy)
             {
                 for(Index i1 = 0; i1 < data.n; ++i1)
                 {
-                    data.src_init[i1 * data.m + i0] = Y(i0 + i1) / Y{20};
+                    const Y src_val = Y(i0 + i1) / Y(20);
+                    data.src_init[i1 * data.m + i0] = src_val;
                 }
             }
             for(Index i0 = 0; i0 < data.m; ++i0)
             {
                 for(Index i1 = 0; i1 < data.n; ++i1)
                 {
+                    Index dst_idx_base = i1 * data.k * data.m + i0;
                     for(Index i2 = 0; i2 < data.k; ++i2)
                     {
-                        Index dst_idx = (i1 * data.k + i2) * data.m + i0;
-                        data.dst_init[dst_idx] = Y(i0 + i1 + i2) / Y{30};
+                        Index dst_idx = i2 * data.m + dst_idx_base;
+                        const Y dst_val = Y(i0 + i1 + i2) / Y(30);
+                        data.dst_init[dst_idx] = dst_val;
                     }
                 }
             }
@@ -145,9 +151,10 @@ void generate_data(TestData<T>& data, DataGen strategy)
             {
                 for(Index i1 = 0; i1 < data.n; ++i1)
                 {
+                    Index dst_idx_base = i1 * data.k * data.m + i0;
                     for(Index i2 = 0; i2 < data.k; ++i2)
                     {
-                        Index dst_idx = (i1 * data.k + i2) * data.m + i0;
+                        Index dst_idx = i2 * data.m + dst_idx_base;
                         data.dst_init[dst_idx] = dist(gen);
                     }
                 }
@@ -158,7 +165,14 @@ void generate_data(TestData<T>& data, DataGen strategy)
 
 // Get test data and reference results
 template<typename T>
-TestData<T> get_test_data(Index m, Index n, Index k, Scalar alpha, Scalar beta, DataGen strategy)
+TestData<T> get_test_data(
+    Index m,
+    Index n,
+    Index k,
+    Scalar alpha,
+    Scalar beta,
+    DataGen strategy
+)
 {
     using Y = typename T::repr_t;
     TestData<T> data;
@@ -200,7 +214,11 @@ TestData<T> get_test_data(Index m, Index n, Index k, Scalar alpha, Scalar beta, 
 
 // Helper function to verify results
 template<typename T>
-void verify_results(const TestData<T>& data, const std::vector<T>& src, const std::vector<T>& dst_out)
+void verify_results(
+    const TestData<T>& data,
+    const std::vector<T>& src,
+    const std::vector<T>& dst
+)
 {
     using Y = typename T::repr_t;
 
@@ -210,24 +228,13 @@ void verify_results(const TestData<T>& data, const std::vector<T>& src, const st
         REQUIRE(static_cast<Y>(src[i]) == static_cast<Y>(data.src_init[i]));
     }
 
-    for(Index i0 = 0; i0 < data.m; ++i0)
+    for(Index i = 0; i < data.m * data.n * data.k; ++i)
     {
-        for(Index i1 = 0; i1 < data.n; ++i1)
-        {
-            Y src_val = static_cast<Y>(data.src_init[i1 * data.m + i0]);
-
-            for(Index i2 = 0; i2 < data.k; ++i2)
-            {
-                Index dst_idx = (i1 * data.k + i2) * data.m + i0;
-                Y dst_ref = static_cast<Y>(data.dst_ref[dst_idx]);
-
-                REQUIRE_THAT(
-                    static_cast<Y>(dst_out[dst_idx]),
-                    WithinAbs(dst_ref, data.eps_check) ||
-                    WithinRel(dst_ref, data.eps_check)
-                );
-            }
-        }
+        REQUIRE_THAT(
+            static_cast<Y>(dst[i]),
+            WithinRel(static_cast<Y>(data.dst_ref[i]), data.eps_check) ||
+            WithinAbs(static_cast<Y>(data.dst_ref[i]), data.eps_check)
+        );
     }
 }
 
@@ -236,7 +243,7 @@ template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
     std::vector<T> dst_cpu(data.dst_init);
-    std::vector<T> src_cpu(data.src_init); // Copy source data to verify it wasn't modified
+    std::vector<T> src_cpu(data.src_init);
 
     if constexpr (run_bench)
     {
@@ -248,12 +255,28 @@ void run_cpu_test(TestData<T>& data)
             "][beta=" + std::to_string(data.beta) + "]"
         )
         {
-            cpu<T>(data.m, data.n, data.k, data.alpha, &src_cpu[0], data.beta, &dst_cpu[0]);
+            cpu<T>(
+                data.m,
+                data.n,
+                data.k,
+                data.alpha,
+                &src_cpu[0],
+                data.beta,
+                &dst_cpu[0]
+            );
         };
     }
     else
     {
-        cpu<T>(data.m, data.n, data.k, data.alpha, &src_cpu[0], data.beta, &dst_cpu[0]);
+        cpu<T>(
+            data.m,
+            data.n,
+            data.k,
+            data.alpha,
+            &src_cpu[0],
+            data.beta,
+            &dst_cpu[0]
+        );
         verify_results(data, src_cpu, dst_cpu);
     }
 }
@@ -265,18 +288,36 @@ template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_src, *dev_dst;
-    CUDA_CHECK(cudaMalloc(&dev_src, sizeof(T) * data.m * data.n),
-               "cudaMalloc dev_src");
-    CUDA_CHECK(cudaMalloc(&dev_dst, sizeof(T) * data.m * data.n * data.k),
-               "cudaMalloc dev_dst");
+    CUDA_CHECK(
+        cudaMalloc(&dev_src, sizeof(T) * data.src_init.size()),
+        "cudaMalloc dev_src"
+    );
+    CUDA_CHECK(
+        cudaMalloc(&dev_dst, sizeof(T) * data.dst_init.size()),
+        "cudaMalloc dev_dst"
+    );
 
     std::vector<T> dst_cuda(data.dst_init);
-    std::vector<T> src_cuda(data.src_init); // Copy source data to verify it wasn't modified
+    std::vector<T> src_cuda(data.src_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_src, &src_cuda[0], sizeof(T) * data.m * data.n,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_src");
-    CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.m * data.n * data.k,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_src,
+            &src_cuda[0],
+            sizeof(T) * data.src_init.size(),
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_src"
+    );
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_dst,
+            &dst_cuda[0],
+            sizeof(T) * data.dst_init.size(),
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_dst"
+    );
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
@@ -291,19 +332,51 @@ void run_cuda_test(TestData<T>& data)
             "][beta=" + std::to_string(data.beta) + "]"
         )
         {
-            cuda<T>(stream, data.m, data.n, data.k, data.alpha, dev_src, data.beta, dev_dst);
+            cuda<T>(
+                stream,
+                data.m,
+                data.n,
+                data.k,
+                data.alpha,
+                dev_src,
+                data.beta,
+                dev_dst
+            );
             cudaStreamSynchronize(stream);
         };
     }
     else
     {
-        cuda<T>(stream, data.m, data.n, data.k, data.alpha, dev_src, data.beta, dev_dst);
+        cuda<T>(
+            stream,
+            data.m,
+            data.n,
+            data.k,
+            data.alpha,
+            dev_src,
+            data.beta,
+            dev_dst
+        );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.m * data.n * data.k,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
-        CUDA_CHECK(cudaMemcpy(&src_cuda[0], dev_src, sizeof(T) * data.m * data.n,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy src_cuda");
+        CUDA_CHECK(
+            cudaMemcpy(
+                &dst_cuda[0],
+                dev_dst,
+                sizeof(T) * data.dst_init.size(),
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy dst_cuda"
+        );
+        CUDA_CHECK(
+            cudaMemcpy(
+                &src_cuda[0],
+                dev_src,
+                sizeof(T) * data.src_init.size(),
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy src_cuda"
+        );
 
         verify_results(data, src_cuda, dst_cuda);
     }
