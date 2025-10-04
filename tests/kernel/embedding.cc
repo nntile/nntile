@@ -204,7 +204,7 @@ TestData<T> get_test_data(
 template<typename T>
 void verify_results(
     const TestData<T>& data,
-    const std::vector<Index>& index,
+    const std::vector<nntile::int64_t>& index,
     const std::vector<T>& vocab,
     const std::vector<T>& embed
 )
@@ -214,7 +214,7 @@ void verify_results(
     // Check that index was not changed during kernel execution
     for(Index i = 0; i < data.m * data.n; ++i)
     {
-        REQUIRE(index[i] == data.index_init[i]);
+        REQUIRE(static_cast<long int>(index[i]) == static_cast<long int>(data.index_init[i]));
     }
 
     // Check that vocab was not changed during kernel execution
@@ -241,7 +241,7 @@ template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
     std::vector<T> embed_cpu(data.embed_init);
-    std::vector<Index> index_cpu(data.index_init);
+    std::vector<nntile::int64_t> index_cpu(data.index_init);
     std::vector<T> vocab_cpu(data.vocab_init);
 
     if constexpr (run_bench)
@@ -293,27 +293,27 @@ template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_vocab, *dev_embed;
-    int64_t *dev_index;
+    nntile::int64_t *dev_index;
 
     CUDA_CHECK(cudaMalloc(&dev_vocab, sizeof(T) * data.k_size * data.vocab_size),
                "cudaMalloc dev_vocab");
-    CUDA_CHECK(cudaMalloc(&dev_index, sizeof(int64_t) * data.m * data.n),
+    CUDA_CHECK(cudaMalloc(&dev_index, sizeof(nntile::int64_t) * data.m * data.n),
                "cudaMalloc dev_index");
     CUDA_CHECK(cudaMalloc(&dev_embed, sizeof(T) * data.m * data.n * data.k),
                "cudaMalloc dev_embed");
 
     std::vector<T> embed_cuda(data.embed_init);
-    std::vector<int64_t> index_cuda(data.index_init.size());
+    std::vector<nntile::int64_t> index_cuda(data.index_init);
     std::vector<T> vocab_cuda(data.vocab_init);
 
-    // Copy index data from Index to int64_t
+    // Copy index data from nntile::int64_t to nntile::int64_t
     for (size_t i = 0; i < data.index_init.size(); ++i) {
-        index_cuda[i] = static_cast<int64_t>(data.index_init[i]);
+        index_cuda[i] = data.index_init[i];
     }
 
     CUDA_CHECK(cudaMemcpy(dev_vocab, &data.vocab_init[0], sizeof(T) * data.k_size * data.vocab_size,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_vocab");
-    CUDA_CHECK(cudaMemcpy(dev_index, index_cuda.data(), sizeof(int64_t) * data.m * data.n,
+    CUDA_CHECK(cudaMemcpy(dev_index, index_cuda.data(), sizeof(nntile::int64_t) * data.m * data.n,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_index");
     CUDA_CHECK(cudaMemcpy(dev_embed, &embed_cuda[0], sizeof(T) * data.m * data.n * data.k,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_embed");
