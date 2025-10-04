@@ -79,7 +79,7 @@ void reference_add_fiber(TestData<T>& data)
                     Y src2_val = static_cast<Y>(data.src2_init[src2_idx]);
                     Y dst_val = static_cast<Y>(data.dst_ref[dst_idx]);
 
-                    if(std::abs(data.beta) <= Y(1e-6))
+                    if(data.beta == 0.0)
                     {
                         dst_val = src1_val;
                     }
@@ -87,6 +87,8 @@ void reference_add_fiber(TestData<T>& data)
                     {
                         dst_val = data.beta * src2_val + src1_val;
                     }
+
+                    data.dst_ref[dst_idx] = static_cast<T>(dst_val);
                 }
             }
         }
