@@ -88,7 +88,8 @@ public:
         Handle Q,
         Handle K,
         Handle V,
-        Handle O
+        Handle O,
+        Handle logsumexp
     );
 };
 

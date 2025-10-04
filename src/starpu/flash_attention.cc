@@ -96,11 +96,12 @@ void FlashAttention<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     const T *K = interfaces[1]->get_ptr<T>();
     const T *V = interfaces[2]->get_ptr<T>();
     T *O = interfaces[3]->get_ptr<T>();
+    T *logsumexp = interfaces[4]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::flash_attention::cuda<T>(stream, args->batch, args->num_heads,
-            args->seq_len, args->head_dim, Q, K, V, args->scale, O);
+            args->seq_len, args->head_dim, Q, K, V, args->scale, O, logsumexp);
 #endif // STARPU_SIMGRID
 }
 
@@ -151,7 +152,7 @@ uint32_t FlashAttention<std::tuple<T>>::footprint(struct starpu_task *task)
 template<typename T>
 void FlashAttention<std::tuple<T>>::submit(Index batch, Index num_heads,
         Index seq_len, Index head_dim, Scalar scale, Handle Q, Handle K,
-        Handle V, Handle O)
+        Handle V, Handle O, Handle logsumexp)
 //! Insert flash_attention task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routine
@@ -173,6 +174,7 @@ void FlashAttention<std::tuple<T>>::submit(Index batch, Index num_heads,
             STARPU_R, K.get(),
             STARPU_R, V.get(),
             STARPU_W, O.get(),
+            STARPU_W, logsumexp.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);

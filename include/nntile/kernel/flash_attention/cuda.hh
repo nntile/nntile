@@ -22,7 +22,8 @@ namespace nntile::kernel::flash_attention
 
 template<typename T>
 void cuda(cudaStream_t stream, Index batch, Index num_heads, Index seq_len,
-        Index head_dim, const T *Q, const T *K, const T *V, Scalar scale, T *O)
+        Index head_dim, const T *Q, const T *K, const T *V, Scalar scale,
+        T *O, T *logsumexp)
     noexcept;
 
 } // namespace nntile::kernel::flash_attention
