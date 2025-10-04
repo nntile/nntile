@@ -41,51 +41,6 @@ using namespace nntile::kernel;
 using namespace nntile::kernel::add_fiber;
 
 
-#ifdef NNTILE_USE_CUDA
-template<typename T>
-void run_cuda(Index m, Index n, Index k, Index batch, Scalar alpha,
-    const std::vector<T> &src1, Scalar beta, const std::vector<T> &src2,
-    std::vector<T> &dst)
-{
-    // Copy to device
-    T *dev_src1, *dev_src2, *dev_dst;
-    cudaError_t cuda_err = cudaMalloc(&dev_src1, sizeof(T)*k*batch);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_src2, sizeof(T)*m*n*k*batch);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_dst, sizeof(T)*m*n*k*batch);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_src1, &src1[0], sizeof(T)*k*batch,
-            cudaMemcpyHostToDevice);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_src2, &src2[0], sizeof(T)*m*n*k*batch,
-            cudaMemcpyHostToDevice);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*m*n*k*batch,
-            cudaMemcpyHostToDevice);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    // Init stream
-    cudaStream_t stream;
-    cuda_err = cudaStreamCreate(&stream);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    // Launch low-level CUDA kernel
-    cuda<T>(stream, m, n, k, batch, alpha, dev_src1, beta, dev_src2, dev_dst);
-    cuda_err = cudaStreamSynchronize(stream);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    // Copy result and deallocate device memory
-    cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*m*n*k*batch,
-            cudaMemcpyDeviceToHost);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaFree(dev_src1);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaFree(dev_src2);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaFree(dev_dst);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaStreamDestroy(stream);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-}
-#endif // NNTILE_USE_CUDA
 
 // Struct to hold test data and reference results
 template<typename T>
