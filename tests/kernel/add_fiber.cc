@@ -213,7 +213,7 @@ void verify_results(const TestData<T>& data, const std::vector<T>& src1, const s
                 for(Index i0 = 0; i0 < data.m; ++i0)
                 {
                     Index dst_idx = ((i1 + b * data.n) * data.k + i2) * data.m + i0;
-                    Y dst_ref = reinterpret_cast<const Y&>(data.dst_ref[dst_idx]);
+                    Y dst_ref = static_cast<Y>(data.dst_ref[dst_idx]);
 
                     REQUIRE_THAT(
                         static_cast<Y>(dst_out[dst_idx]),
