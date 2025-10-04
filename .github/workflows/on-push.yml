@@ -127,9 +127,61 @@ jobs:
           path: build/**/*.so
           retention-days: 7
 
+  test-cpp:
+    name: Run C++ tests
+    needs: 'build'
+    runs-on: 'ubuntu-24.04'
+    strategy:
+      matrix:
+        python-version: ['3.12']
+    container:
+      image: 'ubuntu:24.04'
+    steps:
+      - name: Cache system packages
+        uses: actions/cache@v4
+        id: cache-apt
+        env:
+          cache-name: cache-apt-packages
+        with:
+          path: /var/cache/apt
+          key: ${{ runner.os }}-build-${{ env.cache-name }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}
+            ${{ runner.os }}-build-
+            ${{ runner.os }}
+      - name: Install Git in container
+        run: |
+          rm -rfv /etc/apt/apt.conf.d/docker*
+          apt update
+          apt install -y --no-install-recommends ca-certificates git
+      - uses: actions/checkout@v4
+      - name: Install system dependencies
+        run: |
+          rm -rfv /etc/apt/apt.conf.d/docker*
+          apt update
+          apt install -y --no-install-recommends \
+              autoconf automake binutils build-essential ca-certificates \
+              clang cmake curl fxt-tools git lcov libfxt-dev libhwloc-dev \
+              libopenblas-dev libopenmpi-dev libopenmpi3 libtool-bin \
+              lsb-release ninja-build openmpi-bin pkg-config
+      - name: Download StarPU libraries (*.so)
+        uses: actions/download-artifact@v4
+        with:
+          name: starpu-${{ matrix.python-version }}
+          path: /usr/lib
+      - name: Download all shared objects (*.so)
+        uses: actions/download-artifact@v4
+        with:
+          name: shared-objects-${{ matrix.python-version }}
+          path: build
+      - name: Run C++ tests with ctest
+        run: |
+          cd build
+          ctest -LE "(MPI|NotImplemented)" -E wrappers
+
   test-python:
     name: Run CPU-only tests with Python ${{ matrix.python-version }}
-    needs: 'build'
+    needs: 'test-cpp'
     runs-on: 'ubuntu-24.04'
     strategy:
       matrix:
