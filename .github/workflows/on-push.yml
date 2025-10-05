@@ -108,7 +108,7 @@ jobs:
               --enable-maxcudadev=8 \
               --enable-maxbuffers=16 \
               --with-fxt \
-              --prefix=/usr/lib
+              --prefix=/usr
           make -j 4 install
           rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
       - name: Upload StarPU libraries (*.so)
