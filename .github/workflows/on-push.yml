@@ -107,29 +107,29 @@ jobs:
               --enable-blas-lib=none \
               --enable-maxcudadev=8 \
               --enable-maxbuffers=16 \
-              --with-fxt
+              --with-fxt \
+              --prefix=/usr/lib
           make -j 4 install
           rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
       - name: Upload StarPU libraries (*.so)
         uses: actions/upload-artifact@v4.3.4
         with:
           name: starpu-${{ matrix.python-version }}
-          path: /usr/local/lib/lib*.so*
+          path: /usr/lib/libstarpu*.so*
           retention-days: 7
       - name: Build NNTile native libraries
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF
           cmake --build build -j
-      - name: Test CPU-only C++ tests
-        run: |
-          cp /usr/local/lib/libstarpu-*.so* /usr/lib
-          ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
       - name: Upload all shared objects (*.so)
         uses: actions/upload-artifact@v4.3.4
         with:
           name: shared-objects-${{ matrix.python-version }}
           path: build/**/*.so
           retention-days: 7
+      - name: Test CPU-only C++ tests
+        run: |
+          ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
 
   test-python:
     name: Run CPU-only tests with Python ${{ matrix.python-version }}
