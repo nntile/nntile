@@ -107,10 +107,12 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < num_elems; ++i)
             {
-                data.src1_init[i] = Y(2 * i + 1 - num_elems);
-                data.src2_init[i] = Y(2 * num_elems - i);
-                // Initial destination values
-                data.dst_init[i] = Y(5 * num_elems - 2 * i);
+                const Y src1_val = 2 * i + 1 - num_elems;
+                const Y src2_val = 2 * num_elems - i;
+                const Y dst_val = 5 * num_elems - 2 * i;
+                data.src1_init[i] = src1_val;
+                data.src2_init[i] = src2_val;
+                data.dst_init[i] = dst_val;
             }
             break;
         // Specific random initialization
@@ -121,7 +123,6 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             {
                 data.src1_init[i] = dist(gen);
                 data.src2_init[i] = dist(gen);
-                // Initial destination values
                 data.dst_init[i] = 2.0 * dist(gen);
             }
     }
@@ -198,7 +199,7 @@ void verify_results(
     // Check that dst (output) matches reference
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        Y dst_ref = static_cast<Y>(data.dst_ref[i]);
+        const Y dst_ref = static_cast<Y>(data.dst_ref[i]);
         REQUIRE_THAT(
             static_cast<Y>(dst[i]),
             WithinRel(dst_ref, data.eps_check)
@@ -257,25 +258,59 @@ template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_src1, *dev_src2, *dev_dst;
-    CUDA_CHECK(cudaMalloc(&dev_src1, sizeof(T) * data.num_elems),
-               "cudaMalloc dev_src1");
-    CUDA_CHECK(cudaMalloc(&dev_src2, sizeof(T) * data.num_elems),
-               "cudaMalloc dev_src2");
-    CUDA_CHECK(cudaMalloc(&dev_dst, sizeof(T) * data.num_elems),
-               "cudaMalloc dev_dst");
+    CUDA_CHECK(
+        cudaMalloc(
+            &dev_src1,
+            sizeof(T) * data.num_elems
+        ),
+        "cudaMalloc dev_src1"
+    );
+    CUDA_CHECK(
+        cudaMalloc(
+            &dev_src2,
+            sizeof(T) * data.num_elems
+        ),
+        "cudaMalloc dev_src2"
+    );
+    CUDA_CHECK(
+        cudaMalloc(
+            &dev_dst,
+            sizeof(T) * data.num_elems
+        ),
+        "cudaMalloc dev_dst"
+    );
 
     std::vector<T> dst_cuda(data.dst_init);
     std::vector<T> src1_cuda(data.src1_init);
     std::vector<T> src2_cuda(data.src2_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_src1, &data.src1_init[0],
-                          sizeof(T) * data.num_elems,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_src1");
-    CUDA_CHECK(cudaMemcpy(dev_src2, &data.src2_init[0],
-                          sizeof(T) * data.num_elems,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_src2");
-    CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.num_elems,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_src1,
+            &data.src1_init[0],
+            sizeof(T) * data.num_elems,
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_src1"
+    );
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_src2,
+            &data.src2_init[0],
+            sizeof(T) * data.num_elems,
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_src2"
+    );
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_dst,
+            &dst_cuda[0],
+            sizeof(T) * data.num_elems,
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_dst"
+    );
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
@@ -317,10 +352,33 @@ void run_cuda_test(TestData<T>& data)
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst,
-                              sizeof(T) * data.num_elems,
-                              cudaMemcpyDeviceToHost),
-                   "cudaMemcpy dst_cuda");
+        CUDA_CHECK(
+            cudaMemcpy(
+                &dst_cuda[0],
+                dev_dst,
+                sizeof(T) * data.num_elems,
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy dst_cuda"
+        );
+        CUDA_CHECK(
+            cudaMemcpy(
+                &src1_cuda[0],
+                dev_src1,
+                sizeof(T) * data.num_elems,
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy src1_cuda"
+        );
+        CUDA_CHECK(
+            cudaMemcpy(
+                &src2_cuda[0],
+                dev_src2,
+                sizeof(T) * data.num_elems,
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy src2_cuda"
+        );
 
         verify_results(data, src1_cuda, src2_cuda, dst_cuda);
     }
