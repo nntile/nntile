@@ -574,7 +574,7 @@ public:
         auto val = *reinterpret_cast<const __nv_bfloat16 *>(&value);
         return __bfloat162float(val);
 #else
-        std::uint32_t raw_uint32 = value;
+        std::uint32_t raw_uint32 = static_cast<std::uint32_t>(value) << 16;
         return *reinterpret_cast<repr_t *>(&raw_uint32);
 #endif
     }
