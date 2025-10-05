@@ -96,7 +96,9 @@ jobs:
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF
           cmake --build build -j
       - name: Test CPU-only C++ tests
-        run: ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)"
+        run: |
+          cp /usr/local/lib/libstarpu-*.so* /usr/lib
+          ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
       - name: Upload all shared objects (*.so)
         uses: actions/upload-artifact@v4.3.4
         with:
