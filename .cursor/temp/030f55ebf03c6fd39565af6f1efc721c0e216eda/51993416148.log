@@ -1,0 +1,347 @@
+﻿2025-10-05T18:57:15.0025928Z Current runner version: '2.328.0'
+2025-10-05T18:57:15.0053113Z ##[group]Runner Image Provisioner
+2025-10-05T18:57:15.0054035Z Hosted Compute Agent
+2025-10-05T18:57:15.0054580Z Version: 20250912.392
+2025-10-05T18:57:15.0055156Z Commit: d921fda672a98b64f4f82364647e2f10b2267d0b
+2025-10-05T18:57:15.0055889Z Build Date: 2025-09-12T15:23:14Z
+2025-10-05T18:57:15.0056469Z ##[endgroup]
+2025-10-05T18:57:15.0056980Z ##[group]Operating System
+2025-10-05T18:57:15.0057597Z Ubuntu
+2025-10-05T18:57:15.0058030Z 24.04.3
+2025-10-05T18:57:15.0058727Z LTS
+2025-10-05T18:57:15.0059215Z ##[endgroup]
+2025-10-05T18:57:15.0059734Z ##[group]Runner Image
+2025-10-05T18:57:15.0060320Z Image: ubuntu-24.04
+2025-10-05T18:57:15.0060892Z Version: 20250929.60.1
+2025-10-05T18:57:15.0061916Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20250929.60/images/ubuntu/Ubuntu2404-Readme.md
+2025-10-05T18:57:15.0063404Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20250929.60
+2025-10-05T18:57:15.0064432Z ##[endgroup]
+2025-10-05T18:57:15.0065423Z ##[group]GITHUB_TOKEN Permissions
+2025-10-05T18:57:15.0067366Z Contents: read
+2025-10-05T18:57:15.0067908Z Metadata: read
+2025-10-05T18:57:15.0068346Z ##[endgroup]
+2025-10-05T18:57:15.0070936Z Secret source: Actions
+2025-10-05T18:57:15.0071642Z Prepare workflow directory
+2025-10-05T18:57:15.0416637Z Prepare all required actions
+2025-10-05T18:57:15.0457865Z Getting action download info
+2025-10-05T18:57:15.4587842Z Download action repository 'actions/checkout@v4' (SHA:08eba0b27e820071cde6df949e0beb9ba4906955)
+2025-10-05T18:57:15.6434086Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2025-10-05T18:57:15.7682211Z Download action repository 'pre-commit/action@v3.0.0' (SHA:646c83fcd040023954eafda54b4db0192ce70507)
+2025-10-05T18:57:16.3524993Z Getting action download info
+2025-10-05T18:57:16.5172170Z Download action repository 'actions/cache@v3' (SHA:6f8efc29b200d32929f49075959781ed54ec270c)
+2025-10-05T18:57:16.6928562Z Getting action download info
+2025-10-05T18:57:16.8732147Z Complete job name: Linting with Python 3.10
+2025-10-05T18:57:16.9472902Z ##[group]Run actions/checkout@v4
+2025-10-05T18:57:16.9474123Z with:
+2025-10-05T18:57:16.9474771Z   repository: nntile/nntile
+2025-10-05T18:57:16.9475890Z   token: ***
+2025-10-05T18:57:16.9476517Z   ssh-strict: true
+2025-10-05T18:57:16.9477184Z   ssh-user: git
+2025-10-05T18:57:16.9477874Z   persist-credentials: true
+2025-10-05T18:57:16.9478831Z   clean: true
+2025-10-05T18:57:16.9479526Z   sparse-checkout-cone-mode: true
+2025-10-05T18:57:16.9480377Z   fetch-depth: 1
+2025-10-05T18:57:16.9481038Z   fetch-tags: false
+2025-10-05T18:57:16.9481731Z   show-progress: true
+2025-10-05T18:57:16.9482427Z   lfs: false
+2025-10-05T18:57:16.9483049Z   submodules: false
+2025-10-05T18:57:16.9483764Z   set-safe-directory: true
+2025-10-05T18:57:16.9484835Z ##[endgroup]
+2025-10-05T18:57:17.0730035Z Syncing repository: nntile/nntile
+2025-10-05T18:57:17.0734378Z ##[group]Getting Git version info
+2025-10-05T18:57:17.0736537Z Working directory is '/home/runner/work/nntile/nntile'
+2025-10-05T18:57:17.0739665Z [command]/usr/bin/git version
+2025-10-05T18:57:17.0779311Z git version 2.51.0
+2025-10-05T18:57:17.0811917Z ##[endgroup]
+2025-10-05T18:57:17.0830093Z Temporarily overriding HOME='/home/runner/work/_temp/14ec834d-dda8-4be5-954a-db44a1210f2e' before making global git config changes
+2025-10-05T18:57:17.0834656Z Adding repository directory to the temporary git global config as a safe directory
+2025-10-05T18:57:17.0838170Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/nntile/nntile
+2025-10-05T18:57:17.0882401Z Deleting the contents of '/home/runner/work/nntile/nntile'
+2025-10-05T18:57:17.0886616Z ##[group]Initializing the repository
+2025-10-05T18:57:17.0891473Z [command]/usr/bin/git init /home/runner/work/nntile/nntile
+2025-10-05T18:57:17.1012622Z hint: Using 'master' as the name for the initial branch. This default branch name
+2025-10-05T18:57:17.1015909Z hint: is subject to change. To configure the initial branch name to use in all
+2025-10-05T18:57:17.1019525Z hint: of your new repositories, which will suppress this warning, call:
+2025-10-05T18:57:17.1021730Z hint:
+2025-10-05T18:57:17.1023073Z hint: 	git config --global init.defaultBranch <name>
+2025-10-05T18:57:17.1024842Z hint:
+2025-10-05T18:57:17.1026578Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2025-10-05T18:57:17.1029754Z hint: 'development'. The just-created branch can be renamed via this command:
+2025-10-05T18:57:17.1032017Z hint:
+2025-10-05T18:57:17.1033104Z hint: 	git branch -m <name>
+2025-10-05T18:57:17.1034446Z hint:
+2025-10-05T18:57:17.1036320Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2025-10-05T18:57:17.1040116Z Initialized empty Git repository in /home/runner/work/nntile/nntile/.git/
+2025-10-05T18:57:17.1046494Z [command]/usr/bin/git remote add origin https://github.com/nntile/nntile
+2025-10-05T18:57:17.1078228Z ##[endgroup]
+2025-10-05T18:57:17.1080828Z ##[group]Disabling automatic garbage collection
+2025-10-05T18:57:17.1083341Z [command]/usr/bin/git config --local gc.auto 0
+2025-10-05T18:57:17.1115100Z ##[endgroup]
+2025-10-05T18:57:17.1116995Z ##[group]Setting up auth
+2025-10-05T18:57:17.1123342Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-10-05T18:57:17.1158830Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-10-05T18:57:17.1509340Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-10-05T18:57:17.1542865Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-10-05T18:57:17.1789347Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2025-10-05T18:57:17.1831320Z ##[endgroup]
+2025-10-05T18:57:17.1833501Z ##[group]Fetching the repository
+2025-10-05T18:57:17.1840602Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +d40478a7c526658fc296a3d4bdde98bf4d604e1e:refs/remotes/pull/274/merge
+2025-10-05T18:57:17.8884727Z From https://github.com/nntile/nntile
+2025-10-05T18:57:17.8886320Z  * [new ref]         d40478a7c526658fc296a3d4bdde98bf4d604e1e -> pull/274/merge
+2025-10-05T18:57:17.8916647Z ##[endgroup]
+2025-10-05T18:57:17.8917397Z ##[group]Determining the checkout info
+2025-10-05T18:57:17.8918769Z ##[endgroup]
+2025-10-05T18:57:17.8924009Z [command]/usr/bin/git sparse-checkout disable
+2025-10-05T18:57:17.8965234Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2025-10-05T18:57:17.8994368Z ##[group]Checking out the ref
+2025-10-05T18:57:17.8997921Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/274/merge
+2025-10-05T18:57:17.9660280Z Note: switching to 'refs/remotes/pull/274/merge'.
+2025-10-05T18:57:17.9661144Z 
+2025-10-05T18:57:17.9661549Z You are in 'detached HEAD' state. You can look around, make experimental
+2025-10-05T18:57:17.9662393Z changes and commit them, and you can discard any commits you make in this
+2025-10-05T18:57:17.9663198Z state without impacting any branches by switching back to a branch.
+2025-10-05T18:57:17.9663702Z 
+2025-10-05T18:57:17.9664236Z If you want to create a new branch to retain commits you create, you may
+2025-10-05T18:57:17.9665440Z do so (now or later) by using -c with the switch command. Example:
+2025-10-05T18:57:17.9666208Z 
+2025-10-05T18:57:17.9666601Z   git switch -c <new-branch-name>
+2025-10-05T18:57:17.9667131Z 
+2025-10-05T18:57:17.9667458Z Or undo this operation with:
+2025-10-05T18:57:17.9667924Z 
+2025-10-05T18:57:17.9668231Z   git switch -
+2025-10-05T18:57:17.9668912Z 
+2025-10-05T18:57:17.9669446Z Turn off this advice by setting config variable advice.detachedHead to false
+2025-10-05T18:57:17.9670827Z 
+2025-10-05T18:57:17.9671751Z HEAD is now at d40478a Merge 030f55ebf03c6fd39565af6f1efc721c0e216eda into d479133a4b3299af9e83c1cc0ea62532bb87bb07
+2025-10-05T18:57:17.9674898Z ##[endgroup]
+2025-10-05T18:57:17.9713517Z [command]/usr/bin/git log -1 --format=%H
+2025-10-05T18:57:17.9738126Z d40478a7c526658fc296a3d4bdde98bf4d604e1e
+2025-10-05T18:57:17.9994202Z ##[group]Run # Un-shallow refs.
+2025-10-05T18:57:17.9994977Z [36;1m# Un-shallow refs.[0m
+2025-10-05T18:57:17.9995703Z [36;1mgit config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"[0m
+2025-10-05T18:57:17.9996540Z [36;1m# Deepen topic branch; checkout topic branch.[0m
+2025-10-05T18:57:17.9997470Z [36;1mgit fetch origin refs/pull/274/merge:cursor/add-new-kernel-tests-and-update-cmakelists-7196 \[0m
+2025-10-05T18:57:17.9998343Z [36;1m  --depth=$(( 2 + 1 ))[0m
+2025-10-05T18:57:17.9999230Z [36;1mgit checkout cursor/add-new-kernel-tests-and-update-cmakelists-7196[0m
+2025-10-05T18:57:17.9999995Z [36;1m# Fetch main for common origin.[0m
+2025-10-05T18:57:18.0074110Z [36;1mgit fetch origin main:main --depth=100[0m
+2025-10-05T18:57:18.0120914Z shell: /usr/bin/bash -e {0}
+2025-10-05T18:57:18.0121524Z ##[endgroup]
+2025-10-05T18:57:18.5435265Z From https://github.com/nntile/nntile
+2025-10-05T18:57:18.5436325Z  * [new ref]         refs/pull/274/merge -> cursor/add-new-kernel-tests-and-update-cmakelists-7196
+2025-10-05T18:57:18.5786951Z Switched to branch 'cursor/add-new-kernel-tests-and-update-cmakelists-7196'
+2025-10-05T18:57:19.5147808Z From https://github.com/nntile/nntile
+2025-10-05T18:57:19.5148211Z  * [new branch]      main       -> main
+2025-10-05T18:57:19.5148827Z  * [new branch]      main       -> origin/main
+2025-10-05T18:57:19.5278249Z ##[group]Run actions/setup-python@v5
+2025-10-05T18:57:19.5278974Z with:
+2025-10-05T18:57:19.5279151Z   cache: pip
+2025-10-05T18:57:19.5279339Z   python-version: 3.10
+2025-10-05T18:57:19.5279538Z   check-latest: false
+2025-10-05T18:57:19.5279890Z   token: ***
+2025-10-05T18:57:19.5280106Z   update-environment: true
+2025-10-05T18:57:19.5280323Z   allow-prereleases: false
+2025-10-05T18:57:19.5280550Z   freethreaded: false
+2025-10-05T18:57:19.5280749Z ##[endgroup]
+2025-10-05T18:57:19.7024436Z ##[group]Installed versions
+2025-10-05T18:57:19.7128076Z Successfully set up CPython (3.10.18)
+2025-10-05T18:57:19.7129016Z ##[endgroup]
+2025-10-05T18:57:19.9417261Z [command]/opt/hostedtoolcache/Python/3.10.18/x64/bin/pip cache dir
+2025-10-05T18:57:22.6603017Z /home/runner/.cache/pip
+2025-10-05T18:57:22.9126561Z Cache hit for: setup-python-Linux-x64-24.04-Ubuntu-python-3.10.18-pip-0243a901d2ca9c3ccee5c9dec6e4f572dfd2c280042ea83ed51605cc77d4880c
+2025-10-05T18:57:24.1440717Z Received 16610689 of 20804993 (79.8%), 15.8 MBs/sec
+2025-10-05T18:57:24.3262516Z Received 20804993 of 20804993 (100.0%), 16.8 MBs/sec
+2025-10-05T18:57:24.3263127Z Cache Size: ~20 MB (20804993 B)
+2025-10-05T18:57:24.3296348Z [command]/usr/bin/tar -xf /home/runner/work/_temp/2ce47c86-d95d-4f6d-a82e-5795382ac860/cache.tzst -P -C /home/runner/work/nntile/nntile --use-compress-program unzstd
+2025-10-05T18:57:24.3853485Z Cache restored successfully
+2025-10-05T18:57:24.3903283Z Cache restored from key: setup-python-Linux-x64-24.04-Ubuntu-python-3.10.18-pip-0243a901d2ca9c3ccee5c9dec6e4f572dfd2c280042ea83ed51605cc77d4880c
+2025-10-05T18:57:24.4120952Z ##[group]Run pre-commit/action@v3.0.0
+2025-10-05T18:57:24.4121277Z with:
+2025-10-05T18:57:24.4121718Z   extra_args: --from-ref "$(git merge-base main HEAD)" --to-ref "cursor/add-new-kernel-tests-and-update-cmakelists-7196"
+
+2025-10-05T18:57:24.4122180Z env:
+2025-10-05T18:57:24.4122443Z   pythonLocation: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:24.4122927Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.10.18/x64/lib/pkgconfig
+2025-10-05T18:57:24.4123322Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:24.4123682Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:24.4124043Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:24.4124618Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.10.18/x64/lib
+2025-10-05T18:57:24.4124909Z ##[endgroup]
+2025-10-05T18:57:24.4202665Z ##[group]Run python -m pip install pre-commit
+2025-10-05T18:57:24.4203042Z [36;1mpython -m pip install pre-commit[0m
+2025-10-05T18:57:24.4243668Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2025-10-05T18:57:24.4244004Z env:
+2025-10-05T18:57:24.4244290Z   pythonLocation: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:24.4244714Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.10.18/x64/lib/pkgconfig
+2025-10-05T18:57:24.4245114Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:24.4245459Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:24.4245825Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:24.4246185Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.10.18/x64/lib
+2025-10-05T18:57:24.4246489Z ##[endgroup]
+2025-10-05T18:57:26.7294607Z Collecting pre-commit
+2025-10-05T18:57:26.8597930Z   Downloading pre_commit-4.3.0-py2.py3-none-any.whl.metadata (1.2 kB)
+2025-10-05T18:57:26.8943978Z Collecting cfgv>=2.0.0 (from pre-commit)
+2025-10-05T18:57:26.8966845Z   Using cached cfgv-3.4.0-py2.py3-none-any.whl.metadata (8.5 kB)
+2025-10-05T18:57:26.9831460Z Collecting identify>=1.0.0 (from pre-commit)
+2025-10-05T18:57:27.0034843Z   Downloading identify-2.6.15-py2.py3-none-any.whl.metadata (4.4 kB)
+2025-10-05T18:57:27.0405739Z Collecting nodeenv>=0.11.1 (from pre-commit)
+2025-10-05T18:57:27.0420650Z   Using cached nodeenv-1.9.1-py2.py3-none-any.whl.metadata (21 kB)
+2025-10-05T18:57:27.1094812Z Collecting pyyaml>=5.1 (from pre-commit)
+2025-10-05T18:57:27.1296473Z   Downloading pyyaml-6.0.3-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.4 kB)
+2025-10-05T18:57:27.2009225Z Collecting virtualenv>=20.10.0 (from pre-commit)
+2025-10-05T18:57:27.2210917Z   Downloading virtualenv-20.34.0-py3-none-any.whl.metadata (4.6 kB)
+2025-10-05T18:57:27.2610427Z Collecting distlib<1,>=0.3.7 (from virtualenv>=20.10.0->pre-commit)
+2025-10-05T18:57:27.2817544Z   Downloading distlib-0.4.0-py2.py3-none-any.whl.metadata (5.2 kB)
+2025-10-05T18:57:27.3209623Z Collecting filelock<4,>=3.12.2 (from virtualenv>=20.10.0->pre-commit)
+2025-10-05T18:57:27.3409924Z   Downloading filelock-3.19.1-py3-none-any.whl.metadata (2.1 kB)
+2025-10-05T18:57:27.3796761Z Collecting platformdirs<5,>=3.9.1 (from virtualenv>=20.10.0->pre-commit)
+2025-10-05T18:57:27.3993647Z   Downloading platformdirs-4.4.0-py3-none-any.whl.metadata (12 kB)
+2025-10-05T18:57:27.4384579Z Collecting typing-extensions>=4.13.2 (from virtualenv>=20.10.0->pre-commit)
+2025-10-05T18:57:27.4578922Z   Downloading typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+2025-10-05T18:57:27.4834147Z Downloading pre_commit-4.3.0-py2.py3-none-any.whl (220 kB)
+2025-10-05T18:57:27.5288024Z Using cached cfgv-3.4.0-py2.py3-none-any.whl (7.2 kB)
+2025-10-05T18:57:27.5486224Z Downloading identify-2.6.15-py2.py3-none-any.whl (99 kB)
+2025-10-05T18:57:27.5537401Z Using cached nodeenv-1.9.1-py2.py3-none-any.whl (22 kB)
+2025-10-05T18:57:27.5748182Z Downloading pyyaml-6.0.3-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (770 kB)
+2025-10-05T18:57:27.6150756Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 770.3/770.3 kB 24.9 MB/s  0:00:00
+2025-10-05T18:57:27.6346350Z Downloading virtualenv-20.34.0-py3-none-any.whl (6.0 MB)
+2025-10-05T18:57:27.6914263Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.0/6.0 MB 107.2 MB/s  0:00:00
+2025-10-05T18:57:27.7115232Z Downloading distlib-0.4.0-py2.py3-none-any.whl (469 kB)
+2025-10-05T18:57:27.7361601Z Downloading filelock-3.19.1-py3-none-any.whl (15 kB)
+2025-10-05T18:57:27.7581318Z Downloading platformdirs-4.4.0-py3-none-any.whl (18 kB)
+2025-10-05T18:57:27.7817973Z Downloading typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+2025-10-05T18:57:27.8421539Z Installing collected packages: distlib, typing-extensions, pyyaml, platformdirs, nodeenv, identify, filelock, cfgv, virtualenv, pre-commit
+2025-10-05T18:57:28.2478376Z 
+2025-10-05T18:57:28.2506517Z Successfully installed cfgv-3.4.0 distlib-0.4.0 filelock-3.19.1 identify-2.6.15 nodeenv-1.9.1 platformdirs-4.4.0 pre-commit-4.3.0 pyyaml-6.0.3 typing-extensions-4.15.0 virtualenv-20.34.0
+2025-10-05T18:57:28.4771222Z ##[group]Run python -m pip freeze --local
+2025-10-05T18:57:28.4771560Z [36;1mpython -m pip freeze --local[0m
+2025-10-05T18:57:28.4806376Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2025-10-05T18:57:28.4806706Z env:
+2025-10-05T18:57:28.4806960Z   pythonLocation: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:28.4807371Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.10.18/x64/lib/pkgconfig
+2025-10-05T18:57:28.4807777Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:28.4808132Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:28.4808615Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:28.4808989Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.10.18/x64/lib
+2025-10-05T18:57:28.4809281Z ##[endgroup]
+2025-10-05T18:57:28.7147788Z cfgv==3.4.0
+2025-10-05T18:57:28.7148139Z distlib==0.4.0
+2025-10-05T18:57:28.7149025Z filelock==3.19.1
+2025-10-05T18:57:28.7149370Z identify==2.6.15
+2025-10-05T18:57:28.7149642Z nodeenv==1.9.1
+2025-10-05T18:57:28.7149911Z platformdirs==4.4.0
+2025-10-05T18:57:28.7150207Z pre_commit==4.3.0
+2025-10-05T18:57:28.7150505Z PyYAML==6.0.3
+2025-10-05T18:57:28.7150814Z typing_extensions==4.15.0
+2025-10-05T18:57:28.7151147Z virtualenv==20.34.0
+2025-10-05T18:57:28.8040576Z ##[group]Run actions/cache@v3
+2025-10-05T18:57:28.8040808Z with:
+2025-10-05T18:57:28.8040987Z   path: ~/.cache/pre-commit
+2025-10-05T18:57:28.8041470Z   key: pre-commit-3|/opt/hostedtoolcache/Python/3.10.18/x64|93527610f2dc9759f16f4617098ea4ae5031d5b6a2c3eac3af2b856eec7c085d
+2025-10-05T18:57:28.8041984Z   enableCrossOsArchive: false
+2025-10-05T18:57:28.8042217Z   fail-on-cache-miss: false
+2025-10-05T18:57:28.8042442Z   lookup-only: false
+2025-10-05T18:57:28.8042619Z env:
+2025-10-05T18:57:28.8042858Z   pythonLocation: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:28.8043257Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.10.18/x64/lib/pkgconfig
+2025-10-05T18:57:28.8043652Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:28.8043992Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:28.8044337Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:28.8044687Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.10.18/x64/lib
+2025-10-05T18:57:28.8044970Z ##[endgroup]
+2025-10-05T18:57:29.1285631Z Cache hit for: pre-commit-3|/opt/hostedtoolcache/Python/3.10.18/x64|93527610f2dc9759f16f4617098ea4ae5031d5b6a2c3eac3af2b856eec7c085d
+2025-10-05T18:57:30.3631907Z Received 13091182 of 21479790 (60.9%), 12.5 MBs/sec
+2025-10-05T18:57:30.5529589Z Received 21479790 of 21479790 (100.0%), 17.2 MBs/sec
+2025-10-05T18:57:30.5530079Z Cache Size: ~20 MB (21479790 B)
+2025-10-05T18:57:30.5559251Z [command]/usr/bin/tar -xf /home/runner/work/_temp/6778797b-af91-476d-88af-285870989164/cache.tzst -P -C /home/runner/work/nntile/nntile --use-compress-program unzstd
+2025-10-05T18:57:30.8587224Z Cache restored successfully
+2025-10-05T18:57:30.8712169Z Cache restored from key: pre-commit-3|/opt/hostedtoolcache/Python/3.10.18/x64|93527610f2dc9759f16f4617098ea4ae5031d5b6a2c3eac3af2b856eec7c085d
+2025-10-05T18:57:30.8817111Z ##[group]Run pre-commit run --show-diff-on-failure --color=always --from-ref "$(git merge-base main HEAD)" --to-ref "cursor/add-new-kernel-tests-and-update-cmakelists-7196"
+2025-10-05T18:57:30.8818185Z [36;1mpre-commit run --show-diff-on-failure --color=always --from-ref "$(git merge-base main HEAD)" --to-ref "cursor/add-new-kernel-tests-and-update-cmakelists-7196"[0m
+2025-10-05T18:57:30.8852425Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2025-10-05T18:57:30.8852747Z env:
+2025-10-05T18:57:30.8853000Z   pythonLocation: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:30.8853603Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.10.18/x64/lib/pkgconfig
+2025-10-05T18:57:30.8854004Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:30.8854374Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:30.8854734Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.10.18/x64
+2025-10-05T18:57:30.8855113Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.10.18/x64/lib
+2025-10-05T18:57:30.8855412Z ##[endgroup]
+2025-10-05T18:57:31.3679475Z check python ast.....................................(no files to check)[46;30mSkipped[m
+2025-10-05T18:57:31.4915862Z check for merge conflicts................................................[42mPassed[m
+2025-10-05T18:57:31.4916866Z check toml...........................................(no files to check)[46;30mSkipped[m
+2025-10-05T18:57:31.4917742Z check yaml...........................................(no files to check)[46;30mSkipped[m
+2025-10-05T18:57:31.5272490Z fix end of files.........................................................[41mFailed[m
+2025-10-05T18:57:31.5272995Z [2m- hook id: end-of-file-fixer[m
+2025-10-05T18:57:31.5273282Z [2m- exit code: 1[m
+2025-10-05T18:57:31.5273553Z [2m- files were modified by this hook[m
+2025-10-05T18:57:31.5273763Z 
+2025-10-05T18:57:31.5273865Z Fixing tests/kernel/fill.cc
+2025-10-05T18:57:31.5297759Z Fixing tests/kernel/gelu.cc
+2025-10-05T18:57:31.5298244Z Fixing tests/kernel/gelutanh_inplace.cc
+2025-10-05T18:57:31.5299158Z Fixing tests/kernel/hypot_scalar_inverse.cc
+2025-10-05T18:57:31.5299460Z 
+2025-10-05T18:57:31.5691846Z trim trailing whitespace.................................................[42mPassed[m
+2025-10-05T18:57:31.5692864Z debug statements (python)............................(no files to check)[46;30mSkipped[m
+2025-10-05T18:57:31.5693738Z ruff.................................................(no files to check)[46;30mSkipped[m
+2025-10-05T18:57:31.5694496Z isort................................................(no files to check)[46;30mSkipped[m
+2025-10-05T18:57:31.5694854Z All changes made by hooks:
+2025-10-05T18:57:31.5730984Z [1mdiff --git a/tests/kernel/fill.cc b/tests/kernel/fill.cc[m
+2025-10-05T18:57:31.5731719Z [1mindex 6256322..8b86392 100644[m
+2025-10-05T18:57:31.5732237Z [1m--- a/tests/kernel/fill.cc[m
+2025-10-05T18:57:31.5732699Z [1m+++ b/tests/kernel/fill.cc[m
+2025-10-05T18:57:31.5733260Z [36m@@ -299,4 +299,4 @@[m [mTEMPLATE_TEST_CASE([m
+2025-10-05T18:57:31.5733803Z          run_cuda_test<T, true>(data);[m
+2025-10-05T18:57:31.5734118Z      }[m
+2025-10-05T18:57:31.5734314Z  #endif[m
+2025-10-05T18:57:31.5734505Z [31m-}[m
+2025-10-05T18:57:31.5734726Z \ No newline at end of file[m
+2025-10-05T18:57:31.5734977Z [32m+[m[32m}[m
+2025-10-05T18:57:31.5735310Z [1mdiff --git a/tests/kernel/gelu.cc b/tests/kernel/gelu.cc[m
+2025-10-05T18:57:31.5735698Z [1mindex 5a099b0..d4cf641 100644[m
+2025-10-05T18:57:31.5735993Z [1m--- a/tests/kernel/gelu.cc[m
+2025-10-05T18:57:31.5736289Z [1m+++ b/tests/kernel/gelu.cc[m
+2025-10-05T18:57:31.5736611Z [36m@@ -300,4 +300,4 @@[m [mTEMPLATE_TEST_CASE([m
+2025-10-05T18:57:31.5736944Z          run_cuda_test<T, true>(data);[m
+2025-10-05T18:57:31.5737218Z      }[m
+2025-10-05T18:57:31.5737398Z  #endif[m
+2025-10-05T18:57:31.5737893Z [31m-}[m
+2025-10-05T18:57:31.5738123Z \ No newline at end of file[m
+2025-10-05T18:57:31.5738375Z [32m+[m[32m}[m
+2025-10-05T18:57:31.5739162Z [1mdiff --git a/tests/kernel/gelutanh_inplace.cc b/tests/kernel/gelutanh_inplace.cc[m
+2025-10-05T18:57:31.5739640Z [1mindex 6168e96..f4c0981 100644[m
+2025-10-05T18:57:31.5739949Z [1m--- a/tests/kernel/gelutanh_inplace.cc[m
+2025-10-05T18:57:31.5740287Z [1m+++ b/tests/kernel/gelutanh_inplace.cc[m
+2025-10-05T18:57:31.5740633Z [36m@@ -304,4 +304,4 @@[m [mTEMPLATE_TEST_CASE([m
+2025-10-05T18:57:31.5740962Z          run_cuda_test<T, true>(data);[m
+2025-10-05T18:57:31.5741232Z      }[m
+2025-10-05T18:57:31.5741423Z  #endif[m
+2025-10-05T18:57:31.5741776Z [31m-}[m
+2025-10-05T18:57:31.5741993Z \ No newline at end of file[m
+2025-10-05T18:57:31.5742260Z [32m+[m[32m}[m
+2025-10-05T18:57:31.5742717Z [1mdiff --git a/tests/kernel/hypot_scalar_inverse.cc b/tests/kernel/hypot_scalar_inverse.cc[m
+2025-10-05T18:57:31.5743221Z [1mindex 98efb72..b609be6 100644[m
+2025-10-05T18:57:31.5743552Z [1m--- a/tests/kernel/hypot_scalar_inverse.cc[m
+2025-10-05T18:57:31.5743902Z [1m+++ b/tests/kernel/hypot_scalar_inverse.cc[m
+2025-10-05T18:57:31.5744267Z [36m@@ -316,4 +316,4 @@[m [mTEMPLATE_TEST_CASE([m
+2025-10-05T18:57:31.5744600Z          run_cuda_test<T, true>(data);[m
+2025-10-05T18:57:31.5744875Z      }[m
+2025-10-05T18:57:31.5745063Z  #endif[m
+2025-10-05T18:57:31.5745250Z [31m-}[m
+2025-10-05T18:57:31.5745467Z \ No newline at end of file[m
+2025-10-05T18:57:31.5745734Z [32m+[m[32m}[m
+2025-10-05T18:57:31.5902454Z ##[error]Process completed with exit code 1.
+2025-10-05T18:57:31.5982788Z Post job cleanup.
+2025-10-05T18:57:31.6035810Z Post job cleanup.
+2025-10-05T18:57:31.7037093Z [command]/usr/bin/git version
+2025-10-05T18:57:31.7078037Z git version 2.51.0
+2025-10-05T18:57:31.7132740Z Temporarily overriding HOME='/home/runner/work/_temp/9ef3442a-c30c-4022-b1a3-481354179f71' before making global git config changes
+2025-10-05T18:57:31.7134080Z Adding repository directory to the temporary git global config as a safe directory
+2025-10-05T18:57:31.7139232Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/nntile/nntile
+2025-10-05T18:57:31.7179220Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-10-05T18:57:31.7216208Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-10-05T18:57:31.7456201Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-10-05T18:57:31.7478806Z http.https://github.com/.extraheader
+2025-10-05T18:57:31.7491699Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2025-10-05T18:57:31.7522846Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-10-05T18:57:31.7877479Z Cleaning up orphan processes
