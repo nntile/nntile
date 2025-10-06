@@ -54,8 +54,6 @@ struct TestData
     Index k_size; // Size of the first mode of vocab tensor
     Index vocab_size; // Vocabulary size
 
-    Y eps_check;
-
     std::vector<nntile::int64_t> index_init;
     std::vector<T> vocab_init;
     std::vector<T> embed_init;
@@ -414,7 +412,8 @@ TEMPLATE_TEST_CASE(
     "[embedding]",
     fp64_t,
     fp32_t,
-    bf16_t
+    bf16_t,
+    fp16_t
 )
 {
     using T = TestType;
@@ -455,7 +454,8 @@ TEMPLATE_TEST_CASE(
     "[embedding][!benchmark]",
     fp64_t,
     fp32_t,
-    bf16_t
+    bf16_t,
+    fp16_t
 )
 {
     using T = TestType;

@@ -74,24 +74,25 @@ void reference_embedding_backward(TestData<T>& data)
         return;
     }
 
-    // Initialize vocab_ref with zeros
-    std::fill(data.vocab_ref.begin(), data.vocab_ref.end(),
-              static_cast<T>(0.0));
+    // Initialize vocab_ref with vocab_init
+    data.vocab_ref = data.vocab_init;
 
     for(Index i2 = 0; i2 < data.n; ++i2)
     {
         for(Index i1 = 0; i1 < data.m; ++i1)
         {
-            Index idx = data.index_init[i2 * data.m + i1];
+            auto idx = data.index_init[i2 * data.m + i1].value;
             // Output slice of vocabulary
             T *vocab_slice = &data.vocab_ref[data.k_size * idx];
             // Input slice of embedding
-            const T *embed_slice = &data.embed_init[(i2 * data.k + data.k_start) *
-                                                     data.m + i1];
+            Index embed_idx = (i2 * data.k + data.k_start) * data.m + i1;
+            const T *embed_slice = &data.embed_init[embed_idx];
 
             for(Index i0 = 0; i0 < data.k_size; ++i0)
             {
-                vocab_slice[i0] = static_cast<T>(static_cast<Y>(vocab_slice[i0]) + static_cast<Y>(embed_slice[i0 * data.m]));
+                ref_t vocab_val = static_cast<Y>(vocab_slice[i0]);
+                vocab_val += static_cast<Y>(embed_slice[i0 * data.m]);
+                vocab_slice[i0] = static_cast<Y>(vocab_val);
             }
         }
     }
@@ -112,47 +113,49 @@ void generate_data(TestData<T>& data, DataGen strategy)
 
     // Initialize indices
     data.index_init.resize(data.m * data.n);
+    data.embed_init.resize(data.m * data.n * data.k);
+    data.vocab_init.resize(data.k_size * data.vocab_size);
+    data.vocab_ref.resize(data.k_size * data.vocab_size);
+
     switch(strategy)
     {
         case DataGen::PRESET:
             for(Index i = 0; i < data.m * data.n; ++i)
             {
                 // Ensure indices are within vocab_size
-                data.index_init[i] = (i * 7 + 3) % data.vocab_size;
+                nntile::int64_t::repr_t idx = (i * 7 + 3) % data.vocab_size;
+                data.index_init[i] = idx;
             }
-            break;
-        case DataGen::RANDOM:
-            std::mt19937 gen_idx(42);
-            std::uniform_int_distribution<Index> dist_idx(0,
-                                                          data.vocab_size - 1);
-            for(Index i = 0; i < data.m * data.n; ++i)
+            for(Index i = 0; i < data.k_size * data.vocab_size; ++i)
             {
-                data.index_init[i] = dist_idx(gen_idx);
+                Y vocab_val = Y(i + 1) / Y(1000);
+                data.vocab_init[i] = vocab_val;
             }
-    }
-
-    // Initialize embedding gradients
-    data.embed_init.resize(data.m * data.n * data.k);
-    switch(strategy)
-    {
-        case DataGen::PRESET:
             for(Index i = 0; i < data.m * data.n * data.k; ++i)
             {
-                data.embed_init[i] = Y(i + 1) / Y{1000};
+                Y embed_val = Y(2 * i + 3) / Y(2000);
+                data.embed_init[i] = embed_val;
             }
             break;
         case DataGen::RANDOM:
             std::mt19937 gen(42);
+            std::uniform_int_distribution<nntile::int64_t::repr_t>
+                idx(0, data.vocab_size - 1);
+            for(Index i = 0; i < data.m * data.n; ++i)
+            {
+                data.index_init[i] = idx(gen);
+            }
             std::uniform_real_distribution<Y> dist(0.1, 2.0);
+            for(Index i = 0; i < data.k_size * data.vocab_size; ++i)
+            {
+                data.vocab_init[i] = dist(gen);
+            }
             for(Index i = 0; i < data.m * data.n * data.k; ++i)
             {
                 data.embed_init[i] = dist(gen);
             }
+            break;
     }
-
-    // Initialize vocabulary gradients (zeros initially)
-    data.vocab_init.resize(data.k_size * data.vocab_size);
-    data.vocab_ref.resize(data.k_size * data.vocab_size);
 }
 
 // Get test data and reference results
@@ -216,17 +219,22 @@ void verify_results(
 {
     using Y = typename T::repr_t;
 
-    // Note: Index and embed are input parameters and should remain unchanged,
-    // but due to NNTile's custom int64_t type, we skip strict equality check
-    // The important validation is that the output matches the reference
+    // Check that index was not changed during kernel execution
+    for(Index i = 0; i < data.m * data.n; ++i)
+    {
+        REQUIRE(index[i].value == data.index_init[i].value);
+    }
 
-    // Note: vocab is the output buffer for embedding_backward
-    // We only check that the computed output matches the reference
+    // Check that embed was not changed during kernel execution
+    for(Index i = 0; i < data.m * data.n * data.k; ++i)
+    {
+        REQUIRE(embed[i].value == data.embed_init[i].value);
+    }
 
     // Check that vocab (output) matches reference
     for(Index i = 0; i < data.k_size * data.vocab_size; ++i)
     {
-        Y vocab_ref = static_cast<Y>(data.vocab_ref[i]);
+        const Y vocab_ref = static_cast<Y>(data.vocab_ref[i]);
         REQUIRE_THAT(
             static_cast<Y>(vocab[i]),
             WithinRel(vocab_ref, data.eps_check)
@@ -239,7 +247,7 @@ template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
     std::vector<T> vocab_cpu(data.vocab_init);
-    std::vector<Index> index_cpu(data.index_init);
+    std::vector<nntile::int64_t> index_cpu(data.index_init);
     std::vector<T> embed_cpu(data.embed_init);
 
     if constexpr (run_bench)
@@ -293,29 +301,59 @@ void run_cuda_test(TestData<T>& data)
     T *dev_vocab, *dev_embed;
     nntile::int64_t *dev_index;
 
-    CUDA_CHECK(cudaMalloc(&dev_vocab,
-                          sizeof(T) * data.k_size * data.vocab_size),
-               "cudaMalloc dev_vocab");
-    CUDA_CHECK(cudaMalloc(&dev_index,
-                          sizeof(Index) * data.m * data.n),
-               "cudaMalloc dev_index");
-    CUDA_CHECK(cudaMalloc(&dev_embed,
-                          sizeof(T) * data.m * data.n * data.k),
-               "cudaMalloc dev_embed");
+    CUDA_CHECK(
+        cudaMalloc(
+            &dev_vocab,
+            sizeof(T) * data.vocab_init.size()
+        ),
+        "cudaMalloc dev_vocab"
+    );
+    CUDA_CHECK(
+        cudaMalloc(
+            &dev_index,
+            sizeof(nntile::int64_t) * data.index_init.size()
+        ),
+        "cudaMalloc dev_index"
+    );
+    CUDA_CHECK(
+        cudaMalloc(
+            &dev_embed,
+            sizeof(T) * data.embed_init.size()
+        ),
+        "cudaMalloc dev_embed"
+    );
 
     std::vector<T> vocab_cuda(data.vocab_init);
-    std::vector<Index> index_cuda(data.index_init);
+    std::vector<nntile::int64_t> index_cuda(data.index_init);
     std::vector<T> embed_cuda(data.embed_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_vocab, &data.vocab_init[0],
-                          sizeof(T) * data.k_size * data.vocab_size,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_vocab");
-    CUDA_CHECK(cudaMemcpy(dev_index, &data.index_init[0],
-                          sizeof(Index) * data.m * data.n,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_index");
-    CUDA_CHECK(cudaMemcpy(dev_embed, &data.embed_init[0],
-                          sizeof(T) * data.m * data.n * data.k,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_embed");
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_vocab,
+            &data.vocab_init[0],
+            sizeof(T) * data.vocab_init.size(),
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_vocab"
+    );
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_index,
+            &data.index_init[0],
+            sizeof(nntile::int64_t) * data.index_init.size(),
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_index"
+    );
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_embed,
+            &data.embed_init[0],
+            sizeof(T) * data.embed_init.size(),
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_embed"
+    );
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
@@ -363,15 +401,33 @@ void run_cuda_test(TestData<T>& data)
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        CUDA_CHECK(cudaMemcpy(&vocab_cuda[0], dev_vocab,
-                              sizeof(T) * data.k_size * data.vocab_size,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy vocab_cuda");
-        CUDA_CHECK(cudaMemcpy(&index_cuda[0], dev_index,
-                              sizeof(Index) * data.m * data.n,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy index_cuda");
-        CUDA_CHECK(cudaMemcpy(&embed_cuda[0], dev_embed,
-                              sizeof(T) * data.m * data.n * data.k,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy embed_cuda");
+        CUDA_CHECK(
+            cudaMemcpy(
+                &vocab_cuda[0],
+                dev_vocab,
+                sizeof(T) * data.vocab_init.size(),
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy vocab_cuda"
+        );
+        CUDA_CHECK(
+            cudaMemcpy(
+                &index_cuda[0],
+                dev_index,
+                sizeof(nntile::int64_t) * data.index_init.size(),
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy index_cuda"
+        );
+        CUDA_CHECK(
+            cudaMemcpy(
+                &embed_cuda[0],
+                dev_embed,
+                sizeof(T) * data.embed_init.size(),
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy embed_cuda"
+        );
 
         verify_results(data, index_cuda, embed_cuda, vocab_cuda);
     }
@@ -389,13 +445,14 @@ TEMPLATE_TEST_CASE(
     "[embedding_backward]",
     fp64_t,
     fp32_t,
-    bf16_t
+    bf16_t,
+    fp16_t
 )
 {
     using T = TestType;
     const Index m = GENERATE(2, 5);
     const Index n = GENERATE(3, 7);
-    const Index k = GENERATE(4, 8);
+    const Index k = GENERATE(6, 8);
     const Index k_start = GENERATE(0, 2);
     const Index k_size = GENERATE(2, 4);
     const Index vocab_size = GENERATE(10, 20);
@@ -430,7 +487,8 @@ TEMPLATE_TEST_CASE(
     "[embedding_backward][!benchmark]",
     fp64_t,
     fp32_t,
-    bf16_t
+    bf16_t,
+    fp16_t
 )
 {
     using T = TestType;
