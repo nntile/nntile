@@ -931,18 +931,6 @@ def prod_fiber3_async(
         raise TypeError
 
 
-def add_scalar_async(alpha: float, beta: float, x: Tensor) -> None:
-    """
-    Wrapper for multiprecision add_scalar
-    """
-    if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.add_scalar_async_fp32(alpha, beta, x)
-    elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.add_scalar_async_fp64(alpha, beta, x)
-    else:
-        raise TypeError
-
-
 def gather_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
     """
     Wrapper for multiprecision gather

@@ -863,20 +863,6 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_inplace_bf16", &add_inplace<bf16_t>);
     m.def("add_inplace_fp16", &add_inplace<fp16_t>);
 
-    m.def("add_scalar_async_fp64", &add_scalar_async<fp64_t>);
-    m.def("add_scalar_async_fp32", &add_scalar_async<fp32_t>);
-    m.def("add_scalar_async_fp32_fast_tf32", &add_scalar_async<fp32_fast_tf32_t>);
-    m.def("add_scalar_async_fp32_fast_fp16", &add_scalar_async<fp32_fast_fp16_t>);
-    m.def("add_scalar_async_fp32_fast_bf16", &add_scalar_async<fp32_fast_bf16_t>);
-    m.def("add_scalar_async_bf16", &add_scalar_async<bf16_t>);
-
-    m.def("add_scalar_fp64", &add_scalar<fp64_t>);
-    m.def("add_scalar_fp32", &add_scalar<fp32_t>);
-    m.def("add_scalar_fp32_fast_tf32", &add_scalar<fp32_fast_tf32_t>);
-    m.def("add_scalar_fp32_fast_fp16", &add_scalar<fp32_fast_fp16_t>);
-    m.def("add_scalar_fp32_fast_bf16", &add_scalar<fp32_fast_bf16_t>);
-    m.def("add_scalar_bf16", &add_scalar<bf16_t>);
-
     m.def("add_fiber_inplace_async_fp64", &add_fiber_inplace_async<fp64_t>);
     m.def("add_fiber_inplace_async_fp32", &add_fiber_inplace_async<fp32_t>);
     m.def("add_fiber_inplace_async_fp32_fast_tf32", &add_fiber_inplace_async<fp32_fast_tf32_t>);

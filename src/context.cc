@@ -300,7 +300,6 @@ void Context::restrict_cpu()
     add_fiber.restrict_where(STARPU_CPU);
     add_fiber_inplace.restrict_where(STARPU_CPU);
     add_inplace.restrict_where(STARPU_CPU);
-    add_scalar.restrict_where(STARPU_CPU);
     add_slice.restrict_where(STARPU_CPU);
     add_slice_inplace.restrict_where(STARPU_CPU);
     addcdiv.restrict_where(STARPU_CPU);
@@ -370,7 +369,6 @@ void Context::restrict_cuda()
     add_fiber.restrict_where(STARPU_CUDA);
     add_fiber_inplace.restrict_where(STARPU_CUDA);
     add_inplace.restrict_where(STARPU_CUDA);
-    add_scalar.restrict_where(STARPU_CUDA);
     add_slice.restrict_where(STARPU_CUDA);
     add_slice_inplace.restrict_where(STARPU_CUDA);
     addcdiv.restrict_where(STARPU_CUDA);
@@ -440,7 +438,6 @@ void Context::restore_where()
     add_fiber.restore_where();
     add_fiber_inplace.restore_where();
     add_inplace.restore_where();
-    add_scalar.restore_where();
     add_slice.restore_where();
     add_slice_inplace.restore_where();
     addcdiv.restore_where();

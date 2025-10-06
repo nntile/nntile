@@ -81,7 +81,6 @@ set(TESTS_CATCH2
     "add_slice_inplace"
     "adam_step"
     "adamw_step"
-    "add_scalar"
     "add_slice"
     "embedding"
     "embedding_backward"
