@@ -51,6 +51,8 @@ struct TestData
     Index m, n, k; // Dimensions
     Scalar alpha, beta; // Scaling factors
 
+    Y eps_check;
+
     std::vector<T> src_init;
     std::vector<T> dst_init;
 
@@ -83,8 +85,9 @@ void reference_norm_slice(TestData<T>& data)
                 norm_sq += val * val;
             }
             ref_t norm_val = std::sqrt(norm_sq) * alpha_r;
-            ref_t result = std::hypot(beta_r * static_cast<Y>(data.dst_init[i2 * data.m + i1]), norm_val);
-            data.dst_ref[i2 * data.m + i1] = static_cast<T>(static_cast<Y>(result));
+            ref_t dst_val = static_cast<Y>(data.dst_init[i2 * data.m + i1]);
+            ref_t result = std::hypot(beta_r * dst_val, norm_val);
+            data.dst_ref[i2 * data.m + i1] = static_cast<Y>(result);
         }
     }
 }
@@ -117,14 +120,16 @@ void generate_data(TestData<T>& data, DataGen strategy)
                     for(Index i2 = 0; i2 < data.m; ++i2)
                     {
                         Index src_idx = (i1 * data.k + i0) * data.m + i2;
-                        data.src_init[src_idx] = Y{1.0 + i0 + i1 * data.k + i2 * data.k * data.n};
+                        Y src_val = 1.0 + i0 + i1 * data.k +
+                            i2 * data.k * data.n;
+                        data.src_init[src_idx] = src_val;
                     }
                 }
             }
             // Initialize dst_init with some values for beta testing
             for(Index i = 0; i < data.m * data.n; ++i)
             {
-                data.dst_init[i] = Y{1.0};
+                data.dst_init[i] = static_cast<Y>(-1.0);
             }
             break;
         // Specific random initialization
@@ -160,7 +165,27 @@ TestData<T> get_test_data(
     data.k = k;
     data.alpha = alpha;
     data.beta = beta;
-
+    // Set accuracy threshold for each precision
+    if (std::is_same_v<T, bf16_t>)
+    {
+        data.eps_check = 1e-1;
+    }
+    else if (std::is_same_v<T, fp16_t>)
+    {
+        data.eps_check = 1e-2;
+    }
+    else if (std::is_same_v<T, fp32_t>)
+    {
+        data.eps_check = 3.1e-3;
+    }
+    else if (std::is_same_v<T, fp64_t>)
+    {
+        data.eps_check = 1e-7;
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type");
+    }
     // Generate data by a provided strategy
     generate_data(data, strategy);
 
@@ -189,30 +214,11 @@ void verify_results(
     for(Index i = 0; i < data.dst_ref.size(); ++i)
     {
         Y ref = static_cast<Y>(data.dst_ref[i]);
-        Y val = static_cast<Y>(dst[i]);
-        // Set accuracy threshold for each precision
-        Y eps_check;
-        if (std::is_same_v<T, bf16_t>)
-        {
-            eps_check = 1e-1;
-        }
-        else if (std::is_same_v<T, fp16_t>)
-        {
-            eps_check = 1e-2;
-        }
-        else if (std::is_same_v<T, fp32_t>)
-        {
-            eps_check = 3.1e-3;
-        }
-        else if (std::is_same_v<T, fp64_t>)
-        {
-            eps_check = 1e-7;
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported data type");
-        }
-        REQUIRE_THAT(val, WithinRel(ref, eps_check) || WithinAbs(ref, eps_check));
+        REQUIRE_THAT(
+            static_cast<Y>(dst[i]),
+            WithinRel(ref, data.eps_check) ||
+            WithinAbs(ref, data.eps_check)
+        );
     }
 }
 
@@ -266,16 +272,42 @@ template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_src, *dev_dst;
-    CUDA_CHECK(cudaMalloc(&dev_src, sizeof(T) * data.src_init.size()),
-               "cudaMalloc dev_src");
-    CUDA_CHECK(cudaMalloc(&dev_dst, sizeof(T) * data.m * data.n),
-               "cudaMalloc dev_dst");
+    CUDA_CHECK(
+        cudaMalloc(
+            &dev_src,
+            sizeof(T) * data.src_init.size()
+        ),
+        "cudaMalloc dev_src"
+    );
+    CUDA_CHECK(
+        cudaMalloc(
+            &dev_dst,
+            sizeof(T) * data.m * data.n
+        ),
+        "cudaMalloc dev_dst"
+    );
 
     std::vector<T> dst_cuda(data.dst_init);
     std::vector<T> src_cuda(data.src_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_src, &src_cuda[0], sizeof(T) * data.src_init.size(),
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_src");
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_src,
+            &src_cuda[0],
+            sizeof(T) * data.src_init.size(),
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_src"
+    );
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_dst,
+            &dst_cuda[0],
+            sizeof(T) * data.dst_init.size(),
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_dst"
+    );
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
@@ -317,8 +349,24 @@ void run_cuda_test(TestData<T>& data)
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.m * data.n,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
+        CUDA_CHECK(
+            cudaMemcpy(
+                &dst_cuda[0],
+                dev_dst,
+                sizeof(T) * data.m * data.n,
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy dst_cuda"
+        );
+        CUDA_CHECK(
+            cudaMemcpy(
+                &src_cuda[0],
+                dev_src,
+                sizeof(T) * data.src_init.size(),
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy src_cuda"
+        );
 
         verify_results(data, src_cuda, dst_cuda);
     }
