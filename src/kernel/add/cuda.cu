@@ -46,10 +46,10 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T *src1, Scalar beta_,
     {
         for(int j = 0; j < LOOP; ++j)
         {
-            dst_block[j] = static_cast<Y>(src1[i+j*BLOCK_STEP]);
-            src_block[j] = static_cast<Y>(src2[i+j*BLOCK_STEP]);
+            src_block[j] = static_cast<Y>(src1[i+j*BLOCK_STEP]);
+            dst_block[j] = static_cast<Y>(src2[i+j*BLOCK_STEP]);
             dst_block[j] = alpha*src_block[j] + beta*dst_block[j];
-            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
+            dst[i+j*BLOCK_STEP] = dst_block[j];
         }
     }
     else
@@ -57,10 +57,10 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T *src1, Scalar beta_,
         int j_max = (nelems-i+BLOCK_STEP-1) / BLOCK_STEP;
         for(int j = 0; j < j_max; ++j)
         {
-            dst_block[j] = static_cast<Y>(src1[i+j*BLOCK_STEP]);
-            src_block[j] = static_cast<Y>(src2[i+j*BLOCK_STEP]);
+            src_block[j] = static_cast<Y>(src1[i+j*BLOCK_STEP]);
+            dst_block[j] = static_cast<Y>(src2[i+j*BLOCK_STEP]);
             dst_block[j] = alpha*src_block[j] + beta*dst_block[j];
-            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
+            dst[i+j*BLOCK_STEP] = dst_block[j];
         }
     }
 }

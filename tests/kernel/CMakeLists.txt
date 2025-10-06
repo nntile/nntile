@@ -13,16 +13,9 @@
 
 # All unit tests without arguments to test executable
 set(TESTS
-    "add"
-    "addcdiv"
     "conv2d_bwd_input_inplace"
     "conv2d_bwd_weight_inplace"
     "conv2d_inplace"
-    "dgelu"
-    "dgelutanh"
-    "drelu"
-    "embedding"
-    "embedding_backward"
     "fill"
     "gelu"
     "gelutanh_inplace"
@@ -51,8 +44,6 @@ set(TESTS_NOT_IMPLEMENTED
     "conv2d_bwd_input_inplace"
     "conv2d_bwd_weight_inplace"
     "conv2d_inplace"
-    "embedding"
-    "embedding_backward"
     "hypot_scalar_inverse"
     "scal_inplace"
     "subtract_indexed_column"
@@ -86,6 +77,8 @@ foreach(test IN LISTS TESTS)
 endforeach()
 
 set(TESTS_CATCH2
+    "add"
+    "addcdiv"
     "accumulate_maxsumexp"
     "add_fiber"
     "add_fiber_inplace"
@@ -95,6 +88,8 @@ set(TESTS_CATCH2
     "adamw_step"
     "add_scalar"
     "add_slice"
+    "embedding"
+    "embedding_backward"
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"
