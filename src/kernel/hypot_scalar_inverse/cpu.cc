@@ -57,4 +57,5 @@ void cpu<bf16_t>(Index nelems, Scalar eps, Scalar alpha, bf16_t* dst)
 template
 void cpu<fp16_t>(Index nelems, Scalar eps, Scalar alpha, fp16_t* dst)
     noexcept;
+
 } // namespace nntile::kernel::hypot_scalar_inverse
