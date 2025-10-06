@@ -78,7 +78,7 @@ void reference_add(TestData<T>& data)
         ref_t src1_val = static_cast<Y>(data.src1_init[i]);
         ref_t src2_val = static_cast<Y>(data.src2_init[i]);
         ref_t result = alpha_r * src1_val + beta_r * src2_val;
-        data.dst_ref[i] = static_cast<T>(static_cast<Y>(result));
+        data.dst_ref[i] = static_cast<Y>(result);
     }
 }
 
@@ -180,20 +180,11 @@ void verify_results(
 {
     using Y = typename T::repr_t;
 
-    // Check that src1 was not changed during kernel execution
+    // Check that src1 and src2 were not changed during kernel execution
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        Y src1_val = static_cast<Y>(src1[i]);
-        Y src1_init_val = static_cast<Y>(data.src1_init[i]);
-        REQUIRE(src1_val == src1_init_val);
-    }
-
-    // Check that src2 was not changed during kernel execution
-    for(Index i = 0; i < data.num_elems; ++i)
-    {
-        Y src2_val = static_cast<Y>(src2[i]);
-        Y src2_init_val = static_cast<Y>(data.src2_init[i]);
-        REQUIRE(src2_val == src2_init_val);
+        REQUIRE(static_cast<Y>(src1[i]) == static_cast<Y>(data.src1_init[i]));
+        REQUIRE(static_cast<Y>(src2[i]) == static_cast<Y>(data.src2_init[i]));
     }
 
     // Check that dst (output) matches reference
@@ -287,7 +278,7 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(
         cudaMemcpy(
             dev_src1,
-            &data.src1_init[0],
+            &src1_cuda[0],
             sizeof(T) * data.num_elems,
             cudaMemcpyHostToDevice
         ),
@@ -296,7 +287,7 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(
         cudaMemcpy(
             dev_src2,
-            &data.src2_init[0],
+            &src2_cuda[0],
             sizeof(T) * data.num_elems,
             cudaMemcpyHostToDevice
         ),
