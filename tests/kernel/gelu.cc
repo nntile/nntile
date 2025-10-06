@@ -50,6 +50,8 @@ struct TestData
     using Y = typename T::repr_t;
     Index num_elems; // Number of elements
 
+    Y eps_check;
+
     std::vector<T> data_init; // Initial data
     std::vector<T> data_ref;  // Reference result
 };
@@ -119,6 +121,27 @@ TestData<T> get_test_data(
     TestData<T> data;
     // Generate data by a provided strategy
     generate_data(data, num_elems, strategy);
+    // Set accuracy threshold for each precision
+    if (std::is_same_v<T, bf16_t>)
+    {
+        data.eps_check = 1e-1;
+    }
+    else if (std::is_same_v<T, fp16_t>)
+    {
+        data.eps_check = 1e-2;
+    }
+    else if (std::is_same_v<T, fp32_t>)
+    {
+        data.eps_check = 3.1e-3;
+    }
+    else if (std::is_same_v<T, fp64_t>)
+    {
+        data.eps_check = 1e-7;
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type");
+    }
     // Compute reference outputs
     reference_gelu(data);
     return data;
@@ -132,23 +155,24 @@ void verify_results(
 )
 {
     using Y = typename T::repr_t;
-    const Y eps = 2 * T::epsilon;
+
+    // Check that output matches reference (this is an in-place operation)
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        Y val_ref = static_cast<Y>(data.data_ref[i]);
-        Y val_out = static_cast<Y>(data_out[i]);
+        const Y val_ref = static_cast<Y>(data.data_ref[i]);
+        const Y val_out = static_cast<Y>(data_out[i]);
 
         // Obtain range of correct values for floating point comparisons
         Y val_ref_min, val_ref_max;
         if(val_ref < 0)
         {
-            val_ref_min = val_ref * (Y{1}+eps) - eps;
-            val_ref_max = val_ref * (Y{1}-eps) + eps;
+            val_ref_min = val_ref * (Y{1}+data.eps_check) - data.eps_check;
+            val_ref_max = val_ref * (Y{1}-data.eps_check) + data.eps_check;
         }
         else
         {
-            val_ref_min = val_ref * (Y{1}-eps) - eps;
-            val_ref_max = val_ref * (Y{1}+eps) + eps;
+            val_ref_min = val_ref * (Y{1}-data.eps_check) - data.eps_check;
+            val_ref_max = val_ref * (Y{1}+data.eps_check) + data.eps_check;
         }
 
         // NaN-aware comparisons

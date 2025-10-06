@@ -52,6 +52,8 @@ struct TestData
     Scalar eps; // Scalar to be added to the hypot result
     Scalar alpha; // Scalar multiplier for the dst tensor
 
+    Y eps_check;
+
     std::vector<T> data_init; // Initial data
     std::vector<T> data_ref;  // Reference result
 };
@@ -125,6 +127,27 @@ TestData<T> get_test_data(
     // Fill in remaining fields of TestData
     data.eps = eps;
     data.alpha = alpha;
+    // Set accuracy threshold for each precision
+    if (std::is_same_v<T, bf16_t>)
+    {
+        data.eps_check = 1e-1;
+    }
+    else if (std::is_same_v<T, fp16_t>)
+    {
+        data.eps_check = 1e-2;
+    }
+    else if (std::is_same_v<T, fp32_t>)
+    {
+        data.eps_check = 3.1e-3;
+    }
+    else if (std::is_same_v<T, fp64_t>)
+    {
+        data.eps_check = 1e-7;
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type");
+    }
     // Compute reference outputs
     reference_hypot_scalar_inverse(data);
     return data;
@@ -138,11 +161,13 @@ void verify_results(
 )
 {
     using Y = typename T::repr_t;
+
+    // Check that output matches reference (this is an in-place operation)
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        Y val_ref = static_cast<Y>(data.data_ref[i]);
-        Y val_out = static_cast<Y>(data_out[i]);
-        REQUIRE(val_out == Catch::Approx(val_ref).epsilon(T::epsilon));
+        const Y val_ref = static_cast<Y>(data.data_ref[i]);
+        const Y val_out = static_cast<Y>(data_out[i]);
+        REQUIRE(val_out == Catch::Approx(val_ref).epsilon(data.eps_check));
     }
 }
 

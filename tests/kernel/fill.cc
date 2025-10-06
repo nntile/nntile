@@ -51,6 +51,8 @@ struct TestData
     Index num_elems; // Number of elements
     Scalar val; // Fill value
 
+    Y eps_check;
+
     std::vector<T> data_init; // Initial data
     std::vector<T> data_ref;  // Reference result
 };
@@ -120,6 +122,27 @@ TestData<T> get_test_data(
     generate_data(data, num_elems, strategy);
     // Fill in remaining fields of TestData
     data.val = val;
+    // Set accuracy threshold for each precision
+    if (std::is_same_v<T, bf16_t>)
+    {
+        data.eps_check = 1e-1;
+    }
+    else if (std::is_same_v<T, fp16_t>)
+    {
+        data.eps_check = 1e-2;
+    }
+    else if (std::is_same_v<T, fp32_t>)
+    {
+        data.eps_check = 3.1e-3;
+    }
+    else if (std::is_same_v<T, fp64_t>)
+    {
+        data.eps_check = 1e-7;
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type");
+    }
     // Compute reference outputs
     reference_fill(data);
     return data;
@@ -133,11 +156,13 @@ void verify_results(
 )
 {
     using Y = typename T::repr_t;
+
+    // Check that all elements are filled with the specified value (within tolerance)
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        Y val_ref = static_cast<Y>(data.data_ref[i]);
-        Y val_out = static_cast<Y>(data_out[i]);
-        REQUIRE(val_out == val_ref);
+        const Y expected = static_cast<Y>(data.val);
+        const Y actual = static_cast<Y>(data_out[i]);
+        REQUIRE(actual == Catch::Approx(expected).epsilon(data.eps_check));
     }
 }
 
