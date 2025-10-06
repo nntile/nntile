@@ -273,7 +273,7 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(
         cudaMalloc(
             &dev_vocab,
-            sizeof(T) * data.vocab.size()
+            sizeof(T) * data.vocab_init.size()
         ),
         "cudaMalloc dev_vocab"
     );
@@ -420,7 +420,7 @@ TEMPLATE_TEST_CASE(
     using T = TestType;
     const Index m = GENERATE(2, 5);
     const Index n = GENERATE(3, 7);
-    const Index k = GENERATE(4, 8);
+    const Index k = GENERATE(6, 8);
     const Index k_start = GENERATE(0, 2);
     const Index k_size = GENERATE(2, 4);
     const Index vocab_size = GENERATE(10, 20);
