@@ -64,7 +64,7 @@ void reference_relu(TestData<T>& data)
     for(Index i = 0; i < data.nelems; ++i)
     {
         Y x = static_cast<Y>(data.data_init[i]);
-        data.data_ref[i] = static_cast<T>(std::max(x, Y{0}));
+        data.data_ref[i] = std::max(x, Y(0));
     }
 }
 
@@ -90,7 +90,9 @@ void generate_data(TestData<T>& data, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < data.nelems; ++i)
             {
-                data.data_init[i] = Y(2*i+1-data.nelems) / Y{1000};
+                Y val = static_cast<Y>(2 * i + 1 - data.nelems);
+                val /= Y(1000);
+                data.data_init[i] = val;
             }
             break;
         // Specific random initialization
@@ -135,31 +137,7 @@ void verify_results(
     // Check that data (output) matches reference
     for(Index i = 0; i < data.data_ref.size(); ++i)
     {
-        Y ref = static_cast<Y>(data.data_ref[i]);
-        Y val = static_cast<Y>(data_out[i]);
-        // Set accuracy threshold for each precision
-        Y eps_check;
-        if (std::is_same_v<T, bf16_t>)
-        {
-            eps_check = 1e-1;
-        }
-        else if (std::is_same_v<T, fp16_t>)
-        {
-            eps_check = 1e-1;  // More lenient for fp16
-        }
-        else if (std::is_same_v<T, fp32_t>)
-        {
-            eps_check = 1e-2;  // More lenient for fp32
-        }
-        else if (std::is_same_v<T, fp64_t>)
-        {
-            eps_check = 1e-6;  // More lenient for fp64
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported data type");
-        }
-        REQUIRE_THAT(val, WithinRel(ref, eps_check) || WithinAbs(ref, eps_check));
+        REQUIRE(data.data_ref[i].value == data_out[i].value);
     }
 }
 
@@ -200,13 +178,22 @@ template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_data;
-    CUDA_CHECK(cudaMalloc(&dev_data, sizeof(T) * data.nelems),
-               "cudaMalloc dev_data");
+    CUDA_CHECK(
+        cudaMalloc(&dev_data, sizeof(T) * data.nelems),
+        "cudaMalloc dev_data"
+    );
 
     std::vector<T> data_cuda(data.data_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_data, &data_cuda[0], sizeof(T) * data.nelems,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_data");
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_data,
+            &data_cuda[0],
+            sizeof(T) * data.nelems,
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_data"
+    );
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
@@ -236,8 +223,15 @@ void run_cuda_test(TestData<T>& data)
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        CUDA_CHECK(cudaMemcpy(&data_cuda[0], dev_data, sizeof(T) * data.nelems,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy data_cuda");
+        CUDA_CHECK(
+            cudaMemcpy(
+                &data_cuda[0],
+                dev_data,
+                sizeof(T) * data.nelems,
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy data_cuda"
+        );
 
         verify_results(data, data_cuda);
     }
