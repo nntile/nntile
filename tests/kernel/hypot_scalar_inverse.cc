@@ -10,7 +10,7 @@
  * Inverse of a hypot operation of a buffer and a scalar
  *
  * @version 1.1.0
- */
+ * */
 
 // Corresponding header
 #include "nntile/kernel/hypot_scalar_inverse.hh"
@@ -55,6 +55,7 @@ struct TestData
     Y eps_check;
 
     std::vector<T> data_init; // Initial data
+
     std::vector<T> data_ref;  // Reference result
 };
 

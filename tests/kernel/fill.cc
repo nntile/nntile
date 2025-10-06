@@ -10,7 +10,7 @@
  * Fill operation on a buffer
  *
  * @version 1.1.0
- */
+ * */
 
 // Corresponding header
 #include "nntile/kernel/fill.hh"
@@ -52,6 +52,7 @@ struct TestData
     Scalar val; // Fill value
 
     std::vector<T> data_init; // Initial data
+
     std::vector<T> data_ref;  // Reference result
 };
 
@@ -64,9 +65,10 @@ void reference_fill(TestData<T>& data)
     {
         return;
     }
+    T val = static_cast<Y>(data.val);
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        data.data_ref[i] = static_cast<Y>(data.val);
+        data.data_ref[i] = val;
     }
 }
 
