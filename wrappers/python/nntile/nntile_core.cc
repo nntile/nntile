@@ -576,19 +576,6 @@ void def_mod_tensor(py::module_ &m)
     m.def("silu_backward_fp32_fast_bf16", &silu_backward<fp32_fast_bf16_t>);
     m.def("silu_backward_bf16", &silu_backward<bf16_t>);
 
-    m.def("drelu_async_fp64", &drelu_async<fp64_t>);
-    m.def("drelu_async_fp32", &drelu_async<fp32_t>);
-    m.def("drelu_async_fp32_fast_tf32", &drelu_async<fp32_fast_tf32_t>);
-    m.def("drelu_async_fp32_fast_fp16", &drelu_async<fp32_fast_fp16_t>);
-    m.def("drelu_async_fp32_fast_bf16", &drelu_async<fp32_fast_bf16_t>);
-    m.def("drelu_async_bf16", &drelu_async<bf16_t>);
-
-    m.def("drelu_fp64", &drelu<fp64_t>);
-    m.def("drelu_fp32", &drelu<fp32_t>);
-    m.def("drelu_fp32_fast_tf32", &drelu<fp32_fast_tf32_t>);
-    m.def("drelu_fp32_fast_fp16", &drelu<fp32_fast_fp16_t>);
-    m.def("drelu_fp32_fast_bf16", &drelu<fp32_fast_bf16_t>);
-    m.def("drelu_bf16", &drelu<bf16_t>);
 
     // Add other functions for Tensor<T>
     m.def("fill_async_fp64", &fill_async<fp64_t>);
@@ -1324,33 +1311,6 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelutanh_backward_bf16", &gelutanh_backward<bf16_t>);
     m.def("gelutanh_backward_fp16", &gelutanh_backward<fp16_t>);
 
-    m.def("dgelu_async_fp64", &dgelu_async<fp64_t>);
-    m.def("dgelu_async_fp32", &dgelu_async<fp32_t>);
-    m.def("dgelu_async_fp32_fast_tf32", &dgelu_async<fp32_fast_tf32_t>);
-    m.def("dgelu_async_fp32_fast_fp16", &dgelu_async<fp32_fast_fp16_t>);
-    m.def("dgelu_async_fp32_fast_bf16", &dgelu_async<fp32_fast_bf16_t>);
-    m.def("dgelu_async_bf16", &dgelu_async<bf16_t>);
-
-    m.def("dgelu_fp64", &dgelu<fp64_t>);
-    m.def("dgelu_fp32", &dgelu<fp32_t>);
-    m.def("dgelu_fp32_fast_tf32", &dgelu<fp32_fast_tf32_t>);
-    m.def("dgelu_fp32_fast_fp16", &dgelu<fp32_fast_fp16_t>);
-    m.def("dgelu_fp32_fast_bf16", &dgelu<fp32_fast_bf16_t>);
-    m.def("dgelu_bf16", &dgelu<bf16_t>);
-
-    m.def("dgelutanh_async_fp64", &dgelutanh_async<fp64_t>);
-    m.def("dgelutanh_async_fp32", &dgelutanh_async<fp32_t>);
-    m.def("dgelutanh_async_fp32_fast_tf32", &dgelutanh_async<fp32_fast_tf32_t>);
-    m.def("dgelutanh_async_fp32_fast_fp16", &dgelutanh_async<fp32_fast_fp16_t>);
-    m.def("dgelutanh_async_fp32_fast_bf16", &dgelutanh_async<fp32_fast_bf16_t>);
-    m.def("dgelutanh_async_bf16", &dgelutanh_async<bf16_t>);
-
-    m.def("dgelutanh_fp64", &dgelutanh<fp64_t>);
-    m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);
-    m.def("dgelutanh_fp32_fast_tf32", &dgelutanh<fp32_fast_tf32_t>);
-    m.def("dgelutanh_fp32_fast_fp16", &dgelutanh<fp32_fast_fp16_t>);
-    m.def("dgelutanh_fp32_fast_bf16", &dgelutanh<fp32_fast_bf16_t>);
-    m.def("dgelutanh_bf16", &dgelutanh<bf16_t>);
 
     // Embedding forward pass
     m.def("embedding_async_fp64", &embedding_async<fp64_t>);
