@@ -216,8 +216,7 @@ void verify_results(
         Y ref = static_cast<Y>(data.dst_ref[i]);
         REQUIRE_THAT(
             static_cast<Y>(dst[i]),
-            WithinRel(ref, data.eps_check) ||
-            WithinAbs(ref, data.eps_check)
+            WithinRel(ref, data.eps_check)
         );
     }
 }

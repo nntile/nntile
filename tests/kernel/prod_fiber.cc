@@ -209,8 +209,7 @@ void verify_results(
         // Set accuracy threshold for each precision
         REQUIRE_THAT(
             static_cast<Y>(dst[i]),
-            WithinRel(ref, data.eps_check) ||
-            WithinAbs(ref, data.eps_check)
+            WithinRel(ref, data.eps_check)
         );
     }
 }
