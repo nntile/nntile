@@ -50,8 +50,9 @@ struct TestData
     using Y = typename T::repr_t;
     Index nelems; // Number of elements
 
-    std::vector<T> src;
-    std::vector<T> dst;
+    std::vector<T> src_init;
+    std::vector<T> dst_init;
+
     std::vector<T> dst_ref;
 };
 
@@ -63,7 +64,7 @@ void reference_prod_inplace(TestData<T>& data)
 
     for(Index i = 0; i < data.nelems; ++i)
     {
-        data.dst_ref[i] = static_cast<T>(static_cast<Y>(data.dst[i]) * static_cast<Y>(data.src[i]));
+        data.dst_ref[i] = static_cast<T>(static_cast<Y>(data.dst_init[i]) * static_cast<Y>(data.src_init[i]));
     }
 }
 
@@ -80,8 +81,8 @@ void generate_data(TestData<T>& data, DataGen strategy)
 {
     using Y = typename T::repr_t;
 
-    data.src.resize(data.nelems);
-    data.dst.resize(data.nelems);
+    data.src_init.resize(data.nelems);
+    data.dst_init.resize(data.nelems);
     data.dst_ref.resize(data.nelems);
 
     switch(strategy)
@@ -90,8 +91,8 @@ void generate_data(TestData<T>& data, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < data.nelems; ++i)
             {
-                data.src[i] = Y(2*i+1-data.nelems) / Y{1000};
-                data.dst[i] = Y(data.nelems-i) / Y{1000};
+                data.src_init[i] = Y(2*i+1-data.nelems) / Y{1000};
+                data.dst_init[i] = Y(data.nelems-i) / Y{1000};
             }
             break;
         // Specific random initialization
@@ -100,8 +101,8 @@ void generate_data(TestData<T>& data, DataGen strategy)
             std::uniform_real_distribution<Y> dist(-2.0, 2.0);
             for(Index i = 0; i < data.nelems; ++i)
             {
-                data.src[i] = dist(gen);
-                data.dst[i] = dist(gen);
+                data.src_init[i] = dist(gen);
+                data.dst_init[i] = dist(gen);
             }
             break;
     }
@@ -129,17 +130,24 @@ TestData<T> get_test_data(
 template<typename T>
 void verify_results(
     const TestData<T>& data,
-    const std::vector<T>& dst_out
+    const std::vector<T>& src,
+    const std::vector<T>& dst
 )
 {
     using Y = typename T::repr_t;
-    // Set accuracy threshold for each precision
-    Y eps_check = 2 * T::epsilon;
 
+    // Check that src was not changed during kernel execution
+    for(Index i = 0; i < data.src_init.size(); ++i)
+    {
+        REQUIRE(static_cast<Y>(src[i]) == static_cast<Y>(data.src_init[i]));
+    }
+
+    // Check that dst (output) matches reference
+    Y eps_check = 2 * T::epsilon;
     for(Index i = 0; i < data.dst_ref.size(); ++i)
     {
         Y ref = static_cast<Y>(data.dst_ref[i]);
-        Y val = static_cast<Y>(dst_out[i]);
+        Y val = static_cast<Y>(dst[i]);
 
         // Obtain range of correct values (similar to original test)
         Y val_ref_min, val_ref_max;
@@ -163,7 +171,8 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> dst_cpu(data.dst);
+    std::vector<T> dst_cpu(data.dst_init);
+    std::vector<T> src_cpu(data.src_init);
 
     if constexpr (run_bench)
     {
@@ -175,7 +184,7 @@ void run_cpu_test(TestData<T>& data)
         {
             cpu<T>(
                 data.nelems,
-                &data.src[0],
+                &src_cpu[0],
                 &dst_cpu[0]
             );
         };
@@ -184,10 +193,10 @@ void run_cpu_test(TestData<T>& data)
     {
         cpu<T>(
             data.nelems,
-            &data.src[0],
+            &src_cpu[0],
             &dst_cpu[0]
         );
-        verify_results(data, dst_cpu);
+        verify_results(data, src_cpu, dst_cpu);
     }
 }
 
@@ -203,11 +212,12 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_dst, sizeof(T) * data.nelems),
                "cudaMalloc dev_dst");
 
-    std::vector<T> dst_cuda(data.dst);
+    std::vector<T> dst_cuda(data.dst_init);
+    std::vector<T> src_cuda(data.src_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_src, &data.src[0], sizeof(T) * data.nelems,
+    CUDA_CHECK(cudaMemcpy(dev_src, &src_cuda[0], sizeof(T) * data.nelems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src");
-    CUDA_CHECK(cudaMemcpy(dev_dst, &data.dst[0], sizeof(T) * data.nelems,
+    CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.nelems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");
 
     cudaStream_t stream;
@@ -243,7 +253,7 @@ void run_cuda_test(TestData<T>& data)
         CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.nelems,
                               cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
 
-        verify_results(data, dst_cuda);
+        verify_results(data, src_cuda, dst_cuda);
     }
 
     CUDA_CHECK(cudaFree(dev_src), "cudaFree dev_src");

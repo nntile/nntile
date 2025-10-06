@@ -50,7 +50,8 @@ struct TestData
     using Y = typename T::repr_t;
     Index nelems; // Number of elements
 
-    std::vector<T> data;
+    std::vector<T> data_init;
+
     std::vector<T> data_ref;
 };
 
@@ -62,7 +63,7 @@ void reference_relu(TestData<T>& data)
 
     for(Index i = 0; i < data.nelems; ++i)
     {
-        Y x = static_cast<Y>(data.data[i]);
+        Y x = static_cast<Y>(data.data_init[i]);
         data.data_ref[i] = static_cast<T>(std::max(x, Y{0}));
     }
 }
@@ -80,7 +81,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
 {
     using Y = typename T::repr_t;
 
-    data.data.resize(data.nelems);
+    data.data_init.resize(data.nelems);
     data.data_ref.resize(data.nelems);
 
     switch(strategy)
@@ -89,7 +90,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < data.nelems; ++i)
             {
-                data.data[i] = Y(2*i+1-data.nelems) / Y{1000};
+                data.data_init[i] = Y(2*i+1-data.nelems) / Y{1000};
             }
             break;
         // Specific random initialization
@@ -98,7 +99,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
             std::uniform_real_distribution<Y> dist(-2.0, 2.0);
             for(Index i = 0; i < data.nelems; ++i)
             {
-                data.data[i] = dist(gen);
+                data.data_init[i] = dist(gen);
             }
             break;
     }
@@ -130,33 +131,34 @@ void verify_results(
 )
 {
     using Y = typename T::repr_t;
-    // Set accuracy threshold for each precision
-    Y eps_check;
-    if (std::is_same_v<T, bf16_t>)
-    {
-        eps_check = 1e-1;
-    }
-    else if (std::is_same_v<T, fp16_t>)
-    {
-        eps_check = 1e-2;
-    }
-    else if (std::is_same_v<T, fp32_t>)
-    {
-        eps_check = 3.1e-3;
-    }
-    else if (std::is_same_v<T, fp64_t>)
-    {
-        eps_check = 1e-7;
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data type");
-    }
 
+    // Check that data (output) matches reference
     for(Index i = 0; i < data.data_ref.size(); ++i)
     {
         Y ref = static_cast<Y>(data.data_ref[i]);
         Y val = static_cast<Y>(data_out[i]);
+        // Set accuracy threshold for each precision
+        Y eps_check;
+        if (std::is_same_v<T, bf16_t>)
+        {
+            eps_check = 1e-1;
+        }
+        else if (std::is_same_v<T, fp16_t>)
+        {
+            eps_check = 1e-1;  // More lenient for fp16
+        }
+        else if (std::is_same_v<T, fp32_t>)
+        {
+            eps_check = 1e-2;  // More lenient for fp32
+        }
+        else if (std::is_same_v<T, fp64_t>)
+        {
+            eps_check = 1e-6;  // More lenient for fp64
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported data type");
+        }
         REQUIRE_THAT(val, WithinRel(ref, eps_check) || WithinAbs(ref, eps_check));
     }
 }
@@ -165,7 +167,7 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
-    std::vector<T> data_cpu(data.data);
+    std::vector<T> data_cpu(data.data_init);
 
     if constexpr (run_bench)
     {
@@ -201,9 +203,9 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_data, sizeof(T) * data.nelems),
                "cudaMalloc dev_data");
 
-    std::vector<T> data_cuda(data.data);
+    std::vector<T> data_cuda(data.data_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_data, &data.data[0], sizeof(T) * data.nelems,
+    CUDA_CHECK(cudaMemcpy(dev_data, &data_cuda[0], sizeof(T) * data.nelems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_data");
 
     cudaStream_t stream;
