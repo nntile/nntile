@@ -67,10 +67,9 @@ void reference_gelu(TestData<T>& data)
     }
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        Y x = static_cast<Y>(data.data_init[i]);
-        Y val_ref = 0.5 * std::erfc(-x/std::sqrt(Y(2)));
-        val_ref *= x;
-        data.data_ref[i] = static_cast<T>(val_ref);
+        ref_t x = static_cast<Y>(data.data_init[i]);
+        ref_t val_ref = 0.5 * std::erfc(-x/std::sqrt(2.0));
+        data.data_ref[i] = static_cast<T>(val_ref * x);
     }
 }
 
@@ -97,7 +96,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < num_elems; ++i)
             {
-                data.data_init[i] = Y(2 * i + 1 - num_elems) / Y{1000};
+                Y val = Y(2 * i + 1 - num_elems) / Y(1000);
+                data.data_init[i] = val;
             }
             break;
         // Specific random initialization
@@ -156,27 +156,14 @@ void verify_results(
 {
     using Y = typename T::repr_t;
 
-    // Check that output matches reference (this is an in-place operation)
+    // Check that output matches reference
     for(Index i = 0; i < data.num_elems; ++i)
     {
         const Y val_ref = static_cast<Y>(data.data_ref[i]);
-        const Y val_out = static_cast<Y>(data_out[i]);
-
-        // Obtain range of correct values for floating point comparisons
-        Y val_ref_min, val_ref_max;
-        if(val_ref < 0)
-        {
-            val_ref_min = val_ref * (Y{1}+data.eps_check) - data.eps_check;
-            val_ref_max = val_ref * (Y{1}-data.eps_check) + data.eps_check;
-        }
-        else
-        {
-            val_ref_min = val_ref * (Y{1}-data.eps_check) - data.eps_check;
-            val_ref_max = val_ref * (Y{1}+data.eps_check) + data.eps_check;
-        }
-
-        // NaN-aware comparisons
-        REQUIRE((val_out >= val_ref_min && val_out <= val_ref_max));
+        REQUIRE_THAT(
+            static_cast<Y>(data_out[i]),
+            WithinRel(val_ref, data.eps_check)
+        );
     }
 }
 
@@ -217,13 +204,22 @@ template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_data;
-    CUDA_CHECK(cudaMalloc(&dev_data, sizeof(T) * data.num_elems),
-               "cudaMalloc dev_data");
+    CUDA_CHECK(
+        cudaMalloc(&dev_data, sizeof(T) * data.num_elems),
+        "cudaMalloc dev_data"
+    );
 
     std::vector<T> data_cuda(data.data_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_data, &data_cuda[0], sizeof(T) * data.num_elems,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_data");
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_data,
+            &data_cuda[0],
+            sizeof(T) * data.num_elems,
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_data"
+    );
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
@@ -253,8 +249,15 @@ void run_cuda_test(TestData<T>& data)
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        CUDA_CHECK(cudaMemcpy(&data_cuda[0], dev_data, sizeof(T) * data.num_elems,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy data_cuda");
+        CUDA_CHECK(
+            cudaMemcpy(
+                &data_cuda[0],
+                dev_data,
+                sizeof(T) * data.num_elems,
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy data_cuda"
+        );
 
         verify_results(data, data_cuda);
     }
@@ -270,7 +273,8 @@ TEMPLATE_TEST_CASE(
     "[gelu]",
     fp64_t,
     fp32_t,
-    bf16_t
+    bf16_t,
+    fp16_t
 )
 {
     using T = TestType;
@@ -301,7 +305,8 @@ TEMPLATE_TEST_CASE(
     "[gelu][!benchmark]",
     fp64_t,
     fp32_t,
-    bf16_t
+    bf16_t,
+    fp16_t
 )
 {
     using T = TestType;

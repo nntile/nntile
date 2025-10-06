@@ -51,8 +51,6 @@ struct TestData
     Index num_elems; // Number of elements
     Scalar val; // Fill value
 
-    Y eps_check;
-
     std::vector<T> data_init; // Initial data
     std::vector<T> data_ref;  // Reference result
 };
@@ -68,7 +66,7 @@ void reference_fill(TestData<T>& data)
     }
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        data.data_ref[i] = static_cast<T>(static_cast<Y>(data.val));
+        data.data_ref[i] = static_cast<Y>(data.val);
     }
 }
 
@@ -95,7 +93,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < num_elems; ++i)
             {
-                data.data_init[i] = Y(2 * i + 1 - num_elems) / Y{1000};
+                Y val = Y(2 * i + 1 - num_elems) / Y(1000);
+                data.data_init[i] = val;
             }
             break;
         // Specific random initialization
@@ -122,27 +121,6 @@ TestData<T> get_test_data(
     generate_data(data, num_elems, strategy);
     // Fill in remaining fields of TestData
     data.val = val;
-    // Set accuracy threshold for each precision
-    if (std::is_same_v<T, bf16_t>)
-    {
-        data.eps_check = 1e-1;
-    }
-    else if (std::is_same_v<T, fp16_t>)
-    {
-        data.eps_check = 1e-2;
-    }
-    else if (std::is_same_v<T, fp32_t>)
-    {
-        data.eps_check = 3.1e-3;
-    }
-    else if (std::is_same_v<T, fp64_t>)
-    {
-        data.eps_check = 1e-7;
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data type");
-    }
     // Compute reference outputs
     reference_fill(data);
     return data;
@@ -157,12 +135,10 @@ void verify_results(
 {
     using Y = typename T::repr_t;
 
-    // Check that all elements are filled with the specified value (within tolerance)
+    // Check that all elements are filled with the specified value
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        const Y expected = static_cast<Y>(data.val);
-        const Y actual = static_cast<Y>(data_out[i]);
-        REQUIRE(actual == Catch::Approx(expected).epsilon(data.eps_check));
+        REQUIRE(data_out[i].value == data.data_ref[i].value);
     }
 }
 
@@ -207,13 +183,22 @@ template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_data;
-    CUDA_CHECK(cudaMalloc(&dev_data, sizeof(T) * data.num_elems),
-               "cudaMalloc dev_data");
+    CUDA_CHECK(
+        cudaMalloc(&dev_data, sizeof(T) * data.num_elems),
+        "cudaMalloc dev_data"
+    );
 
     std::vector<T> data_cuda(data.data_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_data, &data_cuda[0], sizeof(T) * data.num_elems,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_data");
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_data,
+            &data_cuda[0],
+            sizeof(T) * data.num_elems,
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_data"
+    );
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
@@ -247,8 +232,14 @@ void run_cuda_test(TestData<T>& data)
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        CUDA_CHECK(cudaMemcpy(&data_cuda[0], dev_data, sizeof(T) * data.num_elems,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy data_cuda");
+        CUDA_CHECK(
+            cudaMemcpy(
+                &data_cuda[0],
+                dev_data, sizeof(T) * data.num_elems,
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy data_cuda"
+        );
 
         verify_results(data, data_cuda);
     }

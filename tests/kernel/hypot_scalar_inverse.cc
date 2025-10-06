@@ -69,9 +69,9 @@ void reference_hypot_scalar_inverse(TestData<T>& data)
     }
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        Y val = static_cast<Y>(data.data_init[i]);
-        Y result = Y{1.0} / std::hypot(data.alpha * val, data.eps);
-        data.data_ref[i] = static_cast<T>(result);
+        ref_t val = static_cast<Y>(data.data_init[i]);
+        ref_t result = 1.0 / std::hypot(data.alpha * val, data.eps);
+        data.data_ref[i] = static_cast<Y>(result);
     }
 }
 
@@ -98,7 +98,8 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < num_elems; ++i)
             {
-                data.data_init[i] = Y(2 * i + 1 - num_elems) / Y{1000};
+                Y val = Y(2 * i + 1 - num_elems) / Y(1000);
+                data.data_init[i] = val;
             }
             break;
         // Specific random initialization
@@ -162,12 +163,13 @@ void verify_results(
 {
     using Y = typename T::repr_t;
 
-    // Check that output matches reference (this is an in-place operation)
+    // Check that output matches reference
     for(Index i = 0; i < data.num_elems; ++i)
     {
-        const Y val_ref = static_cast<Y>(data.data_ref[i]);
-        const Y val_out = static_cast<Y>(data_out[i]);
-        REQUIRE(val_out == Catch::Approx(val_ref).epsilon(data.eps_check));
+        REQUIRE_THAT(
+            static_cast<Y>(data_out[i]),
+            WithinRel(static_cast<Y>(data.data_ref[i]), data.eps_check)
+        );
     }
 }
 
@@ -216,13 +218,22 @@ template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_data;
-    CUDA_CHECK(cudaMalloc(&dev_data, sizeof(T) * data.num_elems),
-               "cudaMalloc dev_data");
+    CUDA_CHECK(
+        cudaMalloc(&dev_data, sizeof(T) * data.num_elems),
+        "cudaMalloc dev_data"
+    );
 
     std::vector<T> data_cuda(data.data_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_data, &data_cuda[0], sizeof(T) * data.num_elems,
-                          cudaMemcpyHostToDevice), "cudaMemcpy dev_data");
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_data,
+            &data_cuda[0],
+            sizeof(T) * data.num_elems,
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_data"
+    );
 
     cudaStream_t stream;
     CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
@@ -260,8 +271,15 @@ void run_cuda_test(TestData<T>& data)
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
-        CUDA_CHECK(cudaMemcpy(&data_cuda[0], dev_data, sizeof(T) * data.num_elems,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy data_cuda");
+        CUDA_CHECK(
+            cudaMemcpy(
+                &data_cuda[0],
+                dev_data,
+                sizeof(T) * data.num_elems,
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy data_cuda"
+        );
 
         verify_results(data, data_cuda);
     }
