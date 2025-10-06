@@ -63,8 +63,8 @@ void reference_relu(TestData<T>& data)
 
     for(Index i = 0; i < data.nelems; ++i)
     {
-        Y x = static_cast<Y>(data.data_init[i]);
-        data.data_ref[i] = std::max(x, Y(0));
+        ref_t x = static_cast<Y>(data.data_init[i]);
+        data.data_ref[i] = static_cast<Y>(std::max(x, 0.0));
     }
 }
 
