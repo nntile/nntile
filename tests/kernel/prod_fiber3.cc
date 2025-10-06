@@ -369,7 +369,7 @@ void run_cuda_test(TestData<T>& data)
             cudaMemcpy(
                 &dst_cuda[0],
                 dev_dst,
-                sizeof(T) * data.dst_ref.size(),
+                sizeof(T) * data.dst_init.size(),
                 cudaMemcpyDeviceToHost
             ),
             "cudaMemcpy dst_cuda"
