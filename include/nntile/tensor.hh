@@ -31,7 +31,7 @@
 #include <nntile/tensor/copy.hh>
 #include <nntile/tensor/copy_intersection.hh>
 #include <nntile/tensor/gather.hh>
-#include <nntile/tensor/gelu.hh>
+#include <nntile/tensor/gelu_inplace.hh>
 #include <nntile/tensor/gelutanh.hh>
 #include <nntile/tensor/gelutanh_inplace.hh>
 #include <nntile/tensor/gemm.hh>

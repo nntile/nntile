@@ -162,7 +162,7 @@ template class GeluInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class GeluInplace<std::tuple<nntile::bf16_t>>;
 template class GeluInplace<std::tuple<nntile::fp16_t>>;
 
-//! Pack of gelu operations for different types
-gelu_pack_t gelu_inplace;
+//! Pack of gelu_inplace operations for different types
+gelu_inplace_pack_t gelu_inplace;
 
 } // namespace nntile::starpu

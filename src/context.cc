@@ -310,7 +310,7 @@ void Context::restrict_cpu()
     embedding.restrict_where(STARPU_CPU);
     embedding_backward.restrict_where(STARPU_CPU);
     fill.restrict_where(STARPU_CPU);
-    gelu.restrict_where(STARPU_CPU);
+    gelu_inplace.restrict_where(STARPU_CPU);
     gelu_backward.restrict_where(STARPU_CPU);
     gelutanh.restrict_where(STARPU_CPU);
     gelutanh_backward.restrict_where(STARPU_CPU);
@@ -377,7 +377,7 @@ void Context::restrict_cuda()
     embedding.restrict_where(STARPU_CUDA);
     embedding_backward.restrict_where(STARPU_CUDA);
     fill.restrict_where(STARPU_CUDA);
-    gelu.restrict_where(STARPU_CUDA);
+    gelu_inplace.restrict_where(STARPU_CUDA);
     gelu_backward.restrict_where(STARPU_CUDA);
     gelutanh.restrict_where(STARPU_CUDA);
     gelutanh_backward.restrict_where(STARPU_CUDA);
@@ -444,7 +444,7 @@ void Context::restore_where()
     embedding.restore_where();
     embedding_backward.restore_where();
     fill.restore_where();
-    gelu.restore_where();
+    gelu_inplace.restore_where();
     gelu_backward.restore_where();
     gelutanh.restore_where();
     gelutanh_backward.restore_where();
