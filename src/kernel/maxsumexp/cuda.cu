@@ -322,19 +322,23 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
     }
 }
 
-template void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
+template
+void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
         const fp32_t *src, fp32_t *maxsumexp)
     noexcept;
 
-template void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
+template
+void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
         const fp64_t *src, fp64_t *maxsumexp)
     noexcept;
 
-template void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
+template
+void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
         const bf16_t *src, bf16_t *maxsumexp)
     noexcept;
 
-template void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, Index k,
+template
+void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, Index k,
         const fp16_t *src, fp16_t *maxsumexp)
     noexcept;
 
