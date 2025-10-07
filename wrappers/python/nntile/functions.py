@@ -1357,7 +1357,8 @@ def embedding_backward_async(index: Tensor_int64, embed: Tensor, vocab: Tensor,
 def hypot_inplace_async(
     alpha: float,
     x: Tensor,
-    beta: float, y: Tensor
+    beta: float,
+    y: Tensor
 ) -> None:
     """
     Wrapper for multiprecision hypot_inplace
