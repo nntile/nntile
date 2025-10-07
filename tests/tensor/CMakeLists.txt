@@ -47,7 +47,6 @@ set(TESTS_MPI
     "log_scalar"
     "logsumexp"
     "mask_scalar"
-    "maximum"
     "maxsumexp"
     "norm_fiber"
     "norm_fiber_inplace"

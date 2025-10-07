@@ -47,7 +47,6 @@
 #include <nntile/starpu/log_scalar.hh>
 #include <nntile/starpu/logsumexp.hh>
 #include <nntile/starpu/mask_scalar.hh>
-#include <nntile/starpu/maximum.hh>
 #include <nntile/starpu/maxsumexp.hh>
 #include <nntile/starpu/norm_fiber.hh>
 #include <nntile/starpu/norm_fiber_inplace.hh>

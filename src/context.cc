@@ -321,7 +321,6 @@ void Context::restrict_cpu()
     log_scalar.restrict_where(STARPU_CPU);
     logsumexp.restrict_where(STARPU_CPU);
     mask_scalar.restrict_where(STARPU_CPU);
-    maximum.restrict_where(STARPU_CPU);
     maxsumexp.restrict_where(STARPU_CPU);
     norm_fiber.restrict_where(STARPU_CPU);
     norm_slice.restrict_where(STARPU_CPU);
@@ -389,7 +388,6 @@ void Context::restrict_cuda()
     log_scalar.restrict_where(STARPU_CUDA);
     logsumexp.restrict_where(STARPU_CUDA);
     mask_scalar.restrict_where(STARPU_CUDA);
-    maximum.restrict_where(STARPU_CUDA);
     maxsumexp.restrict_where(STARPU_CUDA);
     norm_fiber.restrict_where(STARPU_CUDA);
     norm_slice.restrict_where(STARPU_CUDA);
@@ -457,7 +455,6 @@ void Context::restore_where()
     log_scalar.restore_where();
     logsumexp.restore_where();
     mask_scalar.restore_where();
-    maximum.restore_where();
     maxsumexp.restore_where();
     norm_fiber.restore_where();
     norm_slice.restore_where();

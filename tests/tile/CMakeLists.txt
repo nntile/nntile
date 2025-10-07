@@ -30,7 +30,6 @@ set(TESTS
     "gemm"
     "logsumexp"
     "mask_scalar"
-    "maximum"
     "maxsumexp"
     "norm_fiber"
     "norm_fiber_inplace"

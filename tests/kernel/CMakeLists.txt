@@ -17,7 +17,6 @@ set(TESTS
     "conv2d_bwd_weight_inplace"
     "conv2d_inplace"
     "mask_scalar"
-    "maximum"
     "norm_fiber_inplace"
     "randn"
     "rope"

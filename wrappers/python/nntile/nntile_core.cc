@@ -1043,20 +1043,6 @@ void def_mod_tensor(py::module_ &m)
     m.def("sqrt_inplace_fp32_fast_bf16", &sqrt_inplace<fp32_fast_bf16_t>);
     m.def("sqrt_inplace_bf16", &sqrt_inplace<bf16_t>);
 
-    m.def("maximum_async_fp64", &maximum_async<fp64_t>);
-    m.def("maximum_async_fp32", &maximum_async<fp32_t>);
-    m.def("maximum_async_fp32_fast_tf32", &maximum_async<fp32_fast_tf32_t>);
-    m.def("maximum_async_fp32_fast_fp16", &maximum_async<fp32_fast_fp16_t>);
-    m.def("maximum_async_fp32_fast_bf16", &maximum_async<fp32_fast_bf16_t>);
-    m.def("maximum_async_bf16", &maximum_async<bf16_t>);
-
-    m.def("maximum_fp64", &maximum<fp64_t>);
-    m.def("maximum_fp32", &maximum<fp32_t>);
-    m.def("maximum_fp32_fast_tf32", &maximum<fp32_fast_tf32_t>);
-    m.def("maximum_fp32_fast_fp16", &maximum<fp32_fast_fp16_t>);
-    m.def("maximum_fp32_fast_bf16", &maximum<fp32_fast_bf16_t>);
-    m.def("maximum_bf16", &maximum<bf16_t>);
-
     m.def("logsumexp_async_fp64", &logsumexp_async<fp64_t>);
     m.def("logsumexp_async_fp32", &logsumexp_async<fp32_t>);
     m.def("logsumexp_async_fp32_fast_tf32", &logsumexp_async<fp32_fast_tf32_t>);

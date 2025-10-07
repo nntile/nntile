@@ -1054,20 +1054,6 @@ def sqrt_inplace_async(x: Tensor) -> None:
         raise TypeError
 
 
-def maximum_async(x: Tensor, y: Tensor) -> None:
-    """
-    Wrapper for multiprecision elementwise maximum
-    """
-    if type(x) is not type(y):
-        raise TypeError
-    if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.maximum_async_fp32(x, y)
-    elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.maximum_async_fp64(x, y)
-    else:
-        raise TypeError
-
-
 def sumprod_slice_async(
     alpha: float,
     src1: Tensor,
