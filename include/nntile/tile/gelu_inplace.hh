@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/gelu.hh
- * GeLU operation for Tile<T>
+ * @file include/nntile/tile/gelu_inplace.hh
+ * GeLU inplace operation for Tile<T>
  *
  * @version 1.1.0
  * */
@@ -20,9 +20,9 @@ namespace nntile::tile
 {
 
 template<typename T>
-void gelu_async(const Tile<T> &A);
+void gelu_inplace_async(const Tile<T> &A);
 
 template<typename T>
-void gelu(const Tile<T> &A);
+void gelu_inplace(const Tile<T> &A);
 
 } // namespace nntile::tile

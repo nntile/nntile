@@ -22,7 +22,7 @@ set(TESTS
     "copy"
     "copy_intersection"
     "fill"
-    "gelu"
+    "gelu_inplace"
     "gelu_backward"
     "gelutanh"
     "gelutanh_inplace"

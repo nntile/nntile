@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/gelu.cc
- * GeLU operation on a buffer
+ * @file tests/kernel/gelu_inplace.cc
+ * GeLU inplace operation on a buffer
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/kernel/gelu.hh"
+#include "nntile/kernel/gelu_inplace.hh"
 
 // Standard libraries
 #include <vector>
@@ -38,7 +38,7 @@ using namespace Catch::Matchers;
 // Use tested NNTile namespaces
 using namespace nntile;
 using namespace nntile::kernel;
-using namespace nntile::kernel::gelu;
+using namespace nntile::kernel::gelu_inplace;
 
 // Type to acquire reference values
 using ref_t = double;
@@ -57,9 +57,9 @@ struct TestData
     std::vector<T> data_ref;  // Reference result
 };
 
-// Reference implementation of the GeLU operation
+// Reference implementation of the GeLU inplace operation
 template<typename T>
-void reference_gelu(TestData<T>& data)
+void reference_gelu_inplace(TestData<T>& data)
 {
     using Y = typename T::repr_t;
     if (data.num_elems == 0)
@@ -144,7 +144,7 @@ TestData<T> get_test_data(
         throw std::runtime_error("Unsupported data type");
     }
     // Compute reference outputs
-    reference_gelu(data);
+    reference_gelu_inplace(data);
     return data;
 }
 
@@ -177,7 +177,7 @@ void run_cpu_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][gelu][cpu][nelems=" +
+            "[kernel][gelu_inplace][cpu][nelems=" +
             std::to_string(data.num_elems) +
             "]"
         )
@@ -228,7 +228,7 @@ void run_cuda_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][gelu][cuda][nelems=" +
+            "[kernel][gelu_inplace][cuda][nelems=" +
             std::to_string(data.num_elems) +
             "]"
         )
@@ -270,8 +270,8 @@ void run_cuda_test(TestData<T>& data)
 
 // Catch2-based tests
 TEMPLATE_TEST_CASE(
-    "GeLU Kernel Verification",
-    "[gelu]",
+    "GeLU Inplace Kernel Verification",
+    "[gelu_inplace]",
     fp64_t,
     fp32_t,
     bf16_t,
@@ -302,8 +302,8 @@ TEMPLATE_TEST_CASE(
 
 // Catch2-based benchmarks
 TEMPLATE_TEST_CASE(
-    "GeLU Kernel Benchmark",
-    "[gelu][!benchmark]",
+    "GeLU Inplace Kernel Benchmark",
+    "[gelu_inplace][!benchmark]",
     fp64_t,
     fp32_t,
     bf16_t,

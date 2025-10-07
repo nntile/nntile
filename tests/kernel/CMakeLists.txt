@@ -83,7 +83,7 @@ set(TESTS_CATCH2
     "embedding"
     "embedding_backward"
     "fill"
-    "gelu"
+    "gelu_inplace"
     "gelu_backward"
     "gelutanh"
     "gelutanh_inplace"

@@ -6,23 +6,22 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/gelu.hh
- * GeLU operation for Tensor<T>
+ * @file include/nntile/kernel/gelu_inplace/cpu.hh
+ * GeLU inplace operation on a buffer on CPU
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/tensor/tensor.hh>
+#include <nntile/base_types.hh>
 
-namespace nntile::tensor
+namespace nntile::kernel::gelu_inplace
 {
 
+// GeLU operation on a buffer on CPU
 template<typename T>
-void gelu_async(const Tensor<T> &A);
+void cpu(Index nelems, T *data)
+    noexcept;
 
-template<typename T>
-void gelu(const Tensor<T> &A);
-
-} // namespace nntile::tensor
+} // namespace nntile::kernel::gelu_inplace

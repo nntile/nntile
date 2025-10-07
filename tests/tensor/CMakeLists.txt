@@ -36,7 +36,7 @@ set(TESTS_MPI
     "embedding_backward"
     "fill"
     "gather"
-    "gelu"
+    "gelu_inplace"
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"

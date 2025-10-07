@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/gelu.hh
- * GeLU operation on a StarPU buffer
+ * @file include/nntile/starpu/gelu_inplace.hh
+ * GeLU inplace operation on a StarPU buffer
  *
  * @version 1.1.0
  * */
@@ -24,20 +24,20 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for gelu operation is not defined
+//! Generic wrapper class for gelu_inplace operation is not defined
 template<typename T>
-class Gelu;
+class GeluInplace;
 
-//! Specialization of wrapper class for gelu operation via std::tuple
+//! Specialization of wrapper class for gelu_inplace operation via std::tuple
 template<typename T>
-class Gelu<std::tuple<T>>
+class GeluInplace<std::tuple<T>>
 {
 public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
     //! Constructor
-    Gelu();
+    GeluInplace();
 
     //! Structure for operation arguments
     struct args_t
@@ -71,25 +71,26 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit gelu task
+    //! Submit gelu_inplace task
     void submit(
         Index nelems,
         Handle data
     );
 };
 
-//! Pack of gelu operations for different types
-using gelu_pack_t = OperationPack<
-    Gelu,
+//! Pack of gelu_inplace operations for different types
+using gelu_inplace_pack_t = OperationPack<
+    GeluInplace,
     std::tuple<nntile::fp64_t>,
     std::tuple<nntile::fp32_t>,
     std::tuple<nntile::fp32_fast_tf32_t>,
     std::tuple<nntile::fp32_fast_fp16_t>,
     std::tuple<nntile::fp32_fast_bf16_t>,
-    std::tuple<nntile::bf16_t>
+    std::tuple<nntile::bf16_t>,
+    std::tuple<nntile::fp16_t>
 >;
 
-//! Pack of gelu operations for different types
-extern gelu_pack_t gelu;
+//! Pack of gelu_inplace operations for different types
+extern gelu_inplace_pack_t gelu_inplace;
 
 } // namespace nntile::starpu
