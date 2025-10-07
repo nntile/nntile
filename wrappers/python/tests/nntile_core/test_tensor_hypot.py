@@ -76,7 +76,7 @@ def test_hypot(context, dtype, alpha, beta):
     dst.unregister()
 
     # Compute reference result
-    src1_ref = hypot_numpy(alpha, src1_data, beta, src2_data)
+    dst_ref = hypot_numpy(alpha, src1_data, beta, src2_data)
 
     # Compare (use relative tolerance for floating point)
     if dtype == np.float32:
@@ -86,7 +86,7 @@ def test_hypot(context, dtype, alpha, beta):
         rtol = 1e-12
         atol = 1e-15
 
-    assert np.allclose(src1_ref, dst_data, rtol=rtol, atol=atol)
+    assert np.allclose(dst_ref, dst_data, rtol=rtol, atol=atol)
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
@@ -156,7 +156,7 @@ def test_hypot_async(context, dtype):
     dst.unregister()
 
     # Compute reference result
-    src1_ref = hypot_numpy(1.5, src1_data, -0.5, src2_data)
+    dst_ref = hypot_numpy(1.5, src1_data, -0.5, src2_data)
 
     # Compare
     if dtype == np.float32:
@@ -166,4 +166,4 @@ def test_hypot_async(context, dtype):
         rtol = 1e-12
         atol = 1e-15
 
-    assert np.allclose(src1_ref, dst_data, rtol=rtol, atol=atol)
+    assert np.allclose(dst_ref, dst_data, rtol=rtol, atol=atol)
