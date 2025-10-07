@@ -156,6 +156,7 @@ set(STARPU_BASE_SRC
 set(STARPU_CODELET_SRC
     "starpu/accumulate.cc"
     "starpu/accumulate_hypot.cc"
+    "starpu/hypot.cc"
     "starpu/accumulate_maxsumexp.cc"
     "starpu/adam_step.cc"
     "starpu/adamw_step.cc"
@@ -243,6 +244,7 @@ set(TILE_OPERATION_SRC
     "tile/gelutanh_inplace.cc"
     "tile/gemm.cc"
     "tile/hypot_inplace.cc"
+    "tile/hypot.cc"
     "tile/logsumexp.cc"
     "tile/mask_scalar.cc"
     "tile/maxsumexp.cc"
@@ -307,6 +309,7 @@ set(TENSOR_OPERATION_SRC
     "tensor/gelutanh_inplace.cc"
     "tensor/gemm.cc"
     "tensor/hypot_inplace.cc"
+    "tensor/hypot.cc"
     "tensor/hypot_scalar_inverse.cc"
     "tensor/log_scalar.cc"
     "tensor/logsumexp.cc"

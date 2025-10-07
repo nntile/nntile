@@ -63,6 +63,7 @@ set(TESTS
     "traits"
     "scal"
     "hypot_inplace"
+    "hypot"
 )
 
 # Describe all tests that are not yet implemented
