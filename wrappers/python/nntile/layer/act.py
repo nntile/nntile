@@ -16,8 +16,8 @@ from typing import Callable
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, copy_async, gelu_async,
-    gelu_backward_async, gelutanh_async, gelutanh_backward_async,
+    Tensor, TensorMoments, TensorTraits, copy_async, gelu_backward_async,
+    gelu_inplace_async, gelutanh_async, gelutanh_backward_async,
     gelutanh_inplace_async, relu_backward_async, relu_forward_async,
     silu_backward_async, silu_forward_async)
 
@@ -27,7 +27,7 @@ class Act(BaseLayer):
     y: TensorMoments
     activations = {
         "relu": (relu_forward_async, relu_backward_async),
-        "gelu": (gelu_async, gelu_backward_async),
+        "gelu": (gelu_inplace_async, gelu_backward_async),
         "gelutanh": (gelutanh_inplace_async, gelutanh_backward_async),
         "silu": (silu_forward_async, silu_backward_async),
     }
@@ -72,7 +72,7 @@ class Act(BaseLayer):
             gelutanh_async(self.x.value, self.y.value)
         if self.funcname == "gelu":
             copy_async(self.x.value, self.y.value)
-            gelu_async(self.y.value)
+            gelu_inplace_async(self.y.value)
         self.x.value.wont_use()
         self.y.value.wont_use()
 
@@ -90,7 +90,7 @@ class Act(BaseLayer):
             gelutanh_async(x.value, y)
         if self.funcname == "gelu":
             copy_async(x.value, y)
-            gelu_async(y)
+            gelu_inplace_async(y)
 
         return TensorMoments(y, None, False)
 
