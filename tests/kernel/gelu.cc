@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/gelutanh.cc
- * Approximate GeLU operation
+ * @file tests/kernel/test_gelu.cc
+ * GeLU operation
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/kernel/gelutanh.hh"
+#include "nntile/kernel/gelu.hh"
 
 // Standard libraries
 #include <vector>
@@ -38,7 +38,7 @@ using namespace Catch::Matchers;
 // Use tested NNTile namespaces
 using namespace nntile;
 using namespace nntile::kernel;
-using namespace nntile::kernel::gelutanh;
+using namespace nntile::kernel::gelu;
 
 // Type to acquire reference values
 using ref_t = double;
@@ -58,32 +58,24 @@ struct TestData
     std::vector<T> dst_ref;
 };
 
-// Reference implementation of the approximate GeLU operation
+// Reference implementation of the GeLU operation
 template<typename T>
-void reference_gelutanh(TestData<T>& data)
+void reference_gelu(TestData<T>& data)
 {
     using Y = typename T::repr_t;
     if (data.nelems == 0)
     {
         return;
     }
-    // Constants
-    constexpr ref_t pi = 3.141592653589793238462643383279502884L;
-    constexpr ref_t one = 1.0, pt5 = 0.5, f1 = 0.044715;
-    // Square root is not constexpr by standard, proceed with a static const
-    static const ref_t sqrt_pi = std::sqrt(pi), sqrt_2 = std::sqrt(2.0),
-        f2 = sqrt_2/sqrt_pi, f3 = -2.0*f2, f4 = f3*f1;
+    // Constants for GeLU: 0.5 * z * erfc(-z/sqrt(2))
+    constexpr ref_t pt5 = 0.5;
+    const ref_t f1 = -1.0 / std::sqrt(2.0);
 
     for(Index i = 0; i < data.nelems; ++i)
     {
         ref_t z = static_cast<Y>(data.src_init[i]);
-        ref_t y1 = f4 * z * z;
-        ref_t y2 = f3 + y1;
-        ref_t c = y1 - (y2-f3);
-        y2 *= z;
-        c *= z;
-        ref_t y3 = one + std::exp(c)*std::exp(y2);
-        data.dst_ref[i] = static_cast<Y>(z / y3);
+        ref_t y = std::erfc(f1 * z);
+        data.dst_ref[i] = static_cast<Y>(pt5 * z * y);
     }
 }
 
@@ -110,9 +102,9 @@ void generate_data(TestData<T>& data, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < data.nelems; ++i)
             {
-                Y src_val = 2 * i + 1 - data.nelems;
+                Y src_val = (2 * i + 1 - data.nelems) / Y(1000);
                 data.src_init[i] = src_val;
-                Y dst_val = i - 1;
+                Y dst_val = (i - 1) / Y(1000);
                 data.dst_init[i] = dst_val;
             }
             break;
@@ -163,7 +155,7 @@ TestData<T> get_test_data(
     }
 
     // Compute reference outputs
-    reference_gelutanh(data);
+    reference_gelu(data);
     return data;
 }
 
@@ -180,11 +172,10 @@ void verify_results(
     // Check that src was not changed during kernel execution
     for(Index i = 0; i < data.nelems; ++i)
     {
-        Y src_val = static_cast<Y>(src[i]);
-        Y src_init_val = static_cast<Y>(data.src_init[i]);
-        REQUIRE(src_val == src_init_val);
+        REQUIRE(src[i].value == data.src_init[i].value);
     }
 
+    // Check that dst matches reference values
     for(Index i = 0; i < data.nelems; ++i)
     {
         const Y dst_ref = static_cast<Y>(data.dst_ref[i]);
@@ -205,7 +196,7 @@ void run_cpu_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][gelutanh][cpu][nelems=" +
+            "[kernel][gelu][cpu][nelems=" +
             std::to_string(data.nelems) +
             "]"
         )
@@ -278,7 +269,7 @@ void run_cuda_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][gelutanh][cuda][nelems=" +
+            "[kernel][gelu][cuda][nelems=" +
             std::to_string(data.nelems) +
             "]"
         )
@@ -332,8 +323,8 @@ void run_cuda_test(TestData<T>& data)
 
 // Catch2-based tests
 TEMPLATE_TEST_CASE(
-    "GeLU Tanh Kernel Verification",
-    "[gelutanh]",
+    "GeLU Kernel Verification",
+    "[gelu]",
     fp64_t,
     fp32_t,
     fp16_t,
@@ -364,8 +355,8 @@ TEMPLATE_TEST_CASE(
 
 // Catch2-based benchmarks
 TEMPLATE_TEST_CASE(
-    "GeLU Tanh Kernel Benchmark",
-    "[gelutanh][!benchmark]",
+    "GeLU Kernel Benchmark",
+    "[gelu][!benchmark]",
     fp64_t,
     fp32_t,
     fp16_t,

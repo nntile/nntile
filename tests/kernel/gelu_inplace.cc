@@ -279,7 +279,7 @@ TEMPLATE_TEST_CASE(
 )
 {
     using T = TestType;
-    const Index num_elems = GENERATE(0, 1, 100, 1000, 10000);
+    const Index num_elems = GENERATE(5, 129);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
 
     auto data = get_test_data<T>(

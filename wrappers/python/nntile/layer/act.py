@@ -16,10 +16,9 @@ from typing import Callable
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, copy_async, gelu_backward_async,
-    gelu_inplace_async, gelutanh_async, gelutanh_backward_async,
-    gelutanh_inplace_async, relu_backward_async, relu_forward_async,
-    silu_backward_async, silu_forward_async)
+    Tensor, TensorMoments, TensorTraits, gelu_async, gelu_backward_async,
+    gelutanh_async, gelutanh_backward_async, relu_backward_async,
+    relu_forward_async, silu_backward_async, silu_forward_async)
 
 
 class Act(BaseLayer):
@@ -27,8 +26,8 @@ class Act(BaseLayer):
     y: TensorMoments
     activations = {
         "relu": (relu_forward_async, relu_backward_async),
-        "gelu": (gelu_inplace_async, gelu_backward_async),
-        "gelutanh": (gelutanh_inplace_async, gelutanh_backward_async),
+        "gelu": (gelu_async, gelu_backward_async),
+        "gelutanh": (gelutanh_async, gelutanh_backward_async),
         "silu": (silu_forward_async, silu_backward_async),
     }
     funcname: str
@@ -64,15 +63,7 @@ class Act(BaseLayer):
 
     # Forward propagation of the activation layer
     def forward_async(self):
-        if self.funcname == "relu":
-            relu_forward_async(self.x.value, self.y.value)
-        if self.funcname == "silu":
-            silu_forward_async(self.x.value, self.y.value)
-        if self.funcname == "gelutanh":
-            gelutanh_async(self.x.value, self.y.value)
-        if self.funcname == "gelu":
-            copy_async(self.x.value, self.y.value)
-            gelu_inplace_async(self.y.value)
+        self.func(self.x.value, self.y.value)
         self.x.value.wont_use()
         self.y.value.wont_use()
 
@@ -82,15 +73,7 @@ class Act(BaseLayer):
             dtype=type(x.value),
             basetile_shape=x.value.basetile_shape,
         )
-        if self.funcname == "relu":
-            relu_forward_async(x.value, y)
-        if self.funcname == "silu":
-            silu_forward_async(x.value, y)
-        if self.funcname == "gelutanh":
-            gelutanh_async(x.value, y)
-        if self.funcname == "gelu":
-            copy_async(x.value, y)
-            gelu_inplace_async(y)
+        self.func(x.value, y)
 
         return TensorMoments(y, None, False)
 
