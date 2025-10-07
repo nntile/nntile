@@ -22,6 +22,7 @@
 #include <nntile/kernel/prod_slice.hh>
 #include <nntile/kernel/prod_fiber.hh>
 #include <nntile/kernel/prod_fiber3.hh>
+#include <nntile/kernel/gelu.hh>
 #include <nntile/kernel/gelu_inplace.hh>
 #include <nntile/kernel/gelutanh.hh>
 #include <nntile/kernel/gelutanh_inplace.hh>

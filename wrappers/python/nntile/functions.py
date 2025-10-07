@@ -274,6 +274,37 @@ def gelutanh_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         raise TypeError
 
 
+def gelu_async(x: Tensor, y: Tensor) -> None:
+    """
+    Wrapper for multiprecision GeLU
+    """
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.gelu_async_fp32(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.gelu_async_fp32_fast_tf32(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.gelu_async_fp32_fast_fp16(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.gelu_async_fp32_fast_bf16(x, y)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.gelu_async_fp64(x, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.gelu_async_bf16(x, y)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.gelu_async_fp16(x, y)
+    else:
+        raise TypeError
+
+
+def gelu(x: Tensor, y: Tensor) -> None:
+    """
+    Wrapper for multiprecision GeLU (blocking)
+    """
+    gelu_async(x, y)
+
+
 def fill_async(val: float, x: Tensor) -> None:
     """
     Wrapper for multiprecision fill

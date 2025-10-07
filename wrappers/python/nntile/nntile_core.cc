@@ -1272,6 +1272,22 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelutanh_backward_bf16", &gelutanh_backward<bf16_t>);
     m.def("gelutanh_backward_fp16", &gelutanh_backward<fp16_t>);
 
+    // gelu
+    m.def("gelu_async_fp64", &gelu_async<fp64_t>);
+    m.def("gelu_async_fp32", &gelu_async<fp32_t>);
+    m.def("gelu_async_fp32_fast_tf32", &gelu_async<fp32_fast_tf32_t>);
+    m.def("gelu_async_fp32_fast_fp16", &gelu_async<fp32_fast_fp16_t>);
+    m.def("gelu_async_fp32_fast_bf16", &gelu_async<fp32_fast_bf16_t>);
+    m.def("gelu_async_bf16", &gelu_async<bf16_t>);
+    m.def("gelu_async_fp16", &gelu_async<fp16_t>);
+
+    m.def("gelu_fp64", &gelu<fp64_t>);
+    m.def("gelu_fp32", &gelu<fp32_t>);
+    m.def("gelu_fp32_fast_tf32", &gelu<fp32_fast_tf32_t>);
+    m.def("gelu_fp32_fast_fp16", &gelu<fp32_fast_fp16_t>);
+    m.def("gelu_fp32_fast_bf16", &gelu<fp32_fast_bf16_t>);
+    m.def("gelu_bf16", &gelu<bf16_t>);
+    m.def("gelu_fp16", &gelu<fp16_t>);
 
     // Embedding forward pass
     m.def("embedding_async_fp64", &embedding_async<fp64_t>);
