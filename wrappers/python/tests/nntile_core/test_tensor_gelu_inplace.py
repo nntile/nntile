@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_gelu.py
-# Test for tensor::gelu<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/test_tensor_gelu_inplace.py
+# Test for tensor::gelu_inplace<T> Python wrapper
 #
 # @version 1.1.0
 
@@ -24,11 +24,11 @@ import nntile
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-gelu = {np.float32: nntile.nntile_core.tensor.gelu_fp32,
-        np.float64: nntile.nntile_core.tensor.gelu_fp64}
+gelu_inplace = {np.float32: nntile.nntile_core.tensor.gelu_inplace_fp32,
+        np.float64: nntile.nntile_core.tensor.gelu_inplace_fp64}
 
 
-def gelu_numpy(z, approximate=True):
+def gelu_inplace_numpy(z, approximate=True):
     """
     https://github.com/ddbourgin/numpy-ml/blob/master/numpy_ml/neural_nets/
     approximated verison also should work, but need to fix tol in all close
@@ -42,7 +42,7 @@ def gelu_numpy(z, approximate=True):
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_gelu(context, dtype, approximate=False):
+def test_gelu_inplace(context, dtype, approximate=False):
     # Describe single-tile tensor, located at node 0
     shape = [2, 2]
     traits = nntile.tensor.TensorTraits(shape, shape)
@@ -53,10 +53,10 @@ def test_gelu(context, dtype, approximate=False):
     src_A = np.array(rand, dtype=dtype, order='F')
     dst_A = np.zeros_like(src_A)
     A.from_array(src_A)
-    gelu[dtype](A)
+    gelu_inplace[dtype](A)
     A.to_array(dst_A)
     nntile.starpu.wait_for_all()
     A.unregister()
     # Get result in numpy
-    src_A = gelu_numpy(src_A, approximate=approximate)
+    src_A = gelu_inplace_numpy(src_A, approximate=approximate)
     assert np.allclose(src_A, dst_A)
