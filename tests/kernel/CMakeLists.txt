@@ -90,6 +90,7 @@ set(TESTS_CATCH2
     "gelutanh_inplace"
     "gelutanh_backward"
     "hypot_inplace"
+    "hypot"
     "hypot_scalar_inverse"
     "logsumexp"
     "norm_fiber"
