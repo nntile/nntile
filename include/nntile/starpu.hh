@@ -37,13 +37,13 @@
 #include <nntile/starpu/embedding.hh>
 #include <nntile/starpu/embedding_backward.hh>
 #include <nntile/starpu/fill.hh>
-#include <nntile/starpu/gelu.hh>
+#include <nntile/starpu/gelu_inplace.hh>
 #include <nntile/starpu/gelu_backward.hh>
 #include <nntile/starpu/gelutanh.hh>
 #include <nntile/starpu/gelutanh_backward.hh>
 #include <nntile/starpu/gelutanh_inplace.hh>
 #include <nntile/starpu/gemm.hh>
-#include <nntile/starpu/hypot.hh>
+#include <nntile/starpu/hypot_inplace.hh>
 #include <nntile/starpu/hypot_scalar_inverse.hh>
 #include <nntile/starpu/log_scalar.hh>
 #include <nntile/starpu/logsumexp.hh>

@@ -28,7 +28,7 @@
 #include <nntile/tile/clear.hh>
 #include <nntile/tile/copy.hh>
 #include <nntile/tile/copy_intersection.hh>
-#include <nntile/tile/gelu.hh>
+#include <nntile/tile/gelu_inplace.hh>
 #include <nntile/tile/gelutanh.hh>
 #include <nntile/tile/gelutanh_inplace.hh>
 #include <nntile/tile/gemm.hh>
@@ -58,7 +58,7 @@
 #include <nntile/tile/gelutanh_backward.hh>
 #include <nntile/tile/add.hh>
 #include <nntile/tile/mask_scalar.hh>
-#include <nntile/tile/hypot.hh>
+#include <nntile/tile/hypot_inplace.hh>
 #include <nntile/tile/adam_step.hh>
 #include <nntile/tile/adamw_step.hh>
 #include <nntile/tile/silu_forward.hh>

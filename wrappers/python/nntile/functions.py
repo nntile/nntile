@@ -174,22 +174,24 @@ def silu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         raise TypeError
 
 
-def gelu_async(x: Tensor) -> None:
+def gelu_inplace_async(x: Tensor) -> None:
     """
-    Wrapper for multiprecision GELU
+    Wrapper for multiprecision GELU inplace
     """
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.gelu_async_fp32(x)
+        core_tensor.gelu_inplace_async_fp32(x)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.gelu_async_fp64(x)
+        core_tensor.gelu_inplace_async_fp64(x)
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.gelu_async_bf16(x)
+        core_tensor.gelu_inplace_async_bf16(x)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.gelu_async_fp32_fast_tf32(x)
+        core_tensor.gelu_inplace_async_fp32_fast_tf32(x)
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
-        core_tensor.gelu_async_fp32_fast_fp16(x)
+        core_tensor.gelu_inplace_async_fp32_fast_fp16(x)
     elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
-        core_tensor.gelu_async_fp32_fast_bf16(x)
+        core_tensor.gelu_inplace_async_fp32_fast_bf16(x)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.gelu_inplace_async_fp16(x)
     else:
         raise TypeError
 
@@ -1352,20 +1354,25 @@ def embedding_backward_async(index: Tensor_int64, embed: Tensor, vocab: Tensor,
             f'Tensor must share the same type but actual types are {types}.')
 
 
-def hypot_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
+def hypot_inplace_async(
+    alpha: float,
+    x: Tensor,
+    beta: float,
+    y: Tensor
+) -> None:
     """
-    Wrapper for multiprecision hypot
+    Wrapper for multiprecision hypot_inplace
     """
     if type(x) is not type(y):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.hypot_async_fp32(alpha, x, beta, y)
+        core_tensor.hypot_inplace_async_fp32(alpha, x, beta, y)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.hypot_async_fp32_fast_tf32(alpha, x, beta, y)
+        core_tensor.hypot_inplace_async_fp32_fast_tf32(alpha, x, beta, y)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.hypot_async_fp64(alpha, x, beta, y)
+        core_tensor.hypot_inplace_async_fp64(alpha, x, beta, y)
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.hypot_async_bf16(alpha, x, beta, y)
+        core_tensor.hypot_inplace_async_bf16(alpha, x, beta, y)
     else:
         raise TypeError
 

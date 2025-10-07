@@ -1194,21 +1194,24 @@ void def_mod_tensor(py::module_ &m)
     m.def("sumprod_fiber_bf16", &sumprod_fiber<bf16_t>);
     m.def("sumprod_fiber_fp16", &sumprod_fiber<fp16_t>);
 
-    // gelu and dgelu
-    m.def("gelu_async_fp64", &gelu_async<fp64_t>);
-    m.def("gelu_async_fp32", &gelu_async<fp32_t>);
-    m.def("gelu_async_fp32_fast_bf16", &gelu_async<fp32_fast_bf16_t>);
-    m.def("gelu_async_fp32_fast_fp16", &gelu_async<fp32_fast_fp16_t>);
-    m.def("gelu_async_fp32_fast_tf32", &gelu_async<fp32_fast_tf32_t>);
-    m.def("gelu_async_bf16", &gelu_async<bf16_t>);
+    // gelu inplace
+    m.def("gelu_inplace_async_fp64", &gelu_inplace_async<fp64_t>);
+    m.def("gelu_inplace_async_fp32", &gelu_inplace_async<fp32_t>);
+    m.def("gelu_inplace_async_fp32_fast_bf16", &gelu_inplace_async<fp32_fast_bf16_t>);
+    m.def("gelu_inplace_async_fp32_fast_fp16", &gelu_inplace_async<fp32_fast_fp16_t>);
+    m.def("gelu_inplace_async_fp32_fast_tf32", &gelu_inplace_async<fp32_fast_tf32_t>);
+    m.def("gelu_inplace_async_bf16", &gelu_inplace_async<bf16_t>);
+    m.def("gelu_inplace_async_fp16", &gelu_inplace_async<fp16_t>);
 
-    m.def("gelu_fp64", &gelu<fp64_t>);
-    m.def("gelu_fp32", &gelu<fp32_t>);
-    m.def("gelu_fp32_fast_bf16", &gelu<fp32_fast_bf16_t>);
-    m.def("gelu_fp32_fast_fp16", &gelu<fp32_fast_fp16_t>);
-    m.def("gelu_fp32_fast_tf32", &gelu<fp32_fast_tf32_t>);
-    m.def("gelu_bf16", &gelu<bf16_t>);
+    m.def("gelu_inplace_fp64", &gelu_inplace<fp64_t>);
+    m.def("gelu_inplace_fp32", &gelu_inplace<fp32_t>);
+    m.def("gelu_inplace_fp32_fast_bf16", &gelu_inplace<fp32_fast_bf16_t>);
+    m.def("gelu_inplace_fp32_fast_fp16", &gelu_inplace<fp32_fast_fp16_t>);
+    m.def("gelu_inplace_fp32_fast_tf32", &gelu_inplace<fp32_fast_tf32_t>);
+    m.def("gelu_inplace_bf16", &gelu_inplace<bf16_t>);
+    m.def("gelu_inplace_fp16", &gelu_inplace<fp16_t>);
 
+    // gelu backward
     m.def("gelu_backward_async_fp64", &gelu_backward_async<fp64_t>);
     m.def("gelu_backward_async_fp32", &gelu_backward_async<fp32_t>);
     m.def("gelu_backward_async_fp32_fast_bf16", &gelu_backward_async<fp32_fast_bf16_t>);
@@ -1320,19 +1323,19 @@ void def_mod_tensor(py::module_ &m)
     m.def("mask_scalar_bf16", &mask_scalar<bf16_t>);
     m.def("mask_scalar_fp16", &mask_scalar<fp16_t>);
 
-    m.def("hypot_async_fp64", &hypot_async<fp64_t>);
-    m.def("hypot_async_fp32", &hypot_async<fp32_t>);
-    m.def("hypot_async_fp32_fast_tf32", &hypot_async<fp32_fast_tf32_t>);
-    m.def("hypot_async_fp32_fast_fp16", &hypot_async<fp32_fast_fp16_t>);
-    m.def("hypot_async_fp32_fast_bf16", &hypot_async<fp32_fast_bf16_t>);
-    m.def("hypot_async_bf16", &hypot_async<bf16_t>);
+    m.def("hypot_inplace_async_fp64", &hypot_inplace_async<fp64_t>);
+    m.def("hypot_inplace_async_fp32", &hypot_inplace_async<fp32_t>);
+    m.def("hypot_inplace_async_fp32_fast_tf32", &hypot_inplace_async<fp32_fast_tf32_t>);
+    m.def("hypot_inplace_async_fp32_fast_fp16", &hypot_inplace_async<fp32_fast_fp16_t>);
+    m.def("hypot_inplace_async_fp32_fast_bf16", &hypot_inplace_async<fp32_fast_bf16_t>);
+    m.def("hypot_inplace_async_bf16", &hypot_inplace_async<bf16_t>);
 
-    m.def("hypot_fp64", &hypot<fp64_t>);
-    m.def("hypot_fp32", &hypot<fp32_t>);
-    m.def("hypot_fp32_fast_tf32", &hypot<fp32_fast_tf32_t>);
-    m.def("hypot_fp32_fast_fp16", &hypot<fp32_fast_fp16_t>);
-    m.def("hypot_fp32_fast_bf16", &hypot<fp32_fast_bf16_t>);
-    m.def("hypot_bf16", &hypot<bf16_t>);
+    m.def("hypot_inplace_fp64", &hypot_inplace<fp64_t>);
+    m.def("hypot_inplace_fp32", &hypot_inplace<fp32_t>);
+    m.def("hypot_inplace_fp32_fast_tf32", &hypot_inplace<fp32_fast_tf32_t>);
+    m.def("hypot_inplace_fp32_fast_fp16", &hypot_inplace<fp32_fast_fp16_t>);
+    m.def("hypot_inplace_fp32_fast_bf16", &hypot_inplace<fp32_fast_bf16_t>);
+    m.def("hypot_inplace_bf16", &hypot_inplace<bf16_t>);
 
     m.def("hypot_scalar_inverse_async_fp64", &hypot_scalar_inverse_async<fp64_t>);
     m.def("hypot_scalar_inverse_async_fp32", &hypot_scalar_inverse_async<fp32_t>);

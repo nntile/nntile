@@ -31,7 +31,7 @@
 #include <nntile/tensor/copy.hh>
 #include <nntile/tensor/copy_intersection.hh>
 #include <nntile/tensor/gather.hh>
-#include <nntile/tensor/gelu.hh>
+#include <nntile/tensor/gelu_inplace.hh>
 #include <nntile/tensor/gelutanh.hh>
 #include <nntile/tensor/gelutanh_inplace.hh>
 #include <nntile/tensor/gemm.hh>
@@ -66,7 +66,7 @@
 #include <nntile/tensor/embedding.hh>
 #include <nntile/tensor/embedding_backward.hh>
 #include <nntile/tensor/mask_scalar.hh>
-#include <nntile/tensor/hypot.hh>
+#include <nntile/tensor/hypot_inplace.hh>
 #include <nntile/tensor/hypot_scalar_inverse.hh>
 #include <nntile/tensor/adam_step.hh>
 #include <nntile/tensor/adamw_step.hh>
