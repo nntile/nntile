@@ -44,6 +44,7 @@ set(TESTS_MPI
     "gelutanh_inplace"
     "gemm"
     "hypot_inplace"
+    "hypot"
     "hypot_scalar_inverse"
     "log_scalar"
     "logsumexp"
