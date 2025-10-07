@@ -43,8 +43,6 @@
 #include <nntile/kernel/softmax_inplace.hh>
 #include <nntile/kernel/sqrt.hh>
 #include <nntile/kernel/sqrt_inplace.hh>
-#include <nntile/kernel/maximum.hh>
-#include <nntile/kernel/addcdiv.hh>
 #include <nntile/kernel/sumprod_slice.hh>
 #include <nntile/kernel/sumprod_fiber.hh>
 #include <nntile/kernel/logsumexp.hh>
@@ -54,7 +52,6 @@
 #include <nntile/kernel/gelutanh_backward.hh>
 #include <nntile/kernel/add.hh>
 #include <nntile/kernel/add_inplace.hh>
-#include <nntile/kernel/add_scalar.hh>
 #include <nntile/kernel/embedding.hh>
 #include <nntile/kernel/embedding_backward.hh>
 #include <nntile/kernel/mask_scalar.hh>

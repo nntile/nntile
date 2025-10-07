@@ -27,10 +27,8 @@
 #include <nntile/starpu/add_fiber.hh>
 #include <nntile/starpu/add_fiber_inplace.hh>
 #include <nntile/starpu/add_inplace.hh>
-#include <nntile/starpu/add_scalar.hh>
 #include <nntile/starpu/add_slice.hh>
 #include <nntile/starpu/add_slice_inplace.hh>
-#include <nntile/starpu/addcdiv.hh>
 #include <nntile/starpu/clear.hh>
 #include <nntile/starpu/conv2d_bwd_input_inplace.hh>
 #include <nntile/starpu/conv2d_bwd_weight_inplace.hh>
@@ -50,7 +48,6 @@
 #include <nntile/starpu/log_scalar.hh>
 #include <nntile/starpu/logsumexp.hh>
 #include <nntile/starpu/mask_scalar.hh>
-#include <nntile/starpu/maximum.hh>
 #include <nntile/starpu/maxsumexp.hh>
 #include <nntile/starpu/norm_fiber.hh>
 #include <nntile/starpu/norm_fiber_inplace.hh>

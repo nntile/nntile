@@ -22,10 +22,8 @@ set(TESTS_MPI
     "add_fiber"
     "add_fiber_inplace"
     "add_inplace"
-    "add_scalar"
     "add_slice"
     "add_slice_inplace"
-    "addcdiv"
     "adam_step"
     "adamw_step"
     "clear"
@@ -49,7 +47,6 @@ set(TESTS_MPI
     "log_scalar"
     "logsumexp"
     "mask_scalar"
-    "maximum"
     "maxsumexp"
     "norm_fiber"
     "norm_fiber_inplace"
@@ -88,7 +85,6 @@ set(TESTS_MPI
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
-    "add_scalar"
     "add_slice"
     "adam_step"
     "adamw_step"

@@ -17,7 +17,6 @@ set(TESTS
     "conv2d_bwd_weight_inplace"
     "conv2d_inplace"
     "mask_scalar"
-    "maximum"
     "norm_fiber_inplace"
     "randn"
     "rope"
@@ -73,7 +72,6 @@ endforeach()
 
 set(TESTS_CATCH2
     "add"
-    "addcdiv"
     "accumulate_maxsumexp"
     "add_fiber"
     "add_fiber_inplace"
@@ -81,7 +79,6 @@ set(TESTS_CATCH2
     "add_slice_inplace"
     "adam_step"
     "adamw_step"
-    "add_scalar"
     "add_slice"
     "embedding"
     "embedding_backward"

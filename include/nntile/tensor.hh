@@ -52,8 +52,6 @@
 #include <nntile/tensor/softmax_inplace.hh>
 #include <nntile/tensor/sqrt.hh>
 #include <nntile/tensor/sqrt_inplace.hh>
-#include <nntile/tensor/maximum.hh>
-#include <nntile/tensor/addcdiv.hh>
 #include <nntile/tensor/sumprod_slice.hh>
 #include <nntile/tensor/sumprod_fiber.hh>
 #include <nntile/tensor/logsumexp.hh>
@@ -65,7 +63,6 @@
 #include <nntile/tensor/gelutanh_backward.hh>
 #include <nntile/tensor/add.hh>
 #include <nntile/tensor/add_inplace.hh>
-#include <nntile/tensor/add_scalar.hh>
 #include <nntile/tensor/embedding.hh>
 #include <nntile/tensor/embedding_backward.hh>
 #include <nntile/tensor/mask_scalar.hh>

@@ -300,10 +300,8 @@ void Context::restrict_cpu()
     add_fiber.restrict_where(STARPU_CPU);
     add_fiber_inplace.restrict_where(STARPU_CPU);
     add_inplace.restrict_where(STARPU_CPU);
-    add_scalar.restrict_where(STARPU_CPU);
     add_slice.restrict_where(STARPU_CPU);
     add_slice_inplace.restrict_where(STARPU_CPU);
-    addcdiv.restrict_where(STARPU_CPU);
     clear.codelet.restrict_where(STARPU_CPU);
     conv2d_bwd_input_inplace.restrict_where(STARPU_CPU);
     conv2d_bwd_weight_inplace.restrict_where(STARPU_CPU);
@@ -323,7 +321,6 @@ void Context::restrict_cpu()
     log_scalar.restrict_where(STARPU_CPU);
     logsumexp.restrict_where(STARPU_CPU);
     mask_scalar.restrict_where(STARPU_CPU);
-    maximum.restrict_where(STARPU_CPU);
     maxsumexp.restrict_where(STARPU_CPU);
     norm_fiber.restrict_where(STARPU_CPU);
     norm_slice.restrict_where(STARPU_CPU);
@@ -370,10 +367,8 @@ void Context::restrict_cuda()
     add_fiber.restrict_where(STARPU_CUDA);
     add_fiber_inplace.restrict_where(STARPU_CUDA);
     add_inplace.restrict_where(STARPU_CUDA);
-    add_scalar.restrict_where(STARPU_CUDA);
     add_slice.restrict_where(STARPU_CUDA);
     add_slice_inplace.restrict_where(STARPU_CUDA);
-    addcdiv.restrict_where(STARPU_CUDA);
     clear.codelet.restrict_where(STARPU_CUDA);
     conv2d_bwd_input_inplace.restrict_where(STARPU_CUDA);
     conv2d_bwd_weight_inplace.restrict_where(STARPU_CUDA);
@@ -393,7 +388,6 @@ void Context::restrict_cuda()
     log_scalar.restrict_where(STARPU_CUDA);
     logsumexp.restrict_where(STARPU_CUDA);
     mask_scalar.restrict_where(STARPU_CUDA);
-    maximum.restrict_where(STARPU_CUDA);
     maxsumexp.restrict_where(STARPU_CUDA);
     norm_fiber.restrict_where(STARPU_CUDA);
     norm_slice.restrict_where(STARPU_CUDA);
@@ -440,10 +434,8 @@ void Context::restore_where()
     add_fiber.restore_where();
     add_fiber_inplace.restore_where();
     add_inplace.restore_where();
-    add_scalar.restore_where();
     add_slice.restore_where();
     add_slice_inplace.restore_where();
-    addcdiv.restore_where();
     clear.codelet.restore_where();
     conv2d_bwd_input_inplace.restore_where();
     conv2d_bwd_weight_inplace.restore_where();
@@ -463,7 +455,6 @@ void Context::restore_where()
     log_scalar.restore_where();
     logsumexp.restore_where();
     mask_scalar.restore_where();
-    maximum.restore_where();
     maxsumexp.restore_where();
     norm_fiber.restore_where();
     norm_slice.restore_where();
