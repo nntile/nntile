@@ -1353,6 +1353,22 @@ void def_mod_tensor(py::module_ &m)
     m.def("hypot_inplace_fp32_fast_bf16", &hypot_inplace<fp32_fast_bf16_t>);
     m.def("hypot_inplace_bf16", &hypot_inplace<bf16_t>);
 
+    m.def("hypot_async_fp64", &hypot_async<fp64_t>);
+    m.def("hypot_async_fp32", &hypot_async<fp32_t>);
+    m.def("hypot_async_fp32_fast_tf32", &hypot_async<fp32_fast_tf32_t>);
+    m.def("hypot_async_fp32_fast_fp16", &hypot_async<fp32_fast_fp16_t>);
+    m.def("hypot_async_fp32_fast_bf16", &hypot_async<fp32_fast_bf16_t>);
+    m.def("hypot_async_bf16", &hypot_async<bf16_t>);
+    m.def("hypot_async_fp16", &hypot_async<fp16_t>);
+
+    m.def("hypot_fp64", &hypot<fp64_t>);
+    m.def("hypot_fp32", &hypot<fp32_t>);
+    m.def("hypot_fp32_fast_tf32", &hypot<fp32_fast_tf32_t>);
+    m.def("hypot_fp32_fast_fp16", &hypot<fp32_fast_fp16_t>);
+    m.def("hypot_fp32_fast_bf16", &hypot<fp32_fast_bf16_t>);
+    m.def("hypot_bf16", &hypot<bf16_t>);
+    m.def("hypot_fp16", &hypot<fp16_t>);
+
     m.def("hypot_scalar_inverse_async_fp64", &hypot_scalar_inverse_async<fp64_t>);
     m.def("hypot_scalar_inverse_async_fp32", &hypot_scalar_inverse_async<fp32_t>);
     m.def("hypot_scalar_inverse_async_fp32_fast_tf32", &hypot_scalar_inverse_async<fp32_fast_tf32_t>);

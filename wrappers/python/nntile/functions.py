@@ -1408,6 +1408,36 @@ def hypot_inplace_async(
         raise TypeError
 
 
+def hypot_async(
+    alpha: float,
+    x: Tensor,
+    beta: float,
+    y: Tensor,
+    z: Tensor
+) -> None:
+    """
+    Wrapper for multiprecision hypot
+    """
+    if type(x) is not type(y) or type(x) is not type(z):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.hypot_async_fp32(alpha, x, beta, y, z)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.hypot_async_fp32_fast_tf32(alpha, x, beta, y, z)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.hypot_async_fp32_fast_fp16(alpha, x, beta, y, z)
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.hypot_async_fp32_fast_bf16(alpha, x, beta, y, z)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.hypot_async_fp64(alpha, x, beta, y, z)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.hypot_async_bf16(alpha, x, beta, y, z)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.hypot_async_fp16(alpha, x, beta, y, z)
+    else:
+        raise TypeError
+
+
 def hypot_scalar_inverse_async(eps: float, alpha: float, x: Tensor) -> None:
     """
     Wrapper for multiprecision hypot_scalar_inverse

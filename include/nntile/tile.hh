@@ -59,6 +59,7 @@
 #include <nntile/tile/gelutanh_backward.hh>
 #include <nntile/tile/add.hh>
 #include <nntile/tile/mask_scalar.hh>
+#include <nntile/tile/hypot.hh>
 #include <nntile/tile/hypot_inplace.hh>
 #include <nntile/tile/adam_step.hh>
 #include <nntile/tile/adamw_step.hh>
