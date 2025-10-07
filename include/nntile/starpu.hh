@@ -28,6 +28,7 @@
 #include <nntile/starpu/add_fiber_inplace.hh>
 #include <nntile/starpu/add_inplace.hh>
 #include <nntile/starpu/add_slice.hh>
+#include <nntile/starpu/add_slice_inplace.hh>
 #include <nntile/starpu/clear.hh>
 #include <nntile/starpu/conv2d_bwd_input_inplace.hh>
 #include <nntile/starpu/conv2d_bwd_weight_inplace.hh>
