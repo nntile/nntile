@@ -11,8 +11,6 @@
 #
 # @version 1.1.0
 
-add_subdirectory(kernel)
-
 # Base of the NNTile sources
 set(BASE_SRC "context.cc")
 

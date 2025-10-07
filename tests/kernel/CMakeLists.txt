@@ -93,6 +93,7 @@ set(TESTS_CATCH2
     "hypot"
     "hypot_scalar_inverse"
     "logsumexp"
+    "maxsumexp"
     "norm_fiber"
     "norm_slice"
     "pow"
@@ -130,10 +131,3 @@ foreach(test IN LISTS TESTS_CATCH2)
         LABELS ${labels}
     )
 endforeach()
-
-#add_executable("tests_kernel_maxsumexp" maxsumexp.cc)
-#target_link_libraries("tests_kernel_maxsumexp" PRIVATE
-#    GTest::gtest_main
-#    nntile
-#    $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>)
-#gtest_discover_tests("tests_kernel_maxsumexp")
