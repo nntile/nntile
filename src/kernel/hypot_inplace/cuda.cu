@@ -6,22 +6,22 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/hypot/cuda.cu
- * hypot operation on buffers on CUDA
+ * @file src/kernel/hypot_inplace/cuda.cu
+ * hypot_inplace operation on buffers on CUDA
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/hypot/cuda.hh"
+#include "nntile/kernel/hypot_inplace/cuda.hh"
 #include "nntile/kernel/cuda.hh"
 
-namespace nntile::kernel::hypot
+namespace nntile::kernel::hypot_inplace
 {
 
 template<typename T>
 static __global__
 void cuda_kernel(Index nelems, Scalar alpha_, const T* src, Scalar beta_, T* dst)
-//! hypot two buffers on CUDA
+//! hypot_inplace two buffers on CUDA
 /*! Performs the following operation:
  *      dst[i] = hypot(alpha*src[i], beta*dst[i]),
  * where alpha and beta are non-zero scalars.
@@ -30,7 +30,7 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T* src, Scalar beta_, T* dst
  * @param[in] alpha_: Scalar multiplier for the src tensor
  * @param[in] src_: Source tensor
  * @param[in] beta_: Scalar multiplier for the dst tensor
- * @param[inout] dst_: Destination of the hypot operation
+ * @param[inout] dst_: Destination of the hypot_inplace operation
  * */
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
@@ -69,7 +69,7 @@ template<typename T>
 void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src,
         Scalar beta, T *dst)
     noexcept
-//! hypot two buffers on CUDA
+//! hypot_inplace two buffers on CUDA
 /*! Performs the following operation:
  *      dst[i] = hypot(alpha*src[i], beta*dst[i]),
  * where alpha and beta are non-zero scalars.
@@ -78,7 +78,7 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src,
  * @param[in] alpha: Scalar multiplier for the src tensor
  * @param[in] src: Source tensor
  * @param[in] beta: Scalar multiplier for the dst tensor
- * @param[inout] dst: Destination of the hypot operation
+ * @param[inout] dst: Destination of the hypot_inplace operation
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
@@ -107,4 +107,4 @@ void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const fp16_t *src, Scalar beta, fp16_t *dst)
     noexcept;
 
-} // namespace nntile::kernel::hypot
+} // namespace nntile::kernel::hypot_inplace

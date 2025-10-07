@@ -6,17 +6,25 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tile/hypot.cc
- * Per-element hypot function of tensors
+ * @file include/nntile/tile/hypot_inplace.hh
+ * hypot_inplace operation for Tile<T>
  *
  * @version 1.1.0
  * */
 
-#include <iostream>
+#pragma once
 
-int main(int argc, char **argv)
+#include <nntile/tile/tile.hh>
+
+namespace nntile::tile
 {
-    // Not implemented
-    std::cout << "This test is not yet implemented\n";
-    return -1;
-}
+
+// Tile-wise hypot_inplace operation
+template<typename T>
+void hypot_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
+
+// Tile-wise hypot_inplace operation
+template<typename T>
+void hypot_inplace(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst);
+
+} // namespace nntile::tile

@@ -6,25 +6,24 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/hypot.hh
- * hypot operation for Tensor<T>
+ * @file include/nntile/kernel/hypot_inplace.hh
+ * hypot_inplace low-level kernel
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/tensor/tensor.hh>
+#include <nntile/kernel/hypot_inplace/cpu.hh>
+#include <nntile/defs.h>
+#ifdef NNTILE_USE_CUDA
+#include <nntile/kernel/hypot_inplace/cuda.hh>
+#endif // NNTILE_USE_CUDA
 
-namespace nntile::tensor
+//! @namespace nntile::kernel::hypot_inplace
+/*! Low-level implementations of hypot_inplace operation
+ * */
+namespace nntile::kernel::hypot_inplace
 {
 
-// Tensor-wise hypot operation
-template<typename T>
-void hypot_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst);
-
-// Tensor-wise hypot operation
-template<typename T>
-void hypot(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst);
-
-} // namespace nntile::tensor
+} // namespace nntile::kernel::hypot_inplace

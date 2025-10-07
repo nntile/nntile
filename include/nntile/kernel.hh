@@ -25,7 +25,7 @@
 #include <nntile/kernel/gelu.hh>
 #include <nntile/kernel/gelutanh.hh>
 #include <nntile/kernel/gelutanh_inplace.hh>
-#include <nntile/kernel/hypot.hh>
+#include <nntile/kernel/hypot_inplace.hh>
 #include <nntile/kernel/prod.hh>
 #include <nntile/kernel/prod_inplace.hh>
 #include <nntile/kernel/randn.hh>

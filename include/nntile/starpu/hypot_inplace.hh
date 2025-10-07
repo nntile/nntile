@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/hypot.hh
- * hypot operation on StarPU buffers
+ * @file include/nntile/starpu/hypot_inplace.hh
+ * hypot_inplace operation on StarPU buffers
  *
  * @version 1.1.0
  * */
@@ -27,20 +27,20 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for hypot operation is not defined
+//! Generic wrapper class for hypot_inplace operation is not defined
 template<typename T>
-class Hypot;
+class HypotInplace;
 
-//! Specialization of wrapper class for hypot operation via std::tuple
+//! Specialization of wrapper class for hypot_inplace operation via std::tuple
 template<typename T>
-class Hypot<std::tuple<T>>
+class HypotInplace<std::tuple<T>>
 {
 public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
     //! Constructor
-    Hypot();
+    HypotInplace();
 
     //! Structure for operation arguments
     struct args_t
@@ -76,7 +76,7 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit hypot task
+    //! Submit hypot_inplace task
     void submit(
         Index nelems,
         Scalar alpha,
@@ -86,18 +86,19 @@ public:
     );
 };
 
-//! Pack of hypot operations for different types
-using hypot_pack_t = OperationPack<
-    Hypot,
+//! Pack of hypot_inplace operations for different types
+using hypot_inplace_pack_t = OperationPack<
+    HypotInplace,
     std::tuple<nntile::fp64_t>,
     std::tuple<nntile::fp32_t>,
     std::tuple<nntile::fp32_fast_tf32_t>,
     std::tuple<nntile::fp32_fast_fp16_t>,
     std::tuple<nntile::fp32_fast_bf16_t>,
-    std::tuple<nntile::bf16_t>
+    std::tuple<nntile::bf16_t>,
+    std::tuple<nntile::fp16_t>
 >;
 
-//! Pack of hypot operations for different types
-extern hypot_pack_t hypot;
+//! Pack of hypot_inplace operations for different types
+extern hypot_inplace_pack_t hypot_inplace;
 
 } // namespace nntile::starpu

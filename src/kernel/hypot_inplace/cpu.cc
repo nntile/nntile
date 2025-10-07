@@ -6,23 +6,23 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/hypot/cpu.cc
- * hypot operation on buffers on CPU
+ * @file src/kernel/hypot_inplace/cpu.cc
+ * hypot_inplace operation on buffers on CPU
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/hypot/cpu.hh"
+#include "nntile/kernel/hypot_inplace/cpu.hh"
 #include <cmath>
 #include "nntile/kernel/cpu.hh"
 
-namespace nntile::kernel::hypot
+namespace nntile::kernel::hypot_inplace
 {
 
 template<typename T>
 void cpu(Index nelems, Scalar alpha_, const T* src, Scalar beta_, T* dst)
     noexcept
-//! hypot of two buffers on CPU
+//! hypot_inplace of two buffers on CPU
 /*! Performs the following operation:
  *      dst[i] = hypot(alpha*src[i], beta*dst[i]),
  * where alpha and beta are non-zero scalars.
@@ -31,7 +31,7 @@ void cpu(Index nelems, Scalar alpha_, const T* src, Scalar beta_, T* dst)
  * @param[in] alpha_: Scalar multiplier for the src tensor
  * @param[in] src: Source tensor
  * @param[in] beta_: Scalar multiplier for the dst tensor
- * @param[inout] dst: Destination of the hypot operation
+ * @param[inout] dst: Destination of the hypot_inplace operation
  * */
 {
     using Y = typename T::repr_t;
@@ -94,4 +94,4 @@ void cpu<fp16_t>(Index nelems, Scalar alpha, const fp16_t* src, Scalar beta,
         fp16_t* dst)
     noexcept;
 
-} // namespace nntile::kernel::hypot
+} // namespace nntile::kernel::hypot_inplace

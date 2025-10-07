@@ -66,7 +66,7 @@
 #include <nntile/tensor/embedding.hh>
 #include <nntile/tensor/embedding_backward.hh>
 #include <nntile/tensor/mask_scalar.hh>
-#include <nntile/tensor/hypot.hh>
+#include <nntile/tensor/hypot_inplace.hh>
 #include <nntile/tensor/hypot_scalar_inverse.hh>
 #include <nntile/tensor/adam_step.hh>
 #include <nntile/tensor/adamw_step.hh>

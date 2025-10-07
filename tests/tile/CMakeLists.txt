@@ -61,7 +61,7 @@ set(TESTS
     "total_sum_accum"
     "traits"
     "scal"
-    "hypot"
+    "hypot_inplace"
 )
 
 # Describe all tests that are not yet implemented
@@ -90,7 +90,7 @@ set(TESTS_NOT_IMPLEMENTED
     "sqrt"
     "scal"
     "softmax"
-    "hypot"
+    "hypot_inplace"
     "add_slice"
     "prod_fiber3"
 )

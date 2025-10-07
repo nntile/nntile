@@ -6,22 +6,22 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/hypot.cc
- * hypot operation for Tensor<T>'s
+ * @file src/tensor/hypot_inplace.cc
+ * hypot_inplace operation for Tensor<T>'s
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/hypot.hh"
-#include "nntile/starpu/hypot.hh"
+#include "nntile/tensor/hypot_inplace.hh"
+#include "nntile/starpu/hypot_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
 
-//! Tensor-wise hypot operation
+//! Tensor-wise hypot_inplace operation
 template<typename T>
-void hypot_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst)
+void hypot_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != src.ndim)
@@ -46,7 +46,7 @@ void hypot_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T
     {
         return;
     }
-    // Apply per-tile hypot asynchronously as needed
+    // Apply per-tile hypot_inplace asynchronously as needed
     int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < src.grid.nelems; ++i)
     {
@@ -61,7 +61,7 @@ void hypot_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::hypot.submit<std::tuple<T>>(traits.nelems, alpha, src_tile_handle,
+            starpu::hypot_inplace.submit<std::tuple<T>>(traits.nelems, alpha, src_tile_handle,
                     beta, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -69,63 +69,63 @@ void hypot_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T
     }
 }
 
-//! Tensor-wise hypot operation
+//! Tensor-wise hypot_inplace operation
 template<typename T>
-void hypot(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst)
+void hypot_inplace(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst)
 {
-    hypot_async<T>(alpha, src, beta, dst);
+    hypot_inplace_async<T>(alpha, src, beta, dst);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation of template
 template
-void hypot_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
+void hypot_inplace_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
         const Tensor<fp32_t> &dst);
 
 template
-void hypot_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
+void hypot_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void hypot_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
+void hypot_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
         const Tensor<fp32_fast_fp16_t> &dst);
 
 template
-void hypot_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
+void hypot_inplace_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
         const Tensor<fp32_fast_bf16_t> &dst);
 
 template
-void hypot_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
+void hypot_inplace_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst);
 
 template
-void hypot_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
+void hypot_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst);
 
 // Explicit instantiation of template
 template
-void hypot<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
+void hypot_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
         const Tensor<fp32_t> &dst);
 
 template
-void hypot<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
+void hypot_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void hypot<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
+void hypot_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
         const Tensor<fp32_fast_fp16_t> &dst);
 
 template
-void hypot<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
+void hypot_inplace<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
         const Tensor<fp32_fast_bf16_t> &dst);
 
 template
-void hypot<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
+void hypot_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst);
 
 template
-void hypot<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
+void hypot_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst);
 
 } // namespace nntile::tensor

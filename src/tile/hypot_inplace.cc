@@ -6,21 +6,21 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/hypot.cc
- * hypot operation for Tile<T>
+ * @file src/tile/hypot_inplace.cc
+ * hypot_inplace operation for Tile<T>
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tile/hypot.hh"
-#include "nntile/starpu/hypot.hh"
+#include "nntile/tile/hypot_inplace.hh"
+#include "nntile/starpu/hypot_inplace.hh"
 
 namespace nntile::tile
 {
 
-//! Tile-wise hypot operation
+//! Tile-wise hypot_inplace operation
 template<typename T>
-void hypot_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst)
+void hypot_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != src.ndim)
@@ -41,49 +41,49 @@ void hypot_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &d
         return;
     }
     // Insert corresponding task
-    starpu::hypot.submit<std::tuple<T>>(src.nelems, alpha, src, beta, dst);
+    starpu::hypot_inplace.submit<std::tuple<T>>(src.nelems, alpha, src, beta, dst);
 }
 
-//! Tile-wise hypot operation
+//! Tile-wise hypot_inplace operation
 template<typename T>
-void hypot(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst)
+void hypot_inplace(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst)
 {
-    hypot_async<T>(alpha, src, beta, dst);
+    hypot_inplace_async<T>(alpha, src, beta, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void hypot_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
+void hypot_inplace_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
         const Tile<fp32_t> &dst);
 
 template
-void hypot_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
+void hypot_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void hypot_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
+void hypot_inplace_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst);
 
 template
-void hypot_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
+void hypot_inplace_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst);
 
 // Explicit instantiation of template
 template
-void hypot<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
+void hypot_inplace<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
         const Tile<fp32_t> &dst);
 
 template
-void hypot<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
+void hypot_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void hypot<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
+void hypot_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst);
 
 template
-void hypot<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
+void hypot_inplace<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst);
 
 } // namespace nntile::tile

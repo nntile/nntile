@@ -316,7 +316,7 @@ void Context::restrict_cpu()
     gelutanh_backward.restrict_where(STARPU_CPU);
     gelutanh_inplace.restrict_where(STARPU_CPU);
     gemm.restrict_where(STARPU_CPU);
-    hypot.restrict_where(STARPU_CPU);
+    hypot_inplace.restrict_where(STARPU_CPU);
     hypot_scalar_inverse.restrict_where(STARPU_CPU);
     log_scalar.restrict_where(STARPU_CPU);
     logsumexp.restrict_where(STARPU_CPU);
@@ -383,7 +383,7 @@ void Context::restrict_cuda()
     gelutanh_backward.restrict_where(STARPU_CUDA);
     gelutanh_inplace.restrict_where(STARPU_CUDA);
     gemm.restrict_where(STARPU_CUDA);
-    hypot.restrict_where(STARPU_CUDA);
+    hypot_inplace.restrict_where(STARPU_CUDA);
     hypot_scalar_inverse.restrict_where(STARPU_CUDA);
     log_scalar.restrict_where(STARPU_CUDA);
     logsumexp.restrict_where(STARPU_CUDA);
@@ -450,7 +450,7 @@ void Context::restore_where()
     gelutanh_backward.restore_where();
     gelutanh_inplace.restore_where();
     gemm.restore_where();
-    hypot.restore_where();
+    hypot_inplace.restore_where();
     hypot_scalar_inverse.restore_where();
     log_scalar.restore_where();
     logsumexp.restore_where();

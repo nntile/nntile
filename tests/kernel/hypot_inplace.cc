@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/hypot.cc
- * Per-element hypot function of tensors
+ * @file tests/kernel/hypot_inplace.cc
+ * Per-element hypot_inplace function of tensors
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/kernel/hypot.hh"
+#include "nntile/kernel/hypot_inplace.hh"
 
 // Standard libraries
 #include <vector>
@@ -38,7 +38,7 @@ using namespace Catch::Matchers;
 // Use tested NNTile namespaces
 using namespace nntile;
 using namespace nntile::kernel;
-using namespace nntile::kernel::hypot;
+using namespace nntile::kernel::hypot_inplace;
 
 // Type to acquire reference values
 using ref_t = double;
@@ -212,7 +212,7 @@ void run_cpu_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][hypot][cpu][nelems=" +
+            "[kernel][hypot_inplace][cpu][nelems=" +
             std::to_string(data.num_elems) +
             "][alpha=" +
             std::to_string(data.alpha) +
@@ -268,7 +268,7 @@ void run_cuda_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][hypot][cuda][nelems=" +
+            "[kernel][hypot_inplace][cuda][nelems=" +
             std::to_string(data.num_elems) +
             "][alpha=" +
             std::to_string(data.alpha) +
@@ -315,8 +315,8 @@ void run_cuda_test(TestData<T>& data)
 
 // Catch2-based tests
 TEMPLATE_TEST_CASE(
-    "Hypot Kernel Verification",
-    "[hypot]",
+    "Hypot Inplace Kernel Verification",
+    "[hypot_inplace]",
     fp64_t,
     fp32_t,
     fp16_t,
@@ -351,8 +351,8 @@ TEMPLATE_TEST_CASE(
 
 // Catch2-based benchmarks
 TEMPLATE_TEST_CASE(
-    "Hypot Kernel Benchmark",
-    "[hypot][!benchmark]",
+    "Hypot Inplace Kernel Benchmark",
+    "[hypot_inplace][!benchmark]",
     fp64_t,
     fp32_t,
     fp16_t,

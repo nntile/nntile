@@ -6,24 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/hypot/cuda.hh
- * hypot operation on buffers on CUDA
+ * @file tests/tensor/hypot_inplace.cc
+ * Per-element hypot_inplace function of tensors
  *
  * @version 1.1.0
  * */
 
-#pragma once
+#include <iostream>
 
-#include <nntile/base_types.hh>
-#include <cuda_runtime.h>
-
-namespace nntile::kernel::hypot_inplace
+int main(int argc, char **argv)
 {
-
-// Apply hypot_inplace for buffers on CUDA
-template<typename T>
-void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T* src, Scalar beta,
-        T* dst)
-    noexcept;
-
-} // namespace nntile::kernel::hypot_inplace
+    // Not implemented
+    std::cout << "This test is not yet implemented\n";
+    return -1;
+}
