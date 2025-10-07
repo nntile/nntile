@@ -28,7 +28,7 @@ def add_scalar_async(alpha: float, beta: float, x: Tensor) -> None:
 - CMake build configurations
 - Test configurations
 
-### 2. `addcdiv_async`
+### 2. `addcdiv_async` **[DELETED]**
 **Description**: Wrapper for multiprecision addcdiv
 ```python
 def addcdiv_async(alpha: float, eps: float, nom: Tensor, denom: Tensor, src: Tensor) -> None:

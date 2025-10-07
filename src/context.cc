@@ -302,7 +302,6 @@ void Context::restrict_cpu()
     add_inplace.restrict_where(STARPU_CPU);
     add_slice.restrict_where(STARPU_CPU);
     add_slice_inplace.restrict_where(STARPU_CPU);
-    addcdiv.restrict_where(STARPU_CPU);
     clear.codelet.restrict_where(STARPU_CPU);
     conv2d_bwd_input_inplace.restrict_where(STARPU_CPU);
     conv2d_bwd_weight_inplace.restrict_where(STARPU_CPU);
@@ -371,7 +370,6 @@ void Context::restrict_cuda()
     add_inplace.restrict_where(STARPU_CUDA);
     add_slice.restrict_where(STARPU_CUDA);
     add_slice_inplace.restrict_where(STARPU_CUDA);
-    addcdiv.restrict_where(STARPU_CUDA);
     clear.codelet.restrict_where(STARPU_CUDA);
     conv2d_bwd_input_inplace.restrict_where(STARPU_CUDA);
     conv2d_bwd_weight_inplace.restrict_where(STARPU_CUDA);
@@ -440,7 +438,6 @@ void Context::restore_where()
     add_inplace.restore_where();
     add_slice.restore_where();
     add_slice_inplace.restore_where();
-    addcdiv.restore_where();
     clear.codelet.restore_where();
     conv2d_bwd_input_inplace.restore_where();
     conv2d_bwd_weight_inplace.restore_where();

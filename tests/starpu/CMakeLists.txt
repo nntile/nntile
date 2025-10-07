@@ -24,7 +24,6 @@ set(TESTS
     "add_inplace"
     "add_slice"
     "add_slice_inplace"
-    "addcdiv"
     "clear"
     "codelet"
     "conv2d_bwd_input_inplace"

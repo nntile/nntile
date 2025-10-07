@@ -18,7 +18,6 @@ set(TESTS
     "add_fiber"
     "add_slice_inplace"
     "add_slice"
-    "addcdiv"
     "clear"
     "copy"
     "copy_intersection"

@@ -75,7 +75,7 @@ void adam_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, S
     }
 }
 
-//! Blocking version of tensor-wise addcdiv operation
+//! Blocking version of tensor-wise adam_step operation
 template<typename T>
 void adam_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
                const Tensor<T> &grad, const Tensor<T> &first_moment, const Tensor<T> &second_moment,

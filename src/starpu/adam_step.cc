@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/starpu/adam_step.cc
- * Per-element addcdiv operation of StarPU buffers
+ * Fused Adam step operation of StarPU buffers
  *
  * @version 1.1.0
  * */

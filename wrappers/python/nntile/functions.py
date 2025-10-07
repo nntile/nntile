@@ -1068,28 +1068,6 @@ def maximum_async(x: Tensor, y: Tensor) -> None:
         raise TypeError
 
 
-def addcdiv_async(
-    alpha: float, eps: float, nom: Tensor, denom: Tensor, src: Tensor
-) -> None:
-    """
-    Wrapper for multiprecision addcdiv
-    """
-    if type(nom) is not type(denom):
-        raise TypeError
-    if type(nom) is not type(src):
-        raise TypeError
-    if type(nom) is core_tensor.Tensor_fp32:
-        core_tensor.addcdiv_async_fp32(alpha, eps, nom, denom, src)
-    elif type(nom) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.addcdiv_async_fp32_fast_tf32(alpha, eps, nom, denom, src)
-    elif type(nom) is core_tensor.Tensor_fp64:
-        core_tensor.addcdiv_async_fp64(alpha, eps, nom, denom, src)
-    elif type(nom) is core_tensor.Tensor_bf16:
-        core_tensor.addcdiv_async_bf16(alpha, eps, nom, denom, src)
-    else:
-        raise TypeError
-
-
 def sumprod_slice_async(
     alpha: float,
     src1: Tensor,

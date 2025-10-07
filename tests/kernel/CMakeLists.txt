@@ -73,7 +73,6 @@ endforeach()
 
 set(TESTS_CATCH2
     "add"
-    "addcdiv"
     "accumulate_maxsumexp"
     "add_fiber"
     "add_fiber_inplace"

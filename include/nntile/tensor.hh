@@ -53,7 +53,6 @@
 #include <nntile/tensor/sqrt.hh>
 #include <nntile/tensor/sqrt_inplace.hh>
 #include <nntile/tensor/maximum.hh>
-#include <nntile/tensor/addcdiv.hh>
 #include <nntile/tensor/sumprod_slice.hh>
 #include <nntile/tensor/sumprod_fiber.hh>
 #include <nntile/tensor/logsumexp.hh>

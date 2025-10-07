@@ -24,7 +24,6 @@ set(TESTS_MPI
     "add_inplace"
     "add_slice"
     "add_slice_inplace"
-    "addcdiv"
     "adam_step"
     "adamw_step"
     "clear"

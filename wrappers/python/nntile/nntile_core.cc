@@ -1057,20 +1057,6 @@ void def_mod_tensor(py::module_ &m)
     m.def("maximum_fp32_fast_bf16", &maximum<fp32_fast_bf16_t>);
     m.def("maximum_bf16", &maximum<bf16_t>);
 
-    m.def("addcdiv_async_fp64", &addcdiv_async<fp64_t>);
-    m.def("addcdiv_async_fp32", &addcdiv_async<fp32_t>);
-    m.def("addcdiv_async_fp32_fast_tf32", &addcdiv_async<fp32_fast_tf32_t>);
-    m.def("addcdiv_async_fp32_fast_fp16", &addcdiv_async<fp32_fast_fp16_t>);
-    m.def("addcdiv_async_fp32_fast_bf16", &addcdiv_async<fp32_fast_bf16_t>);
-    m.def("addcdiv_async_bf16", &addcdiv_async<bf16_t>);
-
-    m.def("addcdiv_fp64", &addcdiv<fp64_t>);
-    m.def("addcdiv_fp32", &addcdiv<fp32_t>);
-    m.def("addcdiv_fp32_fast_tf32", &addcdiv<fp32_fast_tf32_t>);
-    m.def("addcdiv_fp32_fast_fp16", &addcdiv<fp32_fast_fp16_t>);
-    m.def("addcdiv_fp32_fast_bf16", &addcdiv<fp32_fast_bf16_t>);
-    m.def("addcdiv_bf16", &addcdiv<bf16_t>);
-
     m.def("logsumexp_async_fp64", &logsumexp_async<fp64_t>);
     m.def("logsumexp_async_fp32", &logsumexp_async<fp32_t>);
     m.def("logsumexp_async_fp32_fast_tf32", &logsumexp_async<fp32_fast_tf32_t>);
