@@ -564,21 +564,6 @@ def norm_slice_async(
         raise TypeError
 
 
-def norm_slice(
-    alpha: float,
-    x: Tensor,
-    beta: float,
-    y: Tensor,
-    z: Tensor,
-    axis: int,
-    redux: int = 0,
-) -> None:
-    """
-    Wrapper for multiprecision norm_slice (out-of-place version, synchronous)
-    """
-    norm_slice_async(alpha, x, beta, y, z, axis, redux)
-
-
 def pow_async(alpha: float, exp: float, x: Tensor) -> None:
     """
     Wrapper for multiprecision pow
