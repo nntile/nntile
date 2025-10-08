@@ -61,9 +61,11 @@ class LayerNorm(BaseLayer):
         self.x = x
         self.y = y
         self.gamma = gamma
-        self.gamma.grad.set_reduction_add()
+        if self.gamma.grad is not None:
+            self.gamma.grad.set_reduction_add()
         self.beta = beta
-        self.beta.grad.set_reduction_add()
+        if self.beta.grad is not None:
+            self.beta.grad.set_reduction_add()
         self.tmp_y_value = tmp_y_value
         self.tmp_y_grad = tmp_y_grad
         self.mean = mean
@@ -71,6 +73,8 @@ class LayerNorm(BaseLayer):
         self.inv_stddev = inv_stddev
         self.inv_stddev.set_reduction_hypot()
         self.axis = axis
+        if self.x.value is None:
+            raise ValueError("self.x.value cannot be None")
         self.l = self.x.value.shape[axis]
         self.eps = eps**0.5  # This value is used to init deviation
         if redux:
@@ -86,13 +90,15 @@ class LayerNorm(BaseLayer):
         eps: float,
         redux: bool = False,
     ):
+        if x.value is None:
+            raise ValueError("x.value cannot be None for LayerNorm generation")
         # Get traits of X
         x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
         x_distr = x.value.distribution
-        y_value = type(x.value)(x_traits, x_distr)
+        y_value = type(x.value)(x_traits, x_distr, 0)  # type: ignore[call-arg]
         # Create grad Y with the same traits and distribution as X
-        y_grad = type(x.value)(x_traits, x_distr)
+        y_grad = type(x.value)(x_traits, x_distr, 0)  # type: ignore[call-arg]
         # Wrap Y
         y = TensorMoments(y_value, y_grad, True)
         # Gamma parameter
@@ -102,17 +108,17 @@ class LayerNorm(BaseLayer):
         gamma_distr = []
         for i in range(x.value.grid.shape[axis]):
             gamma_distr.append(x_distr[x.value.grid.stride[axis] * i])
-        gamma_value = type(x.value)(gamma_traits, gamma_distr)
-        gamma_grad = type(x.value)(gamma_traits, gamma_distr)
+        gamma_value = type(x.value)(gamma_traits, gamma_distr, 0)  # type: ignore[call-arg]
+        gamma_grad = type(x.value)(gamma_traits, gamma_distr, 0)  # type: ignore[call-arg]
         gamma = TensorMoments(gamma_value, gamma_grad, True)
         # Beta parameter
-        beta_value = type(x.value)(gamma_traits, gamma_distr)
-        beta_grad = type(x.value)(gamma_traits, gamma_distr)
+        beta_value = type(x.value)(gamma_traits, gamma_distr, 0)  # type: ignore[call-arg]
+        beta_grad = type(x.value)(gamma_traits, gamma_distr, 0)  # type: ignore[call-arg]
         beta = TensorMoments(beta_value, beta_grad, True)
         # Temporary tensor for normalized input
-        tmp_y_value = type(x.value)(x_traits, x_distr)
+        tmp_y_value = type(x.value)(x_traits, x_distr, 0)  # type: ignore[call-arg]
         # Temporary tensor for gradient of normalized input
-        tmp_y_grad = type(x.value)(x_traits, x_distr)
+        tmp_y_grad = type(x.value)(x_traits, x_distr, 0)  # type: ignore[call-arg]
         # Define auxiliary tensors to hold mean, inverse of stddev and scalar
         # products along given axis
         mean_shape = x.value.shape[:axis] + x.value.shape[axis + 1 :]
@@ -130,8 +136,8 @@ class LayerNorm(BaseLayer):
             )
             x_tile_offset = x.value.grid.index_to_linear(x_tile_index)
             mean_distr.append(x_distr[x_tile_offset])
-        mean = type(x.value)(mean_traits, mean_distr)
-        inv_stddev = type(x.value)(mean_traits, mean_distr)
+        mean = type(x.value)(mean_traits, mean_distr, 0)  # type: ignore[call-arg]
+        inv_stddev = type(x.value)(mean_traits, mean_distr, 0)  # type: ignore[call-arg]
         # Create LayerNorm object with all the provided tensors
         layer = LayerNorm(
             x,
@@ -246,6 +252,10 @@ class LayerNorm(BaseLayer):
         # inv_stddev can be offloaded from GPU
         inv_stddev.wont_use()
         # Scale normalized input for the backward phase
+        if self.gamma.value is None:
+            raise ValueError("self.gamma.value cannot be None")
+        if y.value is None:
+            raise ValueError("y.value cannot be None")
         prod_fiber3_async(
             self.gamma.value, 1.0, tmp_y_value, y.value, self.axis
         )

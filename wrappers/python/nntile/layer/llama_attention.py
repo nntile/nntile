@@ -109,16 +109,20 @@ class LlamaAttention(BaseLayer):
         qkv_bias_list = []
         if in_proj_bias_q:
             qkv_bias_list.append(in_proj_bias_q)
-            in_proj_bias_q.grad.set_reduction_add()
+            if in_proj_bias_q.grad is not None:
+                in_proj_bias_q.grad.set_reduction_add()
         if in_proj_bias_k:
             qkv_bias_list.append(in_proj_bias_k)
-            in_proj_bias_k.grad.set_reduction_add()
+            if in_proj_bias_k.grad is not None:
+                in_proj_bias_k.grad.set_reduction_add()
         if in_proj_bias_v:
             qkv_bias_list.append(in_proj_bias_v)
-            in_proj_bias_v.grad.set_reduction_add()
+            if in_proj_bias_v.grad is not None:
+                in_proj_bias_v.grad.set_reduction_add()
         if out_proj_bias:
             bias_list_out_proj = [out_proj_bias]
-            out_proj_bias.grad.set_reduction_add()
+            if out_proj_bias.grad is not None:
+                out_proj_bias.grad.set_reduction_add()
         else:
             bias_list_out_proj = []
         # Redirect to BaseClass initialization
@@ -149,50 +153,68 @@ class LlamaAttention(BaseLayer):
         if mask is not None:
             self.temporaries.append(mask)
         self.x = x
-        self.x.grad.set_reduction_add()
+        if self.x.grad is not None:
+            self.x.grad.set_reduction_add()
         # Aliases
         self.x_q = x
         self.x_k = x
         self.x_v = x
         self.y = y
-        self.y.value.set_reduction_add()
+        if self.y.value is not None:
+            self.y.value.set_reduction_add()
         self.w_q = w_q
-        self.w_q.grad.set_reduction_add()
+        if self.w_q.grad is not None:
+            self.w_q.grad.set_reduction_add()
         self.w_k = w_k
-        self.w_k.grad.set_reduction_add()
+        if self.w_k.grad is not None:
+            self.w_k.grad.set_reduction_add()
         self.w_v = w_v
-        self.w_v.grad.set_reduction_add()
+        if self.w_v.grad is not None:
+            self.w_v.grad.set_reduction_add()
         self.w = w
-        self.w.grad.set_reduction_add()
+        if self.w.grad is not None:
+            self.w.grad.set_reduction_add()
         self.q_transposed = q_transposed
-        self.q_transposed.value.set_reduction_add()
+        if self.q_transposed.value is not None:
+            self.q_transposed.value.set_reduction_add()
         self.q = q
         self.q_rope = q_rope
-        self.q.grad.set_reduction_add()
+        if self.q.grad is not None:
+            self.q.grad.set_reduction_add()
         self.k_transposed = k_transposed
-        self.k_transposed.value.set_reduction_add()
+        if self.k_transposed.value is not None:
+            self.k_transposed.value.set_reduction_add()
         self.k = k
         self.k_rope = k_rope
-        self.k.grad.set_reduction_add()
+        if self.k.grad is not None:
+            self.k.grad.set_reduction_add()
         self.k_rep = k_rep
-        self.k_rep.grad.set_reduction_add()
+        if self.k_rep.grad is not None:
+            self.k_rep.grad.set_reduction_add()
         self.v_transposed = v_transposed
-        self.v_transposed.value.set_reduction_add()
+        if self.v_transposed.value is not None:
+            self.v_transposed.value.set_reduction_add()
         self.v = v
-        self.v.grad.set_reduction_add()
+        if self.v.grad is not None:
+            self.v.grad.set_reduction_add()
         self.v_rep = v_rep
-        self.v_rep.grad.set_reduction_add()
+        if self.v_rep.grad is not None:
+            self.v_rep.grad.set_reduction_add()
         self.a = a
-        self.a.value.set_reduction_add()
-        self.a.grad.set_reduction_add()
+        if self.a.value is not None:
+            self.a.value.set_reduction_add()
+        if self.a.grad is not None:
+            self.a.grad.set_reduction_add()
         self.a_maxsumexp = a_maxsumexp
         self.a_maxsumexp.set_reduction_maxsumexp()
         self.a_sumprod_slice = a_sumprod_slice
         self.a_sumprod_slice.set_reduction_add()
         self.b = b
-        self.b.value.set_reduction_add()
+        if self.b.value is not None:
+            self.b.value.set_reduction_add()
         self.b_transposed = b_transposed
-        self.b_transposed.grad.set_reduction_add()
+        if self.b_transposed.grad is not None:
+            self.b_transposed.grad.set_reduction_add()
         self.sin = sin
         self.cos = cos
         self.in_proj_bias_q = in_proj_bias_q
@@ -532,89 +554,89 @@ class LlamaAttention(BaseLayer):
         )
         # q
         q_value = type(x.value)(q_traits, q_distr)
-        q_grad = type(x.value)(q_traits, q_distr)
+        q_grad = type(x.value)(q_traits, q_distr, 0)  # type: ignore[call-arg]
         q = TensorMoments(q_value, q_grad, True)
         # q_rope
-        q_rope_value = type(x.value)(q_rope_traits, q_rope_distr)
-        q_rope_grad = type(x.value)(q_rope_traits, q_rope_distr)
+        q_rope_value = type(x.value)(q_rope_traits, q_rope_distr, 0)  # type: ignore[call-arg]
+        q_rope_grad = type(x.value)(q_rope_traits, q_rope_distr, 0)  # type: ignore[call-arg]
         q_rope = TensorMoments(q_rope_value, q_rope_grad, True)
         # k_transposed
         k_transposed_value = type(x.value)(
-            k_transposed_traits, k_transposed_distr
+            k_transposed_traits, k_transposed_distr, 0  # type: ignore[call-arg]
         )
         k_transposed_grad = type(x.value)(
-            k_transposed_traits, k_transposed_distr
+            k_transposed_traits, k_transposed_distr, 0  # type: ignore[call-arg]
         )
         k_transposed = TensorMoments(
             k_transposed_value, k_transposed_grad, True
         )
         # k
-        k_value = type(x.value)(k_traits, k_distr)
-        k_grad = type(x.value)(k_traits, k_distr)
+        k_value = type(x.value)(k_traits, k_distr, 0)  # type: ignore[call-arg]
+        k_grad = type(x.value)(k_traits, k_distr, 0)  # type: ignore[call-arg]
         k = TensorMoments(k_value, k_grad, True)
         # k_rope
-        k_rope_value = type(x.value)(k_rope_traits, k_rope_distr)
-        k_rope_grad = type(x.value)(k_rope_traits, k_rope_distr)
+        k_rope_value = type(x.value)(k_rope_traits, k_rope_distr, 0)  # type: ignore[call-arg]
+        k_rope_grad = type(x.value)(k_rope_traits, k_rope_distr, 0)  # type: ignore[call-arg]
         k_rope = TensorMoments(k_rope_value, k_rope_grad, True)
         # k_rep
-        k_rep_value = type(x.value)(k_rep_traits, k_rep_distr)
-        k_rep_grad = type(x.value)(k_rep_traits, k_rep_distr)
+        k_rep_value = type(x.value)(k_rep_traits, k_rep_distr, 0)  # type: ignore[call-arg]
+        k_rep_grad = type(x.value)(k_rep_traits, k_rep_distr, 0)  # type: ignore[call-arg]
         k_rep = TensorMoments(k_rep_value, k_rep_grad, True)
         # v_transposed
         v_transposed_value = type(x.value)(
-            v_transposed_traits, v_transposed_distr
+            v_transposed_traits, v_transposed_distr, 0  # type: ignore[call-arg]
         )
         v_transposed_grad = type(x.value)(
-            v_transposed_traits, v_transposed_distr
+            v_transposed_traits, v_transposed_distr, 0  # type: ignore[call-arg]
         )
         v_transposed = TensorMoments(
             v_transposed_value, v_transposed_grad, True
         )
         # v
-        v_value = type(x.value)(v_traits, v_distr)
-        v_grad = type(x.value)(v_traits, v_distr)
+        v_value = type(x.value)(v_traits, v_distr, 0)  # type: ignore[call-arg]
+        v_grad = type(x.value)(v_traits, v_distr, 0)  # type: ignore[call-arg]
         v = TensorMoments(v_value, v_grad, True)
         # v_rep
-        v_rep_value = type(x.value)(v_rep_traits, v_rep_distr)
-        v_rep_grad = type(x.value)(v_rep_traits, v_rep_distr)
+        v_rep_value = type(x.value)(v_rep_traits, v_rep_distr, 0)  # type: ignore[call-arg]
+        v_rep_grad = type(x.value)(v_rep_traits, v_rep_distr, 0)  # type: ignore[call-arg]
         v_rep = TensorMoments(v_rep_value, v_rep_grad, True)
         # a
-        a_value = type(x.value)(a_traits, a_distr)
-        a_grad = type(x.value)(a_traits, a_distr)
+        a_value = type(x.value)(a_traits, a_distr, 0)  # type: ignore[call-arg]
+        a_grad = type(x.value)(a_traits, a_distr, 0)  # type: ignore[call-arg]
         a = TensorMoments(a_value, a_grad, True)
         # a_maxsumexp
         a_maxsumexp = type(x.value)(
-            a_maxsumexp_traits, a_maxsumexp_distr
+            a_maxsumexp_traits, a_maxsumexp_distr, 0  # type: ignore[call-arg]
         )
         # a_sumprod_slice
         a_sumprod_slice = type(x.value)(
-            a_sumprod_slice_traits, a_sumprod_slice_distr
+            a_sumprod_slice_traits, a_sumprod_slice_distr, 0  # type: ignore[call-arg]
         )
         # b
-        b_value = type(x.value)(b_traits, b_distr)
-        b_grad = type(x.value)(b_traits, b_distr)
+        b_value = type(x.value)(b_traits, b_distr, 0)  # type: ignore[call-arg]
+        b_grad = type(x.value)(b_traits, b_distr, 0)  # type: ignore[call-arg]
         b = TensorMoments(b_value, b_grad, True)
         # b_transposed
         b_transposed_value = type(x.value)(
-            b_transposed_traits, b_transposed_distr
+            b_transposed_traits, b_transposed_distr, 0  # type: ignore[call-arg]
         )
         b_transposed_grad = type(x.value)(
-            b_transposed_traits, b_transposed_distr
+            b_transposed_traits, b_transposed_distr, 0  # type: ignore[call-arg]
         )
         b_transposed = TensorMoments(
             b_transposed_value, b_transposed_grad, True
         )
-        cos = type(x.value)(cos_traits, cos_distr)
-        sin = type(x.value)(sin_traits, sin_distr)
+        cos = type(x.value)(cos_traits, cos_distr, 0)  # type: ignore[call-arg]
+        sin = type(x.value)(sin_traits, sin_distr, 0)  # type: ignore[call-arg]
         # Allocate tensors for bias for q, k, v and output projection
         if bias:
             out_proj_bias_traits = TensorTraits([n_emb], [n_emb_tile])
             out_proj_bias_distr = [0] * out_proj_bias_traits.grid.nelems
             out_proj_bias_value = type(x.value)(
-                out_proj_bias_traits, out_proj_bias_distr
+                out_proj_bias_traits, out_proj_bias_distr, 0  # type: ignore[call-arg]
             )
             out_proj_bias_grad = type(x.value)(
-                out_proj_bias_traits, out_proj_bias_distr
+                out_proj_bias_traits, out_proj_bias_distr, 0  # type: ignore[call-arg]
             )
             out_proj_bias = TensorMoments(
                 out_proj_bias_value, out_proj_bias_grad, True
@@ -623,8 +645,8 @@ class LlamaAttention(BaseLayer):
             out_proj_bias = None
         # Allocate tensor for output y
         y_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
-        y_value = type(x.value)(y_traits, x.value.distribution)
-        y_grad = type(x.value)(y_traits, x.value.distribution)
+        y_value = type(x.value)(y_traits, x.value.distribution, 0)  # type: ignore[call-arg]
+        y_grad = type(x.value)(y_traits, x.value.distribution, 0)  # type: ignore[call-arg]
         y = TensorMoments(y_value, y_grad, True)
 
         # Fill sin, cos tensors:
@@ -650,7 +672,8 @@ class LlamaAttention(BaseLayer):
             )
             layer_mask = Tensor_bool(
                     layer_mask_traits,
-                    [0] * layer_mask_traits.grid.nelems
+                    [0] * layer_mask_traits.grid.nelems,
+                    0
             )
             layer_mask.from_array(mask)
         else:
@@ -1185,6 +1208,8 @@ class LlamaAttention(BaseLayer):
         if kv_cache is None:
             return k_rope_partial, v_partial, kv_cache
 
+        if self.x_v.value is None:
+            raise ValueError("self.x_v.value cannot be None")
         if (v_partial.shape[1] + len(kv_cache) > self.x_v.value.shape[1]):
             raise Exception(
                 "Overload internal state: "
@@ -1200,29 +1225,33 @@ class LlamaAttention(BaseLayer):
     def _broadcast_kv_dynamic(
         self, x: Tensor, k_rope_partial: Tensor, v_partial: Tensor
     ):
+        if self.q_rope.value is None:
+            raise ValueError("self.q_rope.value cannot be None")
         k_rep_bt_shape = (
             (self.q_rope.value.basetile_shape[0],)
             + tuple(k_rope_partial.shape[-3:-1])
             + tuple(self.q_rope.value.basetile_shape[-2:])
         )
         K_rep_shape = (
-            (self.q_rope.value.shape[0],)
+            (self.q_rope.value.shape[0],)  # type: ignore[union-attr]
             + tuple(k_rope_partial.shape[-3:-1])
-            + tuple(self.q_rope.value.shape[-2:])
+            + tuple(self.q_rope.value.shape[-2:])  # type: ignore[union-attr]
         )
         k_rep_partial = nntc.empty(
             K_rep_shape, basetile_shape=k_rep_bt_shape, dtype=type(x)
         )
 
+        if self.v_rep.value is None:
+            raise ValueError("self.v_rep.value cannot be None")
         v_rep_bt_shape = (
             (self.v_rep.value.basetile_shape[0],)
             + tuple(v_partial.shape[-3:-1])
             + tuple(self.v_rep.value.basetile_shape[-2:])
         )
         v_rep_shape = (
-            (self.v_rep.value.shape[0],)
+            (self.v_rep.value.shape[0],)  # type: ignore[union-attr]
             + tuple(v_partial.shape[-3:-1])
-            + tuple(self.v_rep.value.shape[-2:])
+            + tuple(self.v_rep.value.shape[-2:])  # type: ignore[union-attr]
         )
         v_rep_partial = nntc.empty(
             v_rep_shape, basetile_shape=v_rep_bt_shape, dtype=type(x)
