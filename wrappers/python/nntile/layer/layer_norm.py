@@ -19,7 +19,7 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, add_fiber_inplace_async,
     add_inplace_async, add_slice_async, add_slice_inplace_async, clear_async,
-    fill_async, hypot_scalar_inverse_async, norm_slice_async,
+    fill_async, hypot_scalar_inverse_async, norm_slice_inplace_async,
     prod_fiber3_async, prod_slice_async, sum_fiber_async, sum_slice_async,
     sumprod_fiber_async, sumprod_slice_async)
 
@@ -173,7 +173,7 @@ class LayerNorm(BaseLayer):
         self.x.value.wont_use()
         # Compute standard deviation of self.y.value
         # fill_async(self.eps, self.inv_stddev)
-        norm_slice_async(
+        norm_slice_inplace_async(
             1.0 / self.l**0.5,
             self.tmp_y_value,
             0.0,
@@ -232,7 +232,7 @@ class LayerNorm(BaseLayer):
         mean.wont_use()
 
         # Compute standard deviation of self.y.value
-        norm_slice_async(
+        norm_slice_inplace_async(
             1.0 / num_layers**0.5,
             tmp_y_value,
             0.0,

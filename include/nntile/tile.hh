@@ -41,7 +41,7 @@
 #include <nntile/tile/fill.hh>
 #include <nntile/tile/sum_slice.hh>
 #include <nntile/tile/sum_fiber.hh>
-#include <nntile/tile/norm_slice.hh>
+#include <nntile/tile/norm_slice_inplace.hh>
 #include <nntile/tile/pow.hh>
 #include <nntile/tile/maxsumexp.hh>
 #include <nntile/tile/softmax.hh>

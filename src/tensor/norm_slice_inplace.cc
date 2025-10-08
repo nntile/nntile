@@ -6,21 +6,21 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/norm_slice.cc
+ * @file src/tensor/norm_slice_inplace.cc
  * Euclidean norms of fibers into a slice of a Tensor<T>
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/norm_slice.hh"
-#include "nntile/starpu/norm_slice.hh"
+#include "nntile/tensor/norm_slice_inplace.hh"
+#include "nntile/starpu/norm_slice_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
 
 template<typename T>
-void norm_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
+void norm_slice_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
         const Tensor<T> &dst, Index axis, int redux)
 {
     // Check dimensions
@@ -111,13 +111,13 @@ void norm_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
                 // Insert initial task
                 if(j == 0)
                 {
-                    starpu::norm_slice.submit<std::tuple<T>>(m, n, k, alpha,
+                    starpu::norm_slice_inplace.submit<std::tuple<T>>(m, n, k, alpha,
                             src_tile_handle, beta, dst_tile_handle, redux);
                 }
                 // Insert all consequent tasks
                 else
                 {
-                    starpu::norm_slice.submit<std::tuple<T>>(m, n, k, alpha,
+                    starpu::norm_slice_inplace.submit<std::tuple<T>>(m, n, k, alpha,
                             src_tile_handle, one, dst_tile_handle, redux);
                 }
             }
@@ -128,70 +128,70 @@ void norm_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
 }
 
 template<typename T>
-void norm_slice(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
+void norm_slice_inplace(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
         Index axis, int redux)
 {
-    norm_slice_async<T>(alpha, src, beta, dst, axis, redux);
+    norm_slice_inplace_async<T>(alpha, src, beta, dst, axis, redux);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void norm_slice_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
+void norm_slice_inplace_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         Scalar beta, const Tensor<fp32_t> &dst, Index axis, int redux);
 
 template
-void norm_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
+void norm_slice_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
         Scalar beta, const Tensor<fp32_fast_tf32_t> &dst, Index axis, int redux);
 
 template
-void norm_slice_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
+void norm_slice_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
         const Tensor<fp32_fast_fp16_t> &dst, Index axis, int redux);
 
 template
-void norm_slice_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
+void norm_slice_inplace_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
         const Tensor<fp32_fast_bf16_t> &dst, Index axis, int redux);
 
 template
-void norm_slice_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
+void norm_slice_inplace_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         Scalar beta, const Tensor<fp64_t> &dst, Index axis, int redux);
 
 template
-void norm_slice_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
+void norm_slice_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis, int redux);
 
 template
-void norm_slice_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, Scalar beta,
+void norm_slice_inplace_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, Scalar beta,
         const Tensor<fp16_t> &dst, Index axis, int redux);
 
 // Explicit instantiation
 template
-void norm_slice<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
+void norm_slice_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
         const Tensor<fp32_t> &dst, Index axis, int redux);
 
 template
-void norm_slice<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
+void norm_slice_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis, int redux);
 
 template
-void norm_slice<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
+void norm_slice_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
         const Tensor<fp32_fast_fp16_t> &dst, Index axis, int redux);
 
 template
-void norm_slice<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
+void norm_slice_inplace<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
         const Tensor<fp32_fast_bf16_t> &dst, Index axis, int redux);
 
 template
-void norm_slice<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
+void norm_slice_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst, Index axis, int redux);
 
 template
-void norm_slice<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
+void norm_slice_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis, int redux);
 
 template
-void norm_slice<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, Scalar beta,
+void norm_slice_inplace<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, Scalar beta,
         const Tensor<fp16_t> &dst, Index axis, int redux);
 
 } // namespace nntile::tensor

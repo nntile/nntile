@@ -654,21 +654,21 @@ void def_mod_tensor(py::module_ &m)
     m.def("norm_fiber_fp32_fast_bf16", &norm_fiber<fp32_fast_bf16_t>);
     m.def("norm_fiber_bf16", &norm_fiber<bf16_t>);
 
-    m.def("norm_slice_async_fp64", &norm_slice_async<fp64_t>);
-    m.def("norm_slice_async_fp32", &norm_slice_async<fp32_t>);
-    m.def("norm_slice_async_fp32_fast_tf32", &norm_slice_async<fp32_fast_tf32_t>);
-    m.def("norm_slice_async_fp32_fast_fp16", &norm_slice_async<fp32_fast_fp16_t>);
-    m.def("norm_slice_async_fp32_fast_bf16", &norm_slice_async<fp32_fast_bf16_t>);
-    m.def("norm_slice_async_bf16", &norm_slice_async<bf16_t>);
-    m.def("norm_slice_async_fp16", &norm_slice_async<fp16_t>);
+    m.def("norm_slice_inplace_async_fp64", &norm_slice_inplace_async<fp64_t>);
+    m.def("norm_slice_inplace_async_fp32", &norm_slice_inplace_async<fp32_t>);
+    m.def("norm_slice_inplace_async_fp32_fast_tf32", &norm_slice_inplace_async<fp32_fast_tf32_t>);
+    m.def("norm_slice_inplace_async_fp32_fast_fp16", &norm_slice_inplace_async<fp32_fast_fp16_t>);
+    m.def("norm_slice_inplace_async_fp32_fast_bf16", &norm_slice_inplace_async<fp32_fast_bf16_t>);
+    m.def("norm_slice_inplace_async_bf16", &norm_slice_inplace_async<bf16_t>);
+    m.def("norm_slice_inplace_async_fp16", &norm_slice_inplace_async<fp16_t>);
 
-    m.def("norm_slice_fp64", &norm_slice<fp64_t>);
-    m.def("norm_slice_fp32", &norm_slice<fp32_t>);
-    m.def("norm_slice_fp32_fast_tf32", &norm_slice<fp32_fast_tf32_t>);
-    m.def("norm_slice_fp32_fast_fp16", &norm_slice<fp32_fast_fp16_t>);
-    m.def("norm_slice_fp32_fast_bf16", &norm_slice<fp32_fast_bf16_t>);
-    m.def("norm_slice_bf16", &norm_slice<bf16_t>);
-    m.def("norm_slice_fp16", &norm_slice<fp16_t>);
+    m.def("norm_slice_inplace_fp64", &norm_slice_inplace<fp64_t>);
+    m.def("norm_slice_inplace_fp32", &norm_slice_inplace<fp32_t>);
+    m.def("norm_slice_inplace_fp32_fast_tf32", &norm_slice_inplace<fp32_fast_tf32_t>);
+    m.def("norm_slice_inplace_fp32_fast_fp16", &norm_slice_inplace<fp32_fast_fp16_t>);
+    m.def("norm_slice_inplace_fp32_fast_bf16", &norm_slice_inplace<fp32_fast_bf16_t>);
+    m.def("norm_slice_inplace_bf16", &norm_slice_inplace<bf16_t>);
+    m.def("norm_slice_inplace_fp16", &norm_slice_inplace<fp16_t>);
 
     m.def("pow_async_fp64", &pow_async<fp64_t>);
     m.def("pow_async_fp32", &pow_async<fp32_t>);

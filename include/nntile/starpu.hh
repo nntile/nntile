@@ -53,7 +53,7 @@
 #include <nntile/starpu/maxsumexp.hh>
 #include <nntile/starpu/norm_fiber.hh>
 #include <nntile/starpu/norm_fiber_inplace.hh>
-#include <nntile/starpu/norm_slice.hh>
+#include <nntile/starpu/norm_slice_inplace.hh>
 #include <nntile/starpu/pow.hh>
 #include <nntile/starpu/prod.hh>
 #include <nntile/starpu/prod_fiber.hh>

@@ -6,25 +6,25 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/norm_slice.hh
- * Euclidean norms of fibers into a slice of a Tensor<T>
+ * @file include/nntile/tile/norm_slice_inplace.hh
+ * Euclidean norms of fibers into a slice of a Tile<T>
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/tensor/tensor.hh>
+#include <nntile/tile/tile.hh>
 
-namespace nntile::tensor
+namespace nntile::tile
 {
 
 template<typename T>
-void norm_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
-        const Tensor<T> &dst, Index axis, int redux=0);
+void norm_slice_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+        Index axis);
 
 template<typename T>
-void norm_slice(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
-        Index axis, int redux=0);
+void norm_slice_inplace(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+        Index axis);
 
-} // namespace nntile::tensor
+} // namespace nntile::tile

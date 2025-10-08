@@ -6,17 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/norm_slice/cpu.cc
+ * @file src/kernel/norm_slice_inplace/cpu.cc
  * Euclidean norms of fibers into a slice of a buffer on CPU
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/norm_slice/cpu.hh"
+#include "nntile/kernel/norm_slice_inplace/cpu.hh"
 #include <cmath>
 #include "nntile/kernel/cpu.hh"
 
-namespace nntile::kernel::norm_slice
+namespace nntile::kernel::norm_slice_inplace
 {
 
 template<typename T>
@@ -143,4 +143,4 @@ void cpu<fp16_t>(Index m, Index n, Index k, Scalar alpha, const fp16_t *src,
         Scalar beta, fp16_t *norm_dst)
     noexcept;
 
-} // namespace nntile::kernel::norm_slice
+} // namespace nntile::kernel::norm_slice_inplace

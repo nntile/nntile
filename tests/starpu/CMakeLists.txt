@@ -51,7 +51,7 @@ set(TESTS
     "maxsumexp"
     "norm_fiber"
     "norm_fiber_inplace"
-    "norm_slice"
+    "norm_slice_inplace"
     "pow"
     "prod"
     "prod_fiber"

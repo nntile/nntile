@@ -471,46 +471,46 @@ def norm_fiber_async(
         raise TypeError
 
 
-def norm_slice_async(
+def norm_slice_inplace_async(
     alpha: float,
     x: Tensor,
     beta: float,
-    norm_slice: Tensor,
+    norm_slice_inplace: Tensor,
     axis: int,
     redux: int = 0,
 ) -> None:
     """
-    Wrapper for multiprecision norm_slice
+    Wrapper for multiprecision norm_slice_inplace
     """
-    if type(x) is not type(norm_slice):
+    if type(x) is not type(norm_slice_inplace):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.norm_slice_async_fp32(
-            alpha, x, beta, norm_slice, axis, redux
+        core_tensor.norm_slice_inplace_async_fp32(
+            alpha, x, beta, norm_slice_inplace, axis, redux
         )
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.norm_slice_async_fp32_fast_tf32(
-            alpha, x, beta, norm_slice, axis, redux
+        core_tensor.norm_slice_inplace_async_fp32_fast_tf32(
+            alpha, x, beta, norm_slice_inplace, axis, redux
         )
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
-        core_tensor.norm_slice_async_fp32_fast_fp16(
-            alpha, x, beta, norm_slice, axis, redux
+        core_tensor.norm_slice_inplace_async_fp32_fast_fp16(
+            alpha, x, beta, norm_slice_inplace, axis, redux
         )
     elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
-        core_tensor.norm_slice_async_fp32_fast_bf16(
-            alpha, x, beta, norm_slice, axis, redux
+        core_tensor.norm_slice_inplace_async_fp32_fast_bf16(
+            alpha, x, beta, norm_slice_inplace, axis, redux
         )
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.norm_slice_async_fp64(
-            alpha, x, beta, norm_slice, axis, redux
+        core_tensor.norm_slice_inplace_async_fp64(
+            alpha, x, beta, norm_slice_inplace, axis, redux
         )
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.norm_slice_async_bf16(
-            alpha, x, beta, norm_slice, axis, redux
+        core_tensor.norm_slice_inplace_async_bf16(
+            alpha, x, beta, norm_slice_inplace, axis, redux
         )
     elif type(x) is core_tensor.Tensor_fp16:
-        core_tensor.norm_slice_async_fp16(
-            alpha, x, beta, norm_slice, axis, redux
+        core_tensor.norm_slice_inplace_async_fp16(
+            alpha, x, beta, norm_slice_inplace, axis, redux
         )
     else:
         raise TypeError

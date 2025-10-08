@@ -6,15 +6,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tile/norm_slice.cc
+ * @file tests/tile/norm_slice_inplace.cc
  * Euclidean norms of fibers into a slice of a Tile<T>
  *
  * @version 1.1.0
  * */
 
 #include "nntile/context.hh"
-#include "nntile/tile/norm_slice.hh"
-#include "nntile/starpu/norm_slice.hh"
+#include "nntile/tile/norm_slice_inplace.hh"
+#include "nntile/starpu/norm_slice_inplace.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -52,8 +52,8 @@ void check()
     }
     // Check axis=0
     {
-        starpu::norm_slice.submit<std::tuple<T>>(1, 20, 3, alpha, src, beta, dst[0]);
-        norm_slice<T>(alpha, src, beta, dst2[0], 0);
+        starpu::norm_slice_inplace.submit<std::tuple<T>>(1, 20, 3, alpha, src, beta, dst[0]);
+        norm_slice_inplace<T>(alpha, src, beta, dst2[0], 0);
         auto dst_local = dst[0].acquire(STARPU_R);
         auto dst2_local = dst2[0].acquire(STARPU_R);
         for(Index i = 0; i < dst[0].nelems; ++i)
@@ -65,8 +65,8 @@ void check()
     }
     // Check axis=1
     {
-        starpu::norm_slice.submit<std::tuple<T>>(3, 5, 4, alpha, src, beta, dst[1]);
-        norm_slice<T>(alpha, src, beta, dst2[1], 1);
+        starpu::norm_slice_inplace.submit<std::tuple<T>>(3, 5, 4, alpha, src, beta, dst[1]);
+        norm_slice_inplace<T>(alpha, src, beta, dst2[1], 1);
         auto dst_local = dst[1].acquire(STARPU_R);
         auto dst2_local = dst2[1].acquire(STARPU_R);
         for(Index i = 0; i < dst[1].nelems; ++i)
@@ -78,8 +78,8 @@ void check()
     }
     // Check axis=2
     {
-        starpu::norm_slice.submit<std::tuple<T>>(12, 1, 5, alpha, src, beta, dst[2]);
-        norm_slice<T>(alpha, src, beta, dst2[2], 2);
+        starpu::norm_slice_inplace.submit<std::tuple<T>>(12, 1, 5, alpha, src, beta, dst[2]);
+        norm_slice_inplace<T>(alpha, src, beta, dst2[2], 2);
         auto dst_local = dst[2].acquire(STARPU_R);
         auto dst2_local = dst2[2].acquire(STARPU_R);
         for(Index i = 0; i < dst[2].nelems; ++i)
@@ -101,13 +101,13 @@ void validate()
     Tile<T> dst[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
         Tile<T>({2, 3, 4})};
     Tile<T> empty({});
-    TEST_THROW(norm_slice<T>(1.0, src, 1.0, empty, 0));
-    TEST_THROW(norm_slice<T>(1.0, empty, 1.0, empty, 0));
-    TEST_THROW(norm_slice<T>(1.0, src, 1.0, dst[0], -1));
-    TEST_THROW(norm_slice<T>(1.0, src, 1.0, dst[0], 3));
-    TEST_THROW(norm_slice<T>(1.0, src, 1.0, src, 0));
-    TEST_THROW(norm_slice<T>(1.0, src, 1.0, dst[0], 1));
-    TEST_THROW(norm_slice<T>(1.0, src, 1.0, dst[2], 1));
+    TEST_THROW(norm_slice_inplace<T>(1.0, src, 1.0, empty, 0));
+    TEST_THROW(norm_slice_inplace<T>(1.0, empty, 1.0, empty, 0));
+    TEST_THROW(norm_slice_inplace<T>(1.0, src, 1.0, dst[0], -1));
+    TEST_THROW(norm_slice_inplace<T>(1.0, src, 1.0, dst[0], 3));
+    TEST_THROW(norm_slice_inplace<T>(1.0, src, 1.0, src, 0));
+    TEST_THROW(norm_slice_inplace<T>(1.0, src, 1.0, dst[0], 1));
+    TEST_THROW(norm_slice_inplace<T>(1.0, src, 1.0, dst[2], 1));
 }
 
 int main(int argc, char **argv)
