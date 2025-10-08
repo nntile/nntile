@@ -39,6 +39,7 @@
 #include <nntile/kernel/sum_slice.hh>
 #include <nntile/kernel/sum_fiber.hh>
 #include <nntile/kernel/norm_slice_inplace.hh>
+#include <nntile/kernel/norm_slice.hh>
 #include <nntile/kernel/pow.hh>
 #include <nntile/kernel/maxsumexp.hh>
 #include <nntile/kernel/softmax.hh>
