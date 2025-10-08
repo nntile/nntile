@@ -76,19 +76,21 @@ def get_ref_value(alpha, src1, beta, src2, axis):
         # The kernel treats the input as [m, k, n] = [b*c, a, d]
         # For each position (i2, i1) where i2 < d and i1 < b*c:
         for i2 in range(d):  # i2 corresponds to the last dimension (d)
-            for i1 in range(b * c):  # i1 corresponds to the flattened b*c dimensions
+            for i1 in range(b * c):  # i1 corresponds to the flattened b*c
                 # Compute norm over k = a elements for this position
                 norm_sq = 0.0
-                for i0 in range(a):  # i0 corresponds to the first dimension (a)
-                    # Index calculation: (i2 * k + i0) * m + i1
+                for i0 in range(a):  # i0 corresponds to first dimension
+                    # Index calculation: (i2 * a + i0) * (b * c) + i1
                     # where m = b*c, k = a, n = d
-                    src_idx = (i2 * a + i0) * (b * c) + i1
+                    src_idx = ((i2 * a + i0) * (b * c)) + i1
                     val = src1.flat[src_idx]  # Use flat indexing
                     norm_sq += val * val
 
                 fiber_norm = np.sqrt(norm_sq)
                 dst_idx = i2 * (b * c) + i1
-                result.flat[dst_idx] = np.hypot(alpha * fiber_norm, beta * src2.flat[dst_idx])
+                result.flat[dst_idx] = np.hypot(
+                    alpha * fiber_norm, beta * src2.flat[dst_idx]
+                )
     else:
         # For other axes, implement accordingly
         raise NotImplementedError("Only axis=0 implemented in reference")
