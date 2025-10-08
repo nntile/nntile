@@ -58,25 +58,39 @@ multiple_tiles = NormSliceTestParams(
 
 
 def get_ref_value(alpha, src1, beta, src2, axis):
-    # For norm_slice with axis=0, compute norm along axis 0
-    # The result shape is src1.shape[1:] (remove first dimension)
-    result_shape = list(src1.shape)
-    result_shape.pop(axis)
-    result = np.zeros(result_shape, dtype=src1.dtype)
+    # For norm_slice, the kernel treats the tensor as [m, k, n] where:
+    # - k is the axis being reduced
+    # - m is the product of all dimensions before the axis
+    # - n is the product of all dimensions after the axis
 
-    # For each position in the result, compute norm along the specified axis
     if axis == 0:
-        # For axis=0, result shape is src1.shape[1:]
-        for i in range(src1.shape[1]):
-            for j in range(src1.shape[2]):
-                for k in range(src1.shape[3]):
-                    # Compute norm of src1[:, i, j, k] along axis 0
-                    fiber_norm = np.linalg.norm(src1[:, i, j, k])
-                    result[i, j, k] = np.hypot(alpha * fiber_norm,
-                                               beta * src2[i, j, k])
+        # For axis=0 on 4D tensor [a,b,c,d]:
+        # - k = a (axis being reduced)
+        # - m = b*c (product of dimensions before axis)
+        # - n = d (product of dimensions after axis)
+        # - Result shape is [m, n] = [b*c, d] = [b, c, d]
+
+        a, b, c, d = src1.shape
+        result = np.zeros((b, c, d), dtype=src1.dtype)
+
+        # The kernel treats the input as [m, k, n] = [b*c, a, d]
+        # For each position (i2, i1) where i2 < d and i1 < b*c:
+        for i2 in range(d):  # i2 corresponds to the last dimension (d)
+            for i1 in range(b * c):  # i1 corresponds to the flattened b*c dimensions
+                # Compute norm over k = a elements for this position
+                norm_sq = 0.0
+                for i0 in range(a):  # i0 corresponds to the first dimension (a)
+                    # Index calculation: (i2 * k + i0) * m + i1
+                    # where m = b*c, k = a, n = d
+                    src_idx = (i2 * a + i0) * (b * c) + i1
+                    val = src1.flat[src_idx]  # Use flat indexing
+                    norm_sq += val * val
+
+                fiber_norm = np.sqrt(norm_sq)
+                dst_idx = i2 * (b * c) + i1
+                result.flat[dst_idx] = np.hypot(alpha * fiber_norm, beta * src2.flat[dst_idx])
     else:
         # For other axes, implement accordingly
-        # For now, assume axis=0 case
         raise NotImplementedError("Only axis=0 implemented in reference")
 
     return result
@@ -93,7 +107,7 @@ def test_norm_slice_async(context, dtype, params):
     src_shape = params.shape
     src_tile = params.shape_tile
     # For norm_slice with axis=0 on 4D tensor [a,b,c,d], result has shape
-    # [b,c,d]
+    # [b,c,d] where m = b*c, n = d
     src_shape_dst = src_shape[1:]
     src_tile_dst = src_tile[1:]
 
