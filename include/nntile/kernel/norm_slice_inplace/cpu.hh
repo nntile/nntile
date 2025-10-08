@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/norm_slice/cpu.hh
+ * @file include/nntile/kernel/norm_slice_inplace/cpu.hh
  * Euclidean norms of fibers into a slice of a buffer on CPU
  *
  * @version 1.1.0
@@ -16,7 +16,7 @@
 
 #include <nntile/base_types.hh>
 
-namespace nntile::kernel::norm_slice
+namespace nntile::kernel::norm_slice_inplace
 {
 
 // Euclidean norms over fibers along middle axis into a slice of a tensor
@@ -25,4 +25,4 @@ void cpu(Index m, Index n, Index k, Scalar alpha, const T *src, Scalar beta,
         T *dst)
     noexcept;
 
-} // namespace nntile::kernel::norm_slice
+} // namespace nntile::kernel::norm_slice_inplace

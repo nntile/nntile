@@ -46,7 +46,7 @@
 #include <nntile/tensor/fill.hh>
 #include <nntile/tensor/sum_slice.hh>
 #include <nntile/tensor/sum_fiber.hh>
-#include <nntile/tensor/norm_slice.hh>
+#include <nntile/tensor/norm_slice_inplace.hh>
 #include <nntile/tensor/pow.hh>
 #include <nntile/tensor/maxsumexp.hh>
 #include <nntile/tensor/softmax.hh>

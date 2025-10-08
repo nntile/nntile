@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/norm_slice.hh
+ * @file include/nntile/starpu/norm_slice_inplace.hh
  * Euclidean norms of fibers into a slice of a StarPU buffer
  *
  * @version 1.1.0
@@ -27,20 +27,20 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for norm_slice operation is not defined
+//! Generic wrapper class for norm_slice_inplace operation is not defined
 template<typename T>
-class NormSlice;
+class NormSliceInplace;
 
-//! Specialization of wrapper class for norm_slice operation via std::tuple
+//! Specialization of wrapper class for norm_slice_inplace operation via std::tuple
 template<typename T>
-class NormSlice<std::tuple<T>>
+class NormSliceInplace<std::tuple<T>>
 {
 public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
     //! Constructor
-    NormSlice();
+    NormSliceInplace();
 
     //! Structure for operation arguments
     struct args_t
@@ -78,7 +78,7 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit norm_slice task
+    //! Submit norm_slice_inplace task
     void submit(
         Index m,
         Index n,
@@ -91,9 +91,9 @@ public:
     );
 };
 
-//! Pack of norm_slice operations for different types
-using norm_slice_pack_t = OperationPack<
-    NormSlice,
+//! Pack of norm_slice_inplace operations for different types
+using norm_slice_inplace_pack_t = OperationPack<
+    NormSliceInplace,
     std::tuple<nntile::fp64_t>,
     std::tuple<nntile::fp32_t>,
     std::tuple<nntile::fp32_fast_tf32_t>,
@@ -103,7 +103,7 @@ using norm_slice_pack_t = OperationPack<
     std::tuple<nntile::fp16_t>
 >;
 
-//! Pack of norm_slice operations for different types
-extern norm_slice_pack_t norm_slice;
+//! Pack of norm_slice_inplace operations for different types
+extern norm_slice_inplace_pack_t norm_slice_inplace;
 
 } // namespace nntile::starpu

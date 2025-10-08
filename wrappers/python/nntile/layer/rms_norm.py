@@ -19,7 +19,7 @@ import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, add_inplace_async, copy_async,
-    fill_async, hypot_scalar_inverse_async, norm_slice_async,
+    fill_async, hypot_scalar_inverse_async, norm_slice_inplace_async,
     prod_fiber3_async, prod_slice_async, sumprod_fiber_async,
     sumprod_slice_async, to_numpy)
 
@@ -119,7 +119,7 @@ class RMSNorm(BaseLayer):
     # Forward propagation of the normalization layer
     def forward_async(self):
         # Compute standard deviation of self.y.value
-        norm_slice_async(1.0 / self.l**0.5, self.x.value, 0.0,
+        norm_slice_inplace_async(1.0 / self.l**0.5, self.x.value, 0.0,
                 self.inv_stddev, self.axis, redux=self.redux)
         hypot_scalar_inverse_async(self.eps, 1.0, self.inv_stddev)
         # Finally, normalize input
@@ -149,7 +149,7 @@ class RMSNorm(BaseLayer):
         y_value = nntc.empty_like(x.value)
 
         # Finally, normalize input
-        norm_slice_async(
+        norm_slice_inplace_async(
             1.0 / x.value.shape[self.axis] ** 0.5,
             x.value,
             0.0,

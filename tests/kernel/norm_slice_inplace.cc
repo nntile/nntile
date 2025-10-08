@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/norm_slice.cc
+ * @file tests/kernel/norm_slice_inplace.cc
  * Euclidean norms of fibers into a slice of a buffer
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/kernel/norm_slice.hh"
+#include "nntile/kernel/norm_slice_inplace.hh"
 
 // Standard libraries
 #include <vector>
@@ -38,7 +38,7 @@ using namespace Catch::Matchers;
 // Use tested NNTile namespaces
 using namespace nntile;
 using namespace nntile::kernel;
-using namespace nntile::kernel::norm_slice;
+using namespace nntile::kernel::norm_slice_inplace;
 
 // Type to acquire reference values
 using ref_t = double;
@@ -59,9 +59,9 @@ struct TestData
     std::vector<T> dst_ref;
 };
 
-// Reference implementation of the norm_slice operation
+// Reference implementation of the norm_slice_inplace operation
 template<typename T>
-void reference_norm_slice(TestData<T>& data)
+void reference_norm_slice_inplace(TestData<T>& data)
 {
     using Y = typename T::repr_t;
     if (data.m == 0 || data.n == 0 || data.k == 0)
@@ -190,7 +190,7 @@ TestData<T> get_test_data(
     generate_data(data, strategy);
 
     // Compute reference outputs
-    reference_norm_slice(data);
+    reference_norm_slice_inplace(data);
     return data;
 }
 
@@ -231,7 +231,7 @@ void run_cpu_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][norm_slice][cpu][m=" +
+            "[kernel][norm_slice_inplace][cpu][m=" +
             std::to_string(data.m) +
             "][n=" + std::to_string(data.n) +
             "][k=" + std::to_string(data.k) +
@@ -314,7 +314,7 @@ void run_cuda_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][norm_slice][cuda][m=" +
+            "[kernel][norm_slice_inplace][cuda][m=" +
             std::to_string(data.m) +
             "][n=" + std::to_string(data.n) +
             "][k=" + std::to_string(data.k) +
@@ -378,8 +378,8 @@ void run_cuda_test(TestData<T>& data)
 
 // Catch2-based tests
 TEMPLATE_TEST_CASE(
-    "Norm Slice Kernel Verification",
-    "[norm_slice]",
+    "Norm Slice Inplace Kernel Verification",
+    "[norm_slice_inplace]",
     fp64_t,
     fp32_t,
     fp16_t,
@@ -418,8 +418,8 @@ TEMPLATE_TEST_CASE(
 
 // Catch2-based benchmarks
 TEMPLATE_TEST_CASE(
-    "Norm Slice Kernel Benchmark",
-    "[norm_slice][!benchmark]",
+    "Norm Slice Inplace Kernel Benchmark",
+    "[norm_slice_inplace][!benchmark]",
     fp64_t,
     fp32_t,
     fp16_t,

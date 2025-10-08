@@ -6,36 +6,36 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/norm_slice.cc
+ * @file src/starpu/norm_slice_inplace.cc
  * Euclidean norms of fibers into a slice of a StarPU buffer
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/starpu/norm_slice.hh"
+#include "nntile/starpu/norm_slice_inplace.hh"
 
 // Standard libraries
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
-#include "nntile/kernel/norm_slice.hh"
+#include "nntile/kernel/norm_slice_inplace.hh"
 
 namespace nntile::starpu
 {
 
 //! Constructor
 template<typename T>
-NormSlice<std::tuple<T>>::NormSlice():
-    codelet("nntile_norm_slice", footprint, cpu_funcs, cuda_funcs)
+NormSliceInplace<std::tuple<T>>::NormSliceInplace():
+    codelet("nntile_norm_slice_inplace", footprint, cpu_funcs, cuda_funcs)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! StarPU wrapper for kernel::norm_slice::cpu<T>
+//! StarPU wrapper for kernel::norm_slice_inplace::norm_slice_inplace<T>
 template<typename T>
-void NormSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
+void NormSliceInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -46,40 +46,40 @@ void NormSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::norm_slice::cpu<T>(args->m, args->n, args->k, args->alpha, src,
+    kernel::norm_slice_inplace::cpu<T>(args->m, args->n, args->k, args->alpha, src,
             args->beta, dst);
 #endif // STARPU_SIMGRID
 }
 
 // Specializations of CPU wrapper for accelerated types
 template<>
-void NormSlice<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+void NormSliceInplace<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    NormSlice<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    NormSliceInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void NormSlice<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+void NormSliceInplace<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    NormSlice<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    NormSliceInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void NormSlice<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+void NormSliceInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    NormSlice<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    NormSliceInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::norm_slice::cuda<T>
+//! StarPU wrapper for kernel::norm_slice_inplace::norm_slice_inplace<T>
 template<typename T>
-void NormSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+void NormSliceInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -92,40 +92,40 @@ void NormSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::norm_slice::cuda<T>(stream, args->m, args->n, args->k,
+    kernel::norm_slice_inplace::cuda<T>(stream, args->m, args->n, args->k,
             args->alpha, src, args->beta, dst);
 #endif // STARPU_SIMGRID
 }
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
-void NormSlice<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+void NormSliceInplace<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    NormSlice<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    NormSliceInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void NormSlice<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+void NormSliceInplace<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    NormSlice<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    NormSliceInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void NormSlice<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+void NormSliceInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    NormSlice<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    NormSliceInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for norm_slice tasks
+//! Footprint for norm_slice_inplace tasks
 template<typename T>
-uint32_t NormSlice<std::tuple<T>>::footprint(struct starpu_task *task)
+uint32_t NormSliceInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -138,9 +138,9 @@ uint32_t NormSlice<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void NormSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
+void NormSliceInplace<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
         Handle dst, int redux)
-//! Insert norm_slice task into StarPU pool of tasks
+//! Insert norm_slice_inplace task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
@@ -190,22 +190,22 @@ void NormSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, H
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in norm_slice task submission");
+        throw std::runtime_error("Error in norm_slice_inplace task submission");
     }
 }
 
 // Explicit instantiation
 // For some strange reason, the compiler does not instantiate the template
 // automatically, so we need to do it manually
-template class NormSlice<std::tuple<nntile::fp64_t>>;
-template class NormSlice<std::tuple<nntile::fp32_t>>;
-template class NormSlice<std::tuple<nntile::fp32_fast_tf32_t>>;
-template class NormSlice<std::tuple<nntile::fp32_fast_fp16_t>>;
-template class NormSlice<std::tuple<nntile::fp32_fast_bf16_t>>;
-template class NormSlice<std::tuple<nntile::bf16_t>>;
-template class NormSlice<std::tuple<nntile::fp16_t>>;
+template class NormSliceInplace<std::tuple<nntile::fp64_t>>;
+template class NormSliceInplace<std::tuple<nntile::fp32_t>>;
+template class NormSliceInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class NormSliceInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class NormSliceInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class NormSliceInplace<std::tuple<nntile::bf16_t>>;
+template class NormSliceInplace<std::tuple<nntile::fp16_t>>;
 
-//! Pack of norm_slice operations for different types
-norm_slice_pack_t norm_slice;
+//! Pack of norm_slice_inplace operations for different types
+norm_slice_inplace_pack_t norm_slice_inplace;
 
 } // namespace nntile::starpu
