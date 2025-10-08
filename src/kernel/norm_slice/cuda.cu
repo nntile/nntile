@@ -23,7 +23,6 @@ template<typename T>
 static __global__
 void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_,
         const T *src1, Scalar beta_, const T *src2, T *dst)
-    noexcept
 //! Euclidean norms over fibers along middle axis into a slice of a tensor (out-of-place version)
 /*! For a provided m-by-k-by-n input array src1 compute norms of fibers
  * along second axis with k elements, resulting in m-by-n output array-slice
@@ -45,10 +44,10 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_,
     Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
           i1 = threadIdx.y + blockIdx.y*blockDim.y;
     Index i2_start = threadIdx.z, i2_step = blockDim.z;
+    Index idx = threadIdx.x+blockDim.x*threadIdx.y;
     using Y = typename T::repr_t;
-    const Y beta{beta_};
-    const Y alpha{alpha_};
-    constexpr Y zero{0.};
+    const Y alpha = static_cast<Y>(alpha_), beta = static_cast<Y>(beta_);
+    constexpr Y zero = 0.0;
     if(i0 < m and i1 < n)
     {
         // Pointer to a corresponding fiber of the source array src1
@@ -58,41 +57,42 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_,
         // Cycle over fiber elements and accumulate the sum
         for(Index i2 = i2_start; i2 < k; i2 += i2_step)
         {
-            sum = ::hypot(sum, Y{src1_fiber[i2*m]});
+            Y src1_val = static_cast<Y>(src1_fiber[i2*m]);
+            sum = ::hypot(sum, src1_val);
         }
         volatile __shared__ Y block_max[64];
         __shared__ Y block_sum[64];
         if(i2_start == 0)
         {
-            block_max[threadIdx.x+blockDim.x*threadIdx.y] = sum;
-            block_sum[threadIdx.x+blockDim.x*threadIdx.y] = zero;
+            block_max[idx] = sum;
+            block_sum[idx] = zero;
         }
         __syncthreads();
-        while(block_max[threadIdx.x+blockDim.x*threadIdx.y] < sum)
+        while(block_max[idx] < sum)
         {
-            block_max[threadIdx.x+blockDim.x*threadIdx.y] = sum;
+            block_max[idx] = sum;
         }
         __syncthreads();
-        if(block_max[threadIdx.x+blockDim.x*threadIdx.y] > 0)
+        if(block_max[idx] > 0)
         {
-            sum /= block_max[threadIdx.x+blockDim.x*threadIdx.y];
-            atomicAdd(&block_sum[threadIdx.x+blockDim.x*threadIdx.y], sum*sum);
+            sum /= block_max[idx];
+            atomicAdd(&block_sum[idx], sum*sum);
             __syncthreads();
             // Update output value
             if(i2_start == 0)
             {
                 // Output value
                 T &output_dst = dst[i1*m+i0];
-                sum = block_max[threadIdx.x+blockDim.x*threadIdx.y];
-                sum *= ::sqrt(block_sum[threadIdx.x+blockDim.x*threadIdx.y]);
-                Y src2_val = beta * Y{src2[i1*m+i0]};
+                sum = block_max[idx];
+                sum *= ::sqrt(block_sum[idx]);
+                Y src2_val = beta * static_cast<Y>(src2[i1*m+i0]);
                 if(beta == zero)
                 {
-                    output_dst = T{::fabs(alpha) * sum};
+                    output_dst = ::fabs(alpha) * sum;
                 }
                 else
                 {
-                    output_dst = T{::hypot(src2_val, alpha*sum)};
+                    output_dst = ::hypot(src2_val, alpha*sum);
                 }
             }
         }
@@ -103,7 +103,6 @@ template<typename T, int BLOCK_ROW, int LOOP>
 static __global__
 void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
         Scalar beta_, const T *src2, T *dst)
-    noexcept
 //! Euclidean norms over fibers along middle axis into a slice of a tensor (out-of-place version)
 /*! For a provided 1-by-k-by-n input array src1 compute norms of fibers
  * along second axis with k elements, resulting in 1-by-n output array-slice
@@ -123,8 +122,7 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
 {
     Index src_l_block_end = (k/BLOCK_ROW) * BLOCK_ROW;
     using Y = typename T::repr_t;
-    const Y alpha{alpha_};
-    const Y beta{beta_};
+    const Y alpha = static_cast<Y>(alpha_), beta = static_cast<Y>(beta_);
     constexpr int BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
     volatile __shared__ Y dst_block[BLOCK_ROW_STEP];
     Y dst_val = 0.0;
@@ -135,8 +133,8 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
         const T *src1_fiber = src1 + src_l + blockIdx.x*k;
         for(int c = 0; c < BLOCK_ROW; c += BLOCK_ROW_STEP)
         {
-            Y val = static_cast<Y>(src1_fiber[c]);
-            dst_val = ::hypot(dst_val, val);
+            Y src1_val = static_cast<Y>(src1_fiber[c]);
+            dst_val = ::hypot(dst_val, src1_val);
         }
     }
     // Pointer to a corresponding fiber of the input arrays
@@ -144,8 +142,8 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
     const T *src1_fiber = src1 + blockIdx.x*k;
     for(Index c = src_l; c < k; c += BLOCK_ROW_STEP)
     {
-        Y val = static_cast<Y>(src1_fiber[c]);
-        dst_val = ::hypot(dst_val, val);
+        Y src1_val = static_cast<Y>(src1_fiber[c]);
+        dst_val = ::hypot(dst_val, src1_val);
     }
     // Put calculated value into shared memory
     dst_block[threadIdx.x] = ::fabs(alpha) * dst_val;
@@ -175,11 +173,11 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
         Y scaled_src2_val = beta * static_cast<Y>(src2[blockIdx.x]);
         if(beta == 0.0)
         {
-            dst[blockIdx.x] = static_cast<T>(static_cast<Y>(dst_block[0]));
+            dst[blockIdx.x] = static_cast<Y>(dst_block[0]);
         }
         else
         {
-            dst[blockIdx.x] = static_cast<T>(::hypot(scaled_src2_val, dst_block[0]));
+            dst[blockIdx.x] = ::hypot(scaled_src2_val, dst_block[0]);
         }
     }
 }
@@ -199,10 +197,10 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  * @param[in] n: Size of the last mode of src1, src2 and dst arrays
  * @param[in] k: Size of the middle mode of src1 array
  * @param[in] alpha: Scaling factor for src1
- * @param[in] src1_: Input contiguous m-by-k-by-n array
+ * @param[in] src1: Input contiguous m-by-k-by-n array
  * @param[in] beta: Scaling factor for src2
- * @param[in] src2_: Input contiguous m-by-n array
- * @param[out] dst_: Output contiguous m-by-n array, that contains norms
+ * @param[in] src2: Input contiguous m-by-n array
+ * @param[out] dst: Output contiguous m-by-n array, that contains norms
  *      along middle axis combined with src2 values.
  * */
 {

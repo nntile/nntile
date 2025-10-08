@@ -42,9 +42,9 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1, Scalar beta_,
  * */
 {
     using Y = typename T::repr_t;
-    Y alpha{alpha_}, beta{beta_};
+    Y alpha = static_cast<Y>(alpha_), beta = static_cast<Y>(beta_);
     const Index mk = m * k;
-    constexpr Y zero{0.0}, one{1.0};
+    constexpr Y zero = 0.0, one = 1.0;
     alpha = std::fabs(alpha);
     // Cycle over column of the output buffer result
     for(Index i2 = 0; i2 < n; ++i2)
@@ -55,12 +55,13 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1, Scalar beta_,
             // Pointer to a corresponding fiber of the source array src1
             const T *src1_fiber = src1 + i2*mk + i1;
             // Init norm of the fiber
-            Y norm_max{zero}, norm_ssq{zero}, c{zero}, y, t;
+            Y norm_max = zero, norm_ssq = zero, c = zero, y, t;
             // Cycle over fiber elements and accumulate the norm
             for(Index i0 = 0; i0 < k; ++i0)
             {
                 // Read value from source
-                Y val = std::fabs(Y{src1_fiber[i0*m]});
+                Y src1_val = static_cast<Y>(src1_fiber[i0*m]);
+                Y val = std::fabs(src1_val);
                 // Update norm only if new value is non-zero
                 if(val > 0)
                 {
@@ -88,22 +89,22 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1, Scalar beta_,
             }
             // Get the scaled norm
             norm_max *= alpha;
-            // Get the scaled src2 value
-            Y src2_val = beta * Y{src2[i2*m+i1]};
             // Compute the result using hypot function
             if(beta == zero)
             {
                 // dst = norm_max * sqrt(norm_ssq)
-                dst[i2*m+i1] = static_cast<T>(norm_max * std::sqrt(norm_ssq));
+                dst[i2*m+i1] = norm_max * std::sqrt(norm_ssq);
             }
             else if(norm_max > 0)
             {
-                // result = hypot(src2_val, norm)
-                Y tmp_src2 = std::fabs(src2_val);
+                // result = hypot(beta * src2[i2*m+i1], norm)
+                Y src2_val = static_cast<Y>(src2[i2*m+i1]);
+                Y tmp_src2 = std::fabs(beta * src2_val);
                 if(norm_max >= tmp_src2)
                 {
                     Y tmp1 = tmp_src2 / norm_max;
-                    dst[i2*m+i1] = static_cast<T>(norm_max * std::sqrt((tmp1*tmp1-c)+norm_ssq));
+                    Y tmp2 = std::sqrt((tmp1*tmp1-c)+norm_ssq);
+                    dst[i2*m+i1] = norm_max * tmp2;
                 }
                 else
                 {
@@ -111,13 +112,15 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1, Scalar beta_,
                     Y tmp2 = tmp1 * tmp1;
                     c *= tmp2;
                     norm_ssq *= tmp2;
-                    dst[i2*m+i1] = static_cast<T>(tmp_src2 * std::sqrt((one-c)+norm_ssq));
+                    Y tmp3 = std::sqrt((one-c)+norm_ssq);
+                    dst[i2*m+i1] = tmp_src2 * tmp3;
                 }
             }
             // norm_max==0
             else
             {
-                dst[i2*m+i1] = static_cast<T>(std::fabs(src2_val));
+                Y src2_val = static_cast<Y>(src2[i2*m+i1]);
+                dst[i2*m+i1] = std::fabs(beta * src2_val);
             }
         }
     }
