@@ -72,7 +72,8 @@ def get_ref_value(alpha, src1, beta, src2, axis):
                 for k in range(src1.shape[3]):
                     # Compute norm of src1[:, i, j, k] along axis 0
                     fiber_norm = np.linalg.norm(src1[:, i, j, k])
-                    result[i, j, k] = np.hypot(alpha * fiber_norm, beta * src2[i, j, k])
+                    result[i, j, k] = np.hypot(alpha * fiber_norm,
+                                               beta * src2[i, j, k])
     else:
         # For other axes, implement accordingly
         # For now, assume axis=0 case
@@ -91,7 +92,8 @@ def test_norm_slice_async(context, dtype, params):
     beta = float(-1.0)
     src_shape = params.shape
     src_tile = params.shape_tile
-    # For norm_slice with axis=0 on 4D tensor [a,b,c,d], result has shape [b,c,d]
+    # For norm_slice with axis=0 on 4D tensor [a,b,c,d], result has shape
+    # [b,c,d]
     src_shape_dst = src_shape[1:]
     src_tile_dst = src_tile[1:]
 
