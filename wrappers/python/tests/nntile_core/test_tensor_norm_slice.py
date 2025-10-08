@@ -119,7 +119,7 @@ def test_norm_slice_async(context, dtype, params):
     # - The result shape is [b,c,d] (src1.shape[1:])
     # - m = b*c (product of dimensions before axis)
     # - n = d (product of dimensions after axis)
-    a, b, c, d = src_shape
+    b, c, d = src_shape[1:]  # Unpack dimensions after axis 0
     src_shape_dst = [b, c, d]  # Result shape is src1.shape[1:]
     src_tile_dst = [src_tile[1], src_tile[2], src_tile[3]]
 
