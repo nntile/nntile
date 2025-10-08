@@ -45,32 +45,40 @@ class NormSliceTestParams:
 
 
 single_tile = NormSliceTestParams(
-    shape=[2, 3, 4],
-    shape_tile=[2, 3, 4],
-    axis=1,
+    shape=[2, 2, 2, 2],
+    shape_tile=[2, 2, 2, 2],
+    axis=0,
 )
 
 multiple_tiles = NormSliceTestParams(
-    shape=[2, 3, 4],
-    shape_tile=[1, 1, 1],
-    axis=1,
+    shape=[2, 2, 2, 2],
+    shape_tile=[1, 1, 1, 1],
+    axis=0,
 )
 
 
 def get_ref_value(alpha, src1, beta, src2, axis):
-    # Get norm of src1 along axis (which should be axis=1 for 3D tensors
-    # [m, k, n])
-    tmp1 = src1.copy()
-    # Get norm of src1 along axis 1 (the middle axis)
-    tmp1 = np.linalg.norm(tmp1, axis=1, keepdims=True)
-    # Squeeze to remove the axis dimension
-    tmp1 = np.squeeze(tmp1, axis=1)
-    # Now shape of tmp1 must be the same as src2
-    if tmp1.shape != src2.shape:
-        raise ValueError("Shape of tmp1 and src2 must be the same")
-    # Now we can do hypot of src2 and tmp1
-    dst = np.hypot(alpha * tmp1, beta * src2)
-    return dst
+    # For norm_slice with axis=0, compute norm along axis 0
+    # The result shape is src1.shape[1:] (remove first dimension)
+    result_shape = list(src1.shape)
+    result_shape.pop(axis)
+    result = np.zeros(result_shape, dtype=src1.dtype)
+
+    # For each position in the result, compute norm along the specified axis
+    if axis == 0:
+        # For axis=0, result shape is src1.shape[1:]
+        for i in range(src1.shape[1]):
+            for j in range(src1.shape[2]):
+                for k in range(src1.shape[3]):
+                    # Compute norm of src1[:, i, j, k] along axis 0
+                    fiber_norm = np.linalg.norm(src1[:, i, j, k])
+                    result[i, j, k] = np.hypot(alpha * fiber_norm, beta * src2[i, j, k])
+    else:
+        # For other axes, implement accordingly
+        # For now, assume axis=0 case
+        raise NotImplementedError("Only axis=0 implemented in reference")
+
+    return result
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
@@ -83,10 +91,9 @@ def test_norm_slice_async(context, dtype, params):
     beta = float(-1.0)
     src_shape = params.shape
     src_tile = params.shape_tile
-    # For norm_slice, src has shape [m, k, n] and dst/result have shape [m, n]
-    # where axis is the middle axis (1)
-    src_shape_dst = [src_shape[0], src_shape[2]]
-    src_tile_dst = [src_tile[0], src_tile[2]]
+    # For norm_slice with axis=0 on 4D tensor [a,b,c,d], result has shape [b,c,d]
+    src_shape_dst = src_shape[1:]
+    src_tile_dst = src_tile[1:]
 
     rng = np.random.default_rng(0)
 
