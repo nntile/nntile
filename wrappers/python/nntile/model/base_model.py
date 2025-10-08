@@ -106,10 +106,12 @@ class BaseModel:
         enable_count = int(len(self.parameters) * portion)
         disabled_count = len(self.parameters) - enable_count
         for i in range(enable_count):
-            self.parameters[i].value.force_offload_disk_enable()
+            if self.parameters[i].value is not None:
+                self.parameters[i].value.force_offload_disk_enable()
         for i in range(disabled_count):
-            self.parameters[enable_count + i].value \
-                .force_offload_disk_disable()
+            if self.parameters[enable_count + i].value is not None:
+                self.parameters[enable_count + i].value \
+                    .force_offload_disk_disable()
 
     def force_offload_disk_gradients(self, portion: float = 0.0):
         """Choose the first `portion` of gradients force them to be OOC
@@ -130,12 +132,14 @@ class BaseModel:
         enable_count = int(len(self.activations) * portion)
         disabled_count = len(self.activations) - enable_count
         for i in range(enable_count):
-            self.activations[i].value.force_offload_disk_enable()
+            if self.activations[i].value is not None:
+                self.activations[i].value.force_offload_disk_enable()
             if self.activations[i].grad is not None:
                 self.activations[i].grad.force_offload_disk_enable()
         for i in range(disabled_count):
-            self.activations[enable_count + i].value \
-                .force_offload_disk_disable()
+            if self.activations[enable_count + i].value is not None:
+                self.activations[enable_count + i].value \
+                    .force_offload_disk_disable()
             if self.activations[enable_count + i].grad is not None:
                 self.activations[enable_count + i].grad \
                     .force_offload_disk_disable()
@@ -147,21 +151,23 @@ class BaseModel:
         disabled_count = len(self.temporaries) - enable_count
         for i in range(enable_count):
             if isinstance(self.temporaries[i], TensorMoments):
-                self.temporaries[i].value.force_offload_disk_enable()
+                if self.temporaries[i].value is not None:
+                    self.temporaries[i].value.force_offload_disk_enable()  # type: ignore[union-attr]
                 if self.temporaries[i].grad is not None:
-                    self.temporaries[i].grad.force_offload_disk_enable()
+                    self.temporaries[i].grad.force_offload_disk_enable()  # type: ignore[union-attr]
             else:
-                self.temporaries[i].force_offload_disk_enable()
+                self.temporaries[i].force_offload_disk_enable()  # type: ignore[union-attr]
         for i in range(disabled_count):
             if isinstance(self.temporaries[enable_count + i], TensorMoments):
-                self.temporaries[enable_count + i].value \
-                    .force_offload_disk_disable()
+                if self.temporaries[enable_count + i].value is not None:
+                    self.temporaries[enable_count + i].value \
+                        .force_offload_disk_disable()  # type: ignore[union-attr]
                 if self.temporaries[enable_count + i].grad is not None:
                     self.temporaries[enable_count + i].grad \
-                        .force_offload_disk_disable()
+                        .force_offload_disk_disable()  # type: ignore[union-attr]
             else:
                 self.temporaries[enable_count + i] \
-                    .force_offload_disk_disable()
+                    .force_offload_disk_disable()  # type: ignore[union-attr]
 
     def force_offload_ram_parameters(self, portion: float = 0.0):
         """Choose the first `portion` of parameters force them to be
@@ -169,10 +175,12 @@ class BaseModel:
         enable_count = int(len(self.parameters) * portion)
         disabled_count = len(self.parameters) - enable_count
         for i in range(enable_count):
-            self.parameters[i].value.force_offload_ram_enable()
+            if self.parameters[i].value is not None:
+                self.parameters[i].value.force_offload_ram_enable()  # type: ignore[union-attr]
         for i in range(disabled_count):
-            self.parameters[enable_count + i].value \
-                .force_offload_ram_disable()
+            if self.parameters[enable_count + i].value is not None:
+                self.parameters[enable_count + i].value \
+                    .force_offload_ram_disable()  # type: ignore[union-attr]
 
     def force_offload_ram_gradients(self, portion: float = 0.0):
         """Choose the first `portion` of gradients force them to be
@@ -193,15 +201,17 @@ class BaseModel:
         enable_count = int(len(self.activations) * portion)
         disabled_count = len(self.activations) - enable_count
         for i in range(enable_count):
-            self.activations[i].value.force_offload_ram_enable()
+            if self.activations[i].value is not None:
+                self.activations[i].value.force_offload_ram_enable()  # type: ignore[union-attr]
             if self.activations[i].grad is not None:
-                self.activations[i].grad.force_offload_ram_enable()
+                self.activations[i].grad.force_offload_ram_enable()  # type: ignore[union-attr]
         for i in range(disabled_count):
-            self.activations[enable_count + i].value \
-                .force_offload_ram_disable()
+            if self.activations[enable_count + i].value is not None:
+                self.activations[enable_count + i].value \
+                    .force_offload_ram_disable()  # type: ignore[union-attr]
             if self.activations[enable_count + i].grad is not None:
                 self.activations[enable_count + i].grad \
-                    .force_offload_ram_disable()
+                    .force_offload_ram_disable()  # type: ignore[union-attr]
 
     def force_offload_ram_temporaries(self, portion: float = 0.0):
         """Choose the first `portion` of temporaries force them to be
@@ -210,17 +220,19 @@ class BaseModel:
         disabled_count = len(self.temporaries) - enable_count
         for i in range(enable_count):
             if isinstance(self.temporaries[i], TensorMoments):
-                self.temporaries[i].value.force_offload_ram_enable()
+                if self.temporaries[i].value is not None:
+                    self.temporaries[i].value.force_offload_ram_enable()  # type: ignore[union-attr]
                 if self.temporaries[i].grad is not None:
-                    self.temporaries[i].grad.force_offload_ram_enable()
+                    self.temporaries[i].grad.force_offload_ram_enable()  # type: ignore[union-attr]
             else:
-                self.temporaries[i].force_offload_ram_enable()
+                self.temporaries[i].force_offload_ram_enable()  # type: ignore[union-attr]
         for i in range(disabled_count):
             if isinstance(self.temporaries[enable_count + i], TensorMoments):
-                self.temporaries[enable_count + i].value \
-                    .force_offload_ram_disable()
+                if self.temporaries[enable_count + i].value is not None:
+                    self.temporaries[enable_count + i].value \
+                        .force_offload_ram_disable()  # type: ignore[union-attr]
                 if self.temporaries[enable_count + i].grad is not None:
                     self.temporaries[enable_count + i].grad \
-                        .force_offload_ram_disable()
+                        .force_offload_ram_disable()  # type: ignore[union-attr]
             else:
-                self.temporaries[enable_count + i].force_offload_ram_disable()
+                self.temporaries[enable_count + i].force_offload_ram_disable()  # type: ignore[union-attr]

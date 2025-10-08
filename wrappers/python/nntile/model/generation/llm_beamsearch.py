@@ -11,7 +11,7 @@
 # @version 1.1.0
 
 import numpy as np
-import scipy
+import scipy  # type: ignore[import-untyped]
 
 import nntile.utils.constructors as nntc
 from nntile.layer.cache_utils import ParallelSamplingCacheStorage

@@ -46,14 +46,16 @@ class Frob:
     # Simple geenrator
     @staticmethod
     def generate_simple(x: TensorMoments):
+        if x.value is None:
+            raise ValueError("x.value cannot be None for Frob loss generation")
         ndim = len(x.value.grid.shape)
         x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
-        y = type(x.value)(x_traits, x.value.distribution)
+        y = type(x.value)(x_traits, x.value.distribution, 0)
         val_traits = TensorTraits([], [])
-        val = type(x.value)(val_traits, [0])
-        val2 = type(x.value)(val_traits, [0])
+        val = type(x.value)(val_traits, [0], 0)
+        val2 = type(x.value)(val_traits, [0], 0)
         tmp_traits = TensorTraits(x.value.grid.shape, [1] * ndim)
-        tmp = type(x.value)(tmp_traits, x.value.distribution)
+        tmp = type(x.value)(tmp_traits, x.value.distribution, 0)
         loss = Frob(x, y, val, val2, tmp)
         return loss
 

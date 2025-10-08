@@ -14,6 +14,11 @@
 import sys
 from typing import TYPE_CHECKING, Protocol, Sequence
 
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
+    from typing_extensions import TypeAlias
+
 if sys.version_info >= (3, 12):
     from collections.abc import Buffer
 else:
@@ -66,7 +71,10 @@ Tensor = Tensor_fp32 | Tensor_fp64 | Tensor_fp32_fast_tf32 | \
          Tensor_bf16 | Tensor_fp16 | Tensor_fp32_fast_bf16 | \
          Tensor_fp32_fast_fp16
 # Optional tensor argument
-TensorOrNone = Tensor | None
+if sys.version_info >= (3, 10):
+    TensorOrNone: TypeAlias = Tensor | None
+else:
+    TensorOrNone = Tensor | None
 # Union of multiprecision tensor and float
 TensorOrFloat = Tensor | float
 TensorFloatOrInt = Tensor | Tensor_int64
@@ -74,10 +82,6 @@ TensorFloatOrInt = Tensor | Tensor_int64
 
 class TensorMoments(object):
     """Tensor, its gradient, and a flag if gradient is required."""
-
-    value: TensorOrNone
-    grad: TensorOrNone
-    grad_required: bool
 
     def __init__(self, value: TensorOrNone, grad: TensorOrNone,
             grad_required: bool):

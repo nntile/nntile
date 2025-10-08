@@ -50,6 +50,9 @@ class BaseLayer(object):
     def forward_async(self):
         raise NotImplementedError
 
+    def forward_dynamic(self, x: TensorMoments) -> TensorMoments:
+        raise NotImplementedError
+
     def forward(self):
         self.forward_async()
         nntile.starpu.wait_for_all()

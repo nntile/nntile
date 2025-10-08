@@ -84,9 +84,9 @@ class DeepReLU(BaseModel):
                 [input_dim, batch_size])
         x_distr = [0] * x_traits.grid.nelems
         if dtype == "fp32":
-            x = Tensor_fp32(x_traits, x_distr)
+            x = Tensor_fp32(x_traits, x_distr, 0)
         elif dtype == "tf32":
-            x = Tensor_fp32_fast_tf32(x_traits, x_distr)
+            x = Tensor_fp32_fast_tf32(x_traits, x_distr, 0)
         x_grad = None
         x_grad_required = False
         x_moments = TensorMoments(x, x_grad, x_grad_required)

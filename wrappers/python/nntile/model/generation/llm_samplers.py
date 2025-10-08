@@ -13,7 +13,7 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
-from scipy.special import softmax
+from scipy.special import softmax  # type: ignore[import-untyped]
 
 from nntile.model.generation.llm_params import GenerationMode
 
