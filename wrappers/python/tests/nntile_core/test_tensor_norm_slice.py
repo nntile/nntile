@@ -58,7 +58,8 @@ multiple_tiles = NormSliceTestParams(
 
 
 def get_ref_value(alpha, src1, beta, src2, axis):
-    # Get norm of src1 along axis (which should be axis=1 for 3D tensors [m, k, n])
+    # Get norm of src1 along axis (which should be axis=1 for 3D tensors
+    # [m, k, n])
     tmp1 = src1.copy()
     # Get norm of src1 along axis 1 (the middle axis)
     tmp1 = np.linalg.norm(tmp1, axis=1, keepdims=True)
