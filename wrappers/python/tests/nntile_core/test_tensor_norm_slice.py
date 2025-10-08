@@ -80,16 +80,23 @@ def get_ref_value(alpha, src1, beta, src2, axis):
                 # Compute norm over k = a elements for this position
                 norm_sq = 0.0
                 for i0 in range(a):  # i0 corresponds to first dimension
-                    # Index calculation: (i2 * a + i0) * (b * c) + i1
-                    # where m = b*c, k = a, n = d
-                    src_idx = ((i2 * a + i0) * (b * c)) + i1
-                    val = src1.flat[src_idx]  # Use flat indexing
+                    # Map back to original indices for src1[a,b,c,d]
+                    orig_a = i0
+                    orig_b = i1 // c  # i1 // 2
+                    orig_c = i1 % c   # i1 % 2
+                    orig_d = i2
+
+                    val = src1[orig_a, orig_b, orig_c, orig_d]
                     norm_sq += val * val
 
                 fiber_norm = np.sqrt(norm_sq)
-                dst_idx = i2 * (b * c) + i1
-                result.flat[dst_idx] = np.hypot(
-                    alpha * fiber_norm, beta * src2.flat[dst_idx]
+
+                # Map i1 back to (b, c) indices for result[b,c,d]
+                b_idx = i1 // c
+                c_idx = i1 % c
+
+                result[b_idx, c_idx, i2] = np.hypot(
+                    alpha * fiber_norm, beta * src2[b_idx, c_idx, i2]
                 )
     else:
         # For other axes, implement accordingly
@@ -109,12 +116,12 @@ def test_norm_slice_async(context, dtype, params):
     src_shape = params.shape
     src_tile = params.shape_tile
     # For norm_slice with axis=0 on 4D tensor [a,b,c,d]:
-    # - m = a*b*c (product of dimensions before axis 0)
-    # - n = d (product of dimensions after axis 0)
-    # Result shape is [m, n] = [a*b*c, d]
+    # - The result shape is [b,c,d] (src1.shape[1:])
+    # - m = b*c (product of dimensions before axis)
+    # - n = d (product of dimensions after axis)
     a, b, c, d = src_shape
-    src_shape_dst = [a * b * c, d]
-    src_tile_dst = [src_tile[0] * src_tile[1] * src_tile[2], src_tile[3]]
+    src_shape_dst = [b, c, d]  # Result shape is src1.shape[1:]
+    src_tile_dst = [src_tile[1], src_tile[2], src_tile[3]]
 
     rng = np.random.default_rng(0)
 

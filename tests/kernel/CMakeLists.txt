@@ -96,6 +96,7 @@ set(TESTS_CATCH2
     "maxsumexp"
     "norm_fiber"
     "norm_slice_inplace"
+    "norm_slice"
     "pow"
     "prod_fiber"
     "prod_fiber3"

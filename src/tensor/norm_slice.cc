@@ -142,7 +142,7 @@ void norm_slice_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
                 else
                 {
                     starpu::norm_slice.submit<std::tuple<T>>(m, n, k, alpha,
-                            src1_tile_handle, one, src2_tile_handle, dst_tile_handle, redux);
+                            src1_tile_handle, beta, src2_tile_handle, dst_tile_handle, redux);
                 }
             }
         }
