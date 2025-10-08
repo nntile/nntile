@@ -20,11 +20,11 @@ namespace nntile::tile
 {
 
 template<typename T>
-void norm_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        const Tile<T> &result, Index axis);
+void norm_slice_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
+        const Tile<T> &dst, Index axis);
 
 template<typename T>
-void norm_slice(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        const Tile<T> &result, Index axis);
+void norm_slice(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
+        const Tile<T> &dst, Index axis);
 
 } // namespace nntile::tile

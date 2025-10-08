@@ -43,12 +43,12 @@ void NormSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src = interfaces[0]->get_ptr<T>();
-    const T *dst = interfaces[1]->get_ptr<T>();
-    T *result = interfaces[2]->get_ptr<T>();
+    const T *src1 = interfaces[0]->get_ptr<T>();
+    const T *src2 = interfaces[1]->get_ptr<T>();
+    T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::norm_slice::cpu<T>(args->m, args->n, args->k, args->alpha, src,
-            args->beta, dst, result);
+    kernel::norm_slice::cpu<T>(args->m, args->n, args->k, args->alpha, src1,
+            args->beta, src2, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -88,14 +88,14 @@ void NormSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src = interfaces[0]->get_ptr<T>();
-    const T *dst = interfaces[1]->get_ptr<T>();
-    T *result = interfaces[2]->get_ptr<T>();
+    const T *src1 = interfaces[0]->get_ptr<T>();
+    const T *src2 = interfaces[1]->get_ptr<T>();
+    T *dst = interfaces[2]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::norm_slice::cuda<T>(stream, args->m, args->n, args->k,
-            args->alpha, src, args->beta, dst, result);
+            args->alpha, src1, args->beta, src2, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -140,8 +140,8 @@ uint32_t NormSlice<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void NormSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
-        Handle dst, Handle result, int redux)
+void NormSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Scalar beta,
+        Handle src2, Handle dst, int redux)
 //! Insert norm_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -162,9 +162,9 @@ void NormSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, H
         src_nbytes + 2*dst_nbytes;
     // Submit task
     int ret = starpu_task_insert(&codelet,
-            STARPU_R, src.get(),
-            STARPU_R, dst.get(),
-            STARPU_W, result.get(),
+            STARPU_R, src1.get(),
+            STARPU_R, src2.get(),
+            STARPU_W, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);

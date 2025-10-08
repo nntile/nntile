@@ -21,8 +21,8 @@ namespace nntile::kernel::norm_slice
 
 // Euclidean norms over fibers along middle axis into a slice of a tensor
 template<typename T>
-void cpu(Index m, Index n, Index k, Scalar alpha, const T *src, Scalar beta,
-        const T *dst, T *result)
+void cpu(Index m, Index n, Index k, Scalar alpha, const T *src1, Scalar beta,
+        const T *src2, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::norm_slice

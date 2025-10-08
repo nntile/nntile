@@ -84,10 +84,10 @@ public:
         Index n,
         Index k,
         Scalar alpha,
-        Handle src,
+        Handle src1,
         Scalar beta,
+        Handle src2,
         Handle dst,
-        Handle result,
         int redux=0
     );
 };

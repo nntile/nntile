@@ -20,11 +20,11 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void norm_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
-        const Tensor<T> &dst, const Tensor<T> &result, Index axis, int redux=0);
+void norm_slice_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
+        const Tensor<T> &src2, const Tensor<T> &dst, Index axis, int redux=0);
 
 template<typename T>
-void norm_slice(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
-        const Tensor<T> &result, Index axis, int redux=0);
+void norm_slice(Scalar alpha, const Tensor<T> &src1, Scalar beta, const Tensor<T> &src2,
+        const Tensor<T> &dst, Index axis, int redux=0);
 
 } // namespace nntile::tensor

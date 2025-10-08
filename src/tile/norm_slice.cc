@@ -19,19 +19,19 @@ namespace nntile::tile
 {
 
 template<typename T>
-void norm_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        const Tile<T> &result, Index axis)
+void norm_slice_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
+        const Tile<T> &dst, Index axis)
 {
     // Check dimensions
-    if(src.ndim-1 != dst.ndim)
+    if(src1.ndim-1 != src2.ndim)
     {
-        throw std::runtime_error("src.ndim-1 != dst.ndim");
+        throw std::runtime_error("src1.ndim-1 != src2.ndim");
     }
-    if(dst.ndim != result.ndim)
+    if(src2.ndim != dst.ndim)
     {
-        throw std::runtime_error("dst.ndim != result.ndim");
+        throw std::runtime_error("src2.ndim != dst.ndim");
     }
-    Index ndim = src.ndim;
+    Index ndim = src1.ndim;
     // Treat special case of ndim=0
     if(ndim == 0)
     {
@@ -46,102 +46,102 @@ void norm_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<
     {
         throw std::runtime_error("axis >= ndim");
     }
-    // Check shapes of src, dst and result
+    // Check shapes of src1, src2 and dst
     for(Index i = 0; i < axis; i++)
     {
-        if(src.shape[i] != dst.shape[i])
+        if(src1.shape[i] != src2.shape[i])
         {
-            throw std::runtime_error("src.shape[i] != dst.shape[i]");
+            throw std::runtime_error("src1.shape[i] != src2.shape[i]");
         }
-        if(src.shape[i] != result.shape[i])
+        if(src1.shape[i] != dst.shape[i])
         {
-            throw std::runtime_error("src.shape[i] != result.shape[i]");
+            throw std::runtime_error("src1.shape[i] != dst.shape[i]");
         }
     }
     for(Index i = axis+1; i < ndim; i++)
     {
-        if(src.shape[i] != dst.shape[i-1])
+        if(src1.shape[i] != src2.shape[i-1])
         {
-            throw std::runtime_error("src.shape[i] != dst.shape[i-1]");
+            throw std::runtime_error("src1.shape[i] != src2.shape[i-1]");
         }
-        if(src.shape[i] != result.shape[i-1])
+        if(src1.shape[i] != dst.shape[i-1])
         {
-            throw std::runtime_error("src.shape[i] != result.shape[i-1]");
+            throw std::runtime_error("src1.shape[i] != dst.shape[i-1]");
         }
     }
     // Get sizes
     Index m, n, k;
-    m = src.stride[axis];
-    n = src.matrix_shape[axis+1][1];
-    k = src.shape[axis];
+    m = src1.stride[axis];
+    n = src1.matrix_shape[axis+1][1];
+    k = src1.shape[axis];
     // Insert task
-    starpu::norm_slice.submit<std::tuple<T>>(m, n, k, alpha, src, beta, dst, result);
+    starpu::norm_slice.submit<std::tuple<T>>(m, n, k, alpha, src1, beta, src2, dst);
 }
 
 template<typename T>
-void norm_slice(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        const Tile<T> &result, Index axis)
+void norm_slice(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
+        const Tile<T> &dst, Index axis)
 {
-    norm_slice_async<T>(alpha, src, beta, dst, result, axis);
+    norm_slice_async<T>(alpha, src1, beta, src2, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void norm_slice_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
-        const Tile<fp32_t> &dst, const Tile<fp32_t> &result, Index axis);
+void norm_slice_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1, Scalar beta,
+        const Tile<fp32_t> &src2, const Tile<fp32_t> &dst, Index axis);
 
 template
-void norm_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
-        const Tile<fp32_fast_tf32_t> &dst, const Tile<fp32_fast_tf32_t> &result, Index axis);
+void norm_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1, Scalar beta,
+        const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void norm_slice_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
-        const Tile<fp32_fast_fp16_t> &dst, const Tile<fp32_fast_fp16_t> &result, Index axis);
+void norm_slice_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src1, Scalar beta,
+        const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void norm_slice_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
-        const Tile<fp32_fast_bf16_t> &dst, const Tile<fp32_fast_bf16_t> &result, Index axis);
+void norm_slice_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src1, Scalar beta,
+        const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void norm_slice_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
-        const Tile<fp64_t> &dst, const Tile<fp64_t> &result, Index axis);
+void norm_slice_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1, Scalar beta,
+        const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis);
 
 template
-void norm_slice_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
-        const Tile<bf16_t> &dst, const Tile<bf16_t> &result, Index axis);
+void norm_slice_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1, Scalar beta,
+        const Tile<bf16_t> &src2, const Tile<bf16_t> &dst, Index axis);
 
 template
-void norm_slice_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
-        const Tile<fp16_t> &dst, const Tile<fp16_t> &result, Index axis);
+void norm_slice_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src1, Scalar beta,
+        const Tile<fp16_t> &src2, const Tile<fp16_t> &dst, Index axis);
 
 // Explicit instantiation
 template
-void norm_slice<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
-        const Tile<fp32_t> &dst, const Tile<fp32_t> &result, Index axis);
+void norm_slice<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1, Scalar beta,
+        const Tile<fp32_t> &src2, const Tile<fp32_t> &dst, Index axis);
 
 template
-void norm_slice<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
-        const Tile<fp32_fast_tf32_t> &dst, const Tile<fp32_fast_tf32_t> &result, Index axis);
+void norm_slice<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1, Scalar beta,
+        const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void norm_slice<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
-        const Tile<fp32_fast_fp16_t> &dst, const Tile<fp32_fast_fp16_t> &result, Index axis);
+void norm_slice<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src1, Scalar beta,
+        const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void norm_slice<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
-        const Tile<fp32_fast_bf16_t> &dst, const Tile<fp32_fast_bf16_t> &result, Index axis);
+void norm_slice<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src1, Scalar beta,
+        const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void norm_slice<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
-        const Tile<fp64_t> &dst, const Tile<fp64_t> &result, Index axis);
+void norm_slice<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1, Scalar beta,
+        const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis);
 
 template
-void norm_slice<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
-        const Tile<bf16_t> &dst, const Tile<bf16_t> &result, Index axis);
+void norm_slice<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1, Scalar beta,
+        const Tile<bf16_t> &src2, const Tile<bf16_t> &dst, Index axis);
 
 template
-void norm_slice<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
-        const Tile<fp16_t> &dst, const Tile<fp16_t> &result, Index axis);
+void norm_slice<fp16_t>(Scalar alpha, const Tile<fp16_t> &src1, Scalar beta,
+        const Tile<fp16_t> &src2, const Tile<fp16_t> &dst, Index axis);
 
 } // namespace nntile::tile

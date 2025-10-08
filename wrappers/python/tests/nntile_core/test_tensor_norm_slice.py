@@ -106,10 +106,13 @@ def test_norm_slice_async(context, dtype, params):
     beta = float(-1.0)
     src_shape = params.shape
     src_tile = params.shape_tile
-    # For norm_slice with axis=0 on 4D tensor [a,b,c,d], result has shape
-    # [b,c,d] where m = b*c, n = d
-    src_shape_dst = src_shape[1:]
-    src_tile_dst = src_tile[1:]
+    # For norm_slice with axis=0 on 4D tensor [a,b,c,d]:
+    # - m = a*b*c (product of dimensions before axis 0)
+    # - n = d (product of dimensions after axis 0)
+    # Result shape is [m, n] = [a*b*c, d]
+    a, b, c, d = src_shape
+    src_shape_dst = [a * b * c, d]
+    src_tile_dst = [src_tile[0] * src_tile[1] * src_tile[2], src_tile[3]]
 
     rng = np.random.default_rng(0)
 
