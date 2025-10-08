@@ -516,6 +516,69 @@ def norm_slice_inplace_async(
         raise TypeError
 
 
+def norm_slice_async(
+    alpha: float,
+    x: Tensor,
+    beta: float,
+    y: Tensor,
+    z: Tensor,
+    axis: int,
+    redux: int = 0,
+) -> None:
+    """
+    Wrapper for multiprecision norm_slice (out-of-place version)
+    """
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is not type(z):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.norm_slice_async_fp32(
+            alpha, x, beta, y, z, axis, redux
+        )
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.norm_slice_async_fp32_fast_tf32(
+            alpha, x, beta, y, z, axis, redux
+        )
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.norm_slice_async_fp32_fast_fp16(
+            alpha, x, beta, y, z, axis, redux
+        )
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.norm_slice_async_fp32_fast_bf16(
+            alpha, x, beta, y, z, axis, redux
+        )
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.norm_slice_async_fp64(
+            alpha, x, beta, y, z, axis, redux
+        )
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.norm_slice_async_bf16(
+            alpha, x, beta, y, z, axis, redux
+        )
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.norm_slice_async_fp16(
+            alpha, x, beta, y, z, axis, redux
+        )
+    else:
+        raise TypeError
+
+
+def norm_slice(
+    alpha: float,
+    x: Tensor,
+    beta: float,
+    y: Tensor,
+    z: Tensor,
+    axis: int,
+    redux: int = 0,
+) -> None:
+    """
+    Wrapper for multiprecision norm_slice (out-of-place version, synchronous)
+    """
+    norm_slice_async(alpha, x, beta, y, z, axis, redux)
+
+
 def pow_async(alpha: float, exp: float, x: Tensor) -> None:
     """
     Wrapper for multiprecision pow
