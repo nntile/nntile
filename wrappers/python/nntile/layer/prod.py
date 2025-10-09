@@ -27,11 +27,15 @@ class Prod(BaseLayer):
     @staticmethod
     def generate_simple(x: TensorMoments, y: TensorMoments):
         if y.value is None:
-            raise ValueError("y.value cannot be None for Prod layer generation")
+            raise ValueError(
+                "y.value cannot be None for Prod layer generation"
+            )
         res_traits = TensorTraits(y.value.shape, y.value.basetile_shape)
         res_distr = [0] * res_traits.grid.nelems
-        res_value = type(y.value)(res_traits, res_distr, 0)  # type: ignore[call-arg]
-        res_grad = type(y.value)(res_traits, res_distr, 0)  # type: ignore[call-arg]
+        # type: ignore[call-arg]
+        res_value = type(y.value)(res_traits, res_distr, 0)
+        # type: ignore[call-arg]
+        res_grad = type(y.value)(res_traits, res_distr, 0)
         res = TensorMoments(res_value, res_grad, True)
         return Prod(x, y, res)
 

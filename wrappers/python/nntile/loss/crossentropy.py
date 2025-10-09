@@ -60,11 +60,16 @@ class CrossEntropy:
         ignore_index: int = -100
     ) -> tuple:
         if model_output.value is None:
-            raise ValueError("model_output.value cannot be None for CrossEntropy loss generation")
+            raise ValueError(
+                "model_output.value cannot be None for CrossEntropy "
+                "loss generation"
+            )
         shape = model_output.value.shape[1:]
         basetile = model_output.value.basetile_shape[1:]
         labels_traits = TensorTraits(shape, basetile)
-        labels = Tensor_int64(labels_traits, model_output.value.distribution, 0)
+        labels = Tensor_int64(
+            labels_traits, model_output.value.distribution, 0
+        )
         maxsumexp_traits = TensorTraits([2] + shape, [2] + basetile)
         maxsumexp = type(model_output.value)(
             maxsumexp_traits, model_output.value.distribution, 0

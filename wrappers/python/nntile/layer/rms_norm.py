@@ -70,7 +70,9 @@ class RMSNorm(BaseLayer):
         redux: bool = False
     ):
         if x.value is None:
-            raise ValueError("x.value cannot be None for RMSNorm layer generation")
+            raise ValueError(
+                "x.value cannot be None for RMSNorm layer generation"
+            )
         # Get traits of X
         x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
@@ -87,13 +89,17 @@ class RMSNorm(BaseLayer):
         gamma_distr = []
         for i in range(x.value.grid.shape[axis]):
             gamma_distr.append(x_distr[x.value.grid.stride[axis] * i])
-        gamma_value = type(x.value)(gamma_traits, gamma_distr, 0)  # type: ignore[call-arg]
-        gamma_grad = type(x.value)(gamma_traits, gamma_distr, 0)  # type: ignore[call-arg]
+        # type: ignore[call-arg]
+        gamma_value = type(x.value)(gamma_traits, gamma_distr, 0)
+        # type: ignore[call-arg]
+        gamma_grad = type(x.value)(gamma_traits, gamma_distr, 0)
         gamma = TensorMoments(gamma_value, gamma_grad, True)
         # Temporary tensor for normalized input
-        tmp_y_value = type(x.value)(x_traits, x_distr, 0)  # type: ignore[call-arg]
+        # type: ignore[call-arg]
+        tmp_y_value = type(x.value)(x_traits, x_distr, 0)
         # Temporary tensor for gradient of normalized input
-        tmp_y_grad = type(x.value)(x_traits, x_distr, 0)  # type: ignore[call-arg]
+        # type: ignore[call-arg]
+        tmp_y_grad = type(x.value)(x_traits, x_distr, 0)
         inv_stddev_shape = x.value.shape[:axis] + x.value.shape[axis + 1:]
         inv_stddev_basetile = x.value.basetile_shape[:axis] \
                 + x.value.basetile_shape[axis + 1:]
@@ -107,8 +113,10 @@ class RMSNorm(BaseLayer):
                     + inv_stddev_tile_index[axis:]
             x_tile_offset = x.value.grid.index_to_linear(x_tile_index)
             inv_stddev_distr.append(x_distr[x_tile_offset])
-        inv_stddev = type(x.value)(inv_stddev_traits, inv_stddev_distr, 0)  # type: ignore[call-arg]
-        mean = type(x.value)(inv_stddev_traits, inv_stddev_distr, 0)  # type: ignore[call-arg]
+        # type: ignore[call-arg]
+        inv_stddev = type(x.value)(inv_stddev_traits, inv_stddev_distr, 0)
+        # type: ignore[call-arg]
+        mean = type(x.value)(inv_stddev_traits, inv_stddev_distr, 0)
 
         # Create RMSNorm object with all the provided tensors
         layer = RMSNorm(x, y, gamma, tmp_y_value, tmp_y_grad, mean,
@@ -142,7 +150,9 @@ class RMSNorm(BaseLayer):
     # Dynamic forward propagation of the normalization layer
     def forward_dynamic(self, x: TensorMoments):
         if x.value is None:
-            raise ValueError("x.value cannot be None for RMSNorm forward_dynamic")
+            raise ValueError(
+                "x.value cannot be None for RMSNorm forward_dynamic"
+            )
         inv_stddev = nntc.empty(
             x.value.shape[: self.axis] + x.value.shape[self.axis + 1 :],
             basetile_shape=x.value.basetile_shape[: self.axis]
