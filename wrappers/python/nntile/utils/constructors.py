@@ -12,7 +12,7 @@
 # @version 1.1.0
 
 import asyncio
-from typing import Sequence
+from typing import Any, Sequence
 
 import numpy as np
 
@@ -47,7 +47,7 @@ np2nnt_type_mapping = {
 def empty(
     shape: Sequence[int],
     basetile_shape: Sequence[int] | None = None,
-    dtype: Tensor = Tensor_fp32,
+    dtype: Any = Tensor_fp32,
     mpi_distr: Sequence[int] | None = None,
 ):
     A_traits = TensorTraits(shape, basetile_shape or shape)
@@ -106,7 +106,7 @@ async def to_numpy_async(tensor):
 def zeros(
     shape: Sequence[int],
     basetile_shape: Sequence[int] | None = None,
-    dtype: Tensor = Tensor_fp32,
+    dtype: Any = Tensor_fp32,
     mpi_distr: Sequence[int] | None = None,
 ):
     A_nntile = empty(shape, basetile_shape, dtype, mpi_distr)
@@ -121,7 +121,7 @@ def zeros_like(A: Tensor):
 def full(
     shape: Sequence[int],
     basetile_shape: Sequence[int] | None = None,
-    dtype: Tensor = Tensor_fp32,
+    dtype: Any = Tensor_fp32,
     fill_value: float = 0.0,
     mpi_distr: Sequence[int] | None = None,
 ):
@@ -137,7 +137,7 @@ def full_like(A: Tensor, fill_value: float = 0.0):
 def ones(
     shape: Sequence[int],
     basetile_shape: Sequence[int] | None = None,
-    dtype: Tensor = Tensor_fp32,
+    dtype: Any = Tensor_fp32,
     mpi_distr: Sequence[int] | None = None,
 ):
     return full(shape, basetile_shape, dtype, 1, mpi_distr)
