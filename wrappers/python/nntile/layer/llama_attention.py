@@ -672,8 +672,7 @@ class LlamaAttention(BaseLayer):
             )
             layer_mask = Tensor_bool(
                     layer_mask_traits,
-                    [0] * layer_mask_traits.grid.nelems,
-                    0
+                    [0] * layer_mask_traits.grid.nelems
             )
             layer_mask.from_array(mask)
         else:

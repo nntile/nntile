@@ -68,16 +68,16 @@ class CrossEntropy:
         basetile = model_output.value.basetile_shape[1:]
         labels_traits = TensorTraits(shape, basetile)
         labels = Tensor_int64(
-            labels_traits, model_output.value.distribution, 0
+            labels_traits, model_output.value.distribution
         )
         maxsumexp_traits = TensorTraits([2] + shape, [2] + basetile)
         maxsumexp = type(model_output.value)(
-            maxsumexp_traits, model_output.value.distribution, 0
+            maxsumexp_traits, model_output.value.distribution
         )
         val_traits = TensorTraits([], [])
-        val = Tensor_fp32(val_traits, [0], 0)
+        val = Tensor_fp32(val_traits, [0])
         logsumexp = type(model_output.value)(
-            labels_traits, model_output.value.distribution, 0
+            labels_traits, model_output.value.distribution
         )
         loss = CrossEntropy(
             model_output,
