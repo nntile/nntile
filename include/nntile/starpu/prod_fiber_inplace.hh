@@ -27,20 +27,20 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for prod_fiber operation is not defined
+//! Generic wrapper class for prod_fiber_inplace operation is not defined
 template<typename T>
-class ProdFiber;
+class ProdFiberInplace;
 
-//! Specialization of wrapper class for prod_fiber operation via std::tuple
+//! Specialization of wrapper class for prod_fiber_inplace operation via std::tuple
 template<typename T>
-class ProdFiber<std::tuple<T>>
+class ProdFiberInplace<std::tuple<T>>
 {
 public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
     //! Constructor
-    ProdFiber();
+    ProdFiberInplace();
 
     //! Structure for operation arguments
     struct args_t
@@ -77,7 +77,7 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit prod_fiber task
+    //! Submit prod_fiber_inplace task
     void submit(
         Index m,
         Index n,
@@ -88,9 +88,9 @@ public:
     );
 };
 
-//! Pack of prod_fiber operations for different types
-using prod_fiber_pack_t = OperationPack<
-    ProdFiber,
+//! Pack of prod_fiber_inplace operations for different types
+using prod_fiber_inplace_pack_t = OperationPack<
+    ProdFiberInplace,
     std::tuple<nntile::fp64_t>,
     std::tuple<nntile::fp32_t>,
     std::tuple<nntile::fp32_fast_tf32_t>,
@@ -99,7 +99,7 @@ using prod_fiber_pack_t = OperationPack<
     std::tuple<nntile::bf16_t>
 >;
 
-//! Pack of prod_fiber operations for different types
-extern prod_fiber_pack_t prod_fiber;
+//! Pack of prod_fiber_inplace operations for different types
+extern prod_fiber_inplace_pack_t prod_fiber_inplace;
 
 } // namespace nntile::starpu

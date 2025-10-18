@@ -98,7 +98,7 @@ set(TESTS_CATCH2
     "norm_slice_inplace"
     "norm_slice"
     "pow"
-    "prod_fiber"
+    "prod_fiber_inplace"
     "prod_fiber3"
     "prod_inplace"
     "prod_slice"
