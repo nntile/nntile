@@ -21,7 +21,7 @@
 #endif // NNTILE_USE_CUDA
 
 //! @namespace nntile::kernel::prod_fiber
-/*! Low-level implementations of prod_fiber operation
+/*! Low-level implementations of prod_fiber_inplace operation
  * */
 namespace nntile::kernel::prod_fiber
 {

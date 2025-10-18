@@ -59,9 +59,9 @@ struct TestData
     std::vector<T> dst_ref;
 };
 
-// Reference implementation of the prod_fiber operation
+// Reference implementation of the prod_fiber_inplace operation
 template<typename T>
-void reference_prod_fiber(TestData<T>& data)
+void reference_prod_fiber_inplace(TestData<T>& data)
 {
     using Y = typename T::repr_t;
     if (data.m == 0 || data.n == 0 || data.k == 0)
@@ -182,7 +182,7 @@ TestData<T> get_test_data(
     generate_data(data, strategy);
 
     // Compute reference outputs
-    reference_prod_fiber(data);
+    reference_prod_fiber_inplace(data);
     return data;
 }
 
@@ -224,7 +224,7 @@ void run_cpu_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][prod_fiber][cpu][m=" +
+            "[kernel][prod_fiber_inplace][cpu][m=" +
             std::to_string(data.m) +
             "][n=" + std::to_string(data.n) +
             "][k=" + std::to_string(data.k) +
@@ -305,7 +305,7 @@ void run_cuda_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][prod_fiber][cuda][m=" +
+            "[kernel][prod_fiber_inplace][cuda][m=" +
             std::to_string(data.m) +
             "][n=" + std::to_string(data.n) +
             "][k=" + std::to_string(data.k) +
@@ -368,7 +368,7 @@ void run_cuda_test(TestData<T>& data)
 // Catch2-based tests
 TEMPLATE_TEST_CASE(
     "Prod Fiber Kernel Verification",
-    "[prod_fiber]",
+    "[prod_fiber_inplace]",
     fp64_t,
     fp32_t,
     fp16_t,
@@ -406,7 +406,7 @@ TEMPLATE_TEST_CASE(
 // Catch2-based benchmarks
 TEMPLATE_TEST_CASE(
     "Prod Fiber Kernel Benchmark",
-    "[prod_fiber][!benchmark]",
+    "[prod_fiber_inplace][!benchmark]",
     fp64_t,
     fp32_t,
     fp16_t,
