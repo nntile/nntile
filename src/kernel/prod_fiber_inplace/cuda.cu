@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/prod_fiber/cuda.hh"
+#include "nntile/kernel/prod_fiber_inplace/cuda.hh"
 #include <algorithm>
 #include "nntile/kernel/cuda.hh"
 

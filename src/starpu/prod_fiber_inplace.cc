@@ -13,14 +13,14 @@
  * */
 
 // Corresponding header
-#include "nntile/starpu/prod_fiber.hh"
+#include "nntile/starpu/prod_fiber_inplace.hh"
 
 // Standard libraries
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
-#include "nntile/kernel/prod_fiber.hh"
+#include "nntile/kernel/prod_fiber_inplace.hh"
 
 namespace nntile::starpu
 {

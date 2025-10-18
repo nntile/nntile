@@ -13,7 +13,7 @@
  * */
 
 // Corresponding header
-#include "nntile/kernel/prod_fiber.hh"
+#include "nntile/kernel/prod_fiber_inplace.hh"
 
 // Standard libraries
 #include <vector>

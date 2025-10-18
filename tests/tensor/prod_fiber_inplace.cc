@@ -12,9 +12,9 @@
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/prod_fiber.hh"
-#include "nntile/tile/prod_fiber.hh"
-#include "nntile/starpu/prod_fiber.hh"
+#include "nntile/tensor/prod_fiber_inplace.hh"
+#include "nntile/tile/prod_fiber_inplace.hh"
+#include "nntile/starpu/prod_fiber_inplace.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"

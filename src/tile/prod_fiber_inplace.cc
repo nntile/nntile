@@ -12,8 +12,8 @@
  * @version 1.1.0
  * */
 
-#include "nntile/tile/prod_fiber.hh"
-#include "nntile/starpu/prod_fiber.hh"
+#include "nntile/tile/prod_fiber_inplace.hh"
+#include "nntile/starpu/prod_fiber_inplace.hh"
 
 namespace nntile::tile
 {

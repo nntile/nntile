@@ -12,8 +12,8 @@
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/prod_fiber.hh"
-#include "nntile/starpu/prod_fiber.hh"
+#include "nntile/tensor/prod_fiber_inplace.hh"
+#include "nntile/starpu/prod_fiber_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
