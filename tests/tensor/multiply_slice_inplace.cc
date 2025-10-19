@@ -206,8 +206,13 @@ template<typename T>
 void test_multiply_slice_inplace_errors()
 {
     using Y = typename T::repr_t;
-    // Create tensors with wrong shapes
-    Tensor<T> A({2, 3}), B({2, 4, 3}), C({2, 3}), D({2, 4, 5}), E({2, 4, 3}), F({2, 3}), G({2, 4, 3});
+    // Create tensor traits with wrong shapes for error testing
+    std::vector<Index> sh23 = {2, 3}, sh243 = {2, 4, 3}, sh245 = {2, 4, 5};
+    TensorTraits trA(sh23, sh23), trB(sh243, sh243), trC(sh23, sh23),
+                 trD(sh245, sh245), trE(sh243, sh243), trF(sh23, sh23), trG(sh243, sh243);
+    std::vector<int> dist0 = {0};
+    Tensor<T> A(trA, dist0), B(trB, dist0), C(trC, dist0),
+              D(trD, dist0), E(trE, dist0), F(trF, dist0), G(trG, dist0);
     // Test various error conditions
     TEST_THROW(multiply_slice_inplace<T>(1.0, A, 1.0, B, 0));
     TEST_THROW(multiply_slice_inplace<T>(1.0, F, 1.0, F, 0));
