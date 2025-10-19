@@ -947,11 +947,14 @@ def prod_slice_async(
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.multiply_slice_async_fp32(multiply_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.multiply_slice_async_fp32_fast_tf32(multiply_slice, alpha, x, axis)
+        core_tensor.multiply_slice_async_fp32_fast_tf32(
+            multiply_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
-        core_tensor.multiply_slice_async_fp32_fast_fp16(multiply_slice, alpha, x, axis)
+        core_tensor.multiply_slice_async_fp32_fast_fp16(
+            multiply_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
-        core_tensor.multiply_slice_async_fp32_fast_bf16(multiply_slice, alpha, x, axis)
+        core_tensor.multiply_slice_async_fp32_fast_bf16(
+            multiply_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.multiply_slice_async_fp64(multiply_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_bf16:
