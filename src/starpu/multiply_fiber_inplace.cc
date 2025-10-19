@@ -46,7 +46,7 @@ void MultiplyFiberInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::prod_fiber::cpu<T>(args->m, args->n, args->k, args->alpha, src,
+    kernel::multiply_fiber_inplace::cpu<T>(args->m, args->n, args->k, args->alpha, src,
             dst);
 #endif // STARPU_SIMGRID
 }
@@ -77,7 +77,7 @@ void MultiplyFiberInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], vo
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::prod_fiber::cuda<T>
+//! StarPU wrapper for kernel::multiply_fiber_inplace::cuda<T>
 template<typename T>
 void MultiplyFiberInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -92,7 +92,7 @@ void MultiplyFiberInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::prod_fiber::cuda<T>(stream, args->m, args->n, args->k, args->alpha,
+    kernel::multiply_fiber_inplace::cuda<T>(stream, args->m, args->n, args->k, args->alpha,
             src, dst);
 #endif // STARPU_SIMGRID
 }
