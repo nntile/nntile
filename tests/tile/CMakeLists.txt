@@ -36,7 +36,7 @@ set(TESTS
     "norm_fiber_inplace"
     "norm_slice_inplace"
     "pow"
-    "prod_inplace"
+    "multiply_inplace"
     "prod_fiber"
     "prod_fiber3"
     "prod_slice"

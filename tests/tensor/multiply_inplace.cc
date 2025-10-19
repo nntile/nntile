@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/prod_inplace.cc
+ * @file tests/tensor/multiply_inplace.cc
  * Prod operation for Tensor<T>
  *
  * @version 1.1.0
@@ -67,14 +67,14 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         dst(traits, dst_distr);
     scatter(src_single, src);
     scatter(dst_single, dst);
-    // Get prod_inplace
+    // Get multiply_inplace
     if(mpi_rank == mpi_root)
     {
         auto src_tile = src_single.get_tile(0);
         auto dst_tile = dst_single.get_tile(0);
-        tile::prod_inplace<T>(src_tile, dst_tile);
+        tile::multiply_inplace<T>(src_tile, dst_tile);
     }
-    prod_inplace<T>(src, dst);
+    multiply_inplace<T>(src, dst);
     // Compare results
     Tensor<T> dst2_single(single_traits, dist_root);
     gather<T>(dst, dst2_single);

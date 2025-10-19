@@ -56,7 +56,7 @@ set(TESTS
     "prod"
     "prod_fiber"
     "prod_fiber3"
-    "prod_inplace"
+    "multiply_inplace"
     "prod_slice"
     "randn"
     "relu"
