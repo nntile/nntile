@@ -56,7 +56,6 @@ set(TESTS_MPI
     "pow"
     "multiply"
     "prod_fiber"
-    "prod_fiber3"
     "prod_inplace"
     "prod_slice"
     "randn"
@@ -106,6 +105,7 @@ set(TESTS_NOT_IMPLEMENTED
     "norm_fiber"
     "norm_fiber_inplace"
     "pow"
+<<<<<<< HEAD
     "multiply"
     "prod_fiber3"
     "relu_backward"

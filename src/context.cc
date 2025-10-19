@@ -327,7 +327,7 @@ void Context::restrict_cpu()
     pow.restrict_where(STARPU_CPU);
     prod.restrict_where(STARPU_CPU);
     prod_fiber.restrict_where(STARPU_CPU);
-    prod_fiber3.restrict_where(STARPU_CPU);
+    multiply_fiber.restrict_where(STARPU_CPU);
     prod_inplace.restrict_where(STARPU_CPU);
     prod_slice.restrict_where(STARPU_CPU);
     randn.restrict_where(STARPU_CPU);
@@ -394,7 +394,7 @@ void Context::restrict_cuda()
     pow.restrict_where(STARPU_CUDA);
     prod.restrict_where(STARPU_CUDA);
     prod_fiber.restrict_where(STARPU_CUDA);
-    prod_fiber3.restrict_where(STARPU_CUDA);
+    multiply_fiber.restrict_where(STARPU_CUDA);
     prod_inplace.restrict_where(STARPU_CUDA);
     prod_slice.restrict_where(STARPU_CUDA);
     randn.restrict_where(STARPU_CUDA);
@@ -461,7 +461,7 @@ void Context::restore_where()
     pow.restore_where();
     prod.restore_where();
     prod_fiber.restore_where();
-    prod_fiber3.restore_where();
+    multiply_fiber.restore_where();
     prod_inplace.restore_where();
     prod_slice.restore_where();
     randn.restore_where();
