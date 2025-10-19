@@ -88,7 +88,16 @@ void test_multiply_slice_inplace()
     tile::multiply_slice_inplace<T>(alpha, tile_src, beta, tile_dst, axis);
     // Check result
     std::vector<Y> result_dst(dst.nelems);
-    dst.acquire(std::end(result_dst));
+    if(mpi_rank == mpi_root)
+    {
+        auto tile_dst = dst.get_tile(0);
+        auto tile_local = tile_dst.acquire(STARPU_R);
+        for(Index i = 0; i < dst.nelems; ++i)
+        {
+            result_dst[i] = Y(tile_local[i]);
+        }
+        tile_local.release();
+    }
     // Check if result is correct
     for(Index i0 = 0; i0 < shape_dst[0]; ++i0)
     {
@@ -168,7 +177,16 @@ void test_multiply_slice_inplace_async()
     starpu_task_wait_for_all();
     // Check result
     std::vector<Y> result_dst(dst.nelems);
-    dst.acquire(std::end(result_dst));
+    if(mpi_rank == mpi_root)
+    {
+        auto tile_dst = dst.get_tile(0);
+        auto tile_local = tile_dst.acquire(STARPU_R);
+        for(Index i = 0; i < dst.nelems; ++i)
+        {
+            result_dst[i] = Y(tile_local[i]);
+        }
+        tile_local.release();
+    }
     // Check if result is correct
     for(Index i0 = 0; i0 < shape_dst[0]; ++i0)
     {
