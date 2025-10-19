@@ -55,6 +55,9 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_,
 // Explicit instantiation for all supported types
 template void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src, Scalar beta, fp32_t *dst);
 template void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src, Scalar beta, fp64_t *dst);
+template void cpu<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_fast_tf32_t *src, Scalar beta, fp32_fast_tf32_t *dst);
+template void cpu<fp32_fast_fp16_t>(Index m, Index n, Index k, Scalar alpha, const fp32_fast_fp16_t *src, Scalar beta, fp32_fast_fp16_t *dst);
+template void cpu<fp32_fast_bf16_t>(Index m, Index n, Index k, Scalar alpha, const fp32_fast_bf16_t *src, Scalar beta, fp32_fast_bf16_t *dst);
 template void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src, Scalar beta, bf16_t *dst);
 template void cpu<fp16_t>(Index m, Index n, Index k, Scalar alpha, const fp16_t *src, Scalar beta, fp16_t *dst);
 

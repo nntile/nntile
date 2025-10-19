@@ -62,6 +62,9 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha_,
 // Explicit instantiation for all supported types
 template void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp32_t *src, Scalar beta, fp32_t *dst);
 template void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp64_t *src, Scalar beta, fp64_t *dst);
+template void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp32_fast_tf32_t *src, Scalar beta, fp32_fast_tf32_t *dst);
+template void cuda<fp32_fast_fp16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp32_fast_fp16_t *src, Scalar beta, fp32_fast_fp16_t *dst);
+template void cuda<fp32_fast_bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp32_fast_bf16_t *src, Scalar beta, fp32_fast_bf16_t *dst);
 template void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const bf16_t *src, Scalar beta, bf16_t *dst);
 template void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp16_t *src, Scalar beta, fp16_t *dst);
 
