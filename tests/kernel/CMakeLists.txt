@@ -39,6 +39,7 @@ set(TESTS_NOT_IMPLEMENTED
     "conv2d_bwd_input_inplace"
     "conv2d_bwd_weight_inplace"
     "conv2d_inplace"
+    "prod_fiber"
     "scal_inplace"
     "subtract_indexed_column"
     "subtract_indexed_outputs"
