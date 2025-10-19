@@ -988,25 +988,25 @@ def multiply_fiber_async(
         raise TypeError
     if type(y) is not type(z):
         raise TypeError
-    if type(y) is core_tensor.Tensor_fp32:
+    if type(x) is core_tensor.Tensor_fp32:
         core_tensor.multiply_fiber_async_fp32(alpha, x, y, z, axis)
-    elif type(y) is core_tensor.Tensor_fp32_fast_tf32:
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.multiply_fiber_async_fp32_fast_tf32(
             alpha, x, y, z, axis
         )
-    elif type(y) is core_tensor.Tensor_fp32_fast_fp16:
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.multiply_fiber_async_fp32_fast_fp16(
             alpha, x, y, z, axis
         )
-    elif type(y) is core_tensor.Tensor_fp32_fast_bf16:
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
         core_tensor.multiply_fiber_async_fp32_fast_bf16(
             alpha, x, y, z, axis
         )
-    elif type(y) is core_tensor.Tensor_fp64:
+    elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.multiply_fiber_async_fp64(alpha, x, y, z, axis)
-    elif type(y) is core_tensor.Tensor_bf16:
+    elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.multiply_fiber_async_bf16(alpha, x, y, z, axis)
-    elif type(y) is core_tensor.Tensor_fp16:
+    elif type(x) is core_tensor.Tensor_fp16:
         core_tensor.multiply_fiber_async_fp16(alpha, x, y, z, axis)
     else:
         raise TypeError
