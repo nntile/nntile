@@ -58,7 +58,7 @@ void MultiplyFiber<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_
     noexcept
 {
     // Fall back to FP32
-    ProdFiber3<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    MultiplyFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
