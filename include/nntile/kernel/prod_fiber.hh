@@ -20,10 +20,10 @@
 #include <nntile/kernel/prod_fiber/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
-//! @namespace nntile::kernel::prod_fiber
+//! @namespace nntile::kernel::multiply_fiber
 /*! Low-level implementations of prod_fiber operation
  * */
-namespace nntile::kernel::prod_fiber
+namespace nntile::kernel::multiply_fiber
 {
 
-} // namespace nntile::kernel::prod_fiber
+} // namespace nntile::kernel::multiply_fiber

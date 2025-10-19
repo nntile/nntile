@@ -20,10 +20,10 @@
 #include <nntile/kernel/prod/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
-//! @namespace nntile::kernel::prod
+//! @namespace nntile::kernel::multiply
 /*! Low-level implementations of prod operation
  * */
-namespace nntile::kernel::prod
+namespace nntile::kernel::multiply
 {
 
-} // namespace nntile::kernel::prod
+} // namespace nntile::kernel::multiply
