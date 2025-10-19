@@ -69,7 +69,7 @@ set(TESTS_NOT_IMPLEMENTED
     "nntile_core/test_tensor_total_sum_accum.py"
     "nntile_core/test_tensor_add_slice_inplace.py"
     "nntile_core/test_tensor_hypot_inplace.py"
-    "nntile_core/test_tensor_prod_fiber3.py"
+    "nntile_core/test_tensor_multiply_fiber.py"
     "nntile_core/test_tensor_scal.py"
     "layer/test_add.py"
     "layer/test_add_slice.py"

@@ -99,7 +99,7 @@ set(TESTS_CATCH2
     "norm_slice"
     "pow"
     "prod_fiber"
-    "prod_fiber3"
+    "multiply_fiber"
     "prod_inplace"
     "multiply_slice"
     "prod"
