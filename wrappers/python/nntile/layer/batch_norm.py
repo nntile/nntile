@@ -16,9 +16,10 @@ import math
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     TensorMoments, add_fiber_async, add_fiber_inplace_async, add_inplace_async,
-    copy_async, empty, hypot_scalar_inverse_async, norm_fiber_inplace_async,
-    ones, pow_async, prod_async, prod_fiber3_async, multiply_fiber_inplace_async,
-    prod_inplace_async, sum_fiber_async, sumprod_fiber_async)
+    copy_async, empty, hypot_scalar_inverse_async,
+    multiply_fiber_inplace_async, norm_fiber_inplace_async, ones, pow_async,
+    prod_async, prod_fiber3_async, prod_inplace_async, sum_fiber_async,
+    sumprod_fiber_async)
 
 
 class BatchNorm2d(BaseLayer):
