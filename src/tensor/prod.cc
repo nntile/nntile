@@ -12,8 +12,8 @@
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/prod.hh"
-#include "nntile/starpu/prod.hh"
+#include "nntile/tensor/multiply.hh"
+#include "nntile/starpu/multiply.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor

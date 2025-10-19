@@ -27,20 +27,20 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for prod operation is not defined
+//! Generic wrapper class for multiply operation is not defined
 template<typename T>
-class Prod;
+class Multiply;
 
-//! Specialization of wrapper class for prod operation via std::tuple
+//! Specialization of wrapper class for multiply operation via std::tuple
 template<typename T>
-class Prod<std::tuple<T>>
+class Multiply<std::tuple<T>>
 {
 public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
     //! Constructor
-    Prod();
+    Multiply();
 
     //! Structure for operation arguments
     struct args_t
@@ -85,7 +85,7 @@ public:
 
 //! Pack of prod operations for different types
 using prod_pack_t = OperationPack<
-    Prod,
+    Multiply,
     std::tuple<nntile::fp64_t>,
     std::tuple<nntile::fp32_t>,
     std::tuple<nntile::fp32_fast_tf32_t>,

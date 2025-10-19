@@ -21,7 +21,7 @@
 #endif // NNTILE_USE_CUDA
 
 //! @namespace nntile::kernel::multiply
-/*! Low-level implementations of prod operation
+/*! Low-level implementations of multiply operation
  * */
 namespace nntile::kernel::multiply
 {

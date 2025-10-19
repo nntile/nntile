@@ -13,14 +13,14 @@
  * */
 
 // Corresponding header
-#include "nntile/starpu/prod.hh"
+#include "nntile/starpu/multiply.hh"
 
 // Standard libraries
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
-#include "nntile/kernel/prod.hh"
+#include "nntile/kernel/multiply.hh"
 
 namespace nntile::starpu
 {

@@ -28,7 +28,7 @@
 #include <nntile/kernel/gelutanh_inplace.hh>
 #include <nntile/kernel/hypot.hh>
 #include <nntile/kernel/hypot_inplace.hh>
-#include <nntile/kernel/prod.hh>
+#include <nntile/kernel/multiply.hh>
 #include <nntile/kernel/prod_inplace.hh>
 #include <nntile/kernel/randn.hh>
 #include <nntile/kernel/relu.hh>
