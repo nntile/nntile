@@ -936,7 +936,7 @@ def add_fiber_async(
             f'Tensor must share the same type but actual types are {types}.')
 
 
-def prod_slice_async(
+def multiply_slice_async(
     alpha: float, multiply_slice: Tensor, x: Tensor, axis: int
 ) -> None:
     """

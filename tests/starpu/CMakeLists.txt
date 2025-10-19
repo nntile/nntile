@@ -131,7 +131,7 @@ set(TESTS_NOT_IMPLEMENTED
     "sum_fiber"
     "sumprod_fiber"
     "total_sum_accum"
-    )
+)
 
 # Add target for local coverage
 if(BUILD_COVERAGE)
