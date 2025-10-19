@@ -58,7 +58,7 @@
 #include <nntile/starpu/pow.hh>
 #include <nntile/starpu/prod.hh>
 #include <nntile/starpu/prod_fiber.hh>
-#include <nntile/starpu/prod_fiber3.hh>
+#include <nntile/starpu/multiply_fiber.hh>
 #include <nntile/starpu/prod_inplace.hh>
 #include <nntile/starpu/prod_slice.hh>
 #include <nntile/starpu/randn.hh>

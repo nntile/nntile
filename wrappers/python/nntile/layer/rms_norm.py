@@ -20,7 +20,7 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, add_inplace_async, copy_async,
     fill_async, hypot_scalar_inverse_async, norm_slice_inplace_async,
-    prod_fiber3_async, prod_slice_async, sumprod_fiber_async,
+    multiply_fiber_async, prod_slice_async, sumprod_fiber_async,
     sumprod_slice_async, to_numpy)
 
 
@@ -128,7 +128,7 @@ class RMSNorm(BaseLayer):
         # inv_stddev can be offloaded from GPU
         self.inv_stddev.wont_use()
         # Scale normalized input for the backward phase
-        prod_fiber3_async(self.gamma.value, 1.0, self.tmp_y_value,
+        multiply_fiber_async(1.0, self.gamma.value, self.tmp_y_value,
                 self.y.value, self.axis)
         # tmp_Y_value can be offloaded from GPU
         self.tmp_y_value.wont_use()
@@ -164,8 +164,8 @@ class RMSNorm(BaseLayer):
         prod_slice_async(inv_stddev, 1.0, tmp_y_value, self.axis)
 
         # Scale normalized input for the backward phase
-        prod_fiber3_async(
-            self.gamma.value, 1.0, tmp_y_value, y_value, self.axis
+        multiply_fiber_async(
+            1.0, self.gamma.value, tmp_y_value, y_value, self.axis
         )
 
         return TensorMoments(y_value, None, False)
@@ -178,7 +178,7 @@ class RMSNorm(BaseLayer):
         # d_gamma can be offloaded from GPU
         self.gamma.grad.wont_use()
         # Define gradient over normalized input
-        prod_fiber3_async(self.gamma.value, 1.0, self.y.grad,
+        multiply_fiber_async(1.0, self.gamma.value, self.y.grad,
                 self.tmp_y_grad, self.axis)
         # dY can be offloaded from GPU
         self.y.grad.wont_use()

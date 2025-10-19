@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/prod_fiber3.hh
+ * @file include/nntile/tile/multiply_fiber.hh
  * Tile wrappers for per-element product of a tensor and a broadcasted fiber
  *
  * @version 1.1.0
@@ -21,12 +21,12 @@ namespace nntile::tile
 
 // Tile<T> per-element multiplication of a tensor and a broadcasted fiber
 template<typename T>
-void prod_fiber3_async(const Tile<T> &src1, Scalar alpha, const Tile<T> &src2,
+void multiply_fiber_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
         const Tile<T> &dst, Index axis);
 
 // Tile<T> per-element multiplication of a tensor and a broadcasted fiber
 template<typename T>
-void prod_fiber3(const Tile<T> &src1, Scalar alpha, const Tile<T> &src2,
+void multiply_fiber(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
         const Tile<T> &dst, Index axis);
 
 } // namespace nntile::tile

@@ -978,36 +978,36 @@ def prod_fiber_async(
         raise TypeError
 
 
-def prod_fiber3_async(
-    prod_fiber: Tensor, alpha: float, x: Tensor, y: Tensor, axis: int
+def multiply_fiber_async(
+    alpha: float, prod_fiber: Tensor, x: Tensor, y: Tensor, axis: int
 ) -> None:
     """
-    Wrapper for multiprecision prod_fiber3
+    Wrapper for multiprecision multiply_fiber
     """
     if type(prod_fiber) is not type(x):
         raise TypeError
     if type(x) is not type(y):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.prod_fiber3_async_fp32(prod_fiber, alpha, x, y, axis)
+        core_tensor.multiply_fiber_async_fp32(alpha, prod_fiber, x, y, axis)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.prod_fiber3_async_fp32_fast_tf32(
-            prod_fiber, alpha, x, y, axis
+        core_tensor.multiply_fiber_async_fp32_fast_tf32(
+            alpha, prod_fiber, x, y, axis
         )
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
-        core_tensor.prod_fiber3_async_fp32_fast_fp16(
-            prod_fiber, alpha, x, y, axis
+        core_tensor.multiply_fiber_async_fp32_fast_fp16(
+            alpha, prod_fiber, x, y, axis
         )
     elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
-        core_tensor.prod_fiber3_async_fp32_fast_bf16(
-            prod_fiber, alpha, x, y, axis
+        core_tensor.multiply_fiber_async_fp32_fast_bf16(
+            alpha, prod_fiber, x, y, axis
         )
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.prod_fiber3_async_fp64(prod_fiber, alpha, x, y, axis)
+        core_tensor.multiply_fiber_async_fp64(alpha, prod_fiber, x, y, axis)
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.prod_fiber3_async_bf16(prod_fiber, alpha, x, y, axis)
+        core_tensor.multiply_fiber_async_bf16(alpha, prod_fiber, x, y, axis)
     elif type(x) is core_tensor.Tensor_fp16:
-        core_tensor.prod_fiber3_async_fp16(prod_fiber, alpha, x, y, axis)
+        core_tensor.multiply_fiber_async_fp16(alpha, prod_fiber, x, y, axis)
     else:
         raise TypeError
 
