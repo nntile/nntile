@@ -38,7 +38,7 @@ using namespace Catch::Matchers;
 // Use tested NNTile namespaces
 using namespace nntile;
 using namespace nntile::kernel;
-using namespace nntile::kernel::prod_fiber;
+using namespace nntile::kernel::multiply_fiber_inplace;
 
 // Type to acquire reference values
 using ref_t = double;
