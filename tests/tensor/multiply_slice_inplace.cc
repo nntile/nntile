@@ -15,6 +15,8 @@
 #include "nntile/tensor/multiply_slice_inplace.hh"
 #include "nntile/tile/multiply_slice_inplace.hh"
 #include "nntile/starpu/multiply_slice_inplace.hh"
+#include "nntile/context.hh"
+#include "nntile/starpu/config.hh"
 #include "../testing.hh"
 
 using namespace nntile;
