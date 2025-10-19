@@ -15,9 +15,6 @@
 #include "nntile/tensor/multiply_slice_inplace.hh"
 #include "nntile/tile/multiply_slice_inplace.hh"
 #include "nntile/starpu/multiply_slice_inplace.hh"
-
-#include <cmath>
-
 #include "../testing.hh"
 
 using namespace nntile;
@@ -26,30 +23,57 @@ using namespace nntile::tensor;
 template<typename T>
 void test_multiply_slice_inplace()
 {
-    // Set up types
     using Y = typename T::repr_t;
+    // Barrier to wait for cleanup of previously used tags
+    starpu_mpi_barrier(MPI_COMM_WORLD);
+    // Some preparation
+    int mpi_size = starpu_mpi_world_size();
+    int mpi_rank = starpu_mpi_world_rank();
+    int mpi_root = 0;
     const Y alpha{1.5}, beta{0.5};
     // Set up shapes and axis
     std::vector<Index> shape_src{2, 3}, shape_dst{2, 4, 3};
     Index axis{1};
-    // Create tensors
-    Tensor<T> src(shape_src), dst(shape_dst);
-    // Generate random arrays
-    std::vector<Y> rand_src(src.nelem), rand_dst(dst.nelem);
-    for(auto &x : rand_src)
+    // Generate single-tile source and destination tensors
+    TensorTraits single_traits(shape_dst, shape_dst);
+    std::vector<int> dist_root = {mpi_root};
+    Tensor<T> src_single(single_traits, dist_root),
+        dst_single(single_traits, dist_root);
+    if(mpi_rank == mpi_root)
     {
-        x = Y{drandn()};
+        auto src_tile = src_single.get_tile(0);
+        auto dst_tile = dst_single.get_tile(0);
+        auto src_local = src_tile.acquire(STARPU_W);
+        auto dst_local = dst_tile.acquire(STARPU_W);
+        for(Index i = 0; i < src_tile.nelems; ++i)
+        {
+            src_local[i] = Y(i);
+        }
+        for(Index i = 0; i < dst_tile.nelems; ++i)
+        {
+            dst_local[i] = Y(i + 100);
+        }
+        src_local.release();
+        dst_local.release();
     }
-    for(auto &x : rand_dst)
+    // Set up proper shapes for source and destination tensors
+    std::vector<Index> basetile{2, 2, 3};
+    // Scatter source and destination tensors
+    TensorTraits src_traits(shape_src, basetile);
+    TensorTraits dst_traits(shape_dst, basetile);
+    std::vector<int> src_distr(src_traits.grid.nelems);
+    std::vector<int> dst_distr(dst_traits.grid.nelems);
+    for(Index i = 0; i < src_traits.grid.nelems; ++i)
     {
-        x = Y{drandn()};
+        src_distr[i] = i % mpi_size;
     }
-    // Set up random arrays
-    src.set_scalar(Y{0});
-    dst.set_scalar(Y{0});
-    // Copy random arrays to tensors
-    src.acquire(std::begin(rand_src));
-    dst.acquire(std::begin(rand_dst));
+    for(Index i = 0; i < dst_traits.grid.nelems; ++i)
+    {
+        dst_distr[i] = i % mpi_size;
+    }
+    Tensor<T> src(src_traits, src_distr), dst(dst_traits, dst_distr);
+    scatter<T>(src_single, src);
+    scatter<T>(dst_single, dst);
     // Perform tensor-wise and tile-wise multiply_slice_inplace operations
     multiply_slice_inplace<T>(alpha, src, beta, dst, axis);
     // Check results for the first tile
@@ -57,7 +81,7 @@ void test_multiply_slice_inplace()
     auto tile_dst = dst.get_tile(0);
     tile::multiply_slice_inplace<T>(alpha, tile_src, beta, tile_dst, axis);
     // Check result
-    std::vector<Y> result_dst(dst.nelem);
+    std::vector<Y> result_dst(dst.nelems);
     dst.acquire(std::end(result_dst));
     // Check if result is correct
     for(Index i0 = 0; i0 < shape_dst[0]; ++i0)
@@ -67,7 +91,7 @@ void test_multiply_slice_inplace()
             for(Index i2 = 0; i2 < shape_dst[2]; ++i2)
             {
                 Index linear = i0*shape_dst[1]*shape_dst[2] + i1*shape_dst[2] + i2;
-                Y expected = beta * rand_dst[linear] * alpha * rand_src[i0*shape_src[1] + i2];
+                Y expected = beta * Y(i0*shape_dst[1]*shape_dst[2] + i1*shape_dst[2] + i2 + 100) * alpha * Y(i0*shape_src[1] + i2);
                 TEST_ASSERT(std::abs(Y{result_dst[linear]} - expected) < 1e-5);
             }
         }
@@ -77,30 +101,57 @@ void test_multiply_slice_inplace()
 template<typename T>
 void test_multiply_slice_inplace_async()
 {
-    // Set up types
     using Y = typename T::repr_t;
+    // Barrier to wait for cleanup of previously used tags
+    starpu_mpi_barrier(MPI_COMM_WORLD);
+    // Some preparation
+    int mpi_size = starpu_mpi_world_size();
+    int mpi_rank = starpu_mpi_world_rank();
+    int mpi_root = 0;
     const Y alpha{2.0}, beta{0.25};
     // Set up shapes and axis
     std::vector<Index> shape_src{3, 4}, shape_dst{3, 5, 4};
     Index axis{1};
-    // Create tensors
-    Tensor<T> src(shape_src), dst(shape_dst);
-    // Generate random arrays
-    std::vector<Y> rand_src(src.nelem), rand_dst(dst.nelem);
-    for(auto &x : rand_src)
+    // Generate single-tile source and destination tensors
+    TensorTraits single_traits(shape_dst, shape_dst);
+    std::vector<int> dist_root = {mpi_root};
+    Tensor<T> src_single(single_traits, dist_root),
+        dst_single(single_traits, dist_root);
+    if(mpi_rank == mpi_root)
     {
-        x = Y{drandn()};
+        auto src_tile = src_single.get_tile(0);
+        auto dst_tile = dst_single.get_tile(0);
+        auto src_local = src_tile.acquire(STARPU_W);
+        auto dst_local = dst_tile.acquire(STARPU_W);
+        for(Index i = 0; i < src_tile.nelems; ++i)
+        {
+            src_local[i] = Y(i);
+        }
+        for(Index i = 0; i < dst_tile.nelems; ++i)
+        {
+            dst_local[i] = Y(i + 200);
+        }
+        src_local.release();
+        dst_local.release();
     }
-    for(auto &x : rand_dst)
+    // Set up proper shapes for source and destination tensors
+    std::vector<Index> basetile{3, 3, 4};
+    // Scatter source and destination tensors
+    TensorTraits src_traits(shape_src, basetile);
+    TensorTraits dst_traits(shape_dst, basetile);
+    std::vector<int> src_distr(src_traits.grid.nelems);
+    std::vector<int> dst_distr(dst_traits.grid.nelems);
+    for(Index i = 0; i < src_traits.grid.nelems; ++i)
     {
-        x = Y{drandn()};
+        src_distr[i] = i % mpi_size;
     }
-    // Set up random arrays
-    src.set_scalar(Y{0});
-    dst.set_scalar(Y{0});
-    // Copy random arrays to tensors
-    src.acquire(std::begin(rand_src));
-    dst.acquire(std::begin(rand_dst));
+    for(Index i = 0; i < dst_traits.grid.nelems; ++i)
+    {
+        dst_distr[i] = i % mpi_size;
+    }
+    Tensor<T> src(src_traits, src_distr), dst(dst_traits, dst_distr);
+    scatter<T>(src_single, src);
+    scatter<T>(dst_single, dst);
     // Perform tensor-wise and tile-wise multiply_slice_inplace operations
     multiply_slice_inplace_async<T>(alpha, src, beta, dst, axis);
     starpu_task_wait_for_all();
@@ -110,7 +161,7 @@ void test_multiply_slice_inplace_async()
     tile::multiply_slice_inplace_async<T>(alpha, tile_src, beta, tile_dst, axis);
     starpu_task_wait_for_all();
     // Check result
-    std::vector<Y> result_dst(dst.nelem);
+    std::vector<Y> result_dst(dst.nelems);
     dst.acquire(std::end(result_dst));
     // Check if result is correct
     for(Index i0 = 0; i0 < shape_dst[0]; ++i0)
@@ -120,7 +171,7 @@ void test_multiply_slice_inplace_async()
             for(Index i2 = 0; i2 < shape_dst[2]; ++i2)
             {
                 Index linear = i0*shape_dst[1]*shape_dst[2] + i1*shape_dst[2] + i2;
-                Y expected = beta * rand_dst[linear] * alpha * rand_src[i0*shape_src[1] + i2];
+                Y expected = beta * Y(i0*shape_dst[1]*shape_dst[2] + i1*shape_dst[2] + i2 + 200) * alpha * Y(i0*shape_src[1] + i2);
                 TEST_ASSERT(std::abs(Y{result_dst[linear]} - expected) < 1e-5);
             }
         }
