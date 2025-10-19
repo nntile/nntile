@@ -19,6 +19,7 @@
 #include <nntile/kernel/add_slice.hh>
 #include <nntile/kernel/add_fiber_inplace.hh>
 #include <nntile/kernel/add_fiber.hh>
+#include <nntile/kernel/multiply_slice_inplace.hh>
 #include <nntile/kernel/prod_slice.hh>
 #include <nntile/kernel/prod_fiber.hh>
 #include <nntile/kernel/prod_fiber3.hh>

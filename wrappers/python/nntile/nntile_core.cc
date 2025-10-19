@@ -909,6 +909,14 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_fiber_fp32_fast_bf16", &add_fiber<fp32_fast_bf16_t>);
     m.def("add_fiber_bf16", &add_fiber<bf16_t>);
 
+    m.def("multiply_slice_inplace_async_fp64", &multiply_slice_inplace_async<fp64_t>);
+    m.def("multiply_slice_inplace_async_fp32", &multiply_slice_inplace_async<fp32_t>);
+    m.def("multiply_slice_inplace_async_fp32_fast_tf32", &multiply_slice_inplace_async<fp32_fast_tf32_t>);
+    m.def("multiply_slice_inplace_async_fp32_fast_fp16", &multiply_slice_inplace_async<fp32_fast_fp16_t>);
+    m.def("multiply_slice_inplace_async_fp32_fast_bf16", &multiply_slice_inplace_async<fp32_fast_bf16_t>);
+    m.def("multiply_slice_inplace_async_bf16", &multiply_slice_inplace_async<bf16_t>);
+    m.def("multiply_slice_inplace_async_fp16", &multiply_slice_inplace_async<fp16_t>);
+
     m.def("prod_slice_async_fp64", &prod_slice_async<fp64_t>);
     m.def("prod_slice_async_fp32", &prod_slice_async<fp32_t>);
     m.def("prod_slice_async_fp32_fast_tf32", &prod_slice_async<fp32_fast_tf32_t>);
@@ -916,6 +924,14 @@ void def_mod_tensor(py::module_ &m)
     m.def("prod_slice_async_fp32_fast_bf16", &prod_slice_async<fp32_fast_bf16_t>);
     m.def("prod_slice_async_bf16", &prod_slice_async<bf16_t>);
     m.def("prod_slice_async_fp16", &prod_slice_async<fp16_t>);
+
+    m.def("multiply_slice_inplace_fp64", &multiply_slice_inplace<fp64_t>);
+    m.def("multiply_slice_inplace_fp32", &multiply_slice_inplace<fp32_t>);
+    m.def("multiply_slice_inplace_fp32_fast_tf32", &multiply_slice_inplace<fp32_fast_tf32_t>);
+    m.def("multiply_slice_inplace_fp32_fast_fp16", &multiply_slice_inplace<fp32_fast_fp16_t>);
+    m.def("multiply_slice_inplace_fp32_fast_bf16", &multiply_slice_inplace<fp32_fast_bf16_t>);
+    m.def("multiply_slice_inplace_bf16", &multiply_slice_inplace<bf16_t>);
+    m.def("multiply_slice_inplace_fp16", &multiply_slice_inplace<fp16_t>);
 
     m.def("prod_slice_fp64", &prod_slice<fp64_t>);
     m.def("prod_slice_fp32", &prod_slice<fp32_t>);

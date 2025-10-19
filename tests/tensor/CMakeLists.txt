@@ -58,6 +58,7 @@ set(TESTS_MPI
     "prod_fiber"
     "prod_fiber3"
     "prod_inplace"
+    "multiply_slice_inplace"
     "prod_slice"
     "randn"
     "relu"
