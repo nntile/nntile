@@ -6,51 +6,50 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/multiply_slice/cpu.cc
- * Per-element multiplication of a tensor by a broadcasted slice on CPU
+ * @file src/kernel/prod_fiber/cpu.cc
+ * Per-element multiplication of a tensor by a broadcasted fiber on CPU
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/multiply_slice/cpu.hh"
+#include "nntile/kernel/prod_fiber/cpu.hh"
 #include "nntile/kernel/cpu.hh"
 
-namespace nntile::kernel::multiply_slice
+namespace nntile::kernel::prod_fiber
 {
 
 template<typename T>
 void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, T *dst)
     noexcept
-//! Per-element product of a tensor and a broadcasted slice on CPU
+//! Per-element product of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
- *      dst[i,l,j] = alpha * dst[i,l,j] * src[i,j]
+ *      dst[i,l,j] = alpha * dst[i,l,j] * src[l]
  *
- * @param[in] m: Size of the first mode of src and dst tensors
- * @param[in] n: Size of the last mode of src and dst tensors
- * @param[in] k: Size of the middle mode of dst tensor
+ * @param[in] m: Size of the first mode of dst tensor
+ * @param[in] n: Size of the last mode of dst tensor
+ * @param[in] k: Size of the middle mode of dst tensor and the only mode of src
+ *      tensor
  * @param[in] alpha_: Scalar factor
- * @param[in] src: Input contiguous m-by-n array
- * @param[inout] dst: Input and output contiguous m-by-k-by-n array
+ * @param[in] src_: Input contiguous vector with k elements
+ * @param[inout] dst_: Input and output contiguous m-by-k-by-n array
  * */
 {
     using Y = typename T::repr_t;
     const Y alpha{alpha_};
-    const Index mk = m * k;
-    // Cycle over column of the output buffer dst
-    for(Index i2 = 0; i2 < n; ++i2)
+    // Cycle over input src vector
+    for(Index i2 = 0; i2 < k; ++i2)
     {
-        // Cycle over row of the output buffer dst
-        for(Index i1 = 0; i1 < m; ++i1)
+        const Y src_val = alpha * Y{src[i2]};
+        // Cycle over the third axis of output buffer
+        for(Index i1 = 0; i1 < n; ++i1)
         {
-            // Pointer to a corresponding fiber of the output array dst
-            T *dst_fiber = dst + i2*mk + i1;
-            // Value to multiply by the output fiber
-            const Y src_val = alpha * Y{src[i2*m+i1]};
-            // Cycle over output fiber elements
-            for(Index i0 = 0; i0 < k; ++i0)
+            // Output fiber to be updated
+            T *dst_fiber = dst + (i1*k+i2)*m;
+            // Cycle over the output fiber
+            for(Index i0 = 0; i0 < m; ++i0)
             {
                 // Update output value
-                dst_fiber[i0*m] = static_cast<T>(Y{dst_fiber[i0*m]} * src_val);
+                dst_fiber[i0] = static_cast<T>(src_val * Y{dst_fiber[i0]});
             }
         }
     }
@@ -77,4 +76,4 @@ void cpu<fp16_t>(Index m, Index n, Index k, Scalar alpha, const fp16_t *src,
         fp16_t *dst)
     noexcept;
 
-} // namespace nntile::kernel::multiply_slice
+} // namespace nntile::kernel::prod_fiber
