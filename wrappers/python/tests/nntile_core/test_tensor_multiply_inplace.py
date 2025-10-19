@@ -23,7 +23,7 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
 
 # Define mapping between tested function and numpy type
 multiply_inplace = {np.float32: nntile.nntile_core.tensor.multiply_inplace_fp32,
-        np.float64: nntile.nntile_core.tensor.multiply_inplace_fp64}
+                    np.float64: nntile.nntile_core.tensor.multiply_inplace_fp64}
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
