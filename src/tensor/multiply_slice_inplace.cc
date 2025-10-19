@@ -56,12 +56,12 @@ void multiply_slice_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar bet
             throw std::runtime_error("dst.shape[i] != src.shape[i-1]");
         }
     }
-    // Get tiles
-    auto tile_src = src.get_tile(0);
-    auto tile_dst = dst.get_tile(0);
+    // Get tile handles
+    auto src_tile_handle = src.get_tile_handle(0);
+    auto dst_tile_handle = dst.get_tile_handle(0);
     // Submit task
     starpu::multiply_slice_inplace.submit<std::tuple<T>>(dst.shape[0], dst.shape[1], dst.shape[2],
-            alpha, tile_src.handle, beta, tile_dst.handle, axis);
+            alpha, src_tile_handle, beta, dst_tile_handle, axis);
 }
 
 template<typename T>
