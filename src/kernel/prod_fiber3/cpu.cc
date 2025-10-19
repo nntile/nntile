@@ -12,10 +12,10 @@
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/multiply_fiber/cpu.hh"
+#include "nntile/kernel/prod_fiber3/cpu.hh"
 #include "nntile/kernel/cpu.hh"
 
-namespace nntile::kernel::multiply_fiber
+namespace nntile::kernel::prod_fiber3
 {
 
 template<typename T>
@@ -80,4 +80,4 @@ void cpu<fp16_t>(Index m, Index n, Index k, Scalar alpha, const fp16_t *src1,
         const fp16_t *src2, fp16_t *dst)
     noexcept;
 
-} // namespace nntile::kernel::multiply_fiber
+} // namespace nntile::kernel::prod_fiber3

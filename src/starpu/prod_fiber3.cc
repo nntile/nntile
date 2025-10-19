@@ -13,14 +13,14 @@
  * */
 
 // Corresponding header
-#include "nntile/starpu/multiply_fiber.hh"
+#include "nntile/starpu/prod_fiber3.hh"
 
 // Standard libraries
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
-#include "nntile/kernel/multiply_fiber.hh"
+#include "nntile/kernel/prod_fiber3.hh"
 
 namespace nntile::starpu
 {
@@ -28,7 +28,7 @@ namespace nntile::starpu
 //! Constructor
 template<typename T>
 MultiplyFiber<std::tuple<T>>::MultiplyFiber():
-    codelet("nntile_multiply_fiber", footprint, cpu_funcs, cuda_funcs)
+    codelet("nntile_prod_fiber3", footprint, cpu_funcs, cuda_funcs)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -47,7 +47,7 @@ void MultiplyFiber<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     const T *src2 = interfaces[1]->get_ptr<T>();
     T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::multiply_fiber::cpu<T>(args->m, args->n, args->k, args->alpha, src1,
+    kernel::prod_fiber3::cpu<T>(args->m, args->n, args->k, args->alpha, src1,
                                src2, dst);
 #endif // STARPU_SIMGRID
 }
@@ -94,7 +94,7 @@ void MultiplyFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::multiply_fiber::cuda<T>(stream, args->m, args->n, args->k,
+    kernel::prod_fiber3::cuda<T>(stream, args->m, args->n, args->k,
             args->alpha, src1, src2, dst);
 #endif // STARPU_SIMGRID
 }
@@ -167,7 +167,7 @@ void MultiplyFiber<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alph
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in multiply_fiber task submission");
+        throw std::runtime_error("Error in prod_fiber3 task submission");
     }
 }
 
@@ -182,7 +182,7 @@ template class MultiplyFiber<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class MultiplyFiber<std::tuple<nntile::bf16_t>>;
 template class MultiplyFiber<std::tuple<nntile::fp16_t>>;
 
-//! Pack of multiply_fiber operations for different types
-multiply_fiber_pack_t multiply_fiber;
+//! Pack of prod_fiber3 operations for different types
+prod_fiber3_pack_t prod_fiber3;
 
 } // namespace nntile::starpu

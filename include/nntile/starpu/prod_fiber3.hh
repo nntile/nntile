@@ -27,20 +27,20 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for multiply_fiber operation is not defined
+//! Generic wrapper class for prod_fiber3 operation is not defined
 template<typename T>
-class MultiplyFiber;
+class ProdFiber3;
 
-//! Specialization of wrapper class for multiply_fiber operation via std::tuple
+//! Specialization of wrapper class for prod_fiber3 operation via std::tuple
 template<typename T>
-class MultiplyFiber<std::tuple<T>>
+class ProdFiber3<std::tuple<T>>
 {
 public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
     //! Constructor
-    MultiplyFiber();
+    ProdFiber3();
 
     //! Structure for operation arguments
     struct args_t
@@ -89,9 +89,9 @@ public:
     );
 };
 
-//! Pack of multiply_fiber operations for different types
-using multiply_fiber_pack_t = OperationPack<
-    MultiplyFiber,
+//! Pack of prod_fiber3 operations for different types
+using prod_fiber3_pack_t = OperationPack<
+    ProdFiber3,
     std::tuple<nntile::fp64_t>,
     std::tuple<nntile::fp32_t>,
     std::tuple<nntile::fp32_fast_tf32_t>,
@@ -101,7 +101,7 @@ using multiply_fiber_pack_t = OperationPack<
     std::tuple<nntile::fp16_t>
 >;
 
-//! Pack of multiply_fiber operations for different types
-extern multiply_fiber_pack_t multiply_fiber;
+//! Pack of prod_fiber3 operations for different types
+extern prod_fiber3_pack_t prod_fiber3;
 
 } // namespace nntile::starpu

@@ -12,15 +12,15 @@
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/multiply_fiber.hh"
-#include "nntile/starpu/multiply_fiber.hh"
+#include "nntile/tensor/prod_fiber3.hh"
+#include "nntile/starpu/prod_fiber3.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
 
 template<typename T>
-void multiply_fiber_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2,
+void prod_fiber3_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2,
         const Tensor<T> &dst, Index axis)
 //! Tensor<T> per-element multiplication of a tensor and a broadcasted fiber
 /*! Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
@@ -93,7 +93,7 @@ void multiply_fiber_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &
             n = dst_tile_traits.matrix_shape[axis+1][1];
             k = dst_tile_traits.shape[axis];
             // Insert corresponding task
-            starpu::multiply_fiber.submit<std::tuple<T>>(m, n, k, alpha, src1_tile_handle,
+            starpu::prod_fiber3.submit<std::tuple<T>>(m, n, k, alpha, src1_tile_handle,
                     src2_tile_handle, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -102,10 +102,10 @@ void multiply_fiber_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &
 }
 
 template<typename T>
-void multiply_fiber(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2,
+void prod_fiber3(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2,
         const Tensor<T> &dst, Index axis)
 //! Tensor<T> per-element multiplication of a tensor and a broadcasted fiber
-/*! Blocking version of multiply_fiber_async<T>.
+/*! Blocking version of prod_fiber3_async<T>.
  * Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
  * and performs the following operations:
  *      dst[i,l,j] = alpha * src1[l] * src2[i,l,j]
@@ -115,7 +115,7 @@ void multiply_fiber(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2,
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    multiply_fiber_async<T>(alpha, src1, src2, dst, axis);
+    prod_fiber3_async<T>(alpha, src1, src2, dst, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }

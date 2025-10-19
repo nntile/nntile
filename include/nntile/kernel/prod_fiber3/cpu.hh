@@ -16,7 +16,7 @@
 
 #include <nntile/base_types.hh>
 
-namespace nntile::kernel::multiply_fiber
+namespace nntile::kernel::prod_fiber3
 {
 
 // Per-element product of a tensor and a broadcasted fiber on CPU
@@ -25,4 +25,4 @@ void cpu(Index m, Index n, Index k, Scalar alpha, const T *src1, const T *src2,
         T *dst)
     noexcept;
 
-} // namespace nntile::kernel::multiply_fiber
+} // namespace nntile::kernel::prod_fiber3

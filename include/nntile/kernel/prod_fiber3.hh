@@ -14,16 +14,16 @@
 
 #pragma once
 
-#include <nntile/kernel/multiply_fiber/cpu.hh>
+#include <nntile/kernel/prod_fiber3/cpu.hh>
 #include <nntile/defs.h>
 #ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/multiply_fiber/cuda.hh>
+#include <nntile/kernel/prod_fiber3/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
-//! @namespace nntile::kernel::multiply_fiber
-/*! Low-level implementations of multiply_fiber operation
+//! @namespace nntile::kernel::prod_fiber3
+/*! Low-level implementations of prod_fiber3 operation
  * */
-namespace nntile::kernel::multiply_fiber
+namespace nntile::kernel::prod_fiber3
 {
 
-} // namespace nntile::kernel::multiply_fiber
+} // namespace nntile::kernel::prod_fiber3
