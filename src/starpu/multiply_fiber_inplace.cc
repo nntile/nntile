@@ -76,6 +76,7 @@ void MultiplyFiberInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], vo
     MultiplyFiberInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+
 #ifdef NNTILE_USE_CUDA
 //! StarPU wrapper for kernel::multiply_fiber_inplace::cuda<T>
 template<typename T>
@@ -121,6 +122,7 @@ void MultiplyFiberInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], v
     // Fall back to FP32
     MultiplyFiberInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
+
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for multiply_fiber_inplace tasks
@@ -175,7 +177,6 @@ template class MultiplyFiberInplace<std::tuple<nntile::fp32_t>>;
 template class MultiplyFiberInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
 template class MultiplyFiberInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
 template class MultiplyFiberInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
-template class MultiplyFiberInplace<std::tuple<nntile::fp16_t>>;
 template class MultiplyFiberInplace<std::tuple<nntile::bf16_t>>;
 
 //! Pack of multiply_fiber_inplace operations for different types

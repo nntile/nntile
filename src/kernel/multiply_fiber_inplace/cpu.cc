@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/prod_fiber_inplace/cpu.cc
+ * @file src/kernel/multiply_fiber_inplace/cpu.cc
  * Per-element multiplication of a tensor by a broadcasted fiber on CPU
  *
  * @version 1.1.0
@@ -15,7 +15,7 @@
 #include "nntile/kernel/multiply_fiber_inplace/cpu.hh"
 #include "nntile/kernel/cpu.hh"
 
-namespace nntile::kernel::prod_fiber_inplace
+namespace nntile::kernel::multiply_fiber_inplace
 {
 
 template<typename T>
@@ -71,9 +71,5 @@ void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src,
         bf16_t *dst)
     noexcept;
 
-template
-void cpu<fp16_t>(Index m, Index n, Index k, Scalar alpha, const fp16_t *src,
-        fp16_t *dst)
-    noexcept;
 
-} // namespace nntile::kernel::prod_fiber_inplace
+} // namespace nntile::kernel::multiply_fiber_inplace
