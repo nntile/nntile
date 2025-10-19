@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/prod_fiber3/cpu.hh"
+#include "nntile/kernel/multiply_fiber3/cpu.hh"
 #include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::multiply_fiber3

@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/prod_slice/cuda.hh"
+#include "nntile/kernel/multiply_slice/cuda.hh"
 #include <algorithm>
 #include "nntile/kernel/cuda.hh"
 

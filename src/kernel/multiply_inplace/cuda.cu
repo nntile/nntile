@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/prod_inplace/cuda.hh"
+#include "nntile/kernel/multiply_inplace/cuda.hh"
 #include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::multiply_inplace
