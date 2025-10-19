@@ -20,15 +20,15 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void multiply_slice_async(const Tensor<T> &src, Scalar alpha, const Tensor<T> &dst,
+void multiply_slice_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
         Index axis)
 //! Tensor<T> per-element multiplication of a tensor and a broadcasted slice
 /*! Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
  * and performs the following operations:
  *      dst[i,l,j] = alpha * dst[i,l,j] * src[i,j]
  *
- * @param[in] src: Input slice, that is reshaped into 2D array
  * @param[in] alpha: Scalar factor
+ * @param[in] src: Input slice, that is reshaped into 2D array
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
@@ -126,7 +126,7 @@ void multiply_slice_async(const Tensor<T> &src, Scalar alpha, const Tensor<T> &d
 }
 
 template<typename T>
-void multiply_slice(const Tensor<T> &src, Scalar alpha, const Tensor<T> &dst,
+void multiply_slice(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
         Index axis)
 //! Tensor<T> per-element multiplication of a tensor and a broadcasted slice
 /*! Blocking version of multiply_slice_async<T>.
@@ -139,67 +139,67 @@ void multiply_slice(const Tensor<T> &src, Scalar alpha, const Tensor<T> &dst,
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    multiply_slice_async<T>(src, alpha, dst, axis);
+    multiply_slice_async<T>(alpha, src, dst, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation of template
 template
-void multiply_slice_async<fp32_t>(const Tensor<fp32_t> &src, Scalar alpha,
+void multiply_slice_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst, Index axis);
 
 template
-void multiply_slice_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, Scalar alpha,
+void multiply_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void multiply_slice_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src, Scalar alpha,
+void multiply_slice_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src,
         const Tensor<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void multiply_slice_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src, Scalar alpha,
+void multiply_slice_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
         const Tensor<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void multiply_slice_async<fp64_t>(const Tensor<fp64_t> &src, Scalar alpha,
+void multiply_slice_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst, Index axis);
 
 template
-void multiply_slice_async<bf16_t>(const Tensor<bf16_t> &src, Scalar alpha,
+void multiply_slice_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst, Index axis);
 
 template
-void multiply_slice_async<fp16_t>(const Tensor<fp16_t> &src, Scalar alpha,
+void multiply_slice_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
         const Tensor<fp16_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void multiply_slice<fp32_t>(const Tensor<fp32_t> &src, Scalar alpha,
+void multiply_slice<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst, Index axis);
 
 template
-void multiply_slice<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, Scalar alpha,
+void multiply_slice<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void multiply_slice<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src, Scalar alpha,
+void multiply_slice<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src,
         const Tensor<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void multiply_slice<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src, Scalar alpha,
+void multiply_slice<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
         const Tensor<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void multiply_slice<fp64_t>(const Tensor<fp64_t> &src, Scalar alpha,
+void multiply_slice<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst, Index axis);
 
 template
-void multiply_slice<bf16_t>(const Tensor<bf16_t> &src, Scalar alpha,
+void multiply_slice<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst, Index axis);
 
 template
-void multiply_slice<fp16_t>(const Tensor<fp16_t> &src, Scalar alpha,
+void multiply_slice<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
         const Tensor<fp16_t> &dst, Index axis);
 
 } // namespace nntile::tensor

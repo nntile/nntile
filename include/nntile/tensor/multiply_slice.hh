@@ -21,12 +21,12 @@ namespace nntile::tensor
 
 // Tensor-wise multiply_slice operation
 template<typename T>
-void multiply_slice_async(const Tensor<T> &src, Scalar alpha, const Tensor<T> &dst,
+void multiply_slice_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
         Index axis);
 
 // Tensor-wise multiply_slice operation
 template<typename T>
-void multiply_slice(const Tensor<T> &src, Scalar alpha, const Tensor<T> &dst,
+void multiply_slice(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
         Index axis);
 
 } // namespace nntile::tensor
