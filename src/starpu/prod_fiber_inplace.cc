@@ -53,19 +53,19 @@ void ProdFiberInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 
 // Specializations of CPU wrapper for accelerated types
 template<>
-void ProdFiber<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+void ProdFiberInplace<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ProdFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    ProdFiberInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void ProdFiber<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+void ProdFiberInplace<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ProdFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    ProdFiberInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
