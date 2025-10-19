@@ -163,7 +163,7 @@ void MultiplyFiberInplace<std::tuple<T>>::submit(Index m, Index n, Index k, Scal
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in prod_fiber_inplace task submission");
+        throw std::runtime_error("Error in multiply_fiber_inplace task submission");
     }
 }
 
@@ -178,7 +178,7 @@ template class MultiplyFiberInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class MultiplyFiberInplace<std::tuple<nntile::fp16_t>>;
 template class MultiplyFiberInplace<std::tuple<nntile::bf16_t>>;
 
-//! Pack of prod_fiber_inplace operations for different types
-prod_fiber_inplace_pack_t prod_fiber_inplace;
+//! Pack of multiply_fiber_inplace operations for different types
+multiply_fiber_inplace_pack_t multiply_fiber_inplace;
 
 } // namespace nntile::starpu
