@@ -228,6 +228,12 @@ void test_multiply_slice_inplace_errors()
 
 int main(int argc, char **argv)
 {
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
+    // Launch all tests
     test_multiply_slice_inplace<fp32_t>();
     test_multiply_slice_inplace<fp64_t>();
     test_multiply_slice_inplace<bf16_t>();
