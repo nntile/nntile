@@ -196,7 +196,8 @@ class BatchNorm2d(BaseLayer):
         # nominator_grad = self.grad*inv_denominator
         copy_async(self.y.grad, nominator_grad)
         inv_denominator_ref = self.inv_std
-        multiply_fiber_inplace_async(1.0, inv_denominator_ref, nominator_grad, 1)
+        multiply_fiber_inplace_async(
+            1.0, inv_denominator_ref, nominator_grad, 1)
 
         nominator_grad_x = nominator_grad
         self._compute_grad_normalized_input_over_x(nominator_grad_x)
