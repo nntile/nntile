@@ -80,4 +80,4 @@ void cpu<fp16_t>(Index m, Index n, Index k, Scalar alpha, const fp16_t *src1,
         const fp16_t *src2, fp16_t *dst)
     noexcept;
 
-} // namespace nntile::kernel::prod_fiber3
+} // namespace nntile::kernel::multiply_fiber

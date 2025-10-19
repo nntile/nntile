@@ -68,7 +68,7 @@ void multiply_fiber_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &
     {
         throw std::runtime_error("src2.basetile_shape != dst.basetile_shape");
     }
-    // Apply per-tile prod_fiber3 asynchronously as needed
+    // Apply per-tile multiply_fiber asynchronously as needed
     int mpi_rank = starpu_mpi_world_rank();
     int ret;
     for(Index i = 0; i < dst.grid.nelems; ++i)
