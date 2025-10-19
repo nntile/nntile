@@ -6,7 +6,7 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/layer/layer_norm.py
+# @file wrappers/python/nntile/layer/batch_norm.py
 # LayerNorm of NNTile Python package
 #
 # @version 1.1.0
@@ -16,10 +16,9 @@ import math
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     TensorMoments, add_fiber_async, add_fiber_inplace_async, add_inplace_async,
-    copy_async, empty, hypot_scalar_inverse_async,
-    multiply_fiber_inplace_async, norm_fiber_inplace_async, ones, pow_async,
-    prod_async, prod_fiber3_async, prod_inplace_async, sum_fiber_async,
-    sumprod_fiber_async)
+    copy_async, empty, hypot_scalar_inverse_async, multiply_fiber_async,
+    norm_fiber_inplace_async, ones, pow_async, prod_async, prod_fiber_async,
+    prod_inplace_async, sum_fiber_async, sumprod_fiber_async)
 
 
 class BatchNorm2d(BaseLayer):
@@ -120,13 +119,13 @@ class BatchNorm2d(BaseLayer):
         hypot_scalar_inverse_async(self.eps, 1.0, self.inv_std)
 
         # X_res = X_res/std
-        multiply_fiber_inplace_async(1.0, self.inv_std, self.x_normalized, 1)
+        prod_fiber_async(self.inv_std, 1.0, self.x_normalized, 1)
         self.inv_std.wont_use()
 
     def _learnable_transform_forward(self):
         # y = weight * y + bias
-        prod_fiber3_async(
-            self.weight.value, 1.0, self.x_normalized, self.y.value, 1
+        multiply_fiber_async(
+            1.0, self.weight.value, self.x_normalized, self.y.value, 1
         )
         self.weight.value.wont_use()
         add_fiber_inplace_async(1.0, self.bias.value, 1.0, self.y.value, 1, 0)
@@ -186,7 +185,7 @@ class BatchNorm2d(BaseLayer):
         self.tmp_buff_channels.invalidate_submit()
 
         # d(variance)/d(inv_std) = (xvar_grad*x_normalized_grad)
-        multiply_fiber_inplace_async(1.0, xvar_grad, x_normalized_grad, 1)
+        prod_fiber_async(xvar_grad, 1.0, x_normalized_grad, 1)
         self.inv_std.invalidate_submit()
 
     def _normalize_backward(self):
@@ -196,8 +195,7 @@ class BatchNorm2d(BaseLayer):
         # nominator_grad = self.grad*inv_denominator
         copy_async(self.y.grad, nominator_grad)
         inv_denominator_ref = self.inv_std
-        multiply_fiber_inplace_async(
-            1.0, inv_denominator_ref, nominator_grad, 1)
+        prod_fiber_async(inv_denominator_ref, 1.0, nominator_grad, 1)
 
         nominator_grad_x = nominator_grad
         self._compute_grad_normalized_input_over_x(nominator_grad_x)
@@ -241,5 +239,5 @@ class BatchNorm2d(BaseLayer):
         self.x_normalized.invalidate_submit()
 
         # norm_grad = grad * weight
-        multiply_fiber_inplace_async(1.0, self.weight.value, self.y.grad, 1)
+        prod_fiber_async(self.weight.value, 1.0, self.y.grad, 1)
         self.weight.value.wont_use()

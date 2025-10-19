@@ -37,8 +37,8 @@ set(TESTS
     "norm_slice_inplace"
     "pow"
     "prod_inplace"
-    "multiply_fiber_inplace"
-    "prod_fiber3"
+    "prod_fiber"
+    "multiply_fiber"
     "prod_slice"
     "randn"
     "relu"
@@ -78,7 +78,7 @@ set(TESTS_NOT_IMPLEMENTED
     "logsumexp"
     "mask_scalar"
     "pow"
-    "multiply_fiber_inplace"
+    "prod_fiber"
     "prod_slice"
     "relu_backward"
     "relu_forward"
@@ -95,7 +95,7 @@ set(TESTS_NOT_IMPLEMENTED
     "softmax"
     "hypot_inplace"
     "add_slice"
-    "prod_fiber3"
+    "multiply_fiber"
 )
 
 # Add target for local coverage
