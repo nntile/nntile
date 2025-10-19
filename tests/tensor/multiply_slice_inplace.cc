@@ -207,12 +207,12 @@ void test_multiply_slice_inplace_errors()
 {
     using Y = typename T::repr_t;
     // Create tensor traits with wrong shapes for error testing
-    std::vector<Index> sh23 = {2, 3}, sh243 = {2, 4, 3}, sh245 = {2, 4, 5};
-    TensorTraits trA(sh23, sh23), trB(sh243, sh243), trC(sh23, sh23),
-                 trD(sh245, sh245), trE(sh243, sh243), trF(sh23, sh23), trG(sh243, sh243);
-    std::vector<int> dist0 = {0};
-    Tensor<T> A(trA, dist0), B(trB, dist0), C(trC, dist0),
-              D(trD, dist0), E(trE, dist0), F(trF, dist0), G(trG, dist0);
+    std::vector<Index> sh23 = {2, 3}, sh22 = {2, 2}, sh243 = {2, 4, 3}, sh222 = {2, 2, 2}, sh245 = {2, 4, 5};
+    TensorTraits trA(sh23, sh22), trB(sh243, sh222), trC(sh23, sh22),
+                 trD(sh245, sh222), trE(sh243, sh222), trF(sh23, sh22), trG(sh243, sh222);
+    std::vector<int> dist00 = {0, 0}, dist0000 = {0, 0, 0, 0};
+    Tensor<T> A(trA, dist00), B(trB, dist0000), C(trC, dist00),
+              D(trD, dist0000), E(trE, dist0000), F(trF, dist00), G(trG, dist0000);
     // Test various error conditions
     TEST_THROW(multiply_slice_inplace<T>(1.0, A, 1.0, B, 0));
     TEST_THROW(multiply_slice_inplace<T>(1.0, F, 1.0, F, 0));
