@@ -12,15 +12,15 @@
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/prod_fiber_inplace.hh"
-#include "nntile/starpu/prod_fiber_inplace.hh"
+#include "nntile/tensor/multiply_fiber_inplace.hh"
+#include "nntile/starpu/multiply_fiber_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
 
 template<typename T>
-void prod_fiber_inplace_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
+void multiply_fiber_inplace_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
         Index axis)
 //! Tensor<T> per-element multiplication of a tensor and a broadcasted fiber
 /*! Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
@@ -56,7 +56,7 @@ void prod_fiber_inplace_async(Scalar alpha, const Tensor<T> &src, const Tensor<T
         throw std::runtime_error("src.basetile_shape[0] != "
                 "dst.basetile_shape[axis]");
     }
-    // Apply per-tile prod_fiber_inplace asynchronously as needed
+    // Apply per-tile multiply_fiber_inplace asynchronously as needed
     int mpi_rank = starpu_mpi_world_rank();
     int ret;
     for(Index i = 0; i < dst.grid.nelems; ++i)
@@ -80,7 +80,7 @@ void prod_fiber_inplace_async(Scalar alpha, const Tensor<T> &src, const Tensor<T
             n = dst_tile_traits.matrix_shape[axis+1][1];
             k = dst_tile_traits.shape[axis];
             // Insert corresponding task
-            starpu::prod_fiber_inplace.submit<std::tuple<T>>(m, n, k, alpha, src_tile_handle,
+            starpu::multiply_fiber_inplace.submit<std::tuple<T>>(m, n, k, alpha, src_tile_handle,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -89,10 +89,10 @@ void prod_fiber_inplace_async(Scalar alpha, const Tensor<T> &src, const Tensor<T
 }
 
 template<typename T>
-void prod_fiber_inplace(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
+void multiply_fiber_inplace(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
         Index axis)
 //! Tensor<T> per-element multiplication of a tensor and a broadcasted fiber
-/*! Blocking version of prod_fiber_inplace_async<T>.
+/*! Blocking version of multiply_fiber_inplace_async<T>.
  * Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
  * and performs the following operations:
  *      dst[i,l,j] = alpha * dst[i,l,j] * src[l]
@@ -102,59 +102,59 @@ void prod_fiber_inplace(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    prod_fiber_inplace_async<T>(alpha, src, dst, axis);
+    multiply_fiber_inplace_async<T>(alpha, src, dst, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation of template
 template
-void prod_fiber_inplace_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
+void multiply_fiber_inplace_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst, Index axis);
 
 template
-void prod_fiber_inplace_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
+void multiply_fiber_inplace_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst, Index axis);
 
 template
-void prod_fiber_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
+void multiply_fiber_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void prod_fiber_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src,
+void multiply_fiber_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src,
         const Tensor<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void prod_fiber_inplace_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
+void multiply_fiber_inplace_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
         const Tensor<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void prod_fiber_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
+void multiply_fiber_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void prod_fiber_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
+void multiply_fiber_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst, Index axis);
 
 template
-void prod_fiber_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
+void multiply_fiber_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst, Index axis);
 
 template
-void prod_fiber_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
+void multiply_fiber_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void prod_fiber_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src,
+void multiply_fiber_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src,
         const Tensor<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void prod_fiber_inplace<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
+void multiply_fiber_inplace<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
         const Tensor<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void prod_fiber_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
+void multiply_fiber_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst, Index axis);
 
 } // namespace nntile::tensor

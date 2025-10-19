@@ -962,18 +962,18 @@ def prod_slice_async(
         raise TypeError
 
 
-def prod_fiber_inplace_async(
+def multiply_fiber_inplace_async(
     alpha: float, src: Tensor, x: Tensor, axis: int
 ) -> None:
     """
-    Wrapper for multiprecision prod_fiber_inplace
+    Wrapper for multiprecision multiply_fiber_inplace
     """
     if type(src) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.prod_fiber_inplace_async_fp32(alpha, src, x, axis)
+        core_tensor.multiply_fiber_inplace_async_fp32(alpha, src, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.prod_fiber_inplace_async_fp64(alpha, src, x, axis)
+        core_tensor.multiply_fiber_inplace_async_fp64(alpha, src, x, axis)
     else:
         raise TypeError
 

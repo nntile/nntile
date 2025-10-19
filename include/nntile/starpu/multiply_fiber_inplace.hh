@@ -27,20 +27,20 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for prod_fiber_inplace operation is not defined
+//! Generic wrapper class for multiply_fiber_inplace operation is not defined
 template<typename T>
-class ProdFiberInplace;
+class MultiplyFiberInplace;
 
-//! Specialization of wrapper class for prod_fiber_inplace operation via std::tuple
+//! Specialization of wrapper class for multiply_fiber_inplace operation via std::tuple
 template<typename T>
-class ProdFiberInplace<std::tuple<T>>
+class MultiplyFiberInplace<std::tuple<T>>
 {
 public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
     //! Constructor
-    ProdFiberInplace();
+    MultiplyFiberInplace();
 
     //! Structure for operation arguments
     struct args_t
@@ -88,9 +88,9 @@ public:
     );
 };
 
-//! Pack of prod_fiber_inplace operations for different types
-using prod_fiber_inplace_pack_t = OperationPack<
-    ProdFiberInplace,
+//! Pack of multiply_fiber_inplace operations for different types
+using multiply_fiber_inplace_pack_t = OperationPack<
+    MultiplyFiberInplace,
     std::tuple<nntile::fp64_t>,
     std::tuple<nntile::fp32_t>,
     std::tuple<nntile::fp32_fast_tf32_t>,
@@ -100,7 +100,7 @@ using prod_fiber_inplace_pack_t = OperationPack<
     std::tuple<nntile::bf16_t>
 >;
 
-//! Pack of prod_fiber_inplace operations for different types
-extern prod_fiber_inplace_pack_t prod_fiber_inplace;
+//! Pack of multiply_fiber_inplace operations for different types
+extern multiply_fiber_inplace_pack_t multiply_fiber_inplace;
 
 } // namespace nntile::starpu

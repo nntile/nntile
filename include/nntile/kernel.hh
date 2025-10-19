@@ -20,7 +20,7 @@
 #include <nntile/kernel/add_fiber_inplace.hh>
 #include <nntile/kernel/add_fiber.hh>
 #include <nntile/kernel/prod_slice.hh>
-#include <nntile/kernel/prod_fiber_inplace.hh>
+#include <nntile/kernel/multiply_fiber_inplace.hh>
 #include <nntile/kernel/prod_fiber3.hh>
 #include <nntile/kernel/gelu.hh>
 #include <nntile/kernel/gelu_inplace.hh>

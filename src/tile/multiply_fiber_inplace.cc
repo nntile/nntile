@@ -12,14 +12,14 @@
  * @version 1.1.0
  * */
 
-#include "nntile/tile/prod_fiber_inplace.hh"
-#include "nntile/starpu/prod_fiber_inplace.hh"
+#include "nntile/tile/multiply_fiber_inplace.hh"
+#include "nntile/starpu/multiply_fiber_inplace.hh"
 
 namespace nntile::tile
 {
 
 template<typename T>
-void prod_fiber_inplace_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+void multiply_fiber_inplace_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted fiber
 /*! Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
@@ -56,13 +56,13 @@ void prod_fiber_inplace_async(Scalar alpha, const Tile<T> &src, const Tile<T> &d
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::prod_fiber_inplace.submit<std::tuple<T>>(m, n, k, alpha, src, dst);
+    starpu::multiply_fiber_inplace.submit<std::tuple<T>>(m, n, k, alpha, src, dst);
 }
 
 template<typename T>
-void prod_fiber_inplace(Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
+void multiply_fiber_inplace(Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted fiber
-/*! Blocking version of prod_fiber_inplace_async<T>.
+/*! Blocking version of multiply_fiber_inplace_async<T>.
  * Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
  * and performs the following operations:
  *      dst[i,l,j] = alpha * dst[i,l,j] * src[l]
@@ -72,26 +72,26 @@ void prod_fiber_inplace(Scalar alpha, const Tile<T> &src, const Tile<T> &dst, In
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    prod_fiber_inplace_async<T>(alpha, src, dst, axis);
+    multiply_fiber_inplace_async<T>(alpha, src, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void prod_fiber_inplace_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+void multiply_fiber_inplace_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void prod_fiber_inplace_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+void multiply_fiber_inplace_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void prod_fiber_inplace<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+void multiply_fiber_inplace<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void prod_fiber_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+void multiply_fiber_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tile

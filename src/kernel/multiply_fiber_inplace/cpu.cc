@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/prod_fiber_inplace/cpu.hh"
+#include "nntile/kernel/multiply_fiber_inplace/cpu.hh"
 #include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::prod_fiber_inplace

@@ -55,7 +55,7 @@ set(TESTS_MPI
     "norm_slice_inplace"
     "pow"
     "prod"
-    "prod_fiber_inplace"
+    "multiply_fiber_inplace"
     "prod_fiber3"
     "prod_inplace"
     "prod_slice"
