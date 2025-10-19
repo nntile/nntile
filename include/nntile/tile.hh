@@ -33,7 +33,7 @@
 #include <nntile/tile/gelutanh.hh>
 #include <nntile/tile/gelutanh_inplace.hh>
 #include <nntile/tile/gemm.hh>
-#include <nntile/tile/prod_inplace.hh>
+#include <nntile/tile/multiply_inplace.hh>
 #include <nntile/tile/randn.hh>
 #include <nntile/tile/relu.hh>
 #include <nntile/tile/relu_forward.hh>

@@ -12,9 +12,9 @@
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/prod_inplace.hh"
-#include "nntile/tile/prod_inplace.hh"
-#include "nntile/starpu/prod_inplace.hh"
+#include "nntile/tensor/multiply_inplace.hh"
+#include "nntile/tile/multiply_inplace.hh"
+#include "nntile/starpu/multiply_inplace.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/subcopy.hh"

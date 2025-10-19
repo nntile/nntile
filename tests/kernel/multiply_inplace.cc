@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/prod_inplace.cc
+ * @file tests/kernel/multiply_inplace.cc
  * Per-element product of two buffers
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/kernel/prod_inplace.hh"
+#include "nntile/kernel/multiply_inplace.hh"
 
 // Standard libraries
 #include <vector>
@@ -38,7 +38,7 @@ using namespace Catch::Matchers;
 // Use tested NNTile namespaces
 using namespace nntile;
 using namespace nntile::kernel;
-using namespace nntile::kernel::prod_inplace;
+using namespace nntile::kernel::multiply_inplace;
 
 // Type to acquire reference values
 using ref_t = double;
@@ -58,9 +58,9 @@ struct TestData
     std::vector<T> dst_ref;
 };
 
-// Reference implementation of the prod_inplace operation
+// Reference implementation of the multiply_inplace operation
 template<typename T>
-void reference_prod_inplace(TestData<T>& data)
+void reference_multiply_inplace(TestData<T>& data)
 {
     using Y = typename T::repr_t;
 
@@ -150,7 +150,7 @@ TestData<T> get_test_data(
     }
 
     // Compute reference outputs
-    reference_prod_inplace(data);
+    reference_multiply_inplace(data);
     return data;
 }
 
@@ -191,7 +191,7 @@ void run_cpu_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][prod_inplace][cpu][nelems=" +
+            "[kernel][multiply_inplace][cpu][nelems=" +
             std::to_string(data.nelems) +
             "]"
         )
@@ -258,7 +258,7 @@ void run_cuda_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][prod_inplace][cuda][nelems=" +
+            "[kernel][multiply_inplace][cuda][nelems=" +
             std::to_string(data.nelems) +
             "]"
         )
@@ -313,7 +313,7 @@ void run_cuda_test(TestData<T>& data)
 // Catch2-based tests
 TEMPLATE_TEST_CASE(
     "Prod Inplace Kernel Verification",
-    "[prod_inplace]",
+    "[multiply_inplace]",
     fp64_t,
     fp32_t,
     fp16_t,
@@ -345,7 +345,7 @@ TEMPLATE_TEST_CASE(
 // Catch2-based benchmarks
 TEMPLATE_TEST_CASE(
     "Prod Inplace Kernel Benchmark",
-    "[prod_inplace][!benchmark]",
+    "[multiply_inplace][!benchmark]",
     fp64_t,
     fp32_t,
     fp16_t,

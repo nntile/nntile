@@ -13,7 +13,7 @@
 
 from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, add_inplace_async, copy_async,
-    prod_inplace_async, scal_inplace_async)
+    multiply_inplace_async, scal_inplace_async)
 
 
 class Frob:
@@ -75,5 +75,5 @@ class Frob:
         #    self.x.grad.invalidate_submit()
         # Compute loss as 0.5*||dX||^2
         copy_async(self.val_sqrt, self.val)
-        prod_inplace_async(self.val_sqrt, self.val)
+        multiply_inplace_async(self.val_sqrt, self.val)
         scal_inplace_async(0.5, self.val)

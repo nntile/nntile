@@ -28,7 +28,7 @@ from nntile.tensor import (
     add_inplace_async, add_slice_inplace_async, clear_async, copy_async,
     copy_intersection_async, embedding_async, embedding_backward_async,
     gemm_async, mask_scalar_async, maxsumexp_async, notrans,
-    prod_inplace_async, softmax_inplace_async, sum_fiber_async,
+    multiply_inplace_async, softmax_inplace_async, sum_fiber_async,
     sumprod_slice_async, trans, transpose_async)
 
 
@@ -1311,7 +1311,7 @@ class T5Attention(BaseLayer):
             # self.a_sumprod_slice.wont_use()
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A
-            prod_inplace_async(self.a.value, self.a.grad)
+            multiply_inplace_async(self.a.value, self.a.grad)
 
             if self.has_relative_bias:
                 self._add_positional_bias_backward()

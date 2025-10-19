@@ -13,8 +13,8 @@
  * */
 
 #include "nntile/context.hh"
-#include "nntile/starpu/prod_inplace.hh"
-#include "nntile/kernel/prod_inplace.hh"
+#include "nntile/starpu/multiply_inplace.hh"
+#include "nntile/kernel/multiply_inplace.hh"
 #include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
@@ -40,12 +40,12 @@ void validate_cpu(Index nelems)
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::prod_inplace::cpu<" << T::short_name << ">\n";
-    kernel::prod_inplace::cpu<T>(nelems, &src[0], &dst[0]);
+    std::cout << "Run kernel::multiply_inplace::cpu<" << T::short_name << ">\n";
+    kernel::multiply_inplace::cpu<T>(nelems, &src[0], &dst[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*nelems),
         dst2_handle(&dst2[0], sizeof(T)*nelems);
-    prod_inplace.restrict_where(STARPU_CPU);
+    multiply_inplace.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::prod_inplace::submit<" << T::short_name << "> restricted to CPU\n";
     prod_inplace.submit<std::tuple<T>>(nelems, src_handle, dst2_handle);
     starpu_task_wait_for_all();

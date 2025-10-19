@@ -6,15 +6,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tile/prod_inplace.cc
+ * @file tests/tile/multiply_inplace.cc
  * Prod operation on Tile<T>
  *
  * @version 1.1.0
  * */
 
 #include "nntile/context.hh"
-#include "nntile/tile/prod_inplace.hh"
-#include "nntile/starpu/prod_inplace.hh"
+#include "nntile/tile/multiply_inplace.hh"
+#include "nntile/starpu/multiply_inplace.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -47,15 +47,15 @@ void validate()
     src2_local.release();
     dst2_local.release();
     dst2_copy_local.release();
-    starpu::prod_inplace.submit<std::tuple<T>>(1, src1, dst1);
-    prod_inplace<T>(src1, dst1_copy);
+    starpu::multiply_inplace.submit<std::tuple<T>>(1, src1, dst1);
+    multiply_inplace<T>(src1, dst1_copy);
     dst1_local.acquire(STARPU_R);
     dst1_copy_local.acquire(STARPU_R);
     TEST_ASSERT(Y(dst1_local[0]) == Y(dst1_copy_local[0]));
     dst1_local.release();
     dst1_copy_local.release();
-    starpu::prod_inplace.submit<std::tuple<T>>(src2.nelems, src2, dst2);
-    prod_inplace<T>(src2, dst2_copy);
+    starpu::multiply_inplace.submit<std::tuple<T>>(src2.nelems, src2, dst2);
+    multiply_inplace<T>(src2, dst2_copy);
     dst2_local.acquire(STARPU_R);
     dst2_copy_local.acquire(STARPU_R);
     for(Index i = 0; i < src2.nelems; ++i)

@@ -6,22 +6,23 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/prod_inplace/cpu.hh
- * Per-element product of two buffers on CPU
+ * @file include/nntile/tile/prod_inplace.hh
+ * Per-element product of two Tile<T>
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/base_types.hh>
+#include <nntile/tile/tile.hh>
 
-namespace nntile::kernel::prod_inplace
+namespace nntile::tile
 {
 
-// Per-element product of two buffers
 template<typename T>
-void cpu(Index nelems, const T *src, T *dst)
-    noexcept;
+void multiply_inplace_async(const Tile<T> &src, const Tile<T> &dst);
 
-} // namespace nntile::kernel::prod_inplace
+template<typename T>
+void multiply_inplace(const Tile<T> &src, const Tile<T> &dst);
+
+} // namespace nntile::tile

@@ -6,21 +6,21 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/prod_inplace.cc
+ * @file src/starpu/multiply_inplace.cc
  * Per-element product of two StarPU buffers
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/starpu/prod_inplace.hh"
+#include "nntile/starpu/multiply_inplace.hh"
 
 // Standard libraries
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
-#include "nntile/kernel/prod_inplace.hh"
+#include "nntile/kernel/multiply_inplace.hh"
 
 namespace nntile::starpu
 {
@@ -28,7 +28,7 @@ namespace nntile::starpu
 //! Constructor
 template<typename T>
 ProdInplace<std::tuple<T>>::ProdInplace():
-    codelet("nntile_prod_inplace", footprint, cpu_funcs, cuda_funcs)
+    codelet("nntile_multiply_inplace", footprint, cpu_funcs, cuda_funcs)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
@@ -46,7 +46,7 @@ void ProdInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::prod_inplace::cpu<T>(args->nelems, src, dst);
+    kernel::multiply_inplace::cpu<T>(args->nelems, src, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -91,7 +91,7 @@ void ProdInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::prod_inplace::cuda<T>(stream, args->nelems, src, dst);
+    kernel::multiply_inplace::cuda<T>(stream, args->nelems, src, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -121,7 +121,7 @@ void ProdInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_a
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for prod_inplace tasks
+//! Footprint for multiply_inplace tasks
 template<typename T>
 uint32_t ProdInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 {
@@ -132,7 +132,7 @@ uint32_t ProdInplace<std::tuple<T>>::footprint(struct starpu_task *task)
     return hash;
 }
 
-//! Submit prod_inplace task
+//! Submit multiply_inplace task
 template<typename T>
 void ProdInplace<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
 {
@@ -150,7 +150,7 @@ void ProdInplace<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in prod_inplace task submission");
+        throw std::runtime_error("Error in multiply_inplace task submission");
     }
 }
 
@@ -165,7 +165,7 @@ template class ProdInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class ProdInplace<std::tuple<nntile::bf16_t>>;
 template class ProdInplace<std::tuple<nntile::fp16_t>>;
 
-//! Pack of prod_inplace operations for different types
-prod_inplace_pack_t prod_inplace;
+//! Pack of multiply_inplace operations for different types
+multiply_inplace_pack_t multiply_inplace;
 
 } // namespace nntile::starpu

@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_prod_inplace.py
-# Test for tensor::prod_inplace<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/test_tensor_multiply_inplace.py
+# Test for tensor::multiply_inplace<T> Python wrapper
 #
 # @version 1.1.0
 
@@ -22,12 +22,12 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 
 # Define mapping between tested function and numpy type
-prod_inplace = {np.float32: nntile.nntile_core.tensor.prod_inplace_fp32,
-        np.float64: nntile.nntile_core.tensor.prod_inplace_fp64}
+multiply_inplace = {np.float32: nntile.nntile_core.tensor.multiply_inplace_fp32,
+        np.float64: nntile.nntile_core.tensor.multiply_inplace_fp64}
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_prod_inplace(context, dtype):
+def test_multiply_inplace(context, dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
     traits = nntile.tensor.TensorTraits(shape, shape)
@@ -42,7 +42,7 @@ def test_prod_inplace(context, dtype):
     rand_B = rng.standard_normal(shape)
     np_B = np.array(rand_B, dtype=dtype, order='F')
     B.from_array(np_B)
-    prod_inplace[dtype](A, B)
+    multiply_inplace[dtype](A, B)
     np_C = np.zeros(shape, dtype=dtype, order='F')
     B.to_array(np_C)
     nntile.starpu.wait_for_all()
