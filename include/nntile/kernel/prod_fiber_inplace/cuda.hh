@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/prod_fiber/cuda.hh
+ * @file include/nntile/kernel/prod_fiber_inplace/cuda.hh
  * Per-element multiplication of a tensor by a broadcasted fiber on CUDA
  *
  * @version 1.1.0
