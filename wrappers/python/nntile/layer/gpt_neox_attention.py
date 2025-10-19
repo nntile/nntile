@@ -26,7 +26,7 @@ from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
     add_fiber_inplace_async, add_slice_inplace_async, clear_async,
     copy_intersection_async, gemm_async, mask_scalar_async, maxsumexp_async,
-    notrans, multiply_inplace_async, rope_async, rope_backward_async,
+    multiply_inplace_async, notrans, rope_async, rope_backward_async,
     softmax_inplace_async, sum_fiber_async, sumprod_slice_async, to_numpy,
     trans, transpose_async)
 

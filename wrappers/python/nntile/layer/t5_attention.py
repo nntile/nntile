@@ -27,9 +27,9 @@ from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_inplace_async,
     add_inplace_async, add_slice_inplace_async, clear_async, copy_async,
     copy_intersection_async, embedding_async, embedding_backward_async,
-    gemm_async, mask_scalar_async, maxsumexp_async, notrans,
-    multiply_inplace_async, softmax_inplace_async, sum_fiber_async,
-    sumprod_slice_async, trans, transpose_async)
+    gemm_async, mask_scalar_async, maxsumexp_async, multiply_inplace_async,
+    notrans, softmax_inplace_async, sum_fiber_async, sumprod_slice_async,
+    trans, transpose_async)
 
 
 def relative_position_bucket_numpy(
