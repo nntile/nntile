@@ -71,7 +71,7 @@ void multiply_slice_async(const Tensor<T> &src, Scalar alpha, const Tensor<T> &d
                     "src.basetile_shape[i-1]");
         }
     }
-    // Apply per-tile prod_slice asynchronously as needed
+    // Apply per-tile multiply_slice asynchronously as needed
     int mpi_rank = starpu_mpi_world_rank();
     int ret;
     for(Index i = 0; i < src.grid.nelems; ++i)
@@ -116,7 +116,7 @@ void multiply_slice_async(const Tensor<T> &src, Scalar alpha, const Tensor<T> &d
                 n = dst_tile_traits.matrix_shape[axis+1][1];
                 k = dst_tile_traits.shape[axis];
                 // Insert corresponding task
-                starpu::prod_slice.submit<std::tuple<T>>(m, n, k, alpha, src_tile_handle,
+                starpu::multiply_slice.submit<std::tuple<T>>(m, n, k, alpha, src_tile_handle,
                         dst_tile_handle);
             }
             // Flush cache for the output tile on every node
@@ -126,7 +126,7 @@ void multiply_slice_async(const Tensor<T> &src, Scalar alpha, const Tensor<T> &d
 }
 
 template<typename T>
-void prod_slice(const Tensor<T> &src, Scalar alpha, const Tensor<T> &dst,
+void multiply_slice(const Tensor<T> &src, Scalar alpha, const Tensor<T> &dst,
         Index axis)
 //! Tensor<T> per-element multiplication of a tensor and a broadcasted slice
 /*! Blocking version of multiply_slice_async<T>.

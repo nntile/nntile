@@ -937,27 +937,27 @@ def add_fiber_async(
 
 
 def prod_slice_async(
-    prod_slice: Tensor, alpha: float, x: Tensor, axis: int
+    multiply_slice: Tensor, alpha: float, x: Tensor, axis: int
 ) -> None:
     """
-    Wrapper for multiprecision prod_slice
+    Wrapper for multiprecision multiply_slice
     """
-    if type(prod_slice) is not type(x):
+    if type(multiply_slice) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.prod_slice_async_fp32(prod_slice, alpha, x, axis)
+        core_tensor.multiply_slice_async_fp32(multiply_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.prod_slice_async_fp32_fast_tf32(prod_slice, alpha, x, axis)
+        core_tensor.multiply_slice_async_fp32_fast_tf32(multiply_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
-        core_tensor.prod_slice_async_fp32_fast_fp16(prod_slice, alpha, x, axis)
+        core_tensor.multiply_slice_async_fp32_fast_fp16(multiply_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
-        core_tensor.prod_slice_async_fp32_fast_bf16(prod_slice, alpha, x, axis)
+        core_tensor.multiply_slice_async_fp32_fast_bf16(multiply_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.prod_slice_async_fp64(prod_slice, alpha, x, axis)
+        core_tensor.multiply_slice_async_fp64(multiply_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.prod_slice_async_bf16(prod_slice, alpha, x, axis)
+        core_tensor.multiply_slice_async_bf16(multiply_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp16:
-        core_tensor.prod_slice_async_fp16(prod_slice, alpha, x, axis)
+        core_tensor.multiply_slice_async_fp16(multiply_slice, alpha, x, axis)
     else:
         raise TypeError
 

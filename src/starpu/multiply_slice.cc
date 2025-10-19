@@ -123,7 +123,7 @@ void ProdSlice<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_arg
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for prod_slice tasks
+//! Footprint for multiply_slice tasks
 template<typename T>
 uint32_t MultiplySlice<std::tuple<T>>::footprint(struct starpu_task *task)
 {
@@ -137,10 +137,10 @@ uint32_t MultiplySlice<std::tuple<T>>::footprint(struct starpu_task *task)
     return hash;
 }
 
-//! Submit prod_slice task
+//! Submit multiply_slice task
 template<typename T>
 void MultiplySlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src, Handle dst)
-//! Insert prod_slice task into StarPU pool of tasks
+//! Insert multiply_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
@@ -179,7 +179,7 @@ template class MultiplySlice<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class MultiplySlice<std::tuple<nntile::bf16_t>>;
 template class MultiplySlice<std::tuple<nntile::fp16_t>>;
 
-//! Pack of prod_slice operations for different types
+//! Pack of multiply_slice operations for different types
 multiply_slice_pack_t multiply_slice;
 
 } // namespace nntile::starpu

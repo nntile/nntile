@@ -66,11 +66,11 @@ void multiply_slice_async(const Tile<T> &src, Scalar alpha, const Tile<T> &dst,
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::prod_slice.submit<std::tuple<T>>(m, n, k, alpha, src, dst);
+    starpu::multiply_slice.submit<std::tuple<T>>(m, n, k, alpha, src, dst);
 }
 
 template<typename T>
-void prod_slice(const Tile<T> &src, Scalar alpha, const Tile<T> &dst, Index axis)
+void multiply_slice(const Tile<T> &src, Scalar alpha, const Tile<T> &dst, Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted slice
 /*! Blocking version of multiply_slice_async<T>.
  * Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
