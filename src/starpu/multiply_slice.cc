@@ -13,29 +13,29 @@
  * */
 
 // Corresponding header
-#include "nntile/starpu/prod_slice.hh"
+#include "nntile/starpu/multiply_slice.hh"
 
 // Standard libraries
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
-#include "nntile/kernel/prod_slice.hh"
+#include "nntile/kernel/multiply_slice.hh"
 
 namespace nntile::starpu
 {
 
 //! Constructor
 template<typename T>
-ProdSlice<std::tuple<T>>::ProdSlice():
-    codelet("nntile_prod_slice", footprint, cpu_funcs, cuda_funcs)
+MultiplySlice<std::tuple<T>>::MultiplySlice():
+    codelet("nntile_multiply_slice", footprint, cpu_funcs, cuda_funcs)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! StarPU wrapper for kernel::prod_slice::cpu<T>
+//! StarPU wrapper for kernel::multiply_slice::cpu<T>
 template<typename T>
-void ProdSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
+void MultiplySlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -46,7 +46,7 @@ void ProdSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::prod_slice::cpu<T>(args->m, args->n, args->k, args->alpha, src,
+    kernel::multiply_slice::cpu<T>(args->m, args->n, args->k, args->alpha, src,
             dst);
 #endif // STARPU_SIMGRID
 }
@@ -77,9 +77,9 @@ void ProdSlice<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::prod_slice::cuda<T>
+//! StarPU wrapper for kernel::multiply_slice::cuda<T>
 template<typename T>
-void ProdSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+void MultiplySlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -92,7 +92,7 @@ void ProdSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::prod_slice::cuda<T>(stream, args->m, args->n, args->k, args->alpha,
+    kernel::multiply_slice::cuda<T>(stream, args->m, args->n, args->k, args->alpha,
             src, dst);
 #endif // STARPU_SIMGRID
 }
@@ -125,7 +125,7 @@ void ProdSlice<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_arg
 
 //! Footprint for prod_slice tasks
 template<typename T>
-uint32_t ProdSlice<std::tuple<T>>::footprint(struct starpu_task *task)
+uint32_t MultiplySlice<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -139,7 +139,7 @@ uint32_t ProdSlice<std::tuple<T>>::footprint(struct starpu_task *task)
 
 //! Submit prod_slice task
 template<typename T>
-void ProdSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src, Handle dst)
+void MultiplySlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src, Handle dst)
 //! Insert prod_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -164,7 +164,7 @@ void ProdSlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, H
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in prod_slice task submission");
+        throw std::runtime_error("Error in multiply_slice task submission");
     }
 }
 
@@ -180,6 +180,6 @@ template class ProdSlice<std::tuple<nntile::bf16_t>>;
 template class ProdSlice<std::tuple<nntile::fp16_t>>;
 
 //! Pack of prod_slice operations for different types
-prod_slice_pack_t prod_slice;
+multiply_slice_pack_t multiply_slice;
 
 } // namespace nntile::starpu
