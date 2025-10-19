@@ -57,7 +57,7 @@ void multiply_slice_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta,
         }
     }
     // Submit task
-    multiply_slice_inplace.submit<std::tuple<T>>(dst.shape[0], dst.shape[1], dst.shape[2],
+    starpu::multiply_slice_inplace.submit<std::tuple<T>>(dst.shape[0], dst.shape[1], dst.shape[2],
             alpha, src, beta, dst, axis);
 }
 
