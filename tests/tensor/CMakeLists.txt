@@ -107,6 +107,7 @@ set(TESTS_NOT_IMPLEMENTED
     "norm_fiber_inplace"
     "pow"
     "prod"
+    "prod_fiber"
     "multiply_fiber"
     "relu_backward"
     "relu_forward"
