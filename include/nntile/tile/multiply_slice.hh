@@ -6,27 +6,26 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/prod_slice.hh
- * Bias-like product operation for Tensor<T>
+ * @file include/nntile/tile/multiply_slice.hh
+ * Bias-like product operation for Tile<T>
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/tensor/tensor.hh>
+#include <nntile/tile/tile.hh>
 
-namespace nntile::tensor
+namespace nntile::tile
 {
 
-// Tensor-wise prod_slice operation
+// Tile<T> per-element multiplication of a tensor and a broadcasted slice
 template<typename T>
-void prod_slice_async(const Tensor<T> &src, Scalar alpha, const Tensor<T> &dst,
+void multiply_slice_async(const Tile<T> &src, Scalar alpha, const Tile<T> &dst,
         Index axis);
 
-// Tensor-wise prod_slice operation
+// Tile<T> per-element multiplication of a tensor and a broadcasted slice
 template<typename T>
-void prod_slice(const Tensor<T> &src, Scalar alpha, const Tensor<T> &dst,
-        Index axis);
+void multiply_slice(const Tile<T> &src, Scalar alpha, const Tile<T> &dst, Index axis);
 
-} // namespace nntile::tensor
+} // namespace nntile::tile

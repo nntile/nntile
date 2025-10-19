@@ -6,20 +6,20 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/prod_slice.cc
+ * @file src/tile/multiply_slice.cc
  * Tile wrappers for per-element product of a tensor and a broadcasted slice
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tile/prod_slice.hh"
-#include "nntile/starpu/prod_slice.hh"
+#include "nntile/tile/multiply_slice.hh"
+#include "nntile/starpu/multiply_slice.hh"
 
 namespace nntile::tile
 {
 
 template<typename T>
-void prod_slice_async(const Tile<T> &src, Scalar alpha, const Tile<T> &dst,
+void multiply_slice_async(const Tile<T> &src, Scalar alpha, const Tile<T> &dst,
         Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted slice
 /*! Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
@@ -72,7 +72,7 @@ void prod_slice_async(const Tile<T> &src, Scalar alpha, const Tile<T> &dst,
 template<typename T>
 void prod_slice(const Tile<T> &src, Scalar alpha, const Tile<T> &dst, Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted slice
-/*! Blocking version of prod_slice_async<T>.
+/*! Blocking version of multiply_slice_async<T>.
  * Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
  * and performs the following operations:
  *      dst[i,l,j] = alpha * dst[i,l,j] * src[i,j]
@@ -82,66 +82,66 @@ void prod_slice(const Tile<T> &src, Scalar alpha, const Tile<T> &dst, Index axis
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    prod_slice_async<T>(src, alpha, dst, axis);
+    multiply_slice_async<T>(src, alpha, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void prod_slice_async<fp32_t>(const Tile<fp32_t> &src, Scalar alpha,
+void multiply_slice_async<fp32_t>(const Tile<fp32_t> &src, Scalar alpha,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void prod_slice_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src, Scalar alpha,
+void multiply_slice_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src, Scalar alpha,
         const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void prod_slice_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src, Scalar alpha,
+void multiply_slice_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src, Scalar alpha,
         const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void prod_slice_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src, Scalar alpha,
+void multiply_slice_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src, Scalar alpha,
         const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void prod_slice_async<fp64_t>(const Tile<fp64_t> &src, Scalar alpha,
+void multiply_slice_async<fp64_t>(const Tile<fp64_t> &src, Scalar alpha,
         const Tile<fp64_t> &dst, Index axis);
 
 template
-void prod_slice_async<bf16_t>(const Tile<bf16_t> &src, Scalar alpha,
+void multiply_slice_async<bf16_t>(const Tile<bf16_t> &src, Scalar alpha,
         const Tile<bf16_t> &dst, Index axis);
 
 template
-void prod_slice_async<fp16_t>(const Tile<fp16_t> &src, Scalar alpha,
+void multiply_slice_async<fp16_t>(const Tile<fp16_t> &src, Scalar alpha,
         const Tile<fp16_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void prod_slice<fp32_t>(const Tile<fp32_t> &src, Scalar alpha,
+void multiply_slice<fp32_t>(const Tile<fp32_t> &src, Scalar alpha,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void prod_slice<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src, Scalar alpha,
+void multiply_slice<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src, Scalar alpha,
         const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void prod_slice<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src, Scalar alpha,
+void multiply_slice<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src, Scalar alpha,
         const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void prod_slice<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src, Scalar alpha,
+void multiply_slice<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src, Scalar alpha,
         const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void prod_slice<fp64_t>(const Tile<fp64_t> &src, Scalar alpha,
+void multiply_slice<fp64_t>(const Tile<fp64_t> &src, Scalar alpha,
         const Tile<fp64_t> &dst, Index axis);
 
 template
-void prod_slice<bf16_t>(const Tile<bf16_t> &src, Scalar alpha,
+void multiply_slice<bf16_t>(const Tile<bf16_t> &src, Scalar alpha,
         const Tile<bf16_t> &dst, Index axis);
 
 template
-void prod_slice<fp16_t>(const Tile<fp16_t> &src, Scalar alpha,
+void multiply_slice<fp16_t>(const Tile<fp16_t> &src, Scalar alpha,
         const Tile<fp16_t> &dst, Index axis);
 
 } // namespace nntile::tile

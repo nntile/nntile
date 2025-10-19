@@ -101,7 +101,7 @@ set(TESTS_CATCH2
     "prod_fiber"
     "prod_fiber3"
     "prod_inplace"
-    "prod_slice"
+    "multiply_slice"
     "prod"
     "relu"
     "relu_backward"

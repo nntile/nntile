@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/prod_slice.hh
+ * @file include/nntile/starpu/multiply_slice.hh
  * StarPU wrappers for multiplication of a tensor and a broadcasted slice
  *
  * @version 1.1.0
@@ -27,20 +27,20 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for prod_slice operation is not defined
+//! Generic wrapper class for multiply_slice operation is not defined
 template<typename T>
-class ProdSlice;
+class MultiplySlice;
 
-//! Specialization of wrapper class for prod_slice operation via std::tuple
+//! Specialization of wrapper class for multiply_slice operation via std::tuple
 template<typename T>
-class ProdSlice<std::tuple<T>>
+class MultiplySlice<std::tuple<T>>
 {
 public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
     //! Constructor
-    ProdSlice();
+    MultiplySlice();
 
     //! Structure for operation arguments
     struct args_t
@@ -77,7 +77,7 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit prod_slice task
+    //! Submit multiply_slice task
     void submit(
         Index m,
         Index n,
@@ -88,9 +88,9 @@ public:
     );
 };
 
-//! Pack of prod_slice operations for different types
-using prod_slice_pack_t = OperationPack<
-    ProdSlice,
+//! Pack of multiply_slice operations for different types
+using multiply_slice_pack_t = OperationPack<
+    MultiplySlice,
     std::tuple<nntile::fp64_t>,
     std::tuple<nntile::fp32_t>,
     std::tuple<nntile::fp32_fast_tf32_t>,
@@ -100,7 +100,7 @@ using prod_slice_pack_t = OperationPack<
     std::tuple<nntile::fp16_t>
 >;
 
-//! Pack of prod_slice operations for different types
-extern prod_slice_pack_t prod_slice;
+//! Pack of multiply_slice operations for different types
+extern multiply_slice_pack_t multiply_slice;
 
 } // namespace nntile::starpu

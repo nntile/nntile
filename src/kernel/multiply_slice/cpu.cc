@@ -6,16 +6,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/prod_slice/cpu.cc
+ * @file src/kernel/multiply_slice/cpu.cc
  * Per-element multiplication of a tensor by a broadcasted slice on CPU
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/prod_slice/cpu.hh"
+#include "nntile/kernel/multiply_slice/cpu.hh"
 #include "nntile/kernel/cpu.hh"
 
-namespace nntile::kernel::prod_slice
+namespace nntile::kernel::multiply_slice
 {
 
 template<typename T>

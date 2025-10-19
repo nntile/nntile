@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/prod_slice.cc
+ * @file src/starpu/multiply_slice.cc
  * StarPU wrappers for per-element product of a tensor and a broadcasted slice
  *
  * @version 1.1.0
@@ -171,13 +171,13 @@ void MultiplySlice<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alph
 // Explicit instantiation
 // For some strange reason, the compiler does not instantiate the template
 // automatically, so we need to do it manually
-template class ProdSlice<std::tuple<nntile::fp64_t>>;
-template class ProdSlice<std::tuple<nntile::fp32_t>>;
-template class ProdSlice<std::tuple<nntile::fp32_fast_tf32_t>>;
-template class ProdSlice<std::tuple<nntile::fp32_fast_fp16_t>>;
-template class ProdSlice<std::tuple<nntile::fp32_fast_bf16_t>>;
-template class ProdSlice<std::tuple<nntile::bf16_t>>;
-template class ProdSlice<std::tuple<nntile::fp16_t>>;
+template class MultiplySlice<std::tuple<nntile::fp64_t>>;
+template class MultiplySlice<std::tuple<nntile::fp32_t>>;
+template class MultiplySlice<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class MultiplySlice<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class MultiplySlice<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class MultiplySlice<std::tuple<nntile::bf16_t>>;
+template class MultiplySlice<std::tuple<nntile::fp16_t>>;
 
 //! Pack of prod_slice operations for different types
 multiply_slice_pack_t multiply_slice;
