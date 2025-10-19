@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import numpy as np
+
 import nntile
 
 # Test for tensor::multiply_slice_inplace<T> Python wrapper
