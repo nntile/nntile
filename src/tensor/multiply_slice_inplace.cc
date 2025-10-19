@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/multiply_slice_inplace.hh"
-#include "nntile/starpu/multiply_slice_inplace.hh"
+#include "nntile/starpu.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -60,7 +60,7 @@ void multiply_slice_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar bet
     auto tile_src = src.get_tile(0);
     auto tile_dst = dst.get_tile(0);
     // Submit task
-    multiply_slice_inplace.submit<std::tuple<T>>(dst.shape[0], dst.shape[1], dst.shape[2],
+    starpu::multiply_slice_inplace.submit<std::tuple<T>>(dst.shape[0], dst.shape[1], dst.shape[2],
             alpha, tile_src.handle, beta, tile_dst.handle, axis);
 }
 
