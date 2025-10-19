@@ -6,28 +6,28 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/prod_fiber3.cc
+ * @file src/tile/multiply_fiber.cc
  * Tile wrappers for per-element product of a tensor and a broadcasted fiber
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tile/prod_fiber3.hh"
-#include "nntile/starpu/prod_fiber3.hh"
+#include "nntile/tile/multiply_fiber.hh"
+#include "nntile/starpu/multiply_fiber.hh"
 
 namespace nntile::tile
 {
 
 template<typename T>
-void prod_fiber3_async(const Tile<T> &src1, Scalar alpha, const Tile<T> &src2,
+void multiply_fiber_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
         const Tile<T> &dst, Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted fiber
 /*! Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
  * and performs the following operations:
  *      dst[i,l,j] = alpha * src1[l] * src2[i,l,j]
  *
- * @param[in] src: Input fiber, that is reshaped into 1D array
  * @param[in] alpha: Scalar factor
+ * @param[in] src: Input fiber, that is reshaped into 1D array
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
@@ -64,83 +64,83 @@ void prod_fiber3_async(const Tile<T> &src1, Scalar alpha, const Tile<T> &src2,
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::prod_fiber3.submit<std::tuple<T>>(m, n, k, alpha, src1, src2, dst);
+    starpu::multiply_fiber.submit<std::tuple<T>>(m, n, k, alpha, src1, src2, dst);
 }
 
 template<typename T>
-void prod_fiber3(const Tile<T> &src1, Scalar alpha, const Tile<T> &src2,
+void multiply_fiber(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
         const Tile<T> &dst, Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted fiber
-/*! Blocking version of prod_fiber3_async<T>.
+/*! Blocking version of multiply_fiber_async<T>.
  * Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
  * and performs the following operations:
  *      dst[i,l,j] = alpha * src1[l] * src2[i,l,j]
  *
- * @param[in] src: Input fiber, that is reshaped into 1D array
  * @param[in] alpha: Scalar factor
+ * @param[in] src: Input fiber, that is reshaped into 1D array
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    prod_fiber3_async<T>(src1, alpha, src2, dst, axis);
+    multiply_fiber_async<T>(alpha, src1, src2, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void prod_fiber3_async<fp32_t>(const Tile<fp32_t> &src1, Scalar alpha,
+void multiply_fiber_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1,
         const Tile<fp32_t> &src2, const Tile<fp32_t> &dst, Index axis);
 
 template
-void prod_fiber3_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src1, Scalar alpha,
+void multiply_fiber_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
         const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void prod_fiber3_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src1, Scalar alpha,
+void multiply_fiber_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src1,
         const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void prod_fiber3_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src1, Scalar alpha,
+void multiply_fiber_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src1,
         const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void prod_fiber3_async<fp64_t>(const Tile<fp64_t> &src1, Scalar alpha,
+void multiply_fiber_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1,
         const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis);
 
 template
-void prod_fiber3_async<bf16_t>(const Tile<bf16_t> &src1, Scalar alpha,
+void multiply_fiber_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1,
         const Tile<bf16_t> &src2, const Tile<bf16_t> &dst, Index axis);
 
 template
-void prod_fiber3_async<fp16_t>(const Tile<fp16_t> &src1, Scalar alpha,
+void multiply_fiber_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src1,
         const Tile<fp16_t> &src2, const Tile<fp16_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void prod_fiber3<fp32_t>(const Tile<fp32_t> &src1, Scalar alpha,
+void multiply_fiber<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1,
         const Tile<fp32_t> &src2, const Tile<fp32_t> &dst, Index axis);
 
 template
-void prod_fiber3<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src1, Scalar alpha,
+void multiply_fiber<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
         const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void prod_fiber3<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src1, Scalar alpha,
+void multiply_fiber<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src1,
         const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void prod_fiber3<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src1, Scalar alpha,
+void multiply_fiber<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src1,
         const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void prod_fiber3<fp64_t>(const Tile<fp64_t> &src1, Scalar alpha,
+void multiply_fiber<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1,
         const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis);
 
 template
-void prod_fiber3<bf16_t>(const Tile<bf16_t> &src1, Scalar alpha,
+void multiply_fiber<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1,
         const Tile<bf16_t> &src2, const Tile<bf16_t> &dst, Index axis);
 
 template
-void prod_fiber3<fp16_t>(const Tile<fp16_t> &src1, Scalar alpha,
+void multiply_fiber<fp16_t>(Scalar alpha, const Tile<fp16_t> &src1,
         const Tile<fp16_t> &src2, const Tile<fp16_t> &dst, Index axis);
 
 } // namespace nntile::tile
