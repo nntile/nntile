@@ -27,15 +27,15 @@ namespace nntile::starpu
 
 //! Constructor
 template<typename T>
-MultiplyFiber<std::tuple<T>>::MultiplyFiber():
+ProdFiber3<std::tuple<T>>::ProdFiber3():
     codelet("nntile_prod_fiber3", footprint, cpu_funcs, cuda_funcs)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! StarPU wrapper for kernel::multiply_fiber::cpu<T>
+//! StarPU wrapper for kernel::prod_fiber3::cpu<T>
 template<typename T>
-void MultiplyFiber<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
+void ProdFiber3<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -54,33 +54,33 @@ void MultiplyFiber<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 
 // Specializations of CPU wrapper for accelerated types
 template<>
-void MultiplyFiber<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+void ProdFiber3<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    MultiplyFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    ProdFiber3<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void MultiplyFiber<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+void ProdFiber3<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    MultiplyFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    ProdFiber3<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void MultiplyFiber<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+void ProdFiber3<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    MultiplyFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    ProdFiber3<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::multiply_fiber::cuda<T>
+//! StarPU wrapper for kernel::prod_fiber3::cuda<T>
 template<typename T>
-void MultiplyFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+void ProdFiber3<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -101,33 +101,33 @@ void MultiplyFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
-void MultiplyFiber<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+void ProdFiber3<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    MultiplyFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    ProdFiber3<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void MultiplyFiber<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+void ProdFiber3<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    MultiplyFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    ProdFiber3<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void MultiplyFiber<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+void ProdFiber3<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    MultiplyFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    ProdFiber3<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for multiply_fiber tasks
 template<typename T>
-uint32_t MultiplyFiber<std::tuple<T>>::footprint(struct starpu_task *task)
+uint32_t ProdFiber3<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -140,7 +140,7 @@ uint32_t MultiplyFiber<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void MultiplyFiber<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
+void ProdFiber3<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
         Handle dst)
 //! Insert multiply_fiber task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -174,13 +174,13 @@ void MultiplyFiber<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alph
 // Explicit instantiation
 // For some strange reason, the compiler does not instantiate the template
 // automatically, so we need to do it manually
-template class MultiplyFiber<std::tuple<nntile::fp64_t>>;
-template class MultiplyFiber<std::tuple<nntile::fp32_t>>;
-template class MultiplyFiber<std::tuple<nntile::fp32_fast_tf32_t>>;
-template class MultiplyFiber<std::tuple<nntile::fp32_fast_fp16_t>>;
-template class MultiplyFiber<std::tuple<nntile::fp32_fast_bf16_t>>;
-template class MultiplyFiber<std::tuple<nntile::bf16_t>>;
-template class MultiplyFiber<std::tuple<nntile::fp16_t>>;
+template class ProdFiber3<std::tuple<nntile::fp64_t>>;
+template class ProdFiber3<std::tuple<nntile::fp32_t>>;
+template class ProdFiber3<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class ProdFiber3<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class ProdFiber3<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class ProdFiber3<std::tuple<nntile::bf16_t>>;
+template class ProdFiber3<std::tuple<nntile::fp16_t>>;
 
 //! Pack of prod_fiber3 operations for different types
 prod_fiber3_pack_t prod_fiber3;
