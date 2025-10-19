@@ -6,7 +6,7 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/layer/layer_norm.py
+# @file wrappers/python/nntile/layer/batch_norm.py
 # LayerNorm of NNTile Python package
 #
 # @version 1.1.0
@@ -124,8 +124,8 @@ class BatchNorm2d(BaseLayer):
 
     def _learnable_transform_forward(self):
         # y = weight * y + bias
-        prod_fiber3_async(
-            self.weight.value, 1.0, self.x_normalized, self.y.value, 1
+        multiply_fiber_async(
+            1.0, self.weight.value, self.x_normalized, self.y.value, 1
         )
         self.weight.value.wont_use()
         add_fiber_inplace_async(1.0, self.bias.value, 1.0, self.y.value, 1, 0)
