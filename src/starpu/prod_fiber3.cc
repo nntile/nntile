@@ -6,21 +6,21 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/prod_fiber3.cc
+ * @file src/starpu/multiply_fiber.cc
  * StarPU wrappers for per-element product of a tensor and a broadcasted fiber
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/starpu/prod_fiber3.hh"
+#include "nntile/starpu/multiply_fiber.hh"
 
 // Standard libraries
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
-#include "nntile/kernel/prod_fiber3.hh"
+#include "nntile/kernel/multiply_fiber.hh"
 
 namespace nntile::starpu
 {
