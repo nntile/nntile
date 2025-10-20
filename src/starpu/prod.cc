@@ -27,15 +27,15 @@ namespace nntile::starpu
 
 //! Constructor
 template<typename T>
-Prod<std::tuple<T>>::Prod():
-    codelet("nntile_prod", footprint, cpu_funcs, cuda_funcs)
+Multiply<std::tuple<T>>::Multiply():
+    codelet("nntile_multiply", footprint, cpu_funcs, cuda_funcs)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! StarPU wrapper for kernel::prod::cpu<T>
+//! StarPU wrapper for kernel::multiply::cpu<T>
 template<typename T>
-void Prod<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
+void Multiply<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -47,39 +47,39 @@ void Prod<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     const T *src2 = interfaces[1]->get_ptr<T>();
     T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::prod::cpu<T>(nelems, src1, src2, dst);
+    kernel::multiply::cpu<T>(nelems, src1, src2, dst);
 #endif // STARPU_SIMGRID
 }
 
 // Specializations of CPU wrapper for accelerated types
 template<>
-void Prod<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+void Multiply<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    Prod<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    Multiply<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void Prod<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+void Multiply<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    Prod<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    Multiply<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void Prod<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+void Multiply<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    Prod<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    Multiply<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Apply prod on StarPU buffer on CUDA
 template<typename T>
-void Prod<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+void Multiply<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -99,33 +99,33 @@ void Prod<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
-void Prod<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+void Multiply<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    Prod<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    Multiply<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void Prod<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+void Multiply<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    Prod<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    Multiply<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void Prod<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+void Multiply<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    Prod<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    Multiply<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for add tasks that depends only on cl_arg
 template<typename T>
-uint32_t Prod<std::tuple<T>>::footprint(struct starpu_task *task)
+uint32_t Multiply<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -135,7 +135,7 @@ uint32_t Prod<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void Prod<std::tuple<T>>::submit(Index nelems, Handle src1, Handle src2, Handle dst)
+void Multiply<std::tuple<T>>::submit(Index nelems, Handle src1, Handle src2, Handle dst)
 {
     Index *nelems_ = new Index{nelems};
     // Put amount of read-write bytes into flop count
@@ -150,21 +150,21 @@ void Prod<std::tuple<T>>::submit(Index nelems, Handle src1, Handle src2, Handle 
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in prod task submission");
+        throw std::runtime_error("Error in multiply task submission");
     }
 }
 
 // Explicit instantiation
 // For some strange reason, the compiler does not instantiate the template
 // automatically, so we need to do it manually
-template class Prod<std::tuple<nntile::fp64_t>>;
-template class Prod<std::tuple<nntile::fp32_t>>;
-template class Prod<std::tuple<nntile::fp32_fast_tf32_t>>;
-template class Prod<std::tuple<nntile::fp32_fast_fp16_t>>;
-template class Prod<std::tuple<nntile::fp32_fast_bf16_t>>;
-template class Prod<std::tuple<nntile::bf16_t>>;
+template class Multiply<std::tuple<nntile::fp64_t>>;
+template class Multiply<std::tuple<nntile::fp32_t>>;
+template class Multiply<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class Multiply<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class Multiply<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class Multiply<std::tuple<nntile::bf16_t>>;
 
-//! Pack of prod operations for different types
-prod_pack_t prod;
+//! Pack of multiply operations for different types
+multiply_pack_t multiply;
 
 } // namespace nntile::starpu

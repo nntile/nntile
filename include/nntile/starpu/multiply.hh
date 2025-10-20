@@ -74,7 +74,7 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit prod task
+    //! Submit multiply task
     void submit(
         Index nelems,
         Handle src1,
@@ -83,8 +83,8 @@ public:
     );
 };
 
-//! Pack of prod operations for different types
-using prod_pack_t = OperationPack<
+//! Pack of multiply operations for different types
+using multiply_pack_t = OperationPack<
     Multiply,
     std::tuple<nntile::fp64_t>,
     std::tuple<nntile::fp32_t>,
@@ -94,7 +94,7 @@ using prod_pack_t = OperationPack<
     std::tuple<nntile::bf16_t>
 >;
 
-//! Pack of prod operations for different types
-extern prod_pack_t prod;
+//! Pack of multiply operations for different types
+extern multiply_pack_t multiply;
 
 } // namespace nntile::starpu

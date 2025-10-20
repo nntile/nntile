@@ -24,7 +24,7 @@ namespace nntile::tensor
  * @param[inout] dst: Input and output tensor for the prod operation
  * */
 template<typename T>
-void prod_async(const Tensor<T> &src1, const Tensor<T> &src2,
+void multiply_async(const Tensor<T> &src1, const Tensor<T> &src2,
         const Tensor<T> &dst)
 {
     // Check shapes
@@ -74,67 +74,67 @@ void prod_async(const Tensor<T> &src1, const Tensor<T> &src2,
  * @param[inout] dst: Input and output tensor for the prod operation
  * */
 template<typename T>
-void prod(const Tensor<T> &src1, const Tensor<T> &src2, const Tensor<T> &dst)
+void multiply(const Tensor<T> &src1, const Tensor<T> &src2, const Tensor<T> &dst)
 {
-    prod_async<T>(src1, src2, dst);
+    multiply_async<T>(src1, src2, dst);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void prod_async<fp32_t>(const Tensor<fp32_t> &src1, const Tensor<fp32_t> &src2,
+void multiply_async<fp32_t>(const Tensor<fp32_t> &src1, const Tensor<fp32_t> &src2,
         const Tensor<fp32_t> &dst);
 
 template
-void prod_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src1,
+void multiply_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src1,
         const Tensor<fp32_fast_tf32_t> &src2,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void prod_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src1,
+void multiply_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src1,
         const Tensor<fp32_fast_fp16_t> &src2,
         const Tensor<fp32_fast_fp16_t> &dst);
 
 template
-void prod_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src1,
+void multiply_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src1,
         const Tensor<fp32_fast_bf16_t> &src2,
         const Tensor<fp32_fast_bf16_t> &dst);
 
 template
-void prod_async<fp64_t>(const Tensor<fp64_t> &src1, const Tensor<fp64_t> &src2,
+void multiply_async<fp64_t>(const Tensor<fp64_t> &src1, const Tensor<fp64_t> &src2,
         const Tensor<fp64_t> &dst);
 
 template
-void prod_async<bf16_t>(const Tensor<bf16_t> &src1, const Tensor<bf16_t> &src2,
+void multiply_async<bf16_t>(const Tensor<bf16_t> &src1, const Tensor<bf16_t> &src2,
         const Tensor<bf16_t> &dst);
 
 // Explicit instantiation
 template
-void prod<fp32_t>(const Tensor<fp32_t> &src1, const Tensor<fp32_t> &src2,
+void multiply<fp32_t>(const Tensor<fp32_t> &src1, const Tensor<fp32_t> &src2,
         const Tensor<fp32_t> &dst);
 
 template
-void prod<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src1,
+void multiply<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src1,
         const Tensor<fp32_fast_tf32_t> &src2,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void prod<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src1,
+void multiply<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src1,
         const Tensor<fp32_fast_fp16_t> &src2,
         const Tensor<fp32_fast_fp16_t> &dst);
 
 template
-void prod<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src1,
+void multiply<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src1,
         const Tensor<fp32_fast_bf16_t> &src2,
         const Tensor<fp32_fast_bf16_t> &dst);
 
 template
-void prod<fp64_t>(const Tensor<fp64_t> &src1, const Tensor<fp64_t> &src2,
+void multiply<fp64_t>(const Tensor<fp64_t> &src1, const Tensor<fp64_t> &src2,
         const Tensor<fp64_t> &dst);
 
 template
-void prod<bf16_t>(const Tensor<bf16_t> &src1, const Tensor<bf16_t> &src2,
+void multiply<bf16_t>(const Tensor<bf16_t> &src1, const Tensor<bf16_t> &src2,
         const Tensor<bf16_t> &dst);
 
 } // namespace nntile::tensor
