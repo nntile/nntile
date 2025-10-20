@@ -15,7 +15,7 @@
 #include "nntile/kernel/transpose/cuda.hh"
 #include <algorithm>
 #include "nntile/kernel/cuda.hh"
-#include "nntile/kernel/scal/cuda.hh"
+#include "nntile/kernel/scale/cuda.hh"
 
 namespace nntile::kernel::transpose
 {
@@ -101,7 +101,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Scalar alpha, const T *src,
     {
         if(m == 1)
         {
-            scal::cuda<T>(stream, m*n, alpha, src, dst);
+            scale::cuda<T>(stream, m*n, alpha, src, dst);
         }
         else if(m < 4)
         {
@@ -138,7 +138,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Scalar alpha, const T *src,
     {
         if(n == 1)
         {
-            scal::cuda<T>(stream, m*n, alpha, src, dst);
+            scale::cuda<T>(stream, m*n, alpha, src, dst);
         }
         else if(n < 4)
         {

@@ -21,7 +21,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/hypot.hh"
-#include "nntile/starpu/scal.hh"
+#include "nntile/starpu/scale.hh"
 #include "nntile/starpu/clear.hh"
 
 namespace nntile::starpu

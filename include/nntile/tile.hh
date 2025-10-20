@@ -54,8 +54,8 @@
 #include <nntile/tile/logsumexp.hh>
 #include <nntile/tile/total_sum_accum.hh>
 #include <nntile/tile/subtract_indexed_outputs.hh>
-#include <nntile/tile/scal.hh>
-#include <nntile/tile/scal_inplace.hh>
+#include <nntile/tile/scale.hh>
+#include <nntile/tile/scale_inplace.hh>
 #include <nntile/tile/gelu_backward.hh>
 #include <nntile/tile/gelutanh_backward.hh>
 #include <nntile/tile/add.hh>

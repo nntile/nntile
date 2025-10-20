@@ -21,9 +21,9 @@
 
 // Other NNTile headers
 #include "nntile/kernel/add_inplace.hh"
-#include "nntile/starpu/scal.hh"
+#include "nntile/starpu/scale.hh"
 #include "nntile/starpu/clear.hh"
-#include "nntile/starpu/scal_inplace.hh"
+#include "nntile/starpu/scale_inplace.hh"
 
 //! StarPU wrappers for add_inplace operation
 namespace nntile::starpu
@@ -149,16 +149,16 @@ void AddInplace<std::tuple<T>>::submit(
 )
 {
     constexpr Scalar zero = 0, one = 1;
-    // If beta is zero this function reduces to scal
+    // If beta is zero this function reduces to scale
     if(beta == zero)
     {
-        scal.submit<std::tuple<T>>(nelems, alpha, src, dst);
+        scale.submit<std::tuple<T>>(nelems, alpha, src, dst);
         return;
     }
-    // If beta is non-zero and alpha is zero then reduce to scal_inplace
+    // If beta is non-zero and alpha is zero then reduce to scale_inplace
     if(alpha == zero)
     {
-        scal_inplace.submit<std::tuple<T>>(nelems, beta, dst);
+        scale_inplace.submit<std::tuple<T>>(nelems, beta, dst);
         return;
     }
     // Access mode for the dst handle

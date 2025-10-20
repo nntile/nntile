@@ -58,8 +58,8 @@
 #include <nntile/kernel/embedding.hh>
 #include <nntile/kernel/embedding_backward.hh>
 #include <nntile/kernel/mask_scalar.hh>
-#include <nntile/kernel/scal.hh>
-#include <nntile/kernel/scal_inplace.hh>
+#include <nntile/kernel/scale.hh>
+#include <nntile/kernel/scale_inplace.hh>
 #include <nntile/kernel/adam_step.hh>
 #include <nntile/kernel/adamw_step.hh>
 #include <nntile/kernel/transpose.hh>

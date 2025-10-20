@@ -67,8 +67,8 @@
 #include <nntile/starpu/relu_forward.hh>
 #include <nntile/starpu/rope.hh>
 #include <nntile/starpu/rope_backward.hh>
-#include <nntile/starpu/scal.hh>
-#include <nntile/starpu/scal_inplace.hh>
+#include <nntile/starpu/scale.hh>
+#include <nntile/starpu/scale_inplace.hh>
 #include <nntile/starpu/silu_backward.hh>
 #include <nntile/starpu/silu_forward.hh>
 #include <nntile/starpu/softmax.hh>
