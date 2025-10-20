@@ -21,7 +21,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/add.hh"
-#include "nntile/starpu/scal.hh"
+#include "nntile/starpu/scale.hh"
 
 namespace nntile::starpu
 {
@@ -152,14 +152,14 @@ void Add<std::tuple<T>>::submit(
     if(beta == zero)
     {
         // dst = alpha*src1
-        scal.submit<std::tuple<T>>(nelems, alpha, src1, dst);
+        scale.submit<std::tuple<T>>(nelems, alpha, src1, dst);
         return;
     }
     // If beta is non-zero and alpha is zero then reduce to scal
     if(alpha == zero)
     {
         // dst = beta*src2
-        scal.submit<std::tuple<T>>(nelems, beta, src2, dst);
+        scale.submit<std::tuple<T>>(nelems, beta, src2, dst);
         return;
     }
     // Codelet arguments

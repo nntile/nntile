@@ -6,22 +6,22 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/scal.cc
- * Scal operation for Tensor<T>
+ * @file src/tensor/scale.cc
+ * Scale operation for Tensor<T>
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/scal.hh"
-#include "nntile/starpu/scal.hh"
+#include "nntile/tensor/scale.hh"
+#include "nntile/starpu/scale.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
 
-//! Tensor-wise scal operation
+//! Tensor-wise scale operation
 template<typename T>
-void scal_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst)
+void scale_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != src.ndim)
@@ -41,7 +41,7 @@ void scal_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst)
                     "src.basetile_shape[i]");
         }
     }
-    // Apply per-tile scal asynchronously as needed
+    // Apply per-tile scale asynchronously as needed
     int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < src.grid.nelems; ++i)
     {
@@ -56,7 +56,7 @@ void scal_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::scal.submit<std::tuple<T>>(traits.nelems, alpha, src_tile_handle,
+            starpu::scale.submit<std::tuple<T>>(traits.nelems, alpha, src_tile_handle,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -64,71 +64,71 @@ void scal_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst)
     }
 }
 
-//! Tensor-wise scal operation
+//! Tensor-wise scale operation
 template<typename T>
-void scal(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst)
+void scale(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst)
 {
-    scal_async<T>(alpha, src, dst);
+    scale_async<T>(alpha, src, dst);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation of template
 template
-void scal_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
+void scale_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
 template
-void scal_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
+void scale_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst);
 
 template
-void scal_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
+void scale_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
         const Tensor<fp16_t> &dst);
 
 template
-void scal_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
+void scale_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void scal_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src,
+void scale_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src,
         const Tensor<fp32_fast_fp16_t> &dst);
 
 template
-void scal_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
+void scale_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
         const Tensor<fp32_fast_bf16_t> &dst);
 
 template
-void scal_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
+void scale_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
 // Explicit instantiation of template
 template
-void scal<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
+void scale<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
 template
-void scal<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
+void scale<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst);
 
 template
-void scal<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
+void scale<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
         const Tensor<fp16_t> &dst);
 
 template
-void scal<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
+void scale<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void scal<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src,
+void scale<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src,
         const Tensor<fp32_fast_fp16_t> &dst);
 
 template
-void scal<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
+void scale<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
         const Tensor<fp32_fast_bf16_t> &dst);
 
 template
-void scal<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
+void scale<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
 } // namespace nntile::tensor

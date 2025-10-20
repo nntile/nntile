@@ -6,21 +6,21 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/scal.cc
- * Scal operation for Tile<T>
+ * @file src/tile/scale.cc
+ * Scale operation for Tile<T>
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tile/scal.hh"
-#include "nntile/starpu/scal.hh"
+#include "nntile/tile/scale.hh"
+#include "nntile/starpu/scale.hh"
 
 namespace nntile::tile
 {
 
-//! Tile-wise scal operation
+//! Tile-wise scale operation
 template<typename T>
-void scal_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
+void scale_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != src.ndim)
@@ -36,65 +36,65 @@ void scal_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
         }
     }
     // Insert corresponding task
-    starpu::scal.submit<std::tuple<T>>(src.nelems, alpha, src, dst);
+    starpu::scale.submit<std::tuple<T>>(src.nelems, alpha, src, dst);
 }
 
-//! Tile-wise scal operation
+//! Tile-wise scale operation
 template<typename T>
-void scal(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
+void scale(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
 {
-    scal_async<T>(alpha, src, dst);
+    scale_async<T>(alpha, src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void scal_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+void scale_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst);
 
 template
-void scal_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+void scale_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void scal_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
+void scale_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void scal_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+void scale_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst);
 
 template
-void scal_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
+void scale_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
         const Tile<bf16_t> &dst);
 
 template
-void scal_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src,
+void scale_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src,
         const Tile<fp16_t> &dst);
 
 // Explicit instantiation of template
 template
-void scal<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+void scale<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst);
 
 template
-void scal<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+void scale<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void scal<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
+void scale<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void scal<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+void scale<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst);
 
 template
-void scal<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
+void scale<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
         const Tile<bf16_t> &dst);
 
 template
-void scal<fp16_t>(Scalar alpha, const Tile<fp16_t> &src,
+void scale<fp16_t>(Scalar alpha, const Tile<fp16_t> &src,
         const Tile<fp16_t> &dst);
 
 } // namespace nntile::tile

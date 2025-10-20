@@ -61,7 +61,7 @@ set(TESTS
     "tile"
     "total_sum_accum"
     "traits"
-    "scal"
+    "scale"
     "hypot_inplace"
     "hypot"
 )
@@ -91,7 +91,7 @@ set(TESTS_NOT_IMPLEMENTED
     "sumprod_fiber"
     "total_sum_accum"
     "sqrt"
-    "scal"
+    "scale"
     "softmax"
     "hypot_inplace"
     "add_slice"

@@ -21,7 +21,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/hypot_inplace.hh"
-#include "nntile/starpu/scal.hh"
+#include "nntile/starpu/scale.hh"
 #include "nntile/starpu/clear.hh"
 #include "nntile/starpu/scal_inplace.hh"
 

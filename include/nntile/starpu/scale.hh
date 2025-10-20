@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/scal.hh
- * Scal operation on StarPU buffers
+ * @file include/nntile/starpu/scale.hh
+ * Scale operation on StarPU buffers
  *
  * @version 1.1.0
  * */
@@ -24,20 +24,20 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for scal operation is not defined
+//! Generic wrapper class for scale operation is not defined
 template<typename T>
-class Scal;
+class Scale;
 
-//! Specialization of wrapper class for scal operation via std::tuple
+//! Specialization of wrapper class for scale operation via std::tuple
 template<typename T>
-class Scal<std::tuple<T>>
+class Scale<std::tuple<T>>
 {
 public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
     //! Constructor
-    Scal();
+    Scale();
 
     //! Structure for operation arguments
     struct args_t
@@ -72,7 +72,7 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit scal task
+    //! Submit scale task
     void submit(
         Index nelems,
         Scalar alpha,
@@ -81,9 +81,9 @@ public:
     );
 };
 
-//! Pack of scal operations for different types
-using scal_pack_t = OperationPack<
-    Scal,
+//! Pack of scale operations for different types
+using scale_pack_t = OperationPack<
+    Scale,
     std::tuple<nntile::fp64_t>,
     std::tuple<nntile::fp32_t>,
     std::tuple<nntile::fp32_fast_tf32_t>,
@@ -93,7 +93,7 @@ using scal_pack_t = OperationPack<
     std::tuple<nntile::fp16_t>
 >;
 
-//! Pack of scal operations for different types
-extern scal_pack_t scal;
+//! Pack of scale operations for different types
+extern scale_pack_t scale;
 
 } // namespace nntile::starpu

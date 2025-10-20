@@ -6,25 +6,25 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/scal.hh
- * Scal operation for Tile<T>
+ * @file include/nntile/tensor/scale.hh
+ * Scale operation for Tensor<T>
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/tile/tile.hh>
+#include <nntile/tensor/tensor.hh>
 
-namespace nntile::tile
+namespace nntile::tensor
 {
 
-// Tile-wise scal operation
+// Tensor-wise scale operation
 template<typename T>
-void scal_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst);
+void scale_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst);
 
-// Tile-wise scal operation
+// Tensor-wise scale operation
 template<typename T>
-void scal(Scalar alpha, const Tile<T> &src, const Tile<T> &dst);
+void scale(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst);
 
-} // namespace nntile::tile
+} // namespace nntile::tensor

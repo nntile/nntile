@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/scal.cc
+ * @file src/starpu/scale.cc
  * Scale operation on a StarPU buffers
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/starpu/scal.hh"
+#include "nntile/starpu/scale.hh"
 
 // Standard libraries
 #include <cstdlib>
@@ -28,15 +28,15 @@ namespace nntile::starpu
 
 //! Constructor
 template<typename T>
-Scal<std::tuple<T>>::Scal():
-    codelet("nntile_scal", footprint, cpu_funcs, cuda_funcs)
+Scale<std::tuple<T>>::Scale():
+    codelet("nntile_scale", footprint, cpu_funcs, cuda_funcs)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
 
 //! StarPU wrapper for kernel::scale::cpu<T>
 template<typename T>
-void Scal<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
+void Scale<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -53,33 +53,33 @@ void Scal<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 
 // Specializations of CPU wrapper for accelerated types
 template<>
-void Scal<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+void Scale<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    Scal<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    Scale<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void Scal<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+void Scale<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    Scal<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    Scale<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void Scal<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+void Scale<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    Scal<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    Scale<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! StarPU wrapper for kernel::scale::cuda<T>
 template<typename T>
-void Scal<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+void Scale<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -98,33 +98,33 @@ void Scal<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
-void Scal<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+void Scale<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    Scal<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    Scale<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void Scal<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+void Scale<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    Scal<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    Scale<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void Scal<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+void Scale<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    Scal<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    Scale<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for scale tasks that depends only on cl_arg
 template<typename T>
-uint32_t Scal<std::tuple<T>>::footprint(struct starpu_task *task)
+uint32_t Scale<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -134,7 +134,7 @@ uint32_t Scal<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void Scal<std::tuple<T>>::submit(
+void Scale<std::tuple<T>>::submit(
     Index nelems, Scalar alpha, Handle src, Handle dst)
 {
     constexpr Scalar zero = 0.0;
@@ -165,15 +165,15 @@ void Scal<std::tuple<T>>::submit(
 // Explicit instantiation
 // For some strange reason, the compiler does not instantiate the template
 // automatically, so we need to do it manually
-template class Scal<std::tuple<nntile::fp64_t>>;
-template class Scal<std::tuple<nntile::fp32_t>>;
-template class Scal<std::tuple<nntile::fp32_fast_tf32_t>>;
-template class Scal<std::tuple<nntile::fp32_fast_fp16_t>>;
-template class Scal<std::tuple<nntile::fp32_fast_bf16_t>>;
-template class Scal<std::tuple<nntile::bf16_t>>;
-template class Scal<std::tuple<nntile::fp16_t>>;
+template class Scale<std::tuple<nntile::fp64_t>>;
+template class Scale<std::tuple<nntile::fp32_t>>;
+template class Scale<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class Scale<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class Scale<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class Scale<std::tuple<nntile::bf16_t>>;
+template class Scale<std::tuple<nntile::fp16_t>>;
 
-//! Pack of scal operations for different types
-scal_pack_t scal;
+//! Pack of scale operations for different types
+scale_pack_t scale;
 
 } // namespace nntile::starpu
