@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/prod_inplace.hh
+ * @file include/nntile/starpu/multiply_inplace.hh
  * Per-element product of two StarPU buffers
  *
  * @version 1.1.0
@@ -27,20 +27,20 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for prod_inplace operation is not defined
+//! Generic wrapper class for multiply_inplace operation is not defined
 template<typename T>
-class ProdInplace;
+class MultiplyInplace;
 
-//! Specialization of wrapper class for prod_inplace operation via std::tuple
+//! Specialization of wrapper class for multiply_inplace operation via std::tuple
 template<typename T>
-class ProdInplace<std::tuple<T>>
+class MultiplyInplace<std::tuple<T>>
 {
 public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
     //! Constructor
-    ProdInplace();
+    MultiplyInplace();
 
     //! Structure for operation arguments
     struct args_t
@@ -74,7 +74,7 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit prod_inplace task
+    //! Submit multiply_inplace task
     void submit(
         Index nelems,
         Handle src,
@@ -82,9 +82,9 @@ public:
     );
 };
 
-//! Pack of prod_inplace operations for different types
-using prod_inplace_pack_t = OperationPack<
-    ProdInplace,
+//! Pack of multiply_inplace operations for different types
+using multiply_inplace_pack_t = OperationPack<
+    MultiplyInplace,
     std::tuple<nntile::fp64_t>,
     std::tuple<nntile::fp32_t>,
     std::tuple<nntile::fp32_fast_tf32_t>,
@@ -94,7 +94,7 @@ using prod_inplace_pack_t = OperationPack<
     std::tuple<nntile::fp16_t>
 >;
 
-//! Pack of prod_inplace operations for different types
-extern prod_inplace_pack_t prod_inplace;
+//! Pack of multiply_inplace operations for different types
+extern multiply_inplace_pack_t multiply_inplace;
 
 } // namespace nntile::starpu

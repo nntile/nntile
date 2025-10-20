@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/prod_inplace.cc
+ * @file src/tensor/multiply_inplace.cc
  * Per-element product of two Tensor<T>
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/prod_inplace.hh"
-#include "nntile/starpu/prod_inplace.hh"
+#include "nntile/tensor/multiply_inplace.hh"
+#include "nntile/starpu/multiply_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -24,7 +24,7 @@ namespace nntile::tensor
  * @param[inout] dst: Input and output tensor for the prod operation
  * */
 template<typename T>
-void prod_inplace_async(const Tensor<T> &src, const Tensor<T> &dst)
+void multiply_inplace_async(const Tensor<T> &src, const Tensor<T> &dst)
 {
     // Check shapes
     if(src.shape != dst.shape)
@@ -50,7 +50,7 @@ void prod_inplace_async(const Tensor<T> &src, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::prod_inplace.submit<std::tuple<T>>(traits.nelems, src_tile_handle,
+            starpu::multiply_inplace.submit<std::tuple<T>>(traits.nelems, src_tile_handle,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -63,69 +63,69 @@ void prod_inplace_async(const Tensor<T> &src, const Tensor<T> &dst)
  * @param[inout] dst: Input and output tensor for the prod operation
  * */
 template<typename T>
-void prod_inplace(const Tensor<T> &src, const Tensor<T> &dst)
+void multiply_inplace(const Tensor<T> &src, const Tensor<T> &dst)
 {
-    prod_inplace_async<T>(src, dst);
+    multiply_inplace_async<T>(src, dst);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void prod_inplace_async<fp32_t>(const Tensor<fp32_t> &src,
+void multiply_inplace_async<fp32_t>(const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
 template
-void prod_inplace_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+void multiply_inplace_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void prod_inplace_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+void multiply_inplace_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
         const Tensor<fp32_fast_fp16_t> &dst);
 
 template
-void prod_inplace_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+void multiply_inplace_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
         const Tensor<fp32_fast_bf16_t> &dst);
 
 template
-void prod_inplace_async<fp64_t>(const Tensor<fp64_t> &src,
+void multiply_inplace_async<fp64_t>(const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
 template
-void prod_inplace_async<bf16_t>(const Tensor<bf16_t> &src,
+void multiply_inplace_async<bf16_t>(const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst);
 
 template
-void prod_inplace_async<fp16_t>(const Tensor<fp16_t> &src,
+void multiply_inplace_async<fp16_t>(const Tensor<fp16_t> &src,
         const Tensor<fp16_t> &dst);
 
 // Explicit instantiation
 template
-void prod_inplace<fp32_t>(const Tensor<fp32_t> &src,
+void multiply_inplace<fp32_t>(const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
 template
-void prod_inplace<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+void multiply_inplace<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void prod_inplace<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+void multiply_inplace<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
         const Tensor<fp32_fast_fp16_t> &dst);
 
 template
-void prod_inplace<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+void multiply_inplace<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
         const Tensor<fp32_fast_bf16_t> &dst);
 
 template
-void prod_inplace<fp64_t>(const Tensor<fp64_t> &src,
+void multiply_inplace<fp64_t>(const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
 template
-void prod_inplace<bf16_t>(const Tensor<bf16_t> &src,
+void multiply_inplace<bf16_t>(const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst);
 
 template
-void prod_inplace<fp16_t>(const Tensor<fp16_t> &src,
+void multiply_inplace<fp16_t>(const Tensor<fp16_t> &src,
         const Tensor<fp16_t> &dst);
 
 } // namespace nntile::tensor

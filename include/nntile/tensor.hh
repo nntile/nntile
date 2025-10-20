@@ -37,7 +37,7 @@
 #include <nntile/tensor/gelutanh_inplace.hh>
 #include <nntile/tensor/gemm.hh>
 #include <nntile/tensor/prod.hh>
-#include <nntile/tensor/prod_inplace.hh>
+#include <nntile/tensor/multiply_inplace.hh>
 #include <nntile/tensor/randn.hh>
 #include <nntile/tensor/relu.hh>
 #include <nntile/tensor/relu_forward.hh>

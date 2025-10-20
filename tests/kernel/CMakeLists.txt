@@ -100,7 +100,7 @@ set(TESTS_CATCH2
     "pow"
     "prod_fiber"
     "multiply_fiber"
-    "prod_inplace"
+    "multiply_inplace"
     "prod_slice"
     "prod"
     "relu"

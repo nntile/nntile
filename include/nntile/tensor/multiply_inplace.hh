@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/prod_inplace.hh
+ * @file include/nntile/tensor/multiply_inplace.hh
  * Per-element product of two Tensor<T>
  *
  * @version 1.1.0
@@ -21,10 +21,10 @@ namespace nntile::tensor
 
 // Asynchronous tensor-wise prod operation
 template<typename T>
-void prod_inplace_async(const Tensor<T> &src, const Tensor<T> &dst);
+void multiply_inplace_async(const Tensor<T> &src, const Tensor<T> &dst);
 
 // Blocking version of tensor-wise prod operation
 template<typename T>
-void prod_inplace(const Tensor<T> &src, const Tensor<T> &dst);
+void multiply_inplace(const Tensor<T> &src, const Tensor<T> &dst);
 
 } // namespace nntile::tensor

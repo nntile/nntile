@@ -29,7 +29,7 @@
 #include <nntile/kernel/hypot.hh>
 #include <nntile/kernel/hypot_inplace.hh>
 #include <nntile/kernel/prod.hh>
-#include <nntile/kernel/prod_inplace.hh>
+#include <nntile/kernel/multiply_inplace.hh>
 #include <nntile/kernel/randn.hh>
 #include <nntile/kernel/relu.hh>
 #include <nntile/kernel/relu_forward.hh>
