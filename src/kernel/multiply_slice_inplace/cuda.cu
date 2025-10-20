@@ -18,10 +18,10 @@ namespace nntile::kernel::multiply_slice_inplace
 {
 
 template<typename T>
-__global__ void cuda_kernel(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_, T *dst)
+__global__ void cuda_kernel(Index m, Index n, Index k, Scalar alpha_, const T *src, T *dst)
 {
     using Y = typename T::repr_t;
-    const Y alpha{alpha_}, beta{beta_};
+    const Y alpha{alpha_};
 
     Index i = threadIdx.x + blockIdx.x * blockDim.x;
     Index l = threadIdx.y + blockIdx.y * blockDim.y;
@@ -30,25 +30,24 @@ __global__ void cuda_kernel(Index m, Index n, Index k, Scalar alpha_, const T *s
     {
         Y src_val = Y{src[i*k + j]};
         Y dst_val = Y{dst[i*n*k + l*k + j]};
-        dst[i*n*k + l*k + j] = T{beta * dst_val * alpha * src_val};
+        dst[i*n*k + l*k + j] = T{alpha * dst_val * src_val};
     }
 }
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha_,
-        const T *src, Scalar beta_, T *dst)
+        const T *src, T *dst)
     noexcept
 //! In-place multiplication of a tensor and a broadcasted slice on CUDA
 /*! Performs the following operations:
- *      dst[i,l,j] = beta * dst[i,l,j] * alpha * src[i,j]
+ *      dst[i,l,j] = alpha * dst[i,l,j] * src[i,j]
  *
  * @param[in] stream: CUDA stream
  * @param[in] m: Size of the first mode of dst
  * @param[in] n: Size of the second mode of dst
  * @param[in] k: Size of the third mode of dst
- * @param[in] alpha: Scalar factor for src
+ * @param[in] alpha: Scalar factor
  * @param[in] src: Input slice
- * @param[in] beta: Scaling factor for dst
  * @param[inout] dst: Resulting tensor
  * */
 {
@@ -56,16 +55,16 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha_,
     dim3 blocks((m + threads.x - 1) / threads.x,
                 (n + threads.y - 1) / threads.y,
                 (k + threads.z - 1) / threads.z);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, alpha_, src, beta_, dst);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, alpha_, src, dst);
 }
 
 // Explicit instantiation for all supported types
-template void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp32_t *src, Scalar beta, fp32_t *dst);
-template void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp64_t *src, Scalar beta, fp64_t *dst);
-template void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp32_fast_tf32_t *src, Scalar beta, fp32_fast_tf32_t *dst);
-template void cuda<fp32_fast_fp16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp32_fast_fp16_t *src, Scalar beta, fp32_fast_fp16_t *dst);
-template void cuda<fp32_fast_bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp32_fast_bf16_t *src, Scalar beta, fp32_fast_bf16_t *dst);
-template void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const bf16_t *src, Scalar beta, bf16_t *dst);
-template void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp16_t *src, Scalar beta, fp16_t *dst);
+template void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp32_t *src, fp32_t *dst);
+template void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp64_t *src, fp64_t *dst);
+template void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp32_fast_tf32_t *src, fp32_fast_tf32_t *dst);
+template void cuda<fp32_fast_fp16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp32_fast_fp16_t *src, fp32_fast_fp16_t *dst);
+template void cuda<fp32_fast_bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp32_fast_bf16_t *src, fp32_fast_bf16_t *dst);
+template void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const bf16_t *src, bf16_t *dst);
+template void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha, const fp16_t *src, fp16_t *dst);
 
 } // namespace nntile::kernel::multiply_slice_inplace

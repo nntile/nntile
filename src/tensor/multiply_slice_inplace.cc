@@ -20,7 +20,7 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void multiply_slice_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
+void multiply_slice_inplace_async(Scalar alpha, const Tensor<T> &src,
         const Tensor<T> &dst, Index axis)
 {
     // Check dimensions
@@ -61,14 +61,14 @@ void multiply_slice_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar bet
     auto dst_tile_handle = dst.get_tile_handle(0);
     // Submit task
     starpu::multiply_slice_inplace.submit<std::tuple<T>>(dst.shape[0], dst.shape[1], dst.shape[2],
-            alpha, src_tile_handle, beta, dst_tile_handle, axis);
+            alpha, src_tile_handle, dst_tile_handle, axis);
 }
 
 template<typename T>
-void multiply_slice_inplace(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
+void multiply_slice_inplace(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
         Index axis)
 {
-    multiply_slice_inplace_async<T>(alpha, src, beta, dst, axis);
+    multiply_slice_inplace_async<T>(alpha, src, dst, axis);
     starpu_task_wait_for_all();
 }
 

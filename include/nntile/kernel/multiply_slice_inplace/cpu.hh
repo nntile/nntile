@@ -21,18 +21,17 @@ namespace nntile::kernel::multiply_slice_inplace
 
 //! In-place multiplication of a tensor and a broadcasted slice on CPU
 /*! Performs the following operations:
- *      dst[i,l,j] = beta * dst[i,l,j] * alpha * src[i,j]
+ *      dst[i,l,j] = alpha * dst[i,l,j] * src[i,j]
  *
  * @param[in] m: Size of the first mode of dst
  * @param[in] n: Size of the second mode of dst
  * @param[in] k: Size of the third mode of dst
- * @param[in] alpha: Scalar factor for src
+ * @param[in] alpha: Scalar factor
  * @param[in] src: Input slice
- * @param[in] beta: Scaling factor for dst
  * @param[inout] dst: Resulting tensor
  * */
 template<typename T>
-void cpu(Index m, Index n, Index k, Scalar alpha, const T *src, Scalar beta,
+void cpu(Index m, Index n, Index k, Scalar alpha, const T *src,
         T *dst) noexcept;
 
 } // namespace nntile::kernel::multiply_slice_inplace

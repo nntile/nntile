@@ -37,9 +37,8 @@ void MultiplySliceInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto k = args->k;
     auto alpha = args->alpha;
     auto src = reinterpret_cast<const T *>(STARPU_VECTOR_GET_PTR(buffers[0]));
-    auto beta = args->beta;
     auto dst = reinterpret_cast<T *>(STARPU_VECTOR_GET_PTR(buffers[1]));
-    kernel::multiply_slice_inplace::cpu<T>(m, n, k, alpha, src, beta, dst);
+    kernel::multiply_slice_inplace::cpu<T>(m, n, k, alpha, src, dst);
 }
 
 //! StarPU wrapper for kernel::multiply_slice_inplace::cuda<T>
@@ -54,11 +53,10 @@ void MultiplySliceInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto k = args->k;
     auto alpha = args->alpha;
     auto src = reinterpret_cast<const T *>(STARPU_VECTOR_GET_PTR(buffers[0]));
-    auto beta = args->beta;
     auto dst = reinterpret_cast<T *>(STARPU_VECTOR_GET_PTR(buffers[1]));
     auto stream = starpu_cuda_get_local_stream();
 
-    kernel::multiply_slice_inplace::cuda<T>(stream, m, n, k, alpha, src, beta, dst);
+    kernel::multiply_slice_inplace::cuda<T>(stream, m, n, k, alpha, src, dst);
 #else // NNTILE_USE_CUDA
     // CUDA not available
     (void)buffers;
@@ -82,10 +80,10 @@ uint32_t MultiplySliceInplace<std::tuple<T>>::footprint(struct starpu_task *task
 //! Submit multiply_slice_inplace task into StarPU pool of tasks
 template<typename T>
 void MultiplySliceInplace<std::tuple<T>>::submit(Index m, Index n, Index k,
-        Scalar alpha, Handle src, Scalar beta, Handle dst, Index axis)
+        Scalar alpha, Handle src, Handle dst, Index axis)
 {
     // Codelet arguments
-    args_t args{m, n, k, alpha, beta, axis};
+    args_t args{m, n, k, alpha, axis};
 
     // Submit task
     int ret = starpu_task_insert(&codelet,

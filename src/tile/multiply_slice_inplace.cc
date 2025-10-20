@@ -20,7 +20,7 @@ namespace nntile::tile
 {
 
 template<typename T>
-void multiply_slice_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta,
+void multiply_slice_inplace_async(Scalar alpha, const Tile<T> &src,
         const Tile<T> &dst, Index axis)
 {
     // Check dimensions
@@ -58,14 +58,14 @@ void multiply_slice_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta,
     }
     // Submit task
     starpu::multiply_slice_inplace.submit<std::tuple<T>>(dst.shape[0], dst.shape[1], dst.shape[2],
-            alpha, src, beta, dst, axis);
+            alpha, src, dst, axis);
 }
 
 template<typename T>
-void multiply_slice_inplace(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+void multiply_slice_inplace(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index axis)
 {
-    multiply_slice_inplace_async<T>(alpha, src, beta, dst, axis);
+    multiply_slice_inplace_async<T>(alpha, src, dst, axis);
     starpu_task_wait_for_all();
 }
 

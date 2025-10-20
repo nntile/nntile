@@ -18,24 +18,23 @@ namespace nntile::kernel::multiply_slice_inplace
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_,
+void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src,
         T *dst)
     noexcept
 //! In-place multiplication of a tensor and a broadcasted slice on CPU
 /*! Performs the following operations:
- *      dst[i,l,j] = beta * dst[i,l,j] * alpha * src[i,j]
+ *      dst[i,l,j] = alpha * dst[i,l,j] * src[i,j]
  *
  * @param[in] m: Size of the first mode of dst
  * @param[in] n: Size of the second mode of dst
  * @param[in] k: Size of the third mode of dst
- * @param[in] alpha_: Scalar factor for src
+ * @param[in] alpha_: Scalar factor
  * @param[in] src: Input slice
- * @param[in] beta_: Scaling factor for dst
  * @param[inout] dst: Resulting tensor
  * */
 {
     using Y = typename T::repr_t;
-    const Y alpha{alpha_}, beta{beta_};
+    const Y alpha{alpha_};
 
     // Task body
     for(Index i = 0; i < m; ++i)
@@ -46,7 +45,7 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_,
             {
                 Y src_val = Y{src[i*k + j]};
                 Y dst_val = Y{dst[i*n*k + l*k + j]};
-                dst[i*n*k + l*k + j] = T{beta * dst_val * alpha * src_val};
+                dst[i*n*k + l*k + j] = T{alpha * dst_val * src_val};
             }
         }
     }

@@ -81,11 +81,11 @@ void test_multiply_slice_inplace()
     scatter<T>(src_single, src);
     scatter<T>(dst_single, dst);
     // Perform tensor-wise and tile-wise multiply_slice_inplace operations
-    multiply_slice_inplace<T>(alpha, src, beta, dst, axis);
+    multiply_slice_inplace<T>(alpha, src, dst, axis);
     // Check results for the first tile
     auto tile_src = src.get_tile(0);
     auto tile_dst = dst.get_tile(0);
-    tile::multiply_slice_inplace<T>(alpha, tile_src, beta, tile_dst, axis);
+    tile::multiply_slice_inplace<T>(alpha, tile_src, tile_dst, axis);
     // Check result
     std::vector<Y> result_dst(dst.nelems);
     if(mpi_rank == mpi_root)
@@ -168,12 +168,12 @@ void test_multiply_slice_inplace_async()
     scatter<T>(src_single, src);
     scatter<T>(dst_single, dst);
     // Perform tensor-wise and tile-wise multiply_slice_inplace operations
-    multiply_slice_inplace_async<T>(alpha, src, beta, dst, axis);
+    multiply_slice_inplace_async<T>(alpha, src, dst, axis);
     starpu_task_wait_for_all();
     // Check results for the first tile
     auto tile_src = src.get_tile(0);
     auto tile_dst = dst.get_tile(0);
-    tile::multiply_slice_inplace_async<T>(alpha, tile_src, beta, tile_dst, axis);
+    tile::multiply_slice_inplace_async<T>(alpha, tile_src, tile_dst, axis);
     starpu_task_wait_for_all();
     // Check result
     std::vector<Y> result_dst(dst.nelems);
@@ -214,16 +214,16 @@ void test_multiply_slice_inplace_errors()
     Tensor<T> A(trA, dist00), B(trB, dist0000), C(trC, dist00),
               D(trD, dist0000), E(trE, dist0000), F(trF, dist00), G(trG, dist0000);
     // Test various error conditions
-    TEST_THROW(multiply_slice_inplace<T>(1.0, A, 1.0, B, 0));
-    TEST_THROW(multiply_slice_inplace<T>(1.0, F, 1.0, F, 0));
-    TEST_THROW(multiply_slice_inplace<T>(1.0, A, 1.0, B, -1));
-    TEST_THROW(multiply_slice_inplace<T>(1.0, A, 1.0, B, 2));
-    TEST_THROW(multiply_slice_inplace<T>(1.0, A, 1.0, D, 0));
-    TEST_THROW(multiply_slice_inplace<T>(1.0, A, 1.0, E, 0));
-    TEST_THROW(multiply_slice_inplace<T>(1.0, A, 1.0, B, 0));
-    TEST_THROW(multiply_slice_inplace<T>(1.0, A, 1.0, B, 1));
-    TEST_THROW(multiply_slice_inplace<T>(1.0, A, 1.0, G, 0));
-    TEST_THROW(multiply_slice_inplace<T>(1.0, A, 1.0, G, 1));
+    TEST_THROW(multiply_slice_inplace<T>(1.0, A, B, 0));
+    TEST_THROW(multiply_slice_inplace<T>(1.0, F, F, 0));
+    TEST_THROW(multiply_slice_inplace<T>(1.0, A, B, -1));
+    TEST_THROW(multiply_slice_inplace<T>(1.0, A, B, 2));
+    TEST_THROW(multiply_slice_inplace<T>(1.0, A, D, 0));
+    TEST_THROW(multiply_slice_inplace<T>(1.0, A, E, 0));
+    TEST_THROW(multiply_slice_inplace<T>(1.0, A, B, 0));
+    TEST_THROW(multiply_slice_inplace<T>(1.0, A, B, 1));
+    TEST_THROW(multiply_slice_inplace<T>(1.0, A, G, 0));
+    TEST_THROW(multiply_slice_inplace<T>(1.0, A, G, 1));
 }
 
 int main(int argc, char **argv)

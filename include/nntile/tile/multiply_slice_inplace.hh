@@ -21,12 +21,12 @@ namespace nntile::tile
 
 // Tile<T> in-place multiplication of a tensor and a broadcasted slice
 template<typename T>
-void multiply_slice_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta,
+void multiply_slice_inplace_async(Scalar alpha, const Tile<T> &src,
         const Tile<T> &dst, Index axis);
 
 // Tile<T> in-place multiplication of a tensor and a broadcasted slice
 template<typename T>
-void multiply_slice_inplace(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+void multiply_slice_inplace(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
         Index axis);
 
 } // namespace nntile::tile

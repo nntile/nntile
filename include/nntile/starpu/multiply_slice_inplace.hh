@@ -49,7 +49,6 @@ public:
         Index n;
         Index k;
         Scalar alpha;
-        Scalar beta;
         Index axis;
     };
 
@@ -85,7 +84,6 @@ public:
         Index k,
         Scalar alpha,
         Handle src,
-        Scalar beta,
         Handle dst,
         Index axis
     );
