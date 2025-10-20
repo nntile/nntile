@@ -66,9 +66,9 @@ void validate_cpu(Scalar alpha, Index nelems)
     cblas_scal(nelems, alpha, &src[0], 1);
     // Check by actually submitting a task
     VariableHandle src2_handle(&src2[0], sizeof(T)*nelems);
-    scale_inplace::restrict_where(STARPU_CPU);
+    scal_inplace::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::scale_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
-    scale_inplace::submit<T>(nelems, alpha, src2_handle);
+    scal_inplace::submit<T>(nelems, alpha, src2_handle);
     starpu_task_wait_for_all();
     src2_handle.unregister();
     // Check result
@@ -160,9 +160,9 @@ void validate_cuda(Scalar alpha, Index nelems)
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
     VariableHandle src2_handle(&src2[0], sizeof(T)*nelems);
-    scale_inplace::restrict_where(STARPU_CUDA);
+    scal_inplace::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::scale_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
-    scale_inplace::submit<T>(nelems, alpha, src2_handle);
+    scal_inplace::submit<T>(nelems, alpha, src2_handle);
     starpu_task_wait_for_all();
     src2_handle.unregister();
     // Check result

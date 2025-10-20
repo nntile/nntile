@@ -147,11 +147,11 @@ void HypotInplace<std::tuple<T>>::submit(
  * */
 {
     constexpr Scalar zero = 0, one = 1;
-    // If beta is zero this function reduces to scal
+    // If beta is zero this function reduces to scale
     //if(beta == zero)
     //{
     //    throw std::runtime_error("modulus(apha*src) is not yet implemented");
-    //    //scal::submit<T>(nelems, alpha, src, dst);
+    //    //scale::submit<T>(nelems, alpha, src, dst);
     //    return;
     //}
     // If beta is non-zero and alpha is zero then reduce to scale_inplace

@@ -148,14 +148,14 @@ void Add<std::tuple<T>>::submit(
 )
 {
     constexpr Scalar zero = 0;
-    // If beta is zero this function reduces to scale_inplace
+    // If beta is zero this function reduces to scale
     if(beta == zero)
     {
         // dst = alpha*src1
         scale.submit<std::tuple<T>>(nelems, alpha, src1, dst);
         return;
     }
-    // If beta is non-zero and alpha is zero then reduce to scal
+    // If beta is non-zero and alpha is zero then reduce to scale
     if(alpha == zero)
     {
         // dst = beta*src2
