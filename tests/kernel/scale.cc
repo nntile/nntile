@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/scal.cc
+ * @file tests/kernel/scale.cc
  * Per-element scaling of tensors
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/kernel/scal.hh"
+#include "nntile/kernel/scale.hh"
 
 // Standard libraries
 #include <vector>
@@ -38,7 +38,7 @@ using namespace Catch::Matchers;
 // Use tested NNTile namespaces
 using namespace nntile;
 using namespace nntile::kernel;
-using namespace nntile::kernel::scal;
+using namespace nntile::kernel::scale;
 
 // Type to acquire reference values
 using ref_t = double;
@@ -58,9 +58,9 @@ struct TestData
     std::vector<T> dst_ref;
 };
 
-// Reference implementation of the scal operation
+// Reference implementation of the scale operation
 template<typename T>
-void reference_scal(TestData<T>& data)
+void reference_scale(TestData<T>& data)
 {
     using Y = typename T::repr_t;
     if (data.num_elems == 0)
@@ -152,7 +152,7 @@ TestData<T> get_test_data(
         throw std::runtime_error("Unsupported data type");
     }
     // Compute reference outputs
-    reference_scal(data);
+    reference_scale(data);
     return data;
 }
 
@@ -183,7 +183,7 @@ void run_cpu_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][scal][cpu][nelems=" +
+            "[kernel][scale][cpu][nelems=" +
             std::to_string(data.num_elems) +
             "][alpha=" +
             std::to_string(data.alpha) +
@@ -232,7 +232,7 @@ void run_cuda_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][scal][cuda][nelems=" +
+            "[kernel][scale][cuda][nelems=" +
             std::to_string(data.num_elems) +
             "][alpha=" +
             std::to_string(data.alpha) +
@@ -275,8 +275,8 @@ void run_cuda_test(TestData<T>& data)
 
 // Catch2-based tests
 TEMPLATE_TEST_CASE(
-    "Scal Kernel Verification",
-    "[scal]",
+    "Scale Kernel Verification",
+    "[scale]",
     fp64_t,
     fp32_t,
     fp16_t,
@@ -309,8 +309,8 @@ TEMPLATE_TEST_CASE(
 
 // Catch2-based benchmarks
 TEMPLATE_TEST_CASE(
-    "Scal Kernel Benchmark",
-    "[scal][!benchmark]",
+    "Scale Kernel Benchmark",
+    "[scale][!benchmark]",
     fp64_t,
     fp32_t,
     fp16_t,

@@ -6,16 +6,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/scal/cuda.cu
- * Scal operation on buffers on CUDA
+ * @file src/kernel/scale/cuda.cu
+ * Scale operation on buffers on CUDA
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/scal/cuda.hh"
+#include "nntile/kernel/scale/cuda.hh"
 #include "nntile/kernel/cuda.hh"
 
-namespace nntile::kernel::scal
+namespace nntile::kernel::scale
 {
 
 template<typename T>
@@ -28,7 +28,7 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T* src, T* dst)
  * @param[in] nelems: Size of the src and dst tensors
  * @param[in] alpha_: Scalar multiplier for the src tensor
  * @param[in] src_: Source tensor
- * @param[out] dst_: Destination of the scal operation. Input values are
+ * @param[out] dst_: Destination of the scale operation. Input values are
  *      ignored, its content is overwritten on exit.
  * */
 {
@@ -52,7 +52,7 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src_,
  * @param[in] nelems: Size of the src and dst tensors
  * @param[in] alpha: Scalar multiplier for the src tensor
  * @param[in] src_: Source tensor
- * @param[out] dst_: Destination of the scal operation. Input values are
+ * @param[out] dst_: Destination of the scale operation. Input values are
  *      ignored, its content is overwritten on exit.
  * */
 {
@@ -82,4 +82,4 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const fp64_t *src, fp64_t *dst)
     noexcept;
 
-} // namespace nntile::kernel::scal
+} // namespace nntile::kernel::scale

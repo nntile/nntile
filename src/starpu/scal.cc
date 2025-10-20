@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/starpu/scal.cc
- * Scal operation on a StarPU buffers
+ * Scale operation on a StarPU buffers
  *
  * @version 1.1.0
  * */
@@ -20,7 +20,7 @@
 #include <stdexcept>
 
 // Other NNTile headers
-#include "nntile/kernel/scal.hh"
+#include "nntile/kernel/scale.hh"
 #include "nntile/starpu/clear.hh"
 
 namespace nntile::starpu
@@ -34,7 +34,7 @@ Scal<std::tuple<T>>::Scal():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! StarPU wrapper for kernel::scal::cpu<T>
+//! StarPU wrapper for kernel::scale::cpu<T>
 template<typename T>
 void Scal<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -47,7 +47,7 @@ void Scal<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::scal::cpu<T>(args->nelems, args->alpha, src, dst);
+    kernel::scale::cpu<T>(args->nelems, args->alpha, src, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -77,7 +77,7 @@ void Scal<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::scal::cuda<T>
+//! StarPU wrapper for kernel::scale::cuda<T>
 template<typename T>
 void Scal<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -92,7 +92,7 @@ void Scal<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::scal::cuda<T>(stream, args->nelems, args->alpha, src, dst);
+    kernel::scale::cuda<T>(stream, args->nelems, args->alpha, src, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -122,7 +122,7 @@ void Scal<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for scal tasks that depends only on cl_arg
+//! Footprint for scale tasks that depends only on cl_arg
 template<typename T>
 uint32_t Scal<std::tuple<T>>::footprint(struct starpu_task *task)
 {
@@ -138,7 +138,7 @@ void Scal<std::tuple<T>>::submit(
     Index nelems, Scalar alpha, Handle src, Handle dst)
 {
     constexpr Scalar zero = 0.0;
-    // if alpha is zero,sfunction reduces to clear
+    // if alpha is zero, function reduces to clear
     if(alpha == zero)
     {
         clear.submit(dst);
@@ -158,7 +158,7 @@ void Scal<std::tuple<T>>::submit(
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in scal task submission");
+        throw std::runtime_error("Error in scale task submission");
     }
 }
 

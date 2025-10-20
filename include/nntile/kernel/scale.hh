@@ -6,24 +6,24 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/scal.hh
- * Scal low-level kernel
+ * @file include/nntile/kernel/scale.hh
+ * Scale low-level kernel
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/kernel/scal/cpu.hh>
+#include <nntile/kernel/scale/cpu.hh>
 #include <nntile/defs.h>
 #ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/scal/cuda.hh>
+#include <nntile/kernel/scale/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
-//! @namespace nntile::kernel::scal
-/*! Low-level implementations of scal operation
+//! @namespace nntile::kernel::scale
+/*! Low-level implementations of scale operation
  * */
-namespace nntile::kernel::scal
+namespace nntile::kernel::scale
 {
 
-} // namespace nntile::kernel::scal
+} // namespace nntile::kernel::scale

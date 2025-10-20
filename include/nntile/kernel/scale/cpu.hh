@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/scal/cpu.hh
- * Scal operation on buffers on CPU
+ * @file include/nntile/kernel/scale/cpu.hh
+ * Scale operation on buffers on CPU
  *
  * @version 1.1.0
  * */
@@ -16,12 +16,12 @@
 
 #include <nntile/base_types.hh>
 
-namespace nntile::kernel::scal
+namespace nntile::kernel::scale
 {
 
-// Apply scal for buffers on CPU
+// Apply scale for buffers on CPU
 template<typename T>
 void cpu(Index nelems, Scalar alpha, const T* src, T* dst)
     noexcept;
 
-} // namespace nntile::kernel::scal
+} // namespace nntile::kernel::scale
