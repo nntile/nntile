@@ -29,7 +29,7 @@ namespace nntile::starpu
 
 //! Generic wrapper class for multiply_inplace operation is not defined
 template<typename T>
-class ProdInplace;
+class MultiplyInplace;
 
 //! Specialization of wrapper class for multiply_inplace operation via std::tuple
 template<typename T>
@@ -82,7 +82,7 @@ public:
     );
 };
 
-//! Pack of prod_inplace operations for different types
+//! Pack of multiply_inplace operations for different types
 using multiply_inplace_pack_t = OperationPack<
     MultiplyInplace,
     std::tuple<nntile::fp64_t>,
@@ -94,7 +94,7 @@ using multiply_inplace_pack_t = OperationPack<
     std::tuple<nntile::fp16_t>
 >;
 
-//! Pack of prod_inplace operations for different types
+//! Pack of multiply_inplace operations for different types
 extern multiply_inplace_pack_t multiply_inplace;
 
 } // namespace nntile::starpu

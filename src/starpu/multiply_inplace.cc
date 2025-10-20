@@ -27,7 +27,7 @@ namespace nntile::starpu
 
 //! Constructor
 template<typename T>
-ProdInplace<std::tuple<T>>::ProdInplace():
+MultiplyInplace<std::tuple<T>>::MultiplyInplace():
     codelet("nntile_multiply_inplace", footprint, cpu_funcs, cuda_funcs)
 {
     // Modes are not fixed, they are decided during runtime by default
@@ -35,7 +35,7 @@ ProdInplace<std::tuple<T>>::ProdInplace():
 
 //! Apply prod on StarPU buffers on CPU
 template<typename T>
-void ProdInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
+void MultiplyInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -52,33 +52,33 @@ void ProdInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 
 // Specializations of CPU wrapper for accelerated types
 template<>
-void ProdInplace<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+void MultiplyInplace<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ProdInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    MultiplyInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void ProdInplace<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+void MultiplyInplace<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ProdInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    MultiplyInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void ProdInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+void MultiplyInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ProdInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    MultiplyInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Apply prod on StarPU buffer on CUDA
 template<typename T>
-void ProdInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+void MultiplyInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -97,33 +97,33 @@ void ProdInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
-void ProdInplace<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+void MultiplyInplace<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ProdInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    MultiplyInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void ProdInplace<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+void MultiplyInplace<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ProdInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    MultiplyInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void ProdInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+void MultiplyInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ProdInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    MultiplyInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for multiply_inplace tasks
 template<typename T>
-uint32_t ProdInplace<std::tuple<T>>::footprint(struct starpu_task *task)
+uint32_t MultiplyInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -134,7 +134,7 @@ uint32_t ProdInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 
 //! Submit multiply_inplace task
 template<typename T>
-void ProdInplace<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
+void MultiplyInplace<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
 {
     // Codelet arguments
     args_t *args = (args_t*)std::malloc(sizeof(*args));
@@ -157,13 +157,13 @@ void ProdInplace<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
 // Explicit instantiation
 // For some strange reason, the compiler does not instantiate the template
 // automatically, so we need to do it manually
-template class ProdInplace<std::tuple<nntile::fp64_t>>;
-template class ProdInplace<std::tuple<nntile::fp32_t>>;
-template class ProdInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
-template class ProdInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
-template class ProdInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
-template class ProdInplace<std::tuple<nntile::bf16_t>>;
-template class ProdInplace<std::tuple<nntile::fp16_t>>;
+template class MultiplyInplace<std::tuple<nntile::fp64_t>>;
+template class MultiplyInplace<std::tuple<nntile::fp32_t>>;
+template class MultiplyInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class MultiplyInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class MultiplyInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class MultiplyInplace<std::tuple<nntile::bf16_t>>;
+template class MultiplyInplace<std::tuple<nntile::fp16_t>>;
 
 //! Pack of multiply_inplace operations for different types
 multiply_inplace_pack_t multiply_inplace;

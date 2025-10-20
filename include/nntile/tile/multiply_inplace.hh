@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/prod_inplace.hh
+ * @file include/nntile/tile/multiply_inplace.hh
  * Per-element product of two Tile<T>
  *
  * @version 1.1.0
