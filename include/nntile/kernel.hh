@@ -21,7 +21,7 @@
 #include <nntile/kernel/add_fiber.hh>
 #include <nntile/kernel/prod_slice.hh>
 #include <nntile/kernel/prod_fiber.hh>
-#include <nntile/kernel/prod_fiber3.hh>
+#include <nntile/kernel/multiply_fiber.hh>
 #include <nntile/kernel/gelu.hh>
 #include <nntile/kernel/gelu_inplace.hh>
 #include <nntile/kernel/gelutanh.hh>
@@ -58,8 +58,8 @@
 #include <nntile/kernel/embedding.hh>
 #include <nntile/kernel/embedding_backward.hh>
 #include <nntile/kernel/mask_scalar.hh>
-#include <nntile/kernel/scal.hh>
-#include <nntile/kernel/scal_inplace.hh>
+#include <nntile/kernel/scale.hh>
+#include <nntile/kernel/scale_inplace.hh>
 #include <nntile/kernel/adam_step.hh>
 #include <nntile/kernel/adamw_step.hh>
 #include <nntile/kernel/transpose.hh>

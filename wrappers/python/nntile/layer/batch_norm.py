@@ -6,7 +6,7 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/layer/layer_norm.py
+# @file wrappers/python/nntile/layer/batch_norm.py
 # LayerNorm of NNTile Python package
 #
 # @version 1.1.0
@@ -16,9 +16,9 @@ import math
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     TensorMoments, add_fiber_async, add_fiber_inplace_async, add_inplace_async,
-    copy_async, empty, hypot_scalar_inverse_async, multiply_inplace_async,
-    norm_fiber_inplace_async, ones, pow_async, prod_async, prod_fiber3_async,
-    prod_fiber_async, sum_fiber_async, sumprod_fiber_async)
+    copy_async, empty, hypot_scalar_inverse_async, multiply_fiber_async,
+    multiply_inplace_async, norm_fiber_inplace_async, ones, pow_async,
+    prod_async, prod_fiber_async, sum_fiber_async, sumprod_fiber_async)
 
 
 class BatchNorm2d(BaseLayer):
@@ -124,8 +124,8 @@ class BatchNorm2d(BaseLayer):
 
     def _learnable_transform_forward(self):
         # y = weight * y + bias
-        prod_fiber3_async(
-            self.weight.value, 1.0, self.x_normalized, self.y.value, 1
+        multiply_fiber_async(
+            1.0, self.weight.value, self.x_normalized, self.y.value, 1
         )
         self.weight.value.wont_use()
         add_fiber_inplace_async(1.0, self.bias.value, 1.0, self.y.value, 1, 0)

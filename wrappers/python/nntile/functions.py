@@ -978,36 +978,36 @@ def prod_fiber_async(
         raise TypeError
 
 
-def prod_fiber3_async(
-    prod_fiber: Tensor, alpha: float, x: Tensor, y: Tensor, axis: int
+def multiply_fiber_async(
+    alpha: float, x: Tensor, y: Tensor, z: Tensor, axis: int
 ) -> None:
     """
-    Wrapper for multiprecision prod_fiber3
+    Wrapper for multiprecision multiply_fiber
     """
-    if type(prod_fiber) is not type(x):
-        raise TypeError
     if type(x) is not type(y):
         raise TypeError
+    if type(y) is not type(z):
+        raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.prod_fiber3_async_fp32(prod_fiber, alpha, x, y, axis)
+        core_tensor.multiply_fiber_async_fp32(alpha, x, y, z, axis)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.prod_fiber3_async_fp32_fast_tf32(
-            prod_fiber, alpha, x, y, axis
+        core_tensor.multiply_fiber_async_fp32_fast_tf32(
+            alpha, x, y, z, axis
         )
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
-        core_tensor.prod_fiber3_async_fp32_fast_fp16(
-            prod_fiber, alpha, x, y, axis
+        core_tensor.multiply_fiber_async_fp32_fast_fp16(
+            alpha, x, y, z, axis
         )
     elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
-        core_tensor.prod_fiber3_async_fp32_fast_bf16(
-            prod_fiber, alpha, x, y, axis
+        core_tensor.multiply_fiber_async_fp32_fast_bf16(
+            alpha, x, y, z, axis
         )
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.prod_fiber3_async_fp64(prod_fiber, alpha, x, y, axis)
+        core_tensor.multiply_fiber_async_fp64(alpha, x, y, z, axis)
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.prod_fiber3_async_bf16(prod_fiber, alpha, x, y, axis)
+        core_tensor.multiply_fiber_async_bf16(alpha, x, y, z, axis)
     elif type(x) is core_tensor.Tensor_fp16:
-        core_tensor.prod_fiber3_async_fp16(prod_fiber, alpha, x, y, axis)
+        core_tensor.multiply_fiber_async_fp16(alpha, x, y, z, axis)
     else:
         raise TypeError
 
@@ -1321,40 +1321,44 @@ def subtract_indexed_outputs_async(
         raise TypeError
 
 
-def scal_async(alpha: float, x: Tensor, y: Tensor) -> None:
+def scale_async(alpha: float, x: Tensor, y: Tensor) -> None:
     """
     Wrapper for multiprecision scaling
     """
     if type(x) is not type(y):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.scal_async_fp32(alpha, x, y)
+        core_tensor.scale_async_fp32(alpha, x, y)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.scal_async_fp64(alpha, x, y)
+        core_tensor.scale_async_fp64(alpha, x, y)
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.scal_async_bf16(alpha, x, y)
+        core_tensor.scale_async_bf16(alpha, x, y)
     elif type(x) is core_tensor.Tensor_fp16:
-        core_tensor.scal_async_fp16(alpha, x, y)
+        core_tensor.scale_async_fp16(alpha, x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.scale_async_fp32_fast_tf32(alpha, x, y)
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
-        core_tensor.scal_async_fp32_fast_fp16(alpha, x, y)
+        core_tensor.scale_async_fp32_fast_fp16(alpha, x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.scale_async_fp32_fast_bf16(alpha, x, y)
     else:
         raise TypeError
 
 
-def scal_inplace_async(alpha: float, x: Tensor) -> None:
+def scale_inplace_async(alpha: float, x: Tensor) -> None:
     """
     Wrapper for multiprecision scaling
     """
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.scal_inplace_async_fp32(alpha, x)
+        core_tensor.scale_inplace_async_fp32(alpha, x)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.scal_inplace_async_fp32_fast_tf32(alpha, x)
+        core_tensor.scale_inplace_async_fp32_fast_tf32(alpha, x)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.scal_inplace_async_fp64(alpha, x)
+        core_tensor.scale_inplace_async_fp64(alpha, x)
     elif type(x) is core_tensor.Tensor_fp16:
-        core_tensor.scal_inplace_async_fp16(alpha, x)
+        core_tensor.scale_inplace_async_fp16(alpha, x)
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.scal_inplace_async_bf16(alpha, x)
+        core_tensor.scale_inplace_async_bf16(alpha, x)
     else:
         raise TypeError
 

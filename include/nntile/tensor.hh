@@ -26,7 +26,7 @@
 #include <nntile/tensor/add_fiber.hh>
 #include <nntile/tensor/prod_slice.hh>
 #include <nntile/tensor/prod_fiber.hh>
-#include <nntile/tensor/prod_fiber3.hh>
+#include <nntile/tensor/multiply_fiber.hh>
 #include <nntile/tensor/clear.hh>
 #include <nntile/tensor/copy.hh>
 #include <nntile/tensor/copy_intersection.hh>
@@ -59,8 +59,8 @@
 #include <nntile/tensor/logsumexp.hh>
 #include <nntile/tensor/total_sum_accum.hh>
 #include <nntile/tensor/subtract_indexed_outputs.hh>
-#include <nntile/tensor/scal.hh>
-#include <nntile/tensor/scal_inplace.hh>
+#include <nntile/tensor/scale.hh>
+#include <nntile/tensor/scale_inplace.hh>
 #include <nntile/tensor/gelu_backward.hh>
 #include <nntile/tensor/gelutanh_backward.hh>
 #include <nntile/tensor/add.hh>
