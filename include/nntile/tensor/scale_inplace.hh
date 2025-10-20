@@ -6,22 +6,24 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/scal_inplace.cc
- * Placeholder for scal_inplace kernel test
+ * @file include/nntile/tensor/scale_inplace.hh
+ * Inplace scale of Tensor<T>
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/scal_inplace.hh"
-#include "../testing.hh"
-#include <iostream>
+#pragma once
 
-using namespace nntile;
-using namespace nntile::kernel;
+#include <nntile/tensor/tensor.hh>
 
-int main(int argc, char **argv)
+namespace nntile::tensor
 {
-    // This is a placeholder test.
-    std::cout << "STUB: This is a placeholder for the scal_inplace kernel test." << std::endl;
-    return 0;
-}
+
+//! scale_inplace tensor
+template<typename T>
+void scale_inplace_async(Scalar alpha, const Tensor<T> &data);
+
+template<typename T>
+void scale_inplace(Scalar alpha, const Tensor<T> &data);
+
+} // namespace nntile::tensor

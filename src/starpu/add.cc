@@ -148,7 +148,7 @@ void Add<std::tuple<T>>::submit(
 )
 {
     constexpr Scalar zero = 0;
-    // If beta is zero this function reduces to scal_inplace
+    // If beta is zero this function reduces to scale_inplace
     if(beta == zero)
     {
         // dst = alpha*src1

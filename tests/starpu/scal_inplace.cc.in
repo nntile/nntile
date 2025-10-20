@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/scal_inplace.cc.in
- * Inplace scal operation for StarPU buffers
+ * @file tests/starpu/scale_inplace.cc.in
+ * Inplace scale operation for StarPU buffers
  *
  * @version 1.1.0
  * */
 
 #include "nntile/starpu/config.hh"
-#include "nntile/starpu/scal_inplace.hh"
+#include "nntile/starpu/scale_inplace.hh"
 #include "../testing.hh"
 #include <vector>
 #include <stdexcept>
@@ -67,7 +67,7 @@ void validate_cpu(Scalar alpha, Index nelems)
     // Check by actually submitting a task
     VariableHandle src2_handle(&src2[0], sizeof(T)*nelems);
     scal_inplace::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::scal_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "Run starpu::scale_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
     scal_inplace::submit<T>(nelems, alpha, src2_handle);
     starpu_task_wait_for_all();
     src2_handle.unregister();
@@ -76,7 +76,7 @@ void validate_cpu(Scalar alpha, Index nelems)
     {
         TEST_ASSERT(Y(src[i]) == Y(src2[i]));
     }
-    std::cout << "OK: starpu::scal_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::scale_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 template<typename T>
@@ -161,7 +161,7 @@ void validate_cuda(Scalar alpha, Index nelems)
     // Check by actually submitting a task
     VariableHandle src2_handle(&src2[0], sizeof(T)*nelems);
     scal_inplace::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::scal_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
+    std::cout << "Run starpu::scale_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
     scal_inplace::submit<T>(nelems, alpha, src2_handle);
     starpu_task_wait_for_all();
     src2_handle.unregister();
@@ -170,7 +170,7 @@ void validate_cuda(Scalar alpha, Index nelems)
     {
         TEST_ASSERT(Y(src[0]) == Y(src2[0]));
     }
-    std::cout << "OK: starpu::scal_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
+    std::cout << "OK: starpu::scale_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
 }
 
 template<typename T>

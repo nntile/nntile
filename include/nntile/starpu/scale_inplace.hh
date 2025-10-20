@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/scal_inplace.hh
- * Inplace scal operation for StarPU buffers
+ * @file include/nntile/starpu/scale_inplace.hh
+ * Inplace scale operation for StarPU buffers
  *
  * @version 1.1.0
  * */
@@ -24,20 +24,20 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for scal_inplace operation is not defined
+//! Generic wrapper class for scale_inplace operation is not defined
 template<typename T>
-class ScalInplace;
+class ScaleInplace;
 
-//! Specialization of wrapper class for scal_inplace operation via std::tuple
+//! Specialization of wrapper class for scale_inplace operation via std::tuple
 template<typename T>
-class ScalInplace<std::tuple<T>>
+class ScaleInplace<std::tuple<T>>
 {
 public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
     //! Constructor
-    ScalInplace();
+    ScaleInplace();
 
     //! Structure for operation arguments
     struct args_t
@@ -72,7 +72,7 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit scal_inplace task
+    //! Submit scale_inplace task
     void submit(
         Index nelems,
         Scalar alpha,
@@ -80,9 +80,9 @@ public:
     );
 };
 
-//! Pack of scal_inplace operations for different types
-using scal_inplace_pack_t = OperationPack<
-    ScalInplace,
+//! Pack of scale_inplace operations for different types
+using scale_inplace_pack_t = OperationPack<
+    ScaleInplace,
     std::tuple<nntile::fp64_t>,
     std::tuple<nntile::fp32_t>,
     std::tuple<nntile::fp32_fast_tf32_t>,
@@ -92,7 +92,7 @@ using scal_inplace_pack_t = OperationPack<
     std::tuple<nntile::fp16_t>
 >;
 
-//! Pack of scal_inplace operations for different types
-extern scal_inplace_pack_t scal_inplace;
+//! Pack of scale_inplace operations for different types
+extern scale_inplace_pack_t scale_inplace;
 
 } // namespace nntile::starpu

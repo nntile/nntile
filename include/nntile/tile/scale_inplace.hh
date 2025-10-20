@@ -6,17 +6,23 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/scal_inplace.cc
- * @brief Placeholder for scal_inplace test
+ * @file include/nntile/tile/scale_inplace.hh
+ * Inplace scale of Tile<T>
  *
  * @version 1.1.0
  * */
 
-#include <iostream>
+#pragma once
 
-int main(int argc, char **argv)
+#include <nntile/tile/tile.hh>
+
+namespace nntile::tile
 {
-    // Not implemented
-    std::cout << "This test is not yet implemented\n";
-    return -1;
-}
+
+template<typename T>
+void scale_inplace_async(Scalar alpha, const Tile<T> &data);
+
+template<typename T>
+void scale_inplace(Scalar alpha, const Tile<T> &data);
+
+} // namespace nntile::tile

@@ -6,16 +6,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/scal_inplace/cpu.cc
- * Scal inplace operation on buffers on CPU
+ * @file src/kernel/scale_inplace/cpu.cc
+ * Scale inplace operation on buffers on CPU
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/scal_inplace/cpu.hh"
+#include "nntile/kernel/scale_inplace/cpu.hh"
 #include "nntile/kernel/cpu.hh"
 
-namespace nntile::kernel::scal_inplace
+namespace nntile::kernel::scale_inplace
 {
 
 template<typename T>
@@ -27,7 +27,7 @@ void cpu(Index nelems, Scalar alpha_, T* data)
  *
  * @param[in] nelems: Size of the data tensor
  * @param[in] alpha_: Scalar multiplier for the data tensor
- * @param[inout] data: Destination of the scal inplace operation. Input values are
+ * @param[inout] data: Destination of the scale inplace operation. Input values are
  *      ignored, its content is overwritten on exit.
  * */
 {
@@ -56,4 +56,4 @@ template
 void cpu<fp16_t>(Index nelems, Scalar alpha, fp16_t* data)
     noexcept;
 
-} // namespace nntile::kernel::scal_inplace
+} // namespace nntile::kernel::scale_inplace

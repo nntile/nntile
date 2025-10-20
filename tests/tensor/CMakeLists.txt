@@ -66,7 +66,7 @@ set(TESTS_MPI
     "rope"
     "rope_backward"
     "scale"
-    "scal_inplace"
+    "scale_inplace"
     "scatter"
     "silu_backward"
     "silu_forward"

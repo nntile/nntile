@@ -6,22 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/scal_inplace/cpu.hh
- * Scal inplace operation on buffers on CPU
+ * @file tests/starpu/scale_inplace.cc
+ * @brief Placeholder for scale_inplace test
  *
  * @version 1.1.0
  * */
 
-#pragma once
+#include <iostream>
 
-#include <nntile/base_types.hh>
-
-namespace nntile::kernel::scal_inplace
+int main(int argc, char **argv)
 {
-
-// Apply scal for buffers on CPU
-template<typename T>
-void cpu(Index nelems, Scalar alpha, T* data)
-    noexcept;
-
-} // namespace nntile::kernel::scal_inplace
+    // Not implemented
+    std::cout << "This test is not yet implemented\n";
+    return -1;
+}

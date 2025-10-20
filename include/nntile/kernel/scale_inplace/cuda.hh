@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/scal_inplace/cuda.hh
- * Scal inplace operation on buffers on CUDA
+ * @file include/nntile/kernel/scale_inplace/cuda.hh
+ * Scale inplace operation on buffers on CUDA
  *
  * @version 1.1.0
  * */
@@ -17,12 +17,12 @@
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
 
-namespace nntile::kernel::scal_inplace
+namespace nntile::kernel::scale_inplace
 {
 
-// Apply scal for buffers on CUDA
+// Apply scale inplace for buffers on CUDA
 template<typename T>
 void cuda(cudaStream_t stream, Index nelems, Scalar alpha, T* data)
     noexcept;
 
-} // namespace nntile::kernel::scal_inplace
+} // namespace nntile::kernel::scale_inplace

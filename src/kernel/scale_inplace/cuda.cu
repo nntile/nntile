@@ -6,16 +6,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/scal_inplace/cuda.cu
- * Scal inplace operation on buffers on CUDA
+ * @file src/kernel/scale_inplace/cuda.cu
+ * Scale inplace operation on buffers on CUDA
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/scal_inplace/cuda.hh"
+#include "nntile/kernel/scale_inplace/cuda.hh"
 #include "nntile/kernel/cuda.hh"
 
-namespace nntile::kernel::scal_inplace
+namespace nntile::kernel::scale_inplace
 {
 
 template<typename T>
@@ -27,7 +27,7 @@ void cuda_kernel(Index nelems, Scalar alpha_, T* data)
  *
  * @param[in] nelems: Size of the data tensor
  * @param[in] alpha_: Scalar multiplier for the data tensor
- * @param[inout] data: Destination of the scal inplace operation. Input values are
+ * @param[inout] data: Destination of the scale inplace operation. Input values are
  *      ignored, its content is overwritten on exit.
  * */
 {
@@ -49,7 +49,7 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, T *data)
  *
  * @param[in] nelems: Size of the data tensor
  * @param[in] alpha: Scalar multiplier for the data tensor
- * @param[inout] data: Destination of the scal inplace operation. Input values are
+ * @param[inout] data: Destination of the scale inplace operation. Input values are
  *      ignored, its content is overwritten on exit.
  * */
 {
@@ -78,4 +78,4 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         fp64_t *data)
     noexcept;
 
-} // namespace nntile::kernel::scal_inplace
+} // namespace nntile::kernel::scale_inplace

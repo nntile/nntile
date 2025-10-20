@@ -6,23 +6,22 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/scal_inplace.hh
- * Inplace scal of Tile<T>
+ * @file include/nntile/kernel/scale_inplace/cpu.hh
+ * Scale inplace operation on buffers on CPU
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/tile/tile.hh>
+#include <nntile/base_types.hh>
 
-namespace nntile::tile
+namespace nntile::kernel::scale_inplace
 {
 
+// Apply scale inplace for buffers on CPU
 template<typename T>
-void scal_inplace_async(Scalar alpha, const Tile<T> &data);
+void cpu(Index nelems, Scalar alpha, T* data)
+    noexcept;
 
-template<typename T>
-void scal_inplace(Scalar alpha, const Tile<T> &data);
-
-} // namespace nntile::tile
+} // namespace nntile::kernel::scale_inplace

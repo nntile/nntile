@@ -1345,20 +1345,20 @@ def scale_async(alpha: float, x: Tensor, y: Tensor) -> None:
         raise TypeError
 
 
-def scal_inplace_async(alpha: float, x: Tensor) -> None:
+def scale_inplace_async(alpha: float, x: Tensor) -> None:
     """
     Wrapper for multiprecision scaling
     """
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.scal_inplace_async_fp32(alpha, x)
+        core_tensor.scale_inplace_async_fp32(alpha, x)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.scal_inplace_async_fp32_fast_tf32(alpha, x)
+        core_tensor.scale_inplace_async_fp32_fast_tf32(alpha, x)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.scal_inplace_async_fp64(alpha, x)
+        core_tensor.scale_inplace_async_fp64(alpha, x)
     elif type(x) is core_tensor.Tensor_fp16:
-        core_tensor.scal_inplace_async_fp16(alpha, x)
+        core_tensor.scale_inplace_async_fp16(alpha, x)
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.scal_inplace_async_bf16(alpha, x)
+        core_tensor.scale_inplace_async_bf16(alpha, x)
     else:
         raise TypeError
 

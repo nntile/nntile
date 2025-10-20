@@ -6,15 +6,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/scal_inplace.cc
- * Inplace scal operation for Tensor<T>
+ * @file tests/tensor/scale_inplace.cc
+ * Inplace scale operation for Tensor<T>
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/scal_inplace.hh"
-#include "nntile/tile/scal_inplace.hh"
-#include "nntile/starpu/scal_inplace.hh"
+#include "nntile/tensor/scale_inplace.hh"
+#include "nntile/tile/scale_inplace.hh"
+#include "nntile/starpu/scale_inplace.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -62,10 +62,10 @@ void check(Scalar alpha, const std::vector<Index> &shape,
     Tensor<T> data(data_traits, data_distr);
     scatter<T>(data_single, data);
     // Perform tensor-wise and tile-wise scal_inplace operations
-    scal_inplace<T>(alpha, data);
+    scale_inplace<T>(alpha, data);
     if(mpi_rank == mpi_root)
     {
-        tile::scal_inplace<T>(alpha, data_single.get_tile(0));
+        tile::scale_inplace<T>(alpha, data_single.get_tile(0));
     }
     gather<T>(data, data2_single);
     // Compare results

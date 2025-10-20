@@ -6,21 +6,21 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/scal_inplace.cc
- * Scal inplace operation on a StarPU buffers
+ * @file src/starpu/scale_inplace.cc
+ * Scale inplace operation on a StarPU buffers
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/starpu/scal_inplace.hh"
+#include "nntile/starpu/scale_inplace.hh"
 
 // Standard libraries
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
-#include "nntile/kernel/scal_inplace.hh"
+#include "nntile/kernel/scale_inplace.hh"
 #include "nntile/starpu/clear.hh"
 
 namespace nntile::starpu
@@ -28,15 +28,15 @@ namespace nntile::starpu
 
 //! Constructor
 template<typename T>
-ScalInplace<std::tuple<T>>::ScalInplace():
-    codelet("nntile_scal_inplace", footprint, cpu_funcs, cuda_funcs)
+ScaleInplace<std::tuple<T>>::ScaleInplace():
+    codelet("nntile_scale_inplace", footprint, cpu_funcs, cuda_funcs)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! StarPU wrapper for kernel::scal_inplace::cpu<T>
+//! StarPU wrapper for kernel::scale_inplace::cpu<T>
 template<typename T>
-void ScalInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
+void ScaleInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -46,39 +46,39 @@ void ScalInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
-    kernel::scal_inplace::cpu<T>(args->nelems, args->alpha, data);
+    kernel::scale_inplace::cpu<T>(args->nelems, args->alpha, data);
 #endif // STARPU_SIMGRID
 }
 
 // Specializations of CPU wrapper for accelerated types
 template<>
-void ScalInplace<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+void ScaleInplace<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ScalInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    ScaleInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void ScalInplace<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+void ScaleInplace<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ScalInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    ScaleInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void ScalInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+void ScaleInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ScalInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    ScaleInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::scal::cuda<T>
+//! StarPU wrapper for kernel::scale_inplace::cuda<T>
 template<typename T>
-void ScalInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+void ScaleInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -90,39 +90,39 @@ void ScalInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::scal_inplace::cuda<T>(stream, args->nelems, args->alpha, data);
+    kernel::scale_inplace::cuda<T>(stream, args->nelems, args->alpha, data);
 #endif // STARPU_SIMGRID
 }
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
-void ScalInplace<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+void ScaleInplace<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ScalInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    ScaleInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void ScalInplace<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+void ScaleInplace<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ScalInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    ScaleInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void ScalInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+void ScaleInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ScalInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    ScaleInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for scal tasks that depends only on cl_arg
+//! Footprint for scale_inplace tasks that depends only on cl_arg
 template<typename T>
-uint32_t ScalInplace<std::tuple<T>>::footprint(struct starpu_task *task)
+uint32_t ScaleInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -132,7 +132,7 @@ uint32_t ScalInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void ScalInplace<std::tuple<T>>::submit(
+void ScaleInplace<std::tuple<T>>::submit(
     Index nelems, Scalar alpha, Handle data)
 {
     constexpr Scalar zero = 0.0;
@@ -160,22 +160,22 @@ void ScalInplace<std::tuple<T>>::submit(
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in scal_inplace task submission");
+        throw std::runtime_error("Error in scale_inplace task submission");
     }
 }
 
 // Explicit instantiation
 // For some strange reason, the compiler does not instantiate the template
 // automatically, so we need to do it manually
-template class ScalInplace<std::tuple<nntile::fp64_t>>;
-template class ScalInplace<std::tuple<nntile::fp32_t>>;
-template class ScalInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
-template class ScalInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
-template class ScalInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
-template class ScalInplace<std::tuple<nntile::bf16_t>>;
-template class ScalInplace<std::tuple<nntile::fp16_t>>;
+template class ScaleInplace<std::tuple<nntile::fp64_t>>;
+template class ScaleInplace<std::tuple<nntile::fp32_t>>;
+template class ScaleInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class ScaleInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class ScaleInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class ScaleInplace<std::tuple<nntile::bf16_t>>;
+template class ScaleInplace<std::tuple<nntile::fp16_t>>;
 
-//! Pack of scal_inplace operations for different types
-scal_inplace_pack_t scal_inplace;
+//! Pack of scale_inplace operations for different types
+scale_inplace_pack_t scale_inplace;
 
 } // namespace nntile::starpu

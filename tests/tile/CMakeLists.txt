@@ -45,7 +45,7 @@ set(TESTS
     "relu_backward"
     "relu_forward"
     "rope"
-    "scal_inplace"
+    "scale_inplace"
     "silu_backward"
     "silu_forward"
     "softmax"

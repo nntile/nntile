@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_scal_inplace.py
-# Test for tensor::scal_inplace<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/test_tensor_scale_inplace.py
+# Test for tensor::scale_inplace<T> Python wrapper
 #
 # @version 1.1.0
 
@@ -22,12 +22,12 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 
 # Define mapping between tested function and numpy type
-scal_inplace = {np.float32: nntile.nntile_core.tensor.scal_inplace_fp32,
-                np.float64: nntile.nntile_core.tensor.scal_inplace_fp64}
+scale_inplace = {np.float32: nntile.nntile_core.tensor.scale_inplace_fp32,
+                np.float64: nntile.nntile_core.tensor.scale_inplace_fp64}
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_scal_inplace(context, dtype):
+def test_scale_inplace(context, dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
     alpha = -2.5
@@ -38,7 +38,7 @@ def test_scal_inplace(context, dtype):
     rand_A = np.random.default_rng(42).standard_normal(shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A.from_array(np_A)
-    scal_inplace[dtype](alpha, A)
+    scale_inplace[dtype](alpha, A)
     np_A2 = np.zeros(shape, dtype=dtype, order='F')
     A.to_array(np_A2)
     nntile.starpu.wait_for_all()

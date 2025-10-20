@@ -23,7 +23,7 @@
 #include "nntile/kernel/hypot_inplace.hh"
 #include "nntile/starpu/scale.hh"
 #include "nntile/starpu/clear.hh"
-#include "nntile/starpu/scal_inplace.hh"
+#include "nntile/starpu/scale_inplace.hh"
 
 namespace nntile::starpu
 {
@@ -154,12 +154,12 @@ void HypotInplace<std::tuple<T>>::submit(
     //    //scal::submit<T>(nelems, alpha, src, dst);
     //    return;
     //}
-    // If beta is non-zero and alpha is zero then reduce to scal_inplace
+    // If beta is non-zero and alpha is zero then reduce to scale_inplace
     //if(alpha == zero)
     //{
     //    throw std::runtime_error("modulus_inplace(beta*dst) is not yet "
     //            "implemented");
-    //    //scal_inplace::submit<T>(nelems, beta, dst);
+    //    //scale_inplace::submit<T>(nelems, beta, dst);
     //    return;
     //}
     // Access mode for the dst handle
