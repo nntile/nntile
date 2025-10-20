@@ -25,27 +25,31 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src,
 /*! Performs the following operations:
  *      dst[i,l,j] = alpha * dst[i,l,j] * src[i,j]
  *
- * @param[in] m: Size of the first mode of dst
- * @param[in] n: Size of the second mode of dst
- * @param[in] k: Size of the third mode of dst
+ * @param[in] m: Size of the first mode of src and dst tensors
+ * @param[in] n: Size of the last mode of src and dst tensors
+ * @param[in] k: Size of the middle mode of dst tensor
  * @param[in] alpha_: Scalar factor
- * @param[in] src: Input slice
- * @param[inout] dst: Resulting tensor
+ * @param[in] src: Input contiguous m-by-n array
+ * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
     using Y = typename T::repr_t;
     const Y alpha{alpha_};
-
-    // Task body
-    for(Index i = 0; i < m; ++i)
+    const Index mk = m * k;
+    // Cycle over column of the output buffer dst
+    for(Index i2 = 0; i2 < n; ++i2)
     {
-        for(Index l = 0; l < n; ++l)
+        // Cycle over row of the output buffer dst
+        for(Index i1 = 0; i1 < m; ++i1)
         {
-            for(Index j = 0; j < k; ++j)
+            // Pointer to a corresponding fiber of the output array dst
+            T *dst_fiber = dst + i2*mk + i1;
+            // Value to multiply by the output fiber
+            const Y src_val = alpha * Y{src[i2*m+i1]};
+            // Cycle over output fiber elements
+            for(Index i0 = 0; i0 < k; ++i0)
             {
-                Y src_val = Y{src[i*k + j]};
-                Y dst_val = Y{dst[i*n*k + l*k + j]};
-                dst[i*n*k + l*k + j] = T{alpha * dst_val * src_val};
+                dst_fiber[i0] *= src_val;
             }
         }
     }
