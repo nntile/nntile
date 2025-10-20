@@ -77,7 +77,7 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit prod_fiber_inplace task
+    //! Submit multiply_fiber_inplace task
     void submit(
         Index m,
         Index n,
