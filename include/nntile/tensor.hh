@@ -39,7 +39,7 @@
 #include <nntile/tensor/multiply.hh>
 #include <nntile/tensor/multiply_inplace.hh>
 #include <nntile/tensor/randn.hh>
-#include <nntile/tensor/relu.hh>
+#include <nntile/tensor/relu_inplace.hh>
 #include <nntile/tensor/relu_forward.hh>
 #include <nntile/tensor/relu_backward.hh>
 #include <nntile/tensor/scatter.hh>

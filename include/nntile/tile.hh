@@ -35,7 +35,7 @@
 #include <nntile/tile/gemm.hh>
 #include <nntile/tile/multiply_inplace.hh>
 #include <nntile/tile/randn.hh>
-#include <nntile/tile/relu.hh>
+#include <nntile/tile/relu_inplace.hh>
 #include <nntile/tile/relu_forward.hh>
 #include <nntile/tile/relu_backward.hh>
 #include <nntile/tile/fill.hh>

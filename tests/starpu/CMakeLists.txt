@@ -59,7 +59,7 @@ set(TESTS
     "multiply_inplace"
     "multiply_slice"
     "randn"
-    "relu"
+    "relu_inplace"
     "relu_backward"
     "relu_forward"
     "rope"
