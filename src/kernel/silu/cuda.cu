@@ -6,16 +6,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/silu_forward/cuda.cu
- * Forward SiLU operation on CUDA
+ * @file src/kernel/silu/cuda.cu
+ * SiLU operation on CUDA
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/silu_forward/cuda.hh"
+#include "nntile/kernel/silu/cuda.hh"
 #include "nntile/kernel/cuda.hh"
 
-namespace nntile::kernel::silu_forward
+namespace nntile::kernel::silu
 {
 
 template<typename T>
@@ -36,7 +36,7 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
 template<typename T>
 void cuda(cudaStream_t stream, Index nelems, const T *src_, T *dst_)
     noexcept
-//! Forward SiLU operation on CUDA
+//! SiLU operation on CUDA
 /*! Does the following per-element operation:
  * dst[i] = src[i] * sigmoid(src[i])
  *
@@ -56,11 +56,6 @@ void cuda<fp32_t>(cudaStream_t stream, Index nelems, const fp32_t *src,
     noexcept;
 
 template
-void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index nelems, const fp32_fast_tf32_t *src,
-        fp32_fast_tf32_t *dst)
-    noexcept;
-
-template
 void cuda<fp64_t>(cudaStream_t stream, Index nelems, const fp64_t *src,
         fp64_t *dst)
     noexcept;
@@ -75,4 +70,4 @@ void cuda<fp16_t>(cudaStream_t stream, Index nelems, const fp16_t *src,
         fp16_t *dst)
     noexcept;
 
-} // namespace nntile::kernel::silu_forward
+} // namespace nntile::kernel::silu

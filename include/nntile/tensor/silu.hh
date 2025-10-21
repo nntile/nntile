@@ -6,22 +6,23 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/silu_forward/cuda.hh
- * SiLU operation on CUDA
+ * @file include/nntile/tensor/silu.hh
+ * SiLU operation for Tensor<T>
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/base_types.hh>
-#include <cuda_runtime.h>
+#include <nntile/tensor/tensor.hh>
 
-namespace nntile::kernel::silu_forward
+namespace nntile::tensor
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
-    noexcept;
+void silu_async(const Tensor<T> &src, const Tensor<T> &dst);
 
-} // namespace nntile::kernel::silu_forward
+template<typename T>
+void silu(const Tensor<T> &src, const Tensor<T> &dst);
+
+} // namespace nntile::tensor

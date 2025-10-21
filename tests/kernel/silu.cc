@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/silu_forward.cc
- * Placeholder for silu_forward kernel test
+ * @file tests/kernel/silu.cc
+ * SiLU kernel test
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/kernel/silu_forward.hh"
+#include "nntile/kernel/silu.hh"
 
 // Standard libraries
 #include <vector>
@@ -38,7 +38,7 @@ using namespace Catch::Matchers;
 // Use tested NNTile namespaces
 using namespace nntile;
 using namespace nntile::kernel;
-using namespace nntile::kernel::silu_forward;
+using namespace nntile::kernel::silu;
 
 // Type to acquire reference values
 using ref_t = double;
@@ -52,14 +52,14 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<T> src;
+    std::vector<T> src_init;
     std::vector<T> dst_init;
     std::vector<T> dst_ref;
 };
 
-// Reference implementation of the forward SiLU operation
+// Reference implementation of the SiLU operation
 template<typename T>
-void reference_silu_forward(TestData<T>& data)
+void reference_silu(TestData<T>& data)
 {
     using Y = typename T::repr_t;
     if (data.nelems == 0)
@@ -71,7 +71,7 @@ void reference_silu_forward(TestData<T>& data)
 
     for(Index i = 0; i < data.nelems; ++i)
     {
-        ref_t x = static_cast<Y>(data.src[i]);
+        ref_t x = static_cast<Y>(data.src_init[i]);
         ref_t y = x / (one + std::exp(-x));
         data.dst_ref[i] = static_cast<T>(static_cast<Y>(y));
     }
@@ -96,7 +96,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < data.nelems; ++i)
             {
-                data.src[i] = Y(2 * i + 1 - data.nelems);
+                data.src_init[i] = Y(2 * i + 1 - data.nelems);
                 data.dst_init[i] = Y(i - 1);
             }
             break;
@@ -106,7 +106,7 @@ void generate_data(TestData<T>& data, DataGen strategy)
             std::uniform_real_distribution<Y> dist(-3.0, 3.0);
             for(Index i = 0; i < data.nelems; ++i)
             {
-                data.src[i] = dist(gen);
+                data.src_init[i] = dist(gen);
                 data.dst_init[i] = dist(gen);
             }
     }
@@ -122,7 +122,7 @@ TestData<T> get_test_data(
     TestData<T> data;
     // Generate data by a provided strategy
     data.nelems = nelems;
-    data.src.resize(nelems);
+    data.src_init.resize(nelems);
     data.dst_init.resize(nelems);
     data.dst_ref.resize(nelems);
     generate_data(data, strategy);
@@ -150,7 +150,7 @@ TestData<T> get_test_data(
     }
 
     // Compute reference outputs
-    reference_silu_forward(data);
+    reference_silu(data);
     return data;
 }
 
@@ -158,15 +158,21 @@ TestData<T> get_test_data(
 template<typename T>
 void verify_results(
     const TestData<T>& data,
-    const std::vector<T>& dst_out
+    const std::vector<T>& src,
+    const std::vector<T>& dst
 )
 {
     using Y = typename T::repr_t;
     for(Index i = 0; i < data.nelems; ++i)
     {
+        REQUIRE(src[i].value == data.src_init[i].value);
+    }
+
+    for(Index i = 0; i < data.nelems; ++i)
+    {
         Y dst_ref = static_cast<Y>(data.dst_ref[i]);
         REQUIRE_THAT(
-            static_cast<Y>(dst_out[i]),
+            static_cast<Y>(dst[i]),
             WithinRel(dst_ref, data.eps_check) ||
             WithinAbs(dst_ref, data.eps_check)
         );
@@ -177,19 +183,20 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
+    std::vector<T> src_cpu(data.src_init);
     std::vector<T> dst_cpu(data.dst_init);
 
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][silu_forward][cpu][nelems=" +
+            "[kernel][silu][cpu][nelems=" +
             std::to_string(data.nelems) +
             "]"
         )
         {
             cpu<T>(
                 data.nelems,
-                &data.src[0],
+                &src_cpu[0],
                 &dst_cpu[0]
             );
         };
@@ -198,10 +205,10 @@ void run_cpu_test(TestData<T>& data)
     {
         cpu<T>(
             data.nelems,
-            &data.src[0],
+            &src_cpu[0],
             &dst_cpu[0]
         );
-        verify_results(data, dst_cpu);
+        verify_results(data, src_cpu, dst_cpu);
     }
 }
 
@@ -217,9 +224,10 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_dst, sizeof(T) * data.nelems),
                "cudaMalloc dev_dst");
 
+    std::vector<T> src_cuda(data.src_init);
     std::vector<T> dst_cuda(data.dst_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_src, &data.src[0], sizeof(T) * data.nelems,
+    CUDA_CHECK(cudaMemcpy(dev_src, &src_cuda[0], sizeof(T) * data.nelems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_src");
     CUDA_CHECK(cudaMemcpy(dev_dst, &dst_cuda[0], sizeof(T) * data.nelems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_dst");
@@ -230,7 +238,7 @@ void run_cuda_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][silu_forward][cuda][nelems=" +
+            "[kernel][silu][cuda][nelems=" +
             std::to_string(data.nelems) +
             "]"
         )
@@ -256,8 +264,10 @@ void run_cuda_test(TestData<T>& data)
 
         CUDA_CHECK(cudaMemcpy(&dst_cuda[0], dev_dst, sizeof(T) * data.nelems,
                               cudaMemcpyDeviceToHost), "cudaMemcpy dst_cuda");
+        CUDA_CHECK(cudaMemcpy(&src_cuda[0], dev_src, sizeof(T) * data.nelems,
+                              cudaMemcpyDeviceToHost), "cudaMemcpy src_cuda");
 
-        verify_results(data, dst_cuda);
+        verify_results(data, src_cuda, dst_cuda);
     }
 
     CUDA_CHECK(cudaFree(dev_src), "cudaFree dev_src");
@@ -268,8 +278,8 @@ void run_cuda_test(TestData<T>& data)
 
 // Catch2-based tests
 TEMPLATE_TEST_CASE(
-    "SiLU Forward Kernel Verification",
-    "[silu_forward]",
+    "SiLU Kernel Verification",
+    "[silu]",
     fp64_t,
     fp32_t,
     fp16_t,
@@ -300,8 +310,8 @@ TEMPLATE_TEST_CASE(
 
 // Catch2-based benchmarks
 TEMPLATE_TEST_CASE(
-    "SiLU Forward Kernel Benchmark",
-    "[silu_forward][!benchmark]",
+    "SiLU Kernel Benchmark",
+    "[silu][!benchmark]",
     fp64_t,
     fp32_t,
     fp16_t,

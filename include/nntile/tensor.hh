@@ -74,7 +74,7 @@
 #include <nntile/tensor/adam_step.hh>
 #include <nntile/tensor/adamw_step.hh>
 #include <nntile/tensor/transpose.hh>
-#include <nntile/tensor/silu_forward.hh>
+#include <nntile/tensor/silu.hh>
 #include <nntile/tensor/silu_backward.hh>
 #include <nntile/tensor/conv2d_inplace.hh>
 #include <nntile/tensor/conv2d_bwd_input_inplace.hh>
