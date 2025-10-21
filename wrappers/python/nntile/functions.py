@@ -210,28 +210,6 @@ def silu_inplace_async(x: Tensor) -> None:
         raise TypeError
 
 
-def silu_inplace(x: Tensor) -> None:
-    """
-    Wrapper for multiprecision inplace SiLU (blocking)
-    """
-    if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.silu_inplace_fp32(x)
-    elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.silu_inplace_fp64(x)
-    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.silu_inplace_fp32_fast_tf32(x)
-    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
-        core_tensor.silu_inplace_fp32_fast_fp16(x)
-    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
-        core_tensor.silu_inplace_fp32_fast_bf16(x)
-    elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.silu_inplace_bf16(x)
-    elif type(x) is core_tensor.Tensor_fp16:
-        core_tensor.silu_inplace_fp16(x)
-    else:
-        raise TypeError
-
-
 def gelu_inplace_async(x: Tensor) -> None:
     """
     Wrapper for multiprecision GELU inplace
