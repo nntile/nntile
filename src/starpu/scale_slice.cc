@@ -12,144 +12,178 @@
  * @version 1.1.0
  * */
 
+// Corresponding header
 #include "nntile/starpu/scale_slice.hh"
+
+// Standard libraries
+#include <cstdlib>
+
+// Other NNTile headers
 #include "nntile/kernel/scale_slice.hh"
-#include <starpu.h>
 
 namespace nntile::starpu
 {
 
-//! Wrapper for a generic CPU implementation
+//! Constructor
+template<typename T>
+ScaleSlice<std::tuple<T>>::ScaleSlice():
+    codelet("nntile_scale_slice", footprint, cpu_funcs, cuda_funcs)
+{
+    // Modes are not fixed, they are decided during runtime by default
+}
+
+//! StarPU wrapper for kernel::scale_slice::cpu<T>
 template<typename T>
 void ScaleSlice<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t *>(cl_args);
+    auto args = reinterpret_cast<args_t*>(cl_args);
     // Get interfaces
-    auto interfaces = reinterpret_cast<VariableInterface *>(buffers);
-    const T *src = interfaces[0].get_ptr<T>();
-    T *dst = interfaces[1].get_ptr<T>();
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::scale_slice::cpu<T>(args->m, args->n, args->k, args->alpha, src, dst);
+    kernel::scale_slice::cpu<T>(
+        args->m, args->n, args->k, args->alpha, src, dst);
+#endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void ScaleSlice<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    ScaleSlice<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void ScaleSlice<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    ScaleSlice<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void ScaleSlice<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    ScaleSlice<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Wrapper for a generic CUDA implementation
+//! StarPU wrapper for kernel::scale_slice::cuda<T>
 template<typename T>
 void ScaleSlice<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t *>(cl_args);
+    auto args = reinterpret_cast<args_t*>(cl_args);
     // Get interfaces
-    auto interfaces = reinterpret_cast<VariableInterface *>(buffers);
-    const T *src = interfaces[0].get_ptr<T>();
-    T *dst = interfaces[1].get_ptr<T>();
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::scale_slice::cuda<T>(stream, args->m, args->n, args->k, args->alpha, src, dst);
+    kernel::scale_slice::cuda<T>(
+        stream, args->m, args->n, args->k, args->alpha, src, dst);
+#endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void ScaleSlice<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    ScaleSlice<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void ScaleSlice<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    ScaleSlice<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void ScaleSlice<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    ScaleSlice<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint function for the current operation
+//! Footprint for scale_slice tasks
 template<typename T>
 uint32_t ScaleSlice<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t *>(starpu_task_get_cl_arg(task));
-    // Apply hash over parameters m, n, k, alpha
+    auto args = reinterpret_cast<args_t*>(task->cl_arg);
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
     hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
     hash = starpu_hash_crc32c_be_n(&args->k, sizeof(args->k), hash);
-    hash = starpu_hash_crc32c_be_n(&args->alpha, sizeof(args->alpha), hash);
     return hash;
 }
 
-//! Constructor
-template<typename T>
-ScaleSlice<std::tuple<T>>::ScaleSlice()
-{
-    // Create codelet
-    codelet = CodeletTyped<T>(
-        "scale_slice",
-        footprint,
-        {cpu_funcs.begin(), cpu_funcs.end()},
-        {cuda_funcs.begin(), cuda_funcs.end()},
-        [](struct starpu_task *task) -> int
-        {
-            // Get arguments
-            auto args = reinterpret_cast<args_t *>(starpu_task_get_cl_arg(task));
-            // Check arguments
-            if(args->m == 0)
-            {
-                return -EINVAL;
-            }
-            if(args->n == 0)
-            {
-                return -EINVAL;
-            }
-            if(args->k == 0)
-            {
-                return -EINVAL;
-            }
-            // Get interfaces
-            auto interfaces = reinterpret_cast<VariableInterface *>(starpu_task_get_interfaces(task));
-            // Check interfaces
-            if(interfaces[0].get_nbytes() != args->m * args->n * sizeof(T))
-            {
-                return -EINVAL;
-            }
-            if(interfaces[1].get_nbytes() != args->m * args->k * args->n * sizeof(T))
-            {
-                return -EINVAL;
-            }
-            return 0;
-        }
-    );
-}
-
-//! Submit scale_slice task
 template<typename T>
 void ScaleSlice<std::tuple<T>>::submit(
-        Index m,
-        Index n,
-        Index k,
-        Scalar alpha,
-        Handle src,
-        Handle dst
-    )
+    Index m,
+    Index n,
+    Index k,
+    Scalar alpha,
+    Handle src,
+    Handle dst
+)
+//! Insert scale_slice task into StarPU pool of tasks
+/*! No argument checking is performed. All the inputs are packed and passed to
+ * starpu_task_insert() function. If task submission fails, this routines
+ * throws an std::runtime_error() exception.
+ * */
 {
-    // Access mode for the source handle
-    constexpr unsigned src_mode = STARPU_R;
-    // Access mode for the destination handle
-    constexpr unsigned dst_mode = STARPU_W;
+    // Access mode for the dst handle
+    enum starpu_data_access_mode dst_mode = STARPU_W;
+    // Codelet arguments
+    args_t *args = (args_t*)std::malloc(sizeof(*args));
+    args->m = m;
+    args->n = n;
+    args->k = k;
+    args->alpha = alpha;
+    // Put amount of bytes read and write inplace of gflops
+    double nflops = sizeof(T)*m*(k+1)*n;
     // Submit task
-    int ret = starpu_task_submit(
-        starpu_task_create()
-        .tag(STARPU_ASYNC)
-        .cl(&codelet, sizeof(codelet))
-        .cl_arg(&args_t{m, n, k, alpha}, sizeof(args_t))
-        .cl_arg(src, src_mode)
-        .cl_arg(dst, dst_mode)
-    );
+    int ret = starpu_task_insert(&codelet,
+            STARPU_R, src.get(),
+            STARPU_CL_ARGS, args, sizeof(*args),
+            dst_mode, dst.get(),
+            STARPU_FLOPS, nflops,
+            0);
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in starpu_task_submit");
+        throw std::runtime_error("Error in scale_slice task submission");
     }
 }
 
 // Explicit instantiation
-template class ScaleSlice<std::tuple<fp64_t>>;
-template class ScaleSlice<std::tuple<fp32_t>>;
-template class ScaleSlice<std::tuple<fp32_fast_tf32_t>>;
-template class ScaleSlice<std::tuple<fp32_fast_fp16_t>>;
-template class ScaleSlice<std::tuple<fp32_fast_bf16_t>>;
-template class ScaleSlice<std::tuple<bf16_t>>;
-template class ScaleSlice<std::tuple<fp16_t>>;
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class ScaleSlice<std::tuple<nntile::fp64_t>>;
+template class ScaleSlice<std::tuple<nntile::fp32_t>>;
+template class ScaleSlice<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class ScaleSlice<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class ScaleSlice<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class ScaleSlice<std::tuple<nntile::bf16_t>>;
+template class ScaleSlice<std::tuple<nntile::fp16_t>>;
 
 //! Pack of scale_slice operations for different types
 scale_slice_pack_t scale_slice;
