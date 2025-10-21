@@ -63,7 +63,7 @@
 #include <nntile/kernel/adam_step.hh>
 #include <nntile/kernel/adamw_step.hh>
 #include <nntile/kernel/transpose.hh>
-#include <nntile/kernel/silu_forward.hh>
+#include <nntile/kernel/silu.hh>
 #include <nntile/kernel/silu_backward.hh>
 #include <nntile/kernel/conv2d_inplace.hh>
 #include <nntile/kernel/conv2d_bwd_input_inplace.hh>

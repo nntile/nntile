@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/silu_forward.cc
- * @brief Placeholder for silu_forward test
+ * @file tests/tensor/silu.cc
+ * Placeholder for SiLU test
  *
  * @version 1.1.0
  * */
