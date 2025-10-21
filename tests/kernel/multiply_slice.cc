@@ -59,7 +59,7 @@ struct TestData
     std::vector<T> dst_ref;
 };
 
-// Reference implementation of the prod_slice operation
+// Reference implementation of the multiply_slice operation
 template<typename T>
 void reference_multiply_slice(TestData<T>& data)
 {
@@ -366,7 +366,7 @@ void run_cuda_test(TestData<T>& data)
 
 // Catch2-based tests
 TEMPLATE_TEST_CASE(
-    "Prod Slice Kernel Verification",
+    "Multiply Slice Kernel Verification",
     "[multiply_slice]",
     fp64_t,
     fp32_t,
@@ -404,7 +404,7 @@ TEMPLATE_TEST_CASE(
 
 // Catch2-based benchmarks
 TEMPLATE_TEST_CASE(
-    "Prod Slice Kernel Benchmark",
+    "Multiply Slice Kernel Benchmark",
     "[multiply_slice][!benchmark]",
     fp64_t,
     fp32_t,

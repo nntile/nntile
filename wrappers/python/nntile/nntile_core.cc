@@ -1178,11 +1178,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("scal_inplace_bf16", &scal_inplace<bf16_t>);
     m.def("scal_inplace_fp16", &scal_inplace<fp16_t>);
 
-    m.def("summultiply_slice_async_fp64", &sumprod_slice_async<fp64_t>);
-    m.def("summultiply_slice_async_fp32", &sumprod_slice_async<fp32_t>);
-    m.def("summultiply_slice_async_fp32_fast_tf32", &sumprod_slice_async<fp32_fast_tf32_t>);
-    m.def("summultiply_slice_async_fp32_fast_fp16", &sumprod_slice_async<fp32_fast_fp16_t>);
-    m.def("summultiply_slice_async_fp32_fast_bf16", &sumprod_slice_async<fp32_fast_bf16_t>);
+    m.def("sumprod_slice_async_fp64", &sumprod_slice_async<fp64_t>);
+    m.def("sumprod_slice_async_fp32", &sumprod_slice_async<fp32_t>);
+    m.def("sumprod_slice_async_fp32_fast_tf32", &sumprod_slice_async<fp32_fast_tf32_t>);
+    m.def("sumprod_slice_async_fp32_fast_fp16", &sumprod_slice_async<fp32_fast_fp16_t>);
+    m.def("sumprod_slice_async_fp32_fast_bf16", &sumprod_slice_async<fp32_fast_bf16_t>);
     m.def("sumprod_slice_async_bf16", &sumprod_slice_async<bf16_t>);
     m.def("sumprod_slice_async_fp16", &sumprod_slice_async<fp16_t>);
 

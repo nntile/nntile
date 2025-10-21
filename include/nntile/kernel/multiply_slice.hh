@@ -26,4 +26,4 @@
 namespace nntile::kernel::multiply_slice
 {
 
-} // namespace nntile::kernel::prod_slice
+} // namespace nntile::kernel::multiply_slice

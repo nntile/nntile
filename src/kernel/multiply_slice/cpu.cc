@@ -77,4 +77,4 @@ void cpu<fp16_t>(Index m, Index n, Index k, Scalar alpha, const fp16_t *src,
         fp16_t *dst)
     noexcept;
 
-} // namespace nntile::kernel::prod_slice
+} // namespace nntile::kernel::multiply_slice
