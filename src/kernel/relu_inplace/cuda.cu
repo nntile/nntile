@@ -6,16 +6,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/relu/cuda.cu
- * ReLU operation on CUDA
+ * @file src/kernel/relu_inplace/cuda.cu
+ * Inplace ReLU operation on CUDA
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/relu/cuda.hh"
+#include "nntile/kernel/relu_inplace/cuda.hh"
 #include "nntile/kernel/cuda.hh"
 
-namespace nntile::kernel::relu
+namespace nntile::kernel::relu_inplace
 {
 
 template<typename T>
@@ -63,4 +63,4 @@ template
 void cuda<fp16_t>(cudaStream_t stream, Index nelems, fp16_t *data)
     noexcept;
 
-} // namespace nntile::kernel::relu
+} // namespace nntile::kernel::relu_inplace

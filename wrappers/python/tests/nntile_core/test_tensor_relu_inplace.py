@@ -21,8 +21,8 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 
 # Define mapping between tested function and numpy type
-relu = {np.float32: nntile.nntile_core.tensor.relu_fp32,
-        np.float64: nntile.nntile_core.tensor.relu_fp64}
+relu_inplace = {np.float32: nntile.nntile_core.tensor.relu_inplace_fp32,
+                np.float64: nntile.nntile_core.tensor.relu_inplace_fp64}
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
@@ -37,7 +37,7 @@ def test_relu(context, dtype):
     src_A = np.array(rand, dtype=dtype, order='F')
     dst_A = np.zeros_like(src_A)
     A.from_array(src_A)
-    relu[dtype](A)
+    relu_inplace[dtype](A)
     A.to_array(dst_A)
     nntile.starpu.wait_for_all()
     A.unregister()

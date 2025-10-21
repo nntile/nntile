@@ -31,7 +31,7 @@
 #include <nntile/kernel/multiply.hh>
 #include <nntile/kernel/multiply_inplace.hh>
 #include <nntile/kernel/randn.hh>
-#include <nntile/kernel/relu.hh>
+#include <nntile/kernel/relu_inplace.hh>
 #include <nntile/kernel/relu_forward.hh>
 #include <nntile/kernel/relu_backward.hh>
 #include <nntile/kernel/subcopy.hh>

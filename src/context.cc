@@ -331,7 +331,7 @@ void Context::restrict_cpu()
     multiply_inplace.restrict_where(STARPU_CPU);
     multiply_slice.restrict_where(STARPU_CPU);
     randn.restrict_where(STARPU_CPU);
-    relu.restrict_where(STARPU_CPU);
+    relu_inplace.restrict_where(STARPU_CPU);
     relu_backward.restrict_where(STARPU_CPU);
     relu_forward.restrict_where(STARPU_CPU);
     rope.restrict_where(STARPU_CPU);
@@ -398,7 +398,7 @@ void Context::restrict_cuda()
     multiply_inplace.restrict_where(STARPU_CUDA);
     multiply_slice.restrict_where(STARPU_CUDA);
     randn.restrict_where(STARPU_CUDA);
-    relu.restrict_where(STARPU_CUDA);
+    relu_inplace.restrict_where(STARPU_CUDA);
     relu_backward.restrict_where(STARPU_CUDA);
     relu_forward.restrict_where(STARPU_CUDA);
     rope.restrict_where(STARPU_CUDA);
@@ -465,7 +465,7 @@ void Context::restore_where()
     multiply_inplace.restore_where();
     multiply_slice.restore_where();
     randn.restore_where();
-    relu.restore_where();
+    relu_inplace.restore_where();
     relu_backward.restore_where();
     relu_forward.restore_where();
     rope.restore_where();

@@ -41,7 +41,7 @@ set(TESTS
     "multiply_fiber"
     "multiply_slice"
     "randn"
-    "relu"
+    "relu_inplace"
     "relu_backward"
     "relu_forward"
     "rope"

@@ -6,23 +6,25 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/relu.hh
- * ReLU operation for Tensor<T>
+ * @file include/nntile/tile/relu_inplace.hh
+ * Inplace ReLU operation for Tile<T>
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/tensor/tensor.hh>
+#include <nntile/tile/tile.hh>
 
-namespace nntile::tensor
+namespace nntile::tile
 {
 
+// Asynchronous tile-wise ReLU operation
 template<typename T>
-void relu_async(const Tensor<T> &A);
+void relu_inplace_async(const Tile<T> &A);
 
+// Blocking version of tile-wise ReLU operation
 template<typename T>
-void relu(const Tensor<T> &A);
+void relu_inplace(const Tile<T> &A);
 
-} // namespace nntile::tensor
+} // namespace nntile::tile

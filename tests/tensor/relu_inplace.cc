@@ -6,15 +6,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/relu.cc
+ * @file tests/tensor/relu_inplace.cc
  * ReLU operation for Tensor<T>
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/relu.hh"
-#include "nntile/tile/relu.hh"
-#include "nntile/starpu/relu.hh"
+#include "nntile/tensor/relu_inplace.hh"
+#include "nntile/tile/relu_inplace.hh"
+#include "nntile/starpu/relu_inplace.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -63,9 +63,9 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     if(mpi_rank == mpi_root)
     {
         auto tile = dst_single.get_tile(0);
-        tile::relu<T>(tile);
+        tile::relu_inplace<T>(tile);
     }
-    relu<T>(dst);
+    relu_inplace<T>(dst);
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root);
     gather<T>(dst, dst2_single);

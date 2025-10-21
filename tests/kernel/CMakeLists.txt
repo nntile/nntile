@@ -103,7 +103,7 @@ set(TESTS_CATCH2
     "multiply_inplace"
     "multiply_slice"
     "multiply"
-    "relu"
+    "relu_inplace"
     "relu_backward"
     "relu_forward"
     "scale"

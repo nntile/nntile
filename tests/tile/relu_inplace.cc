@@ -6,15 +6,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tile/relu.cc
+ * @file tests/tile/relu_inplace.cc
  * ReLU operation on Tile<T>
  *
  * @version 1.1.0
  * */
 
 #include "nntile/context.hh"
-#include "nntile/tile/relu.hh"
-#include "nntile/starpu/relu.hh"
+#include "nntile/tile/relu_inplace.hh"
+#include "nntile/starpu/relu_inplace.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -40,15 +40,15 @@ void validate()
     }
     tile2_local.release();
     tile2_copy_local.release();
-    starpu::relu.submit<std::tuple<T>>(1, tile1);
-    relu<T>(tile1_copy);
+    starpu::relu_inplace.submit<std::tuple<T>>(1, tile1);
+    relu_inplace<T>(tile1_copy);
     tile1_local.acquire(STARPU_R);
     tile1_copy_local.acquire(STARPU_R);
     TEST_ASSERT(Y(tile1_local[0]) == Y(tile1_copy_local[0]));
     tile1_local.release();
     tile1_copy_local.release();
-    starpu::relu.submit<std::tuple<T>>(tile2.nelems, tile2);
-    relu<T>(tile2_copy);
+    starpu::relu_inplace.submit<std::tuple<T>>(tile2.nelems, tile2);
+    relu_inplace<T>(tile2_copy);
     tile2_local.acquire(STARPU_R);
     tile2_copy_local.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)

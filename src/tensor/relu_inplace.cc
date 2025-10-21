@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/relu.cc
- * ReLU operation for Tensor<T>
+ * @file src/tensor/relu_inplace.cc
+ * Inplace ReLU operation for Tensor<T>
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/relu.hh"
-#include "nntile/starpu/relu.hh"
+#include "nntile/tensor/relu_inplace.hh"
+#include "nntile/starpu/relu_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -23,7 +23,7 @@ namespace nntile::tensor
 //
 // @param[inout] A: Tensor for the element-wise relu operation
 template<typename T>
-void relu_async(const Tensor<T> &A)
+void relu_inplace_async(const Tensor<T> &A)
 {
     int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < A.grid.nelems; ++i)
@@ -34,7 +34,7 @@ void relu_async(const Tensor<T> &A)
         if(mpi_rank == tile_rank)
         {
             auto tile_traits = A.get_tile_traits(i);
-            starpu::relu.submit<std::tuple<T>>(tile_traits.nelems, tile_handle);
+            starpu::relu_inplace.submit<std::tuple<T>>(tile_traits.nelems, tile_handle);
         }
         // Flush cache for the output tile on every node
         tile_handle.mpi_flush();
@@ -45,49 +45,55 @@ void relu_async(const Tensor<T> &A)
 //
 // @param[inout] A: Tensor for the element-wise relu operation
 template<typename T>
-void relu(const Tensor<T> &A)
+void relu_inplace(const Tensor<T> &A)
 {
-    relu_async<T>(A);
+    relu_inplace_async<T>(A);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void relu_async<fp32_t>(const Tensor<fp32_t> &A);
+void relu_inplace_async<fp32_t>(const Tensor<fp32_t> &A);
 
 template
-void relu_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
+void relu_inplace_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
 
 template
-void relu_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
+void relu_inplace_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
 
 template
-void relu_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
+void relu_inplace_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
 
 template
-void relu_async<fp64_t>(const Tensor<fp64_t> &A);
+void relu_inplace_async<fp64_t>(const Tensor<fp64_t> &A);
 
 template
-void relu_async<bf16_t>(const Tensor<bf16_t> &A);
+void relu_inplace_async<bf16_t>(const Tensor<bf16_t> &A);
+
+template
+void relu_inplace_async<fp16_t>(const Tensor<fp16_t> &A);
 
 // Explicit instantiation
 template
-void relu<fp32_t>(const Tensor<fp32_t> &A);
+void relu_inplace<fp32_t>(const Tensor<fp32_t> &A);
 
 template
-void relu<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
+void relu_inplace<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
 
 template
-void relu<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
+void relu_inplace<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
 
 template
-void relu<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
+void relu_inplace<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
 
 template
-void relu<fp64_t>(const Tensor<fp64_t> &A);
+void relu_inplace<fp64_t>(const Tensor<fp64_t> &A);
 
 template
-void relu<bf16_t>(const Tensor<bf16_t> &A);
+void relu_inplace<bf16_t>(const Tensor<bf16_t> &A);
+
+template
+void relu_inplace<fp16_t>(const Tensor<fp16_t> &A);
 
 } // namespace nntile::tensor

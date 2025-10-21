@@ -6,15 +6,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/relu.cc
+ * @file tests/starpu/relu_inplace.cc
  * ReLU operation on a StarPU buffer
  *
  * @version 1.1.0
  * */
 
 #include "nntile/context.hh"
-#include "nntile/starpu/relu.hh"
-#include "nntile/kernel/relu.hh"
+#include "nntile/starpu/relu_inplace.hh"
+#include "nntile/kernel/relu_inplace.hh"
 #include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
@@ -39,13 +39,13 @@ void validate_cpu(Index nelems)
     // Create copies of destination
     std::vector<T> data2(data);
     // Launch low-level kernel
-    std::cout << "Run kernel::relu::cpu<" << T::short_name << ">\n";
-    kernel::relu::cpu<T>(nelems, &data[0]);
+    std::cout << "Run kernel::relu_inplace::cpu<" << T::short_name << ">\n";
+    kernel::relu_inplace::cpu<T>(nelems, &data[0]);
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
-    relu.restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::relu::submit<" << T::short_name << "> restricted to CPU\n";
-    relu.submit<std::tuple<T>>(nelems, data2_handle);
+    relu_inplace.restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::relu_inplace::submit<" << T::short_name << "> restricted to CPU\n";
+    relu_inplace.submit<std::tuple<T>>(nelems, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
@@ -53,7 +53,7 @@ void validate_cpu(Index nelems)
     {
         TEST_ASSERT(Y(data[i]) == Y(data2[i]));
     }
-    std::cout << "OK: starpu::relu::submit<" << T::short_name << "> restricted to CPU\n";
+    std::cout << "OK: starpu::relu_inplace::submit<" << T::short_name << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -86,8 +86,8 @@ void validate_cuda(Index nelems)
     cuda_err = cudaMemcpy(dev_data, &data[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::relu::cuda<" << T::short_name << ">\n";
-    kernel::relu::cuda<T>(stream, nelems, dev_data);
+    std::cout << "Run kernel::relu_inplace::cuda<" << T::short_name << ">\n";
+    kernel::relu_inplace::cuda<T>(stream, nelems, dev_data);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -102,9 +102,9 @@ void validate_cuda(Index nelems)
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
-    relu.restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::relu::submit<" << T::short_name << "> restricted to CUDA\n";
-    relu.submit<std::tuple<T>>(nelems, data2_handle);
+    relu_inplace.restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::relu_inplace::submit<" << T::short_name << "> restricted to CUDA\n";
+    relu_inplace.submit<std::tuple<T>>(nelems, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
@@ -112,7 +112,7 @@ void validate_cuda(Index nelems)
     {
         TEST_ASSERT(Y(data[i]) == Y(data2[i]));
     }
-    std::cout << "OK: starpu::relu::submit<" << T::short_name << "> restricted to CUDA\n";
+    std::cout << "OK: starpu::relu_inplace::submit<" << T::short_name << "> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 

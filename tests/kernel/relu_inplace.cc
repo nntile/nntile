@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/relu.cc
- * ReLU operation on a buffer
+ * @file tests/kernel/relu_inplace.cc
+ * Inplace ReLU operation on a buffer
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/kernel/relu.hh"
+#include "nntile/kernel/relu_inplace.hh"
 
 // Standard libraries
 #include <vector>
@@ -38,7 +38,7 @@ using namespace Catch::Matchers;
 // Use tested NNTile namespaces
 using namespace nntile;
 using namespace nntile::kernel;
-using namespace nntile::kernel::relu;
+using namespace nntile::kernel::relu_inplace;
 
 // Type to acquire reference values
 using ref_t = double;
