@@ -76,6 +76,7 @@
 #include <nntile/tensor/transpose.hh>
 #include <nntile/tensor/silu.hh>
 #include <nntile/tensor/silu_backward.hh>
+#include <nntile/tensor/silu_inplace.hh>
 #include <nntile/tensor/conv2d_inplace.hh>
 #include <nntile/tensor/conv2d_bwd_input_inplace.hh>
 #include <nntile/tensor/conv2d_bwd_weight_inplace.hh>

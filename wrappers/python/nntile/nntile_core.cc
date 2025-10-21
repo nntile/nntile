@@ -554,6 +554,22 @@ void def_mod_tensor(py::module_ &m)
     m.def("silu_bf16", &silu<bf16_t>);
     m.def("silu_fp16", &silu<fp16_t>);
 
+    m.def("silu_inplace_async_fp64", &silu_inplace_async<fp64_t>);
+    m.def("silu_inplace_async_fp32", &silu_inplace_async<fp32_t>);
+    m.def("silu_inplace_async_fp32_fast_tf32", &silu_inplace_async<fp32_fast_tf32_t>);
+    m.def("silu_inplace_async_fp32_fast_fp16", &silu_inplace_async<fp32_fast_fp16_t>);
+    m.def("silu_inplace_async_fp32_fast_bf16", &silu_inplace_async<fp32_fast_bf16_t>);
+    m.def("silu_inplace_async_bf16", &silu_inplace_async<bf16_t>);
+    m.def("silu_inplace_async_fp16", &silu_inplace_async<fp16_t>);
+
+    m.def("silu_inplace_fp64", &silu_inplace<fp64_t>);
+    m.def("silu_inplace_fp32", &silu_inplace<fp32_t>);
+    m.def("silu_inplace_fp32_fast_tf32", &silu_inplace<fp32_fast_tf32_t>);
+    m.def("silu_inplace_fp32_fast_fp16", &silu_inplace<fp32_fast_fp16_t>);
+    m.def("silu_inplace_fp32_fast_bf16", &silu_inplace<fp32_fast_bf16_t>);
+    m.def("silu_inplace_bf16", &silu_inplace<bf16_t>);
+    m.def("silu_inplace_fp16", &silu_inplace<fp16_t>);
+
     m.def("relu_backward_async_fp64", &relu_backward_async<fp64_t>);
     m.def("relu_backward_async_fp32", &relu_backward_async<fp32_t>);
     m.def("relu_backward_async_fp32_fast_tf32", &relu_backward_async<fp32_fast_tf32_t>);

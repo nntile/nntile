@@ -109,6 +109,7 @@ set(TESTS_CATCH2
     "scale"
     "silu_backward"
     "silu"
+    "silu_inplace"
     "softmax"
     "sqrt"
     "sum_fiber"

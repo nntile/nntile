@@ -340,6 +340,7 @@ void Context::restrict_cpu()
     scale_inplace.restrict_where(STARPU_CPU);
     silu_backward.restrict_where(STARPU_CPU);
     silu.restrict_where(STARPU_CPU);
+    silu_inplace.restrict_where(STARPU_CPU);
     softmax.restrict_where(STARPU_CPU);
     softmax_inplace.restrict_where(STARPU_CPU);
     sqrt.restrict_where(STARPU_CPU);
@@ -407,6 +408,7 @@ void Context::restrict_cuda()
     scale_inplace.restrict_where(STARPU_CUDA);
     silu_backward.restrict_where(STARPU_CUDA);
     silu.restrict_where(STARPU_CUDA);
+    silu_inplace.restrict_where(STARPU_CUDA);
     softmax.restrict_where(STARPU_CUDA);
     softmax_inplace.restrict_where(STARPU_CUDA);
     sqrt.restrict_where(STARPU_CUDA);
@@ -474,6 +476,7 @@ void Context::restore_where()
     scale_inplace.restore_where();
     silu_backward.restore_where();
     silu.restore_where();
+    silu_inplace.restore_where();
     softmax.restore_where();
     softmax_inplace.restore_where();
     sqrt.restore_where();
