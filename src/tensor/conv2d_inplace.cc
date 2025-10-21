@@ -18,7 +18,7 @@
 #include <array>
 #include <unistd.h>
 #include "nntile/starpu/clear.hh"
-#include "nntile/starpu/scal_inplace.hh"
+#include "nntile/starpu/scale_inplace.hh"
 #include "nntile/starpu/conv2d_inplace.hh"
 #include "nntile/starpu/config.hh"
 
@@ -175,7 +175,7 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
             // Scale inplace if beta is neither zero nor one
             else if(beta != 1.0)
             {
-                starpu::scal_inplace.submit<std::tuple<T>>(Y_tile_traits.nelems, beta,
+                starpu::scale_inplace.submit<std::tuple<T>>(Y_tile_traits.nelems, beta,
                         Y_tile_handle);
             }
             // Do nothing if beta is one

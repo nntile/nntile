@@ -16,7 +16,7 @@
 #include "nntile/tensor/conv2d_bwd_weight_inplace.hh"
 #include <algorithm>
 #include "nntile/starpu/clear.hh"
-#include "nntile/starpu/scal_inplace.hh"
+#include "nntile/starpu/scale_inplace.hh"
 #include "nntile/starpu/conv2d_bwd_weight_inplace.hh"
 #include <unistd.h>
 #include "nntile/starpu/config.hh"
@@ -204,7 +204,7 @@ void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
         // Scale inplace if beta is not 1.0 or 0.0
         if(beta != 1.0)
         {
-            starpu::scal_inplace.submit<std::tuple<T>>(dC.nelems, beta, dC_tile_handle);
+            starpu::scale_inplace.submit<std::tuple<T>>(dC.nelems, beta, dC_tile_handle);
         }
         // Do nothing if beta is 1.0
     }

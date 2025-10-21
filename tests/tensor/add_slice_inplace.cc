@@ -17,7 +17,7 @@
 #include "nntile/tile/add_slice_inplace.hh"
 #include "nntile/starpu/add_slice_inplace.hh"
 #include "nntile/starpu/add_inplace.hh"
-#include "nntile/starpu/scal.hh"
+#include "nntile/starpu/scale.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"

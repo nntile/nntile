@@ -326,9 +326,9 @@ void Context::restrict_cpu()
     norm_slice_inplace.restrict_where(STARPU_CPU);
     pow.restrict_where(STARPU_CPU);
     prod.restrict_where(STARPU_CPU);
-    prod_fiber.restrict_where(STARPU_CPU);
+    multiply_fiber_inplace.restrict_where(STARPU_CPU);
     multiply_fiber.restrict_where(STARPU_CPU);
-    prod_inplace.restrict_where(STARPU_CPU);
+    multiply_inplace.restrict_where(STARPU_CPU);
     multiply_slice.restrict_where(STARPU_CPU);
     randn.restrict_where(STARPU_CPU);
     relu.restrict_where(STARPU_CPU);
@@ -336,8 +336,8 @@ void Context::restrict_cpu()
     relu_forward.restrict_where(STARPU_CPU);
     rope.restrict_where(STARPU_CPU);
     rope_backward.restrict_where(STARPU_CPU);
-    scal.restrict_where(STARPU_CPU);
-    scal_inplace.restrict_where(STARPU_CPU);
+    scale.restrict_where(STARPU_CPU);
+    scale_inplace.restrict_where(STARPU_CPU);
     silu_backward.restrict_where(STARPU_CPU);
     silu_forward.restrict_where(STARPU_CPU);
     softmax.restrict_where(STARPU_CPU);
@@ -393,9 +393,9 @@ void Context::restrict_cuda()
     norm_slice_inplace.restrict_where(STARPU_CUDA);
     pow.restrict_where(STARPU_CUDA);
     prod.restrict_where(STARPU_CUDA);
-    prod_fiber.restrict_where(STARPU_CUDA);
+    multiply_fiber_inplace.restrict_where(STARPU_CUDA);
     multiply_fiber.restrict_where(STARPU_CUDA);
-    prod_inplace.restrict_where(STARPU_CUDA);
+    multiply_inplace.restrict_where(STARPU_CUDA);
     multiply_slice.restrict_where(STARPU_CUDA);
     randn.restrict_where(STARPU_CUDA);
     relu.restrict_where(STARPU_CUDA);
@@ -403,8 +403,8 @@ void Context::restrict_cuda()
     relu_forward.restrict_where(STARPU_CUDA);
     rope.restrict_where(STARPU_CUDA);
     rope_backward.restrict_where(STARPU_CUDA);
-    scal.restrict_where(STARPU_CUDA);
-    scal_inplace.restrict_where(STARPU_CUDA);
+    scale.restrict_where(STARPU_CUDA);
+    scale_inplace.restrict_where(STARPU_CUDA);
     silu_backward.restrict_where(STARPU_CUDA);
     silu_forward.restrict_where(STARPU_CUDA);
     softmax.restrict_where(STARPU_CUDA);
@@ -460,9 +460,9 @@ void Context::restore_where()
     norm_slice_inplace.restore_where();
     pow.restore_where();
     prod.restore_where();
-    prod_fiber.restore_where();
+    multiply_fiber_inplace.restore_where();
     multiply_fiber.restore_where();
-    prod_inplace.restore_where();
+    multiply_inplace.restore_where();
     multiply_slice.restore_where();
     randn.restore_where();
     relu.restore_where();
@@ -470,8 +470,8 @@ void Context::restore_where()
     relu_forward.restore_where();
     rope.restore_where();
     rope_backward.restore_where();
-    scal.restore_where();
-    scal_inplace.restore_where();
+    scale.restore_where();
+    scale_inplace.restore_where();
     silu_backward.restore_where();
     silu_forward.restore_where();
     softmax.restore_where();
