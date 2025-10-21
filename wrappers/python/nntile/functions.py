@@ -992,36 +992,6 @@ def multiply_fiber_inplace_async(
         raise TypeError
 
 
-def multiply_fiber_inplace(
-    alpha: float, src: Tensor, dst: Tensor, axis: int
-) -> None:
-    """
-    Wrapper for multiprecision multiply_fiber_inplace (synchronous version)
-    """
-    if type(src) is not type(dst):
-        raise TypeError
-    if type(dst) is core_tensor.Tensor_fp32:
-        core_tensor.multiply_fiber_inplace_fp32(
-            alpha, src, dst, axis)
-    elif type(dst) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.multiply_fiber_inplace_fp32_fast_tf32(
-            alpha, src, dst, axis)
-    elif type(dst) is core_tensor.Tensor_fp32_fast_fp16:
-        core_tensor.multiply_fiber_inplace_fp32_fast_fp16(
-            alpha, src, dst, axis)
-    elif type(dst) is core_tensor.Tensor_fp32_fast_bf16:
-        core_tensor.multiply_fiber_inplace_fp32_fast_bf16(
-            alpha, src, dst, axis)
-    elif type(dst) is core_tensor.Tensor_fp64:
-        core_tensor.multiply_fiber_inplace_fp64(
-            alpha, src, dst, axis)
-    elif type(dst) is core_tensor.Tensor_bf16:
-        core_tensor.multiply_fiber_inplace_bf16(
-            alpha, src, dst, axis)
-    else:
-        raise TypeError
-
-
 def multiply_fiber_async(
     alpha: float, x: Tensor, y: Tensor, z: Tensor, axis: int
 ) -> None:
