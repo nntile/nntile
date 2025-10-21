@@ -6,21 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/silu_forward/cpu.hh
- * Forward SiLU operation on CPU
+ * @file tests/tensor/silu.cc
+ * @brief Placeholder for silu test
  *
  * @version 1.1.0
  * */
 
-#pragma once
+#include <iostream>
 
-#include <nntile/base_types.hh>
-
-namespace nntile::kernel::silu_forward
+int main(int argc, char **argv)
 {
-
-template<typename T>
-void cpu(Index nelems, const T *src, T *dst)
-    noexcept;
-
-} // namespace nntile::kernel::silu_forward
+    // Not implemented
+    std::cout << "This test is not yet implemented\n";
+    return -1;
+}

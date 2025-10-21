@@ -6,23 +6,23 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/silu_forward/cpu.cc
- * Forward SiLU operation on CPU
+ * @file src/kernel/silu/cpu.cc
+ * SiLU operation on CPU
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/silu_forward/cpu.hh"
+#include "nntile/kernel/silu/cpu.hh"
 #include <cmath>
 #include "nntile/kernel/cpu.hh"
 
-namespace nntile::kernel::silu_forward
+namespace nntile::kernel::silu
 {
 
 template<typename T>
 void cpu(Index nelems, const T *src, T *dst)
     noexcept
-//! Forward SiLU operation on CPU
+//! SiLU operation on CPU
 /*! Does the following per-element operation:
  * dst[i] = src[i] * sigmoid(src[i])
  *
@@ -45,10 +45,6 @@ void cpu<fp32_t>(Index nelems, const fp32_t *src, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp32_fast_tf32_t>(Index nelems, const fp32_fast_tf32_t *src, fp32_fast_tf32_t *dst)
-    noexcept;
-
-template
 void cpu<fp64_t>(Index nelems, const fp64_t *src, fp64_t *dst)
     noexcept;
 
@@ -60,4 +56,4 @@ template
 void cpu<fp16_t>(Index nelems, const fp16_t *src, fp16_t *dst)
     noexcept;
 
-} // namespace nntile::kernel::silu_forward
+} // namespace nntile::kernel::silu

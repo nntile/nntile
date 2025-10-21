@@ -70,7 +70,7 @@
 #include <nntile/starpu/scale.hh>
 #include <nntile/starpu/scale_inplace.hh>
 #include <nntile/starpu/silu_backward.hh>
-#include <nntile/starpu/silu_forward.hh>
+#include <nntile/starpu/silu.hh>
 #include <nntile/starpu/softmax.hh>
 #include <nntile/starpu/softmax_inplace.hh>
 #include <nntile/starpu/sqrt.hh>

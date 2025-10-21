@@ -6,23 +6,23 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/silu_forward.hh
- * Forward SiLU operation for Tensor<T>
+ * @file include/nntile/tile/silu.hh
+ * SiLU operation for Tile<T>
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/tensor/tensor.hh>
+#include <nntile/tile/tile.hh>
 
-namespace nntile::tensor
+namespace nntile::tile
 {
 
 template<typename T>
-void silu_forward_async(const Tensor<T> &src, const Tensor<T> &dst);
+void silu_async(const Tile<T> &src, const Tile<T> &dst);
 
 template<typename T>
-void silu_forward(const Tensor<T> &src, const Tensor<T> &dst);
+void silu(const Tile<T> &src, const Tile<T> &dst);
 
-} // namespace nntile::tensor
+} // namespace nntile::tile

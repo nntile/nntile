@@ -6,36 +6,36 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/silu_forward.cc
- * Forward SiLU operation on a StarPU buffer
+ * @file src/starpu/silu.cc
+ * SiLU operation on a StarPU buffer
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/starpu/silu_forward.hh"
+#include "nntile/starpu/silu.hh"
 
 // Standard libraries
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
-#include "nntile/kernel/silu_forward.hh"
+#include "nntile/kernel/silu.hh"
 
 namespace nntile::starpu
 {
 
 //! Constructor
 template<typename T>
-SiluForward<std::tuple<T>>::SiluForward():
-    codelet("nntile_silu_forward", footprint, cpu_funcs, cuda_funcs)
+Silu<std::tuple<T>>::Silu():
+    codelet("nntile_silu", footprint, cpu_funcs, cuda_funcs)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! StarPU wrapper for kernel::silu_forward::cpu<T>
+//! StarPU wrapper for kernel::silu::cpu<T>
 template<typename T>
-void SiluForward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
+void Silu<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -46,39 +46,39 @@ void SiluForward<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::silu_forward::cpu<T>(args->nelems, src, dst);
+    kernel::silu::cpu<T>(args->nelems, src, dst);
 #endif // STARPU_SIMGRID
 }
 
 // Specializations of CPU wrapper for accelerated types
 template<>
-void SiluForward<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+void Silu<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    SiluForward<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    Silu<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void SiluForward<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+void Silu<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    SiluForward<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    Silu<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void SiluForward<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+void Silu<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    SiluForward<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    Silu<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::silu_forward::cuda<T>
+//! StarPU wrapper for kernel::silu::cuda<T>
 template<typename T>
-void SiluForward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+void Silu<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -91,38 +91,38 @@ void SiluForward<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::silu_forward::cuda<T>(stream, args->nelems, src, dst);
+    kernel::silu::cuda<T>(stream, args->nelems, src, dst);
 #endif // STARPU_SIMGRID
 }
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
-void SiluForward<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+void Silu<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    SiluForward<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    Silu<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void SiluForward<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+void Silu<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    SiluForward<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    Silu<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void SiluForward<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+void Silu<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    SiluForward<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    Silu<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 #endif // NNTILE_USE_CUDA
 
 template<typename T>
-uint32_t SiluForward<std::tuple<T>>::footprint(struct starpu_task *task)
+uint32_t Silu<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
     uint32_t hash = 0;
@@ -131,7 +131,7 @@ uint32_t SiluForward<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void SiluForward<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
+void Silu<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
@@ -145,21 +145,22 @@ void SiluForward<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in silu_forward task submission");
+        throw std::runtime_error("Error in silu task submission");
     }
 }
 
 // Explicit instantiation
 // For some strange reason, the compiler does not instantiate the template
 // automatically, so we need to do it manually
-template class SiluForward<std::tuple<nntile::fp64_t>>;
-template class SiluForward<std::tuple<nntile::fp32_t>>;
-template class SiluForward<std::tuple<nntile::fp32_fast_tf32_t>>;
-template class SiluForward<std::tuple<nntile::fp32_fast_fp16_t>>;
-template class SiluForward<std::tuple<nntile::fp32_fast_bf16_t>>;
-template class SiluForward<std::tuple<nntile::bf16_t>>;
+template class Silu<std::tuple<nntile::fp64_t>>;
+template class Silu<std::tuple<nntile::fp32_t>>;
+template class Silu<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class Silu<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class Silu<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class Silu<std::tuple<nntile::bf16_t>>;
+template class Silu<std::tuple<nntile::fp16_t>>;
 
-//! Pack of silu_forward operations for different types
-silu_forward_pack_t silu_forward;
+//! Pack of silu operations for different types
+silu_pack_t silu;
 
 } // namespace nntile::starpu
