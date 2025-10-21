@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tensor/multiply_inplace.hh
- * Per-element product of two Tensor<T>
+ * Per-element multiplication of two Tensor<T>
  *
  * @version 1.1.0
  * */
@@ -19,11 +19,11 @@
 namespace nntile::tensor
 {
 
-// Asynchronous tensor-wise prod operation
+// Asynchronous tensor-wise multiply operation
 template<typename T>
 void multiply_inplace_async(const Tensor<T> &src, const Tensor<T> &dst);
 
-// Blocking version of tensor-wise prod operation
+// Blocking version of tensor-wise multiply operation
 template<typename T>
 void multiply_inplace(const Tensor<T> &src, const Tensor<T> &dst);
 

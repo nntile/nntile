@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/starpu/multiply_inplace.cc
- * Per-element product of two StarPU buffers
+ * Per-element multiplication of two StarPU buffers
  *
  * @version 1.1.0
  * */
@@ -33,7 +33,7 @@ MultiplyInplace<std::tuple<T>>::MultiplyInplace():
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! Apply prod on StarPU buffers on CPU
+//! Apply multiply on StarPU buffers on CPU
 template<typename T>
 void MultiplyInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
@@ -76,7 +76,7 @@ void MultiplyInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *c
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply prod on StarPU buffer on CUDA
+//! Apply multiply on StarPU buffer on CUDA
 template<typename T>
 void MultiplyInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
@@ -121,7 +121,7 @@ void MultiplyInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for multiply_inplace tasks
+//! Footprint for multiply_inplace operation
 template<typename T>
 uint32_t MultiplyInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 {
@@ -132,7 +132,7 @@ uint32_t MultiplyInplace<std::tuple<T>>::footprint(struct starpu_task *task)
     return hash;
 }
 
-//! Submit multiply_inplace task
+//! Submit multiply_inplace operation
 template<typename T>
 void MultiplyInplace<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
 {
