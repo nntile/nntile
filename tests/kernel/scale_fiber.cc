@@ -48,143 +48,383 @@ template<typename T>
 struct TestData
 {
     using Y = typename T::repr_t;
-    // Input parameters
-    Index m, n, k, batch;
-    Scalar alpha;
-    // Input data
-    std::vector<T> src, dst, dst_ref;
-    // Reference results
-    std::vector<Y> src_ref, dst_ref_ref;
-    // Constructor
-    TestData(Index m_, Index n_, Index k_, Index batch_, Scalar alpha_):
-        m(m_), n(n_), k(k_), batch(batch_), alpha(alpha_),
-        src(k * batch),
-        dst(m * k * n * batch),
-        dst_ref(m * k * n * batch),
-        src_ref(k * batch),
-        dst_ref_ref(m * k * n * batch)
+    Index m, n, k, batch; // Tensor dimensions
+    Scalar alpha;         // Scalar factor
+
+    Y eps_check;
+
+    std::vector<T> src_init;
+    std::vector<T> dst_init;
+
+    std::vector<T> dst_ref;
+};
+
+// Reference implementation of the scale fiber operation
+template<typename T>
+void reference_scale_fiber(TestData<T>& data)
+{
+    using Y = typename T::repr_t;
+
+    data.dst_ref = data.dst_init; // Copy initial destination
+
+    for(Index b = 0; b < data.batch; ++b)
     {
-        // Fill input data with random values
-        std::random_device dev;
-        std::mt19937_64 rng(dev());
-        std::uniform_real_distribution<Y> dist(-1.0, 1.0);
-        for(Index i = 0; i < k * batch; ++i)
+        for(Index i2 = 0; i2 < data.k; ++i2)
         {
-            src[i] = T{dist(rng)};
-            src_ref[i] = Y{src[i]};
-        }
-        // Fill output data with random values
-        for(Index i = 0; i < m * k * n * batch; ++i)
-        {
-            dst[i] = T{dist(rng)};
-            dst_ref[i] = T{dist(rng)};
-        }
-        // Compute reference results
-        for(Index b = 0; b < batch; ++b)
-        {
-            for(Index i2 = 0; i2 < k; ++i2)
+            Index src_idx = i2 + b * data.k;
+            ref_t src_val = static_cast<Y>(data.src_init[src_idx]);
+            src_val *= data.alpha;
+
+            for(Index i1 = 0; i1 < data.n; ++i1)
             {
-                const Y src_val = alpha * src_ref[i2 + b * k];
-                for(Index i1 = 0; i1 < n; ++i1)
+                Index dst_idx_base = (i1 + b * data.n) * data.k + i2;
+                for(Index i0 = 0; i0 < data.m; ++i0)
                 {
-                    for(Index i0 = 0; i0 < m; ++i0)
-                    {
-                        Index idx = ((i1 + b * n) * k + i2) * m + i0;
-                        dst_ref_ref[idx] = src_val;
-                    }
+                    Index dst_idx = dst_idx_base * data.m + i0;
+                    data.dst_ref[dst_idx] = static_cast<Y>(src_val);
                 }
             }
         }
     }
+}
+
+// Enum for data generation strategies
+enum class DataGen
+{
+    PRESET,
+    RANDOM
 };
 
-// Test kernel on CPU
+// Generates data with preset, deterministic values
 template<typename T>
-void test_cpu(Index m, Index n, Index k, Index batch, Scalar alpha)
+void generate_data(TestData<T>& data, DataGen strategy)
 {
-    // Prepare test data
-    TestData<T> data(m, n, k, batch, alpha);
-    // Launch CPU kernel
-    cpu<T>(m, n, k, batch, alpha, data.src.data(), data.dst.data());
-    // Check results
     using Y = typename T::repr_t;
-    const Y eps = std::numeric_limits<Y>::epsilon();
-    for(Index i = 0; i < m * k * n * batch; ++i)
+
+    Index num_elems = data.m * data.n * data.k * data.batch;
+
+    data.src_init.resize(data.k * data.batch);
+    data.dst_init.resize(num_elems);
+    data.dst_ref.resize(num_elems);
+
+    switch(strategy)
     {
-        Y dst_val = Y{data.dst[i]};
-        Y dst_ref_val = data.dst_ref_ref[i];
-        REQUIRE(std::abs(dst_val - dst_ref_val) <= eps * std::abs(dst_ref_val));
+        // Non-random input generation
+        case DataGen::PRESET:
+            for(Index i = 0; i < data.k * data.batch; ++i)
+            {
+                Index tmp_i = 2 * i + 1 - data.k * data.batch;
+                data.src_init[i] = static_cast<Y>(tmp_i);
+            }
+            for(Index i = 0; i < num_elems; ++i)
+            {
+                Index tmp_i = 5 * num_elems - 2 * i;
+                data.dst_init[i] = static_cast<Y>(tmp_i);
+            }
+            break;
+        // Specific random initialization
+        case DataGen::RANDOM:
+            std::mt19937 gen(42);
+            std::uniform_real_distribution<Y> dist(-2.0, 2.0);
+            for(Index i = 0; i < data.k * data.batch; ++i)
+            {
+                data.src_init[i] = dist(gen);
+            }
+            for(Index i = 0; i < num_elems; ++i)
+            {
+                data.dst_init[i] = dist(gen);
+            }
+            break;
     }
 }
 
-// Test kernel on CUDA
+// Get test data and reference results
 template<typename T>
-void test_cuda(Index m, Index n, Index k, Index batch, Scalar alpha)
+TestData<T> get_test_data(
+    Index m,
+    Index n,
+    Index k,
+    Index batch,
+    Scalar alpha,
+    DataGen strategy
+)
 {
-#ifdef NNTILE_USE_CUDA
-    // Prepare test data
-    TestData<T> data(m, n, k, batch, alpha);
-    // Allocate CUDA memory
-    T *src_gpu, *dst_gpu;
-    CUDA_CHECK(cudaMalloc(&src_gpu, sizeof(T) * k * batch));
-    CUDA_CHECK(cudaMalloc(&dst_gpu, sizeof(T) * m * k * n * batch));
-    // Copy data to GPU
-    CUDA_CHECK(cudaMemcpy(src_gpu, data.src.data(), sizeof(T) * k * batch,
-            cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpy(dst_gpu, data.dst.data(), sizeof(T) * m * k * n * batch,
-            cudaMemcpyHostToDevice));
-    // Get CUDA stream
-    cudaStream_t stream;
-    CUDA_CHECK(cudaStreamCreate(&stream));
-    // Launch CUDA kernel
-    cuda<T>(stream, m, n, k, batch, alpha, src_gpu, dst_gpu);
-    // Wait for completion
-    CUDA_CHECK(cudaStreamSynchronize(stream));
-    // Copy result back
-    CUDA_CHECK(cudaMemcpy(data.dst.data(), dst_gpu, sizeof(T) * m * k * n * batch,
-            cudaMemcpyDeviceToHost));
-    // Check results
     using Y = typename T::repr_t;
-    const Y eps = std::numeric_limits<Y>::epsilon();
-    for(Index i = 0; i < m * k * n * batch; ++i)
+    TestData<T> data;
+    data.m = m;
+    data.n = n;
+    data.k = k;
+    data.batch = batch;
+    data.alpha = alpha;
+
+    // Generate data by a provided strategy
+    generate_data(data, strategy);
+
+    // Set accuracy threshold for each precision
+    if (std::is_same_v<T, bf16_t>)
     {
-        Y dst_val = Y{data.dst[i]};
-        Y dst_ref_val = data.dst_ref_ref[i];
-        REQUIRE(std::abs(dst_val - dst_ref_val) <= eps * std::abs(dst_ref_val));
+        data.eps_check = Y{1e-1};
     }
-    // Cleanup
-    CUDA_CHECK(cudaStreamDestroy(stream));
-    CUDA_CHECK(cudaFree(src_gpu));
-    CUDA_CHECK(cudaFree(dst_gpu));
-#else
-    // Skip CUDA test if not available
-    REQUIRE(true);
+    else if (std::is_same_v<T, fp16_t>)
+    {
+        data.eps_check = Y{1e-2};
+    }
+    else if (std::is_same_v<T, fp32_t>)
+    {
+        data.eps_check = Y{1e-6};
+    }
+    else if (std::is_same_v<T, fp64_t>)
+    {
+        data.eps_check = Y{1e-12};
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type");
+    }
+
+    // Compute reference outputs
+    reference_scale_fiber(data);
+    return data;
+}
+
+// Helper function to verify results
+template<typename T>
+void verify_results(
+    const TestData<T>& data,
+    const std::vector<T>& src,
+    const std::vector<T>& dst)
+{
+    using Y = typename T::repr_t;
+
+    // Check that source data was not modified
+    for(Index i = 0; i < data.k * data.batch; ++i)
+    {
+        REQUIRE(static_cast<Y>(src[i]) == static_cast<Y>(data.src_init[i]));
+    }
+
+    // Check output
+    for(Index i = 0; i < data.m * data.n * data.k * data.batch; ++i)
+    {
+        REQUIRE_THAT(
+            static_cast<Y>(dst[i]),
+            WithinRel(static_cast<Y>(data.dst_ref[i]), data.eps_check)
+        );
+    }
+}
+
+// Helper function to run CPU test and verify results
+template<typename T, bool run_bench>
+void run_cpu_test(TestData<T>& data)
+{
+    std::vector<T> dst_cpu(data.dst_init);
+    std::vector<T> src_cpu(data.src_init);
+
+    if constexpr (run_bench)
+    {
+        BENCHMARK(
+            "[kernel][scale_fiber][cpu][m=" +
+            std::to_string(data.m) +
+            "][n=" + std::to_string(data.n) +
+            "][k=" + std::to_string(data.k) +
+            "][batch=" + std::to_string(data.batch) +
+            "][alpha=" + std::to_string(data.alpha) + "]"
+        )
+        {
+            cpu<T>(
+                data.m,
+                data.n,
+                data.k,
+                data.batch,
+                data.alpha,
+                &src_cpu[0],
+                &dst_cpu[0]
+            );
+        };
+    }
+    else
+    {
+        cpu<T>(
+            data.m,
+            data.n,
+            data.k,
+            data.batch,
+            data.alpha,
+            &src_cpu[0],
+            &dst_cpu[0]
+        );
+        verify_results(data, src_cpu, dst_cpu);
+    }
+}
+
+#ifdef NNTILE_USE_CUDA
+
+// Helper function to run CUDA test and verify results
+template<typename T, bool run_bench>
+void run_cuda_test(TestData<T>& data)
+{
+    T *dev_src, *dev_dst;
+    CUDA_CHECK(
+        cudaMalloc(&dev_src, sizeof(T) * data.src_init.size()),
+        "cudaMalloc dev_src"
+    );
+    CUDA_CHECK(
+        cudaMalloc(&dev_dst, sizeof(T) * data.dst_init.size()),
+        "cudaMalloc dev_dst"
+    );
+
+    std::vector<T> dst_cuda(data.dst_init);
+    std::vector<T> src_cuda(data.src_init);
+
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_src,
+            &src_cuda[0],
+            sizeof(T) * data.src_init.size(),
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_src"
+    );
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_dst,
+            &dst_cuda[0],
+            sizeof(T) * data.dst_init.size(),
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_dst"
+    );
+
+    cudaStream_t stream;
+    CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
+
+    if constexpr (run_bench)
+    {
+        BENCHMARK(
+            "[kernel][scale_fiber][cuda][m=" +
+            std::to_string(data.m) +
+            "][n=" + std::to_string(data.n) +
+            "][k=" + std::to_string(data.k) +
+            "][batch=" + std::to_string(data.batch) +
+            "][alpha=" + std::to_string(data.alpha) + "]"
+        )
+        {
+            cuda<T>(
+                stream,
+                data.m,
+                data.n,
+                data.k,
+                data.batch,
+                data.alpha,
+                dev_src,
+                dev_dst
+            );
+            cudaStreamSynchronize(stream);
+        };
+    }
+    else
+    {
+        cuda<T>(
+            stream,
+            data.m,
+            data.n,
+            data.k,
+            data.batch,
+            data.alpha,
+            dev_src,
+            dev_dst
+        );
+        CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
+
+        CUDA_CHECK(
+            cudaMemcpy(
+                &dst_cuda[0],
+                dev_dst,
+                sizeof(T) * data.dst_init.size(),
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy dst_cuda"
+        );
+        CUDA_CHECK(
+            cudaMemcpy(
+                &src_cuda[0],
+                dev_src,
+                sizeof(T) * data.src_init.size(),
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy src_cuda"
+        );
+
+        verify_results(data, src_cuda, dst_cuda);
+    }
+
+    CUDA_CHECK(cudaFree(dev_src), "cudaFree dev_src");
+    CUDA_CHECK(cudaFree(dev_dst), "cudaFree dev_dst");
+    CUDA_CHECK(cudaStreamDestroy(stream), "cudaStreamDestroy");
+}
+#endif
+
+// Catch2-based tests
+TEMPLATE_TEST_CASE(
+    "Scale Fiber Kernel Verification",
+    "[scale_fiber]",
+    fp64_t,
+    fp32_t,
+    fp16_t,
+    bf16_t
+)
+{
+    using T = TestType;
+    const Index m = GENERATE(1, 5);
+    const Index n = GENERATE(1, 3);
+    const Index k = GENERATE(1, 10);
+    const Index batch = GENERATE(1, 4);
+    const Scalar alpha = GENERATE(0.5, 1.0, 2.0);
+    const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
+
+    auto data = get_test_data<T>(m, n, k, batch, alpha, strategy);
+
+    SECTION("cpu")
+    {
+        run_cpu_test<T, false>(data);
+    }
+
+#ifdef NNTILE_USE_CUDA
+    SECTION("cuda")
+    {
+        run_cuda_test<T, false>(data);
+    }
 #endif
 }
 
-// Test cases
-TEST_CASE("scale_fiber CPU", "[kernel][scale_fiber]")
+// Catch2-based benchmarks
+TEMPLATE_TEST_CASE(
+    "Scale Fiber Kernel Benchmark",
+    "[scale_fiber][!benchmark]",
+    fp64_t,
+    fp32_t,
+    fp16_t,
+    bf16_t
+)
 {
-    // Test different sizes and alpha values
-    test_cpu<fp32_t>(1, 1, 1, 1, 1.0);
-    test_cpu<fp32_t>(2, 3, 4, 5, 2.0);
-    test_cpu<fp32_t>(3, 2, 1, 1, 0.5);
-    test_cpu<fp32_t>(1, 1, 1, 1, 0.0);
-    test_cpu<fp64_t>(1, 1, 1, 1, 1.0);
-    test_cpu<fp64_t>(2, 3, 4, 5, 2.0);
-    test_cpu<fp64_t>(3, 2, 1, 1, 0.5);
-    test_cpu<fp64_t>(1, 1, 1, 1, 0.0);
-}
+    using T = TestType;
+    const Index m = GENERATE(64, 256);
+    const Index n = GENERATE(64, 256);
+    const Index k = GENERATE(32, 128);
+    const Index batch = GENERATE(4, 16);
+    const Scalar alpha = GENERATE(1.0);
+    const DataGen strategy = GENERATE(DataGen::PRESET);
 
-TEST_CASE("scale_fiber CUDA", "[kernel][scale_fiber]")
-{
-    // Test different sizes and alpha values
-    test_cuda<fp32_t>(1, 1, 1, 1, 1.0);
-    test_cuda<fp32_t>(2, 3, 4, 5, 2.0);
-    test_cuda<fp32_t>(3, 2, 1, 1, 0.5);
-    test_cuda<fp32_t>(1, 1, 1, 1, 0.0);
-    test_cuda<fp64_t>(1, 1, 1, 1, 1.0);
-    test_cuda<fp64_t>(2, 3, 4, 5, 2.0);
-    test_cuda<fp64_t>(3, 2, 1, 1, 0.5);
-    test_cuda<fp64_t>(1, 1, 1, 1, 0.0);
+    auto data = get_test_data<T>(m, n, k, batch, alpha, strategy);
+
+    SECTION("cpu")
+    {
+        run_cpu_test<T, true>(data);
+    }
+
+#ifdef NNTILE_USE_CUDA
+    SECTION("cuda")
+    {
+        run_cuda_test<T, true>(data);
+    }
+#endif
 }

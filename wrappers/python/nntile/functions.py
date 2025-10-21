@@ -972,44 +972,6 @@ def scale_fiber_async(
             f'Tensor must share the same type but actual types are {types}.')
 
 
-def scale_fiber(
-    alpha: float, src: Tensor, dst: Tensor,
-    axis: int, batch_ndim: int
-) -> None:
-    """Wrapper for multiprecision `scale_fiber`."""
-    ts = (src, dst)
-    if is_tensor_of(ts, Tensor_bf16):
-        ops.scale_fiber_bf16(
-            alpha, ts[0], ts[1], axis, batch_ndim
-        )
-    elif is_tensor_of(ts, Tensor_fp16):
-        ops.scale_fiber_fp16(
-            alpha, ts[0], ts[1], axis, batch_ndim
-        )
-    elif is_tensor_of(ts, Tensor_fp32):
-        ops.scale_fiber_fp32(
-            alpha, ts[0], ts[1], axis, batch_ndim
-        )
-    elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
-        ops.scale_fiber_fp32_fast_tf32(
-            alpha, ts[0], ts[1], axis, batch_ndim
-        )
-    elif is_tensor_of(ts, Tensor_fp32_fast_fp16):
-        ops.scale_fiber_fp32_fast_fp16(
-            alpha, ts[0], ts[1], axis, batch_ndim)
-    elif is_tensor_of(ts, Tensor_fp32_fast_bf16):
-        ops.scale_fiber_fp32_fast_bf16(
-            alpha, ts[0], ts[1], axis, batch_ndim)
-    elif is_tensor_of(ts, Tensor_fp64):
-        ops.scale_fiber_fp64(
-            alpha, ts[0], ts[1], axis, batch_ndim
-        )
-    else:
-        types = ', '.join(str(type(t)) for t in ts)
-        raise TypeError(
-            f'Tensor must share the same type but actual types are {types}.')
-
-
 def add_fiber_async(
     alpha: float, add_fiber: Tensor, beta, x: Tensor, y: Tensor,
     axis: int, batch_ndim: int
