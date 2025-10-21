@@ -160,7 +160,7 @@ class BatchNorm2d(BaseLayer):
         xvar_grad = x_var_eps_ref
 
         pow_async(-0.5, -2.0 * -1.5, xvar_grad)  # fuse two powers from above
-        multiply_inplace_async(inv_denom_grad, xvar_grad)
+        multiply_inplace_async(1.0, inv_denom_grad, xvar_grad)
 
         # Compute grad d(variance)/d(x)
         # empty(self.x.value.shape)

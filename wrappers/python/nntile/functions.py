@@ -703,26 +703,26 @@ def multiply_async(alpha: float, x: Tensor, y: Tensor, z: Tensor) -> None:
         raise TypeError
 
 
-def multiply_inplace_async(x: Tensor, y: Tensor) -> None:
+def multiply_inplace_async(alpha: float, x: Tensor, y: Tensor) -> None:
     """
     Wrapper for multiprecision multiply_inplace
     """
     if type(x) is not type(y):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.multiply_inplace_async_fp32(x, y)
+        core_tensor.multiply_inplace_async_fp32(alpha, x, y)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.multiply_inplace_async_fp32_fast_tf32(x, y)
+        core_tensor.multiply_inplace_async_fp32_fast_tf32(alpha, x, y)
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
-        core_tensor.multiply_inplace_async_fp32_fast_fp16(x, y)
+        core_tensor.multiply_inplace_async_fp32_fast_fp16(alpha, x, y)
     elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
-        core_tensor.multiply_inplace_async_fp32_fast_bf16(x, y)
+        core_tensor.multiply_inplace_async_fp32_fast_bf16(alpha, x, y)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.multiply_inplace_async_fp64(x, y)
+        core_tensor.multiply_inplace_async_fp64(alpha, x, y)
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.multiply_inplace_async_bf16(x, y)
+        core_tensor.multiply_inplace_async_bf16(alpha, x, y)
     elif type(x) is core_tensor.Tensor_fp16:
-        core_tensor.multiply_inplace_async_fp16(x, y)
+        core_tensor.multiply_inplace_async_fp16(alpha, x, y)
     else:
         raise TypeError
 

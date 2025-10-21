@@ -41,12 +41,14 @@ void MultiplyInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
+    Index nelems = args->nelems;
+    Scalar alpha = args->alpha;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::multiply_inplace::cpu<T>(args->nelems, src, dst);
+    kernel::multiply_inplace::cpu<T>(nelems, alpha, src, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -84,6 +86,8 @@ void MultiplyInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
+    Index nelems = args->nelems;
+    Scalar alpha = args->alpha;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -91,7 +95,7 @@ void MultiplyInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::multiply_inplace::cuda<T>(stream, args->nelems, src, dst);
+    kernel::multiply_inplace::cuda<T>(stream, nelems, alpha, src, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -129,16 +133,18 @@ uint32_t MultiplyInplace<std::tuple<T>>::footprint(struct starpu_task *task)
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
+    hash = starpu_hash_crc32c_be_n(&args->alpha, sizeof(args->alpha), hash);
     return hash;
 }
 
 //! Submit multiply_inplace operation
 template<typename T>
-void MultiplyInplace<std::tuple<T>>::submit(Index nelems, Handle src, Handle dst)
+void MultiplyInplace<std::tuple<T>>::submit(Index nelems, Scalar alpha, Handle src, Handle dst)
 {
     // Codelet arguments
     args_t *args = (args_t*)std::malloc(sizeof(*args));
     args->nelems = nelems;
+    args->alpha = alpha;
     // Put amount of read-write bytes into flop count
     double nflops = sizeof(T) * 3 * nelems;
     int ret = starpu_task_insert(&codelet,

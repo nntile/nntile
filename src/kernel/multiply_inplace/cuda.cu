@@ -20,7 +20,7 @@ namespace nntile::kernel::multiply_inplace
 
 template<typename T, int BLOCK, int LOOP>
 static __global__
-void cuda_kernel(Index nelems, const T *src, T *dst)
+void cuda_kernel(Index nelems, Scalar alpha, const T *src, T *dst)
 {
     int i = threadIdx.x + blockIdx.x*BLOCK;
     using Y = typename T::repr_t;
@@ -36,7 +36,7 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
         }
         for(int j = 0; j < BLOCK; j += BLOCK_STEP)
         {
-            dst[i+j] = static_cast<T>(
+            dst[i+j] = static_cast<T>(alpha *
                     static_cast<Y>(src1_block[threadIdx.x+j]) *
                     static_cast<Y>(src2_block[threadIdx.x+j]));
         }
@@ -50,7 +50,7 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
         }
         for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
         {
-            dst[i+j] = static_cast<T>(
+            dst[i+j] = static_cast<T>(alpha *
                     static_cast<Y>(src1_block[threadIdx.x+j]) *
                     static_cast<Y>(src2_block[threadIdx.x+j]));
         }
@@ -58,55 +58,42 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
+void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src, T *dst)
     noexcept
 //! Per-element product of two buffers
 /*! One of the buffers serves as output
  *
  * @param[in] nelems: Number of elements in both buffers
+ * @param[in] alpha: Scalar multiplier
  * @param[in] src: Input buffer
  * @param[inout] dst: Input buffers that contains output in the end
  * */
 {
     dim3 threads(256);
     dim3 blocks((nelems+1023)/1024);
-    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems, src,
+    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems, alpha, src,
             dst);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index nelems, const fp32_t *src,
+void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha, const fp32_t *src,
         fp32_t *dst)
     noexcept;
 
-template
-void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index nelems,
-        const fp32_fast_tf32_t *src, fp32_fast_tf32_t *dst)
-    noexcept;
 
 template
-void cuda<fp32_fast_fp16_t>(cudaStream_t stream, Index nelems,
-        const fp32_fast_fp16_t *src, fp32_fast_fp16_t *dst)
-    noexcept;
-
-template
-void cuda<fp32_fast_bf16_t>(cudaStream_t stream, Index nelems,
-        const fp32_fast_bf16_t *src, fp32_fast_bf16_t *dst)
-    noexcept;
-
-template
-void cuda<fp64_t>(cudaStream_t stream, Index nelems, const fp64_t *src,
+void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha, const fp64_t *src,
         fp64_t *dst)
     noexcept;
 
 template
-void cuda<bf16_t>(cudaStream_t stream, Index nelems, const bf16_t *src,
+void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha, const bf16_t *src,
         bf16_t *dst)
     noexcept;
 
 template
-void cuda<fp16_t>(cudaStream_t stream, Index nelems, const fp16_t *src,
+void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar alpha, const fp16_t *src,
         fp16_t *dst)
     noexcept;
 

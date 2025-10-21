@@ -46,6 +46,7 @@ public:
     struct args_t
     {
         Index nelems;
+        Scalar alpha;
     };
 
     //! Footprint function for the current operation
@@ -77,6 +78,7 @@ public:
     //! Submit multiply_inplace task
     void submit(
         Index nelems,
+        Scalar alpha,
         Handle src,
         Handle dst
     );

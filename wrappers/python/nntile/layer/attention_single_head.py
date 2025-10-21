@@ -609,7 +609,7 @@ class AttentionSingleHead(BaseLayer):
             # A_sumprod_slice can be deleted
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A
-            multiply_inplace_async(self.a.value, self.a.grad)
+            multiply_inplace_async(1.0, self.a.value, self.a.grad)
         # A can be deleted
         self.a.value.invalidate_submit()
         # Backward for mask if needed

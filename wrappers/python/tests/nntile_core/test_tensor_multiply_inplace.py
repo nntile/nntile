@@ -44,7 +44,7 @@ def test_multiply_inplace(context, dtype):
     rand_B = rng.standard_normal(shape)
     np_B = np.array(rand_B, dtype=dtype, order='F')
     B.from_array(np_B)
-    multiply_inplace[dtype](A, B)
+    multiply_inplace[dtype](1.0, A, B)
     np_C = np.zeros(shape, dtype=dtype, order='F')
     B.to_array(np_C)
     nntile.starpu.wait_for_all()
