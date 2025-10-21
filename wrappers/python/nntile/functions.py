@@ -210,13 +210,6 @@ def silu_inplace_async(x: Tensor) -> None:
         raise TypeError
 
 
-def silu_inplace(x: Tensor) -> None:
-    """
-    Wrapper for multiprecision inplace SiLU (blocking)
-    """
-    silu_inplace_async(x)
-
-
 def gelu_inplace_async(x: Tensor) -> None:
     """
     Wrapper for multiprecision GELU inplace
