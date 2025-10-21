@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/prod_slice.cc
+ * @file tests/kernel/multiply_slice.cc
  * Per-element multiplication of a tensor by a broadcasted slice
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/kernel/prod_slice.hh"
+#include "nntile/kernel/multiply_slice.hh"
 
 // Standard libraries
 #include <vector>
@@ -38,7 +38,7 @@ using namespace Catch::Matchers;
 // Use tested NNTile namespaces
 using namespace nntile;
 using namespace nntile::kernel;
-using namespace nntile::kernel::prod_slice;
+using namespace nntile::kernel::multiply_slice;
 
 // Type to acquire reference values
 using ref_t = double;
@@ -59,9 +59,9 @@ struct TestData
     std::vector<T> dst_ref;
 };
 
-// Reference implementation of the prod_slice operation
+// Reference implementation of the multiply_slice operation
 template<typename T>
-void reference_prod_slice(TestData<T>& data)
+void reference_multiply_slice(TestData<T>& data)
 {
     using Y = typename T::repr_t;
     if (data.m == 0 || data.n == 0 || data.k == 0)
@@ -188,7 +188,7 @@ TestData<T> get_test_data(
     }
 
     // Compute reference outputs
-    reference_prod_slice(data);
+    reference_multiply_slice(data);
     return data;
 }
 
@@ -229,7 +229,7 @@ void run_cpu_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][prod_slice][cpu][m=" +
+            "[kernel][multiply_slice][cpu][m=" +
             std::to_string(data.m) +
             "][n=" + std::to_string(data.n) +
             "][k=" + std::to_string(data.k) +
@@ -304,7 +304,7 @@ void run_cuda_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][prod_slice][cuda][m=" +
+            "[kernel][multiply_slice][cuda][m=" +
             std::to_string(data.m) +
             "][n=" + std::to_string(data.n) +
             "][k=" + std::to_string(data.k) +
@@ -366,8 +366,8 @@ void run_cuda_test(TestData<T>& data)
 
 // Catch2-based tests
 TEMPLATE_TEST_CASE(
-    "Prod Slice Kernel Verification",
-    "[prod_slice]",
+    "Multiply Slice Kernel Verification",
+    "[multiply_slice]",
     fp64_t,
     fp32_t,
     fp16_t,
@@ -404,8 +404,8 @@ TEMPLATE_TEST_CASE(
 
 // Catch2-based benchmarks
 TEMPLATE_TEST_CASE(
-    "Prod Slice Kernel Benchmark",
-    "[prod_slice][!benchmark]",
+    "Multiply Slice Kernel Benchmark",
+    "[multiply_slice][!benchmark]",
     fp64_t,
     fp32_t,
     fp16_t,

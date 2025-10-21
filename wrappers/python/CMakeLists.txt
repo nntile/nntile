@@ -62,7 +62,7 @@ set(TESTS_NOT_IMPLEMENTED
     "nntile_core/test_tensor_norm_slice_inplace.py"
     "nntile_core/test_tensor_pow.py"
     "nntile_core/test_tensor_multiply_fiber_inplace.py"
-    "nntile_core/test_tensor_prod_slice.py"
+    "nntile_core/test_tensor_multiply_slice.py"
     "nntile_core/test_tensor_sumprod_fiber.py"
     "nntile_core/test_tensor_sumprod_slice.py"
     "nntile_core/test_tensor_subtract_indexed_column.py"

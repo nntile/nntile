@@ -20,7 +20,7 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, add_inplace_async, copy_async,
     fill_async, hypot_scalar_inverse_async, multiply_fiber_async,
-    norm_slice_inplace_async, prod_slice_async, sumprod_fiber_async,
+    multiply_slice_async, norm_slice_inplace_async, sumprod_fiber_async,
     sumprod_slice_async, to_numpy)
 
 
@@ -124,7 +124,7 @@ class RMSNorm(BaseLayer):
         hypot_scalar_inverse_async(self.eps, 1.0, self.inv_stddev)
         # Finally, normalize input
         copy_async(self.x.value, self.tmp_y_value)
-        prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
+        multiply_slice_async(1.0, self.inv_stddev, self.tmp_y_value, self.axis)
         # inv_stddev can be offloaded from GPU
         self.inv_stddev.wont_use()
         # Scale normalized input for the backward phase
@@ -161,7 +161,7 @@ class RMSNorm(BaseLayer):
 
         # Finally, normalize input
         copy_async(x.value, tmp_y_value)
-        prod_slice_async(inv_stddev, 1.0, tmp_y_value, self.axis)
+        multiply_slice_async(1.0, inv_stddev, tmp_y_value, self.axis)
 
         # Scale normalized input for the backward phase
         multiply_fiber_async(
@@ -188,7 +188,7 @@ class RMSNorm(BaseLayer):
         sumprod_slice_async(-1.0 / self.l, self.tmp_y_grad, self.tmp_y_value,
                 0.0, self.mean, self.axis, redux=self.redux)
         # Multiply tmp_Y_value by the mean
-        prod_slice_async(self.mean, 1.0, self.tmp_y_value, self.axis)
+        multiply_slice_async(1.0, self.mean, self.tmp_y_value, self.axis)
         # Add tmp_Y_grad to tmp_Y_value
         add_inplace_async(1., self.tmp_y_grad, 1., self.tmp_y_value)
         # tmp_Y_grad can be deleted
@@ -196,7 +196,7 @@ class RMSNorm(BaseLayer):
         # mean can be deleted
         self.mean.invalidate_submit()
         # Multiply tmp_Y_value by the inverse stddev
-        prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
+        multiply_slice_async(1.0, self.inv_stddev, self.tmp_y_value, self.axis)
         # inv_stddev can be deleted
         self.inv_stddev.invalidate_submit()
         # Accumulate gradient from tmp_Y_value

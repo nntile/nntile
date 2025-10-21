@@ -58,7 +58,7 @@ set(TESTS_MPI
     "multiply_fiber_inplace"
     "multiply_fiber"
     "multiply_inplace"
-    "prod_slice"
+    "multiply_slice"
     "randn"
     "relu"
     "relu_backward"
@@ -121,7 +121,7 @@ set(TESTS_NOT_IMPLEMENTED
     "subtract_indexed_outputs"
     "tensor"
     "total_sum_accum"
-    )
+)
 
 # Add target for local coverage
 if(BUILD_COVERAGE)

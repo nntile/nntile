@@ -6,22 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/prod_slice/cpu.hh
- * Per-element multiplication of a tensor by a broadcasted slice on CPU
+ * @file tests/tile/multiply_slice.cc
+ * Tile wrappers for per-element product of a tensor and a broadcasted slice
  *
  * @version 1.1.0
  * */
 
-#pragma once
+#include <iostream>
 
-#include <nntile/base_types.hh>
-
-namespace nntile::kernel::prod_slice
+int main(int argc, char **argv)
 {
-
-// Per-element product of a tensor and a broadcasted slice on CPU
-template<typename T>
-void cpu(Index m, Index n, Index k, Scalar alpha, const T *src, T *dst)
-    noexcept;
-
-} // namespace nntile::kernel::prod_slice
+    // Not implemented
+    std::cout << "This test is not yet implemented\n";
+    return -1;
+}

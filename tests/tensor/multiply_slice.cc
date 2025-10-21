@@ -6,15 +6,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/prod_slice.cc
+ * @file tests/tensor/multiply_slice.cc
  * Tensor wrappers for per-element product of a tensor and a broadcasted slice
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/prod_slice.hh"
-#include "nntile/tile/prod_slice.hh"
-#include "nntile/starpu/prod_slice.hh"
+#include "nntile/tensor/multiply_slice.hh"
+#include "nntile/tile/multiply_slice.hh"
+#include "nntile/starpu/multiply_slice.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -96,11 +96,11 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     }
     Tensor<T> src(src_traits, src_distr);
     scatter<T>(src_single, src);
-    // Perform tensor-wise and tile-wise prod_slice operations
-    prod_slice<T>(src, alpha, dst, axis);
+    // Perform tensor-wise and tile-wise multiply_slice operations
+    multiply_slice<T>(alpha, src, dst, axis);
     if(mpi_rank == mpi_root)
     {
-        tile::prod_slice<T>(src_single.get_tile(0), alpha,
+        tile::multiply_slice<T>(alpha, src_single.get_tile(0),
                 dst_single.get_tile(0), axis);
     }
     // Compare results
@@ -140,13 +140,13 @@ void validate()
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
     Tensor<T> A(trA, dist0000), B(trB, dist0),
         C(trC, dist0);
-    TEST_THROW(prod_slice<T>(A, 1.0, A, 0));
-    TEST_THROW(prod_slice<T>(B, 1.0, A, -1));
-    TEST_THROW(prod_slice<T>(B, 1.0, A, 2));
-    TEST_THROW(prod_slice<T>(B, 1.0, A, 0));
-    TEST_THROW(prod_slice<T>(B, 1.0, A, 1));
-    TEST_THROW(prod_slice<T>(C, 1.0, A, 0));
-    TEST_THROW(prod_slice<T>(C, 1.0, A, 1));
+    TEST_THROW(multiply_slice<T>(1.0, A, A, 0));
+    TEST_THROW(multiply_slice<T>(1.0, B, A, -1));
+    TEST_THROW(multiply_slice<T>(1.0, B, A, 2));
+    TEST_THROW(multiply_slice<T>(1.0, B, A, 0));
+    TEST_THROW(multiply_slice<T>(1.0, B, A, 1));
+    TEST_THROW(multiply_slice<T>(1.0, C, A, 0));
+    TEST_THROW(multiply_slice<T>(1.0, C, A, 1));
 }
 
 int main(int argc, char **argv)
