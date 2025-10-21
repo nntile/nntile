@@ -6,25 +6,27 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/prod.cc
+ * @file src/tensor/multiply.cc
  * Per-element product of two Tensor<T>
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/prod.hh"
-#include "nntile/starpu/prod.hh"
+#include "nntile/tensor/multiply.hh"
+#include "nntile/starpu/multiply.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
 
-//! Asynchronous tensor-wise prod operation
-/*! @param[in] src: Input tensor for the prod operation
- * @param[inout] dst: Input and output tensor for the prod operation
+//! Asynchronous tensor-wise multiply operation
+/*! @param[in] alpha: Scalar multiplier
+ * @param[in] src1: Input tensor for the multiply operation
+ * @param[in] src2: Input tensor for the multiply operation
+ * @param[inout] dst: Input and output tensor for the multiply operation
  * */
 template<typename T>
-void prod_async(const Tensor<T> &src1, const Tensor<T> &src2,
+void multiply_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2,
         const Tensor<T> &dst)
 {
     // Check shapes
@@ -61,7 +63,7 @@ void prod_async(const Tensor<T> &src1, const Tensor<T> &src2,
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src1.get_tile_traits(i);
-            starpu::prod.submit<std::tuple<T>>(traits.nelems, src1_tile_handle,
+            starpu::multiply.submit<std::tuple<T>>(traits.nelems, alpha, src1_tile_handle,
                     src2_tile_handle, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -69,72 +71,82 @@ void prod_async(const Tensor<T> &src1, const Tensor<T> &src2,
     }
 }
 
-//! Blocking version of tensor-wise prod operation
-/*! @param[in] src: Input tensor for the prod operation
- * @param[inout] dst: Input and output tensor for the prod operation
+//! Blocking version of tensor-wise multiply operation
+/*! @param[in] alpha: Scalar multiplier
+ * @param[in] src1: Input tensor for the multiply operation
+ * @param[in] src2: Input tensor for the multiply operation
+ * @param[inout] dst: Input and output tensor for the multiply operation
  * */
 template<typename T>
-void prod(const Tensor<T> &src1, const Tensor<T> &src2, const Tensor<T> &dst)
+void multiply(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2, const Tensor<T> &dst)
 {
-    prod_async<T>(src1, src2, dst);
+    multiply_async<T>(alpha, src1, src2, dst);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void prod_async<fp32_t>(const Tensor<fp32_t> &src1, const Tensor<fp32_t> &src2,
+void multiply_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src1, const Tensor<fp32_t> &src2,
         const Tensor<fp32_t> &dst);
 
 template
-void prod_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src1,
+void multiply_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src1,
         const Tensor<fp32_fast_tf32_t> &src2,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void prod_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src1,
+void multiply_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src1,
         const Tensor<fp32_fast_fp16_t> &src2,
         const Tensor<fp32_fast_fp16_t> &dst);
 
 template
-void prod_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src1,
+void multiply_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src1,
         const Tensor<fp32_fast_bf16_t> &src2,
         const Tensor<fp32_fast_bf16_t> &dst);
 
 template
-void prod_async<fp64_t>(const Tensor<fp64_t> &src1, const Tensor<fp64_t> &src2,
+void multiply_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src1, const Tensor<fp64_t> &src2,
         const Tensor<fp64_t> &dst);
 
 template
-void prod_async<bf16_t>(const Tensor<bf16_t> &src1, const Tensor<bf16_t> &src2,
+void multiply_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src1, const Tensor<bf16_t> &src2,
         const Tensor<bf16_t> &dst);
+
+template
+void multiply_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src1, const Tensor<fp16_t> &src2,
+        const Tensor<fp16_t> &dst);
 
 // Explicit instantiation
 template
-void prod<fp32_t>(const Tensor<fp32_t> &src1, const Tensor<fp32_t> &src2,
+void multiply<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src1, const Tensor<fp32_t> &src2,
         const Tensor<fp32_t> &dst);
 
 template
-void prod<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src1,
+void multiply<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src1,
         const Tensor<fp32_fast_tf32_t> &src2,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void prod<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src1,
+void multiply<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src1,
         const Tensor<fp32_fast_fp16_t> &src2,
         const Tensor<fp32_fast_fp16_t> &dst);
 
 template
-void prod<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src1,
+void multiply<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src1,
         const Tensor<fp32_fast_bf16_t> &src2,
         const Tensor<fp32_fast_bf16_t> &dst);
 
 template
-void prod<fp64_t>(const Tensor<fp64_t> &src1, const Tensor<fp64_t> &src2,
+void multiply<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src1, const Tensor<fp64_t> &src2,
         const Tensor<fp64_t> &dst);
 
 template
-void prod<bf16_t>(const Tensor<bf16_t> &src1, const Tensor<bf16_t> &src2,
+void multiply<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src1, const Tensor<bf16_t> &src2,
         const Tensor<bf16_t> &dst);
+
+template
+void multiply<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src1, const Tensor<fp16_t> &src2,
+        const Tensor<fp16_t> &dst);
 
 } // namespace nntile::tensor

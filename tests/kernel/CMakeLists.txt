@@ -102,7 +102,7 @@ set(TESTS_CATCH2
     "multiply_fiber"
     "multiply_inplace"
     "multiply_slice"
-    "prod"
+    "multiply"
     "relu"
     "relu_backward"
     "relu_forward"

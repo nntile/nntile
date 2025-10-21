@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/prod.hh
+ * @file include/nntile/starpu/multiply.hh
  * Per-element product of two StarPU buffers
  *
  * @version 1.1.0
@@ -27,25 +27,26 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for prod operation is not defined
+//! Generic wrapper class for multiply operation is not defined
 template<typename T>
-class Prod;
+class Multiply;
 
-//! Specialization of wrapper class for prod operation via std::tuple
+//! Specialization of wrapper class for multiply operation via std::tuple
 template<typename T>
-class Prod<std::tuple<T>>
+class Multiply<std::tuple<T>>
 {
 public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
     //! Constructor
-    Prod();
+    Multiply();
 
     //! Structure for operation arguments
     struct args_t
     {
         Index nelems;
+        Scalar alpha;
     };
 
     //! Footprint function for the current operation
@@ -74,27 +75,29 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit prod task
+    //! Submit multiply task
     void submit(
         Index nelems,
+        Scalar alpha,
         Handle src1,
         Handle src2,
         Handle dst
     );
 };
 
-//! Pack of prod operations for different types
-using prod_pack_t = OperationPack<
-    Prod,
+//! Pack of multiply operations for different types
+using multiply_pack_t = OperationPack<
+    Multiply,
     std::tuple<nntile::fp64_t>,
     std::tuple<nntile::fp32_t>,
     std::tuple<nntile::fp32_fast_tf32_t>,
     std::tuple<nntile::fp32_fast_fp16_t>,
     std::tuple<nntile::fp32_fast_bf16_t>,
-    std::tuple<nntile::bf16_t>
+    std::tuple<nntile::bf16_t>,
+    std::tuple<nntile::fp16_t>
 >;
 
-//! Pack of prod operations for different types
-extern prod_pack_t prod;
+//! Pack of multiply operations for different types
+extern multiply_pack_t multiply;
 
 } // namespace nntile::starpu

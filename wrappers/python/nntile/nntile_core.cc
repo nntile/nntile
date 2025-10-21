@@ -766,19 +766,21 @@ void def_mod_tensor(py::module_ &m)
     m.def("randn_fp32_fast_bf16", &randn<fp32_fast_bf16_t>);
     m.def("randn_bf16", &randn<bf16_t>);
 
-    m.def("prod_async_fp64", &prod_async<fp64_t>);
-    m.def("prod_async_fp32", &prod_async<fp32_t>);
-    m.def("prod_async_fp32_fast_tf32", &prod_async<fp32_fast_tf32_t>);
-    m.def("prod_async_fp32_fast_fp16", &prod_async<fp32_fast_fp16_t>);
-    m.def("prod_async_fp32_fast_bf16", &prod_async<fp32_fast_bf16_t>);
-    m.def("prod_async_bf16", &prod_async<bf16_t>);
+    m.def("multiply_async_fp64", &multiply_async<fp64_t>);
+    m.def("multiply_async_fp32", &multiply_async<fp32_t>);
+    m.def("multiply_async_fp32_fast_tf32", &multiply_async<fp32_fast_tf32_t>);
+    m.def("multiply_async_fp32_fast_fp16", &multiply_async<fp32_fast_fp16_t>);
+    m.def("multiply_async_fp32_fast_bf16", &multiply_async<fp32_fast_bf16_t>);
+    m.def("multiply_async_bf16", &multiply_async<bf16_t>);
+    m.def("multiply_async_fp16", &multiply_async<fp16_t>);
 
-    m.def("prod_fp64", &prod<fp64_t>);
-    m.def("prod_fp32", &prod<fp32_t>);
-    m.def("prod_fp32_fast_tf32", &prod<fp32_fast_tf32_t>);
-    m.def("prod_fp32_fast_fp16", &prod<fp32_fast_fp16_t>);
-    m.def("prod_fp32_fast_bf16", &prod<fp32_fast_bf16_t>);
-    m.def("prod_bf16", &prod<bf16_t>);
+    m.def("multiply_fp64", &multiply<fp64_t>);
+    m.def("multiply_fp32", &multiply<fp32_t>);
+    m.def("multiply_fp32_fast_tf32", &multiply<fp32_fast_tf32_t>);
+    m.def("multiply_fp32_fast_fp16", &multiply<fp32_fast_fp16_t>);
+    m.def("multiply_fp32_fast_bf16", &multiply<fp32_fast_bf16_t>);
+    m.def("multiply_bf16", &multiply<bf16_t>);
+    m.def("multiply_fp16", &multiply<fp16_t>);
 
     m.def("multiply_inplace_async_fp64", &multiply_inplace_async<fp64_t>);
     m.def("multiply_inplace_async_fp32", &multiply_inplace_async<fp32_t>);

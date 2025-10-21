@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/prod.cc
+ * @file tests/kernel/multiply.cc
  * Per-element product of two tensors
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/kernel/prod.hh"
+#include "nntile/kernel/multiply.hh"
 
 // Standard libraries
 #include <vector>
@@ -38,7 +38,7 @@ using namespace Catch::Matchers;
 // Use tested NNTile namespaces
 using namespace nntile;
 using namespace nntile::kernel;
-using namespace nntile::kernel::prod;
+using namespace nntile::kernel::multiply;
 
 // Type to acquire reference values
 using ref_t = double;
@@ -58,9 +58,9 @@ struct TestData
     std::vector<T> dst_ref;
 };
 
-// Reference implementation of the prod operation
+// Reference implementation of the multiply operation
 template<typename T>
-void reference_prod(TestData<T>& data)
+void reference_multiply(TestData<T>& data)
 {
     using Y = typename T::repr_t;
     if (data.num_elems == 0)
@@ -152,7 +152,7 @@ TestData<T> get_test_data(
         throw std::runtime_error("Unsupported data type");
     }
     // Compute reference outputs
-    reference_prod(data);
+    reference_multiply(data);
     return data;
 }
 
@@ -183,13 +183,14 @@ void run_cpu_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][prod][cpu][nelems=" +
+            "[kernel][multiply][cpu][nelems=" +
             std::to_string(data.num_elems) +
             "]"
         )
         {
             cpu<T>(
                 data.num_elems,
+                1.0,
                 &data.src1[0],
                 &data.src2[0],
                 &dst_cpu[0]
@@ -200,6 +201,7 @@ void run_cpu_test(TestData<T>& data)
     {
         cpu<T>(
             data.num_elems,
+            1.0,
             &data.src1[0],
             &data.src2[0],
             &dst_cpu[0]
@@ -234,7 +236,7 @@ void run_cuda_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][prod][cuda][nelems=" +
+            "[kernel][multiply][cuda][nelems=" +
             std::to_string(data.num_elems) +
             "]"
         )
@@ -242,6 +244,7 @@ void run_cuda_test(TestData<T>& data)
             cuda<T>(
                 stream,
                 data.num_elems,
+                1.0,
                 dev_src1,
                 dev_src2,
                 dev_dst
@@ -254,6 +257,7 @@ void run_cuda_test(TestData<T>& data)
         cuda<T>(
             stream,
             data.num_elems,
+            1.0,
             dev_src1,
             dev_src2,
             dev_dst
@@ -276,8 +280,8 @@ void run_cuda_test(TestData<T>& data)
 
 // Catch2-based tests
 TEMPLATE_TEST_CASE(
-    "Prod Kernel Verification",
-    "[prod]",
+    "Multiply Kernel Verification",
+    "[multiply]",
     fp64_t,
     fp32_t,
     fp16_t,
@@ -308,8 +312,8 @@ TEMPLATE_TEST_CASE(
 
 // Catch2-based benchmarks
 TEMPLATE_TEST_CASE(
-    "Prod Kernel Benchmark",
-    "[prod][!benchmark]",
+    "Multiply Kernel Benchmark",
+    "[multiply][!benchmark]",
     fp64_t,
     fp32_t,
     fp16_t,
