@@ -6,17 +6,22 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/prod_fiber.cc
- * StarPU wrappers for multiplication of a tensor and a broadcasted fiber
+ * @file include/nntile/kernel/multiply_fiber_inplace/cpu.hh
+ * Per-element multiplication of a tensor by a broadcasted fiber on CPU
  *
  * @version 1.1.0
  * */
 
-#include <iostream>
+#pragma once
 
-int main(int argc, char **argv)
+#include <nntile/base_types.hh>
+
+namespace nntile::kernel::multiply_fiber_inplace
 {
-    // Not implemented
-    std::cout << "This test is not yet implemented\n";
-    return -1;
-}
+
+// Per-element product of a tensor and a broadcasted fiber on CPU
+template<typename T>
+void cpu(Index m, Index n, Index k, Scalar alpha, const T *src, T *dst)
+    noexcept;
+
+} // namespace nntile::kernel::multiply_fiber_inplace

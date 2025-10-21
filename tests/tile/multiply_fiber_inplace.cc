@@ -6,24 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/prod_fiber/cuda.hh
- * Per-element multiplication of a tensor by a broadcasted fiber on CUDA
+ * @file tests/tile/multiply_fiber_inplace.cc
+ * Tile wrappers for multiplication of a tensor and a broadcasted fiber
  *
  * @version 1.1.0
  * */
 
-#pragma once
+#include <iostream>
 
-#include <nntile/base_types.hh>
-#include <cuda_runtime.h>
-
-namespace nntile::kernel::prod_fiber
+int main(int argc, char **argv)
 {
-
-// Per-element product of a tensor and a broadcasted fiber on CPU
-template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
-        const T *src, T *dst)
-    noexcept;
-
-} // namespace nntile::kernel::prod_fiber
+    // Not implemented
+    std::cout << "This test is not yet implemented\n";
+    return -1;
+}

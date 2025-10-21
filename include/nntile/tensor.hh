@@ -25,7 +25,7 @@
 #include <nntile/tensor/add_fiber_inplace.hh>
 #include <nntile/tensor/add_fiber.hh>
 #include <nntile/tensor/prod_slice.hh>
-#include <nntile/tensor/prod_fiber.hh>
+#include <nntile/tensor/multiply_fiber_inplace.hh>
 #include <nntile/tensor/multiply_fiber.hh>
 #include <nntile/tensor/clear.hh>
 #include <nntile/tensor/copy.hh>

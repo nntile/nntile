@@ -6,36 +6,36 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/prod_fiber.cc
+ * @file src/starpu/multiply_fiber_inplace.cc
  * StarPU wrappers for per-element product of a tensor and a broadcasted fiber
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/starpu/prod_fiber.hh"
+#include "nntile/starpu/multiply_fiber_inplace.hh"
 
 // Standard libraries
 #include <cstdlib>
 #include <stdexcept>
 
 // Other NNTile headers
-#include "nntile/kernel/prod_fiber.hh"
+#include "nntile/kernel/multiply_fiber_inplace.hh"
 
 namespace nntile::starpu
 {
 
 //! Constructor
 template<typename T>
-ProdFiber<std::tuple<T>>::ProdFiber():
-    codelet("nntile_prod_fiber", footprint, cpu_funcs, cuda_funcs)
+MultiplyFiberInplace<std::tuple<T>>::MultiplyFiberInplace():
+    codelet("nntile_multiply_fiber_inplace", footprint, cpu_funcs, cuda_funcs)
 {
     // Modes are not fixed, they are decided during runtime by default
 }
 
-//! StarPU wrapper for kernel::prod_fiber::cpu<T>
+//! StarPU wrapper for kernel::multiply_fiber_inplace::cpu<T>
 template<typename T>
-void ProdFiber<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
+void MultiplyFiberInplace<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -46,40 +46,41 @@ void ProdFiber<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::prod_fiber::cpu<T>(args->m, args->n, args->k, args->alpha, src,
+    kernel::multiply_fiber_inplace::cpu<T>(args->m, args->n, args->k, args->alpha, src,
             dst);
 #endif // STARPU_SIMGRID
 }
 
 // Specializations of CPU wrapper for accelerated types
 template<>
-void ProdFiber<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+void MultiplyFiberInplace<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ProdFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    MultiplyFiberInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void ProdFiber<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+void MultiplyFiberInplace<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ProdFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    MultiplyFiberInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
 template<>
-void ProdFiber<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+void MultiplyFiberInplace<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ProdFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+    MultiplyFiberInplace<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
+
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::prod_fiber::cuda<T>
+//! StarPU wrapper for kernel::multiply_fiber_inplace::cuda<T>
 template<typename T>
-void ProdFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+void MultiplyFiberInplace<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -92,40 +93,41 @@ void ProdFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::prod_fiber::cuda<T>(stream, args->m, args->n, args->k, args->alpha,
+    kernel::multiply_fiber_inplace::cuda<T>(stream, args->m, args->n, args->k, args->alpha,
             src, dst);
 #endif // STARPU_SIMGRID
 }
 
 // Specializations of CUDA wrapper for accelerated types
 template<>
-void ProdFiber<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+void MultiplyFiberInplace<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ProdFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    MultiplyFiberInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void ProdFiber<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+void MultiplyFiberInplace<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ProdFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    MultiplyFiberInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
 
 template<>
-void ProdFiber<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+void MultiplyFiberInplace<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Fall back to FP32
-    ProdFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+    MultiplyFiberInplace<std::tuple<fp32_t>>::cuda(buffers, cl_args);
 }
+
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for prod_fiber tasks
+//! Footprint for multiply_fiber_inplace tasks
 template<typename T>
-uint32_t ProdFiber<std::tuple<T>>::footprint(struct starpu_task *task)
+uint32_t MultiplyFiberInplace<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -138,8 +140,8 @@ uint32_t ProdFiber<std::tuple<T>>::footprint(struct starpu_task *task)
 }
 
 template<typename T>
-void ProdFiber<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src, Handle dst)
-//! Insert prod_fiber task into StarPU pool of tasks
+void MultiplyFiberInplace<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, Handle src, Handle dst)
+//! Insert multiply_fiber_inplace task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
@@ -163,21 +165,22 @@ void ProdFiber<std::tuple<T>>::submit(Index m, Index n, Index k, Scalar alpha, H
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in prod_fiber task submission");
+        throw std::runtime_error("Error in multiply_fiber_inplace task submission");
     }
 }
 
 // Explicit instantiation
 // For some strange reason, the compiler does not instantiate the template
 // automatically, so we need to do it manually
-template class ProdFiber<std::tuple<nntile::fp64_t>>;
-template class ProdFiber<std::tuple<nntile::fp32_t>>;
-template class ProdFiber<std::tuple<nntile::fp32_fast_tf32_t>>;
-template class ProdFiber<std::tuple<nntile::fp32_fast_fp16_t>>;
-template class ProdFiber<std::tuple<nntile::fp32_fast_bf16_t>>;
-template class ProdFiber<std::tuple<nntile::bf16_t>>;
+template class MultiplyFiberInplace<std::tuple<nntile::fp64_t>>;
+template class MultiplyFiberInplace<std::tuple<nntile::fp32_t>>;
+template class MultiplyFiberInplace<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class MultiplyFiberInplace<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class MultiplyFiberInplace<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class MultiplyFiberInplace<std::tuple<nntile::bf16_t>>;
+template class MultiplyFiberInplace<std::tuple<nntile::fp16_t>>;
 
-//! Pack of prod_fiber operations for different types
-prod_fiber_pack_t prod_fiber;
+//! Pack of multiply_fiber_inplace operations for different types
+multiply_fiber_inplace_pack_t multiply_fiber_inplace;
 
 } // namespace nntile::starpu

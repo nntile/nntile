@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/prod_fiber.cc
+ * @file tests/kernel/multiply_fiber_inplace.cc
  * Per-element multiplication of a tensor by a broadcasted fiber
  *
  * @version 1.1.0
  * */
 
 // Corresponding header
-#include "nntile/kernel/prod_fiber.hh"
+#include "nntile/kernel/multiply_fiber_inplace.hh"
 
 // Standard libraries
 #include <vector>
@@ -38,7 +38,7 @@ using namespace Catch::Matchers;
 // Use tested NNTile namespaces
 using namespace nntile;
 using namespace nntile::kernel;
-using namespace nntile::kernel::prod_fiber;
+using namespace nntile::kernel::multiply_fiber_inplace;
 
 // Type to acquire reference values
 using ref_t = double;
@@ -59,9 +59,9 @@ struct TestData
     std::vector<T> dst_ref;
 };
 
-// Reference implementation of the prod_fiber operation
+// Reference implementation of the multiply_fiber_inplace operation
 template<typename T>
-void reference_prod_fiber(TestData<T>& data)
+void reference_multiply_fiber_inplace(TestData<T>& data)
 {
     using Y = typename T::repr_t;
     if (data.m == 0 || data.n == 0 || data.k == 0)
@@ -182,7 +182,7 @@ TestData<T> get_test_data(
     generate_data(data, strategy);
 
     // Compute reference outputs
-    reference_prod_fiber(data);
+    reference_multiply_fiber_inplace(data);
     return data;
 }
 
@@ -224,7 +224,7 @@ void run_cpu_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][prod_fiber][cpu][m=" +
+            "[kernel][multiply_fiber_inplace][cpu][m=" +
             std::to_string(data.m) +
             "][n=" + std::to_string(data.n) +
             "][k=" + std::to_string(data.k) +
@@ -305,7 +305,7 @@ void run_cuda_test(TestData<T>& data)
     if constexpr (run_bench)
     {
         BENCHMARK(
-            "[kernel][prod_fiber][cuda][m=" +
+            "[kernel][multiply_fiber_inplace][cuda][m=" +
             std::to_string(data.m) +
             "][n=" + std::to_string(data.n) +
             "][k=" + std::to_string(data.k) +
@@ -368,11 +368,11 @@ void run_cuda_test(TestData<T>& data)
 // Catch2-based tests
 TEMPLATE_TEST_CASE(
     "Prod Fiber Kernel Verification",
-    "[prod_fiber]",
+    "[multiply_fiber_inplace]",
     fp64_t,
     fp32_t,
-    fp16_t,
-    bf16_t
+    bf16_t,
+    fp16_t
 )
 {
     using T = TestType;
@@ -406,11 +406,11 @@ TEMPLATE_TEST_CASE(
 // Catch2-based benchmarks
 TEMPLATE_TEST_CASE(
     "Prod Fiber Kernel Benchmark",
-    "[prod_fiber][!benchmark]",
+    "[multiply_fiber_inplace][!benchmark]",
     fp64_t,
     fp32_t,
-    fp16_t,
-    bf16_t
+    bf16_t,
+    fp16_t
 )
 {
     using T = TestType;
