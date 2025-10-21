@@ -21,6 +21,7 @@ set(TESTS_MPI
     "add"
     "add_fiber"
     "add_fiber_inplace"
+    "scale_fiber"
     "add_inplace"
     "add_slice"
     "add_slice_inplace"
