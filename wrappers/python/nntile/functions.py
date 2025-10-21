@@ -96,16 +96,24 @@ def gemm_async(
         raise TypeError
 
 
-def relu_async(x: Tensor) -> None:
+def relu_inplace_async(x: Tensor) -> None:
     """
-    Wrapper for multiprecision ReLU
+    Wrapper for multiprecision ReLU inplace
     """
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.relu_async_fp32(x)
+        core_tensor.relu_inplace_async_fp32(x)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.relu_async_fp64(x)
+        core_tensor.relu_inplace_async_fp64(x)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.relu_async_fp32_fast_tf32(x)
+        core_tensor.relu_inplace_async_fp32_fast_tf32(x)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.relu_inplace_async_fp32_fast_fp16(x)
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.relu_inplace_async_fp32_fast_bf16(x)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.relu_inplace_async_bf16(x)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.relu_inplace_async_fp16(x)
     else:
         raise TypeError
 
