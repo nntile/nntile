@@ -82,8 +82,28 @@ void multiply_fiber_inplace_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst, Index axis);
 
 template
+void multiply_fiber_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+        const Tile<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void multiply_fiber_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
+        const Tile<fp32_fast_fp16_t> &dst, Index axis);
+
+template
+void multiply_fiber_inplace_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
+        const Tile<fp32_fast_bf16_t> &dst, Index axis);
+
+template
 void multiply_fiber_inplace_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst, Index axis);
+
+template
+void multiply_fiber_inplace_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src,
+        const Tile<fp16_t> &dst, Index axis);
+
+template
+void multiply_fiber_inplace_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
+        const Tile<bf16_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
@@ -91,7 +111,27 @@ void multiply_fiber_inplace<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst, Index axis);
 
 template
+void multiply_fiber_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+        const Tile<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void multiply_fiber_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
+        const Tile<fp32_fast_fp16_t> &dst, Index axis);
+
+template
+void multiply_fiber_inplace<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
+        const Tile<fp32_fast_bf16_t> &dst, Index axis);
+
+template
 void multiply_fiber_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst, Index axis);
+
+template
+void multiply_fiber_inplace<fp16_t>(Scalar alpha, const Tile<fp16_t> &src,
+        const Tile<fp16_t> &dst, Index axis);
+
+template
+void multiply_fiber_inplace<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
+        const Tile<bf16_t> &dst, Index axis);
 
 } // namespace nntile::tile

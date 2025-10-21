@@ -132,6 +132,10 @@ template
 void multiply_fiber_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst, Index axis);
 
+template
+void multiply_fiber_inplace_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst, Index axis);
+
 // Explicit instantiation of template
 template
 void multiply_fiber_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
@@ -156,5 +160,9 @@ void multiply_fiber_inplace<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fa
 template
 void multiply_fiber_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst, Index axis);
+
+template
+void multiply_fiber_inplace<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst, Index axis);
 
 } // namespace nntile::tensor

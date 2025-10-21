@@ -988,6 +988,9 @@ def multiply_fiber_inplace_async(
     elif type(dst) is core_tensor.Tensor_bf16:
         core_tensor.multiply_fiber_inplace_async_bf16(
             alpha, src, dst, axis)
+    elif type(dst) is core_tensor.Tensor_fp16:
+        core_tensor.multiply_fiber_inplace_async_fp16(
+            alpha, src, dst, axis)
     else:
         raise TypeError
 

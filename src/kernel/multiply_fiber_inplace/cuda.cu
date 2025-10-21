@@ -91,5 +91,9 @@ void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const bf16_t *src, bf16_t *dst)
     noexcept;
 
+template
+void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
+        const fp16_t *src, fp16_t *dst)
+    noexcept;
 
 } // namespace nntile::kernel::multiply_fiber_inplace

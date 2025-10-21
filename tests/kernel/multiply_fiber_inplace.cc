@@ -371,7 +371,8 @@ TEMPLATE_TEST_CASE(
     "[multiply_fiber_inplace]",
     fp64_t,
     fp32_t,
-    bf16_t
+    bf16_t,
+    fp16_t
 )
 {
     using T = TestType;
@@ -408,7 +409,8 @@ TEMPLATE_TEST_CASE(
     "[multiply_fiber_inplace][!benchmark]",
     fp64_t,
     fp32_t,
-    bf16_t
+    bf16_t,
+    fp16_t
 )
 {
     using T = TestType;
