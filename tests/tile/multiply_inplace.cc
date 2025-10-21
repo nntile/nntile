@@ -47,15 +47,15 @@ void validate()
     src2_local.release();
     dst2_local.release();
     dst2_copy_local.release();
-    starpu::multiply_inplace.submit<std::tuple<T>>(1, src1, dst1);
-    multiply_inplace<T>(src1, dst1_copy);
+    starpu::multiply_inplace.submit<std::tuple<T>>(1, 1.0, src1, dst1);
+    multiply_inplace<T>(1.0, src1, dst1_copy);
     dst1_local.acquire(STARPU_R);
     dst1_copy_local.acquire(STARPU_R);
     TEST_ASSERT(Y(dst1_local[0]) == Y(dst1_copy_local[0]));
     dst1_local.release();
     dst1_copy_local.release();
-    starpu::multiply_inplace.submit<std::tuple<T>>(src2.nelems, src2, dst2);
-    multiply_inplace<T>(src2, dst2_copy);
+    starpu::multiply_inplace.submit<std::tuple<T>>(src2.nelems, 1.0, src2, dst2);
+    multiply_inplace<T>(1.0, src2, dst2_copy);
     dst2_local.acquire(STARPU_R);
     dst2_copy_local.acquire(STARPU_R);
     for(Index i = 0; i < src2.nelems; ++i)

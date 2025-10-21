@@ -21,7 +21,7 @@ namespace nntile::kernel::multiply_inplace
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
+void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::multiply_inplace

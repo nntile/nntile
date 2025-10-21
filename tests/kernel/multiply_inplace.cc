@@ -63,12 +63,13 @@ template<typename T>
 void reference_multiply_inplace(TestData<T>& data)
 {
     using Y = typename T::repr_t;
+    Scalar alpha = 1.0;
 
     for(Index i = 0; i < data.nelems; ++i)
     {
         ref_t src_val = static_cast<Y>(data.src_init[i]);
         ref_t dst_val = static_cast<Y>(data.dst_init[i]);
-        data.dst_ref[i] = static_cast<Y>(src_val * dst_val);
+        data.dst_ref[i] = static_cast<Y>(alpha * src_val * dst_val);
     }
 }
 
@@ -198,6 +199,7 @@ void run_cpu_test(TestData<T>& data)
         {
             cpu<T>(
                 data.nelems,
+                1.0,
                 &src_cpu[0],
                 &dst_cpu[0]
             );
@@ -207,6 +209,7 @@ void run_cpu_test(TestData<T>& data)
     {
         cpu<T>(
             data.nelems,
+            1.0,
             &src_cpu[0],
             &dst_cpu[0]
         );
@@ -266,6 +269,7 @@ void run_cuda_test(TestData<T>& data)
             cuda<T>(
                 stream,
                 data.nelems,
+                1.0,
                 dev_src,
                 dev_dst
             );
@@ -277,6 +281,7 @@ void run_cuda_test(TestData<T>& data)
         cuda<T>(
             stream,
             data.nelems,
+            1.0,
             dev_src,
             dev_dst
         );

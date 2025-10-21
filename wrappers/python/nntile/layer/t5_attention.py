@@ -1311,7 +1311,7 @@ class T5Attention(BaseLayer):
             # self.a_sumprod_slice.wont_use()
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A
-            multiply_inplace_async(self.a.value, self.a.grad)
+            multiply_inplace_async(1.0, self.a.value, self.a.grad)
 
             if self.has_relative_bias:
                 self._add_positional_bias_backward()

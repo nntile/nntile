@@ -21,10 +21,10 @@ namespace nntile::tensor
 
 // Asynchronous tensor-wise multiply operation
 template<typename T>
-void multiply_inplace_async(const Tensor<T> &src, const Tensor<T> &dst);
+void multiply_inplace_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst);
 
 // Blocking version of tensor-wise multiply operation
 template<typename T>
-void multiply_inplace(const Tensor<T> &src, const Tensor<T> &dst);
+void multiply_inplace(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst);
 
 } // namespace nntile::tensor

@@ -21,7 +21,7 @@ namespace nntile::kernel::multiply_inplace
 
 // Per-element product of two buffers
 template<typename T>
-void cpu(Index nelems, const T *src, T *dst)
+void cpu(Index nelems, Scalar alpha, const T *src, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::multiply_inplace

@@ -72,9 +72,9 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     {
         auto src_tile = src_single.get_tile(0);
         auto dst_tile = dst_single.get_tile(0);
-        tile::multiply_inplace<T>(src_tile, dst_tile);
+        tile::multiply_inplace<T>(1.0, src_tile, dst_tile);
     }
-    multiply_inplace<T>(src, dst);
+    multiply_inplace<T>(1.0, src, dst);
     // Compare results
     Tensor<T> dst2_single(single_traits, dist_root);
     gather<T>(dst, dst2_single);

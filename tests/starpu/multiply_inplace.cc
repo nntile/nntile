@@ -41,13 +41,13 @@ void validate_cpu(Index nelems)
     std::vector<T> dst2(dst);
     // Launch low-level kernel
     std::cout << "Run kernel::multiply_inplace::cpu<" << T::short_name << ">\n";
-    kernel::multiply_inplace::cpu<T>(nelems, &src[0], &dst[0]);
+    kernel::multiply_inplace::cpu<T>(nelems, 1.0, &src[0], &dst[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*nelems),
         dst2_handle(&dst2[0], sizeof(T)*nelems);
     multiply_inplace.restrict_where(STARPU_CPU);
     std::cout << "Run starpu::multiply_inplace::submit<" << T::short_name << "> restricted to CPU\n";
-    multiply_inplace.submit<std::tuple<T>>(nelems, src_handle, dst2_handle);
+    multiply_inplace.submit<std::tuple<T>>(nelems, 1.0, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     src_handle.unregister();
     dst2_handle.unregister();
@@ -96,7 +96,7 @@ void validate_cuda(Index nelems)
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     std::cout << "Run kernel::multiply_inplace::cuda<" << T::short_name << ">\n";
-    kernel::multiply_inplace::cuda<T>(stream, nelems, dev_src, dev_dst);
+    kernel::multiply_inplace::cuda<T>(stream, nelems, 1.0, dev_src, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -116,7 +116,7 @@ void validate_cuda(Index nelems)
         dst2_handle(&dst2[0], sizeof(T)*nelems);
     multiply_inplace.restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::multiply_inplace::submit<" << T::short_name << "> restricted to CUDA\n";
-    multiply_inplace.submit<std::tuple<T>>(nelems, src_handle, dst2_handle);
+    multiply_inplace.submit<std::tuple<T>>(nelems, 1.0, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     src_handle.unregister();
     dst2_handle.unregister();
