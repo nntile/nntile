@@ -11,7 +11,6 @@
 #
 # @version 1.1.0
 
-import pytest
 import numpy as np
 from nntile import nntile_core
 
