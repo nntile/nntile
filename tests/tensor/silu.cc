@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/tensor/silu.cc
- * @brief Placeholder for silu test
+ * Placeholder for SiLU test
  *
  * @version 1.1.0
  * */

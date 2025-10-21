@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/kernel/silu.cc
- * Placeholder for silu kernel test
+ * SiLU kernel test
  *
  * @version 1.1.0
  * */
