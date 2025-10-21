@@ -6,17 +6,23 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/relu_forward.cc
- * ReLU forward operation
+ * @file include/nntile/tensor/relu.hh
+ * ReLU operation for Tensor<T>
  *
  * @version 1.1.0
  * */
 
-#include <iostream>
+#pragma once
 
-int main(int argc, char **argv)
+#include <nntile/tensor/tensor.hh>
+
+namespace nntile::tensor
 {
-    // Not implemented
-    std::cout << "This test is not yet implemented\n";
-    return -1;
-}
+
+template<typename T>
+void relu_async(const Tensor<T> &src, const Tensor<T> &dst);
+
+template<typename T>
+void relu(const Tensor<T> &src, const Tensor<T> &dst);
+
+} // namespace nntile::tensor

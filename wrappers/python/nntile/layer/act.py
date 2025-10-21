@@ -17,15 +17,15 @@ import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, gelu_async, gelu_backward_async,
-    gelutanh_async, gelutanh_backward_async, relu_backward_async,
-    relu_forward_async, silu_async, silu_backward_async)
+    gelutanh_async, gelutanh_backward_async, relu_async, relu_backward_async,
+    silu_async, silu_backward_async)
 
 
 class Act(BaseLayer):
     x: TensorMoments
     y: TensorMoments
     activations = {
-        "relu": (relu_forward_async, relu_backward_async),
+        "relu": (relu_async, relu_backward_async),
         "gelu": (gelu_async, gelu_backward_async),
         "gelutanh": (gelutanh_async, gelutanh_backward_async),
         "silu": (silu_async, silu_backward_async),

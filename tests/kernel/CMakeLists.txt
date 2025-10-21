@@ -105,7 +105,7 @@ set(TESTS_CATCH2
     "multiply"
     "relu_inplace"
     "relu_backward"
-    "relu_forward"
+    "relu"
     "scale"
     "silu_backward"
     "silu"
