@@ -28,11 +28,11 @@ from .layer_norm import LayerNorm
 from .linear import Linear
 from .llama_attention import LlamaAttention
 from .mixer import GAP, Mixer, MixerMlp
-from .prod import Prod
+from .multiply import Multiply
 from .rms_norm import RMSNorm
 
 __all__ = ('Act', 'Add', 'AddSlice', 'Attention', 'AttentionSingleHead',
         'BaseLayer', 'BatchNorm2d', 'Conv2d', 'Embedding',
         'GAP', 'LayerNorm', 'Linear', 'LlamaAttention', 'GPT2Attention',
         'GPTNeoAttention', 'GPTNeoXAttention', 'BertSelfAttention',
-        'Mixer', 'MixerMlp', 'RMSNorm', 'Prod')
+        'Mixer', 'MixerMlp', 'RMSNorm', 'Multiply')

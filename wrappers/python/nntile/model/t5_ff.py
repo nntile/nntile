@@ -19,7 +19,7 @@ from transformers.models.t5.modeling_t5 import (
 from nntile.layer.act import Act
 from nntile.layer.add import Add
 from nntile.layer.linear import Linear
-from nntile.layer.prod import Prod
+from nntile.layer.multiply import Multiply
 from nntile.layer.rms_norm import RMSNorm
 from nntile.model.base_model import BaseModel
 from nntile.model.t5_config import T5ConfigNNTile
@@ -76,12 +76,12 @@ class T5DenseGatedActDense(BaseModel):
         layers.append(wi_1)
         activations.extend(wi_1.activations_output)
 
-        prod_layer = Prod.generate_simple(
+        multiply_layer = Multiply.generate_simple(
             activations[-1], activations[-2]
         )
 
-        layers.append(prod_layer)
-        activations.extend(prod_layer.activations_output)
+        layers.append(multiply_layer)
+        activations.extend(multiply_layer.activations_output)
 
         wo = Linear.generate_simple(
             activations[-1],
@@ -98,7 +98,7 @@ class T5DenseGatedActDense(BaseModel):
         self.wi_0 = wi_0
         self.wi_1 = wi_1
         self.act_fn_layer = act_fn_layer
-        self.prod_layer = prod_layer
+        self.multiply_layer = multiply_layer
         self.wo = wo
 
         layers.append(wo)

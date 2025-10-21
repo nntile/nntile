@@ -19,7 +19,7 @@ from nntile.tensor import TensorMoments, notrans, to_numpy
 
 from ..layer.act import Act
 from ..layer.linear import Linear
-from ..layer.prod import Prod
+from ..layer.multiply import Multiply
 from .base_model import BaseModel
 from .llama_config import LlamaConfigNNTile
 
@@ -72,11 +72,11 @@ class LlamaMLP(BaseModel):
         layers.append(up_proj)
         activations.extend(up_proj.activations_output)
 
-        prod_layer = Prod.generate_simple(
+        multiply_layer = Multiply.generate_simple(
             activations[-2], activations[-1]
         )
-        layers.append(prod_layer)
-        activations.extend(prod_layer.activations_output)
+        layers.append(multiply_layer)
+        activations.extend(multiply_layer.activations_output)
 
         down_proj = Linear.generate_simple(
             activations[-1],
@@ -100,14 +100,14 @@ class LlamaMLP(BaseModel):
                 layer.init_randn_async()
 
     def forward_dynamic(self, x: TensorMoments):
-        gate_proj, gate_proj_act, up_proj, prod, down_proj = self.layers
+        gate_proj, gate_proj_act, up_proj, multiply, down_proj = self.layers
         gate_outs = gate_proj.forward_dynamic(x)
 
         gate_act_outs = gate_proj_act.forward_dynamic(gate_outs)
         up_proj_outs = up_proj.forward_dynamic(x)
 
-        prod_outs = prod.forward_dynamic(gate_act_outs, up_proj_outs)
-        down_proj_outs = down_proj.forward_dynamic(prod_outs)
+        multiply_outs = multiply.forward_dynamic(gate_act_outs, up_proj_outs)
+        down_proj_outs = down_proj.forward_dynamic(multiply_outs)
 
         return down_proj_outs
 

@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tile/multiply_inplace.cc
- * Per-element product of two Tile<T>
+ * Per-element multiplication of two Tile<T>
  *
  * @version 1.1.0
  * */
@@ -18,9 +18,9 @@
 namespace nntile::tile
 {
 
-//! Asynchronous version of tile-wise prod operation
-/*! @param[in] src: Input tile for element-wise prod operation
- * @param[inout] dst: Input and output tile for the prod operation
+//! Asynchronous version of tile-wise multiply operation
+/*! @param[in] src: Input tile for element-wise multiply operation
+ * @param[inout] dst: Input and output tile for the multiply operation
  * */
 template<typename T>
 void multiply_inplace_async(const Tile<T> &src, const Tile<T> &dst)
@@ -34,9 +34,9 @@ void multiply_inplace_async(const Tile<T> &src, const Tile<T> &dst)
     starpu::multiply_inplace.submit<std::tuple<T>>(src.nelems, src, dst);
 }
 
-//! Blocking version of tile-wise prod operation
-/*! @param[in] src: Input tile for element-wise prod operation
- * @param[inout] dst: Input and output tile for the prod operation
+//! Blocking version of tile-wise multiply operation
+/*! @param[in] src: Input tile for element-wise multiply operation
+ * @param[inout] dst: Input and output tile for the multiply operation
  * */
 template<typename T>
 void multiply_inplace(const Tile<T> &src, const Tile<T> &dst)

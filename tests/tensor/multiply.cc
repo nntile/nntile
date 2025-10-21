@@ -6,22 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/prod/cpu.hh
- * Per-element product of two buffers on CPU
+ * @file tests/tensor/multiply.cc
+ * Multiply operation
  *
  * @version 1.1.0
  * */
 
-#pragma once
+#include <iostream>
 
-#include <nntile/base_types.hh>
-
-namespace nntile::kernel::prod
+int main(int argc, char **argv)
 {
-
-// Per-element product of two buffers
-template<typename T>
-void cpu(Index nelems, const T *src1, const T *src2, T *dst)
-    noexcept;
-
-} // namespace nntile::kernel::prod
+    // Not implemented
+    std::cout << "This test is not yet implemented\n";
+    return -1;
+}

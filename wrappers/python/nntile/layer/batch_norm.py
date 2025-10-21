@@ -16,9 +16,9 @@ import math
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     TensorMoments, add_fiber_async, add_fiber_inplace_async, add_inplace_async,
-    copy_async, empty, hypot_scalar_inverse_async, multiply_fiber_async,
-    multiply_fiber_inplace_async, multiply_inplace_async,
-    norm_fiber_inplace_async, ones, pow_async, prod_async, sum_fiber_async,
+    copy_async, empty, hypot_scalar_inverse_async, multiply_async,
+    multiply_fiber_async, multiply_fiber_inplace_async, multiply_inplace_async,
+    norm_fiber_inplace_async, ones, pow_async, sum_fiber_async,
     sumprod_fiber_async)
 
 
@@ -207,7 +207,7 @@ class BatchNorm2d(BaseLayer):
 
         # denominator_grad = self.grad*nominator
         nominator_ref = self.x_unbiased_copy
-        prod_async(nominator_ref, self.y.grad, inv_denominator_grad)
+        multiply_async(1.0, nominator_ref, self.y.grad, inv_denominator_grad)
 
         inv_denominator_grad_x = inv_denominator_grad
         self._compute_grad_inv_std_over_x(inv_denominator_grad_x)

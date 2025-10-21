@@ -6,18 +6,18 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/layer/prod.py
-# Product layer of NNTile Python package.
+# @file wrappers/python/nntile/layer/multiply.py
+# Multiply layer of NNTile Python package.
 # It is used in Llama MLP block
 #
 # @version 1.1.0
 
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
-from nntile.tensor import TensorMoments, TensorTraits, prod_async
+from nntile.tensor import TensorMoments, TensorTraits, multiply_async
 
 
-class Prod(BaseLayer):
+class Multiply(BaseLayer):
     def __init__(self, x: TensorMoments, y: TensorMoments, res: TensorMoments):
         self.x = x
         self.y = y
@@ -31,10 +31,10 @@ class Prod(BaseLayer):
         res_value = type(y.value)(res_traits, res_distr)
         res_grad = type(y.value)(res_traits, res_distr)
         res = TensorMoments(res_value, res_grad, True)
-        return Prod(x, y, res)
+        return Multiply(x, y, res)
 
     def forward_async(self):
-        prod_async(self.x.value, self.y.value, self.res.value)
+        multiply_async(1.0, self.x.value, self.y.value, self.res.value)
         self.x.value.wont_use()
         self.y.value.wont_use()
         self.res.value.wont_use()
@@ -45,12 +45,12 @@ class Prod(BaseLayer):
             basetile_shape=x.value.basetile_shape,
             dtype=type(x.value)
         )
-        prod_async(x.value, y.value, res)
+        multiply_async(1.0, x.value, y.value, res)
         return TensorMoments(res, None, False)
 
     def backward_async(self):
-        prod_async(self.y.value, self.res.grad, self.x.grad)
-        prod_async(self.x.value, self.res.grad, self.y.grad)
+        multiply_async(1.0, self.y.value, self.res.grad, self.x.grad)
+        multiply_async(1.0, self.x.value, self.res.grad, self.y.grad)
         self.x.value.wont_use()
         self.y.value.wont_use()
         self.x.grad.wont_use()
