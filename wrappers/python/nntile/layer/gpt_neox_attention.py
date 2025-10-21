@@ -26,7 +26,7 @@ from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
     add_fiber_inplace_async, add_slice_inplace_async, clear_async,
     copy_intersection_async, gemm_async, mask_scalar_async, maxsumexp_async,
-    notrans, prod_inplace_async, rope_async, rope_backward_async,
+    multiply_inplace_async, notrans, rope_async, rope_backward_async,
     softmax_inplace_async, sum_fiber_async, sumprod_slice_async, to_numpy,
     trans, transpose_async)
 
@@ -1434,7 +1434,7 @@ class GPTNeoXAttention(BaseLayer):
             # A_sumprod_slice can be deleted
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A
-            prod_inplace_async(self.a.value, self.a.grad)
+            multiply_inplace_async(self.a.value, self.a.grad)
         # A can be deleted
         self.a.value.invalidate_submit()
         # Backward for mask if needed

@@ -37,7 +37,7 @@
 #include <nntile/tensor/gelutanh_inplace.hh>
 #include <nntile/tensor/gemm.hh>
 #include <nntile/tensor/prod.hh>
-#include <nntile/tensor/prod_inplace.hh>
+#include <nntile/tensor/multiply_inplace.hh>
 #include <nntile/tensor/randn.hh>
 #include <nntile/tensor/relu.hh>
 #include <nntile/tensor/relu_forward.hh>
@@ -59,8 +59,8 @@
 #include <nntile/tensor/logsumexp.hh>
 #include <nntile/tensor/total_sum_accum.hh>
 #include <nntile/tensor/subtract_indexed_outputs.hh>
-#include <nntile/tensor/scal.hh>
-#include <nntile/tensor/scal_inplace.hh>
+#include <nntile/tensor/scale.hh>
+#include <nntile/tensor/scale_inplace.hh>
 #include <nntile/tensor/gelu_backward.hh>
 #include <nntile/tensor/gelutanh_backward.hh>
 #include <nntile/tensor/add.hh>
