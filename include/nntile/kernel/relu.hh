@@ -6,21 +6,24 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/relu_forward/cpu.hh
- * Forward ReLU operation on CPU
+ * @file include/nntile/kernel/relu.hh
+ * ReLU low-level kernels
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/base_types.hh>
+#include <nntile/kernel/relu/cpu.hh>
+#include <nntile/defs.h>
+#ifdef NNTILE_USE_CUDA
+#include <nntile/kernel/relu/cuda.hh>
+#endif // NNTILE_USE_CUDA
 
-namespace nntile::kernel::relu_forward
+//! @namespace nntile::kernel::relu
+/*! Low-level implementations of ReLU operation
+ * */
+namespace nntile::kernel::relu
 {
 
-template<typename T>
-void cpu(Index nelems, const T *src, T *dst)
-    noexcept;
-
-} // namespace nntile::kernel::relu_forward
+} // namespace nntile::kernel::relu

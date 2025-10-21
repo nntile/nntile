@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/relu_forward.hh
- * Forward ReLU operation on a StarPU buffer
+ * @file include/nntile/starpu/relu.hh
+ * ReLU operation on a StarPU buffer
  *
  * @version 1.1.0
  * */
@@ -27,20 +27,20 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for relu_forward operation is not defined
+//! Generic wrapper class for relu operation is not defined
 template<typename T>
-class ReluForward;
+class Relu;
 
-//! Specialization of wrapper class for relu_forward operation via std::tuple
+//! Specialization of wrapper class for relu operation via std::tuple
 template<typename T>
-class ReluForward<std::tuple<T>>
+class Relu<std::tuple<T>>
 {
 public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
     //! Constructor
-    ReluForward();
+    Relu();
 
     //! Structure for operation arguments
     struct args_t
@@ -74,7 +74,7 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit relu_forward task
+    //! Submit relu task
     void submit(
         Index nelems,
         Handle src,
@@ -82,18 +82,19 @@ public:
     );
 };
 
-//! Pack of relu_forward operations for different types
-using relu_forward_pack_t = OperationPack<
-    ReluForward,
+//! Pack of relu operations for different types
+using relu_pack_t = OperationPack<
+    Relu,
     std::tuple<nntile::fp64_t>,
     std::tuple<nntile::fp32_t>,
     std::tuple<nntile::fp32_fast_tf32_t>,
     std::tuple<nntile::fp32_fast_fp16_t>,
     std::tuple<nntile::fp32_fast_bf16_t>,
-    std::tuple<nntile::bf16_t>
+    std::tuple<nntile::bf16_t>,
+    std::tuple<nntile::fp16_t>
 >;
 
-//! Pack of relu_forward operations for different types
-extern relu_forward_pack_t relu_forward;
+//! Pack of relu operations for different types
+extern relu_pack_t relu;
 
 } // namespace nntile::starpu

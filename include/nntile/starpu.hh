@@ -64,7 +64,7 @@
 #include <nntile/starpu/randn.hh>
 #include <nntile/starpu/relu_inplace.hh>
 #include <nntile/starpu/relu_backward.hh>
-#include <nntile/starpu/relu_forward.hh>
+#include <nntile/starpu/relu.hh>
 #include <nntile/starpu/rope.hh>
 #include <nntile/starpu/rope_backward.hh>
 #include <nntile/starpu/scale.hh>
