@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/prod_fiber.cc
+ * @file tests/tensor/multiply_fiber_inplace.cc
  * Tensor wrappers for multiplication of a tensor and a broadcasted fiber
  *
  * @version 1.1.0
