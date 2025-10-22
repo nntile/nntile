@@ -75,6 +75,7 @@ set(TESTS_CATCH2
     "accumulate_maxsumexp"
     "add_fiber"
     "add_fiber_inplace"
+    "scale_fiber"
     "add_inplace"
     "add_slice_inplace"
     "adam_step"

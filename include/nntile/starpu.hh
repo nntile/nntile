@@ -26,6 +26,7 @@
 #include <nntile/starpu/add.hh>
 #include <nntile/starpu/add_fiber.hh>
 #include <nntile/starpu/add_fiber_inplace.hh>
+#include <nntile/starpu/scale_fiber.hh>
 #include <nntile/starpu/add_inplace.hh>
 #include <nntile/starpu/add_slice.hh>
 #include <nntile/starpu/add_slice_inplace.hh>

@@ -67,6 +67,7 @@ set(TESTS_MPI
     "rope_backward"
     "scale"
     "scale_inplace"
+    "scale_fiber"
     "scale_slice"
     "scatter"
     "silu_backward"
@@ -115,6 +116,7 @@ set(TESTS_NOT_IMPLEMENTED
     "rope"
     "rope_backward"
     "scale"
+    "scale_fiber"
     "scale_slice"
     "silu_backward"
     "silu"
@@ -172,4 +174,26 @@ foreach(test IN LISTS TESTS_MPI)
     #     COV_GLOBAL coverage_tensor coverage
     #     LABELS ${labels} MPI
     #     )
+endforeach()
+
+set(TESTS_CATCH2
+)
+
+foreach(test IN LISTS TESTS_CATCH2)
+    set(labels)
+    if(test IN_LIST TESTS_NOT_IMPLEMENTED)
+        set(labels "NotImplemented")
+    endif()
+    add_test_set(TARGET_NAME tests_tensor_${test}
+        EXEC_NAME test_${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES
+            nntile
+            $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
+            Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_tensor_${test}
+        COV_GLOBAL coverage_tensor coverage
+        LABELS ${labels}
+    )
 endforeach()
