@@ -84,6 +84,7 @@ set(TESTS_CATCH2
     "embedding"
     "embedding_backward"
     "fill"
+    "flash_sdpa_fwd_cudnn"
     "gelu"
     "gelu_inplace"
     "gelu_backward"

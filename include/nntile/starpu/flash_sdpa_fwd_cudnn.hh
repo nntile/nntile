@@ -7,9 +7,8 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/starpu/flash_sdpa_fwd_cudnn.hh
- * Cudnn forward pass for SDPA
+ * Flash attention scaled dot-product attention forward pass using cuDNN
  *
- * TODO: This file is yet under development.
  * @version 1.1.0
  * */
 
@@ -18,63 +17,88 @@
 // Compile-time definitions
 #include <nntile/defs.h>
 
+// Standard headers
+#include <tuple>
+
 // NNTile headers
 #include <nntile/starpu/codelet.hh>
 #include <nntile/starpu/handle.hh>
 
-namespace nntile::starpu::flash_sdpa_fwd_cudnn
+namespace nntile::starpu
 {
 
-//! Structure for arguments
-struct args_t
-{
-    Index seq;
-    Index head;
-    Index batch;
-};
-
-//! Wrapper for all kernel functions
+//! Generic wrapper class for flash_sdpa_fwd_cudnn operation is not defined
 template<typename T>
-struct KernelWrapper
+class FlashSdpaFwdCudnn;
+
+//! Specialization of wrapper class for flash_sdpa_fwd_cudnn operation via std::tuple
+template<typename T>
+class FlashSdpaFwdCudnn<std::tuple<T>>
 {
-    static constexpr func_array cpu_funcs = {};
+public:
+    //! Codelet for the current operation
+    CodeletTyped<T> codelet;
+
+    //! Constructor
+    FlashSdpaFwdCudnn();
+
+    //! Structure for operation arguments
+    struct args_t
+    {
+        Index seq;
+        Index head;
+        Index batch;
+    };
+
+    //! Footprint function for the current operation
+    static uint32_t footprint(struct starpu_task *task);
+
+    //! Wrapper for a generic CPU implementation (not supported)
+    static void cpu(void *buffers[], void *cl_args)
+        noexcept;
+
+    //! Array of all wrappers for CPU implementations
+    static constexpr func_array cpu_funcs = {
+        cpu
+    };
 
 #ifdef NNTILE_USE_CUDA
+    //! Wrapper for a generic CUDA implementation
     static void cuda(void *buffers[], void *cl_args)
         noexcept;
 
+    //! Array of all wrappers for CUDA implementations
     static constexpr func_array cuda_funcs = {
         cuda
     };
 #else // NNTILE_USE_CUDA
+    //! Array of all wrappers for CUDA implementations
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
+
+    //! Submit flash_sdpa_fwd_cudnn task
+    void submit(
+        Index seq,
+        Index head,
+        Index batch,
+        Handle K,
+        Handle Q,
+        Handle mask,
+        Handle logsumexp,
+        Handle V,
+        Handle A
+    );
 };
 
-//! Codelet pack type for the current operation
-/*! No FP64, FP32 or accelerated FP32 types are supported due to cuDNN
- * limitations. */
-using codelet_pack_t = CodeletPack<
-    KernelWrapper,
-    nntile::bf16_t
+//! Pack of flash_sdpa_fwd_cudnn operations for different types
+/*! Only FP16 and BF16 are supported due to cuDNN limitations */
+using flash_sdpa_fwd_cudnn_pack_t = OperationPack<
+    FlashSdpaFwdCudnn,
+    std::tuple<nntile::bf16_t>,
+    std::tuple<nntile::fp16_t>
 >;
 
-// Declare codelet pack
-extern codelet_pack_t codelet_pack;
+//! Pack of flash_sdpa_fwd_cudnn operations for different types
+extern flash_sdpa_fwd_cudnn_pack_t flash_sdpa_fwd_cudnn;
 
-//! Submit flash_sdpa_fwd_cudnn task
-template<typename T>
-void submit(
-    Index seq,
-    Index head,
-    Index batch,
-    Handle K,
-    Handle Q,
-    Handle mask,
-    Handle logsumexp,
-    Handle V,
-    Handle A,
-    int redux=0
-);
-
-} // namespace nntile::starpu::flash_sdpa_fwd_cudnn
+} // namespace nntile::starpu

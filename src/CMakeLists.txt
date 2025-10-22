@@ -148,6 +148,7 @@ if(NOT HAVE_STARPU_SIMGRID)
             "kernel/sumprod_slice/cuda.cu"
             "kernel/total_sum_accum/cuda.cu"
             "kernel/transpose/cuda.cu"
+            "kernel/flash_sdpa_fwd_cudnn/cuda.cc"
         )
     endif(NNTILE_USE_CUDA)
 endif(NOT HAVE_STARPU_SIMGRID)
@@ -181,6 +182,7 @@ set(STARPU_CODELET_SRC
     "starpu/embedding.cc"
     "starpu/embedding_backward.cc"
     "starpu/fill.cc"
+    "starpu/flash_sdpa_fwd_cudnn.cc"
     "starpu/gelu.cc"
     "starpu/gelu_inplace.cc"
     "starpu/gelu_backward.cc"
