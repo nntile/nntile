@@ -150,8 +150,6 @@ void ScaleSlice<std::tuple<T>>::submit(
  * throws an std::runtime_error() exception.
  * */
 {
-    // Access mode for the dst handle
-    enum starpu_data_access_mode dst_mode = STARPU_W;
     // Codelet arguments
     args_t *args = (args_t*)std::malloc(sizeof(*args));
     args->m = m;
@@ -159,12 +157,12 @@ void ScaleSlice<std::tuple<T>>::submit(
     args->k = k;
     args->alpha = alpha;
     // Put amount of bytes read and write inplace of gflops
-    double nflops = sizeof(T)*m*(k+1)*n;
+    double nflops = sizeof(T) * m * (k+1) * n;
     // Submit task
     int ret = starpu_task_insert(&codelet,
             STARPU_R, src.get(),
+            STARPU_W, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            dst_mode, dst.get(),
             STARPU_FLOPS, nflops,
             0);
     // Check submission
