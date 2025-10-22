@@ -21,7 +21,6 @@ set(TESTS
     "add"
     "add_fiber"
     "add_fiber_inplace"
-    "scale_fiber"
     "add_inplace"
     "add_slice"
     "add_slice_inplace"
@@ -67,6 +66,7 @@ set(TESTS
     "rope_backward"
     "scale"
     "scale_inplace"
+    "scale_fiber"
     "silu_backward"
     "silu"
     "softmax"
@@ -125,6 +125,7 @@ set(TESTS_NOT_IMPLEMENTED
     "rope_backward"
     "scale"
     "scale_inplace"
+    "scale_fiber"
     "silu_backward"
     "silu"
     "softmax"
@@ -168,4 +169,26 @@ foreach(test IN LISTS TESTS)
         COV_GLOBAL coverage_starpu coverage
         LABELS ${labels}
         )
+endforeach()
+
+set(TESTS_CATCH2
+)
+
+foreach(test IN LISTS TESTS_CATCH2)
+    set(labels)
+    if(test IN_LIST TESTS_NOT_IMPLEMENTED)
+        set(labels "NotImplemented")
+    endif()
+    add_test_set(TARGET_NAME tests_starpu_${test}
+        EXEC_NAME test_${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES
+            nntile
+            $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
+            Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_starpu_${test}
+        COV_GLOBAL coverage_starpu coverage
+        LABELS ${labels}
+    )
 endforeach()

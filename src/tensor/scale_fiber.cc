@@ -76,7 +76,6 @@ void scale_fiber_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
     }
     // Apply per-tile scale_fiber asynchronously as needed
     int mpi_rank = starpu_mpi_world_rank();
-    int ret;
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         auto dst_tile_index = dst.grid.linear_to_index(i);

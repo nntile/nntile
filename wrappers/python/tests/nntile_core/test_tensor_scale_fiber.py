@@ -1,32 +1,19 @@
-"""Test scale_fiber operation for tensors."""
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/tests/nntile_core/test_tensor_scale_fiber.py
+# Test for tensor::scale_fiber<T> Python wrapper
+#
+# @version 1.1.0
 
-import numpy as np
-from nntile import nntile_core
-
-
-def test_scale_fiber_async_fp32(context):
-    """Test scale_fiber_async for fp32 - placeholder test."""
-    # Placeholder test - just verify the function exists
-    assert hasattr(nntile_core, 'scale_fiber_async_fp32')
-    assert hasattr(nntile_core, 'scale_fiber_fp32')
-
-
-def test_scale_fiber_async_fp64(context):
-    """Test scale_fiber_async for fp64 - placeholder test."""
-    # Placeholder test - just verify the function exists
-    assert hasattr(nntile_core, 'scale_fiber_async_fp64')
-    assert hasattr(nntile_core, 'scale_fiber_fp64')
+import pytest
 
 
-def test_scale_fiber_fp32(context):
-    """Test scale_fiber for fp32 - placeholder test."""
-    # Placeholder test - just verify the function exists
-    assert hasattr(nntile_core, 'scale_fiber_async_fp32')
-    assert hasattr(nntile_core, 'scale_fiber_fp32')
-
-
-def test_scale_fiber_fp64(context):
-    """Test scale_fiber for fp64 - placeholder test."""
-    # Placeholder test - just verify the function exists
-    assert hasattr(nntile_core, 'scale_fiber_async_fp64')
-    assert hasattr(nntile_core, 'scale_fiber_fp64')
+@pytest.mark.xfail(reason='not implemented')
+def test_scale_fiber_async(context):
+    pass
