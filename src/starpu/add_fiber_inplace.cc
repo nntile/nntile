@@ -181,6 +181,16 @@ void AddFiberInplace<std::tuple<T>>::submit(
         scale_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src, dst);
         return;
     }
+    // Access mode for the dst handle
+    enum starpu_data_access_mode dst_mode;
+    if(beta == 1.0)
+    {
+        dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
+    }
+    else
+    {
+        dst_mode = STARPU_RW;
+    }
     // Codelet arguments
     args_t* args = (args_t*)std::malloc(sizeof(*args));
     args->m = m;
@@ -189,11 +199,12 @@ void AddFiberInplace<std::tuple<T>>::submit(
     args->batch = batch;
     args->alpha = alpha;
     args->beta = beta;
-    double nflops = batch * k * (2*m*n+1);
+    // Put amount of bytes read and write inplace of gflops
+    double nflops = sizeof(T) * m * (2*k+1) * n * batch;
     // Submit task
     int ret = starpu_task_insert(&codelet,
             STARPU_R, src.get(),
-            STARPU_RW, dst.get(),
+            dst_mode, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);

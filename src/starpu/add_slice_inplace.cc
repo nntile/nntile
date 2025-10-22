@@ -163,7 +163,7 @@ void AddSliceInplace<std::tuple<T>>::submit(
     // If alpha is zero then reduce to scale_inplace
     if(alpha == 0.0)
     {
-        scale_inplace.submit<std::tuple<T>>(m*n, beta, dst);
+        scale_inplace.submit<std::tuple<T>>(m*n*k, beta, dst);
         return;
     }
     // If beta is zero then reduce to scale_slice
