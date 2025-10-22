@@ -922,32 +922,6 @@ def scale_slice_async(
         raise TypeError
 
 
-def scale_slice(
-    alpha: float, src: Tensor, dst: Tensor, axis: int
-) -> None:
-    """
-    Wrapper for multiprecision scale_slice
-    """
-    if type(src) is not type(dst):
-        raise TypeError
-    if type(src) is core_tensor.Tensor_fp32:
-        core_tensor.scale_slice_fp32(alpha, src, dst, axis)
-    elif type(src) is core_tensor.Tensor_fp64:
-        core_tensor.scale_slice_fp64(alpha, src, dst, axis)
-    elif type(src) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.scale_slice_fp32_fast_tf32(alpha, src, dst, axis)
-    elif type(src) is core_tensor.Tensor_fp32_fast_fp16:
-        core_tensor.scale_slice_fp32_fast_fp16(alpha, src, dst, axis)
-    elif type(src) is core_tensor.Tensor_fp32_fast_bf16:
-        core_tensor.scale_slice_fp32_fast_bf16(alpha, src, dst, axis)
-    elif type(src) is core_tensor.Tensor_bf16:
-        core_tensor.scale_slice_bf16(alpha, src, dst, axis)
-    elif type(src) is core_tensor.Tensor_fp16:
-        core_tensor.scale_slice_fp16(alpha, src, dst, axis)
-    else:
-        raise TypeError
-
-
 def add_fiber_inplace_async(
     alpha: float, add_fiber_inplace: Tensor, beta, x: Tensor,
     axis: int, batch_ndim: int
