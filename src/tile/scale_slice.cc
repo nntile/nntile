@@ -21,54 +21,69 @@ namespace nntile::tile
 //! Asynchronous tile scaling of a broadcasted slice
 template<typename T>
 void scale_slice_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
+//! Tile<T> scaling of a broadcasted slice
+/*! Reshapes input slice and dst tensor into 2-dimensional and 3-dimensional arrays
+ * and performs the following operations:
+ *      dst[i,l,j] = alpha*src[i,j]
+ *
+ * @param[in] alpha: Scalar factor for src
+ * @param[in] src: Input slice, that is reshaped into 2D array
+ * @param[out] dst: Resulting tensor, that is reshaped into 3D array
+ * @param[in] axis: Axis along which the slice is broadcasted
+ * */
 {
-    // Check inputs
-    if(src.ndim != 2)
-    {
-        throw std::runtime_error("src.ndim != 2");
-    }
-    if(dst.ndim != 3)
-    {
-        throw std::runtime_error("dst.ndim != 3");
-    }
-    if(axis < 0 or axis >= dst.ndim)
-    {
-        throw std::runtime_error("axis < 0 or axis >= dst.ndim");
-    }
     // Check dimensions
-    if(src.shape[0] != dst.shape[0])
+    if(dst.ndim != src.ndim+1)
     {
-        throw std::runtime_error("src.shape[0] != dst.shape[0]");
-    }
-    if(src.shape[1] != dst.shape[2])
-    {
-        throw std::runtime_error("src.shape[1] != dst.shape[2]");
+        throw std::runtime_error("dst.ndim != src.ndim+1");
     }
     // Check axis
-    if(axis != 1)
+    if(axis < 0)
     {
-        throw std::runtime_error("axis != 1");
+        throw std::runtime_error("axis < 0");
     }
-    // Check strides
-    if(src.stride[0] != 1)
+    if(axis >= dst.ndim)
     {
-        throw std::runtime_error("src.stride[0] != 1");
+        throw std::runtime_error("axis >= dst.ndim");
     }
-    if(dst.stride[0] != 1)
+    // Check shapes of tiles
+    for(Index i = 0; i < axis; ++i)
     {
-        throw std::runtime_error("dst.stride[0] != 1");
+        if(dst.shape[i] != src.shape[i])
+        {
+            throw std::runtime_error("dst.shape[i] != src.shape[i]");
+        }
     }
-    // Get dimensions
-    Index m = src.shape[0];
-    Index n = src.shape[1];
-    Index k = dst.shape[1];
-    // Submit task
-    starpu::scale_slice.submit<T>(m, n, k, alpha, src, dst);
+    for(Index i = axis+1; i < dst.ndim; ++i)
+    {
+        if(dst.shape[i] != src.shape[i-1])
+        {
+            throw std::runtime_error("dst.shape[i] != src.shape[i-1]");
+        }
+    }
+    // Reshape inputs for simplicity: src -> (m,n), dst -> (m,k,n)
+    Index m, n, k;
+    m = dst.stride[axis];
+    n = dst.matrix_shape[axis+1][1];
+    k = dst.shape[axis];
+    // Insert corresponding task
+    starpu::scale_slice.submit<std::tuple<T>>(m, n, k, alpha, src, dst);
 }
 
 //! Blocking version of tile scaling of a broadcasted slice
 template<typename T>
 void scale_slice(Scalar alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
+//! Tile<T> scaling of a broadcasted slice
+/*! Blocking version of scale_slice_async<T>.
+ * Reshapes input slice and dst tensor into 2-dimensional and 3-dimensional arrays
+ * and performs the following operations:
+ *      dst[i,l,j] = alpha*src[i,j]
+ *
+ * @param[in] alpha: Scalar factor for src
+ * @param[in] src: Input slice, that is reshaped into 2D array
+ * @param[out] dst: Resulting tensor, that is reshaped into 3D array
+ * @param[in] axis: Axis along which the slice is broadcasted
+ * */
 {
     scale_slice_async<T>(alpha, src, dst, axis);
     starpu_task_wait_for_all();
