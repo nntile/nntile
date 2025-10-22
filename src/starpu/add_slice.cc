@@ -22,6 +22,8 @@
 // Other NNTile headers
 #include "nntile/kernel/add_slice.hh"
 #include "nntile/starpu/add.hh"
+#include "nntile/starpu/scale.hh"
+#include "nntile/starpu/scale_slice.hh"
 
 //! StarPU wrappers for add_slice operation
 namespace nntile::starpu
@@ -169,20 +171,27 @@ void AddSlice<std::tuple<T>>::submit(
     Handle dst
 )
 {
-    constexpr Scalar zero = 0.0, one = 1.0;
     // If k is 1, then this operation reduces to add
     if(k == 1)
     {
         add.submit<std::tuple<T>>(m*n, alpha, src1, beta, src2, dst);
         return;
     }
+    // If alpha is zero then reduce to scale
+    if(alpha == 0.0)
+    {
+        scale.submit<std::tuple<T>>(m*n, beta, src2, dst);
+        return;
+    }
+    // If beta is zero then reduce to scale_slice
+    if(beta == 0.0)
+    {
+        scale_slice.submit<std::tuple<T>>(m, n, k, alpha, src1, dst);
+        return;
+    }
     // Access mode for the dst handle
     enum starpu_data_access_mode dst_mode;
-    if(beta == zero)
-    {
-        dst_mode = STARPU_W;
-    }
-    else if(beta == one)
+    if(beta == 1.0)
     {
         dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
     }

@@ -21,6 +21,8 @@
 
 // Other NNTile headers
 #include "nntile/kernel/add_fiber.hh"
+#include "nntile/starpu/scale.hh"
+#include "nntile/starpu/scale_fiber.hh"
 
 namespace nntile::starpu
 {
@@ -173,6 +175,18 @@ void AddFiber<std::tuple<T>>::submit(
     Handle dst
 )
 {
+    // If alpha is zero, then this operation reduces to scale
+    if(alpha == 0.0)
+    {
+        scale.submit<std::tuple<T>>(m*n*k*batch, beta, src2, dst);
+        return;
+    }
+    // If beta is zero, then this operation reduces to scale_fiber
+    if(beta == 0.0)
+    {
+        scale_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src1, dst);
+        return;
+    }
     // Codelet arguments
     args_t* args = (args_t*)std::malloc(sizeof(*args));
     args->m = m;
