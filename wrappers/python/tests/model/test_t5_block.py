@@ -21,7 +21,6 @@ from transformers.models.t5.modeling_t5 import (
     T5Block as T5BlockTorch, T5Config as T5ConfigTorch)
 
 import nntile
-import nntile.functions
 import nntile.utils.constructors as nntc
 from nntile.model.t5_block import T5Block
 from nntile.model.t5_config import T5ConfigNNTile

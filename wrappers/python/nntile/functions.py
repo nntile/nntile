@@ -194,6 +194,28 @@ def silu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         raise TypeError
 
 
+def silu_inplace_async(x: Tensor) -> None:
+    """
+    Wrapper for multiprecision inplace SiLU
+    """
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.silu_inplace_async_fp32(x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.silu_inplace_async_fp64(x)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.silu_inplace_async_fp32_fast_tf32(x)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.silu_inplace_async_fp32_fast_fp16(x)
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.silu_inplace_async_fp32_fast_bf16(x)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.silu_inplace_async_bf16(x)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.silu_inplace_async_fp16(x)
+    else:
+        raise TypeError
+
+
 def gelu_inplace_async(x: Tensor) -> None:
     """
     Wrapper for multiprecision GELU inplace
@@ -892,6 +914,32 @@ def add_slice_async(
         core_tensor.add_slice_async_bf16(alpha, add_slice, beta, x, y, axis)
     elif type(x) is core_tensor.Tensor_fp16:
         core_tensor.add_slice_async_fp16(alpha, add_slice, beta, x, y, axis)
+    else:
+        raise TypeError
+
+
+def scale_slice_async(
+    alpha: float, src: Tensor, dst: Tensor, axis: int
+) -> None:
+    """
+    Wrapper for multiprecision scale_slice_async
+    """
+    if type(src) is not type(dst):
+        raise TypeError
+    if type(src) is core_tensor.Tensor_fp32:
+        core_tensor.scale_slice_async_fp32(alpha, src, dst, axis)
+    elif type(src) is core_tensor.Tensor_fp64:
+        core_tensor.scale_slice_async_fp64(alpha, src, dst, axis)
+    elif type(src) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.scale_slice_async_fp32_fast_tf32(alpha, src, dst, axis)
+    elif type(src) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.scale_slice_async_fp32_fast_fp16(alpha, src, dst, axis)
+    elif type(src) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.scale_slice_async_fp32_fast_bf16(alpha, src, dst, axis)
+    elif type(src) is core_tensor.Tensor_bf16:
+        core_tensor.scale_slice_async_bf16(alpha, src, dst, axis)
+    elif type(src) is core_tensor.Tensor_fp16:
+        core_tensor.scale_slice_async_fp16(alpha, src, dst, axis)
     else:
         raise TypeError
 

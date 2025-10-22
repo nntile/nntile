@@ -61,6 +61,7 @@
 #include <nntile/kernel/mask_scalar.hh>
 #include <nntile/kernel/scale.hh>
 #include <nntile/kernel/scale_inplace.hh>
+#include <nntile/kernel/scale_slice.hh>
 #include <nntile/kernel/adam_step.hh>
 #include <nntile/kernel/adamw_step.hh>
 #include <nntile/kernel/transpose.hh>
