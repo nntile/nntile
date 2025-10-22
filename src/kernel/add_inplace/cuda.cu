@@ -22,16 +22,8 @@ template<typename T, int BLOCK, int LOOP>
 static __global__
 void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_,
         T *dst)
-//! Add two buffers on CUDA
-/*! Performs the following operation:
- *      dst[i] = alpha*src[i] + beta*dst[i],
- * where alpha and beta are non-zero scalars.
- *
- * @param[in] nelems: Size of the src and dst tensors
- * @param[in] alpha_: Scalar multiplier for the src tensor
- * @param[in] src: Source tensor
- * @param[in] beta_: Scalar multiplier for the dst tensor
- * @param[inout] dst: Destination of the add operation
+//! Generic implementation of the add_inplace operation on CUDA
+/*! @copydoc nntile::kernel::add_inplace::cuda
  * */
 {
     int i = threadIdx.x + blockIdx.x*BLOCK;
@@ -68,11 +60,23 @@ template<typename T>
 void cuda(cudaStream_t stream, Index nelems, Scalar alpha_, const T *src_,
         Scalar beta_, T *dst_)
     noexcept
-//! Add two buffers on CUDA
+//! Add two buffers inplace with optional scaling inplace on CUDA
 /*! Performs the following operation:
  *      dst[i] = alpha*src[i] + beta*dst[i],
- * where alpha and beta are non-zero scalars.
  *
+ * This function reads both src and dst even if alpha or beta is zero.
+ * If alpha is zero and src[i] is NaN, then dst[i] will be NaN.
+ * If beta is zero and dst[i] is NaN, then dst[i] will be NaN.
+ * If such behaviour is not desired, then in a case of alpha being zero,
+ * use nntile::kernel::scale_inplace instead, and in a case of beta being zero,
+ * use nntile::kernel::scale instead.
+ * If both alpha and beta are zero, then use nntile::kernel::clear instead.
+ *
+ * @see nntile::kernel::scale_inplace
+ * @see nntile::kernel::scale
+ * @see nntile::kernel::clear
+ *
+ * @param[in] stream: CUDA stream
  * @param[in] nelems: Size of the src and dst tensors
  * @param[in] alpha_: Scalar multiplier for the src tensor
  * @param[in] src_: Source tensor

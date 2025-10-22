@@ -22,9 +22,21 @@ template<typename T>
 void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_,
         T *dst)
     noexcept
-//! Per-element addition of a tensor and a broadcasted slice on CPU
-/*! Performs the following operations:
+//! Add a broadcasted slice to a tensor with optional scaling inplace on CPU
+/*! Performs the following operation:
  *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[i,j]
+ *
+ * This function reads both src and dst even if alpha or beta is zero.
+ * If alpha is zero and src[i,j] is NaN, then dst[i,l,j] will be NaN.
+ * If beta is zero and dst[i,l,j] is NaN, then dst[i,l,j] will be NaN.
+ * If such behaviour is not desired, then in a case of alpha being zero,
+ * use nntile::kernel::scale_inplace instead, and in a case of beta being zero,
+ * use nntile::kernel::scale_slice instead.
+ * If both alpha and beta are zero, then use nntile::kernel::clear instead.
+ *
+ * @see nntile::kernel::scale_inplace
+ * @see nntile::kernel::scale_slice
+ * @see nntile::kernel::clear
  *
  * @param[in] m: Size of the first mode of src and dst tensors
  * @param[in] n: Size of the last mode of src and dst tensors
@@ -48,26 +60,13 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_,
             T *dst_fiber = dst + i2*mk + i1;
             // Value to add to the output fiber
             const Y src_val = alpha * Y{src[i2*m+i1]};
-            // Overwrite or update output depending on beta
-            if(beta == zero)
+            // Cycle over output fiber elements
+            for(Index i0 = 0; i0 < k; ++i0)
             {
-                // Cycle over output fiber elements
-                for(Index i0 = 0; i0 < k; ++i0)
-                {
-                    // Set output value
-                    dst_fiber[i0*m] = static_cast<T>(src_val);
-                }
-            }
-            else
-            {
-                // Cycle over output fiber elements
-                for(Index i0 = 0; i0 < k; ++i0)
-                {
-                    // Read value from the output
-                    T &dst_val = dst_fiber[i0*m];
-                    // And update it
-                    dst_val = static_cast<T>(beta*Y{dst_val} + src_val);
-                }
+                // Read value from the output
+                T &dst_val = dst_fiber[i0*m];
+                // And update it
+                dst_val = static_cast<T>(beta*Y{dst_val} + src_val);
             }
         }
     }
@@ -80,8 +79,8 @@ void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src,
     noexcept;
 
 template
-void cpu<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_fast_tf32_t *src,
-        Scalar beta, fp32_fast_tf32_t *dst)
+void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src,
+        Scalar beta, fp64_t *dst)
     noexcept;
 
 template
@@ -92,11 +91,6 @@ void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src,
 template
 void cpu<fp16_t>(Index m, Index n, Index k, Scalar alpha, const fp16_t *src,
         Scalar beta, fp16_t *dst)
-    noexcept;
-
-template
-void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src,
-        Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_slice_inplace

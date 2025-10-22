@@ -20,27 +20,24 @@ namespace nntile::kernel::add
 
 template<typename T, int BLOCK, int LOOP>
 static __global__
-void cuda_kernel(Index nelems, Scalar alpha_, const T *src1, Scalar beta_,
-        const T *src2, T *dst)
-//! Add two buffers on CUDA
-/*! Performs the following operation:
- *      dst[i] = alpha*src1[i] + beta*src2[i],
- * where alpha and beta are non-zero scalars.
- *
- * @param[in] nelems: Size of the src and dst tensors
- * @param[in] alpha_: Scalar multiplier for the src1 tensor
- * @param[in] src1: Source tensor
- * @param[in] beta_: Scalar multiplier for the scr2 tensor
- * @param[in] src2: Source tensor
- * @param[out] dst: Destination of the add operation
+void cuda_kernel(
+    Index nelems,
+    Scalar alpha,
+    const T *src1,
+    Scalar beta,
+    const T *src2,
+    T *dst
+)
+//! Generic implementation of the add operation on CUDA
+/* @copydoc nntile::kernel::add::cuda
  * */
 {
     int i = threadIdx.x + blockIdx.x*BLOCK;
     using Y = typename T::repr_t;
     Y dst_block[LOOP];
     Y src_block[LOOP];
-    Y alpha = Y{alpha_};
-    Y beta = Y{beta_};
+    const Y alpha_ = alpha;
+    const Y beta_ = beta;
     constexpr int BLOCK_STEP = BLOCK / LOOP;
     if((blockIdx.x+1)*BLOCK <= nelems)
     {
@@ -48,8 +45,8 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T *src1, Scalar beta_,
         {
             src_block[j] = static_cast<Y>(src1[i+j*BLOCK_STEP]);
             dst_block[j] = static_cast<Y>(src2[i+j*BLOCK_STEP]);
-            dst_block[j] = alpha*src_block[j] + beta*dst_block[j];
-            dst[i+j*BLOCK_STEP] = dst_block[j];
+            dst_block[j] = alpha_ * src_block[j] + beta_ * dst_block[j];
+            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
         }
     }
     else
@@ -59,33 +56,49 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T *src1, Scalar beta_,
         {
             src_block[j] = static_cast<Y>(src1[i+j*BLOCK_STEP]);
             dst_block[j] = static_cast<Y>(src2[i+j*BLOCK_STEP]);
-            dst_block[j] = alpha*src_block[j] + beta*dst_block[j];
-            dst[i+j*BLOCK_STEP] = dst_block[j];
+            dst_block[j] = alpha_ * src_block[j] + beta_ * dst_block[j];
+            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
         }
     }
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, Scalar alpha_, const T *src1_,
-        Scalar beta_, const T *src2_, T *dst_)
-    noexcept
-//! Add two buffers on CUDA
+void cuda(
+    cudaStream_t stream,
+    Index nelems,
+    Scalar alpha,
+    const T *src1,
+    Scalar beta,
+    const T *src2,
+    T *dst
+) noexcept
+//! Add two buffers with optional scaling on CUDA
 /*! Performs the following operation:
- *      dst[i] = alpha*src1[i] + beta*src2[i],
- * where alpha and beta are non-zero scalars.
+ * dst[i] = alpha*src1[i] + beta*src2[i]
  *
+ * This function reads both src1 and src2 even if alpha or beta is zero.
+ * If alpha is zero and src1[i] is NaN, then dst[i] will be NaN.
+ * If beta is zero and src2[i] is NaN, then dst[i] will be NaN.
+ * If such behaviour is not desired, then in a case of alpha or beta being
+ * zero, use nntile::kernel::scale instead.
+ * If both alpha and beta are zero, then use nntile::kernel::clear instead.
+ *
+ * @see nntile::kernel::scale
+ * @see nntile::kernel::clear
+ *
+ * @param[in] stream: CUDA stream
  * @param[in] nelems: Size of the src and dst tensors
- * @param[in] alpha_: Scalar multiplier for the src1 tensor
- * @param[in] src1_: Source tensor
- * @param[in] beta_: Scalar multiplier for the src2 tensor
- * @param[in] src2_: Source tensor
- * @param[out] dst_: Destination of the add operation
+ * @param[in] alpha: Scalar multiplier for the src1 tensor
+ * @param[in] src1: First source tensor
+ * @param[in] beta: Scalar multiplier for the src2 tensor
+ * @param[in] src2: Second source tensor
+ * @param[out] dst: Destination tensor
  * */
 {
     dim3 threads(256);
     dim3 blocks((nelems+1023)/1024);
-    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems, alpha_,
-            src1_, beta_, src2_, dst_);
+    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(
+        nelems, alpha, src1, beta, src2, dst);
 }
 
 // Explicit instantiation
