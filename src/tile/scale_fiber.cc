@@ -14,6 +14,7 @@
 
 #include "nntile/tile/scale_fiber.hh"
 #include "nntile/starpu/scale_fiber.hh"
+#include "nntile/tile/clear.hh"
 
 namespace nntile::tile
 {
