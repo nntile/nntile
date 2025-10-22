@@ -20,70 +20,46 @@ namespace nntile::kernel::hypot
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nelems, Scalar alpha_, const T* src1, Scalar beta_, const T* src2, T* dst)
-//! hypot two buffers on CUDA
-/*! Performs the following operation:
- *      dst[i] = hypot(alpha*src1[i], beta*src2[i]),
- * which computes sqrt((alpha*src1[i])^2 + (beta*src2[i])^2).
- *
- * @param[in] nelems: Size of the src1, src2 and dst tensors
- * @param[in] alpha_: Scalar multiplier for the src1 tensor
- * @param[in] src1: First source tensor
- * @param[in] beta_: Scalar multiplier for the src2 tensor
- * @param[in] src2: Second source tensor
- * @param[out] dst: Destination of the hypot operation
+void cuda_kernel(Index nelems, Scalar alpha, const T* src1, Scalar beta, const T* src2, T* dst)
+//! Generic implementation of the hypot operation on CUDA
+/*! @copydoc nntile::kernel::hypot::cuda
  * */
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
-    constexpr Y zero{0.0};
-    Y alpha{alpha_};
-    Y beta{beta_};
+    const Y alpha_{alpha};
+    const Y beta_{beta};
     if(i < nelems)
     {
-        if(alpha == zero)
-        {
-            if(beta == zero)
-            {
-                dst[i] = zero;
-            }
-            else
-            {
-                Y src2_val = static_cast<Y>(src2[i]);
-                dst[i] = ::fabs(beta * src2_val);
-            }
-        }
-        else
-        {
-            if(beta == zero)
-            {
-                Y src1_val = static_cast<Y>(src1[i]);
-                dst[i] = ::fabs(alpha * src1_val);
-            }
-            else
-            {
-                Y src1_val = static_cast<Y>(src1[i]);
-                Y src2_val = static_cast<Y>(src2[i]);
-                dst[i] = ::hypot(alpha*src1_val, beta*src2_val);
-            }
-        }
+        const Y src1_val = static_cast<Y>(src1[i]);
+        const Y src2_val = static_cast<Y>(src2[i]);
+        dst[i] = static_cast<T>(std::hypot(alpha*src1_val, beta*src2_val));
     }
 }
 
 template<typename T>
 void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T* src1, Scalar beta, const T* src2, T* dst)
     noexcept
-//! hypot two buffers on CUDA
+//! Hypothenuse of two buffers with optional scaling on CUDA
 /*! Performs the following operation:
- *      dst[i] = hypot(alpha*src1[i], beta*src2[i]),
- * which computes sqrt((alpha*src1[i])^2 + (beta*src2[i])^2).
+ * dst[i] = hypot(alpha*src1[i], beta*src2[i])
  *
- * @param[in] nelems: Size of the src1, src2 and dst tensors
+ * This function reads both src1 and src2 even if alpha or beta is zero.
+ * If alpha is zero and src1[i] is NaN, then dst[i] will be NaN.
+ * If beta is zero and src2[i] is NaN, then dst[i] will be NaN.
+ * If such behaviour is not desired, then in a case of alpha or beta being
+ * zero, use nntile::kernel::scale instead.
+ * If both alpha and beta are zero, then use nntile::kernel::clear instead.
+ *
+ * @see nntile::kernel::scale
+ * @see nntile::kernel::clear
+ *
+ * @param[in] nelems: Size of the src and dst tensors
  * @param[in] alpha: Scalar multiplier for the src1 tensor
  * @param[in] src1: First source tensor
  * @param[in] beta: Scalar multiplier for the src2 tensor
  * @param[in] src2: Second source tensor
- * @param[out] dst: Destination of the hypot operation
+ * @param[out] dst: Destination tensor
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
