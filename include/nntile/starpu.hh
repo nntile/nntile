@@ -69,6 +69,7 @@
 #include <nntile/starpu/rope_backward.hh>
 #include <nntile/starpu/scale.hh>
 #include <nntile/starpu/scale_inplace.hh>
+#include <nntile/starpu/scale_slice.hh>
 #include <nntile/starpu/silu_backward.hh>
 #include <nntile/starpu/silu.hh>
 #include <nntile/starpu/silu_inplace.hh>

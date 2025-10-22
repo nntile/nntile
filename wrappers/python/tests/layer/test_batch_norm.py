@@ -19,7 +19,6 @@ import torch
 import torch.nn as nn
 
 import nntile
-import nntile.utils
 from nntile.layer import BatchNorm2d
 
 

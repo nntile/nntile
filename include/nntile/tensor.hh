@@ -61,6 +61,7 @@
 #include <nntile/tensor/subtract_indexed_outputs.hh>
 #include <nntile/tensor/scale.hh>
 #include <nntile/tensor/scale_inplace.hh>
+#include <nntile/tensor/scale_slice.hh>
 #include <nntile/tensor/gelu_backward.hh>
 #include <nntile/tensor/gelutanh_backward.hh>
 #include <nntile/tensor/add.hh>

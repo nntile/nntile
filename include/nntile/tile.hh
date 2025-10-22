@@ -56,6 +56,7 @@
 #include <nntile/tile/subtract_indexed_outputs.hh>
 #include <nntile/tile/scale.hh>
 #include <nntile/tile/scale_inplace.hh>
+#include <nntile/tile/scale_slice.hh>
 #include <nntile/tile/gelu_backward.hh>
 #include <nntile/tile/gelutanh_backward.hh>
 #include <nntile/tile/add.hh>

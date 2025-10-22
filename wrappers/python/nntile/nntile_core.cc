@@ -855,6 +855,22 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_slice_inplace_bf16", &add_slice_inplace<bf16_t>);
     m.def("add_slice_inplace_fp16", &add_slice_inplace<fp16_t>);
 
+    m.def("scale_slice_async_fp64", &scale_slice_async<fp64_t>);
+    m.def("scale_slice_async_fp32", &scale_slice_async<fp32_t>);
+    m.def("scale_slice_async_fp32_fast_tf32", &scale_slice_async<fp32_fast_tf32_t>);
+    m.def("scale_slice_async_fp32_fast_fp16", &scale_slice_async<fp32_fast_fp16_t>);
+    m.def("scale_slice_async_fp32_fast_bf16", &scale_slice_async<fp32_fast_bf16_t>);
+    m.def("scale_slice_async_bf16", &scale_slice_async<bf16_t>);
+    m.def("scale_slice_async_fp16", &scale_slice_async<fp16_t>);
+
+    m.def("scale_slice_fp64", &scale_slice<fp64_t>);
+    m.def("scale_slice_fp32", &scale_slice<fp32_t>);
+    m.def("scale_slice_fp32_fast_tf32", &scale_slice<fp32_fast_tf32_t>);
+    m.def("scale_slice_fp32_fast_fp16", &scale_slice<fp32_fast_fp16_t>);
+    m.def("scale_slice_fp32_fast_bf16", &scale_slice<fp32_fast_bf16_t>);
+    m.def("scale_slice_bf16", &scale_slice<bf16_t>);
+    m.def("scale_slice_fp16", &scale_slice<fp16_t>);
+
     m.def("add_slice_async_fp64", &add_slice_async<fp64_t>);
     m.def("add_slice_async_fp32", &add_slice_async<fp32_t>);
     m.def("add_slice_async_fp32_fast_tf32", &add_slice_async<fp32_fast_tf32_t>);
