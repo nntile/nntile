@@ -156,19 +156,19 @@ void scale_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf
         const Tensor<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void scale_slice_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, 
+void scale_slice_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src,
         const Tensor<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void scale_slice_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, 
+void scale_slice_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
         const Tensor<fp32_fast_bf16_t> &dst, Index axis);
 
 template
-void scale_slice_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, 
+void scale_slice_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst, Index axis);
 
 template
-void scale_slice_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, 
+void scale_slice_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
         const Tensor<fp16_t> &dst, Index axis);
 
 // Explicit instantiation of template
@@ -177,15 +177,15 @@ void scale_slice<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst, Index axis);
 
 template
-void scale_slice<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, 
+void scale_slice<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void scale_slice<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, 
+void scale_slice<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src,
         const Tensor<fp32_fast_fp16_t> &dst, Index axis);
 
 template
-void scale_slice<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, 
+void scale_slice<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src,
         const Tensor<fp32_fast_bf16_t> &dst, Index axis);
 
 template
@@ -193,11 +193,11 @@ void scale_slice<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst, Index axis);
 
 template
-void scale_slice<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, 
+void scale_slice<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst, Index axis);
 
 template
-void scale_slice<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, 
+void scale_slice<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
         const Tensor<fp16_t> &dst, Index axis);
 
 } // namespace nntile::tensor

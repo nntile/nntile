@@ -107,6 +107,7 @@ set(TESTS_CATCH2
     "relu_backward"
     "relu"
     "scale"
+    "scale_slice"
     "silu_backward"
     "silu"
     "softmax"
