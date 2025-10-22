@@ -94,7 +94,6 @@ set(TESTS_NOT_IMPLEMENTED
     "add"
     "add_fiber"
     "add_fiber_inplace"
-    "scale_fiber"
     "add_inplace"
     "add_slice"
     "codelet"
