@@ -58,9 +58,10 @@ void scale_fiber_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
                     "dst.shape[dst.ndim-batch_ndim+i]");
         }
     }
-    // Do nothing if alpha is zero
+    // Reduce to clear the tile if alpha is zero
     if(alpha == 0.0)
     {
+        clear_async(dst);
         return;
     }
     // Reshape inputs for simplicity: src -> (k,batch), dst -> (m,k,n,batch)

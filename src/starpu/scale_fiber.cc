@@ -21,6 +21,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/scale_fiber.hh"
+#include "nntile/starpu/clear.hh"
 
 namespace nntile::starpu
 {
@@ -164,6 +165,12 @@ void ScaleFiber<std::tuple<T>>::submit(
     Handle dst
 )
 {
+    // Reduce to clear buffer if alpha is zero
+    if(alpha == 0.0)
+    {
+        clear.submit(dst);
+        return;
+    }
     // Codelet arguments
     args_t* args = (args_t*)std::malloc(sizeof(*args));
     args->m = m;
@@ -171,7 +178,8 @@ void ScaleFiber<std::tuple<T>>::submit(
     args->k = k;
     args->batch = batch;
     args->alpha = alpha;
-    double nflops = batch * k * m * n;
+    // Put amount of bytes read and write inplace of gflops
+    double nflops = sizeof(T) * batch * k * m * n;
     // Submit task
     int ret = starpu_task_insert(&codelet,
             STARPU_R, src.get(),

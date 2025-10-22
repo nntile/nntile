@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/scale_fiber.hh"
 #include "nntile/starpu/scale_fiber.hh"
+#include "nntile/tensor/clear.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -69,9 +70,10 @@ void scale_fiber_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
                     "dst.basetile_shape[dst.ndim-batch_ndim+i]");
         }
     }
-    // Do nothing if alpha is zero
+    // Reduce to clear the tensor if alpha is zero
     if(alpha == 0.0)
     {
+        clear_async(dst);
         return;
     }
     // Apply per-tile scale_fiber asynchronously as needed
