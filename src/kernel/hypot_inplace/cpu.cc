@@ -20,56 +20,38 @@ namespace nntile::kernel::hypot_inplace
 {
 
 template<typename T>
-void cpu(Index nelems, Scalar alpha_, const T* src, Scalar beta_, T* dst)
+void cpu(Index nelems, Scalar alpha, const T* src, Scalar beta, T* dst)
     noexcept
-//! hypot_inplace of two buffers on CPU
+//! Hypothenuse of two buffers with optional scaling inplace on CPU
 /*! Performs the following operation:
- *      dst[i] = hypot(alpha*src[i], beta*dst[i]),
- * where alpha and beta are non-zero scalars.
+ * dst[i] = hypot(alpha*src[i], beta*dst[i])
+ *
+ * This function reads both src and dst even if alpha or beta is zero.
+ * If alpha is zero and src[i] is NaN, then dst[i] will be NaN.
+ * If beta is zero and dst[i] is NaN, then dst[i] will be NaN.
+ * If such behaviour is not desired, then in a case of alpha being zero,
+ * use nntile::kernel::scale_inplace instead, and in a case of beta being
+ * zero, use nntile::kernel::scale instead.
+ * If both alpha and beta are zero, then use nntile::kernel::clear instead.
+ *
+ * @see nntile::kernel::scale_inplace
+ * @see nntile::kernel::scale
+ * @see nntile::kernel::clear
  *
  * @param[in] nelems: Size of the src and dst tensors
- * @param[in] alpha_: Scalar multiplier for the src tensor
+ * @param[in] alpha: Scalar multiplier for the src tensor
  * @param[in] src: Source tensor
- * @param[in] beta_: Scalar multiplier for the dst tensor
+ * @param[in] beta: Scalar multiplier for the dst tensor
  * @param[inout] dst: Destination of the hypot_inplace operation
  * */
 {
     using Y = typename T::repr_t;
-    const Y zero{0.0}, alpha{alpha_}, beta{beta_};
-    if(alpha == zero)
+    const Y alpha_{alpha}, beta_{beta};
+    for(Index i = 0; i < nelems; ++i)
     {
-        if(beta == zero)
-        {
-            for(Index i = 0; i < nelems; ++i)
-            {
-                dst[i] = static_cast<T>(zero);
-            }
-        }
-        else
-        {
-            for(Index i = 0; i < nelems; ++i)
-            {
-                dst[i] = static_cast<T>(std::fabs(beta * static_cast<Y>(dst[i])));
-            }
-        }
-    }
-    else
-    {
-        if(beta == zero)
-        {
-            for(Index i = 0; i < nelems; ++i)
-            {
-                dst[i] = static_cast<T>(std::fabs(alpha * static_cast<Y>(src[i])));
-            }
-        }
-        else
-        {
-            for(Index i = 0; i < nelems; ++i)
-            {
-                dst[i] = static_cast<T>(std::hypot(alpha*static_cast<Y>(src[i]),
-                                                   beta*static_cast<Y>(dst[i])));
-            }
-        }
+        const Y src_val = static_cast<Y>(src[i]);
+        const Y dst_val = static_cast<Y>(dst[i]);
+        dst[i] = static_cast<T>(std::hypot(alpha_*src_val, beta_*dst_val));
     }
 }
 

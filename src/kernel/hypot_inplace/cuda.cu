@@ -20,48 +20,19 @@ namespace nntile::kernel::hypot_inplace
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nelems, Scalar alpha_, const T* src, Scalar beta_, T* dst)
-//! hypot_inplace two buffers on CUDA
-/*! Performs the following operation:
- *      dst[i] = hypot(alpha*src[i], beta*dst[i]),
- * where alpha and beta are non-zero scalars.
- *
- * @param[in] nelems: Size of the src and dst tensors
- * @param[in] alpha_: Scalar multiplier for the src tensor
- * @param[in] src_: Source tensor
- * @param[in] beta_: Scalar multiplier for the dst tensor
- * @param[inout] dst_: Destination of the hypot_inplace operation
+void cuda_kernel(Index nelems, Scalar alpha, const T* src, Scalar beta, T* dst)
+//! Generic implementation of the hypot_inplace operation on CUDA
+/*! @copydoc nntile::kernel::hypot_inplace::cuda
  * */
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
-    constexpr Y zero{0.0};
-    Y alpha{alpha_};
-    Y beta{beta_};
+    const Y alpha_{alpha}, beta_{beta};
     if(i < nelems)
     {
-        if(alpha == zero)
-        {
-            if(beta == zero)
-            {
-                dst[i] = zero;
-            }
-            else
-            {
-                dst[i] = ::fabs(beta * Y{dst[i]});
-            }
-        }
-        else
-        {
-            if(beta == zero)
-            {
-                dst[i] = ::fabs(alpha * Y{src[i]});
-            }
-            else
-            {
-                dst[i] = ::hypot(alpha*Y{src[i]}, beta*Y{dst[i]});
-            }
-        }
+        const Y src_val = static_cast<Y>(src[i]);
+        const Y dst_val = static_cast<Y>(dst[i]);
+        dst[i] = static_cast<T>(std::hypot(alpha_*src_val, beta_*dst_val));
     }
 }
 
@@ -69,10 +40,21 @@ template<typename T>
 void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src,
         Scalar beta, T *dst)
     noexcept
-//! hypot_inplace two buffers on CUDA
+//! Hypothenuse of two buffers with optional scaling inplace on CUDA
 /*! Performs the following operation:
- *      dst[i] = hypot(alpha*src[i], beta*dst[i]),
- * where alpha and beta are non-zero scalars.
+ * dst[i] = hypot(alpha*src[i], beta*dst[i])
+ *
+ * This function reads both src and dst even if alpha or beta is zero.
+ * If alpha is zero and src[i] is NaN, then dst[i] will be NaN.
+ * If beta is zero and dst[i] is NaN, then dst[i] will be NaN.
+ * If such behaviour is not desired, then in a case of alpha being zero,
+ * use nntile::kernel::scale_inplace instead, and in a case of beta being
+ * zero, use nntile::kernel::scale instead.
+ * If both alpha and beta are zero, then use nntile::kernel::clear instead.
+ *
+ * @see nntile::kernel::scale_inplace
+ * @see nntile::kernel::scale
+ * @see nntile::kernel::clear
  *
  * @param[in] nelems: Size of the src and dst tensors
  * @param[in] alpha: Scalar multiplier for the src tensor

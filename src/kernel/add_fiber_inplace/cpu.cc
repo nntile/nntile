@@ -19,12 +19,31 @@ namespace nntile::kernel::add_fiber_inplace
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src,
-        Scalar beta_, T *dst)
-    noexcept
-//! Per-element addition of a tensor and a broadcasted fiber on CPU
-/*! Performs the following operations:
+void cpu(
+    Index m,
+    Index n,
+    Index k,
+    Index batch,
+    Scalar alpha_,
+    const T *src,
+    Scalar beta_,
+    T *dst
+) noexcept
+//! Add a broadcasted fiber into a tensor inplace with optional scaling on CPU
+/*! Performs the following operation:
  *      dst[i,l,j,b] = beta*dst[i,l,j,b] + alpha*src[l,b]
+ *
+ * This function reads both src and dst even if alpha or beta is zero.
+ * If alpha is zero and src[l,b] is NaN, then dst[i,l,j,b] will be NaN.
+ * If beta is zero and dst[i,l,j,b] is NaN, then dst[i,l,j,b] will be NaN.
+ * If such behaviour is not desired, then in a case of alpha being zero,
+ * use nntile::kernel::scale_inplace, and in a case of beta being zero,
+ * use nntile::kernel::scale_fiber instead.
+ * If both alpha and beta are zero, then use nntile::kernel::clear instead.
+ *
+ * @see nntile::kernel::scale_inplace
+ * @see nntile::kernel::scale_fiber
+ * @see nntile::kernel::clear
  *
  * @param[in] m: Size of the first mode of dst tensor.
  * @param[in] n: Size of the last mode of dst tensor.
@@ -52,26 +71,13 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src,
             {
                 // Output fiber to be updated
                 T *dst_fiber = dst + ((i1+b*n)*k+i2)*m;
-                // Overwrite or update output depending on beta
-                if(beta == zero)
+                // Cycle over output fiber elements
+                for(Index i0 = 0; i0 < m; ++i0)
                 {
-                    // Cycle over output fiber elements
-                    for(Index i0 = 0; i0 < m; ++i0)
-                    {
-                        // Set output value
-                        dst_fiber[i0] = static_cast<T>(src_val);
-                    }
-                }
-                else
-                {
-                    // Cycle over output fiber elements
-                    for(Index i0 = 0; i0 < m; ++i0)
-                    {
-                        // Read value from the output
-                        T &dst_val = dst_fiber[i0];
-                        // And update it
-                        dst_val = static_cast<T>(beta * Y{dst_val} + src_val);
-                    }
+                    // Read value from the output
+                    T &dst_val = dst_fiber[i0];
+                    // And update it
+                    dst_val = static_cast<T>(beta * Y{dst_val} + src_val);
                 }
             }
         }

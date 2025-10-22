@@ -21,6 +21,8 @@
 // Other NNTile headers
 #include "nntile/kernel/add_slice_inplace.hh"
 #include "nntile/starpu/add_inplace.hh"
+#include "nntile/starpu/scale_inplace.hh"
+#include "nntile/starpu/scale_slice.hh"
 
 namespace nntile::starpu
 {
@@ -152,20 +154,27 @@ void AddSliceInplace<std::tuple<T>>::submit(
  * throws an std::runtime_error() exception.
  * */
 {
-    constexpr Scalar zero = 0.0, one = 1.0;
-    // If k is 1, then this operation reduces to add
+    // If k is 1, then this operation reduces to add_inplace
     if(k == 1)
     {
         add_inplace.submit<std::tuple<T>>(m*n, alpha, src, beta, dst);
         return;
     }
+    // If alpha is zero then reduce to scale_inplace
+    if(alpha == 0.0)
+    {
+        scale_inplace.submit<std::tuple<T>>(m*n*k, beta, dst);
+        return;
+    }
+    // If beta is zero then reduce to scale_slice
+    if(beta == 0.0)
+    {
+        scale_slice.submit<std::tuple<T>>(m, n, k, alpha, src, dst);
+        return;
+    }
     // Access mode for the dst handle
     enum starpu_data_access_mode dst_mode;
-    if(beta == zero)
-    {
-        dst_mode = STARPU_W;
-    }
-    else if(beta == one)
+    if(beta == 1.0)
     {
         dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
     }
@@ -181,8 +190,7 @@ void AddSliceInplace<std::tuple<T>>::submit(
     args->alpha = alpha;
     args->beta = beta;
     // Put amount of bytes read and write inplace of gflops
-    double nflops = beta == zero ? sizeof(T)*m*(k+1)*n :
-            sizeof(T)*m*(2*k+1)*n;
+    double nflops = sizeof(T) * m * (2*k+1) * n;
     // Submit task
     int ret = starpu_task_insert(&codelet,
             STARPU_R, src.get(),

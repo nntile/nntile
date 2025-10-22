@@ -21,6 +21,8 @@
 
 // Other NNTile headers
 #include "nntile/kernel/add_fiber_inplace.hh"
+#include "nntile/starpu/scale_inplace.hh"
+#include "nntile/starpu/scale_fiber.hh"
 
 namespace nntile::starpu
 {
@@ -167,14 +169,21 @@ void AddFiberInplace<std::tuple<T>>::submit(
     Handle dst
 )
 {
-    // Access mode for the dst handle
-    constexpr Scalar zero = 0, one = 1;
-    enum starpu_data_access_mode dst_mode;
-    if(beta == zero)
+    // If alpha is zero, then this operation reduces to scale_inplace
+    if(alpha == 0.0)
     {
-        dst_mode = STARPU_W;
+        scale_inplace.submit<std::tuple<T>>(m*n*k*batch, beta, dst);
+        return;
     }
-    else if(beta == one)
+    // If beta is zero, then this operation reduces to scale_fiber
+    if(beta == 0.0)
+    {
+        scale_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src, dst);
+        return;
+    }
+    // Access mode for the dst handle
+    enum starpu_data_access_mode dst_mode;
+    if(beta == 1.0)
     {
         dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
     }
@@ -190,12 +199,13 @@ void AddFiberInplace<std::tuple<T>>::submit(
     args->batch = batch;
     args->alpha = alpha;
     args->beta = beta;
-    double nflops = batch * k * (2*m*n+1);
+    // Put amount of bytes read and write inplace of gflops
+    double nflops = sizeof(T) * m * (2*k+1) * n * batch;
     // Submit task
     int ret = starpu_task_insert(&codelet,
             STARPU_R, src.get(),
-            STARPU_CL_ARGS, args, sizeof(*args),
             dst_mode, dst.get(),
+            STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);
     // Check submission
