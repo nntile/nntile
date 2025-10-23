@@ -334,7 +334,7 @@ TEMPLATE_TEST_CASE(
     );
 
     // Compute reference outputs for verification
-    reference_hypot_inplace(data);
+    reference_hypot(data);
 
     SECTION("cpu")
     {

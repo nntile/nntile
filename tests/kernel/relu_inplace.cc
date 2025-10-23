@@ -259,7 +259,7 @@ TEMPLATE_TEST_CASE(
     );
 
     // Compute reference outputs for verification
-    reference_relu_inplace(data);
+    reference_relu(data);
 
     SECTION("cpu")
     {
