@@ -71,6 +71,9 @@ void reference_sum_fiber(TestData<T>& data)
     const ref_t beta = data.beta;
     const ref_t zero = 0.0;
 
+    // Initialize reference output with input data
+    data.dst_ref = data.dst_init;
+
     // Cycle over batch
     for(Index b = 0; b < data.batch; ++b)
     {
@@ -374,7 +377,7 @@ TEMPLATE_TEST_CASE(
     // Compute reference outputs for verification
     reference_sum_fiber(data);
 
-    SECTION(("cpu")
+    SECTION("cpu")
     {
         run_cpu_test<T, false>(data);
     }

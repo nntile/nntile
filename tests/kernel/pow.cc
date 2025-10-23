@@ -70,6 +70,9 @@ void reference_pow(TestData<T>& data)
     const ref_t alpha = data.alpha;
     const ref_t exp = data.exp;
 
+    // Initialize reference output with input data
+    data.data_ref = data.data_init;
+
     for(Index i = 0; i < data.num_elems; ++i)
     {
         ref_t z = static_cast<Y>(data.data_init[i]);
@@ -304,7 +307,6 @@ TEMPLATE_TEST_CASE(
     );
 
     // Compute reference outputs for verification
-    data.data_ref = data.data_init;
     reference_pow(data);
 
     SECTION("cpu")
