@@ -383,7 +383,7 @@ TEMPLATE_TEST_CASE(
     // Compute reference outputs for verification
     reference_add_slice(data);
 
-    SECTION(("cpu")
+    SECTION("cpu")
     {
         run_cpu_test<T, false>(data);
     }

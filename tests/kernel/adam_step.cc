@@ -425,7 +425,7 @@ TEMPLATE_TEST_CASE(
     // Compute reference outputs for verification
     reference_adam_step(data);
 
-    SECTION(("cpu")
+    SECTION("cpu")
     {
         run_cpu_test<T, false>(data);
     }

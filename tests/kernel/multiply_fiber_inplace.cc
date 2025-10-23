@@ -391,7 +391,7 @@ TEMPLATE_TEST_CASE(
     // Compute reference outputs for verification
     reference_multiply_fiber_inplace(data);
 
-    SECTION(("cpu")
+    SECTION("cpu")
     {
         run_cpu_test<T, false>(data);
     }

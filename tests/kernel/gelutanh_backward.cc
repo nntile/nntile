@@ -317,7 +317,7 @@ TEMPLATE_TEST_CASE(
     // Compute reference outputs for verification
     reference_gelutanh_backward(data);
 
-    SECTION(("cpu")
+    SECTION("cpu")
     {
         run_cpu_test<T, false>(data);
     }
