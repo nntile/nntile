@@ -249,6 +249,7 @@ set(TILE_OPERATION_SRC
     "tile/copy.cc"
     "tile/copy_intersection.cc"
     "tile/fill.cc"
+    "tile/flash_sdpa_fwd_cudnn.cc"
     "tile/gelu.cc"
     "tile/gelu_inplace.cc"
     "tile/gelu_backward.cc"

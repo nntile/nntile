@@ -292,6 +292,7 @@ set(TILE_HDR
     "nntile/tile/relu.hh"
     "nntile/tile/relu_backward.hh"
     "nntile/tile/fill.hh"
+    "nntile/tile/flash_sdpa_fwd_cudnn.hh"
     "nntile/tile/sum_slice.hh"
     "nntile/tile/sum_fiber.hh"
     "nntile/tile/norm_fiber_inplace.hh"

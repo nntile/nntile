@@ -33,7 +33,6 @@ set(TESTS
     "embedding"
     "embedding_backward"
     "fill"
-    "flash_sdpa_fwd_cudnn"
     "gelu"
     "gelu_inplace"
     "gelu_backward"
@@ -85,6 +84,13 @@ set(TESTS
     "total_sum_accum"
     "transpose"
     )
+
+# CUDA-only tests (only added when CUDA is available)
+if(NNTILE_USE_CUDA)
+list(APPEND TESTS
+    "flash_sdpa_fwd_cudnn"
+)
+endif()
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
