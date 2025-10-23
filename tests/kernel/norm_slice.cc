@@ -163,9 +163,9 @@ void generate_data(TestData<T>& data, DataGen strategy)
     }
 }
 
-// Get test data and reference results
+// Get test input data (reference computation is done separately)
 template<typename T>
-TestData<T> get_test_data(
+TestData<T> get_test_input_data(
     Index m,
     Index n,
     Index k,
@@ -204,8 +204,6 @@ TestData<T> get_test_data(
     // Generate data by a provided strategy
     generate_data(data, strategy);
 
-    // Compute reference outputs
-    reference_norm_slice(data);
     return data;
 }
 
@@ -448,7 +446,7 @@ TEMPLATE_TEST_CASE(
     const Scalar beta = GENERATE(0.0, 0.5, 1.0);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
 
-    auto data = get_test_data<T>(
+    auto data = get_test_input_data<T>(
         m,
         n,
         k,
@@ -456,6 +454,9 @@ TEMPLATE_TEST_CASE(
         beta,
         strategy
     );
+
+    // Compute reference outputs for verification
+    reference_norm_slice(data);
 
     SECTION("cpu")
     {
@@ -488,7 +489,7 @@ TEMPLATE_TEST_CASE(
     const Scalar beta = GENERATE(1.0);
     const DataGen strategy = GENERATE(DataGen::PRESET);
 
-    auto data = get_test_data<T>(
+    auto data = get_test_input_data<T>(
         m,
         n,
         k,

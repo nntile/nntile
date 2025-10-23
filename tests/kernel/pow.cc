@@ -70,6 +70,9 @@ void reference_pow(TestData<T>& data)
     const ref_t alpha = data.alpha;
     const ref_t exp = data.exp;
 
+    // Initialize reference output with input data
+    data.data_ref = data.data_init;
+
     for(Index i = 0; i < data.num_elems; ++i)
     {
         ref_t z = static_cast<Y>(data.data_init[i]);
@@ -122,9 +125,9 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
     }
 }
 
-// Get test data and reference results
+// Get test input data (reference computation is done separately)
 template<typename T>
-TestData<T> get_test_data(
+TestData<T> get_test_input_data(
     Index num_elems,
     Scalar alpha,
     Scalar exp,
@@ -158,9 +161,6 @@ TestData<T> get_test_data(
     {
         throw std::runtime_error("Unsupported data type");
     }
-    // Compute reference outputs
-    data.data_ref = data.data_init;
-    reference_pow(data);
     return data;
 }
 
@@ -299,12 +299,15 @@ TEMPLATE_TEST_CASE(
     const Scalar exp = GENERATE(-1.0, 0.5, 1.0, 2.0);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
 
-    auto data = get_test_data<T>(
+    auto data = get_test_input_data<T>(
         num_elems,
         alpha,
         exp,
         strategy
     );
+
+    // Compute reference outputs for verification
+    reference_pow(data);
 
     SECTION("cpu")
     {
@@ -335,7 +338,7 @@ TEMPLATE_TEST_CASE(
     const Scalar exp = GENERATE(2.0);
     const DataGen strategy = GENERATE(DataGen::PRESET);
 
-    auto data = get_test_data<T>(
+    auto data = get_test_input_data<T>(
         num_elems,
         alpha,
         exp,
