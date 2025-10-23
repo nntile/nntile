@@ -84,7 +84,6 @@ set(TESTS_CATCH2
     "embedding"
     "embedding_backward"
     "fill"
-    "flash_sdpa_fwd_cudnn"
     "gelu"
     "gelu_inplace"
     "gelu_backward"
@@ -117,6 +116,13 @@ set(TESTS_CATCH2
     "sqrt"
     "sum_fiber"
 )
+
+# CUDA-only tests (only added when CUDA is available)
+if(NNTILE_USE_CUDA)
+    list(APPEND TESTS_CATCH2
+        "flash_sdpa_fwd_cudnn"
+    )
+endif()
 
 foreach(test IN LISTS TESTS_CATCH2)
     set(labels)
