@@ -19,3 +19,20 @@ repos:
     rev: 5.13.2
     hooks:
       - id: isort
+
+  # C++ linting and formatting
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v18.1.3
+    hooks:
+      - id: clang-format
+        types: [c++]
+        exclude: ^external/
+
+  # C++ linting with cpplint (more portable than clang-tidy)
+  - repo: https://github.com/cpplint/cpplint
+    rev: 1.6.1
+    hooks:
+      - id: cpplint
+        types: [c++]
+        exclude: ^external/
+        args: [--filter=-build/include_subdir,-build/include_order,-build/include_what_you_use,-build/c++11,-build/deprecated,-build/header_guard,-readability/casting,-readability/braces,-readability/fn_size,-readability/naming,-runtime/references,-runtime/string,-whitespace/braces,-whitespace/comma,-whitespace/comments,-whitespace/indent,-whitespace/line_length,-whitespace/operators,-whitespace/semicolon,-whitespace/tab]
