@@ -77,14 +77,15 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     }
     status = cudnnSetStream(handle, stream);
     if (status != CUDNN_STATUS_SUCCESS) {
-        cudnnDestroy(handle);
+        // Attempt cleanup even if we're about to fail
+        (void)cudnnDestroy(handle);
         return; // Fail silently in noexcept function
     }
     // Launch kernel
     kernel::flash_sdpa_fwd_cudnn::cuda<T>(handle, args->seq, args->head,
             args->batch, K, Q, mask, logsumexp, V, A);
     // Cleanup cuDNN handle
-    cudnnDestroy(handle); // StarPU deals with the handle
+    (void)cudnnDestroy(handle); // Explicitly ignore return value in noexcept context
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
