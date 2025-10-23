@@ -55,9 +55,9 @@ struct TestData
     std::vector<T> data_ref;
 };
 
-// Reference implementation of the ReLU operation
+// Reference implementation of the ReLU inplace operation
 template<typename T>
-void reference_relu(TestData<T>& data)
+void reference_relu_inplace(TestData<T>& data)
 {
     using Y = typename T::repr_t;
 
@@ -259,7 +259,7 @@ TEMPLATE_TEST_CASE(
     );
 
     // Compute reference outputs for verification
-    reference_relu(data);
+    reference_relu_inplace(data);
 
     SECTION("cpu")
     {

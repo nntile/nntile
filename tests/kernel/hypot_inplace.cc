@@ -59,9 +59,9 @@ struct TestData
     std::vector<T> dst_ref;
 };
 
-// Reference implementation of the hypot operation
+// Reference implementation of the hypot_inplace operation
 template<typename T>
-void reference_hypot(TestData<T>& data)
+void reference_hypot_inplace(TestData<T>& data)
 {
     using Y = typename T::repr_t;
     if (data.num_elems == 0)
@@ -334,7 +334,7 @@ TEMPLATE_TEST_CASE(
     );
 
     // Compute reference outputs for verification
-    reference_hypot(data);
+    reference_hypot_inplace(data);
 
     SECTION("cpu")
     {
