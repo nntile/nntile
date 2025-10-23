@@ -201,9 +201,9 @@ void generate_data(TestData<T>& data, Index m, Index n, Index k, DataGen strateg
     }
 }
 
-// Get test data and reference results
+// Get test input data (reference computation is done separately)
 template<typename T>
-TestData<T> get_test_data(
+TestData<T> get_test_input_data(
     Index m,
     Index n,
     Index k,
@@ -235,8 +235,6 @@ TestData<T> get_test_data(
     {
         throw std::runtime_error("Unsupported data type");
     }
-    // Compute reference outputs
-    reference_maxsumexp(data);
     return data;
 }
 
@@ -434,14 +432,17 @@ TEMPLATE_TEST_CASE(
     const Index k = GENERATE(5, 10);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
 
-    auto data = get_test_data<T>(
+    auto data = get_test_input_data<T>(
         m,
         n,
         k,
         strategy
     );
 
-    SECTION("cpu")
+    // Compute reference outputs for verification
+    reference_maxsumexp(data);
+
+    SECTION(("cpu")
     {
         run_cpu_test<T, false>(data);
     }
@@ -470,7 +471,7 @@ TEMPLATE_TEST_CASE(
     const Index k = GENERATE(128, 512);
     const DataGen strategy = GENERATE(DataGen::PRESET);
 
-    auto data = get_test_data<T>(
+    auto data = get_test_input_data<T>(
         m,
         n,
         k,

@@ -166,9 +166,9 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
     }
 }
 
-// Get test data and reference results
+// Get test input data (reference computation is done separately)
 template<typename T>
-TestData<T> get_test_data(
+TestData<T> get_test_input_data(
     Index num_elems,
     Index num_iter,
     Scalar beta_1,
@@ -210,8 +210,6 @@ TestData<T> get_test_data(
     {
         throw std::runtime_error("Unsupported data type");
     }
-    // Compute reference outputs
-    reference_adamw_step(data);
     return data;
 }
 
@@ -416,7 +414,7 @@ TEMPLATE_TEST_CASE(
     const Scalar weight_decay = GENERATE(0.0, 0.1, 0.2);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
 
-    auto data = get_test_data<T>(
+    auto data = get_test_input_data<T>(
         num_elems,
         num_iter,
         beta_1,
@@ -427,7 +425,10 @@ TEMPLATE_TEST_CASE(
         strategy
     );
 
-    SECTION("cpu")
+    // Compute reference outputs for verification
+    reference_adamw_step(data);
+
+    SECTION(("cpu")
     {
         run_cpu_test<T, false>(data);
     }
@@ -460,7 +461,7 @@ TEMPLATE_TEST_CASE(
     const Scalar weight_decay = GENERATE(0.1);
     const DataGen strategy = GENERATE(DataGen::PRESET);
 
-    auto data = get_test_data<T>(
+    auto data = get_test_input_data<T>(
         num_elems,
         num_iter,
         beta_1,
