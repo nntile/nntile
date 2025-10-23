@@ -109,9 +109,9 @@ void logger_main()
                 * 1e-6;
             uint64_t transferred_bytes = info.transferred_bytes;
             src = starpu_bus_get_src(busid);
-		    dst = starpu_bus_get_dst(busid);
+        dst = starpu_bus_get_dst(busid);
             starpu_memory_node_get_name(src, src_name, sizeof(src_name));
-		    starpu_memory_node_get_name(dst, dst_name, sizeof(dst_name));
+        starpu_memory_node_get_name(dst, dst_name, sizeof(dst_name));
             // Create JSON object for the bus
             ss << "{";
             ss << "\"total_bus_time\":" << total_bus_time << ",";
