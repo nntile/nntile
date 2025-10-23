@@ -19,6 +19,11 @@
 #include <cstdlib>
 #include <stdexcept>
 
+// Third-party libraries
+#ifdef NNTILE_USE_CUDA
+#include <cudnn.h>
+#endif
+
 // Other NNTile headers
 #include "nntile/kernel/flash_sdpa_fwd_cudnn.hh"
 
@@ -64,9 +69,22 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     T *A = interfaces[5]->get_ptr<T>();                 // Attention output
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Create cuDNN handle and set stream
+    cudnnHandle_t handle;
+    cudnnStatus_t status = cudnnCreate(&handle); // TODO: handle is from starpu_... call
+    if (status != CUDNN_STATUS_SUCCESS) {
+        return; // Fail silently in noexcept function
+    }
+    status = cudnnSetStream(handle, stream);
+    if (status != CUDNN_STATUS_SUCCESS) {
+        cudnnDestroy(handle);
+        return; // Fail silently in noexcept function
+    }
     // Launch kernel
-    kernel::flash_sdpa_fwd_cudnn::cuda<T>(stream, args->seq, args->head,
+    kernel::flash_sdpa_fwd_cudnn::cuda<T>(handle, args->seq, args->head,
             args->batch, K, Q, mask, logsumexp, V, A);
+    // Cleanup cuDNN handle
+    cudnnDestroy(handle); // StarPU deals with the handle
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA

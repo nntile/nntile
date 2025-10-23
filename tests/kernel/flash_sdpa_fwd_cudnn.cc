@@ -26,6 +26,7 @@
 
 // Third-party libraries
 #include <catch2/catch_all.hpp>
+#include <cudnn.h>
 
 // Other NNTile headers
 // CUDA_CHECK definition
@@ -66,6 +67,28 @@ struct TestData
 
     // For reference computation, we still need a mask representation
     std::vector<bool> mask_ref; // Reference mask: [batch, seq, seq] (true = keep, false = mask)
+
+#ifdef NNTILE_USE_CUDA
+    // Prepared cuDNN graph (prepared once, can be executed multiple times)
+    flash_sdpa_fwd_cudnn::FlashSdpaGraph<T>* prepared_graph;
+    cudnnHandle_t cudnn_handle;
+    cudaStream_t cuda_stream;
+
+    TestData() : prepared_graph(nullptr), cudnn_handle(nullptr), cuda_stream(nullptr) {}
+
+    ~TestData() {
+        // Cleanup cuDNN resources
+        if (prepared_graph != nullptr) {
+            flash_sdpa_fwd_cudnn::destroy_graph<T>(prepared_graph);
+        }
+        if (cudnn_handle != nullptr) {
+            cudnnDestroy(cudnn_handle);
+        }
+        if (cuda_stream != nullptr) {
+            cudaStreamDestroy(cuda_stream);
+        }
+    }
+#endif
 };
 
 // Reference implementation of attention: A = softmax(Q @ K^T / sqrt(head)) @ V
@@ -269,7 +292,7 @@ void generate_data(TestData<T>& data, Index seq, Index head, Index batch,
 
 // Get test data and reference results
 template<typename T>
-TestData<T> get_test_data(
+TestData<T> get_test_input_data(
     Index seq,
     Index head,
     Index batch,
@@ -303,8 +326,44 @@ TestData<T> get_test_data(
         throw std::runtime_error("Unsupported data type");
     }
 
-    // Compute reference outputs
-    reference_attention(data);
+#ifdef NNTILE_USE_CUDA
+    // Create CUDA stream
+    cudaError_t cuda_err = cudaStreamCreate(&data.cuda_stream);
+    if (cuda_err != cudaSuccess) {
+        throw std::runtime_error("Failed to create CUDA stream");
+    }
+
+    // Create cuDNN handle and set stream
+    cudnnStatus_t status = cudnnCreate(&data.cudnn_handle);
+    if (status != CUDNN_STATUS_SUCCESS) {
+        cudaStreamDestroy(data.cuda_stream);
+        throw std::runtime_error("Failed to create cuDNN handle");
+    }
+
+    status = cudnnSetStream(data.cudnn_handle, data.cuda_stream);
+    if (status != CUDNN_STATUS_SUCCESS) {
+        cudnnDestroy(data.cudnn_handle);
+        cudaStreamDestroy(data.cuda_stream);
+        throw std::runtime_error("Failed to set stream for cuDNN handle");
+    }
+
+    // Prepare the cuDNN graph
+    bool use_mask = (mask_type != MaskType::CAUSAL);
+    data.prepared_graph = flash_sdpa_fwd_cudnn::prepare_graph<T>(
+        data.cudnn_handle,
+        seq,
+        head,
+        batch,
+        use_mask
+    );
+
+    if (data.prepared_graph == nullptr) {
+        cudnnDestroy(data.cudnn_handle);
+        cudaStreamDestroy(data.cuda_stream);
+        throw std::runtime_error("Failed to prepare cuDNN graph");
+    }
+#endif
+
     return data;
 }
 
@@ -406,9 +465,7 @@ void run_cuda_test(TestData<T>& data, MaskType mask_type)
     CUDA_CHECK(cudaMemset(dev_logsumexp, 0, sizeof(T) * data.batch * data.seq),
                "cudaMemset dev_logsumexp");
 
-    cudaStream_t stream;
-    CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
-
+    // Use the prepared graph and handle from TestData
     if constexpr (run_bench)
     {
         BENCHMARK(
@@ -421,11 +478,9 @@ void run_cuda_test(TestData<T>& data, MaskType mask_type)
             "]"
         )
         {
-            cuda<T>(
-                stream,
-                data.seq,
-                data.head,
-                data.batch,
+            execute_graph<T>(
+                data.cudnn_handle,
+                data.prepared_graph,
                 dev_K,
                 dev_Q,
                 dev_mask,  // Pass mask (nullptr for causal, actual mask for custom)
@@ -433,16 +488,14 @@ void run_cuda_test(TestData<T>& data, MaskType mask_type)
                 dev_V,
                 dev_A
             );
-            cudaStreamSynchronize(stream);
+            cudaStreamSynchronize(data.cuda_stream);
         };
     }
     else
     {
-        cuda<T>(
-            stream,
-            data.seq,
-            data.head,
-            data.batch,
+        execute_graph<T>(
+            data.cudnn_handle,
+            data.prepared_graph,
             dev_K,
             dev_Q,
             dev_mask,  // Pass mask (nullptr for causal, actual mask for custom)
@@ -450,7 +503,7 @@ void run_cuda_test(TestData<T>& data, MaskType mask_type)
             dev_V,
             dev_A
         );
-        CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
+        CUDA_CHECK(cudaStreamSynchronize(data.cuda_stream), "cudaStreamSynchronize");
 
         // Copy outputs back to host
         std::vector<T> A_cuda(data.batch * data.seq * data.head);
@@ -478,7 +531,7 @@ void run_cuda_test(TestData<T>& data, MaskType mask_type)
     {
         CUDA_CHECK(cudaFree(dev_mask), "cudaFree dev_mask");
     }
-    CUDA_CHECK(cudaStreamDestroy(stream), "cudaStreamDestroy");
+    // Note: cuDNN handle, stream, and prepared graph are managed by TestData destructor
 }
 #endif // NNTILE_USE_CUDA
 
@@ -498,11 +551,13 @@ TEMPLATE_TEST_CASE(
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
     const MaskType mask_type = GENERATE(MaskType::CAUSAL, MaskType::FULL, MaskType::CUSTOM);
 
-    auto data = get_test_data<T>(
+    auto data = get_test_input_data<T>(
         seq, head, batch,
         strategy,
         mask_type
     );
+
+    reference_attention(data);
 
     SECTION("cuda")
     {
@@ -519,13 +574,13 @@ TEMPLATE_TEST_CASE(
 )
 {
     using T = TestType;
-    const Index seq = GENERATE(128, 256);
+    const Index seq = GENERATE(128, 1024, 4096);
     const Index head = GENERATE(64, 128);
     const Index batch = GENERATE(4, 8);
     const DataGen strategy = GENERATE(DataGen::RANDOM);
     const MaskType mask_type = GENERATE(MaskType::CAUSAL, MaskType::FULL);
 
-    auto data = get_test_data<T>(
+    auto data = get_test_input_data<T>(
         seq, head, batch,
         strategy,
         mask_type
