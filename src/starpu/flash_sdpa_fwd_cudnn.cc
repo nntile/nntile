@@ -26,9 +26,12 @@
 
 // Other NNTile headers
 #include "nntile/kernel/flash_sdpa_fwd_cudnn.hh"
+#include "nntile/context.hh"
 
 namespace nntile::starpu
 {
+
+// No caching for now - prepare graph directly in CUDA worker
 
 //! Constructor
 template<typename T>
@@ -36,6 +39,13 @@ FlashSdpaFwdCudnn<std::tuple<T>>::FlashSdpaFwdCudnn():
     codelet("nntile_flash_sdpa_fwd_cudnn", footprint, cpu_funcs, cuda_funcs)
 {
     // Modes are not fixed, they are decided during runtime by default
+}
+
+//! Destructor
+template<typename T>
+FlashSdpaFwdCudnn<std::tuple<T>>::~FlashSdpaFwdCudnn()
+{
+    // Global cache cleanup is handled at program shutdown
 }
 
 //! Apply flash_sdpa_fwd_cudnn on StarPU buffer on CPU (not supported)
@@ -59,33 +69,54 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     args_t *args = reinterpret_cast<args_t *>(cl_args);
+
+    // Get cuDNN handle and CUDA stream
+    cudnnHandle_t handle = cudnn_get_local_handle();
+    if (handle == nullptr) {
+        std::cerr << "CUDA Worker: cuDNN handle is null, skipping task" << std::endl;
+        return;
+    }
+
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    cudnnSetStream(handle, stream);
+
+    // Prepare the graph directly in the CUDA worker
+    args->prepared_graph = kernel::flash_sdpa_fwd_cudnn::prepare_graph<T>(
+        handle,
+        args->seq,
+        args->head,
+        args->batch
+    );
+
+    if (args->prepared_graph == nullptr)
+    {
+        std::cerr << "CUDA Worker: Failed to prepare cuDNN graph" << std::endl;
+        return;
+    }
+
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *K = interfaces[0]->get_ptr<T>();           // Key
     const T *Q = interfaces[1]->get_ptr<T>();           // Query
-    const T *mask = interfaces[2]->get_ptr<T>();        // Mask
+    const T *mask = interfaces[2]->get_ptr<T>();        // Mask (always present)
     T *logsumexp = interfaces[3]->get_ptr<T>();         // Log-sum-exp
     const T *V = interfaces[4]->get_ptr<T>();           // Value
     T *A = interfaces[5]->get_ptr<T>();                 // Attention output
-    // Get CUDA stream
-    cudaStream_t stream = starpu_cuda_get_local_stream();
-    // Create cuDNN handle and set stream
-    cudnnHandle_t handle;
-    cudnnStatus_t status = cudnnCreate(&handle); // TODO: handle is from starpu_... call
-    if (status != CUDNN_STATUS_SUCCESS) {
-        return; // Fail silently in noexcept function
-    }
-    status = cudnnSetStream(handle, stream);
-    if (status != CUDNN_STATUS_SUCCESS) {
-        // Attempt cleanup even if we're about to fail
-        (void)cudnnDestroy(handle);
-        return; // Fail silently in noexcept function
-    }
-    // Launch kernel
-    kernel::flash_sdpa_fwd_cudnn::cuda<T>(handle, args->seq, args->head,
-            args->batch, K, Q, mask, logsumexp, V, A);
-    // Cleanup cuDNN handle
-    (void)cudnnDestroy(handle); // Explicitly ignore return value in noexcept context
+
+    // Execute the prepared graph - mask is already nullptr when not used
+    kernel::flash_sdpa_fwd_cudnn::execute_graph<T>(
+        handle,
+        args->prepared_graph,
+        K,
+        Q,
+        mask,
+        logsumexp,
+        V,
+        A
+    );
+
+    // Clean up the prepared graph
+    kernel::flash_sdpa_fwd_cudnn::destroy_graph<T>(args->prepared_graph);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
@@ -97,9 +128,12 @@ uint32_t FlashSdpaFwdCudnn<std::tuple<T>>::footprint(struct starpu_task *task)
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
     uint32_t hash = 0;
+#ifdef NNTILE_USE_CUDA
+    // Hash based on the graph parameters (same for all workers)
     hash = starpu_hash_crc32c_be_n(&args->seq, sizeof(args->seq), hash);
     hash = starpu_hash_crc32c_be_n(&args->head, sizeof(args->head), hash);
     hash = starpu_hash_crc32c_be_n(&args->batch, sizeof(args->batch), hash);
+#endif // NNTILE_USE_CUDA
     return hash;
 }
 
@@ -109,10 +143,16 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::submit(Index seq, Index head, Index batch
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
+#ifdef NNTILE_USE_CUDA
+    args->prepared_graph = nullptr; // Initialize to nullptr
+
+    // Store parameters for graph preparation in CUDA worker
     args->seq = seq;
     args->head = head;
     args->batch = batch;
-    // Submit task
+#endif // NNTILE_USE_CUDA
+
+    // Submit task - always include mask parameter
     int ret = starpu_task_insert(&codelet,
             STARPU_R, K.get(),              // Key
             STARPU_R, Q.get(),              // Query

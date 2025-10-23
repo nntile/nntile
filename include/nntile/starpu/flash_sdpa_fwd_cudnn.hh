@@ -19,10 +19,16 @@
 
 // Standard headers
 #include <tuple>
+#include <unordered_map>
+#include <mutex>
 
 // NNTile headers
 #include <nntile/starpu/codelet.hh>
 #include <nntile/starpu/handle.hh>
+
+#ifdef NNTILE_USE_CUDA
+#include <nntile/kernel/flash_sdpa_fwd_cudnn.hh>
+#endif // NNTILE_USE_CUDA
 
 namespace nntile::starpu
 {
@@ -39,15 +45,25 @@ public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
+#ifdef NNTILE_USE_CUDA
+    // No per-instance cache needed - using global cache
+#endif // NNTILE_USE_CUDA
+
     //! Constructor
     FlashSdpaFwdCudnn();
+
+    //! Destructor
+    ~FlashSdpaFwdCudnn();
 
     //! Structure for operation arguments
     struct args_t
     {
+#ifdef NNTILE_USE_CUDA
+        kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph<T>* prepared_graph;
         Index seq;
         Index head;
         Index batch;
+#endif // NNTILE_USE_CUDA
     };
 
     //! Footprint function for the current operation

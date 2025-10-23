@@ -38,17 +38,24 @@ namespace nntile
 
 #ifdef NNTILE_USE_CUDA
 //! Global variable for cuDNN handles
-static cudnnHandle_t cudnn_handles[STARPU_NMAXWORKERS];
+static cudnnHandle_t cudnn_handles[STARPU_NMAXWORKERS] = {nullptr};
 
 //! Specific function to initialize cuDNN per CUDA worker
 static void cudnn_init(void *args [[maybe_unused]])
 {
     // Get current worker ID and initialize cuDNN handle
     int worker_id = starpu_worker_get_id();
-    cudnnCreate(&cudnn_handles[worker_id]);
+    cudnnStatus_t status = cudnnCreate(&cudnn_handles[worker_id]);
+    if (status != CUDNN_STATUS_SUCCESS) {
+        return;
+    }
     // Get CUDA stream for the current worker and set it to the cuDNN handle
     auto stream = starpu_cuda_get_local_stream();
-    cudnnSetStream(cudnn_handles[worker_id], stream);
+    status = cudnnSetStream(cudnn_handles[worker_id], stream);
+    if (status != CUDNN_STATUS_SUCCESS) {
+        cudnnDestroy(cudnn_handles[worker_id]);
+        cudnn_handles[worker_id] = nullptr;
+    }
 }
 
 //! Specific function to shut down cuDNN per CUDA worker
@@ -57,6 +64,19 @@ static void cudnn_shutdown(void *args [[maybe_unused]])
     // Get current worker ID and initialize cuDNN handle
     int worker_id = starpu_worker_get_id();
     cudnnDestroy(cudnn_handles[worker_id]);
+}
+
+//! Get cuDNN handle for the current CUDA worker
+cudnnHandle_t cudnn_get_local_handle()
+{
+    int worker_id = starpu_worker_get_id();
+
+    // Check if worker_id is valid
+    if (worker_id < 0 || worker_id >= STARPU_NMAXWORKERS) {
+        return nullptr;
+    }
+
+    return cudnn_handles[worker_id];
 }
 #endif // NNTILE_USE_CUDA
 

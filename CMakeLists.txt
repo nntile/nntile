@@ -107,7 +107,7 @@ elseif(USE_CUDA)
         # Disable tests for cuDNN frontend
         include(${cudnn_frontend_SOURCE_DIR}/cmake/cuDNN.cmake)
         target_link_libraries(nntile PUBLIC CUDA::cublas CUDNN::cudnn_all)
-        target_include_directories(nntile PRIVATE ${cudnn_frontend_SOURCE_DIR}/include)
+        target_include_directories(nntile PUBLIC ${cudnn_frontend_SOURCE_DIR}/include)
         set(NNTILE_USE_CUDA ON)
         set(NNTILE_LINK_CUDA ON)
         # Set support for FP16

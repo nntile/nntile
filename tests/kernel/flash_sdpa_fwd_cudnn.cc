@@ -74,13 +74,11 @@ struct TestData
     std::vector<T> Q;          // Query: [batch, seq, head]
     std::vector<int> seq_lengths_q; // Sequence lengths for Q (per batch element)
     std::vector<int> seq_lengths_kv; // Sequence lengths for K/V (per batch element)
-    std::vector<int> lo_win_idx;    // Lower window index for causal masking
-    std::vector<int> hi_win_idx;    // Upper window index for causal masking
     std::vector<T> V;          // Value: [batch, seq, head]
     std::vector<T> A_ref;      // Attention output reference: [batch, seq, head]
     std::vector<T> logsumexp_ref; // Log-sum-exp reference: [batch, seq]
 
-    // For reference computation, we still need a mask representation
+    // For reference computation, we need a mask representation
     std::vector<bool> mask_ref; // Reference mask: [batch, seq, seq] (true = keep, false = mask)
 };
 
@@ -189,18 +187,10 @@ enum class DataGen
     RANDOM
 };
 
-// Enum for mask types
-enum class MaskType
-{
-    CAUSAL,      // Lower triangular mask (j <= i)
-    FULL,        // No masking (all true)
-    CUSTOM       // Custom pattern: alternating bands
-};
-
 // Generates data with preset, deterministic values
 template<typename T>
 void generate_data(TestData<T>& data, Index seq, Index head, Index batch,
-                   DataGen strategy, MaskType mask_type)
+                   DataGen strategy)
 {
     using Y = typename T::repr_t;
     data.seq = seq;
@@ -213,8 +203,6 @@ void generate_data(TestData<T>& data, Index seq, Index head, Index batch,
     data.V.resize(batch * seq * head);
     data.seq_lengths_q.resize(batch);
     data.seq_lengths_kv.resize(batch);
-    data.lo_win_idx.resize(batch);
-    data.hi_win_idx.resize(batch);
 
     switch(strategy)
     {
@@ -246,12 +234,9 @@ void generate_data(TestData<T>& data, Index seq, Index head, Index batch,
     {
         data.seq_lengths_q[b] = seq;
         data.seq_lengths_kv[b] = seq;
-        // For causal masking: currIdx - loWinIdx to currIdx + hiWinIdx
-        data.lo_win_idx[b] = seq; // Look at all previous positions
-        data.hi_win_idx[b] = 0;   // Don't look at future positions (causal)
     }
 
-    // Generate mask based on mask type
+    // Generate custom mask
     for(Index b = 0; b < batch; ++b)
     {
         for(Index i = 0; i < seq; ++i)
@@ -259,25 +244,10 @@ void generate_data(TestData<T>& data, Index seq, Index head, Index batch,
             for(Index j = 0; j < seq; ++j)
             {
                 Index idx = b * seq * seq + i * seq + j;
-                switch(mask_type)
-                {
-                    case MaskType::CAUSAL:
-                        // Lower triangular mask: attend to previous and current positions
-                        data.mask_ref[idx] = (j <= i);
-                        break;
-                    case MaskType::FULL:
-                        // No masking: attend to all positions
-                        data.mask_ref[idx] = true;
-                        break;
-                    case MaskType::CUSTOM:
-                        // Custom pattern: alternating bands with window size 64
-                        // Attend to positions within distance 64
-                        {
-                            Index dist = (i > j) ? (i - j) : (j - i);
-                            data.mask_ref[idx] = (dist <= 64);
-                        }
-                        break;
-                }
+                // Custom pattern: alternating bands with window size 32
+                // Attend to positions within distance 32
+                Index dist = (i > j) ? (i - j) : (j - i);
+                data.mask_ref[idx] = (dist <= 32);
             }
         }
     }
@@ -289,13 +259,12 @@ TestData<T> get_test_input_data(
     Index seq,
     Index head,
     Index batch,
-    DataGen strategy,
-    MaskType mask_type
+    DataGen strategy
 )
 {
     TestData<T> data;
     // Generate data by a provided strategy
-    generate_data(data, seq, head, batch, strategy, mask_type);
+    generate_data(data, seq, head, batch, strategy);
 
     // Set accuracy threshold for each precision
     if (std::is_same_v<T, bf16_t>)
@@ -360,7 +329,7 @@ void verify_results(
 #ifdef NNTILE_USE_CUDA
 // Helper function to run CUDA test and verify results
 template<typename T, bool run_bench>
-void run_cuda_test(TestData<T>& data, MaskType mask_type)
+void run_cuda_test(TestData<T>& data)
 {
     T *dev_K, *dev_Q, *dev_logsumexp, *dev_V, *dev_A, *dev_mask;
 
@@ -376,13 +345,9 @@ void run_cuda_test(TestData<T>& data, MaskType mask_type)
     CUDA_CHECK(cudaMalloc(&dev_A, sizeof(T) * data.batch * data.seq * data.head),
                "cudaMalloc dev_A");
 
-    // Allocate mask if not using causal mask
-    dev_mask = nullptr;
-    if (mask_type != MaskType::CAUSAL)
-    {
-        CUDA_CHECK(cudaMalloc(&dev_mask, sizeof(T) * data.batch * data.seq * data.seq),
-                   "cudaMalloc dev_mask");
-    }
+    // Always allocate mask memory
+    CUDA_CHECK(cudaMalloc(&dev_mask, sizeof(T) * data.batch * data.seq * data.seq),
+               "cudaMalloc dev_mask");
 
     // Copy inputs to device
     CUDA_CHECK(cudaMemcpy(dev_K, &data.K[0],
@@ -395,26 +360,23 @@ void run_cuda_test(TestData<T>& data, MaskType mask_type)
                           sizeof(T) * data.batch * data.seq * data.head,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_V");
 
-    // Copy mask to device if not using causal mask
-    if (dev_mask != nullptr)
+    // Always copy mask to device
+    // Convert bool mask to T type for cuDNN bias
+    // cuDNN bias is added to attention scores before softmax
+    // So: mask=true (attend) -> bias=0.0, mask=false (mask out) -> bias=-inf
+    using Y = typename T::repr_t;
+    std::vector<T> mask_converted(data.batch * data.seq * data.seq);
+    for(Index i = 0; i < data.batch * data.seq * data.seq; ++i)
     {
-        // Convert bool mask to T type for cuDNN bias
-        // cuDNN bias is added to attention scores before softmax
-        // So: mask=true (attend) -> bias=0.0, mask=false (mask out) -> bias=-inf
-        using Y = typename T::repr_t;
-        std::vector<T> mask_converted(data.batch * data.seq * data.seq);
-        for(Index i = 0; i < data.batch * data.seq * data.seq; ++i)
-        {
-            if (data.mask_ref[i]) {
-                mask_converted[i] = T(Y(0.0));  // Attend: add 0 to score
-            } else {
-                mask_converted[i] = T(-std::numeric_limits<Y>::infinity());  // Mask: add -inf to score
-            }
+        if (data.mask_ref[i]) {
+            mask_converted[i] = T(Y(0.0));  // Attend: add 0 to score
+        } else {
+            mask_converted[i] = T(-std::numeric_limits<Y>::infinity());  // Mask: add -inf to score
         }
-        CUDA_CHECK(cudaMemcpy(dev_mask, mask_converted.data(),
-                              sizeof(T) * data.batch * data.seq * data.seq,
-                              cudaMemcpyHostToDevice), "cudaMemcpy dev_mask");
     }
+    CUDA_CHECK(cudaMemcpy(dev_mask, mask_converted.data(),
+                          sizeof(T) * data.batch * data.seq * data.seq,
+                          cudaMemcpyHostToDevice), "cudaMemcpy dev_mask");
 
     // Initialize logsumexp to zero
     CUDA_CHECK(cudaMemset(dev_logsumexp, 0, sizeof(T) * data.batch * data.seq),
@@ -440,13 +402,11 @@ void run_cuda_test(TestData<T>& data, MaskType mask_type)
     }
 
     // Prepare the cuDNN graph
-    bool use_mask = (mask_type != MaskType::CAUSAL);
     auto* prepared_graph = prepare_graph<T>(
         handle,
         data.seq,
         data.head,
-        data.batch,
-        use_mask
+        data.batch
     );
     REQUIRE(prepared_graph != nullptr);
 
@@ -467,7 +427,7 @@ void run_cuda_test(TestData<T>& data, MaskType mask_type)
                 prepared_graph,
                 dev_K,
                 dev_Q,
-                dev_mask,  // Pass mask (nullptr for causal, actual mask for custom)
+                dev_mask,  // Pass mask (always provided)
                 dev_logsumexp,
                 dev_V,
                 dev_A
@@ -482,7 +442,7 @@ void run_cuda_test(TestData<T>& data, MaskType mask_type)
             prepared_graph,
             dev_K,
             dev_Q,
-            dev_mask,  // Pass mask (nullptr for causal, actual mask for custom)
+            dev_mask,  // Pass mask (always provided)
             dev_logsumexp,
             dev_V,
             dev_A
@@ -516,10 +476,7 @@ void run_cuda_test(TestData<T>& data, MaskType mask_type)
     CUDA_CHECK(cudaFree(dev_logsumexp), "cudaFree dev_logsumexp");
     CUDA_CHECK(cudaFree(dev_V), "cudaFree dev_V");
     CUDA_CHECK(cudaFree(dev_A), "cudaFree dev_A");
-    if (dev_mask != nullptr)
-    {
-        CUDA_CHECK(cudaFree(dev_mask), "cudaFree dev_mask");
-    }
+    CUDA_CHECK(cudaFree(dev_mask), "cudaFree dev_mask");
 }
 #endif // NNTILE_USE_CUDA
 
@@ -533,23 +490,20 @@ TEMPLATE_TEST_CASE(
 )
 {
     using T = TestType;
-    const Index seq = GENERATE(1024);
-    const Index head = GENERATE(64);
-    const Index batch = GENERATE(1);
+    const Index seq = GENERATE(64, 1024);
+    const Index head = GENERATE(32, 64);
+    const Index batch = GENERATE(1, 4);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
-    const MaskType mask_type = GENERATE(MaskType::CAUSAL, MaskType::FULL, MaskType::CUSTOM);
-
     auto data = get_test_input_data<T>(
         seq, head, batch,
-        strategy,
-        mask_type
+        strategy
     );
 
     reference_attention(data);
 
     SECTION("cuda")
     {
-        run_cuda_test<T, false>(data, mask_type);
+        run_cuda_test<T, false>(data);
     }
 }
 
@@ -566,17 +520,15 @@ TEMPLATE_TEST_CASE(
     const Index head = GENERATE(64, 128);
     const Index batch = GENERATE(4, 8);
     const DataGen strategy = GENERATE(DataGen::RANDOM);
-    const MaskType mask_type = GENERATE(MaskType::CAUSAL, MaskType::FULL);
 
     auto data = get_test_input_data<T>(
         seq, head, batch,
-        strategy,
-        mask_type
+        strategy
     );
 
     SECTION("cuda")
     {
-        run_cuda_test<T, true>(data, mask_type);
+        run_cuda_test<T, true>(data);
     }
 }
 #endif // NNTILE_USE_CUDA

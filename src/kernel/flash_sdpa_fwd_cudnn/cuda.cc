@@ -32,23 +32,9 @@ constexpr ::int64_t O_UID = 4;
 constexpr ::int64_t STATS_UID = 5;
 constexpr ::int64_t MASK_UID = 6;
 
-//! Structure to hold prepared cuDNN graph for flash attention
-template<typename T>
-struct FlashSdpaGraph
-{
-    std::shared_ptr<fe::graph::Graph> graph;
-    ::int64_t workspace_size;
-    ::int64_t batch;
-    ::int64_t seq;
-    ::int64_t head;
-    bool has_mask;
-
-    FlashSdpaGraph() : workspace_size(0), batch(0), seq(0), head(0), has_mask(false) {}
-};
-
 template<typename T>
 FlashSdpaGraph<T>* prepare_graph(cudnnHandle_t handle, Index seq, Index head,
-                                   Index batch, bool use_mask)
+                                   Index batch)
     noexcept
 //! Prepare cuDNN graph for flash attention
 /*!
@@ -59,7 +45,6 @@ FlashSdpaGraph<T>* prepare_graph(cudnnHandle_t handle, Index seq, Index head,
  * @param[in] seq: Sequence length
  * @param[in] head: Head dimension (d_qk = d_v)
  * @param[in] batch: Batch size
- * @param[in] use_mask: Whether to use custom mask (true) or causal mask (false)
  * @return Pointer to prepared graph structure, or nullptr on error
  * */
 {
@@ -80,7 +65,7 @@ FlashSdpaGraph<T>* prepare_graph(cudnnHandle_t handle, Index seq, Index head,
         result->batch = static_cast<::int64_t>(batch);
         result->seq = static_cast<::int64_t>(seq);
         result->head = static_cast<::int64_t>(head);
-        result->has_mask = use_mask;
+        result->has_mask = true;  // Always use mask now
 
         // Create a graph
         result->graph = std::make_shared<fe::graph::Graph>();
@@ -90,51 +75,45 @@ FlashSdpaGraph<T>* prepare_graph(cudnnHandle_t handle, Index seq, Index head,
 
         // Parameters for SDPA
         ::int64_t b = result->batch;
-        ::int64_t h = 1;  // Number of heads (we use 1 head with larger dimension)
+        ::int64_t num_heads = 1;  // Number of attention heads
         ::int64_t s = result->seq;
-        ::int64_t d = result->head;  // Head dimension
-        float attn_scale = 1.0f / std::sqrt(static_cast<float>(head));
+        ::int64_t d = result->head;  // Head dimension (d_qk = d_v)
+        float attn_scale = 1.0f / std::sqrt(static_cast<float>(d));
 
-        // Define input tensors
+        // Define input tensors - cuDNN Flash Attention expects [batch, seq, num_heads, head_dim]
         auto Q_tensor = result->graph->tensor(fe::graph::Tensor_attributes()
                                    .set_name("Q")
                                    .set_uid(Q_UID)
-                                   .set_dim({b, h, s, d})
-                                   .set_stride({s * d, s * d, d, 1}));
+                                   .set_dim({b, num_heads, s, d})
+                                   .set_stride({num_heads * s * d, s * d, d, 1}));
 
         auto K_tensor = result->graph->tensor(fe::graph::Tensor_attributes()
                                    .set_name("K")
                                    .set_uid(K_UID)
-                                   .set_dim({b, h, s, d})
-                                   .set_stride({s * d, s * d, d, 1}));
-
+                                   .set_dim({b, num_heads, s, d})
+                                   .set_stride({num_heads * s * d, s * d, d, 1}));
         auto V_tensor = result->graph->tensor(fe::graph::Tensor_attributes()
                                    .set_name("V")
                                    .set_uid(V_UID)
-                                   .set_dim({b, h, s, d})
-                                   .set_stride({s * d, s * d, d, 1}));
+                                   .set_dim({b, num_heads, s, d})
+                                   .set_stride({num_heads * s * d, s * d, d, 1}));
 
-        // Create SDPA options
+        // Create SDPA options - always use bias (mask)
         auto sdpa_options = fe::graph::SDPA_attributes()
                                 .set_name("flash_attention")
                                 .set_is_inference(false)  // We want statistics
                                 .set_attn_scale(attn_scale);
 
-        // Add mask/bias if needed
-        if (use_mask) {
-            auto Mask_tensor = result->graph->tensor(fe::graph::Tensor_attributes()
-                                       .set_name("Bias")
-                                       .set_uid(MASK_UID)
-                                       .set_dim({b, 1, s, s})
-                                       .set_stride({s * s, s * s, s, 1})
-                                       .set_data_type(data_type));
+        // Always use custom mask
+        auto Mask_tensor = result->graph->tensor(fe::graph::Tensor_attributes()
+                                   .set_name("Bias")
+                                   .set_uid(MASK_UID)
+                                   .set_dim({b, 1, s, s})  // cuDNN expects [batch, 1, seq_q, seq_k]
+                                   .set_stride({s * s, s * s, s, 1})
+                                   .set_data_type(data_type));
 
-            sdpa_options.set_bias(Mask_tensor);
-            sdpa_options.set_causal_mask(false);
-        } else {
-            // Use built-in causal mask
-            sdpa_options.set_causal_mask(true);
-        }
+        sdpa_options.set_bias(Mask_tensor);
+        sdpa_options.set_causal_mask(false);
 
         // Execute SDPA
         auto sdpa_output = result->graph->sdpa(Q_tensor, K_tensor, V_tensor, sdpa_options);
@@ -143,8 +122,8 @@ FlashSdpaGraph<T>* prepare_graph(cudnnHandle_t handle, Index seq, Index head,
 
         // Set output properties
         O_tensor->set_output(true)
-            .set_dim({b, h, s, d})
-            .set_stride({s * d, s * d, d, 1})
+            .set_dim({b, num_heads, s, d})
+            .set_stride({num_heads * s * d, s * d, d, 1})
             .set_uid(O_UID);
 
         Stats_tensor->set_output(true)
@@ -154,6 +133,11 @@ FlashSdpaGraph<T>* prepare_graph(cudnnHandle_t handle, Index seq, Index head,
         // Build the graph
         auto build_status = result->graph->build(handle, {fe::HeurMode_t::A});
         if (!build_status.is_good()) {
+            std::cerr << "cuDNN graph build failed!" << std::endl;
+            std::cerr << "Build status code: " << static_cast<int>(build_status.get_code()) << std::endl;
+            std::cerr << "Build status message: " << build_status.get_message() << std::endl;
+            std::cerr << "Dimensions: seq=" << seq << ", head=" << head << ", batch=" << batch << std::endl;
+            std::cerr << "Data type: " << (std::is_same_v<T, fp16_t> ? "fp16" : "bf16") << std::endl;
             delete result;
             return nullptr;
         }
@@ -161,6 +145,9 @@ FlashSdpaGraph<T>* prepare_graph(cudnnHandle_t handle, Index seq, Index head,
         // Get workspace size
         auto ws_status = result->graph->get_workspace_size(result->workspace_size);
         if (!ws_status.is_good()) {
+            std::cerr << "Failed to get workspace size!" << std::endl;
+            std::cerr << "Workspace status code: " << static_cast<int>(ws_status.get_code()) << std::endl;
+            std::cerr << "Workspace status message: " << ws_status.get_message() << std::endl;
             delete result;
             return nullptr;
         }
@@ -197,8 +184,9 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph<T>* prepared_graph
 
     try {
         ::int64_t b = prepared_graph->batch;
-        ::int64_t h = 1;
+        ::int64_t num_heads = 1;
         ::int64_t s = prepared_graph->seq;
+        ::int64_t d = prepared_graph->head;
 
         // Allocate workspace
         void* workspace = nullptr;
@@ -211,7 +199,7 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph<T>* prepared_graph
 
         // Allocate float buffer for stats
         float* stats_float = nullptr;
-        cudaMalloc(&stats_float, sizeof(float) * b * h * s);
+        cudaMalloc(&stats_float, sizeof(float) * b * num_heads * s);
         if (stats_float == nullptr) {
             if (workspace != nullptr) {
                 cudaFree(workspace);
@@ -247,10 +235,11 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph<T>* prepared_graph
         if (logsumexp != nullptr) {
             // WORKAROUND: Copy through host for type conversion
             // TODO: Replace with device kernel for better performance
-            std::vector<float> host_stats(b * s);
-            cudaMemcpy(host_stats.data(), stats_float, sizeof(float) * b * s, cudaMemcpyDeviceToHost);
+            std::vector<float> host_stats(b * num_heads * s);
+            cudaMemcpy(host_stats.data(), stats_float, sizeof(float) * b * num_heads * s, cudaMemcpyDeviceToHost);
             std::vector<T> host_logsumexp(b * s);
             for (::int64_t i = 0; i < b * s; ++i) {
+                // Sum over heads (only 1 head in our case)
                 host_logsumexp[i] = static_cast<T>(host_stats[i]);
             }
             cudaMemcpy(logsumexp, host_logsumexp.data(), sizeof(T) * b * s, cudaMemcpyHostToDevice);
@@ -306,7 +295,7 @@ void cuda(cudnnHandle_t handle, Index seq, Index head, Index batch,
  * */
 {
     // Prepare graph
-    auto* prepared_graph = prepare_graph<T>(handle, seq, head, batch, mask != nullptr);
+    auto* prepared_graph = prepare_graph<T>(handle, seq, head, batch);
     if (prepared_graph == nullptr) {
         return;
     }
@@ -323,12 +312,12 @@ void cuda(cudnnHandle_t handle, Index seq, Index head, Index batch,
 // prepare_graph
 template
 FlashSdpaGraph<fp16_t>* prepare_graph<fp16_t>(cudnnHandle_t handle, Index seq,
-                                                Index head, Index batch, bool use_mask)
+                                                Index head, Index batch)
     noexcept;
 
 template
 FlashSdpaGraph<bf16_t>* prepare_graph<bf16_t>(cudnnHandle_t handle, Index seq,
-                                                Index head, Index batch, bool use_mask)
+                                                Index head, Index batch)
     noexcept;
 
 // execute_graph

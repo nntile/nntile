@@ -15,15 +15,26 @@
 #pragma once
 
 #include <nntile/base_types.hh>
+#include <memory>
 #include <cuda_runtime.h>
-#include <cudnn.h>
+#include <cudnn_frontend.h>
 
 namespace nntile::kernel::flash_sdpa_fwd_cudnn
 {
 
-//! Forward declaration of prepared graph structure
+//! Structure to hold prepared cuDNN graph for flash attention
 template<typename T>
-struct FlashSdpaGraph;
+struct FlashSdpaGraph
+{
+    std::shared_ptr<cudnn_frontend::graph::Graph> graph;
+    ::int64_t workspace_size;
+    ::int64_t batch;
+    ::int64_t seq;
+    ::int64_t head;
+    bool has_mask;
+
+    FlashSdpaGraph() : workspace_size(0), batch(0), seq(0), head(0), has_mask(false) {}
+};
 
 //! Prepare cuDNN graph for flash attention
 /*! Prepares and builds the cuDNN graph for flash attention with fixed dimensions.
@@ -32,7 +43,6 @@ struct FlashSdpaGraph;
  * @param[in] seq: Sequence length
  * @param[in] head: Head dimension (d_qk = d_v)
  * @param[in] batch: Batch size
- * @param[in] use_mask: Whether to use custom mask (true) or causal mask (false)
  * @return Pointer to prepared graph structure, or nullptr on error
  * */
 template<typename T>
@@ -40,8 +50,7 @@ FlashSdpaGraph<T>* prepare_graph(
     cudnnHandle_t handle,
     Index seq,
     Index head,
-    Index batch,
-    bool use_mask
+    Index batch
 ) noexcept;
 
 //! Execute prepared cuDNN graph for flash attention
@@ -86,7 +95,7 @@ void destroy_graph(
  * @param[in] batch: Batch size
  * @param[in] K: Key tensor [batch, seq, head]
  * @param[in] Q: Query tensor [batch, seq, head]
- * @param[in] mask: Optional mask tensor [batch, seq, seq] (boolean). If nullptr, uses causal mask
+ * @param[in] mask: Mask tensor [batch, seq, seq] (required)
  * @param[out] logsumexp: Log-sum-exp statistics [batch, seq]
  * @param[in] V: Value tensor [batch, seq, head]
  * @param[out] A: Attention output tensor [batch, seq, head]

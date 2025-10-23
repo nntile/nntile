@@ -105,7 +105,6 @@ set(TESTS_NOT_IMPLEMENTED
     "copy"
     "embedding"
     "embedding_backward"
-    "flash_sdpa_fwd_cudnn"
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"
