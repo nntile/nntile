@@ -120,6 +120,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
 
     data.src.resize(num_elems);
     data.dst_init.resize(num_elems);
+    data.dst_ref.resize(num_elems);
 
     switch(strategy)
     {
