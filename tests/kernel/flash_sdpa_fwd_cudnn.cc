@@ -26,7 +26,9 @@
 
 // Third-party libraries
 #include <catch2/catch_all.hpp>
+#ifdef NNTILE_USE_CUDA
 #include <cudnn.h>
+#endif // NNTILE_USE_CUDA
 
 // Other NNTile headers
 // CUDA_CHECK definition
