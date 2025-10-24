@@ -30,17 +30,19 @@ void check()
     using Y = typename T::repr_t;
 
     // Test parameters - use small values for testing
-    Index batch = 2;
-    Index seq = 64;
-    Index head = 32;
+    Index head_size = 32;
+    Index n_seq = 64;
+    Index n_batch = 2;
+    Index kv_group_size = 1;
+    Index n_head_kv = 1;
 
     // Create tiles with appropriate shapes
-    Tile<T> K_tile({batch, seq, head});
-    Tile<T> Q_tile({batch, seq, head});
-    Tile<T> V_tile({batch, seq, head});
-    Tile<T> A_tile({batch, seq, head});
-    Tile<T> mask_tile({batch, seq, seq});
-    Tile<T> logsumexp_tile({batch, seq});
+    Tile<T> K_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> Q_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> V_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> A_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> mask_tile({n_batch, n_seq, n_seq});
+    Tile<T> logsumexp_tile({n_batch, n_seq, kv_group_size});
 
     // Initialize input data
     auto K_local = K_tile.acquire(STARPU_W);
@@ -65,13 +67,13 @@ void check()
     }
 
     // Create custom mask (similar to starpu test)
-    for(Index b = 0; b < batch; ++b)
+    for(Index b = 0; b < n_batch; ++b)
     {
-        for(Index i = 0; i < seq; ++i)
+        for(Index i = 0; i < n_seq; ++i)
         {
-            for(Index j = 0; j < seq; ++j)
+            for(Index j = 0; j < n_seq; ++j)
             {
-                Index idx = b * seq * seq + i * seq + j;
+                Index idx = b * n_seq * n_seq + i * n_seq + j;
                 // Create a simple mask: allow attention within a window
                 if (std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 32)
                 {
@@ -95,12 +97,12 @@ void check()
     // Test 1: Compare tile-level vs starpu-level
     {
         // Create copies for starpu-level test
-        Tile<T> K_starpu({batch, seq, head});
-        Tile<T> Q_starpu({batch, seq, head});
-        Tile<T> V_starpu({batch, seq, head});
-        Tile<T> A_starpu({batch, seq, head});
-        Tile<T> mask_starpu({batch, seq, seq});
-        Tile<T> logsumexp_starpu({batch, seq});
+        Tile<T> K_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+        Tile<T> Q_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+        Tile<T> V_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+        Tile<T> A_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+        Tile<T> mask_starpu({n_batch, n_seq, n_seq});
+        Tile<T> logsumexp_starpu({n_batch, n_seq, kv_group_size});
 
         // Copy data to starpu tiles
         auto K_src = K_tile.acquire(STARPU_R);
@@ -151,7 +153,7 @@ void check()
 
         // Call starpu-level operation
         starpu::flash_sdpa_fwd_cudnn.submit<std::tuple<T>>(
-            seq, head, batch, K_starpu, Q_starpu, mask_starpu,
+            n_seq, head_size, n_batch * kv_group_size * n_head_kv, K_starpu, Q_starpu, mask_starpu,
             logsumexp_starpu, V_starpu, A_starpu);
 
         // Call tile-level operation

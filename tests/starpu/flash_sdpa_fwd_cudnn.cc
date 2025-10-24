@@ -54,7 +54,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     cudnn_status = cudnnSetStream(handle, stream);
     TEST_ASSERT(cudnn_status == CUDNN_STATUS_SUCCESS);
 
-    // Initialize input data
+    // Initialize input data (batch here is the combined batch dimension)
     std::vector<T> K(batch * seq * head);
     std::vector<T> Q(batch * seq * head);
     std::vector<T> V(batch * seq * head);
@@ -68,9 +68,10 @@ void validate_cuda(Index seq, Index head, Index batch)
         V[i] = T(Y(0.1 * ((i + 2) % 10 - 5)));
     }
 
-    // Create custom mask
-    mask.resize(batch * seq * seq);
-    for(Index b = 0; b < batch; ++b)
+    // Create custom mask (batch here is the actual batch dimension for mask)
+    Index actual_batch = batch / (1 * 1);  // Assuming kv_group_size=1, n_head_kv=1
+    mask.resize(actual_batch * seq * seq);
+    for(Index b = 0; b < actual_batch; ++b)
     {
         for(Index i = 0; i < seq; ++i)
         {
@@ -100,11 +101,11 @@ void validate_cuda(Index seq, Index head, Index batch)
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_A_kernel, sizeof(T) * batch * seq * head);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_logsumexp_kernel, sizeof(T) * batch * seq);
+    cuda_err = cudaMalloc(&dev_logsumexp_kernel, sizeof(T) * actual_batch * seq);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
-    // Always allocate mask memory
-    cuda_err = cudaMalloc(&dev_mask, sizeof(T) * batch * seq * seq);
+    // Always allocate mask memory (use actual batch size for mask)
+    cuda_err = cudaMalloc(&dev_mask, sizeof(T) * actual_batch * seq * seq);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
     // Copy inputs to device
@@ -118,15 +119,15 @@ void validate_cuda(Index seq, Index head, Index batch)
                           cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
-    // Always copy mask data
-    cuda_err = cudaMemcpy(dev_mask, mask.data(), sizeof(T) * batch * seq * seq,
+    // Always copy mask data (use actual batch size for mask)
+    cuda_err = cudaMemcpy(dev_mask, mask.data(), sizeof(T) * actual_batch * seq * seq,
                           cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
     // Initialize outputs to zero
     cuda_err = cudaMemset(dev_A_kernel, 0, sizeof(T) * batch * seq * head);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemset(dev_logsumexp_kernel, 0, sizeof(T) * batch * seq);
+    cuda_err = cudaMemset(dev_logsumexp_kernel, 0, sizeof(T) * actual_batch * seq);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
     // Run kernel directly
@@ -142,33 +143,33 @@ void validate_cuda(Index seq, Index head, Index batch)
 
     // Copy kernel results back to host
     std::vector<T> A_kernel(batch * seq * head);
-    std::vector<T> logsumexp_kernel(batch * seq);
+    std::vector<T> logsumexp_kernel(actual_batch * seq);
     cuda_err = cudaMemcpy(A_kernel.data(), dev_A_kernel,
                           sizeof(T) * batch * seq * head,
                           cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(logsumexp_kernel.data(), dev_logsumexp_kernel,
-                          sizeof(T) * batch * seq,
+                          sizeof(T) * actual_batch * seq,
                           cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
     // Now test via StarPU submit
     std::vector<T> K2(K), Q2(Q), V2(V), mask2(mask);
     std::vector<T> A_starpu(batch * seq * head, T(Y(0.0)));
-    std::vector<T> logsumexp_starpu(batch * seq, T(Y(0.0)));
+    std::vector<T> logsumexp_starpu(actual_batch * seq, T(Y(0.0)));
 
     // Create StarPU handles
     VariableHandle K_handle(&K2[0], sizeof(T) * batch * seq * head);
     VariableHandle Q_handle(&Q2[0], sizeof(T) * batch * seq * head);
     VariableHandle V_handle(&V2[0], sizeof(T) * batch * seq * head);
     VariableHandle A_handle(&A_starpu[0], sizeof(T) * batch * seq * head);
-    VariableHandle logsumexp_handle(&logsumexp_starpu[0], sizeof(T) * batch * seq);
+    VariableHandle logsumexp_handle(&logsumexp_starpu[0], sizeof(T) * actual_batch * seq);
 
     // Restrict to CUDA and submit
     flash_sdpa_fwd_cudnn.restrict_where(STARPU_CUDA);
 
-    // Always use custom mask
-    VariableHandle mask_handle(&mask2[0], sizeof(T) * batch * seq * seq);
+    // Always use custom mask (use actual batch size for mask)
+    VariableHandle mask_handle(&mask2[0], sizeof(T) * actual_batch * seq * seq);
     flash_sdpa_fwd_cudnn.submit<std::tuple<T>>(
         seq, head, batch,
         K_handle, Q_handle,

@@ -25,33 +25,33 @@ static inline void flash_sdpa_fwd_cudnn_check(const TensorTraits &K,
         const TensorTraits &logsumexp, const TensorTraits &V,
         const TensorTraits &A)
 {
-    // All tensors should be 3D
-    if(K.ndim != 3)
+    // All tensors should be 5D for K/Q/V/A, 3D for mask, 3D for logsumexp
+    if(K.ndim != 5)
     {
-        throw std::runtime_error("K.ndim != 3");
+        throw std::runtime_error("K.ndim != 5");
     }
-    if(Q.ndim != 3)
+    if(Q.ndim != 5)
     {
-        throw std::runtime_error("Q.ndim != 3");
+        throw std::runtime_error("Q.ndim != 5");
     }
-    if(V.ndim != 3)
+    if(V.ndim != 5)
     {
-        throw std::runtime_error("V.ndim != 3");
+        throw std::runtime_error("V.ndim != 5");
     }
-    if(A.ndim != 3)
+    if(A.ndim != 5)
     {
-        throw std::runtime_error("A.ndim != 3");
+        throw std::runtime_error("A.ndim != 5");
     }
     if(mask.ndim != 3)
     {
         throw std::runtime_error("mask.ndim != 3");
     }
-    if(logsumexp.ndim != 2)
+    if(logsumexp.ndim != 3)
     {
-        throw std::runtime_error("logsumexp.ndim != 2");
+        throw std::runtime_error("logsumexp.ndim != 3");
     }
 
-    // Check batch dimension (first dimension for all tensors)
+    // Check head_size dimension (first dimension for K/Q/V/A)
     if(K.shape[0] != Q.shape[0])
     {
         throw std::runtime_error("K.shape[0] != Q.shape[0]");
@@ -63,14 +63,6 @@ static inline void flash_sdpa_fwd_cudnn_check(const TensorTraits &K,
     if(K.shape[0] != A.shape[0])
     {
         throw std::runtime_error("K.shape[0] != A.shape[0]");
-    }
-    if(K.shape[0] != mask.shape[0])
-    {
-        throw std::runtime_error("K.shape[0] != mask.shape[0]");
-    }
-    if(K.shape[0] != logsumexp.shape[0])
-    {
-        throw std::runtime_error("K.shape[0] != logsumexp.shape[0]");
     }
 
     // Check sequence dimension (second dimension for K/Q/V/A, second for mask, first for logsumexp)
@@ -99,7 +91,7 @@ static inline void flash_sdpa_fwd_cudnn_check(const TensorTraits &K,
         throw std::runtime_error("K.shape[1] != logsumexp.shape[1]");
     }
 
-    // Check head dimension (third dimension for K/Q/V/A)
+    // Check batch dimension (third dimension for K/Q/V/A, first for mask/logsumexp)
     if(K.shape[2] != Q.shape[2])
     {
         throw std::runtime_error("K.shape[2] != Q.shape[2]");
@@ -112,8 +104,48 @@ static inline void flash_sdpa_fwd_cudnn_check(const TensorTraits &K,
     {
         throw std::runtime_error("K.shape[2] != A.shape[2]");
     }
+    if(K.shape[2] != mask.shape[0])
+    {
+        throw std::runtime_error("K.shape[2] != mask.shape[0]");
+    }
+    if(K.shape[2] != logsumexp.shape[0])
+    {
+        throw std::runtime_error("K.shape[2] != logsumexp.shape[0]");
+    }
 
-    // Check head dimension matches for mask (should be seq x seq)
+    // Check kv_group_size dimension (fourth dimension for K/Q/V/A, second for logsumexp)
+    if(K.shape[3] != Q.shape[3])
+    {
+        throw std::runtime_error("K.shape[3] != Q.shape[3]");
+    }
+    if(K.shape[3] != V.shape[3])
+    {
+        throw std::runtime_error("K.shape[3] != V.shape[3]");
+    }
+    if(K.shape[3] != A.shape[3])
+    {
+        throw std::runtime_error("K.shape[3] != A.shape[3]");
+    }
+    if(K.shape[3] != logsumexp.shape[2])
+    {
+        throw std::runtime_error("K.shape[3] != logsumexp.shape[2]");
+    }
+
+    // Check n_head_kv dimension (fifth dimension for K/Q/V/A)
+    if(K.shape[4] != Q.shape[4])
+    {
+        throw std::runtime_error("K.shape[4] != Q.shape[4]");
+    }
+    if(K.shape[4] != V.shape[4])
+    {
+        throw std::runtime_error("K.shape[4] != V.shape[4]");
+    }
+    if(K.shape[4] != A.shape[4])
+    {
+        throw std::runtime_error("K.shape[4] != A.shape[4]");
+    }
+
+    // Check mask dimensions (should be seq x seq)
     if(mask.shape[1] != mask.shape[2])
     {
         throw std::runtime_error("mask.shape[1] != mask.shape[2]");
@@ -158,12 +190,12 @@ static inline void flash_sdpa_fwd_cudnn_check(const TensorTraits &K,
 }
 
 //! Asynchronous tensor-wise flash_sdpa_fwd_cudnn operation
-/*! @param[in] K: Key tensor [batch, seq, head]
- * @param[in] Q: Query tensor [batch, seq, head]
- * @param[in] mask: Mask tensor [batch, seq, seq]
- * @param[inout] logsumexp: Log-sum-exp statistics [batch, seq]
- * @param[in] V: Value tensor [batch, seq, head]
- * @param[out] A: Attention output tensor [batch, seq, head]
+/*! @param[in] K: Key tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+ * @param[in] Q: Query tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+ * @param[in] mask: Mask tensor [n_batch, n_seq, n_seq]
+ * @param[inout] logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size]
+ * @param[in] V: Value tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+ * @param[out] A: Attention output tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * */
 template<typename T>
 void flash_sdpa_fwd_cudnn_async(const Tensor<T> &K, const Tensor<T> &Q,
@@ -205,8 +237,9 @@ void flash_sdpa_fwd_cudnn_async(const Tensor<T> &K, const Tensor<T> &Q,
 
             // Extract dimensions for starpu call
             Index seq = K_traits.shape[1];
-            Index head = K_traits.shape[2];
-            Index batch = K_traits.shape[0];
+            Index head = K_traits.shape[0];
+            // Combine batch dimensions: n_batch * kv_group_size * n_head_kv -> batch
+            Index batch = K_traits.shape[2] * K_traits.shape[3] * K_traits.shape[4];
 
             // Submit starpu operation
             starpu::flash_sdpa_fwd_cudnn.submit<std::tuple<T>>(
@@ -220,12 +253,12 @@ void flash_sdpa_fwd_cudnn_async(const Tensor<T> &K, const Tensor<T> &Q,
 }
 
 //! Blocking version of tensor-wise flash_sdpa_fwd_cudnn operation
-/*! @param[in] K: Key tensor [batch, seq, head]
- * @param[in] Q: Query tensor [batch, seq, head]
- * @param[in] mask: Mask tensor [batch, seq, seq]
- * @param[inout] logsumexp: Log-sum-exp statistics [batch, seq]
- * @param[in] V: Value tensor [batch, seq, head]
- * @param[out] A: Attention output tensor [batch, seq, head]
+/*! @param[in] K: Key tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+ * @param[in] Q: Query tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+ * @param[in] mask: Mask tensor [n_batch, n_seq, n_seq]
+ * @param[inout] logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size]
+ * @param[in] V: Value tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+ * @param[out] A: Attention output tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * */
 template<typename T>
 void flash_sdpa_fwd_cudnn(const Tensor<T> &K, const Tensor<T> &Q,

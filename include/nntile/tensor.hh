@@ -87,7 +87,7 @@
 #include <nntile/tensor/norm_fiber_inplace.hh>
 #include <nntile/tensor/norm_fiber.hh>
 #include <nntile/tensor/log_scalar.hh>
-
+#include <nntile/tensor/flash_sdpa_fwd_cudnn.hh>
 
 //! @namespace nntile::tensor
 /*! This namespace holds high-level routines for Tensor<T>

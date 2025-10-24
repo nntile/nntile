@@ -31,19 +31,21 @@ void check()
     using Y = typename T::repr_t;
 
     // Test parameters - use small values for testing
-    Index batch = 2;
-    Index seq = 64;
-    Index head = 32;
+    Index head_size = 32;
+    Index n_seq = 64;
+    Index n_batch = 2;
+    Index kv_group_size = 1;
+    Index n_head_kv = 1;
 
     // Create single-tile tensors (assuming one tile per tensor as requested)
-    std::vector<Index> K_shape = {batch, seq, head};
-    std::vector<Index> logsumexp_shape = {batch, seq};
+    std::vector<Index> K_shape = {head_size, n_seq, n_batch, kv_group_size, n_head_kv};
+    std::vector<Index> logsumexp_shape = {n_batch, n_seq, kv_group_size};
 
     TensorTraits K_traits(K_shape, K_shape);
     TensorTraits Q_traits(K_shape, K_shape);
     TensorTraits V_traits(K_shape, K_shape);
     TensorTraits A_traits(K_shape, K_shape);
-    TensorTraits mask_traits({batch, seq, seq}, {batch, seq, seq});
+    TensorTraits mask_traits({n_batch, n_seq, n_seq}, {n_batch, n_seq, n_seq});
     TensorTraits logsumexp_traits(logsumexp_shape, logsumexp_shape);
 
     // Use root rank for all tensors (single MPI rank scenario)
@@ -91,13 +93,13 @@ void check()
         }
 
         // Create custom mask (similar to starpu test)
-        for(Index b = 0; b < batch; ++b)
+        for(Index b = 0; b < n_batch; ++b)
         {
-            for(Index i = 0; i < seq; ++i)
+            for(Index i = 0; i < n_seq; ++i)
             {
-                for(Index j = 0; j < seq; ++j)
+                for(Index j = 0; j < n_seq; ++j)
                 {
-                    Index idx = b * seq * seq + i * seq + j;
+                    Index idx = b * n_seq * n_seq + i * n_seq + j;
                     // Create a simple mask: allow attention within a window
                     if (std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 32)
                     {

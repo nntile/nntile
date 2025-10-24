@@ -2042,3 +2042,40 @@ def log_scalar_async(name: str, value: Tensor) -> None:
         ops.log_scalar_async_bf16(name, value)
     else:
         raise TypeError('Wrong tensor type {type(value)}.')
+
+
+def flash_sdpa_fwd_cudnn_async(
+    K: Tensor,
+    Q: Tensor,
+    mask: Tensor,
+    logsumexp: Tensor,
+    V: Tensor,
+    A: Tensor,
+) -> None:
+    """
+    Flash attention scaled dot-product attention forward pass using cuDNN.
+
+    This function performs scaled dot-product attention using cuDNN's Flash Attention
+    implementation. All tensors should have the same 5D shape:
+    [head_size, n_seq, n_batch, kv_group_size, n_head_kv] in Fortran order.
+
+    Args:
+        K: Key tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+        Q: Query tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+        mask: Mask tensor [n_batch, n_seq, n_seq]
+        logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size]
+        V: Value tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+        A: Attention output tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+
+    Note:
+        Only BF16 and FP16 are supported due to cuDNN limitations.
+    """
+    if type(K) is not type(Q) or type(K) is not type(V) or type(K) is not type(A):
+        raise TypeError("K, Q, V, A must have the same tensor type")
+
+    if type(K) is core_tensor.Tensor_bf16:
+        core_tensor.flash_sdpa_fwd_cudnn_async_bf16(K, Q, mask, logsumexp, V, A)
+    elif type(K) is core_tensor.Tensor_fp16:
+        core_tensor.flash_sdpa_fwd_cudnn_async_fp16(K, Q, mask, logsumexp, V, A)
+    else:
+        raise TypeError("Only BF16 and FP16 tensor types are supported")
