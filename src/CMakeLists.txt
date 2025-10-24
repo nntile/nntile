@@ -318,6 +318,7 @@ set(TENSOR_OPERATION_SRC
     "tensor/embedding.cc"
     "tensor/embedding_backward.cc"
     "tensor/fill.cc"
+    "tensor/flash_sdpa_fwd_cudnn.cc"
     "tensor/gather.cc"
     "tensor/gelu.cc"
     "tensor/gelu_inplace.cc"

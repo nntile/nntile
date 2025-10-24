@@ -375,6 +375,7 @@ set(TENSOR_HDR
     "nntile/tensor/add_inplace.hh"
     "nntile/tensor/embedding.hh"
     "nntile/tensor/embedding_backward.hh"
+    "nntile/tensor/flash_sdpa_fwd_cudnn.hh"
     "nntile/tensor/mask_scalar.hh"
     "nntile/tensor/hypot_inplace.hh"
     "nntile/tensor/hypot.hh"
