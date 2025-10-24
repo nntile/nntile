@@ -148,6 +148,7 @@ if(NOT HAVE_STARPU_SIMGRID)
             "kernel/sumprod_slice/cuda.cu"
             "kernel/total_sum_accum/cuda.cu"
             "kernel/transpose/cuda.cu"
+            "kernel/flash_sdpa_fwd_cudnn/cuda.cc"
         )
     endif(NNTILE_USE_CUDA)
 endif(NOT HAVE_STARPU_SIMGRID)
@@ -181,6 +182,7 @@ set(STARPU_CODELET_SRC
     "starpu/embedding.cc"
     "starpu/embedding_backward.cc"
     "starpu/fill.cc"
+    "starpu/flash_sdpa_fwd_cudnn.cc"
     "starpu/gelu.cc"
     "starpu/gelu_inplace.cc"
     "starpu/gelu_backward.cc"
@@ -247,6 +249,7 @@ set(TILE_OPERATION_SRC
     "tile/copy.cc"
     "tile/copy_intersection.cc"
     "tile/fill.cc"
+    "tile/flash_sdpa_fwd_cudnn.cc"
     "tile/gelu.cc"
     "tile/gelu_inplace.cc"
     "tile/gelu_backward.cc"
@@ -315,6 +318,7 @@ set(TENSOR_OPERATION_SRC
     "tensor/embedding.cc"
     "tensor/embedding_backward.cc"
     "tensor/fill.cc"
+    "tensor/flash_sdpa_fwd_cudnn.cc"
     "tensor/gather.cc"
     "tensor/gelu.cc"
     "tensor/gelu_inplace.cc"

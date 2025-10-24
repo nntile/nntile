@@ -1583,6 +1583,13 @@ void def_mod_tensor(py::module_ &m)
     m.def("log_scalar_fp32_fast_fp16", &log_scalar<fp32_fast_fp16_t>);
     m.def("log_scalar_fp32_fast_bf16", &log_scalar<fp32_fast_bf16_t>);
     m.def("log_scalar_bf16", &log_scalar<bf16_t>);
+
+    // Flash SDPA operations (only BF16 and FP16 are supported due to cuDNN limitations)
+    m.def("flash_sdpa_fwd_cudnn_async_bf16", &flash_sdpa_fwd_cudnn_async<bf16_t>);
+    m.def("flash_sdpa_fwd_cudnn_async_fp16", &flash_sdpa_fwd_cudnn_async<fp16_t>);
+
+    m.def("flash_sdpa_fwd_cudnn_bf16", &flash_sdpa_fwd_cudnn<bf16_t>);
+    m.def("flash_sdpa_fwd_cudnn_fp16", &flash_sdpa_fwd_cudnn<fp16_t>);
 }
 
 // Main extension module with all wrappers
