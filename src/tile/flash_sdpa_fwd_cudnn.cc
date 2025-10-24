@@ -25,7 +25,7 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
         const TileTraits &logsumexp, const TileTraits &V,
         const TileTraits &A)
 {
-    // All tensors should be 5D for K/Q/V/A, 3D for mask, 3D for logsumexp
+    // All tensors should be 5D for K/Q/V/A, 2D for mask, 3D for logsumexp
     if(K.ndim != 5)
     {
         throw std::runtime_error("K.ndim != 5");
@@ -42,9 +42,9 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
     {
         throw std::runtime_error("A.ndim != 5");
     }
-    if(mask.ndim != 3)
+    if(mask.ndim != 2)
     {
-        throw std::runtime_error("mask.ndim != 3");
+        throw std::runtime_error("mask.ndim != 2");
     }
     if(logsumexp.ndim != 3)
     {
@@ -65,7 +65,7 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
         throw std::runtime_error("K.shape[0] != A.shape[0]");
     }
 
-    // Check sequence dimension (second dimension for K/Q/V/A, second for mask, first for logsumexp)
+    // Check sequence dimension (second dimension for K/Q/V/A, both dims for mask, second for logsumexp)
     if(K.shape[1] != Q.shape[1])
     {
         throw std::runtime_error("K.shape[1] != Q.shape[1]");
@@ -78,20 +78,20 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
     {
         throw std::runtime_error("K.shape[1] != A.shape[1]");
     }
+    if(K.shape[1] != mask.shape[0])
+    {
+        throw std::runtime_error("K.shape[1] != mask.shape[0]");
+    }
     if(K.shape[1] != mask.shape[1])
     {
         throw std::runtime_error("K.shape[1] != mask.shape[1]");
-    }
-    if(K.shape[1] != mask.shape[2])
-    {
-        throw std::runtime_error("K.shape[1] != mask.shape[2]");
     }
     if(K.shape[1] != logsumexp.shape[1])
     {
         throw std::runtime_error("K.shape[1] != logsumexp.shape[1]");
     }
 
-    // Check batch dimension (third dimension for K/Q/V/A, first for mask/logsumexp)
+    // Check batch dimension (third dimension for K/Q/V/A, first for logsumexp)
     if(K.shape[2] != Q.shape[2])
     {
         throw std::runtime_error("K.shape[2] != Q.shape[2]");
@@ -103,10 +103,6 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
     if(K.shape[2] != A.shape[2])
     {
         throw std::runtime_error("K.shape[2] != A.shape[2]");
-    }
-    if(K.shape[2] != mask.shape[0])
-    {
-        throw std::runtime_error("K.shape[2] != mask.shape[0]");
     }
     if(K.shape[2] != logsumexp.shape[0])
     {
@@ -145,17 +141,13 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
         throw std::runtime_error("K.shape[4] != A.shape[4]");
     }
 
-    // Check mask dimensions (should be seq x seq)
-    if(mask.shape[1] != mask.shape[2])
-    {
-        throw std::runtime_error("mask.shape[1] != mask.shape[2]");
-    }
+    // Mask dimensions are already checked above (both should equal seq)
 }
 
 //! Asynchronous tile-wise flash_sdpa_fwd_cudnn operation
 /*! @param[in] K: Key tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[in] Q: Query tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
- * @param[in] mask: Mask tensor [n_batch, n_seq, n_seq]
+ * @param[in] mask: Mask tensor [n_seq, n_seq]
  * @param[inout] logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size]
  * @param[in] V: Value tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[out] A: Attention output tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
@@ -182,7 +174,7 @@ void flash_sdpa_fwd_cudnn_async(const Tile<T> &K, const Tile<T> &Q,
 //! Blocking version of tile-wise flash_sdpa_fwd_cudnn operation
 /*! @param[in] K: Key tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[in] Q: Query tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
- * @param[in] mask: Mask tensor [n_batch, n_seq, n_seq]
+ * @param[in] mask: Mask tensor [n_seq, n_seq]
  * @param[inout] logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size]
  * @param[in] V: Value tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[out] A: Attention output tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]

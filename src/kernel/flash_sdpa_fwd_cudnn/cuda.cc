@@ -108,7 +108,7 @@ FlashSdpaGraph<T>* prepare_graph(cudnnHandle_t handle, Index seq, Index head,
         auto Mask_tensor = result->graph->tensor(fe::graph::Tensor_attributes()
                                    .set_name("Bias")
                                    .set_uid(MASK_UID)
-                                   .set_dim({b, 1, s, s})  // cuDNN expects [batch, 1, seq_q, seq_k]
+                                   .set_dim({1, 1, s, s})  // cuDNN expects [1, 1, seq_q, seq_k]
                                    .set_stride({s * s, s * s, s, 1})
                                    .set_data_type(data_type));
 
@@ -167,12 +167,13 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph<T>* prepared_graph
 //! Execute prepared cuDNN graph for flash attention
 /*!
  * Executes a previously prepared cuDNN graph with provided data pointers.
+ * The mask tensor is virtually reshaped from [seq, seq] to [1, 1, seq, seq] for cuDNN.
  *
  * @param[in] handle: cuDNN handle (with stream already set)
  * @param[in] prepared_graph: Previously prepared graph structure
  * @param[in] K: Key tensor [batch, seq, head]
  * @param[in] Q: Query tensor [batch, seq, head]
- * @param[in] mask: Optional mask tensor [batch, seq, seq]. Required if graph was prepared with use_mask=true
+ * @param[in] mask: Mask tensor [seq, seq] (virtually reshaped to [1, 1, seq, seq] for cuDNN)
  * @param[out] logsumexp: Log-sum-exp statistics [batch, seq]
  * @param[in] V: Value tensor [batch, seq, head]
  * @param[out] A: Attention output tensor [batch, seq, head]
@@ -281,6 +282,7 @@ void cuda(cudnnHandle_t handle, Index seq, Index head, Index batch,
  * Performs scaled dot-product attention using cuDNN's Flash Attention implementation.
  * This is a convenience function that prepares the graph, executes it, and destroys it.
  * For better performance with repeated calls, use prepare_graph/execute_graph/destroy_graph directly.
+ * The mask tensor is virtually reshaped from [seq, seq] to [1, 1, seq, seq] for cuDNN.
  *
  * @param[in] handle: cuDNN handle (with stream already set)
  * @param[in] seq: Sequence length
@@ -288,7 +290,7 @@ void cuda(cudnnHandle_t handle, Index seq, Index head, Index batch,
  * @param[in] batch: Batch size
  * @param[in] K: Key tensor [batch, seq, head]
  * @param[in] Q: Query tensor [batch, seq, head]
- * @param[in] mask: Optional mask tensor [batch, seq, seq] (boolean). If nullptr, uses causal mask
+ * @param[in] mask: Mask tensor [seq, seq] (virtually reshaped to [1, 1, seq, seq] for cuDNN)
  * @param[out] logsumexp: Log-sum-exp statistics [batch, seq]
  * @param[in] V: Value tensor [batch, seq, head]
  * @param[out] A: Attention output tensor [batch, seq, head]

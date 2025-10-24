@@ -43,7 +43,7 @@ def pytorch_multihead_attention_baseline(Q_src, K_src, V_src, mask_src,
                kv_group_size, n_head_kv]
         V_src: Value tensor in NNTile format [head_size, n_seq, n_batch,
                kv_group_size, n_head_kv]
-        mask_src: Attention mask [n_batch, n_seq, n_seq]
+        mask_src: Attention mask [n_seq, n_seq]
         n_head_kv: Number of key/value heads
         dtype: Data type ('fp16' or 'bf16')
 
@@ -72,7 +72,7 @@ def pytorch_multihead_attention_baseline(Q_src, K_src, V_src, mask_src,
         K_pt = torch.from_numpy(K_transposed.reshape(n_batch, n_seq, -1))
         V_pt = torch.from_numpy(V_transposed.reshape(n_batch, n_seq, -1))
 
-        # Convert mask: [n_batch, n_seq, n_seq] -> [n_batch, n_seq, n_seq]
+        # Convert mask: [n_seq, n_seq] -> [n_seq, n_seq]
         mask_pt = torch.from_numpy(mask_src)
 
         # Create multi-head attention layer
@@ -89,7 +89,10 @@ def pytorch_multihead_attention_baseline(Q_src, K_src, V_src, mask_src,
         # Note: PyTorch MHA expects mask as [batch, seq, seq] where True means
         # masked out
         # Our mask has 0.0 for allowed positions and -inf for masked positions
-        attn_mask = mask_pt == -float('inf')
+        # Since our mask is 2D [seq, seq], we need to expand it to
+        # 3D[batch, seq, seq]
+        attn_mask = mask_pt.unsqueeze(0).expand(n_batch, -1, -1)
+        attn_mask = attn_mask == -float('inf')
 
         # Set requires_grad=False to avoid gradient computation
         Q_pt.requires_grad_(False)
@@ -126,7 +129,7 @@ def test_flash_sdpa_fwd_cudnn_async(context, dtype):
 
     # Create 5D tensor shapes
     kqv_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
-    mask_shape = [n_batch, n_seq, n_seq]
+    mask_shape = [n_seq, n_seq]  # 2D mask for flash attention
     logsumexp_shape = [n_batch, n_seq, kv_group_size]
 
     # Tensor traits (single tile per tensor)
@@ -168,13 +171,13 @@ def test_flash_sdpa_fwd_cudnn_async(context, dtype):
     A_src = rng.standard_normal(kqv_shape).astype(numpy_dtype, 'F') * 0.1
 
     # Initialize mask (allow attention within a window)
+    # Mask is now 2D: [n_seq, n_seq] for flash attention
     mask_src = np.full(mask_shape, -np.inf, dtype=numpy_dtype, order='F')
     window_size = 32
-    for b in range(n_batch):
-        for i in range(n_seq):
-            for j in range(n_seq):
-                if abs(i - j) <= window_size:
-                    mask_src[b, i, j] = 0.0
+    for i in range(n_seq):
+        for j in range(n_seq):
+            if abs(i - j) <= window_size:
+                mask_src[i, j] = 0.0
 
     # Initialize logsumexp to zeros
     logsumexp_src = np.zeros(logsumexp_shape, dtype=numpy_dtype, order='F')
