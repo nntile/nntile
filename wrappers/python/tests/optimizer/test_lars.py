@@ -77,8 +77,12 @@ def test_lars_against_pytorch(context, dim, num_steps, lr, trust_ratio,
     x.from_array(torch_param.detach().numpy())
     x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distr)
     nntile_param = nntile.tensor.TensorMoments(x, x_grad, True)
-    nntile_optimizer = nntile.optimizer.Lars([nntile_param], lr=lr,
-                                           trust_ratio=trust_ratio, weight_decay=weight_decay)
+    nntile_optimizer = nntile.optimizer.Lars(
+        [nntile_param],
+        lr=lr,
+        trust_ratio=trust_ratio,
+        weight_decay=weight_decay,
+    )
 
     # Test multiple steps
     nntile_param_np = np.zeros((dim,), dtype=np.float32, order="F")
@@ -105,7 +109,9 @@ def test_lars_against_pytorch(context, dim, num_steps, lr, trust_ratio,
 
         if norm_ref > 0:
             rel_error = diff / norm_ref
-            assert rel_error < tol, f"Step {i_step}: relative error {rel_error} > {tol}"
+            assert rel_error < tol, (
+                f"Step {i_step}: relative error {rel_error} > {tol}"
+            )
         else:
             assert diff < tol, f"Step {i_step}: absolute error {diff} > {tol}"
 
@@ -134,8 +140,12 @@ def test_lars_zero_grad_norm(context, dim, lr, trust_ratio, weight_decay,
     x.from_array(torch_param.detach().numpy())
     x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distr)
     nntile_param = nntile.tensor.TensorMoments(x, x_grad, True)
-    nntile_optimizer = nntile.optimizer.Lars([nntile_param], lr=lr,
-                                           trust_ratio=trust_ratio, weight_decay=weight_decay)
+    nntile_optimizer = nntile.optimizer.Lars(
+        [nntile_param],
+        lr=lr,
+        trust_ratio=trust_ratio,
+        weight_decay=weight_decay,
+    )
 
     # Set zero gradient
     torch_param.grad = torch.zeros_like(torch_param)
@@ -182,8 +192,12 @@ def test_lars_zero_weight_norm(context, dim, lr, trust_ratio, weight_decay,
     x.from_array(torch_param.detach().numpy())
     x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distr)
     nntile_param = nntile.tensor.TensorMoments(x, x_grad, True)
-    nntile_optimizer = nntile.optimizer.Lars([nntile_param], lr=lr,
-                                           trust_ratio=trust_ratio, weight_decay=weight_decay)
+    nntile_optimizer = nntile.optimizer.Lars(
+        [nntile_param],
+        lr=lr,
+        trust_ratio=trust_ratio,
+        weight_decay=weight_decay,
+    )
 
     # Set gradient
     grad_data = torch.randn((dim,), dtype=torch.float32)
@@ -204,7 +218,8 @@ def test_lars_zero_weight_norm(context, dim, lr, trust_ratio, weight_decay,
     nntile_param.value.to_array(nntile_param_np)
 
     # Compare with initial zero parameters
-    torch_diff = torch.norm(torch_param.data - torch.zeros_like(torch_param.data))
+    torch_diff = torch.norm(torch_param.data -
+                             torch.zeros_like(torch_param.data))
     nntile_diff = np.linalg.norm(nntile_param_np)
 
     assert torch_diff < tol, f"PyTorch parameter changed: {torch_diff}"
@@ -229,7 +244,12 @@ def test_lars_multiple_parameters(context):
         param = torch.randn((dim,), requires_grad=True, dtype=torch.float32)
         torch_params.append(param)
         torch_optimizer_params.append(param)
-    torch_optimizer = LarsTorch(torch_optimizer_params, lr=lr, trust_ratio=trust_ratio, weight_decay=weight_decay)
+    torch_optimizer = LarsTorch(
+        torch_optimizer_params,
+        lr=lr,
+        trust_ratio=trust_ratio,
+        weight_decay=weight_decay,
+    )
 
     # NNTile parameters
     nntile_params = []
@@ -244,8 +264,12 @@ def test_lars_multiple_parameters(context):
         nntile_params.append(param)
         nntile_optimizer_params.append(param)
 
-    nntile_optimizer = nntile.optimizer.Lars(nntile_optimizer_params, lr=lr,
-                                           trust_ratio=trust_ratio, weight_decay=weight_decay)
+    nntile_optimizer = nntile.optimizer.Lars(
+        nntile_optimizer_params,
+        lr=lr,
+        trust_ratio=trust_ratio,
+        weight_decay=weight_decay,
+    )
 
     # Test one step
     grads = []
@@ -269,7 +293,9 @@ def test_lars_multiple_parameters(context):
     nntile_optimizer.step(weight_norms, grad_norms)
 
     # Compare results
-    for i, (torch_param, nntile_param) in enumerate(zip(torch_params, nntile_params)):
+    for i, (torch_param, nntile_param) in enumerate(
+        zip(torch_params, nntile_params)
+    ):
         nntile_param_np = np.zeros((dims[i],), dtype=np.float32, order="F")
         nntile_param.value.to_array(nntile_param_np)
 
@@ -278,7 +304,11 @@ def test_lars_multiple_parameters(context):
 
         if norm_ref > 0:
             rel_error = diff / norm_ref
-            assert rel_error < 1e-4, f"Parameter {i}: relative error {rel_error} > 1e-4"
+            assert rel_error < 1e-4, (
+                f"Parameter {i}: relative error {rel_error} > 1e-4"
+            )
+        else:
+            assert diff < 1e-4, f"Parameter {i}: absolute error {diff} > 1e-4"
 
     # Cleanup
     nntile_optimizer.unregister()
