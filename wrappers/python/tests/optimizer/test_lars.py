@@ -17,6 +17,13 @@ import torch
 
 import nntile
 
+# Try to import torchlars for additional comparison tests
+try:
+    import torchlars
+    TORCHLARS_AVAILABLE = True
+except ImportError:
+    TORCHLARS_AVAILABLE = False
+
 
 class LarsTorch:
     """Reference PyTorch implementation of LARS optimizer"""
@@ -314,3 +321,79 @@ def test_lars_multiple_parameters(context):
     nntile_optimizer.unregister()
     for param in nntile_params:
         param.unregister()
+
+
+@pytest.mark.skipif(
+    not TORCHLARS_AVAILABLE, reason="torchlars package not available"
+)
+@pytest.mark.parametrize('dim,num_steps,lr,trust_coef,weight_decay', [
+    (1000, 5, 1e-3, 0.02, 0.0),
+    (1000, 5, 1e-3, 0.02, 1e-4),
+    (500, 3, 1e-4, 0.01, 0.0),
+])
+def test_lars_against_torchlars(context, dim, num_steps, lr, trust_coef,
+                                     weight_decay, tol=1e-3):
+    """Test nntile LARS against torchlars implementation"""
+    import warnings
+    warnings.filterwarnings("ignore", category=UserWarning)
+
+    # Initialize parameters
+    torch_param = torch.randn((dim,), requires_grad=True, dtype=torch.float32)
+
+    # torchlars: wrap SGD with LARS
+    base_optimizer = torch.optim.SGD([torch_param], lr=lr,
+                                     weight_decay=weight_decay)
+    torchlars_optimizer = torchlars.LARS(
+        optimizer=base_optimizer,
+        eps=1e-8,
+        trust_coef=trust_coef
+    )
+
+    # nntile LARS
+    x_traits = nntile.tensor.TensorTraits([dim], [dim])
+    x_distr = [0] * x_traits.grid.nelems
+    x = nntile.tensor.Tensor_fp32(x_traits, x_distr)
+    x.from_array(torch_param.detach().numpy())
+    x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distr)
+    nntile_param = nntile.tensor.TensorMoments(x, x_grad, True)
+    nntile_optimizer = nntile.optimizer.Lars(
+        [nntile_param],
+        lr=lr,
+        trust_ratio=trust_coef,
+        weight_decay=weight_decay,
+    )
+
+    # Test multiple steps
+    nntile_param_np = np.zeros((dim,), dtype=np.float32, order="F")
+    for i_step in range(num_steps):
+        # Generate random gradient
+        grad_data = torch.randn((dim,), dtype=torch.float32)
+
+        # Set gradients for both optimizers
+        torch_param.grad = grad_data
+        nntile_param.grad.from_array(grad_data.numpy())
+
+        # Compute norms for nntile
+        weight_norm = np.linalg.norm(torch_param.data.numpy())
+        grad_norm = np.linalg.norm(grad_data.numpy())
+
+        # Step both optimizers
+        torchlars_optimizer.step()
+        nntile_optimizer.step([weight_norm], [grad_norm])
+
+        # Compare results
+        nntile_param.value.to_array(nntile_param_np)
+        diff = np.linalg.norm(torch_param.data.numpy() - nntile_param_np)
+        norm_ref = np.linalg.norm(torch_param.data.numpy())
+
+        if norm_ref > 0:
+            rel_error = diff / norm_ref
+            assert rel_error < tol, (
+                f"Step {i_step}: relative error {rel_error} > {tol}"
+            )
+        else:
+            assert diff < tol, f"Step {i_step}: absolute error {diff} > {tol}"
+
+    # Cleanup
+    nntile_optimizer.unregister()
+    nntile_param.unregister()
