@@ -60,12 +60,15 @@ class LarsTorch:
     (1000, 10, 1e-4, 0.01, 0.0),
     (500, 5, 1e-2, 0.05, 1e-5),
 ])
-def test_lars_against_pytorch(context, dim, num_steps, lr, trust_ratio, weight_decay, tol=1e-4):
+def test_lars_against_pytorch(context, dim, num_steps, lr, trust_ratio,
+                              weight_decay, tol=1e-4):
     """Test nntile LARS against reference PyTorch implementation"""
 
     # Initialize PyTorch parameter
-    torch_param = torch.randn((dim,), requires_grad=True, dtype=torch.float32)
-    torch_optimizer = LarsTorch([torch_param], lr=lr, trust_ratio=trust_ratio, weight_decay=weight_decay)
+    torch_param = torch.randn((dim,), requires_grad=True,
+                              dtype=torch.float32)
+    torch_optimizer = LarsTorch([torch_param], lr=lr, trust_ratio=trust_ratio,
+                                weight_decay=weight_decay)
 
     # Initialize nntile parameter
     x_traits = nntile.tensor.TensorTraits([dim], [dim])
@@ -115,13 +118,15 @@ def test_lars_against_pytorch(context, dim, num_steps, lr, trust_ratio, weight_d
     (100, 1e-3, 0.02, 0.0),
     (50, 1e-4, 0.01, 1e-4),
 ])
-def test_lars_zero_grad_norm(context, dim, lr, trust_ratio, weight_decay, tol=1e-6):
+def test_lars_zero_grad_norm(context, dim, lr, trust_ratio, weight_decay,
+                             tol=1e-6):
     """Test LARS behavior when gradient norm is zero"""
 
     # Initialize parameters
     torch_param = torch.randn((dim,), requires_grad=True, dtype=torch.float32)
     initial_param = torch_param.data.clone()
-    torch_optimizer = LarsTorch([torch_param], lr=lr, trust_ratio=trust_ratio, weight_decay=weight_decay)
+    torch_optimizer = LarsTorch([torch_param], lr=lr, trust_ratio=trust_ratio,
+                                weight_decay=weight_decay)
 
     x_traits = nntile.tensor.TensorTraits([dim], [dim])
     x_distr = [0] * x_traits.grid.nelems
@@ -162,12 +167,14 @@ def test_lars_zero_grad_norm(context, dim, lr, trust_ratio, weight_decay, tol=1e
     (100, 1e-3, 0.02, 0.0),
     (50, 1e-4, 0.01, 1e-4),
 ])
-def test_lars_zero_weight_norm(context, dim, lr, trust_ratio, weight_decay, tol=1e-6):
+def test_lars_zero_weight_norm(context, dim, lr, trust_ratio, weight_decay,
+                              tol=1e-6):
     """Test LARS behavior when weight norm is zero"""
 
     # Initialize parameters with zeros
     torch_param = torch.zeros((dim,), requires_grad=True, dtype=torch.float32)
-    torch_optimizer = LarsTorch([torch_param], lr=lr, trust_ratio=trust_ratio, weight_decay=weight_decay)
+    torch_optimizer = LarsTorch([torch_param], lr=lr, trust_ratio=trust_ratio,
+                                weight_decay=weight_decay)
 
     x_traits = nntile.tensor.TensorTraits([dim], [dim])
     x_distr = [0] * x_traits.grid.nelems
@@ -191,7 +198,8 @@ def test_lars_zero_weight_norm(context, dim, lr, trust_ratio, weight_decay, tol=
     torch_optimizer.step()
     nntile_optimizer.step([weight_norm], [grad_norm])
 
-    # Parameters should not change when weight_norm is zero (local_lr becomes 0)
+    # Parameters should not change when weight_norm is zero
+    # (local_lr becomes 0)
     nntile_param_np = np.zeros((dim,), dtype=np.float32, order="F")
     nntile_param.value.to_array(nntile_param_np)
 
