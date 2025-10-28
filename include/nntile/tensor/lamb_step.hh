@@ -1,0 +1,34 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file include/nntile/tensor/lamb_step.hh
+ * Fused LAMB step operation for Tensor<T>
+ *
+ * @version 1.1.0
+ * */
+
+#pragma once
+
+#include <nntile/tensor/tensor.hh>
+
+namespace nntile::tensor
+{
+
+template<typename T>
+void lamb_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+    Scalar min_trust, Scalar max_trust,
+    const Tensor<T> &grad, const Tensor<T> &first_moment, const Tensor<T> &second_moment,
+                   const Tensor<T> &p);
+
+template<typename T>
+void lamb_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+    Scalar min_trust, Scalar max_trust,
+    const Tensor<T> &grad, const Tensor<T> &first_moment, const Tensor<T> &second_moment,
+                   const Tensor<T> &p);
+
+} // namespace nntile::tensor

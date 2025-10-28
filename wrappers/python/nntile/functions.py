@@ -1757,6 +1757,135 @@ def fused_adam_step(
         raise TypeError
 
 
+def fused_lamb_step(
+    p: Tensor,
+    grad: Tensor,
+    first_moment: Tensor,
+    second_moment: Tensor,
+    lr: float,
+    eps: float,
+    beta1: float,
+    beta2: float,
+    weight_decay: float,
+    min_trust: float,
+    max_trust: float,
+    num_iter: int,
+):
+    if type(p) is not type(grad):
+        raise TypeError
+    if type(p) is not type(first_moment):
+        raise TypeError
+    if type(p) is not type(second_moment):
+        raise TypeError
+    if type(p) is core_tensor.Tensor_fp32:
+        core_tensor.lamb_step_async_fp32(
+            num_iter,
+            beta1,
+            beta2,
+            eps,
+            lr,
+            weight_decay,
+            min_trust,
+            max_trust,
+            grad,
+            first_moment,
+            second_moment,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.lamb_step_async_fp32_fast_tf32(
+            num_iter,
+            beta1,
+            beta2,
+            eps,
+            lr,
+            weight_decay,
+            min_trust,
+            max_trust,
+            grad,
+            first_moment,
+            second_moment,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.lamb_step_async_fp32_fast_fp16(
+            num_iter,
+            beta1,
+            beta2,
+            eps,
+            lr,
+            weight_decay,
+            min_trust,
+            max_trust,
+            grad,
+            first_moment,
+            second_moment,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.lamb_step_async_fp32_fast_bf16(
+            num_iter,
+            beta1,
+            beta2,
+            eps,
+            lr,
+            weight_decay,
+            min_trust,
+            max_trust,
+            grad,
+            first_moment,
+            second_moment,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp64:
+        core_tensor.lamb_step_async_fp64(
+            num_iter,
+            beta1,
+            beta2,
+            eps,
+            lr,
+            weight_decay,
+            min_trust,
+            max_trust,
+            grad,
+            first_moment,
+            second_moment,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_bf16:
+        core_tensor.lamb_step_async_bf16(
+            num_iter,
+            beta1,
+            beta2,
+            eps,
+            lr,
+            weight_decay,
+            min_trust,
+            max_trust,
+            grad,
+            first_moment,
+            second_moment,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp16:
+        core_tensor.lamb_step_async_fp16(
+            num_iter,
+            beta1,
+            beta2,
+            eps,
+            lr,
+            weight_decay,
+            min_trust,
+            max_trust,
+            grad,
+            first_moment,
+            second_moment,
+            p,
+        )
+    else:
+        raise TypeError
+
+
 def fused_adamw_step(
     p: Tensor,
     grad: Tensor,

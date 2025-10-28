@@ -26,6 +26,7 @@ set(TESTS_MPI
     "add_slice_inplace"
     "adam_step"
     "adamw_step"
+    "lamb_step"
     "clear"
     "conv2d_bwd_input_inplace"
     "conv2d_bwd_weight_inplace"

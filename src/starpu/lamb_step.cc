@@ -1,0 +1,237 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/starpu/lamb_step.cc
+ * Fused LAMB step operation of StarPU buffers
+ *
+ * @version 1.1.0
+ * */
+
+// Corresponding header
+#include "nntile/starpu/lamb_step.hh"
+
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/lamb_step.hh"
+
+//! StarPU wrappers for one step of LAMB optimizer
+namespace nntile::starpu
+{
+
+//! Constructor
+template<typename T>
+LambStep<std::tuple<T>>::LambStep():
+    codelet("nntile_lamb_step", footprint, cpu_funcs, cuda_funcs)
+{
+    // Modes are not fixed, they are decided during runtime by default
+}
+
+//! Apply LAMB step on StarPU buffers on CPU
+template<typename T>
+void LambStep<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    T *grad = interfaces[0]->get_ptr<T>();
+    T *first_moments = interfaces[1]->get_ptr<T>();
+    T *second_moments = interfaces[2]->get_ptr<T>();
+    T* p = interfaces[3]->get_ptr<T>();
+    // Launch kernel
+    kernel::lamb_step::cpu<T>(
+        args->num_iter,
+        args->num_elems,
+        args->beta_1,
+        args->beta_2,
+        args->eps,
+        args->lr,
+        args->weight_decay,
+        args->min_trust,
+        args->max_trust,
+        grad,
+        first_moments,
+        second_moments,
+        p
+    );
+#endif // STARPU_SIMGRID
+}
+
+// Specializations of CPU wrapper for accelerated types
+template<>
+void LambStep<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    LambStep<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void LambStep<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    LambStep<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void LambStep<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    LambStep<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+#ifdef NNTILE_USE_CUDA
+//! Apply LAMB step operation on StarPU buffer on CUDA
+template<typename T>
+void LambStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    T *grad = interfaces[0]->get_ptr<T>();
+    T *first_moments = interfaces[1]->get_ptr<T>();
+    T *second_moments = interfaces[2]->get_ptr<T>();
+    T* p = interfaces[3]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    kernel::lamb_step::cuda<T>(
+        stream,
+        args->num_iter,
+        args->num_elems,
+        args->beta_1,
+        args->beta_2,
+        args->eps,
+        args->lr,
+        args->weight_decay,
+        args->min_trust,
+        args->max_trust,
+        grad,
+        first_moments,
+        second_moments,
+        p
+    );
+#endif // STARPU_SIMGRID
+}
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void LambStep<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    LambStep<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void LambStep<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    LambStep<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void LambStep<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    LambStep<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+#endif // NNTILE_USE_CUDA
+
+//! Footprint for lamb_step tasks that depends only on cl_arg
+template<typename T>
+uint32_t LambStep<std::tuple<T>>::footprint(struct starpu_task *task)
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->num_elems, sizeof(args->num_elems), hash);
+    return hash;
+}
+
+//! Submit LAMB step task
+template<typename T>
+void LambStep<std::tuple<T>>::submit(
+    Index num_iter,
+    Index num_elems,
+    Scalar beta_1,
+    Scalar beta_2,
+    Scalar eps,
+    Scalar lr,
+    Scalar weight_decay,
+    Scalar min_trust,
+    Scalar max_trust,
+    Handle grad,
+    Handle first_moment,
+    Handle second_moment,
+    Handle param
+)
+{
+    // Codelet arguments
+    args_t* args = (args_t*)std::malloc(sizeof(*args));
+    args->num_iter = num_iter;
+    args->num_elems = num_elems;
+    args->beta_1 = beta_1;
+    args->beta_2 = beta_2;
+    args->eps = eps;
+    args->lr = lr;
+    args->weight_decay = weight_decay;
+    args->min_trust = min_trust;
+    args->max_trust = max_trust;
+    //double nflops = 5 * nelems;
+    // Submit task
+    enum starpu_data_access_mode moments_mode;
+    if (num_iter == 1)
+    {
+        moments_mode = STARPU_W;
+    }
+    else
+    {
+        moments_mode = STARPU_RW;
+    }
+    int ret = starpu_task_insert(&codelet,
+            STARPU_R, grad.get(),
+            moments_mode, first_moment.get(),
+            moments_mode, second_moment.get(),
+            STARPU_RW, param.get(),
+            STARPU_CL_ARGS, args, sizeof(*args),
+            0);
+    // Check submission
+    if(ret != 0)
+    {
+        throw std::runtime_error("Error in lamb_step task submission");
+    }
+}
+
+// Explicit instantiation
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class LambStep<std::tuple<nntile::fp64_t>>;
+template class LambStep<std::tuple<nntile::fp32_t>>;
+template class LambStep<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class LambStep<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class LambStep<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class LambStep<std::tuple<nntile::bf16_t>>;
+template class LambStep<std::tuple<nntile::fp16_t>>;
+
+//! Pack of lamb_step operations for different types
+lamb_step_pack_t lamb_step;
+
+} // namespace nntile::starpu
