@@ -425,4 +425,3 @@ TEMPLATE_TEST_CASE(
     }
 #endif
 }
-

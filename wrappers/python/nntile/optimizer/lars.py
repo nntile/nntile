@@ -15,7 +15,6 @@ import numpy as np
 import torch
 
 import nntile
-from nntile.tensor import TensorTraits
 
 
 class Lars:
