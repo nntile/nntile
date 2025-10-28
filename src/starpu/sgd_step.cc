@@ -53,6 +53,7 @@ void SGDStep<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
         args->momentum,
         args->lr,
         args->weight_decay,
+        args->nesterov,
         grad,
         velocity,
         p
@@ -108,6 +109,7 @@ void SGDStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         args->momentum,
         args->lr,
         args->weight_decay,
+        args->nesterov,
         grad,
         velocity,
         p
@@ -151,6 +153,7 @@ uint32_t SGDStep<std::tuple<T>>::footprint(struct starpu_task *task)
     hash = starpu_hash_crc32c_be_n(&args->num_elems, sizeof(args->num_elems), hash);
     hash = starpu_hash_crc32c_be_n(&args->momentum, sizeof(args->momentum), hash);
     hash = starpu_hash_crc32c_be_n(&args->weight_decay, sizeof(args->weight_decay), hash);
+    hash = starpu_hash_crc32c_be_n(&args->nesterov, sizeof(args->nesterov), hash);
     return hash;
 }
 
@@ -161,6 +164,7 @@ void SGDStep<std::tuple<T>>::submit(
     Scalar momentum,
     Scalar lr,
     Scalar weight_decay,
+    bool nesterov,
     Handle grad,
     Handle velocity,
     Handle param

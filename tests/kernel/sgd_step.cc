@@ -53,6 +53,7 @@ struct TestData
     Scalar momentum;
     Scalar lr;
     Scalar weight_decay;
+    bool nesterov;
 
     Y eps_check;
 
@@ -85,9 +86,20 @@ void reference_sgd_step(TestData<T>& data)
         // velocity = momentum * velocity + lr * grad
         velocity_val = momentum_r * velocity_val + lr_r * grad_val;
         data.velocity_ref[i] = static_cast<T>(static_cast<Y>(velocity_val));
-        // p = p - velocity
-        const ref_t p_ref = p_val - velocity_val;
-        data.p_ref[i] = static_cast<T>(static_cast<Y>(p_ref));
+        // Update parameters
+        if (data.nesterov)
+        {
+            // Nesterov: p = p - lr * (grad + momentum * velocity)
+            const ref_t effective_grad = grad_val + momentum_r * velocity_val;
+            const ref_t p_ref = p_val - lr_r * effective_grad;
+            data.p_ref[i] = static_cast<T>(static_cast<Y>(p_ref));
+        }
+        else
+        {
+            // Standard momentum: p = p - velocity
+            const ref_t p_ref = p_val - velocity_val;
+            data.p_ref[i] = static_cast<T>(static_cast<Y>(p_ref));
+        }
     }
 }
 
@@ -143,6 +155,7 @@ TestData<T> get_test_input_data(
     Scalar momentum,
     Scalar lr,
     Scalar weight_decay,
+    bool nesterov,
     DataGen strategy
 )
 {
@@ -153,6 +166,7 @@ TestData<T> get_test_input_data(
     data.momentum = momentum;
     data.lr = lr;
     data.weight_decay = weight_decay;
+    data.nesterov = nesterov;
     // Set accuracy threshold for each precision
     if (std::is_same_v<T, bf16_t>)
     {
@@ -223,6 +237,7 @@ void run_cpu_test(TestData<T>& data)
                 data.momentum,
                 data.lr,
                 data.weight_decay,
+                data.nesterov,
                 &data.grad[0],
                 &velocity_cpu[0],
                 &p_cpu[0]
@@ -236,6 +251,7 @@ void run_cpu_test(TestData<T>& data)
             data.momentum,
             data.lr,
             data.weight_decay,
+            data.nesterov,
             &data.grad[0],
             &velocity_cpu[0],
             &p_cpu[0]
@@ -288,6 +304,7 @@ void run_cuda_test(TestData<T>& data)
                 data.momentum,
                 data.lr,
                 data.weight_decay,
+                data.nesterov,
                 dev_grad,
                 dev_velocity,
                 dev_p
@@ -303,6 +320,7 @@ void run_cuda_test(TestData<T>& data)
             data.momentum,
             data.lr,
             data.weight_decay,
+            data.nesterov,
             dev_grad,
             dev_velocity,
             dev_p
@@ -340,6 +358,7 @@ TEMPLATE_TEST_CASE(
     const Scalar momentum = GENERATE(0.9, 0.1, 0.0);
     const Scalar lr = GENERATE(1e-1, 1e-3);
     const Scalar weight_decay = GENERATE(0.0, 0.1, 0.2);
+    const bool nesterov = GENERATE(false, true);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
 
     auto data = get_test_input_data<T>(
@@ -347,6 +366,7 @@ TEMPLATE_TEST_CASE(
         momentum,
         lr,
         weight_decay,
+        nesterov,
         strategy
     );
 
@@ -381,6 +401,7 @@ TEMPLATE_TEST_CASE(
     const Scalar momentum = GENERATE(0.9);
     const Scalar lr = GENERATE(1e-2);
     const Scalar weight_decay = GENERATE(0.1);
+    const bool nesterov = GENERATE(false, true);
     const DataGen strategy = GENERATE(DataGen::PRESET);
 
     auto data = get_test_input_data<T>(
@@ -388,6 +409,7 @@ TEMPLATE_TEST_CASE(
         momentum,
         lr,
         weight_decay,
+        nesterov,
         strategy
     );
 

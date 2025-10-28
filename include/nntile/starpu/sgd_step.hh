@@ -49,6 +49,7 @@ public:
         Scalar momentum;
         Scalar lr;
         Scalar weight_decay;
+        bool nesterov;
     };
 
     //! Footprint function for the current operation
@@ -83,6 +84,7 @@ public:
         Scalar momentum,
         Scalar lr,
         Scalar weight_decay,
+        bool nesterov,
         Handle grad,
         Handle velocity,
         Handle param

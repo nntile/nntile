@@ -22,7 +22,7 @@ namespace nntile::kernel::sgd_step
 
 template<typename T>
 void cuda(cudaStream_t stream, Index num_elems, Scalar momentum, Scalar lr,
-        Scalar weight_decay, const T *grad, T *velocity, T *p)
+        Scalar weight_decay, bool nesterov, const T *grad, T *velocity, T *p)
     noexcept;
 
 } // namespace nntile::kernel::sgd_step

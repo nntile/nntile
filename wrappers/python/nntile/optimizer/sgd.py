@@ -60,7 +60,7 @@ class SGD:
 
     def step(self):
         for i, p in enumerate(self.params):
-            # Use fused SGD step (handles both momentum and no momentum cases)
+            # Use fused SGD step with nesterov support
             nntile.tensor.fused_sgd_step(
                 p.value,
                 p.grad,
@@ -68,6 +68,7 @@ class SGD:
                 self.lr,
                 self.momentum,
                 self.weight_decay,
+                self.nesterov,
             )
             p.value.wont_use()
             p.grad.invalidate_submit()

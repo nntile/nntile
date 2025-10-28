@@ -20,12 +20,12 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void sgd_step_async(Scalar momentum, Scalar lr, Scalar weight_decay,
+void sgd_step_async(Scalar momentum, Scalar lr, Scalar weight_decay, bool nesterov,
     const Tensor<T> &grad, const Tensor<T> &velocity,
                    const Tensor<T> &p);
 
 template<typename T>
-void sgd_step(Scalar momentum, Scalar lr, Scalar weight_decay,
+void sgd_step(Scalar momentum, Scalar lr, Scalar weight_decay, bool nesterov,
     const Tensor<T> &grad, const Tensor<T> &velocity,
                    const Tensor<T> &p);
 
