@@ -149,6 +149,8 @@ uint32_t SGDStep<std::tuple<T>>::footprint(struct starpu_task *task)
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->num_elems, sizeof(args->num_elems), hash);
+    hash = starpu_hash_crc32c_be_n(&args->momentum, sizeof(args->momentum), hash);
+    hash = starpu_hash_crc32c_be_n(&args->weight_decay, sizeof(args->weight_decay), hash);
     return hash;
 }
 
