@@ -49,7 +49,7 @@ class Lars:
             raise ValueError("grad_norms must have same length as params")
 
         for i, p in enumerate(self.params):
-            nntile.tensor.fused_lars_step(
+            nntile.functions.fused_lars_step(
                 p.value,
                 p.grad,
                 self.lr,
