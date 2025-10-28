@@ -176,6 +176,7 @@ void SGDStep<std::tuple<T>>::submit(
     args->momentum = momentum;
     args->lr = lr;
     args->weight_decay = weight_decay;
+    args->nesterov = nesterov;
     // Submit task
     int ret = starpu_task_insert(&codelet,
             STARPU_R, grad.get(),
