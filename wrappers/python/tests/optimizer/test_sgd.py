@@ -26,7 +26,8 @@ import nntile
     (1000, 10, 'cpu', 1e-2, 0.9, 1e-4),
     (1000, 100, 'cpu', 1e-3, 0.0, 0.0),
 ])
-def test_sgd(context, dim, num_steps, device, lr, momentum, weight_decay, tol=1e-5):
+def test_sgd(context, dim, num_steps, device, lr, momentum,
+             weight_decay, tol=1e-5):
     # Set up PyTorch parameter
     torch_param = torch.randn((dim, ), device=device, requires_grad=True,
                               dtype=torch.float32)
@@ -40,8 +41,11 @@ def test_sgd(context, dim, num_steps, device, lr, momentum, weight_decay, tol=1e
     nntile_param = nntile.tensor.TensorMoments(x, x_grad, True)
 
     # Create optimizers
-    nntile_optimizer = nntile.optimizer.SGD([nntile_param], lr=lr, momentum=momentum, weight_decay=weight_decay)
-    torch_optimizer = optim.SGD([torch_param], lr=lr, momentum=momentum, weight_decay=weight_decay)
+    nntile_optimizer = nntile.optimizer.SGD([nntile_param], lr=lr,
+                                           momentum=momentum,
+                                           weight_decay=weight_decay)
+    torch_optimizer = optim.SGD([torch_param], lr=lr, momentum=momentum,
+                                weight_decay=weight_decay)
 
     # Run optimization steps
     nntile_param_np = np.zeros((dim,), dtype=np.float32, order="F")

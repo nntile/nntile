@@ -43,7 +43,7 @@ class SGD:
             self.weight_decay = np.float64(weight_decay)
             self.damping = np.float64(damping)
         self.states = []
-        # Always create velocity buffers for the fused kernel, even with momentum=0
+        # Always create velocity buffers for fused kernel
         for p in self.params:
             p_traits = TensorTraits(p.value.shape, p.value.basetile_shape)
             state = type(p.value)(
