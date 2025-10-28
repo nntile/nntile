@@ -18,6 +18,7 @@ set(TESTS
     "accumulate_maxsumexp"
     "adam_step"
     "adamw_step"
+    "lars_step"
     "add"
     "add_fiber"
     "add_fiber_inplace"
@@ -138,6 +139,7 @@ set(TESTS_NOT_IMPLEMENTED
     "sum_fiber"
     "sumprod_fiber"
     "total_sum_accum"
+    "lars_step"
 )
 
 # Add target for local coverage

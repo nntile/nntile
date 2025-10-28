@@ -23,6 +23,7 @@
 #include <nntile/starpu/accumulate_maxsumexp.hh>
 #include <nntile/starpu/adam_step.hh>
 #include <nntile/starpu/adamw_step.hh>
+#include <nntile/starpu/lars_step.hh>
 #include <nntile/starpu/add.hh>
 #include <nntile/starpu/add_fiber.hh>
 #include <nntile/starpu/add_fiber_inplace.hh>

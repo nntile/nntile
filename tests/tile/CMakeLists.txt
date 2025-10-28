@@ -18,6 +18,7 @@ set(TESTS
     "add_fiber"
     "add_slice_inplace"
     "add_slice"
+    "lars_step"
     "clear"
     "copy"
     "copy_intersection"
@@ -100,6 +101,7 @@ set(TESTS_NOT_IMPLEMENTED
     "hypot_inplace"
     "add_slice"
     "multiply_fiber"
+    "lars_step"
 )
 
 # Add target for local coverage
