@@ -49,6 +49,7 @@ set(TESTS
     "logsumexp"
     "mask_scalar"
     "maxsumexp"
+    "norm"
     "norm_fiber"
     "norm_fiber_inplace"
     "norm_slice_inplace"

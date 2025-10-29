@@ -95,6 +95,7 @@ set(TESTS_CATCH2
     "hypot_scalar_inverse"
     "logsumexp"
     "maxsumexp"
+    "norm"
     "norm_fiber"
     "norm_slice_inplace"
     "norm_slice"

@@ -86,6 +86,7 @@
 #include <nntile/tensor/rope_backward.hh>
 #include <nntile/tensor/norm_fiber_inplace.hh>
 #include <nntile/tensor/norm_fiber.hh>
+#include <nntile/tensor/norm.hh>
 #include <nntile/tensor/log_scalar.hh>
 
 
