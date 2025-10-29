@@ -59,6 +59,7 @@ set(TESTS
     "subtract_indexed_outputs"
     "sum_fiber"
     "sum_slice"
+    "sum"
     "sumprod_fiber"
     "sumprod_slice"
     "tile"
