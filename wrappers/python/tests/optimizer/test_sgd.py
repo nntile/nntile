@@ -19,15 +19,16 @@ import torch.optim as optim
 
 import nntile
 
-
-@pytest.mark.parametrize('dim,num_steps,device,lr,momentum,weight_decay', [
-    (1000, 10, 'cpu', 1e-1, 0.0, 0.0),
-    (1000, 10, 'cpu', 1e-2, 0.9, 0.0),
-    (1000, 10, 'cpu', 1e-2, 0.9, 1e-4),
-    (1000, 100, 'cpu', 1e-3, 0.0, 0.0),
+@pytest.mark.parametrize('device', ['cpu'])
+@pytest.mark.parametrize('dim,num_steps,lr,momentum,weight_decay,dampening,nesterov,tol', [
+    (1000, 10, 1e-1, 0.0, 0.0, 0.0, False, 1e-5),
+    (1000, 10, 1e-2, 0.9, 0.0, 0.0, False, 1e-5),
+    (1000, 10, 1e-2, 0.9, 1e-4, 0.1, False, 1e-2),
+    (1000, 100, 1e-3, 0.0, 0.0, 0.0, False, 1e-5),
+    (1000, 10, 1e-2, 0.9, 1e-4, 0.0, True, 1e-2),
 ])
 def test_sgd(context, dim, num_steps, device, lr, momentum,
-             weight_decay, tol=1e-5):
+             weight_decay, dampening, nesterov, tol):
     # Set up PyTorch parameter
     torch_param = torch.randn((dim, ), device=device, requires_grad=True,
                               dtype=torch.float32)
@@ -43,9 +44,13 @@ def test_sgd(context, dim, num_steps, device, lr, momentum,
     # Create optimizers
     nntile_optimizer = nntile.optimizer.SGD([nntile_param], lr=lr,
                                            momentum=momentum,
-                                           weight_decay=weight_decay)
+                                           weight_decay=weight_decay,
+                                           dampening=dampening,
+                                           nesterov=nesterov)
     torch_optimizer = optim.SGD([torch_param], lr=lr, momentum=momentum,
-                                weight_decay=weight_decay)
+                                weight_decay=weight_decay,
+                                dampening=dampening,
+                                nesterov=nesterov)
 
     # Run optimization steps
     nntile_param_np = np.zeros((dim,), dtype=np.float32, order="F")

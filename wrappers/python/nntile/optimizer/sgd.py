@@ -25,7 +25,7 @@ class SGD:
         momentum=0.0,
         nesterov=False,
         weight_decay=0.0,
-        damping=0.0,
+        dampening=0.0,
         dtype=np.float32,
     ):
         self.params = params
@@ -36,12 +36,12 @@ class SGD:
             self.lr = np.float32(lr)
             self.momentum = np.float32(momentum)
             self.weight_decay = np.float32(weight_decay)
-            self.damping = np.float32(damping)
+            self.dampening = np.float32(dampening)
         elif dtype == np.float64:
             self.lr = np.float64(lr)
             self.momentum = np.float64(momentum)
             self.weight_decay = np.float64(weight_decay)
-            self.damping = np.float64(damping)
+            self.dampening = np.float64(dampening)
         self.states = []
         # Always create velocity buffers for fused kernel
         for p in self.params:
@@ -68,7 +68,7 @@ class SGD:
                 self.lr,
                 self.momentum,
                 self.weight_decay,
-                self.damping,
+                self.dampening,
                 self.nesterov,
             )
             p.value.wont_use()
