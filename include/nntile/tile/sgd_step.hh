@@ -21,13 +21,13 @@ namespace nntile::tile
 
 // Asynchronous tile-wise SGD with momentum step operation
 template<typename T>
-void sgd_step_async(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                      const Tile<T> &grad, const Tile<T> &velocity,
                      const Tile<T> &p);
 
 // Blocking version of tile-wise SGD with momentum step operation
 template<typename T>
-void sgd_step(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tile<T> &grad, const Tile<T> &velocity,
                const Tile<T> &p);
 

@@ -29,7 +29,7 @@ namespace nntile::tile
  * @param[inout] p: Input buffers with parameter that are updated in the end
  * */
 template<typename T>
-void sgd_step_async(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                      const Tile<T> &grad, const Tile<T> &velocity,
                      const Tile<T> &p)
 {
@@ -43,7 +43,7 @@ void sgd_step_async(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar damp
         throw std::runtime_error("Shapes of velocity and parameters are not equal");
     }
     // Submit task
-    starpu::sgd_step.submit<std::tuple<T>>(p.nelems, momentum, lr, weight_decay, dampening, nesterov,
+    starpu::sgd_step.submit<std::tuple<T>>(num_iter, p.nelems, momentum, lr, weight_decay, dampening, nesterov,
                                  grad, velocity, p);
 }
 
@@ -58,83 +58,83 @@ void sgd_step_async(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar damp
  * @param[inout] p: Input buffers with parameter that are updated in the end
  * */
 template<typename T>
-void sgd_step(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tile<T> &grad, const Tile<T> &velocity,
                const Tile<T> &p)
 {
-    sgd_step_async<T>(momentum, lr, weight_decay, dampening, nesterov, grad, velocity, p);
+    sgd_step_async<T>(num_iter, momentum, lr, weight_decay, dampening, nesterov, grad, velocity, p);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void sgd_step_async<fp32_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async<fp32_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                      const Tile<fp32_t> &grad, const Tile<fp32_t> &velocity,
                      const Tile<fp32_t> &p);
 
 template
-void sgd_step_async<fp32_fast_tf32_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async<fp32_fast_tf32_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                      const Tile<fp32_fast_tf32_t> &grad, const Tile<fp32_fast_tf32_t> &velocity,
                      const Tile<fp32_fast_tf32_t> &p);
 
 template
-void sgd_step_async<fp32_fast_fp16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async<fp32_fast_fp16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tile<fp32_fast_fp16_t> &grad, const Tile<fp32_fast_fp16_t> &velocity,
                const Tile<fp32_fast_fp16_t> &p);
 
 template
-void sgd_step_async<fp32_fast_bf16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async<fp32_fast_bf16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tile<fp32_fast_bf16_t> &grad, const Tile<fp32_fast_bf16_t> &velocity,
                const Tile<fp32_fast_bf16_t> &p);
 
 template
-void sgd_step_async<fp64_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async<fp64_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                      const Tile<fp64_t> &grad, const Tile<fp64_t> &velocity,
                      const Tile<fp64_t> &p);
 
 template
-void sgd_step_async<bf16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async<bf16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                      const Tile<bf16_t> &grad, const Tile<bf16_t> &velocity,
                      const Tile<bf16_t> &p);
 
 template
-void sgd_step_async<fp16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async<fp16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                      const Tile<fp16_t> &grad, const Tile<fp16_t> &velocity,
                      const Tile<fp16_t> &p);
 
 // Explicit instantiation
 template
-void sgd_step<fp32_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step<fp32_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tile<fp32_t> &grad, const Tile<fp32_t> &velocity,
                const Tile<fp32_t> &p);
 
 template
-void sgd_step<fp32_fast_tf32_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step<fp32_fast_tf32_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tile<fp32_fast_tf32_t> &grad, const Tile<fp32_fast_tf32_t> &velocity,
                const Tile<fp32_fast_tf32_t> &p);
 
 template
-void sgd_step<fp32_fast_fp16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step<fp32_fast_fp16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tile<fp32_fast_fp16_t> &grad, const Tile<fp32_fast_fp16_t> &velocity,
                const Tile<fp32_fast_fp16_t> &p);
 
 template
-void sgd_step<fp32_fast_bf16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step<fp32_fast_bf16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tile<fp32_fast_bf16_t> &grad, const Tile<fp32_fast_bf16_t> &velocity,
                const Tile<fp32_fast_bf16_t> &p);
 
 template
-void sgd_step<fp64_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step<fp64_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tile<fp64_t> &grad, const Tile<fp64_t> &velocity,
                const Tile<fp64_t> &p);
 
 template
-void sgd_step<bf16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step<bf16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tile<bf16_t> &grad, const Tile<bf16_t> &velocity,
                const Tile<bf16_t> &p);
 
 template
-void sgd_step<fp16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step<fp16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tile<fp16_t> &grad, const Tile<fp16_t> &velocity,
                const Tile<fp16_t> &p);
 

@@ -49,6 +49,7 @@ void SGDStep<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     T* p = interfaces[2]->get_ptr<T>();
     // Launch kernel
     kernel::sgd_step::cpu<T>(
+        args->num_iter,
         args->num_elems,
         args->momentum,
         args->lr,
@@ -106,6 +107,7 @@ void SGDStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::sgd_step::cuda<T>(
         stream,
+        args->num_iter,
         args->num_elems,
         args->momentum,
         args->lr,
@@ -152,6 +154,8 @@ uint32_t SGDStep<std::tuple<T>>::footprint(struct starpu_task *task)
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
     uint32_t hash = 0;
+    bool first_iter = args->num_iter == 1;
+    hash = starpu_hash_crc32c_be_n(&first_iter, sizeof(bool), hash);
     hash = starpu_hash_crc32c_be_n(&args->num_elems, sizeof(args->num_elems), hash);
     hash = starpu_hash_crc32c_be_n(&args->momentum, sizeof(args->momentum), hash);
     hash = starpu_hash_crc32c_be_n(&args->weight_decay, sizeof(args->weight_decay), hash);
@@ -163,6 +167,7 @@ uint32_t SGDStep<std::tuple<T>>::footprint(struct starpu_task *task)
 //! Submit SGD step task
 template<typename T>
 void SGDStep<std::tuple<T>>::submit(
+    Index num_iter,
     Index num_elems,
     Scalar momentum,
     Scalar lr,
@@ -176,6 +181,7 @@ void SGDStep<std::tuple<T>>::submit(
 {
     // Codelet arguments
     args_t* args = (args_t*)std::malloc(sizeof(*args));
+    args->num_iter = num_iter;
     args->num_elems = num_elems;
     args->momentum = momentum;
     args->lr = lr;

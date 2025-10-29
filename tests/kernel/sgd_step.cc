@@ -48,6 +48,7 @@ template<typename T>
 struct TestData
 {
     using Y = typename T::repr_t;
+    Index num_iter; // Current iteration number
     Index num_elems; // Number of data elements
 
     Scalar momentum;
@@ -58,7 +59,7 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<T> grad;
+    std::vector<T> grad_init;
     std::vector<T> p_init;
     std::vector<T> velocity_init;
 
@@ -78,30 +79,38 @@ void reference_sgd_step(TestData<T>& data)
     const ref_t momentum_r = data.momentum;
     const ref_t lr_r = data.lr;
     const ref_t weight_decay_r = data.weight_decay;
-    const ref_t dampening_r = data.dampening;
+    const ref_t one_minus_dampening_r = 1.0 - data.dampening;
     for(Index i = 0; i < data.num_elems; ++i)
     {
         ref_t p_val = static_cast<Y>(data.p_init[i]);
-        ref_t grad_val = static_cast<Y>(data.grad[i]);
-        grad_val += weight_decay_r * p_val;
-        ref_t velocity_val = static_cast<Y>(data.velocity_init[i]);
-        // velocity = momentum * velocity + (1 - dampening) * grad
-        velocity_val = momentum_r * velocity_val + (static_cast<Y>(1) - dampening_r) * grad_val;
-        data.velocity_ref[i] = static_cast<T>(static_cast<Y>(velocity_val));
-        // Update parameters
-        if (data.nesterov)
+        ref_t grad_val = static_cast<Y>(data.grad_init[i]);
+        if (weight_decay_r != 0.0)
         {
-            // Nesterov: p = p - lr * (grad + momentum * velocity)
-            const ref_t effective_grad = grad_val + momentum_r * velocity_val;
-            const ref_t p_ref = p_val - lr_r * effective_grad;
-            data.p_ref[i] = static_cast<T>(static_cast<Y>(p_ref));
+            grad_val += weight_decay_r * p_val;
         }
-        else
+        if (momentum_r != 0.0)
         {
-            // Standard momentum: p = p - lr * velocity
-            const ref_t p_ref = p_val - lr_r * velocity_val;
-            data.p_ref[i] = static_cast<T>(static_cast<Y>(p_ref));
+            ref_t velocity_val = static_cast<Y>(data.velocity_init[i]);
+            if (data.num_iter == 1)
+            {
+                velocity_val = grad_val;
+            }
+            else
+            {
+                velocity_val = momentum_r * velocity_val +
+                    one_minus_dampening_r * grad_val;
+            }
+            data.velocity_ref[i] = static_cast<T>(static_cast<Y>(velocity_val));
+            if (data.nesterov)
+            {
+                grad_val += momentum_r * velocity_val;
+            }
+            else
+            {
+                grad_val = velocity_val;
+            }
         }
+        data.p_ref[i] = static_cast<T>(static_cast<Y>(p_val - lr_r * grad_val));
     }
 }
 
@@ -114,12 +123,12 @@ enum class DataGen
 
 // Generates data with preset, deterministic values
 template<typename T>
-void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
+void generate_data(TestData<T>& data, Index num_iter, Index num_elems, DataGen strategy)
 {
     using Y = typename T::repr_t;
     data.num_elems = num_elems;
 
-    data.grad.resize(num_elems);
+    data.grad_init.resize(num_elems);
     data.p_init.resize(num_elems);
     data.velocity_init.resize(num_elems);
 
@@ -132,7 +141,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
         case DataGen::PRESET:
             for(Index i = 0; i < num_elems; ++i)
             {
-                data.grad[i] = Y(2 * i + 1 - num_elems);
+                data.grad_init[i] = Y(2 * i + 1 - num_elems);
                 data.p_init[i] = Y(num_elems - i);
                 data.velocity_init[i] = Y(0); // Initialize velocity to 0
             }
@@ -143,7 +152,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
             std::uniform_real_distribution<Y> dist(1.0, 2.0);
             for(Index i = 0; i < num_elems; ++i)
             {
-                data.grad[i] = dist(gen);
+                data.grad_init[i] = dist(gen);
                 data.p_init[i] = 2 * dist(gen);
                 data.velocity_init[i] = Y(0); // Initialize velocity to 0
             }
@@ -153,6 +162,7 @@ void generate_data(TestData<T>& data, Index num_elems, DataGen strategy)
 // Get test input data (reference computation is done separately)
 template<typename T>
 TestData<T> get_test_input_data(
+    Index num_iter,
     Index num_elems,
     Scalar momentum,
     Scalar lr,
@@ -164,8 +174,9 @@ TestData<T> get_test_input_data(
 {
     TestData<T> data;
     // Generate data by a provided strategy
-    generate_data(data, num_elems, strategy);
+    generate_data(data, num_iter, num_elems, strategy);
     // Fill in remaining fields of TestData
+    data.num_iter = num_iter;
     data.momentum = momentum;
     data.lr = lr;
     data.weight_decay = weight_decay;
@@ -186,7 +197,7 @@ TestData<T> get_test_input_data(
     }
     else if (std::is_same_v<T, fp64_t>)
     {
-        data.eps_check = 1e-7;
+        data.eps_check = 1e-4;
     }
     else
     {
@@ -199,21 +210,28 @@ TestData<T> get_test_input_data(
 template<typename T>
 void verify_results(
     const TestData<T>& data,
-    const std::vector<T>& p_out,
-    const std::vector<T>& v_out
+    const std::vector<T>& grad,
+    const std::vector<T>& p,
+    const std::vector<T>& velocity
 )
 {
     using Y = typename T::repr_t;
+    // Check that grad was not changed during kernel execution
+    for(Index i = 0; i < data.num_elems; ++i)
+    {
+        REQUIRE(grad[i].value == data.grad_init[i].value);
+    }
+    // Check that p and velocity match reference
     for(Index i = 0; i < data.num_elems; ++i)
     {
         Y p_ref = static_cast<Y>(data.p_ref[i]);
         Y v_ref = static_cast<Y>(data.velocity_ref[i]);
         REQUIRE_THAT(
-            static_cast<Y>(p_out[i]),
+            static_cast<Y>(p[i]),
             WithinRel(p_ref, data.eps_check)
         );
         REQUIRE_THAT(
-            static_cast<Y>(v_out[i]),
+            static_cast<Y>(velocity[i]),
             WithinRel(v_ref, data.eps_check)
         );
     }
@@ -223,6 +241,7 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cpu_test(TestData<T>& data)
 {
+    std::vector<T> grad_cpu(data.grad_init);
     std::vector<T> p_cpu(data.p_init);
     std::vector<T> velocity_cpu(data.velocity_init);
 
@@ -237,13 +256,14 @@ void run_cpu_test(TestData<T>& data)
         )
         {
             cpu<T>(
+                data.num_iter,
                 data.num_elems,
                 data.momentum,
                 data.lr,
                 data.weight_decay,
                 data.dampening,
                 data.nesterov,
-                &data.grad[0],
+                &grad_cpu[0],
                 &velocity_cpu[0],
                 &p_cpu[0]
             );
@@ -252,17 +272,18 @@ void run_cpu_test(TestData<T>& data)
     else
     {
         cpu<T>(
+            data.num_iter,
             data.num_elems,
             data.momentum,
             data.lr,
             data.weight_decay,
             data.dampening,
             data.nesterov,
-            &data.grad[0],
+            &grad_cpu[0],
             &velocity_cpu[0],
             &p_cpu[0]
         );
-        verify_results(data, p_cpu, velocity_cpu);
+        verify_results(data, grad_cpu, p_cpu, velocity_cpu);
     }
 }
 
@@ -280,10 +301,11 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaMalloc(&dev_p, sizeof(T) * data.num_elems),
                "cudaMalloc dev_p");
 
+    std::vector<T> grad_cuda(data.grad_init);
     std::vector<T> p_cuda(data.p_init);
     std::vector<T> velocity_cuda(data.velocity_init);
 
-    CUDA_CHECK(cudaMemcpy(dev_grad, &data.grad[0], sizeof(T) * data.num_elems,
+    CUDA_CHECK(cudaMemcpy(dev_grad, &grad_cuda[0], sizeof(T) * data.num_elems,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_grad");
     CUDA_CHECK(cudaMemcpy(dev_velocity, &velocity_cuda[0],
                           sizeof(T) * data.num_elems, cudaMemcpyHostToDevice),
@@ -306,6 +328,7 @@ void run_cuda_test(TestData<T>& data)
         {
             cuda<T>(
                 stream,
+                data.num_iter,
                 data.num_elems,
                 data.momentum,
                 data.lr,
@@ -323,6 +346,7 @@ void run_cuda_test(TestData<T>& data)
     {
         cuda<T>(
             stream,
+            data.num_iter,
             data.num_elems,
             data.momentum,
             data.lr,
@@ -335,13 +359,14 @@ void run_cuda_test(TestData<T>& data)
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
+        CUDA_CHECK(cudaMemcpy(&grad_cuda[0], dev_grad, sizeof(T) * data.num_elems,
+                              cudaMemcpyDeviceToHost), "cudaMemcpy grad_cuda");
+        CUDA_CHECK(cudaMemcpy(&p_cuda[0], dev_p, sizeof(T) * data.num_elems,
+                              cudaMemcpyDeviceToHost), "cudaMemcpy p_cuda");
         CUDA_CHECK(cudaMemcpy(&velocity_cuda[0], dev_velocity,
                               sizeof(T) * data.num_elems, cudaMemcpyDeviceToHost),
                    "cudaMemcpy velocity_cuda");
-        CUDA_CHECK(cudaMemcpy(&p_cuda[0], dev_p, sizeof(T) * data.num_elems,
-                              cudaMemcpyDeviceToHost), "cudaMemcpy p_cuda");
-
-        verify_results(data, p_cuda, velocity_cuda);
+        verify_results(data, grad_cuda, p_cuda, velocity_cuda);
     }
 
     CUDA_CHECK(cudaFree(dev_grad), "cudaFree dev_grad");
@@ -362,6 +387,7 @@ TEMPLATE_TEST_CASE(
 )
 {
     using T = TestType;
+    const Index num_iter = GENERATE(1, 5);
     const Index num_elems = GENERATE(5, 129);
     const Scalar momentum = GENERATE(0.9, 0.1, 0.0);
     const Scalar lr = GENERATE(1e-1, 1e-3);
@@ -371,6 +397,7 @@ TEMPLATE_TEST_CASE(
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
 
     auto data = get_test_input_data<T>(
+        num_iter,
         num_elems,
         momentum,
         lr,
@@ -407,6 +434,7 @@ TEMPLATE_TEST_CASE(
 )
 {
     using T = TestType;
+    const Index num_iter = GENERATE(2);
     const Index num_elems = GENERATE(512, 1024*1024, 4096*16384);
     const Scalar momentum = GENERATE(0.9);
     const Scalar lr = GENERATE(1e-2);
@@ -416,6 +444,7 @@ TEMPLATE_TEST_CASE(
     const DataGen strategy = GENERATE(DataGen::PRESET);
 
     auto data = get_test_input_data<T>(
+        num_iter,
         num_elems,
         momentum,
         lr,

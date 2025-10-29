@@ -30,7 +30,7 @@ class SGD:
     ):
         self.params = params
         self.nesterov = nesterov
-        self.num_iter = 0
+        self.num_iter = 1
         self.dtype = dtype
         if dtype == np.float32:
             self.lr = np.float32(lr)
@@ -68,6 +68,7 @@ class SGD:
                 self.lr,
                 self.momentum,
                 self.weight_decay,
+                self.num_iter,
                 self.dampening,
                 self.nesterov,
             )

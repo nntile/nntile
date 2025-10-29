@@ -24,7 +24,7 @@ namespace nntile::tensor
 
 //! Asynchronous tensor-wise fuse SGD with momentum step
 template<typename T>
-void sgd_step_async(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                     const Tensor<T> &grad, const Tensor<T> &velocity,
                     const Tensor<T> &p)
 {
@@ -58,7 +58,7 @@ void sgd_step_async(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar damp
         if(mpi_rank == p_tile_rank)
         {
             auto traits = p.get_tile_traits(i);
-            starpu::sgd_step.submit<std::tuple<T>>(traits.nelems, momentum, lr, weight_decay, dampening, nesterov,
+            starpu::sgd_step.submit<std::tuple<T>>(num_iter, traits.nelems, momentum, lr, weight_decay, dampening, nesterov,
                                          grad_tile_handle, velocity_tile_handle, p_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -68,84 +68,84 @@ void sgd_step_async(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar damp
 
 //! Blocking version of tensor-wise sgd_step operation
 template<typename T>
-void sgd_step(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tensor<T> &grad, const Tensor<T> &velocity,
                const Tensor<T> &p)
 {
-    sgd_step_async<T>(momentum, lr, weight_decay, dampening, nesterov, grad, velocity, p);
+    sgd_step_async<T>(num_iter, momentum, lr, weight_decay, dampening, nesterov, grad, velocity, p);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void sgd_step_async<fp32_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async<fp32_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
     const Tensor<fp32_t> &grad, const Tensor<fp32_t> &velocity,
                    const Tensor<fp32_t> &p);
 
 template
-void sgd_step_async<fp32_fast_tf32_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async<fp32_fast_tf32_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
     const Tensor<fp32_fast_tf32_t> &grad, const Tensor<fp32_fast_tf32_t> &velocity,
                    const Tensor<fp32_fast_tf32_t> &p);
 
 template
-void sgd_step_async<fp32_fast_fp16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async<fp32_fast_fp16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tensor<fp32_fast_fp16_t> &grad, const Tensor<fp32_fast_fp16_t> &velocity,
                const Tensor<fp32_fast_fp16_t> &p);
 
 template
-void sgd_step_async<fp32_fast_bf16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async<fp32_fast_bf16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tensor<fp32_fast_bf16_t> &grad, const Tensor<fp32_fast_bf16_t> &velocity,
                const Tensor<fp32_fast_bf16_t> &p);
 
 template
-void sgd_step_async<fp64_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async<fp64_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
     const Tensor<fp64_t> &grad, const Tensor<fp64_t> &velocity,
                    const Tensor<fp64_t> &p);
 
 template
-void sgd_step_async<bf16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async<bf16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
     const Tensor<bf16_t> &grad, const Tensor<bf16_t> &velocity,
                    const Tensor<bf16_t> &p);
 
 template
-void sgd_step_async<fp16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step_async<fp16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
     const Tensor<fp16_t> &grad, const Tensor<fp16_t> &velocity,
                    const Tensor<fp16_t> &p);
 
 // Explicit instantiation
 template
-void sgd_step<fp32_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step<fp32_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
     const Tensor<fp32_t> &grad, const Tensor<fp32_t> &velocity,
                    const Tensor<fp32_t> &p);
 
 template
-void sgd_step<fp32_fast_tf32_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step<fp32_fast_tf32_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
     const Tensor<fp32_fast_tf32_t> &grad, const Tensor<fp32_fast_tf32_t> &velocity,
                    const Tensor<fp32_fast_tf32_t> &p);
 
 template
-void sgd_step<fp32_fast_fp16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step<fp32_fast_fp16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tensor<fp32_fast_fp16_t> &grad, const Tensor<fp32_fast_fp16_t> &velocity,
                const Tensor<fp32_fast_fp16_t> &p);
 
 template
-void sgd_step<fp32_fast_bf16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step<fp32_fast_bf16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
                const Tensor<fp32_fast_bf16_t> &grad, const Tensor<fp32_fast_bf16_t> &velocity,
                const Tensor<fp32_fast_bf16_t> &p);
 
 template
-void sgd_step<fp64_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step<fp64_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
     const Tensor<fp64_t> &grad, const Tensor<fp64_t> &velocity,
                    const Tensor<fp64_t> &p);
 
 template
-void sgd_step<bf16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step<bf16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
     const Tensor<bf16_t> &grad, const Tensor<bf16_t> &velocity,
                    const Tensor<bf16_t> &p);
 
 template
-void sgd_step<fp16_t>(Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
+void sgd_step<fp16_t>(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening, bool nesterov,
     const Tensor<fp16_t> &grad, const Tensor<fp16_t> &velocity,
                    const Tensor<fp16_t> &p);
 

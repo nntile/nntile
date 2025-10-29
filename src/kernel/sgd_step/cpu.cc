@@ -20,12 +20,13 @@ namespace nntile::kernel::sgd_step
 {
 
 template<typename T>
-void cpu(Index num_elems, Scalar momentum_, Scalar lr_, Scalar weight_decay_,
+void cpu(Index num_iter, Index num_elems, Scalar momentum_, Scalar lr_, Scalar weight_decay_,
         Scalar dampening_, bool nesterov, const T *grad, T *velocity, T *p)
     noexcept
 //! Fused SGD with momentum step on buffers
 /*!
  *
+ * @param[in] num_iter: current iteration number
  * @param[in] num_elems: Number of elements in buffers
  * @param[in] momentum_: momentum coefficient
  * @param[in] lr_: learning rate
@@ -38,7 +39,8 @@ void cpu(Index num_elems, Scalar momentum_, Scalar lr_, Scalar weight_decay_,
  * */
 {
     using Y = typename T::repr_t;
-    const Y momentum{momentum_}, lr{lr_}, weight_decay{weight_decay_}, dampening{dampening_};
+    const Y momentum{momentum_}, lr{lr_}, weight_decay{weight_decay_},
+        one_minus_dampening{Scalar{1.0} - dampening_};
     // Cycle over buffers
     for(Index i = 0; i < num_elems; ++i)
     {
@@ -48,45 +50,55 @@ void cpu(Index num_elems, Scalar momentum_, Scalar lr_, Scalar weight_decay_,
         {
             grad_val += weight_decay * p_val;
         }
-        // Read velocity from RAM
-        Y velocity_val = static_cast<Y>(velocity[i]);
-        // Update velocity: velocity = momentum * velocity + (1 - dampening) * grad
-        velocity_val = momentum * velocity_val + (static_cast<Y>(1) - dampening) * grad_val;
-        // Store updated velocity
-        velocity[i] = static_cast<T>(velocity_val);
-        // Update parameters
-        if (nesterov)
+        // Non-zero momentum: update velocity
+        if (momentum != 0)
         {
-            // Nesterov: p = p - lr * (grad + momentum * velocity)
-            Y effective_grad = grad_val + momentum * velocity_val;
-            p[i] = static_cast<T>(p_val - lr * effective_grad);
+            Y velocity_val;
+            // Initialize velocity for the first iteration
+            if (num_iter == 1)
+            {
+                velocity_val = grad_val;
+            }
+            else
+            {
+                velocity_val = momentum * static_cast<Y>(velocity[i]) +
+                    one_minus_dampening * grad_val;
+            }
+            // Store updated velocity
+            velocity[i] = static_cast<T>(velocity_val);
+            // Update gradient based on velocity
+            if (nesterov)
+            {
+                grad_val += momentum * velocity_val;
+            }
+            else
+            {
+                grad_val = velocity_val;
+            }
         }
-        else
-        {
-            // Standard momentum: p = p - lr * velocity
-            p[i] = static_cast<T>(p_val - lr * velocity_val);
-        }
+        // Update parameter
+        p[i] = static_cast<T>(p_val - lr * grad_val);
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index num_elems, Scalar momentum, Scalar lr,
+void cpu<fp32_t>(Index num_iter, Index num_elems, Scalar momentum, Scalar lr,
         Scalar weight_decay, Scalar dampening, bool nesterov, const fp32_t *grad, fp32_t *velocity, fp32_t *p)
     noexcept;
 
 template
-void cpu<fp64_t>(Index num_elems, Scalar momentum, Scalar lr,
+void cpu<fp64_t>(Index num_iter, Index num_elems, Scalar momentum, Scalar lr,
         Scalar weight_decay, Scalar dampening, bool nesterov, const fp64_t *grad, fp64_t *velocity, fp64_t *p)
     noexcept;
 
 template
-void cpu<bf16_t>(Index num_elems, Scalar momentum, Scalar lr,
+void cpu<bf16_t>(Index num_iter, Index num_elems, Scalar momentum, Scalar lr,
         Scalar weight_decay, Scalar dampening, bool nesterov, const bf16_t *grad, bf16_t *velocity, bf16_t *p)
     noexcept;
 
 template
-void cpu<fp16_t>(Index num_elems, Scalar momentum, Scalar lr,
+void cpu<fp16_t>(Index num_iter, Index num_elems, Scalar momentum, Scalar lr,
         Scalar weight_decay, Scalar dampening, bool nesterov, const fp16_t *grad, fp16_t *velocity, fp16_t *p)
     noexcept;
 

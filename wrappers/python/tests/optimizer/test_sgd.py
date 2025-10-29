@@ -20,15 +20,19 @@ import torch.optim as optim
 import nntile
 
 @pytest.mark.parametrize('device', ['cpu'])
-@pytest.mark.parametrize('dim,num_steps,lr,momentum,weight_decay,dampening,nesterov,tol', [
-    (1000, 10, 1e-1, 0.0, 0.0, 0.0, False, 1e-5),
-    (1000, 10, 1e-2, 0.9, 0.0, 0.0, False, 1e-5),
-    (1000, 10, 1e-2, 0.9, 1e-4, 0.1, False, 1e-2),
-    (1000, 100, 1e-3, 0.0, 0.0, 0.0, False, 1e-5),
-    (1000, 10, 1e-2, 0.9, 1e-4, 0.0, True, 1e-2),
+@pytest.mark.parametrize('dim', [10, 100, 1000, 10000])
+@pytest.mark.parametrize('num_steps', [10, 100])
+@pytest.mark.parametrize('lr', [1e-1, 1e-2, 1e-3])
+@pytest.mark.parametrize('momentum,dampening,nesterov', [
+    [0.0, 0.0, False],
+    [0.9, 0.0, False],
+    [0.9, 0.0, True],
+    [0.0, 0.9, False],
+    [0.9, 0.1, False],
 ])
+@pytest.mark.parametrize('weight_decay', [0.0, 1e-4, 1e-2])
 def test_sgd(context, dim, num_steps, device, lr, momentum,
-             weight_decay, dampening, nesterov, tol):
+             weight_decay, dampening, nesterov, tol=1e-5):
     # Set up PyTorch parameter
     torch_param = torch.randn((dim, ), device=device, requires_grad=True,
                               dtype=torch.float32)

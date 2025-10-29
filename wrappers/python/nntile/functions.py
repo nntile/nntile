@@ -1764,6 +1764,7 @@ def fused_sgd_step(
     lr: float,
     momentum: float,
     weight_decay: float,
+    num_iter: int,
     dampening: float = 0.0,
     nesterov: bool = False,
 ):
@@ -1773,6 +1774,7 @@ def fused_sgd_step(
         raise TypeError
     if type(p) is core_tensor.Tensor_fp32:
         core_tensor.sgd_step_fp32(
+            num_iter,
             momentum,
             lr,
             weight_decay,
@@ -1784,6 +1786,7 @@ def fused_sgd_step(
         )
     elif type(p) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.sgd_step_fp32_fast_tf32(
+            num_iter,
             momentum,
             lr,
             weight_decay,
@@ -1795,6 +1798,7 @@ def fused_sgd_step(
         )
     elif type(p) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.sgd_step_fp32_fast_fp16(
+            num_iter,
             momentum,
             lr,
             weight_decay,
@@ -1806,6 +1810,7 @@ def fused_sgd_step(
         )
     elif type(p) is core_tensor.Tensor_fp32_fast_bf16:
         core_tensor.sgd_step_fp32_fast_bf16(
+            num_iter,
             momentum,
             lr,
             weight_decay,
@@ -1817,6 +1822,7 @@ def fused_sgd_step(
         )
     elif type(p) is core_tensor.Tensor_fp64:
         core_tensor.sgd_step_fp64(
+            num_iter,
             momentum,
             lr,
             weight_decay,
@@ -1828,6 +1834,7 @@ def fused_sgd_step(
         )
     elif type(p) is core_tensor.Tensor_bf16:
         core_tensor.sgd_step_bf16(
+            num_iter,
             momentum,
             lr,
             weight_decay,
@@ -1839,6 +1846,7 @@ def fused_sgd_step(
         )
     elif type(p) is core_tensor.Tensor_fp16:
         core_tensor.sgd_step_fp16(
+            num_iter,
             momentum,
             lr,
             weight_decay,

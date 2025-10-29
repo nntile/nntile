@@ -20,7 +20,7 @@ namespace nntile::kernel::sgd_step
 {
 
 template<typename T>
-void cpu(Index num_elems, Scalar momentum, Scalar lr, Scalar weight_decay,
+void cpu(Index num_iter, Index num_elems, Scalar momentum, Scalar lr, Scalar weight_decay,
         Scalar dampening, bool nesterov, const T *grad, T *velocity, T *p)
     noexcept;
 

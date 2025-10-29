@@ -45,6 +45,7 @@ public:
     //! Structure for operation arguments
     struct args_t
     {
+        Index num_iter;
         Index num_elems;
         Scalar momentum;
         Scalar lr;
@@ -81,6 +82,7 @@ public:
 
     //! Submit sgd_step task
     void submit(
+        Index num_iter,
         Index num_elems,
         Scalar momentum,
         Scalar lr,
