@@ -19,6 +19,7 @@ import torch.optim as optim
 
 import nntile
 
+
 @pytest.mark.parametrize('device', ['cpu'])
 @pytest.mark.parametrize('dim', [10, 100, 1000, 10000])
 @pytest.mark.parametrize('num_steps', [10, 100])
