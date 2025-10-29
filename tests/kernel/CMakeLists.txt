@@ -115,6 +115,7 @@ set(TESTS_CATCH2
     "silu_inplace"
     "softmax"
     "sqrt"
+    "sum"
     "sum_fiber"
 )
 
