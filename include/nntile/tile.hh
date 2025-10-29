@@ -72,6 +72,7 @@
 #include <nntile/tile/rope.hh>
 #include <nntile/tile/norm_fiber.hh>
 #include <nntile/tile/norm_fiber_inplace.hh>
+#include <nntile/tile/norm.hh>
 
 //! @namespace nntile::tile
 /*! This namespace holds high-level routines for Tile<T>

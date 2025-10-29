@@ -76,6 +76,7 @@
 #include <nntile/tensor/adam_step.hh>
 #include <nntile/tensor/adamw_step.hh>
 #include <nntile/tensor/lars_step.hh>
+#include <nntile/tensor/sgd_step.hh>
 #include <nntile/tensor/transpose.hh>
 #include <nntile/tensor/silu.hh>
 #include <nntile/tensor/silu_backward.hh>
@@ -87,6 +88,7 @@
 #include <nntile/tensor/rope_backward.hh>
 #include <nntile/tensor/norm_fiber_inplace.hh>
 #include <nntile/tensor/norm_fiber.hh>
+#include <nntile/tensor/norm.hh>
 #include <nntile/tensor/log_scalar.hh>
 
 
