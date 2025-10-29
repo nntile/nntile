@@ -56,7 +56,7 @@ struct TestData
 
     std::vector<T> src_init;
     std::vector<T> dst_init;
-    
+
     std::vector<T> dst_ref;
 };
 
