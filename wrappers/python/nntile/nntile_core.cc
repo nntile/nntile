@@ -731,7 +731,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("sum_async_fp32_fast_bf16", &sum_async<fp32_fast_bf16_t>);
     m.def("sum_async_bf16", &sum_async<bf16_t>);
     m.def("sum_async_fp16", &sum_async<fp16_t>);
-    
+
     m.def("sum_fp64", &sum<fp64_t>);
     m.def("sum_fp32", &sum<fp32_t>);
     m.def("sum_fp32_fast_tf32", &sum<fp32_fast_tf32_t>);
