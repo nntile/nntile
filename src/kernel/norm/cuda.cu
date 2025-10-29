@@ -108,7 +108,7 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src,
 /*! For a provided array src of nelems elements compute the Euclidean norm
  * and combine it with the existing dst[0] value.
  * Mnemonically, the following operations are performed:
- *      dst[0] = alpha * norm(src[...]) + beta * dst[0]
+ *      dst[0] = hypot(alpha * norm(src[...]), beta * dst[0])
  *
  * @param[in] stream: CUDA stream
  * @param[in] nelems: Number of elements in src array
