@@ -1786,6 +1786,109 @@ def fused_adam_step(
         raise TypeError
 
 
+def fused_sgd_step(
+    p: Tensor,
+    grad: Tensor,
+    velocity: Tensor,
+    lr: float,
+    momentum: float,
+    weight_decay: float,
+    num_iter: int,
+    dampening: float = 0.0,
+    nesterov: bool = False,
+):
+    if type(p) is not type(grad):
+        raise TypeError
+    if type(p) is not type(velocity):
+        raise TypeError
+    if type(p) is core_tensor.Tensor_fp32:
+        core_tensor.sgd_step_fp32(
+            num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad,
+            velocity,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.sgd_step_fp32_fast_tf32(
+            num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad,
+            velocity,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.sgd_step_fp32_fast_fp16(
+            num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad,
+            velocity,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.sgd_step_fp32_fast_bf16(
+            num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad,
+            velocity,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp64:
+        core_tensor.sgd_step_fp64(
+            num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad,
+            velocity,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_bf16:
+        core_tensor.sgd_step_bf16(
+            num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad,
+            velocity,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp16:
+        core_tensor.sgd_step_fp16(
+            num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad,
+            velocity,
+            p,
+        )
+    else:
+        raise TypeError
+
+
 def fused_adamw_step(
     p: Tensor,
     grad: Tensor,
