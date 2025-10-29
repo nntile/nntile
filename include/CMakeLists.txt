@@ -83,7 +83,7 @@ set(KERNEL_HDR
     "nntile/kernel/norm_slice_inplace.hh"
     "nntile/kernel/norm_slice_inplace/cpu.hh"
     "nntile/kernel/norm.hh"
-    "nntile/kernel/norm.hh/cpu.hh"
+    "nntile/kernel/norm/cpu.hh"
     "nntile/kernel/pow.hh"
     "nntile/kernel/pow/cpu.hh"
     "nntile/kernel/multiply.hh"
