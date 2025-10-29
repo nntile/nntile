@@ -21,7 +21,7 @@ namespace nntile::kernel::sgd_step
 
 template<typename T>
 void cpu(Index num_elems, Scalar momentum, Scalar lr, Scalar weight_decay,
-        bool nesterov, const T *grad, T *velocity, T *p)
+        Scalar dampening, bool nesterov, const T *grad, T *velocity, T *p)
     noexcept;
 
 } // namespace nntile::kernel::sgd_step

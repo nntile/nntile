@@ -68,6 +68,7 @@ class SGD:
                 self.lr,
                 self.momentum,
                 self.weight_decay,
+                self.damping,
                 self.nesterov,
             )
             p.value.wont_use()

@@ -49,6 +49,7 @@ public:
         Scalar momentum;
         Scalar lr;
         Scalar weight_decay;
+        Scalar dampening;
         bool nesterov;
     };
 
@@ -84,6 +85,7 @@ public:
         Scalar momentum,
         Scalar lr,
         Scalar weight_decay,
+        Scalar dampening,
         bool nesterov,
         Handle grad,
         Handle velocity,
