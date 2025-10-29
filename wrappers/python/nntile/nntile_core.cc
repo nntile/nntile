@@ -724,6 +724,22 @@ void def_mod_tensor(py::module_ &m)
     m.def("norm_bf16", &norm<bf16_t>);
     m.def("norm_fp16", &norm<fp16_t>);
 
+    m.def("sum_async_fp64", &sum_async<fp64_t>);
+    m.def("sum_async_fp32", &sum_async<fp32_t>);
+    m.def("sum_async_fp32_fast_tf32", &sum_async<fp32_fast_tf32_t>);
+    m.def("sum_async_fp32_fast_fp16", &sum_async<fp32_fast_fp16_t>);
+    m.def("sum_async_fp32_fast_bf16", &sum_async<fp32_fast_bf16_t>);
+    m.def("sum_async_bf16", &sum_async<bf16_t>);
+    m.def("sum_async_fp16", &sum_async<fp16_t>);
+    
+    m.def("sum_fp64", &sum<fp64_t>);
+    m.def("sum_fp32", &sum<fp32_t>);
+    m.def("sum_fp32_fast_tf32", &sum<fp32_fast_tf32_t>);
+    m.def("sum_fp32_fast_fp16", &sum<fp32_fast_fp16_t>);
+    m.def("sum_fp32_fast_bf16", &sum<fp32_fast_bf16_t>);
+    m.def("sum_bf16", &sum<bf16_t>);
+    m.def("sum_fp16", &sum<fp16_t>);
+
     m.def("pow_async_fp64", &pow_async<fp64_t>);
     m.def("pow_async_fp32", &pow_async<fp32_t>);
     m.def("pow_async_fp32_fast_tf32", &pow_async<fp32_fast_tf32_t>);
