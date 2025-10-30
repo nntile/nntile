@@ -1791,8 +1791,8 @@ def fused_lars_step(
     grad: Tensor,
     lr: float,
     trust_ratio: float,
-    weight_norm: float,
-    grad_norm: float,
+    weight_norm: Tensor,
+    grad_norm: Tensor,
     weight_decay: float = 0.0,
 ):
     if type(p) is not type(grad):

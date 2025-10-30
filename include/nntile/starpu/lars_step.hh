@@ -48,8 +48,6 @@ public:
         Index num_elems;
         Scalar lr;
         Scalar trust_ratio;
-        Scalar weight_norm;
-        Scalar grad_norm;
         Scalar weight_decay;
     };
 
@@ -84,11 +82,11 @@ public:
         Index num_elems,
         Scalar lr,
         Scalar trust_ratio,
-        Scalar weight_norm,
-        Scalar grad_norm,
         Scalar weight_decay,
         Handle grad,
-        Handle param
+        Handle param,
+        Handle weight_norm,
+        Handle grad_norm
     );
 };
 

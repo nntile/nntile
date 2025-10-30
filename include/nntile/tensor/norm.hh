@@ -27,4 +27,12 @@ void norm_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T>
 template<typename T>
 void norm(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst);
 
+// Mixed precision norm: compute norm of T tensor and store in fp32 tensor
+template<typename T>
+void norm_async_to_fp32(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<fp32_t> &dst);
+
+// Mixed precision norm: compute norm of T tensor and store in fp32 tensor
+template<typename T>
+void norm_to_fp32(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<fp32_t> &dst);
+
 } // namespace nntile::tensor

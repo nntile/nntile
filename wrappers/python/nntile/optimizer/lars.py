@@ -35,27 +35,16 @@ class Lars:
     def unregister(self):
         pass  # No additional tensors to unregister for LARS
 
-    def step(self, weight_norms, grad_norms):
+    def step(self):
         """
         Perform LARS step.
-
-        Args:
-            weight_norms: List of pre-computed weight norms for each parameter
-            grad_norms: List of pre-computed gradient norms for each parameter
         """
-        if len(weight_norms) != len(self.params):
-            raise ValueError("weight_norms must have same length as params")
-        if len(grad_norms) != len(self.params):
-            raise ValueError("grad_norms must have same length as params")
-
-        for i, p in enumerate(self.params):
+        for p in self.params:
             nntile.functions.fused_lars_step(
                 p.value,
                 p.grad,
                 self.lr,
                 self.trust_ratio,
-                weight_norms[i],
-                grad_norms[i],
                 self.weight_decay,
             )
             p.value.wont_use()

@@ -20,11 +20,11 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void lars_step_async(Scalar lr, Scalar trust_ratio, Scalar weight_norm, Scalar grad_norm, Scalar weight_decay,
+void lars_step_async(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
     const Tensor<T> &grad, const Tensor<T> &p);
 
 template<typename T>
-void lars_step(Scalar lr, Scalar trust_ratio, Scalar weight_norm, Scalar grad_norm, Scalar weight_decay,
+void lars_step(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
     const Tensor<T> &grad, const Tensor<T> &p);
 
 } // namespace nntile::tensor

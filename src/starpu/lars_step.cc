@@ -46,13 +46,15 @@ void LarsStep<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *grad = interfaces[0]->get_ptr<T>();
     T* p = interfaces[1]->get_ptr<T>();
+    T* weight_norm = interfaces[2]->get_ptr<T>();
+    T* grad_norm = interfaces[3]->get_ptr<T>();
     // Launch kernel
     kernel::lars_step::cpu<T>(
         args->num_elems,
         args->lr,
         args->trust_ratio,
-        args->weight_norm,
-        args->grad_norm,
+        weight_norm[0],
+        grad_norm[0],
         args->weight_decay,
         grad,
         p
@@ -98,6 +100,8 @@ void LarsStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *grad = interfaces[0]->get_ptr<T>();
     T* p = interfaces[1]->get_ptr<T>();
+    T* weight_norm = interfaces[2]->get_ptr<T>();
+    T* grad_norm = interfaces[3]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
@@ -106,8 +110,8 @@ void LarsStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         args->num_elems,
         args->lr,
         args->trust_ratio,
-        args->weight_norm,
-        args->grad_norm,
+        Scalar(*weight_norm),
+        Scalar(*grad_norm),
         args->weight_decay,
         grad,
         p
@@ -158,11 +162,11 @@ void LarsStep<std::tuple<T>>::submit(
     Index num_elems,
     Scalar lr,
     Scalar trust_ratio,
-    Scalar weight_norm,
-    Scalar grad_norm,
     Scalar weight_decay,
     Handle grad,
-    Handle param
+    Handle param,
+    Handle weight_norm,
+    Handle grad_norm
 )
 {
     // Codelet arguments
@@ -170,13 +174,13 @@ void LarsStep<std::tuple<T>>::submit(
     args->num_elems = num_elems;
     args->lr = lr;
     args->trust_ratio = trust_ratio;
-    args->weight_norm = weight_norm;
-    args->grad_norm = grad_norm;
     args->weight_decay = weight_decay;
     // Submit task
     int ret = starpu_task_insert(&codelet,
             STARPU_R, grad.get(),
             STARPU_RW, param.get(),
+            STARPU_R, weight_norm.get(),
+            STARPU_R, grad_norm.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission
