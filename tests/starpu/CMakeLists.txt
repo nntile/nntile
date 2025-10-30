@@ -81,6 +81,7 @@ set(TESTS
     "subcopy"
     "subtract_indexed_column"
     "subtract_indexed_outputs"
+    "sum"
     "sum_fiber"
     "sum_slice"
     "sumprod_fiber"

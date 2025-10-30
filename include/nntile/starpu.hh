@@ -83,6 +83,7 @@
 #include <nntile/starpu/subtract_indexed_outputs.hh>
 #include <nntile/starpu/sum_fiber.hh>
 #include <nntile/starpu/sum_slice.hh>
+#include <nntile/starpu/sum.hh>
 #include <nntile/starpu/sumprod_fiber.hh>
 #include <nntile/starpu/sumprod_slice.hh>
 #include <nntile/starpu/total_sum_accum.hh>
