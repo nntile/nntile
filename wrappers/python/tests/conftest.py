@@ -57,3 +57,15 @@ def torch_rng():
     gen = torch.Generator()
     gen.manual_seed(42)
     return gen
+
+def pytest_collection_modifyitems(config, items):
+    # If the user asked for benchmarks (e.g., `-m benchmark`), don't skip them
+    markexpr = config.getoption("-m") or ""
+    if "benchmark" in markexpr:
+        return
+
+    # Otherwise, skip every test that has the "benchmark" mark
+    skip_bench = pytest.mark.skip(reason="Benchmark disabled. Run with: pytest -m benchmark")
+    for item in items:
+        if "benchmark" in item.keywords:
+            item.add_marker(skip_bench)

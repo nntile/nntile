@@ -417,3 +417,92 @@ def test_linear_flops(context, side: str, x_shape, w_shape, b_shape,
 
     A_moments.unregister()
     layer.unregister()
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('side,x_shape,w_shape', 
+                        [
+                            ('L', [128, 128], [128, 128]),
+                            # ('L', [512, 512], [512, 512]),
+                         ]
+                        )
+@pytest.mark.parametrize('dtype', [np.float32])
+def test_bench_linear_forward_async(context_cuda, benchmark, x_shape, w_shape, side: str, dtype: np.dtype):
+    A_shape = x_shape
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    mpi_distr = [0]
+    # Tensor objects
+    A = Tensor[dtype](A_traits, mpi_distr)
+    A_grad = Tensor[dtype](A_traits, mpi_distr)
+    # Set initial values of tensors
+    rng = np.random.default_rng(42)
+    rand_A = rng.standard_normal(A_shape)
+    np_A = np.array(rand_A, dtype=dtype, order='F')
+    A.from_array(np_A)
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
+    # Define linear layer
+    layer = Linear.generate_simple(
+        A_moments, side, nntile.tensor.notrans, 2, w_shape, w_shape,
+        bias=False)
+    rand_W = rng.standard_normal(layer.w.value.shape)
+    np_W = np.array(rand_W, dtype=dtype, order='F')
+    layer.w.value.from_array(np_W)
+    # nntile.tensor.clear_async(layer.w.grad)
+    
+    match side:
+        case 'L':
+            np_Y = np.tensordot(np_A, np_W, 2)
+        case 'R':
+            np_Y = np.tensordot(np_W, np_A, 2)    
+
+    def bench_fn():
+        layer.forward_async()
+        layer.y.value.to_array(np_Y)
+
+    nntile.starpu.wait_for_all()
+    benchmark.pedantic(bench_fn, iterations=1, rounds=3, warmup_rounds=2)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('side,x_shape,w_shape', 
+                        [('L', [128, 128], [128, 128])]
+                        )
+@pytest.mark.parametrize('dtype', [np.float32])
+def test_bench_linear_backward_async(context_cuda, benchmark, x_shape, w_shape, side: str, dtype: np.dtype):
+    A_shape = x_shape
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    mpi_distr = [0]
+    # Tensor objects
+    A = Tensor[dtype](A_traits, mpi_distr)
+    A_grad = Tensor[dtype](A_traits, mpi_distr)
+    # Set initial values of tensors
+    rng = np.random.default_rng(42)
+    rand_A = rng.standard_normal(A_shape)
+    np_A = np.array(rand_A, dtype=dtype, order='F')
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
+    # Define linear layer
+    layer = Linear.generate_simple(
+        A_moments, side, nntile.tensor.notrans, 2, w_shape, w_shape,
+        bias=False)
+    rand_W = rng.standard_normal(layer.w.value.shape)
+    np_W = np.array(rand_W, dtype=dtype, order='F')
+    layer.w.value.from_array(np_W)
+    nntile.tensor.clear_async(layer.w.grad)
+
+    # Check result of forward pass layer.y.value
+    A.from_array(np_A)
+    nntile.tensor.clear_async(A_grad)
+    layer.forward_async()
+
+    match side:
+        case 'L':
+            np_Y = np.tensordot(np_A, np_W, 2)
+        case 'R':
+            np_Y = np.tensordot(np_W, np_A, 2)
+
+    layer.y.grad.from_array(np_Y)
+
+    def bench_fn():
+        layer.backward_async()
+
+    nntile.starpu.wait_for_all()
+    benchmark.pedantic(bench_fn, iterations=1, rounds=3, warmup_rounds=2)
