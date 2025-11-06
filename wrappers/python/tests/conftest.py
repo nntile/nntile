@@ -64,6 +64,12 @@ def benchmark_operation(benchmark):
         return benchmark.pedantic(fn, iterations=5, rounds=10, warmup_rounds=5)
     return bench_fn
 
+@pytest.fixture(scope='function')
+def benchmark_model(benchmark):
+    def bench_fn(fn):
+        return benchmark.pedantic(fn, iterations=5, rounds=3, warmup_rounds=1)
+    return bench_fn
+
 def pytest_collection_modifyitems(config, items):
     # If the user asked for benchmarks (e.g., `-m benchmark`), don't skip them
     markexpr = config.getoption("-m") or ""
