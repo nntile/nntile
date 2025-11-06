@@ -426,7 +426,7 @@ def test_linear_flops(context, side: str, x_shape, w_shape, b_shape,
                          ]
                         )
 @pytest.mark.parametrize('dtype', [np.float32])
-def test_bench_linear_forward_async(context_cuda, benchmark, x_shape, w_shape, side: str, dtype: np.dtype):
+def test_bench_linear_forward_async(context_cuda, benchmark_operation, x_shape, w_shape, side: str, dtype: np.dtype):
     A_shape = x_shape
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
@@ -459,7 +459,7 @@ def test_bench_linear_forward_async(context_cuda, benchmark, x_shape, w_shape, s
         layer.y.value.to_array(np_Y)
 
     nntile.starpu.wait_for_all()
-    benchmark.pedantic(bench_fn, iterations=1, rounds=3, warmup_rounds=2)
+    benchmark_operation(bench_fn)
 
 
 @pytest.mark.benchmark
@@ -467,7 +467,7 @@ def test_bench_linear_forward_async(context_cuda, benchmark, x_shape, w_shape, s
                         [('L', [128, 128], [128, 128])]
                         )
 @pytest.mark.parametrize('dtype', [np.float32])
-def test_bench_linear_backward_async(context_cuda, benchmark, x_shape, w_shape, side: str, dtype: np.dtype):
+def test_bench_linear_backward_async(context_cuda, benchmark_operation, x_shape, w_shape, side: str, dtype: np.dtype):
     A_shape = x_shape
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
@@ -505,4 +505,4 @@ def test_bench_linear_backward_async(context_cuda, benchmark, x_shape, w_shape, 
         layer.backward_async()
 
     nntile.starpu.wait_for_all()
-    benchmark.pedantic(bench_fn, iterations=1, rounds=3, warmup_rounds=2)
+    benchmark_operation(bench_fn)

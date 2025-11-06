@@ -58,6 +58,12 @@ def torch_rng():
     gen.manual_seed(42)
     return gen
 
+@pytest.fixture(scope='function')
+def benchmark_operation(benchmark):
+    def bench_fn(fn):
+        return benchmark.pedantic(fn, iterations=5, rounds=10, warmup_rounds=5)
+    return bench_fn
+
 def pytest_collection_modifyitems(config, items):
     # If the user asked for benchmarks (e.g., `-m benchmark`), don't skip them
     markexpr = config.getoption("-m") or ""
