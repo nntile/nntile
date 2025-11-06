@@ -254,6 +254,8 @@ def gelu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         core_tensor.gelu_backward_async_fp32_fast_fp16(x, dy, dx)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.gelu_backward_async_fp32_fast_tf32(x, dy, dx)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.gelu_backward_async_fp16(x, dy, dx)
     else:
         raise TypeError
 
