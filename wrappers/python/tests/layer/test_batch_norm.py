@@ -176,3 +176,57 @@ class TestBatchNorm2d:
             atol=params.atol,
             err_msg=f"Error in backward d(bn)/d(i) for params: {params}",
         )
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize("params", BATCH_NORM_2D_TEST_PARAMS[:1])
+def test_bench_batchnorm2d_backward_async(context_cuda, numpy_rng, benchmark_operation, params: BatchNormTestParams):
+    (input_moment, _, weights_nnt, bias_nnt), _ = generate_input(params, numpy_rng)
+
+    nntile_layer = BatchNorm2d.generate_simple(
+        input_moment, eps=params.eps, redux=params.redux
+    )
+    nntile_layer.weight = weights_nnt
+    nntile_layer.bias = bias_nnt
+
+    nntile.tensor.clear_async(nntile_layer.y.grad)
+    # prepare grad buffer
+    grad_np = numpy_rng.random(params.shape).astype(params.dtype, order="F")
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.y.grad.from_array(grad_np)
+        nntile_layer.backward_async()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize("dtype", [np.float32])
+def test_bench_batchnorm2d_forward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+    shape = (4, 4, 64, 64)
+
+    # Build input tensor and moments
+    traits = nntile.tensor.TensorTraits(shape, shape)
+    distr = [0]
+    x_val = nntile.tensor.Tensor_fp32(traits, distr) if dtype is np.float32 else nntile.tensor.Tensor_fp64(traits, distr)
+    x_grad = nntile.tensor.Tensor_fp32(traits, distr) if dtype is np.float32 else nntile.tensor.Tensor_fp64(traits, distr)
+
+    rng = np.random.default_rng(42)
+    x_np = np.array(rng.random(shape), dtype=dtype, order="F")
+    x_val.from_array(x_np)
+    nntile.tensor.clear_async(x_grad)
+    x_moment = nntile.tensor.TensorMoments(x_val, x_grad, True)
+
+    # Define layer
+    nntile_layer = BatchNorm2d.generate_simple(x_moment)
+
+    out_np = np.zeros(shape, dtype=dtype, order="F")
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.y.value.to_array(out_np)
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

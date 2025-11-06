@@ -199,3 +199,86 @@ class TestConv2d:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+
+@pytest.mark.benchmark
+def test_bench_conv2d_forward_async(context_cuda, benchmark_operation):
+    dtype = 'fp32'
+    in_channels, out_channels = 8, 8
+    kernel = (3, 3)
+    H_in, W_in = 128, 128
+    batch = 8
+    padding = (1, 1)
+    stride = (1, 1)
+    dilation = (1, 1)
+
+    torch_layer = torch.nn.Conv2d(
+        in_channels, out_channels, kernel_size=kernel,
+        padding=padding, stride=stride, dilation=dilation, bias=False
+    )
+
+    x_shape = [W_in, H_in, in_channels, batch]
+    x_traits = TensorTraits(x_shape, x_shape)
+    x_distr = [0]
+    x_type = dtype2nntile[dtype]
+    x_value = x_type(x_traits, x_distr)
+    x_grad = x_type(x_traits, x_distr)
+    X = TensorMoments(x_value, x_grad, grad_required=True)
+
+    rng = np.random.default_rng(42)
+    x_nntile = np.array(rng.standard_normal(x_shape), dtype=np.float32, order="F")
+    x_value.from_array(x_nntile)
+
+    nntile_layer = nntile.layer.Conv2d.from_torch(torch_layer, X)
+
+    out_np = np.zeros(nntile_layer.y.value.shape, dtype=np.float32, order="F")
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.y.value.to_array(out_np)
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+def test_bench_conv2d_backward_async(context_cuda, benchmark_operation):
+    dtype = 'fp32'
+    in_channels, out_channels = 8, 8
+    kernel = (3, 3)
+    H_in, W_in = 128, 128
+    batch = 8
+    padding = (1, 1)
+    stride = (1, 1)
+    dilation = (1, 1)
+
+    torch_layer = torch.nn.Conv2d(
+        in_channels, out_channels, kernel_size=kernel,
+        padding=padding, stride=stride, dilation=dilation, bias=False
+    )
+
+    x_shape = [W_in, H_in, in_channels, batch]
+    x_traits = TensorTraits(x_shape, x_shape)
+    x_distr = [0]
+    x_type = dtype2nntile[dtype]
+    x_value = x_type(x_traits, x_distr)
+    x_grad = x_type(x_traits, x_distr)
+    X = TensorMoments(x_value, x_grad, grad_required=True)
+
+    rng = np.random.default_rng(42)
+    x_nntile = np.array(rng.standard_normal(x_shape), dtype=np.float32, order="F")
+    x_value.from_array(x_nntile)
+
+    nntile_layer = nntile.layer.Conv2d.from_torch(torch_layer, X)
+
+    nntile_layer.clear_gradients()
+    # forward once and set grad
+    nntile_layer.forward_async()
+    grad_np = np.array(rng.standard_normal(nntile_layer.y.value.shape), dtype=np.float32, order="F")
+    nntile_layer.y.grad.from_array(grad_np)
+
+    def bench_fn():
+        nntile_layer.backward_async()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

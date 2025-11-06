@@ -224,3 +224,73 @@ class TestLayerNorm:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+
+@pytest.mark.benchmark
+def test_bench_layernorm_forward_async(context_cuda, benchmark_operation):
+    # minimal setup
+    n_size = 128
+    m_size = 256
+    eps = 1e-5
+
+    # torch layer to seed params
+    torch_ln = LayerNorm(n_size, eps=eps)
+
+    # build nntile input
+    x_traits = TensorTraits([n_size, m_size], [n_size, m_size])
+    x_distr = [0]
+    x_val = nntile.tensor.Tensor_fp32(x_traits, x_distr)
+    x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distr)
+
+    rng = np.random.default_rng(42)
+    x_np = np.array(rng.standard_normal((n_size, m_size)), dtype=np.float32, order="F")
+    x_val.from_array(x_np)
+    nntile.tensor.clear_async(x_grad)
+
+    X = TensorMoments(x_val, x_grad, grad_required=True)
+
+    # build nntile layer from torch
+    nnt_ln = nntile.layer.LayerNorm.from_torch(torch_ln, X)
+
+    out_np = np.zeros((n_size, m_size), dtype=np.float32, order="F")
+
+    def bench_fn():
+        nnt_ln.forward_async()
+        nnt_ln.y.value.to_array(out_np)
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+def test_bench_layernorm_backward_async(context_cuda, benchmark_operation):
+    n_size = 128
+    m_size = 256
+    eps = 1e-5
+
+    torch_ln = LayerNorm(n_size, eps=eps)
+
+    x_traits = TensorTraits([n_size, m_size], [n_size, m_size])
+    x_distr = [0]
+    x_val = nntile.tensor.Tensor_fp32(x_traits, x_distr)
+    x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distr)
+
+    rng = np.random.default_rng(42)
+    x_np = np.array(rng.standard_normal((n_size, m_size)), dtype=np.float32, order="F")
+    x_val.from_array(x_np)
+
+    X = TensorMoments(x_val, x_grad, grad_required=True)
+
+    nnt_ln = nntile.layer.LayerNorm.from_torch(torch_ln, X)
+
+    nnt_ln.clear_gradients()
+    # prepare grad buffer
+    grad_np = np.array(rng.standard_normal((n_size, m_size)), dtype=np.float32, order="F")
+
+    def bench_fn():
+        nnt_ln.forward_async()
+        nnt_ln.y.grad.from_array(grad_np)
+        nnt_ln.backward_async()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

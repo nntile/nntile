@@ -325,3 +325,43 @@ class TestT5Attention:
         np.testing.assert_array_equal(
             buckets_unidirectional, expected_buckets_unidirectional
         )
+
+
+@pytest.mark.benchmark
+def test_bench_t5_attention_forward_async(context_cuda, benchmark_operation):
+    params = single_tile
+    dtype = 'fp32'
+    is_cross_attn = False
+    _, nntile_layer, *_ = generate_inputs(params, dtype, is_cross_attn)
+
+    nntile_layer.clear_gradients()
+    out_tm = nntile_layer.activations_output[0]
+    out_np = np.zeros(out_tm.value.shape, dtype=np.float32, order='F')
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        out_tm.value.to_array(out_np)
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+def test_bench_t5_attention_backward_async(context_cuda, benchmark_operation):
+    params = single_tile
+    dtype = 'fp32'
+    is_cross_attn = False
+    _, nntile_layer, *_ = generate_inputs(params, dtype, is_cross_attn)
+
+    nntile_layer.clear_gradients()
+    rng = np.random.default_rng(42)
+    out_tm = nntile_layer.activations_output[0]
+    grad_np = np.array(rng.standard_normal(out_tm.value.shape), dtype=np.float32, order='F')
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        out_tm.grad.from_array(grad_np)
+        nntile_layer.backward_async()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

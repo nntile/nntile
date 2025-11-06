@@ -354,3 +354,42 @@ def test_kvcache(context, numpy_rng, n_head, n_head_tile):
         outs_dyn_np,
         err_msg="test_kvcache: Dynamic does not match static",
     )
+
+
+@pytest.mark.benchmark
+def test_bench_gpt_neox_attention_forward_async(context_cuda, benchmark_operation):
+    dtype = 'fp32'
+    params = single_tile
+    rotary_pct = 0.5
+    att_bias = False
+    _, nntile_layer, *_ = generate_inputs(params, dtype, rotary_pct, att_bias)
+
+    out_np = np.zeros(nntile_layer.y.value.shape, dtype=np.float32, order='F')
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.y.value.to_array(out_np)
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+def test_bench_gpt_neox_attention_backward_async(context_cuda, benchmark_operation):
+    dtype = 'fp32'
+    params = single_tile
+    rotary_pct = 0.5
+    att_bias = False
+    _, nntile_layer, *_ = generate_inputs(params, dtype, rotary_pct, att_bias)
+
+    nntile_layer.clear_gradients()
+    rng = np.random.default_rng(42)
+    grad_np = np.array(rng.standard_normal(nntile_layer.y.value.shape), dtype=np.float32, order='F')
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.y.grad.from_array(grad_np)
+        nntile_layer.backward_async()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

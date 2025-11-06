@@ -151,3 +151,67 @@ class TestAct:
 
         A_moments.unregister()
         layer.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize("name", ["relu"])
+@pytest.mark.parametrize("dtype", [np.float32])
+def test_bench_act_forward_async(context_cuda, benchmark_operation, name: str, dtype: np.dtype):
+    A_shape = [128, 128]
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    mpi_distr = [0]
+    # Tensor objects
+    A = Tensor[dtype](A_traits, mpi_distr)
+    A_grad = Tensor[dtype](A_traits, mpi_distr)
+
+    # Set initial values of tensors
+    rng = np.random.default_rng(42)
+    np_A = np.array(rng.standard_normal(A_shape), dtype=dtype, order="F")
+    A.from_array(np_A)
+    nntile.tensor.clear_async(A_grad)
+
+    # Set up activation layer
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
+    layer = Act.generate_simple(A_moments, name)
+
+    np_out = np.zeros_like(np_A, order="F")
+
+    def bench_fn():
+        layer.forward_async()
+        layer.y.value.to_array(np_out)
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize("name", ["relu"])
+@pytest.mark.parametrize("dtype", [np.float32])
+def test_bench_act_backward_async(context_cuda, benchmark_operation, name: str, dtype: np.dtype):
+    A_shape = [128, 128]
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    mpi_distr = [0]
+    # Tensor objects
+    A = Tensor[dtype](A_traits, mpi_distr)
+    A_grad = Tensor[dtype](A_traits, mpi_distr)
+
+    # Set initial values of tensors
+    rng = np.random.default_rng(42)
+    np_A = np.array(rng.standard_normal(A_shape), dtype=dtype, order="F")
+    A.from_array(np_A)
+    nntile.tensor.clear_async(A_grad)
+
+    # Set up activation layer
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
+    layer = Act.generate_simple(A_moments, name)
+
+    layer.clear_gradients()
+    # Prepare grad and run forward once
+    layer.forward_async()
+    layer.y.grad.from_array(2 * np_A)
+
+    def bench_fn():
+        layer.backward_async()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

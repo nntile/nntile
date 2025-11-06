@@ -220,3 +220,38 @@ class TestBertSelfAttention:
                                         torch_layer_other.value.bias.grad])
         assert torch.norm(bias_grad_torch - bias_grad_nntile) <= \
             rtol * torch.norm(bias_grad_torch)
+
+
+@pytest.mark.benchmark
+def test_bench_bert_selfattention_forward_async(context_cuda, benchmark_operation):
+    dtype = 'fp32'
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(dtype, params)
+
+    out_np = np.zeros(nntile_layer.y.value.shape, dtype=np.float32, order='F')
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.y.value.to_array(out_np)
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+def test_bench_bert_selfattention_backward_async(context_cuda, benchmark_operation):
+    dtype = 'fp32'
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(dtype, params)
+
+    nntile_layer.clear_gradients()
+    rng = np.random.default_rng(42)
+    grad_np = np.array(rng.standard_normal(nntile_layer.y.value.shape), dtype=np.float32, order='F')
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.y.grad.from_array(grad_np)
+        nntile_layer.backward_async()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

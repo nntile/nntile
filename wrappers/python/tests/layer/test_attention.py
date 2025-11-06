@@ -343,3 +343,114 @@ def test_kvcache(context, numpy_rng, n_head, n_head_tile):
         outs_dyn_np,
         err_msg="test_kvcache: Dynamic does not match static",
     )
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize("dtype", [np.float32])
+def test_bench_attention_forward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+    n_emb = 64
+    n_emb_k = 64
+    n_emb_v = 64
+    n_seq = 64
+    n_batch = 8
+    n_head = 8
+    n_head_tile = 4
+
+    # Describe single-tile tensors, located at node 0
+    X_Q_shape = [n_emb, n_seq, n_batch]
+    X_K_shape = [n_emb_k, n_seq, n_batch]
+    X_V_shape = [n_emb_v, n_seq, n_batch]
+
+    X_Q_traits = nntile.tensor.TensorTraits(X_Q_shape, X_Q_shape)
+    X_K_traits = nntile.tensor.TensorTraits(X_K_shape, X_K_shape)
+    X_V_traits = nntile.tensor.TensorTraits(X_V_shape, X_V_shape)
+    mpi_distr = [0]
+
+    # Tensor objects
+    X_Q_value = Tensor[dtype](X_Q_traits, mpi_distr)
+    X_Q_grad = Tensor[dtype](X_Q_traits, mpi_distr)
+    X_K_value = Tensor[dtype](X_K_traits, mpi_distr)
+    X_K_grad = Tensor[dtype](X_K_traits, mpi_distr)
+    X_V_value = Tensor[dtype](X_V_traits, mpi_distr)
+    X_V_grad = Tensor[dtype](X_V_traits, mpi_distr)
+
+    # Set initial values for inputs
+    rng = np.random.default_rng(42)
+    X_Q_value.from_array(np.array(rng.standard_normal(X_Q_shape), dtype=dtype, order="F"))
+    nntile.tensor.clear_async(X_Q_grad)
+    X_K_value.from_array(np.array(rng.standard_normal(X_K_shape), dtype=dtype, order="F"))
+    nntile.tensor.clear_async(X_K_grad)
+    X_V_value.from_array(np.array(rng.standard_normal(X_V_shape), dtype=dtype, order="F"))
+    nntile.tensor.clear_async(X_V_grad)
+
+    X_Q = nntile.tensor.TensorMoments(X_Q_value, X_Q_grad, True)
+    X_K = nntile.tensor.TensorMoments(X_K_value, X_K_grad, True)
+    X_V = nntile.tensor.TensorMoments(X_V_value, X_V_grad, True)
+
+    # Define attention layer and initialize parameters
+    layer = Attention.generate_simple(X_Q, X_K, X_V, n_head, n_head_tile, True)
+    layer.init_randn_async()
+
+    np_out = np.zeros(X_Q_shape, dtype=dtype, order="F")
+
+    def bench_fn():
+        layer.forward_async()
+        layer.y.value.to_array(np_out)
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize("dtype", [np.float32])
+def test_bench_attention_backward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+    n_emb = 64
+    n_emb_k = 64
+    n_emb_v = 64
+    n_seq = 64
+    n_batch = 8
+    n_head = 8
+    n_head_tile = 4
+
+    X_Q_shape = [n_emb, n_seq, n_batch]
+    X_K_shape = [n_emb_k, n_seq, n_batch]
+    X_V_shape = [n_emb_v, n_seq, n_batch]
+
+    X_Q_traits = nntile.tensor.TensorTraits(X_Q_shape, X_Q_shape)
+    X_K_traits = nntile.tensor.TensorTraits(X_K_shape, X_K_shape)
+    X_V_traits = nntile.tensor.TensorTraits(X_V_shape, X_V_shape)
+    mpi_distr = [0]
+
+    X_Q_value = Tensor[dtype](X_Q_traits, mpi_distr)
+    X_Q_grad = Tensor[dtype](X_Q_traits, mpi_distr)
+    X_K_value = Tensor[dtype](X_K_traits, mpi_distr)
+    X_K_grad = Tensor[dtype](X_K_traits, mpi_distr)
+    X_V_value = Tensor[dtype](X_V_traits, mpi_distr)
+    X_V_grad = Tensor[dtype](X_V_traits, mpi_distr)
+
+    rng = np.random.default_rng(42)
+    X_Q_value.from_array(np.array(rng.standard_normal(X_Q_shape), dtype=dtype, order="F"))
+    nntile.tensor.clear_async(X_Q_grad)
+    X_K_value.from_array(np.array(rng.standard_normal(X_K_shape), dtype=dtype, order="F"))
+    nntile.tensor.clear_async(X_K_grad)
+    X_V_value.from_array(np.array(rng.standard_normal(X_V_shape), dtype=dtype, order="F"))
+    nntile.tensor.clear_async(X_V_grad)
+
+    X_Q = nntile.tensor.TensorMoments(X_Q_value, X_Q_grad, True)
+    X_K = nntile.tensor.TensorMoments(X_K_value, X_K_grad, True)
+    X_V = nntile.tensor.TensorMoments(X_V_value, X_V_grad, True)
+
+    layer = Attention.generate_simple(X_Q, X_K, X_V, n_head, n_head_tile, True)
+    layer.init_randn_async()
+
+    layer.clear_gradients()
+    # prepare grad buffer to reuse
+    np_grad = np.array(rng.standard_normal(X_Q_shape), dtype=dtype, order="F")
+
+    def bench_fn():
+        layer.forward_async()
+        layer.y.grad.from_array(np_grad)
+        layer.backward_async()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

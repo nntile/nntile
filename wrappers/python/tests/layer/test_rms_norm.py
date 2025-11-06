@@ -194,3 +194,66 @@ def test_rms_norm_dynamic(context, numpy_rng, dtype: np.dtype):
 
     # Unregister tensors
     A.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', [np.float32])
+def test_bench_rmsnorm_forward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+    A_shape = [256, 256]
+    eps = 1e-5
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    mpi_distr = [0]
+
+    A_value = Tensor[dtype](A_traits, mpi_distr)
+    A_grad = Tensor[dtype](A_traits, mpi_distr)
+    A = nntile.tensor.TensorMoments(A_value, A_grad, True)
+
+    rng = np.random.default_rng(42)
+    np_A = np.array(rng.standard_normal(size=A_shape), dtype=dtype, order='F')
+    A.value.from_array(np_A)
+    np_gamma = np.array(rng.standard_normal(size=A_shape[-1]), dtype=dtype, order='F')
+
+    layer = nntile.layer.RMSNorm.generate_simple(A, len(A_shape) - 1, eps)
+    layer.gamma.value.from_array(np_gamma)
+
+    layer.clear_gradients()
+    out_np = np.zeros_like(np_A, order='F')
+
+    def bench_fn():
+        layer.forward_async()
+        layer.y.value.to_array(out_np)
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', [np.float32])
+def test_bench_rmsnorm_backward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+    A_shape = [256, 256]
+    eps = 1e-5
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    mpi_distr = [0]
+
+    A_value = Tensor[dtype](A_traits, mpi_distr)
+    A_grad = Tensor[dtype](A_traits, mpi_distr)
+    A = nntile.tensor.TensorMoments(A_value, A_grad, True)
+
+    rng = np.random.default_rng(42)
+    np_A = np.array(rng.standard_normal(size=A_shape), dtype=dtype, order='F')
+    A.value.from_array(np_A)
+    np_gamma = np.array(rng.standard_normal(size=A_shape[-1]), dtype=dtype, order='F')
+
+    layer = nntile.layer.RMSNorm.generate_simple(A, len(A_shape) - 1, eps)
+    layer.gamma.value.from_array(np_gamma)
+
+    layer.clear_gradients()
+    grad_np = np.array(rng.standard_normal(size=A_shape), dtype=dtype, order='F')
+
+    def bench_fn():
+        layer.forward_async()
+        layer.y.grad.from_array(grad_np)
+        layer.backward_async()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

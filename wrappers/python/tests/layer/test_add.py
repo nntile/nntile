@@ -134,3 +134,84 @@ def test_add(context, n=100, hidden_dim=50, num_samples=1000):
 
     nntile_model.unregister()
     fro_loss.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', [np.float32])
+def test_bench_add_forward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+    shape = [128, 128]
+    traits = TensorTraits(shape, shape)
+    distr = [0]
+
+    # Create inputs
+    if dtype is np.float32:
+        X1 = Tensor_fp32(traits, distr)
+        X2 = Tensor_fp32(traits, distr)
+        G1 = Tensor_fp32(traits, distr)
+        G2 = Tensor_fp32(traits, distr)
+    else:
+        # Keeping minimal: currently benchmarks are for fp32
+        X1 = Tensor_fp32(traits, distr)
+        X2 = Tensor_fp32(traits, distr)
+        G1 = Tensor_fp32(traits, distr)
+        G2 = Tensor_fp32(traits, distr)
+
+    rng = np.random.default_rng(42)
+    x1_np = np.array(rng.standard_normal(shape), dtype=dtype, order='F')
+    x2_np = np.array(rng.standard_normal(shape), dtype=dtype, order='F')
+    X1.from_array(x1_np)
+    X2.from_array(x2_np)
+
+    x1_tm = TensorMoments(X1, G1, True)
+    x2_tm = TensorMoments(X2, G2, True)
+
+    layer = Add.generate_simple(x1_tm, x2_tm)
+
+    out_np = np.zeros(shape, dtype=dtype, order='F')
+
+    def bench_fn():
+        layer.forward_async()
+        layer.res.value.to_array(out_np)
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', [np.float32])
+def test_bench_add_backward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+    shape = [128, 128]
+    traits = TensorTraits(shape, shape)
+    distr = [0]
+
+    X1 = Tensor_fp32(traits, distr)
+    X2 = Tensor_fp32(traits, distr)
+    G1 = Tensor_fp32(traits, distr)
+    G2 = Tensor_fp32(traits, distr)
+
+    rng = np.random.default_rng(42)
+    x1_np = np.array(rng.standard_normal(shape), dtype=dtype, order='F')
+    x2_np = np.array(rng.standard_normal(shape), dtype=dtype, order='F')
+    X1.from_array(x1_np)
+    X2.from_array(x2_np)
+
+    x1_tm = TensorMoments(X1, G1, True)
+    x2_tm = TensorMoments(X2, G2, True)
+
+    layer = Add.generate_simple(x1_tm, x2_tm)
+
+    # Ensure grads are zeroed
+    nntile.tensor.clear_async(G1)
+    nntile.tensor.clear_async(G2)
+    layer.clear_gradients()
+
+    # forward once and prepare grad
+    layer.forward_async()
+    grad_np = np.array(rng.standard_normal(shape), dtype=dtype, order='F')
+    layer.res.grad.from_array(grad_np)
+
+    def bench_fn():
+        layer.backward_async()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
