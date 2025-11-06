@@ -73,6 +73,10 @@ template
 void gelu_backward_async<fp64_t>(const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
         const Tile<fp64_t> &dx);
 
+template
+void gelu_backward_async<fp16_t>(const Tile<fp16_t> &x,
+        const Tile<fp16_t> &dy, const Tile<fp16_t> &dx);
+
 // Explicit instantiation
 template
 void gelu_backward<fp32_t>(const Tile<fp32_t> &x, const Tile<fp32_t> &dy,
@@ -93,6 +97,10 @@ void gelu_backward<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &x,
 template
 void gelu_backward<bf16_t>(const Tile<bf16_t> &x,
         const Tile<bf16_t> &dy, const Tile<bf16_t> &dx);
+
+template
+void gelu_backward<fp16_t>(const Tile<fp16_t> &x,
+        const Tile<fp16_t> &dy, const Tile<fp16_t> &dx);
 
 template
 void gelu_backward<fp64_t>(const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
