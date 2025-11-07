@@ -453,3 +453,47 @@ class TestT5Model:
 
         # Clean up
         nntile_model.unregister()
+
+@pytest.mark.benchmark
+def test_bench_t5_forward_async(context_cuda, benchmark_model):
+    params = single_tile
+    dtype = "fp32"
+    _, nntile_model, *_ = generate_inputs(params, dtype)
+
+    np_out = np.zeros(
+        nntile_model.activations[-1].value.shape, dtype=np.float32, order="F"
+    )
+
+    def bench_fn():
+        nntile_model.forward_async()
+        nntile_model.activations[-1].value.to_array(np_out)
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_model.unregister()
+
+
+@pytest.mark.benchmark
+def test_bench_t5_backward_async(context_cuda, benchmark_model):
+    params = single_tile
+    dtype = "fp32"
+    _, nntile_model, *_ = generate_inputs(params, dtype)
+    nntile_model.clear_gradients()
+
+    rng = np.random.default_rng(42)
+    np_grad = np.array(
+        rng.standard_normal(nntile_model.activations[-1].value.shape),
+        dtype=np.float32,
+        order="F",
+    )
+
+    def bench_fn():
+        nntile_model.clear_gradients()
+        nntile_model.forward_async()
+        nntile_model.activations[-1].grad.from_array(np_grad)
+        nntile_model.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_model.unregister()
