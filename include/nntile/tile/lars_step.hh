@@ -22,11 +22,13 @@ namespace nntile::tile
 // Asynchronous tile-wise LARS step operation
 template<typename T>
 void lars_step_async(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
-                     const Tile<T> &grad, const Tile<T> &p, const Tile<fp32_t> &weight_norm, const Tile<fp32_t> &grad_norm);
+                     const Tile<T> &grad, const Tile<T> &p,
+                     const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
 
 // Blocking version of tile-wise LARS step operation
 template<typename T>
 void lars_step(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
-               const Tile<T> &grad, const Tile<T> &p, const Tile<fp32_t> &weight_norm, const Tile<fp32_t> &grad_norm);
+               const Tile<T> &grad, const Tile<T> &p,
+               const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
 
 } // namespace nntile::tile

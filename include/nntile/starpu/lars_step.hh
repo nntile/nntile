@@ -85,8 +85,8 @@ public:
         Scalar weight_decay,
         Handle grad,
         Handle param,
-        Handle weight_norm,
-        Handle grad_norm
+        Handle grad_norm,
+        Handle p_norm
     );
 };
 

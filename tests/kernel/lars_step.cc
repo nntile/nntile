@@ -244,9 +244,8 @@ void run_cpu_test(TestData<T>& data)
             data.num_elems,
             data.lr,
             data.trust_ratio,
-            data.weight_norm,
             data.grad_norm,
-            data.weight_decay,
+            data.weight_norm,
             &grad_cpu[0],
             &p_cpu[0]
         );
@@ -307,8 +306,8 @@ void run_cuda_test(TestData<T>& data)
             data.num_elems,
             data.lr,
             data.trust_ratio,
-            data.weight_norm,
             data.grad_norm,
+            data.weight_norm,  // p_norm
             data.weight_decay,
             dev_grad,
             dev_p

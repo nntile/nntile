@@ -22,8 +22,7 @@ namespace nntile::kernel::lars_step
 
 template<typename T>
 void cuda(cudaStream_t stream, Index num_elems, Scalar lr, Scalar trust_ratio,
-        Scalar weight_norm, Scalar grad_norm, Scalar weight_decay,
-        const T *grad, T *p)
+        Scalar grad_norm, Scalar p_norm, Scalar weight_decay, const T *grad, T *p)
     noexcept;
 
 } // namespace nntile::kernel::lars_step

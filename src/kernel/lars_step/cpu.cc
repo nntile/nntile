@@ -20,8 +20,8 @@ namespace nntile::kernel::lars_step
 {
 
 template<typename T>
-void cpu(Index num_elems, Scalar lr, Scalar trust_ratio, Scalar weight_norm,
-        Scalar grad_norm, Scalar weight_decay, const T *grad, T *p)
+void cpu(Index num_elems, Scalar lr, Scalar trust_ratio, Scalar grad_norm,
+        Scalar p_norm, Scalar weight_decay, const T *grad, T *p)
     noexcept
 //! Fused LARS step on buffers
 /*!
@@ -29,27 +29,27 @@ void cpu(Index num_elems, Scalar lr, Scalar trust_ratio, Scalar weight_norm,
  * @param[in] num_elems: Number of elements in buffers
  * @param[in] lr: learning rate
  * @param[in] trust_ratio: trust ratio for LARS
- * @param[in] weight_norm: pre-computed norm of the weight tensor
  * @param[in] grad_norm: pre-computed norm of the gradient tensor
- * @param[in] weight_decay: coefficient for l2 regularizer
+ * @param[in] p_norm: pre-computed norm of the parameter tensor
  * @param[in] grad: Input buffer stored gradient
  * @param[inout] p: Input/output buffer with parameters that are updated
  * */
 {
     using Y = typename T::repr_t;
-    const Y lr_{lr}, trust_ratio_{trust_ratio}, weight_norm_{weight_norm},
-          grad_norm_{grad_norm}, weight_decay_{weight_decay};
+    const Y lr_{lr}, trust_ratio_{trust_ratio}, grad_norm_{grad_norm},
+          p_norm_{p_norm}, weight_decay_{weight_decay};
     // Cycle over buffers
     for(Index i = 0; i < num_elems; ++i)
     {
         // Read values from RAM only once
         Y p_val = static_cast<Y>(p[i]), grad_val = static_cast<Y>(grad[i]);
+        // Apply weight decay to gradients
         if (weight_decay_ != 0)
         {
             grad_val += weight_decay_ * p_val;
         }
         // Compute local learning rate
-        Y local_lr = (grad_norm_ > 0) ? lr_ * weight_norm_ / grad_norm_ : lr_;
+        Y local_lr = (grad_norm_ > 0) ? lr_ * p_norm_ / grad_norm_ : lr_;
         // Apply trust ratio clipping
         Y adapted_lr = std::min(local_lr, lr_ * trust_ratio_);
         // Update parameters
@@ -59,23 +59,23 @@ void cpu(Index num_elems, Scalar lr, Scalar trust_ratio, Scalar weight_norm,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index num_elems, Scalar lr, Scalar trust_ratio, Scalar weight_norm,
-        Scalar grad_norm, Scalar weight_decay, const fp32_t *grad, fp32_t *p)
+void cpu<fp32_t>(Index num_elems, Scalar lr, Scalar trust_ratio, Scalar grad_norm,
+        Scalar p_norm, Scalar weight_decay, const fp32_t *grad, fp32_t *p)
     noexcept;
 
 template
-void cpu<fp64_t>(Index num_elems, Scalar lr, Scalar trust_ratio, Scalar weight_norm,
-        Scalar grad_norm, Scalar weight_decay, const fp64_t *grad, fp64_t *p)
+void cpu<fp64_t>(Index num_elems, Scalar lr, Scalar trust_ratio, Scalar grad_norm,
+        Scalar p_norm, Scalar weight_decay, const fp64_t *grad, fp64_t *p)
     noexcept;
 
 template
-void cpu<bf16_t>(Index num_elems, Scalar lr, Scalar trust_ratio, Scalar weight_norm,
-        Scalar grad_norm, Scalar weight_decay, const bf16_t *grad, bf16_t *p)
+void cpu<bf16_t>(Index num_elems, Scalar lr, Scalar trust_ratio, Scalar grad_norm,
+        Scalar p_norm, Scalar weight_decay, const bf16_t *grad, bf16_t *p)
     noexcept;
 
 template
-void cpu<fp16_t>(Index num_elems, Scalar lr, Scalar trust_ratio, Scalar weight_norm,
-        Scalar grad_norm, Scalar weight_decay, const fp16_t *grad, fp16_t *p)
+void cpu<fp16_t>(Index num_elems, Scalar lr, Scalar trust_ratio, Scalar grad_norm,
+        Scalar p_norm, Scalar weight_decay, const fp16_t *grad, fp16_t *p)
     noexcept;
 
 } // namespace nntile::kernel::lars_step

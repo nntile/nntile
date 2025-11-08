@@ -40,17 +40,30 @@ class Lars:
         Perform LARS step.
         """
         for p in self.params:
+            # Create scalar tensors for norms
+            grad_norm_traits = nntile.tensor.TensorTraits([], [])
+            p_norm_traits = nntile.tensor.TensorTraits([], [])
+            norm_distr = [0] * grad_norm_traits.grid.nelems
+            grad_norm = nntile.tensor.Tensor_fp32(grad_norm_traits, norm_distr)
+            p_norm = nntile.tensor.Tensor_fp32(p_norm_traits, norm_distr)
+            
             nntile.functions.fused_lars_step(
                 p.value,
                 p.grad,
                 self.lr,
                 self.trust_ratio,
+                grad_norm,
+                p_norm,
                 self.weight_decay,
             )
             p.value.wont_use()
             # dP can be deleted
             # p.grad.wont_use()
             p.grad.invalidate_submit()
+            
+            # Unregister norm tensors
+            grad_norm.unregister()
+            p_norm.unregister()
 
     def save_state(self, path):
         stored_data = {

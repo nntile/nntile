@@ -46,15 +46,15 @@ void LarsStep<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *grad = interfaces[0]->get_ptr<T>();
     T* p = interfaces[1]->get_ptr<T>();
-    T* weight_norm = interfaces[2]->get_ptr<T>();
-    T* grad_norm = interfaces[3]->get_ptr<T>();
+    fp32_t* grad_norm = reinterpret_cast<fp32_t*>(interfaces[2]->get_ptr<fp32_t>());
+    fp32_t* p_norm = reinterpret_cast<fp32_t*>(interfaces[3]->get_ptr<fp32_t>());
     // Launch kernel
     kernel::lars_step::cpu<T>(
         args->num_elems,
         args->lr,
         args->trust_ratio,
-        weight_norm[0],
-        grad_norm[0],
+        static_cast<Scalar>(grad_norm[0]),
+        static_cast<Scalar>(p_norm[0]),
         args->weight_decay,
         grad,
         p
@@ -100,8 +100,8 @@ void LarsStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *grad = interfaces[0]->get_ptr<T>();
     T* p = interfaces[1]->get_ptr<T>();
-    T* weight_norm = interfaces[2]->get_ptr<T>();
-    T* grad_norm = interfaces[3]->get_ptr<T>();
+    fp32_t* grad_norm = reinterpret_cast<fp32_t*>(interfaces[2]->get_ptr<fp32_t>());
+    fp32_t* p_norm = reinterpret_cast<fp32_t*>(interfaces[3]->get_ptr<fp32_t>());
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
@@ -110,8 +110,8 @@ void LarsStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         args->num_elems,
         args->lr,
         args->trust_ratio,
-        Scalar(*weight_norm),
-        Scalar(*grad_norm),
+        static_cast<Scalar>(grad_norm[0]),
+        static_cast<Scalar>(p_norm[0]),
         args->weight_decay,
         grad,
         p
@@ -165,8 +165,8 @@ void LarsStep<std::tuple<T>>::submit(
     Scalar weight_decay,
     Handle grad,
     Handle param,
-    Handle weight_norm,
-    Handle grad_norm
+    Handle grad_norm,
+    Handle p_norm
 )
 {
     // Codelet arguments
@@ -179,8 +179,8 @@ void LarsStep<std::tuple<T>>::submit(
     int ret = starpu_task_insert(&codelet,
             STARPU_R, grad.get(),
             STARPU_RW, param.get(),
-            STARPU_R, weight_norm.get(),
             STARPU_R, grad_norm.get(),
+            STARPU_R, p_norm.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission

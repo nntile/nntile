@@ -1815,8 +1815,8 @@ def fused_lars_step(
     grad: Tensor,
     lr: float,
     trust_ratio: float,
-    weight_norm: Tensor,
     grad_norm: Tensor,
+    p_norm: Tensor,
     weight_decay: float = 0.0,
 ):
     if type(p) is not type(grad):
@@ -1825,9 +1825,9 @@ def fused_lars_step(
         core_tensor.lars_step_async_fp32(
             lr,
             trust_ratio,
-            weight_norm,
-            grad_norm,
             weight_decay,
+            grad_norm,
+            p_norm,
             grad,
             p,
         )
@@ -1835,9 +1835,9 @@ def fused_lars_step(
         core_tensor.lars_step_async_fp32_fast_tf32(
             lr,
             trust_ratio,
-            weight_norm,
-            grad_norm,
             weight_decay,
+            grad_norm,
+            p_norm,
             grad,
             p,
         )
@@ -1845,9 +1845,9 @@ def fused_lars_step(
         core_tensor.lars_step_async_fp32_fast_fp16(
             lr,
             trust_ratio,
-            weight_norm,
-            grad_norm,
             weight_decay,
+            grad_norm,
+            p_norm,
             grad,
             p,
         )
@@ -1855,9 +1855,9 @@ def fused_lars_step(
         core_tensor.lars_step_async_fp32_fast_bf16(
             lr,
             trust_ratio,
-            weight_norm,
-            grad_norm,
             weight_decay,
+            grad_norm,
+            p_norm,
             grad,
             p,
         )
@@ -1865,9 +1865,9 @@ def fused_lars_step(
         core_tensor.lars_step_async_fp64(
             lr,
             trust_ratio,
-            weight_norm,
-            grad_norm,
             weight_decay,
+            grad_norm,
+            p_norm,
             grad,
             p,
         )
@@ -1875,9 +1875,9 @@ def fused_lars_step(
         core_tensor.lars_step_async_bf16(
             lr,
             trust_ratio,
-            weight_norm,
-            grad_norm,
             weight_decay,
+            grad_norm,
+            p_norm,
             grad,
             p,
         )
@@ -1885,10 +1885,10 @@ def fused_lars_step(
         core_tensor.lars_step_async_fp16(
             lr,
             trust_ratio,
-            weight_norm,
-            grad_norm,
             weight_decay,
-            grad,            
+            grad_norm,
+            p_norm,
+            grad,
             p,
         )
     else:
