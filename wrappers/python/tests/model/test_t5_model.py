@@ -37,6 +37,12 @@ dtype2nntile = {
     "bf16": nntile.tensor.Tensor_bf16,
 }
 
+dtype2np = {
+    "fp32": np.float32,
+    "bf16": np.float16,
+    "fp16": np.float16,
+}
+
 dtype2tol = {
     "fp32": {"rtol": 6e-4},
     "fp32_fast_tf32": {"rtol": 1.6e-3},
@@ -455,9 +461,9 @@ class TestT5Model:
         nntile_model.unregister()
 
 @pytest.mark.benchmark
-def test_bench_t5_forward_async(context_cuda, benchmark_model):
+@pytest.mark.parametrize('dtype', ['fp32', 'bf16'])
+def test_bench_t5_forward_async(context_cuda, benchmark_model, dtype: str):
     params = single_tile
-    dtype = "fp32"
     _, nntile_model, *_ = generate_inputs(params, dtype)
 
     np_out = np.zeros(
@@ -474,16 +480,16 @@ def test_bench_t5_forward_async(context_cuda, benchmark_model):
 
 
 @pytest.mark.benchmark
-def test_bench_t5_backward_async(context_cuda, benchmark_model):
+@pytest.mark.parametrize('dtype', ['fp32', 'bf16'])
+def test_bench_t5_backward_async(context_cuda, benchmark_model, dtype: str):
     params = single_tile
-    dtype = "fp32"
     _, nntile_model, *_ = generate_inputs(params, dtype)
     nntile_model.clear_gradients()
 
     rng = np.random.default_rng(42)
     np_grad = np.array(
         rng.standard_normal(nntile_model.activations[-1].value.shape),
-        dtype=np.float32,
+        dtype=dtype2np[dtype],
         order="F",
     )
 

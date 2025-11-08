@@ -35,6 +35,12 @@ dtype2nntile = {
 
 }
 
+dtype2np = {
+        'fp32': np.float32,
+        'bf16': np.float16,
+        'fp16': np.float16,
+}
+
 dtype2tol = {
         'fp32': {'rtol': 1e-6},
         'fp32_fast_tf32': {'rtol': 8e-4},
@@ -243,13 +249,13 @@ class TestBertLayer:
                 rtol * torch.norm(bias_grad_torch)
 
 @pytest.mark.benchmark
-def test_bench_bert_encoder_forward_async(context_cuda, benchmark_model):
+@pytest.mark.parametrize('dtype', ['fp32', 'bf16'])
+def test_bench_bert_encoder_forward_async(context_cuda, benchmark_model, dtype: str):
     params = single_tile
-    dtype = 'fp32'
     _, nntile_layer, *_ = generate_inputs(dtype, params, num_hidden_layers=1)
 
     np_out = np.zeros(
-        nntile_layer.activations[-1].value.shape, dtype=np.float32, order="F"
+        nntile_layer.activations[-1].value.shape, dtype=dtype2np[dtype], order="F"
     )
 
     def bench_fn():
@@ -262,15 +268,15 @@ def test_bench_bert_encoder_forward_async(context_cuda, benchmark_model):
 
 
 @pytest.mark.benchmark
-def test_bench_bert_encoder_backward_async(context_cuda, benchmark_model):
+@pytest.mark.parametrize('dtype', ['fp32', 'bf16'])
+def test_bench_bert_encoder_backward_async(context_cuda, benchmark_model, dtype: str):
     params = single_tile
-    dtype = 'fp32'
     _, nntile_layer, *_ = generate_inputs(dtype, params, num_hidden_layers=1)
 
     rng = np.random.default_rng(42)
     np_grad = np.array(
         rng.standard_normal(nntile_layer.activations[-1].value.shape),
-        dtype=np.float32,
+        dtype=dtype2np[dtype],
         order="F",
     )
 

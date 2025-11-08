@@ -34,6 +34,12 @@ dtype2nntile = {
         'bf16': nntile.tensor.Tensor_bf16,
 }
 
+dtype2np = {
+        'fp32': np.float32,
+        'bf16': np.float16,
+        'fp16': np.float16,
+}
+
 dtype2tol = {
         'fp32': {'rtol': 1e-5},
         'fp32_fast_tf32': {'rtol': 2e-3},
@@ -310,13 +316,13 @@ def test_forward_dynamic(context, torch_rng,
     nntile_model.unregister()
 
 @pytest.mark.benchmark
-def test_bench_llama_forward_async(context_cuda, benchmark_model):
+@pytest.mark.parametrize('dtype', ['fp32', 'bf16'])
+def test_bench_llama_forward_async(context_cuda, benchmark_model, dtype: str):
     params = single_tile
-    dtype = 'fp32'
     _, nntile_model, *_ = generate_inputs(params, dtype, num_hidden_layers=2, att_bias=False)
 
     np_out = np.zeros(
-        nntile_model.activations[-1].value.shape, dtype=np.float32, order="F"
+        nntile_model.activations[-1].value.shape, dtype=dtype2np[dtype], order="F"
     )
 
     def bench_fn():
@@ -329,15 +335,15 @@ def test_bench_llama_forward_async(context_cuda, benchmark_model):
 
 
 @pytest.mark.benchmark
-def test_bench_llama_backward_async(context_cuda, benchmark_model):
+@pytest.mark.parametrize('dtype', ['fp32', 'bf16'])
+def test_bench_llama_backward_async(context_cuda, benchmark_model, dtype: str):
     params = single_tile
-    dtype = 'fp32'
     _, nntile_model, *_ = generate_inputs(params, dtype, num_hidden_layers=2, att_bias=False)
 
     rng = np.random.default_rng(42)
     np_grad = np.array(
         rng.standard_normal(nntile_model.activations[-1].value.shape),
-        dtype=np.float32,
+        dtype=dtype2np[dtype],
         order="F",
     )
 
