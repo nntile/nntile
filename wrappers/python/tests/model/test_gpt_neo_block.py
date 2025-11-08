@@ -204,3 +204,47 @@ class TestGPTNeoBlock:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+@pytest.mark.benchmark
+def test_bench_gpt_neo_block_forward_async(context_cuda, benchmark_model):
+    params = single_tile
+    dtype = 'fp32'
+    _, nntile_module, *_ = generate_inputs(params, layer_id=1, dtype=dtype)
+
+    np_out = np.zeros(
+        nntile_module.activations[-1].value.shape, dtype=np.float32, order="F"
+    )
+
+    def bench_fn():
+        nntile_module.forward_async()
+        nntile_module.activations[-1].value.to_array(np_out)
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_module.unregister()
+
+
+@pytest.mark.benchmark
+def test_bench_gpt_neo_block_backward_async(context_cuda, benchmark_model):
+    params = single_tile
+    dtype = 'fp32'
+    _, nntile_module, *_ = generate_inputs(params, layer_id=1, dtype=dtype)
+
+    rng = np.random.default_rng(42)
+    np_grad = np.array(
+        rng.standard_normal(nntile_module.activations[-1].value.shape),
+        dtype=np.float32,
+        order="F",
+    )
+
+    def bench_fn():
+        nntile_module.clear_gradients()
+        nntile_module.forward_async()
+        nntile_module.activations[-1].grad.from_array(np_grad)
+        nntile_module.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_module.unregister()
+

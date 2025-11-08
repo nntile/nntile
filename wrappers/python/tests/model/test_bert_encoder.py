@@ -241,3 +241,46 @@ class TestBertLayer:
                 layer_other.attention.self.value.bias.grad])
             assert torch.norm(bias_grad_torch - bias_grad_nntile) <= \
                 rtol * torch.norm(bias_grad_torch)
+
+@pytest.mark.benchmark
+def test_bench_bert_encoder_forward_async(context_cuda, benchmark_model):
+    params = single_tile
+    dtype = 'fp32'
+    _, nntile_layer, *_ = generate_inputs(dtype, params, num_hidden_layers=1)
+
+    np_out = np.zeros(
+        nntile_layer.activations[-1].value.shape, dtype=np.float32, order="F"
+    )
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.activations[-1].value.to_array(np_out)
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_layer.unregister()
+
+
+@pytest.mark.benchmark
+def test_bench_bert_encoder_backward_async(context_cuda, benchmark_model):
+    params = single_tile
+    dtype = 'fp32'
+    _, nntile_layer, *_ = generate_inputs(dtype, params, num_hidden_layers=1)
+
+    rng = np.random.default_rng(42)
+    np_grad = np.array(
+        rng.standard_normal(nntile_layer.activations[-1].value.shape),
+        dtype=np.float32,
+        order="F",
+    )
+
+    def bench_fn():
+        nntile_layer.clear_gradients()
+        nntile_layer.forward_async()
+        nntile_layer.activations[-1].grad.from_array(np_grad)
+        nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_layer.unregister()
