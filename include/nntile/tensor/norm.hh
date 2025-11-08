@@ -27,4 +27,12 @@ void norm_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T>
 template<typename T>
 void norm(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst);
 
+// Mixed precision norm: compute norm of T tensor and store in U tensor
+template<typename T, typename U>
+void norm_async_mixed(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<U> &dst);
+
+// Mixed precision norm: compute norm of T tensor and store in U tensor
+template<typename T, typename U>
+void norm_mixed(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<U> &dst);
+
 } // namespace nntile::tensor
