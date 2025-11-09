@@ -245,7 +245,7 @@ def test_bench_gpt2_forward_async(context_cuda, benchmark_model, dtype: str):
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
-def test_bench_gpt2_backward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_gpt2_forward_backward_async(context_cuda, benchmark_model, dtype: str):
     params = single_tile
     num_hidden_layers = 1
     _, nntile_model, _, _ = generate_inputs(params, dtype, num_hidden_layers)

@@ -269,7 +269,7 @@ def test_bench_gpt2mlp_forward_async(context_cuda, benchmark_operation, dtype: s
 
     def bench_fn():
         gpt2mlp_nntile.forward_async()
-        gpt2mlp_nntile.activations[-1].value.to_array(out_np)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
@@ -277,7 +277,7 @@ def test_bench_gpt2mlp_forward_async(context_cuda, benchmark_operation, dtype: s
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
-def test_bench_gpt2mlp_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_gpt2mlp_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
     device = "cuda"
     gpt2_config = GPT2Config(activation_function="relu", resid_pdrop=0.0)
 
@@ -326,6 +326,7 @@ def test_bench_gpt2mlp_backward_async(context_cuda, benchmark_operation, dtype: 
 
     def bench_fn():
         gpt2mlp_nntile.backward_async()
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)

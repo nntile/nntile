@@ -347,7 +347,7 @@ def test_bench_t5_attention_forward_async(context_cuda, benchmark_operation, dty
 
     def bench_fn():
         nntile_layer.forward_async()
-        out_tm.value.to_array(out_np)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
@@ -355,7 +355,7 @@ def test_bench_t5_attention_forward_async(context_cuda, benchmark_operation, dty
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
-def test_bench_t5_attention_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_t5_attention_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
     params = single_tile
     is_cross_attn = False
     _, nntile_layer, *_ = generate_inputs(params, dtype, is_cross_attn)
@@ -370,6 +370,7 @@ def test_bench_t5_attention_backward_async(context_cuda, benchmark_operation, dt
         nntile_layer.forward_async()
         out_tm.grad.from_array(grad_np)
         nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)

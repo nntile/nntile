@@ -223,7 +223,7 @@ def test_bench_gpt_neo_block_forward_async(context_cuda, benchmark_model, dtype:
 
     def bench_fn():
         nntile_module.forward_async()
-        nntile_module.activations[-1].value.to_array(np_out)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_model(bench_fn)
@@ -232,7 +232,7 @@ def test_bench_gpt_neo_block_forward_async(context_cuda, benchmark_model, dtype:
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'bf16'])
-def test_bench_gpt_neo_block_backward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_gpt_neo_block_forward_backward_async(context_cuda, benchmark_model, dtype: str):
     params = single_tile
     _, nntile_module, *_ = generate_inputs(params, layer_id=1, dtype=dtype)
 

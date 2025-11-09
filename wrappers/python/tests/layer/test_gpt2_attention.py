@@ -220,7 +220,7 @@ def test_bench_gpt2_attention_forward_async(context_cuda, benchmark_operation, d
 
     def bench_fn():
         nntile_layer.forward_async()
-        nntile_layer.y.value.to_array(out_np)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
@@ -228,7 +228,7 @@ def test_bench_gpt2_attention_forward_async(context_cuda, benchmark_operation, d
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
-def test_bench_gpt2_attention_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_gpt2_attention_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(dtype, params)
 
@@ -241,6 +241,7 @@ def test_bench_gpt2_attention_backward_async(context_cuda, benchmark_operation, 
         nntile_layer.forward_async()
         nntile_layer.y.grad.from_array(grad_np)
         nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)

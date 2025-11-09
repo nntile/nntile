@@ -192,6 +192,7 @@ def test_bench_act_forward_async(context_cuda, benchmark_operation, name: str, d
     def bench_fn():
         layer.forward_async()
         layer.y.value.to_array(np_out)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
@@ -199,7 +200,7 @@ def test_bench_act_forward_async(context_cuda, benchmark_operation, name: str, d
 @pytest.mark.benchmark
 @pytest.mark.parametrize("name", ["relu"])
 @pytest.mark.parametrize("dtype", ['fp32'])
-def test_bench_act_backward_async(context_cuda, benchmark_operation, name: str, dtype: str):
+def test_bench_act_forward_backward_async(context_cuda, benchmark_operation, name: str, dtype: str):
     A_shape = [128, 128]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
@@ -226,6 +227,7 @@ def test_bench_act_backward_async(context_cuda, benchmark_operation, name: str, 
 
     def bench_fn():
         layer.backward_async()
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)

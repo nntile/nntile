@@ -177,14 +177,14 @@ def test_bench_add_forward_async(context_cuda, benchmark_operation, dtype: str):
 
     def bench_fn():
         layer.forward_async()
-        layer.res.value.to_array(out_np)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
-def test_bench_add_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_add_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
     shape = [128, 128]
     traits = TensorTraits(shape, shape)
     distr = [0]
@@ -219,6 +219,7 @@ def test_bench_add_backward_async(context_cuda, benchmark_operation, dtype: str)
 
     def bench_fn():
         layer.backward_async()
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)

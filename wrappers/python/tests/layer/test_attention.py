@@ -408,14 +408,14 @@ def test_bench_attention_forward_async(context_cuda, benchmark_operation, dtype:
 
     def bench_fn():
         layer.forward_async()
-        layer.y.value.to_array(np_out)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize("dtype", ['fp32'])
-def test_bench_attention_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_attention_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
     n_emb = 64
     n_emb_k = 64
     n_emb_v = 64
@@ -465,6 +465,7 @@ def test_bench_attention_backward_async(context_cuda, benchmark_operation, dtype
         layer.forward_async()
         layer.y.grad.from_array(np_grad)
         layer.backward_async()
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)

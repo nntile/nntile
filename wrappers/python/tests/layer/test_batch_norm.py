@@ -177,32 +177,6 @@ class TestBatchNorm2d:
             err_msg=f"Error in backward d(bn)/d(i) for params: {params}",
         )
 
-
-@pytest.mark.benchmark
-def test_bench_batchnorm2d_backward_async(context_cuda, numpy_rng, benchmark_operation):
-    # Use fp32 which is supported in current BN impl
-    params = BATCH_NORM_2D_TEST_PARAMS[0]
-    (input_moment, _, weights_nnt, bias_nnt), _ = generate_input(params, numpy_rng)
-
-    nntile_layer = BatchNorm2d.generate_simple(
-        input_moment, eps=params.eps, redux=params.redux
-    )
-    nntile_layer.weight = weights_nnt
-    nntile_layer.bias = bias_nnt
-
-    nntile.tensor.clear_async(nntile_layer.y.grad)
-    # prepare grad buffer
-    grad_np = numpy_rng.random(params.shape).astype(params.dtype, order="F")
-
-    def bench_fn():
-        nntile_layer.forward_async()
-        nntile_layer.y.grad.from_array(grad_np)
-        nntile_layer.backward_async()
-
-    nntile.starpu.wait_for_all()
-    benchmark_operation(bench_fn)
-
-
 @pytest.mark.benchmark
 def test_bench_batchnorm2d_forward_async(context_cuda, benchmark_operation):
     shape = (4, 4, 64, 64)
@@ -226,7 +200,32 @@ def test_bench_batchnorm2d_forward_async(context_cuda, benchmark_operation):
 
     def bench_fn():
         nntile_layer.forward_async()
-        nntile_layer.y.value.to_array(out_np)
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+@pytest.mark.benchmark
+def test_bench_batchnorm2d_forward_backward_async(context_cuda, numpy_rng, benchmark_operation):
+    # Use fp32 which is supported in current BN impl
+    params = BATCH_NORM_2D_TEST_PARAMS[0]
+    (input_moment, _, weights_nnt, bias_nnt), _ = generate_input(params, numpy_rng)
+
+    nntile_layer = BatchNorm2d.generate_simple(
+        input_moment, eps=params.eps, redux=params.redux
+    )
+    nntile_layer.weight = weights_nnt
+    nntile_layer.bias = bias_nnt
+
+    nntile.tensor.clear_async(nntile_layer.y.grad)
+    # prepare grad buffer
+    grad_np = numpy_rng.random(params.shape).astype(params.dtype, order="F")
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.y.grad.from_array(grad_np)
+        nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)

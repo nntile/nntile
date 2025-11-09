@@ -286,7 +286,7 @@ def test_bench_t5_block_forward_async(context_cuda, benchmark_model, dtype: str)
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'bf16'])
-def test_bench_t5_block_backward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_t5_block_forward_backward_async(context_cuda, benchmark_model, dtype: str):
     params = encoder_single_tile
     _, nntile_block, *_ = generate_inputs(params, dtype)
 

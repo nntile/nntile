@@ -336,7 +336,7 @@ def test_bench_llama_forward_async(context_cuda, benchmark_model, dtype: str):
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'bf16'])
-def test_bench_llama_backward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_llama_forward_backward_async(context_cuda, benchmark_model, dtype: str):
     params = single_tile
     _, nntile_model, *_ = generate_inputs(params, dtype, num_hidden_layers=2, att_bias=False)
 

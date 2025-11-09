@@ -234,14 +234,14 @@ def test_bench_rmsnorm_forward_async(context_cuda, benchmark_operation, dtype: s
 
     def bench_fn():
         layer.forward_async()
-        layer.y.value.to_array(out_np)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
-def test_bench_rmsnorm_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_rmsnorm_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
     A_shape = [256, 256]
     eps = 1e-5
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
@@ -268,6 +268,7 @@ def test_bench_rmsnorm_backward_async(context_cuda, benchmark_operation, dtype: 
         layer.forward_async()
         layer.y.grad.from_array(grad_np)
         layer.backward_async()
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)

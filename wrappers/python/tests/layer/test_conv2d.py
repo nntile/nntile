@@ -241,7 +241,7 @@ def test_bench_conv2d_forward_async(context_cuda, benchmark_operation, dtype: st
 
     def bench_fn():
         nntile_layer.forward_async()
-        nntile_layer.y.value.to_array(out_np)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
@@ -249,7 +249,7 @@ def test_bench_conv2d_forward_async(context_cuda, benchmark_operation, dtype: st
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
-def test_bench_conv2d_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_conv2d_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
     in_channels, out_channels = 8, 8
     kernel = (3, 3)
     H_in, W_in = 128, 128
@@ -285,6 +285,7 @@ def test_bench_conv2d_backward_async(context_cuda, benchmark_operation, dtype: s
 
     def bench_fn():
         nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)

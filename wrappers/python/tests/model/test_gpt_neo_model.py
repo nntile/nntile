@@ -290,7 +290,7 @@ def test_bench_gptneo_forward_async(context_cuda, benchmark_model, dtype: str):
 
     def bench_fn():
         nntile_model.forward_async()
-        nntile_model.activations[-1].value.to_array(np_out)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_model(bench_fn)
@@ -299,7 +299,7 @@ def test_bench_gptneo_forward_async(context_cuda, benchmark_model, dtype: str):
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'bf16'])
-def test_bench_gptneo_backward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_gptneo_forward_backward_async(context_cuda, benchmark_model, dtype: str):
     params = single_tile
     attn_pattern = ["local"]
     pattern_mult = 1

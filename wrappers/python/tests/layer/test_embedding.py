@@ -193,14 +193,14 @@ def test_bench_embedding_forward_async(context_cuda, benchmark_operation, dtype:
 
     def bench_fn():
         layer.forward_async()
-        layer.y.value.to_array(out_np)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize("dtype", ['fp32'])
-def test_bench_embedding_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_embedding_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
     index_shape = [64, 32, 16]
     vocab_size = 2048
     emb_size = 128
@@ -236,6 +236,7 @@ def test_bench_embedding_backward_async(context_cuda, benchmark_operation, dtype
 
     def bench_fn():
         layer.backward_async()
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)

@@ -243,7 +243,7 @@ def test_bench_bert_layer_forward_async(context_cuda, benchmark_model, dtype: st
 
     def bench_fn():
         nntile_layer.forward_async()
-        nntile_layer.activations[-1].value.to_array(np_out)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_model(bench_fn)
@@ -252,7 +252,7 @@ def test_bench_bert_layer_forward_async(context_cuda, benchmark_model, dtype: st
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'bf16'])
-def test_bench_bert_layer_backward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_bert_layer_forward_backward_async(context_cuda, benchmark_model, dtype: str):
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(dtype, params)
 

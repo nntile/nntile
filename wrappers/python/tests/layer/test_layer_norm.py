@@ -264,7 +264,7 @@ def test_bench_layernorm_forward_async(context_cuda, benchmark_operation, dtype:
 
     def bench_fn():
         nnt_ln.forward_async()
-        nnt_ln.y.value.to_array(out_np)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
@@ -272,7 +272,7 @@ def test_bench_layernorm_forward_async(context_cuda, benchmark_operation, dtype:
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
-def test_bench_layernorm_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_layernorm_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
     n_size = 128
     m_size = 256
     eps = 1e-5
@@ -301,6 +301,7 @@ def test_bench_layernorm_backward_async(context_cuda, benchmark_operation, dtype
         nnt_ln.forward_async()
         nnt_ln.y.grad.from_array(grad_np)
         nnt_ln.backward_async()
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
