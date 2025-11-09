@@ -23,6 +23,18 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 
 
+dtype2nntile = {
+    'fp16': nntile.tensor.Tensor_fp16,
+    'bf16': nntile.tensor.Tensor_bf16,
+    'fp32': nntile.tensor.Tensor_fp32,
+}
+
+dtype2np = {
+    'fp16': np.float16,
+    'bf16': np.float16,
+    'fp32': np.float32,
+}
+
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
 def test_gap(context, dtype: np.dtype):
     if dtype == np.float32:
@@ -62,23 +74,25 @@ def test_gap(context, dtype: np.dtype):
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', [np.float32])
-def test_bench_gap_forward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+@pytest.mark.parametrize('dtype', ['fp32'])
+def test_bench_gap_forward_async(context_cuda, benchmark_operation, dtype: str):
     A_shape = [128, 64, 16]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
 
-    A = Tensor[dtype](A_traits, mpi_distr)
-    A_grad = Tensor[dtype](A_traits, mpi_distr)
+    tensor_type = dtype2nntile[dtype]
+    A = tensor_type(A_traits, mpi_distr)
+    A_grad = tensor_type(A_traits, mpi_distr)
 
     rng = np.random.default_rng(42)
-    np_A = np.array(rng.standard_normal(A_shape), dtype=dtype, order='F')
+    np_dtype = dtype2np[dtype]
+    np_A = np.array(rng.standard_normal(A_shape), dtype=np_dtype, order='F')
     A.from_array(np_A)
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
     layer = Gap_Layer.generate_simple(A_moments)
 
-    out_np = np.zeros(layer.y.value.shape, dtype=dtype, order='F')
+    out_np = np.zeros(layer.y.value.shape, dtype=np_dtype, order='F')
 
     def bench_fn():
         layer.forward_async()
@@ -87,19 +101,20 @@ def test_bench_gap_forward_async(context_cuda, benchmark_operation, dtype: np.dt
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
-
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', [np.float32])
-def test_bench_gap_backward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+@pytest.mark.parametrize('dtype', ['fp32'])
+def test_bench_gap_backward_async(context_cuda, benchmark_operation, dtype: str):
     A_shape = [128, 64, 16]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
 
-    A = Tensor[dtype](A_traits, mpi_distr)
-    A_grad = Tensor[dtype](A_traits, mpi_distr)
+    tensor_type = dtype2nntile[dtype]
+    A = tensor_type(A_traits, mpi_distr)
+    A_grad = tensor_type(A_traits, mpi_distr)
 
     rng = np.random.default_rng(42)
-    np_A = np.array(rng.standard_normal(A_shape), dtype=dtype, order='F')
+    np_dtype = dtype2np[dtype]
+    np_A = np.array(rng.standard_normal(A_shape), dtype=np_dtype, order='F')
     A.from_array(np_A)
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
@@ -109,7 +124,7 @@ def test_bench_gap_backward_async(context_cuda, benchmark_operation, dtype: np.d
     layer.clear_gradients()
     # forward and set grad for y
     layer.forward_async()
-    grad_np = np.array(rng.standard_normal(layer.y.value.shape), dtype=dtype, order='F')
+    grad_np = np.array(rng.standard_normal(layer.y.value.shape), dtype=np_dtype, order='F')
     layer.y.grad.from_array(grad_np)
 
     def bench_fn():

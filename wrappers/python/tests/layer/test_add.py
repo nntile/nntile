@@ -23,6 +23,17 @@ from nntile.layer.linear import Linear
 from nntile.model.base_model import BaseModel
 from nntile.tensor import Tensor_fp32, TensorMoments, TensorTraits, notrans
 
+dtype2nntile = {
+    'fp16': nntile.tensor.Tensor_fp16,
+    'bf16': nntile.tensor.Tensor_bf16,
+    'fp32': nntile.tensor.Tensor_fp32,
+}
+
+dtype2np = {
+    'fp16': np.float16,
+    'bf16': np.float16,
+    'fp32': np.float32,
+}
 
 class ToyFC_SkipConnectionTorch(nn.Module):
     def __init__(self, input_dim, hidden_dim):
@@ -137,28 +148,23 @@ def test_add(context, n=100, hidden_dim=50, num_samples=1000):
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', [np.float32])
-def test_bench_add_forward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+@pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
+def test_bench_add_forward_async(context_cuda, benchmark_operation, dtype: str):
     shape = [128, 128]
     traits = TensorTraits(shape, shape)
     distr = [0]
 
     # Create inputs
-    if dtype is np.float32:
-        X1 = Tensor_fp32(traits, distr)
-        X2 = Tensor_fp32(traits, distr)
-        G1 = Tensor_fp32(traits, distr)
-        G2 = Tensor_fp32(traits, distr)
-    else:
-        # Keeping minimal: currently benchmarks are for fp32
-        X1 = Tensor_fp32(traits, distr)
-        X2 = Tensor_fp32(traits, distr)
-        G1 = Tensor_fp32(traits, distr)
-        G2 = Tensor_fp32(traits, distr)
+    tensor_type = dtype2nntile[dtype]
+    X1 = tensor_type(traits, distr)
+    X2 = tensor_type(traits, distr)
+    G1 = tensor_type(traits, distr)
+    G2 = tensor_type(traits, distr)
 
     rng = np.random.default_rng(42)
-    x1_np = np.array(rng.standard_normal(shape), dtype=dtype, order='F')
-    x2_np = np.array(rng.standard_normal(shape), dtype=dtype, order='F')
+    np_dtype = dtype2np[dtype]
+    x1_np = np.array(rng.standard_normal(shape), dtype=np_dtype, order='F')
+    x2_np = np.array(rng.standard_normal(shape), dtype=np_dtype, order='F')
     X1.from_array(x1_np)
     X2.from_array(x2_np)
 
@@ -167,7 +173,7 @@ def test_bench_add_forward_async(context_cuda, benchmark_operation, dtype: np.dt
 
     layer = Add.generate_simple(x1_tm, x2_tm)
 
-    out_np = np.zeros(shape, dtype=dtype, order='F')
+    out_np = np.zeros(shape, dtype=np_dtype, order='F')
 
     def bench_fn():
         layer.forward_async()
@@ -176,22 +182,23 @@ def test_bench_add_forward_async(context_cuda, benchmark_operation, dtype: np.dt
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
-
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', [np.float32])
-def test_bench_add_backward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+@pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
+def test_bench_add_backward_async(context_cuda, benchmark_operation, dtype: str):
     shape = [128, 128]
     traits = TensorTraits(shape, shape)
     distr = [0]
 
-    X1 = Tensor_fp32(traits, distr)
-    X2 = Tensor_fp32(traits, distr)
-    G1 = Tensor_fp32(traits, distr)
-    G2 = Tensor_fp32(traits, distr)
+    tensor_type = dtype2nntile[dtype]
+    X1 = tensor_type(traits, distr)
+    X2 = tensor_type(traits, distr)
+    G1 = tensor_type(traits, distr)
+    G2 = tensor_type(traits, distr)
 
     rng = np.random.default_rng(42)
-    x1_np = np.array(rng.standard_normal(shape), dtype=dtype, order='F')
-    x2_np = np.array(rng.standard_normal(shape), dtype=dtype, order='F')
+    np_dtype = dtype2np[dtype]
+    x1_np = np.array(rng.standard_normal(shape), dtype=np_dtype, order='F')
+    x2_np = np.array(rng.standard_normal(shape), dtype=np_dtype, order='F')
     X1.from_array(x1_np)
     X2.from_array(x2_np)
 
@@ -207,7 +214,7 @@ def test_bench_add_backward_async(context_cuda, benchmark_operation, dtype: np.d
 
     # forward once and prepare grad
     layer.forward_async()
-    grad_np = np.array(rng.standard_normal(shape), dtype=dtype, order='F')
+    grad_np = np.array(rng.standard_normal(shape), dtype=np_dtype, order='F')
     layer.res.grad.from_array(grad_np)
 
     def bench_fn():

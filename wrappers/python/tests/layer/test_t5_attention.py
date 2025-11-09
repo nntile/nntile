@@ -34,6 +34,12 @@ dtype2nntile = {
     "bf16": nntile.tensor.Tensor_bf16,
 }
 
+dtype2np = {
+    'fp16': np.float16,
+    'bf16': np.float16,
+    'fp32': np.float32,
+}
+
 dtype2tol = {
     "fp32": {"rtol": 3e-4},
     "fp32_fast_tf32": {"rtol": 1.3e-3},
@@ -328,15 +334,16 @@ class TestT5Attention:
 
 
 @pytest.mark.benchmark
-def test_bench_t5_attention_forward_async(context_cuda, benchmark_operation):
+@pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
+def test_bench_t5_attention_forward_async(context_cuda, benchmark_operation, dtype: str):
     params = single_tile
-    dtype = 'fp32'
     is_cross_attn = False
     _, nntile_layer, *_ = generate_inputs(params, dtype, is_cross_attn)
 
     nntile_layer.clear_gradients()
     out_tm = nntile_layer.activations_output[0]
-    out_np = np.zeros(out_tm.value.shape, dtype=np.float32, order='F')
+    np_dtype = dtype2np[dtype]
+    out_np = np.zeros(out_tm.value.shape, dtype=np_dtype, order='F')
 
     def bench_fn():
         nntile_layer.forward_async()
@@ -347,16 +354,17 @@ def test_bench_t5_attention_forward_async(context_cuda, benchmark_operation):
 
 
 @pytest.mark.benchmark
-def test_bench_t5_attention_backward_async(context_cuda, benchmark_operation):
+@pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
+def test_bench_t5_attention_backward_async(context_cuda, benchmark_operation, dtype: str):
     params = single_tile
-    dtype = 'fp32'
     is_cross_attn = False
     _, nntile_layer, *_ = generate_inputs(params, dtype, is_cross_attn)
 
     nntile_layer.clear_gradients()
     rng = np.random.default_rng(42)
     out_tm = nntile_layer.activations_output[0]
-    grad_np = np.array(rng.standard_normal(out_tm.value.shape), dtype=np.float32, order='F')
+    np_dtype = dtype2np[dtype]
+    grad_np = np.array(rng.standard_normal(out_tm.value.shape), dtype=np_dtype, order='F')
 
     def bench_fn():
         nntile_layer.forward_async()

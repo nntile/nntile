@@ -23,6 +23,17 @@ import nntile.utils.constructors as nntc
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 
+dtype2nntile = {
+    'fp16': nntile.tensor.Tensor_fp16,
+    'bf16': nntile.tensor.Tensor_bf16,
+    'fp32': nntile.tensor.Tensor_fp32,
+}
+
+dtype2np = {
+    'fp16': np.float16,
+    'bf16': np.float16,
+    'fp32': np.float32,
+}
 
 class RMSNorm(torch.nn.Module):
     """See `original`_ implementation.
@@ -197,21 +208,23 @@ def test_rms_norm_dynamic(context, numpy_rng, dtype: np.dtype):
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', [np.float32])
-def test_bench_rmsnorm_forward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+@pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
+def test_bench_rmsnorm_forward_async(context_cuda, benchmark_operation, dtype: str):
     A_shape = [256, 256]
     eps = 1e-5
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
 
-    A_value = Tensor[dtype](A_traits, mpi_distr)
-    A_grad = Tensor[dtype](A_traits, mpi_distr)
+    tensor_type = dtype2nntile[dtype]
+    A_value = tensor_type(A_traits, mpi_distr)
+    A_grad = tensor_type(A_traits, mpi_distr)
     A = nntile.tensor.TensorMoments(A_value, A_grad, True)
 
     rng = np.random.default_rng(42)
-    np_A = np.array(rng.standard_normal(size=A_shape), dtype=dtype, order='F')
+    np_dtype = dtype2np[dtype]
+    np_A = np.array(rng.standard_normal(size=A_shape), dtype=np_dtype, order='F')
     A.value.from_array(np_A)
-    np_gamma = np.array(rng.standard_normal(size=A_shape[-1]), dtype=dtype, order='F')
+    np_gamma = np.array(rng.standard_normal(size=A_shape[-1]), dtype=np_dtype, order='F')
 
     layer = nntile.layer.RMSNorm.generate_simple(A, len(A_shape) - 1, eps)
     layer.gamma.value.from_array(np_gamma)
@@ -226,29 +239,30 @@ def test_bench_rmsnorm_forward_async(context_cuda, benchmark_operation, dtype: n
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
-
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', [np.float32])
-def test_bench_rmsnorm_backward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+@pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
+def test_bench_rmsnorm_backward_async(context_cuda, benchmark_operation, dtype: str):
     A_shape = [256, 256]
     eps = 1e-5
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
 
-    A_value = Tensor[dtype](A_traits, mpi_distr)
-    A_grad = Tensor[dtype](A_traits, mpi_distr)
+    tensor_type = dtype2nntile[dtype]
+    A_value = tensor_type(A_traits, mpi_distr)
+    A_grad = tensor_type(A_traits, mpi_distr)
     A = nntile.tensor.TensorMoments(A_value, A_grad, True)
 
     rng = np.random.default_rng(42)
-    np_A = np.array(rng.standard_normal(size=A_shape), dtype=dtype, order='F')
+    np_dtype = dtype2np[dtype]
+    np_A = np.array(rng.standard_normal(size=A_shape), dtype=np_dtype, order='F')
     A.value.from_array(np_A)
-    np_gamma = np.array(rng.standard_normal(size=A_shape[-1]), dtype=dtype, order='F')
+    np_gamma = np.array(rng.standard_normal(size=A_shape[-1]), dtype=np_dtype, order='F')
 
     layer = nntile.layer.RMSNorm.generate_simple(A, len(A_shape) - 1, eps)
     layer.gamma.value.from_array(np_gamma)
 
     layer.clear_gradients()
-    grad_np = np.array(rng.standard_normal(size=A_shape), dtype=dtype, order='F')
+    grad_np = np.array(rng.standard_normal(size=A_shape), dtype=np_dtype, order='F')
 
     def bench_fn():
         layer.forward_async()

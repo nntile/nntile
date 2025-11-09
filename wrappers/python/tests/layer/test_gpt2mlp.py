@@ -24,6 +24,11 @@ from gpt2_config import GPT2Config
 from huggingface_activations import ACT2FN
 from nntile.model.gpt2 import GPT2MLP as GPT2MLP_nntile
 
+dtype2np = {
+    'fp16': np.float16,
+    'bf16': np.float16,
+    'fp32': np.float32,
+}
 
 class Conv1D(nn.Module):
     """1D-convolutional layer as defined by Radford et al. for OpenAI GPT (and
@@ -216,7 +221,8 @@ def test_gpt2mlp_dynamic(
 
 
 @pytest.mark.benchmark
-def test_bench_gpt2mlp_forward_async(context_cuda, benchmark_operation):
+@pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
+def test_bench_gpt2mlp_forward_async(context_cuda, benchmark_operation, dtype: str):
     device = "cuda"
     gpt2_config = GPT2Config(activation_function="relu", resid_pdrop=0.0)
 
@@ -254,8 +260,11 @@ def test_bench_gpt2mlp_forward_async(context_cuda, benchmark_operation):
         gpt2mlp_hug, x_moments, nntile_config
     )
 
+    np_dtype = dtype2np[dtype]
     out_np = np.zeros(
-        gpt2mlp_nntile.activations[-1].value.shape, order="F", dtype=np.float32
+        gpt2mlp_nntile.activations[-1].value.shape,
+        order="F",
+        dtype=np_dtype,
     )
 
     def bench_fn():
@@ -267,7 +276,8 @@ def test_bench_gpt2mlp_forward_async(context_cuda, benchmark_operation):
 
 
 @pytest.mark.benchmark
-def test_bench_gpt2mlp_backward_async(context_cuda, benchmark_operation):
+@pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
+def test_bench_gpt2mlp_backward_async(context_cuda, benchmark_operation, dtype: str):
     device = "cuda"
     gpt2_config = GPT2Config(activation_function="relu", resid_pdrop=0.0)
 
@@ -310,7 +320,8 @@ def test_bench_gpt2mlp_backward_async(context_cuda, benchmark_operation):
     # forward once and prepare grad
     gpt2mlp_nntile.forward_async()
     out_tm = gpt2mlp_nntile.activations[-1]
-    grad_np = np.ones(out_tm.value.shape, dtype=np.float32, order="F")
+    np_dtype = dtype2np[dtype]
+    grad_np = np.ones(out_tm.value.shape, dtype=np_dtype, order="F")
     out_tm.grad.from_array(grad_np)
 
     def bench_fn():

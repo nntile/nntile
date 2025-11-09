@@ -28,6 +28,17 @@ Tensor = {
     np.float64: nntile.tensor.Tensor_fp64,
 }
 
+dtype2nntile = {
+    'fp16': nntile.tensor.Tensor_fp16,
+    'bf16': nntile.tensor.Tensor_bf16,
+    'fp32': nntile.tensor.Tensor_fp32,
+}
+
+dtype2np = {
+    'fp16': np.float16,
+    'bf16': np.float16,
+    'fp32': np.float32,
+}
 
 def setup(name: str, dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
@@ -155,18 +166,20 @@ class TestAct:
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize("name", ["relu"])
-@pytest.mark.parametrize("dtype", [np.float32])
-def test_bench_act_forward_async(context_cuda, benchmark_operation, name: str, dtype: np.dtype):
+@pytest.mark.parametrize("dtype", ['fp32'])
+def test_bench_act_forward_async(context_cuda, benchmark_operation, name: str, dtype: str):
     A_shape = [128, 128]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr)
-    A_grad = Tensor[dtype](A_traits, mpi_distr)
+    tensor_type = dtype2nntile[dtype]
+    A = tensor_type(A_traits, mpi_distr)
+    A_grad = tensor_type(A_traits, mpi_distr)
 
     # Set initial values of tensors
     rng = np.random.default_rng(42)
-    np_A = np.array(rng.standard_normal(A_shape), dtype=dtype, order="F")
+    np_dtype = dtype2np[dtype]
+    np_A = np.array(rng.standard_normal(A_shape), dtype=np_dtype, order="F")
     A.from_array(np_A)
     nntile.tensor.clear_async(A_grad)
 
@@ -183,21 +196,22 @@ def test_bench_act_forward_async(context_cuda, benchmark_operation, name: str, d
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
-
 @pytest.mark.benchmark
 @pytest.mark.parametrize("name", ["relu"])
-@pytest.mark.parametrize("dtype", [np.float32])
-def test_bench_act_backward_async(context_cuda, benchmark_operation, name: str, dtype: np.dtype):
+@pytest.mark.parametrize("dtype", ['fp32'])
+def test_bench_act_backward_async(context_cuda, benchmark_operation, name: str, dtype: str):
     A_shape = [128, 128]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr)
-    A_grad = Tensor[dtype](A_traits, mpi_distr)
+    tensor_type = dtype2nntile[dtype]
+    A = tensor_type(A_traits, mpi_distr)
+    A_grad = tensor_type(A_traits, mpi_distr)
 
     # Set initial values of tensors
     rng = np.random.default_rng(42)
-    np_A = np.array(rng.standard_normal(A_shape), dtype=dtype, order="F")
+    np_dtype = dtype2np[dtype]
+    np_A = np.array(rng.standard_normal(A_shape), dtype=np_dtype, order="F")
     A.from_array(np_A)
     nntile.tensor.clear_async(A_grad)
 

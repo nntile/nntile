@@ -26,6 +26,17 @@ Tensor = {
     np.float64: nntile.tensor.Tensor_fp64,
 }
 
+dtype2nntile = {
+    'fp16': nntile.tensor.Tensor_fp16,
+    'bf16': nntile.tensor.Tensor_bf16,
+    'fp32': nntile.tensor.Tensor_fp32,
+}
+
+dtype2np = {
+    'fp16': np.float16,
+    'bf16': np.float16,
+    'fp32': np.float32,
+}
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
 def test_embedding(context, dtype: np.dtype):
@@ -149,8 +160,8 @@ def test_embedding_dynamic(context, numpy_rng, dtype):
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("dtype", [np.float32])
-def test_bench_embedding_forward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+@pytest.mark.parametrize("dtype", ['fp32'])
+def test_bench_embedding_forward_async(context_cuda, benchmark_operation, dtype: str):
     index_shape = [64, 32, 16]
     vocab_size = 2048
     emb_size = 128
@@ -167,7 +178,7 @@ def test_bench_embedding_forward_async(context_cuda, benchmark_operation, dtype:
 
     layer = Embedding.generate_simple(
         nntile_index,
-        Tensor[dtype],
+        dtype2nntile[dtype],
         axis,
         vocab_size,
         emb_size,
@@ -175,10 +186,10 @@ def test_bench_embedding_forward_async(context_cuda, benchmark_operation, dtype:
         emb_size_tile,
     )
 
-    np_vocab = np.array(rng.standard_normal((emb_size, vocab_size)), dtype=dtype, order="F")
+    np_vocab = np.array(rng.standard_normal((emb_size, vocab_size)), dtype=dtype2np[dtype], order="F")
     layer.w.value.from_array(np_vocab)
 
-    out_np = np.zeros(layer.y.value.shape, dtype=dtype, order="F")
+    out_np = np.zeros(layer.y.value.shape, dtype=dtype2np[dtype], order="F")
 
     def bench_fn():
         layer.forward_async()
@@ -187,10 +198,9 @@ def test_bench_embedding_forward_async(context_cuda, benchmark_operation, dtype:
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
-
 @pytest.mark.benchmark
-@pytest.mark.parametrize("dtype", [np.float32])
-def test_bench_embedding_backward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+@pytest.mark.parametrize("dtype", ['fp32'])
+def test_bench_embedding_backward_async(context_cuda, benchmark_operation, dtype: str):
     index_shape = [64, 32, 16]
     vocab_size = 2048
     emb_size = 128
@@ -207,7 +217,7 @@ def test_bench_embedding_backward_async(context_cuda, benchmark_operation, dtype
 
     layer = Embedding.generate_simple(
         nntile_index,
-        Tensor[dtype],
+        dtype2nntile[dtype],
         axis,
         vocab_size,
         emb_size,
@@ -215,12 +225,12 @@ def test_bench_embedding_backward_async(context_cuda, benchmark_operation, dtype
         emb_size_tile,
     )
 
-    np_vocab = np.array(rng.standard_normal((emb_size, vocab_size)), dtype=dtype, order="F")
+    np_vocab = np.array(rng.standard_normal((emb_size, vocab_size)), dtype=dtype2np[dtype], order="F")
     layer.w.value.from_array(np_vocab)
 
     # forward once and set grad
     layer.forward_async()
-    grad_np = np.array(rng.standard_normal(layer.y.value.shape), dtype=dtype, order="F")
+    grad_np = np.array(rng.standard_normal(layer.y.value.shape), dtype=dtype2np[dtype], order="F")
     layer.y.grad.from_array(grad_np)
     nntile.tensor.clear_async(layer.w.grad)
 

@@ -34,6 +34,12 @@ dtype2nntile = {
         'bf16': nntile.tensor.Tensor_bf16,
 }
 
+dtype2np = {
+    'fp16': np.float16,
+    'bf16': np.float16,
+    'fp32': np.float32,
+}
+
 dtype2tol = {
         'fp32': {'rtol': 1e-6},
         'fp32_fast_tf32': {'rtol': 8e-4},
@@ -357,14 +363,15 @@ def test_kvcache(context, numpy_rng, n_head, n_head_tile):
 
 
 @pytest.mark.benchmark
-def test_bench_gpt_neox_attention_forward_async(context_cuda, benchmark_operation):
-    dtype = 'fp32'
+@pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
+def test_bench_gpt_neox_attention_forward_async(context_cuda, benchmark_operation, dtype: str):
     params = single_tile
     rotary_pct = 0.5
     att_bias = False
     _, nntile_layer, *_ = generate_inputs(params, dtype, rotary_pct, att_bias)
 
-    out_np = np.zeros(nntile_layer.y.value.shape, dtype=np.float32, order='F')
+    np_dtype = dtype2np[dtype]
+    out_np = np.zeros(nntile_layer.y.value.shape, dtype=np_dtype, order='F')
 
     def bench_fn():
         nntile_layer.forward_async()
@@ -375,8 +382,8 @@ def test_bench_gpt_neox_attention_forward_async(context_cuda, benchmark_operatio
 
 
 @pytest.mark.benchmark
-def test_bench_gpt_neox_attention_backward_async(context_cuda, benchmark_operation):
-    dtype = 'fp32'
+@pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
+def test_bench_gpt_neox_attention_backward_async(context_cuda, benchmark_operation, dtype: str):
     params = single_tile
     rotary_pct = 0.5
     att_bias = False
@@ -384,7 +391,8 @@ def test_bench_gpt_neox_attention_backward_async(context_cuda, benchmark_operati
 
     nntile_layer.clear_gradients()
     rng = np.random.default_rng(42)
-    grad_np = np.array(rng.standard_normal(nntile_layer.y.value.shape), dtype=np.float32, order='F')
+    np_dtype = dtype2np[dtype]
+    grad_np = np.array(rng.standard_normal(nntile_layer.y.value.shape), dtype=np_dtype, order='F')
 
     def bench_fn():
         nntile_layer.forward_async()

@@ -26,6 +26,7 @@ dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
 }
 
 dtype2tol = {
@@ -42,6 +43,11 @@ dtype2tol_weight = {
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
 
+dtype2np = {
+    'fp16': np.float16,
+    'bf16': np.float16,  # numpy lacks bfloat16
+    'fp32': np.float32,
+}
 
 def generate_inputs(numpy_rng, dtype: str, in_channels: int, out_channels: int,
         kernel: Sequence[int], H_in: int, H_in_tile: int, W_in: int,
@@ -202,8 +208,8 @@ class TestConv2d:
 
 
 @pytest.mark.benchmark
-def test_bench_conv2d_forward_async(context_cuda, benchmark_operation):
-    dtype = 'fp32'
+@pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
+def test_bench_conv2d_forward_async(context_cuda, benchmark_operation, dtype: str):
     in_channels, out_channels = 8, 8
     kernel = (3, 3)
     H_in, W_in = 128, 128
@@ -231,7 +237,7 @@ def test_bench_conv2d_forward_async(context_cuda, benchmark_operation):
 
     nntile_layer = nntile.layer.Conv2d.from_torch(torch_layer, X)
 
-    out_np = np.zeros(nntile_layer.y.value.shape, dtype=np.float32, order="F")
+    out_np = np.zeros(nntile_layer.y.value.shape, dtype=dtype2np[dtype], order="F")
 
     def bench_fn():
         nntile_layer.forward_async()
@@ -242,8 +248,8 @@ def test_bench_conv2d_forward_async(context_cuda, benchmark_operation):
 
 
 @pytest.mark.benchmark
-def test_bench_conv2d_backward_async(context_cuda, benchmark_operation):
-    dtype = 'fp32'
+@pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
+def test_bench_conv2d_backward_async(context_cuda, benchmark_operation, dtype: str):
     in_channels, out_channels = 8, 8
     kernel = (3, 3)
     H_in, W_in = 128, 128
@@ -274,7 +280,7 @@ def test_bench_conv2d_backward_async(context_cuda, benchmark_operation):
     nntile_layer.clear_gradients()
     # forward once and set grad
     nntile_layer.forward_async()
-    grad_np = np.array(rng.standard_normal(nntile_layer.y.value.shape), dtype=np.float32, order="F")
+    grad_np = np.array(rng.standard_normal(nntile_layer.y.value.shape), dtype=dtype2np[dtype], order="F")
     nntile_layer.y.grad.from_array(grad_np)
 
     def bench_fn():

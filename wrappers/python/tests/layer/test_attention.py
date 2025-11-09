@@ -29,6 +29,17 @@ Tensor = {
     np.float64: nntile.tensor.Tensor_fp64,
 }
 
+dtype2nntile = {
+    'fp16': nntile.tensor.Tensor_fp16,
+    'bf16': nntile.tensor.Tensor_bf16,
+    'fp32': nntile.tensor.Tensor_fp32,
+}
+
+dtype2np = {
+    'fp16': np.float16,
+    'bf16': np.float16,
+    'fp32': np.float32,
+}
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
 def test_attention(context, dtype: np.dtype):
@@ -346,8 +357,8 @@ def test_kvcache(context, numpy_rng, n_head, n_head_tile):
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("dtype", [np.float32])
-def test_bench_attention_forward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+@pytest.mark.parametrize("dtype", ['fp32'])
+def test_bench_attention_forward_async(context_cuda, benchmark_operation, dtype: str):
     n_emb = 64
     n_emb_k = 64
     n_emb_v = 64
@@ -367,20 +378,22 @@ def test_bench_attention_forward_async(context_cuda, benchmark_operation, dtype:
     mpi_distr = [0]
 
     # Tensor objects
-    X_Q_value = Tensor[dtype](X_Q_traits, mpi_distr)
-    X_Q_grad = Tensor[dtype](X_Q_traits, mpi_distr)
-    X_K_value = Tensor[dtype](X_K_traits, mpi_distr)
-    X_K_grad = Tensor[dtype](X_K_traits, mpi_distr)
-    X_V_value = Tensor[dtype](X_V_traits, mpi_distr)
-    X_V_grad = Tensor[dtype](X_V_traits, mpi_distr)
+    tensor_type = dtype2nntile[dtype]
+    X_Q_value = tensor_type(X_Q_traits, mpi_distr)
+    X_Q_grad = tensor_type(X_Q_traits, mpi_distr)
+    X_K_value = tensor_type(X_K_traits, mpi_distr)
+    X_K_grad = tensor_type(X_K_traits, mpi_distr)
+    X_V_value = tensor_type(X_V_traits, mpi_distr)
+    X_V_grad = tensor_type(X_V_traits, mpi_distr)
 
     # Set initial values for inputs
     rng = np.random.default_rng(42)
-    X_Q_value.from_array(np.array(rng.standard_normal(X_Q_shape), dtype=dtype, order="F"))
+    np_dtype = dtype2np[dtype]
+    X_Q_value.from_array(np.array(rng.standard_normal(X_Q_shape), dtype=np_dtype, order="F"))
     nntile.tensor.clear_async(X_Q_grad)
-    X_K_value.from_array(np.array(rng.standard_normal(X_K_shape), dtype=dtype, order="F"))
+    X_K_value.from_array(np.array(rng.standard_normal(X_K_shape), dtype=np_dtype, order="F"))
     nntile.tensor.clear_async(X_K_grad)
-    X_V_value.from_array(np.array(rng.standard_normal(X_V_shape), dtype=dtype, order="F"))
+    X_V_value.from_array(np.array(rng.standard_normal(X_V_shape), dtype=np_dtype, order="F"))
     nntile.tensor.clear_async(X_V_grad)
 
     X_Q = nntile.tensor.TensorMoments(X_Q_value, X_Q_grad, True)
@@ -391,7 +404,7 @@ def test_bench_attention_forward_async(context_cuda, benchmark_operation, dtype:
     layer = Attention.generate_simple(X_Q, X_K, X_V, n_head, n_head_tile, True)
     layer.init_randn_async()
 
-    np_out = np.zeros(X_Q_shape, dtype=dtype, order="F")
+    np_out = np.zeros(X_Q_shape, dtype=np_dtype, order="F")
 
     def bench_fn():
         layer.forward_async()
@@ -400,10 +413,9 @@ def test_bench_attention_forward_async(context_cuda, benchmark_operation, dtype:
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
-
 @pytest.mark.benchmark
-@pytest.mark.parametrize("dtype", [np.float32])
-def test_bench_attention_backward_async(context_cuda, benchmark_operation, dtype: np.dtype):
+@pytest.mark.parametrize("dtype", ['fp32'])
+def test_bench_attention_backward_async(context_cuda, benchmark_operation, dtype: str):
     n_emb = 64
     n_emb_k = 64
     n_emb_v = 64
@@ -421,19 +433,21 @@ def test_bench_attention_backward_async(context_cuda, benchmark_operation, dtype
     X_V_traits = nntile.tensor.TensorTraits(X_V_shape, X_V_shape)
     mpi_distr = [0]
 
-    X_Q_value = Tensor[dtype](X_Q_traits, mpi_distr)
-    X_Q_grad = Tensor[dtype](X_Q_traits, mpi_distr)
-    X_K_value = Tensor[dtype](X_K_traits, mpi_distr)
-    X_K_grad = Tensor[dtype](X_K_traits, mpi_distr)
-    X_V_value = Tensor[dtype](X_V_traits, mpi_distr)
-    X_V_grad = Tensor[dtype](X_V_traits, mpi_distr)
+    tensor_type = dtype2nntile[dtype]
+    X_Q_value = tensor_type(X_Q_traits, mpi_distr)
+    X_Q_grad = tensor_type(X_Q_traits, mpi_distr)
+    X_K_value = tensor_type(X_K_traits, mpi_distr)
+    X_K_grad = tensor_type(X_K_traits, mpi_distr)
+    X_V_value = tensor_type(X_V_traits, mpi_distr)
+    X_V_grad = tensor_type(X_V_traits, mpi_distr)
 
     rng = np.random.default_rng(42)
-    X_Q_value.from_array(np.array(rng.standard_normal(X_Q_shape), dtype=dtype, order="F"))
+    np_dtype = dtype2np[dtype]
+    X_Q_value.from_array(np.array(rng.standard_normal(X_Q_shape), dtype=np_dtype, order="F"))
     nntile.tensor.clear_async(X_Q_grad)
-    X_K_value.from_array(np.array(rng.standard_normal(X_K_shape), dtype=dtype, order="F"))
+    X_K_value.from_array(np.array(rng.standard_normal(X_K_shape), dtype=np_dtype, order="F"))
     nntile.tensor.clear_async(X_K_grad)
-    X_V_value.from_array(np.array(rng.standard_normal(X_V_shape), dtype=dtype, order="F"))
+    X_V_value.from_array(np.array(rng.standard_normal(X_V_shape), dtype=np_dtype, order="F"))
     nntile.tensor.clear_async(X_V_grad)
 
     X_Q = nntile.tensor.TensorMoments(X_Q_value, X_Q_grad, True)
@@ -445,7 +459,7 @@ def test_bench_attention_backward_async(context_cuda, benchmark_operation, dtype
 
     layer.clear_gradients()
     # prepare grad buffer to reuse
-    np_grad = np.array(rng.standard_normal(X_Q_shape), dtype=dtype, order="F")
+    np_grad = np.array(rng.standard_normal(X_Q_shape), dtype=np_dtype, order="F")
 
     def bench_fn():
         layer.forward_async()
