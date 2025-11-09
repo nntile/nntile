@@ -32,6 +32,7 @@ dtype2nntile = {
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
 
 }
 
@@ -47,6 +48,7 @@ dtype2tol = {
         'fp32_fast_bf16': {'rtol': 1.6e-2},
         'fp32_fast_fp16': {'rtol': 9e-4},
         'bf16': {'rtol': 5e-2},
+        'fp16': {'rtol': 5e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
@@ -167,6 +169,7 @@ def generate_inputs(dtype: str, params: BertLayerTestParams,
     pytest.param('bf16', marks=nocuda),
     pytest.param('fp32_fast_bf16', marks=nocuda),
     pytest.param('fp32_fast_fp16', marks=nocuda),
+    pytest.param('fp16', marks=nocuda),
 ])
 @pytest.mark.parametrize('num_hidden_layers', [
     pytest.param(1, id='single layer'),
@@ -260,7 +263,7 @@ def test_bench_bert_encoder_forward_async(context_cuda, benchmark_model, dtype: 
 
     def bench_fn():
         nntile_layer.forward_async()
-        nntile_layer.activations[-1].value.to_array(np_out)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_model(bench_fn)
@@ -269,7 +272,7 @@ def test_bench_bert_encoder_forward_async(context_cuda, benchmark_model, dtype: 
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'bf16'])
-def test_bench_bert_encoder_backward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_bert_encoder_forward_backward_async(context_cuda, benchmark_model, dtype: str):
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(dtype, params, num_hidden_layers=1)
 
@@ -281,7 +284,7 @@ def test_bench_bert_encoder_backward_async(context_cuda, benchmark_model, dtype:
     )
 
     def bench_fn():
-        nntile_layer.clear_gradients()
+        nntile_layer.clear_gradients()   
         nntile_layer.forward_async()
         nntile_layer.activations[-1].grad.from_array(np_grad)
         nntile_layer.backward_async()

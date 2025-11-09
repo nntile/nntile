@@ -237,7 +237,6 @@ def test_bench_gpt2_block_forward_backward_async(context_cuda, benchmark_model, 
     )
 
     def bench_fn():
-        nntile_layer.clear_gradients()
         nntile_layer.forward_async()
         nntile_layer.activations[-1].grad.from_array(np_grad)
         nntile_layer.backward_async()
