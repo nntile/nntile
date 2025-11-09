@@ -73,11 +73,33 @@ def benchmark_model(benchmark):
 def pytest_collection_modifyitems(config, items):
     # If the user asked for benchmarks (e.g., `-m benchmark`), don't skip them
     markexpr = config.getoption("-m") or ""
-    if "benchmark" in markexpr:
-        return
-
+    is_benchmark_run = "benchmark" in markexpr
     # Otherwise, skip every test that has the "benchmark" mark
-    skip_bench = pytest.mark.skip(reason="Benchmark disabled. Run with: pytest -m benchmark")
-    for item in items:
-        if "benchmark" in item.keywords:
-            item.add_marker(skip_bench)
+    if not is_benchmark_run:
+        skip_bench = pytest.mark.skip(reason="Benchmark disabled. Run with: pytest -m benchmark")
+        for item in items:
+            if "benchmark" in item.keywords:
+                item.add_marker(skip_bench)
+
+    # Apply --dtype filtering to any parametrized tests or benchmarks that include "dtype"
+    selected = config.getoption("dtypes")
+    if selected:
+        allowed = set(selected)
+        skip_unselected = pytest.mark.skip(reason="Filtered out by --dtype selection")
+        for item in items:
+            callspec = getattr(item, "callspec", None)
+            if callspec and "dtype" in callspec.params:
+                dtype_val = callspec.params["dtype"]
+                if dtype_val not in allowed:
+                    item.add_marker(skip_unselected)
+
+ALL_DTYPES = ['fp32', 'fp16', 'bf16', 'fp32_fast_tf32', 'fp32_fast_fp16', 'fp32_fast_bf16']
+def pytest_addoption(parser):
+    parser.addoption(
+        "--dtype",
+        action="append",
+        dest="dtypes",
+        choices=ALL_DTYPES,
+        help="Only run tests for the given dtype(s). Repeat the option to include multiple, "
+             "e.g. --dtype=bf16 --dtype=fp32.",
+    )
