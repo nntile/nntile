@@ -223,7 +223,6 @@ def test_bench_batchnorm2d_forward_backward_async(context_cuda, numpy_rng, bench
 
     def bench_fn():
         nntile_layer.forward_async()
-        nntile_layer.y.grad.from_array(grad_np)
         nntile_layer.backward_async()
         nntile.starpu.wait_for_all()
 

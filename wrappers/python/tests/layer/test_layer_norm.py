@@ -299,7 +299,6 @@ def test_bench_layernorm_forward_backward_async(context_cuda, benchmark_operatio
 
     def bench_fn():
         nnt_ln.forward_async()
-        nnt_ln.y.grad.from_array(grad_np)
         nnt_ln.backward_async()
         nntile.starpu.wait_for_all()
 
