@@ -154,7 +154,7 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
  * */
 template<typename T>
 void flash_sdpa_fwd_cudnn_async(const Tile<T> &K, const Tile<T> &Q,
-        const Tile<T> &mask, const Tile<T> &logsumexp, const Tile<T> &V,
+        const Tile<T> &mask, const Tile<fp32_t> &logsumexp, const Tile<T> &V,
         const Tile<T> &A)
 {
     // Check inputs (throw exception in case of an error)
@@ -181,7 +181,7 @@ void flash_sdpa_fwd_cudnn_async(const Tile<T> &K, const Tile<T> &Q,
  * */
 template<typename T>
 void flash_sdpa_fwd_cudnn(const Tile<T> &K, const Tile<T> &Q,
-        const Tile<T> &mask, const Tile<T> &logsumexp, const Tile<T> &V,
+        const Tile<T> &mask, const Tile<fp32_t> &logsumexp, const Tile<T> &V,
         const Tile<T> &A)
 {
     flash_sdpa_fwd_cudnn_async<T>(K, Q, mask, logsumexp, V, A);
@@ -192,25 +192,25 @@ void flash_sdpa_fwd_cudnn(const Tile<T> &K, const Tile<T> &Q,
 template
 void flash_sdpa_fwd_cudnn_async<bf16_t>(const Tile<bf16_t> &K,
         const Tile<bf16_t> &Q, const Tile<bf16_t> &mask,
-        const Tile<bf16_t> &logsumexp, const Tile<bf16_t> &V,
+        const Tile<fp32_t> &logsumexp, const Tile<bf16_t> &V,
         const Tile<bf16_t> &A);
 
 template
 void flash_sdpa_fwd_cudnn_async<fp16_t>(const Tile<fp16_t> &K,
         const Tile<fp16_t> &Q, const Tile<fp16_t> &mask,
-        const Tile<fp16_t> &logsumexp, const Tile<fp16_t> &V,
+        const Tile<fp32_t> &logsumexp, const Tile<fp16_t> &V,
         const Tile<fp16_t> &A);
 
 template
 void flash_sdpa_fwd_cudnn<bf16_t>(const Tile<bf16_t> &K,
         const Tile<bf16_t> &Q, const Tile<bf16_t> &mask,
-        const Tile<bf16_t> &logsumexp, const Tile<bf16_t> &V,
+        const Tile<fp32_t> &logsumexp, const Tile<bf16_t> &V,
         const Tile<bf16_t> &A);
 
 template
 void flash_sdpa_fwd_cudnn<fp16_t>(const Tile<fp16_t> &K,
         const Tile<fp16_t> &Q, const Tile<fp16_t> &mask,
-        const Tile<fp16_t> &logsumexp, const Tile<fp16_t> &V,
+        const Tile<fp32_t> &logsumexp, const Tile<fp16_t> &V,
         const Tile<fp16_t> &A);
 
 } // namespace nntile::tile

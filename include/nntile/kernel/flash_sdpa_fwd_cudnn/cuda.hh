@@ -60,7 +60,7 @@ void execute_graph(
     const T *K,
     const T *Q,
     const T *mask,
-    T *logsumexp,
+    fp32_t *logsumexp,
     const T *V,
     T *A
 ) noexcept;

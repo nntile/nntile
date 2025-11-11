@@ -66,7 +66,7 @@ def _prepare_flash_inputs(dtype, seed=42):
     V = tensor_type(V_traits, dist_root)
     A = tensor_type(A_traits, dist_root)
     mask = tensor_type(mask_traits, dist_root)
-    logsumexp = tensor_type(logsumexp_traits, dist_root)
+    logsumexp = nntile.tensor.Tensor_fp32(logsumexp_traits, dist_root)
 
     rng = np.random.default_rng(seed)
 

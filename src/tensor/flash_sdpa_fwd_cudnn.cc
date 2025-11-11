@@ -191,7 +191,7 @@ static inline void flash_sdpa_fwd_cudnn_check(const TensorTraits &K,
  * */
 template<typename T>
 void flash_sdpa_fwd_cudnn_async(const Tensor<T> &K, const Tensor<T> &Q,
-        const Tensor<T> &mask, const Tensor<T> &logsumexp, const Tensor<T> &V,
+        const Tensor<T> &mask, const Tensor<fp32_t> &logsumexp, const Tensor<T> &V,
         const Tensor<T> &A)
 {
     // Check inputs (throw exception in case of an error)
@@ -254,7 +254,7 @@ void flash_sdpa_fwd_cudnn_async(const Tensor<T> &K, const Tensor<T> &Q,
  * */
 template<typename T>
 void flash_sdpa_fwd_cudnn(const Tensor<T> &K, const Tensor<T> &Q,
-        const Tensor<T> &mask, const Tensor<T> &logsumexp, const Tensor<T> &V,
+        const Tensor<T> &mask, const Tensor<fp32_t> &logsumexp, const Tensor<T> &V,
         const Tensor<T> &A)
 {
     flash_sdpa_fwd_cudnn_async<T>(K, Q, mask, logsumexp, V, A);
@@ -266,25 +266,25 @@ void flash_sdpa_fwd_cudnn(const Tensor<T> &K, const Tensor<T> &Q,
 template
 void flash_sdpa_fwd_cudnn_async<bf16_t>(const Tensor<bf16_t> &K,
         const Tensor<bf16_t> &Q, const Tensor<bf16_t> &mask,
-        const Tensor<bf16_t> &logsumexp, const Tensor<bf16_t> &V,
+        const Tensor<fp32_t> &logsumexp, const Tensor<bf16_t> &V,
         const Tensor<bf16_t> &A);
 
 template
 void flash_sdpa_fwd_cudnn_async<fp16_t>(const Tensor<fp16_t> &K,
         const Tensor<fp16_t> &Q, const Tensor<fp16_t> &mask,
-        const Tensor<fp16_t> &logsumexp, const Tensor<fp16_t> &V,
+        const Tensor<fp32_t> &logsumexp, const Tensor<fp16_t> &V,
         const Tensor<fp16_t> &A);
 
 template
 void flash_sdpa_fwd_cudnn<bf16_t>(const Tensor<bf16_t> &K,
         const Tensor<bf16_t> &Q, const Tensor<bf16_t> &mask,
-        const Tensor<bf16_t> &logsumexp, const Tensor<bf16_t> &V,
+        const Tensor<fp32_t> &logsumexp, const Tensor<bf16_t> &V,
         const Tensor<bf16_t> &A);
 
 template
 void flash_sdpa_fwd_cudnn<fp16_t>(const Tensor<fp16_t> &K,
         const Tensor<fp16_t> &Q, const Tensor<fp16_t> &mask,
-        const Tensor<fp16_t> &logsumexp, const Tensor<fp16_t> &V,
+        const Tensor<fp32_t> &logsumexp, const Tensor<fp16_t> &V,
         const Tensor<fp16_t> &A);
 
 } // namespace nntile::tensor

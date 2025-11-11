@@ -139,7 +139,7 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     const T *K = interfaces[0]->get_ptr<T>();           // Key
     const T *Q = interfaces[1]->get_ptr<T>();           // Query
     const T *mask = interfaces[2]->get_ptr<T>();        // Mask (always present)
-    T *logsumexp = interfaces[3]->get_ptr<T>();         // Log-sum-exp
+    fp32_t *logsumexp = interfaces[3]->get_ptr<fp32_t>();         // Log-sum-exp
     const T *V = interfaces[4]->get_ptr<T>();           // Value
     T *A = interfaces[5]->get_ptr<T>();                 // Attention output
 

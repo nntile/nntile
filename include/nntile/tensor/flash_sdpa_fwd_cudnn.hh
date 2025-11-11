@@ -22,13 +22,13 @@ namespace nntile::tensor
 // Asynchronous tensor-wise flash_sdpa_fwd_cudnn operation
 template<typename T>
 void flash_sdpa_fwd_cudnn_async(const Tensor<T> &K, const Tensor<T> &Q,
-        const Tensor<T> &mask, const Tensor<T> &logsumexp, const Tensor<T> &V,
+        const Tensor<T> &mask, const Tensor<fp32_t> &logsumexp, const Tensor<T> &V,
         const Tensor<T> &A);
 
 // Blocking version of tensor-wise flash_sdpa_fwd_cudnn operation
 template<typename T>
 void flash_sdpa_fwd_cudnn(const Tensor<T> &K, const Tensor<T> &Q,
-        const Tensor<T> &mask, const Tensor<T> &logsumexp, const Tensor<T> &V,
+        const Tensor<T> &mask, const Tensor<fp32_t> &logsumexp, const Tensor<T> &V,
         const Tensor<T> &A);
 
 } // namespace nntile::tensor

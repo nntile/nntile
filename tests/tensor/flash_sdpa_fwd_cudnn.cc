@@ -57,7 +57,7 @@ void check()
     Tensor<T> V_single(V_traits, dist_root);
     Tensor<T> A_single(A_traits, dist_root);
     Tensor<T> mask_single(mask_traits, dist_root);
-    Tensor<T> logsumexp_single(logsumexp_traits, dist_root);
+    Tensor<fp32_t> logsumexp_single(logsumexp_traits, dist_root);
 
     int mpi_rank = starpu_mpi_world_rank();
 
@@ -89,7 +89,7 @@ void check()
 
         for(Index i = 0; i < logsumexp_tile.nelems; ++i)
         {
-            logsumexp_local[i] = T(Y(0.0));
+            logsumexp_local[i] = fp32_t(0.0f);
         }
 
         // Create custom mask (similar to starpu test)

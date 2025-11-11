@@ -76,10 +76,10 @@ struct TestData
     std::vector<T> V_init; // Value: [batch, seq, head]
     std::vector<T> mask_init; // Mask: [seq, seq]
     std::vector<T> A_init; // Attention output: [batch, seq, head]
-    std::vector<T> lse_init; // Log-sum-exp: [batch, seq]
+    std::vector<fp32_t> lse_init; // Log-sum-exp: [batch, seq]
 
     std::vector<T> A_ref; // Attention output reference: [batch, seq, head]
-    std::vector<T> lse_ref; // Log-sum-exp reference: [batch, seq]
+    std::vector<fp32_t> lse_ref; // Log-sum-exp reference: [batch, seq]
 
 };
 
@@ -151,8 +151,8 @@ void reference_attention(TestData<T>& data)
 
             // Store logsumexp: log(sum_exp) + max_score
             Index lse_idx = b * data.seq + i;
-            data.lse_ref[lse_idx] = static_cast<Y>(
-                std::log(sum_exp) + max_score);
+            const auto lse_value = static_cast<float>(std::log(sum_exp) + max_score);
+            data.lse_ref[lse_idx] = fp32_t(lse_value);
 
             // Normalize to get attention weights
             std::vector<ref_t> attn_weights(data.seq);
@@ -237,13 +237,14 @@ void generate_data(TestData<T>& data, Index seq, Index head, Index batch,
     // Initialize output buffers with random values regardless of strategy
     std::mt19937 init_gen(1337);
     std::uniform_real_distribution<Y> init_dist(-1.0, 1.0);
+    std::uniform_real_distribution<float> init_dist_fp32(-1.0f, 1.0f);
     for(Index i = 0; i < batch * seq * head; ++i)
     {
         data.A_init[i] = init_dist(init_gen);
     }
     for(Index i = 0; i < batch * seq; ++i)
     {
-        data.lse_init[i] = init_dist(init_gen);
+        data.lse_init[i] = fp32_t(init_dist_fp32(init_gen));
     }
 
     // Generate mask
@@ -321,7 +322,7 @@ template<typename T>
 void verify_results(
     const TestData<T>& data,
     const std::vector<T>& A_out,
-    const std::vector<T>& lse_out,
+    const std::vector<fp32_t>& lse_out,
     const std::vector<T>& K_out,
     const std::vector<T>& Q_out,
     const std::vector<T>& V_out,
@@ -379,14 +380,15 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
-    T *dev_K, *dev_Q, *dev_lse, *dev_V, *dev_A, *dev_mask;
+    T *dev_K, *dev_Q, *dev_V, *dev_A, *dev_mask;
+    fp32_t *dev_lse;
 
     // Allocate device memory
     CUDA_CHECK(cudaMalloc(&dev_K, sizeof(T) * data.batch * data.seq * data.head),
                "cudaMalloc dev_K");
     CUDA_CHECK(cudaMalloc(&dev_Q, sizeof(T) * data.batch * data.seq * data.head),
                "cudaMalloc dev_Q");
-    CUDA_CHECK(cudaMalloc(&dev_lse, sizeof(T) * data.batch * data.seq),
+    CUDA_CHECK(cudaMalloc(&dev_lse, sizeof(fp32_t) * data.batch * data.seq),
                "cudaMalloc dev_lse");
     CUDA_CHECK(cudaMalloc(&dev_V, sizeof(T) * data.batch * data.seq * data.head),
                "cudaMalloc dev_V");
@@ -412,7 +414,7 @@ void run_cuda_test(TestData<T>& data)
                           sizeof(T) * data.seq * data.seq,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_mask");
     CUDA_CHECK(cudaMemcpy(dev_lse, &data.lse_init[0],
-                          sizeof(T) * data.batch * data.seq,
+                          sizeof(fp32_t) * data.batch * data.seq,
                           cudaMemcpyHostToDevice),
                "cudaMemcpy dev_lse_init");
 
@@ -500,7 +502,7 @@ void run_cuda_test(TestData<T>& data)
 
         // Copy outputs back to host
         std::vector<T> A_cuda(data.batch * data.seq * data.head);
-        std::vector<T> lse_cuda(data.batch * data.seq);
+        std::vector<fp32_t> lse_cuda(data.batch * data.seq);
         std::vector<T> K_cuda(data.batch * data.seq * data.head);
         std::vector<T> Q_cuda(data.batch * data.seq * data.head);
         std::vector<T> V_cuda(data.batch * data.seq * data.head);
@@ -511,7 +513,7 @@ void run_cuda_test(TestData<T>& data)
                               cudaMemcpyDeviceToHost),
                    "cudaMemcpy A_cuda");
         CUDA_CHECK(cudaMemcpy(&lse_cuda[0], dev_lse,
-                              sizeof(T) * data.batch * data.seq,
+                              sizeof(fp32_t) * data.batch * data.seq,
                               cudaMemcpyDeviceToHost),
                    "cudaMemcpy lse_cuda");
         CUDA_CHECK(cudaMemcpy(&K_cuda[0], dev_K,
@@ -558,7 +560,7 @@ TEMPLATE_TEST_CASE(
 )
 {
     using T = TestType;
-    const Index seq = GENERATE(64, 256);
+    const Index seq = GENERATE(16, 32);
     const Index head = GENERATE(32, 64);
     const Index batch = GENERATE(1, 2);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);

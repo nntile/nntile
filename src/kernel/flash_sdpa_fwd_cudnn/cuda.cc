@@ -146,7 +146,7 @@ FlashSdpaGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
 
 template<typename T>
 void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
-                   const T* K, const T* Q, const T* mask, T* logsumexp,
+                   const T* K, const T* Q, const T* mask, fp32_t* logsumexp,
                    const T* V, T* A)
     noexcept
 //! Execute prepared cuDNN graph for flash attention
@@ -210,13 +210,13 @@ FlashSdpaGraph prepare_graph<bf16_t>(cudnnHandle_t handle, Index seq,
 template
 void execute_graph<fp16_t>(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
                            const fp16_t* K, const fp16_t* Q, const fp16_t* mask,
-                           fp16_t* logsumexp, const fp16_t* V, fp16_t* A)
+                           fp32_t* logsumexp, const fp16_t* V, fp16_t* A)
     noexcept;
 
 template
 void execute_graph<bf16_t>(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
                            const bf16_t* K, const bf16_t* Q, const bf16_t* mask,
-                           bf16_t* logsumexp, const bf16_t* V, bf16_t* A)
+                           fp32_t* logsumexp, const bf16_t* V, bf16_t* A)
     noexcept;
 
 } // namespace nntile::kernel::flash_sdpa_fwd_cudnn

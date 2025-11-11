@@ -2221,13 +2221,16 @@ def flash_sdpa_fwd_cudnn_async(
         K: Key tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
         Q: Query tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
         mask: Mask tensor [n_seq, n_seq]
-        logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size]
+        logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size] (must be fp32)
         V: Value tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
         A: Output tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
 
     Note:
         Only BF16 and FP16 are supported due to cuDNN limitations.
     """
+    if not isinstance(logsumexp, Tensor_fp32):
+        raise TypeError("logsumexp tensor must be Tensor_fp32")
+
     ts = (K, Q, V, A)
     if is_tensor_of(ts, Tensor_bf16):
         ops.flash_sdpa_fwd_cudnn_async_bf16(

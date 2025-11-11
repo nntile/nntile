@@ -93,7 +93,8 @@ void validate_cuda(Index seq, Index head, Index batch)
     }
 
     // Allocate device memory for kernel test
-    T *dev_K, *dev_Q, *dev_V, *dev_A_kernel, *dev_logsumexp_kernel, *dev_mask;
+    T *dev_K, *dev_Q, *dev_V, *dev_A_kernel, *dev_mask;
+    fp32_t *dev_logsumexp_kernel;
     cuda_err = cudaMalloc(&dev_K, sizeof(T) * batch * seq * head);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_Q, sizeof(T) * batch * seq * head);
@@ -102,7 +103,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_A_kernel, sizeof(T) * batch * seq * head);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_logsumexp_kernel, sizeof(T) * actual_batch * seq);
+    cuda_err = cudaMalloc(&dev_logsumexp_kernel, sizeof(fp32_t) * actual_batch * seq);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
     // Always allocate mask memory (use actual batch size for mask)
@@ -128,7 +129,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     // Initialize outputs to zero
     cuda_err = cudaMemset(dev_A_kernel, 0, sizeof(T) * batch * seq * head);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemset(dev_logsumexp_kernel, 0, sizeof(T) * actual_batch * seq);
+    cuda_err = cudaMemset(dev_logsumexp_kernel, 0, sizeof(fp32_t) * actual_batch * seq);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
     // Prepare kernel graph once
@@ -158,13 +159,13 @@ void validate_cuda(Index seq, Index head, Index batch)
 
     // Copy kernel results back to host
     std::vector<T> A_kernel(batch * seq * head);
-    std::vector<T> logsumexp_kernel(actual_batch * seq);
+    std::vector<fp32_t> logsumexp_kernel(actual_batch * seq);
     cuda_err = cudaMemcpy(A_kernel.data(), dev_A_kernel,
                           sizeof(T) * batch * seq * head,
                           cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(logsumexp_kernel.data(), dev_logsumexp_kernel,
-                          sizeof(T) * actual_batch * seq,
+                          sizeof(fp32_t) * actual_batch * seq,
                           cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
@@ -174,14 +175,14 @@ void validate_cuda(Index seq, Index head, Index batch)
     // Now test via StarPU submit
     std::vector<T> K2(K), Q2(Q), V2(V), mask2(mask);
     std::vector<T> A_starpu(batch * seq * head, T(Y(0.0)));
-    std::vector<T> logsumexp_starpu(actual_batch * seq, T(Y(0.0)));
+    std::vector<fp32_t> logsumexp_starpu(actual_batch * seq, fp32_t(0.0f));
 
     // Create StarPU handles
     VariableHandle K_handle(&K2[0], sizeof(T) * batch * seq * head);
     VariableHandle Q_handle(&Q2[0], sizeof(T) * batch * seq * head);
     VariableHandle V_handle(&V2[0], sizeof(T) * batch * seq * head);
     VariableHandle A_handle(&A_starpu[0], sizeof(T) * batch * seq * head);
-    VariableHandle logsumexp_handle(&logsumexp_starpu[0], sizeof(T) * actual_batch * seq);
+    VariableHandle logsumexp_handle(&logsumexp_starpu[0], sizeof(fp32_t) * actual_batch * seq);
 
     // Restrict to CUDA and submit
     flash_sdpa_fwd_cudnn.restrict_where(STARPU_CUDA);

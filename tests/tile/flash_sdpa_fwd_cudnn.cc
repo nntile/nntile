@@ -42,7 +42,7 @@ void check()
     Tile<T> V_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
     Tile<T> A_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
     Tile<T> mask_tile({n_seq, n_seq});
-    Tile<T> logsumexp_tile({n_batch, n_seq, kv_group_size});
+    Tile<fp32_t> logsumexp_tile({n_batch, n_seq, kv_group_size});
 
     // Initialize input data
     auto K_local = K_tile.acquire(STARPU_W);
@@ -63,7 +63,7 @@ void check()
 
     for(Index i = 0; i < logsumexp_tile.nelems; ++i)
     {
-        logsumexp_local[i] = T(Y(0.0));
+        logsumexp_local[i] = fp32_t(0.0f);
     }
 
     // Create custom mask (similar to starpu test)
@@ -99,7 +99,7 @@ void check()
         Tile<T> V_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
         Tile<T> A_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
         Tile<T> mask_starpu({n_seq, n_seq});
-        Tile<T> logsumexp_starpu({n_batch, n_seq, kv_group_size});
+    Tile<fp32_t> logsumexp_starpu({n_batch, n_seq, kv_group_size});
 
         // Copy data to starpu tiles
         auto K_src = K_tile.acquire(STARPU_R);
@@ -138,7 +138,7 @@ void check()
         }
         for(Index i = 0; i < logsumexp_starpu.nelems; ++i)
         {
-            logsumexp_starpu_local_init[i] = T(Y(0.0));
+            logsumexp_starpu_local_init[i] = fp32_t(0.0f);
         }
         A_starpu_local_init.release();
         logsumexp_starpu_local_init.release();
@@ -164,6 +164,7 @@ void check()
         auto logsumexp_starpu_local_read = logsumexp_starpu.acquire(STARPU_R);
 
         Y eps = (std::is_same_v<T, fp16_t> || std::is_same_v<T, bf16_t>) ? Y(1e-2) : Y(1e-5);
+        const float eps_fp32 = (std::is_same_v<T, fp16_t> || std::is_same_v<T, bf16_t>) ? 1e-2f : 1e-5f;
 
         for(Index i = 0; i < A_tile.nelems; ++i)
         {
@@ -176,11 +177,11 @@ void check()
 
         for(Index i = 0; i < logsumexp_tile.nelems; ++i)
         {
-            Y logsumexp_tile_val = Y(logsumexp_tile_local[i]);
-            Y logsumexp_starpu_val = Y(logsumexp_starpu_local_read[i]);
-            Y diff = std::abs(logsumexp_tile_val - logsumexp_starpu_val);
-            Y max_val = std::max(std::abs(logsumexp_tile_val), std::abs(logsumexp_starpu_val));
-            TEST_ASSERT(diff <= eps * (Y(1.0) + max_val));
+            float logsumexp_tile_val = static_cast<float>(logsumexp_tile_local[i]);
+            float logsumexp_starpu_val = static_cast<float>(logsumexp_starpu_local_read[i]);
+            float diff = std::abs(logsumexp_tile_val - logsumexp_starpu_val);
+            float max_val = std::max(std::abs(logsumexp_tile_val), std::abs(logsumexp_starpu_val));
+            TEST_ASSERT(diff <= eps_fp32 * (1.0f + max_val));
         }
 
         A_tile_local.release();
@@ -208,7 +209,7 @@ void check()
         }
         for(Index i = 0; i < logsumexp_tile.nelems; ++i)
         {
-            logsumexp_reset[i] = T(Y(0.0));
+            logsumexp_reset[i] = fp32_t(0.0f);
         }
         A_reset.release();
         logsumexp_reset.release();

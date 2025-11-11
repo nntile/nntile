@@ -22,7 +22,7 @@ import nntile.utils.constructors as nntc
 from nntile.functions import flash_sdpa_fwd_cudnn_async, is_tensor_of
 from nntile.layer.base_layer import BaseLayer
 from nntile.layer.cache_utils import KVCache
-from nntile.nntile_core.tensor import Tensor_bf16, Tensor_fp16
+from nntile.nntile_core.tensor import Tensor_bf16, Tensor_fp16, Tensor_fp32
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
     add_fiber_inplace_async, add_slice_inplace_async, clear_async,
@@ -2015,7 +2015,7 @@ class LlamaAttention(BaseLayer):
                               self.kv_group_size]
         logsumexp_traits = TensorTraits(logsumexp_shape,
                                         logsumexp_basetile)
-        logsumexp = type(self.q_rope.value)(
+        logsumexp = Tensor_fp32(
             logsumexp_traits, [0] * logsumexp_traits.grid.nelems)
 
         # Initialize logsumexp to zeros
