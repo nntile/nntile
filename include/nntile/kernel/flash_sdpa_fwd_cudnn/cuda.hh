@@ -22,20 +22,8 @@
 namespace nntile::kernel::flash_sdpa_fwd_cudnn
 {
 
-//! Structure to hold prepared cuDNN graph for flash attention
-template<typename T>
-struct FlashSdpaGraph
-{
-    std::shared_ptr<cudnn_frontend::graph::Graph> graph;
-    ::int64_t workspace_size;
-    ::int64_t batch;
-    ::int64_t seq;
-    ::int64_t head;
-
-    FlashSdpaGraph() : workspace_size(0), batch(0), seq(0), head(0)
-    {
-    }
-};
+// Shared pointer type for the graph
+using FlashSdpaGraph = std::shared_ptr<cudnn_frontend::graph::Graph>;
 
 //! Prepare cuDNN graph for flash attention
 /*! Prepares and builds the cuDNN graph for flash attention with fixed dimensions.
@@ -47,7 +35,7 @@ struct FlashSdpaGraph
  * @return Pointer to prepared graph structure, or nullptr on error
  * */
 template<typename T>
-FlashSdpaGraph<T>* prepare_graph(
+FlashSdpaGraph prepare_graph(
     cudnnHandle_t handle,
     Index seq,
     Index head,
@@ -68,45 +56,7 @@ FlashSdpaGraph<T>* prepare_graph(
 template<typename T>
 void execute_graph(
     cudnnHandle_t handle,
-    const FlashSdpaGraph<T> *prepared_graph,
-    const T *K,
-    const T *Q,
-    const T *mask,
-    T *logsumexp,
-    const T *V,
-    T *A
-) noexcept;
-
-//! Destroy prepared cuDNN graph
-/*! Frees resources associated with a prepared graph.
- * @param[in] prepared_graph: Graph structure to destroy
- * */
-template<typename T>
-void destroy_graph(
-    FlashSdpaGraph<T> *prepared_graph
-) noexcept;
-
-//! Flash attention forward pass using cuDNN (convenience wrapper)
-/*! Performs scaled dot-product attention using cuDNN's Flash Attention implementation.
- * This is a convenience function that prepares the graph, executes it, and destroys it.
- * For better performance with repeated calls, use prepare_graph/execute_graph/destroy_graph directly.
- * @param[in] handle: cuDNN handle (with stream already set)
- * @param[in] seq: Sequence length
- * @param[in] head: Head dimension (d_qk = d_v)
- * @param[in] batch: Batch size
- * @param[in] K: Key tensor [batch, seq, head]
- * @param[in] Q: Query tensor [batch, seq, head]
- * @param[in] mask: Mask tensor [seq, seq]
- * @param[out] logsumexp: Log-sum-exp statistics [batch, seq]
- * @param[in] V: Value tensor [batch, seq, head]
- * @param[out] A: Attention output tensor [batch, seq, head]
- * */
-template<typename T>
-void cuda(
-    cudnnHandle_t handle,
-    Index seq,
-    Index head,
-    Index batch,
+    const FlashSdpaGraph &prepared_graph,
     const T *K,
     const T *Q,
     const T *mask,

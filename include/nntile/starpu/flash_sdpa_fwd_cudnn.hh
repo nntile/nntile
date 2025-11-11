@@ -21,6 +21,9 @@
 #include <tuple>
 #include <unordered_map>
 #include <mutex>
+#include <vector>
+#include <array>
+#include <memory>
 
 // NNTile headers
 #include <nntile/starpu/codelet.hh>
@@ -45,10 +48,6 @@ public:
     //! Codelet for the current operation
     CodeletTyped<T> codelet;
 
-#ifdef NNTILE_USE_CUDA
-    // No per-instance cache needed - using global cache
-#endif // NNTILE_USE_CUDA
-
     //! Constructor
     FlashSdpaFwdCudnn();
 
@@ -59,7 +58,7 @@ public:
     struct args_t
     {
 #ifdef NNTILE_USE_CUDA
-        kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph<T>* prepared_graph;
+        FlashSdpaFwdCudnn<std::tuple<T>> *owner;
         Index seq;
         Index head;
         Index batch;
@@ -104,6 +103,50 @@ public:
         Handle V,
         Handle A
     );
+
+#ifdef NNTILE_USE_CUDA
+private:
+    struct CacheEntry
+    {
+        kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph graph;
+        Index seq;
+        Index head;
+        Index batch;
+    };
+
+    struct WorkerCache
+    {
+        std::unordered_map<uint32_t, std::vector<CacheEntry>> graphs;
+    };
+
+    WorkerCache &get_or_create_worker_cache(int worker_id);
+
+    kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph find_cached_graph(
+        WorkerCache &cache,
+        uint32_t hash,
+        Index seq,
+        Index head,
+        Index batch
+    );
+
+    kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph store_graph(
+        WorkerCache &cache,
+        uint32_t hash,
+        Index seq,
+        Index head,
+        Index batch,
+        kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph graph
+    );
+
+    static uint32_t hash_parameters(
+        Index seq,
+        Index head,
+        Index batch
+    );
+
+    std::array<std::once_flag, STARPU_NMAXWORKERS> worker_cache_flags_{};
+    std::array<std::unique_ptr<WorkerCache>, STARPU_NMAXWORKERS> worker_caches_{};
+#endif // NNTILE_USE_CUDA
 };
 
 //! Pack of flash_sdpa_fwd_cudnn operations for different types

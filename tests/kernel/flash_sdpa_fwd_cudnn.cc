@@ -23,6 +23,7 @@
 #include <cmath>
 #include <random>
 #include <string>
+#include <type_traits>
 
 // Third-party libraries
 #include <catch2/catch_all.hpp>
@@ -363,10 +364,7 @@ void verify_results(
             for(size_t idx = 0; idx < expected.size(); ++idx)
             {
                 INFO(tensor_name << " input mismatch at idx " << idx);
-                REQUIRE(
-                    static_cast<val_t>(observed[idx]) ==
-                    static_cast<val_t>(expected[idx])
-                );
+                REQUIRE(observed[idx].value == expected[idx].value);
             }
         };
 
@@ -440,7 +438,7 @@ void run_cuda_test(TestData<T>& data)
     }
 
     // Prepare the cuDNN graph
-    auto* prepared_graph = prepare_graph<T>(
+    auto prepared_graph = prepare_graph<T>(
         handle,
         data.seq,
         data.head,
@@ -537,7 +535,6 @@ void run_cuda_test(TestData<T>& data)
     }
 
     // Cleanup cuDNN resources
-    destroy_graph<T>(prepared_graph);
     CUDNN_CHECK(cudnnDestroy(handle), "cudnnDestroy");
     CUDA_CHECK(cudaStreamDestroy(stream), "cudaStreamDestroy");
 

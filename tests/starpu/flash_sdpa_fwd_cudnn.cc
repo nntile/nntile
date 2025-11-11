@@ -25,6 +25,7 @@
 #include <iostream>
 #include <cmath>
 #include <limits>
+#include <type_traits>
 
 using namespace nntile;
 using namespace nntile::starpu;
@@ -130,11 +131,25 @@ void validate_cuda(Index seq, Index head, Index batch)
     cuda_err = cudaMemset(dev_logsumexp_kernel, 0, sizeof(T) * actual_batch * seq);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
-    // Run kernel directly
+    // Prepare kernel graph once
+    auto kernel_graph = kernel::flash_sdpa_fwd_cudnn::prepare_graph<T>(
+        handle,
+        seq,
+        head,
+        batch
+    );
+    TEST_ASSERT(kernel_graph != nullptr);
 
-    kernel::flash_sdpa_fwd_cudnn::cuda<T>(
-        handle, seq, head, batch,
-        dev_K, dev_Q, dev_mask, dev_logsumexp_kernel, dev_V, dev_A_kernel
+    // Run kernel directly through the prepared graph
+    kernel::flash_sdpa_fwd_cudnn::execute_graph<T>(
+        handle,
+        kernel_graph,
+        dev_K,
+        dev_Q,
+        dev_mask,
+        dev_logsumexp_kernel,
+        dev_V,
+        dev_A_kernel
     );
 
     // Synchronize
@@ -152,6 +167,9 @@ void validate_cuda(Index seq, Index head, Index batch)
                           sizeof(T) * actual_batch * seq,
                           cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
+
+    // Destroy prepared graph (release resources)
+    kernel_graph.reset();
 
     // Now test via StarPU submit
     std::vector<T> K2(K), Q2(Q), V2(V), mask2(mask);

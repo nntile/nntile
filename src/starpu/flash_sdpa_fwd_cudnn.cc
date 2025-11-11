@@ -18,6 +18,7 @@
 // Standard libraries
 #include <cstdlib>
 #include <stdexcept>
+#include <algorithm>
 
 // Third-party libraries
 #ifdef NNTILE_USE_CUDA
@@ -31,7 +32,7 @@
 namespace nntile::starpu
 {
 
-// No caching for now - prepare graph directly in CUDA worker
+// Graphs are cached per codelet instance and reused between tasks
 
 //! Constructor
 template<typename T>
@@ -45,7 +46,11 @@ FlashSdpaFwdCudnn<std::tuple<T>>::FlashSdpaFwdCudnn():
 template<typename T>
 FlashSdpaFwdCudnn<std::tuple<T>>::~FlashSdpaFwdCudnn()
 {
-    // Global cache cleanup is handled at program shutdown
+#ifdef NNTILE_USE_CUDA
+    for (auto &cache : worker_caches_) {
+        cache.reset();
+    }
+#endif // NNTILE_USE_CUDA
 }
 
 //! Apply flash_sdpa_fwd_cudnn on StarPU buffer on CPU (not supported)
@@ -70,6 +75,20 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get arguments
     args_t *args = reinterpret_cast<args_t *>(cl_args);
 
+    auto *owner = args->owner;
+    if (owner == nullptr) {
+        std::cerr << "CUDA Worker: Codelet instance is null, skipping task" << std::endl;
+        return;
+    }
+
+    const int worker_id = starpu_worker_get_id();
+    if (worker_id < 0 || worker_id >= STARPU_NMAXWORKERS) {
+        std::cerr << "CUDA Worker: Invalid worker id " << worker_id << std::endl;
+        return;
+    }
+
+    auto &worker_cache = owner->get_or_create_worker_cache(worker_id);
+
     // Get cuDNN handle and CUDA stream
     cudnnHandle_t handle = cudnn_get_local_handle();
     if (handle == nullptr) {
@@ -80,18 +99,39 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     cudnnSetStream(handle, stream);
 
-    // Prepare the graph directly in the CUDA worker
-    args->prepared_graph = kernel::flash_sdpa_fwd_cudnn::prepare_graph<T>(
-        handle,
+    const uint32_t hash = hash_parameters(args->seq, args->head, args->batch);
+
+    auto prepared_graph = owner->find_cached_graph(
+        worker_cache,
+        hash,
         args->seq,
         args->head,
         args->batch
     );
 
-    if (args->prepared_graph == nullptr)
+    if (!prepared_graph)
     {
-        std::cerr << "CUDA Worker: Failed to prepare cuDNN graph" << std::endl;
-        return;
+        prepared_graph = kernel::flash_sdpa_fwd_cudnn::prepare_graph<T>(
+            handle,
+            args->seq,
+            args->head,
+            args->batch
+        );
+
+        if (!prepared_graph)
+        {
+            std::cerr << "CUDA Worker: Failed to prepare cuDNN graph" << std::endl;
+            return;
+        }
+
+        prepared_graph = owner->store_graph(
+            worker_cache,
+            hash,
+            args->seq,
+            args->head,
+            args->batch,
+            prepared_graph
+        );
     }
 
     // Get interfaces
@@ -106,7 +146,7 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Execute the prepared graph - mask is already nullptr when not used
     kernel::flash_sdpa_fwd_cudnn::execute_graph<T>(
         handle,
-        args->prepared_graph,
+        prepared_graph,
         K,
         Q,
         mask,
@@ -114,9 +154,6 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         V,
         A
     );
-
-    // Clean up the prepared graph
-    kernel::flash_sdpa_fwd_cudnn::destroy_graph<T>(args->prepared_graph);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
@@ -128,12 +165,7 @@ uint32_t FlashSdpaFwdCudnn<std::tuple<T>>::footprint(struct starpu_task *task)
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
     uint32_t hash = 0;
-#ifdef NNTILE_USE_CUDA
-    // Hash based on the graph parameters (same for all workers)
-    hash = starpu_hash_crc32c_be_n(&args->seq, sizeof(args->seq), hash);
-    hash = starpu_hash_crc32c_be_n(&args->head, sizeof(args->head), hash);
-    hash = starpu_hash_crc32c_be_n(&args->batch, sizeof(args->batch), hash);
-#endif // NNTILE_USE_CUDA
+    hash = hash_parameters(args->seq, args->head, args->batch);
     return hash;
 }
 
@@ -144,9 +176,7 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::submit(Index seq, Index head, Index batch
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
 #ifdef NNTILE_USE_CUDA
-    args->prepared_graph = nullptr; // Initialize to nullptr
-
-    // Store parameters for graph preparation in CUDA worker
+    args->owner = this;
     args->seq = seq;
     args->head = head;
     args->batch = batch;
@@ -168,6 +198,89 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::submit(Index seq, Index head, Index batch
         throw std::runtime_error("Error in flash_sdpa_fwd_cudnn task submission");
     }
 }
+
+#ifdef NNTILE_USE_CUDA
+template<typename T>
+typename FlashSdpaFwdCudnn<std::tuple<T>>::WorkerCache &
+FlashSdpaFwdCudnn<std::tuple<T>>::get_or_create_worker_cache(int worker_id)
+{
+    std::call_once(worker_cache_flags_[worker_id], [this, worker_id]() {
+        worker_caches_[worker_id] = std::make_unique<WorkerCache>();
+    });
+    return *worker_caches_[worker_id];
+}
+
+template<typename T>
+kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph FlashSdpaFwdCudnn<std::tuple<T>>::find_cached_graph(
+    WorkerCache &cache,
+    uint32_t hash,
+    Index seq,
+    Index head,
+    Index batch
+)
+{
+    auto it = cache.graphs.find(hash);
+    if (it == cache.graphs.end())
+    {
+        return {};
+    }
+
+    const auto match = std::find_if(
+        it->second.begin(),
+        it->second.end(),
+        [seq, head, batch](const CacheEntry &entry)
+        {
+            return entry.seq == seq && entry.head == head && entry.batch == batch;
+        }
+    );
+
+    if (match == it->second.end())
+    {
+        return {};
+    }
+
+    return match->graph;
+}
+
+template<typename T>
+kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph FlashSdpaFwdCudnn<std::tuple<T>>::store_graph(
+    WorkerCache &cache,
+    uint32_t hash,
+    Index seq,
+    Index head,
+    Index batch,
+    kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph graph
+)
+{
+    auto &bucket = cache.graphs[hash];
+    const auto match = std::find_if(
+        bucket.begin(),
+        bucket.end(),
+        [seq, head, batch](const CacheEntry &entry)
+        {
+            return entry.seq == seq && entry.head == head && entry.batch == batch;
+        }
+    );
+
+    if (match != bucket.end())
+    {
+        return match->graph;
+    }
+
+    bucket.push_back(CacheEntry{graph, seq, head, batch});
+    return bucket.back().graph;
+}
+
+template<typename T>
+uint32_t FlashSdpaFwdCudnn<std::tuple<T>>::hash_parameters(Index seq, Index head, Index batch)
+{
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&seq, sizeof(seq), hash);
+    hash = starpu_hash_crc32c_be_n(&head, sizeof(head), hash);
+    hash = starpu_hash_crc32c_be_n(&batch, sizeof(batch), hash);
+    return hash;
+}
+#endif // NNTILE_USE_CUDA
 
 // Explicit instantiation
 template class FlashSdpaFwdCudnn<std::tuple<nntile::bf16_t>>;
