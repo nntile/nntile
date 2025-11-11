@@ -45,7 +45,7 @@ void check()
     TensorTraits Q_traits(K_shape, K_shape);
     TensorTraits V_traits(K_shape, K_shape);
     TensorTraits A_traits(K_shape, K_shape);
-    TensorTraits mask_traits({n_batch, n_seq, n_seq}, {n_batch, n_seq, n_seq});
+    TensorTraits mask_traits({n_seq, n_seq}, {n_seq, n_seq});
     TensorTraits logsumexp_traits(logsumexp_shape, logsumexp_shape);
 
     // Use root rank for all tensors (single MPI rank scenario)
@@ -93,22 +93,19 @@ void check()
         }
 
         // Create custom mask (similar to starpu test)
-        for(Index b = 0; b < n_batch; ++b)
+        for(Index i = 0; i < n_seq; ++i)
         {
-            for(Index i = 0; i < n_seq; ++i)
+            for(Index j = 0; j < n_seq; ++j)
             {
-                for(Index j = 0; j < n_seq; ++j)
+                Index idx = i * n_seq + j;
+                // Create a simple mask: allow attention within a window
+                if (std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 32)
                 {
-                    Index idx = b * n_seq * n_seq + i * n_seq + j;
-                    // Create a simple mask: allow attention within a window
-                    if (std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 32)
-                    {
-                        mask_local[idx] = T(Y(0.0));  // Attend
-                    }
-                    else
-                    {
-                        mask_local[idx] = T(-std::numeric_limits<Y>::infinity());  // Mask
-                    }
+                    mask_local[idx] = T(Y(0.0));  // Attend
+                }
+                else
+                {
+                    mask_local[idx] = T(-std::numeric_limits<Y>::infinity());  // Mask
                 }
             }
         }

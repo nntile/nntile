@@ -14,6 +14,9 @@
 
 #include "nntile/kernel/flash_sdpa_fwd_cudnn/cuda.hh"
 #include <cudnn_frontend.h>
+#ifdef NNTILE_USE_CUDA
+#include <cudnn.h>
+#endif
 #include <cuda_runtime.h>
 #include <stdexcept>
 #include <cmath>
@@ -29,8 +32,8 @@ constexpr ::int64_t Q_UID = 1;
 constexpr ::int64_t K_UID = 2;
 constexpr ::int64_t V_UID = 3;
 constexpr ::int64_t O_UID = 4;
-constexpr ::int64_t STATS_UID = 5;
-constexpr ::int64_t MASK_UID = 6;
+constexpr ::int64_t MASK_UID = 5;
+constexpr ::int64_t STATS_UID = 6;
 
 template<typename T>
 FlashSdpaGraph<T>* prepare_graph(cudnnHandle_t handle, Index seq, Index head,
@@ -65,7 +68,7 @@ FlashSdpaGraph<T>* prepare_graph(cudnnHandle_t handle, Index seq, Index head,
         result->batch = static_cast<::int64_t>(batch);
         result->seq = static_cast<::int64_t>(seq);
         result->head = static_cast<::int64_t>(head);
-        result->has_mask = true;  // Always use mask now
+        result->has_mask = true;
 
         // Create a graph
         result->graph = std::make_shared<fe::graph::Graph>();
@@ -92,6 +95,7 @@ FlashSdpaGraph<T>* prepare_graph(cudnnHandle_t handle, Index seq, Index head,
                                    .set_uid(K_UID)
                                    .set_dim({b, num_heads, s, d})
                                    .set_stride({num_heads * s * d, s * d, d, 1}));
+
         auto V_tensor = result->graph->tensor(fe::graph::Tensor_attributes()
                                    .set_name("V")
                                    .set_uid(V_UID)
@@ -104,13 +108,11 @@ FlashSdpaGraph<T>* prepare_graph(cudnnHandle_t handle, Index seq, Index head,
                                 .set_is_inference(false)  // We want statistics
                                 .set_attn_scale(attn_scale);
 
-        // Always use custom mask
         auto Mask_tensor = result->graph->tensor(fe::graph::Tensor_attributes()
-                                   .set_name("Bias")
-                                   .set_uid(MASK_UID)
-                                   .set_dim({1, 1, s, s})  // cuDNN expects [1, 1, seq_q, seq_k]
-                                   .set_stride({s * s, s * s, s, 1})
-                                   .set_data_type(data_type));
+                                    .set_name("Bias")
+                                    .set_uid(MASK_UID)
+                                    .set_dim({1, 1, s, s})  // cuDNN expects [1, 1, seq_q, seq_k]
+                                    .set_stride({s * s, s * s, s, 1}));
 
         sdpa_options.set_bias(Mask_tensor);
         sdpa_options.set_causal_mask(false);
@@ -214,13 +216,9 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph<T>* prepared_graph
             {K_UID, const_cast<T*>(K)},
             {V_UID, const_cast<T*>(V)},
             {O_UID, A},
+            {MASK_UID, const_cast<T*>(mask)},
             {STATS_UID, stats_float}
         };
-
-        // Add mask if graph was prepared with mask
-        if (prepared_graph->has_mask) {
-            variant_pack[MASK_UID] = const_cast<T*>(mask);
-        }
 
         // Execute the graph
         auto exec_status = prepared_graph->graph->execute(handle, variant_pack, workspace);
@@ -282,7 +280,7 @@ void cuda(cudnnHandle_t handle, Index seq, Index head, Index batch,
  * Performs scaled dot-product attention using cuDNN's Flash Attention implementation.
  * This is a convenience function that prepares the graph, executes it, and destroys it.
  * For better performance with repeated calls, use prepare_graph/execute_graph/destroy_graph directly.
- * The mask tensor is virtually reshaped from [seq, seq] to [1, 1, seq, seq] for cuDNN.
+ * The mask tensor is virtually reshaped from [batch, seq, seq] to [batch, 1, seq, seq] for cuDNN.
  *
  * @param[in] handle: cuDNN handle (with stream already set)
  * @param[in] seq: Sequence length
@@ -290,7 +288,7 @@ void cuda(cudnnHandle_t handle, Index seq, Index head, Index batch,
  * @param[in] batch: Batch size
  * @param[in] K: Key tensor [batch, seq, head]
  * @param[in] Q: Query tensor [batch, seq, head]
- * @param[in] mask: Mask tensor [seq, seq] (virtually reshaped to [1, 1, seq, seq] for cuDNN)
+ * @param[in] mask: Mask tensor [batch, seq, seq] (virtually reshaped to [batch, 1, seq, seq] for cuDNN)
  * @param[out] logsumexp: Log-sum-exp statistics [batch, seq]
  * @param[in] V: Value tensor [batch, seq, head]
  * @param[out] A: Attention output tensor [batch, seq, head]

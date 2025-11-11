@@ -2079,3 +2079,34 @@ def flash_sdpa_fwd_cudnn_async(
             K, Q, mask, logsumexp, V, A)
     else:
         raise TypeError("Only BF16 and FP16 tensor types are supported")
+
+
+def flash_sdpa_fwd(
+    K: Tensor,
+    Q: Tensor,
+    mask: Tensor,
+    logsumexp: Tensor,
+    V: Tensor,
+    A: Tensor,
+) -> None:
+    """
+    Blocking flash attention scaled dot-product attention forward pass.
+
+    This wrapper invokes the synchronous cuDNN implementation which waits for
+    completion internally, making it convenient for step-by-step debugging.
+
+    Args:
+        K: Key tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+        Q: Query tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+        mask: Mask tensor [n_seq, n_seq]
+        logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size]
+        V: Value tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+        A: Output tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+    """
+    ts = (K, Q, V, A)
+    if is_tensor_of(ts, Tensor_bf16):
+        ops.flash_sdpa_fwd_bf16(K, Q, mask, logsumexp, V, A)
+    elif is_tensor_of(ts, Tensor_fp16):
+        ops.flash_sdpa_fwd_fp16(K, Q, mask, logsumexp, V, A)
+    else:
+        raise TypeError("Only BF16 and FP16 tensor types are supported")

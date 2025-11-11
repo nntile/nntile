@@ -25,10 +25,88 @@ import pytest
 import torch
 
 import nntile
-from nntile.functions import flash_sdpa_fwd_cudnn_async
+from nntile.functions import flash_sdpa_fwd_cudnn_async, flash_sdpa_fwd
 
 # Only test BF16 and FP16 as per cuDNN limitations
 supported_dtypes = ['fp16', 'bf16']
+
+
+def _prepare_flash_inputs(dtype, seed=42):
+    head_size = 32
+    n_seq = 64
+    n_batch = 2
+    kv_group_size = 1
+    n_head_kv = 1
+
+    kqv_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+    mask_shape = [n_seq, n_seq]
+    logsumexp_shape = [n_batch, n_seq, kv_group_size]
+
+    K_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)
+    Q_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)
+    V_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)
+    A_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)
+    mask_traits = nntile.tensor.TensorTraits(mask_shape, mask_shape)
+    logsumexp_traits = nntile.tensor.TensorTraits(logsumexp_shape,
+                                                 logsumexp_shape)
+
+    mpi_root = 0
+    dist_root = [mpi_root]
+
+    if dtype == 'fp16':
+        tensor_type = nntile.tensor.Tensor_fp16
+    elif dtype == 'bf16':
+        tensor_type = nntile.tensor.Tensor_bf16
+    else:
+        raise ValueError(f"Unsupported dtype: {dtype}")
+    numpy_dtype = np.float32
+
+    K = tensor_type(K_traits, dist_root)
+    Q = tensor_type(Q_traits, dist_root)
+    V = tensor_type(V_traits, dist_root)
+    A = tensor_type(A_traits, dist_root)
+    mask = tensor_type(mask_traits, dist_root)
+    logsumexp = tensor_type(logsumexp_traits, dist_root)
+
+    rng = np.random.default_rng(seed)
+
+    K_src = rng.standard_normal(kqv_shape).astype(numpy_dtype, 'F') * 0.1
+    Q_src = rng.standard_normal(kqv_shape).astype(numpy_dtype, 'F') * 0.1
+    V_src = rng.standard_normal(kqv_shape).astype(numpy_dtype, 'F') * 0.1
+    A_src = rng.standard_normal(kqv_shape).astype(numpy_dtype, 'F') * 0.1
+
+    mask_src = np.full(mask_shape, -np.inf, dtype=numpy_dtype, order='F')
+    window_size = 32
+    for i in range(n_seq):
+        for j in range(n_seq):
+            if abs(i - j) <= window_size:
+                mask_src[i, j] = 0.0
+
+    logsumexp_src = np.zeros(logsumexp_shape, dtype=numpy_dtype, order='F')
+
+    K.from_array(K_src)
+    Q.from_array(Q_src)
+    V.from_array(V_src)
+    A.from_array(A_src)
+    mask.from_array(mask_src)
+    logsumexp.from_array(logsumexp_src)
+
+    return {
+        "K": K,
+        "Q": Q,
+        "V": V,
+        "A": A,
+        "mask": mask,
+        "logsumexp": logsumexp,
+        "K_src": K_src,
+        "Q_src": Q_src,
+        "V_src": V_src,
+        "A_src": A_src,
+        "mask_src": mask_src,
+        "logsumexp_src": logsumexp_src,
+        "kqv_shape": kqv_shape,
+        "n_head_kv": n_head_kv,
+    }
 
 
 def pytorch_multihead_attention_baseline(Q_src, K_src, V_src, mask_src,
@@ -120,97 +198,33 @@ def pytorch_multihead_attention_baseline(Q_src, K_src, V_src, mask_src,
 
 @pytest.mark.parametrize('dtype', supported_dtypes)
 def test_flash_sdpa_fwd_cudnn_async(context, dtype):
-    # Test parameters - use small values for testing
-    head_size = 32
-    n_seq = 64
-    n_batch = 2
-    kv_group_size = 1
-    n_head_kv = 1
-
-    # Create 5D tensor shapes
-    kqv_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
-    mask_shape = [n_seq, n_seq]  # 2D mask for flash attention
-    logsumexp_shape = [n_batch, n_seq, kv_group_size]
-
-    # Tensor traits (single tile per tensor)
-    K_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)
-    Q_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)
-    V_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)
-    A_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)
-    mask_traits = nntile.tensor.TensorTraits(mask_shape, mask_shape)
-    logsumexp_traits = nntile.tensor.TensorTraits(logsumexp_shape,
-                                                   logsumexp_shape)
-
-    # Use root rank for all tensors (single MPI rank scenario)
-    mpi_root = 0
-    dist_root = [mpi_root]
-
-    # Create tensor objects based on dtype
-    if dtype == 'fp16':
-        tensor_type = nntile.tensor.Tensor_fp16
-    elif dtype == 'bf16':
-        tensor_type = nntile.tensor.Tensor_bf16
-    else:
-        raise ValueError(f"Unsupported dtype: {dtype}")
-    numpy_dtype = np.float32
-
-    K = tensor_type(K_traits, dist_root)
-    Q = tensor_type(Q_traits, dist_root)
-    V = tensor_type(V_traits, dist_root)
-    A = tensor_type(A_traits, dist_root)
-    mask = tensor_type(mask_traits, dist_root)
-    logsumexp = tensor_type(logsumexp_traits, dist_root)
-
-    # Initialize input data
-    rng = np.random.default_rng(42)
-
-    # Initialize K, Q, V with small values
-    K_src = rng.standard_normal(kqv_shape).astype(numpy_dtype, 'F') * 0.1
-    Q_src = rng.standard_normal(kqv_shape).astype(numpy_dtype, 'F') * 0.1
-    V_src = rng.standard_normal(kqv_shape).astype(numpy_dtype, 'F') * 0.1
-    A_src = rng.standard_normal(kqv_shape).astype(numpy_dtype, 'F') * 0.1
-
-    # Initialize mask (allow attention within a window)
-    # Mask is now 2D: [n_seq, n_seq] for flash attention
-    mask_src = np.full(mask_shape, -np.inf, dtype=numpy_dtype, order='F')
-    window_size = 32
-    for i in range(n_seq):
-        for j in range(n_seq):
-            if abs(i - j) <= window_size:
-                mask_src[i, j] = 0.0
-
-    # Initialize logsumexp to zeros
-    logsumexp_src = np.zeros(logsumexp_shape, dtype=numpy_dtype, order='F')
-
-    # Transfer data to NNTile tensors
-    K.from_array(K_src)
-    Q.from_array(Q_src)
-    V.from_array(V_src)
-    A.from_array(A_src)
-    mask.from_array(mask_src)
-    logsumexp.from_array(logsumexp_src)
+    data = _prepare_flash_inputs(dtype, seed=42)
 
     # Perform async flash_sdpa operation
-    flash_sdpa_fwd_cudnn_async(K, Q, mask, logsumexp, V, A)
+    flash_sdpa_fwd_cudnn_async(data["K"], data["Q"], data["mask"],
+                               data["logsumexp"], data["V"], data["A"])
 
     # Wait for completion
     nntile.starpu.wait_for_all()
 
     # Get results back
-    A.to_array(A_src)
+    data["A"].to_array(data["A_src"])
 
     # Compute PyTorch baseline for comparison
-    A_pytorch = pytorch_multihead_attention_baseline(Q_src, K_src, V_src,
-                                                     mask_src, n_head_kv)
+    A_pytorch = pytorch_multihead_attention_baseline(
+        data["Q_src"], data["K_src"], data["V_src"], data["mask_src"],
+        data["n_head_kv"])
 
     # Check shapes match
-    assert A_src.shape == A_pytorch.shape, (f"Shape mismatch: NNTile "
-                                             f"{A_src.shape} vs PyTorch "
-                                             f"{A_pytorch.shape}")
-    assert A_src.shape == tuple(kqv_shape)
+    assert data["A_src"].shape == A_pytorch.shape, (f"Shape mismatch: NNTile "
+                                                    f"{data['A_src'].shape} "
+                                                    f"vs PyTorch "
+                                                    f"{A_pytorch.shape}")
+    assert data["A_src"].shape == tuple(data["kqv_shape"])
 
     # Check that NNTile result is finite and has reasonable magnitude
-    assert np.isfinite(A_src).all(), "NNTile result contains NaN or Inf values"
+    assert np.isfinite(data["A_src"]).all(), \
+        "NNTile result contains NaN or Inf values"
 
     # Check if PyTorch baseline is available (non-zero result means
     # PyTorch worked)
@@ -233,7 +247,7 @@ def test_flash_sdpa_fwd_cudnn_async(context, dtype):
         significant_mask = np.abs(A_pytorch) > 1e-6
 
         if np.any(significant_mask):
-            max_diff = np.max(np.abs(A_src[significant_mask] -
+            max_diff = np.max(np.abs(data["A_src"][significant_mask] -
                                      A_pytorch[significant_mask]))
             max_val = np.max(np.abs(A_pytorch[significant_mask]))
 
@@ -257,11 +271,41 @@ def test_flash_sdpa_fwd_cudnn_async(context, dtype):
 
     # Ensure NNTile result has some non-zero values
     # (indicating computation occurred)
-    assert np.any(np.abs(A_src) > 1e-10), \
-        "NNTile result appears to be all zeros - computation may have failed"
+        assert np.any(np.abs(data["A_src"]) > 1e-10), \
+            "NNTile result appears to be all zeros - computation may have failed"
 
     print(f"Test completed successfully for dtype {dtype}")
-    print(f"NNTile result shape: {A_src.shape}")
-    print(f"NNTile result range: [{np.min(A_src):.6f}, {np.max(A_src):.6f}]")
-    print(f"NNTile result has {np.sum(np.abs(A_src) > 1e-6)} "
+    print(f"NNTile result shape: {data['A_src'].shape}")
+    print(f"NNTile result range: [{np.min(data['A_src']):.6f}, "
+          f"{np.max(data['A_src']):.6f}]")
+    print(f"NNTile result has {np.sum(np.abs(data['A_src']) > 1e-6)} "
           "significant values")
+
+
+@pytest.mark.parametrize('dtype', supported_dtypes)
+def test_flash_sdpa_fwd_blocking_matches_async(context, dtype):
+    async_data = _prepare_flash_inputs(dtype, seed=7)
+    flash_sdpa_fwd_cudnn_async(async_data["K"], async_data["Q"],
+                               async_data["mask"], async_data["logsumexp"],
+                               async_data["V"], async_data["A"])
+    nntile.starpu.wait_for_all()
+    async_data["A"].to_array(async_data["A_src"])
+    async_data["logsumexp"].to_array(async_data["logsumexp_src"])
+
+    blocking_data = _prepare_flash_inputs(dtype, seed=7)
+    flash_sdpa_fwd(blocking_data["K"], blocking_data["Q"],
+                   blocking_data["mask"], blocking_data["logsumexp"],
+                   blocking_data["V"], blocking_data["A"])
+    blocking_data["A"].to_array(blocking_data["A_src"])
+    blocking_data["logsumexp"].to_array(blocking_data["logsumexp_src"])
+
+    assert np.isfinite(blocking_data["A_src"]).all(), \
+        "Blocking Flash Attention result contains NaN or Inf values"
+    assert np.isfinite(blocking_data["logsumexp_src"]).all(), \
+        "Blocking logsumexp result contains NaN or Inf values"
+
+    np.testing.assert_allclose(blocking_data["A_src"], async_data["A_src"],
+                               rtol=1e-3, atol=1e-3)
+    np.testing.assert_allclose(blocking_data["logsumexp_src"],
+                               async_data["logsumexp_src"],
+                               rtol=1e-3, atol=1e-3)

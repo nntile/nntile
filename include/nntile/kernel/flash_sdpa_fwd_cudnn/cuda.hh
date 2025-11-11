@@ -59,7 +59,7 @@ FlashSdpaGraph<T>* prepare_graph(
  * @param[in] prepared_graph: Previously prepared graph structure
  * @param[in] K: Key tensor [batch, seq, head]
  * @param[in] Q: Query tensor [batch, seq, head]
- * @param[in] mask: Optional mask tensor [batch, seq, seq]. Required if graph was prepared with use_mask=true
+ * @param[in] mask: Mask tensor [batch, seq, seq] (virtually reshaped to [batch, 1, seq, seq] for cuDNN)
  * @param[out] logsumexp: Log-sum-exp statistics [batch, seq]
  * @param[in] V: Value tensor [batch, seq, head]
  * @param[out] A: Attention output tensor [batch, seq, head]
@@ -95,7 +95,7 @@ void destroy_graph(
  * @param[in] batch: Batch size
  * @param[in] K: Key tensor [batch, seq, head]
  * @param[in] Q: Query tensor [batch, seq, head]
- * @param[in] mask: Mask tensor [batch, seq, seq] (required)
+ * @param[in] mask: Mask tensor [batch, seq, seq] (virtually reshaped to [batch, 1, seq, seq] for cuDNN)
  * @param[out] logsumexp: Log-sum-exp statistics [batch, seq]
  * @param[in] V: Value tensor [batch, seq, head]
  * @param[out] A: Attention output tensor [batch, seq, head]

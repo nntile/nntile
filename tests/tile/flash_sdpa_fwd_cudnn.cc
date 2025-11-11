@@ -41,7 +41,7 @@ void check()
     Tile<T> Q_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
     Tile<T> V_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
     Tile<T> A_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> mask_tile({n_batch, n_seq, n_seq});
+    Tile<T> mask_tile({n_seq, n_seq});
     Tile<T> logsumexp_tile({n_batch, n_seq, kv_group_size});
 
     // Initialize input data
@@ -67,22 +67,19 @@ void check()
     }
 
     // Create custom mask (similar to starpu test)
-    for(Index b = 0; b < n_batch; ++b)
+    for(Index i = 0; i < n_seq; ++i)
     {
-        for(Index i = 0; i < n_seq; ++i)
+        for(Index j = 0; j < n_seq; ++j)
         {
-            for(Index j = 0; j < n_seq; ++j)
+            Index idx = i * n_seq + j;
+            // Create a simple mask: allow attention within a window
+            if (std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 32)
             {
-                Index idx = b * n_seq * n_seq + i * n_seq + j;
-                // Create a simple mask: allow attention within a window
-                if (std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 32)
-                {
-                    mask_local[idx] = T(Y(0.0));  // Attend
-                }
-                else
-                {
-                    mask_local[idx] = T(-std::numeric_limits<Y>::infinity());  // Mask
-                }
+                mask_local[idx] = T(Y(0.0));  // Attend
+            }
+            else
+            {
+                mask_local[idx] = T(-std::numeric_limits<Y>::infinity());  // Mask
             }
         }
     }
@@ -101,7 +98,7 @@ void check()
         Tile<T> Q_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
         Tile<T> V_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
         Tile<T> A_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-        Tile<T> mask_starpu({n_batch, n_seq, n_seq});
+        Tile<T> mask_starpu({n_seq, n_seq});
         Tile<T> logsumexp_starpu({n_batch, n_seq, kv_group_size});
 
         // Copy data to starpu tiles
