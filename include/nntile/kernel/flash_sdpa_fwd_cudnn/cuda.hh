@@ -31,9 +31,10 @@ struct FlashSdpaGraph
     ::int64_t batch;
     ::int64_t seq;
     ::int64_t head;
-    bool has_mask;
 
-    FlashSdpaGraph() : workspace_size(0), batch(0), seq(0), head(0), has_mask(false) {}
+    FlashSdpaGraph() : workspace_size(0), batch(0), seq(0), head(0)
+    {
+    }
 };
 
 //! Prepare cuDNN graph for flash attention
@@ -59,7 +60,7 @@ FlashSdpaGraph<T>* prepare_graph(
  * @param[in] prepared_graph: Previously prepared graph structure
  * @param[in] K: Key tensor [batch, seq, head]
  * @param[in] Q: Query tensor [batch, seq, head]
- * @param[in] mask: Mask tensor [batch, seq, seq] (virtually reshaped to [batch, 1, seq, seq] for cuDNN)
+ * @param[in] mask: Mask tensor [seq, seq]
  * @param[out] logsumexp: Log-sum-exp statistics [batch, seq]
  * @param[in] V: Value tensor [batch, seq, head]
  * @param[out] A: Attention output tensor [batch, seq, head]
@@ -95,7 +96,7 @@ void destroy_graph(
  * @param[in] batch: Batch size
  * @param[in] K: Key tensor [batch, seq, head]
  * @param[in] Q: Query tensor [batch, seq, head]
- * @param[in] mask: Mask tensor [batch, seq, seq] (virtually reshaped to [batch, 1, seq, seq] for cuDNN)
+ * @param[in] mask: Mask tensor [seq, seq]
  * @param[out] logsumexp: Log-sum-exp statistics [batch, seq]
  * @param[in] V: Value tensor [batch, seq, head]
  * @param[out] A: Attention output tensor [batch, seq, head]

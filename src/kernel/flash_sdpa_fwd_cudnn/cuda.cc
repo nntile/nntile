@@ -68,7 +68,6 @@ FlashSdpaGraph<T>* prepare_graph(cudnnHandle_t handle, Index seq, Index head,
         result->batch = static_cast<::int64_t>(batch);
         result->seq = static_cast<::int64_t>(seq);
         result->head = static_cast<::int64_t>(head);
-        result->has_mask = true;
 
         // Create a graph
         result->graph = std::make_shared<fe::graph::Graph>();

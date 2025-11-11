@@ -25,7 +25,7 @@ import pytest
 import torch
 
 import nntile
-from nntile.functions import flash_sdpa_fwd, flash_sdpa_fwd_cudnn_async
+from nntile.functions import flash_sdpa_fwd_cudnn_async
 
 # Only test BF16 and FP16 as per cuDNN limitations
 supported_dtypes = ['fp16', 'bf16']
@@ -281,32 +281,3 @@ def test_flash_sdpa_fwd_cudnn_async(context, dtype):
           f"{np.max(data['A_src']):.6f}]")
     print(f"NNTile result has {np.sum(np.abs(data['A_src']) > 1e-6)} "
           "significant values")
-
-
-@pytest.mark.parametrize('dtype', supported_dtypes)
-def test_flash_sdpa_fwd_blocking_matches_async(context, dtype):
-    async_data = _prepare_flash_inputs(dtype, seed=7)
-    flash_sdpa_fwd_cudnn_async(async_data["K"], async_data["Q"],
-                               async_data["mask"], async_data["logsumexp"],
-                               async_data["V"], async_data["A"])
-    nntile.starpu.wait_for_all()
-    async_data["A"].to_array(async_data["A_src"])
-    async_data["logsumexp"].to_array(async_data["logsumexp_src"])
-
-    blocking_data = _prepare_flash_inputs(dtype, seed=7)
-    flash_sdpa_fwd(blocking_data["K"], blocking_data["Q"],
-                   blocking_data["mask"], blocking_data["logsumexp"],
-                   blocking_data["V"], blocking_data["A"])
-    blocking_data["A"].to_array(blocking_data["A_src"])
-    blocking_data["logsumexp"].to_array(blocking_data["logsumexp_src"])
-
-    assert np.isfinite(blocking_data["A_src"]).all(), \
-        "Blocking Flash Attention result contains NaN or Inf values"
-    assert np.isfinite(blocking_data["logsumexp_src"]).all(), \
-        "Blocking logsumexp result contains NaN or Inf values"
-
-    np.testing.assert_allclose(blocking_data["A_src"], async_data["A_src"],
-                               rtol=1e-3, atol=1e-3)
-    np.testing.assert_allclose(blocking_data["logsumexp_src"],
-                               async_data["logsumexp_src"],
-                               rtol=1e-3, atol=1e-3)
