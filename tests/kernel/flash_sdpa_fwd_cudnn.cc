@@ -49,19 +49,6 @@ using namespace nntile::kernel::flash_sdpa_fwd_cudnn;
 using ref_t = double;
 
 #ifdef NNTILE_USE_CUDA
-constexpr size_t FLASH_MASK_MIN_VERSION = 8906; // cuDNN 8.9.6
-inline bool flash_mask_supported()
-{
-    return cudnnGetVersion() >= FLASH_MASK_MIN_VERSION;
-}
-#else
-inline bool flash_mask_supported()
-{
-    return false;
-}
-#endif
-
-#ifdef NNTILE_USE_CUDA
 //! Check cuDNN error and throw runtime_error if error occurs
 #define CUDNN_CHECK(error, message) \
     do { \
@@ -83,16 +70,16 @@ struct TestData
 
     Y eps_check;
 
-    std::vector<T> K;          // Key: [batch, seq, head]
-    std::vector<T> Q;          // Query: [batch, seq, head]
-    std::vector<int> seq_lengths_q; // Sequence lengths for Q (per batch element)
-    std::vector<int> seq_lengths_kv; // Sequence lengths for K/V (per batch element)
-    std::vector<T> V;          // Value: [batch, seq, head]
-    std::vector<T> A_ref;      // Attention output reference: [batch, seq, head]
-    std::vector<T> logsumexp_ref; // Log-sum-exp reference: [batch, seq]
+    std::vector<T> K_init; // Key: [batch, seq, head]
+    std::vector<T> Q_init; // Query: [batch, seq, head]
+    std::vector<T> V_init; // Value: [batch, seq, head]
+    std::vector<T> mask_init; // Mask: [seq, seq]
+    std::vector<T> A_init; // Attention output: [batch, seq, head]
+    std::vector<T> lse_init; // Log-sum-exp: [batch, seq]
 
-    // For reference computation, we need a mask representation
-    std::vector<bool> mask_ref; // Reference mask: [seq, seq] (true = keep, false = mask)
+    std::vector<T> A_ref; // Attention output reference: [batch, seq, head]
+    std::vector<T> lse_ref; // Log-sum-exp reference: [batch, seq]
+
 };
 
 // Reference implementation of attention: A = softmax(Q @ K^T / sqrt(head)) @ V
@@ -104,7 +91,7 @@ void reference_attention(TestData<T>& data)
 
     // Initialize outputs
     data.A_ref.resize(data.batch * data.seq * data.head);
-    data.logsumexp_ref.resize(data.batch * data.seq);
+    data.lse_ref.resize(data.batch * data.seq);
 
     // Loop over batch
     for(Index b = 0; b < data.batch; ++b)
@@ -123,20 +110,17 @@ void reference_attention(TestData<T>& data)
                 {
                     Index q_idx = b * data.seq * data.head + i * data.head + h;
                     Index k_idx = b * data.seq * data.head + j * data.head + h;
-                    score += static_cast<ref_t>(static_cast<Y>(data.Q[q_idx])) *
-                             static_cast<ref_t>(static_cast<Y>(data.K[k_idx]));
+                    ref_t q_val = static_cast<Y>(data.Q_init[q_idx]);
+                    ref_t k_val = static_cast<Y>(data.K_init[k_idx]);
+                    score += q_val * k_val;
                 }
                 // Scale by sqrt(head)
                 score *= scale;
 
                 // Apply mask
                 Index mask_idx = i * data.seq + j;
-                if(!data.mask_ref[mask_idx])
-                {
-                    score = -std::numeric_limits<ref_t>::infinity();
-                }
-
-                scores[j] = score;
+                ref_t mask_val = static_cast<Y>(data.mask_init[mask_idx]);
+                scores[j] = score + mask_val;
             }
 
             // Compute softmax: exp(score - max) / sum(exp(score - max))
@@ -165,9 +149,9 @@ void reference_attention(TestData<T>& data)
             }
 
             // Store logsumexp: log(sum_exp) + max_score
-            Index logsumexp_idx = b * data.seq + i;
-            data.logsumexp_ref[logsumexp_idx] =
-                static_cast<T>(static_cast<Y>(std::log(sum_exp) + max_score));
+            Index lse_idx = b * data.seq + i;
+            data.lse_ref[lse_idx] = static_cast<Y>(
+                std::log(sum_exp) + max_score);
 
             // Normalize to get attention weights
             std::vector<ref_t> attn_weights(data.seq);
@@ -184,7 +168,7 @@ void reference_attention(TestData<T>& data)
                 {
                     Index v_idx = b * data.seq * data.head + j * data.head + h;
                     output += attn_weights[j] *
-                              static_cast<ref_t>(static_cast<Y>(data.V[v_idx]));
+                              static_cast<ref_t>(static_cast<Y>(data.V_init[v_idx]));
                 }
                 Index out_idx = b * data.seq * data.head + i * data.head + h;
                 data.A_ref[out_idx] = static_cast<T>(static_cast<Y>(output));
@@ -200,22 +184,29 @@ enum class DataGen
     RANDOM
 };
 
+// Enum for mask
+enum class MaskType
+{
+    CAUSAL,
+    FULL
+};
+
 // Generates data with preset, deterministic values
 template<typename T>
 void generate_data(TestData<T>& data, Index seq, Index head, Index batch,
-                   DataGen strategy)
+                   DataGen strategy, MaskType mask_type)
 {
     using Y = typename T::repr_t;
     data.seq = seq;
     data.head = head;
     data.batch = batch;
 
-    data.K.resize(batch * seq * head);
-    data.Q.resize(batch * seq * head);
-    data.mask_ref.resize(seq * seq);
-    data.V.resize(batch * seq * head);
-    data.seq_lengths_q.resize(batch);
-    data.seq_lengths_kv.resize(batch);
+    data.K_init.resize(batch * seq * head);
+    data.Q_init.resize(batch * seq * head);
+    data.mask_init.resize(seq * seq);
+    data.V_init.resize(batch * seq * head);
+    data.A_init.resize(batch * seq * head);
+    data.lse_init.resize(batch * seq);
 
     switch(strategy)
     {
@@ -224,9 +215,9 @@ void generate_data(TestData<T>& data, Index seq, Index head, Index batch,
             for(Index i = 0; i < batch * seq * head; ++i)
             {
                 Y val = Y((i % 20 - 10) * 0.1);
-                data.K[i] = val;
-                data.Q[i] = val * Y(0.8);
-                data.V[i] = val * Y(1.2);
+                data.K_init[i] = val;
+                data.Q_init[i] = val * Y(0.8);
+                data.V_init[i] = val * Y(1.2);
             }
             break;
         // Specific random initialization
@@ -235,28 +226,53 @@ void generate_data(TestData<T>& data, Index seq, Index head, Index batch,
             std::uniform_real_distribution<Y> dist(-0.5, 0.5);
             for(Index i = 0; i < batch * seq * head; ++i)
             {
-                data.K[i] = dist(gen);
-                data.Q[i] = dist(gen);
-                data.V[i] = dist(gen);
+                data.K_init[i] = dist(gen);
+                data.Q_init[i] = dist(gen);
+                data.V_init[i] = dist(gen);
             }
             break;
     }
 
-    // Initialize sequence lengths (all sequences use full length for now)
-    for(Index b = 0; b < batch; ++b)
+    // Initialize output buffers with random values regardless of strategy
+    std::mt19937 init_gen(1337);
+    std::uniform_real_distribution<Y> init_dist(-1.0, 1.0);
+    for(Index i = 0; i < batch * seq * head; ++i)
     {
-        data.seq_lengths_q[b] = seq;
-        data.seq_lengths_kv[b] = seq;
+        data.A_init[i] = init_dist(init_gen);
+    }
+    for(Index i = 0; i < batch * seq; ++i)
+    {
+        data.lse_init[i] = init_dist(init_gen);
     }
 
-    // Generate custom mask (disable when cuDNN bias mask is unavailable)
-    for(Index i = 0; i < seq; ++i)
+    // Generate mask
+    const T zero = static_cast<Y>(0.0);
+    const T minfty = -std::numeric_limits<Y>::infinity();
+    switch(mask_type)
     {
-        for(Index j = 0; j < seq; ++j)
-        {
-            Index idx = i * seq + j;
-            data.mask_ref[idx] = true;
-        }
+        case MaskType::CAUSAL:
+            for(Index i = 0; i < seq; ++i)
+            {
+                for(Index j = 0; j < seq; ++j)
+                {
+                    Index idx = i * seq + j;
+                    if(i < j)
+                    {
+                        data.mask_init[idx] = minfty;
+                    }
+                    else
+                    {
+                        data.mask_init[idx] = zero;
+                    }
+                }
+            }
+            break;
+        case MaskType::FULL:
+            for(Index idx = 0; idx < seq * seq; ++idx)
+            {
+                data.mask_init[idx] = zero;
+            }
+            break;
     }
 }
 
@@ -266,12 +282,13 @@ TestData<T> get_test_input_data(
     Index seq,
     Index head,
     Index batch,
-    DataGen strategy
+    DataGen strategy,
+    MaskType mask_type
 )
 {
     TestData<T> data;
     // Generate data by a provided strategy
-    generate_data(data, seq, head, batch, strategy);
+    generate_data(data, seq, head, batch, strategy, mask_type);
 
     // Set accuracy threshold for each precision
     if (std::is_same_v<T, bf16_t>)
@@ -303,7 +320,11 @@ template<typename T>
 void verify_results(
     const TestData<T>& data,
     const std::vector<T>& A_out,
-    const std::vector<T>& logsumexp_out
+    const std::vector<T>& lse_out,
+    const std::vector<T>& K_out,
+    const std::vector<T>& Q_out,
+    const std::vector<T>& V_out,
+    const std::vector<T>& mask_out
 )
 {
     using Y = typename T::repr_t;
@@ -320,17 +341,39 @@ void verify_results(
         );
     }
 
-    // // Verify logsumexp
+    // // Verify LSE (currently disabled)
     // for(Index i = 0; i < data.batch * data.seq; ++i)
     // {
-    //     Y lse_ref = static_cast<Y>(data.logsumexp_ref[i]);
-    //     Y lse_out = static_cast<Y>(logsumexp_out[i]);
-
+    //     Y lse_ref = static_cast<Y>(data.lse_ref[i]);
+    //     Y lse_out_val = static_cast<Y>(lse_out[i]);
+    //
     //     REQUIRE_THAT(
-    //         lse_out,
+    //         lse_out_val,
     //         WithinRel(lse_ref, data.eps_check * Y(2.0))  // Allow slightly more error
     //     );
     // }
+
+    auto ensure_inputs_unchanged =
+        [](const std::vector<T>& expected,
+           const std::vector<T>& observed,
+           const char* tensor_name)
+        {
+            using val_t = typename T::repr_t;
+            REQUIRE(expected.size() == observed.size());
+            for(size_t idx = 0; idx < expected.size(); ++idx)
+            {
+                INFO(tensor_name << " input mismatch at idx " << idx);
+                REQUIRE(
+                    static_cast<val_t>(observed[idx]) ==
+                    static_cast<val_t>(expected[idx])
+                );
+            }
+        };
+
+    ensure_inputs_unchanged(data.K_init, K_out, "K");
+    ensure_inputs_unchanged(data.Q_init, Q_out, "Q");
+    ensure_inputs_unchanged(data.V_init, V_out, "V");
+    ensure_inputs_unchanged(data.mask_init, mask_out, "mask");
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -338,61 +381,42 @@ void verify_results(
 template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
-    T *dev_K, *dev_Q, *dev_logsumexp, *dev_V, *dev_A, *dev_mask;
+    T *dev_K, *dev_Q, *dev_lse, *dev_V, *dev_A, *dev_mask;
 
     // Allocate device memory
     CUDA_CHECK(cudaMalloc(&dev_K, sizeof(T) * data.batch * data.seq * data.head),
                "cudaMalloc dev_K");
     CUDA_CHECK(cudaMalloc(&dev_Q, sizeof(T) * data.batch * data.seq * data.head),
                "cudaMalloc dev_Q");
-    CUDA_CHECK(cudaMalloc(&dev_logsumexp, sizeof(T) * data.batch * data.seq),
-               "cudaMalloc dev_logsumexp");
+    CUDA_CHECK(cudaMalloc(&dev_lse, sizeof(T) * data.batch * data.seq),
+               "cudaMalloc dev_lse");
     CUDA_CHECK(cudaMalloc(&dev_V, sizeof(T) * data.batch * data.seq * data.head),
                "cudaMalloc dev_V");
     CUDA_CHECK(cudaMalloc(&dev_A, sizeof(T) * data.batch * data.seq * data.head),
                "cudaMalloc dev_A");
-
-    // Always allocate mask memory
     CUDA_CHECK(cudaMalloc(&dev_mask, sizeof(T) * data.seq * data.seq),
                "cudaMalloc dev_mask");
 
     // Copy inputs to device
-    CUDA_CHECK(cudaMemcpy(dev_K, &data.K[0],
+    CUDA_CHECK(cudaMemcpy(dev_K, &data.K_init[0],
                           sizeof(T) * data.batch * data.seq * data.head,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_K");
-    CUDA_CHECK(cudaMemcpy(dev_Q, &data.Q[0],
+    CUDA_CHECK(cudaMemcpy(dev_Q, &data.Q_init[0],
                           sizeof(T) * data.batch * data.seq * data.head,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_Q");
-    CUDA_CHECK(cudaMemcpy(dev_V, &data.V[0],
+    CUDA_CHECK(cudaMemcpy(dev_V, &data.V_init[0],
                           sizeof(T) * data.batch * data.seq * data.head,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_V");
-
-    // Always copy mask to device
-    // Convert bool mask to T type for cuDNN bias
-    // cuDNN bias is added to attention scores before softmax
-    // So: mask=true (attend) -> bias=0.0, mask=false (mask out) -> bias=-inf
-    using Y = typename T::repr_t;
-    std::vector<T> mask_converted(data.seq * data.seq);
-    bool mask_supported = flash_mask_supported();
-    for(Index i = 0; i < data.seq * data.seq; ++i)
-    {
-        if (!mask_supported)
-        {
-            mask_converted[i] = T(Y(0.0));
-        }
-        else if (data.mask_ref[i]) {
-            mask_converted[i] = T(Y(0.0));  // Attend: add 0 to score
-        } else {
-            mask_converted[i] = T(-std::numeric_limits<Y>::infinity());  // Mask: add -inf to score
-        }
-    }
-    CUDA_CHECK(cudaMemcpy(dev_mask, mask_converted.data(),
+    CUDA_CHECK(cudaMemcpy(dev_A, &data.A_init[0],
+                          sizeof(T) * data.batch * data.seq * data.head,
+                          cudaMemcpyHostToDevice), "cudaMemcpy dev_A_init");
+    CUDA_CHECK(cudaMemcpy(dev_mask, data.mask_init.data(),
                           sizeof(T) * data.seq * data.seq,
                           cudaMemcpyHostToDevice), "cudaMemcpy dev_mask");
-
-    // Initialize logsumexp to zero
-    CUDA_CHECK(cudaMemset(dev_logsumexp, 0, sizeof(T) * data.batch * data.seq),
-               "cudaMemset dev_logsumexp");
+    CUDA_CHECK(cudaMemcpy(dev_lse, &data.lse_init[0],
+                          sizeof(T) * data.batch * data.seq,
+                          cudaMemcpyHostToDevice),
+               "cudaMemcpy dev_lse_init");
 
     // Create CUDA stream
     cudaStream_t stream;
@@ -401,13 +425,15 @@ void run_cuda_test(TestData<T>& data)
     // Create cuDNN handle and set stream
     cudnnHandle_t handle;
     cudnnStatus_t status = cudnnCreate(&handle);
-    if (status != CUDNN_STATUS_SUCCESS) {
+    if (status != CUDNN_STATUS_SUCCESS)
+    {
         CUDA_CHECK(cudaStreamDestroy(stream), "cudaStreamDestroy");
         REQUIRE(false); // Fail test if cuDNN handle creation fails
     }
 
     status = cudnnSetStream(handle, stream);
-    if (status != CUDNN_STATUS_SUCCESS) {
+    if (status != CUDNN_STATUS_SUCCESS)
+    {
         CUDNN_CHECK(cudnnDestroy(handle), "cudnnDestroy after stream set failure");
         CUDA_CHECK(cudaStreamDestroy(stream), "cudaStreamDestroy");
         REQUIRE(false); // Fail test if stream setting fails
@@ -428,7 +454,7 @@ void run_cuda_test(TestData<T>& data)
         CUDA_CHECK(cudaStreamDestroy(stream), "cudaStreamDestroy (prepare_graph failed)");
         CUDA_CHECK(cudaFree(dev_K), "cudaFree dev_K (prepare_graph failed)");
         CUDA_CHECK(cudaFree(dev_Q), "cudaFree dev_Q (prepare_graph failed)");
-        CUDA_CHECK(cudaFree(dev_logsumexp), "cudaFree dev_logsumexp (prepare_graph failed)");
+        CUDA_CHECK(cudaFree(dev_lse), "cudaFree dev_lse (prepare_graph failed)");
         CUDA_CHECK(cudaFree(dev_V), "cudaFree dev_V (prepare_graph failed)");
         CUDA_CHECK(cudaFree(dev_A), "cudaFree dev_A (prepare_graph failed)");
         CUDA_CHECK(cudaFree(dev_mask), "cudaFree dev_mask (prepare_graph failed)");
@@ -452,8 +478,8 @@ void run_cuda_test(TestData<T>& data)
                 prepared_graph,
                 dev_K,
                 dev_Q,
-                dev_mask,  // Pass mask (always provided)
-                dev_logsumexp,
+                dev_mask,
+                dev_lse,
                 dev_V,
                 dev_A
             );
@@ -467,8 +493,8 @@ void run_cuda_test(TestData<T>& data)
             prepared_graph,
             dev_K,
             dev_Q,
-            dev_mask,  // Pass mask (always provided)
-            dev_logsumexp,
+            dev_mask,
+            dev_lse,
             dev_V,
             dev_A
         );
@@ -476,18 +502,38 @@ void run_cuda_test(TestData<T>& data)
 
         // Copy outputs back to host
         std::vector<T> A_cuda(data.batch * data.seq * data.head);
-        std::vector<T> logsumexp_cuda(data.batch * data.seq);
+        std::vector<T> lse_cuda(data.batch * data.seq);
+        std::vector<T> K_cuda(data.batch * data.seq * data.head);
+        std::vector<T> Q_cuda(data.batch * data.seq * data.head);
+        std::vector<T> V_cuda(data.batch * data.seq * data.head);
+        std::vector<T> mask_cuda(data.seq * data.seq);
 
         CUDA_CHECK(cudaMemcpy(&A_cuda[0], dev_A,
                               sizeof(T) * data.batch * data.seq * data.head,
                               cudaMemcpyDeviceToHost),
                    "cudaMemcpy A_cuda");
-        CUDA_CHECK(cudaMemcpy(&logsumexp_cuda[0], dev_logsumexp,
+        CUDA_CHECK(cudaMemcpy(&lse_cuda[0], dev_lse,
                               sizeof(T) * data.batch * data.seq,
                               cudaMemcpyDeviceToHost),
-                   "cudaMemcpy logsumexp_cuda");
+                   "cudaMemcpy lse_cuda");
+        CUDA_CHECK(cudaMemcpy(&K_cuda[0], dev_K,
+                              sizeof(T) * data.batch * data.seq * data.head,
+                              cudaMemcpyDeviceToHost),
+                   "cudaMemcpy K_cuda");
+        CUDA_CHECK(cudaMemcpy(&Q_cuda[0], dev_Q,
+                              sizeof(T) * data.batch * data.seq * data.head,
+                              cudaMemcpyDeviceToHost),
+                   "cudaMemcpy Q_cuda");
+        CUDA_CHECK(cudaMemcpy(&V_cuda[0], dev_V,
+                              sizeof(T) * data.batch * data.seq * data.head,
+                              cudaMemcpyDeviceToHost),
+                   "cudaMemcpy V_cuda");
+        CUDA_CHECK(cudaMemcpy(&mask_cuda[0], dev_mask,
+                              sizeof(T) * data.seq * data.seq,
+                              cudaMemcpyDeviceToHost),
+                   "cudaMemcpy mask_cuda");
 
-        verify_results(data, A_cuda, logsumexp_cuda);
+        verify_results(data, A_cuda, lse_cuda, K_cuda, Q_cuda, V_cuda, mask_cuda);
     }
 
     // Cleanup cuDNN resources
@@ -498,7 +544,7 @@ void run_cuda_test(TestData<T>& data)
     // Free device memory
     CUDA_CHECK(cudaFree(dev_K), "cudaFree dev_K");
     CUDA_CHECK(cudaFree(dev_Q), "cudaFree dev_Q");
-    CUDA_CHECK(cudaFree(dev_logsumexp), "cudaFree dev_logsumexp");
+    CUDA_CHECK(cudaFree(dev_lse), "cudaFree dev_lse");
     CUDA_CHECK(cudaFree(dev_V), "cudaFree dev_V");
     CUDA_CHECK(cudaFree(dev_A), "cudaFree dev_A");
     CUDA_CHECK(cudaFree(dev_mask), "cudaFree dev_mask");
@@ -519,9 +565,9 @@ TEMPLATE_TEST_CASE(
     const Index head = GENERATE(32, 64);
     const Index batch = GENERATE(1, 2);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
+    const MaskType mask_type = GENERATE(MaskType::CAUSAL, MaskType::FULL);
     auto data = get_test_input_data<T>(
-        seq, head, batch,
-        strategy
+        seq, head, batch, strategy, mask_type
     );
 
     reference_attention(data);
@@ -545,10 +591,10 @@ TEMPLATE_TEST_CASE(
     const Index head = GENERATE(64, 128);
     const Index batch = GENERATE(4, 8);
     const DataGen strategy = GENERATE(DataGen::RANDOM);
+    const MaskType mask_type = GENERATE(MaskType::CAUSAL, MaskType::FULL);
 
     auto data = get_test_input_data<T>(
-        seq, head, batch,
-        strategy
+        seq, head, batch, strategy, mask_type
     );
 
     SECTION("cuda")
