@@ -25,7 +25,7 @@ import pytest
 import torch
 
 import nntile
-from nntile.functions import flash_sdpa_fwd_cudnn_async, flash_sdpa_fwd
+from nntile.functions import flash_sdpa_fwd, flash_sdpa_fwd_cudnn_async
 
 # Only test BF16 and FP16 as per cuDNN limitations
 supported_dtypes = ['fp16', 'bf16']
@@ -272,7 +272,8 @@ def test_flash_sdpa_fwd_cudnn_async(context, dtype):
     # Ensure NNTile result has some non-zero values
     # (indicating computation occurred)
         assert np.any(np.abs(data["A_src"]) > 1e-10), \
-            "NNTile result appears to be all zeros - computation may have failed"
+            "NNTile result appears to be all zeros - computation may have " \
+            "failed"
 
     print(f"Test completed successfully for dtype {dtype}")
     print(f"NNTile result shape: {data['A_src'].shape}")
