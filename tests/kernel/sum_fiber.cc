@@ -71,6 +71,9 @@ void reference_sum_fiber(TestData<T>& data)
     const ref_t beta = data.beta;
     const ref_t zero = 0.0;
 
+    // Initialize reference output with input data
+    data.dst_ref = data.dst_init;
+
     // Cycle over batch
     for(Index b = 0; b < data.batch; ++b)
     {
@@ -157,9 +160,9 @@ void generate_data(TestData<T>& data, Index m, Index n, Index k, Index batch, Da
     }
 }
 
-// Get test data and reference results
+// Get test input data (reference computation is done separately)
 template<typename T>
-TestData<T> get_test_data(
+TestData<T> get_test_input_data(
     Index m,
     Index n,
     Index k,
@@ -196,9 +199,6 @@ TestData<T> get_test_data(
     {
         throw std::runtime_error("Unsupported data type");
     }
-    // Compute reference outputs
-    data.dst_ref = data.dst_init;
-    reference_sum_fiber(data);
     return data;
 }
 
@@ -367,12 +367,15 @@ TEMPLATE_TEST_CASE(
     const Scalar beta = GENERATE(0.0, 1.0);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
 
-    auto data = get_test_data<T>(
+    auto data = get_test_input_data<T>(
         m, n, k, batch,
         alpha,
         beta,
         strategy
     );
+
+    // Compute reference outputs for verification
+    reference_sum_fiber(data);
 
     SECTION("cpu")
     {
@@ -406,7 +409,7 @@ TEMPLATE_TEST_CASE(
     const Scalar beta = GENERATE(0.0);
     const DataGen strategy = GENERATE(DataGen::PRESET);
 
-    auto data = get_test_data<T>(
+    auto data = get_test_input_data<T>(
         m, n, k, batch,
         alpha,
         beta,

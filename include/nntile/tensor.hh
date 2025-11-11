@@ -47,6 +47,7 @@
 #include <nntile/tensor/fill.hh>
 #include <nntile/tensor/sum_slice.hh>
 #include <nntile/tensor/sum_fiber.hh>
+#include <nntile/tensor/sum.hh>
 #include <nntile/tensor/norm_slice_inplace.hh>
 #include <nntile/tensor/norm_slice.hh>
 #include <nntile/tensor/pow.hh>
@@ -75,6 +76,7 @@
 #include <nntile/tensor/hypot_scalar_inverse.hh>
 #include <nntile/tensor/adam_step.hh>
 #include <nntile/tensor/adamw_step.hh>
+#include <nntile/tensor/sgd_step.hh>
 #include <nntile/tensor/transpose.hh>
 #include <nntile/tensor/silu.hh>
 #include <nntile/tensor/silu_backward.hh>
@@ -86,6 +88,7 @@
 #include <nntile/tensor/rope_backward.hh>
 #include <nntile/tensor/norm_fiber_inplace.hh>
 #include <nntile/tensor/norm_fiber.hh>
+#include <nntile/tensor/norm.hh>
 #include <nntile/tensor/log_scalar.hh>
 #include <nntile/tensor/flash_sdpa_fwd_cudnn.hh>
 

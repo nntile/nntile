@@ -80,6 +80,7 @@ set(TESTS_CATCH2
     "add_slice_inplace"
     "adam_step"
     "adamw_step"
+    "sgd_step"
     "add_slice"
     "embedding"
     "embedding_backward"
@@ -95,6 +96,7 @@ set(TESTS_CATCH2
     "hypot_scalar_inverse"
     "logsumexp"
     "maxsumexp"
+    "norm"
     "norm_fiber"
     "norm_slice_inplace"
     "norm_slice"
@@ -114,6 +116,7 @@ set(TESTS_CATCH2
     "silu_inplace"
     "softmax"
     "sqrt"
+    "sum"
     "sum_fiber"
 )
 

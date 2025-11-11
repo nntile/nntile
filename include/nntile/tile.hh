@@ -42,6 +42,7 @@
 #include <nntile/tile/fill.hh>
 #include <nntile/tile/sum_slice.hh>
 #include <nntile/tile/sum_fiber.hh>
+#include <nntile/tile/sum.hh>
 #include <nntile/tile/norm_slice_inplace.hh>
 #include <nntile/tile/norm_slice.hh>
 #include <nntile/tile/pow.hh>
@@ -72,6 +73,7 @@
 #include <nntile/tile/norm_fiber.hh>
 #include <nntile/tile/norm_fiber_inplace.hh>
 #include <nntile/tile/flash_sdpa_fwd_cudnn.hh>
+#include <nntile/tile/norm.hh>
 
 //! @namespace nntile::tile
 /*! This namespace holds high-level routines for Tile<T>

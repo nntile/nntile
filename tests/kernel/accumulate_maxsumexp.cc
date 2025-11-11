@@ -157,9 +157,9 @@ void generate_data(TestData<T>& data, Index nelems, DataGen strategy)
     }
 }
 
-// Get test data and reference results
+// Get test input data (reference computation is done separately)
 template<typename T>
-TestData<T> get_test_data(Index nelems, DataGen strategy)
+TestData<T> get_test_input_data(Index nelems, DataGen strategy)
 {
     using Y = typename T::repr_t;
     TestData<T> data;
@@ -188,8 +188,6 @@ TestData<T> get_test_data(Index nelems, DataGen strategy)
         throw std::runtime_error("Unsupported data type");
     }
 
-    // Compute reference outputs
-    reference_accumulate_maxsumexp(data);
     return data;
 }
 
@@ -347,7 +345,10 @@ TEMPLATE_TEST_CASE(
     const Index nelems = GENERATE(1, 5, 10, 20);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
 
-    auto data = get_test_data<T>(nelems, strategy);
+    auto data = get_test_input_data<T>(nelems, strategy);
+
+    // Compute reference outputs for verification
+    reference_accumulate_maxsumexp(data);
 
     SECTION("cpu")
     {
@@ -376,7 +377,7 @@ TEMPLATE_TEST_CASE(
     const Index nelems = GENERATE(100, 1000, 10000);
     const DataGen strategy = GENERATE(DataGen::PRESET);
 
-    auto data = get_test_data<T>(nelems, strategy);
+    auto data = get_test_input_data<T>(nelems, strategy);
 
     SECTION("cpu")
     {

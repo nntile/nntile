@@ -55,9 +55,9 @@ struct TestData
     std::vector<T> data_ref;
 };
 
-// Reference implementation of the ReLU operation
+// Reference implementation of the ReLU inplace operation
 template<typename T>
-void reference_relu(TestData<T>& data)
+void reference_relu_inplace(TestData<T>& data)
 {
     using Y = typename T::repr_t;
 
@@ -107,9 +107,9 @@ void generate_data(TestData<T>& data, DataGen strategy)
     }
 }
 
-// Get test data and reference results
+// Get test input data (reference computation is done separately)
 template<typename T>
-TestData<T> get_test_data(
+TestData<T> get_test_input_data(
     Index nelems,
     DataGen strategy
 )
@@ -120,8 +120,6 @@ TestData<T> get_test_data(
     // Generate data by a provided strategy
     generate_data(data, strategy);
 
-    // Compute reference outputs
-    reference_relu(data);
     return data;
 }
 
@@ -255,10 +253,13 @@ TEMPLATE_TEST_CASE(
     const Index nelems = GENERATE(5, 80000);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
 
-    auto data = get_test_data<T>(
+    auto data = get_test_input_data<T>(
         nelems,
         strategy
     );
+
+    // Compute reference outputs for verification
+    reference_relu_inplace(data);
 
     SECTION("cpu")
     {
@@ -287,7 +288,7 @@ TEMPLATE_TEST_CASE(
     const Index nelems = GENERATE(1024*1024, 4096*16384);
     const DataGen strategy = GENERATE(DataGen::PRESET);
 
-    auto data = get_test_data<T>(
+    auto data = get_test_input_data<T>(
         nelems,
         strategy
     );

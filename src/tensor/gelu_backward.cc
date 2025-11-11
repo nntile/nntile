@@ -101,6 +101,10 @@ template
 void gelu_backward_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &x,
         const Tensor<fp32_fast_tf32_t> &dy, const Tensor<fp32_fast_tf32_t> &dx);
 
+template
+void gelu_backward_async<fp16_t>(const Tensor<fp16_t> &x,
+        const Tensor<fp16_t> &dy, const Tensor<fp16_t> &dx);
+
 // Explicit instantiation
 template
 void gelu_backward<fp32_t>(const Tensor<fp32_t> &x,
@@ -125,5 +129,9 @@ void gelu_backward<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &x,
 template
 void gelu_backward<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &x,
         const Tensor<fp32_fast_tf32_t> &dy, const Tensor<fp32_fast_tf32_t> &dx);
+
+template
+void gelu_backward<fp16_t>(const Tensor<fp16_t> &x,
+        const Tensor<fp16_t> &dy, const Tensor<fp16_t> &dx);
 
 } // namespace nntile::tensor

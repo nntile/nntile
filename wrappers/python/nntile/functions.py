@@ -254,6 +254,8 @@ def gelu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         ops.gelu_backward_async_fp32_fast_fp16(x, dy, dx)
     elif type(x) is ops.Tensor_fp32_fast_tf32:
         ops.gelu_backward_async_fp32_fast_tf32(x, dy, dx)
+    elif type(x) is ops.Tensor_fp16:
+        ops.gelu_backward_async_fp16(x, dy, dx)
     else:
         raise TypeError
 
@@ -602,6 +604,59 @@ def norm_slice_async(
         ops.norm_slice_async_fp16(
             alpha, x, beta, y, z, axis, redux
         )
+    else:
+        raise TypeError
+
+
+def norm_async(
+    alpha: float,
+    x: Tensor,
+    beta: float,
+    y: Tensor,
+) -> None:
+    """
+    Wrapper for multiprecision norm (out-of-place version)
+    """
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.norm_async_fp32(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.norm_async_fp32_fast_tf32(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.norm_async_fp32_fast_fp16(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.norm_async_fp32_fast_bf16(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.norm_async_fp64(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.norm_async_bf16(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.norm_async_fp16(alpha, x, beta, y)
+    else:
+        raise TypeError
+
+
+def sum_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
+    """
+    Wrapper for multiprecision sum
+    """
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.sum_async_fp32(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.sum_async_fp32_fast_tf32(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.sum_async_fp32_fast_fp16(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.sum_async_fp32_fast_bf16(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.sum_async_fp64(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.sum_async_bf16(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp16:
+        core_tensor.sum_async_fp16(alpha, x, beta, y)
     else:
         raise TypeError
 
@@ -1751,6 +1806,109 @@ def fused_adam_step(
             grad,
             first_moment,
             second_moment,
+            p,
+        )
+    else:
+        raise TypeError
+
+
+def fused_sgd_step(
+    p: Tensor,
+    grad: Tensor,
+    velocity: Tensor,
+    lr: float,
+    momentum: float,
+    weight_decay: float,
+    num_iter: int,
+    dampening: float = 0.0,
+    nesterov: bool = False,
+):
+    if type(p) is not type(grad):
+        raise TypeError
+    if type(p) is not type(velocity):
+        raise TypeError
+    if type(p) is core_tensor.Tensor_fp32:
+        core_tensor.sgd_step_fp32(
+            num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad,
+            velocity,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.sgd_step_fp32_fast_tf32(
+            num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad,
+            velocity,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.sgd_step_fp32_fast_fp16(
+            num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad,
+            velocity,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.sgd_step_fp32_fast_bf16(
+            num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad,
+            velocity,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp64:
+        core_tensor.sgd_step_fp64(
+            num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad,
+            velocity,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_bf16:
+        core_tensor.sgd_step_bf16(
+            num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad,
+            velocity,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp16:
+        core_tensor.sgd_step_fp16(
+            num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad,
+            velocity,
             p,
         )
     else:

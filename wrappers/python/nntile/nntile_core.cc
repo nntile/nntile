@@ -708,6 +708,38 @@ void def_mod_tensor(py::module_ &m)
     m.def("norm_slice_bf16", &norm_slice<bf16_t>);
     m.def("norm_slice_fp16", &norm_slice<fp16_t>);
 
+    m.def("norm_async_fp64", &norm_async<fp64_t>);
+    m.def("norm_async_fp32", &norm_async<fp32_t>);
+    m.def("norm_async_fp32_fast_tf32", &norm_async<fp32_fast_tf32_t>);
+    m.def("norm_async_fp32_fast_fp16", &norm_async<fp32_fast_fp16_t>);
+    m.def("norm_async_fp32_fast_bf16", &norm_async<fp32_fast_bf16_t>);
+    m.def("norm_async_bf16", &norm_async<bf16_t>);
+    m.def("norm_async_fp16", &norm_async<fp16_t>);
+
+    m.def("norm_fp64", &norm<fp64_t>);
+    m.def("norm_fp32", &norm<fp32_t>);
+    m.def("norm_fp32_fast_tf32", &norm<fp32_fast_tf32_t>);
+    m.def("norm_fp32_fast_fp16", &norm<fp32_fast_fp16_t>);
+    m.def("norm_fp32_fast_bf16", &norm<fp32_fast_bf16_t>);
+    m.def("norm_bf16", &norm<bf16_t>);
+    m.def("norm_fp16", &norm<fp16_t>);
+
+    m.def("sum_async_fp64", &sum_async<fp64_t>);
+    m.def("sum_async_fp32", &sum_async<fp32_t>);
+    m.def("sum_async_fp32_fast_tf32", &sum_async<fp32_fast_tf32_t>);
+    m.def("sum_async_fp32_fast_fp16", &sum_async<fp32_fast_fp16_t>);
+    m.def("sum_async_fp32_fast_bf16", &sum_async<fp32_fast_bf16_t>);
+    m.def("sum_async_bf16", &sum_async<bf16_t>);
+    m.def("sum_async_fp16", &sum_async<fp16_t>);
+
+    m.def("sum_fp64", &sum<fp64_t>);
+    m.def("sum_fp32", &sum<fp32_t>);
+    m.def("sum_fp32_fast_tf32", &sum<fp32_fast_tf32_t>);
+    m.def("sum_fp32_fast_fp16", &sum<fp32_fast_fp16_t>);
+    m.def("sum_fp32_fast_bf16", &sum<fp32_fast_bf16_t>);
+    m.def("sum_bf16", &sum<bf16_t>);
+    m.def("sum_fp16", &sum<fp16_t>);
+
     m.def("pow_async_fp64", &pow_async<fp64_t>);
     m.def("pow_async_fp32", &pow_async<fp32_t>);
     m.def("pow_async_fp32_fast_tf32", &pow_async<fp32_fast_tf32_t>);
@@ -1218,6 +1250,22 @@ void def_mod_tensor(py::module_ &m)
     m.def("adamw_step_bf16", &adamw_step<bf16_t>);
     m.def("adamw_step_fp16", &adamw_step<fp16_t>);
 
+    m.def("sgd_step_async_fp64", &sgd_step_async<fp64_t>);
+    m.def("sgd_step_async_fp32", &sgd_step_async<fp32_t>);
+    m.def("sgd_step_async_fp32_fast_tf32", &sgd_step_async<fp32_fast_tf32_t>);
+    m.def("sgd_step_async_fp32_fast_fp16", &sgd_step_async<fp32_fast_fp16_t>);
+    m.def("sgd_step_async_fp32_fast_bf16", &sgd_step_async<fp32_fast_bf16_t>);
+    m.def("sgd_step_async_bf16", &sgd_step_async<bf16_t>);
+    m.def("sgd_step_async_fp16", &sgd_step_async<fp16_t>);
+
+    m.def("sgd_step_fp64", &sgd_step<fp64_t>);
+    m.def("sgd_step_fp32", &sgd_step<fp32_t>);
+    m.def("sgd_step_fp32_fast_tf32", &sgd_step<fp32_fast_tf32_t>);
+    m.def("sgd_step_fp32_fast_fp16", &sgd_step<fp32_fast_fp16_t>);
+    m.def("sgd_step_fp32_fast_bf16", &sgd_step<fp32_fast_bf16_t>);
+    m.def("sgd_step_bf16", &sgd_step<bf16_t>);
+    m.def("sgd_step_fp16", &sgd_step<fp16_t>);
+
     m.def("scale_inplace_async_fp64", &scale_inplace_async<fp64_t>);
     m.def("scale_inplace_async_fp32", &scale_inplace_async<fp32_t>);
     m.def("scale_inplace_async_fp32_fast_tf32", &scale_inplace_async<fp32_fast_tf32_t>);
@@ -1290,6 +1338,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelu_backward_async_fp32_fast_fp16", &gelu_backward_async<fp32_fast_fp16_t>);
     m.def("gelu_backward_async_fp32_fast_tf32", &gelu_backward_async<fp32_fast_tf32_t>);
     m.def("gelu_backward_async_bf16", &gelu_backward_async<bf16_t>);
+    m.def("gelu_backward_async_fp16", &gelu_backward_async<fp16_t>);
 
     m.def("gelu_backward_fp64", &gelu_backward<fp64_t>);
     m.def("gelu_backward_fp32", &gelu_backward<fp32_t>);
@@ -1297,6 +1346,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelu_backward_fp32_fast_fp16", &gelu_backward<fp32_fast_fp16_t>);
     m.def("gelu_backward_fp32_fast_tf32", &gelu_backward<fp32_fast_tf32_t>);
     m.def("gelu_backward_bf16", &gelu_backward<bf16_t>);
+    m.def("gelu_backward_fp16", &gelu_backward<fp16_t>);
 
     m.def("gelutanh_async_fp64", &gelutanh_async<fp64_t>);
     m.def("gelutanh_async_fp32", &gelutanh_async<fp32_t>);
