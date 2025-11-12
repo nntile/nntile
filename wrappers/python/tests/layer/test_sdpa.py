@@ -34,42 +34,6 @@ class SDPATestParams:
     head_size: int
     n_seq: int
     n_batch: int
-    n_head: int
-    head_size_tile: int
-    n_seq_tile: int
-    n_batch_tile: int
-    n_head_tile: int
-    seed: int = 0
-
-
-single_tile = SDPATestParams(
-    head_size=4,
-    n_seq=6,
-    n_batch=2,
-    n_head=2,
-    head_size_tile=4,
-    n_seq_tile=6,
-    n_batch_tile=2,
-    n_head_tile=2,
-)
-multi_tile = SDPATestParams(
-    head_size=8,
-    n_seq=8,
-    n_batch=3,
-    n_head=4,
-    head_size_tile=4,
-    n_seq_tile=4,
-    n_batch_tile=1,
-    n_head_tile=2,
-    seed=1,
-)
-
-
-@dataclass
-class SDPAFlashTestParams:
-    head_size: int
-    n_seq: int
-    n_batch: int
     kv_group_size: int
     n_head_kv: int
     head_size_tile: int
@@ -78,6 +42,38 @@ class SDPAFlashTestParams:
     kv_group_size_tile: int
     n_head_kv_tile: int
     seed: int = 0
+
+
+single_tile = SDPATestParams(
+    head_size=4,
+    n_seq=6,
+    n_batch=2,
+    kv_group_size=1,
+    n_head_kv=2,
+    head_size_tile=4,
+    n_seq_tile=6,
+    n_batch_tile=2,
+    kv_group_size_tile=1,
+    n_head_kv_tile=2,
+)
+multi_tile = SDPATestParams(
+    head_size=8,
+    n_seq=8,
+    n_batch=3,
+    kv_group_size=1,
+    n_head_kv=4,
+    head_size_tile=4,
+    n_seq_tile=4,
+    n_batch_tile=1,
+    kv_group_size_tile=1,
+    n_head_kv_tile=2,
+    seed=1,
+)
+
+
+@dataclass
+class SDPAFlashTestParams(SDPATestParams):
+    pass
 
 
 flash_single_tile = SDPAFlashTestParams(
@@ -149,7 +145,11 @@ def _assert_tensor_close(actual: np.ndarray, reference: np.ndarray, tol):
     assert diff <= limit, f"diff {diff} exceeds limit {limit}"
 
 
-def _flatten_flash_tensor(tensor: np.ndarray) -> np.ndarray:
+def _flatten_sdpa_tensor(tensor: np.ndarray) -> np.ndarray:
+    if tensor.ndim == 4:
+        return tensor
+    if tensor.ndim != 5:
+        raise ValueError("SDPA tensors must have 4 or 5 dimensions")
     head_size, n_seq, n_batch, kv_group_size, n_head_kv = tensor.shape
     return np.reshape(
         tensor,
@@ -183,59 +183,12 @@ def torch_sdpa_reference(q_np, k_np, v_np, mask_np, y_grad_np=None):
     )
 
 
-def generate_inputs(
+def generate_sdpa_inputs(
     dtype: str,
     params: SDPATestParams,
     *,
-    require_backward: bool
-):
-    rng = np.random.default_rng(params.seed)
-    tensor_type = dtype2tensor[dtype]
-    shape = (params.head_size, params.n_seq, params.n_batch, params.n_head)
-    basetile = [
-        params.head_size_tile,
-        params.n_seq_tile,
-        params.n_batch_tile,
-        params.n_head_tile,
-    ]
-
-    q_np = rng.standard_normal(shape).astype(np.float32)
-    k_np = rng.standard_normal(shape).astype(np.float32)
-    v_np = rng.standard_normal(shape).astype(np.float32)
-
-    q = _make_tensor_moments(q_np, tensor_type, basetile, grad_required=True)
-    k = _make_tensor_moments(k_np, tensor_type, basetile, grad_required=True)
-    v = _make_tensor_moments(v_np, tensor_type, basetile, grad_required=True)
-    mask_np, mask_tensor = _make_mask(params.n_seq, params.n_seq_tile)
-
-    layer = Sdpa.generate_simple(
-        q=q,
-        k=k,
-        v=v,
-        mask=mask_tensor,
-        flash_attention=False,
-        redux=False,
-    )
-    layer.clear_gradients()
-
-    y_grad_np = None
-    if require_backward:
-        y_grad_np = rng.standard_normal(shape).astype(np.float32)
-        layer.y.grad.from_array(
-            np.array(y_grad_np, dtype=np.float32, order="F"))
-
-    return {
-        "layer": layer,
-        "q_np": q_np,
-        "k_np": k_np,
-        "v_np": v_np,
-        "mask_np": mask_np,
-        "y_grad_np": y_grad_np,
-    }
-
-
-def generate_flash_inputs(
-    dtype: str, params: SDPAFlashTestParams
+    require_backward: bool,
+    mask_dtype: str,
 ) -> dict[str, np.ndarray | Sdpa]:
     rng = np.random.default_rng(params.seed)
     tensor_type = dtype2tensor[dtype]
@@ -258,39 +211,60 @@ def generate_flash_inputs(
     k_np = rng.standard_normal(shape).astype(np.float32)
     v_np = rng.standard_normal(shape).astype(np.float32)
 
-    q = _make_tensor_moments(q_np, tensor_type, basetile, grad_required=False)
-    k = _make_tensor_moments(k_np, tensor_type, basetile, grad_required=False)
-    v = _make_tensor_moments(v_np, tensor_type, basetile, grad_required=False)
+    q = _make_tensor_moments(
+        q_np, tensor_type, basetile, grad_required=require_backward
+    )
+    k = _make_tensor_moments(
+        k_np, tensor_type, basetile, grad_required=require_backward
+    )
+    v = _make_tensor_moments(
+        v_np, tensor_type, basetile, grad_required=require_backward
+    )
 
-    mask_bool = np.eye(params.n_seq, dtype=bool)
-    mask_traits = TensorTraits(
-        [params.n_seq, params.n_seq],
-        [params.n_seq, params.n_seq],
-    )
-    mask_tensor = tensor_type(mask_traits, [0] * mask_traits.grid.nelems)
-    mask_values = np.zeros(
-        (params.n_seq, params.n_seq),
-        dtype=np.float32,
-        order="F",
-    )
-    mask_tensor.from_array(mask_values.astype(np.float16, order="F"))
+    mask_kind = mask_dtype.lower()
+    if mask_kind == "bool":
+        mask_np, mask_tensor = _make_mask(params.n_seq, params.n_seq_tile)
+        flash_attention = False
+    elif mask_kind == "float32":
+        mask_traits = TensorTraits(
+            [params.n_seq, params.n_seq],
+            [params.n_seq_tile, params.n_seq_tile],
+        )
+        mask_tensor = tensor_type(mask_traits, [0] * mask_traits.grid.nelems)
+        mask_values = np.zeros(
+            (params.n_seq, params.n_seq),
+            dtype=np.float32,
+            order="F",
+        )
+        mask_tensor.from_array(mask_values)
+        mask_np = mask_values == 0.0
+        flash_attention = True
+    else:
+        raise ValueError("mask_dtype must be either 'bool' or 'float32'")
 
     layer = Sdpa.generate_simple(
         q=q,
         k=k,
         v=v,
         mask=mask_tensor,
-        flash_attention=True,
+        flash_attention=flash_attention,
         redux=False,
     )
-    layer.clear_gradients()
+
+    y_grad_np = None
+    if require_backward:
+        y_grad_np = rng.standard_normal(shape).astype(np.float32)
+        layer.y.grad.from_array(
+            np.array(y_grad_np, dtype=np.float32, order="F")
+        )
 
     return {
         "layer": layer,
         "q_np": q_np,
         "k_np": k_np,
         "v_np": v_np,
-        "mask_np": mask_bool,
+        "mask_np": mask_np,
+        "y_grad_np": y_grad_np,
     }
 
 
@@ -311,15 +285,23 @@ def generate_flash_inputs(
 )
 class TestSDPAVanilla:
     def test_forward(self, context, dtype: str, params: SDPATestParams):
-        inputs = generate_inputs(dtype, params, require_backward=False)
+        inputs = generate_sdpa_inputs(
+            dtype,
+            params,
+            require_backward=False,
+            mask_dtype="bool",
+        )
         layer = inputs["layer"]
 
         layer.forward_async()
         nntile.starpu.wait_for_all()
 
-        y_nntile = _tensor_to_numpy(layer.y.value)
+        q_ref = _flatten_sdpa_tensor(inputs["q_np"])
+        k_ref = _flatten_sdpa_tensor(inputs["k_np"])
+        v_ref = _flatten_sdpa_tensor(inputs["v_np"])
+        y_nntile = _flatten_sdpa_tensor(_tensor_to_numpy(layer.y.value))
         y_ref, _, _, _ = torch_sdpa_reference(
-            inputs["q_np"], inputs["k_np"], inputs["v_np"], inputs["mask_np"]
+            q_ref, k_ref, v_ref, inputs["mask_np"]
         )
         tol = dtype2tol[dtype]
         _assert_tensor_close(y_nntile, y_ref, tol)
@@ -330,18 +312,27 @@ class TestSDPAVanilla:
         dtype: str,
         params: SDPATestParams
     ):
-        inputs = generate_inputs(dtype, params, require_backward=True)
+        inputs = generate_sdpa_inputs(
+            dtype,
+            params,
+            require_backward=True,
+            mask_dtype="bool",
+        )
         layer = inputs["layer"]
 
         layer.forward_async()
         nntile.starpu.wait_for_all()
 
+        q_ref = _flatten_sdpa_tensor(inputs["q_np"])
+        k_ref = _flatten_sdpa_tensor(inputs["k_np"])
+        v_ref = _flatten_sdpa_tensor(inputs["v_np"])
+        y_grad_ref = _flatten_sdpa_tensor(inputs["y_grad_np"])
         _, q_grad_ref, k_grad_ref, v_grad_ref = torch_sdpa_reference(
-            inputs["q_np"],
-            inputs["k_np"],
-            inputs["v_np"],
+            q_ref,
+            k_ref,
+            v_ref,
             inputs["mask_np"],
-            inputs["y_grad_np"],
+            y_grad_ref,
         )
 
         layer.clear_gradients()
@@ -352,9 +343,9 @@ class TestSDPAVanilla:
         layer.backward_async()
         nntile.starpu.wait_for_all()
 
-        q_grad = _tensor_to_numpy(layer.q.grad)
-        k_grad = _tensor_to_numpy(layer.k.grad)
-        v_grad = _tensor_to_numpy(layer.v.grad)
+        q_grad = _flatten_sdpa_tensor(_tensor_to_numpy(layer.q.grad))
+        k_grad = _flatten_sdpa_tensor(_tensor_to_numpy(layer.k.grad))
+        v_grad = _flatten_sdpa_tensor(_tensor_to_numpy(layer.v.grad))
 
         tol = dtype2tol[dtype]
         _assert_tensor_close(q_grad, q_grad_ref, tol)
@@ -375,68 +366,44 @@ class TestSDPAFlash:
     def test_forward(
         self,
         context,
-        monkeypatch,
         dtype: str,
         params: SDPAFlashTestParams,
     ):
-        inputs = generate_flash_inputs(dtype, params)
-        layer = inputs["layer"]
-
-        def fake_flash_kernel(K, Q, mask_tensor, logsumexp, V, A):
-            q_np = _tensor_to_numpy(Q, dtype=np.float32)
-            k_np = _tensor_to_numpy(K, dtype=np.float32)
-            v_np = _tensor_to_numpy(V, dtype=np.float32)
-            q_ref = _flatten_flash_tensor(q_np)
-            k_ref = _flatten_flash_tensor(k_np)
-            v_ref = _flatten_flash_tensor(v_np)
-            y_ref, _, _, _ = torch_sdpa_reference(
-                q_ref, k_ref, v_ref, inputs["mask_np"]
-            )
-            y_full = y_ref.reshape(Q.shape).astype(np.float32, order="F")
-            A.from_array(y_full)
-            clear_async(logsumexp)
-
-        module = importlib.import_module(Sdpa.__module__)
-        monkeypatch.setattr(
-            module,
-            "flash_sdpa_fwd_cudnn_async",
-            fake_flash_kernel,
+        inputs = generate_sdpa_inputs(
+            dtype,
+            params,
+            require_backward=False,
+            mask_dtype="float32",
         )
+        layer = inputs["layer"]
 
         layer.forward_async()
         nntile.starpu.wait_for_all()
 
-        q_ref = _flatten_flash_tensor(inputs["q_np"])
-        k_ref = _flatten_flash_tensor(inputs["k_np"])
-        v_ref = _flatten_flash_tensor(inputs["v_np"])
+        q_ref = _flatten_sdpa_tensor(inputs["q_np"])
+        k_ref = _flatten_sdpa_tensor(inputs["k_np"])
+        v_ref = _flatten_sdpa_tensor(inputs["v_np"])
         y_ref, _, _, _ = torch_sdpa_reference(
             q_ref, k_ref, v_ref, inputs["mask_np"]
         )
 
-        y_nntile = _flatten_flash_tensor(_tensor_to_numpy(layer.y.value))
+        y_nntile = _flatten_sdpa_tensor(_tensor_to_numpy(layer.y.value))
         tol = dtype2tol[dtype]
         _assert_tensor_close(y_nntile, y_ref, tol)
 
     def test_backward_placeholder(
         self,
         context,
-        monkeypatch,
         dtype: str,
         params: SDPAFlashTestParams,
     ):
-        inputs = generate_flash_inputs(dtype, params)
-        layer = inputs["layer"]
-
-        def fake_flash_kernel(K, Q, mask_tensor, logsumexp, V, A):
-            clear_async(A)
-            clear_async(logsumexp)
-
-        module = importlib.import_module(Sdpa.__module__)
-        monkeypatch.setattr(
-            module,
-            "flash_sdpa_fwd_cudnn_async",
-            fake_flash_kernel,
+        inputs = generate_sdpa_inputs(
+            dtype,
+            params,
+            require_backward=False,
+            mask_dtype="float32",
         )
+        layer = inputs["layer"]
 
         layer.forward_async()
         nntile.starpu.wait_for_all()

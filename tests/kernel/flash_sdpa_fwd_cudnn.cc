@@ -295,11 +295,11 @@ TestData<T> get_test_input_data(
     // Set accuracy threshold for each precision
     if (std::is_same_v<T, bf16_t>)
     {
-        data.eps_check = 5e-2;  // BF16 has lower precision
+        data.eps_check = 1e-2;  // BF16 has lower precision
     }
     else if (std::is_same_v<T, fp16_t>)
     {
-        data.eps_check = 1e-2;  // FP16 has better precision
+        data.eps_check = 1e-3;  // FP16 has better precision
     }
     else if (std::is_same_v<T, fp32_t>)
     {
@@ -332,15 +332,15 @@ void verify_results(
     using Y = typename T::repr_t;
 
     // Verify attention output
+    ref_t norm = 0.0, diff = 0.0;
     for(Index i = 0; i < data.batch * data.seq * data.head; ++i)
     {
-        Y a_ref = static_cast<Y>(data.A_ref[i]);
-        REQUIRE_THAT(
-            static_cast<Y>(A_out[i]),
-            WithinRel(a_ref, data.eps_check) ||
-            WithinAbs(a_ref, data.eps_check)
-        );
+        ref_t a_ref = static_cast<Y>(data.A_ref[i]);
+        ref_t a_out = static_cast<Y>(A_out[i]);
+        norm = std::hypot(norm, a_ref);
+        diff = std::hypot(diff, a_ref - a_out); 
     }
+    REQUIRE(diff <= data.eps_check * norm);
 
     // Verify LSE
     for(Index i = 0; i < data.batch * data.seq; ++i)
@@ -348,7 +348,7 @@ void verify_results(
         Y lse_ref = static_cast<Y>(data.lse_ref[i]);
         REQUIRE_THAT(
             static_cast<Y>(lse_out[i]),
-            WithinRel(lse_ref, data.eps_check * Y(2.0))  // Allow slightly more error
+            WithinRel(lse_ref, data.eps_check)
         );
     }
 

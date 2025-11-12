@@ -82,6 +82,13 @@ class Sdpa(BaseLayer):
 
         super().__init__([q, k, v], [y], [], temporaries)
 
+        q_shape = q.value.shape
+        if len(q_shape) != 5:
+            raise ValueError(
+                "SDPA tensors must have shape "
+                "[head_size, n_seq, n_batch, kv_group_size, n_head_kv]"
+            )
+
         self.q = q
         if self.q.grad is not None:
             self.q.grad.set_reduction_add()
@@ -111,15 +118,13 @@ class Sdpa(BaseLayer):
         self.mask = mask
         self.flash_attention = flash_attention
         self.flash_logsumexp = flash_logsumexp
-        self.head_size = self.q.value.shape[0]
+        self.head_size = q_shape[0]
         if self.head_size <= 0:
             raise ValueError("Query tensor must have non-zero head size")
         self.scale = float(1.0 / np.float32(self.head_size ** 0.5))
         self.val = -np.float32(np.inf)
         self.redux = 1 if redux else 0
-        self.batch_ndim = len(self.q.value.shape) - 2
-        if self.batch_ndim < 0:
-            raise ValueError("Query tensor must have at least two dimensions")
+        self.batch_ndim = len(q_shape) - 2
 
         # Validate tensor dtypes for flash attention
         if self.flash_attention:
@@ -163,8 +168,11 @@ class Sdpa(BaseLayer):
         v_shape = list(v.value.shape)
         if q_shape != k_shape or q_shape != v_shape:
             raise ValueError("Q, K and V tensors must share the same shape")
-        if len(q_shape) < 3:
-            raise ValueError("SDPA tensors must have at least 3 dimensions")
+        if len(q_shape) != 5:
+            raise ValueError(
+                "SDPA tensors must have shape "
+                "[head_size, n_seq, n_batch, kv_group_size, n_head_kv]"
+            )
 
         q_basetile = list(q.value.basetile_shape)
         batch_shape = q_shape[2:]
@@ -187,11 +195,6 @@ class Sdpa(BaseLayer):
         logsumexp = None
 
         if flash_attention:
-            if len(q_shape) != 5:
-                raise ValueError(
-                    "Flash SDPA expects tensors with shape "
-                    "[head_size, n_seq, n_batch, kv_group_size, n_head_kv]"
-                )
             logsumexp_shape = [q_shape[2], q_shape[1], q_shape[3]]
             logsumexp_basetile = [q_basetile[2], q_basetile[1], q_basetile[3]]
             logsumexp_traits = TensorTraits(
@@ -200,7 +203,6 @@ class Sdpa(BaseLayer):
             logsumexp = Tensor_fp32(
                 logsumexp_traits, [0] * logsumexp_traits.grid.nelems
             )
-            clear_async(logsumexp)
         else:
             attn_shape = [k_seq, q_seq] + batch_shape
             attn_basetile = [k.value.basetile_shape[1], q_basetile[1]] \
@@ -217,7 +219,6 @@ class Sdpa(BaseLayer):
             attn_max = tensor_type(
                 attn_max_traits, [0] * attn_max_traits.grid.nelems
             )
-            clear_async(attn_max)
 
             attn_sum_shape = [q_seq] + batch_shape
             attn_sum_basetile = [q_basetile[1]] + batch_basetile
@@ -225,7 +226,6 @@ class Sdpa(BaseLayer):
             attn_sum = tensor_type(
                 attn_sum_traits, [0] * attn_sum_traits.grid.nelems
             )
-            clear_async(attn_sum)
 
         return Sdpa(
             q=q,
@@ -297,7 +297,8 @@ class Sdpa(BaseLayer):
         if self.flash_logsumexp is None:
             raise RuntimeError("flash_logsumexp buffer is missing")
 
-        clear_async(self.flash_logsumexp)
+        # clear_async(self.flash_logsumexp)
+        # clear_async(self.y.value)
         mask = self.mask if self.mask is not None else None
         flash_sdpa_fwd_cudnn_async(
             self.k.value,
@@ -307,11 +308,10 @@ class Sdpa(BaseLayer):
             self.v.value,
             self.y.value,
         )
-        self.flash_logsumexp.invalidate_submit()
-        self.q.value.wont_use()
-        self.k.value.wont_use()
-        self.v.value.wont_use()
-        self.y.value.wont_use()
+        # self.q.value.wont_use()
+        # self.k.value.wont_use()
+        # self.v.value.wont_use()
+        # self.y.value.wont_use()
 
     def _backward_vanilla(self):
         if (
