@@ -57,12 +57,10 @@ public:
     //! Structure for operation arguments
     struct args_t
     {
-#ifdef NNTILE_USE_CUDA
         FlashSdpaFwdCudnn<std::tuple<T>> *owner;
         Index seq;
         Index head;
         Index batch;
-#endif // NNTILE_USE_CUDA
     };
 
     //! Footprint function for the current operation

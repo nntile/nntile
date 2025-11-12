@@ -175,12 +175,10 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::submit(Index seq, Index head, Index batch
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
-#ifdef NNTILE_USE_CUDA
     args->owner = this;
     args->seq = seq;
     args->head = head;
     args->batch = batch;
-#endif // NNTILE_USE_CUDA
 
     // Submit task - always include mask parameter
     int ret = starpu_task_insert(&codelet,
