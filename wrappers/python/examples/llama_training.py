@@ -276,3 +276,20 @@ print("NNTile performance (model flops): {} Tflops/s".format(nflops_minibatch
 loss_np = np.zeros((1), dtype=np.float32)
 loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
+
+# Convert back to PyTorch and save checkpoint
+model_torch = llama_nntile.to_torch()
+torch.save(
+    {
+        "model_state_dict": model_torch.state_dict(),
+    },
+    args.save_checkpoint_path,
+)
+del model_torch
+
+loss.unregister()
+optimizer.unregister()
+for batch in batch_input + batch_output:
+    for x in batch:
+        x.unregister()
+llama_nntile.unregister()
