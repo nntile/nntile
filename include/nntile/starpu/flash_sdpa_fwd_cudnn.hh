@@ -63,6 +63,13 @@ public:
         Index batch;
     };
 
+    //! Hash for parameters of the current operation
+    static uint32_t hash_parameters(
+        Index seq,
+        Index head,
+        Index batch
+    );
+
     //! Footprint function for the current operation
     static uint32_t footprint(struct starpu_task *task);
 
@@ -134,12 +141,6 @@ private:
         Index head,
         Index batch,
         kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph graph
-    );
-
-    static uint32_t hash_parameters(
-        Index seq,
-        Index head,
-        Index batch
     );
 
     std::array<std::once_flag, STARPU_NMAXWORKERS> worker_cache_flags_{};

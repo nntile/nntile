@@ -158,6 +158,18 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
+//! Hash for parameters of the current operation
+template<typename T>
+uint32_t FlashSdpaFwdCudnn<std::tuple<T>>::hash_parameters(
+    Index seq, Index head, Index batch)
+{
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&seq, sizeof(seq), hash);
+    hash = starpu_hash_crc32c_be_n(&head, sizeof(head), hash);
+    hash = starpu_hash_crc32c_be_n(&batch, sizeof(batch), hash);
+    return hash;
+}
+
 //! Footprint for flash_sdpa_fwd_cudnn tasks that depends only on cl_arg
 template<typename T>
 uint32_t FlashSdpaFwdCudnn<std::tuple<T>>::footprint(struct starpu_task *task)
@@ -273,17 +285,6 @@ FlashSdpaFwdCudnn<std::tuple<T>>::store_graph(
 
     bucket.push_back(CacheEntry{graph, seq, head, batch});
     return bucket.back().graph;
-}
-
-template<typename T>
-uint32_t FlashSdpaFwdCudnn<std::tuple<T>>::hash_parameters(
-    Index seq, Index head, Index batch)
-{
-    uint32_t hash = 0;
-    hash = starpu_hash_crc32c_be_n(&seq, sizeof(seq), hash);
-    hash = starpu_hash_crc32c_be_n(&head, sizeof(head), hash);
-    hash = starpu_hash_crc32c_be_n(&batch, sizeof(batch), hash);
-    return hash;
 }
 #endif // NNTILE_USE_CUDA
 
