@@ -40,7 +40,7 @@ def _prepare_flash_inputs(dtype, seed=42):
 
     kqv_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
     mask_shape = [n_seq, n_seq]
-    logsumexp_shape = [n_batch, n_seq, kv_group_size]
+    logsumexp_shape = [n_seq, n_batch, kv_group_size, n_head_kv]
 
     K_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)
     Q_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)

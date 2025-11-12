@@ -19,6 +19,7 @@ if(NOT HAVE_STARPU_SIMGRID)
     # Generic low-level CPU kernels
     set(KERNEL_CPU_SRC
         "kernel/accumulate_maxsumexp/cpu.cc"
+        "kernel/accumulate_attn_output/cpu.cc"
         "kernel/adam_step/cpu.cc"
         "kernel/adamw_step/cpu.cc"
         "kernel/sgd_step/cpu.cc"
@@ -90,6 +91,7 @@ if(NOT HAVE_STARPU_SIMGRID)
     if(NNTILE_USE_CUDA)
         set(KERNEL_CUDA_SRC
             "kernel/accumulate_maxsumexp/cuda.cu"
+            "kernel/accumulate_attn_output/cuda.cu"
             "kernel/adam_step/cuda.cu"
             "kernel/adamw_step/cuda.cu"
             "kernel/sgd_step/cuda.cu"

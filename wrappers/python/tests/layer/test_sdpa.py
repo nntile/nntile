@@ -379,6 +379,9 @@ class TestSDPAFlash:
             mask_dtype="float32",
         )
         layer = inputs["layer"]
+        assert tuple(layer.flash_logsumexp.shape) == tuple(
+            layer.q.value.shape[1:]
+        )
 
         layer.forward_async()
         nntile.starpu.wait_for_all()
@@ -414,3 +417,31 @@ class TestSDPAFlash:
 
         with pytest.raises(NotImplementedError):
             layer.backward_async()
+
+
+def test_flash_logsumexp_shape_validation(context):
+    inputs = generate_sdpa_inputs(
+        dtype="fp16",
+        params=flash_single_tile,
+        require_backward=False,
+        mask_dtype="float32",
+    )
+    layer = inputs["layer"]
+    wrong_shape = list(layer.flash_logsumexp.shape)
+    wrong_shape = wrong_shape[1:] + wrong_shape[:1]
+    traits = TensorTraits(wrong_shape, wrong_shape)
+    wrong_logsumexp = Tensor_fp32(traits, [0] * traits.grid.nelems)
+
+    assert tuple(wrong_logsumexp.shape) != tuple(layer.flash_logsumexp.shape)
+
+    with pytest.raises(ValueError, match="flash_logsumexp"):
+        Sdpa(
+            q=layer.q,
+            k=layer.k,
+            v=layer.v,
+            y=layer.y,
+            mask=layer.mask,
+            flash_attention=True,
+            flash_logsumexp=wrong_logsumexp,
+            redux=False,
+        )

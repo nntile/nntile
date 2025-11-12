@@ -42,7 +42,7 @@ void check()
     Tile<T> V_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
     Tile<T> A_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
     Tile<T> mask_tile({n_seq, n_seq});
-    Tile<fp32_t> logsumexp_tile({n_batch, n_seq, kv_group_size});
+    Tile<fp32_t> logsumexp_tile({n_seq, n_batch, kv_group_size, n_head_kv});
 
     // Initialize input data
     auto K_local = K_tile.acquire(STARPU_W);
@@ -99,7 +99,7 @@ void check()
         Tile<T> V_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
         Tile<T> A_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
         Tile<T> mask_starpu({n_seq, n_seq});
-    Tile<fp32_t> logsumexp_starpu({n_batch, n_seq, kv_group_size});
+        Tile<fp32_t> logsumexp_starpu({n_seq, n_batch, kv_group_size, n_head_kv});
 
         // Copy data to starpu tiles
         auto K_src = K_tile.acquire(STARPU_R);

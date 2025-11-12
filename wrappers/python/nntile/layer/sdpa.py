@@ -59,6 +59,8 @@ class Sdpa(BaseLayer):
         flash_logsumexp: Optional[Tensor] = None,
         redux: bool = False,
     ):
+        q_shape = q.value.shape
+
         if not flash_attention and (
             attn is None or
             attn_maxsumexp is None or
@@ -74,6 +76,14 @@ class Sdpa(BaseLayer):
             flash_logsumexp, Tensor_fp32
         ):
             raise TypeError("flash_logsumexp must be a Tensor_fp32 instance")
+        if flash_attention and flash_logsumexp is not None:
+            expected_shape = tuple(q_shape[1:])
+            actual_shape = tuple(flash_logsumexp.shape)
+            if actual_shape != expected_shape:
+                raise ValueError(
+                    "flash_logsumexp must match q shape without the head "
+                    f"dimension ({expected_shape}), got {actual_shape}"
+                )
 
         temporaries = []
         for tmp in (attn, attn_maxsumexp, attn_sumprod_slice, flash_logsumexp):
@@ -82,7 +92,6 @@ class Sdpa(BaseLayer):
 
         super().__init__([q, k, v], [y], [], temporaries)
 
-        q_shape = q.value.shape
         if len(q_shape) != 5:
             raise ValueError(
                 "SDPA tensors must have shape "
@@ -195,8 +204,8 @@ class Sdpa(BaseLayer):
         logsumexp = None
 
         if flash_attention:
-            logsumexp_shape = [q_shape[2], q_shape[1], q_shape[3]]
-            logsumexp_basetile = [q_basetile[2], q_basetile[1], q_basetile[3]]
+            logsumexp_shape = q_shape[1:]
+            logsumexp_basetile = q_basetile[1:]
             logsumexp_traits = TensorTraits(
                 logsumexp_shape, logsumexp_basetile
             )

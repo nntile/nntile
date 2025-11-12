@@ -71,6 +71,7 @@ foreach(test IN LISTS TESTS)
 endforeach()
 
 set(TESTS_CATCH2
+    "accumulate_attn_output"
     "add"
     "accumulate_maxsumexp"
     "add_fiber"

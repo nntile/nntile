@@ -25,7 +25,7 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
         const TileTraits &logsumexp, const TileTraits &V,
         const TileTraits &A)
 {
-    // All tensors should be 5D for K/Q/V/A, 2D for mask, 3D for logsumexp
+    // All tensors should be 5D for K/Q/V/A, 2D for mask, 4D for logsumexp
     if(K.ndim != 5)
     {
         throw std::runtime_error("K.ndim != 5");
@@ -46,9 +46,9 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
     {
         throw std::runtime_error("mask.ndim != 2");
     }
-    if(logsumexp.ndim != 3)
+    if(logsumexp.ndim != 4)
     {
-        throw std::runtime_error("logsumexp.ndim != 3");
+        throw std::runtime_error("logsumexp.ndim != 4");
     }
 
     // Check head_size dimension (first dimension for K/Q/V/A)
@@ -65,7 +65,7 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
         throw std::runtime_error("K.shape[0] != A.shape[0]");
     }
 
-    // Check sequence dimension (second dimension for K/Q/V/A, both dims for mask, second for logsumexp)
+    // Check sequence dimension (second dimension for K/Q/V/A, both dims for mask, first for logsumexp)
     if(K.shape[1] != Q.shape[1])
     {
         throw std::runtime_error("K.shape[1] != Q.shape[1]");
@@ -86,12 +86,12 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
     {
         throw std::runtime_error("K.shape[1] != mask.shape[1]");
     }
-    if(K.shape[1] != logsumexp.shape[1])
+    if(K.shape[1] != logsumexp.shape[0])
     {
-        throw std::runtime_error("K.shape[1] != logsumexp.shape[1]");
+        throw std::runtime_error("K.shape[1] != logsumexp.shape[0]");
     }
 
-    // Check batch dimension (third dimension for K/Q/V/A, first for logsumexp)
+    // Check batch dimension (third dimension for K/Q/V/A, second for logsumexp)
     if(K.shape[2] != Q.shape[2])
     {
         throw std::runtime_error("K.shape[2] != Q.shape[2]");
@@ -104,12 +104,12 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
     {
         throw std::runtime_error("K.shape[2] != A.shape[2]");
     }
-    if(K.shape[2] != logsumexp.shape[0])
+    if(K.shape[2] != logsumexp.shape[1])
     {
-        throw std::runtime_error("K.shape[2] != logsumexp.shape[0]");
+        throw std::runtime_error("K.shape[2] != logsumexp.shape[1]");
     }
 
-    // Check kv_group_size dimension (fourth dimension for K/Q/V/A, second for logsumexp)
+    // Check kv_group_size dimension (fourth dimension for K/Q/V/A, third for logsumexp)
     if(K.shape[3] != Q.shape[3])
     {
         throw std::runtime_error("K.shape[3] != Q.shape[3]");
@@ -127,7 +127,7 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
         throw std::runtime_error("K.shape[3] != logsumexp.shape[2]");
     }
 
-    // Check n_head_kv dimension (fifth dimension for K/Q/V/A)
+    // Check n_head_kv dimension (fifth dimension for K/Q/V/A, fourth for logsumexp)
     if(K.shape[4] != Q.shape[4])
     {
         throw std::runtime_error("K.shape[4] != Q.shape[4]");
@@ -140,6 +140,10 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
     {
         throw std::runtime_error("K.shape[4] != A.shape[4]");
     }
+    if(K.shape[4] != logsumexp.shape[3])
+    {
+        throw std::runtime_error("K.shape[4] != logsumexp.shape[3]");
+    }
 
     // Mask dimensions are already checked above (both should equal seq)
 }
@@ -148,7 +152,7 @@ static inline void flash_sdpa_fwd_cudnn_check(const TileTraits &K,
 /*! @param[in] K: Key tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[in] Q: Query tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[in] mask: Mask tensor [n_seq, n_seq]
- * @param[inout] logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size]
+ * @param[inout] logsumexp: Log-sum-exp statistics [n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[in] V: Value tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[out] A: Attention output tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * */
@@ -175,7 +179,7 @@ void flash_sdpa_fwd_cudnn_async(const Tile<T> &K, const Tile<T> &Q,
 /*! @param[in] K: Key tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[in] Q: Query tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[in] mask: Mask tensor [n_seq, n_seq]
- * @param[inout] logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size]
+ * @param[inout] logsumexp: Log-sum-exp statistics [n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[in] V: Value tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[out] A: Attention output tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * */

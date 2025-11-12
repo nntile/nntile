@@ -39,7 +39,7 @@ void check()
 
     // Create single-tile tensors (assuming one tile per tensor as requested)
     std::vector<Index> K_shape = {head_size, n_seq, n_batch, kv_group_size, n_head_kv};
-    std::vector<Index> logsumexp_shape = {n_batch, n_seq, kv_group_size};
+    std::vector<Index> logsumexp_shape = {n_seq, n_batch, kv_group_size, n_head_kv};
 
     TensorTraits K_traits(K_shape, K_shape);
     TensorTraits Q_traits(K_shape, K_shape);

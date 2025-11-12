@@ -22,6 +22,9 @@ set(BASE_HDR
 set(KERNEL_HDR
     "nntile/kernel/accumulate_maxsumexp.hh"
     "nntile/kernel/accumulate_maxsumexp/cpu.hh"
+    "nntile/kernel/accumulate_attn_output.hh"
+    "nntile/kernel/accumulate_attn_output/cpu.hh"
+    "nntile/kernel/accumulate_attn_output/cuda.hh"
     "nntile/kernel/adam_step.hh"
     "nntile/kernel/adam_step/cpu.hh"
     "nntile/kernel/adamw_step.hh"
