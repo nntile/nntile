@@ -187,9 +187,9 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::submit(Index seq, Index head, Index batch
             STARPU_R, K.get(),              // Key
             STARPU_R, Q.get(),              // Query
             STARPU_R, mask.get(),           // Mask
-            STARPU_RW, logsumexp.get(),     // Log-sum-exp
+            STARPU_W, logsumexp.get(),     // Log-sum-exp
             STARPU_R, V.get(),              // Value
-            STARPU_RW, A.get(),             // Attention output
+            STARPU_W, A.get(),             // Attention output
             STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission
@@ -204,14 +204,18 @@ template<typename T>
 typename FlashSdpaFwdCudnn<std::tuple<T>>::WorkerCache &
 FlashSdpaFwdCudnn<std::tuple<T>>::get_or_create_worker_cache(int worker_id)
 {
-    std::call_once(worker_cache_flags_[worker_id], [this, worker_id]() {
-        worker_caches_[worker_id] = std::make_unique<WorkerCache>();
-    });
+    std::call_once(
+        worker_cache_flags_[worker_id],
+        [this, worker_id]()
+        {
+            worker_caches_[worker_id] = std::make_unique<WorkerCache>();
+        }
+    );
     return *worker_caches_[worker_id];
 }
 
 template<typename T>
-kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph FlashSdpaFwdCudnn<std::tuple<T>>::find_cached_graph(
+FlashSdpaGraph FlashSdpaFwdCudnn<std::tuple<T>>::find_cached_graph(
     WorkerCache &cache,
     uint32_t hash,
     Index seq,
@@ -243,13 +247,13 @@ kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph FlashSdpaFwdCudnn<std::tuple<T>>::f
 }
 
 template<typename T>
-kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph FlashSdpaFwdCudnn<std::tuple<T>>::store_graph(
+FlashSdpaGraph FlashSdpaFwdCudnn<std::tuple<T>>::store_graph(
     WorkerCache &cache,
     uint32_t hash,
     Index seq,
     Index head,
     Index batch,
-    kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph graph
+    FlashSdpaGraph graph
 )
 {
     auto &bucket = cache.graphs[hash];

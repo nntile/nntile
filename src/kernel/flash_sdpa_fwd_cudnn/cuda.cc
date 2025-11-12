@@ -177,20 +177,6 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
     // Execute the graph
     auto exec_status = prepared_graph->execute(handle, variant_pack, nullptr);
     (void)exec_status;
-
-    // // Convert float stats to T* logsumexp
-    // if (logsumexp != nullptr) {
-    //     // WORKAROUND: Copy through host for type conversion
-    //     // TODO: Replace with device kernel for better performance
-    //     std::vector<float> host_stats(b * num_heads * s);
-    //     cudaMemcpy(host_stats.data(), stats_float, sizeof(float) * b * num_heads * s, cudaMemcpyDeviceToHost);
-    //     std::vector<T> host_logsumexp(b * s);
-    //     for (::int64_t i = 0; i < b * s; ++i) {
-    //         // Sum over heads (only 1 head in our case)
-    //         host_logsumexp[i] = static_cast<T>(host_stats[i]);
-    //     }
-    //     cudaMemcpy(logsumexp, host_logsumexp.data(), sizeof(T) * b * s, cudaMemcpyHostToDevice);
-    // }
 }
 
 // Explicit instantiations for supported types

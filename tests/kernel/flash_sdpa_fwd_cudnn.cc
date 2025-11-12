@@ -335,25 +335,22 @@ void verify_results(
     for(Index i = 0; i < data.batch * data.seq * data.head; ++i)
     {
         Y a_ref = static_cast<Y>(data.A_ref[i]);
-        Y a_out = static_cast<Y>(A_out[i]);
         REQUIRE_THAT(
-            a_out,
+            static_cast<Y>(A_out[i]),
             WithinRel(a_ref, data.eps_check) ||
             WithinAbs(a_ref, data.eps_check)
         );
     }
 
-    // // Verify LSE (currently disabled)
-    // for(Index i = 0; i < data.batch * data.seq; ++i)
-    // {
-    //     Y lse_ref = static_cast<Y>(data.lse_ref[i]);
-    //     Y lse_out_val = static_cast<Y>(lse_out[i]);
-    //
-    //     REQUIRE_THAT(
-    //         lse_out_val,
-    //         WithinRel(lse_ref, data.eps_check * Y(2.0))  // Allow slightly more error
-    //     );
-    // }
+    // Verify LSE
+    for(Index i = 0; i < data.batch * data.seq; ++i)
+    {
+        Y lse_ref = static_cast<Y>(data.lse_ref[i]);
+        REQUIRE_THAT(
+            static_cast<Y>(lse_out[i]),
+            WithinRel(lse_ref, data.eps_check * Y(2.0))  // Allow slightly more error
+        );
+    }
 
     auto ensure_inputs_unchanged =
         [](const std::vector<T>& expected,

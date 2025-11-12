@@ -59,7 +59,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     std::vector<T> K(batch * seq * head);
     std::vector<T> Q(batch * seq * head);
     std::vector<T> V(batch * seq * head);
-    std::vector<T> mask;
+    std::vector<T> mask(seq * seq);
 
     // Fill with some test values
     for(Index i = 0; i < batch * seq * head; ++i)
@@ -71,23 +71,19 @@ void validate_cuda(Index seq, Index head, Index batch)
 
     // Create custom mask (batch here is the actual batch dimension for mask)
     Index actual_batch = batch / (1 * 1);  // Assuming kv_group_size=1, n_head_kv=1
-    mask.resize(actual_batch * seq * seq);
-    for(Index b = 0; b < actual_batch; ++b)
+    for(Index i = 0; i < seq; ++i)
     {
-        for(Index i = 0; i < seq; ++i)
+        for(Index j = 0; j < seq; ++j)
         {
-            for(Index j = 0; j < seq; ++j)
+            Index idx = i * seq + j;
+            // Create a simple mask: allow attention within a window
+            if (std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 32)
             {
-                Index idx = b * seq * seq + i * seq + j;
-                // Create a simple mask: allow attention within a window
-                if (std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 32)
-                {
-                    mask[idx] = T(Y(0.0));  // Attend
-                }
-                else
-                {
-                    mask[idx] = T(-std::numeric_limits<Y>::infinity());  // Mask
-                }
+                mask[idx] = Y(0.0);  // Attend
+            }
+            else
+            {
+                mask[idx] = -std::numeric_limits<Y>::infinity();  // Mask
             }
         }
     }
@@ -105,9 +101,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_logsumexp_kernel, sizeof(fp32_t) * actual_batch * seq);
     TEST_ASSERT(cuda_err == cudaSuccess);
-
-    // Always allocate mask memory (use actual batch size for mask)
-    cuda_err = cudaMalloc(&dev_mask, sizeof(T) * actual_batch * seq * seq);
+    cuda_err = cudaMalloc(&dev_mask, sizeof(T) * seq * seq);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
     // Copy inputs to device
@@ -120,16 +114,8 @@ void validate_cuda(Index seq, Index head, Index batch)
     cuda_err = cudaMemcpy(dev_V, V.data(), sizeof(T) * batch * seq * head,
                           cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-
-    // Always copy mask data (use actual batch size for mask)
-    cuda_err = cudaMemcpy(dev_mask, mask.data(), sizeof(T) * actual_batch * seq * seq,
+    cuda_err = cudaMemcpy(dev_mask, mask.data(), sizeof(T) * seq * seq,
                           cudaMemcpyHostToDevice);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-
-    // Initialize outputs to zero
-    cuda_err = cudaMemset(dev_A_kernel, 0, sizeof(T) * batch * seq * head);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemset(dev_logsumexp_kernel, 0, sizeof(fp32_t) * actual_batch * seq);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
     // Prepare kernel graph once
@@ -183,12 +169,10 @@ void validate_cuda(Index seq, Index head, Index batch)
     VariableHandle V_handle(&V2[0], sizeof(T) * batch * seq * head);
     VariableHandle A_handle(&A_starpu[0], sizeof(T) * batch * seq * head);
     VariableHandle logsumexp_handle(&logsumexp_starpu[0], sizeof(fp32_t) * actual_batch * seq);
+    VariableHandle mask_handle(&mask2[0], sizeof(T) * seq * seq);
 
     // Restrict to CUDA and submit
     flash_sdpa_fwd_cudnn.restrict_where(STARPU_CUDA);
-
-    // Always use custom mask (use actual batch size for mask)
-    VariableHandle mask_handle(&mask2[0], sizeof(T) * actual_batch * seq * seq);
     flash_sdpa_fwd_cudnn.submit<std::tuple<T>>(
         seq, head, batch,
         K_handle, Q_handle,
@@ -197,7 +181,6 @@ void validate_cuda(Index seq, Index head, Index batch)
     );
     // Wait for completion
     starpu_task_wait_for_all();
-    mask_handle.unregister();
 
     // Unregister handles
     K_handle.unregister();
@@ -205,6 +188,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     V_handle.unregister();
     A_handle.unregister();
     logsumexp_handle.unregister();
+    mask_handle.unregister();
 
     // Compare results
     Y eps = (std::is_same_v<T, fp16_t> || std::is_same_v<T, bf16_t>) ? Y(1e-2) : Y(1e-5);
@@ -251,8 +235,6 @@ int main(int argc, char **argv)
     // Small tests
     std::cout << "\n=== Small configuration tests ===\n";
     validate_cuda<fp16_t>(64, 32, 1);   // Custom mask
-    std::cout << "\n=== Direct kernel call completed successfully! ===\n";
-
     validate_cuda<bf16_t>(64, 32, 1);   // BF16 with custom mask
 
     // Medium tests

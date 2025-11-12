@@ -2221,7 +2221,8 @@ def flash_sdpa_fwd_cudnn_async(
         K: Key tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
         Q: Query tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
         mask: Mask tensor [n_seq, n_seq]
-        logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size] (must be fp32)
+        logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size]
+                (must be fp32)
         V: Value tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
         A: Output tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
 
