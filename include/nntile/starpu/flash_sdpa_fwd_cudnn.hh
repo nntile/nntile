@@ -106,7 +106,8 @@ public:
 
 #ifdef NNTILE_USE_CUDA
 private:
-    using FlashSdpaGraph = kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph;
+    using FlashSdpaGraph = typename
+        kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph;
     struct CacheEntry
     {
         FlashSdpaGraph graph;
