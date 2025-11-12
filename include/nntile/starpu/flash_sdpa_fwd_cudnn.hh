@@ -106,11 +106,9 @@ public:
 
 #ifdef NNTILE_USE_CUDA
 private:
-    using FlashSdpaGraph = typename
-        kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph;
     struct CacheEntry
     {
-        FlashSdpaGraph graph;
+        kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph graph;
         Index seq;
         Index head;
         Index batch;
@@ -123,7 +121,7 @@ private:
 
     WorkerCache &get_or_create_worker_cache(int worker_id);
 
-    FlashSdpaGraph find_cached_graph(
+    kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph find_cached_graph(
         WorkerCache &cache,
         uint32_t hash,
         Index seq,
@@ -131,13 +129,13 @@ private:
         Index batch
     );
 
-    FlashSdpaGraph store_graph(
+    kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph store_graph(
         WorkerCache &cache,
         uint32_t hash,
         Index seq,
         Index head,
         Index batch,
-        FlashSdpaGraph graph
+        kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph graph
     );
 
     static uint32_t hash_parameters(

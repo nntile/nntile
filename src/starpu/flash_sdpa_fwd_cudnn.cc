@@ -215,7 +215,8 @@ FlashSdpaFwdCudnn<std::tuple<T>>::get_or_create_worker_cache(int worker_id)
 }
 
 template<typename T>
-FlashSdpaGraph FlashSdpaFwdCudnn<std::tuple<T>>::find_cached_graph(
+kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph
+FlashSdpaFwdCudnn<std::tuple<T>>::find_cached_graph(
     WorkerCache &cache,
     uint32_t hash,
     Index seq,
@@ -247,13 +248,14 @@ FlashSdpaGraph FlashSdpaFwdCudnn<std::tuple<T>>::find_cached_graph(
 }
 
 template<typename T>
-FlashSdpaGraph FlashSdpaFwdCudnn<std::tuple<T>>::store_graph(
+kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph
+FlashSdpaFwdCudnn<std::tuple<T>>::store_graph(
     WorkerCache &cache,
     uint32_t hash,
     Index seq,
     Index head,
     Index batch,
-    FlashSdpaGraph graph
+    kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph graph
 )
 {
     auto &bucket = cache.graphs[hash];
@@ -276,7 +278,8 @@ FlashSdpaGraph FlashSdpaFwdCudnn<std::tuple<T>>::store_graph(
 }
 
 template<typename T>
-uint32_t FlashSdpaFwdCudnn<std::tuple<T>>::hash_parameters(Index seq, Index head, Index batch)
+uint32_t FlashSdpaFwdCudnn<std::tuple<T>>::hash_parameters(
+    Index seq, Index head, Index batch)
 {
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&seq, sizeof(seq), hash);
