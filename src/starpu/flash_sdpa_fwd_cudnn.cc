@@ -53,17 +53,7 @@ FlashSdpaFwdCudnn<std::tuple<T>>::~FlashSdpaFwdCudnn()
 #endif // NNTILE_USE_CUDA
 }
 
-//! Apply flash_sdpa_fwd_cudnn on StarPU buffer on CPU (not supported)
-template<typename T>
-void FlashSdpaFwdCudnn<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
-    noexcept
-{
-#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
-    // CPU implementation not supported for cuDNN Flash Attention
-    // This operation requires CUDA/cuDNN
-    // Do nothing - this codelet should only be called on CUDA devices
-#endif // STARPU_SIMGRID
-}
+//! No CPU implementation
 
 #ifdef NNTILE_USE_CUDA
 //! Apply flash_sdpa_fwd_cudnn on StarPU buffer on CUDA

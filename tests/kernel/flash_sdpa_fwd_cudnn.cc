@@ -338,7 +338,7 @@ void verify_results(
         ref_t a_ref = static_cast<Y>(data.A_ref[i]);
         ref_t a_out = static_cast<Y>(A_out[i]);
         norm = std::hypot(norm, a_ref);
-        diff = std::hypot(diff, a_ref - a_out); 
+        diff = std::hypot(diff, a_ref - a_out);
     }
     REQUIRE(diff <= data.eps_check * norm);
 

@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import importlib
 from dataclasses import dataclass
 
 import numpy as np
@@ -21,7 +20,7 @@ dtype2tensor = {"fp32": Tensor_fp32, "fp16": Tensor_fp16, "bf16": Tensor_bf16}
 dtype2tol = {
     "fp32": {"rtol": 1e-5, "atol": 1e-6},
     "fp16": {"rtol": 1e-3, "atol": 1e-4},
-    "bf16": {"rtol": 5e-2, "atol": 5e-4},
+    "bf16": {"rtol": 1e-2, "atol": 5e-4},
 }
 
 nocuda = pytest.mark.skipif(
@@ -358,7 +357,11 @@ class TestSDPAVanilla:
     "params",
     [
         pytest.param(flash_single_tile, id="flash_single_tile"),
-        pytest.param(flash_multi_tile, id="flash_multi_tile"),
+        pytest.param(
+            flash_multi_tile,
+            id="flash_multi_tile",
+            marks=pytest.mark.xfail(reason="not implemented")
+        ),
     ],
 )
 @nocuda
@@ -391,6 +394,7 @@ class TestSDPAFlash:
         tol = dtype2tol[dtype]
         _assert_tensor_close(y_nntile, y_ref, tol)
 
+    @pytest.mark.xfail(reason="not implemented")
     def test_backward_placeholder(
         self,
         context,

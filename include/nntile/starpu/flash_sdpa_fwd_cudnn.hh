@@ -73,14 +73,8 @@ public:
     //! Footprint function for the current operation
     static uint32_t footprint(struct starpu_task *task);
 
-    //! Wrapper for a generic CPU implementation (not supported)
-    static void cpu(void *buffers[], void *cl_args)
-        noexcept;
-
-    //! Array of all wrappers for CPU implementations
-    static constexpr func_array cpu_funcs = {
-        cpu
-    };
+    //! No CPU implementations
+    static constexpr func_array cpu_funcs = {};
 
 #ifdef NNTILE_USE_CUDA
     //! Wrapper for a generic CUDA implementation

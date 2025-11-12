@@ -185,7 +185,7 @@ static inline void flash_sdpa_fwd_cudnn_check(const TensorTraits &K,
 /*! @param[in] K: Key tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[in] Q: Query tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[in] mask: Mask tensor [n_seq, n_seq]
- * @param[inout] logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size]
+ * @param[out] logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size]
  * @param[in] V: Value tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[out] A: Attention output tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * */
@@ -248,7 +248,7 @@ void flash_sdpa_fwd_cudnn_async(const Tensor<T> &K, const Tensor<T> &Q,
 /*! @param[in] K: Key tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[in] Q: Query tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[in] mask: Mask tensor [n_seq, n_seq]
- * @param[inout] logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size]
+ * @param[out] logsumexp: Log-sum-exp statistics [n_batch, n_seq, kv_group_size]
  * @param[in] V: Value tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * @param[out] A: Attention output tensor [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
  * */
