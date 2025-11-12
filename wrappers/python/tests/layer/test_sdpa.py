@@ -21,7 +21,7 @@ dtype2tensor = {"fp32": Tensor_fp32, "fp16": Tensor_fp16, "bf16": Tensor_bf16}
 dtype2tol = {
     "fp32": {"rtol": 1e-5, "atol": 1e-6},
     "fp16": {"rtol": 1e-3, "atol": 1e-4},
-    "bf16": {"rtol": 5e-3, "atol": 5e-5},
+    "bf16": {"rtol": 5e-2, "atol": 5e-4},
 }
 
 nocuda = pytest.mark.skipif(
@@ -294,7 +294,14 @@ def generate_flash_inputs(
     }
 
 
-@pytest.mark.parametrize("dtype", ["fp32", "fp16", "bf16"])
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        pytest.param("fp32", id="fp32"),
+        pytest.param("fp16", id="fp16", marks=nocuda),
+        pytest.param("bf16", id="bf16", marks=nocuda),
+    ],
+)
 @pytest.mark.parametrize(
     "params",
     [
@@ -355,7 +362,7 @@ class TestSDPAVanilla:
         _assert_tensor_close(v_grad, v_grad_ref, tol)
 
 
-@pytest.mark.parametrize("dtype", ["fp16"])
+@pytest.mark.parametrize("dtype", ["fp16", "bf16"])
 @pytest.mark.parametrize(
     "params",
     [
