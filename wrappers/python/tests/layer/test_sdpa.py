@@ -399,17 +399,19 @@ class TestSDPAFlash:
         tol = dtype2tol[dtype]
         _assert_tensor_close(y_nntile, y_ref, tol)
 
-    @pytest.mark.xfail(reason="not implemented")
-    def test_backward_placeholder(
+    def test_backward(
         self,
         context,
         dtype: str,
         params: SDPAFlashTestParams,
     ):
+        if params is not flash_single_tile:
+            pytest.skip("Flash SDPA backward currently supports single-tile tensors")
+
         inputs = generate_sdpa_inputs(
             dtype,
             params,
-            require_backward=False,
+            require_backward=True,
             mask_dtype="float32",
         )
         layer = inputs["layer"]
@@ -417,8 +419,34 @@ class TestSDPAFlash:
         layer.forward_async()
         nntile.starpu.wait_for_all()
 
-        # with pytest.raises(NotImplementedError):
-        #     layer.backward_async()
+        q_ref = _flatten_sdpa_tensor(inputs["q_np"])
+        k_ref = _flatten_sdpa_tensor(inputs["k_np"])
+        v_ref = _flatten_sdpa_tensor(inputs["v_np"])
+        y_grad_ref = _flatten_sdpa_tensor(inputs["y_grad_np"])
+        _, q_grad_ref, k_grad_ref, v_grad_ref = torch_sdpa_reference(
+            q_ref,
+            k_ref,
+            v_ref,
+            inputs["mask_np"],
+            y_grad_ref,
+        )
+
+        layer.clear_gradients()
+        layer.y.grad.from_array(
+            np.array(inputs["y_grad_np"], dtype=np.float32, order="F")
+        )
+
+        layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+        q_grad = _flatten_sdpa_tensor(_tensor_to_numpy(layer.q.grad))
+        k_grad = _flatten_sdpa_tensor(_tensor_to_numpy(layer.k.grad))
+        v_grad = _flatten_sdpa_tensor(_tensor_to_numpy(layer.v.grad))
+
+        tol = dtype2tol[dtype]
+        _assert_tensor_close(q_grad, q_grad_ref, tol)
+        _assert_tensor_close(k_grad, k_grad_ref, tol)
+        _assert_tensor_close(v_grad, v_grad_ref, tol)
 
 
 def test_flash_logsumexp_shape_validation(context):

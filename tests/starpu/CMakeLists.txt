@@ -92,6 +92,7 @@ set(TESTS
 if(NNTILE_USE_CUDA)
 list(APPEND TESTS
     "flash_sdpa_fwd_cudnn"
+    "flash_sdpa_bwd_cudnn"
 )
 endif()
 

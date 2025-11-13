@@ -58,6 +58,7 @@ set(KERNEL_HDR
     "nntile/kernel/fill.hh"
     "nntile/kernel/fill/cpu.hh"
     "nntile/kernel/flash_sdpa_fwd_cudnn.hh"
+    "nntile/kernel/flash_sdpa_bwd_cudnn.hh"
     "nntile/kernel/gelu.hh"
     "nntile/kernel/gelu/cpu.hh"
     "nntile/kernel/gelu_inplace.hh"
@@ -209,6 +210,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/rope/cuda.hh"
         "nntile/kernel/rope_backward/cuda.hh"
         "nntile/kernel/flash_sdpa_fwd_cudnn/cuda.hh"
+        "nntile/kernel/flash_sdpa_bwd_cudnn/cuda.hh"
         )
 endif()
 
@@ -269,6 +271,7 @@ set(STARPU_HDR
     "nntile/starpu/embedding.hh"
     "nntile/starpu/embedding_backward.hh"
     "nntile/starpu/flash_sdpa_fwd_cudnn.hh"
+    "nntile/starpu/flash_sdpa_bwd_cudnn.hh"
     "nntile/starpu/mask_scalar.hh"
     "nntile/starpu/adam_step.hh"
     "nntile/starpu/adamw_step.hh"
@@ -308,6 +311,7 @@ set(TILE_HDR
     "nntile/tile/relu_backward.hh"
     "nntile/tile/fill.hh"
     "nntile/tile/flash_sdpa_fwd_cudnn.hh"
+    "nntile/tile/flash_sdpa_bwd_cudnn.hh"
     "nntile/tile/sum_slice.hh"
     "nntile/tile/sum_fiber.hh"
     "nntile/tile/sum.hh"
@@ -396,6 +400,7 @@ set(TENSOR_HDR
     "nntile/tensor/embedding.hh"
     "nntile/tensor/embedding_backward.hh"
     "nntile/tensor/flash_sdpa_fwd_cudnn.hh"
+    "nntile/tensor/flash_sdpa_bwd_cudnn.hh"
     "nntile/tensor/mask_scalar.hh"
     "nntile/tensor/hypot_inplace.hh"
     "nntile/tensor/hypot.hh"

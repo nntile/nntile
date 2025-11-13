@@ -94,6 +94,7 @@ set(TESTS_MPI
 if(NNTILE_USE_CUDA)
     list(APPEND TESTS_MPI
         "flash_sdpa_fwd_cudnn"
+        "flash_sdpa_bwd_cudnn"
     )
 endif()
 

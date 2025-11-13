@@ -137,6 +137,7 @@ set(TESTS_CATCH2
 if(NNTILE_USE_CUDA)
 list(APPEND TESTS_CATCH2
     "flash_sdpa_fwd_cudnn"
+    "flash_sdpa_bwd_cudnn"
 )
 endif()
 

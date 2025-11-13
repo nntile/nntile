@@ -75,6 +75,8 @@
 #include <nntile/kernel/rope_backward.hh>
 #include <nntile/kernel/norm_fiber_inplace.hh>
 #include <nntile/kernel/norm_fiber.hh>
+#include <nntile/kernel/flash_sdpa_fwd_cudnn.hh>
+#include <nntile/kernel/flash_sdpa_bwd_cudnn.hh>
 
 
 //! @namespace nntile::kernel
