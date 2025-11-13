@@ -81,11 +81,11 @@ static inline void flash_sdpa_fwd_cudnn_check(const TensorTraits &K,
     }
     if(K.shape[1] != mask.shape[0])
     {
-        throw std::runtime_error("K.shape[1] != mask.shape[0]");
+        throw std::runtime_error("K sequence dimension must match mask axis 0");
     }
-    if(K.shape[1] != mask.shape[1])
+    if(Q.shape[1] != mask.shape[1])
     {
-        throw std::runtime_error("K.shape[1] != mask.shape[1]");
+        throw std::runtime_error("Q sequence dimension must match mask axis 1");
     }
     if(K.shape[1] != logsumexp.shape[0])
     {
@@ -175,13 +175,13 @@ static inline void flash_sdpa_fwd_cudnn_check(const TensorTraits &K,
         }
     }
 
-    if(mask_base[0] != Q_base[1])
+    if(mask_base[0] != K_base[1])
     {
-        throw std::runtime_error("mask basetile row must match Q basetile sequence dimension");
+        throw std::runtime_error("mask basetile axis 0 must match K basetile sequence dimension");
     }
-    if(mask_base[1] != K_base[1])
+    if(mask_base[1] != Q_base[1])
     {
-        throw std::runtime_error("mask basetile column must match K basetile sequence dimension");
+        throw std::runtime_error("mask basetile axis 1 must match Q basetile sequence dimension");
     }
 
     if(logsumexp_base[0] != Q_base[1]
@@ -275,8 +275,8 @@ void flash_sdpa_fwd_cudnn_async(const Tensor<T> &K, const Tensor<T> &Q,
                 {
                     throw std::runtime_error("K tile sequence length mismatches Q tile");
                 }
-                if(mask_traits.shape[0] != seq_q
-                        || mask_traits.shape[1] != K_traits.shape[1])
+                if(mask_traits.shape[0] != K_traits.shape[1]
+                        || mask_traits.shape[1] != seq_q)
                 {
                     throw std::runtime_error("Mask tile shape mismatches Q/K tiles");
                 }
