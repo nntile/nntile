@@ -15,6 +15,7 @@
 #include "nntile/context.hh"
 #include "nntile/tile/flash_sdpa_fwd_cudnn.hh"
 #include "nntile/starpu/flash_sdpa_fwd_cudnn.hh"
+#include "nntile/starpu/handle.hh"
 #include "../testing.hh"
 #include "nntile/constants.hh"
 #include <cmath>
@@ -63,7 +64,7 @@ void check()
 
     for(Index i = 0; i < logsumexp_tile.nelems; ++i)
     {
-        logsumexp_local[i] = fp32_t(0.0f);
+        logsumexp_local[i] = -std::numeric_limits<float>::infinity();
     }
 
     // Create custom mask (similar to starpu test)
@@ -138,7 +139,7 @@ void check()
         }
         for(Index i = 0; i < logsumexp_starpu.nelems; ++i)
         {
-            logsumexp_starpu_local_init[i] = fp32_t(0.0f);
+            logsumexp_starpu_local_init[i] = -std::numeric_limits<float>::infinity();
         }
         A_starpu_local_init.release();
         logsumexp_starpu_local_init.release();
@@ -149,9 +150,16 @@ void check()
         mask_dst.release();
 
         // Call starpu-level operation
+        starpu::VariableHandle scratch_logsumexp(sizeof(fp32_t) * logsumexp_starpu.nelems);
+        starpu::VariableHandle scratch_A(sizeof(T) * A_starpu.nelems);
+
         starpu::flash_sdpa_fwd_cudnn.submit<std::tuple<T>>(
             n_seq, head_size, n_batch * kv_group_size * n_head_kv, K_starpu, Q_starpu, mask_starpu,
-            logsumexp_starpu, V_starpu, A_starpu);
+            logsumexp_starpu, V_starpu, A_starpu,
+            scratch_logsumexp, scratch_A);
+
+        scratch_logsumexp.unregister_submit();
+        scratch_A.unregister_submit();
 
         // Call tile-level operation
         flash_sdpa_fwd_cudnn<T>(K_tile, Q_tile, mask_tile, logsumexp_tile,

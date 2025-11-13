@@ -22,7 +22,7 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.nntile_core.tensor import Tensor_bf16, Tensor_fp16, Tensor_fp32
 from nntile.tensor import (
     Tensor, TensorMoments, TensorOrNone, TensorTraits, add_slice_inplace_async,
-    clear_async, gemm_async, mask_scalar_async, maxsumexp_async,
+    clear_async, fill_async, gemm_async, mask_scalar_async, maxsumexp_async,
     multiply_inplace_async, notrans, softmax_inplace_async,
     sumprod_slice_async, trans)
 
@@ -306,9 +306,13 @@ class Sdpa(BaseLayer):
         if self.flash_logsumexp is None:
             raise RuntimeError("flash_logsumexp buffer is missing")
 
-        # clear_async(self.flash_logsumexp)
-        # clear_async(self.y.value)
+        # Prepare outputs
+        fill_async(np.float32("-inf"), self.flash_logsumexp)
+        clear_async(self.y.value)
+
         mask = self.mask if self.mask is not None else None
+
+        # Run the distributed Flash Attention with result accumulation
         flash_sdpa_fwd_cudnn_async(
             self.k.value,
             self.q.value,
@@ -317,10 +321,10 @@ class Sdpa(BaseLayer):
             self.v.value,
             self.y.value,
         )
-        # self.q.value.wont_use()
-        # self.k.value.wont_use()
-        # self.v.value.wont_use()
-        # self.y.value.wont_use()
+        self.q.value.wont_use()
+        self.k.value.wont_use()
+        self.v.value.wont_use()
+        self.y.value.wont_use()
 
     def _backward_vanilla(self):
         if (

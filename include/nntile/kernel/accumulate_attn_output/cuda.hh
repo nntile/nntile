@@ -22,8 +22,9 @@ namespace nntile::kernel::accumulate_attn_output
 
 // Accumulate attention outputs on CUDA
 template<typename T>
-void cuda(cudaStream_t stream, Index seq, Index batch, const fp32_t *src_lse,
-        const T *src_attn, fp32_t *dst_lse, T *dst_attn)
+void cuda(cudaStream_t stream, Index head, Index seq, Index batch,
+        const fp32_t *src_lse, const T *src_attn,
+        fp32_t *dst_lse, T *dst_attn)
     noexcept;
 
 } // namespace nntile::kernel::accumulate_attn_output

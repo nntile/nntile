@@ -36,8 +36,8 @@ inline bool is_neg_inf(lse_repr_t value)
 } // namespace
 
 template<typename T>
-void cpu(Index seq, Index batch, const fp32_t *src_lse, const T *src_attn,
-        fp32_t *dst_lse, T *dst_attn)
+void cpu(Index head, Index seq, Index batch, const fp32_t *src_lse,
+        const T *src_attn, fp32_t *dst_lse, T *dst_attn)
     noexcept
 //! Accumulate attention outputs on CPU
 /*! For every (sequence, batch) pair this kernel merges source statistics
@@ -47,26 +47,28 @@ void cpu(Index seq, Index batch, const fp32_t *src_lse, const T *src_attn,
  *  @param[in] seq: Sequence length (number of rows)
  *  @param[in] batch: Combined batch size (number of columns)
  *  @param[in] src_lse: Source log-sum-exp statistics [seq, batch]
- *  @param[in] src_attn: Source attention output [seq, batch]
+ *  @param[in] src_attn: Source attention output [head, seq, batch]
  *  @param[in,out] dst_lse: Destination log-sum-exp statistics [seq, batch]
- *  @param[in,out] dst_attn: Destination attention output [seq, batch]
+ *  @param[in,out] dst_attn: Destination attention output [head, seq, batch]
  * */
 {
-    if(seq <= 0 || batch <= 0)
+    if(head <= 0 || seq <= 0 || batch <= 0)
     {
         return;
     }
 
-    for(Index s = 0; s < seq; ++s)
+    for(Index b = 0; b < batch; ++b)
     {
-        const Index row_offset = s * batch;
-        for(Index b = 0; b < batch; ++b)
+        const Index lse_offset = b * seq;
+        const Index attn_batch_offset = lse_offset * head;
+        for(Index s = 0; s < seq; ++s)
         {
-            const Index idx = row_offset + b;
+            const Index lse_idx = lse_offset + s;
+            const Index attn_idx = attn_batch_offset + s * head;
             const lse_repr_t old_lse =
-                    static_cast<lse_repr_t>(dst_lse[idx]);
+                    static_cast<lse_repr_t>(dst_lse[lse_idx]);
             const lse_repr_t incoming_lse =
-                    static_cast<lse_repr_t>(src_lse[idx]);
+                    static_cast<lse_repr_t>(src_lse[lse_idx]);
 
             const bool dst_active = !is_neg_inf(old_lse);
             const bool src_active = !is_neg_inf(incoming_lse);
@@ -95,36 +97,41 @@ void cpu(Index seq, Index batch, const fp32_t *src_lse, const T *src_attn,
                     src_active ? std::exp(incoming_lse - new_lse) : lse_repr_t(0);
 
             using repr_t = typename T::repr_t;
-            const repr_t dst_val = static_cast<repr_t>(dst_attn[idx]);
-            const repr_t src_val = static_cast<repr_t>(src_attn[idx]);
-            const repr_t updated =
-                    static_cast<repr_t>(dst_weight) * dst_val
-                    + static_cast<repr_t>(src_weight) * src_val;
+            dst_lse[lse_idx] = new_lse;
 
-            dst_lse[idx] = new_lse;
-            dst_attn[idx] = static_cast<T>(updated);
+            using repr_t = typename T::repr_t;
+            for(Index h = 0; h < head; ++h)
+            {
+                const Index val_idx = attn_idx + h;
+                const repr_t dst_val = static_cast<repr_t>(dst_attn[val_idx]);
+                const repr_t src_val = static_cast<repr_t>(src_attn[val_idx]);
+                const repr_t updated =
+                        static_cast<repr_t>(dst_weight) * dst_val
+                        + static_cast<repr_t>(src_weight) * src_val;
+                dst_attn[val_idx] = static_cast<T>(updated);
+            }
         }
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp16_t>(Index seq, Index batch, const fp32_t *src_lse,
+void cpu<fp16_t>(Index head, Index seq, Index batch, const fp32_t *src_lse,
         const fp16_t *src_attn, fp32_t *dst_lse, fp16_t *dst_attn)
     noexcept;
 
 template
-void cpu<bf16_t>(Index seq, Index batch, const fp32_t *src_lse,
+void cpu<bf16_t>(Index head, Index seq, Index batch, const fp32_t *src_lse,
         const bf16_t *src_attn, fp32_t *dst_lse, bf16_t *dst_attn)
     noexcept;
 
 template
-void cpu<fp32_t>(Index seq, Index batch, const fp32_t *src_lse,
+void cpu<fp32_t>(Index head, Index seq, Index batch, const fp32_t *src_lse,
         const fp32_t *src_attn, fp32_t *dst_lse, fp32_t *dst_attn)
     noexcept;
 
 template
-void cpu<fp64_t>(Index seq, Index batch, const fp32_t *src_lse,
+void cpu<fp64_t>(Index head, Index seq, Index batch, const fp32_t *src_lse,
         const fp64_t *src_attn, fp32_t *dst_lse, fp64_t *dst_attn)
     noexcept;
 

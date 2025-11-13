@@ -161,7 +161,10 @@ void validate_cuda(Index seq, Index head, Index batch)
     // Now test via StarPU submit
     std::vector<T> K2(K), Q2(Q), V2(V), mask2(mask);
     std::vector<T> A_starpu(batch * seq * head, T(Y(0.0)));
-    std::vector<fp32_t> logsumexp_starpu(actual_batch * seq, fp32_t(0.0f));
+    std::vector<fp32_t> logsumexp_starpu(
+        actual_batch * seq,
+        -std::numeric_limits<float>::infinity()
+    );
 
     // Create StarPU handles
     VariableHandle K_handle(&K2[0], sizeof(T) * batch * seq * head);
@@ -170,6 +173,8 @@ void validate_cuda(Index seq, Index head, Index batch)
     VariableHandle A_handle(&A_starpu[0], sizeof(T) * batch * seq * head);
     VariableHandle logsumexp_handle(&logsumexp_starpu[0], sizeof(fp32_t) * actual_batch * seq);
     VariableHandle mask_handle(&mask2[0], sizeof(T) * seq * seq);
+    VariableHandle scratch_logsumexp(sizeof(fp32_t) * actual_batch * seq);
+    VariableHandle scratch_A(sizeof(T) * batch * seq * head);
 
     // Restrict to CUDA and submit
     flash_sdpa_fwd_cudnn.restrict_where(STARPU_CUDA);
@@ -177,7 +182,8 @@ void validate_cuda(Index seq, Index head, Index batch)
         seq, head, batch,
         K_handle, Q_handle,
         mask_handle,
-        logsumexp_handle, V_handle, A_handle
+        logsumexp_handle, V_handle, A_handle,
+        scratch_logsumexp, scratch_A
     );
     // Wait for completion
     starpu_task_wait_for_all();
@@ -189,6 +195,8 @@ void validate_cuda(Index seq, Index head, Index batch)
     A_handle.unregister();
     logsumexp_handle.unregister();
     mask_handle.unregister();
+    scratch_logsumexp.unregister();
+    scratch_A.unregister();
 
     // Compare results
     Y eps = (std::is_same_v<T, fp16_t> || std::is_same_v<T, bf16_t>) ? Y(1e-2) : Y(1e-5);

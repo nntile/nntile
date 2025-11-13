@@ -100,7 +100,9 @@ public:
         Handle mask,
         Handle logsumexp,
         Handle V,
-        Handle A
+        Handle A,
+        Handle scratch_logsumexp,
+        Handle scratch_A
     );
 
 #ifdef NNTILE_USE_CUDA

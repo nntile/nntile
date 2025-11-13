@@ -14,6 +14,7 @@
 
 #include "nntile/tile/flash_sdpa_fwd_cudnn.hh"
 #include "nntile/starpu/flash_sdpa_fwd_cudnn.hh"
+#include "nntile/starpu/handle.hh"
 #include "nntile/constants.hh"
 
 namespace nntile::tile
@@ -170,9 +171,16 @@ void flash_sdpa_fwd_cudnn_async(const Tile<T> &K, const Tile<T> &Q,
     // Combine batch dimensions: n_batch * kv_group_size * n_head_kv -> batch
     Index batch = K.shape[2] * K.shape[3] * K.shape[4];
 
+    starpu::VariableHandle scratch_logsumexp(sizeof(fp32_t) * logsumexp.nelems);
+    starpu::VariableHandle scratch_A(sizeof(T) * A.nelems);
+
     // Insert task
     starpu::flash_sdpa_fwd_cudnn.submit<std::tuple<T>>(
-        seq, head, batch, K, Q, mask, logsumexp, V, A);
+        seq, head, batch, K, Q, mask, logsumexp, V, A,
+        scratch_logsumexp, scratch_A);
+
+    scratch_logsumexp.unregister_submit();
+    scratch_A.unregister_submit();
 }
 
 //! Blocking version of tile-wise flash_sdpa_fwd_cudnn operation

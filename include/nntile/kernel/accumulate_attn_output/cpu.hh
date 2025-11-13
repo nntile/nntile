@@ -21,7 +21,8 @@ namespace nntile::kernel::accumulate_attn_output
 
 // Accumulate attention outputs on CPU
 template<typename T>
-void cpu(Index seq, Index batch, const fp32_t *src_lse, const T *src_attn,
+void cpu(Index head, Index seq, Index batch,
+        const fp32_t *src_lse, const T *src_attn,
         fp32_t *dst_lse, T *dst_attn)
     noexcept;
 

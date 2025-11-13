@@ -27,6 +27,7 @@
 
 // Other NNTile headers
 #include "nntile/kernel/flash_sdpa_fwd_cudnn.hh"
+#include "nntile/kernel/accumulate_attn_output.hh"
 #include "nntile/context.hh"
 
 namespace nntile::starpu
@@ -132,6 +133,8 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     fp32_t *logsumexp = interfaces[3]->get_ptr<fp32_t>();         // Log-sum-exp
     const T *V = interfaces[4]->get_ptr<T>();           // Value
     T *A = interfaces[5]->get_ptr<T>();                 // Attention output
+    fp32_t *scratch_logsumexp = interfaces[6]->get_ptr<fp32_t>(); // Scratch log-sum-exp
+    T *scratch_A = interfaces[7]->get_ptr<T>();         // Scratch attention output
 
     // Execute the prepared graph - mask is already nullptr when not used
     kernel::flash_sdpa_fwd_cudnn::execute_graph<T>(
@@ -140,8 +143,19 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         K,
         Q,
         mask,
-        logsumexp,
+        scratch_logsumexp,
         V,
+        scratch_A
+    );
+
+    kernel::accumulate_attn_output::cuda<T>(
+        stream,
+        args->head,
+        args->seq,
+        args->batch,
+        scratch_logsumexp,
+        scratch_A,
+        logsumexp,
         A
     );
 #endif // STARPU_SIMGRID
@@ -173,7 +187,8 @@ uint32_t FlashSdpaFwdCudnn<std::tuple<T>>::footprint(struct starpu_task *task)
 
 template<typename T>
 void FlashSdpaFwdCudnn<std::tuple<T>>::submit(Index seq, Index head, Index batch,
-        Handle K, Handle Q, Handle mask, Handle logsumexp, Handle V, Handle A)
+        Handle K, Handle Q, Handle mask, Handle logsumexp, Handle V, Handle A,
+        Handle scratch_logsumexp, Handle scratch_A)
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
@@ -187,9 +202,11 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::submit(Index seq, Index head, Index batch
             STARPU_R, K.get(),              // Key
             STARPU_R, Q.get(),              // Query
             STARPU_R, mask.get(),           // Mask
-            STARPU_W, logsumexp.get(),     // Log-sum-exp
+            STARPU_RW, logsumexp.get(),     // Log-sum-exp
             STARPU_R, V.get(),              // Value
-            STARPU_W, A.get(),             // Attention output
+            STARPU_RW, A.get(),             // Attention output
+            STARPU_SCRATCH, scratch_logsumexp.get(), // Scratch log-sum-exp
+            STARPU_SCRATCH, scratch_A.get(),         // Scratch attention output
             STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission
