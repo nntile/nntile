@@ -194,7 +194,7 @@ def generate_sdpa_inputs(
         params.n_head_kv,
     )
     basetile = [
-        params.head_size, # tile size must be equal to head_size
+        params.head_size,  # tile size must be equal to head_size
         params.n_seq_tile,
         params.n_batch_tile,
         params.kv_group_size_tile,
