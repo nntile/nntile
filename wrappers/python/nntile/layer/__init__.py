@@ -30,9 +30,10 @@ from .llama_attention import LlamaAttention
 from .mixer import GAP, Mixer, MixerMlp
 from .multiply import Multiply
 from .rms_norm import RMSNorm
+from .sdpa import Sdpa
 
 __all__ = ('Act', 'Add', 'AddSlice', 'Attention', 'AttentionSingleHead',
         'BaseLayer', 'BatchNorm2d', 'Conv2d', 'Embedding',
         'GAP', 'LayerNorm', 'Linear', 'LlamaAttention', 'GPT2Attention',
         'GPTNeoAttention', 'GPTNeoXAttention', 'BertSelfAttention',
-        'Mixer', 'MixerMlp', 'RMSNorm', 'Multiply')
+        'Mixer', 'MixerMlp', 'RMSNorm', 'Multiply', 'Sdpa')

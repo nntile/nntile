@@ -91,6 +91,12 @@ set(TESTS_MPI
     "transpose"
     )
 
+if(NNTILE_USE_CUDA)
+    list(APPEND TESTS_MPI
+        "flash_sdpa_fwd_cudnn"
+    )
+endif()
+
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
     "add_slice"

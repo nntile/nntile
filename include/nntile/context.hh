@@ -16,8 +16,14 @@
 
 // Standard library headers
 
+// NNTile definitions
+#include <nntile/defs.h>
+
 // Third-party headers
 #include <starpu.h>
+#ifdef NNTILE_USE_CUDA
+#include <cudnn.h>
+#endif // NNTILE_USE_CUDA
 
 // Other NNTile headers
 
@@ -96,5 +102,10 @@ public:
     //! Restore computation to all devices
     void restore_where();
 };
+
+#ifdef NNTILE_USE_CUDA
+//! Get cuDNN handle for the current CUDA worker
+cudnnHandle_t cudnn_get_local_handle();
+#endif // NNTILE_USE_CUDA
 
 } // namespace nntile
