@@ -32,7 +32,14 @@ dtype2nntile = {
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
 
+}
+
+dtype2np = {
+        'fp32': np.float32,
+        'bf16': np.float16,
+        'fp16': np.float32,
 }
 
 dtype2tol = {
@@ -223,12 +230,10 @@ class TestBertSelfAttention:
 
 
 @pytest.mark.benchmark
-def test_bench_bert_selfattention_forward_async(context_cuda, benchmark_operation):
-    dtype = 'fp32'
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_bert_selfattention_forward_async(context_cuda, benchmark_operation, dtype: str):
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(dtype, params)
-
-    out_np = np.zeros(nntile_layer.y.value.shape, dtype=np.float32, order='F')
 
     def bench_fn():
         nntile_layer.forward_async()
@@ -239,14 +244,14 @@ def test_bench_bert_selfattention_forward_async(context_cuda, benchmark_operatio
 
 
 @pytest.mark.benchmark
-def test_bench_bert_selfattention_forward_backward_async(context_cuda, benchmark_operation):
-    dtype = 'fp32'
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_bert_selfattention_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(dtype, params)
 
     nntile_layer.clear_gradients()
     rng = np.random.default_rng(42)
-    grad_np = np.array(rng.standard_normal(nntile_layer.y.value.shape), dtype=np.float32, order='F')
+    grad_np = np.array(rng.standard_normal(nntile_layer.y.value.shape), dtype=dtype2np[dtype], order='F')
 
     def bench_fn():
         nntile_layer.forward_async()

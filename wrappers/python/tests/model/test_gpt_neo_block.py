@@ -32,6 +32,7 @@ dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16
 }
@@ -39,7 +40,7 @@ dtype2nntile = {
 dtype2np = {
         'fp32': np.float32,
         'bf16': np.float16,
-        'fp16': np.float16,
+        'fp16': np.float32,
 }
 
 dtype2tol = {
@@ -212,8 +213,8 @@ class TestGPTNeoBlock:
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', ['fp32', 'bf16'])
-def test_bench_gpt_neo_block_forward_async(context_cuda, benchmark_model, dtype: str):
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gpt_neo_block_forward_async(context_cuda, benchmark_model, dtype: str):    
     params = single_tile
     _, nntile_module, *_ = generate_inputs(params, layer_id=1, dtype=dtype)
 
@@ -231,7 +232,7 @@ def test_bench_gpt_neo_block_forward_async(context_cuda, benchmark_model, dtype:
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', ['fp32', 'bf16'])
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
 def test_bench_gpt_neo_block_forward_backward_async(context_cuda, benchmark_model, dtype: str):
     params = single_tile
     _, nntile_module, *_ = generate_inputs(params, layer_id=1, dtype=dtype)

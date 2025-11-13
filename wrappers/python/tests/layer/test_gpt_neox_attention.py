@@ -30,12 +30,13 @@ from nntile.utils.constructors import to_numpy
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
+        'fp16': nntile.tensor.Tensor_fp16,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'bf16': nntile.tensor.Tensor_bf16,
 }
 
 dtype2np = {
-    'fp16': np.float16,
+    'fp16': np.float32,
     'bf16': np.float16,
     'fp32': np.float32,
 }
@@ -363,8 +364,11 @@ def test_kvcache(context, numpy_rng, n_head, n_head_tile):
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
 def test_bench_gpt_neox_attention_forward_async(context_cuda, benchmark_operation, dtype: str):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+    
     params = single_tile
     rotary_pct = 0.5
     att_bias = False
@@ -382,8 +386,11 @@ def test_bench_gpt_neox_attention_forward_async(context_cuda, benchmark_operatio
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
 def test_bench_gpt_neox_attention_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+    
     params = single_tile
     rotary_pct = 0.5
     att_bias = False

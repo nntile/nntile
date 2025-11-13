@@ -36,7 +36,7 @@ dtype2nntile = {
 }
 
 dtype2np = {
-    'fp16': np.float16,
+    'fp16': np.float32,
     'bf16': np.float16,
     'fp32': np.float32,
 }
@@ -357,8 +357,11 @@ def test_kvcache(context, numpy_rng, n_head, n_head_tile):
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("dtype", ['fp32'])
+@pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
 def test_bench_attention_forward_async(context_cuda, benchmark_operation, dtype: str):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+    
     n_emb = 64
     n_emb_k = 64
     n_emb_v = 64
@@ -414,8 +417,11 @@ def test_bench_attention_forward_async(context_cuda, benchmark_operation, dtype:
     benchmark_operation(bench_fn)
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("dtype", ['fp32'])
+@pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
 def test_bench_attention_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+    
     n_emb = 64
     n_emb_k = 64
     n_emb_v = 64

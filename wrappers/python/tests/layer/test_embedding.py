@@ -33,7 +33,7 @@ dtype2nntile = {
 }
 
 dtype2np = {
-    'fp16': np.float16,
+    'fp16': np.float32,
     'bf16': np.float16,
     'fp32': np.float32,
 }
@@ -160,7 +160,7 @@ def test_embedding_dynamic(context, numpy_rng, dtype):
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("dtype", ['fp32'])
+@pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
 def test_bench_embedding_forward_async(context_cuda, benchmark_operation, dtype: str):
     index_shape = [64, 32, 16]
     vocab_size = 2048
@@ -199,7 +199,7 @@ def test_bench_embedding_forward_async(context_cuda, benchmark_operation, dtype:
     benchmark_operation(bench_fn)
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("dtype", ['fp32'])
+@pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
 def test_bench_embedding_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
     index_shape = [64, 32, 16]
     vocab_size = 2048
@@ -235,6 +235,7 @@ def test_bench_embedding_forward_backward_async(context_cuda, benchmark_operatio
     nntile.tensor.clear_async(layer.w.grad)
 
     def bench_fn():
+        layer.forward_async()
         layer.backward_async()
         nntile.starpu.wait_for_all()
 

@@ -35,7 +35,7 @@ dtype2nntile = {
 }
 
 dtype2np = {
-    'fp16': np.float16,
+    'fp16': np.float32,
     'bf16': np.float16,
     'fp32': np.float32,
 }
@@ -165,9 +165,9 @@ class TestAct:
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("name", ["relu"])
-@pytest.mark.parametrize("dtype", ['fp32'])
-def test_bench_act_forward_async(context_cuda, benchmark_operation, name: str, dtype: str):
+@pytest.mark.parametrize("name", ["relu", "gelu", "gelutanh", "silu"])
+@pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
+def test_bench_act_forward_async(context_cuda, benchmark_operation, name: str, dtype: str):    
     A_shape = [128, 128]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
@@ -191,16 +191,18 @@ def test_bench_act_forward_async(context_cuda, benchmark_operation, name: str, d
 
     def bench_fn():
         layer.forward_async()
-        layer.y.value.to_array(np_out)
         nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("name", ["relu"])
-@pytest.mark.parametrize("dtype", ['fp32'])
+@pytest.mark.parametrize("name", ["relu", "gelu", "gelutanh", "silu"])
+@pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
 def test_bench_act_forward_backward_async(context_cuda, benchmark_operation, name: str, dtype: str):
+    if dtype == 'fp16' and name in ['relu', 'gelu', 'silu']:
+        pytest.xfail("not implemented")
+    
     A_shape = [128, 128]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
@@ -226,6 +228,7 @@ def test_bench_act_forward_backward_async(context_cuda, benchmark_operation, nam
     layer.y.grad.from_array(2 * np_A)
 
     def bench_fn():
+        layer.forward_async()
         layer.backward_async()
         nntile.starpu.wait_for_all()
 

@@ -30,7 +30,7 @@ dtype2nntile = {
 }
 
 dtype2np = {
-    'fp16': np.float16,
+    'fp16': np.float32,
     'bf16': np.float16,
     'fp32': np.float32,
 }
@@ -208,8 +208,11 @@ def test_rms_norm_dynamic(context, numpy_rng, dtype: np.dtype):
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
 def test_bench_rmsnorm_forward_async(context_cuda, benchmark_operation, dtype: str):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+    
     A_shape = [256, 256]
     eps = 1e-5
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
@@ -240,8 +243,11 @@ def test_bench_rmsnorm_forward_async(context_cuda, benchmark_operation, dtype: s
     benchmark_operation(bench_fn)
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
 def test_bench_rmsnorm_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+    
     A_shape = [256, 256]
     eps = 1e-5
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)

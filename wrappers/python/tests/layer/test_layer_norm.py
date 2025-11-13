@@ -29,10 +29,11 @@ dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
 }
 
 dtype2np = {
-    'fp16': np.float16,
+    'fp16': np.float32,
     'bf16': np.float16,
     'fp32': np.float32,
 }
@@ -233,7 +234,7 @@ class TestLayerNorm:
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
 def test_bench_layernorm_forward_async(context_cuda, benchmark_operation, dtype: str):
     # minimal setup
     n_size = 128
@@ -271,7 +272,7 @@ def test_bench_layernorm_forward_async(context_cuda, benchmark_operation, dtype:
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', ['bf16', 'fp32'])
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
 def test_bench_layernorm_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
     n_size = 128
     m_size = 256

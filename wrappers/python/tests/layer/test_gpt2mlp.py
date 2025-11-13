@@ -25,7 +25,7 @@ from huggingface_activations import ACT2FN
 from nntile.model.gpt2 import GPT2MLP as GPT2MLP_nntile
 
 dtype2np = {
-    'fp16': np.float16,
+    'fp16': np.float32,
     'bf16': np.float16,
     'fp32': np.float32,
 }

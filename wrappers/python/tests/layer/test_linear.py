@@ -33,7 +33,7 @@ dtype2nntile = {
 }
 
 dtype2np = {
-    'fp16': np.float16,
+    'fp16': np.float32,
     'bf16': np.float16,
     'fp32': np.float32,
 }
@@ -517,6 +517,7 @@ def test_bench_linear_forward_backward_async(context_cuda, benchmark_operation, 
     layer.y.grad.from_array(np_Y)
 
     def bench_fn():
+        layer.forward_async()
         layer.backward_async()
         nntile.starpu.wait_for_all()
 

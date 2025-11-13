@@ -30,7 +30,7 @@ dtype2nntile = {
 }
 
 dtype2np = {
-    'fp16': np.float16,
+    'fp16': np.float32,
     'bf16': np.float16,
     'fp32': np.float32,
 }
@@ -74,7 +74,7 @@ def test_gap(context, dtype: np.dtype):
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', ['fp32'])
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
 def test_bench_gap_forward_async(context_cuda, benchmark_operation, dtype: str):
     A_shape = [128, 64, 16]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
@@ -102,7 +102,7 @@ def test_bench_gap_forward_async(context_cuda, benchmark_operation, dtype: str):
     benchmark_operation(bench_fn)
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('dtype', ['fp32'])
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
 def test_bench_gap_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
     A_shape = [128, 64, 16]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
@@ -128,6 +128,7 @@ def test_bench_gap_forward_backward_async(context_cuda, benchmark_operation, dty
     layer.y.grad.from_array(grad_np)
 
     def bench_fn():
+        layer.forward_async()
         layer.backward_async()
         nntile.starpu.wait_for_all()
 
