@@ -83,6 +83,22 @@ void check_single_tile()
     Tensor<T> dQ_b(value_traits, dist);
     Tensor<T> dV_b(value_traits, dist);
 
+    auto zero_tensor = [](Tensor<T> &tensor) {
+        auto tile = tensor.get_tile(0);
+        auto local = tile.acquire(STARPU_W);
+        for(Index i = 0; i < tile.nelems; ++i)
+        {
+            local[i] = T(typename T::repr_t(0));
+        }
+        local.release();
+    };
+    zero_tensor(dK_a);
+    zero_tensor(dQ_a);
+    zero_tensor(dV_a);
+    zero_tensor(dK_b);
+    zero_tensor(dQ_b);
+    zero_tensor(dV_b);
+
     const Index total = head * seq * batch * kv * n_head_kv;
     std::vector<Y> host_values(total);
     for(Index i = 0; i < total; ++i)

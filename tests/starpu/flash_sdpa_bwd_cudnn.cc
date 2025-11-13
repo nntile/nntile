@@ -106,6 +106,9 @@ void validate_cuda(Index seq, Index head, Index batch)
     CUDA_CHECK(cudaMemcpy(dev_V, V.data(), sizeof(T) * total, cudaMemcpyHostToDevice), "copy V");
     CUDA_CHECK(cudaMemcpy(dev_dO, dO.data(), sizeof(T) * total, cudaMemcpyHostToDevice), "copy dO");
     CUDA_CHECK(cudaMemcpy(dev_mask, mask.data(), sizeof(T) * seq * seq, cudaMemcpyHostToDevice), "copy mask");
+    CUDA_CHECK(cudaMemset(dev_dK, 0, sizeof(T) * total), "memset dK");
+    CUDA_CHECK(cudaMemset(dev_dQ, 0, sizeof(T) * total), "memset dQ");
+    CUDA_CHECK(cudaMemset(dev_dV, 0, sizeof(T) * total), "memset dV");
 
     auto fwd_graph = kernel::flash_sdpa_fwd_cudnn::prepare_graph<T>(handle, seq, head, batch);
     TEST_ASSERT(fwd_graph != nullptr);
@@ -113,7 +116,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     TEST_ASSERT(bwd_graph != nullptr);
 
     auto ws_status = bwd_graph->get_workspace_size(workspace_size);
-    TEST_ASSERT(ws_status == CUDNN_STATUS_SUCCESS);
+    TEST_ASSERT(ws_status.is_good());
     if (workspace_size > 0) {
         CUDA_CHECK(cudaMalloc(&workspace, static_cast<size_t>(workspace_size)),
                    "malloc backward workspace");

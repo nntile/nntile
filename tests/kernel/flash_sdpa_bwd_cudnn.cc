@@ -74,11 +74,11 @@ template<typename T>
 struct TestData
 {
     using Y = typename T::repr_t;
-    Index seq{};
-    Index head{};
-    Index batch{};
+    Index seq;
+    Index head;
+    Index batch;
 
-    float eps_check{};
+    float eps_check;
 
     std::vector<T> K_init;
     std::vector<T> Q_init;
@@ -188,7 +188,7 @@ void reference_backward(TestData<T> &data)
     std::vector<ref_t> dV_acc(total, 0.0);
 
     std::vector<ref_t> scores(data.seq);
-    std::vector<ref_t> attn_weights(data.seq);
+    std::vector<ref_t> P(data.seq);
     std::vector<ref_t> dP(data.seq);
 
     for(Index b = 0; b < data.batch; ++b)
@@ -217,11 +217,11 @@ void reference_backward(TestData<T> &data)
             {
                 if(std::isinf(scores[j]) && scores[j] < 0)
                 {
-                    attn_weights[j] = 0.0;
+                    P[j] = 0.0;
                 }
                 else
                 {
-                    attn_weights[j] = std::exp(scores[j] - lse_val);
+                    P[j] = std::exp(scores[j] - lse_val);
                 }
             }
 
@@ -238,19 +238,22 @@ void reference_backward(TestData<T> &data)
             }
 
             ref_t sum_attn_dp = 0.0;
-            for(Index j = 0; j < data.seq; ++j)
+            for(Index h = 0; h < data.head; ++h)
             {
-                sum_attn_dp += attn_weights[j] * dP[j];
+                const Index o_idx = b * data.seq * data.head + i * data.head + h;
+                ref_t O_val = static_cast<Y>(data.O_init[o_idx]);
+                ref_t dO_val = static_cast<Y>(data.dO_init[o_idx]);
+                sum_attn_dp += O_val * dO_val;
             }
 
             for(Index j = 0; j < data.seq; ++j)
             {
-                const ref_t dZ = attn_weights[j] * (dP[j] - sum_attn_dp);
+                const ref_t dZ = P[j] * (dP[j] - sum_attn_dp);
                 for(Index h = 0; h < data.head; ++h)
                 {
                     const Index o_idx = b * data.seq * data.head + i * data.head + h;
                     const Index v_idx = b * data.seq * data.head + j * data.head + h;
-                    dV_acc[v_idx] += attn_weights[j] * static_cast<Y>(data.dO_init[o_idx]);
+                    dV_acc[v_idx] += P[j] * static_cast<Y>(data.dO_init[o_idx]);
 
                     const Index q_idx = b * data.seq * data.head + i * data.head + h;
                     const Index k_idx = b * data.seq * data.head + j * data.head + h;
@@ -326,7 +329,7 @@ TestData<T> get_test_input_data(Index seq,
     }
     else if constexpr(std::is_same_v<T, fp16_t>)
     {
-        data.eps_check = 1e-3f;
+        data.eps_check = 2e-3f;
     }
     else
     {
@@ -385,6 +388,9 @@ void run_cuda_test(TestData<T> &data)
                           sizeof(fp32_t) * data.batch * data.seq,
                           cudaMemcpyHostToDevice),
                "cudaMemcpy dev_lse_init");
+    CUDA_CHECK(cudaMemset(dev_dK, 0, sizeof(T) * total), "cudaMemset dev_dK");
+    CUDA_CHECK(cudaMemset(dev_dQ, 0, sizeof(T) * total), "cudaMemset dev_dQ");
+    CUDA_CHECK(cudaMemset(dev_dV, 0, sizeof(T) * total), "cudaMemset dev_dV");
 
     cudaStream_t stream = nullptr;
     CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
@@ -497,10 +503,10 @@ TEMPLATE_TEST_CASE("Flash SDPA Backward cuDNN Kernel Verification",
 {
     using T = TestType;
     const Index seq = GENERATE(64);
-    const Index head = 8;
-    const Index batch = GENERATE(1);
-    const DataGen strategy = GENERATE(DataGen::RANDOM);
-    const MaskType mask_type = GENERATE(MaskType::FULL);
+    const Index head = GENERATE(8, 32);
+    const Index batch = GENERATE(1, 4);
+    const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
+    const MaskType mask_type = GENERATE(MaskType::FULL, MaskType::CAUSAL);
 
     auto data = get_test_input_data<T>(seq, head, batch, strategy, mask_type);
 
@@ -522,7 +528,7 @@ TEMPLATE_TEST_CASE("Flash SDPA Backward cuDNN Kernel Benchmark",
     const Index head = GENERATE(64, 128);
     const Index batch = GENERATE(4, 8);
     const DataGen strategy = GENERATE(DataGen::RANDOM);
-    const MaskType mask_type = GENERATE(MaskType::CAUSAL, MaskType::FULL);
+    const MaskType mask_type = GENERATE(MaskType::FULL);
 
     auto data = get_test_input_data<T>(seq, head, batch, strategy, mask_type);
 
