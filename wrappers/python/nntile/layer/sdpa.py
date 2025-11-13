@@ -18,7 +18,6 @@ from typing import Optional
 import numpy as np
 
 import nntile.utils.constructors as nntc
-
 from nntile.functions import flash_sdpa_fwd_cudnn_async, is_tensor_of
 from nntile.layer.base_layer import BaseLayer
 from nntile.nntile_core.tensor import Tensor_bf16, Tensor_fp16, Tensor_fp32
