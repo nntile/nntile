@@ -233,8 +233,16 @@ def generate_sdpa_inputs(
         mask_tensor.from_array(mask_values)
         mask_np = mask_values == 0.0
         flash_attention = True
+    elif mask_kind == "none":
+        mask_tensor = None
+        mask_np = np.ones(
+            (params.n_seq, params.n_seq),
+            dtype=bool,
+            order="F",
+        )
+        flash_attention = True
     else:
-        raise ValueError("mask_dtype must be either 'bool' or 'float32'")
+        raise ValueError("mask_dtype must be 'bool', 'float32' or 'none'")
 
     layer = Sdpa.generate_simple(
         q=q,
@@ -373,6 +381,35 @@ class TestSDPAFlash:
         assert tuple(layer.flash_logsumexp.shape) == tuple(
             layer.q.value.shape[1:]
         )
+
+        layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+        q_ref = _flatten_sdpa_tensor(inputs["q_np"])
+        k_ref = _flatten_sdpa_tensor(inputs["k_np"])
+        v_ref = _flatten_sdpa_tensor(inputs["v_np"])
+        y_ref, _, _, _ = torch_sdpa_reference(
+            q_ref, k_ref, v_ref, inputs["mask_np"]
+        )
+
+        y_nntile = _flatten_sdpa_tensor(_tensor_to_numpy(layer.y.value))
+        tol = dtype2tol[dtype]
+        _assert_tensor_close(y_nntile, y_ref, tol)
+
+    def test_forward_without_mask(
+        self,
+        context,
+        dtype: str,
+        params: SDPAFlashTestParams,
+    ):
+        inputs = generate_sdpa_inputs(
+            dtype,
+            params,
+            require_backward=False,
+            mask_dtype="none",
+        )
+        layer = inputs["layer"]
+        assert layer.mask is None
 
         layer.forward_async()
         nntile.starpu.wait_for_all()

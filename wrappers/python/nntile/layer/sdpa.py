@@ -17,6 +17,8 @@ from typing import Optional
 
 import numpy as np
 
+import nntile.utils.constructors as nntc
+
 from nntile.functions import flash_sdpa_fwd_cudnn_async, is_tensor_of
 from nntile.layer.base_layer import BaseLayer
 from nntile.nntile_core.tensor import Tensor_bf16, Tensor_fp16, Tensor_fp32
@@ -134,6 +136,7 @@ class Sdpa(BaseLayer):
         self.val = -np.float32(np.inf)
         self.redux = 1 if redux else 0
         self.batch_ndim = len(q_shape) - 2
+        self._flash_mask = None
 
         # Validate tensor dtypes for flash attention
         if self.flash_attention:
@@ -145,6 +148,7 @@ class Sdpa(BaseLayer):
                 raise TypeError(
                     "Flash SDPA currently supports only bf16 or fp16 tensors"
                 )
+            self._flash_mask = self._init_flash_mask()
 
     def forward_async(self, effective_size=None):
         if self.flash_attention:
@@ -302,6 +306,25 @@ class Sdpa(BaseLayer):
         self.attn.value.wont_use()
         self.y.value.wont_use()
 
+    def _init_flash_mask(self):
+        mask_dtype = type(self.q.value)
+        if self.mask is not None:
+            if type(self.mask) is not mask_dtype:
+                raise TypeError(
+                    "Flash SDPA mask must match the dtype of Q/K/V tensors"
+                )
+            return self.mask
+
+        n_seq = self.q.value.shape[1]
+        mask_shape = [n_seq, n_seq]
+        mask_basetile = [
+            self.q.value.basetile_shape[1],
+            self.q.value.basetile_shape[1],
+        ]
+        mask = nntc.zeros(mask_shape, basetile_shape=mask_basetile,
+                          dtype=mask_dtype)
+        return mask
+
     def _forward_flash(self):
         if self.flash_logsumexp is None:
             raise RuntimeError("flash_logsumexp buffer is missing")
@@ -309,8 +332,9 @@ class Sdpa(BaseLayer):
         # Prepare outputs
         fill_async(np.float32("-inf"), self.flash_logsumexp)
         clear_async(self.y.value)
-
-        mask = self.mask if self.mask is not None else None
+        mask = self._flash_mask
+        if mask is None:
+            raise RuntimeError("Flash SDPA mask is not initialized")
 
         # Run the distributed Flash Attention with result accumulation
         flash_sdpa_fwd_cudnn_async(
@@ -321,6 +345,7 @@ class Sdpa(BaseLayer):
             self.v.value,
             self.y.value,
         )
+        mask.wont_use()
         self.q.value.wont_use()
         self.k.value.wont_use()
         self.v.value.wont_use()
