@@ -46,7 +46,7 @@ def parse_args():
     parser.add_argument(
         "--remote-model-name",
         type=str,
-        default="princeton-nlp/Sheared-LLaMA-1.3B"
+        default="kimihailv/llama-1.3b"
     )
     parser.add_argument(
         "--dtype",
@@ -96,14 +96,15 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(
         args.remote_model_name,
-        cache_dir=args.cache_dir
+        cache_dir=args.cache_dir,
+        local_files_only=False
     )
     model_nnt = LlamaModel.from_pretrained(
+        model_name=args.remote_model_name,
+        seq_len=args.max_seq_len,
         batch_size=1,
         batch_size_tile=1,
-        seq_len=args.max_seq_len,
         cache_dir=args.cache_dir,
-        remote_model_name=args.remote_model_name,
         dtype=args.dtype
     )
 
