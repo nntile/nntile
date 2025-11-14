@@ -291,7 +291,7 @@ def test_bench_gpt_neox_block_forward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not supported")
-    
+
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(
         params,

@@ -262,7 +262,7 @@ def test_bench_bert_forward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     params = single_tile
     num_hidden_layers = 1
     _, nntile_model, _, _ = generate_inputs(params, dtype, num_hidden_layers)
@@ -283,7 +283,7 @@ def test_bench_bert_forward_backward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     params = single_tile
     num_hidden_layers = 1
     _, nntile_model, _, _ = generate_inputs(params, dtype, num_hidden_layers)
