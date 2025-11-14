@@ -58,11 +58,13 @@ def torch_rng():
     gen.manual_seed(42)
     return gen
 
+
 @pytest.fixture(scope='function')
 def benchmark_operation(benchmark):
     def bench_fn(fn):
         return benchmark.pedantic(fn, iterations=5, rounds=10, warmup_rounds=5)
     return bench_fn
+
 
 @pytest.fixture(scope='function')
 def benchmark_model(benchmark):
@@ -70,22 +72,28 @@ def benchmark_model(benchmark):
         return benchmark.pedantic(fn, iterations=5, rounds=3, warmup_rounds=1)
     return bench_fn
 
+
 def pytest_collection_modifyitems(config, items):
     # If the user asked for benchmarks (e.g., `-m benchmark`), don't skip them
     markexpr = config.getoption("-m") or ""
     is_benchmark_run = "benchmark" in markexpr
     # Otherwise, skip every test that has the "benchmark" mark
     if not is_benchmark_run:
-        skip_bench = pytest.mark.skip(reason="Benchmark disabled. Run with: pytest -m benchmark")
+        skip_bench = pytest.mark.skip(
+            reason="Benchmark disabled. Run with: pytest -m benchmark"
+        )
         for item in items:
             if "benchmark" in item.keywords:
                 item.add_marker(skip_bench)
 
-    # Apply --dtype filtering to any parametrized tests or benchmarks that include "dtype"
+    # Apply --dtype filtering to any parametrized 
+    # tests or benchmarks that include "dtype"
     selected = config.getoption("dtypes")
     if selected:
         allowed = set(selected)
-        skip_unselected = pytest.mark.skip(reason="Filtered out by --dtype selection")
+        skip_unselected = pytest.mark.skip(
+            reason="Filtered out by --dtype selection"
+        )
         for item in items:
             callspec = getattr(item, "callspec", None)
             if callspec and "dtype" in callspec.params:
@@ -93,13 +101,24 @@ def pytest_collection_modifyitems(config, items):
                 if dtype_val not in allowed:
                     item.add_marker(skip_unselected)
 
-ALL_DTYPES = ['fp32', 'fp16', 'bf16', 'fp32_fast_tf32', 'fp32_fast_fp16', 'fp32_fast_bf16']
+
+ALL_DTYPES = [
+    'fp32',
+    'fp16',
+    'bf16',
+    'fp32_fast_tf32',
+    'fp32_fast_fp16',
+    'fp32_fast_bf16',
+]
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--dtype",
         action="append",
         dest="dtypes",
         choices=ALL_DTYPES,
-        help="Only run tests for the given dtype(s). Repeat the option to include multiple, "
+        help="Only run tests for the given dtype(s). "
+             "Repeat the option to include multiple, "
              "e.g. --dtype=bf16 --dtype=fp32.",
     )
