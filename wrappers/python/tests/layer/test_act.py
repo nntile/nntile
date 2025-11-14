@@ -206,7 +206,7 @@ def test_bench_act_forward_backward_async(
 ):
     if dtype == 'fp16' and name in ['relu', 'gelu', 'silu']:
         pytest.xfail("not implemented")
-    
+
     A_shape = [128, 128]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]

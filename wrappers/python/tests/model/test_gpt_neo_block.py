@@ -246,4 +246,3 @@ def test_bench_gpt_neo_block_forward_backward_async(
     nntile.starpu.wait_for_all()
     benchmark_model(bench_fn)
     nntile_module.unregister()
-

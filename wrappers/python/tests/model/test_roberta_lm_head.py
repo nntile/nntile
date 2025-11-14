@@ -282,4 +282,3 @@ def test_bench_roberta_lm_head_forward_backward_async(
     nntile.starpu.wait_for_all()
     benchmark_model(bench_fn)
     nntile_model.unregister()
-
