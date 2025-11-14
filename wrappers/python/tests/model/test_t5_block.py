@@ -275,13 +275,9 @@ def test_bench_t5_block_forward_async(context_cuda, benchmark_model, dtype: str)
     params = encoder_single_tile
     _, nntile_block, *_ = generate_inputs(params, dtype)
 
-    np_out = np.zeros(
-        nntile_block.activations[-1].value.shape, dtype=dtype2np[dtype], order="F"
-    )
-
     def bench_fn():
         nntile_block.forward_async()
-        nntile_block.activations[-1].value.to_array(np_out)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_model(bench_fn)
@@ -297,17 +293,8 @@ def test_bench_t5_block_forward_backward_async(context_cuda, benchmark_model, dt
     params = encoder_single_tile
     _, nntile_block, *_ = generate_inputs(params, dtype)
 
-    rng = np.random.default_rng(42)
-    np_grad = np.array(
-        rng.standard_normal(nntile_block.activations[-1].value.shape),
-        dtype=dtype2np[dtype],
-        order="F",
-    )
-
     def bench_fn():
-        nntile_block.clear_gradients()
         nntile_block.forward_async()
-        nntile_block.activations[-1].grad.from_array(np_grad)
         nntile_block.backward_async()
         nntile.starpu.wait_for_all()
 

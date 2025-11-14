@@ -37,7 +37,7 @@ dtype2nntile = {
 
 dtype2np = {
     'fp16': np.float32,
-    'bf16': np.float16,
+    'bf16': np.float32,
     'fp32': np.float32,
 }
 
@@ -406,8 +406,6 @@ def test_bench_attention_forward_async(context_cuda, benchmark_operation, dtype:
     # Define attention layer and initialize parameters
     layer = Attention.generate_simple(X_Q, X_K, X_V, n_head, n_head_tile, True)
     layer.init_randn_async()
-
-    np_out = np.zeros(X_Q_shape, dtype=np_dtype, order="F")
 
     def bench_fn():
         layer.forward_async()

@@ -38,7 +38,7 @@ dtype2nntile = {
 
 dtype2np = {
         'fp32': np.float32,
-        'bf16': np.float16,
+        'bf16': np.float32,
         'fp16': np.float32,
 }
 
@@ -264,10 +264,6 @@ def test_bench_bert_forward_async(context_cuda, benchmark_model, dtype: str):
     params = single_tile
     num_hidden_layers = 1
     _, nntile_model, _, _ = generate_inputs(params, dtype, num_hidden_layers)
-
-    np_out = np.zeros(
-        nntile_model.activations[-1].value.shape, dtype=dtype2np[dtype], order="F"
-    )
 
     def bench_fn():
         nntile_model.forward_async()

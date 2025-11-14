@@ -36,7 +36,7 @@ dtype2nntile = {
 
 dtype2np = {
         'fp32': np.float32,
-        'bf16': np.float16,
+        'bf16': np.float32,
         'fp16': np.float32,
 }
 
@@ -294,10 +294,6 @@ def test_bench_gpt_neox_block_forward_async(context_cuda, benchmark_model, dtype
         params, dtype, rotary_pct=0.5, use_parallel_residual=False, att_bias=False
     )
 
-    np_out = np.zeros(
-        nntile_layer.activations[-1].value.shape, dtype=dtype2np[dtype], order="F"
-    )
-
     def bench_fn():
         nntile_layer.forward_async()
         nntile.starpu.wait_for_all()
@@ -318,16 +314,8 @@ def test_bench_gpt_neox_block_forward_backward_async(context_cuda, benchmark_mod
         params, dtype, rotary_pct=0.5, use_parallel_residual=False, att_bias=False
     )
 
-    rng = np.random.default_rng(42)
-    np_grad = np.array(
-        rng.standard_normal(nntile_layer.activations[-1].value.shape),
-        dtype=dtype2np[dtype],
-        order="F",
-    )
-
     def bench_fn():
         nntile_layer.forward_async()
-        nntile_layer.activations[-1].grad.from_array(np_grad)
         nntile_layer.backward_async()
         nntile.starpu.wait_for_all()
 

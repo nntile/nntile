@@ -45,7 +45,7 @@ nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
 
 dtype2np = {
     'fp16': np.float32,
-    'bf16': np.float16,  # numpy lacks bfloat16
+    'bf16': np.float32,  # numpy lacks bfloat16
     'fp32': np.float32,
 }
 

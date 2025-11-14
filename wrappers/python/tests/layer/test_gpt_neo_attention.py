@@ -38,7 +38,7 @@ dtype2nntile = {
 
 dtype2np = {
     'fp16': np.float32,
-    'bf16': np.float16,
+    'bf16': np.float32,
     'fp32': np.float32,
 }
 

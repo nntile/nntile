@@ -38,7 +38,7 @@ dtype2nntile = {
 
 dtype2np = {
         'fp32': np.float32,
-        'bf16': np.float16,
+        'bf16': np.float32,
         'fp16': np.float32,
 }
 
@@ -230,13 +230,9 @@ def test_bench_gpt2_forward_async(context_cuda, benchmark_model, dtype: str):
     num_hidden_layers = 1
     _, nntile_model, _, _ = generate_inputs(params, dtype, num_hidden_layers)
 
-    np_out = np.zeros(
-        nntile_model.activations[-1].value.shape, dtype=dtype2np[dtype], order="F"
-    )
-
     def bench_fn():
         nntile_model.forward_async()
-        nntile_model.activations[-1].value.to_array(np_out)
+        nntile.starpu.wait_for_all()
 
     nntile.starpu.wait_for_all()
     benchmark_model(bench_fn)
@@ -249,18 +245,9 @@ def test_bench_gpt2_forward_backward_async(context_cuda, benchmark_model, dtype:
     params = single_tile
     num_hidden_layers = 1
     _, nntile_model, _, _ = generate_inputs(params, dtype, num_hidden_layers)
-    nntile_model.clear_gradients()
-
-    rng = np.random.default_rng(42)
-    np_grad = np.array(
-        rng.standard_normal(nntile_model.activations[-1].value.shape),
-        dtype=dtype2np[dtype],
-        order="F",
-    )
 
     def bench_fn():
         nntile_model.forward_async()
-        nntile_model.activations[-1].grad.from_array(np_grad)
         nntile_model.backward_async()
         nntile.starpu.wait_for_all()
 
