@@ -1,204 +1,344 @@
-/*! @file tests/tensor/flash_sdpa_bwd_cudnn.cc
- * Flash attention SDPA backward pass on Tensor<T>
- */
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file tests/tensor/flash_sdpa_bwd_cudnn.cc
+ * Flash attention SDPA backward operation on Tensor<T>
+ *
+ * @version 1.1.0
+ * */
 
 #include "nntile/context.hh"
 #include "nntile/tensor/flash_sdpa_bwd_cudnn.hh"
+#include "nntile/tensor/scatter.hh"
+#include "nntile/tensor/gather.hh"
 #include "nntile/tile/flash_sdpa_bwd_cudnn.hh"
+#include "nntile/starpu/config.hh"
 #include "../testing.hh"
-
-#include <vector>
-#include <iostream>
-#include <limits>
 #include <cmath>
+#include <limits>
+#include <iostream>
+#include <type_traits>
 
 using namespace nntile;
 using namespace nntile::tensor;
 
-template<typename T>
-void copy_vector_to_tensor(Tensor<T> &tensor,
-        const std::vector<typename T::repr_t> &values)
+struct FlashTensorCase
 {
-    auto tile = tensor.get_tile(0);
-    auto local = tile.acquire(STARPU_W);
-    for(Index i = 0; i < tile.nelems; ++i)
-    {
-        local[i] = T(values[i]);
-    }
-    local.release();
-}
+    Index head_size;
+    Index n_seq;
+    Index n_seq_tile;
+    Index n_batch;
+    Index batch_tile;
+    Index kv_group_size;
+    Index kv_group_tile;
+    Index n_head_kv;
+    Index head_kv_tile;
+};
 
 template<typename T>
-std::vector<typename T::repr_t> tensor_to_vector(const Tensor<T> &tensor)
-{
-    auto tile = tensor.get_tile(0);
-    auto local = tile.acquire(STARPU_R);
-    std::vector<typename T::repr_t> out(tile.nelems);
-    for(Index i = 0; i < tile.nelems; ++i)
-    {
-        out[i] = static_cast<typename T::repr_t>(local[i]);
-    }
-    local.release();
-    return out;
-}
-
-template<typename T>
-void check_single_tile()
+void check(const FlashTensorCase &cfg)
 {
     using Y = typename T::repr_t;
-    Index head = 32;
-    Index seq = 64;
-    Index batch = 1;
-    Index kv = 1;
-    Index n_head_kv = 1;
 
-    std::vector<int> dist = {0};
-    TensorTraits value_traits({head, seq, batch, kv, n_head_kv},
-                              {head, seq, batch, kv, n_head_kv});
-    TensorTraits mask_traits({seq, seq}, {seq, seq});
-    TensorTraits lse_traits({seq, batch, kv, n_head_kv},
-                            {seq, batch, kv, n_head_kv});
+    // Define tensor shapes for the current configuration
+    Index head_size = cfg.head_size;
+    Index head_size_tile = head_size; // Always equal to head_size
+    Index n_seq = cfg.n_seq;
+    Index n_seq_tile = cfg.n_seq_tile;
+    Index n_batch = cfg.n_batch;
+    Index batch_tile = cfg.batch_tile;
+    Index kv_group_size = cfg.kv_group_size;
+    Index kv_group_tile = cfg.kv_group_tile;
+    Index n_head_kv = cfg.n_head_kv;
+    Index head_kv_tile = cfg.head_kv_tile;
 
-    Tensor<T> K_a(value_traits, dist);
-    Tensor<T> Q_a(value_traits, dist);
-    Tensor<T> V_a(value_traits, dist);
-    Tensor<T> O_a(value_traits, dist);
-    Tensor<T> dO_a(value_traits, dist);
-    Tensor<T> mask_a(mask_traits, dist);
-    Tensor<fp32_t> lse_a(lse_traits, dist);
-    Tensor<T> dK_a(value_traits, dist);
-    Tensor<T> dQ_a(value_traits, dist);
-    Tensor<T> dV_a(value_traits, dist);
+    // Create single-tile tensors (assuming one tile per tensor as requested)
+    std::vector<Index> K_shape = {head_size, n_seq, n_batch, kv_group_size, n_head_kv};
+    std::vector<Index> logsumexp_shape = {n_seq, n_batch, kv_group_size, n_head_kv};
 
-    Tensor<T> K_b(value_traits, dist);
-    Tensor<T> Q_b(value_traits, dist);
-    Tensor<T> V_b(value_traits, dist);
-    Tensor<T> O_b(value_traits, dist);
-    Tensor<T> dO_b(value_traits, dist);
-    Tensor<T> mask_b(mask_traits, dist);
-    Tensor<fp32_t> lse_b(lse_traits, dist);
-    Tensor<T> dK_b(value_traits, dist);
-    Tensor<T> dQ_b(value_traits, dist);
-    Tensor<T> dV_b(value_traits, dist);
+    TensorTraits K_traits(K_shape, K_shape);
+    TensorTraits Q_traits(K_shape, K_shape);
+    TensorTraits V_traits(K_shape, K_shape);
+    TensorTraits O_traits(K_shape, K_shape);
+    TensorTraits dO_traits(K_shape, K_shape);
+    TensorTraits dK_traits(K_shape, K_shape);
+    TensorTraits dQ_traits(K_shape, K_shape);
+    TensorTraits dV_traits(K_shape, K_shape);
+    TensorTraits mask_traits({n_seq, n_seq}, {n_seq, n_seq});
+    TensorTraits logsumexp_traits(logsumexp_shape, logsumexp_shape);
 
-    auto zero_tensor = [](Tensor<T> &tensor) {
-        auto tile = tensor.get_tile(0);
-        auto local = tile.acquire(STARPU_W);
-        for(Index i = 0; i < tile.nelems; ++i)
+    // Use root rank for all tensors (single MPI rank scenario)
+    int mpi_root = 0;
+    std::vector<int> dist_root = {mpi_root};
+
+    Tensor<T> K_single(K_traits, dist_root);
+    Tensor<T> Q_single(Q_traits, dist_root);
+    Tensor<T> V_single(V_traits, dist_root);
+    Tensor<T> O_single(O_traits, dist_root);
+    Tensor<T> dO_single(dO_traits, dist_root);
+    Tensor<T> dK_single(dK_traits, dist_root);
+    Tensor<T> dQ_single(dQ_traits, dist_root);
+    Tensor<T> dV_single(dV_traits, dist_root);
+    Tensor<T> mask_single(mask_traits, dist_root);
+    Tensor<fp32_t> logsumexp_single(logsumexp_traits, dist_root);
+
+    int mpi_rank = starpu_mpi_world_rank();
+
+    if(mpi_rank == mpi_root)
+    {
+        // Initialize input data using tile operations
+        auto K_tile = K_single.get_tile(0);
+        auto Q_tile = Q_single.get_tile(0);
+        auto V_tile = V_single.get_tile(0);
+        auto O_tile = O_single.get_tile(0);
+        auto dO_tile = dO_single.get_tile(0);
+        auto dK_tile = dK_single.get_tile(0);
+        auto dQ_tile = dQ_single.get_tile(0);
+        auto dV_tile = dV_single.get_tile(0);
+        auto mask_tile = mask_single.get_tile(0);
+        auto logsumexp_tile = logsumexp_single.get_tile(0);
+
+        auto K_local = K_tile.acquire(STARPU_W);
+        auto Q_local = Q_tile.acquire(STARPU_W);
+        auto V_local = V_tile.acquire(STARPU_W);
+        auto O_local = O_tile.acquire(STARPU_W);
+        auto dO_local = dO_tile.acquire(STARPU_W);
+        auto dK_local = dK_tile.acquire(STARPU_W);
+        auto dQ_local = dQ_tile.acquire(STARPU_W);
+        auto dV_local = dV_tile.acquire(STARPU_W);
+        auto mask_local = mask_tile.acquire(STARPU_W);
+        auto logsumexp_local = logsumexp_tile.acquire(STARPU_W);
+
+        // Fill with test values
+        for(Index i = 0; i < K_tile.nelems; ++i)
         {
-            local[i] = T(typename T::repr_t(0));
+            K_local[i] = T(Y(0.1 * (i % 10 - 5)));
+            Q_local[i] = T(Y(0.1 * ((i + 1) % 10 - 5)));
+            V_local[i] = T(Y(0.1 * ((i + 2) % 10 - 5)));
+            O_local[i] = T(Y(0.1 * ((i + 3) % 10 - 5)));
+            dO_local[i] = T(Y(0.1 * ((i + 4) % 10 - 5)));
+            dK_local[i] = T(Y(0.0)); // Initialize output to zero
+            dQ_local[i] = T(Y(0.0));
+            dV_local[i] = T(Y(0.0));
         }
-        local.release();
-    };
-    zero_tensor(dK_a);
-    zero_tensor(dQ_a);
-    zero_tensor(dV_a);
-    zero_tensor(dK_b);
-    zero_tensor(dQ_b);
-    zero_tensor(dV_b);
 
-    const Index total = head * seq * batch * kv * n_head_kv;
-    std::vector<Y> host_values(total);
-    for(Index i = 0; i < total; ++i)
-    {
-        host_values[i] = Y(0.05 * ((i % 11) - 5));
-    }
-    copy_vector_to_tensor(K_a, host_values);
-    copy_vector_to_tensor(Q_a, host_values);
-    copy_vector_to_tensor(V_a, host_values);
-    copy_vector_to_tensor(K_b, host_values);
-    copy_vector_to_tensor(Q_b, host_values);
-    copy_vector_to_tensor(V_b, host_values);
-
-    // Generate O randomly
-    copy_vector_to_tensor(O_a, host_values);
-    copy_vector_to_tensor(O_b, host_values);
-
-    std::vector<Y> dO_values(total);
-    for(Index i = 0; i < total; ++i)
-    {
-        dO_values[i] = Y(0.02 * (((i + 3) % 9) - 4));
-    }
-    copy_vector_to_tensor(dO_a, dO_values);
-    copy_vector_to_tensor(dO_b, dO_values);
-
-    std::vector<Y> mask_values(seq * seq);
-    for(Index i = 0; i < seq; ++i)
-    {
-        for(Index j = 0; j < seq; ++j)
+        for(Index i = 0; i < logsumexp_tile.nelems; ++i)
         {
-            const Index idx = i * seq + j;
-            if(std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 4)
+            logsumexp_local[i] = 0.1f * ((i % 10) - 5);
+        }
+
+        // Create custom mask
+        for(Index i = 0; i < n_seq; ++i)
+        {
+            for(Index j = 0; j < n_seq; ++j)
             {
-                mask_values[idx] = Y(0);
-            }
-            else
-            {
-                mask_values[idx] = -std::numeric_limits<Y>::infinity();
+                Index idx = i * n_seq + j;
+                // Create a simple mask: allow attention within a window
+                if (std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 32)
+                {
+                    mask_local[idx] = T(Y(0.0));  // Attend
+                }
+                else
+                {
+                    mask_local[idx] = T(-std::numeric_limits<Y>::infinity());  // Mask
+                }
             }
         }
-    }
-    copy_vector_to_tensor(mask_a, mask_values);
-    copy_vector_to_tensor(mask_b, mask_values);
 
-    // Generate lse randomly
-    const Index lse_total = seq * batch * kv * n_head_kv;
-    std::vector<float> lse_values(lse_total);
-    for(Index i = 0; i < lse_total; ++i)
-    {
-        lse_values[i] = 0.1f * ((i % 10) - 5);
+        K_local.release();
+        Q_local.release();
+        V_local.release();
+        O_local.release();
+        dO_local.release();
+        dK_local.release();
+        dQ_local.release();
+        dV_local.release();
+        mask_local.release();
+        logsumexp_local.release();
     }
-    auto lse_tile_a = lse_a.get_tile(0);
-    auto lse_local_a = lse_tile_a.acquire(STARPU_W);
-    for(Index i = 0; i < lse_tile_a.nelems; ++i)
-    {
-        lse_local_a[i] = lse_values[i];
-    }
-    lse_local_a.release();
-    auto lse_tile_b = lse_b.get_tile(0);
-    auto lse_local_b = lse_tile_b.acquire(STARPU_W);
-    for(Index i = 0; i < lse_tile_b.nelems; ++i)
-    {
-        lse_local_b[i] = lse_values[i];
-    }
-    lse_local_b.release();
 
-    tensor::flash_sdpa_bwd_cudnn<T>(
-        K_a, Q_a, V_a, O_a, dO_a, mask_a, lse_a, dK_a, dQ_a, dV_a);
-
-    tile::flash_sdpa_bwd_cudnn<T>(K_b.get_tile(0), Q_b.get_tile(0), V_b.get_tile(0), O_b.get_tile(0), dO_b.get_tile(0), mask_b.get_tile(0), lse_b.get_tile(0), dK_b.get_tile(0), dQ_b.get_tile(0), dV_b.get_tile(0));
-
-    auto compare = [&](const Tensor<T> &lhs, const Tensor<T> &rhs)
+    // Build multi-tile tensors and scatter data
+    auto make_distribution = [](Index nelems)
     {
-        auto lhs_vec = tensor_to_vector(lhs);
-        auto rhs_vec = tensor_to_vector(rhs);
-        for(Index i = 0; i < static_cast<Index>(lhs_vec.size()); ++i)
+        std::vector<int> distr(nelems);
+        for(Index i = 0; i < nelems; ++i)
         {
-            float a = static_cast<float>(lhs_vec[i]);
-            float b = static_cast<float>(rhs_vec[i]);
-            const float tol = 5e-2f + 1e-2f * std::abs(a);
-            TEST_ASSERT(std::abs(a - b) <= tol);
+            distr[i] = static_cast<int>((i % 2));
         }
+        return distr;
     };
 
-    compare(dK_a, dK_b);
-    compare(dQ_a, dQ_b);
-    compare(dV_a, dV_b);
+    // Base tile shapes make it explicit what each dimension stands for
+    std::vector<Index> kv_tensor_tile_shape = {
+        head_size_tile,    // head_size tile extent
+        n_seq_tile,        // sequence length tile extent
+        batch_tile,        // batch tile extent
+        kv_group_tile,     // kv_group_size tile extent
+        head_kv_tile       // n_head_kv tile extent
+    };
+    std::vector<Index> mask_tile_shape = {
+        n_seq_tile,        // row sequence tile extent
+        n_seq_tile         // col sequence tile extent
+    };
+    std::vector<Index> logsumexp_tile_shape = {
+        n_seq_tile,        // sequence tile extent
+        batch_tile,        // batch tile extent
+        kv_group_tile,     // kv_group_size tile extent
+        head_kv_tile       // n_head_kv tile extent
+    };
 
-    std::cout << "flash_sdpa_bwd_cudnn tensor test passed for "
-              << T::short_name << std::endl;
+    TensorTraits K_multi_traits(K_shape, kv_tensor_tile_shape);
+    TensorTraits Q_multi_traits(K_shape, kv_tensor_tile_shape);
+    TensorTraits V_multi_traits(K_shape, kv_tensor_tile_shape);
+    TensorTraits O_multi_traits(K_shape, kv_tensor_tile_shape);
+    TensorTraits dO_multi_traits(K_shape, kv_tensor_tile_shape);
+    TensorTraits dK_multi_traits(K_shape, kv_tensor_tile_shape);
+    TensorTraits dQ_multi_traits(K_shape, kv_tensor_tile_shape);
+    TensorTraits dV_multi_traits(K_shape, kv_tensor_tile_shape);
+    TensorTraits mask_multi_traits({n_seq, n_seq}, mask_tile_shape);
+    TensorTraits logsumexp_multi_traits(logsumexp_shape, logsumexp_tile_shape);
+
+    auto K_distr = make_distribution(K_multi_traits.grid.nelems);
+    auto Q_distr = make_distribution(Q_multi_traits.grid.nelems);
+    auto V_distr = make_distribution(V_multi_traits.grid.nelems);
+    auto O_distr = make_distribution(O_multi_traits.grid.nelems);
+    auto dO_distr = make_distribution(dO_multi_traits.grid.nelems);
+    auto dK_distr = make_distribution(dK_multi_traits.grid.nelems);
+    auto dQ_distr = make_distribution(dQ_multi_traits.grid.nelems);
+    auto dV_distr = make_distribution(dV_multi_traits.grid.nelems);
+    auto mask_distr = make_distribution(mask_multi_traits.grid.nelems);
+    auto logsumexp_distr = make_distribution(logsumexp_multi_traits.grid.nelems);
+
+    Tensor<T> K_multi(K_multi_traits, K_distr);
+    Tensor<T> Q_multi(Q_multi_traits, Q_distr);
+    Tensor<T> V_multi(V_multi_traits, V_distr);
+    Tensor<T> O_multi(O_multi_traits, O_distr);
+    Tensor<T> dO_multi(dO_multi_traits, dO_distr);
+    Tensor<T> dK_multi(dK_multi_traits, dK_distr);
+    Tensor<T> dQ_multi(dQ_multi_traits, dQ_distr);
+    Tensor<T> dV_multi(dV_multi_traits, dV_distr);
+    Tensor<T> mask_multi(mask_multi_traits, mask_distr);
+    Tensor<fp32_t> logsumexp_multi(logsumexp_multi_traits, logsumexp_distr);
+
+    scatter<T>(K_single, K_multi);
+    scatter<T>(Q_single, Q_multi);
+    scatter<T>(V_single, V_multi);
+    scatter<T>(O_single, O_multi);
+    scatter<T>(dO_single, dO_multi);
+    scatter<T>(dK_single, dK_multi);
+    scatter<T>(dQ_single, dQ_multi);
+    scatter<T>(dV_single, dV_multi);
+    scatter<T>(mask_single, mask_multi);
+    scatter<fp32_t>(logsumexp_single, logsumexp_multi);
+
+    // Perform tensor-wise and tile-wise flash_sdpa_bwd_cudnn operations
+    if(mpi_rank == mpi_root)
+    {
+        // Call tile-level operation (reference)
+        tile::flash_sdpa_bwd_cudnn<T>(K_single.get_tile(0), Q_single.get_tile(0),
+                                     V_single.get_tile(0), O_single.get_tile(0),
+                                     dO_single.get_tile(0), mask_single.get_tile(0),
+                                     logsumexp_single.get_tile(0), dK_single.get_tile(0),
+                                     dQ_single.get_tile(0), dV_single.get_tile(0));
+    }
+
+    // Call tensor-level operation
+    flash_sdpa_bwd_cudnn<T>(K_multi, Q_multi, V_multi, O_multi, dO_multi,
+                           mask_multi, logsumexp_multi, dK_multi, dQ_multi, dV_multi);
+
+    // Compare results
+    Tensor<T> dK_multi_gather(dK_traits, dist_root);
+    Tensor<T> dQ_multi_gather(dQ_traits, dist_root);
+    Tensor<T> dV_multi_gather(dV_traits, dist_root);
+    gather<T>(dK_multi, dK_multi_gather);
+    gather<T>(dQ_multi, dQ_multi_gather);
+    gather<T>(dV_multi, dV_multi_gather);
+
+    if(mpi_rank == mpi_root)
+    {
+        auto dK_ref_tile = dK_single.get_tile(0);
+        auto dK_multi_tile = dK_multi_gather.get_tile(0);
+        auto dQ_ref_tile = dQ_single.get_tile(0);
+        auto dQ_multi_tile = dQ_multi_gather.get_tile(0);
+        auto dV_ref_tile = dV_single.get_tile(0);
+        auto dV_multi_tile = dV_multi_gather.get_tile(0);
+
+        auto dK_ref_local = dK_ref_tile.acquire(STARPU_R);
+        auto dK_multi_local = dK_multi_tile.acquire(STARPU_R);
+        auto dQ_ref_local = dQ_ref_tile.acquire(STARPU_R);
+        auto dQ_multi_local = dQ_multi_tile.acquire(STARPU_R);
+        auto dV_ref_local = dV_ref_tile.acquire(STARPU_R);
+        auto dV_multi_local = dV_multi_tile.acquire(STARPU_R);
+
+        Y eps = (std::is_same_v<T, fp16_t> || std::is_same_v<T, bf16_t>) ? Y(1e-2) : Y(1e-5);
+
+        for(Index i = 0; i < dK_single.nelems; ++i)
+        {
+            Y ref_val = Y(dK_ref_local[i]);
+            Y multi_val = Y(dK_multi_local[i]);
+            Y diff = std::abs(ref_val - multi_val);
+            Y max_val = std::max(std::abs(ref_val), std::abs(multi_val));
+            TEST_ASSERT(diff <= eps * (Y(1.0) + max_val));
+        }
+
+        for(Index i = 0; i < dQ_single.nelems; ++i)
+        {
+            Y ref_val = Y(dQ_ref_local[i]);
+            Y multi_val = Y(dQ_multi_local[i]);
+            Y diff = std::abs(ref_val - multi_val);
+            Y max_val = std::max(std::abs(ref_val), std::abs(multi_val));
+            TEST_ASSERT(diff <= eps * (Y(1.0) + max_val));
+        }
+
+        for(Index i = 0; i < dV_single.nelems; ++i)
+        {
+            Y ref_val = Y(dV_ref_local[i]);
+            Y multi_val = Y(dV_multi_local[i]);
+            Y diff = std::abs(ref_val - multi_val);
+            Y max_val = std::max(std::abs(ref_val), std::abs(multi_val));
+            TEST_ASSERT(diff <= eps * (Y(1.0) + max_val));
+        }
+
+        dK_ref_local.release();
+        dK_multi_local.release();
+        dQ_ref_local.release();
+        dQ_multi_local.release();
+        dV_ref_local.release();
+        dV_multi_local.release();
+    }
+}
+
+template<typename T>
+void validate()
+{
+    // Order: head_size, n_seq, n_seq_tile, n_batch, batch_tile,
+    //        kv_group_size, kv_group_tile, n_head_kv, head_kv_tile.
+    check<T>({32, 64, 64, 1, 1, 1, 1, 1, 1});
+    check<T>({64, 64, 64, 3, 3, 2, 2, 4, 4});
+
+    // TODO: Add exception testing later
+    // For now, just check that the basic functionality works
+
+    // Tell the user that the test passed
+    std::cout << "flash_sdpa_bwd_cudnn<" << T::short_name << "> passed\n";
 }
 
 int main(int argc, char **argv)
 {
-    (void)argc;
-    (void)argv;
-    int ncpu = 1, ncuda = 1, ooc = 0, verbose = 0;
+    // Initialize StarPU
+    int ncpu=1, ncuda=1, ooc=0, verbose=0;
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
     auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
 
-    check_single_tile<fp16_t>();
-    check_single_tile<bf16_t>();
+    // Only test FP16 and BF16 as per cuDNN limitations
+    validate<fp16_t>();
+    validate<bf16_t>();
+
     return 0;
 }
