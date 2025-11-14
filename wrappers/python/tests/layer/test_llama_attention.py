@@ -35,6 +35,13 @@ dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
+}
+
+dtype2np = {
+    'fp16': np.float32,
+    'bf16': np.float32,
+    'fp32': np.float32,
 }
 
 dtype2tol = {
@@ -384,3 +391,58 @@ def test_llama_attn_kvcache(
     nntile_layer.unregister()
     nntile_layer.x.unregister()
     nntile_layer.y.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
+def test_bench_llama_attention_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    params = single_tile
+    bias = False
+    flash_attention = False
+    _, nntile_layer, *_ = generate_inputs(dtype, params, bias, flash_attention)
+
+    nntile_layer.clear_gradients()
+    dtype2np[dtype]
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
+def test_bench_llama_attention_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    params = single_tile
+    bias = False
+    flash_attention = False
+    _, nntile_layer, *_ = generate_inputs(dtype, params, bias, flash_attention)
+
+    nntile_layer.clear_gradients()
+    rng = np.random.default_rng(42)
+    np_dtype = dtype2np[dtype]
+    np.array(
+        rng.standard_normal(nntile_layer.y.value.shape),
+        dtype=np_dtype,
+        order='F',
+    )
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

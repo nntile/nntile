@@ -32,6 +32,7 @@ from nntile.tensor import TensorMoments, TensorTraits, to_numpy
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,

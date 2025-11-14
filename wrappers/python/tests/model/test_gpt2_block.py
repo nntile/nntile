@@ -36,6 +36,12 @@ dtype2nntile = {
         'fp16': nntile.tensor.Tensor_fp16
 }
 
+dtype2np = {
+        'fp32': np.float32,
+        'bf16': np.float32,
+        'fp16': np.float32,
+}
+
 dtype2tol = {
         'fp32': {'rtol': 1e-6},
         'fp32_fast_tf32': {'rtol': 8e-4},
@@ -197,3 +203,38 @@ class TestGPT2Decoder:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gpt2_block_forward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(params, dtype)
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_layer.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gpt2_block_forward_backward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(params, dtype)
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_layer.unregister()

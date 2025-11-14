@@ -35,6 +35,13 @@ dtype2nntile = {
     "fp32": nntile.tensor.Tensor_fp32,
     "fp32_fast_tf32": nntile.tensor.Tensor_fp32_fast_tf32,
     "bf16": nntile.tensor.Tensor_bf16,
+    "fp16": nntile.tensor.Tensor_fp16,
+}
+
+dtype2np = {
+    "fp32": np.float32,
+    "bf16": np.float16,
+    "fp16": np.float32,
 }
 
 dtype2tol = {
@@ -453,3 +460,40 @@ class TestT5Model:
 
         # Clean up
         nntile_model.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_t5_forward_async(context_cuda, benchmark_model, dtype: str):
+    if dtype == 'fp16':
+        pytest.xfail("not supported")
+
+    params = single_tile
+    _, nntile_model, *_ = generate_inputs(params, dtype)
+
+    def bench_fn():
+        nntile_model.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_model.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_t5_forward_backward_async(context_cuda, benchmark_model, dtype: str):
+    if dtype == 'fp16':
+        pytest.xfail("not supported")
+
+    params = single_tile
+    _, nntile_model, *_ = generate_inputs(params, dtype)
+
+    def bench_fn():
+        nntile_model.forward_async()
+        nntile_model.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_model.unregister()

@@ -32,6 +32,13 @@ dtype2nntile = {
     "fp32": nntile.tensor.Tensor_fp32,
     "fp32_fast_tf32": nntile.tensor.Tensor_fp32_fast_tf32,
     "bf16": nntile.tensor.Tensor_bf16,
+    "fp16": nntile.tensor.Tensor_fp16,
+}
+
+dtype2np = {
+    'fp16': np.float32,
+    'bf16': np.float32,
+    'fp32': np.float32,
 }
 
 dtype2tol = {
@@ -325,3 +332,48 @@ class TestT5Attention:
         np.testing.assert_array_equal(
             buckets_unidirectional, expected_buckets_unidirectional
         )
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
+def test_bench_t5_attention_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    params = single_tile
+    is_cross_attn = False
+    _, nntile_layer, *_ = generate_inputs(params, dtype, is_cross_attn)
+
+    nntile_layer.clear_gradients()
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
+def test_bench_t5_attention_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    params = single_tile
+    is_cross_attn = False
+    _, nntile_layer, *_ = generate_inputs(params, dtype, is_cross_attn)
+
+    nntile_layer.clear_gradients()
+    np.random.default_rng(42)
+    nntile_layer.activations_output[0]
+    dtype2np[dtype]
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

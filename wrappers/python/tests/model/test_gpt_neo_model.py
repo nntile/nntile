@@ -32,8 +32,15 @@ dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16
+}
+
+dtype2np = {
+        'fp32': np.float32,
+        'bf16': np.float32,
+        'fp16': np.float32,
 }
 
 dtype2tol = {
@@ -268,3 +275,52 @@ def test_forward_dynamic(context, torch_rng,
     actual_diff = torch.norm(y_trunc_torch - y_trunc_nntile)
     upper_bound_diff = rtol * torch.norm(y_trunc_torch)
     assert actual_diff <= upper_bound_diff
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gptneo_forward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    params = single_tile
+    attn_pattern = ["local"]
+    pattern_mult = 1
+    _, nntile_model, _, _ = generate_inputs(
+        params, dtype, attn_pattern, pattern_mult
+    )
+
+    def bench_fn():
+        nntile_model.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_model.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gptneo_forward_backward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    params = single_tile
+    attn_pattern = ["local"]
+    pattern_mult = 1
+    _, nntile_model, _, _ = generate_inputs(
+        params, dtype, attn_pattern, pattern_mult
+    )
+
+    def bench_fn():
+        nntile_model.forward_async()
+        nntile_model.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_model.unregister()

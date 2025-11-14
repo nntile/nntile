@@ -31,6 +31,13 @@ dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
+}
+
+dtype2np = {
+        'fp32': np.float32,
+        'bf16': np.float32,
+        'fp16': np.float32,
 }
 
 dtype2tol = {
@@ -275,3 +282,56 @@ class TestGPTNeoXBlock:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gpt_neox_block_forward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not supported")
+
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(
+        params,
+        dtype,
+        rotary_pct=0.5,
+        use_parallel_residual=False,
+        att_bias=False,
+    )
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_layer.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gpt_neox_block_forward_backward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not supported")
+
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(
+        params,
+        dtype,
+        rotary_pct=0.5,
+        use_parallel_residual=False,
+        att_bias=False,
+    )
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_layer.unregister()

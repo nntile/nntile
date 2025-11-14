@@ -23,6 +23,19 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 
 
+dtype2nntile = {
+    'fp16': nntile.tensor.Tensor_fp16,
+    'bf16': nntile.tensor.Tensor_bf16,
+    'fp32': nntile.tensor.Tensor_fp32,
+}
+
+dtype2np = {
+    'fp16': np.float32,
+    'bf16': np.float32,
+    'fp32': np.float32,
+}
+
+
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
 def test_gap(context, dtype: np.dtype):
     if dtype == np.float32:
@@ -59,3 +72,73 @@ def test_gap(context, dtype: np.dtype):
     assert np.linalg.norm(np_Y - np_Y2) / np.linalg.norm(np_Y) <= tol
     A_moments.unregister()
     layer.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gap_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    A_shape = [128, 64, 16]
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    mpi_distr = [0]
+
+    tensor_type = dtype2nntile[dtype]
+    A = tensor_type(A_traits, mpi_distr)
+    A_grad = tensor_type(A_traits, mpi_distr)
+
+    rng = np.random.default_rng(42)
+    np_dtype = dtype2np[dtype]
+    np_A = np.array(rng.standard_normal(A_shape), dtype=np_dtype, order='F')
+    A.from_array(np_A)
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
+
+    layer = Gap_Layer.generate_simple(A_moments)
+
+    def bench_fn():
+        layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gap_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    A_shape = [128, 64, 16]
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    mpi_distr = [0]
+
+    tensor_type = dtype2nntile[dtype]
+    A = tensor_type(A_traits, mpi_distr)
+    A_grad = tensor_type(A_traits, mpi_distr)
+
+    rng = np.random.default_rng(42)
+    np_dtype = dtype2np[dtype]
+    np_A = np.array(rng.standard_normal(A_shape), dtype=np_dtype, order='F')
+    A.from_array(np_A)
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
+
+    layer = Gap_Layer.generate_simple(A_moments)
+
+    nntile.tensor.clear_async(A_grad)
+    layer.clear_gradients()
+    # forward and set grad for y
+    layer.forward_async()
+    grad_np = np.array(
+        rng.standard_normal(layer.y.value.shape),
+        dtype=np_dtype,
+        order='F',
+    )
+    layer.y.grad.from_array(grad_np)
+
+    def bench_fn():
+        layer.forward_async()
+        layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

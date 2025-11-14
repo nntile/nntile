@@ -29,10 +29,17 @@ from nntile.utils.constructors import to_numpy
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
+        'fp16': nntile.tensor.Tensor_fp16,
         'bf16': nntile.tensor.Tensor_bf16,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
+}
+
+dtype2np = {
+    'fp16': np.float32,
+    'bf16': np.float32,
+    'fp32': np.float32,
 }
 
 dtype2tol = {
@@ -348,3 +355,36 @@ def test_kvcache(context, numpy_rng, n_head, n_head_tile):
         outs_dyn_np,
         err_msg="test_kvcache: Dynamic does not match static",
     )
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
+def test_bench_gpt_neo_attention_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(dtype, params)
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
+def test_bench_gpt_neo_attention_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(dtype, params)
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

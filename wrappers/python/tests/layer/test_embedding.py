@@ -26,6 +26,18 @@ Tensor = {
     np.float64: nntile.tensor.Tensor_fp64,
 }
 
+dtype2nntile = {
+    'fp16': nntile.tensor.Tensor_fp16,
+    'bf16': nntile.tensor.Tensor_bf16,
+    'fp32': nntile.tensor.Tensor_fp32,
+}
+
+dtype2np = {
+    'fp16': np.float32,
+    'bf16': np.float32,
+    'fp32': np.float32,
+}
+
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
 def test_embedding(context, dtype: np.dtype):
@@ -146,3 +158,110 @@ def test_embedding_dynamic(context, numpy_rng, dtype):
     torch_dyn_embed = torch_layer(torch_dyn_index)
 
     assert_equal(torch_dyn_embed.data.numpy(), nntile_dyn_embed)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
+def test_bench_embedding_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    index_shape = [64, 32, 16]
+    vocab_size = 2048
+    emb_size = 128
+    emb_size_tile = emb_size
+    axis = len(index_shape)
+
+    index_traits = nntile.tensor.TensorTraits(index_shape, index_shape)
+    mpi_distr = [0]
+    nntile_index = nntile.tensor.Tensor_int64(index_traits, mpi_distr)
+
+    rng = np.random.default_rng(42)
+    np_index = np.array(
+        rng.integers(0, vocab_size, index_shape),
+        dtype=np.int64,
+        order="F",
+    )
+    nntile_index.from_array(np_index)
+
+    layer = Embedding.generate_simple(
+        nntile_index,
+        dtype2nntile[dtype],
+        axis,
+        vocab_size,
+        emb_size,
+        emb_size_tile,
+        emb_size_tile,
+    )
+
+    np_vocab = np.array(
+        rng.standard_normal((emb_size, vocab_size)),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
+    layer.w.value.from_array(np_vocab)
+
+    def bench_fn():
+        layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
+def test_bench_embedding_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    index_shape = [64, 32, 16]
+    vocab_size = 2048
+    emb_size = 128
+    emb_size_tile = emb_size
+    axis = len(index_shape)
+
+    index_traits = nntile.tensor.TensorTraits(index_shape, index_shape)
+    mpi_distr = [0]
+    nntile_index = nntile.tensor.Tensor_int64(index_traits, mpi_distr)
+
+    rng = np.random.default_rng(42)
+    np_index = np.array(
+        rng.integers(0, vocab_size, index_shape),
+        dtype=np.int64,
+        order="F",
+    )
+    nntile_index.from_array(np_index)
+
+    layer = Embedding.generate_simple(
+        nntile_index,
+        dtype2nntile[dtype],
+        axis,
+        vocab_size,
+        emb_size,
+        emb_size_tile,
+        emb_size_tile,
+    )
+
+    np_vocab = np.array(
+        rng.standard_normal((emb_size, vocab_size)),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
+    layer.w.value.from_array(np_vocab)
+
+    # forward once and set grad
+    layer.forward_async()
+    grad_np = np.array(
+        rng.standard_normal(layer.y.value.shape),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
+    layer.y.grad.from_array(grad_np)
+    nntile.tensor.clear_async(layer.w.grad)
+
+    def bench_fn():
+        layer.forward_async()
+        layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

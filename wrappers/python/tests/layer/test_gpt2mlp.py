@@ -13,6 +13,7 @@
 # @version 1.1.0
 
 import numpy as np
+import pytest
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -22,6 +23,12 @@ import nntile.utils.constructors as nntc
 from gpt2_config import GPT2Config
 from huggingface_activations import ACT2FN
 from nntile.model.gpt2 import GPT2MLP as GPT2MLP_nntile
+
+dtype2np = {
+    'fp16': np.float32,
+    'bf16': np.float32,
+    'fp32': np.float32,
+}
 
 
 class Conv1D(nn.Module):
@@ -212,3 +219,116 @@ def test_gpt2mlp_dynamic(
 
     gpt2mlp_nntile.unregister()
     x.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
+def test_bench_gpt2mlp_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    device = "cuda"
+    gpt2_config = GPT2Config(activation_function="relu", resid_pdrop=0.0)
+
+    input_dim = gpt2_config.n_embd
+    input_dim_tile = input_dim
+    interm_size = 512
+    interm_size_tile = 512
+    batch_size = 64
+
+    gpt2mlp_hug = GPT2MLP(interm_size, gpt2_config).to(device)
+
+    rng = np.random.default_rng(42)
+    test_input_np = rng.standard_normal(
+        (input_dim, batch_size)
+    ).astype(np.float32, "F")
+
+    x_traits = nntile.tensor.TensorTraits(
+        [input_dim, batch_size], [input_dim_tile, batch_size]
+    )
+    x_distr = [0] * x_traits.grid.nelems
+    x = nntile.tensor.Tensor_fp32(x_traits, x_distr)
+    x.from_array(test_input_np)
+    x_moments = nntile.tensor.TensorMoments(x, None, False)
+
+    nntile_config = {
+        "embed_dim": input_dim,
+        "embed_dim_tile": input_dim_tile,
+        "inner_dim": interm_size,
+        "inner_dim_tile": interm_size_tile,
+        "interm_size": interm_size,
+        "interm_size_tile": interm_size_tile,
+        "activation_function": gpt2_config.activation_function,
+        "redux": False,
+    }
+
+    gpt2mlp_nntile = GPT2MLP_nntile.from_torch(
+        gpt2mlp_hug, x_moments, nntile_config
+    )
+
+    def bench_fn():
+        gpt2mlp_nntile.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
+def test_bench_gpt2mlp_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    device = "cuda"
+    gpt2_config = GPT2Config(activation_function="relu", resid_pdrop=0.0)
+
+    input_dim = gpt2_config.n_embd
+    input_dim_tile = input_dim
+    interm_size = 512
+    interm_size_tile = 512
+    batch_size = 64
+
+    gpt2mlp_hug = GPT2MLP(interm_size, gpt2_config).to(device)
+
+    rng = np.random.default_rng(42)
+    test_input_np = rng.standard_normal(
+        (input_dim, batch_size)
+    ).astype(np.float32, "F")
+
+    x_traits = nntile.tensor.TensorTraits(
+        [input_dim, batch_size], [input_dim_tile, batch_size]
+    )
+    x_distr = [0] * x_traits.grid.nelems
+    x = nntile.tensor.Tensor_fp32(x_traits, x_distr)
+    x_grad = None
+    x_moments = nntile.tensor.TensorMoments(x, x_grad, False)
+    x.from_array(test_input_np)
+
+    nntile_config = {
+        "embed_dim": input_dim,
+        "embed_dim_tile": input_dim_tile,
+        "inner_dim": interm_size,
+        "inner_dim_tile": interm_size_tile,
+        "interm_size": interm_size,
+        "interm_size_tile": interm_size_tile,
+        "activation_function": gpt2_config.activation_function,
+        "redux": False,
+    }
+
+    gpt2mlp_nntile = GPT2MLP_nntile.from_torch(
+        gpt2mlp_hug, x_moments, nntile_config
+    )
+
+    gpt2mlp_nntile.clear_gradients()
+    # forward once and prepare grad
+    gpt2mlp_nntile.forward_async()
+    out_tm = gpt2mlp_nntile.activations[-1]
+    np_dtype = dtype2np[dtype]
+    grad_np = np.ones(out_tm.value.shape, dtype=np_dtype, order="F")
+    out_tm.grad.from_array(grad_np)
+
+    def bench_fn():
+        gpt2mlp_nntile.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

@@ -32,7 +32,13 @@ dtype2nntile = {
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
+}
 
+dtype2np = {
+        'fp32': np.float32,
+        'bf16': np.float32,
+        'fp16': np.float32,
 }
 
 dtype2tol = {
@@ -224,3 +230,53 @@ class TestBertLayer:
              torch_layer_other.attention.self.value.bias.grad])
         assert torch.norm(bias_grad_torch - bias_grad_nntile) <= \
             rtol * torch.norm(bias_grad_torch)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_bert_layer_forward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(dtype, params)
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_layer.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_bert_layer_forward_backward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(dtype, params)
+
+    rng = np.random.default_rng(42)
+    np_grad = np.array(
+        rng.standard_normal(nntile_layer.activations[-1].value.shape),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
+
+    def bench_fn():
+        nntile_layer.clear_gradients()
+        nntile_layer.forward_async()
+        nntile_layer.activations[-1].grad.from_array(np_grad)
+        nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_layer.unregister()
