@@ -215,7 +215,7 @@ def test_bench_rmsnorm_forward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     A_shape = [256, 256]
     eps = 1e-5
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
@@ -260,7 +260,7 @@ def test_bench_rmsnorm_forward_backward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     A_shape = [256, 256]
     eps = 1e-5
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)

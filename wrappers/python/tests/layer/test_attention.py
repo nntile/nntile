@@ -364,7 +364,7 @@ def test_bench_attention_forward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     n_emb = 64
     n_emb_k = 64
     n_emb_v = 64
@@ -443,7 +443,7 @@ def test_bench_attention_forward_backward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     n_emb = 64
     n_emb_k = 64
     n_emb_v = 64

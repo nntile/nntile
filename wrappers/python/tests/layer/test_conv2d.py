@@ -215,7 +215,7 @@ def test_bench_conv2d_forward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     in_channels, out_channels = 8, 8
     kernel = (3, 3)
     H_in, W_in = 128, 128
@@ -262,7 +262,7 @@ def test_bench_conv2d_forward_backward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     in_channels, out_channels = 8, 8
     kernel = (3, 3)
     H_in, W_in = 128, 128

@@ -259,7 +259,7 @@ def test_bench_bert_encoder_forward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(dtype, params, num_hidden_layers=1)
 
@@ -279,7 +279,7 @@ def test_bench_bert_encoder_forward_backward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(dtype, params, num_hidden_layers=1)
 

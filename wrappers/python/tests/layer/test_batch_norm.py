@@ -197,7 +197,7 @@ def test_bench_batchnorm2d_forward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     shape = (4, 4, 64, 64)
 
     # Build input tensor and moments
@@ -228,10 +228,10 @@ def test_bench_batchnorm2d_forward_async(
 @pytest.mark.parametrize('dtype', ['fp32', 'bf16', 'fp16'])
 def test_bench_batchnorm2d_forward_backward_async(
         context_cuda, numpy_rng, benchmark_operation, dtype: str,
-):    
+):
     if dtype == 'fp16' or dtype == 'bf16':
         pytest.xfail("not implemented")
-    
+
     params = BatchNormTestParams((4, 5, 10, 10), dtype2np[dtype])
     shape = params.shape
 

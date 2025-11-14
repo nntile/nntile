@@ -400,7 +400,7 @@ def test_bench_llama_attention_forward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     params = single_tile
     bias = False
     flash_attention = False
@@ -424,7 +424,7 @@ def test_bench_llama_attention_forward_backward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     params = single_tile
     bias = False
     flash_attention = False

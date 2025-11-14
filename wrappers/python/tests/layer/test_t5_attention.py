@@ -360,7 +360,7 @@ def test_bench_t5_attention_forward_backward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     params = single_tile
     is_cross_attn = False
     _, nntile_layer, *_ = generate_inputs(params, dtype, is_cross_attn)

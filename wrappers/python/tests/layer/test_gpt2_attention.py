@@ -232,7 +232,7 @@ def test_bench_gpt2_attention_forward_backward_async(
 ):
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(dtype, params)
-    
+
     def bench_fn():
         nntile_layer.forward_async()
         nntile_layer.backward_async()

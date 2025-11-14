@@ -370,7 +370,7 @@ def test_bench_gpt_neox_attention_forward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     params = single_tile
     rotary_pct = 0.5
     att_bias = False
@@ -391,7 +391,7 @@ def test_bench_gpt_neox_attention_forward_backward_async(
 ):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
-    
+
     params = single_tile
     rotary_pct = 0.5
     att_bias = False

@@ -432,7 +432,7 @@ def test_linear_flops(context, side: str, x_shape, w_shape, b_shape,
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('side,x_shape,w_shape', 
+@pytest.mark.parametrize('side,x_shape,w_shape',
                         [
                             ('L', [128, 128], [128, 128]),
                             # ('L', [512, 512], [512, 512]),
@@ -465,7 +465,7 @@ def test_bench_linear_forward_async(
     np_W = np.array(rand_W, dtype=np_dtype, order='F')
     layer.w.value.from_array(np_W)
     # nntile.tensor.clear_async(layer.w.grad)
-    
+
     def bench_fn():
         layer.forward_async()
         nntile.starpu.wait_for_all()
@@ -475,7 +475,7 @@ def test_bench_linear_forward_async(
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize('side,x_shape,w_shape', 
+@pytest.mark.parametrize('side,x_shape,w_shape',
                         [('L', [128, 128], [128, 128])]
                         )
 @pytest.mark.parametrize('dtype', ['fp32'])
