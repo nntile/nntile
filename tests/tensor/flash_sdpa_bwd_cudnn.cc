@@ -4,9 +4,7 @@
 
 #include "nntile/context.hh"
 #include "nntile/tensor/flash_sdpa_bwd_cudnn.hh"
-#include "nntile/tensor/flash_sdpa_fwd_cudnn.hh"
-#include "nntile/starpu/flash_sdpa_bwd_cudnn.hh"
-#include "nntile/starpu/config.hh"
+#include "nntile/tile/flash_sdpa_bwd_cudnn.hh"
 #include "../testing.hh"
 
 #include <vector>
@@ -49,7 +47,7 @@ void check_single_tile()
 {
     using Y = typename T::repr_t;
     Index head = 32;
-    Index seq = 32;
+    Index seq = 64;
     Index batch = 1;
     Index kv = 1;
     Index n_head_kv = 1;
@@ -112,6 +110,10 @@ void check_single_tile()
     copy_vector_to_tensor(Q_b, host_values);
     copy_vector_to_tensor(V_b, host_values);
 
+    // Generate O randomly
+    copy_vector_to_tensor(O_a, host_values);
+    copy_vector_to_tensor(O_b, host_values);
+
     std::vector<Y> dO_values(total);
     for(Index i = 0; i < total; ++i)
     {
@@ -139,32 +141,32 @@ void check_single_tile()
     copy_vector_to_tensor(mask_a, mask_values);
     copy_vector_to_tensor(mask_b, mask_values);
 
-    tensor::flash_sdpa_fwd_cudnn<T>(K_a, Q_a, mask_a, lse_a, V_a, O_a);
-    tensor::flash_sdpa_fwd_cudnn<T>(K_b, Q_b, mask_b, lse_b, V_b, O_b);
+    // Generate lse randomly
+    const Index lse_total = seq * batch * kv * n_head_kv;
+    std::vector<float> lse_values(lse_total);
+    for(Index i = 0; i < lse_total; ++i)
+    {
+        lse_values[i] = 0.1f * ((i % 10) - 5);
+    }
+    auto lse_tile_a = lse_a.get_tile(0);
+    auto lse_local_a = lse_tile_a.acquire(STARPU_W);
+    for(Index i = 0; i < lse_tile_a.nelems; ++i)
+    {
+        lse_local_a[i] = lse_values[i];
+    }
+    lse_local_a.release();
+    auto lse_tile_b = lse_b.get_tile(0);
+    auto lse_local_b = lse_tile_b.acquire(STARPU_W);
+    for(Index i = 0; i < lse_tile_b.nelems; ++i)
+    {
+        lse_local_b[i] = lse_values[i];
+    }
+    lse_local_b.release();
 
     tensor::flash_sdpa_bwd_cudnn<T>(
         K_a, Q_a, V_a, O_a, dO_a, mask_a, lse_a, dK_a, dQ_a, dV_a);
 
-    auto &K_handle = K_b.get_tile_handle(0);
-    auto &Q_handle = Q_b.get_tile_handle(0);
-    auto &V_handle = V_b.get_tile_handle(0);
-    auto &O_handle = O_b.get_tile_handle(0);
-    auto &dO_handle = dO_b.get_tile_handle(0);
-    auto &mask_handle = mask_b.get_tile_handle(0);
-    auto &lse_handle = lse_b.get_tile_handle(0);
-    auto &dK_handle = dK_b.get_tile_handle(0);
-    auto &dQ_handle = dQ_b.get_tile_handle(0);
-    auto &dV_handle = dV_b.get_tile_handle(0);
-
-    starpu::flash_sdpa_bwd_cudnn.restrict_where(STARPU_CUDA);
-    starpu::flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(
-        seq, head, batch * kv * n_head_kv,
-        K_handle, Q_handle, V_handle,
-        O_handle, dO_handle,
-        mask_handle, lse_handle,
-        dK_handle, dQ_handle, dV_handle);
-    starpu_task_wait_for_all();
-    starpu_mpi_wait_for_all(MPI_COMM_WORLD);
+    tile::flash_sdpa_bwd_cudnn<T>(K_b.get_tile(0), Q_b.get_tile(0), V_b.get_tile(0), O_b.get_tile(0), dO_b.get_tile(0), mask_b.get_tile(0), lse_b.get_tile(0), dK_b.get_tile(0), dQ_b.get_tile(0), dV_b.get_tile(0));
 
     auto compare = [&](const Tensor<T> &lhs, const Tensor<T> &rhs)
     {
