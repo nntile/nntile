@@ -257,7 +257,9 @@ class TestBertModel:
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
-def test_bench_bert_forward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_bert_forward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
     
@@ -276,7 +278,9 @@ def test_bench_bert_forward_async(context_cuda, benchmark_model, dtype: str):
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
-def test_bench_bert_forward_backward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_bert_forward_backward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
     

@@ -359,12 +359,11 @@ def test_kvcache(context, numpy_rng, n_head, n_head_tile):
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
-def test_bench_gpt_neo_attention_forward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_gpt_neo_attention_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(dtype, params)
-
-    np_dtype = dtype2np[dtype]
-    out_np = np.zeros(nntile_layer.y.value.shape, dtype=np_dtype, order='F')
 
     def bench_fn():
         nntile_layer.forward_async()
@@ -376,14 +375,11 @@ def test_bench_gpt_neo_attention_forward_async(context_cuda, benchmark_operation
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
-def test_bench_gpt_neo_attention_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_gpt_neo_attention_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(dtype, params)
-
-    nntile_layer.clear_gradients()
-    rng = np.random.default_rng(42)
-    np_dtype = dtype2np[dtype]
-    grad_np = np.array(rng.standard_normal(nntile_layer.y.value.shape), dtype=np_dtype, order='F')
 
     def bench_fn():
         nntile_layer.forward_async()

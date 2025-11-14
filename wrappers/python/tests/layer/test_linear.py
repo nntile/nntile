@@ -38,6 +38,7 @@ dtype2np = {
     'fp32': np.float32,
 }
 
+
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
 @pytest.mark.parametrize('side', ['L', 'R'])
 def test_linear(context, side: str, dtype: np.dtype):
@@ -429,6 +430,7 @@ def test_linear_flops(context, side: str, x_shape, w_shape, b_shape,
     A_moments.unregister()
     layer.unregister()
 
+
 @pytest.mark.benchmark
 @pytest.mark.parametrize('side,x_shape,w_shape', 
                         [
@@ -437,7 +439,10 @@ def test_linear_flops(context, side: str, x_shape, w_shape, b_shape,
                          ]
                         )
 @pytest.mark.parametrize('dtype', ['fp32'])
-def test_bench_linear_forward_async(context_cuda, benchmark_operation, x_shape, w_shape, side: str, dtype: str):
+def test_bench_linear_forward_async(
+        context_cuda, benchmark_operation, x_shape, w_shape,
+        side: str, dtype: str,
+):
     A_shape = x_shape
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
@@ -461,12 +466,6 @@ def test_bench_linear_forward_async(context_cuda, benchmark_operation, x_shape, 
     layer.w.value.from_array(np_W)
     # nntile.tensor.clear_async(layer.w.grad)
     
-    match side:
-        case 'L':
-            np_Y = np.tensordot(np_A, np_W, 2)
-        case 'R':
-            np_Y = np.tensordot(np_W, np_A, 2)    
-
     def bench_fn():
         layer.forward_async()
         nntile.starpu.wait_for_all()
@@ -480,7 +479,10 @@ def test_bench_linear_forward_async(context_cuda, benchmark_operation, x_shape, 
                         [('L', [128, 128], [128, 128])]
                         )
 @pytest.mark.parametrize('dtype', ['fp32'])
-def test_bench_linear_forward_backward_async(context_cuda, benchmark_operation, x_shape, w_shape, side: str, dtype: str):
+def test_bench_linear_forward_backward_async(
+        context_cuda, benchmark_operation, x_shape, w_shape,
+        side: str, dtype: str,
+):
     A_shape = x_shape
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]

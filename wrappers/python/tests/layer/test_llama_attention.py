@@ -395,7 +395,9 @@ def test_llama_attn_kvcache(
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
-def test_bench_llama_attention_forward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_llama_attention_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
     
@@ -405,8 +407,7 @@ def test_bench_llama_attention_forward_async(context_cuda, benchmark_operation, 
     _, nntile_layer, *_ = generate_inputs(dtype, params, bias, flash_attention)
 
     nntile_layer.clear_gradients()
-    np_dtype = dtype2np[dtype]
-    out_np = np.zeros(nntile_layer.y.value.shape, dtype=np_dtype, order='F')
+    dtype2np[dtype]
 
     def bench_fn():
         nntile_layer.forward_async()
@@ -418,7 +419,9 @@ def test_bench_llama_attention_forward_async(context_cuda, benchmark_operation, 
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
-def test_bench_llama_attention_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_llama_attention_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
     
@@ -430,7 +433,11 @@ def test_bench_llama_attention_forward_backward_async(context_cuda, benchmark_op
     nntile_layer.clear_gradients()
     rng = np.random.default_rng(42)
     np_dtype = dtype2np[dtype]
-    grad_np = np.array(rng.standard_normal(nntile_layer.y.value.shape), dtype=np_dtype, order='F')
+    np.array(
+        rng.standard_normal(nntile_layer.y.value.shape),
+        dtype=np_dtype,
+        order='F',
+    )
 
     def bench_fn():
         nntile_layer.forward_async()

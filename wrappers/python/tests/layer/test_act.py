@@ -40,6 +40,7 @@ dtype2np = {
     'fp32': np.float32,
 }
 
+
 def setup(name: str, dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [4, 5, 6]
@@ -167,7 +168,9 @@ class TestAct:
 @pytest.mark.benchmark
 @pytest.mark.parametrize("name", ["relu", "gelu", "gelutanh", "silu"])
 @pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
-def test_bench_act_forward_async(context_cuda, benchmark_operation, name: str, dtype: str):    
+def test_bench_act_forward_async(
+        context_cuda, benchmark_operation, name: str, dtype: str,
+):
     A_shape = [128, 128]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
@@ -187,8 +190,6 @@ def test_bench_act_forward_async(context_cuda, benchmark_operation, name: str, d
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     layer = Act.generate_simple(A_moments, name)
 
-    np_out = np.zeros_like(np_A, order="F")
-
     def bench_fn():
         layer.forward_async()
         nntile.starpu.wait_for_all()
@@ -196,10 +197,13 @@ def test_bench_act_forward_async(context_cuda, benchmark_operation, name: str, d
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
+
 @pytest.mark.benchmark
 @pytest.mark.parametrize("name", ["relu", "gelu", "gelutanh", "silu"])
 @pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
-def test_bench_act_forward_backward_async(context_cuda, benchmark_operation, name: str, dtype: str):
+def test_bench_act_forward_backward_async(
+        context_cuda, benchmark_operation, name: str, dtype: str,
+):
     if dtype == 'fp16' and name in ['relu', 'gelu', 'silu']:
         pytest.xfail("not implemented")
     

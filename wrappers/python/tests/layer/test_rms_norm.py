@@ -35,6 +35,7 @@ dtype2np = {
     'fp32': np.float32,
 }
 
+
 class RMSNorm(torch.nn.Module):
     """See `original`_ implementation.
 
@@ -209,7 +210,9 @@ def test_rms_norm_dynamic(context, numpy_rng, dtype: np.dtype):
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
-def test_bench_rmsnorm_forward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_rmsnorm_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
     
@@ -225,15 +228,22 @@ def test_bench_rmsnorm_forward_async(context_cuda, benchmark_operation, dtype: s
 
     rng = np.random.default_rng(42)
     np_dtype = dtype2np[dtype]
-    np_A = np.array(rng.standard_normal(size=A_shape), dtype=np_dtype, order='F')
+    np_A = np.array(
+        rng.standard_normal(size=A_shape),
+        dtype=np_dtype,
+        order='F',
+    )
     A.value.from_array(np_A)
-    np_gamma = np.array(rng.standard_normal(size=A_shape[-1]), dtype=np_dtype, order='F')
+    np_gamma = np.array(
+        rng.standard_normal(size=A_shape[-1]),
+        dtype=np_dtype,
+        order='F',
+    )
 
     layer = nntile.layer.RMSNorm.generate_simple(A, len(A_shape) - 1, eps)
     layer.gamma.value.from_array(np_gamma)
 
     layer.clear_gradients()
-    out_np = np.zeros_like(np_A, order='F')
 
     def bench_fn():
         layer.forward_async()
@@ -242,9 +252,12 @@ def test_bench_rmsnorm_forward_async(context_cuda, benchmark_operation, dtype: s
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
+
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
-def test_bench_rmsnorm_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_rmsnorm_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
     
@@ -260,15 +273,27 @@ def test_bench_rmsnorm_forward_backward_async(context_cuda, benchmark_operation,
 
     rng = np.random.default_rng(42)
     np_dtype = dtype2np[dtype]
-    np_A = np.array(rng.standard_normal(size=A_shape), dtype=np_dtype, order='F')
+    np_A = np.array(
+        rng.standard_normal(size=A_shape),
+        dtype=np_dtype,
+        order='F',
+    )
     A.value.from_array(np_A)
-    np_gamma = np.array(rng.standard_normal(size=A_shape[-1]), dtype=np_dtype, order='F')
+    np_gamma = np.array(
+        rng.standard_normal(size=A_shape[-1]),
+        dtype=np_dtype,
+        order='F',
+    )
 
     layer = nntile.layer.RMSNorm.generate_simple(A, len(A_shape) - 1, eps)
     layer.gamma.value.from_array(np_gamma)
 
     layer.clear_gradients()
-    grad_np = np.array(rng.standard_normal(size=A_shape), dtype=np_dtype, order='F')
+    np.array(
+        rng.standard_normal(size=A_shape),
+        dtype=np_dtype,
+        order='F',
+    )
 
     def bench_fn():
         layer.forward_async()

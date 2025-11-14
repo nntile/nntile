@@ -279,14 +279,18 @@ def test_forward_dynamic(context, torch_rng,
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
-def test_bench_gptneo_forward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_gptneo_forward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
 
     params = single_tile
     attn_pattern = ["local"]
     pattern_mult = 1
-    _, nntile_model, _, _ = generate_inputs(params, dtype, attn_pattern, pattern_mult)
+    _, nntile_model, _, _ = generate_inputs(
+        params, dtype, attn_pattern, pattern_mult
+    )
 
     def bench_fn():
         nntile_model.forward_async()
@@ -299,14 +303,18 @@ def test_bench_gptneo_forward_async(context_cuda, benchmark_model, dtype: str):
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
-def test_bench_gptneo_forward_backward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_gptneo_forward_backward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
 
     params = single_tile
     attn_pattern = ["local"]
     pattern_mult = 1
-    _, nntile_model, _, _ = generate_inputs(params, dtype, attn_pattern, pattern_mult)
+    _, nntile_model, _, _ = generate_inputs(
+        params, dtype, attn_pattern, pattern_mult
+    )
 
     def bench_fn():
         nntile_model.forward_async()

@@ -49,6 +49,7 @@ dtype2np = {
     'fp32': np.float32,
 }
 
+
 def generate_inputs(numpy_rng, dtype: str, in_channels: int, out_channels: int,
         kernel: Sequence[int], H_in: int, H_in_tile: int, W_in: int,
         W_in_tile: int, batch: int, batch_tile: int, padding: Sequence[int],
@@ -209,7 +210,9 @@ class TestConv2d:
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
-def test_bench_conv2d_forward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_conv2d_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
     
@@ -235,12 +238,14 @@ def test_bench_conv2d_forward_async(context_cuda, benchmark_operation, dtype: st
     X = TensorMoments(x_value, x_grad, grad_required=True)
 
     rng = np.random.default_rng(42)
-    x_nntile = np.array(rng.standard_normal(x_shape), dtype=dtype2np[dtype], order="F")
+    x_nntile = np.array(
+        rng.standard_normal(x_shape),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
     x_value.from_array(x_nntile)
 
     nntile_layer = nntile.layer.Conv2d.from_torch(torch_layer, X)
-
-    out_np = np.zeros(nntile_layer.y.value.shape, dtype=dtype2np[dtype], order="F")
 
     def bench_fn():
         nntile_layer.forward_async()
@@ -252,7 +257,9 @@ def test_bench_conv2d_forward_async(context_cuda, benchmark_operation, dtype: st
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
-def test_bench_conv2d_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_conv2d_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
     
@@ -278,7 +285,11 @@ def test_bench_conv2d_forward_backward_async(context_cuda, benchmark_operation, 
     X = TensorMoments(x_value, x_grad, grad_required=True)
 
     rng = np.random.default_rng(42)
-    x_nntile = np.array(rng.standard_normal(x_shape), dtype=dtype2np[dtype], order="F")
+    x_nntile = np.array(
+        rng.standard_normal(x_shape),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
     x_value.from_array(x_nntile)
 
     nntile_layer = nntile.layer.Conv2d.from_torch(torch_layer, X)
@@ -286,7 +297,11 @@ def test_bench_conv2d_forward_backward_async(context_cuda, benchmark_operation, 
     nntile_layer.clear_gradients()
     # forward once and set grad
     nntile_layer.forward_async()
-    grad_np = np.array(rng.standard_normal(nntile_layer.y.value.shape), dtype=dtype2np[dtype], order="F")
+    grad_np = np.array(
+        rng.standard_normal(nntile_layer.y.value.shape),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
     nntile_layer.y.grad.from_array(grad_np)
 
     def bench_fn():

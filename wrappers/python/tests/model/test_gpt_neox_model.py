@@ -372,7 +372,9 @@ def test_forward_dynamic(context, torch_rng,
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
-def test_bench_gptneox_forward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_gptneox_forward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not supported")
 
@@ -382,7 +384,12 @@ def test_bench_gptneox_forward_async(context_cuda, benchmark_model, dtype: str):
     use_parallel_residual = False
     att_bias = False
     _, nntile_model, *_ = generate_inputs(
-        params, dtype, num_hidden_layers, rotary_pct, use_parallel_residual, att_bias
+        params,
+        dtype,
+        num_hidden_layers,
+        rotary_pct,
+        use_parallel_residual,
+        att_bias,
     )
 
     def bench_fn():
@@ -396,7 +403,9 @@ def test_bench_gptneox_forward_async(context_cuda, benchmark_model, dtype: str):
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
-def test_bench_gptneox_forward_backward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_gptneox_forward_backward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not supported")
 
@@ -406,7 +415,12 @@ def test_bench_gptneox_forward_backward_async(context_cuda, benchmark_model, dty
     use_parallel_residual = False
     att_bias = False
     _, nntile_model, *_ = generate_inputs(
-        params, dtype, num_hidden_layers, rotary_pct, use_parallel_residual, att_bias
+        params,
+        dtype,
+        num_hidden_layers,
+        rotary_pct,
+        use_parallel_residual,
+        att_bias,
     )
 
     def bench_fn():

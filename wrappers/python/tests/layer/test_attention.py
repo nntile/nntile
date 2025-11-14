@@ -41,6 +41,7 @@ dtype2np = {
     'fp32': np.float32,
 }
 
+
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
 def test_attention(context, dtype: np.dtype):
     n_emb = 128
@@ -358,7 +359,9 @@ def test_kvcache(context, numpy_rng, n_head, n_head_tile):
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
-def test_bench_attention_forward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_attention_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
     
@@ -392,11 +395,29 @@ def test_bench_attention_forward_async(context_cuda, benchmark_operation, dtype:
     # Set initial values for inputs
     rng = np.random.default_rng(42)
     np_dtype = dtype2np[dtype]
-    X_Q_value.from_array(np.array(rng.standard_normal(X_Q_shape), dtype=np_dtype, order="F"))
+    X_Q_value.from_array(
+        np.array(
+            rng.standard_normal(X_Q_shape),
+            dtype=np_dtype,
+            order="F",
+        )
+    )
     nntile.tensor.clear_async(X_Q_grad)
-    X_K_value.from_array(np.array(rng.standard_normal(X_K_shape), dtype=np_dtype, order="F"))
+    X_K_value.from_array(
+        np.array(
+            rng.standard_normal(X_K_shape),
+            dtype=np_dtype,
+            order="F",
+        )
+    )
     nntile.tensor.clear_async(X_K_grad)
-    X_V_value.from_array(np.array(rng.standard_normal(X_V_shape), dtype=np_dtype, order="F"))
+    X_V_value.from_array(
+        np.array(
+            rng.standard_normal(X_V_shape),
+            dtype=np_dtype,
+            order="F",
+        )
+    )
     nntile.tensor.clear_async(X_V_grad)
 
     X_Q = nntile.tensor.TensorMoments(X_Q_value, X_Q_grad, True)
@@ -414,9 +435,12 @@ def test_bench_attention_forward_async(context_cuda, benchmark_operation, dtype:
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
+
 @pytest.mark.benchmark
 @pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
-def test_bench_attention_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_attention_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
     
@@ -447,11 +471,29 @@ def test_bench_attention_forward_backward_async(context_cuda, benchmark_operatio
 
     rng = np.random.default_rng(42)
     np_dtype = dtype2np[dtype]
-    X_Q_value.from_array(np.array(rng.standard_normal(X_Q_shape), dtype=np_dtype, order="F"))
+    X_Q_value.from_array(
+        np.array(
+            rng.standard_normal(X_Q_shape),
+            dtype=np_dtype,
+            order="F",
+        )
+    )
     nntile.tensor.clear_async(X_Q_grad)
-    X_K_value.from_array(np.array(rng.standard_normal(X_K_shape), dtype=np_dtype, order="F"))
+    X_K_value.from_array(
+        np.array(
+            rng.standard_normal(X_K_shape),
+            dtype=np_dtype,
+            order="F",
+        )
+    )
     nntile.tensor.clear_async(X_K_grad)
-    X_V_value.from_array(np.array(rng.standard_normal(X_V_shape), dtype=np_dtype, order="F"))
+    X_V_value.from_array(
+        np.array(
+            rng.standard_normal(X_V_shape),
+            dtype=np_dtype,
+            order="F",
+        )
+    )
     nntile.tensor.clear_async(X_V_grad)
 
     X_Q = nntile.tensor.TensorMoments(X_Q_value, X_Q_grad, True)
@@ -462,8 +504,6 @@ def test_bench_attention_forward_backward_async(context_cuda, benchmark_operatio
     layer.init_randn_async()
 
     layer.clear_gradients()
-    # prepare grad buffer to reuse
-    np_grad = np.array(rng.standard_normal(X_Q_shape), dtype=np_dtype, order="F")
 
     def bench_fn():
         layer.forward_async()

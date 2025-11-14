@@ -336,15 +336,14 @@ class TestT5Attention:
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
-def test_bench_t5_attention_forward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_t5_attention_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     params = single_tile
     is_cross_attn = False
     _, nntile_layer, *_ = generate_inputs(params, dtype, is_cross_attn)
 
     nntile_layer.clear_gradients()
-    out_tm = nntile_layer.activations_output[0]
-    np_dtype = dtype2np[dtype]
-    out_np = np.zeros(out_tm.value.shape, dtype=np_dtype, order='F')
 
     def bench_fn():
         nntile_layer.forward_async()
@@ -356,7 +355,9 @@ def test_bench_t5_attention_forward_async(context_cuda, benchmark_operation, dty
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
-def test_bench_t5_attention_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_t5_attention_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
     
@@ -365,10 +366,9 @@ def test_bench_t5_attention_forward_backward_async(context_cuda, benchmark_opera
     _, nntile_layer, *_ = generate_inputs(params, dtype, is_cross_attn)
 
     nntile_layer.clear_gradients()
-    rng = np.random.default_rng(42)
-    out_tm = nntile_layer.activations_output[0]
-    np_dtype = dtype2np[dtype]
-    grad_np = np.array(rng.standard_normal(out_tm.value.shape), dtype=np_dtype, order='F')
+    np.random.default_rng(42)
+    nntile_layer.activations_output[0]
+    dtype2np[dtype]
 
     def bench_fn():
         nntile_layer.forward_async()

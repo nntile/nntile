@@ -235,7 +235,9 @@ class TestLayerNorm:
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
-def test_bench_layernorm_forward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_layernorm_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     # minimal setup
     n_size = 128
     m_size = 256
@@ -252,7 +254,11 @@ def test_bench_layernorm_forward_async(context_cuda, benchmark_operation, dtype:
     x_grad = x_type(x_traits, x_distr)
 
     rng = np.random.default_rng(42)
-    x_np = np.array(rng.standard_normal((n_size, m_size)), dtype=dtype2np[dtype], order="F")
+    x_np = np.array(
+        rng.standard_normal((n_size, m_size)),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
     x_val.from_array(x_np)
     nntile.tensor.clear_async(x_grad)
 
@@ -260,8 +266,6 @@ def test_bench_layernorm_forward_async(context_cuda, benchmark_operation, dtype:
 
     # build nntile layer from torch
     nnt_ln = nntile.layer.LayerNorm.from_torch(torch_ln, X)
-
-    out_np = np.zeros((n_size, m_size), dtype=dtype2np[dtype], order="F")
 
     def bench_fn():
         nnt_ln.forward_async()
@@ -273,7 +277,9 @@ def test_bench_layernorm_forward_async(context_cuda, benchmark_operation, dtype:
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
-def test_bench_layernorm_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_layernorm_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     n_size = 128
     m_size = 256
     eps = 1e-5
@@ -287,7 +293,11 @@ def test_bench_layernorm_forward_backward_async(context_cuda, benchmark_operatio
     x_grad = x_type(x_traits, x_distr)
 
     rng = np.random.default_rng(42)
-    x_np = np.array(rng.standard_normal((n_size, m_size)), dtype=dtype2np[dtype], order="F")
+    x_np = np.array(
+        rng.standard_normal((n_size, m_size)),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
     x_val.from_array(x_np)
 
     X = TensorMoments(x_val, x_grad, grad_required=True)
@@ -296,10 +306,15 @@ def test_bench_layernorm_forward_backward_async(context_cuda, benchmark_operatio
 
     nnt_ln.clear_gradients()
     # prepare grad buffer
-    grad_np = np.array(rng.standard_normal((n_size, m_size)), dtype=dtype2np[dtype], order="F")
+    grad_np = np.array(
+        rng.standard_normal((n_size, m_size)),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
 
     def bench_fn():
         nnt_ln.forward_async()
+        nnt_ln.y.grad.from_array(grad_np)
         nnt_ln.backward_async()
         nntile.starpu.wait_for_all()
 

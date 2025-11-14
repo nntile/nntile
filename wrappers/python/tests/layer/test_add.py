@@ -35,6 +35,7 @@ dtype2np = {
     'fp32': np.float32,
 }
 
+
 class ToyFC_SkipConnectionTorch(nn.Module):
     def __init__(self, input_dim, hidden_dim):
         super().__init__()
@@ -149,7 +150,9 @@ def test_add(context, n=100, hidden_dim=50, num_samples=1000):
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
-def test_bench_add_forward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_add_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     shape = [128, 128]
     traits = TensorTraits(shape, shape)
     distr = [0]
@@ -173,8 +176,6 @@ def test_bench_add_forward_async(context_cuda, benchmark_operation, dtype: str):
 
     layer = Add.generate_simple(x1_tm, x2_tm)
 
-    out_np = np.zeros(shape, dtype=np_dtype, order='F')
-
     def bench_fn():
         layer.forward_async()
         nntile.starpu.wait_for_all()
@@ -182,9 +183,12 @@ def test_bench_add_forward_async(context_cuda, benchmark_operation, dtype: str):
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
+
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
-def test_bench_add_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_add_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     shape = [128, 128]
     traits = TensorTraits(shape, shape)
     distr = [0]

@@ -12,8 +12,8 @@
 #
 # @version 1.1.0
 
-import pytest
 import numpy as np
+import pytest
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -29,6 +29,7 @@ dtype2np = {
     'bf16': np.float32,
     'fp32': np.float32,
 }
+
 
 class Conv1D(nn.Module):
     """1D-convolutional layer as defined by Radford et al. for OpenAI GPT (and
@@ -222,7 +223,9 @@ def test_gpt2mlp_dynamic(
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
-def test_bench_gpt2mlp_forward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_gpt2mlp_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     device = "cuda"
     gpt2_config = GPT2Config(activation_function="relu", resid_pdrop=0.0)
 
@@ -235,7 +238,9 @@ def test_bench_gpt2mlp_forward_async(context_cuda, benchmark_operation, dtype: s
     gpt2mlp_hug = GPT2MLP(interm_size, gpt2_config).to(device)
 
     rng = np.random.default_rng(42)
-    test_input_np = rng.standard_normal((input_dim, batch_size)).astype(np.float32, "F")
+    test_input_np = rng.standard_normal(
+        (input_dim, batch_size)
+    ).astype(np.float32, "F")
 
     x_traits = nntile.tensor.TensorTraits(
         [input_dim, batch_size], [input_dim_tile, batch_size]
@@ -260,13 +265,6 @@ def test_bench_gpt2mlp_forward_async(context_cuda, benchmark_operation, dtype: s
         gpt2mlp_hug, x_moments, nntile_config
     )
 
-    np_dtype = dtype2np[dtype]
-    out_np = np.zeros(
-        gpt2mlp_nntile.activations[-1].value.shape,
-        order="F",
-        dtype=np_dtype,
-    )
-
     def bench_fn():
         gpt2mlp_nntile.forward_async()
         nntile.starpu.wait_for_all()
@@ -277,7 +275,9 @@ def test_bench_gpt2mlp_forward_async(context_cuda, benchmark_operation, dtype: s
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
-def test_bench_gpt2mlp_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_gpt2mlp_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     device = "cuda"
     gpt2_config = GPT2Config(activation_function="relu", resid_pdrop=0.0)
 
@@ -290,7 +290,9 @@ def test_bench_gpt2mlp_forward_backward_async(context_cuda, benchmark_operation,
     gpt2mlp_hug = GPT2MLP(interm_size, gpt2_config).to(device)
 
     rng = np.random.default_rng(42)
-    test_input_np = rng.standard_normal((input_dim, batch_size)).astype(np.float32, "F")
+    test_input_np = rng.standard_normal(
+        (input_dim, batch_size)
+    ).astype(np.float32, "F")
 
     x_traits = nntile.tensor.TensorTraits(
         [input_dim, batch_size], [input_dim_tile, batch_size]

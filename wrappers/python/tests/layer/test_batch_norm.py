@@ -33,6 +33,7 @@ dtype2np = {
     'fp16': np.float32,
 }
 
+
 @dataclass
 class BatchNormTestParams:
     shape: tuple
@@ -188,9 +189,12 @@ class TestBatchNorm2d:
             err_msg=f"Error in backward d(bn)/d(i) for params: {params}",
         )
 
+
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
-def test_bench_batchnorm2d_forward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_batchnorm2d_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not implemented")
     
@@ -212,8 +216,6 @@ def test_bench_batchnorm2d_forward_async(context_cuda, benchmark_operation, dtyp
     # Define layer
     nntile_layer = BatchNorm2d.generate_simple(x_moment)
 
-    out_np = np.zeros(shape, dtype=dtype2np[dtype], order="F")
-
     def bench_fn():
         nntile_layer.forward_async()
         nntile.starpu.wait_for_all()
@@ -221,9 +223,12 @@ def test_bench_batchnorm2d_forward_async(context_cuda, benchmark_operation, dtyp
     nntile.starpu.wait_for_all()
     benchmark_operation(bench_fn)
 
+
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'bf16', 'fp16'])
-def test_bench_batchnorm2d_forward_backward_async(context_cuda, numpy_rng, benchmark_operation, dtype: str):    
+def test_bench_batchnorm2d_forward_backward_async(
+        context_cuda, numpy_rng, benchmark_operation, dtype: str,
+):    
     if dtype == 'fp16' or dtype == 'bf16':
         pytest.xfail("not implemented")
     
@@ -237,7 +242,13 @@ def test_bench_batchnorm2d_forward_backward_async(context_cuda, numpy_rng, bench
     x_val = tensor_type(traits, distr)
     x_grad = tensor_type(traits, distr)
     rng = np.random.default_rng(42)
-    x_val.from_array(np.array(rng.random(shape), dtype=dtype2np[dtype], order="F"))
+    x_val.from_array(
+        np.array(
+            rng.random(shape),
+            dtype=dtype2np[dtype],
+            order="F",
+        )
+    )
     nntile.tensor.clear_async(x_grad)
     input_moment = nntile.tensor.TensorMoments(x_val, x_grad, True)
 
@@ -247,7 +258,6 @@ def test_bench_batchnorm2d_forward_backward_async(context_cuda, numpy_rng, bench
 
     nntile.tensor.clear_async(nntile_layer.y.grad)
     # prepare grad buffer
-    grad_np = numpy_rng.random(params.shape).astype(dtype2np[dtype], order="F")
 
     def bench_fn():
         nntile_layer.forward_async()

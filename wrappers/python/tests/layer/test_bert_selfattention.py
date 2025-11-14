@@ -231,7 +231,9 @@ class TestBertSelfAttention:
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
-def test_bench_bert_selfattention_forward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_bert_selfattention_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(dtype, params)
 
@@ -245,13 +247,19 @@ def test_bench_bert_selfattention_forward_async(context_cuda, benchmark_operatio
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
-def test_bench_bert_selfattention_forward_backward_async(context_cuda, benchmark_operation, dtype: str):
+def test_bench_bert_selfattention_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(dtype, params)
 
     nntile_layer.clear_gradients()
     rng = np.random.default_rng(42)
-    grad_np = np.array(rng.standard_normal(nntile_layer.y.value.shape), dtype=dtype2np[dtype], order='F')
+    grad_np = np.array(
+        rng.standard_normal(nntile_layer.y.value.shape),
+        dtype=dtype2np[dtype],
+        order='F',
+    )
 
     def bench_fn():
         nntile_layer.forward_async()

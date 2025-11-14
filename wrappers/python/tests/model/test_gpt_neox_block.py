@@ -283,15 +283,22 @@ class TestGPTNeoXBlock:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
 
+
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
-def test_bench_gpt_neox_block_forward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_gpt_neox_block_forward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not supported")
     
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(
-        params, dtype, rotary_pct=0.5, use_parallel_residual=False, att_bias=False
+        params,
+        dtype,
+        rotary_pct=0.5,
+        use_parallel_residual=False,
+        att_bias=False,
     )
 
     def bench_fn():
@@ -305,13 +312,19 @@ def test_bench_gpt_neox_block_forward_async(context_cuda, benchmark_model, dtype
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
-def test_bench_gpt_neox_block_forward_backward_async(context_cuda, benchmark_model, dtype: str):
+def test_bench_gpt_neox_block_forward_backward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
     if dtype == 'fp16':
         pytest.xfail("not supported")
 
     params = single_tile
     _, nntile_layer, *_ = generate_inputs(
-        params, dtype, rotary_pct=0.5, use_parallel_residual=False, att_bias=False
+        params,
+        dtype,
+        rotary_pct=0.5,
+        use_parallel_residual=False,
+        att_bias=False,
     )
 
     def bench_fn():
