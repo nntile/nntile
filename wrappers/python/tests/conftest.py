@@ -86,7 +86,7 @@ def pytest_collection_modifyitems(config, items):
             if "benchmark" in item.keywords:
                 item.add_marker(skip_bench)
 
-    # Apply --dtype filtering to any parametrized 
+    # Apply --dtype filtering to any parametrized
     # tests or benchmarks that include "dtype"
     selected = config.getoption("dtypes")
     if selected:
