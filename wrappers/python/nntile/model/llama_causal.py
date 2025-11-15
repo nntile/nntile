@@ -195,7 +195,7 @@ def create_llama_model_from_torch_pretrained(
     cache_dir: str | None = None
 ):
     model_torch = LlamaCausalModel_torch.from_pretrained(
-        model_name, cache_dir=cache_dir
+        model_name, cache_dir=cache_dir, local_files_only=False
     )
     model_torch.eval()
 
