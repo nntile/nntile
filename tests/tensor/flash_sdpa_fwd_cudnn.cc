@@ -112,16 +112,15 @@ void check(const FlashTensorCase &cfg)
         for(Index j = 0; j < n_seq; ++j)
         {
             Index idx = i * n_seq + j;
-            mask_local[idx] = T(Y(0.0));
-            // // Create a simple mask: allow attention within a window
-            // if (std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 32)
-            // {
-            //     mask_local[idx] = T(Y(0.0));  // Attend
-            // }
-            // else
-            // {
-            //     mask_local[idx] = T(-std::numeric_limits<Y>::infinity());  // Mask
-            // }
+            // Create a simple causal mask
+            if(j <= i)
+            {
+                mask_local[idx] = T(Y(0.0));  // Attend
+            }
+            else
+            {
+                mask_local[idx] = T(-std::numeric_limits<Y>::infinity());  // Mask
+            }
         }
     }
 
@@ -204,6 +203,8 @@ void check(const FlashTensorCase &cfg)
     {
         float ref_val = static_cast<float>(logsumexp_ref_local[i]);
         float multi_val = static_cast<float>(logsumexp_multi_local[i]);
+        TEST_ASSERT(std::isfinite(ref_val));
+        TEST_ASSERT(std::isfinite(multi_val));
         float diff = std::abs(ref_val - multi_val);
         float max_val = std::max(std::abs(ref_val), std::abs(multi_val));
         TEST_ASSERT(diff <= eps_fp32 * max_val);
@@ -225,6 +226,7 @@ void check(const FlashTensorCase &cfg)
     Y ref_norm = std::sqrt(ref_norm_sq);
     Y multi_norm = std::sqrt(multi_norm_sq);
     Y denom = std::max(ref_norm, multi_norm);
+    TEST_ASSERT(std::isfinite(denom));
     TEST_ASSERT(diff_norm <= eps * denom);
 
     A_ref_local.release();
@@ -240,8 +242,8 @@ void validate()
     //        kv_group_size, kv_group_tile, n_head_kv, head_kv_tile.
     // head_size_tile must be equal to head_size (no parallelism across head_size)
     check<T>({32, 64, 64, 1, 1, 1, 1, 1, 1});
-    check<T>({32, 128, 64, 2, 1, 2, 1, 2, 1});
-    check<T>({32, 256, 64, 4, 1, 3, 1, 4, 2});
+    check<T>({128, 256, 128, 2, 1, 2, 1, 2, 1});
+    check<T>({32, 512, 64, 4, 1, 3, 1, 4, 2});
 
     // TODO: Add exception testing later
     // For now, just check that the basic functionality works
