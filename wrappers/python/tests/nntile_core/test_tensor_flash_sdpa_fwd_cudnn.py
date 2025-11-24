@@ -148,7 +148,7 @@ def flash_attention_reference(Q_src, K_src, V_src, mask_src):
     k_flat = _flatten_sdpa_tensor(K_src).astype(np.float32, order="F")
     v_flat = _flatten_sdpa_tensor(V_src).astype(np.float32, order="F")
 
-    head_size, n_seq, n_batch, n_heads = q_flat.shape
+    head_size = q_flat.shape[0]
     q_t = torch.tensor(q_flat, dtype=torch.float32)
     k_t = torch.tensor(k_flat, dtype=torch.float32)
     v_t = torch.tensor(v_flat, dtype=torch.float32)
