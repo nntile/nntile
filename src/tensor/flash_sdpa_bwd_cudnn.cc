@@ -24,8 +24,8 @@ static inline void flash_sdpa_bwd_cudnn_check(
         const TensorTraits &K,
         const TensorTraits &Q,
         const TensorTraits &V,
-        const TensorTraits &O,
-        const TensorTraits &dO,
+        const TensorTraits &A,
+        const TensorTraits &dA,
         const TensorTraits &mask,
         const TensorTraits &logsumexp,
         const TensorTraits &dK,
@@ -40,8 +40,8 @@ static inline void flash_sdpa_bwd_cudnn_check(
     check_5d(K, "K");
     check_5d(Q, "Q");
     check_5d(V, "V");
-    check_5d(O, "O");
-    check_5d(dO, "dO");
+    check_5d(A, "A");
+    check_5d(dA, "dA");
     check_5d(dK, "dK");
     check_5d(dQ, "dQ");
     check_5d(dV, "dV");
@@ -63,8 +63,8 @@ static inline void flash_sdpa_bwd_cudnn_check(
 
     check_equal_shape(K, Q, "K", "Q");
     check_equal_shape(K, V, "K", "V");
-    check_equal_shape(K, O, "K", "O");
-    check_equal_shape(K, dO, "K", "dO");
+    check_equal_shape(K, A, "K", "A");
+    check_equal_shape(K, dA, "K", "dA");
     check_equal_shape(K, dK, "K", "dK");
     check_equal_shape(K, dQ, "K", "dQ");
     check_equal_shape(K, dV, "K", "dV");
@@ -90,17 +90,17 @@ static inline void flash_sdpa_bwd_cudnn_check(
     const auto &K_base = K.basetile_shape;
     const auto &Q_base = Q.basetile_shape;
     const auto &V_base = V.basetile_shape;
-    const auto &O_base = O.basetile_shape;
-    const auto &dO_base = dO.basetile_shape;
+    const auto &A_base = A.basetile_shape;
+    const auto &dA_base = dA.basetile_shape;
     const auto &dK_base = dK.basetile_shape;
     const auto &dQ_base = dQ.basetile_shape;
     const auto &dV_base = dV.basetile_shape;
     const auto &mask_base = mask.basetile_shape;
     const auto &logsumexp_base = logsumexp.basetile_shape;
 
-    if(Q_base != dQ_base || Q_base != O_base || Q_base != dO_base)
+    if(Q_base != dQ_base || Q_base != A_base || Q_base != dA_base)
     {
-        throw std::runtime_error("Q, dQ, O, dO basetile shapes must match");
+        throw std::runtime_error("Q, dQ, A, dA basetile shapes must match");
     }
 
     for(Index dim : {Index(0), Index(2), Index(3), Index(4)})
@@ -142,8 +142,8 @@ static inline void flash_sdpa_bwd_cudnn_check(
 
     // Ensure head dimension is not tiled
     if(K_base[0] != K.shape[0] || Q_base[0] != Q.shape[0]
-            || V_base[0] != V.shape[0] || O_base[0] != O.shape[0]
-            || dO_base[0] != dO.shape[0] || dK_base[0] != dK.shape[0]
+            || V_base[0] != V.shape[0] || A_base[0] != A.shape[0]
+            || dA_base[0] != dA.shape[0] || dK_base[0] != dK.shape[0]
             || dQ_base[0] != dQ.shape[0] || dV_base[0] != dV.shape[0])
     {
         throw std::runtime_error("head dimension must not be tiled");
@@ -156,8 +156,8 @@ void flash_sdpa_bwd_cudnn_async(
     const Tensor<T> &K,
     const Tensor<T> &Q,
     const Tensor<T> &V,
-    const Tensor<T> &O,
-    const Tensor<T> &dO,
+    const Tensor<T> &A,
+    const Tensor<T> &dA,
     const Tensor<T> &mask,
     const Tensor<fp32_t> &logsumexp,
     const Tensor<T> &dK,
@@ -165,7 +165,7 @@ void flash_sdpa_bwd_cudnn_async(
     const Tensor<T> &dV)
 {
     // Check inputs (throw exception in case of an error)
-    flash_sdpa_bwd_cudnn_check(K, Q, V, O, dO, mask, logsumexp, dK, dQ, dV);
+    flash_sdpa_bwd_cudnn_check(K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
 
     // Get MPI rank and sizes
     int mpi_rank = starpu_mpi_world_rank();
@@ -179,8 +179,8 @@ void flash_sdpa_bwd_cudnn_async(
 
         const auto &dQ_handle = dQ.get_tile_handle(dq_linear);
         const auto &Q_handle = Q.get_tile_handle(dq_linear);
-        const auto &O_handle = O.get_tile_handle(dq_linear);
-        const auto &dO_handle = dO.get_tile_handle(dq_linear);
+        const auto &A_handle = A.get_tile_handle(dq_linear);
+        const auto &dA_handle = dA.get_tile_handle(dq_linear);
         std::vector<Index> logsumexp_tile_index = {
             dq_tile_index[1],
             dq_tile_index[2],
@@ -193,14 +193,14 @@ void flash_sdpa_bwd_cudnn_async(
         int dQ_tile_rank = dQ_handle.mpi_get_rank();
 
         Q_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
-        O_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
-        dO_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
+        A_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
+        dA_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
         logsumexp_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
 
         const auto &dQ_traits = dQ.get_tile_traits(dq_linear);
         const auto &Q_traits = Q.get_tile_traits(dq_linear);
-        const auto &O_traits = O.get_tile_traits(dq_linear);
-        const auto &dO_traits = dO.get_tile_traits(dq_linear);
+        const auto &A_traits = A.get_tile_traits(dq_linear);
+        const auto &dA_traits = dA.get_tile_traits(dq_linear);
         const auto &logsumexp_traits =
                 logsumexp.get_tile_traits(logsumexp_tile_index);
 
@@ -255,7 +255,7 @@ void flash_sdpa_bwd_cudnn_async(
 
                 starpu::flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(
                     seq, head, batch,
-                    K_handle, Q_handle, V_handle, O_handle, dO_handle,
+                    K_handle, Q_handle, V_handle, A_handle, dA_handle,
                     mask_handle, logsumexp_handle,
                     dK_handle, dQ_handle, dV_handle,
                     scratch_dK, scratch_dQ, scratch_dV
@@ -277,8 +277,8 @@ void flash_sdpa_bwd_cudnn(
     const Tensor<T> &K,
     const Tensor<T> &Q,
     const Tensor<T> &V,
-    const Tensor<T> &O,
-    const Tensor<T> &dO,
+    const Tensor<T> &A,
+    const Tensor<T> &dA,
     const Tensor<T> &mask,
     const Tensor<fp32_t> &logsumexp,
     const Tensor<T> &dK,
@@ -286,7 +286,7 @@ void flash_sdpa_bwd_cudnn(
     const Tensor<T> &dV)
 {
     flash_sdpa_bwd_cudnn_async<T>(
-        K, Q, V, O, dO, mask, logsumexp, dK, dQ, dV);
+        K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -296,8 +296,8 @@ void flash_sdpa_bwd_cudnn_async<bf16_t>(
     const Tensor<bf16_t> &K,
     const Tensor<bf16_t> &Q,
     const Tensor<bf16_t> &V,
-    const Tensor<bf16_t> &O,
-    const Tensor<bf16_t> &dO,
+    const Tensor<bf16_t> &A,
+    const Tensor<bf16_t> &dA,
     const Tensor<bf16_t> &mask,
     const Tensor<fp32_t> &logsumexp,
     const Tensor<bf16_t> &dK,
@@ -309,8 +309,8 @@ void flash_sdpa_bwd_cudnn_async<fp16_t>(
     const Tensor<fp16_t> &K,
     const Tensor<fp16_t> &Q,
     const Tensor<fp16_t> &V,
-    const Tensor<fp16_t> &O,
-    const Tensor<fp16_t> &dO,
+    const Tensor<fp16_t> &A,
+    const Tensor<fp16_t> &dA,
     const Tensor<fp16_t> &mask,
     const Tensor<fp32_t> &logsumexp,
     const Tensor<fp16_t> &dK,
@@ -322,8 +322,8 @@ void flash_sdpa_bwd_cudnn<bf16_t>(
     const Tensor<bf16_t> &K,
     const Tensor<bf16_t> &Q,
     const Tensor<bf16_t> &V,
-    const Tensor<bf16_t> &O,
-    const Tensor<bf16_t> &dO,
+    const Tensor<bf16_t> &A,
+    const Tensor<bf16_t> &dA,
     const Tensor<bf16_t> &mask,
     const Tensor<fp32_t> &logsumexp,
     const Tensor<bf16_t> &dK,
@@ -335,8 +335,8 @@ void flash_sdpa_bwd_cudnn<fp16_t>(
     const Tensor<fp16_t> &K,
     const Tensor<fp16_t> &Q,
     const Tensor<fp16_t> &V,
-    const Tensor<fp16_t> &O,
-    const Tensor<fp16_t> &dO,
+    const Tensor<fp16_t> &A,
+    const Tensor<fp16_t> &dA,
     const Tensor<fp16_t> &mask,
     const Tensor<fp32_t> &logsumexp,
     const Tensor<fp16_t> &dK,

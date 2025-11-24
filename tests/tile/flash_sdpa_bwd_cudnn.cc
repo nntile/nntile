@@ -42,8 +42,8 @@ void check()
     Tile<T> K_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
     Tile<T> Q_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
     Tile<T> V_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> O_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-    Tile<T> dO_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> A_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> dA_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
     Tile<T> dK_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
     Tile<T> dQ_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
     Tile<T> dV_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
@@ -57,8 +57,8 @@ void check()
     auto K_local = K_tile.acquire(STARPU_W);
     auto Q_local = Q_tile.acquire(STARPU_W);
     auto V_local = V_tile.acquire(STARPU_W);
-    auto O_local = O_tile.acquire(STARPU_W);
-    auto dO_local = dO_tile.acquire(STARPU_W);
+    auto A_local = A_tile.acquire(STARPU_W);
+    auto dA_local = dA_tile.acquire(STARPU_W);
 
     // Fill with test values (similar to starpu test)
     for(Index i = 0; i < K_tile.nelems; ++i)
@@ -66,8 +66,8 @@ void check()
         K_local[i] = T(Y(0.1 * (i % 10 - 5)));
         Q_local[i] = T(Y(0.1 * ((i + 1) % 10 - 5)));
         V_local[i] = T(Y(0.1 * ((i + 2) % 10 - 5)));
-        O_local[i] = T(Y(0.1 * ((i + 4) % 10 - 5)));
-        dO_local[i] = T(Y(0.1 * ((i + 3) % 10 - 5)));
+        A_local[i] = T(Y(0.1 * ((i + 4) % 10 - 5)));
+        dA_local[i] = T(Y(0.1 * ((i + 3) % 10 - 5)));
     }
 
     auto logsumexp_local = logsumexp_tile.acquire(STARPU_W);
@@ -99,8 +99,8 @@ void check()
     K_local.release();
     Q_local.release();
     V_local.release();
-    O_local.release();
-    dO_local.release();
+    A_local.release();
+    dA_local.release();
     mask_local.release();
 
     {
@@ -117,7 +117,7 @@ void check()
         dQ_ref_local.release();
         dV_ref_local.release();
 
-        tile::flash_sdpa_bwd_cudnn<T>(K_tile, Q_tile, V_tile, O_tile, dO_tile,
+        tile::flash_sdpa_bwd_cudnn<T>(K_tile, Q_tile, V_tile, A_tile, dA_tile,
                                       mask_tile, logsumexp_tile,
                                       dK_ref_tile, dQ_ref_tile, dV_ref_tile);
     }
@@ -128,8 +128,8 @@ void check()
         Tile<T> K_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
         Tile<T> Q_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
         Tile<T> V_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-        Tile<T> O_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
-        Tile<T> dO_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+        Tile<T> A_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+        Tile<T> dA_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
         Tile<T> dK_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
         Tile<T> dQ_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
         Tile<T> dV_starpu({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
@@ -140,16 +140,16 @@ void check()
         auto K_src = K_tile.acquire(STARPU_R);
         auto Q_src = Q_tile.acquire(STARPU_R);
         auto V_src = V_tile.acquire(STARPU_R);
-        auto O_src = O_tile.acquire(STARPU_R);
-        auto dO_src = dO_tile.acquire(STARPU_R);
+        auto A_src = A_tile.acquire(STARPU_R);
+        auto dA_src = dA_tile.acquire(STARPU_R);
         auto mask_src = mask_tile.acquire(STARPU_R);
         auto logsumexp_src = logsumexp_tile.acquire(STARPU_R);
 
         auto K_dst = K_starpu.acquire(STARPU_W);
         auto Q_dst = Q_starpu.acquire(STARPU_W);
         auto V_dst = V_starpu.acquire(STARPU_W);
-        auto O_dst = O_starpu.acquire(STARPU_W);
-        auto dO_dst = dO_starpu.acquire(STARPU_W);
+        auto A_dst = A_starpu.acquire(STARPU_W);
+        auto dA_dst = dA_starpu.acquire(STARPU_W);
         auto mask_dst = mask_starpu.acquire(STARPU_W);
         auto logsumexp_dst = logsumexp_starpu.acquire(STARPU_W);
 
@@ -158,8 +158,8 @@ void check()
             K_dst[i] = K_src[i];
             Q_dst[i] = Q_src[i];
             V_dst[i] = V_src[i];
-            O_dst[i] = O_src[i];
-            dO_dst[i] = dO_src[i];
+            A_dst[i] = A_src[i];
+            dA_dst[i] = dA_src[i];
         }
 
         for(Index i = 0; i < mask_tile.nelems; ++i)
@@ -175,8 +175,8 @@ void check()
         K_src.release();
         Q_src.release();
         V_src.release();
-        O_src.release();
-        dO_src.release();
+        A_src.release();
+        dA_src.release();
         mask_src.release();
         logsumexp_src.release();
 
@@ -211,8 +211,8 @@ void check()
         K_dst.release();
         Q_dst.release();
         V_dst.release();
-        O_dst.release();
-        dO_dst.release();
+        A_dst.release();
+        dA_dst.release();
         mask_dst.release();
         logsumexp_dst.release();
 
@@ -223,7 +223,7 @@ void check()
 
         starpu::flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(
             n_seq, head_size, n_batch * kv_group_size * n_head_kv, K_starpu, Q_starpu, V_starpu,
-            O_starpu, dO_starpu, mask_starpu, logsumexp_starpu,
+            A_starpu, dA_starpu, mask_starpu, logsumexp_starpu,
             dK_starpu, dQ_starpu, dV_starpu,
             scratch_dK, scratch_dQ, scratch_dV);
 
@@ -252,7 +252,7 @@ void check()
         dV_tile_local_init.release();
 
         // Call tile-level operation
-        flash_sdpa_bwd_cudnn<T>(K_tile, Q_tile, V_tile, O_tile, dO_tile, mask_tile, logsumexp_tile,
+        flash_sdpa_bwd_cudnn<T>(K_tile, Q_tile, V_tile, A_tile, dA_tile, mask_tile, logsumexp_tile,
                                dK_tile, dQ_tile, dV_tile);
 
         // Compare results
@@ -338,8 +338,8 @@ void check()
         K_starpu.unregister();
         Q_starpu.unregister();
         V_starpu.unregister();
-        O_starpu.unregister();
-        dO_starpu.unregister();
+        A_starpu.unregister();
+        dA_starpu.unregister();
         dK_starpu.unregister();
         dQ_starpu.unregister();
         dV_starpu.unregister();

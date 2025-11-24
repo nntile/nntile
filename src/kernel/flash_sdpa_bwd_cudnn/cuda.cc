@@ -32,7 +32,7 @@ namespace nntile::kernel::flash_sdpa_bwd_cudnn
 constexpr ::int64_t Q_UID = 1;
 constexpr ::int64_t K_UID = 2;
 constexpr ::int64_t V_UID = 3;
-constexpr ::int64_t O_UID = 4;
+constexpr ::int64_t A_UID = 4;
 constexpr ::int64_t MASK_UID = 5;
 constexpr ::int64_t STATS_UID = 6;
 constexpr ::int64_t DO_UID = 7;
@@ -98,8 +98,8 @@ FlashSdpaGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
         auto Q_tensor = make_io_tensor("Q", Q_UID);
         auto K_tensor = make_io_tensor("K", K_UID);
         auto V_tensor = make_io_tensor("V", V_UID);
-        auto O_tensor = make_io_tensor("O", O_UID);
-        auto dO_tensor = make_io_tensor("dO", DO_UID);
+        auto A_tensor = make_io_tensor("A", A_UID);
+        auto dA_tensor = make_io_tensor("dA", DO_UID);
 
         auto Mask_tensor = graph->tensor(fe::graph::Tensor_attributes()
                                              .set_name("Bias")
@@ -124,8 +124,8 @@ FlashSdpaGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
         auto bwd_outputs = graph->sdpa_backward(Q_tensor,
                                                K_tensor,
                                                V_tensor,
-                                               O_tensor,
-                                               dO_tensor,
+                                               A_tensor,
+                                               dA_tensor,
                                                Stats_tensor,
                                                bwd_options);
 
@@ -172,8 +172,8 @@ FlashSdpaGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
 template<typename T>
 void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
                    Index seq, Index head, Index batch,
-                   const T *K, const T *Q, const T *V, const T *O,
-                   const T *dO, const T *mask, const fp32_t *logsumexp,
+                   const T *K, const T *Q, const T *V, const T *A,
+                   const T *dA, const T *mask, const fp32_t *logsumexp,
                    T *scratch_dK, T *scratch_dQ, T *scratch_dV,
                    T *dK, T *dQ, T *dV, void *workspace)
     noexcept
@@ -183,8 +183,8 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
         {Q_UID, const_cast<T*>(Q)},
         {K_UID, const_cast<T*>(K)},
         {V_UID, const_cast<T*>(V)},
-        {O_UID, const_cast<T*>(O)},
-        {DO_UID, const_cast<T*>(dO)},
+        {A_UID, const_cast<T*>(A)},
+        {DO_UID, const_cast<T*>(dA)},
         {MASK_UID, const_cast<T*>(mask)},
         {STATS_UID, const_cast<fp32_t*>(logsumexp)},
         {DQ_UID, scratch_dQ},
@@ -236,8 +236,8 @@ void execute_graph<fp16_t>(cudnnHandle_t handle,
                            const fp16_t *K,
                            const fp16_t *Q,
                            const fp16_t *V,
-                           const fp16_t *O,
-                           const fp16_t *dO,
+                           const fp16_t *A,
+                           const fp16_t *dA,
                            const fp16_t *mask,
                            const fp32_t *logsumexp,
                            fp16_t *scratch_dK,
@@ -257,8 +257,8 @@ void execute_graph<bf16_t>(cudnnHandle_t handle,
                            const bf16_t *K,
                            const bf16_t *Q,
                            const bf16_t *V,
-                           const bf16_t *O,
-                           const bf16_t *dO,
+                           const bf16_t *A,
+                           const bf16_t *dA,
                            const bf16_t *mask,
                            const fp32_t *logsumexp,
                            bf16_t *scratch_dK,

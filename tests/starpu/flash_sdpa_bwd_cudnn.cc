@@ -42,8 +42,8 @@ void validate_cuda(Index seq, Index head, Index batch)
     std::vector<T> K(total);
     std::vector<T> Q(total);
     std::vector<T> V(total);
-    std::vector<T> O(total);
-    std::vector<T> dO(total);
+    std::vector<T> A(total);
+    std::vector<T> dA(total);
     std::vector<T> mask(seq * seq);
     std::vector<fp32_t> lse(seq * batch);
     std::vector<T> base_dK(total);
@@ -55,8 +55,8 @@ void validate_cuda(Index seq, Index head, Index batch)
         K[i] = T(Y(0.05 * ((i % 11) - 5)));
         Q[i] = T(Y(0.04 * ((i % 7) - 3)));
         V[i] = T(Y(0.03 * ((i % 13) - 6)));
-        O[i] = T(Y(0.03 * ((i % 19) - 9)));
-        dO[i] = T(Y(0.02 * (((i + 5) % 9) - 4)));
+        A[i] = T(Y(0.03 * ((i % 19) - 9)));
+        dA[i] = T(Y(0.02 * (((i + 5) % 9) - 4)));
     }
 
     for(Index i = 0; i < seq; ++i)
@@ -100,7 +100,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     CUDNN_CHECK(cudnnSetStream(handle, stream), "cudnnSetStream");
 
     T *dev_K = nullptr, *dev_Q = nullptr, *dev_V = nullptr;
-    T *dev_O = nullptr, *dev_dO = nullptr, *dev_mask = nullptr;
+    T *dev_A = nullptr, *dev_dA = nullptr, *dev_mask = nullptr;
     T *dev_dK = nullptr, *dev_dQ = nullptr, *dev_dV = nullptr;
     T *dev_scratch_dK = nullptr, *dev_scratch_dQ = nullptr, *dev_scratch_dV = nullptr;
     fp32_t *dev_lse = nullptr;
@@ -110,8 +110,8 @@ void validate_cuda(Index seq, Index head, Index batch)
     CUDA_CHECK(cudaMalloc(&dev_K, sizeof(T) * total), "malloc K");
     CUDA_CHECK(cudaMalloc(&dev_Q, sizeof(T) * total), "malloc Q");
     CUDA_CHECK(cudaMalloc(&dev_V, sizeof(T) * total), "malloc V");
-    CUDA_CHECK(cudaMalloc(&dev_O, sizeof(T) * total), "malloc O");
-    CUDA_CHECK(cudaMalloc(&dev_dO, sizeof(T) * total), "malloc dO");
+    CUDA_CHECK(cudaMalloc(&dev_A, sizeof(T) * total), "malloc A");
+    CUDA_CHECK(cudaMalloc(&dev_dA, sizeof(T) * total), "malloc dA");
     CUDA_CHECK(cudaMalloc(&dev_mask, sizeof(T) * seq * seq), "malloc mask");
     CUDA_CHECK(cudaMalloc(&dev_dK, sizeof(T) * total), "malloc dK");
     CUDA_CHECK(cudaMalloc(&dev_dQ, sizeof(T) * total), "malloc dQ");
@@ -124,8 +124,8 @@ void validate_cuda(Index seq, Index head, Index batch)
     CUDA_CHECK(cudaMemcpy(dev_K, K.data(), sizeof(T) * total, cudaMemcpyHostToDevice), "copy K");
     CUDA_CHECK(cudaMemcpy(dev_Q, Q.data(), sizeof(T) * total, cudaMemcpyHostToDevice), "copy Q");
     CUDA_CHECK(cudaMemcpy(dev_V, V.data(), sizeof(T) * total, cudaMemcpyHostToDevice), "copy V");
-    CUDA_CHECK(cudaMemcpy(dev_O, O.data(), sizeof(T) * total, cudaMemcpyHostToDevice), "copy O");
-    CUDA_CHECK(cudaMemcpy(dev_dO, dO.data(), sizeof(T) * total, cudaMemcpyHostToDevice), "copy dO");
+    CUDA_CHECK(cudaMemcpy(dev_A, A.data(), sizeof(T) * total, cudaMemcpyHostToDevice), "copy A");
+    CUDA_CHECK(cudaMemcpy(dev_dA, dA.data(), sizeof(T) * total, cudaMemcpyHostToDevice), "copy dA");
     CUDA_CHECK(cudaMemcpy(dev_mask, mask.data(), sizeof(T) * seq * seq, cudaMemcpyHostToDevice), "copy mask");
     CUDA_CHECK(cudaMemcpy(dev_lse, lse.data(), sizeof(fp32_t) * seq * batch, cudaMemcpyHostToDevice), "copy lse");
     CUDA_CHECK(cudaMemset(dev_dK, 0, sizeof(T) * total), "memset dK");
@@ -151,7 +151,7 @@ void validate_cuda(Index seq, Index head, Index batch)
 
     kernel::flash_sdpa_bwd_cudnn::execute_graph<T>(
         handle, bwd_graph, seq, head, batch,
-        dev_K, dev_Q, dev_V, dev_O, dev_dO,
+        dev_K, dev_Q, dev_V, dev_A, dev_dA,
         dev_mask, dev_lse,
         dev_scratch_dK, dev_scratch_dQ, dev_scratch_dV,
         dev_dK, dev_dQ, dev_dV, workspace);
@@ -167,7 +167,7 @@ void validate_cuda(Index seq, Index head, Index batch)
 
     kernel::flash_sdpa_bwd_cudnn::execute_graph<T>(
         handle, bwd_graph, seq, head, batch,
-        dev_K, dev_Q, dev_V, dev_O, dev_dO,
+        dev_K, dev_Q, dev_V, dev_A, dev_dA,
         dev_mask, dev_lse,
         dev_scratch_dK, dev_scratch_dQ, dev_scratch_dV,
         dev_dK, dev_dQ, dev_dV, workspace);
@@ -224,8 +224,8 @@ void validate_cuda(Index seq, Index head, Index batch)
     std::vector<T> K_starpu = K;
     std::vector<T> Q_starpu = Q;
     std::vector<T> V_starpu = V;
-    std::vector<T> O_starpu = O;
-    std::vector<T> dO_starpu = dO;
+    std::vector<T> A_starpu = A;
+    std::vector<T> dA_starpu = dA;
     std::vector<T> mask_starpu = mask;
     std::vector<fp32_t> lse_starpu = lse;
     std::vector<T> dK_starpu = base_dK;
@@ -235,8 +235,8 @@ void validate_cuda(Index seq, Index head, Index batch)
     VariableHandle K_handle(K_starpu.data(), sizeof(T) * total);
     VariableHandle Q_handle(Q_starpu.data(), sizeof(T) * total);
     VariableHandle V_handle(V_starpu.data(), sizeof(T) * total);
-    VariableHandle O_handle(O_starpu.data(), sizeof(T) * total);
-    VariableHandle dO_handle(dO_starpu.data(), sizeof(T) * total);
+    VariableHandle A_handle(A_starpu.data(), sizeof(T) * total);
+    VariableHandle dA_handle(dA_starpu.data(), sizeof(T) * total);
     VariableHandle mask_handle(mask_starpu.data(), sizeof(T) * seq * seq);
     VariableHandle lse_handle(lse_starpu.data(), sizeof(fp32_t) * seq * batch);
     VariableHandle dK_handle(dK_starpu.data(), sizeof(T) * total);
@@ -250,7 +250,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(
         seq, head, batch,
         K_handle, Q_handle, V_handle,
-        O_handle, dO_handle,
+        A_handle, dA_handle,
         mask_handle, lse_handle,
         dK_handle, dQ_handle, dV_handle,
         scratch_dK, scratch_dQ, scratch_dV);
@@ -262,8 +262,8 @@ void validate_cuda(Index seq, Index head, Index batch)
     K_handle.unregister();
     Q_handle.unregister();
     V_handle.unregister();
-    O_handle.unregister();
-    dO_handle.unregister();
+    A_handle.unregister();
+    dA_handle.unregister();
     mask_handle.unregister();
     lse_handle.unregister();
     dK_handle.unregister();
@@ -315,8 +315,8 @@ void validate_cuda(Index seq, Index head, Index batch)
     CUDA_CHECK(cudaFree(dev_K), "free K");
     CUDA_CHECK(cudaFree(dev_Q), "free Q");
     CUDA_CHECK(cudaFree(dev_V), "free V");
-    CUDA_CHECK(cudaFree(dev_O), "free O");
-    CUDA_CHECK(cudaFree(dev_dO), "free dO");
+    CUDA_CHECK(cudaFree(dev_A), "free A");
+    CUDA_CHECK(cudaFree(dev_dA), "free dA");
     CUDA_CHECK(cudaFree(dev_mask), "free mask");
     CUDA_CHECK(cudaFree(dev_dK), "free dK");
     CUDA_CHECK(cudaFree(dev_dQ), "free dQ");

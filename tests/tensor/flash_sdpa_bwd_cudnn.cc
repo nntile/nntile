@@ -67,8 +67,8 @@ void check(const FlashTensorCase &cfg)
     TensorTraits K_traits(K_shape, K_shape);
     TensorTraits Q_traits(K_shape, K_shape);
     TensorTraits V_traits(K_shape, K_shape);
-    TensorTraits O_traits(K_shape, K_shape);
-    TensorTraits dO_traits(K_shape, K_shape);
+    TensorTraits A_traits(K_shape, K_shape);
+    TensorTraits dA_traits(K_shape, K_shape);
     TensorTraits dK_traits(K_shape, K_shape);
     TensorTraits dQ_traits(K_shape, K_shape);
     TensorTraits dV_traits(K_shape, K_shape);
@@ -82,8 +82,8 @@ void check(const FlashTensorCase &cfg)
     Tensor<T> K_single(K_traits, dist_root);
     Tensor<T> Q_single(Q_traits, dist_root);
     Tensor<T> V_single(V_traits, dist_root);
-    Tensor<T> O_single(O_traits, dist_root);
-    Tensor<T> dO_single(dO_traits, dist_root);
+    Tensor<T> A_single(A_traits, dist_root);
+    Tensor<T> dA_single(dA_traits, dist_root);
     Tensor<T> dK_single(dK_traits, dist_root);
     Tensor<T> dQ_single(dQ_traits, dist_root);
     Tensor<T> dV_single(dV_traits, dist_root);
@@ -98,8 +98,8 @@ void check(const FlashTensorCase &cfg)
         auto K_tile = K_single.get_tile(0);
         auto Q_tile = Q_single.get_tile(0);
         auto V_tile = V_single.get_tile(0);
-        auto O_tile = O_single.get_tile(0);
-        auto dO_tile = dO_single.get_tile(0);
+        auto A_tile = A_single.get_tile(0);
+        auto dA_tile = dA_single.get_tile(0);
         auto dK_tile = dK_single.get_tile(0);
         auto dQ_tile = dQ_single.get_tile(0);
         auto dV_tile = dV_single.get_tile(0);
@@ -109,8 +109,8 @@ void check(const FlashTensorCase &cfg)
         auto K_local = K_tile.acquire(STARPU_W);
         auto Q_local = Q_tile.acquire(STARPU_W);
         auto V_local = V_tile.acquire(STARPU_W);
-        auto O_local = O_tile.acquire(STARPU_W);
-        auto dO_local = dO_tile.acquire(STARPU_W);
+        auto A_local = A_tile.acquire(STARPU_W);
+        auto dA_local = dA_tile.acquire(STARPU_W);
         auto dK_local = dK_tile.acquire(STARPU_W);
         auto dQ_local = dQ_tile.acquire(STARPU_W);
         auto dV_local = dV_tile.acquire(STARPU_W);
@@ -123,8 +123,8 @@ void check(const FlashTensorCase &cfg)
             K_local[i] = T(Y(0.1 * (i % 10 - 5)));
             Q_local[i] = T(Y(0.1 * ((i + 1) % 10 - 5)));
             V_local[i] = T(Y(0.1 * ((i + 2) % 10 - 5)));
-            O_local[i] = T(Y(0.1 * ((i + 3) % 10 - 5)));
-            dO_local[i] = T(Y(0.1 * ((i + 4) % 10 - 5)));
+            A_local[i] = T(Y(0.1 * ((i + 3) % 10 - 5)));
+            dA_local[i] = T(Y(0.1 * ((i + 4) % 10 - 5)));
             dK_local[i] = T(Y(0.0)); // Initialize output to zero
             dQ_local[i] = T(Y(0.0));
             dV_local[i] = T(Y(0.0));
@@ -156,8 +156,8 @@ void check(const FlashTensorCase &cfg)
         K_local.release();
         Q_local.release();
         V_local.release();
-        O_local.release();
-        dO_local.release();
+        A_local.release();
+        dA_local.release();
         dK_local.release();
         dQ_local.release();
         dV_local.release();
@@ -198,8 +198,8 @@ void check(const FlashTensorCase &cfg)
     TensorTraits K_multi_traits(K_shape, kv_tensor_tile_shape);
     TensorTraits Q_multi_traits(K_shape, kv_tensor_tile_shape);
     TensorTraits V_multi_traits(K_shape, kv_tensor_tile_shape);
-    TensorTraits O_multi_traits(K_shape, kv_tensor_tile_shape);
-    TensorTraits dO_multi_traits(K_shape, kv_tensor_tile_shape);
+    TensorTraits A_multi_traits(K_shape, kv_tensor_tile_shape);
+    TensorTraits dA_multi_traits(K_shape, kv_tensor_tile_shape);
     TensorTraits dK_multi_traits(K_shape, kv_tensor_tile_shape);
     TensorTraits dQ_multi_traits(K_shape, kv_tensor_tile_shape);
     TensorTraits dV_multi_traits(K_shape, kv_tensor_tile_shape);
@@ -209,8 +209,8 @@ void check(const FlashTensorCase &cfg)
     auto K_distr = make_distribution(K_multi_traits.grid.nelems);
     auto Q_distr = make_distribution(Q_multi_traits.grid.nelems);
     auto V_distr = make_distribution(V_multi_traits.grid.nelems);
-    auto O_distr = make_distribution(O_multi_traits.grid.nelems);
-    auto dO_distr = make_distribution(dO_multi_traits.grid.nelems);
+    auto A_distr = make_distribution(A_multi_traits.grid.nelems);
+    auto dA_distr = make_distribution(dA_multi_traits.grid.nelems);
     auto dK_distr = make_distribution(dK_multi_traits.grid.nelems);
     auto dQ_distr = make_distribution(dQ_multi_traits.grid.nelems);
     auto dV_distr = make_distribution(dV_multi_traits.grid.nelems);
@@ -220,8 +220,8 @@ void check(const FlashTensorCase &cfg)
     Tensor<T> K_multi(K_multi_traits, K_distr);
     Tensor<T> Q_multi(Q_multi_traits, Q_distr);
     Tensor<T> V_multi(V_multi_traits, V_distr);
-    Tensor<T> O_multi(O_multi_traits, O_distr);
-    Tensor<T> dO_multi(dO_multi_traits, dO_distr);
+    Tensor<T> A_multi(A_multi_traits, A_distr);
+    Tensor<T> dA_multi(dA_multi_traits, dA_distr);
     Tensor<T> dK_multi(dK_multi_traits, dK_distr);
     Tensor<T> dQ_multi(dQ_multi_traits, dQ_distr);
     Tensor<T> dV_multi(dV_multi_traits, dV_distr);
@@ -231,8 +231,8 @@ void check(const FlashTensorCase &cfg)
     scatter<T>(K_single, K_multi);
     scatter<T>(Q_single, Q_multi);
     scatter<T>(V_single, V_multi);
-    scatter<T>(O_single, O_multi);
-    scatter<T>(dO_single, dO_multi);
+    scatter<T>(A_single, A_multi);
+    scatter<T>(dA_single, dA_multi);
     clear(dK_multi);
     clear(dQ_multi);
     clear(dV_multi);
@@ -244,14 +244,14 @@ void check(const FlashTensorCase &cfg)
     {
         // Call tile-level operation (reference)
         tile::flash_sdpa_bwd_cudnn<T>(K_single.get_tile(0), Q_single.get_tile(0),
-                                     V_single.get_tile(0), O_single.get_tile(0),
-                                     dO_single.get_tile(0), mask_single.get_tile(0),
+                                     V_single.get_tile(0), A_single.get_tile(0),
+                                     dA_single.get_tile(0), mask_single.get_tile(0),
                                      logsumexp_single.get_tile(0), dK_single.get_tile(0),
                                      dQ_single.get_tile(0), dV_single.get_tile(0));
     }
 
     // Call tensor-level operation
-    flash_sdpa_bwd_cudnn<T>(K_multi, Q_multi, V_multi, O_multi, dO_multi,
+    flash_sdpa_bwd_cudnn<T>(K_multi, Q_multi, V_multi, A_multi, dA_multi,
                            mask_multi, logsumexp_multi, dK_multi, dQ_multi, dV_multi);
 
     // Compare results

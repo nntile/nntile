@@ -2,15 +2,13 @@
 # Tests for tensor::flash_sdpa_bwd_cudnn<T> Python wrapper
 
 import math
+
 import numpy as np
 import pytest
 
 import nntile
 from nntile.functions import (
-    clear_async,
-    flash_sdpa_fwd_cudnn_async,
-    flash_sdpa_bwd_cudnn_async,
-)
+    clear_async, flash_sdpa_bwd_cudnn_async, flash_sdpa_fwd_cudnn_async)
 
 supported_dtypes = ["fp16", "bf16"]
 
@@ -29,7 +27,7 @@ def _prepare_flash_backward_inputs(dtype: str, seed: int = 17):
     K_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)
     Q_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)
     V_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)
-    O_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)
+    A_traits = nntile.tensor.TensorTraits(kqv_shape, kqv_shape)
     mask_traits = nntile.tensor.TensorTraits(mask_shape, mask_shape)
     logsumexp_traits = nntile.tensor.TensorTraits(
         logsumexp_shape, logsumexp_shape
@@ -48,8 +46,8 @@ def _prepare_flash_backward_inputs(dtype: str, seed: int = 17):
     K = tensor_type(K_traits, dist)
     Q = tensor_type(Q_traits, dist)
     V = tensor_type(V_traits, dist)
-    O = tensor_type(O_traits, dist)
-    dO = tensor_type(O_traits, dist)
+    A = tensor_type(A_traits, dist)
+    dA = tensor_type(A_traits, dist)
     dK = tensor_type(K_traits, dist)
     dQ = tensor_type(Q_traits, dist)
     dV = tensor_type(V_traits, dist)
@@ -60,7 +58,7 @@ def _prepare_flash_backward_inputs(dtype: str, seed: int = 17):
     K_src = rng.standard_normal(kqv_shape).astype(np.float32, "F") * 0.1
     Q_src = rng.standard_normal(kqv_shape).astype(np.float32, "F") * 0.1
     V_src = rng.standard_normal(kqv_shape).astype(np.float32, "F") * 0.1
-    dO_src = rng.standard_normal(kqv_shape).astype(np.float32, "F") * 0.05
+    dA_src = rng.standard_normal(kqv_shape).astype(np.float32, "F") * 0.05
 
     mask_src = np.full(mask_shape, -np.inf, dtype=np.float32, order="F")
     for i in range(n_seq):
@@ -75,8 +73,8 @@ def _prepare_flash_backward_inputs(dtype: str, seed: int = 17):
     K.from_array(K_src)
     Q.from_array(Q_src)
     V.from_array(V_src)
-    O.from_array(np.zeros_like(K_src))
-    dO.from_array(dO_src)
+    A.from_array(np.zeros_like(K_src))
+    dA.from_array(dA_src)
     clear_async(dK)
     clear_async(dQ)
     clear_async(dV)
@@ -87,8 +85,8 @@ def _prepare_flash_backward_inputs(dtype: str, seed: int = 17):
         "K": K,
         "Q": Q,
         "V": V,
-        "O": O,
-        "dO": dO,
+        "A": A,
+        "dA": dA,
         "dK": dK,
         "dQ": dQ,
         "dV": dV,
@@ -97,7 +95,7 @@ def _prepare_flash_backward_inputs(dtype: str, seed: int = 17):
         "K_src": K_src,
         "Q_src": Q_src,
         "V_src": V_src,
-        "dO_src": dO_src,
+        "dA_src": dA_src,
         "mask_src": mask_src,
         "kqv_shape": kqv_shape,
         "head_size": head_size,
@@ -127,17 +125,23 @@ def _torch_flash_sdpa_backward_reference(data):
         return None
 
     q_t = torch.tensor(
-        _flatten_to_batches(data["Q_src"]), dtype=torch.float32, requires_grad=True
+        _flatten_to_batches(data["Q_src"]),
+        dtype=torch.float32,
+        requires_grad=True
     )
     k_t = torch.tensor(
-        _flatten_to_batches(data["K_src"]), dtype=torch.float32, requires_grad=True
+        _flatten_to_batches(data["K_src"]),
+        dtype=torch.float32,
+        requires_grad=True
     )
     v_t = torch.tensor(
-        _flatten_to_batches(data["V_src"]), dtype=torch.float32, requires_grad=True
+        _flatten_to_batches(data["V_src"]),
+        dtype=torch.float32,
+        requires_grad=True
     )
     mask = torch.tensor(data["mask_src"], dtype=torch.float32)
-    dO = torch.tensor(
-        _flatten_to_batches(data["dO_src"]), dtype=torch.float32
+    dA = torch.tensor(
+        _flatten_to_batches(data["dA_src"]), dtype=torch.float32
     )
 
     scale = 1.0 / math.sqrt(float(data["head_size"]))
@@ -146,11 +150,17 @@ def _torch_flash_sdpa_backward_reference(data):
     attn = torch.softmax(scores, dim=-1)
     y = torch.matmul(attn, v_t)
 
-    y.backward(dO)
+    y.backward(dA)
 
-    dQ = _unflatten_from_batches(q_t.grad.detach().cpu().numpy(), data["kqv_shape"])
-    dK = _unflatten_from_batches(k_t.grad.detach().cpu().numpy(), data["kqv_shape"])
-    dV = _unflatten_from_batches(v_t.grad.detach().cpu().numpy(), data["kqv_shape"])
+    dQ = _unflatten_from_batches(
+        q_t.grad.detach().cpu().numpy(), data["kqv_shape"]
+    )
+    dK = _unflatten_from_batches(
+        k_t.grad.detach().cpu().numpy(), data["kqv_shape"]
+    )
+    dV = _unflatten_from_batches(
+        v_t.grad.detach().cpu().numpy(), data["kqv_shape"]
+    )
     return {"dQ": dQ, "dK": dK, "dV": dV}
 
 
@@ -171,7 +181,7 @@ def test_flash_sdpa_bwd_cudnn_async(context, dtype):
         data["mask"],
         data["logsumexp"],
         data["V"],
-        data["O"],
+        data["A"],
     )
     nntile.starpu.wait_for_all()
 
@@ -179,8 +189,8 @@ def test_flash_sdpa_bwd_cudnn_async(context, dtype):
         data["K"],
         data["Q"],
         data["V"],
-        data["O"],
-        data["dO"],
+        data["A"],
+        data["dA"],
         data["mask"],
         data["logsumexp"],
         data["dK"],

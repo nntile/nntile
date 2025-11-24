@@ -103,8 +103,8 @@ void FlashSdpaBwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     const T *K = interfaces[0]->get_ptr<T>();
     const T *Q = interfaces[1]->get_ptr<T>();
     const T *V = interfaces[2]->get_ptr<T>();
-    const T *O = interfaces[3]->get_ptr<T>();
-    const T *dO = interfaces[4]->get_ptr<T>();
+    const T *A = interfaces[3]->get_ptr<T>();
+    const T *dA = interfaces[4]->get_ptr<T>();
     const T *mask = interfaces[5]->get_ptr<T>();
     const fp32_t *logsumexp = interfaces[6]->get_ptr<fp32_t>();
     T *dK = interfaces[7]->get_ptr<T>();
@@ -123,8 +123,8 @@ void FlashSdpaBwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         K,
         Q,
         V,
-        O,
-        dO,
+        A,
+        dA,
         mask,
         logsumexp,
         scratch_dK,
@@ -161,7 +161,7 @@ uint32_t FlashSdpaBwdCudnn<std::tuple<T>>::footprint(struct starpu_task *task)
 
 template<typename T>
 void FlashSdpaBwdCudnn<std::tuple<T>>::submit(Index seq, Index head,
-        Index batch, Handle K, Handle Q, Handle V, Handle O, Handle dO,
+        Index batch, Handle K, Handle Q, Handle V, Handle A, Handle dA,
         Handle mask, Handle logsumexp, Handle dK, Handle dQ, Handle dV,
         Handle scratch_dK, Handle scratch_dQ, Handle scratch_dV)
 {
@@ -175,8 +175,8 @@ void FlashSdpaBwdCudnn<std::tuple<T>>::submit(Index seq, Index head,
             STARPU_R, K.get(),
             STARPU_R, Q.get(),
             STARPU_R, V.get(),
-            STARPU_R, O.get(),
-            STARPU_R, dO.get(),
+            STARPU_R, A.get(),
+            STARPU_R, dA.get(),
             STARPU_R, mask.get(),
             STARPU_R, logsumexp.get(),
             STARPU_RW, dK.get(),

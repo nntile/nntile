@@ -2247,8 +2247,8 @@ def flash_sdpa_bwd_cudnn_async(
     K: Tensor,
     Q: Tensor,
     V: Tensor,
-    O: Tensor,
-    dO: Tensor,
+    A: Tensor,
+    dA: Tensor,
     mask: Tensor,
     logsumexp: Tensor,
     dK: Tensor,
@@ -2258,18 +2258,18 @@ def flash_sdpa_bwd_cudnn_async(
     """
     Flash attention SDPA backward pass using cuDNN.
 
-    Computes gradients for Q/K/V given forward inputs/outputs and dO.
+    Computes gradients for Q/K/V given forward inputs/outputs and dA.
     Currently supports single-tile tensors stored in BF16 or FP16 formats.
     """
     if not isinstance(logsumexp, Tensor_fp32):
         raise TypeError("logsumexp tensor must be Tensor_fp32")
 
-    tensors = (K, Q, V, O, dO, mask, dK, dQ, dV)
+    tensors = (K, Q, V, A, dA, mask, dK, dQ, dV)
     if is_tensor_of(tensors, Tensor_bf16):
         ops.flash_sdpa_bwd_cudnn_async_bf16(
-            K, Q, V, O, dO, mask, logsumexp, dK, dQ, dV)
+            K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV)
     elif is_tensor_of(tensors, Tensor_fp16):
         ops.flash_sdpa_bwd_cudnn_async_fp16(
-            K, Q, V, O, dO, mask, logsumexp, dK, dQ, dV)
+            K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV)
     else:
         raise TypeError("Only BF16 and FP16 tensor types are supported")

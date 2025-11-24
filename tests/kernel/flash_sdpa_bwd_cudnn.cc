@@ -79,9 +79,9 @@ struct TestData
     std::vector<T> Q_init;
     std::vector<T> V_init;
     std::vector<T> mask_init;
-    std::vector<T> O_init;
+    std::vector<T> A_init;
     std::vector<fp32_t> lse_init;
-    std::vector<T> dO_init;
+    std::vector<T> dA_init;
 
     std::vector<T> dK_ref;
     std::vector<T> dQ_ref;
@@ -106,9 +106,9 @@ void generate_data(TestData<T> &data,
     data.K_init.resize(total);
     data.Q_init.resize(total);
     data.V_init.resize(total);
-    data.O_init.resize(total);
+    data.A_init.resize(total);
     data.mask_init.resize(seq * seq);
-    data.dO_init.resize(total);
+    data.dA_init.resize(total);
     data.lse_init.resize(batch * seq);
 
     switch(strategy)
@@ -120,8 +120,8 @@ void generate_data(TestData<T> &data,
                 data.K_init[i] = T(base);
                 data.Q_init[i] = T(base * Y(0.7));
                 data.V_init[i] = T(base * Y(1.1));
-                data.O_init[i] = T(base * Y(-0.3));
-                data.dO_init[i] = T(Y(0.02 * ((i % 17) - 8)));
+                data.A_init[i] = T(base * Y(-0.3));
+                data.dA_init[i] = T(Y(0.02 * ((i % 17) - 8)));
             }
             for(Index i = 0; i < batch * seq; ++i)
             {
@@ -139,8 +139,8 @@ void generate_data(TestData<T> &data,
                 data.K_init[i] = T(sample);
                 data.Q_init[i] = T(dist_inputs(gen));
                 data.V_init[i] = T(dist_inputs(gen));
-                data.O_init[i] = T(dist_inputs(gen));
-                data.dO_init[i] = T(sample * Y(0.5));
+                data.A_init[i] = T(dist_inputs(gen));
+                data.dA_init[i] = T(sample * Y(0.5));
             }
             for(Index i = 0; i < batch * seq; ++i)
             {
@@ -227,7 +227,7 @@ void reference_backward(TestData<T> &data)
                 {
                     const Index o_idx = b * data.seq * data.head + i * data.head + h;
                     const Index v_idx = b * data.seq * data.head + j * data.head + h;
-                    dp += static_cast<Y>(data.dO_init[o_idx]) * static_cast<Y>(data.V_init[v_idx]);
+                    dp += static_cast<Y>(data.dA_init[o_idx]) * static_cast<Y>(data.V_init[v_idx]);
                 }
                 dP[j] = dp;
             }
@@ -236,9 +236,9 @@ void reference_backward(TestData<T> &data)
             for(Index h = 0; h < data.head; ++h)
             {
                 const Index o_idx = b * data.seq * data.head + i * data.head + h;
-                ref_t O_val = static_cast<Y>(data.O_init[o_idx]);
-                ref_t dO_val = static_cast<Y>(data.dO_init[o_idx]);
-                sum_attn_dp += O_val * dO_val;
+                ref_t A_val = static_cast<Y>(data.A_init[o_idx]);
+                ref_t dA_val = static_cast<Y>(data.dA_init[o_idx]);
+                sum_attn_dp += A_val * dA_val;
             }
 
             for(Index j = 0; j < data.seq; ++j)
@@ -248,7 +248,7 @@ void reference_backward(TestData<T> &data)
                 {
                     const Index o_idx = b * data.seq * data.head + i * data.head + h;
                     const Index v_idx = b * data.seq * data.head + j * data.head + h;
-                    dV_acc[v_idx] += P[j] * static_cast<Y>(data.dO_init[o_idx]);
+                    dV_acc[v_idx] += P[j] * static_cast<Y>(data.dA_init[o_idx]);
 
                     const Index q_idx = b * data.seq * data.head + i * data.head + h;
                     const Index k_idx = b * data.seq * data.head + j * data.head + h;
@@ -343,8 +343,8 @@ void run_cuda_test(TestData<T> &data)
     T *dev_K = nullptr;
     T *dev_Q = nullptr;
     T *dev_V = nullptr;
-    T *dev_O = nullptr;
-    T *dev_dO = nullptr;
+    T *dev_A = nullptr;
+    T *dev_dA = nullptr;
     T *dev_mask = nullptr;
     T *dev_dK = nullptr;
     T *dev_dQ = nullptr;
@@ -359,8 +359,8 @@ void run_cuda_test(TestData<T> &data)
     CUDA_CHECK(cudaMalloc(&dev_K, sizeof(T) * total), "cudaMalloc dev_K");
     CUDA_CHECK(cudaMalloc(&dev_Q, sizeof(T) * total), "cudaMalloc dev_Q");
     CUDA_CHECK(cudaMalloc(&dev_V, sizeof(T) * total), "cudaMalloc dev_V");
-    CUDA_CHECK(cudaMalloc(&dev_O, sizeof(T) * total), "cudaMalloc dev_O");
-    CUDA_CHECK(cudaMalloc(&dev_dO, sizeof(T) * total), "cudaMalloc dev_dO");
+    CUDA_CHECK(cudaMalloc(&dev_A, sizeof(T) * total), "cudaMalloc dev_A");
+    CUDA_CHECK(cudaMalloc(&dev_dA, sizeof(T) * total), "cudaMalloc dev_dA");
     CUDA_CHECK(cudaMalloc(&dev_mask, sizeof(T) * data.seq * data.seq), "cudaMalloc dev_mask");
     CUDA_CHECK(cudaMalloc(&dev_dK, sizeof(T) * total), "cudaMalloc dev_dK");
     CUDA_CHECK(cudaMalloc(&dev_dQ, sizeof(T) * total), "cudaMalloc dev_dQ");
@@ -376,10 +376,10 @@ void run_cuda_test(TestData<T> &data)
                "cudaMemcpy dev_Q");
     CUDA_CHECK(cudaMemcpy(dev_V, data.V_init.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
                "cudaMemcpy dev_V");
-    CUDA_CHECK(cudaMemcpy(dev_O, data.O_init.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
-               "cudaMemcpy dev_O_init");
-    CUDA_CHECK(cudaMemcpy(dev_dO, data.dO_init.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
-               "cudaMemcpy dev_dO_init");
+    CUDA_CHECK(cudaMemcpy(dev_A, data.A_init.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
+               "cudaMemcpy dev_A_init");
+    CUDA_CHECK(cudaMemcpy(dev_dA, data.dA_init.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
+               "cudaMemcpy dev_dA_init");
     CUDA_CHECK(cudaMemcpy(dev_mask, data.mask_init.data(),
                           sizeof(T) * data.seq * data.seq,
                           cudaMemcpyHostToDevice),
@@ -426,8 +426,8 @@ void run_cuda_test(TestData<T> &data)
         CUDA_CHECK(cudaFree(dev_K), "cudaFree dev_K");
         CUDA_CHECK(cudaFree(dev_Q), "cudaFree dev_Q");
         CUDA_CHECK(cudaFree(dev_V), "cudaFree dev_V");
-        CUDA_CHECK(cudaFree(dev_O), "cudaFree dev_O");
-        CUDA_CHECK(cudaFree(dev_dO), "cudaFree dev_dO");
+        CUDA_CHECK(cudaFree(dev_A), "cudaFree dev_A");
+        CUDA_CHECK(cudaFree(dev_dA), "cudaFree dev_dA");
         CUDA_CHECK(cudaFree(dev_mask), "cudaFree dev_mask");
         CUDA_CHECK(cudaFree(dev_dK), "cudaFree dev_dK");
         CUDA_CHECK(cudaFree(dev_dQ), "cudaFree dev_dQ");
@@ -483,7 +483,7 @@ void run_cuda_test(TestData<T> &data)
                        "cudaMemcpy base_dV");
             kernel::flash_sdpa_bwd_cudnn::execute_graph<T>(
                 handle, bwd_graph, data.seq, data.head, data.batch,
-                dev_K, dev_Q, dev_V, dev_O, dev_dO,
+                dev_K, dev_Q, dev_V, dev_A, dev_dA,
                 dev_mask, dev_lse,
                 dev_scratch_dK, dev_scratch_dQ, dev_scratch_dV,
                 dev_dK, dev_dQ, dev_dV, workspace);
@@ -500,7 +500,7 @@ void run_cuda_test(TestData<T> &data)
                    "cudaMemcpy base_dV");
         kernel::flash_sdpa_bwd_cudnn::execute_graph<T>(
             handle, bwd_graph, data.seq, data.head, data.batch,
-            dev_K, dev_Q, dev_V, dev_O, dev_dO,
+            dev_K, dev_Q, dev_V, dev_A, dev_dA,
             dev_mask, dev_lse,
             dev_scratch_dK, dev_scratch_dQ, dev_scratch_dV,
             dev_dK, dev_dQ, dev_dV, workspace);

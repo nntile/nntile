@@ -23,8 +23,8 @@ static inline void flash_sdpa_bwd_cudnn_check(
         const TileTraits &K,
         const TileTraits &Q,
         const TileTraits &V,
-        const TileTraits &O,
-        const TileTraits &dO,
+        const TileTraits &A,
+        const TileTraits &dA,
         const TileTraits &mask,
         const TileTraits &logsumexp,
         const TileTraits &dK,
@@ -39,8 +39,8 @@ static inline void flash_sdpa_bwd_cudnn_check(
     check_5d(K, "K");
     check_5d(Q, "Q");
     check_5d(V, "V");
-    check_5d(O, "O");
-    check_5d(dO, "dO");
+    check_5d(A, "A");
+    check_5d(dA, "dA");
     check_5d(dK, "dK");
     check_5d(dQ, "dQ");
     check_5d(dV, "dV");
@@ -62,8 +62,8 @@ static inline void flash_sdpa_bwd_cudnn_check(
 
     check_equal_shape(K, Q, "K", "Q");
     check_equal_shape(K, V, "K", "V");
-    check_equal_shape(K, O, "K", "O");
-    check_equal_shape(K, dO, "K", "dO");
+    check_equal_shape(K, A, "K", "A");
+    check_equal_shape(K, dA, "K", "dA");
     check_equal_shape(K, dK, "K", "dK");
     check_equal_shape(K, dQ, "K", "dQ");
     check_equal_shape(K, dV, "K", "dV");
@@ -91,19 +91,19 @@ void flash_sdpa_bwd_cudnn_async(
     const Tile<T> &K,
     const Tile<T> &Q,
     const Tile<T> &V,
-    const Tile<T> &O,
-    const Tile<T> &dO,
+    const Tile<T> &A,
+    const Tile<T> &dA,
     const Tile<T> &mask,
     const Tile<fp32_t> &logsumexp,
     const Tile<T> &dK,
     const Tile<T> &dQ,
     const Tile<T> &dV)
 {
-    flash_sdpa_bwd_cudnn_check(K, Q, V, O, dO, mask, logsumexp, dK, dQ, dV);
+    flash_sdpa_bwd_cudnn_check(K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
 
     Index seq = K.shape[1];
-   Index head = K.shape[0];
-   Index batch = K.shape[2] * K.shape[3] * K.shape[4];
+    Index head = K.shape[0];
+    Index batch = K.shape[2] * K.shape[3] * K.shape[4];
 
     starpu::VariableHandle scratch_dK(sizeof(T) * dK.nelems);
     starpu::VariableHandle scratch_dQ(sizeof(T) * dQ.nelems);
@@ -111,7 +111,7 @@ void flash_sdpa_bwd_cudnn_async(
 
     starpu::flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(
         seq, head, batch,
-        K, Q, V, O, dO, mask, logsumexp, dK, dQ, dV,
+        K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV,
         scratch_dK, scratch_dQ, scratch_dV);
 
     scratch_dK.unregister_submit();
@@ -124,8 +124,8 @@ void flash_sdpa_bwd_cudnn(
     const Tile<T> &K,
     const Tile<T> &Q,
     const Tile<T> &V,
-    const Tile<T> &O,
-    const Tile<T> &dO,
+    const Tile<T> &A,
+    const Tile<T> &dA,
     const Tile<T> &mask,
     const Tile<fp32_t> &logsumexp,
     const Tile<T> &dK,
@@ -133,7 +133,7 @@ void flash_sdpa_bwd_cudnn(
     const Tile<T> &dV)
 {
     flash_sdpa_bwd_cudnn_async<T>(
-        K, Q, V, O, dO, mask, logsumexp, dK, dQ, dV);
+        K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
     starpu_task_wait_for_all();
 }
 
@@ -142,8 +142,8 @@ void flash_sdpa_bwd_cudnn_async<bf16_t>(
     const Tile<bf16_t> &K,
     const Tile<bf16_t> &Q,
     const Tile<bf16_t> &V,
-    const Tile<bf16_t> &O,
-    const Tile<bf16_t> &dO,
+    const Tile<bf16_t> &A,
+    const Tile<bf16_t> &dA,
     const Tile<bf16_t> &mask,
     const Tile<fp32_t> &logsumexp,
     const Tile<bf16_t> &dK,
@@ -155,8 +155,8 @@ void flash_sdpa_bwd_cudnn_async<fp16_t>(
     const Tile<fp16_t> &K,
     const Tile<fp16_t> &Q,
     const Tile<fp16_t> &V,
-    const Tile<fp16_t> &O,
-    const Tile<fp16_t> &dO,
+    const Tile<fp16_t> &A,
+    const Tile<fp16_t> &dA,
     const Tile<fp16_t> &mask,
     const Tile<fp32_t> &logsumexp,
     const Tile<fp16_t> &dK,
@@ -168,8 +168,8 @@ void flash_sdpa_bwd_cudnn<bf16_t>(
     const Tile<bf16_t> &K,
     const Tile<bf16_t> &Q,
     const Tile<bf16_t> &V,
-    const Tile<bf16_t> &O,
-    const Tile<bf16_t> &dO,
+    const Tile<bf16_t> &A,
+    const Tile<bf16_t> &dA,
     const Tile<bf16_t> &mask,
     const Tile<fp32_t> &logsumexp,
     const Tile<bf16_t> &dK,
@@ -181,8 +181,8 @@ void flash_sdpa_bwd_cudnn<fp16_t>(
     const Tile<fp16_t> &K,
     const Tile<fp16_t> &Q,
     const Tile<fp16_t> &V,
-    const Tile<fp16_t> &O,
-    const Tile<fp16_t> &dO,
+    const Tile<fp16_t> &A,
+    const Tile<fp16_t> &dA,
     const Tile<fp16_t> &mask,
     const Tile<fp32_t> &logsumexp,
     const Tile<fp16_t> &dK,
