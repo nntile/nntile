@@ -83,7 +83,10 @@ public:
         Handle logsumexp,
         Handle dK,
         Handle dQ,
-        Handle dV
+        Handle dV,
+        Handle scratch_dK,
+        Handle scratch_dQ,
+        Handle scratch_dV
     );
 
 #ifdef NNTILE_USE_CUDA

@@ -21,6 +21,7 @@
 #include <cmath>
 #include <limits>
 #include <iostream>
+#include <vector>
 
 using namespace nntile;
 using namespace nntile::tile;
@@ -46,6 +47,9 @@ void check()
     Tile<T> dK_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
     Tile<T> dQ_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
     Tile<T> dV_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> dK_ref_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> dQ_ref_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> dV_ref_tile({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
     Tile<T> mask_tile({n_seq, n_seq});
     Tile<fp32_t> logsumexp_tile({n_seq, n_batch, kv_group_size, n_head_kv});
 
@@ -98,6 +102,25 @@ void check()
     O_local.release();
     dO_local.release();
     mask_local.release();
+
+    {
+        auto dK_ref_local = dK_ref_tile.acquire(STARPU_W);
+        auto dQ_ref_local = dQ_ref_tile.acquire(STARPU_W);
+        auto dV_ref_local = dV_ref_tile.acquire(STARPU_W);
+        for(Index i = 0; i < dK_ref_tile.nelems; ++i)
+        {
+            dK_ref_local[i] = T(Y(0.0));
+            dQ_ref_local[i] = T(Y(0.0));
+            dV_ref_local[i] = T(Y(0.0));
+        }
+        dK_ref_local.release();
+        dQ_ref_local.release();
+        dV_ref_local.release();
+
+        tile::flash_sdpa_bwd_cudnn<T>(K_tile, Q_tile, V_tile, O_tile, dO_tile,
+                                      mask_tile, logsumexp_tile,
+                                      dK_ref_tile, dQ_ref_tile, dV_ref_tile);
+    }
 
     // Test 1: Compare tile-level vs starpu-level backward
     {
@@ -157,15 +180,29 @@ void check()
         mask_src.release();
         logsumexp_src.release();
 
-        // Initialize outputs to zero
+        std::vector<Y> base_dK(dK_tile.nelems);
+        std::vector<Y> base_dQ(dQ_tile.nelems);
+        std::vector<Y> base_dV(dV_tile.nelems);
         auto dK_starpu_local_init = dK_starpu.acquire(STARPU_W);
         auto dQ_starpu_local_init = dQ_starpu.acquire(STARPU_W);
         auto dV_starpu_local_init = dV_starpu.acquire(STARPU_W);
         for(Index i = 0; i < dK_starpu.nelems; ++i)
         {
-            dK_starpu_local_init[i] = T(Y(0.0));
-            dQ_starpu_local_init[i] = T(Y(0.0));
-            dV_starpu_local_init[i] = T(Y(0.0));
+            Y base_val = Y(0.02 * ((i % 17) - 8));
+            dK_starpu_local_init[i] = T(base_val);
+            base_dK[i] = base_val;
+        }
+        for(Index i = 0; i < dQ_starpu.nelems; ++i)
+        {
+            Y base_val = Y(0.03 * ((i % 19) - 9));
+            dQ_starpu_local_init[i] = T(base_val);
+            base_dQ[i] = base_val;
+        }
+        for(Index i = 0; i < dV_starpu.nelems; ++i)
+        {
+            Y base_val = Y(0.015 * ((i % 13) - 6));
+            dV_starpu_local_init[i] = T(base_val);
+            base_dV[i] = base_val;
         }
         dK_starpu_local_init.release();
         dQ_starpu_local_init.release();
@@ -180,10 +217,19 @@ void check()
         logsumexp_dst.release();
 
         // Call starpu-level operation
+        starpu::VariableHandle scratch_dK(sizeof(T) * dK_starpu.nelems);
+        starpu::VariableHandle scratch_dQ(sizeof(T) * dQ_starpu.nelems);
+        starpu::VariableHandle scratch_dV(sizeof(T) * dV_starpu.nelems);
+
         starpu::flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(
             n_seq, head_size, n_batch * kv_group_size * n_head_kv, K_starpu, Q_starpu, V_starpu,
             O_starpu, dO_starpu, mask_starpu, logsumexp_starpu,
-            dK_starpu, dQ_starpu, dV_starpu);
+            dK_starpu, dQ_starpu, dV_starpu,
+            scratch_dK, scratch_dQ, scratch_dV);
+
+        scratch_dK.unregister_submit();
+        scratch_dQ.unregister_submit();
+        scratch_dV.unregister_submit();
 
         // Initialize tile outputs to zero
         auto dK_tile_local_init = dK_tile.acquire(STARPU_W);
@@ -191,9 +237,15 @@ void check()
         auto dV_tile_local_init = dV_tile.acquire(STARPU_W);
         for(Index i = 0; i < dK_tile.nelems; ++i)
         {
-            dK_tile_local_init[i] = T(Y(0.0));
-            dQ_tile_local_init[i] = T(Y(0.0));
-            dV_tile_local_init[i] = T(Y(0.0));
+            dK_tile_local_init[i] = T(base_dK[i]);
+        }
+        for(Index i = 0; i < dQ_tile.nelems; ++i)
+        {
+            dQ_tile_local_init[i] = T(base_dQ[i]);
+        }
+        for(Index i = 0; i < dV_tile.nelems; ++i)
+        {
+            dV_tile_local_init[i] = T(base_dV[i]);
         }
         dK_tile_local_init.release();
         dQ_tile_local_init.release();
@@ -210,6 +262,9 @@ void check()
         auto dQ_starpu_local_read = dQ_starpu.acquire(STARPU_R);
         auto dV_tile_local = dV_tile.acquire(STARPU_R);
         auto dV_starpu_local_read = dV_starpu.acquire(STARPU_R);
+        auto dK_ref_local = dK_ref_tile.acquire(STARPU_R);
+        auto dQ_ref_local = dQ_ref_tile.acquire(STARPU_R);
+        auto dV_ref_local = dV_ref_tile.acquire(STARPU_R);
 
         Y eps = (std::is_same_v<T, fp16_t> || std::is_same_v<T, bf16_t>) ? Y(1e-2) : Y(1e-5);
 
@@ -240,12 +295,44 @@ void check()
             TEST_ASSERT(diff <= eps * (Y(1.0) + max_val));
         }
 
+        auto check_accumulation = [&](auto &tile_local,
+                                      auto &starpu_local,
+                                      auto &ref_local,
+                                      const std::vector<Y> &base,
+                                      Index nelems)
+        {
+            for(Index i = 0; i < nelems; ++i)
+            {
+                Y tile_delta = Y(tile_local[i]) - base[i];
+                Y starpu_delta = Y(starpu_local[i]) - base[i];
+                Y ref_val = Y(ref_local[i]);
+                Y diff_tile = std::abs(tile_delta - ref_val);
+                Y diff_starpu = std::abs(starpu_delta - ref_val);
+                Y max_val = std::max({std::abs(ref_val),
+                                      std::abs(tile_delta),
+                                      std::abs(starpu_delta),
+                                      Y(1.0)});
+                TEST_ASSERT(diff_tile <= eps * max_val);
+                TEST_ASSERT(diff_starpu <= eps * max_val);
+            }
+        };
+
+        check_accumulation(dK_tile_local, dK_starpu_local_read, dK_ref_local,
+                           base_dK, dK_tile.nelems);
+        check_accumulation(dQ_tile_local, dQ_starpu_local_read, dQ_ref_local,
+                           base_dQ, dQ_tile.nelems);
+        check_accumulation(dV_tile_local, dV_starpu_local_read, dV_ref_local,
+                           base_dV, dV_tile.nelems);
+
         dK_tile_local.release();
         dK_starpu_local_read.release();
         dQ_tile_local.release();
         dQ_starpu_local_read.release();
         dV_tile_local.release();
         dV_starpu_local_read.release();
+        dK_ref_local.release();
+        dQ_ref_local.release();
+        dV_ref_local.release();
 
         // Unregister starpu tiles (tile-level tiles are automatically handled)
         K_starpu.unregister();

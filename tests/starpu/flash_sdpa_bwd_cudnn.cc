@@ -46,6 +46,9 @@ void validate_cuda(Index seq, Index head, Index batch)
     std::vector<T> dO(total);
     std::vector<T> mask(seq * seq);
     std::vector<fp32_t> lse(seq * batch);
+    std::vector<T> base_dK(total);
+    std::vector<T> base_dQ(total);
+    std::vector<T> base_dV(total);
 
     for(Index i = 0; i < total; ++i)
     {
@@ -77,6 +80,13 @@ void validate_cuda(Index seq, Index head, Index batch)
         lse[i] = ((i % 27) - 13) * 0.1;
     }
 
+    for(Index i = 0; i < total; ++i)
+    {
+        base_dK[i] = T(Y(0.02 * ((i % 5) - 2)));
+        base_dQ[i] = T(Y(0.03 * (((i + 7) % 11) - 5)));
+        base_dV[i] = T(Y(0.015 * (((i + 3) % 13) - 6)));
+    }
+
     // CUDA setup
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
     int dev_id = starpu_worker_get_devid(cuda_worker_id);
@@ -92,6 +102,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     T *dev_K = nullptr, *dev_Q = nullptr, *dev_V = nullptr;
     T *dev_O = nullptr, *dev_dO = nullptr, *dev_mask = nullptr;
     T *dev_dK = nullptr, *dev_dQ = nullptr, *dev_dV = nullptr;
+    T *dev_scratch_dK = nullptr, *dev_scratch_dQ = nullptr, *dev_scratch_dV = nullptr;
     fp32_t *dev_lse = nullptr;
     void *workspace = nullptr;
     ::int64_t workspace_size = 0;
@@ -105,6 +116,9 @@ void validate_cuda(Index seq, Index head, Index batch)
     CUDA_CHECK(cudaMalloc(&dev_dK, sizeof(T) * total), "malloc dK");
     CUDA_CHECK(cudaMalloc(&dev_dQ, sizeof(T) * total), "malloc dQ");
     CUDA_CHECK(cudaMalloc(&dev_dV, sizeof(T) * total), "malloc dV");
+    CUDA_CHECK(cudaMalloc(&dev_scratch_dK, sizeof(T) * total), "malloc scratch dK");
+    CUDA_CHECK(cudaMalloc(&dev_scratch_dQ, sizeof(T) * total), "malloc scratch dQ");
+    CUDA_CHECK(cudaMalloc(&dev_scratch_dV, sizeof(T) * total), "malloc scratch dV");
     CUDA_CHECK(cudaMalloc(&dev_lse, sizeof(fp32_t) * seq * batch), "malloc lse");
 
     CUDA_CHECK(cudaMemcpy(dev_K, K.data(), sizeof(T) * total, cudaMemcpyHostToDevice), "copy K");
@@ -128,9 +142,35 @@ void validate_cuda(Index seq, Index head, Index batch)
                    "malloc backward workspace");
     }
 
+    std::vector<T> dK_delta(total), dQ_delta(total), dV_delta(total);
+    std::vector<T> dK_ref(total), dQ_ref(total), dV_ref(total);
+
+    CUDA_CHECK(cudaMemset(dev_dK, 0, sizeof(T) * total), "memset dK zero");
+    CUDA_CHECK(cudaMemset(dev_dQ, 0, sizeof(T) * total), "memset dQ zero");
+    CUDA_CHECK(cudaMemset(dev_dV, 0, sizeof(T) * total), "memset dV zero");
+
     kernel::flash_sdpa_bwd_cudnn::execute_graph<T>(
-        handle, bwd_graph, dev_K, dev_Q, dev_V, dev_O, dev_dO,
-        dev_mask, dev_lse, dev_dK, dev_dQ, dev_dV, workspace);
+        handle, bwd_graph, seq, head, batch,
+        dev_K, dev_Q, dev_V, dev_O, dev_dO,
+        dev_mask, dev_lse,
+        dev_scratch_dK, dev_scratch_dQ, dev_scratch_dV,
+        dev_dK, dev_dQ, dev_dV, workspace);
+    CUDA_CHECK(cudaStreamSynchronize(stream), "sync delta bwd");
+
+    CUDA_CHECK(cudaMemcpy(dK_delta.data(), dev_dK, sizeof(T) * total, cudaMemcpyDeviceToHost), "copy dK delta");
+    CUDA_CHECK(cudaMemcpy(dQ_delta.data(), dev_dQ, sizeof(T) * total, cudaMemcpyDeviceToHost), "copy dQ delta");
+    CUDA_CHECK(cudaMemcpy(dV_delta.data(), dev_dV, sizeof(T) * total, cudaMemcpyDeviceToHost), "copy dV delta");
+
+    CUDA_CHECK(cudaMemcpy(dev_dK, base_dK.data(), sizeof(T) * total, cudaMemcpyHostToDevice), "copy base dK");
+    CUDA_CHECK(cudaMemcpy(dev_dQ, base_dQ.data(), sizeof(T) * total, cudaMemcpyHostToDevice), "copy base dQ");
+    CUDA_CHECK(cudaMemcpy(dev_dV, base_dV.data(), sizeof(T) * total, cudaMemcpyHostToDevice), "copy base dV");
+
+    kernel::flash_sdpa_bwd_cudnn::execute_graph<T>(
+        handle, bwd_graph, seq, head, batch,
+        dev_K, dev_Q, dev_V, dev_O, dev_dO,
+        dev_mask, dev_lse,
+        dev_scratch_dK, dev_scratch_dQ, dev_scratch_dV,
+        dev_dK, dev_dQ, dev_dV, workspace);
     CUDA_CHECK(cudaStreamSynchronize(stream), "sync bwd");
 
     if (workspace != nullptr) {
@@ -138,12 +178,49 @@ void validate_cuda(Index seq, Index head, Index batch)
         workspace = nullptr;
     }
 
-    std::vector<T> dK_ref(total), dQ_ref(total), dV_ref(total);
     CUDA_CHECK(cudaMemcpy(dK_ref.data(), dev_dK, sizeof(T) * total, cudaMemcpyDeviceToHost), "copy dK ref");
     CUDA_CHECK(cudaMemcpy(dQ_ref.data(), dev_dQ, sizeof(T) * total, cudaMemcpyDeviceToHost), "copy dQ ref");
     CUDA_CHECK(cudaMemcpy(dV_ref.data(), dev_dV, sizeof(T) * total, cudaMemcpyDeviceToHost), "copy dV ref");
 
     // StarPU buffers
+    auto verify_addition = [&](const std::vector<T> &total_vec,
+                               const std::vector<T> &delta,
+                               const std::vector<T> &base,
+                               const char *label)
+    {
+        Y eps;
+        if constexpr(std::is_same_v<T, bf16_t>)
+        {
+            eps = Y(1e-2);
+        }
+        else if constexpr(std::is_same_v<T, fp16_t>)
+        {
+            eps = Y(2e-3);
+        }
+        else
+        {
+            eps = Y(1e-4);
+        }
+
+        for(Index i = 0; i < total; ++i)
+        {
+            const Y expected = Y(base[i]) + Y(delta[i]);
+            const Y got = Y(total_vec[i]);
+            const Y diff = std::abs(expected - got);
+            const Y max_val = std::max(std::abs(expected), std::abs(got));
+            if (diff > eps * (Y(1.0) + max_val))
+            {
+                std::cerr << "Addition mismatch (" << label << ") at index " << i
+                          << ": expected=" << expected << " got=" << got << "\n";
+                TEST_ASSERT(false);
+            }
+        }
+    };
+
+    verify_addition(dK_ref, dK_delta, base_dK, "kernel dK");
+    verify_addition(dQ_ref, dQ_delta, base_dQ, "kernel dQ");
+    verify_addition(dV_ref, dV_delta, base_dV, "kernel dV");
+
     std::vector<T> K_starpu = K;
     std::vector<T> Q_starpu = Q;
     std::vector<T> V_starpu = V;
@@ -151,9 +228,9 @@ void validate_cuda(Index seq, Index head, Index batch)
     std::vector<T> dO_starpu = dO;
     std::vector<T> mask_starpu = mask;
     std::vector<fp32_t> lse_starpu = lse;
-    std::vector<T> dK_starpu(total, T(Y(0)));
-    std::vector<T> dQ_starpu(total, T(Y(0)));
-    std::vector<T> dV_starpu(total, T(Y(0)));
+    std::vector<T> dK_starpu = base_dK;
+    std::vector<T> dQ_starpu = base_dQ;
+    std::vector<T> dV_starpu = base_dV;
 
     VariableHandle K_handle(K_starpu.data(), sizeof(T) * total);
     VariableHandle Q_handle(Q_starpu.data(), sizeof(T) * total);
@@ -165,6 +242,9 @@ void validate_cuda(Index seq, Index head, Index batch)
     VariableHandle dK_handle(dK_starpu.data(), sizeof(T) * total);
     VariableHandle dQ_handle(dQ_starpu.data(), sizeof(T) * total);
     VariableHandle dV_handle(dV_starpu.data(), sizeof(T) * total);
+    VariableHandle scratch_dK(sizeof(T) * total);
+    VariableHandle scratch_dQ(sizeof(T) * total);
+    VariableHandle scratch_dV(sizeof(T) * total);
 
     flash_sdpa_bwd_cudnn.restrict_where(STARPU_CUDA);
     flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(
@@ -172,8 +252,12 @@ void validate_cuda(Index seq, Index head, Index batch)
         K_handle, Q_handle, V_handle,
         O_handle, dO_handle,
         mask_handle, lse_handle,
-        dK_handle, dQ_handle, dV_handle);
+        dK_handle, dQ_handle, dV_handle,
+        scratch_dK, scratch_dQ, scratch_dV);
     starpu_task_wait_for_all();
+    scratch_dK.unregister_submit();
+    scratch_dQ.unregister_submit();
+    scratch_dV.unregister_submit();
 
     K_handle.unregister();
     Q_handle.unregister();
@@ -219,6 +303,10 @@ void validate_cuda(Index seq, Index head, Index batch)
     compare(dQ_ref, dQ_starpu);
     compare(dV_ref, dV_starpu);
 
+    verify_addition(dK_starpu, dK_delta, base_dK, "starpu dK");
+    verify_addition(dQ_starpu, dQ_delta, base_dQ, "starpu dQ");
+    verify_addition(dV_starpu, dV_delta, base_dV, "starpu dV");
+
     std::cout << "✓ StarPU matches kernel result\n";
 
     bwd_graph.reset();
@@ -233,6 +321,9 @@ void validate_cuda(Index seq, Index head, Index batch)
     CUDA_CHECK(cudaFree(dev_dK), "free dK");
     CUDA_CHECK(cudaFree(dev_dQ), "free dQ");
     CUDA_CHECK(cudaFree(dev_dV), "free dV");
+    CUDA_CHECK(cudaFree(dev_scratch_dK), "free scratch dK");
+    CUDA_CHECK(cudaFree(dev_scratch_dQ), "free scratch dQ");
+    CUDA_CHECK(cudaFree(dev_scratch_dV), "free scratch dV");
     CUDA_CHECK(cudaFree(dev_lse), "free lse");
 }
 

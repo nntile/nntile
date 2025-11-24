@@ -19,10 +19,13 @@
 #include "nntile/tile/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/starpu/config.hh"
 #include "../testing.hh"
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <iostream>
 #include <type_traits>
+#include <vector>
+#include "nntile/tensor/clear.hh"
 
 using namespace nntile;
 using namespace nntile::tensor;
@@ -168,7 +171,7 @@ void check(const FlashTensorCase &cfg)
         std::vector<int> distr(nelems);
         for(Index i = 0; i < nelems; ++i)
         {
-            distr[i] = static_cast<int>((i % 2));
+            distr[i] = 0;
         }
         return distr;
     };
@@ -230,9 +233,9 @@ void check(const FlashTensorCase &cfg)
     scatter<T>(V_single, V_multi);
     scatter<T>(O_single, O_multi);
     scatter<T>(dO_single, dO_multi);
-    scatter<T>(dK_single, dK_multi);
-    scatter<T>(dQ_single, dQ_multi);
-    scatter<T>(dV_single, dV_multi);
+    clear(dK_multi);
+    clear(dQ_multi);
+    clear(dV_multi);
     scatter<T>(mask_single, mask_multi);
     scatter<fp32_t>(logsumexp_single, logsumexp_multi);
 
@@ -277,32 +280,21 @@ void check(const FlashTensorCase &cfg)
 
         Y eps = (std::is_same_v<T, fp16_t> || std::is_same_v<T, bf16_t>) ? Y(1e-2) : Y(1e-5);
 
-        for(Index i = 0; i < dK_single.nelems; ++i)
+        auto compare = [&](auto &ref_local, auto &multi_local, Index nelems)
         {
-            Y ref_val = Y(dK_ref_local[i]);
-            Y multi_val = Y(dK_multi_local[i]);
-            Y diff = std::abs(ref_val - multi_val);
-            Y max_val = std::max(std::abs(ref_val), std::abs(multi_val));
-            TEST_ASSERT(diff <= eps * (Y(1.0) + max_val));
-        }
+            for(Index i = 0; i < nelems; ++i)
+            {
+                Y ref_val = Y(ref_local[i]);
+                Y multi_val = Y(multi_local[i]);
+                Y diff = std::abs(ref_val - multi_val);
+                Y max_val = std::max(std::abs(ref_val), std::abs(multi_val));
+                TEST_ASSERT(diff <= eps * (Y(1.0) + max_val));
+            }
+        };
 
-        for(Index i = 0; i < dQ_single.nelems; ++i)
-        {
-            Y ref_val = Y(dQ_ref_local[i]);
-            Y multi_val = Y(dQ_multi_local[i]);
-            Y diff = std::abs(ref_val - multi_val);
-            Y max_val = std::max(std::abs(ref_val), std::abs(multi_val));
-            TEST_ASSERT(diff <= eps * (Y(1.0) + max_val));
-        }
-
-        for(Index i = 0; i < dV_single.nelems; ++i)
-        {
-            Y ref_val = Y(dV_ref_local[i]);
-            Y multi_val = Y(dV_multi_local[i]);
-            Y diff = std::abs(ref_val - multi_val);
-            Y max_val = std::max(std::abs(ref_val), std::abs(multi_val));
-            TEST_ASSERT(diff <= eps * (Y(1.0) + max_val));
-        }
+        compare(dK_ref_local, dK_multi_local, dK_single.nelems);
+        compare(dQ_ref_local, dQ_multi_local, dQ_single.nelems);
+        compare(dV_ref_local, dV_multi_local, dV_single.nelems);
 
         dK_ref_local.release();
         dK_multi_local.release();
@@ -319,7 +311,8 @@ void validate()
     // Order: head_size, n_seq, n_seq_tile, n_batch, batch_tile,
     //        kv_group_size, kv_group_tile, n_head_kv, head_kv_tile.
     check<T>({32, 64, 64, 1, 1, 1, 1, 1, 1});
-    check<T>({64, 64, 64, 3, 3, 2, 2, 4, 4});
+    check<T>({32, 128, 64, 1, 1, 1, 1, 1, 1});
+    check<T>({64, 256, 64, 3, 1, 2, 1, 4, 2});
 
     // TODO: Add exception testing later
     // For now, just check that the basic functionality works

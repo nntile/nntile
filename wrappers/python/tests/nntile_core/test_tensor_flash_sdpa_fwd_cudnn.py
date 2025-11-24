@@ -82,7 +82,7 @@ def _prepare_flash_inputs(dtype, seed=42):
             if abs(i - j) <= window_size:
                 mask_src[i, j] = 0.0
 
-    logsumexp_src = np.zeros(logsumexp_shape, dtype=numpy_dtype, order='F')
+    logsumexp_src = np.full(logsumexp_shape, -np.inf, dtype=numpy_dtype, order='F')
 
     K.from_array(K_src)
     Q.from_array(Q_src)
@@ -240,7 +240,7 @@ def test_flash_sdpa_fwd_cudnn_async(context, dtype):
         # Compare results (allow for some numerical differences)
         # Note: cuDNN Flash Attention may have different numerical behavior
         # than PyTorch MHA due to different algorithms, precision, etc.
-        # relative_tolerance = 1e-3  # 0.1% relative tolerance
+        relative_tolerance = 1e-3  # 0.1% relative tolerance
 
         # Only compare where PyTorch result is significant (to avoid
         # comparing noise)
@@ -262,9 +262,9 @@ def test_flash_sdpa_fwd_cudnn_async(context, dtype):
                 # due to algorithmic differences
                 # The commented assertion can be enabled for stricter
                 # validation when needed
-                # assert relative_diff < relative_tolerance, \
-                #        f"Results differ: {relative_diff} > " \
-                #        f"{relative_tolerance}"
+                assert relative_diff < relative_tolerance, \
+                       f"Results differ: {relative_diff} > " \
+                       f"{relative_tolerance}"
     else:
         print("PyTorch not available, skipping baseline comparison - only "
               "validating NNTile functionality")

@@ -15,6 +15,7 @@
 #include "nntile/tensor/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/starpu/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/starpu/config.hh"
+#include "nntile/starpu/handle.hh"
 
 namespace nntile::tensor
 {
@@ -84,16 +85,71 @@ static inline void flash_sdpa_bwd_cudnn_check(
     if (K.shape[4] != logsumexp.shape[3]) {
         throw std::runtime_error("logsumexp axis 3 must match n_head_kv");
     }
-}
 
-static inline void ensure_single_tile(const TensorTraits &traits,
-        const char *name)
-{
-    if (traits.grid.nelems != 1) {
-        throw std::runtime_error(std::string(name) +
-            " must consist of a single tile for flash SDPA backward");
+    // Validate basetile compatibility for multi-tile execution
+    const auto &K_base = K.basetile_shape;
+    const auto &Q_base = Q.basetile_shape;
+    const auto &V_base = V.basetile_shape;
+    const auto &O_base = O.basetile_shape;
+    const auto &dO_base = dO.basetile_shape;
+    const auto &dK_base = dK.basetile_shape;
+    const auto &dQ_base = dQ.basetile_shape;
+    const auto &dV_base = dV.basetile_shape;
+    const auto &mask_base = mask.basetile_shape;
+    const auto &logsumexp_base = logsumexp.basetile_shape;
+
+    if(Q_base != dQ_base || Q_base != O_base || Q_base != dO_base)
+    {
+        throw std::runtime_error("Q, dQ, O, dO basetile shapes must match");
+    }
+
+    for(Index dim : {Index(0), Index(2), Index(3), Index(4)})
+    {
+        if(K_base[dim] != Q_base[dim])
+        {
+            throw std::runtime_error("K and Q basetile shapes mismatch");
+        }
+        if(V_base[dim] != Q_base[dim])
+        {
+            throw std::runtime_error("V and Q basetile shapes mismatch");
+        }
+        if(dK_base[dim] != Q_base[dim])
+        {
+            throw std::runtime_error("dK and Q basetile shapes mismatch");
+        }
+        if(dV_base[dim] != Q_base[dim])
+        {
+            throw std::runtime_error("dV and Q basetile shapes mismatch");
+        }
+    }
+
+    if(mask_base[0] != K_base[1])
+    {
+        throw std::runtime_error("mask basetile axis 0 must match K basetile sequence dimension");
+    }
+    if(mask_base[1] != Q_base[1])
+    {
+        throw std::runtime_error("mask basetile axis 1 must match Q basetile sequence dimension");
+    }
+
+    if(logsumexp_base[0] != Q_base[1]
+            || logsumexp_base[1] != Q_base[2]
+            || logsumexp_base[2] != Q_base[3]
+            || logsumexp_base[3] != Q_base[4])
+    {
+        throw std::runtime_error("logsumexp basetile shape must match Q basetile shape (excluding head dimension)");
+    }
+
+    // Ensure head dimension is not tiled
+    if(K_base[0] != K.shape[0] || Q_base[0] != Q.shape[0]
+            || V_base[0] != V.shape[0] || O_base[0] != O.shape[0]
+            || dO_base[0] != dO.shape[0] || dK_base[0] != dK.shape[0]
+            || dQ_base[0] != dQ.shape[0] || dV_base[0] != dV.shape[0])
+    {
+        throw std::runtime_error("head dimension must not be tiled");
     }
 }
+
 
 template<typename T>
 void flash_sdpa_bwd_cudnn_async(
@@ -108,40 +164,112 @@ void flash_sdpa_bwd_cudnn_async(
     const Tensor<T> &dQ,
     const Tensor<T> &dV)
 {
+    // Check inputs (throw exception in case of an error)
     flash_sdpa_bwd_cudnn_check(K, Q, V, O, dO, mask, logsumexp, dK, dQ, dV);
 
-    ensure_single_tile(K, "K");
-    ensure_single_tile(Q, "Q");
-    ensure_single_tile(V, "V");
-    ensure_single_tile(O, "O");
-    ensure_single_tile(dO, "dO");
-    ensure_single_tile(dK, "dK");
-    ensure_single_tile(dQ, "dQ");
-    ensure_single_tile(dV, "dV");
-    ensure_single_tile(mask, "mask");
-    ensure_single_tile(logsumexp, "logsumexp");
+    // Get MPI rank and sizes
+    int mpi_rank = starpu_mpi_world_rank();
 
-    const auto &K_handle = K.get_tile_handle(0);
-    const auto &Q_handle = Q.get_tile_handle(0);
-    const auto &V_handle = V.get_tile_handle(0);
-    const auto &O_handle = O.get_tile_handle(0);
-    const auto &dO_handle = dO.get_tile_handle(0);
-    const auto &mask_handle = mask.get_tile_handle(0);
-    const auto &logsumexp_handle = logsumexp.get_tile_handle(0);
-    const auto &dK_handle = dK.get_tile_handle(0);
-    const auto &dQ_handle = dQ.get_tile_handle(0);
-    const auto &dV_handle = dV.get_tile_handle(0);
+    const Index num_k_seq_tiles = K.grid.shape[1];
 
-    Index seq = K.shape[1];
-    Index head = K.shape[0];
-    Index batch = K.shape[2] * K.shape[3] * K.shape[4];
+    // Loop over output tiles (defines dQ and related tiles)
+    for(Index dq_linear = 0; dq_linear < dQ.grid.nelems; ++dq_linear)
+    {
+        const auto dq_tile_index = dQ.grid.linear_to_index(dq_linear);
 
-    starpu::flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(
-        seq, head, batch,
-        K_handle, Q_handle, V_handle, O_handle, dO_handle,
-        mask_handle, logsumexp_handle,
-        dK_handle, dQ_handle, dV_handle
-    );
+        const auto &dQ_handle = dQ.get_tile_handle(dq_linear);
+        const auto &Q_handle = Q.get_tile_handle(dq_linear);
+        const auto &O_handle = O.get_tile_handle(dq_linear);
+        const auto &dO_handle = dO.get_tile_handle(dq_linear);
+        std::vector<Index> logsumexp_tile_index = {
+            dq_tile_index[1],
+            dq_tile_index[2],
+            dq_tile_index[3],
+            dq_tile_index[4]
+        };
+        const auto &logsumexp_handle =
+                logsumexp.get_tile_handle(logsumexp_tile_index);
+
+        int dQ_tile_rank = dQ_handle.mpi_get_rank();
+
+        Q_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
+        O_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
+        dO_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
+        logsumexp_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
+
+        const auto &dQ_traits = dQ.get_tile_traits(dq_linear);
+        const auto &Q_traits = Q.get_tile_traits(dq_linear);
+        const auto &O_traits = O.get_tile_traits(dq_linear);
+        const auto &dO_traits = dO.get_tile_traits(dq_linear);
+        const auto &logsumexp_traits =
+                logsumexp.get_tile_traits(logsumexp_tile_index);
+
+        const Index seq = dQ_traits.shape[1];
+        const Index head = dQ_traits.shape[0];
+        const Index batch = dQ_traits.shape[2] * dQ_traits.shape[3] * dQ_traits.shape[4];
+
+        // Iterate over all K/V tiles along the sequence dimension
+        for(Index k_seq_idx = 0; k_seq_idx < num_k_seq_tiles; ++k_seq_idx)
+        {
+            auto kv_tile_index = dq_tile_index;
+            kv_tile_index[1] = k_seq_idx;
+
+            const auto &K_handle = K.get_tile_handle(kv_tile_index);
+            const auto &V_handle = V.get_tile_handle(kv_tile_index);
+            const auto &dK_handle = dK.get_tile_handle(kv_tile_index);
+            const auto &dV_handle = dV.get_tile_handle(kv_tile_index);
+            std::vector<Index> mask_tile_index = {k_seq_idx, dq_tile_index[1]};
+            const auto &mask_handle = mask.get_tile_handle(mask_tile_index);
+
+            K_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
+            V_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
+            dK_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
+            dV_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
+            mask_handle.mpi_transfer(dQ_tile_rank, mpi_rank);
+
+            if(mpi_rank == dQ_tile_rank)
+            {
+                const auto &K_traits = K.get_tile_traits(kv_tile_index);
+                const auto &V_traits = V.get_tile_traits(kv_tile_index);
+                const auto &dK_traits = dK.get_tile_traits(kv_tile_index);
+                const auto &dV_traits = dV.get_tile_traits(kv_tile_index);
+                const auto &mask_traits = mask.get_tile_traits(mask_tile_index);
+
+                if(K_traits.shape[1] != seq)
+                {
+                    throw std::runtime_error("K tile sequence length mismatches dQ tile");
+                }
+                if(mask_traits.shape[0] != K_traits.shape[1]
+                        || mask_traits.shape[1] != seq)
+                {
+                    throw std::runtime_error("Mask tile shape mismatches dQ/K tiles");
+                }
+                if(logsumexp_traits.shape[0] != seq)
+                {
+                    throw std::runtime_error("logsumexp tile shape mismatches dQ tile");
+                }
+
+                starpu::VariableHandle scratch_dK(sizeof(T) * dK_traits.nelems);
+                starpu::VariableHandle scratch_dQ(sizeof(T) * dQ_traits.nelems);
+                starpu::VariableHandle scratch_dV(sizeof(T) * dV_traits.nelems);
+
+                starpu::flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(
+                    seq, head, batch,
+                    K_handle, Q_handle, V_handle, O_handle, dO_handle,
+                    mask_handle, logsumexp_handle,
+                    dK_handle, dQ_handle, dV_handle,
+                    scratch_dK, scratch_dQ, scratch_dV
+                );
+
+                scratch_dK.unregister_submit();
+                scratch_dQ.unregister_submit();
+                scratch_dV.unregister_submit();
+            }
+        }
+
+        dQ_handle.mpi_flush();
+        logsumexp_handle.mpi_flush();
+    }
 }
 
 template<typename T>

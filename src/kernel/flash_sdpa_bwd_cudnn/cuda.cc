@@ -14,10 +14,8 @@
  * */
 
 #include "nntile/kernel/flash_sdpa_bwd_cudnn/cuda.hh"
+#include "nntile/kernel/add_inplace.hh"
 #include <cudnn_frontend.h>
-#ifdef NNTILE_USE_CUDA
-#include <cudnn.h>
-#endif
 #include <cuda_runtime.h>
 #include <stdexcept>
 #include <cmath>
@@ -173,8 +171,10 @@ FlashSdpaGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
 
 template<typename T>
 void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
+                   Index seq, Index head, Index batch,
                    const T *K, const T *Q, const T *V, const T *O,
                    const T *dO, const T *mask, const fp32_t *logsumexp,
+                   T *scratch_dK, T *scratch_dQ, T *scratch_dV,
                    T *dK, T *dQ, T *dV, void *workspace)
     noexcept
 //! Execute prepared cuDNN graph for flash attention backward pass
@@ -187,9 +187,9 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
         {DO_UID, const_cast<T*>(dO)},
         {MASK_UID, const_cast<T*>(mask)},
         {STATS_UID, const_cast<fp32_t*>(logsumexp)},
-        {DQ_UID, dQ},
-        {DK_UID, dK},
-        {DV_UID, dV}
+        {DQ_UID, scratch_dQ},
+        {DK_UID, scratch_dK},
+        {DV_UID, scratch_dV}
     };
 
     auto exec_status = prepared_graph->execute(handle, variant_pack, workspace);
@@ -203,6 +203,19 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
                     << exec_status.get_message() << std::endl;
     }
     (void)exec_status;
+
+    cudaStream_t stream = nullptr;
+    if (cudnnGetStream(handle, &stream) != CUDNN_STATUS_SUCCESS || stream == nullptr)
+    {
+        std::cerr << "cuDNN backward graph execution: failed to query CUDA stream"
+                  << std::endl;
+        return;
+    }
+
+    const Index total = seq * head * batch;
+    kernel::add_inplace::cuda<T>(stream, total, 1.0, scratch_dQ, 1.0, dQ);
+    kernel::add_inplace::cuda<T>(stream, total, 1.0, scratch_dK, 1.0, dK);
+    kernel::add_inplace::cuda<T>(stream, total, 1.0, scratch_dV, 1.0, dV);
 }
 
 // Explicit instantiations
@@ -217,6 +230,9 @@ FlashSdpaGraph prepare_graph<bf16_t>(cudnnHandle_t handle, Index seq,
 template
 void execute_graph<fp16_t>(cudnnHandle_t handle,
                            const FlashSdpaGraph &prepared_graph,
+                           Index seq,
+                           Index head,
+                           Index batch,
                            const fp16_t *K,
                            const fp16_t *Q,
                            const fp16_t *V,
@@ -224,6 +240,9 @@ void execute_graph<fp16_t>(cudnnHandle_t handle,
                            const fp16_t *dO,
                            const fp16_t *mask,
                            const fp32_t *logsumexp,
+                           fp16_t *scratch_dK,
+                           fp16_t *scratch_dQ,
+                           fp16_t *scratch_dV,
                            fp16_t *dK,
                            fp16_t *dQ,
                            fp16_t *dV,
@@ -232,6 +251,9 @@ void execute_graph<fp16_t>(cudnnHandle_t handle,
 template
 void execute_graph<bf16_t>(cudnnHandle_t handle,
                            const FlashSdpaGraph &prepared_graph,
+                           Index seq,
+                           Index head,
+                           Index batch,
                            const bf16_t *K,
                            const bf16_t *Q,
                            const bf16_t *V,
@@ -239,6 +261,9 @@ void execute_graph<bf16_t>(cudnnHandle_t handle,
                            const bf16_t *dO,
                            const bf16_t *mask,
                            const fp32_t *logsumexp,
+                           bf16_t *scratch_dK,
+                           bf16_t *scratch_dQ,
+                           bf16_t *scratch_dV,
                            bf16_t *dK,
                            bf16_t *dQ,
                            bf16_t *dV,

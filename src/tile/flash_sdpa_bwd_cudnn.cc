@@ -102,12 +102,21 @@ void flash_sdpa_bwd_cudnn_async(
     flash_sdpa_bwd_cudnn_check(K, Q, V, O, dO, mask, logsumexp, dK, dQ, dV);
 
     Index seq = K.shape[1];
-    Index head = K.shape[0];
-    Index batch = K.shape[2] * K.shape[3] * K.shape[4];
+   Index head = K.shape[0];
+   Index batch = K.shape[2] * K.shape[3] * K.shape[4];
+
+    starpu::VariableHandle scratch_dK(sizeof(T) * dK.nelems);
+    starpu::VariableHandle scratch_dQ(sizeof(T) * dQ.nelems);
+    starpu::VariableHandle scratch_dV(sizeof(T) * dV.nelems);
 
     starpu::flash_sdpa_bwd_cudnn.submit<std::tuple<T>>(
         seq, head, batch,
-        K, Q, V, O, dO, mask, logsumexp, dK, dQ, dV);
+        K, Q, V, O, dO, mask, logsumexp, dK, dQ, dV,
+        scratch_dK, scratch_dQ, scratch_dV);
+
+    scratch_dK.unregister_submit();
+    scratch_dQ.unregister_submit();
+    scratch_dV.unregister_submit();
 }
 
 template<typename T>

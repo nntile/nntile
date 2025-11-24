@@ -375,11 +375,6 @@ class Sdpa(BaseLayer):
         if any(x is None for x in grads):
             raise RuntimeError("Gradient tensors for Q/K/V must be allocated")
 
-        if any(t.grid.nelems != 1 for t in tensors + grads):
-            raise NotImplementedError(
-                "Flash SDPA backward currently supports single-tile tensors only"
-            )
-
         flash_sdpa_bwd_cudnn_async(
             self.k.value,
             self.q.value,
@@ -400,6 +395,7 @@ class Sdpa(BaseLayer):
         self.k.grad.wont_use()
         self.q.grad.wont_use()
         self.v.grad.wont_use()
+        self.flash_logsumexp.invalidate_submit()
 
     def _backward_vanilla(self):
         if (

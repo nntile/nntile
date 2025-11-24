@@ -27,9 +27,6 @@
 
 // Third-party libraries
 #include <catch2/catch_all.hpp>
-#ifdef NNTILE_USE_CUDA
-#include <cudnn.h>
-#endif // NNTILE_USE_CUDA
 
 // Other NNTile headers
 // CUDA_CHECK definition
@@ -49,7 +46,6 @@ using namespace nntile::kernel::flash_sdpa_fwd_cudnn;
 // Type to acquire reference values
 using ref_t = double;
 
-#ifdef NNTILE_USE_CUDA
 //! Check cuDNN error and throw runtime_error if error occurs
 #define CUDNN_CHECK(error, message) \
     do { \
@@ -58,7 +54,6 @@ using ref_t = double;
             throw std::runtime_error(std::string(message) + ": cuDNN error code " + std::to_string(_err)); \
         } \
     } while (0)
-#endif
 
 // Struct to hold test data and reference results
 template<typename T>
@@ -372,7 +367,6 @@ void verify_results(
     ensure_inputs_unchanged(data.mask_init, mask_out, "mask");
 }
 
-#ifdef NNTILE_USE_CUDA
 // Helper function to run CUDA test and verify results
 template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
@@ -545,10 +539,8 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaFree(dev_A), "cudaFree dev_A");
     CUDA_CHECK(cudaFree(dev_mask), "cudaFree dev_mask");
 }
-#endif // NNTILE_USE_CUDA
 
 // Catch2-based tests (only CUDA is supported)
-#ifdef NNTILE_USE_CUDA
 TEMPLATE_TEST_CASE(
     "Flash SDPA Forward cuDNN Kernel Verification",
     "[flash_sdpa_fwd_cudnn]",
@@ -598,4 +590,3 @@ TEMPLATE_TEST_CASE(
         run_cuda_test<T, true>(data);
     }
 }
-#endif // NNTILE_USE_CUDA

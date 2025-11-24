@@ -28,9 +28,6 @@
 
 // Third-party headers
 #include <catch2/catch_all.hpp>
-#ifdef NNTILE_USE_CUDA
-#    include <cudnn.h>
-#endif // NNTILE_USE_CUDA
 
 // Other NNTile headers
 #include <nntile/kernel/cuda.hh>
@@ -43,17 +40,15 @@ using namespace nntile::kernel::flash_sdpa_bwd_cudnn;
 
 using ref_t = double;
 
-#ifdef NNTILE_USE_CUDA
 //! Check cuDNN error and throw runtime_error if error occurs
-#    define CUDNN_CHECK(error, message) \
-        do { \
-            cudnnStatus_t _err = (error); \
-            if (_err != CUDNN_STATUS_SUCCESS) \
-            { \
-                throw std::runtime_error(std::string(message) + ": cuDNN error code " + std::to_string(_err)); \
-            } \
-        } while (0)
-#endif // NNTILE_USE_CUDA
+#define CUDNN_CHECK(error, message) \
+    do { \
+        cudnnStatus_t _err = (error); \
+        if (_err != CUDNN_STATUS_SUCCESS) \
+        { \
+            throw std::runtime_error(std::string(message) + ": cuDNN error code " + std::to_string(_err)); \
+        } \
+    } while (0)
 
 // Enum for data generation strategies
 enum class DataGen
@@ -339,7 +334,6 @@ TestData<T> get_test_input_data(Index seq,
     return data;
 }
 
-#ifdef NNTILE_USE_CUDA
 // Executes the CUDA kernels, validating gradients or benchmarking depending on template flag
 template<typename T, bool run_bench>
 void run_cuda_test(TestData<T> &data)
@@ -355,6 +349,9 @@ void run_cuda_test(TestData<T> &data)
     T *dev_dK = nullptr;
     T *dev_dQ = nullptr;
     T *dev_dV = nullptr;
+    T *dev_scratch_dK = nullptr;
+    T *dev_scratch_dQ = nullptr;
+    T *dev_scratch_dV = nullptr;
     fp32_t *dev_lse = nullptr;
     void *workspace = nullptr;
     std::int64_t workspace_size = 0;
@@ -368,6 +365,9 @@ void run_cuda_test(TestData<T> &data)
     CUDA_CHECK(cudaMalloc(&dev_dK, sizeof(T) * total), "cudaMalloc dev_dK");
     CUDA_CHECK(cudaMalloc(&dev_dQ, sizeof(T) * total), "cudaMalloc dev_dQ");
     CUDA_CHECK(cudaMalloc(&dev_dV, sizeof(T) * total), "cudaMalloc dev_dV");
+    CUDA_CHECK(cudaMalloc(&dev_scratch_dK, sizeof(T) * total), "cudaMalloc dev_scratch_dK");
+    CUDA_CHECK(cudaMalloc(&dev_scratch_dQ, sizeof(T) * total), "cudaMalloc dev_scratch_dQ");
+    CUDA_CHECK(cudaMalloc(&dev_scratch_dV, sizeof(T) * total), "cudaMalloc dev_scratch_dV");
     CUDA_CHECK(cudaMalloc(&dev_lse, sizeof(fp32_t) * data.batch * data.seq), "cudaMalloc dev_lse");
 
     CUDA_CHECK(cudaMemcpy(dev_K, data.K_init.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
@@ -388,9 +388,21 @@ void run_cuda_test(TestData<T> &data)
                           sizeof(fp32_t) * data.batch * data.seq,
                           cudaMemcpyHostToDevice),
                "cudaMemcpy dev_lse_init");
-    CUDA_CHECK(cudaMemset(dev_dK, 0, sizeof(T) * total), "cudaMemset dev_dK");
-    CUDA_CHECK(cudaMemset(dev_dQ, 0, sizeof(T) * total), "cudaMemset dev_dQ");
-    CUDA_CHECK(cudaMemset(dev_dV, 0, sizeof(T) * total), "cudaMemset dev_dV");
+    std::vector<T> base_dK(total);
+    std::vector<T> base_dQ(total);
+    std::vector<T> base_dV(total);
+    for(Index i = 0; i < total; ++i)
+    {
+        base_dK[i] = T(typename T::repr_t(0.01 * ((i % 7) - 3)));
+        base_dQ[i] = T(typename T::repr_t(0.015 * ((i % 11) - 5)));
+        base_dV[i] = T(typename T::repr_t(0.02 * ((i % 13) - 6)));
+    }
+    CUDA_CHECK(cudaMemcpy(dev_dK, base_dK.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
+               "cudaMemcpy base_dK");
+    CUDA_CHECK(cudaMemcpy(dev_dQ, base_dQ.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
+               "cudaMemcpy base_dQ");
+    CUDA_CHECK(cudaMemcpy(dev_dV, base_dV.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
+               "cudaMemcpy base_dV");
 
     cudaStream_t stream = nullptr;
     CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
@@ -420,6 +432,9 @@ void run_cuda_test(TestData<T> &data)
         CUDA_CHECK(cudaFree(dev_dK), "cudaFree dev_dK");
         CUDA_CHECK(cudaFree(dev_dQ), "cudaFree dev_dQ");
         CUDA_CHECK(cudaFree(dev_dV), "cudaFree dev_dV");
+        CUDA_CHECK(cudaFree(dev_scratch_dK), "cudaFree dev_scratch_dK");
+        CUDA_CHECK(cudaFree(dev_scratch_dQ), "cudaFree dev_scratch_dQ");
+        CUDA_CHECK(cudaFree(dev_scratch_dV), "cudaFree dev_scratch_dV");
         CUDA_CHECK(cudaFree(dev_lse), "cudaFree dev_lse");
         if (workspace != nullptr)
         {
@@ -460,17 +475,35 @@ void run_cuda_test(TestData<T> &data)
             "[kernel][flash_sdpa_bwd_cudnn][cuda][seq=" + std::to_string(data.seq) +
             "][head=" + std::to_string(data.head) + "][batch=" + std::to_string(data.batch) + "]")
         {
+            CUDA_CHECK(cudaMemcpy(dev_dK, base_dK.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
+                       "cudaMemcpy base_dK");
+            CUDA_CHECK(cudaMemcpy(dev_dQ, base_dQ.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
+                       "cudaMemcpy base_dQ");
+            CUDA_CHECK(cudaMemcpy(dev_dV, base_dV.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
+                       "cudaMemcpy base_dV");
             kernel::flash_sdpa_bwd_cudnn::execute_graph<T>(
-                handle, bwd_graph, dev_K, dev_Q, dev_V, dev_O, dev_dO,
-                dev_mask, dev_lse, dev_dK, dev_dQ, dev_dV, workspace);
+                handle, bwd_graph, data.seq, data.head, data.batch,
+                dev_K, dev_Q, dev_V, dev_O, dev_dO,
+                dev_mask, dev_lse,
+                dev_scratch_dK, dev_scratch_dQ, dev_scratch_dV,
+                dev_dK, dev_dQ, dev_dV, workspace);
             cudaStreamSynchronize(stream);
         };
     }
     else
     {
+        CUDA_CHECK(cudaMemcpy(dev_dK, base_dK.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
+                   "cudaMemcpy base_dK");
+        CUDA_CHECK(cudaMemcpy(dev_dQ, base_dQ.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
+                   "cudaMemcpy base_dQ");
+        CUDA_CHECK(cudaMemcpy(dev_dV, base_dV.data(), sizeof(T) * total, cudaMemcpyHostToDevice),
+                   "cudaMemcpy base_dV");
         kernel::flash_sdpa_bwd_cudnn::execute_graph<T>(
-            handle, bwd_graph, dev_K, dev_Q, dev_V, dev_O, dev_dO,
-            dev_mask, dev_lse, dev_dK, dev_dQ, dev_dV, workspace);
+            handle, bwd_graph, data.seq, data.head, data.batch,
+            dev_K, dev_Q, dev_V, dev_O, dev_dO,
+            dev_mask, dev_lse,
+            dev_scratch_dK, dev_scratch_dQ, dev_scratch_dV,
+            dev_dK, dev_dQ, dev_dV, workspace);
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize backward");
 
         std::vector<T> dK_host(total);
@@ -484,18 +517,36 @@ void run_cuda_test(TestData<T> &data)
         CUDA_CHECK(cudaMemcpy(dV_host.data(), dev_dV, sizeof(T) * total, cudaMemcpyDeviceToHost),
                    "cudaMemcpy dV_host");
 
-        verify_gradients_close(data.dK_ref, dK_host, data.eps_check, "dK");
-        verify_gradients_close(data.dQ_ref, dQ_host, data.eps_check, "dQ");
-        verify_gradients_close(data.dV_ref, dV_host, data.eps_check, "dV");
+        auto subtract_base = [&](const std::vector<T> &vals,
+                                 const std::vector<T> &base,
+                                 std::vector<T> &delta)
+        {
+            delta.resize(vals.size());
+            using Y = typename T::repr_t;
+            for(size_t idx = 0; idx < vals.size(); ++idx)
+            {
+                const Y diff = Y(vals[idx]) - Y(base[idx]);
+                delta[idx] = T(diff);
+            }
+        };
+
+        std::vector<T> dK_delta;
+        std::vector<T> dQ_delta;
+        std::vector<T> dV_delta;
+        subtract_base(dK_host, base_dK, dK_delta);
+        subtract_base(dQ_host, base_dQ, dQ_delta);
+        subtract_base(dV_host, base_dV, dV_delta);
+
+        verify_gradients_close(data.dK_ref, dK_delta, data.eps_check, "dK");
+        verify_gradients_close(data.dQ_ref, dQ_delta, data.eps_check, "dQ");
+        verify_gradients_close(data.dV_ref, dV_delta, data.eps_check, "dV");
     }
 
     bwd_graph.reset();
     cleanup();
 }
-#endif // NNTILE_USE_CUDA
 
 // Catch2-based tests (only CUDA is supported)
-#ifdef NNTILE_USE_CUDA
 TEMPLATE_TEST_CASE("Flash SDPA Backward cuDNN Kernel Verification",
                    "[flash_sdpa_bwd_cudnn]",
                    fp16_t,
@@ -537,4 +588,3 @@ TEMPLATE_TEST_CASE("Flash SDPA Backward cuDNN Kernel Benchmark",
         run_cuda_test<T, true>(data);
     }
 }
-#endif // NNTILE_USE_CUDA

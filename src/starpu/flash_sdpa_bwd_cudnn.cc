@@ -110,10 +110,16 @@ void FlashSdpaBwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     T *dK = interfaces[7]->get_ptr<T>();
     T *dQ = interfaces[8]->get_ptr<T>();
     T *dV = interfaces[9]->get_ptr<T>();
+    T *scratch_dK = interfaces[10]->get_ptr<T>();
+    T *scratch_dQ = interfaces[11]->get_ptr<T>();
+    T *scratch_dV = interfaces[12]->get_ptr<T>();
 
     kernel::flash_sdpa_bwd_cudnn::execute_graph<T>(
         handle,
         cache_entry->graph,
+        args->seq,
+        args->head,
+        args->batch,
         K,
         Q,
         V,
@@ -121,6 +127,9 @@ void FlashSdpaBwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         dO,
         mask,
         logsumexp,
+        scratch_dK,
+        scratch_dQ,
+        scratch_dV,
         dK,
         dQ,
         dV,
@@ -153,7 +162,8 @@ uint32_t FlashSdpaBwdCudnn<std::tuple<T>>::footprint(struct starpu_task *task)
 template<typename T>
 void FlashSdpaBwdCudnn<std::tuple<T>>::submit(Index seq, Index head,
         Index batch, Handle K, Handle Q, Handle V, Handle O, Handle dO,
-        Handle mask, Handle logsumexp, Handle dK, Handle dQ, Handle dV)
+        Handle mask, Handle logsumexp, Handle dK, Handle dQ, Handle dV,
+        Handle scratch_dK, Handle scratch_dQ, Handle scratch_dV)
 {
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->owner = this;
@@ -172,6 +182,9 @@ void FlashSdpaBwdCudnn<std::tuple<T>>::submit(Index seq, Index head,
             STARPU_RW, dK.get(),
             STARPU_RW, dQ.get(),
             STARPU_RW, dV.get(),
+            STARPU_SCRATCH, scratch_dK.get(),
+            STARPU_SCRATCH, scratch_dQ.get(),
+            STARPU_SCRATCH, scratch_dV.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             0);
     if(ret != 0)

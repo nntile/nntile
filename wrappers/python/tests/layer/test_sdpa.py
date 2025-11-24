@@ -74,8 +74,8 @@ class SDPAFlashTestParams(SDPATestParams):
 
 flash_single_tile = SDPAFlashTestParams(
     head_size=64,
-    n_seq=32,
-    n_seq_tile=32,
+    n_seq=64,
+    n_seq_tile=64,
     n_batch=2,
     n_batch_tile=2,
     kv_group_size=1,
@@ -86,8 +86,8 @@ flash_single_tile = SDPAFlashTestParams(
 
 flash_multi_tile = SDPAFlashTestParams(
     head_size=64,
-    n_seq=32,
-    n_seq_tile=8,
+    n_seq=256,
+    n_seq_tile=64,
     n_batch=3,
     n_batch_tile=1,
     kv_group_size=2,
@@ -405,8 +405,8 @@ class TestSDPAFlash:
         dtype: str,
         params: SDPAFlashTestParams,
     ):
-        if params is not flash_single_tile:
-            pytest.skip("Flash SDPA backward currently supports single-tile tensors")
+        # if params is not flash_single_tile:
+        #     pytest.skip("Flash SDPA backward currently supports single-tile tensors")
 
         inputs = generate_sdpa_inputs(
             dtype,

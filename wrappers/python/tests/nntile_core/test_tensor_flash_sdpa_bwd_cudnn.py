@@ -7,6 +7,7 @@ import pytest
 
 import nntile
 from nntile.functions import (
+    clear_async,
     flash_sdpa_fwd_cudnn_async,
     flash_sdpa_bwd_cudnn_async,
 )
@@ -16,7 +17,7 @@ supported_dtypes = ["fp16", "bf16"]
 
 def _prepare_flash_backward_inputs(dtype: str, seed: int = 17):
     head_size = 32
-    n_seq = 32
+    n_seq = 64
     n_batch = 2
     kv_group_size = 1
     n_head_kv = 1
@@ -67,8 +68,8 @@ def _prepare_flash_backward_inputs(dtype: str, seed: int = 17):
             if abs(i - j) <= 8:
                 mask_src[i, j] = 0.0
 
-    logsumexp_src = np.zeros(
-        logsumexp_shape, dtype=np.float32, order="F"
+    logsumexp_src = np.full(
+        logsumexp_shape, -np.inf, dtype=np.float32, order="F"
     )
 
     K.from_array(K_src)
@@ -76,9 +77,9 @@ def _prepare_flash_backward_inputs(dtype: str, seed: int = 17):
     V.from_array(V_src)
     O.from_array(np.zeros_like(K_src))
     dO.from_array(dO_src)
-    dK.from_array(np.zeros_like(K_src))
-    dQ.from_array(np.zeros_like(K_src))
-    dV.from_array(np.zeros_like(K_src))
+    clear_async(dK)
+    clear_async(dQ)
+    clear_async(dV)
     mask.from_array(mask_src)
     logsumexp.from_array(logsumexp_src)
 
@@ -204,6 +205,6 @@ def test_flash_sdpa_bwd_cudnn_async(context, dtype):
 
     ref = _torch_flash_sdpa_backward_reference(data)
     if ref is not None:
-        _assert_close(dQ_out.astype(np.float32), ref["dQ"])
-        _assert_close(dK_out.astype(np.float32), ref["dK"])
-        _assert_close(dV_out.astype(np.float32), ref["dV"])
+        _assert_close(dQ_out, ref["dQ"])
+        _assert_close(dK_out, ref["dK"])
+        _assert_close(dV_out, ref["dV"])
