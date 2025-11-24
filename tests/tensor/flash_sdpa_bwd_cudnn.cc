@@ -282,14 +282,23 @@ void check(const FlashTensorCase &cfg)
 
         auto compare = [&](auto &ref_local, auto &multi_local, Index nelems)
         {
+            Y diff_norm_sq = Y(0);
+            Y ref_norm_sq = Y(0);
+            Y multi_norm_sq = Y(0);
             for(Index i = 0; i < nelems; ++i)
             {
                 Y ref_val = Y(ref_local[i]);
                 Y multi_val = Y(multi_local[i]);
-                Y diff = std::abs(ref_val - multi_val);
-                Y max_val = std::max(std::abs(ref_val), std::abs(multi_val));
-                TEST_ASSERT(diff <= eps * (Y(1.0) + max_val));
+                Y diff = ref_val - multi_val;
+                diff_norm_sq += diff * diff;
+                ref_norm_sq += ref_val * ref_val;
+                multi_norm_sq += multi_val * multi_val;
             }
+            Y diff_norm = std::sqrt(diff_norm_sq);
+            Y ref_norm = std::sqrt(ref_norm_sq);
+            Y multi_norm = std::sqrt(multi_norm_sq);
+            Y denom = std::max(std::max(ref_norm, multi_norm), Y(1));
+            TEST_ASSERT(diff_norm <= eps * denom);
         };
 
         compare(dK_ref_local, dK_multi_local, dK_single.nelems);

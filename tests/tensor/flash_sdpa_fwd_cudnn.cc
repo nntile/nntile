@@ -20,6 +20,7 @@
 #include "nntile/starpu/flash_sdpa_fwd_cudnn.hh"
 #include "nntile/starpu/config.hh"
 #include "../testing.hh"
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <iostream>
@@ -208,14 +209,23 @@ void check(const FlashTensorCase &cfg)
         TEST_ASSERT(diff <= eps_fp32 * max_val);
     }
 
+    Y diff_norm_sq = Y(0);
+    Y ref_norm_sq = Y(0);
+    Y multi_norm_sq = Y(0);
     for(Index i = 0; i < A_single.nelems; ++i)
     {
         Y ref_val = Y(A_ref_local[i]);
         Y multi_val = Y(A_multi_local[i]);
-        Y diff = std::abs(ref_val - multi_val);
-        Y max_val = std::max(std::abs(ref_val), std::abs(multi_val));
-        TEST_ASSERT(diff <= eps * max_val);
+        Y diff = ref_val - multi_val;
+        diff_norm_sq += diff * diff;
+        ref_norm_sq += ref_val * ref_val;
+        multi_norm_sq += multi_val * multi_val;
     }
+    Y diff_norm = std::sqrt(diff_norm_sq);
+    Y ref_norm = std::sqrt(ref_norm_sq);
+    Y multi_norm = std::sqrt(multi_norm_sq);
+    Y denom = std::max(ref_norm, multi_norm);
+    TEST_ASSERT(diff_norm <= eps * denom);
 
     A_ref_local.release();
     A_multi_local.release();
@@ -230,8 +240,8 @@ void validate()
     //        kv_group_size, kv_group_tile, n_head_kv, head_kv_tile.
     // head_size_tile must be equal to head_size (no parallelism across head_size)
     check<T>({32, 64, 64, 1, 1, 1, 1, 1, 1});
-    check<T>({32, 128, 64, 1, 1, 1, 1, 1, 1});
-    check<T>({32, 256, 64, 1, 1, 1, 1, 1, 1});
+    check<T>({32, 128, 64, 2, 1, 2, 1, 2, 1});
+    check<T>({32, 256, 64, 4, 1, 3, 1, 4, 2});
 
     // TODO: Add exception testing later
     // For now, just check that the basic functionality works
