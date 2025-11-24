@@ -118,7 +118,8 @@ def _make_tensor_moments(
 
 
 def _make_mask(n_seq: int, n_seq_tile: int):
-    mask_np = np.tril(np.ones((n_seq, n_seq), dtype=bool))
+    # Some custom mask
+    mask_np = np.tril(np.ones((n_seq, n_seq), dtype=bool), 32)
     traits = TensorTraits([n_seq, n_seq], [n_seq_tile, n_seq_tile])
     distr = [0] * traits.grid.nelems
     tensor = Tensor_bool(traits, distr)

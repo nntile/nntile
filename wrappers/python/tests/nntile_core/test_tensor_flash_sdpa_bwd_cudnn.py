@@ -77,7 +77,7 @@ def _prepare_flash_backward_inputs(dtype: str, seed: int = 17):
     # Seems like cuDNN does not handle properly certain situations
     for i in range(n_seq):
         for j in range(n_seq):
-            if i <= j:
+            if abs(i - j) <= 32:
                 mask_src[i, j] = 0.0
 
     logsumexp_src = np.full(

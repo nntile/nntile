@@ -93,12 +93,14 @@ def _prepare_flash_inputs(dtype, seed=42):
     V_src = rng.standard_normal(kqv_shape).astype(np.float32, "F") * 0.1
     A_src = np.zeros(kqv_shape, dtype=np.float32, order="F")
 
-    mask_src = np.full(mask_shape, -np.inf, dtype=np.float32, order="F")
+    mask_src = np.full(
+        mask_shape, -np.inf, dtype=np.float32, order="F"
+    )
     # Causal mask works, but some other mask may fail for some strange reason
     # Seems like cuDNN does not handle properly certain situations
     for i in range(n_seq):
         for j in range(n_seq):
-            if i <= j:
+            if abs(i - j) <= 32:
                 mask_src[i, j] = 0.0
 
     logsumexp_src = np.full(
