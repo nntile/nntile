@@ -1826,70 +1826,70 @@ def fused_lars_step(
             lr,
             trust_ratio,
             weight_decay,
-            grad_norm,
-            p_norm,
             grad,
             p,
+            grad_norm,
+            p_norm,
         )
     elif type(p) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.lars_step_async_fp32_fast_tf32(
             lr,
             trust_ratio,
             weight_decay,
-            grad_norm,
-            p_norm,
             grad,
             p,
+            grad_norm,
+            p_norm,
         )
     elif type(p) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.lars_step_async_fp32_fast_fp16(
             lr,
             trust_ratio,
             weight_decay,
-            grad_norm,
-            p_norm,
             grad,
             p,
+            grad_norm,
+            p_norm,
         )
     elif type(p) is core_tensor.Tensor_fp32_fast_bf16:
         core_tensor.lars_step_async_fp32_fast_bf16(
             lr,
             trust_ratio,
             weight_decay,
-            grad_norm,
-            p_norm,
             grad,
             p,
+            grad_norm,
+            p_norm,
         )
     elif type(p) is core_tensor.Tensor_fp64:
         core_tensor.lars_step_async_fp64(
             lr,
             trust_ratio,
             weight_decay,
-            grad_norm,
-            p_norm,
             grad,
             p,
+            grad_norm,
+            p_norm,
         )
     elif type(p) is core_tensor.Tensor_bf16:
         core_tensor.lars_step_async_bf16(
             lr,
             trust_ratio,
             weight_decay,
-            grad_norm,
-            p_norm,
             grad,
             p,
+            grad_norm,
+            p_norm,
         )
     elif type(p) is core_tensor.Tensor_fp16:
         core_tensor.lars_step_async_fp16(
             lr,
             trust_ratio,
             weight_decay,
-            grad_norm,
-            p_norm,
             grad,
             p,
+            grad_norm,
+            p_norm,
         )
     else:
         raise TypeError

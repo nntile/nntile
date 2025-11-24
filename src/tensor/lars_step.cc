@@ -29,7 +29,7 @@ namespace nntile::tensor
 template<typename T>
 void lars_step_async(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                     const Tensor<T> &grad, const Tensor<T> &p,
-                    const Tensor<fp32_t> &grad_norm, const Tensor<fp32_t> &p_norm)
+                    const Tensor<norm_value_t<T>> &grad_norm, const Tensor<norm_value_t<T>> &p_norm)
 {
     if (p.matrix_shape != grad.matrix_shape)
     {
@@ -47,8 +47,8 @@ void lars_step_async(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
     // Compute norms
     constexpr Scalar one = 1.0;
     constexpr Scalar zero = 0.0;
-    norm_async_mixed<T, fp32_t>(one, grad, zero, grad_norm);
-    norm_async_mixed<T, fp32_t>(one, p, zero, p_norm);
+    norm_async<T>(one, grad, zero, grad_norm);
+    norm_async<T>(one, p, zero, p_norm);
 
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
@@ -81,11 +81,83 @@ void lars_step_async(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
 template<typename T>
 void lars_step(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                const Tensor<T> &grad, const Tensor<T> &p,
-               const Tensor<fp32_t> &grad_norm, const Tensor<fp32_t> &p_norm)
+               const Tensor<norm_value_t<T>> &grad_norm, const Tensor<norm_value_t<T>> &p_norm)
 {
     lars_step_async<T>(lr, trust_ratio, weight_decay, grad, p, grad_norm, p_norm);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
+
+// Explicit instantiation
+template
+void lars_step_async<fp32_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<fp32_t> &grad, const Tensor<fp32_t> &p,
+    const Tensor<norm_value_t<fp32_t>> &grad_norm, const Tensor<norm_value_t<fp32_t>> &p_norm);
+
+template
+void lars_step_async<fp32_fast_tf32_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<fp32_fast_tf32_t> &grad, const Tensor<fp32_fast_tf32_t> &p,
+    const Tensor<norm_value_t<fp32_fast_tf32_t>> &grad_norm, const Tensor<norm_value_t<fp32_fast_tf32_t>> &p_norm);
+
+template
+void lars_step_async<fp32_fast_fp16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<fp32_fast_fp16_t> &grad, const Tensor<fp32_fast_fp16_t> &p,
+    const Tensor<norm_value_t<fp32_fast_fp16_t>> &grad_norm, const Tensor<norm_value_t<fp32_fast_fp16_t>> &p_norm);
+
+template
+void lars_step_async<fp32_fast_bf16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<fp32_fast_bf16_t> &grad, const Tensor<fp32_fast_bf16_t> &p,
+    const Tensor<norm_value_t<fp32_fast_bf16_t>> &grad_norm, const Tensor<norm_value_t<fp32_fast_bf16_t>> &p_norm);
+
+template
+void lars_step_async<fp64_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<fp64_t> &grad, const Tensor<fp64_t> &p,
+    const Tensor<norm_value_t<fp64_t>> &grad_norm, const Tensor<norm_value_t<fp64_t>> &p_norm);
+
+template
+void lars_step_async<bf16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<bf16_t> &grad, const Tensor<bf16_t> &p,
+    const Tensor<norm_value_t<bf16_t>> &grad_norm, const Tensor<norm_value_t<bf16_t>> &p_norm);
+
+template
+void lars_step_async<fp16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<fp16_t> &grad, const Tensor<fp16_t> &p,
+    const Tensor<norm_value_t<fp16_t>> &grad_norm, const Tensor<norm_value_t<fp16_t>> &p_norm);
+
+// Explicit instantiation
+template
+void lars_step<fp32_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<fp32_t> &grad, const Tensor<fp32_t> &p,
+    const Tensor<norm_value_t<fp32_t>> &grad_norm, const Tensor<norm_value_t<fp32_t>> &p_norm);
+
+template
+void lars_step<fp32_fast_tf32_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<fp32_fast_tf32_t> &grad, const Tensor<fp32_fast_tf32_t> &p,
+    const Tensor<norm_value_t<fp32_fast_tf32_t>> &grad_norm, const Tensor<norm_value_t<fp32_fast_tf32_t>> &p_norm);
+
+template
+void lars_step<fp32_fast_fp16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<fp32_fast_fp16_t> &grad, const Tensor<fp32_fast_fp16_t> &p,
+    const Tensor<norm_value_t<fp32_fast_fp16_t>> &grad_norm, const Tensor<norm_value_t<fp32_fast_fp16_t>> &p_norm);
+
+template
+void lars_step<fp32_fast_bf16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<fp32_fast_bf16_t> &grad, const Tensor<fp32_fast_bf16_t> &p,
+    const Tensor<norm_value_t<fp32_fast_bf16_t>> &grad_norm, const Tensor<norm_value_t<fp32_fast_bf16_t>> &p_norm);
+
+template
+void lars_step<fp64_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<fp64_t> &grad, const Tensor<fp64_t> &p,
+    const Tensor<norm_value_t<fp64_t>> &grad_norm, const Tensor<norm_value_t<fp64_t>> &p_norm);
+
+template
+void lars_step<bf16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<bf16_t> &grad, const Tensor<bf16_t> &p,
+    const Tensor<norm_value_t<bf16_t>> &grad_norm, const Tensor<norm_value_t<bf16_t>> &p_norm);
+
+template
+void lars_step<fp16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<fp16_t> &grad, const Tensor<fp16_t> &p,
+    const Tensor<norm_value_t<fp16_t>> &grad_norm, const Tensor<norm_value_t<fp16_t>> &p_norm);
 
 } // namespace nntile::tensor

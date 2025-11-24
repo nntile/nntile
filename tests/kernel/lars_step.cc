@@ -230,8 +230,8 @@ void run_cpu_test(TestData<T>& data)
                 data.num_elems,
                 data.lr,
                 data.trust_ratio,
-                data.weight_norm,
                 data.grad_norm,
+                data.weight_norm,
                 data.weight_decay,
                 &grad_cpu[0],
                 &p_cpu[0]
@@ -246,6 +246,7 @@ void run_cpu_test(TestData<T>& data)
             data.trust_ratio,
             data.grad_norm,
             data.weight_norm,
+            data.weight_decay,
             &grad_cpu[0],
             &p_cpu[0]
         );
@@ -254,6 +255,19 @@ void run_cpu_test(TestData<T>& data)
 }
 
 #ifdef NNTILE_USE_CUDA
+
+bool has_cuda_device()
+{
+    int device_count = 0;
+    cudaError_t status = cudaGetDeviceCount(&device_count);
+    if(status != cudaSuccess || device_count == 0)
+    {
+        // Clear the sticky error so subsequent CUDA calls do not fail immediately
+        cudaGetLastError();
+        return false;
+    }
+    return true;
+}
 
 // Helper function to run CUDA test and verify results
 template<typename T, bool run_bench>
@@ -291,8 +305,8 @@ void run_cuda_test(TestData<T>& data)
                 data.num_elems,
                 data.lr,
                 data.trust_ratio,
-                data.weight_norm,
                 data.grad_norm,
+                data.weight_norm,
                 data.weight_decay,
                 dev_grad,
                 dev_p
@@ -375,6 +389,11 @@ TEMPLATE_TEST_CASE(
 #ifdef NNTILE_USE_CUDA
     SECTION("cuda")
     {
+        if(!has_cuda_device())
+        {
+            WARN("Skipping CUDA LARS kernel test: no CUDA-capable device detected");
+            return;
+        }
         run_cuda_test<T, false>(data);
     }
 #endif
@@ -420,6 +439,11 @@ TEMPLATE_TEST_CASE(
 #ifdef NNTILE_USE_CUDA
     SECTION("cuda")
     {
+        if(!has_cuda_device())
+        {
+            WARN("Skipping CUDA LARS kernel benchmark: no CUDA-capable device detected");
+            return;
+        }
         run_cuda_test<T, true>(data);
     }
 #endif

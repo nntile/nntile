@@ -29,7 +29,7 @@ namespace nntile::tile
 template<typename T>
 void lars_step_async(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                      const Tile<T> &grad, const Tile<T> &p,
-                     const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm)
+                     const Tile<norm_value_t<T>> &grad_norm, const Tile<norm_value_t<T>> &p_norm)
 {
     // Check shapes
     if(grad.shape != p.shape)
@@ -52,7 +52,7 @@ void lars_step_async(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
 template<typename T>
 void lars_step(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                const Tile<T> &grad, const Tile<T> &p,
-               const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm)
+               const Tile<norm_value_t<T>> &grad_norm, const Tile<norm_value_t<T>> &p_norm)
 {
     lars_step_async<T>(lr, trust_ratio, weight_decay, grad, p, grad_norm, p_norm);
     starpu_task_wait_for_all();
@@ -60,74 +60,74 @@ void lars_step(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
 
 // Explicit instantiation
 template
-void lars_step_async<fp32_t>(Scalar lr, Scalar trust_ratio,
+void lars_step_async<fp32_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                      const Tile<fp32_t> &grad, const Tile<fp32_t> &p,
-                     const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
+                     const Tile<norm_value_t<fp32_t>> &grad_norm, const Tile<norm_value_t<fp32_t>> &p_norm);
 
 template
-void lars_step_async<fp32_fast_tf32_t>(Scalar lr, Scalar trust_ratio,
+void lars_step_async<fp32_fast_tf32_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                      const Tile<fp32_fast_tf32_t> &grad, const Tile<fp32_fast_tf32_t> &p,
-                     const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
+                     const Tile<norm_value_t<fp32_fast_tf32_t>> &grad_norm, const Tile<norm_value_t<fp32_fast_tf32_t>> &p_norm);
 
 template
-void lars_step_async<fp32_fast_fp16_t>(Scalar lr, Scalar trust_ratio,
+void lars_step_async<fp32_fast_fp16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                const Tile<fp32_fast_fp16_t> &grad, const Tile<fp32_fast_fp16_t> &p,
-               const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
+               const Tile<norm_value_t<fp32_fast_fp16_t>> &grad_norm, const Tile<norm_value_t<fp32_fast_fp16_t>> &p_norm);
 
 template
-void lars_step_async<fp32_fast_bf16_t>(Scalar lr, Scalar trust_ratio,
+void lars_step_async<fp32_fast_bf16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                const Tile<fp32_fast_bf16_t> &grad, const Tile<fp32_fast_bf16_t> &p,
-               const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
+               const Tile<norm_value_t<fp32_fast_bf16_t>> &grad_norm, const Tile<norm_value_t<fp32_fast_bf16_t>> &p_norm);
 
 template
-void lars_step_async<fp64_t>(Scalar lr, Scalar trust_ratio,
+void lars_step_async<fp64_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                      const Tile<fp64_t> &grad, const Tile<fp64_t> &p,
-                     const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
+                     const Tile<norm_value_t<fp64_t>> &grad_norm, const Tile<norm_value_t<fp64_t>> &p_norm);
 
 template
-void lars_step_async<bf16_t>(Scalar lr, Scalar trust_ratio,
+void lars_step_async<bf16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                      const Tile<bf16_t> &grad, const Tile<bf16_t> &p,
-                     const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
+                     const Tile<norm_value_t<bf16_t>> &grad_norm, const Tile<norm_value_t<bf16_t>> &p_norm);
 
 template
-void lars_step_async<fp16_t>(Scalar lr, Scalar trust_ratio,
+void lars_step_async<fp16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                      const Tile<fp16_t> &grad, const Tile<fp16_t> &p,
-                     const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
+                     const Tile<norm_value_t<fp16_t>> &grad_norm, const Tile<norm_value_t<fp16_t>> &p_norm);
 
 // Explicit instantiation
 template
-void lars_step<fp32_t>(Scalar lr, Scalar trust_ratio,
+void lars_step<fp32_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                const Tile<fp32_t> &grad, const Tile<fp32_t> &p,
-               const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
+               const Tile<norm_value_t<fp32_t>> &grad_norm, const Tile<norm_value_t<fp32_t>> &p_norm);
 
 template
-void lars_step<fp32_fast_tf32_t>(Scalar lr, Scalar trust_ratio,
+void lars_step<fp32_fast_tf32_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                const Tile<fp32_fast_tf32_t> &grad, const Tile<fp32_fast_tf32_t> &p,
-               const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
+               const Tile<norm_value_t<fp32_fast_tf32_t>> &grad_norm, const Tile<norm_value_t<fp32_fast_tf32_t>> &p_norm);
 
 template
-void lars_step<fp32_fast_fp16_t>(Scalar lr, Scalar trust_ratio,
+void lars_step<fp32_fast_fp16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                const Tile<fp32_fast_fp16_t> &grad, const Tile<fp32_fast_fp16_t> &p,
-               const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
+               const Tile<norm_value_t<fp32_fast_fp16_t>> &grad_norm, const Tile<norm_value_t<fp32_fast_fp16_t>> &p_norm);
 
 template
-void lars_step<fp32_fast_bf16_t>(Scalar lr, Scalar trust_ratio,
+void lars_step<fp32_fast_bf16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                const Tile<fp32_fast_bf16_t> &grad, const Tile<fp32_fast_bf16_t> &p,
-               const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
+               const Tile<norm_value_t<fp32_fast_bf16_t>> &grad_norm, const Tile<norm_value_t<fp32_fast_bf16_t>> &p_norm);
 
 template
-void lars_step<fp64_t>(Scalar lr, Scalar trust_ratio,
+void lars_step<fp64_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                const Tile<fp64_t> &grad, const Tile<fp64_t> &p,
-               const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
+               const Tile<norm_value_t<fp64_t>> &grad_norm, const Tile<norm_value_t<fp64_t>> &p_norm);
 
 template
-void lars_step<bf16_t>(Scalar lr, Scalar trust_ratio,
+void lars_step<bf16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                      const Tile<bf16_t> &grad, const Tile<bf16_t> &p,
-                     const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
+                     const Tile<norm_value_t<bf16_t>> &grad_norm, const Tile<norm_value_t<bf16_t>> &p_norm);
 
 template
-void lars_step<fp16_t>(Scalar lr, Scalar trust_ratio,
+void lars_step<fp16_t>(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
                      const Tile<fp16_t> &grad, const Tile<fp16_t> &p,
-                     const Tile<fp32_t> &grad_norm, const Tile<fp32_t> &p_norm);
+                     const Tile<norm_value_t<fp16_t>> &grad_norm, const Tile<norm_value_t<fp16_t>> &p_norm);
 
 } // namespace nntile::tile

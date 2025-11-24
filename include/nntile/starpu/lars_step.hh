@@ -21,6 +21,7 @@
 #include <tuple>
 
 // NNTile headers
+#include <nntile/norm_traits.hh>
 #include <nntile/starpu/codelet.hh>
 #include <nntile/starpu/handle.hh>
 

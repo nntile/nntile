@@ -12,6 +12,8 @@
  * @version 1.1.0
  * */
 
+#include <type_traits>
+
 #include "nntile/tensor/norm.hh"
 #include "nntile/starpu/norm.hh"
 #include "nntile/starpu/config.hh"
@@ -19,23 +21,14 @@
 namespace nntile::tensor
 {
 
-//! Tensor-wise norm
-template<typename T>
-void norm_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst)
+namespace detail
 {
-    // Check dimensions
-    if(dst.ndim != 0)
-    {
-        throw std::runtime_error("dst.ndim != 0");
-    }
-    if(src.nelems == 0)
-    {
-        throw std::runtime_error("src.nelems == 0");
-    }
 
+template<typename T>
+void norm_async_same_type(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst)
+{
     // Do actual calculations
     int mpi_rank = starpu_mpi_world_rank();
-    int ret;
     constexpr Scalar one = 1.0;
     // go over all tiles
     for(Index i = 0; i < src.grid.nelems; ++i)
@@ -73,52 +66,61 @@ void norm_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T>
     }
 }
 
-//! Tensor-wise norm
 template<typename T>
-void norm(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst)
+void norm_same_type(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst)
 {
-    norm_async<T>(alpha, src, beta, dst);
+    norm_async_same_type<T>(alpha, src, beta, dst);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
-//! Mixed precision tensor-wise norm
-template<typename T, typename U>
-void norm_async_mixed(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<U> &dst)
+} // namespace detail
+
+template<typename T>
+void norm_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
+        const norm_dst_tensor_t<T> &dst)
 {
-    // For simplicity, implement by converting to same type norm
-    // This is not ideal but works for the LARS use case
-    // In practice, we'd need proper mixed precision starpu operations
-    
-    // Create temporary tensor of same type as dst to hold intermediate result
-    Tensor<T> temp_src(src.get_grid_shape(), src.get_basetile_shape(), src.get_distribution());
-    // This is getting complex. For now, let's use a simpler approach.
-    // Since we know dst is fp32 and src is various types, let's compute norm in src type then copy
-    
-    // Actually, let's just use the regular norm function but assume U is fp32_t
-    // This requires the starpu norm to handle mixed types, which it doesn't currently
-    
-    // For the LARS case, since norms are always positive and we need them as float,
-    // let's compute the norm in the source precision and then convert the final result
-    Tensor<T> temp_norm({}, {1}); // Temporary norm in source precision
-    norm_async<T>(alpha, src, beta, temp_norm);
-    
-    // Now copy the value to the fp32 destination
-    // This is a hack - in practice we'd need proper mixed precision support
-    // For now, assume we can access the tile value directly
-    auto temp_tile = temp_norm.get_tile(0);
-    auto dst_tile = dst.get_tile(0);
-    // Copy value (this is not proper async - we'd need to submit a copy task)
-    *dst_tile.data() = static_cast<U>(*temp_tile.data());
-    
-    temp_norm.unregister();
+    using dst_t = norm_value_t<T>;
+
+    if(dst.ndim != 0)
+    {
+        throw std::runtime_error("dst.ndim != 0");
+    }
+    if(src.nelems == 0)
+    {
+        throw std::runtime_error("src.nelems == 0");
+    }
+
+    if constexpr (std::is_same_v<dst_t, T>)
+    {
+        detail::norm_async_same_type(alpha, src, beta, dst);
+    }
+    else
+    {
+        constexpr Scalar zero = 0.0;
+        const TensorTraits &dst_traits = dst;
+        Tensor<T> tmp(dst_traits, dst.tile_distr);
+        detail::norm_same_type(alpha, src, zero, tmp);
+
+        auto tmp_tile = tmp.get_tile(0);
+        auto dst_tile = dst.get_tile(0);
+        auto tmp_local = tmp_tile.acquire(STARPU_R);
+        auto dst_local = dst_tile.acquire(STARPU_RW);
+
+        const Scalar tmp_value =
+            static_cast<Scalar>(static_cast<typename T::repr_t>(tmp_local[0]));
+        const Scalar dst_value =
+            static_cast<Scalar>(static_cast<typename dst_t::repr_t>(dst_local[0]));
+        const Scalar combined = tmp_value + beta * dst_value;
+        dst_local[0] = dst_t(static_cast<typename dst_t::repr_t>(combined));
+    }
 }
 
-//! Mixed precision tensor-wise norm (blocking)
-template<typename T, typename U>
-void norm_mixed(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<U> &dst)
+template<typename T>
+void norm(Scalar alpha, const Tensor<T> &src, Scalar beta,
+        const norm_dst_tensor_t<T> &dst)
 {
-    norm_async_mixed<T, U>(alpha, src, beta, dst);
+    norm_async<T>(alpha, src, beta, dst);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -126,59 +128,59 @@ void norm_mixed(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<U>
 // Explicit instantiation
 template
 void norm_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
-        const Tensor<fp32_t> &dst);
+        const norm_dst_tensor_t<fp32_t> &dst);
 
 template
 void norm_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
-        const Tensor<fp32_fast_tf32_t> &dst);
+        const norm_dst_tensor_t<fp32_fast_tf32_t> &dst);
 
 template
 void norm_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
-        const Tensor<fp32_fast_fp16_t> &dst);
+        const norm_dst_tensor_t<fp32_fast_fp16_t> &dst);
 
 template
 void norm_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
-        const Tensor<fp32_fast_bf16_t> &dst);
+        const norm_dst_tensor_t<fp32_fast_bf16_t> &dst);
 
 template
 void norm_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
-        const Tensor<fp64_t> &dst);
+        const norm_dst_tensor_t<fp64_t> &dst);
 
 template
 void norm_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
-        const Tensor<bf16_t> &dst);
+        const norm_dst_tensor_t<bf16_t> &dst);
 
 template
 void norm_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, Scalar beta,
-        const Tensor<fp16_t> &dst);
+        const norm_dst_tensor_t<fp16_t> &dst);
 
 // Explicit instantiation
 template
 void norm<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
-        const Tensor<fp32_t> &dst);
+        const norm_dst_tensor_t<fp32_t> &dst);
 
 template
 void norm<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
-        const Tensor<fp32_fast_tf32_t> &dst);
+        const norm_dst_tensor_t<fp32_fast_tf32_t> &dst);
 
 template
 void norm<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
-        const Tensor<fp32_fast_fp16_t> &dst);
+        const norm_dst_tensor_t<fp32_fast_fp16_t> &dst);
 
 template
 void norm<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
-        const Tensor<fp32_fast_bf16_t> &dst);
+        const norm_dst_tensor_t<fp32_fast_bf16_t> &dst);
 
 template
 void norm<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
-        const Tensor<fp64_t> &dst);
+        const norm_dst_tensor_t<fp64_t> &dst);
 
 template
 void norm<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
-        const Tensor<bf16_t> &dst);
+        const norm_dst_tensor_t<bf16_t> &dst);
 
 template
 void norm<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, Scalar beta,
-        const Tensor<fp16_t> &dst);
+        const norm_dst_tensor_t<fp16_t> &dst);
 
 } // namespace nntile::tensor

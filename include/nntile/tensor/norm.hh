@@ -14,25 +14,23 @@
 
 #pragma once
 
+#include <nntile/norm_traits.hh>
 #include <nntile/tensor/tensor.hh>
 
 namespace nntile::tensor
 {
 
+template<typename T>
+using norm_dst_tensor_t = Tensor<norm_value_t<T>>;
+
 // Tensor-wise norm
 template<typename T>
-void norm_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst);
+void norm_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
+        const norm_dst_tensor_t<T> &dst);
 
 // Tensor-wise norm
 template<typename T>
-void norm(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst);
-
-// Mixed precision norm: compute norm of T tensor and store in U tensor
-template<typename T, typename U>
-void norm_async_mixed(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<U> &dst);
-
-// Mixed precision norm: compute norm of T tensor and store in U tensor
-template<typename T, typename U>
-void norm_mixed(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<U> &dst);
+void norm(Scalar alpha, const Tensor<T> &src, Scalar beta,
+        const norm_dst_tensor_t<T> &dst);
 
 } // namespace nntile::tensor

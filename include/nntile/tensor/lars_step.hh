@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <nntile/norm_traits.hh>
 #include <nntile/tensor/tensor.hh>
 
 namespace nntile::tensor
@@ -22,11 +23,11 @@ namespace nntile::tensor
 template<typename T>
 void lars_step_async(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
     const Tensor<T> &grad, const Tensor<T> &p,
-    const Tensor<fp32_t> &grad_norm, const Tensor<fp32_t> &p_norm);
+    const Tensor<norm_value_t<T>> &grad_norm, const Tensor<norm_value_t<T>> &p_norm);
 
 template<typename T>
 void lars_step(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
     const Tensor<T> &grad, const Tensor<T> &p,
-    const Tensor<fp32_t> &grad_norm, const Tensor<fp32_t> &p_norm);
+    const Tensor<norm_value_t<T>> &grad_norm, const Tensor<norm_value_t<T>> &p_norm);
 
 } // namespace nntile::tensor

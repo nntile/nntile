@@ -40,21 +40,23 @@ void LarsStep<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
+    using norm_t = norm_value_t<T>;
+    using norm_repr_t = typename norm_t::repr_t;
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *grad = interfaces[0]->get_ptr<T>();
     T* p = interfaces[1]->get_ptr<T>();
-    fp32_t* grad_norm = reinterpret_cast<fp32_t*>(interfaces[2]->get_ptr<fp32_t>());
-    fp32_t* p_norm = reinterpret_cast<fp32_t*>(interfaces[3]->get_ptr<fp32_t>());
+    norm_t* grad_norm = interfaces[2]->get_ptr<norm_t>();
+    norm_t* p_norm = interfaces[3]->get_ptr<norm_t>();
     // Launch kernel
     kernel::lars_step::cpu<T>(
         args->num_elems,
         args->lr,
         args->trust_ratio,
-        static_cast<Scalar>(grad_norm[0]),
-        static_cast<Scalar>(p_norm[0]),
+        static_cast<Scalar>(static_cast<norm_repr_t>(grad_norm[0])),
+        static_cast<Scalar>(static_cast<norm_repr_t>(p_norm[0])),
         args->weight_decay,
         grad,
         p
@@ -94,14 +96,16 @@ void LarsStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
+    using norm_t = norm_value_t<T>;
+    using norm_repr_t = typename norm_t::repr_t;
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *grad = interfaces[0]->get_ptr<T>();
     T* p = interfaces[1]->get_ptr<T>();
-    fp32_t* grad_norm = reinterpret_cast<fp32_t*>(interfaces[2]->get_ptr<fp32_t>());
-    fp32_t* p_norm = reinterpret_cast<fp32_t*>(interfaces[3]->get_ptr<fp32_t>());
+    norm_t* grad_norm = interfaces[2]->get_ptr<norm_t>();
+    norm_t* p_norm = interfaces[3]->get_ptr<norm_t>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
@@ -110,8 +114,8 @@ void LarsStep<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         args->num_elems,
         args->lr,
         args->trust_ratio,
-        static_cast<Scalar>(grad_norm[0]),
-        static_cast<Scalar>(p_norm[0]),
+        static_cast<Scalar>(static_cast<norm_repr_t>(grad_norm[0])),
+        static_cast<Scalar>(static_cast<norm_repr_t>(p_norm[0])),
         args->weight_decay,
         grad,
         p
