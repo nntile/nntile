@@ -1,16 +1,28 @@
 # @file wrappers/python/tests/nntile_core/test_tensor_flash_sdpa_bwd_cudnn.py
 # Tests for tensor::flash_sdpa_bwd_cudnn<T> Python wrapper
+#
+# This test runs the cuDNN flash backward kernel and checks dQ/dK/dV against a
+# float32 PyTorch reference of scaled dot-product attention.
 
 import math
 
 import numpy as np
 import pytest
+import torch
 
 import nntile
 from nntile.functions import (
     clear_async, flash_sdpa_bwd_cudnn_async, flash_sdpa_fwd_cudnn_async)
 
 supported_dtypes = ["fp16", "bf16"]
+dtype2tol = {
+    "fp16": {"rtol": 2e-3, "atol": 1e-4},
+    "bf16": {"rtol": 1e-2, "atol": 5e-4},
+}
+
+nocuda = pytest.mark.skipif(
+    not torch.cuda.is_available(), reason="no cuda"
+)
 
 
 def _prepare_flash_backward_inputs(dtype: str, seed: int = 17):
@@ -102,75 +114,54 @@ def _prepare_flash_backward_inputs(dtype: str, seed: int = 17):
     }
 
 
-def _flatten_to_batches(arr: np.ndarray) -> np.ndarray:
-    head_size, n_seq, n_batch, kv_group_size, n_head_kv = arr.shape
-    transposed = arr.transpose(2, 3, 4, 1, 0)
-    return transposed.reshape(
-        n_batch * kv_group_size * n_head_kv, n_seq, head_size
+def _flatten_sdpa_tensor(tensor: np.ndarray) -> np.ndarray:
+    if tensor.ndim == 4:
+        return tensor
+    if tensor.ndim != 5:
+        raise ValueError("SDPA tensors must have 4 or 5 dimensions")
+    head_size, n_seq, n_batch, kv_group_size, n_head_kv = tensor.shape
+    return np.reshape(
+        tensor,
+        (head_size, n_seq, n_batch, kv_group_size * n_head_kv),
+        order="F",
     )
-
-
-def _unflatten_from_batches(flat: np.ndarray, shape):
-    head_size, n_seq, n_batch, kv_group_size, n_head_kv = shape
-    reshaped = flat.reshape(
-        n_batch, kv_group_size, n_head_kv, n_seq, head_size
-    )
-    return reshaped.transpose(4, 3, 0, 1, 2)
 
 
 def _torch_flash_sdpa_backward_reference(data):
-    try:
-        import torch
-    except ImportError:
-        return None
+    q_flat = _flatten_sdpa_tensor(data["Q_src"]).astype(np.float32, order="F")
+    k_flat = _flatten_sdpa_tensor(data["K_src"]).astype(np.float32, order="F")
+    v_flat = _flatten_sdpa_tensor(data["V_src"]).astype(np.float32, order="F")
+    da_flat = _flatten_sdpa_tensor(data["dA_src"]).astype(np.float32, "F")
 
-    q_t = torch.tensor(
-        _flatten_to_batches(data["Q_src"]),
-        dtype=torch.float32,
-        requires_grad=True
-    )
-    k_t = torch.tensor(
-        _flatten_to_batches(data["K_src"]),
-        dtype=torch.float32,
-        requires_grad=True
-    )
-    v_t = torch.tensor(
-        _flatten_to_batches(data["V_src"]),
-        dtype=torch.float32,
-        requires_grad=True
-    )
-    mask = torch.tensor(data["mask_src"], dtype=torch.float32)
-    dA = torch.tensor(
-        _flatten_to_batches(data["dA_src"]), dtype=torch.float32
-    )
+    q_t = torch.tensor(q_flat, dtype=torch.float32, requires_grad=True)
+    k_t = torch.tensor(k_flat, dtype=torch.float32, requires_grad=True)
+    v_t = torch.tensor(v_flat, dtype=torch.float32, requires_grad=True)
+    da_t = torch.tensor(da_flat, dtype=torch.float32)
 
-    scale = 1.0 / math.sqrt(float(data["head_size"]))
-    scores = torch.matmul(q_t, k_t.transpose(-2, -1)) * scale
-    scores = scores + mask.unsqueeze(0)
-    attn = torch.softmax(scores, dim=-1)
-    y = torch.matmul(attn, v_t)
-
-    y.backward(dA)
-
-    dQ = _unflatten_from_batches(
-        q_t.grad.detach().cpu().numpy(), data["kqv_shape"]
+    scale = torch.tensor(
+        1.0 / math.sqrt(float(data["head_size"])), dtype=torch.float32
     )
-    dK = _unflatten_from_batches(
-        k_t.grad.detach().cpu().numpy(), data["kqv_shape"]
+    scores = torch.einsum("hsbn,htbn->stbn", k_t, q_t) * scale
+    scores = scores + torch.tensor(data["mask_src"], dtype=torch.float32) \
+        .unsqueeze(-1).unsqueeze(-1)
+    attn = torch.softmax(scores, dim=0)
+    y = torch.einsum("hsbn,stbn->htbn", v_t, attn)
+
+    y.backward(da_t)
+
+    dQ = np.reshape(
+        q_t.grad.detach().cpu().numpy(), data["kqv_shape"], order="F"
     )
-    dV = _unflatten_from_batches(
-        v_t.grad.detach().cpu().numpy(), data["kqv_shape"]
+    dK = np.reshape(
+        k_t.grad.detach().cpu().numpy(), data["kqv_shape"], order="F"
+    )
+    dV = np.reshape(
+        v_t.grad.detach().cpu().numpy(), data["kqv_shape"], order="F"
     )
     return {"dQ": dQ, "dK": dK, "dV": dV}
 
 
-def _assert_close(actual: np.ndarray, reference: np.ndarray, tol=1e-2):
-    diff = np.linalg.norm(actual - reference)
-    ref_norm = np.linalg.norm(reference)
-    limit = tol * (ref_norm if ref_norm != 0 else 1.0)
-    assert diff <= limit + tol, f"diff {diff} exceeds limit {limit}"
-
-
+@nocuda
 @pytest.mark.parametrize("dtype", supported_dtypes)
 def test_flash_sdpa_bwd_cudnn_async(context, dtype):
     data = _prepare_flash_backward_inputs(dtype)
@@ -214,7 +205,10 @@ def test_flash_sdpa_bwd_cudnn_async(context, dtype):
     assert np.any(np.abs(dV_out) > 1e-7)
 
     ref = _torch_flash_sdpa_backward_reference(data)
-    if ref is not None:
-        _assert_close(dQ_out, ref["dQ"])
-        _assert_close(dK_out, ref["dK"])
-        _assert_close(dV_out, ref["dV"])
+    tol = dtype2tol[dtype]
+    np.testing.assert_allclose(dQ_out, ref["dQ"], rtol=tol["rtol"],
+                               atol=tol["atol"])
+    np.testing.assert_allclose(dK_out, ref["dK"], rtol=tol["rtol"],
+                               atol=tol["atol"])
+    np.testing.assert_allclose(dV_out, ref["dV"], rtol=tol["rtol"],
+                               atol=tol["atol"])

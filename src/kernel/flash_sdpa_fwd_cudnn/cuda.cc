@@ -14,9 +14,6 @@
 
 #include "nntile/kernel/flash_sdpa_fwd_cudnn/cuda.hh"
 #include <cudnn_frontend.h>
-#ifdef NNTILE_USE_CUDA
-#include <cudnn.h>
-#endif
 #include <cuda_runtime.h>
 #include <stdexcept>
 #include <cmath>
@@ -32,7 +29,7 @@ namespace nntile::kernel::flash_sdpa_fwd_cudnn
 constexpr ::int64_t Q_UID = 1;
 constexpr ::int64_t K_UID = 2;
 constexpr ::int64_t V_UID = 3;
-constexpr ::int64_t O_UID = 4;
+constexpr ::int64_t A_UID = 4;
 constexpr ::int64_t MASK_UID = 5;
 constexpr ::int64_t STATS_UID = 6;
 
@@ -113,14 +110,14 @@ FlashSdpaGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
 
         // Execute SDPA
         auto sdpa_output = graph->sdpa(Q_tensor, K_tensor, V_tensor, sdpa_options);
-        auto O_tensor = sdpa_output[0];
+        auto A_tensor = sdpa_output[0];
         auto Stats_tensor = sdpa_output[1];
 
         // Set output properties
-        O_tensor->set_output(true)
+        A_tensor->set_output(true)
             .set_dim({b, num_heads, s, d})
             .set_stride({num_heads * s * d, s * d, d, 1})
-            .set_uid(O_UID);
+            .set_uid(A_UID);
 
         Stats_tensor->set_output(true)
             .set_data_type(fe::DataType_t::FLOAT)
@@ -169,7 +166,7 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
         {Q_UID, const_cast<T*>(Q)},
         {K_UID, const_cast<T*>(K)},
         {V_UID, const_cast<T*>(V)},
-        {O_UID, A},
+        {A_UID, A},
         {MASK_UID, const_cast<T*>(mask)},
         {STATS_UID, logsumexp}
     };

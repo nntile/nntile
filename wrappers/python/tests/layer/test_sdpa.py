@@ -405,9 +405,6 @@ class TestSDPAFlash:
         dtype: str,
         params: SDPAFlashTestParams,
     ):
-        # if params is not flash_single_tile:
-        #     pytest.skip("Flash SDPA backward currently supports single-tile tensors")
-
         inputs = generate_sdpa_inputs(
             dtype,
             params,

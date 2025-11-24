@@ -19,10 +19,7 @@ import numpy as np
 
 import nntile.utils.constructors as nntc
 from nntile.functions import (
-    flash_sdpa_bwd_cudnn_async,
-    flash_sdpa_fwd_cudnn_async,
-    is_tensor_of,
-)
+    flash_sdpa_bwd_cudnn_async, flash_sdpa_fwd_cudnn_async, is_tensor_of)
 from nntile.layer.base_layer import BaseLayer
 from nntile.nntile_core.tensor import Tensor_bf16, Tensor_fp16, Tensor_fp32
 from nntile.tensor import (
@@ -363,14 +360,6 @@ class Sdpa(BaseLayer):
         if mask is None:
             raise RuntimeError("Flash SDPA mask is not initialized")
 
-        tensors = [
-            self.q.value,
-            self.k.value,
-            self.v.value,
-            self.y.value,
-            mask,
-            self.flash_logsumexp,
-        ]
         grads = [self.q.grad, self.k.grad, self.v.grad]
         if any(x is None for x in grads):
             raise RuntimeError("Gradient tensors for Q/K/V must be allocated")
