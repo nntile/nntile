@@ -18,8 +18,7 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
-from transformers.models.gpt2.modeling_gpt2 import (
-    GPT2Attention, GPT2Config)
+from transformers.models.gpt2.modeling_gpt2 import GPT2Attention, GPT2Config
 
 import nntile
 from nntile.model.gpt2_attention import GPT2Attention as GPT2Attention_nntile
@@ -184,7 +183,8 @@ class TestGPT2Attention:
 
         rtol = dtype2tol[dtype]["rtol"]
         for (n1, p1), (n2, p2) in zip(
-            torch_layer.named_parameters(), torch_layer_other.named_parameters()
+            torch_layer.named_parameters(),
+            torch_layer_other.named_parameters()
         ):
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
@@ -233,7 +233,8 @@ class TestGPT2Attention:
         assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
 
         for (n1, p1), (n2, p2) in zip(
-            torch_layer.named_parameters(), torch_layer_other.named_parameters()
+            torch_layer.named_parameters(),
+            torch_layer_other.named_parameters()
         ):
             assert n1 == n2
             assert p1.requires_grad == p2.requires_grad

@@ -19,8 +19,8 @@ from transformers.models.gpt2.modeling_gpt2 import (
     GPT2Attention as GPT2Attention_torch, GPT2Config as GPT2ConfigTorch)
 
 from nntile.tensor import (
-    TensorMoments, TensorTraits, Tensor_bool, add_fiber_inplace_async,
-    notrans, sum_fiber_async, to_numpy, transpose_async)
+    Tensor_bool, TensorMoments, TensorTraits, add_fiber_inplace_async, notrans,
+    sum_fiber_async, to_numpy, transpose_async)
 
 from ..layer.linear import Linear
 from ..layer.sdpa import Sdpa
@@ -30,7 +30,7 @@ from .gpt2_config import GPT2ConfigNNTile
 
 class GPT2Attention(BaseModel):
     """
-    GPT-2 self-attention built from Linear projections and SDPA (vanilla/flash).
+    GPT-2 self-attention with SDPA (vanilla/flash).
     """
 
     def __init__(self, x: TensorMoments, config: GPT2ConfigNNTile):
@@ -54,7 +54,7 @@ class GPT2Attention(BaseModel):
         self.head_size = head_size
         self.head_size_tile = head_size_tile
 
-        # Projections for Q/K/V: output shape [1, n_head, head_size, seq, batch]
+        # Projections for Q/K/V: shape [1, n_head, head_size, seq, batch]
         out_shape_qkv = [1, n_head, head_size]
         out_tile_qkv = [1, n_head_tile, head_size_tile]
         gemm_ndim = 1
@@ -157,7 +157,7 @@ class GPT2Attention(BaseModel):
         )
         self.context = self.sdpa.activations_output[0]
 
-        # Transposed context for output projection: [1, n_head, head, seq, batch]
+        # Transposed context for output proj: [1, n_head, head, seq, batch]
         ctx_tr_shape = [1, n_head, head_size, seq_len, n_batch]
         ctx_tr_basetile = [1, n_head_tile, head_size_tile,
                            seq_len_tile, n_batch_tile]
@@ -328,7 +328,6 @@ class GPT2Attention(BaseModel):
         )
 
         n_emb = self.config.hidden_size
-        head_size = self.head_size
         weight_torch_np = np.empty((n_emb, 3 * n_emb))
         weight_torch_np[:, :n_emb] = to_numpy(
             self.q_proj.parameters[0].value
@@ -391,7 +390,8 @@ class GPT2Attention(BaseModel):
         bias_torch_np[n_emb:2 * n_emb] = to_numpy(self.k_bias.grad).T.reshape(
             n_emb,
         )
-        bias_torch_np[2 * n_emb:3 * n_emb] = to_numpy(self.v_bias.grad).T.reshape(
+        bias_torch_np[2 * n_emb:3 * n_emb] = to_numpy(self.v_bias.grad).T \
+        .reshape(
             n_emb,
         )
         torch_layer.c_attn.bias.grad = torch.tensor(bias_torch_np)
