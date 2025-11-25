@@ -170,6 +170,26 @@ def generate_inputs(params: LlamaAttentionTestParams, dtype: str,
 )
 class TestLlamaAttention:
 
+    def test_coercion(self, context, torch_rng,
+                      params: LlamaAttentionTestParams,
+                      dtype: str,
+                      flash_attention: bool):
+        if flash_attention and dtype not in flash_dtypes:
+            pytest.skip("Flash SDPA supports only fp16 and bf16")
+        torch_layer, nntile_layer, *_ = generate_inputs(
+            params, dtype, flash_attention
+        )
+        torch_layer_other = nntile_layer.to_torch()
+        nntile_layer.unregister()
+
+        rtol = dtype2tol[dtype]['rtol']
+        for (n1, p1), (n2, p2) in zip(
+            torch_layer.named_parameters(),
+            torch_layer_other.named_parameters()
+        ):
+            assert n1 == n2
+            assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
+
     def test_forward(self, context, torch_rng,
                      params: LlamaAttentionTestParams,
                      dtype: str,
