@@ -48,6 +48,7 @@ dtype2tol = {
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
+flash_dtypes = {"fp16", "bf16"}
 
 
 @dataclass
@@ -173,7 +174,7 @@ class TestLlamaAttention:
                      params: LlamaAttentionTestParams,
                      dtype: str,
                      flash_attention: bool):
-        if flash_attention and dtype not in ('bf16', 'fp16'):
+        if flash_attention and dtype not in flash_dtypes:
             pytest.skip("Flash SDPA supports only fp16 and bf16")
         torch_layer, nntile_layer, x, _, pos_ids, pos_embs, mask = \
             generate_inputs(params, dtype, flash_attention)
@@ -196,7 +197,7 @@ class TestLlamaAttention:
     def test_forward_backward(self, context, torch_rng,
                       params: LlamaAttentionTestParams, dtype: str,
                       flash_attention: bool):
-        if flash_attention and dtype not in ('fp16', 'bf16'):
+        if flash_attention and dtype not in flash_dtypes:
             pytest.skip("Flash SDPA supports only fp16 and bf16")
         torch_layer, nntile_layer, x, y_grad, pos_ids, pos_embs, mask = \
             generate_inputs(params, dtype, flash_attention)
