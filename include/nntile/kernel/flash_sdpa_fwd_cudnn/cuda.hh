@@ -23,7 +23,7 @@ namespace nntile::kernel::flash_sdpa_fwd_cudnn
 {
 
 // Shared pointer type for the graph
-using FlashSdpaGraph = std::shared_ptr<cudnn_frontend::graph::Graph>;
+using FlashSdpaFwdGraph = std::shared_ptr<cudnn_frontend::graph::Graph>;
 
 //! Prepare cuDNN graph for flash attention
 /*! Prepares and builds the cuDNN graph for flash attention with fixed dimensions.
@@ -35,7 +35,7 @@ using FlashSdpaGraph = std::shared_ptr<cudnn_frontend::graph::Graph>;
  * @return Pointer to prepared graph structure, or nullptr on error
  * */
 template<typename T>
-FlashSdpaGraph prepare_graph(
+FlashSdpaFwdGraph prepare_graph(
     cudnnHandle_t handle,
     Index seq,
     Index head,
@@ -46,22 +46,32 @@ FlashSdpaGraph prepare_graph(
 /*! Executes a previously prepared cuDNN graph with provided data pointers.
  * @param[in] handle: cuDNN handle (with stream already set)
  * @param[in] prepared_graph: Previously prepared graph structure
+ * @param[in] seq: Sequence length
+ * @param[in] head: Head dimension (d_qk = d_v)
+ * @param[in] batch: Batch size
  * @param[in] K: Key tensor [batch, seq, head]
  * @param[in] Q: Query tensor [batch, seq, head]
  * @param[in] mask: Mask tensor [seq, seq]
- * @param[out] logsumexp: Log-sum-exp statistics [batch, seq]
+ * @param[out] scratch_logsumexp: Temporary log-sum-exp buffer [batch, seq]
  * @param[in] V: Value tensor [batch, seq, head]
- * @param[out] A: Attention output tensor [batch, seq, head]
+ * @param[out] scratch_A: Temporary attention output buffer [batch, seq, head]
+ * @param[in,out] logsumexp: Destination log-sum-exp statistics [batch, seq]
+ * @param[in,out] A: Destination attention output tensor [batch, seq, head]
  * */
 template<typename T>
 void execute_graph(
     cudnnHandle_t handle,
-    const FlashSdpaGraph &prepared_graph,
+    const FlashSdpaFwdGraph &prepared_graph,
+    Index seq,
+    Index head,
+    Index batch,
     const T *K,
     const T *Q,
     const T *mask,
-    fp32_t *logsumexp,
+    fp32_t *scratch_logsumexp,
     const T *V,
+    T *scratch_A,
+    fp32_t *logsumexp,
     T *A
 ) noexcept;
 

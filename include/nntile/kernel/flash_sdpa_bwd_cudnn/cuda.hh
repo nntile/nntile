@@ -23,11 +23,11 @@ namespace nntile::kernel::flash_sdpa_bwd_cudnn
 {
 
 // Shared pointer type for the graph
-using FlashSdpaGraph = std::shared_ptr<cudnn_frontend::graph::Graph>;
+using FlashSdpaBwdGraph = std::shared_ptr<cudnn_frontend::graph::Graph>;
 
 //! Prepare cuDNN graph for flash attention backward pass
 template<typename T>
-FlashSdpaGraph prepare_graph(
+FlashSdpaBwdGraph prepare_graph(
     cudnnHandle_t handle,
     Index seq,
     Index head,
@@ -38,7 +38,7 @@ FlashSdpaGraph prepare_graph(
 template<typename T>
 void execute_graph(
     cudnnHandle_t handle,
-    const FlashSdpaGraph &prepared_graph,
+    const FlashSdpaBwdGraph &prepared_graph,
     Index seq,
     Index head,
     Index batch,

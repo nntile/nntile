@@ -90,9 +90,9 @@ flash_multi_tile = SDPAFlashTestParams(
     n_seq_tile=64,
     n_batch=3,
     n_batch_tile=1,
-    kv_group_size=2,
+    kv_group_size=4,
     kv_group_size_tile=1,
-    n_head_kv=4,
+    n_head_kv=16,
     n_head_kv_tile=2,
     seed=5,
 )
@@ -400,7 +400,7 @@ class TestSDPAFlash:
         tol = dtype2tol[dtype]
         _assert_tensor_close(y_nntile, y_ref, tol)
 
-    def test_backward(
+    def test_forward_backward(
         self,
         context,
         dtype: str,

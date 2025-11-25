@@ -59,15 +59,15 @@ inline fe::DataType_t get_data_type()
 } // namespace
 
 template<typename T>
-FlashSdpaGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
-                             Index batch)
+FlashSdpaBwdGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
+                                Index batch)
     noexcept
 //! Prepare cuDNN graph for flash attention backward pass
 {
     try {
         fe::DataType_t data_type = get_data_type<T>();
 
-        FlashSdpaGraph graph = std::make_shared<fe::graph::Graph>();
+        FlashSdpaBwdGraph graph = std::make_shared<fe::graph::Graph>();
         graph->set_io_data_type(data_type)
             .set_intermediate_data_type(fe::DataType_t::FLOAT)
             .set_compute_data_type(fe::DataType_t::FLOAT);
@@ -170,7 +170,7 @@ FlashSdpaGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
 }
 
 template<typename T>
-void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
+void execute_graph(cudnnHandle_t handle, const FlashSdpaBwdGraph &prepared_graph,
                    Index seq, Index head, Index batch,
                    const T *K, const T *Q, const T *V, const T *A,
                    const T *dA, const T *mask, const fp32_t *logsumexp,
@@ -220,16 +220,16 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
 
 // Explicit instantiations
 template
-FlashSdpaGraph prepare_graph<fp16_t>(cudnnHandle_t handle, Index seq,
-                                     Index head, Index batch) noexcept;
+FlashSdpaBwdGraph prepare_graph<fp16_t>(cudnnHandle_t handle, Index seq,
+                                        Index head, Index batch) noexcept;
 
 template
-FlashSdpaGraph prepare_graph<bf16_t>(cudnnHandle_t handle, Index seq,
-                                     Index head, Index batch) noexcept;
+FlashSdpaBwdGraph prepare_graph<bf16_t>(cudnnHandle_t handle, Index seq,
+                                        Index head, Index batch) noexcept;
 
 template
 void execute_graph<fp16_t>(cudnnHandle_t handle,
-                           const FlashSdpaGraph &prepared_graph,
+                           const FlashSdpaBwdGraph &prepared_graph,
                            Index seq,
                            Index head,
                            Index batch,
@@ -250,7 +250,7 @@ void execute_graph<fp16_t>(cudnnHandle_t handle,
 
 template
 void execute_graph<bf16_t>(cudnnHandle_t handle,
-                           const FlashSdpaGraph &prepared_graph,
+                           const FlashSdpaBwdGraph &prepared_graph,
                            Index seq,
                            Index head,
                            Index batch,

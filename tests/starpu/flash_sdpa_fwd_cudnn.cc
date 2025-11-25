@@ -90,7 +90,9 @@ void validate_cuda(Index seq, Index head, Index batch)
 
     // Allocate device memory for kernel test
     T *dev_K, *dev_Q, *dev_V, *dev_A_kernel, *dev_mask;
+    T *dev_scratch_A_kernel;
     fp32_t *dev_logsumexp_kernel;
+    fp32_t *dev_scratch_lse_kernel;
     cuda_err = cudaMalloc(&dev_K, sizeof(T) * batch * seq * head);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_Q, sizeof(T) * batch * seq * head);
@@ -100,6 +102,10 @@ void validate_cuda(Index seq, Index head, Index batch)
     cuda_err = cudaMalloc(&dev_A_kernel, sizeof(T) * batch * seq * head);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_logsumexp_kernel, sizeof(fp32_t) * actual_batch * seq);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaMalloc(&dev_scratch_A_kernel, sizeof(T) * batch * seq * head);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaMalloc(&dev_scratch_lse_kernel, sizeof(fp32_t) * actual_batch * seq);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_mask, sizeof(T) * seq * seq);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -117,6 +123,13 @@ void validate_cuda(Index seq, Index head, Index batch)
     cuda_err = cudaMemcpy(dev_mask, mask.data(), sizeof(T) * seq * seq,
                           cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaMemset(dev_A_kernel, 0, sizeof(T) * batch * seq * head);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    std::vector<fp32_t> logsumexp_kernel_base(actual_batch * seq,
+                                              fp32_t(-std::numeric_limits<float>::infinity()));
+    cuda_err = cudaMemcpy(dev_logsumexp_kernel, logsumexp_kernel_base.data(),
+                          sizeof(fp32_t) * actual_batch * seq, cudaMemcpyHostToDevice);
+    TEST_ASSERT(cuda_err == cudaSuccess);
 
     // Prepare kernel graph once
     auto kernel_graph = kernel::flash_sdpa_fwd_cudnn::prepare_graph<T>(
@@ -131,11 +144,16 @@ void validate_cuda(Index seq, Index head, Index batch)
     kernel::flash_sdpa_fwd_cudnn::execute_graph<T>(
         handle,
         kernel_graph,
+        seq,
+        head,
+        batch,
         dev_K,
         dev_Q,
         dev_mask,
-        dev_logsumexp_kernel,
+        dev_scratch_lse_kernel,
         dev_V,
+        dev_scratch_A_kernel,
+        dev_logsumexp_kernel,
         dev_A_kernel
     );
 
@@ -222,6 +240,8 @@ void validate_cuda(Index seq, Index head, Index batch)
     cudaFree(dev_V);
     cudaFree(dev_A_kernel);
     cudaFree(dev_logsumexp_kernel);
+    cudaFree(dev_scratch_A_kernel);
+    cudaFree(dev_scratch_lse_kernel);
     cudaFree(dev_mask);
     cudnnDestroy(handle);
     cudaStreamDestroy(stream);

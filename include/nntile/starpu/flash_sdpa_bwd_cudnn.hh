@@ -93,7 +93,7 @@ public:
 private:
     struct CacheEntry
     {
-        kernel::flash_sdpa_bwd_cudnn::FlashSdpaGraph graph;
+        kernel::flash_sdpa_bwd_cudnn::FlashSdpaBwdGraph graph;
         void *workspace = nullptr;
         std::int64_t workspace_size = 0;
         Index seq = 0;
@@ -168,7 +168,7 @@ private:
         Index seq,
         Index head,
         Index batch,
-        kernel::flash_sdpa_bwd_cudnn::FlashSdpaGraph graph
+        kernel::flash_sdpa_bwd_cudnn::FlashSdpaBwdGraph graph
     );
 
     std::array<std::once_flag, STARPU_NMAXWORKERS> worker_cache_flags_{};

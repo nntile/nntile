@@ -247,7 +247,7 @@ FlashSdpaBwdCudnn<std::tuple<T>>::store_graph(
     Index seq,
     Index head,
     Index batch,
-    kernel::flash_sdpa_bwd_cudnn::FlashSdpaGraph graph
+    kernel::flash_sdpa_bwd_cudnn::FlashSdpaBwdGraph graph
 )
 {
     auto &bucket = cache.graphs[hash];
