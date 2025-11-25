@@ -20,7 +20,6 @@
 #include <cmath>
 #include <unordered_map>
 #include <type_traits>
-#include <iostream>
 
 namespace fe = cudnn_frontend;
 

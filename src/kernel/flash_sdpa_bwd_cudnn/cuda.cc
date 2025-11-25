@@ -21,7 +21,6 @@
 #include <cmath>
 #include <unordered_map>
 #include <type_traits>
-#include <iostream>
 
 namespace fe = cudnn_frontend;
 
@@ -35,7 +34,7 @@ constexpr ::int64_t V_UID = 3;
 constexpr ::int64_t A_UID = 4;
 constexpr ::int64_t MASK_UID = 5;
 constexpr ::int64_t STATS_UID = 6;
-constexpr ::int64_t DO_UID = 7;
+constexpr ::int64_t DA_UID = 7;
 constexpr ::int64_t DQ_UID = 8;
 constexpr ::int64_t DK_UID = 9;
 constexpr ::int64_t DV_UID = 10;
@@ -99,7 +98,7 @@ FlashSdpaBwdGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
         auto K_tensor = make_io_tensor("K", K_UID);
         auto V_tensor = make_io_tensor("V", V_UID);
         auto A_tensor = make_io_tensor("A", A_UID);
-        auto dA_tensor = make_io_tensor("dA", DO_UID);
+        auto dA_tensor = make_io_tensor("dA", DA_UID);
 
         auto Mask_tensor = graph->tensor(fe::graph::Tensor_attributes()
                                              .set_name("Bias")
@@ -184,7 +183,7 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaBwdGraph &prepared_graph
         {K_UID, const_cast<T*>(K)},
         {V_UID, const_cast<T*>(V)},
         {A_UID, const_cast<T*>(A)},
-        {DO_UID, const_cast<T*>(dA)},
+        {DA_UID, const_cast<T*>(dA)},
         {MASK_UID, const_cast<T*>(mask)},
         {STATS_UID, const_cast<fp32_t*>(logsumexp)},
         {DQ_UID, scratch_dQ},
