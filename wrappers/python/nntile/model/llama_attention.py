@@ -53,14 +53,17 @@ class LlamaAttention(BaseModel):
         self.n_head = config.n_attention_head
         self.n_head_kv = config.num_key_value_heads
         if self.n_head % self.n_head_kv != 0:
-            raise ValueError("n_attention_head must be divisible by num_key_value_heads")  # noqa: E501
+            raise ValueError("n_attention_head must be divisible by "
+                "num_key_value_heads")
         self.kv_group_size = self.n_head // self.n_head_kv
         self.head_size = self.n_emb // self.n_head
         if self.n_emb != self.head_size * self.n_head:
-            raise ValueError("hidden_size must be divisible by n_attention_head")  # noqa: E501
+            raise ValueError("hidden_size must be divisible by "
+                "n_attention_head")
         self.n_emb_kv = self.head_size * self.n_head_kv
         if x.value.basetile_shape[0] != self.head_size:
-            raise ValueError("hidden_size_tile must equal head_size; tiling over head size is not supported")  # noqa: E501
+            raise ValueError("hidden_size_tile must equal head_size; "
+                "tiling over head size is not supported")
         redux = config.redux
 
         n_emb_tile, n_seq_tile, n_batch_tile = x.value.basetile_shape
@@ -110,28 +113,76 @@ class LlamaAttention(BaseModel):
 
         # Allocate intermediate tensors
         q_traits = TensorTraits(
-            [self.head_size, n_seq, n_batch, self.kv_group_size, self.n_head_kv],   # noqa: E501
-            [head_size_tile, n_seq_tile, n_batch_tile, kv_group_size_tile, n_head_kv_tile],  # noqa: E501
+            [
+                self.head_size,
+                n_seq,
+                n_batch,
+                self.kv_group_size,
+                self.n_head_kv
+            ],
+            [
+                head_size_tile,
+                n_seq_tile,
+                n_batch_tile,
+                kv_group_size_tile,
+                n_head_kv_tile
+            ],
         )
         k_traits = TensorTraits(
             [self.head_size, n_seq, n_batch, self.n_head_kv],
             [head_size_tile, n_seq_tile, n_batch_tile, n_head_kv_tile],
         )
         k_rep_traits = TensorTraits(
-            [self.head_size, n_seq, n_batch, self.kv_group_size, self.n_head_kv],  # noqa: E501
-            [head_size_tile, n_seq_tile, n_batch_tile, kv_group_size_tile, n_head_kv_tile],  # noqa: E501
+            [
+                self.head_size,
+                n_seq,
+                n_batch,
+                self.kv_group_size,
+                self.n_head_kv,
+            ],
+            [
+                head_size_tile,
+                n_seq_tile,
+                n_batch_tile,
+                kv_group_size_tile,
+                n_head_kv_tile,
+            ],
         )
         v_traits = TensorTraits(
-            [self.head_size, n_seq, n_batch, self.n_head_kv],  # noqa: E501
-            [head_size_tile, n_seq_tile, n_batch_tile, n_head_kv_tile],  # noqa: E501
+            [self.head_size, n_seq, n_batch, self.n_head_kv],
+            [head_size_tile, n_seq_tile, n_batch_tile, n_head_kv_tile],
         )
         v_rep_traits = TensorTraits(
-            [self.head_size, n_seq, n_batch, self.kv_group_size, self.n_head_kv],  # noqa: E501
-            [head_size_tile, n_seq_tile, n_batch_tile, kv_group_size_tile, n_head_kv_tile],  # noqa: E501
+            [
+                self.head_size,
+                n_seq,
+                n_batch,
+                self.kv_group_size,
+                self.n_head_kv,
+            ],
+            [
+                head_size_tile,
+                n_seq_tile,
+                n_batch_tile,
+                kv_group_size_tile,
+                n_head_kv_tile,
+            ],
         )
         b_transposed_traits = TensorTraits(
-            [self.kv_group_size, self.n_head_kv, self.head_size, n_seq, n_batch],  # noqa: E501
-            [kv_group_size_tile, n_head_kv_tile, head_size_tile, n_seq_tile, n_batch_tile],  # noqa: E501
+            [
+                self.kv_group_size,
+                self.n_head_kv,
+                self.head_size,
+                n_seq,
+                n_batch,
+            ],
+            [
+                kv_group_size_tile,
+                n_head_kv_tile,
+                head_size_tile,
+                n_seq_tile,
+                n_batch_tile,
+            ],
         )
         cos_traits = TensorTraits(
             [self.head_size // 2, n_seq, n_batch],

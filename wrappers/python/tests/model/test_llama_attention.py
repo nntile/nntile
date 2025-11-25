@@ -163,7 +163,10 @@ def generate_inputs(params: LlamaAttentionTestParams, dtype: str,
     pytest.param('bf16', marks=nocuda),
     pytest.param('fp16', marks=nocuda),
 ])
-@pytest.mark.parametrize('flash_attention', [False, pytest.param(True, marks=nocuda)])  # noqa: E501
+@pytest.mark.parametrize(
+    'flash_attention',
+    [False, pytest.param(True, marks=nocuda)]
+)
 class TestLlamaAttention:
 
     def test_forward(self, context, torch_rng,
