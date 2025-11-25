@@ -18,22 +18,12 @@ from typing import Optional
 import numpy as np
 import torch
 from transformers.models.llama.modeling_llama import (
-    LlamaAttention as LlamaAttention_torch,
-    LlamaConfig as LlamaConfig_torch,
-)
+    LlamaAttention as LlamaAttention_torch, LlamaConfig as LlamaConfig_torch)
 
 from nntile.tensor import (
-    TensorMoments,
-    TensorTraits,
-    Tensor_bool,
-    add_slice_inplace_async,
-    rope_async,
-    rope_backward_async,
-    sum_slice_async,
-    to_numpy,
-    transpose_async,
-    notrans,
-)
+    Tensor_bool, TensorMoments, TensorTraits, add_slice_inplace_async, notrans,
+    rope_async, rope_backward_async, sum_slice_async, to_numpy,
+    transpose_async)
 
 from ..layer.linear import Linear
 from ..layer.sdpa import Sdpa
@@ -67,7 +57,7 @@ class LlamaAttention(BaseModel):
         self.kv_group_size = self.n_head // self.n_head_kv
         self.head_size = self.n_emb // self.n_head
         if self.n_emb != self.head_size * self.n_head:
-            raise ValueError("hidden_size must be divisible by n_attention_head")
+            raise ValueError("hidden_size must be divisible by n_attention_head")  # noqa: E501
         self.n_emb_kv = self.head_size * self.n_head_kv
         if x.value.basetile_shape[0] != self.head_size:
             raise ValueError("hidden_size_tile must equal head_size; tiling over head size is not supported")  # noqa: E501
@@ -85,7 +75,8 @@ class LlamaAttention(BaseModel):
 
         # Q/K/V projections
         if config.attention_bias:
-            raise NotImplementedError("Bias in Q/K/V projections is not supported")
+            raise NotImplementedError("Bias in Q/K/V projections is "
+                "not supported")
         self.q_proj = Linear.generate_simple(
             x,
             "R",
@@ -119,7 +110,7 @@ class LlamaAttention(BaseModel):
 
         # Allocate intermediate tensors
         q_traits = TensorTraits(
-            [self.head_size, n_seq, n_batch, self.kv_group_size, self.n_head_kv],
+            [self.head_size, n_seq, n_batch, self.kv_group_size, self.n_head_kv],   # noqa: E501
             [head_size_tile, n_seq_tile, n_batch_tile, kv_group_size_tile, n_head_kv_tile],  # noqa: E501
         )
         k_traits = TensorTraits(
@@ -127,19 +118,19 @@ class LlamaAttention(BaseModel):
             [head_size_tile, n_seq_tile, n_batch_tile, n_head_kv_tile],
         )
         k_rep_traits = TensorTraits(
-            [self.head_size, n_seq, n_batch, self.kv_group_size, self.n_head_kv],
+            [self.head_size, n_seq, n_batch, self.kv_group_size, self.n_head_kv],  # noqa: E501
             [head_size_tile, n_seq_tile, n_batch_tile, kv_group_size_tile, n_head_kv_tile],  # noqa: E501
         )
         v_traits = TensorTraits(
-            [self.head_size, n_seq, n_batch, self.n_head_kv],
-            [head_size_tile, n_seq_tile, n_batch_tile, n_head_kv_tile],
+            [self.head_size, n_seq, n_batch, self.n_head_kv],  # noqa: E501
+            [head_size_tile, n_seq_tile, n_batch_tile, n_head_kv_tile],  # noqa: E501
         )
         v_rep_traits = TensorTraits(
-            [self.head_size, n_seq, n_batch, self.kv_group_size, self.n_head_kv],
+            [self.head_size, n_seq, n_batch, self.kv_group_size, self.n_head_kv],  # noqa: E501
             [head_size_tile, n_seq_tile, n_batch_tile, kv_group_size_tile, n_head_kv_tile],  # noqa: E501
         )
         b_transposed_traits = TensorTraits(
-            [self.kv_group_size, self.n_head_kv, self.head_size, n_seq, n_batch],
+            [self.kv_group_size, self.n_head_kv, self.head_size, n_seq, n_batch],  # noqa: E501
             [kv_group_size_tile, n_head_kv_tile, head_size_tile, n_seq_tile, n_batch_tile],  # noqa: E501
         )
         cos_traits = TensorTraits(
@@ -210,12 +201,16 @@ class LlamaAttention(BaseModel):
                 [n_seq_tile, n_seq_tile],
             )
             if config.flash_attention:
-                mask_tensor = tensor_type(mask_traits, [0] * mask_traits.grid.nelems)
+                mask_tensor = tensor_type(
+                    mask_traits, [0] * mask_traits.grid.nelems
+                )
                 mask_tensor.from_array(
                     np.where(mask, 0.0, -np.inf).astype(np.float32, order="F")
                 )
             else:
-                mask_tensor = Tensor_bool(mask_traits, [0] * mask_traits.grid.nelems)
+                mask_tensor = Tensor_bool(
+                    mask_traits, [0] * mask_traits.grid.nelems
+                )
                 mask_tensor.from_array(mask)
             sdpa_mask = mask_tensor
 
@@ -230,8 +225,12 @@ class LlamaAttention(BaseModel):
         self.attn_output = self.sdpa.y
 
         self.attn_output_transposed = TensorMoments(
-            tensor_type(b_transposed_traits, [0] * b_transposed_traits.grid.nelems),
-            tensor_type(b_transposed_traits, [0] * b_transposed_traits.grid.nelems),
+            tensor_type(
+                b_transposed_traits, [0] * b_transposed_traits.grid.nelems
+            ),
+            tensor_type(
+                b_transposed_traits, [0] * b_transposed_traits.grid.nelems
+            ),
             True,
         )
         self.attn_output_transposed.value.set_reduction_add()
@@ -280,21 +279,29 @@ class LlamaAttention(BaseModel):
     def forward_async(self):
         # Q = q_proj(x)
         self.q_proj.forward_async()
-        transpose_async(1.0, self.q_proj.activations_output[0].value, self.q.value, 2)
+        transpose_async(
+            1.0, self.q_proj.activations_output[0].value, self.q.value, 2
+        )
         # Apply RoPE on Q
         rope_async(self.sin, self.cos, self.q.value, self.q_rope.value)
 
         # K = k_proj(x)
         self.k_proj.forward_async()
-        transpose_async(1.0, self.k_proj.activations_output[0].value, self.k.value, 1)
+        transpose_async(
+            1.0, self.k_proj.activations_output[0].value, self.k.value, 1
+        )
         # Apply RoPE on K
         rope_async(self.sin, self.cos, self.k.value, self.k_rope.value)
         # Repeat K to have the same number of heads, as Q
-        add_slice_inplace_async(1.0, self.k_rope.value, 0.0, self.k_rep.value, 3)
+        add_slice_inplace_async(
+            1.0, self.k_rope.value, 0.0, self.k_rep.value, 3
+            )
 
         # V = v_proj(x)
         self.v_proj.forward_async()
-        transpose_async(1.0, self.v_proj.activations_output[0].value, self.v.value, 1)
+        transpose_async(
+            1.0, self.v_proj.activations_output[0].value, self.v.value, 1
+        )
         # Repeat V to have the same number of heads, as Q
         add_slice_inplace_async(1.0, self.v.value, 0.0, self.v_rep.value, 3)
 
@@ -322,18 +329,24 @@ class LlamaAttention(BaseModel):
 
         # V path
         sum_slice_async(1.0, self.v_rep.grad, 0.0, self.v.grad, 3)
-        transpose_async(1.0, self.v.grad, self.v_proj.activations_output[0].grad, 3)
+        transpose_async(
+            1.0, self.v.grad, self.v_proj.activations_output[0].grad, 3
+        )
         self.v_proj.backward_async()
 
         # K path
         sum_slice_async(1.0, self.k_rep.grad, 0.0, self.k_rope.grad, 3)
         rope_backward_async(self.sin, self.cos, self.k_rope.grad, self.k.grad)
-        transpose_async(1.0, self.k.grad, self.k_proj.activations_output[0].grad, 3)
+        transpose_async(
+            1.0, self.k.grad, self.k_proj.activations_output[0].grad, 3
+        )
         self.k_proj.backward_async()
 
         # Q path
         rope_backward_async(self.sin, self.cos, self.q_rope.grad, self.q.grad)
-        transpose_async(1.0, self.q.grad, self.q_proj.activations_output[0].grad, 3)
+        transpose_async(
+            1.0, self.q.grad, self.q_proj.activations_output[0].grad, 3
+        )
         self.q_proj.backward_async()
 
     # ---- Torch interoperability --------------------------------------------
@@ -434,7 +447,8 @@ class LlamaAttention(BaseModel):
         )
         if torch_layer.o_proj.bias is not None:
             if layer.out_proj.b is None:
-                raise NotImplementedError("Output projection bias is not allocated")
+                raise NotImplementedError("Output projection bias is "
+                    "not allocated")
             layer.out_proj.b.value.from_array(
                 torch_layer.o_proj.bias.detach()
                 .cpu()
@@ -457,12 +471,15 @@ class LlamaAttention(BaseModel):
         torch_layer = LlamaAttention_torch(torch_layer_config, layer_idx=0)
         torch_layer.q_proj.weight.data = torch.tensor(
             np.moveaxis(
-                __class__.rotate_tensor_out(to_numpy(self.q_proj.w.value), 2), 0, 1
+                __class__.rotate_tensor_out(to_numpy(self.q_proj.w.value), 2),
+                0,
+                1
             ).reshape(self.n_emb, self.n_emb),
             requires_grad=True,
         )
         torch_layer.k_proj.weight.data = torch.tensor(
-            __class__.rotate_tensor_out(to_numpy(self.k_proj.w.value), 1).reshape(
+            __class__.rotate_tensor_out(to_numpy(self.k_proj.w.value), 1)
+            .reshape(
                 self.n_emb_kv, self.n_emb
             ),
             requires_grad=True,
@@ -492,11 +509,14 @@ class LlamaAttention(BaseModel):
             )
         torch_layer.q_proj.weight.grad = torch.tensor(
             np.moveaxis(
-                __class__.rotate_tensor_out(to_numpy(self.q_proj.w.grad), 2), 0, 1
+                __class__.rotate_tensor_out(to_numpy(self.q_proj.w.grad), 2),
+                0,
+                1
             ).reshape(self.n_emb, self.n_emb)
         )
         torch_layer.k_proj.weight.grad = torch.tensor(
-            __class__.rotate_tensor_out(to_numpy(self.k_proj.w.grad), 1).reshape(
+            __class__.rotate_tensor_out(to_numpy(self.k_proj.w.grad), 1)
+            .reshape(
                 self.n_emb_kv, self.n_emb
             )
         )
@@ -516,10 +536,8 @@ class LlamaAttention(BaseModel):
         n_seq = position_ids.shape[1]
         if n_seq != self.q.value.shape[1]:
             raise ValueError("position_ids must match the sequence length")
-        inv_freq = 1.0 / (
-            self.config.rope_theta
-            ** (np.arange(0, self.head_size, 2, dtype=np.float32) / self.head_size)
-        )
+        tmp = np.arange(0, self.head_size, 2, dtype=np.float32)
+        inv_freq = 1.0 / (self.config.rope_theta ** (tmp / self.head_size))
         freq_frame = np.empty(
             (self.head_size // 2, position_ids.shape[1], position_ids.shape[0])
         )

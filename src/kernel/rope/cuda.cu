@@ -71,7 +71,7 @@ template
 void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, const fp16_t *sin,
         const fp16_t *cos, const fp16_t *src, fp16_t *dst)
     noexcept;
-    
+
 template
 void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, const bf16_t *sin,
         const bf16_t *cos, const bf16_t *src, bf16_t *dst)

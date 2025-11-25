@@ -71,5 +71,5 @@ template
 void cpu<bf16_t>(Index m, Index n, const bf16_t *sin, const bf16_t *cos,
         const bf16_t *src, bf16_t *dst)
     noexcept;
-    
+
 } // namespace rope

@@ -19,13 +19,11 @@ import numpy as np
 import pytest
 import torch
 from transformers.models.llama.modeling_llama import (
-    LlamaAttention,
-    LlamaConfig,
-    LlamaRotaryEmbedding,
-)
+    LlamaAttention, LlamaConfig, LlamaRotaryEmbedding)
 
 import nntile
-from nntile.model.llama_attention import LlamaAttention as LlamaAttention_nntile
+from nntile.model.llama_attention import (
+    LlamaAttention as LlamaAttention_nntile)
 from nntile.model.llama_config import LlamaConfigNNTile
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
@@ -66,7 +64,7 @@ class LlamaAttentionTestParams:
 
 
 single_tile = LlamaAttentionTestParams(
-    head_size=16,
+    head_size=64,
     n_head=8,
     n_head_tile=8,
     n_head_kv=4,
@@ -77,9 +75,9 @@ single_tile = LlamaAttentionTestParams(
 )
 
 multiple_tiles = LlamaAttentionTestParams(
-    head_size=16,
+    head_size=128,
     n_head=8,
-    n_head_tile=8,
+    n_head_tile=2,
     n_head_kv=4,
     seq_len=128,
     seq_len_tile=32,
