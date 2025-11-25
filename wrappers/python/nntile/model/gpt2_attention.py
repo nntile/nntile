@@ -407,7 +407,8 @@ class GPT2Attention(BaseModel):
         return torch_layer
 
     def unregister(self):
-        # Manually owned biases are not tied to any BaseLayer, so drop them here
+        # Manually owned biases are not tied to any BaseLayer,
+        # so drop them here
         super().unregister()
         for bias in (self.q_bias, self.k_bias, self.v_bias):
             bias.unregister()
