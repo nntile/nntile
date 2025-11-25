@@ -13,10 +13,8 @@
  * */
 
 #include "nntile/kernel/flash_sdpa_fwd_cudnn/cuda.hh"
+#include "nntile/kernel/accumulate_attn_output.hh"
 #include <cudnn_frontend.h>
-#ifdef NNTILE_USE_CUDA
-#include <cudnn.h>
-#endif
 #include <cuda_runtime.h>
 #include <stdexcept>
 #include <cmath>
@@ -32,12 +30,12 @@ namespace nntile::kernel::flash_sdpa_fwd_cudnn
 constexpr ::int64_t Q_UID = 1;
 constexpr ::int64_t K_UID = 2;
 constexpr ::int64_t V_UID = 3;
-constexpr ::int64_t O_UID = 4;
+constexpr ::int64_t A_UID = 4;
 constexpr ::int64_t MASK_UID = 5;
 constexpr ::int64_t STATS_UID = 6;
 
 template<typename T>
-FlashSdpaGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
+FlashSdpaFwdGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
                                    Index batch)
     noexcept
 //! Prepare cuDNN graph for flash attention
@@ -65,7 +63,7 @@ FlashSdpaGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
         }
 
         // Create a graph
-        FlashSdpaGraph graph = std::make_shared<fe::graph::Graph>();
+        FlashSdpaFwdGraph graph = std::make_shared<fe::graph::Graph>();
         graph->set_io_data_type(data_type)
             .set_intermediate_data_type(fe::DataType_t::FLOAT)
             .set_compute_data_type(fe::DataType_t::FLOAT);
@@ -113,14 +111,14 @@ FlashSdpaGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
 
         // Execute SDPA
         auto sdpa_output = graph->sdpa(Q_tensor, K_tensor, V_tensor, sdpa_options);
-        auto O_tensor = sdpa_output[0];
+        auto A_tensor = sdpa_output[0];
         auto Stats_tensor = sdpa_output[1];
 
         // Set output properties
-        O_tensor->set_output(true)
+        A_tensor->set_output(true)
             .set_dim({b, num_heads, s, d})
             .set_stride({num_heads * s * d, s * d, d, 1})
-            .set_uid(O_UID);
+            .set_uid(A_UID);
 
         Stats_tensor->set_output(true)
             .set_data_type(fe::DataType_t::FLOAT)
@@ -145,9 +143,12 @@ FlashSdpaGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
 }
 
 template<typename T>
-void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
-                   const T* K, const T* Q, const T* mask, fp32_t* logsumexp,
-                   const T* V, T* A)
+void execute_graph(cudnnHandle_t handle, const FlashSdpaFwdGraph &prepared_graph,
+                   Index seq, Index head, Index batch,
+                   const T* K, const T* Q, const T* mask,
+                   fp32_t* scratch_logsumexp,
+                   const T* V, T* scratch_A,
+                   fp32_t* logsumexp, T* A)
     noexcept
 //! Execute prepared cuDNN graph for flash attention
 /*!
@@ -159,9 +160,11 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
  * @param[in] K: Key tensor [batch, seq, head]
  * @param[in] Q: Query tensor [batch, seq, head]
  * @param[in] mask: Mask tensor [seq, seq]
- * @param[out] logsumexp: Log-sum-exp statistics [batch, seq]
+ * @param[out] scratch_logsumexp: Log-sum-exp statistics [batch, seq] (temporary)
  * @param[in] V: Value tensor [batch, seq, head]
- * @param[out] A: Attention output tensor [batch, seq, head]
+ * @param[out] scratch_A: Attention output tensor [batch, seq, head] (temporary)
+ * @param[in,out] logsumexp: Accumulated log-sum-exp statistics [batch, seq]
+ * @param[in,out] A: Accumulated attention output tensor [batch, seq, head]
  * */
 {
     // Create variant pack
@@ -169,40 +172,63 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
         {Q_UID, const_cast<T*>(Q)},
         {K_UID, const_cast<T*>(K)},
         {V_UID, const_cast<T*>(V)},
-        {O_UID, A},
+        {A_UID, scratch_A},
         {MASK_UID, const_cast<T*>(mask)},
-        {STATS_UID, logsumexp}
+        {STATS_UID, scratch_logsumexp}
     };
 
     // Execute the graph
     auto exec_status = prepared_graph->execute(handle, variant_pack, nullptr);
     (void)exec_status;
+
+    cudaStream_t stream = nullptr;
+    if (cudnnGetStream(handle, &stream) != CUDNN_STATUS_SUCCESS || stream == nullptr)
+    {
+        std::cerr << "cuDNN forward graph execution: failed to query CUDA stream"
+                  << std::endl;
+        return;
+    }
+
+    kernel::accumulate_attn_output::cuda<T>(
+        stream,
+        head,
+        seq,
+        batch,
+        scratch_logsumexp,
+        scratch_A,
+        logsumexp,
+        A
+    );
 }
 
 // Explicit instantiations for supported types
 
 // prepare_graph
 template
-FlashSdpaGraph prepare_graph<fp16_t>(cudnnHandle_t handle, Index seq,
+FlashSdpaFwdGraph prepare_graph<fp16_t>(cudnnHandle_t handle, Index seq,
                                                 Index head, Index batch)
     noexcept;
 
 template
-FlashSdpaGraph prepare_graph<bf16_t>(cudnnHandle_t handle, Index seq,
+FlashSdpaFwdGraph prepare_graph<bf16_t>(cudnnHandle_t handle, Index seq,
                                                 Index head, Index batch)
     noexcept;
 
 // execute_graph
 template
-void execute_graph<fp16_t>(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
+void execute_graph<fp16_t>(cudnnHandle_t handle, const FlashSdpaFwdGraph &prepared_graph,
+                           Index seq, Index head, Index batch,
                            const fp16_t* K, const fp16_t* Q, const fp16_t* mask,
-                           fp32_t* logsumexp, const fp16_t* V, fp16_t* A)
+                           fp32_t* scratch_logsumexp, const fp16_t* V, fp16_t* scratch_A,
+                           fp32_t* logsumexp, fp16_t* A)
     noexcept;
 
 template
-void execute_graph<bf16_t>(cudnnHandle_t handle, const FlashSdpaGraph &prepared_graph,
+void execute_graph<bf16_t>(cudnnHandle_t handle, const FlashSdpaFwdGraph &prepared_graph,
+                           Index seq, Index head, Index batch,
                            const bf16_t* K, const bf16_t* Q, const bf16_t* mask,
-                           fp32_t* logsumexp, const bf16_t* V, bf16_t* A)
+                           fp32_t* scratch_logsumexp, const bf16_t* V, bf16_t* scratch_A,
+                           fp32_t* logsumexp, bf16_t* A)
     noexcept;
 
 } // namespace nntile::kernel::flash_sdpa_fwd_cudnn

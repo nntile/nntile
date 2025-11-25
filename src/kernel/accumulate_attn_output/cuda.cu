@@ -33,6 +33,7 @@ void cuda_kernel(Index head, Index nelems, const fp32_t *src_lse,
 /*! @copydoc nntile::kernel::accumulate_attn_output::cuda
  * */
 {
+    using Y = typename T::repr_t;
     const Index idx = static_cast<Index>(blockIdx.x) * blockDim.x + threadIdx.x;
     if(idx >= nelems)
     {
@@ -41,7 +42,7 @@ void cuda_kernel(Index head, Index nelems, const fp32_t *src_lse,
 
     const lse_repr_t incoming_lse = static_cast<lse_repr_t>(src_lse[idx]);
     // Ignore non-finite result of cuDNN, as it means no influence on output
-    const bool src_active = isfinite(incoming_lse);
+    const bool src_active = ::isfinite(incoming_lse);
 
     if(!src_active)
     {
@@ -54,20 +55,17 @@ void cuda_kernel(Index head, Index nelems, const fp32_t *src_lse,
             + ::expf(incoming_lse - max_lse);
     const lse_repr_t new_lse = max_lse + ::logf(sum);
 
-    const lse_repr_t dst_weight = ::expf(old_lse - new_lse);
-    const lse_repr_t src_weight = ::expf(incoming_lse - new_lse);
+    const Y dst_weight = Y(::expf(old_lse - new_lse));
+    const Y src_weight = Y(::expf(incoming_lse - new_lse));
 
     dst_lse[idx] = fp32_t(new_lse);
 
     const Index attn_offset = idx * head;
-    using repr_t = typename T::repr_t;
     for(Index h = 0; h < head; ++h)
     {
-        const repr_t dst_val = static_cast<repr_t>(dst_attn[attn_offset + h]);
-        const repr_t src_val = static_cast<repr_t>(src_attn[attn_offset + h]);
-        const repr_t updated =
-                static_cast<repr_t>(dst_weight) * dst_val
-                + static_cast<repr_t>(src_weight) * src_val;
+        const Y dst_val = static_cast<Y>(dst_attn[attn_offset + h]);
+        const Y src_val = static_cast<Y>(src_attn[attn_offset + h]);
+        const Y updated = dst_weight * dst_val + src_weight * src_val;
         dst_attn[attn_offset + h] = static_cast<T>(updated);
     }
 }

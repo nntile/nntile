@@ -74,8 +74,8 @@ class SDPAFlashTestParams(SDPATestParams):
 
 flash_single_tile = SDPAFlashTestParams(
     head_size=64,
-    n_seq=32,
-    n_seq_tile=32,
+    n_seq=64,
+    n_seq_tile=64,
     n_batch=2,
     n_batch_tile=2,
     kv_group_size=1,
@@ -86,13 +86,13 @@ flash_single_tile = SDPAFlashTestParams(
 
 flash_multi_tile = SDPAFlashTestParams(
     head_size=64,
-    n_seq=32,
-    n_seq_tile=8,
+    n_seq=256,
+    n_seq_tile=64,
     n_batch=3,
     n_batch_tile=1,
-    kv_group_size=2,
+    kv_group_size=4,
     kv_group_size_tile=1,
-    n_head_kv=4,
+    n_head_kv=16,
     n_head_kv_tile=2,
     seed=5,
 )
@@ -118,7 +118,8 @@ def _make_tensor_moments(
 
 
 def _make_mask(n_seq: int, n_seq_tile: int):
-    mask_np = np.tril(np.ones((n_seq, n_seq), dtype=bool))
+    # Some custom mask
+    mask_np = np.tril(np.ones((n_seq, n_seq), dtype=bool), 32)
     traits = TensorTraits([n_seq, n_seq], [n_seq_tile, n_seq_tile])
     distr = [0] * traits.grid.nelems
     tensor = Tensor_bool(traits, distr)
@@ -399,8 +400,7 @@ class TestSDPAFlash:
         tol = dtype2tol[dtype]
         _assert_tensor_close(y_nntile, y_ref, tol)
 
-    @pytest.mark.xfail(reason="not implemented")
-    def test_backward_placeholder(
+    def test_forward_backward(
         self,
         context,
         dtype: str,
@@ -409,7 +409,7 @@ class TestSDPAFlash:
         inputs = generate_sdpa_inputs(
             dtype,
             params,
-            require_backward=False,
+            require_backward=True,
             mask_dtype="float32",
         )
         layer = inputs["layer"]
@@ -417,8 +417,34 @@ class TestSDPAFlash:
         layer.forward_async()
         nntile.starpu.wait_for_all()
 
-        # with pytest.raises(NotImplementedError):
-        #     layer.backward_async()
+        q_ref = _flatten_sdpa_tensor(inputs["q_np"])
+        k_ref = _flatten_sdpa_tensor(inputs["k_np"])
+        v_ref = _flatten_sdpa_tensor(inputs["v_np"])
+        y_grad_ref = _flatten_sdpa_tensor(inputs["y_grad_np"])
+        _, q_grad_ref, k_grad_ref, v_grad_ref = torch_sdpa_reference(
+            q_ref,
+            k_ref,
+            v_ref,
+            inputs["mask_np"],
+            y_grad_ref,
+        )
+
+        layer.clear_gradients()
+        layer.y.grad.from_array(
+            np.array(inputs["y_grad_np"], dtype=np.float32, order="F")
+        )
+
+        layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+        q_grad = _flatten_sdpa_tensor(_tensor_to_numpy(layer.q.grad))
+        k_grad = _flatten_sdpa_tensor(_tensor_to_numpy(layer.k.grad))
+        v_grad = _flatten_sdpa_tensor(_tensor_to_numpy(layer.v.grad))
+
+        tol = dtype2tol[dtype]
+        _assert_tensor_close(q_grad, q_grad_ref, tol)
+        _assert_tensor_close(k_grad, k_grad_ref, tol)
+        _assert_tensor_close(v_grad, v_grad_ref, tol)
 
 
 def test_flash_logsumexp_shape_validation(context):

@@ -135,9 +135,10 @@ set(TESTS_CATCH2
 
 # CUDA-only tests (only added when CUDA is available)
 if(NNTILE_USE_CUDA)
-list(APPEND TESTS_CATCH2
-    "flash_sdpa_fwd_cudnn"
-)
+    list(APPEND TESTS_CATCH2
+        "flash_sdpa_fwd_cudnn"
+        "flash_sdpa_bwd_cudnn"
+    )
 endif()
 
 foreach(test IN LISTS TESTS_CATCH2)

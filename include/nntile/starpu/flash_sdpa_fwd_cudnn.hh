@@ -109,7 +109,7 @@ public:
 private:
     struct CacheEntry
     {
-        kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph graph;
+        kernel::flash_sdpa_fwd_cudnn::FlashSdpaFwdGraph graph;
         Index seq;
         Index head;
         Index batch;
@@ -122,7 +122,7 @@ private:
 
     WorkerCache &get_or_create_worker_cache(int worker_id);
 
-    kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph find_cached_graph(
+    kernel::flash_sdpa_fwd_cudnn::FlashSdpaFwdGraph find_cached_graph(
         WorkerCache &cache,
         uint32_t hash,
         Index seq,
@@ -130,13 +130,13 @@ private:
         Index batch
     );
 
-    kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph store_graph(
+    kernel::flash_sdpa_fwd_cudnn::FlashSdpaFwdGraph store_graph(
         WorkerCache &cache,
         uint32_t hash,
         Index seq,
         Index head,
         Index batch,
-        kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph graph
+        kernel::flash_sdpa_fwd_cudnn::FlashSdpaFwdGraph graph
     );
 
     std::array<std::once_flag, STARPU_NMAXWORKERS> worker_cache_flags_{};

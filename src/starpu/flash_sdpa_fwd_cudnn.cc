@@ -27,7 +27,6 @@
 
 // Other NNTile headers
 #include "nntile/kernel/flash_sdpa_fwd_cudnn.hh"
-#include "nntile/kernel/accumulate_attn_output.hh"
 #include "nntile/context.hh"
 
 namespace nntile::starpu
@@ -140,20 +139,14 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     kernel::flash_sdpa_fwd_cudnn::execute_graph<T>(
         handle,
         prepared_graph,
+        args->seq,
+        args->head,
+        args->batch,
         K,
         Q,
         mask,
         scratch_logsumexp,
         V,
-        scratch_A
-    );
-
-    kernel::accumulate_attn_output::cuda<T>(
-        stream,
-        args->head,
-        args->seq,
-        args->batch,
-        scratch_logsumexp,
         scratch_A,
         logsumexp,
         A
@@ -232,7 +225,7 @@ FlashSdpaFwdCudnn<std::tuple<T>>::get_or_create_worker_cache(int worker_id)
 }
 
 template<typename T>
-kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph
+    kernel::flash_sdpa_fwd_cudnn::FlashSdpaFwdGraph
 FlashSdpaFwdCudnn<std::tuple<T>>::find_cached_graph(
     WorkerCache &cache,
     uint32_t hash,
@@ -265,14 +258,14 @@ FlashSdpaFwdCudnn<std::tuple<T>>::find_cached_graph(
 }
 
 template<typename T>
-kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph
+    kernel::flash_sdpa_fwd_cudnn::FlashSdpaFwdGraph
 FlashSdpaFwdCudnn<std::tuple<T>>::store_graph(
     WorkerCache &cache,
     uint32_t hash,
     Index seq,
     Index head,
     Index batch,
-    kernel::flash_sdpa_fwd_cudnn::FlashSdpaGraph graph
+    kernel::flash_sdpa_fwd_cudnn::FlashSdpaFwdGraph graph
 )
 {
     auto &bucket = cache.graphs[hash];

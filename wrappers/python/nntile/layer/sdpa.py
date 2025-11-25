@@ -18,7 +18,8 @@ from typing import Optional
 import numpy as np
 
 import nntile.utils.constructors as nntc
-from nntile.functions import flash_sdpa_fwd_cudnn_async, is_tensor_of
+from nntile.functions import (
+    flash_sdpa_bwd_cudnn_async, flash_sdpa_fwd_cudnn_async, is_tensor_of)
 from nntile.layer.base_layer import BaseLayer
 from nntile.nntile_core.tensor import Tensor_bf16, Tensor_fp16, Tensor_fp32
 from nntile.tensor import (
@@ -157,10 +158,9 @@ class Sdpa(BaseLayer):
 
     def backward_async(self):
         if self.flash_attention:
-            raise NotImplementedError(
-                "Flash SDPA backward is not implemented yet."
-            )
-        self._backward_vanilla()
+            self._backward_flash()
+        else:
+            self._backward_vanilla()
 
     @staticmethod
     def generate_simple(
@@ -349,6 +349,42 @@ class Sdpa(BaseLayer):
         self.k.value.wont_use()
         self.v.value.wont_use()
         self.y.value.wont_use()
+
+    def _backward_flash(self):
+        if self.flash_logsumexp is None:
+            raise RuntimeError("flash_logsumexp buffer is missing")
+        if self.y.grad is None:
+            raise RuntimeError("Output gradient tensor is missing")
+
+        mask = self._flash_mask
+        if mask is None:
+            raise RuntimeError("Flash SDPA mask is not initialized")
+
+        grads = [self.q.grad, self.k.grad, self.v.grad]
+        if any(x is None for x in grads):
+            raise RuntimeError("Gradient tensors for Q/K/V must be allocated")
+
+        flash_sdpa_bwd_cudnn_async(
+            self.k.value,
+            self.q.value,
+            self.v.value,
+            self.y.value,
+            self.y.grad,
+            mask,
+            self.flash_logsumexp,
+            self.k.grad,
+            self.q.grad,
+            self.v.grad,
+        )
+        mask.wont_use()
+        self.k.value.wont_use()
+        self.q.value.wont_use()
+        self.v.value.wont_use()
+        self.y.value.wont_use()
+        self.k.grad.wont_use()
+        self.q.grad.wont_use()
+        self.v.grad.wont_use()
+        self.flash_logsumexp.invalidate_submit()
 
     def _backward_vanilla(self):
         if (

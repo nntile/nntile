@@ -90,9 +90,10 @@ set(TESTS
 
 # CUDA-only tests (only added when CUDA is available)
 if(NNTILE_USE_CUDA)
-list(APPEND TESTS
-    "flash_sdpa_fwd_cudnn"
-)
+    list(APPEND TESTS
+        "flash_sdpa_fwd_cudnn"
+        "flash_sdpa_bwd_cudnn"
+    )
 endif()
 
 # Describe all tests that are not yet implemented

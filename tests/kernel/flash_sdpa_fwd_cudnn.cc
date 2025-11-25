@@ -24,12 +24,10 @@
 #include <random>
 #include <string>
 #include <type_traits>
+#include <algorithm>
 
 // Third-party libraries
 #include <catch2/catch_all.hpp>
-#ifdef NNTILE_USE_CUDA
-#include <cudnn.h>
-#endif // NNTILE_USE_CUDA
 
 // Other NNTile headers
 // CUDA_CHECK definition
@@ -49,7 +47,6 @@ using namespace nntile::kernel::flash_sdpa_fwd_cudnn;
 // Type to acquire reference values
 using ref_t = double;
 
-#ifdef NNTILE_USE_CUDA
 //! Check cuDNN error and throw runtime_error if error occurs
 #define CUDNN_CHECK(error, message) \
     do { \
@@ -58,7 +55,6 @@ using ref_t = double;
             throw std::runtime_error(std::string(message) + ": cuDNN error code " + std::to_string(_err)); \
         } \
     } while (0)
-#endif
 
 // Struct to hold test data and reference results
 template<typename T>
@@ -234,17 +230,11 @@ void generate_data(TestData<T>& data, Index seq, Index head, Index batch,
             break;
     }
 
-    // Initialize output buffers with random values regardless of strategy
-    std::mt19937 init_gen(1337);
-    std::uniform_real_distribution<Y> init_dist(-1.0, 1.0);
-    std::uniform_real_distribution<float> init_dist_fp32(-1.0f, 1.0f);
-    for(Index i = 0; i < batch * seq * head; ++i)
-    {
-        data.A_init[i] = init_dist(init_gen);
-    }
+    // Initialize outputs to neutral values for accumulation
+    std::fill(data.A_init.begin(), data.A_init.end(), T(Y(0)));
     for(Index i = 0; i < batch * seq; ++i)
     {
-        data.lse_init[i] = fp32_t(init_dist_fp32(init_gen));
+        data.lse_init[i] = fp32_t(-std::numeric_limits<float>::infinity());
     }
 
     // Generate mask
@@ -372,13 +362,14 @@ void verify_results(
     ensure_inputs_unchanged(data.mask_init, mask_out, "mask");
 }
 
-#ifdef NNTILE_USE_CUDA
 // Helper function to run CUDA test and verify results
 template<typename T, bool run_bench>
 void run_cuda_test(TestData<T>& data)
 {
     T *dev_K, *dev_Q, *dev_V, *dev_A, *dev_mask;
+    T *dev_scratch_A;
     fp32_t *dev_lse;
+    fp32_t *dev_scratch_lse;
 
     // Allocate device memory
     CUDA_CHECK(cudaMalloc(&dev_K, sizeof(T) * data.batch * data.seq * data.head),
@@ -391,8 +382,12 @@ void run_cuda_test(TestData<T>& data)
                "cudaMalloc dev_V");
     CUDA_CHECK(cudaMalloc(&dev_A, sizeof(T) * data.batch * data.seq * data.head),
                "cudaMalloc dev_A");
+    CUDA_CHECK(cudaMalloc(&dev_scratch_A, sizeof(T) * data.batch * data.seq * data.head),
+               "cudaMalloc dev_scratch_A");
     CUDA_CHECK(cudaMalloc(&dev_mask, sizeof(T) * data.seq * data.seq),
                "cudaMalloc dev_mask");
+    CUDA_CHECK(cudaMalloc(&dev_scratch_lse, sizeof(fp32_t) * data.batch * data.seq),
+               "cudaMalloc dev_scratch_lse");
 
     // Copy inputs to device
     CUDA_CHECK(cudaMemcpy(dev_K, &data.K_init[0],
@@ -452,8 +447,10 @@ void run_cuda_test(TestData<T>& data)
         CUDA_CHECK(cudaFree(dev_K), "cudaFree dev_K (prepare_graph failed)");
         CUDA_CHECK(cudaFree(dev_Q), "cudaFree dev_Q (prepare_graph failed)");
         CUDA_CHECK(cudaFree(dev_lse), "cudaFree dev_lse (prepare_graph failed)");
+        CUDA_CHECK(cudaFree(dev_scratch_lse), "cudaFree dev_scratch_lse (prepare_graph failed)");
         CUDA_CHECK(cudaFree(dev_V), "cudaFree dev_V (prepare_graph failed)");
         CUDA_CHECK(cudaFree(dev_A), "cudaFree dev_A (prepare_graph failed)");
+        CUDA_CHECK(cudaFree(dev_scratch_A), "cudaFree dev_scratch_A (prepare_graph failed)");
         CUDA_CHECK(cudaFree(dev_mask), "cudaFree dev_mask (prepare_graph failed)");
         return;
     }
@@ -470,14 +467,25 @@ void run_cuda_test(TestData<T>& data)
             "]"
         )
         {
+            CUDA_CHECK(cudaMemcpy(dev_A, &data.A_init[0],
+                                  sizeof(T) * data.batch * data.seq * data.head,
+                                  cudaMemcpyHostToDevice), "cudaMemcpy reset dev_A");
+            CUDA_CHECK(cudaMemcpy(dev_lse, &data.lse_init[0],
+                                  sizeof(fp32_t) * data.batch * data.seq,
+                                  cudaMemcpyHostToDevice), "cudaMemcpy reset dev_lse");
             execute_graph<T>(
                 handle,
                 prepared_graph,
+                data.seq,
+                data.head,
+                data.batch,
                 dev_K,
                 dev_Q,
                 dev_mask,
-                dev_lse,
+                dev_scratch_lse,
                 dev_V,
+                dev_scratch_A,
+                dev_lse,
                 dev_A
             );
             cudaStreamSynchronize(stream);
@@ -488,11 +496,16 @@ void run_cuda_test(TestData<T>& data)
         execute_graph<T>(
             handle,
             prepared_graph,
+            data.seq,
+            data.head,
+            data.batch,
             dev_K,
             dev_Q,
             dev_mask,
-            dev_lse,
+            dev_scratch_lse,
             dev_V,
+            dev_scratch_A,
+            dev_lse,
             dev_A
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
@@ -541,14 +554,14 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaFree(dev_K), "cudaFree dev_K");
     CUDA_CHECK(cudaFree(dev_Q), "cudaFree dev_Q");
     CUDA_CHECK(cudaFree(dev_lse), "cudaFree dev_lse");
+    CUDA_CHECK(cudaFree(dev_scratch_lse), "cudaFree dev_scratch_lse");
     CUDA_CHECK(cudaFree(dev_V), "cudaFree dev_V");
     CUDA_CHECK(cudaFree(dev_A), "cudaFree dev_A");
+    CUDA_CHECK(cudaFree(dev_scratch_A), "cudaFree dev_scratch_A");
     CUDA_CHECK(cudaFree(dev_mask), "cudaFree dev_mask");
 }
-#endif // NNTILE_USE_CUDA
 
 // Catch2-based tests (only CUDA is supported)
-#ifdef NNTILE_USE_CUDA
 TEMPLATE_TEST_CASE(
     "Flash SDPA Forward cuDNN Kernel Verification",
     "[flash_sdpa_fwd_cudnn]",
@@ -598,4 +611,3 @@ TEMPLATE_TEST_CASE(
         run_cuda_test<T, true>(data);
     }
 }
-#endif // NNTILE_USE_CUDA

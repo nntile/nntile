@@ -73,6 +73,7 @@
 #include <nntile/tile/norm_fiber.hh>
 #include <nntile/tile/norm_fiber_inplace.hh>
 #include <nntile/tile/flash_sdpa_fwd_cudnn.hh>
+#include <nntile/tile/flash_sdpa_bwd_cudnn.hh>
 #include <nntile/tile/norm.hh>
 
 //! @namespace nntile::tile
