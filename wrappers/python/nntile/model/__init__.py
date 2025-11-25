@@ -14,6 +14,7 @@
 from .base_model import BaseModel
 from .deep_linear import DeepLinear
 from .deep_relu import DeepReLU
+from .gpt2_attention import GPT2Attention
 from .mlp_mixer import MlpMixer
 
-__all__ = ('BaseModel', 'DeepLinear', 'DeepReLU', 'MlpMixer')
+__all__ = ('BaseModel', 'DeepLinear', 'DeepReLU', 'GPT2Attention', 'MlpMixer')
