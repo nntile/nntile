@@ -2069,6 +2069,12 @@ def rope_async(
         ops.rope_async_fp64(sin, cos, x, y)
     elif type(x) is ops.Tensor_fp32_fast_tf32:
         ops.rope_async_fp32_fast_tf32(sin, cos, x, y)
+    elif type(x) is ops.Tensor_fp32_fast_fp16:
+        ops.rope_async_fp32_fast_fp16(sin, cos, x, y)
+    elif type(x) is ops.Tensor_fp32_fast_bf16:
+        ops.rope_async_fp32_fast_bf16(sin, cos, x, y)
+    elif type(x) is ops.Tensor_fp16:
+        ops.rope_async_fp16(sin, cos, x, y)
     elif type(x) is ops.Tensor_bf16:
         ops.rope_async_bf16(sin, cos, x, y)
     else:
@@ -2092,6 +2098,12 @@ def rope_backward_async(
         ops.rope_backward_async_fp64(sin, cos, dy, dx)
     elif type(dx) is ops.Tensor_fp32_fast_tf32:
         ops.rope_backward_async_fp32_fast_tf32(sin, cos, dy, dx)
+    elif type(dx) is ops.Tensor_fp32_fast_fp16:
+        ops.rope_backward_async_fp32_fast_fp16(sin, cos, dy, dx)
+    elif type(dx) is ops.Tensor_fp32_fast_bf16:
+        ops.rope_backward_async_fp32_fast_bf16(sin, cos, dy, dx)
+    elif type(dx) is ops.Tensor_fp16:
+        ops.rope_backward_async_fp16(sin, cos, dy, dx)
     elif type(dx) is ops.Tensor_bf16:
         ops.rope_backward_async_bf16(sin, cos, dy, dx)
     else:

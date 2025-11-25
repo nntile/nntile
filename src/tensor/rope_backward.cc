@@ -177,6 +177,10 @@ void rope_backward_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &sin,
         const Tensor<fp32_fast_bf16_t> &dx);
 
 template
+void rope_backward_async<fp16_t>(const Tensor<fp16_t> &sin, const Tensor<fp16_t> &cos,
+        const Tensor<fp16_t> &dy, const Tensor<fp16_t> &dx);
+
+template
 void rope_backward_async<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,
         const Tensor<bf16_t> &dy, const Tensor<bf16_t> &dx);
 
@@ -207,6 +211,10 @@ void rope_backward<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &sin,
         const Tensor<fp32_fast_bf16_t> &dy,
         const Tensor<fp32_fast_bf16_t> &dx);
 
+template
+void rope_backward<fp16_t>(const Tensor<fp16_t> &sin, const Tensor<fp16_t> &cos,
+        const Tensor<fp16_t> &dy, const Tensor<fp16_t> &dx);
+        
 template
 void rope_backward<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,
         const Tensor<bf16_t> &dy, const Tensor<bf16_t> &dx);

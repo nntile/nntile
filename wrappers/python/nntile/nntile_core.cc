@@ -1594,6 +1594,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("rope_async_fp32_fast_tf32", &rope_async<fp32_fast_tf32_t>);
     m.def("rope_async_fp32_fast_fp16", &rope_async<fp32_fast_fp16_t>);
     m.def("rope_async_fp32_fast_bf16", &rope_async<fp32_fast_bf16_t>);
+    m.def("rope_async_fp16", &rope_async<fp16_t>);
     m.def("rope_async_bf16", &rope_async<bf16_t>);
 
     m.def("rope_fp64", &rope<fp64_t>);
@@ -1601,6 +1602,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("rope_fp32_fast_tf32", &rope<fp32_fast_tf32_t>);
     m.def("rope_fp32_fast_fp16", &rope<fp32_fast_fp16_t>);
     m.def("rope_fp32_fast_bf16", &rope<fp32_fast_bf16_t>);
+    m.def("rope_fp16", &rope<fp16_t>);
     m.def("rope_bf16", &rope<bf16_t>);
 
     m.def("rope_backward_async_fp64", &rope_backward_async<fp64_t>);
@@ -1611,6 +1613,7 @@ void def_mod_tensor(py::module_ &m)
             &rope_backward_async<fp32_fast_fp16_t>);
     m.def("rope_backward_async_fp32_fast_bf16",
             &rope_backward_async<fp32_fast_bf16_t>);
+    m.def("rope_backward_async_fp16", &rope_backward_async<fp16_t>);
     m.def("rope_backward_async_bf16", &rope_backward_async<bf16_t>);
 
     m.def("rope_backward_fp64", &rope_backward<fp64_t>);
@@ -1618,6 +1621,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("rope_backward_fp32_fast_tf32", &rope_backward<fp32_fast_tf32_t>);
     m.def("rope_backward_fp32_fast_fp16", &rope_backward<fp32_fast_fp16_t>);
     m.def("rope_backward_fp32_fast_bf16", &rope_backward<fp32_fast_bf16_t>);
+    m.def("rope_backward_fp16", &rope_backward<fp16_t>);
     m.def("rope_backward_bf16", &rope_backward<bf16_t>);
 
     m.def("log_scalar_async_fp64", &log_scalar_async<fp64_t>);
