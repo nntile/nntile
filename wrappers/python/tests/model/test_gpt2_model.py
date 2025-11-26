@@ -28,30 +28,34 @@ from nntile.tensor import to_numpy
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
-        'fp32': nntile.tensor.Tensor_fp32,
-        'bf16': nntile.tensor.Tensor_bf16,
-        'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
-        'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
-        'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
-        'fp16': nntile.tensor.Tensor_fp16,
+    'fp32': nntile.tensor.Tensor_fp32,
+    'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
+    'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
+    'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
+    'fp16': nntile.tensor.Tensor_fp16,
+    'bf16': nntile.tensor.Tensor_bf16,
 }
 
 dtype2np = {
-        'fp32': np.float32,
-        'bf16': np.float32,
-        'fp16': np.float32,
+    'fp32': np.float32,
+    'fp32_fast_tf32': np.float32,
+    'fp32_fast_fp16': np.float32,
+    'fp32_fast_bf16': np.float32,
+    'bf16': np.float32,
+    'fp16': np.float32,
 }
 
 dtype2tol = {
-        'fp32': {'rtol': 1e-5},
-        'bf16': {'rtol': 4e-2},
-        'fp32_fast_tf32': {'rtol': 2e-3},
-        'fp32_fast_fp16': {'rtol': 8e-3},
-        'fp32_fast_bf16': {'rtol': 8e-3},
-        'fp16': {'rtol': 5e-3},
+    'fp32': {'rtol': 1e-6},
+    'fp32_fast_tf32': {'rtol': 8e-4},
+    'fp32_fast_fp16': {'rtol': 8e-4},
+    'fp32_fast_bf16': {'rtol': 5e-3},
+    'fp16': {'rtol': 5e-3},
+    'bf16': {'rtol': 1.6e-2},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
+flash_dtypes = {'fp16', 'bf16'}
 
 
 @dataclass
@@ -103,7 +107,8 @@ multiple_tiles = GPT2TestParams(
 
 def generate_inputs(params: GPT2TestParams,
                     dtype: str,
-                    num_hidden_layers: int):
+                    num_hidden_layers: int,
+                    flash_attention: bool = False):
     torch_config = GPT2ConfigTorch(
         vocab_size=params.vocab_size,
         n_embd=params.hidden_size,
@@ -129,6 +134,7 @@ def generate_inputs(params: GPT2TestParams,
             n_head=params.n_head,
             n_head_tile=params.n_head_tile,
             dtype=dtype,
+            flash_attention=flash_attention,
             num_hidden_layers=num_hidden_layers
     )
     gen = np.random.default_rng(42)
@@ -160,21 +166,33 @@ def generate_inputs(params: GPT2TestParams,
 ])
 @pytest.mark.parametrize('dtype', [
     'fp32',
-    pytest.param('bf16', marks=nocuda),
     pytest.param('fp32_fast_tf32', marks=nocuda),
     pytest.param('fp32_fast_fp16', marks=nocuda),
     pytest.param('fp32_fast_bf16', marks=nocuda),
     pytest.param('fp16', marks=nocuda),
+    pytest.param('bf16', marks=nocuda),
+])
+@pytest.mark.parametrize("flash_attention", [
+    pytest.param(False, id='eager'),
+    pytest.param(True, marks=nocuda, id='cudnn FA')
 ])
 @pytest.mark.parametrize('num_hidden_layers', [1, 2, 3])
 class TestGPT2Model:
     def test_coercion(self, context, torch_rng,
                       params: GPT2TestParams,
                       dtype: str,
-                      num_hidden_layers: int):
+                      num_hidden_layers: int,
+                      flash_attention: bool):
+
+        if flash_attention and (
+            dtype not in flash_dtypes
+            or params.hidden_size_tile != params.hidden_size
+        ):
+            pytest.skip("Flash attention requires fp16/bf16 and untiled head")
 
         torch_model, nntile_model, _, _ = generate_inputs(params, dtype,
-                                                        num_hidden_layers)
+                                                        num_hidden_layers,
+                                                        flash_attention)
 
         torch_model_other = nntile_model.to_torch()
         nntile_model.unregister()
@@ -187,9 +205,16 @@ class TestGPT2Model:
     def test_forward(self, context, torch_rng,
                      params: GPT2TestParams,
                      dtype: str,
-                     num_hidden_layers: int):
+                     num_hidden_layers: int,
+                     flash_attention: bool):
+        if flash_attention and (
+            dtype not in flash_dtypes
+            or params.hidden_size_tile != params.hidden_size
+        ):
+            pytest.skip("Flash attention requires fp16/bf16 and untiled head")
         torch_model, nntile_model, x, _ = generate_inputs(params, dtype,
-                                                        num_hidden_layers)
+                                                        num_hidden_layers,
+                                                        flash_attention)
         y = torch_model(x)
         y_torch = y.last_hidden_state
         nntile_model.forward_async()
@@ -199,12 +224,19 @@ class TestGPT2Model:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
 
-    def test_backward(self, context, torch_rng,
+    def test_forward_backward(self, context, torch_rng,
                               params: GPT2TestParams,
                               dtype: str,
-                              num_hidden_layers: int):
+                              num_hidden_layers: int,
+                              flash_attention: bool):
+        if flash_attention and (
+            dtype not in flash_dtypes
+            or params.hidden_size_tile != params.hidden_size
+        ):
+            pytest.skip("Flash attention requires fp16/bf16 and untiled head")
         torch_model, nntile_model, x, y_grad = generate_inputs(params, dtype,
-                                                        num_hidden_layers)
+                                                        num_hidden_layers,
+                                                        flash_attention)
         y = torch_model(x)
         nntile_model.forward_async()
         res = (y.last_hidden_state * y_grad).sum()
