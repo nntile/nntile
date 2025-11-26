@@ -17,9 +17,9 @@ from transformers.models.gpt2.modeling_gpt2 import GPT2Block as GPT2Block_torch
 from nntile.tensor import TensorMoments
 
 from ..layer.add import Add
-from ..layer.gpt2_attention import GPT2Attention
 from ..layer.layer_norm import LayerNorm
 from .base_model import BaseModel
+from .gpt2_attention import GPT2Attention
 from .gpt2_config import GPT2ConfigNNTile
 from .gpt2_mlp import GPT2MLP
 
@@ -43,7 +43,7 @@ class GPT2Block(BaseModel):
         layers = [input_norm, attention_layer, post_attn_add, post_attn_norm]
         layers = layers + gpt2_mlp.layers + [post_mlp_add]
         activations = [x] + input_norm.activations_output + \
-                      attention_layer.activations_output + \
+                      attention_layer.activations[1:] + \
                       post_attn_add.activations_output + \
                       post_attn_norm.activations_output + \
                       gpt2_mlp.activations[1:] + \
@@ -69,8 +69,6 @@ class GPT2Block(BaseModel):
         )
         attention_layer = GPT2Attention.from_torch(
             torch_gpt2_block.attn,
-            layer_norm_input_layer.activations_output[0],
-            layer_norm_input_layer.activations_output[0],
             layer_norm_input_layer.activations_output[0],
             config)
         post_attn_add = Add.generate_simple(

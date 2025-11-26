@@ -53,6 +53,8 @@ class GPT2Attention(BaseModel):
         self.n_head = n_head
         self.head_size = head_size
         self.head_size_tile = head_size_tile
+        if x.grad is not None:
+            x.grad.set_reduction_add()
 
         # Projections for Q/K/V: shape [1, n_head, head_size, seq, batch]
         out_shape_qkv = [1, n_head, head_size]
@@ -73,6 +75,9 @@ class GPT2Attention(BaseModel):
         self.q_proj_out = self.q_proj.activations_output[0]
         self.k_proj_out = self.k_proj.activations_output[0]
         self.v_proj_out = self.v_proj.activations_output[0]
+        self.q_proj_out.grad.set_reduction_add()
+        self.k_proj_out.grad.set_reduction_add()
+        self.v_proj_out.grad.set_reduction_add()
 
         # Biases for Q/K/V shaped [head_size, n_head]
         bias_traits = TensorTraits(
@@ -168,6 +173,7 @@ class GPT2Attention(BaseModel):
             tensor_type(ctx_tr_traits, ctx_tr_distr),
             True,
         )
+        self.context_transposed.grad.set_reduction_add()
 
         # Output projection: input features ndim=3 -> [hidden_size, seq, batch]
         self.out_proj = Linear.generate_simple(
@@ -181,6 +187,8 @@ class GPT2Attention(BaseModel):
             redux=config.redux,
         )
         self.output = self.out_proj.activations_output[0]
+        if self.output.grad is not None:
+            self.output.grad.set_reduction_add()
 
         activations = [
             x,
@@ -202,6 +210,8 @@ class GPT2Attention(BaseModel):
             self.out_proj,
         ]
         super().__init__(activations, layers, config)
+        # Preserve BaseLayer-like API expected by GPT2Block
+        self.activations_output = [self.output]
         # Add biases to parameter list manually (projections have bias=False)
         self.parameters.extend([self.q_bias, self.k_bias, self.v_bias])
 
