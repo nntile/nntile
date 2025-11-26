@@ -86,23 +86,24 @@ single_tile = GPT2TestParams(
     batch_size_tile=3,
     seq_len=32,
     seq_len_tile=32,
-    n_head=16,
-    n_head_tile=16
-    )
+    n_head=2,
+    n_head_tile=2
+)
 
 multiple_tiles = GPT2TestParams(
     vocab_size=32000,
     vocab_embed_dim_tile=32,
-    hidden_size=128,
-    hidden_size_tile=32,
+    hidden_size=256,
+    hidden_size_tile=64,
     intermediate_size=64,
     intermediate_size_tile=16,
     batch_size=3,
     batch_size_tile=1,
     seq_len=128,
     seq_len_tile=32,
-    n_head=16,
-    n_head_tile=8)
+    n_head=4,
+    n_head_tile=1
+)
 
 
 def generate_inputs(params: GPT2TestParams,
@@ -178,22 +179,19 @@ def generate_inputs(params: GPT2TestParams,
 ])
 @pytest.mark.parametrize('num_hidden_layers', [1, 2, 3])
 class TestGPT2Model:
+    def _skip_if_unsupported(self, dtype, flash_attention):
+        if flash_attention and dtype not in flash_dtypes:
+            pytest.skip("Flash attention supports only fp16 and bf16")
+
     def test_coercion(self, context, torch_rng,
                       params: GPT2TestParams,
                       dtype: str,
                       num_hidden_layers: int,
                       flash_attention: bool):
-
-        if flash_attention and (
-            dtype not in flash_dtypes
-            or params.hidden_size_tile != params.hidden_size
-        ):
-            pytest.skip("Flash attention requires fp16/bf16 and untiled head")
-
+        self._skip_if_unsupported(dtype, flash_attention)
         torch_model, nntile_model, _, _ = generate_inputs(params, dtype,
                                                         num_hidden_layers,
                                                         flash_attention)
-
         torch_model_other = nntile_model.to_torch()
         nntile_model.unregister()
         rtol = dtype2tol[dtype]['rtol']
@@ -207,11 +205,7 @@ class TestGPT2Model:
                      dtype: str,
                      num_hidden_layers: int,
                      flash_attention: bool):
-        if flash_attention and (
-            dtype not in flash_dtypes
-            or params.hidden_size_tile != params.hidden_size
-        ):
-            pytest.skip("Flash attention requires fp16/bf16 and untiled head")
+        self._skip_if_unsupported(dtype, flash_attention)
         torch_model, nntile_model, x, _ = generate_inputs(params, dtype,
                                                         num_hidden_layers,
                                                         flash_attention)
@@ -229,11 +223,7 @@ class TestGPT2Model:
                               dtype: str,
                               num_hidden_layers: int,
                               flash_attention: bool):
-        if flash_attention and (
-            dtype not in flash_dtypes
-            or params.hidden_size_tile != params.hidden_size
-        ):
-            pytest.skip("Flash attention requires fp16/bf16 and untiled head")
+        self._skip_if_unsupported(dtype, flash_attention)
         torch_model, nntile_model, x, y_grad = generate_inputs(params, dtype,
                                                         num_hidden_layers,
                                                         flash_attention)

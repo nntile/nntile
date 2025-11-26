@@ -175,14 +175,19 @@ def generate_inputs(params: GPT2TestParams,
 ])
 @pytest.mark.parametrize('num_hidden_layers', [1, 2, 3])
 class TestGPT2Model:
+    @staticmethod
+    def _skip_if_unsupported(dtype: str, flash_attention: bool,
+                             params: GPT2TestParams):
+        if flash_attention and dtype not in flash_dtypes:
+            pytest.skip("Flash attention requires fp16/bf16")
+
     def test_coercion(self, context, torch_rng,
                       params: GPT2TestParams,
                       dtype: str,
                       num_hidden_layers: int,
                       flash_attention: bool):
 
-        if flash_attention and dtype not in flash_dtypes:
-            pytest.skip("Flash attention requires fp16/bf16")
+        self._skip_if_unsupported(dtype, flash_attention, params)
 
         torch_model, nntile_model, _, _ = generate_inputs(params, dtype,
                                                         num_hidden_layers,
@@ -201,8 +206,7 @@ class TestGPT2Model:
                      dtype: str,
                      num_hidden_layers: int,
                      flash_attention: bool):
-        if flash_attention and dtype not in flash_dtypes:
-            pytest.skip("Flash attention requires fp16/bf16")
+        self._skip_if_unsupported(dtype, flash_attention, params)
         torch_model, nntile_model, x, _ = generate_inputs(params, dtype,
                                                         num_hidden_layers,
                                                         flash_attention)
@@ -220,8 +224,7 @@ class TestGPT2Model:
                               dtype: str,
                               num_hidden_layers: int,
                               flash_attention: bool):
-        if flash_attention and dtype not in flash_dtypes:
-            pytest.skip("Flash attention requires fp16/bf16")
+        self._skip_if_unsupported(dtype, flash_attention, params)
         torch_model, nntile_model, x, y_grad = generate_inputs(params, dtype,
                                                         num_hidden_layers,
                                                         flash_attention)

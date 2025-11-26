@@ -55,6 +55,7 @@ dtype2tol = {
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
+flash_dtypes = {'fp16', 'bf16'}
 
 
 @dataclass
@@ -171,11 +172,16 @@ def generate_inputs(params: GPT2BlockTestParams,
     pytest.param(True, marks=nocuda, id='cudnn FA')
 ])
 class TestGPT2Decoder:
+    @staticmethod
+    def _skip_if_unsupported(dtype: str, flash_attention: bool,
+                             params: GPT2BlockTestParams):
+        if flash_attention and dtype not in flash_dtypes:
+            pytest.skip("Flash attention requires fp16/bf16")
+
     def test_coercion(self, context, torch_rng,
                       params: GPT2BlockTestParams, dtype: str,
                       flash_attention: bool):
-        if flash_attention and dtype not in {'fp16', 'bf16'}:
-            pytest.skip("Flash attention works only for fp16/bf16")
+        self._skip_if_unsupported(dtype, flash_attention, params)
         torch_layer, nntile_layer, *_ = generate_inputs(
             params, dtype, flash_attention=flash_attention
         )
@@ -192,8 +198,7 @@ class TestGPT2Decoder:
                      params: GPT2BlockTestParams,
                      dtype: str,
                      flash_attention: bool):
-        if flash_attention and dtype not in {'fp16', 'bf16'}:
-            pytest.skip("Flash attention works only for fp16/bf16")
+        self._skip_if_unsupported(dtype, flash_attention, params)
         torch_layer, nntile_layer, x, _ = generate_inputs(
             params, dtype, flash_attention=flash_attention
         )
@@ -208,9 +213,7 @@ class TestGPT2Decoder:
                       params: GPT2BlockTestParams,
                       dtype: str,
                       flash_attention: bool):
-        if flash_attention:
-            if dtype not in {'fp16', 'bf16'}:
-                pytest.skip("Flash attention works only for fp16/bf16")
+        self._skip_if_unsupported(dtype, flash_attention, params)
         torch_layer, nntile_layer, x, y_grad = generate_inputs(
             params, dtype, flash_attention=flash_attention
         )
