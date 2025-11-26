@@ -42,9 +42,17 @@ class LlamaForCausalLM(BaseModel, LLMGenerationMixin):
         self.config = config
         self.eos_token_id = self.config.eos_token_id
 
-        if self.dtype not in ["fp32", "fp32_fast_tf32", "bf16"]:
-            raise TypeError("Only fp32, fp32_fast_tf32 and bf16 are"
-                            "supported for weight type")
+        if self.dtype not in [
+            "fp32",
+            "fp32_fast_tf32",
+            "fp32_fast_fp16",
+            "fp32_fast_bf16",
+            "bf16",
+            "fp16",
+        ]:
+            raise TypeError("Only fp32, fp32_fast_tf32, fp32_fast_fp16, "
+                            "fp32_fast_bf16, bf16 and fp16 are supported "
+                            "for weight type")
         activations = []
         activations.extend(llama_model_.activations)
         layers = []
@@ -127,9 +135,17 @@ class LlamaForCausalLM(BaseModel, LLMGenerationMixin):
                    mask: np.ndarray,
                    config: LlamaConfigNNTile):
 
-        if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16"]:
-            raise TypeError("Only fp32, fp32_fast_tf32 and bf16 are"
-                            "supported for weight type")
+        if config.dtype not in [
+            "fp32",
+            "fp32_fast_tf32",
+            "fp32_fast_fp16",
+            "fp32_fast_bf16",
+            "bf16",
+            "fp16",
+        ]:
+            raise TypeError("Only fp32, fp32_fast_tf32, fp32_fast_fp16, "
+                            "fp32_fast_bf16, bf16 and fp16 are supported "
+                            "for weight type")
 
         llama_model = Llama_nntile.from_torch(
                    torch_llama_causal.model,

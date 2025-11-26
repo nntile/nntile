@@ -61,9 +61,6 @@ class LlamaAttention(BaseModel):
             raise ValueError("hidden_size must be divisible by "
                 "n_attention_head")
         self.n_emb_kv = self.head_size * self.n_head_kv
-        if x.value.basetile_shape[0] != self.head_size:
-            raise ValueError("hidden_size_tile must equal head_size; "
-                "tiling over head size is not supported")
         redux = config.redux
 
         n_emb_tile, n_seq_tile, n_batch_tile = x.value.basetile_shape
@@ -364,6 +361,25 @@ class LlamaAttention(BaseModel):
             1.0, self.attn_output.value, self.attn_output_transposed.value, 3
         )
         self.out_proj.forward_async()
+
+    def forward_dynamic(
+        self,
+        x: TensorMoments,
+        kv_cache=None
+    ):
+        old_inputs = (self.q_proj.x, self.k_proj.x, self.v_proj.x)
+        old_activation = self.activations[0]
+        self.q_proj.x = x
+        self.k_proj.x = x
+        self.v_proj.x = x
+        self.activations[0] = x
+
+        self.forward_async()
+        out = self.out_proj.activations_output[0]
+
+        self.q_proj.x, self.k_proj.x, self.v_proj.x = old_inputs
+        self.activations[0] = old_activation
+        return out, kv_cache
 
     def backward_async(self):
         # Output projection

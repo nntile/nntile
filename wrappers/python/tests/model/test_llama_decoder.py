@@ -31,22 +31,30 @@ from nntile.utils.constructors import to_numpy, zeros_like
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
+        'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
+        'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
 }
 
 dtype2tol = {
         'fp32': {'rtol': 1e-6},
         'fp32_fast_tf32': {'rtol': 8e-4},
-        'bf16': {'rtol': 1.6e-2},
+        'fp32_fast_fp16': {'rtol': 8e-3},
+        'fp32_fast_bf16': {'rtol': 8e-3},
+        'bf16': {'rtol': 2e-2},
+        'fp16': {'rtol': 5e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
+flash_dtypes = {"bf16", "fp16"}
 
 
 @dataclass
 class LlamaDecoderTestParams:
     hidden_size: int
     hidden_size_tile: int
+    n_head: int
     intermediate_size: int
     intermediate_size_tile: int
     n_batch: int
@@ -60,46 +68,57 @@ class LlamaDecoderTestParams:
 single_tile = LlamaDecoderTestParams(
     hidden_size=128,
     hidden_size_tile=128,
+    n_head=2,
     intermediate_size=64,
     intermediate_size_tile=64,
     seq_len=32,
     seq_len_tile=32,
     n_batch=3,
-    n_batch_tile=3)
+    n_batch_tile=3
+)
 
 multiple_tiles = LlamaDecoderTestParams(
-    hidden_size=128,
-    hidden_size_tile=32,
+    hidden_size=256,
+    hidden_size_tile=64,
+    n_head=4,
     intermediate_size=64,
     intermediate_size_tile=16,
     seq_len=128,
     seq_len_tile=32,
     n_batch=4,
-    n_batch_tile=1)
+    n_batch_tile=1
+)
 
 
 def generate_inputs(params: LlamaDecoderTestParams,
                     dtype: str,
                     att_bias: bool,
                     flash_attention: bool):
+    n_head = params.n_head
     torch_layer_config = LlamaConfig(
         hidden_size=params.hidden_size,
         intermediate_size=params.intermediate_size,
         pretraining_tp=1,
         num_hidden_layers=1,
-        attention_bias=att_bias
+        attention_bias=att_bias,
+        num_attention_heads=n_head,
+        num_key_value_heads=n_head,
+    )
+    head_size = (
+        torch_layer_config.hidden_size
+        // torch_layer_config.num_attention_heads
     )
     llama_torch = LlamaModel(torch_layer_config)
     torch_layer = llama_torch.layers[0]
     nntile_config = LlamaConfigNNTile(
         vocab_size=torch_layer_config.vocab_size,
-        vocab_embed_dim_tile=params.hidden_size,
+        vocab_embed_dim_tile=head_size,
         max_position_embeddings=torch_layer_config.max_position_embeddings,
-        n_attention_head=torch_layer_config.num_attention_heads,
-        n_head_tile=torch_layer_config.num_attention_heads,
-        num_key_value_heads=torch_layer_config.num_key_value_heads,
+        n_attention_head=n_head,
+        n_head_tile=n_head,
+        num_key_value_heads=n_head,
         hidden_size=params.hidden_size,
-        hidden_size_tile=params.hidden_size_tile,
+        hidden_size_tile=head_size,
         intermediate_size=params.intermediate_size,
         intermediate_size_tile=params.intermediate_size_tile,
         dtype=dtype,
@@ -107,9 +126,7 @@ def generate_inputs(params: LlamaDecoderTestParams,
         flash_attention=flash_attention
     )
     x_shape = [params.hidden_size, params.seq_len, params.n_batch]
-    x_basetile = [params.hidden_size_tile,
-                  params.seq_len_tile,
-                  params.n_batch_tile]
+    x_basetile = [head_size, params.seq_len_tile, params.n_batch_tile]
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
@@ -149,17 +166,28 @@ def generate_inputs(params: LlamaDecoderTestParams,
 @pytest.mark.parametrize('dtype', [
     'fp32',
     pytest.param('fp32_fast_tf32', marks=nocuda),
+    pytest.param('fp32_fast_fp16', marks=nocuda),
+    pytest.param('fp32_fast_bf16', marks=nocuda),
     pytest.param('bf16', marks=nocuda),
+    pytest.param('fp16', marks=nocuda),
 ])
 @pytest.mark.parametrize('att_bias', [
     False,
     # True # Temporarily disabled to investigate later
 ])
-@pytest.mark.parametrize('flash_attention', [False])
+@pytest.mark.parametrize("flash_attention", [
+    pytest.param(False, id='eager'),
+    pytest.param(True, marks=nocuda, id='cudnn FA')
+])
 class TestLlamaDecoder:
+    def _skip_if_unsupported(self, dtype, flash_attention):
+        if flash_attention and dtype not in flash_dtypes:
+            pytest.skip("Flash attention supports only fp16 and bf16")
+
     def test_coercion(self, context, torch_rng,
                       params: LlamaDecoderTestParams, dtype: str,
                       att_bias: bool, flash_attention: bool):
+        self._skip_if_unsupported(dtype, flash_attention)
         torch_layer, nntile_layer, *_ = generate_inputs(
             params, dtype, att_bias, flash_attention)
         torch_layer_other = nntile_layer.to_torch()
@@ -176,6 +204,7 @@ class TestLlamaDecoder:
                      dtype: str,
                      att_bias: bool,
                      flash_attention: bool):
+        self._skip_if_unsupported(dtype, flash_attention)
         torch_layer, nntile_layer, x, _, pos_ids, pos_embs, mask = \
                 generate_inputs(params, dtype, att_bias, flash_attention)
         mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
@@ -191,9 +220,10 @@ class TestLlamaDecoder:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, context, torch_rng,
+    def test_forward_backward(self, context, torch_rng,
                       params: LlamaDecoderTestParams, dtype: str,
                       att_bias: bool, flash_attention: bool):
+        self._skip_if_unsupported(dtype, flash_attention)
         torch_layer, nntile_layer, x, y_grad, pos_ids, pos_embs, mask = \
             generate_inputs(params, dtype, att_bias, flash_attention)
         torch_layer_other = nntile_layer.to_torch()

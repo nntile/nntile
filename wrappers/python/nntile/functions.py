@@ -188,6 +188,12 @@ def silu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         ops.silu_backward_async_fp64(x, dy, dx)
     elif type(x) is ops.Tensor_fp32_fast_tf32:
         ops.silu_backward_async_fp32_fast_tf32(x, dy, dx)
+    elif type(x) is ops.Tensor_fp32_fast_fp16:
+        ops.silu_backward_async_fp32_fast_fp16(x, dy, dx)
+    elif type(x) is ops.Tensor_fp32_fast_bf16:
+        ops.silu_backward_async_fp32_fast_bf16(x, dy, dx)
+    elif type(x) is ops.Tensor_fp16:
+        ops.silu_backward_async_fp16(x, dy, dx)
     elif type(x) is ops.Tensor_bf16:
         ops.silu_backward_async_bf16(x, dy, dx)
     else:
@@ -1238,14 +1244,22 @@ def copy_intersection_async(
         raise TypeError
     if type(x) is ops.Tensor_fp32:
         ops.copy_intersection_async_fp32(x, x_offset, y, y_offset)
-    elif type(x) is ops.Tensor_bf16:
-        ops.copy_intersection_async_bf16(x, x_offset, y, y_offset)
+    elif type(x) is ops.Tensor_fp32_fast_tf32:
+        ops.copy_intersection_async_fp32_fast_tf32(x, x_offset, y, y_offset)
+    elif type(x) is ops.Tensor_fp32_fast_fp16:
+        ops.copy_intersection_async_fp32_fast_fp16(x, x_offset, y, y_offset)
+    elif type(x) is ops.Tensor_fp32_fast_bf16:
+        ops.copy_intersection_async_fp32_fast_bf16(x, x_offset, y, y_offset)
     elif type(x) is ops.Tensor_fp64:
         ops.copy_intersection_async_fp64(x, x_offset, y, y_offset)
     elif type(x) is ops.Tensor_int64:
         ops.copy_intersection_async_int64(x, x_offset, y, y_offset)
     elif type(x) is ops.Tensor_bool:
         ops.copy_intersection_async_bool(x, x_offset, y, y_offset)
+    elif type(x) is ops.Tensor_fp16:
+        ops.copy_intersection_async_fp16(x, x_offset, y, y_offset)
+    elif type(x) is ops.Tensor_bf16:
+        ops.copy_intersection_async_bf16(x, x_offset, y, y_offset)
     else:
         raise TypeError
 
@@ -1270,6 +1284,8 @@ def copy_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
         ops.copy_async_int64(x, y)
     elif type(x) is ops.Tensor_bf16:
         ops.copy_async_bf16(x, y)
+    elif type(x) is ops.Tensor_fp16:
+        ops.copy_async_fp16(x, y)
     else:
         raise TypeError
 

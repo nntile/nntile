@@ -20,8 +20,9 @@ from transformers.models.llama.modeling_llama import (
 
 from nntile.layer.cache_utils import KVCacheStorage
 from nntile.tensor import (
-    Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_int64,
-    TensorMoments, TensorTraits)
+    Tensor_bf16, Tensor_fp16, Tensor_fp32, Tensor_fp32_fast_bf16,
+    Tensor_fp32_fast_fp16, Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments,
+    TensorTraits)
 
 from ..layer import Embedding, RMSNorm
 from .base_model import BaseModel
@@ -44,9 +45,17 @@ class Llama(BaseModel):
 
         self.config = config
 
-        if self.dtype not in ["fp32", "fp32_fast_tf32", "bf16"]:
-            raise TypeError("Only fp32, fp32_fast_tf32 and bf16 are"
-                            "supported for weight type")
+        if self.dtype not in [
+            "fp32",
+            "fp32_fast_tf32",
+            "fp32_fast_fp16",
+            "fp32_fast_bf16",
+            "bf16",
+            "fp16",
+        ]:
+            raise TypeError("Only fp32, fp32_fast_tf32, fp32_fast_fp16, "
+                            "fp32_fast_bf16, bf16 and fp16 are supported "
+                            "for weight type")
         activations = [input_ids] + emb_layer_.activations_output
         layers = [emb_layer_]
         self.decoders = decoders
@@ -96,9 +105,17 @@ class Llama(BaseModel):
                    mask: np.ndarray,
                    config: LlamaConfigNNTile):
 
-        if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16"]:
-            raise TypeError("Only fp32, fp32_fast_tf32 and bf16 are"
-                            "supported for weight type")
+        if config.dtype not in [
+            "fp32",
+            "fp32_fast_tf32",
+            "fp32_fast_fp16",
+            "fp32_fast_bf16",
+            "bf16",
+            "fp16",
+        ]:
+            raise TypeError("Only fp32, fp32_fast_tf32, fp32_fast_fp16, "
+                            "fp32_fast_bf16, bf16 and fp16 are supported "
+                            "for weight type")
 
         x_shape = [seq_len, batch_size]
         x_basetile = [seq_len_tile, batch_size_tile]
@@ -106,10 +123,14 @@ class Llama(BaseModel):
         x_distr = [0] * x_traits.grid.nelems
         x_value = Tensor_int64(x_traits, x_distr)
 
-        dtype2tensor_type = {"fp32": Tensor_fp32,
-                             "bf16": Tensor_bf16,
-                             "fp32_fast_tf32": Tensor_fp32_fast_tf32
-                            }
+        dtype2tensor_type = {
+            "fp32": Tensor_fp32,
+            "bf16": Tensor_bf16,
+            "fp32_fast_tf32": Tensor_fp32_fast_tf32,
+            "fp32_fast_fp16": Tensor_fp32_fast_fp16,
+            "fp32_fast_bf16": Tensor_fp32_fast_bf16,
+            "fp16": Tensor_fp16,
+        }
 
         tensor_type = dtype2tensor_type[config.dtype]
 

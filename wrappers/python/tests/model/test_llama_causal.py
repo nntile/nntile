@@ -30,22 +30,28 @@ from nntile.tensor import to_numpy
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
+        'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
+        'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
 }
 
 dtype2tol = {
         'fp32': {'rtol': 1e-5},
         'fp32_fast_tf32': {'rtol': 2e-3},
+        'fp32_fast_fp16': {'rtol': 8e-3},
+        'fp32_fast_bf16': {'rtol': 8e-3},
         'bf16': {'rtol': 4e-2},
+        'fp16': {'rtol': 5e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
+flash_dtypes = {"fp16", "bf16"}
 
 
 @dataclass
 class LlamaTestParams:
     vocab_size: int
-    vocab_embed_dim_tile: int
     hidden_size: int
     hidden_size_tile: int
     max_position_embeddings: int
@@ -68,16 +74,15 @@ class LlamaTestParams:
 
 multiple_tiles = LlamaTestParams(
             vocab_size=32000,
-            vocab_embed_dim_tile=32,
-            hidden_size=128,
-            hidden_size_tile=32,
+            hidden_size=256,
+            hidden_size_tile=64,
             max_position_embeddings=1024,
             intermediate_size=384,
             intermediate_size_tile=96,
             rms_norm_eps=1e-6,
-            num_attention_heads=16,
-            num_attention_heads_tile=8,
-            num_key_value_heads=4,
+            num_attention_heads=4,
+            num_attention_heads_tile=1,
+            num_key_value_heads=2,
             activation_function="silu",
             attention_dropout=0.0,
             rope_theta=2.,
@@ -90,16 +95,15 @@ multiple_tiles = LlamaTestParams(
 
 single_tile = LlamaTestParams(
             vocab_size=32000,
-            vocab_embed_dim_tile=128,
             hidden_size=128,
             hidden_size_tile=128,
             max_position_embeddings=1024,
             intermediate_size=384,
             intermediate_size_tile=384,
             rms_norm_eps=1e-6,
-            num_attention_heads=16,
-            num_attention_heads_tile=16,
-            num_key_value_heads=4,
+            num_attention_heads=2,
+            num_attention_heads_tile=2,
+            num_key_value_heads=2,
             activation_function="silu",
             attention_dropout=0.0,
             rope_theta=2.,
@@ -114,7 +118,8 @@ single_tile = LlamaTestParams(
 def generate_inputs(params: LlamaTestParams,
                     dtype: str,
                     num_hidden_layers: int,
-                    att_bias: bool):
+                    att_bias: bool,
+                    flash_attention: bool):
     torch_config = LlamaConfig_torch(
             vocab_size=params.vocab_size,
             hidden_size=params.hidden_size,
@@ -132,9 +137,10 @@ def generate_inputs(params: LlamaTestParams,
     torch_model = LlamaModel_torch(
             torch_config,
     )
+    head_size = params.hidden_size // params.num_attention_heads
     nntile_config = LlamaConfigNNTile(
             vocab_size=params.vocab_size,
-            vocab_embed_dim_tile=params.hidden_size_tile,
+            vocab_embed_dim_tile=head_size,
             hidden_size=params.hidden_size,
             hidden_size_tile=params.hidden_size_tile,
             intermediate_size=params.intermediate_size,
@@ -147,7 +153,7 @@ def generate_inputs(params: LlamaTestParams,
             num_key_value_heads=torch_config.num_key_value_heads,
             dtype=dtype,
             attention_bias=att_bias,
-            flash_attention=params.flash_attention
+            flash_attention=flash_attention
     )
     gen = np.random.default_rng(42)
     pos_ids = gen.integers(params.seq_len,
@@ -184,24 +190,38 @@ def generate_inputs(params: LlamaTestParams,
 @pytest.mark.parametrize('dtype', [
     'fp32',
     pytest.param('fp32_fast_tf32', marks=nocuda),
+    pytest.param('fp32_fast_fp16', marks=nocuda),
+    pytest.param('fp32_fast_bf16', marks=nocuda),
     pytest.param('bf16', marks=nocuda),
+    pytest.param('fp16', marks=nocuda),
 ])
 @pytest.mark.parametrize('num_hidden_layers', [1, 2, 3])
 @pytest.mark.parametrize('att_bias', [
     False,
     # True # Temporarily disabled to investigate later
 ])
+@pytest.mark.parametrize("flash_attention", [
+    pytest.param(False, id='eager'),
+    pytest.param(True, marks=nocuda, id='cudnn FA')
+])
 class TestLlama:
+    def _skip_if_unsupported(self, dtype, flash_attention):
+        if flash_attention and dtype not in flash_dtypes:
+            pytest.skip("Flash attention supports only fp16 and bf16")
+
     def test_coercion(self, context, torch_rng,
                       params: LlamaTestParams,
                       dtype: str,
                       num_hidden_layers: int,
-                      att_bias: bool):
+                      att_bias: bool,
+                      flash_attention: bool):
+        self._skip_if_unsupported(dtype, flash_attention)
 
         torch_model, nntile_model, *_ = generate_inputs(params,
                                                         dtype,
                                                         num_hidden_layers,
-                                                        att_bias)
+                                                        att_bias,
+                                                        flash_attention)
         torch_model_other = nntile_model.to_torch()
         nntile_model.unregister()
 
@@ -215,9 +235,11 @@ class TestLlama:
                      params: LlamaTestParams,
                      dtype: str,
                      num_hidden_layers: int,
-                     att_bias: bool):
+                     att_bias: bool,
+                     flash_attention: bool):
+        self._skip_if_unsupported(dtype, flash_attention)
         torch_model, nntile_model, x, pos_ids, _ = generate_inputs(params,
-                dtype, num_hidden_layers, att_bias)
+                dtype, num_hidden_layers, att_bias, flash_attention)
         y = torch_model(x, position_ids=torch.tensor(pos_ids),
                         return_dict=True)
         y_torch = y.logits
@@ -232,9 +254,11 @@ class TestLlama:
                               params: LlamaTestParams,
                               dtype: str,
                               num_hidden_layers: int,
-                              att_bias: bool):
+                              att_bias: bool,
+                              flash_attention: bool):
+        self._skip_if_unsupported(dtype, flash_attention)
         torch_model, nntile_model, x, pos_ids, y_grad = generate_inputs(params,
-                dtype, num_hidden_layers, att_bias)
+                dtype, num_hidden_layers, att_bias, flash_attention)
         y = torch_model(x, position_ids=torch.tensor(pos_ids))
         y_torch = y.logits
         nntile_model.forward_async()
