@@ -21,7 +21,6 @@ from .batch_norm import BatchNorm2d
 from .bert_selfattention import BertSelfAttention
 from .conv2d import Conv2d
 from .embedding import Embedding
-from .gpt2_attention import GPT2Attention
 from .gpt_neo_attention import GPTNeoAttention
 from .gpt_neox_attention import GPTNeoXAttention
 from .layer_norm import LayerNorm
@@ -34,6 +33,6 @@ from .sdpa import Sdpa
 
 __all__ = ('Act', 'Add', 'AddSlice', 'Attention', 'AttentionSingleHead',
         'BaseLayer', 'BatchNorm2d', 'Conv2d', 'Embedding',
-        'GAP', 'LayerNorm', 'Linear', 'LlamaAttention', 'GPT2Attention',
+        'GAP', 'LayerNorm', 'Linear', 'LlamaAttention',
         'GPTNeoAttention', 'GPTNeoXAttention', 'BertSelfAttention',
         'Mixer', 'MixerMlp', 'RMSNorm', 'Multiply', 'Sdpa')
