@@ -143,6 +143,30 @@ def generate_inputs(
     return torch_layer, nntile_layer, x_torch, y_grad_torch
 
 
+def _forward_dynamic_helper(params: GPT2AttentionTestParams, dtype: str,
+                            flash_attention: bool):
+    torch_layer, nntile_layer, x, _ = generate_inputs(
+        params, dtype, flash_attention=flash_attention
+    )
+    y, _ = torch_layer(x)
+    x_np = x.detach().cpu().numpy()
+    tensor_type = dtype2nntile[dtype]
+    basetile = [
+        params.head_size * params.n_head_tile,
+        params.seq_len_tile,
+        params.n_batch_tile,
+    ]
+    x_traits = TensorTraits(list(x_np.T.shape), basetile)
+    x_distr = [0] * x_traits.grid.nelems
+    x_nnt_value = tensor_type(x_traits, x_distr)
+    x_nnt_value.from_array(np.array(x_np.T, order="F"))
+    x_nnt = TensorMoments(x_nnt_value, None, False)
+    y_nnt = nntile_layer.forward_dynamic(x_nnt)
+    y_nntile = torch.Tensor(to_numpy(y_nnt.value).T)
+    nntile_layer.unregister()
+    return y, y_nntile
+
+
 @pytest.mark.parametrize(
     "params",
     [
@@ -241,3 +265,17 @@ class TestGPT2Attention:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+    def test_forward_dynamic(
+        self, context, torch_rng, params: GPT2AttentionTestParams, dtype: str,
+        flash_attention: bool
+    ):
+        if flash_attention:
+            pytest.skip("Flash attention forward_dynamic not supported yet")
+        hidden_size = params.head_size * params.n_head
+        hidden_size_tile = params.head_size * params.n_head_tile
+        if hidden_size_tile != hidden_size:
+            pytest.skip("forward_dynamic currently supports untiled heads only")
+        y, y_nntile = _forward_dynamic_helper(params, dtype, flash_attention)
+        rtol = dtype2tol[dtype]["rtol"]
+        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)

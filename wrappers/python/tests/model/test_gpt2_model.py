@@ -244,6 +244,27 @@ class TestGPT2Model:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
 
+    def test_forward_dynamic(self, context, torch_rng,
+                             params: GPT2TestParams,
+                             dtype: str,
+                             num_hidden_layers: int,
+                             flash_attention: bool):
+        self._skip_if_unsupported(dtype, flash_attention)
+        torch_model, nntile_model, x, _ = generate_inputs(
+            params, dtype, num_hidden_layers, flash_attention
+        )
+        y = torch_model(x)
+        y_torch = y.last_hidden_state
+
+        x_np = x.cpu().detach().numpy()
+        x_nnt = nntile.tensor.TensorMoments(nntc.from_array(x_np.T), None, False)
+        logits_nnt, _ = nntile_model.forward_dynamic(x_nnt)
+        y_nntile = torch.Tensor(nntc.to_numpy(logits_nnt.value).T)
+        nntile_model.unregister()
+
+        rtol = dtype2tol[dtype]['rtol']
+        assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
+
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])

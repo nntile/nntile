@@ -18,9 +18,11 @@ import torch
 from transformers.models.gpt2.modeling_gpt2 import (
     GPT2Attention as GPT2Attention_torch, GPT2Config as GPT2ConfigTorch)
 
+import nntile.utils.constructors as nntc
+from nntile.functions import add_fiber_inplace_async, sum_fiber_async, transpose_async
 from nntile.tensor import (
-    Tensor_bool, TensorMoments, TensorTraits, add_fiber_inplace_async, notrans,
-    sum_fiber_async, to_numpy, transpose_async)
+    Tensor_bool, TensorMoments, TensorTraits, notrans,
+    to_numpy)
 
 from ..layer.linear import Linear
 from ..layer.sdpa import Sdpa
@@ -51,6 +53,7 @@ class GPT2Attention(BaseModel):
             raise ValueError("head_size must be divisible by head_size_tile")
 
         self.n_head = n_head
+        self.n_head_tile = n_head_tile
         self.head_size = head_size
         self.head_size_tile = head_size_tile
         if x.grad is not None:
@@ -422,3 +425,92 @@ class GPT2Attention(BaseModel):
         super().unregister()
         for bias in (self.q_bias, self.k_bias, self.v_bias):
             bias.unregister()
+
+    def forward_dynamic(self, x: TensorMoments):
+        tensor_type = type(x.value)
+        hidden_size, seq_len, batch_size = x.value.shape
+        _, seq_len_tile, batch_tile = x.value.basetile_shape
+        head_size = self.head_size
+        head_size_tile = self.head_size_tile
+        n_head = self.n_head
+        n_head_tile = self.n_head_tile
+        # Q/K/V projections
+        q_proj_out = self.q_proj.forward_dynamic(x)
+        k_proj_out = self.k_proj.forward_dynamic(x)
+        v_proj_out = self.v_proj.forward_dynamic(x)
+
+        # Allocate temporary tensors for SDPA layout
+        qkv_traits = TensorTraits(
+            [head_size, seq_len, batch_size, 1, n_head],
+            [head_size_tile, seq_len_tile, batch_tile, 1,
+             n_head_tile],
+        )
+        qkv_distr = [0] * qkv_traits.grid.nelems
+        q = TensorMoments(tensor_type(qkv_traits, qkv_distr), None, False)
+        k = TensorMoments(tensor_type(qkv_traits, qkv_distr), None, False)
+        v = TensorMoments(tensor_type(qkv_traits, qkv_distr), None, False)
+
+        transpose_async(1.0, q_proj_out.value, q.value, 2)
+        transpose_async(1.0, k_proj_out.value, k.value, 2)
+        transpose_async(1.0, v_proj_out.value, v.value, 2)
+        add_fiber_inplace_async(1.0, self.q_bias.value, 1.0, q.value, 0, 1)
+        add_fiber_inplace_async(1.0, self.k_bias.value, 1.0, k.value, 0, 1)
+        add_fiber_inplace_async(1.0, self.v_bias.value, 1.0, v.value, 0, 1)
+
+        # Mask
+        if self.flash_attention:
+            mask = nntc.full(
+                [seq_len, seq_len],
+                [seq_len_tile, seq_len_tile],
+                dtype=tensor_type,
+                fill_value=np.float32("-inf"),
+            )
+            mask_np = np.tril(np.ones((seq_len, seq_len), dtype=np.float32), -1)
+            mask.from_array(np.array(mask_np * (-np.inf), order="F"))
+        else:
+            mask_traits = TensorTraits([seq_len, seq_len],
+                                       [seq_len_tile, seq_len_tile])
+            mask = Tensor_bool(mask_traits, [0] * mask_traits.grid.nelems)
+            mask_np = np.triu(np.ones((seq_len, seq_len)), k=0)
+            mask.from_array(np.array(mask_np, dtype=bool, order="F"))
+
+        sdpa_layer = Sdpa.generate_simple(
+            q,
+            k,
+            v,
+            mask=mask,
+            flash_attention=self.flash_attention,
+            redux=self.config.redux,
+        )
+        sdpa_layer.forward_async()
+        context = sdpa_layer.activations_output[0]
+
+        # Transpose context back and apply output projection
+        ctx_tr_traits = TensorTraits(
+            [1, n_head, head_size, seq_len, batch_size],
+            [1, n_head_tile, head_size_tile, seq_len_tile,
+             batch_tile],
+        )
+        ctx_tr = TensorMoments(
+            tensor_type(ctx_tr_traits, [0] * ctx_tr_traits.grid.nelems),
+            None,
+            False,
+        )
+        transpose_async(1.0, context.value, ctx_tr.value, 3)
+        out = self.out_proj.forward_dynamic(ctx_tr)
+
+        # Invalidate temporaries (no backward)
+        for tmp in (q, k, v, context, ctx_tr):
+            tmp.value.invalidate_submit()
+        sdpa_layer.unregister()
+        return out
+
+    def get_forward_flops(self):
+        n_emb = self.head_size * self.n_head
+        n_seq = self.x.value.shape[1]
+        n_batch = self.x.value.shape[2]
+        proj_flops = 3 * 2 * n_emb * n_emb * n_seq * n_batch
+        attn_scores = 2 * self.head_size * n_seq * n_seq * self.n_head * n_batch
+        attn_ctx = 2 * self.head_size * n_seq * n_seq * self.n_head * n_batch
+        out_proj = 2 * n_emb * n_emb * n_seq * n_batch
+        return proj_flops + attn_scores + attn_ctx + out_proj

@@ -21,6 +21,7 @@ import torch
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block, GPT2Config
 
 import nntile
+import nntile.utils.constructors as nntc
 from nntile.model.gpt2_block import GPT2Block as GPT2Block_nntile
 from nntile.model.gpt2_config import GPT2ConfigNNTile
 from nntile.tensor import TensorMoments, TensorTraits
@@ -238,6 +239,32 @@ class TestGPT2Decoder:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+    def test_forward_dynamic(self, context, torch_rng,
+                             params: GPT2BlockTestParams,
+                             dtype: str,
+                             flash_attention: bool):
+        self._skip_if_unsupported(dtype, flash_attention, params)
+        torch_layer, nntile_layer, x, _ = generate_inputs(
+            params, dtype, flash_attention=flash_attention
+        )
+        y_torch = torch_layer(x)[0]
+        x_np = x.detach().cpu().numpy()
+        tensor_type = dtype2nntile[dtype]
+        x_traits = TensorTraits(
+            list(x_np.T.shape),
+            [params.hidden_size_tile, params.seq_len_tile, params.n_batch_tile],
+        )
+        x_distr = [0] * x_traits.grid.nelems
+        x_nnt_value = tensor_type(x_traits, x_distr)
+        x_nnt_value.from_array(np.array(x_np.T, order="F"))
+        x_nnt = nntile.tensor.TensorMoments(x_nnt_value, None, False)
+        y_nnt = nntile_layer.forward_dynamic(x_nnt)
+        y_nntile = torch.Tensor(nntc.to_numpy(y_nnt.value).T)
+        nntile_layer.unregister()
+
+        rtol = dtype2tol[dtype]['rtol']
+        assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
 
 
 @pytest.mark.benchmark
