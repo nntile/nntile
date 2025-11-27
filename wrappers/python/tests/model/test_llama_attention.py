@@ -248,3 +248,29 @@ class TestLlamaAttention:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+    def test_forward_dynamic(self, context, torch_rng,
+                             params: LlamaAttentionTestParams,
+                             dtype: str,
+                             flash_attention: bool):
+        if flash_attention and dtype not in flash_dtypes:
+            pytest.skip("Flash SDPA supports only fp16 and bf16")
+        torch_layer, nntile_layer, x, _, pos_ids, pos_embs, mask = \
+            generate_inputs(params, dtype, flash_attention)
+        mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
+            * torch.finfo(torch.float32).min
+        mask_torch = mask_torch[None, None, :, :].expand(params.n_batch,
+                                                         1, -1, -1)
+        y = torch_layer(x, position_embeddings=pos_embs,
+                        attention_mask=mask_torch,
+                        position_ids=pos_ids)[0]
+
+        y_nntile, _ = nntile_layer.forward_dynamic(
+            nntile_layer.activations[0]
+        )
+        y_nntile_torch = torch.Tensor(
+            to_numpy(y_nntile.value).T
+        )
+        nntile_layer.unregister()
+        rtol = dtype2tol[dtype]['rtol']
+        assert torch.norm(y - y_nntile_torch) <= rtol * torch.norm(y)
