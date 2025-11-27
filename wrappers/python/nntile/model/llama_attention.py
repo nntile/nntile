@@ -20,13 +20,15 @@ import torch
 from transformers.models.llama.modeling_llama import (
     LlamaAttention as LlamaAttention_torch, LlamaConfig as LlamaConfig_torch)
 
+import nntile
 import nntile.utils.constructors as nntc
 
 from nntile.tensor import (
-    Tensor_bool, TensorMoments, TensorTraits, add_slice_inplace_async,
-    copy_intersection_async, notrans, rope_async, rope_backward_async,
-    sum_slice_async, to_numpy,
-    transpose_async)
+    Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_inplace_async,
+    add_slice_inplace_async, clear_async, copy_intersection_async,
+    gemm_async, mask_scalar_async, maxsumexp_async, notrans, rope_async,
+    rope_backward_async, softmax_inplace_async, sum_slice_async, to_numpy,
+    trans, transpose_async)
 
 from ..layer.linear import Linear
 from ..layer.sdpa import Sdpa
@@ -364,6 +366,220 @@ class LlamaAttention(BaseModel):
         )
         return sin_slice, cos_slice
 
+    def _apply_rope_dynamic(
+        self,
+        x_tensor: TensorTraits,
+        q_partial: TensorMoments,
+        k_partial: TensorMoments,
+        kv_cache_size: int,
+    ):
+        q_rope_partial = TensorMoments(
+            nntc.empty(
+                q_partial.value.shape,
+                basetile_shape=q_partial.value.basetile_shape,
+                dtype=type(q_partial.value),
+            ),
+            None,
+            False,
+        )
+        k_rope_partial = TensorMoments(
+            nntc.empty(
+                k_partial.value.shape,
+                basetile_shape=k_partial.value.basetile_shape,
+                dtype=type(k_partial.value),
+            ),
+            None,
+            False,
+        )
+
+        seq_len = x_tensor.shape[-2]
+        batch = x_tensor.shape[-1]
+        sin_bt = [
+            self.sin.basetile_shape[0],
+            min(seq_len, self.sin.basetile_shape[1]),
+            min(batch, self.sin.basetile_shape[2]),
+        ]
+        cos_bt = [
+            self.cos.basetile_shape[0],
+            min(seq_len, self.cos.basetile_shape[1]),
+            min(batch, self.cos.basetile_shape[2]),
+        ]
+        sin_partial = nntc.zeros(
+            (self.sin.shape[0], seq_len, batch),
+            basetile_shape=sin_bt,
+            dtype=type(self.sin),
+        )
+        cos_partial = nntc.zeros(
+            (self.cos.shape[0], seq_len, batch),
+            basetile_shape=cos_bt,
+            dtype=type(self.cos),
+        )
+        copy_intersection_async(
+            self.sin, [0, 0, 0], sin_partial, [0, kv_cache_size, 0]
+        )
+        copy_intersection_async(
+            self.cos, [0, 0, 0], cos_partial, [0, kv_cache_size, 0]
+        )
+
+        rope_async(sin_partial, cos_partial, q_partial.value, q_rope_partial.value)
+        rope_async(sin_partial, cos_partial, k_partial.value, k_rope_partial.value)
+
+        sin_partial.invalidate_submit()
+        cos_partial.invalidate_submit()
+        return q_rope_partial, k_rope_partial
+
+    def _transpose_q_dynamic(self, q_partial_tr: TensorMoments) -> TensorMoments:
+        """
+        Reorders Q projection output from
+        (kv_group_size, n_head_kv, head_size, n_seq, n_batch) into
+        (head_size, n_seq, n_batch, kv_group_size, n_head_kv).
+        """
+        seq_len = q_partial_tr.value.shape[3]
+        batch = q_partial_tr.value.shape[4]
+        q_shape = [
+            self.head_size,
+            seq_len,
+            batch,
+            self.kv_group_size,
+            self.n_head_kv,
+        ]
+        q_bt = [
+            self.q.value.basetile_shape[0],
+            min(seq_len, self.q.value.basetile_shape[1]),
+            min(batch, self.q.value.basetile_shape[2]),
+            self.q.value.basetile_shape[3],
+            self.q.value.basetile_shape[4],
+        ]
+        q_transposed = nntc.empty(
+            q_shape,
+            basetile_shape=q_bt,
+            dtype=type(q_partial_tr.value),
+        )
+        transpose_async(1.0, q_partial_tr.value, q_transposed, 2)
+        return TensorMoments(q_transposed, None, False)
+
+    def _transpose_k_dynamic(self, k_partial_tr: TensorMoments) -> TensorMoments:
+        """
+        Converts K projection output into (head_size, n_seq, n_batch, n_head_kv)
+        and returns whether a new buffer was allocated.
+        """
+        if k_partial_tr.value.shape[0] == self.head_size:
+            return TensorMoments(k_partial_tr.value, None, False)
+        seq_len = k_partial_tr.value.shape[2]
+        batch = k_partial_tr.value.shape[3]
+        k_shape = [self.head_size, seq_len, batch, self.n_head_kv]
+        k_bt = [
+            self.k.value.basetile_shape[0],
+            min(seq_len, self.k.value.basetile_shape[1]),
+            min(batch, self.k.value.basetile_shape[2]),
+            self.k.value.basetile_shape[3],
+        ]
+        k_transposed = nntc.empty(
+            k_shape,
+            basetile_shape=k_bt,
+            dtype=type(k_partial_tr.value),
+        )
+        transpose_async(1.0, k_partial_tr.value, k_transposed, 1)
+        return TensorMoments(k_transposed, None, False)
+
+    def _transpose_v_dynamic(self, v_partial_tr: TensorMoments) -> Tensor:
+        """
+        Converts V projection output into (head_size, n_seq, n_batch, n_head_kv)
+        and returns whether a new buffer was allocated.
+        """
+        if v_partial_tr.value.shape[0] == self.head_size:
+            return v_partial_tr.value
+        seq_len = v_partial_tr.value.shape[2]
+        batch = v_partial_tr.value.shape[3]
+        v_shape = [
+            self.head_size,
+            seq_len,
+            batch,
+            self.n_head_kv,
+        ]
+        v_bt = [
+            self.v.value.basetile_shape[0],
+            min(seq_len, self.v.value.basetile_shape[1]),
+            min(batch, self.v.value.basetile_shape[2]),
+            self.v.value.basetile_shape[3],
+        ]
+        v_transposed = nntc.empty(
+            v_shape,
+            basetile_shape=v_bt,
+            dtype=type(v_partial_tr.value),
+        )
+        transpose_async(1.0, v_partial_tr.value, v_transposed, 1)
+        return v_transposed
+
+    def _append_to_kv_cache(
+        self,
+        kv_cache: KVCache,
+        k_tensor,
+        v_tensor,
+    ):
+        if k_tensor.shape[1] + len(kv_cache) > self.k.value.shape[1]:
+            raise Exception(
+                "Overload internal state: "
+                f"try add {k_tensor.shape[1]} "
+                f"to {len(kv_cache)}, max: {self.k.value.shape[1]}."
+            )
+        kv_cache.append(k_tensor, v_tensor)
+        return kv_cache.k_partial, kv_cache.v_partial
+
+    def _repeat_kv_dynamic(
+        self,
+        k_tensor,
+        v_tensor,
+    ) -> tuple[TensorMoments, TensorMoments]:
+        seq_len = k_tensor.shape[1]
+        k_rep_shape = [
+            self.head_size,
+            seq_len,
+            self.k_rep.value.shape[2],
+            self.kv_group_size,
+            self.n_head_kv,
+        ]
+        k_rep_bt = [
+            self.k_rep.value.basetile_shape[0],
+            k_tensor.basetile_shape[1],
+            self.k_rep.value.basetile_shape[2],
+            self.k_rep.value.basetile_shape[3],
+            self.k_rep.value.basetile_shape[4],
+        ]
+        k_rep_value = nntc.empty(
+            k_rep_shape,
+            basetile_shape=k_rep_bt,
+            dtype=type(k_tensor),
+        )
+
+        v_rep_shape = [
+            self.head_size,
+            seq_len,
+            self.v_rep.value.shape[2],
+            self.kv_group_size,
+            self.n_head_kv,
+        ]
+        v_rep_bt = [
+            self.v_rep.value.basetile_shape[0],
+            v_tensor.basetile_shape[1],
+            self.v_rep.value.basetile_shape[2],
+            self.v_rep.value.basetile_shape[3],
+            self.v_rep.value.basetile_shape[4],
+        ]
+        v_rep_value = nntc.empty(
+            v_rep_shape,
+            basetile_shape=v_rep_bt,
+            dtype=type(v_tensor),
+        )
+
+        add_slice_inplace_async(1.0, k_tensor, 0.0, k_rep_value, 3)
+        add_slice_inplace_async(1.0, v_tensor, 0.0, v_rep_value, 3)
+
+        return (
+            TensorMoments(k_rep_value, None, False),
+            TensorMoments(v_rep_value, None, False),
+        )
+
     # ---- Forward / Backward -------------------------------------------------
 
     def forward_async(self):
@@ -411,199 +627,107 @@ class LlamaAttention(BaseModel):
     ):
         # Allocate temporaries on the fly (no backward support here)
         q_tmp = self.q_proj.forward_dynamic(x)
-        if q_tmp.value.shape[0] == self.head_size:
-            q_transposed = q_tmp.value
-            q_shape = list(q_tmp.value.shape)
-            q_bt = list(q_tmp.value.basetile_shape)
-        else:
-            q_shape = [
-                self.head_size,
-                q_tmp.value.shape[3],
-                q_tmp.value.shape[4],
-                self.kv_group_size,
-                self.n_head_kv,
-            ]
-            q_bt = [
-                self.q.value.basetile_shape[0],
-                min(q_shape[1], self.q.value.basetile_shape[1]),
-                self.q.value.basetile_shape[2],
-                self.q.value.basetile_shape[3],
-                self.q.value.basetile_shape[4],
-            ]
-            q_transposed = nntc.empty(
-                q_shape,
-                basetile_shape=q_bt,
-                dtype=type(q_tmp.value),
-            )
-            transpose_async(1.0, q_tmp.value, q_transposed, 2)
-            q_tmp.value.invalidate_submit()
-
-        q_rope_tmp = TensorMoments(
-            nntc.empty(
-                q_shape,
-                basetile_shape=q_bt,
-                dtype=type(q_tmp.value),
-            ),
-            None,
-            False,
-        )
-        kv_size = len(kv_cache) if kv_cache is not None else 0
-        sin_local, cos_local = self._rope_slice(
-            q_transposed.shape[1], q_transposed.shape[2], kv_size
-        )
-        rope_async(sin_local, cos_local, q_transposed, q_rope_tmp.value)
-        q_transposed.invalidate_submit()
+        q_transposed = self._transpose_q_dynamic(q_tmp)
+        q_tmp.value.invalidate_submit()
 
         k_tmp = self.k_proj.forward_dynamic(x)
-        if k_tmp.value.shape[0] == self.head_size:
-            k_transposed = k_tmp.value
-            k_shape = list(k_tmp.value.shape)
-            k_bt = list(k_tmp.value.basetile_shape)
-        else:
-            k_shape = [
-                self.head_size,
-                k_tmp.value.shape[2],
-                k_tmp.value.shape[3],
-                self.n_head_kv,
-            ]
-            k_bt = [
-                self.k.value.basetile_shape[0],
-                min(k_shape[1], self.k.value.basetile_shape[1]),
-                self.k.value.basetile_shape[2],
-                self.k.value.basetile_shape[3],
-            ]
-            k_transposed = nntc.empty(
-                k_shape,
-                basetile_shape=k_bt,
-                dtype=type(k_tmp.value),
-            )
-            transpose_async(1.0, k_tmp.value, k_transposed, 1)
-            k_tmp.value.invalidate_submit()
-
-        k_rope_tmp = TensorMoments(
-            nntc.empty(
-                k_shape,
-                basetile_shape=k_bt,
-                dtype=type(k_tmp.value),
-            ),
-            None,
-            False,
-        )
-        rope_async(sin_local, cos_local, k_transposed, k_rope_tmp.value)
-        k_transposed.invalidate_submit()
-        if sin_local is not self.sin:
-            sin_local.invalidate_submit()
-            cos_local.invalidate_submit()
+        k_transposed = self._transpose_k_dynamic(k_tmp)
 
         v_tmp = self.v_proj.forward_dynamic(x)
-        if v_tmp.value.shape[0] == self.head_size:
-            v_transposed = v_tmp.value
-        else:
-            v_shape = [
-                self.head_size,
-                v_tmp.value.shape[2],
-                v_tmp.value.shape[3],
-                self.n_head_kv,
-            ]
-            v_bt = [
-                self.v.value.basetile_shape[0],
-                min(v_shape[1], self.v.value.basetile_shape[1]),
-                self.v.value.basetile_shape[2],
-                self.v.value.basetile_shape[3],
-            ]
-            v_transposed = nntc.empty(
-                v_shape,
-                basetile_shape=v_bt,
-                dtype=type(v_tmp.value),
-            )
-            transpose_async(1.0, v_tmp.value, v_transposed, 1)
-            v_tmp.value.invalidate_submit()
+        v_transposed = self._transpose_v_dynamic(v_tmp)
+
+        kv_size = len(kv_cache) if kv_cache is not None else 0
+        q_rope_tmp, k_rope_tmp = self._apply_rope_dynamic(
+            x.value,
+            q_transposed,
+            k_transposed,
+            kv_size,
+        )
+        q_transposed.value.invalidate_submit()
+        k_transposed.value.invalidate_submit()
 
         k_src = k_rope_tmp.value
         v_src = v_transposed
-        if kv_cache is not None:
-            if k_src.shape[1] + len(kv_cache) > self.k.value.shape[1]:
-                raise Exception(
-                    "Overload internal state: "
-                    f"try add {k_src.shape[1]} "
-                    f"to {len(kv_cache)}, max: {self.k.value.shape[1]}. "
+        cache_appended_pre_attn = False
+        if kv_cache is not None and kv_size > 0:
+            k_src, v_src = self._append_to_kv_cache(kv_cache, k_src, v_src)
+            cache_appended_pre_attn = True
+
+        k_rep_tmp, v_rep_tmp = self._repeat_kv_dynamic(k_src, v_src)
+
+        q_arg, k_arg, v_arg = q_rope_tmp, k_rep_tmp, v_rep_tmp
+
+        original_flash = self.sdpa.flash_attention
+        q_seq = q_arg.value.shape[1]
+        q_tile = q_arg.value.basetile_shape[1]
+        q_seq_tiles = (
+            q_arg.value.grid.shape[1]
+            if hasattr(q_arg.value, "grid")
+            else None
+        )
+        flash_active = (
+            original_flash
+            and kv_size == 0
+            and (q_seq % q_tile == 0 or q_seq_tiles == 1)
+        )
+
+        mask_arg = None
+        mask_tmp_allocated = False
+        mask_arg = self.sdpa.mask
+        if mask_arg is not None:
+            if flash_active:
+                k_seq = k_arg.value.shape[1]
+                q_seq = q_arg.value.shape[1]
+                mask_bt = (
+                    min(mask_arg.basetile_shape[0], k_seq),
+                    min(mask_arg.basetile_shape[1], q_seq),
                 )
-            kv_cache.append(k_src, v_src)
-            k_src = kv_cache.k_partial
-            v_src = kv_cache.v_partial
+                if (
+                    tuple(mask_arg.shape) != (k_seq, q_seq)
+                    or tuple(mask_arg.basetile_shape) != mask_bt
+                ):
+                    mask_tmp_allocated = True
+                    mask_tmp = nntc.empty(
+                        (k_seq, q_seq),
+                        basetile_shape=mask_bt,
+                        dtype=type(mask_arg),
+                    )
+                    copy_intersection_async(
+                        mask_arg,
+                        [0, 0],
+                        mask_tmp,
+                        [0, max(k_seq - q_seq, 0)],
+                    )
+                    mask_arg = mask_tmp
+            else:
+                mask_arg, mask_tmp_allocated = (
+                    self.sdpa._prepare_mask_for_kv_cache(
+                        mask_arg,
+                        k_arg.value.shape[1],
+                        q_arg.value.shape[1],
+                        k_arg.value.basetile_shape[1],
+                        q_arg.value.basetile_shape[1],
+                    )
+                )
 
-        seq_len = k_src.shape[1]
-        k_rep_shape = [
-            self.head_size,
-            seq_len,
-            self.k_rep.value.shape[2],
-            self.kv_group_size,
-            self.n_head_kv,
-        ]
-        k_rep_bt = [
-            self.k_rep.value.basetile_shape[0],
-            k_src.basetile_shape[1],
-            self.k_rep.value.basetile_shape[2],
-            self.k_rep.value.basetile_shape[3],
-            self.k_rep.value.basetile_shape[4],
-        ]
-        k_rep_tmp = TensorMoments(
-            nntc.empty(k_rep_shape, basetile_shape=k_rep_bt, dtype=type(k_src)),
-            None,
-            False,
-        )
+        self.sdpa.flash_attention = flash_active
+        try:
+            sdpa_out = self.sdpa.forward_dynamic(
+                q_arg,
+                k_arg,
+                v_arg,
+                mask=mask_arg,
+            )
+        finally:
+            self.sdpa.flash_attention = original_flash
+        if mask_tmp_allocated and mask_arg is not None:
+            mask_arg.wont_use()
 
-        v_rep_shape = [
-            self.head_size,
-            seq_len,
-            self.v_rep.value.shape[2],
-            self.kv_group_size,
-            self.n_head_kv,
-        ]
-        v_rep_bt = [
-            self.v_rep.value.basetile_shape[0],
-            v_src.basetile_shape[1],
-            self.v_rep.value.basetile_shape[2],
-            self.v_rep.value.basetile_shape[3],
-            self.v_rep.value.basetile_shape[4],
-        ]
-        v_rep_tmp = TensorMoments(
-            nntc.empty(v_rep_shape, basetile_shape=v_rep_bt, dtype=type(v_src)),
-            None,
-            False,
-        )
+        if kv_cache is not None and not cache_appended_pre_attn:
+            self._append_to_kv_cache(kv_cache, k_rope_tmp.value, v_transposed)
 
-        add_slice_inplace_async(1.0, k_src, 0.0, k_rep_tmp.value, 3)
-        add_slice_inplace_async(1.0, v_src, 0.0, v_rep_tmp.value, 3)
-        k_src.wont_use()
-        v_src.wont_use()
         k_rope_tmp.value.invalidate_submit()
         v_transposed.invalidate_submit()
-
-        mask_local = self.sdpa.mask
-        if kv_cache is not None and self.sdpa.mask is not None:
-            q_seq = q_rope_tmp.value.shape[1]
-            k_seq = k_rep_shape[1]
-            mask_bt = [
-                min(k_src.basetile_shape[1], k_seq),
-                min(q_rope_tmp.value.basetile_shape[1], q_seq),
-            ]
-            mask_traits = TensorTraits([k_seq, q_seq], mask_bt)
-            mask_tensor = Tensor_bool(mask_traits, [0] * mask_traits.grid.nelems)
-            mask_np = np.zeros((k_seq, q_seq), dtype=bool, order="F")
-            for j in range(q_seq):
-                cutoff = kv_size + j
-                if cutoff + 1 < k_seq:
-                    mask_np[cutoff + 1 :, j] = True
-            mask_tensor.from_array(mask_np)
-            mask_local = mask_tensor
-
-        sdpa_out = self.sdpa.forward_dynamic(
-            q_rope_tmp,
-            k_rep_tmp,
-            v_rep_tmp,
-            mask=mask_local,
-        )
 
         attn_transposed_tmp = nntc.empty(
             [
