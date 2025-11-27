@@ -22,6 +22,7 @@ from transformers.models.llama.modeling_llama import (
     LlamaConfig, LlamaModel, LlamaRotaryEmbedding)
 
 import nntile
+from nntile.layer.cache_utils import KVCache
 from nntile.model.llama_config import LlamaConfigNNTile
 from nntile.model.llama_decoder import LlamaDecoder as LlamaDecoder_nntile
 from nntile.tensor import TensorMoments, TensorTraits
@@ -253,3 +254,108 @@ class TestLlamaDecoder:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+    def test_forward_dynamic(self, context, torch_rng,
+                             params: LlamaDecoderTestParams,
+                             dtype: str,
+                             att_bias: bool,
+                             flash_attention: bool):
+        self._skip_if_unsupported(dtype, flash_attention)
+        torch_layer, nntile_layer, x, _, pos_ids, pos_embs, mask = \
+            generate_inputs(params, dtype, att_bias, flash_attention)
+        mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
+            * torch.finfo(torch.float32).min
+        mask_torch = mask_torch[None, None, :, :].expand(params.n_batch,
+                                                         1, -1, -1)
+        y = torch_layer(x, position_embeddings=pos_embs,
+                        attention_mask=mask_torch,
+                        position_ids=pos_ids)[0]
+
+        y_nntile, _ = nntile_layer.forward_dynamic(
+            nntile_layer.activations[0]
+        )
+        y_nntile_torch = torch.Tensor(
+            to_numpy(y_nntile.value).T
+        )
+        nntile_layer.unregister()
+        rtol = dtype2tol[dtype]['rtol']
+        assert torch.norm(y - y_nntile_torch) <= rtol * torch.norm(y)
+
+
+@pytest.mark.parametrize('params', [
+    pytest.param(single_tile, id='single_tile'),
+    pytest.param(multiple_tiles, id='multiple_tiles'),
+])
+@pytest.mark.parametrize('dtype', [
+    'fp32',
+    pytest.param('fp32_fast_tf32', marks=nocuda),
+    pytest.param('fp32_fast_fp16', marks=nocuda),
+    pytest.param('fp32_fast_bf16', marks=nocuda),
+    pytest.param('bf16', marks=nocuda),
+    pytest.param('fp16', marks=nocuda),
+])
+@pytest.mark.parametrize('att_bias', [
+    False,
+])
+@pytest.mark.parametrize("flash_attention", [
+    pytest.param(False, id='eager'),
+    pytest.param(True, marks=nocuda, id='cudnn FA')
+])
+def test_forward_dynamic_kvcache_last_token(context,
+                                            params: LlamaDecoderTestParams,
+                                            dtype: str,
+                                            att_bias: bool,
+                                            flash_attention: bool):
+    if flash_attention and dtype not in flash_dtypes:
+        pytest.skip("Flash attention supports only fp16 and bf16")
+    _, nntile_layer, *_ = generate_inputs(params, dtype, att_bias,
+                                          flash_attention)
+
+    full_out, _ = nntile_layer.forward_dynamic(nntile_layer.activations[0])
+    full_np = to_numpy(full_out.value)
+
+    x_full_np = to_numpy(nntile_layer.activations[0].value)
+    x_tile = nntile_layer.activations[0].value.basetile_shape
+    tensor_type = dtype2nntile[dtype]
+
+    decode_tokens = min(2, params.seq_len)
+    prefill = params.seq_len - decode_tokens
+    prefill_np = np.array(x_full_np[:, :prefill, :], dtype=np.float32,
+                          order="F")
+    decode_np = np.array(x_full_np[:, prefill:, :], dtype=np.float32,
+                         order="F")
+
+    def make_tm(x_np):
+        bt = [x_tile[0], min(x_np.shape[1], x_tile[1]), x_tile[2]]
+        traits = TensorTraits(list(x_np.shape), bt)
+        val = tensor_type(traits, [0] * traits.grid.nelems)
+        val.from_array(x_np)
+        return TensorMoments(val, None, False)
+
+    prefill_tm = make_tm(prefill_np)
+
+    cache = KVCache(max_cache_size=params.seq_len, seq_size_dim=1)
+    _, cache = nntile_layer.forward_dynamic(prefill_tm, cache)
+
+    first_len = min(1, decode_tokens)
+    second_len = decode_tokens - first_len
+    decode_slices = []
+    if first_len > 0:
+        decode_slices.append(decode_np[:, :first_len, :])
+    if second_len > 0:
+        decode_slices.append(decode_np[:, first_len:, :])
+
+    rtol = dtype2tol[dtype]["rtol"]
+    offset = prefill
+    for chunk_np in decode_slices:
+        chunk_tm = make_tm(chunk_np)
+        chunk_out, cache = nntile_layer.forward_dynamic(chunk_tm, cache)
+        chunk_decoded = to_numpy(chunk_out.value)
+        ref_slice = full_np[:, offset:offset + chunk_np.shape[1], :]
+
+        diff_norm = np.linalg.norm(chunk_decoded - ref_slice)
+        ref_norm = np.linalg.norm(ref_slice)
+        assert diff_norm <= rtol * ref_norm
+        offset += chunk_np.shape[1]
+
+    nntile_layer.unregister()

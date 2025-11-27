@@ -70,9 +70,9 @@ class LlamaDecoder(BaseModel):
         self,
         x: TensorMoments,
         kv_cache: Optional[KVCache] = None
-    ):
+    ) -> tuple[TensorMoments, Optional[KVCache]]:
         x_normalized = self.input_norm.forward_dynamic(x)
-        attn_outs, kv_cache = self.attention_layer.forward_dynamic(
+        attn_outs, updated_kv_cache = self.attention_layer.forward_dynamic(
             x_normalized, kv_cache=kv_cache
         )
         post_attn_outs = self.post_attn_add.forward_dynamic(attn_outs, x)
@@ -85,7 +85,7 @@ class LlamaDecoder(BaseModel):
             mlp_outs, post_attn_outs
         )
 
-        return post_mlp_outs, kv_cache
+        return post_mlp_outs, updated_kv_cache
 
     @staticmethod
     def from_torch(

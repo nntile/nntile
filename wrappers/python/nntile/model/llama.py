@@ -77,7 +77,10 @@ class Llama(BaseModel):
             x: TensorMoments,
             use_cache: bool = False,
             kv_caches: Optional[KVCacheStorage] = None
-        ):
+        ) -> tuple[TensorMoments, Optional[KVCacheStorage]]:
+        if kv_caches is None and use_cache:
+            kv_caches = KVCacheStorage()
+
         cache_list = None
         if kv_caches is not None:
             if not kv_caches.is_initialized():

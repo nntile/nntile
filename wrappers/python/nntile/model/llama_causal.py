@@ -88,7 +88,10 @@ class LlamaForCausalLM(BaseModel, LLMGenerationMixin):
             self, x: TensorMoments,
             use_cache: bool = False,
             kv_caches: Optional[KVCacheStorage] = None
-        ):
+        ) -> tuple[TensorMoments, Optional[KVCacheStorage]]:
+        if kv_caches is None and use_cache:
+            kv_caches = KVCacheStorage()
+
         llama_logits, kv_caches = self.llama_model_.forward_dynamic(
             x, use_cache=use_cache, kv_caches=kv_caches
         )

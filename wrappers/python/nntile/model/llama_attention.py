@@ -20,19 +20,15 @@ import torch
 from transformers.models.llama.modeling_llama import (
     LlamaAttention as LlamaAttention_torch, LlamaConfig as LlamaConfig_torch)
 
-import nntile
 import nntile.utils.constructors as nntc
-
 from nntile.tensor import (
-    Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_inplace_async,
-    add_slice_inplace_async, clear_async, copy_intersection_async,
-    gemm_async, mask_scalar_async, maxsumexp_async, notrans, rope_async,
-    rope_backward_async, softmax_inplace_async, sum_slice_async, to_numpy,
-    trans, transpose_async)
+    Tensor, Tensor_bool, TensorMoments, TensorTraits, add_slice_inplace_async,
+    copy_intersection_async, notrans, rope_async, rope_backward_async,
+    sum_slice_async, to_numpy, transpose_async)
 
+from ..layer.cache_utils import KVCache
 from ..layer.linear import Linear
 from ..layer.sdpa import Sdpa
-from ..layer.cache_utils import KVCache
 from .base_model import BaseModel
 from .llama_config import LlamaConfigNNTile
 
@@ -421,14 +417,20 @@ class LlamaAttention(BaseModel):
             self.cos, [0, 0, 0], cos_partial, [0, kv_cache_size, 0]
         )
 
-        rope_async(sin_partial, cos_partial, q_partial.value, q_rope_partial.value)
-        rope_async(sin_partial, cos_partial, k_partial.value, k_rope_partial.value)
+        rope_async(
+            sin_partial, cos_partial, q_partial.value, q_rope_partial.value
+        )
+        rope_async(
+            sin_partial, cos_partial, k_partial.value, k_rope_partial.value
+        )
 
         sin_partial.invalidate_submit()
         cos_partial.invalidate_submit()
         return q_rope_partial, k_rope_partial
 
-    def _transpose_q_dynamic(self, q_partial_tr: TensorMoments) -> TensorMoments:
+    def _transpose_q_dynamic(
+        self, q_partial_tr: TensorMoments
+    ) -> TensorMoments:
         """
         Reorders Q projection output from
         (kv_group_size, n_head_kv, head_size, n_seq, n_batch) into
@@ -458,9 +460,11 @@ class LlamaAttention(BaseModel):
         transpose_async(1.0, q_partial_tr.value, q_transposed, 2)
         return TensorMoments(q_transposed, None, False)
 
-    def _transpose_k_dynamic(self, k_partial_tr: TensorMoments) -> TensorMoments:
+    def _transpose_k_dynamic(
+        self, k_partial_tr: TensorMoments
+    ) -> TensorMoments:
         """
-        Converts K projection output into (head_size, n_seq, n_batch, n_head_kv)
+        Converts K proj output into (head_size, n_seq, n_batch, n_head_kv)
         and returns whether a new buffer was allocated.
         """
         if k_partial_tr.value.shape[0] == self.head_size:
@@ -484,7 +488,7 @@ class LlamaAttention(BaseModel):
 
     def _transpose_v_dynamic(self, v_partial_tr: TensorMoments) -> Tensor:
         """
-        Converts V projection output into (head_size, n_seq, n_batch, n_head_kv)
+        Converts V proj output into (head_size, n_seq, n_batch, n_head_kv)
         and returns whether a new buffer was allocated.
         """
         if v_partial_tr.value.shape[0] == self.head_size:

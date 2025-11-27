@@ -323,7 +323,9 @@ class TestSDPAVanilla:
         tol = dtype2tol[dtype]
         _assert_tensor_close(y_nntile, y_ref, tol)
 
-    def test_forward_dynamic(self, context, dtype: str, params: SDPATestParams):
+    def test_forward_dynamic(
+        self, context, dtype: str, params: SDPATestParams
+    ):
         inputs = generate_sdpa_inputs(
             dtype,
             params,

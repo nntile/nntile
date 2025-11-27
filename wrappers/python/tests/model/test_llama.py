@@ -22,10 +22,10 @@ from transformers.models.llama import (
     LlamaConfig as LlamaConfig_torch, LlamaModel as LlamaModel_torch)
 
 import nntile
-import nntile.utils.constructors as nntc
+from nntile.layer.cache_utils import KVCacheStorage
 from nntile.model.llama import Llama as LlamaModel
 from nntile.model.llama_config import LlamaConfigNNTile
-from nntile.tensor import to_numpy
+from nntile.tensor import TensorMoments, TensorTraits, to_numpy
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -295,29 +295,122 @@ class TestLlama:
 ])
 @pytest.mark.parametrize('dtype', [
     'fp32',
+    pytest.param('fp32_fast_tf32', marks=nocuda),
+    pytest.param('fp32_fast_fp16', marks=nocuda),
+    pytest.param('fp32_fast_bf16', marks=nocuda),
+    pytest.param('bf16', marks=nocuda),
+    pytest.param('fp16', marks=nocuda),
 ])
 @pytest.mark.parametrize('num_hidden_layers', [2])
 @pytest.mark.parametrize('att_bias', [False])
+@pytest.mark.parametrize("flash_attention", [
+    pytest.param(False, id='eager'),
+    pytest.param(True, marks=nocuda, id='cudnn FA')
+])
 def test_forward_dynamic(context, torch_rng,
                      params: LlamaTestParams,
                      dtype: str,
                      num_hidden_layers: int,
-                     att_bias: bool):
+                     att_bias: bool,
+                     flash_attention: bool):
+    if flash_attention and dtype not in flash_dtypes:
+        pytest.skip("Flash attention supports only fp16 and bf16")
     torch_model, nntile_model, x, pos_ids, _ = generate_inputs(
-        params, dtype, num_hidden_layers, att_bias, False
+        params, dtype, num_hidden_layers, att_bias, flash_attention
     )
-    y = torch_model(x, position_ids=torch.tensor(pos_ids),
-                    return_dict=True)
+    y = torch_model(x, position_ids=torch.tensor(pos_ids), return_dict=True)
     y_torch = y.last_hidden_state
 
-    x_np = x.cpu().detach().numpy()
-    x_nnt = nntile.tensor.TensorMoments(nntc.from_array(x_np.T), None, False)
-
-    logits_nnt, _ = nntile_model.forward_dynamic(x_nnt)
-    y_nntile = torch.Tensor(nntc.to_numpy(logits_nnt.value).T)
+    logits_nnt, _ = nntile_model.forward_dynamic(nntile_model.activations[0])
+    y_nntile = torch.Tensor(to_numpy(logits_nnt.value).T)
 
     rtol = dtype2tol[dtype]['rtol']
     assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
+
+    nntile_model.unregister()
+
+
+@pytest.mark.parametrize('params', [
+    pytest.param(single_tile, id='single_tile'),
+])
+@pytest.mark.parametrize('dtype', [
+    'fp32',
+    pytest.param('fp32_fast_tf32', marks=nocuda),
+    pytest.param('fp32_fast_fp16', marks=nocuda),
+    pytest.param('fp32_fast_bf16', marks=nocuda),
+    pytest.param('bf16', marks=nocuda),
+    pytest.param('fp16', marks=nocuda),
+])
+@pytest.mark.parametrize('num_hidden_layers', [2])
+@pytest.mark.parametrize('att_bias', [False])
+@pytest.mark.parametrize("flash_attention", [
+    pytest.param(False, id='eager'),
+    pytest.param(True, marks=nocuda, id='cudnn FA')
+])
+def test_forward_dynamic_kvcache_last_token(context, torch_rng,
+                                            params: LlamaTestParams,
+                                            dtype: str,
+                                            num_hidden_layers: int,
+                                            att_bias: bool,
+                                            flash_attention: bool):
+    if flash_attention and dtype not in flash_dtypes:
+        pytest.skip("Flash attention supports only fp16 and bf16")
+    _, nntile_model, *_ = generate_inputs(
+        params, dtype, num_hidden_layers, att_bias, flash_attention
+    )
+
+    full_out, _ = nntile_model.forward_dynamic(nntile_model.activations[0])
+    full_np = to_numpy(full_out.value)
+
+    x_full_np = to_numpy(nntile_model.activations[0].value)
+    x_tile = nntile_model.activations[0].value.basetile_shape
+    tensor_type = type(nntile_model.activations[0].value)
+
+    decode_tokens = min(2, params.seq_len)
+    prefill = params.seq_len - decode_tokens
+    prefill_np = np.array(x_full_np[:prefill, :], dtype=np.int64, order="F")
+    decode_np = np.array(x_full_np[prefill:, :], dtype=np.int64, order="F")
+
+    def make_tm(x_np):
+        bt = [min(x_tile[0], x_np.shape[0]), min(x_tile[1], x_np.shape[1])]
+        traits = TensorTraits(list(x_np.shape), bt)
+        val = tensor_type(traits, [0] * traits.grid.nelems)
+        val.from_array(x_np)
+        return TensorMoments(val, None, False)
+
+    prefill_tm = make_tm(prefill_np)
+
+    cache_storage = KVCacheStorage()
+    _, cache_storage = nntile_model.forward_dynamic(
+        prefill_tm,
+        use_cache=True,
+        kv_caches=cache_storage,
+    )
+
+    first_len = min(1, decode_tokens)
+    second_len = decode_tokens - first_len
+    decode_slices = []
+    if first_len > 0:
+        decode_slices.append(decode_np[:first_len, :])
+    if second_len > 0:
+        decode_slices.append(decode_np[first_len:, :])
+
+    rtol = dtype2tol[dtype]["rtol"]
+    offset = prefill
+    for chunk_np in decode_slices:
+        chunk_tm = make_tm(chunk_np)
+        chunk_out, cache_storage = nntile_model.forward_dynamic(
+            chunk_tm,
+            use_cache=True,
+            kv_caches=cache_storage,
+        )
+        chunk_decoded = to_numpy(chunk_out.value)
+        ref_slice = full_np[:, offset:offset + chunk_np.shape[0], :]
+
+        diff_norm = np.linalg.norm(chunk_decoded - ref_slice)
+        ref_norm = np.linalg.norm(ref_slice)
+        assert diff_norm <= rtol * ref_norm
+        offset += chunk_np.shape[0]
 
     nntile_model.unregister()
 

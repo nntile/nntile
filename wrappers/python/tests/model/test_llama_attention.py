@@ -22,10 +22,10 @@ from transformers.models.llama.modeling_llama import (
     LlamaAttention, LlamaConfig, LlamaRotaryEmbedding)
 
 import nntile
+from nntile.layer.cache_utils import KVCache
 from nntile.model.llama_attention import (
     LlamaAttention as LlamaAttention_nntile)
 from nntile.model.llama_config import LlamaConfigNNTile
-from nntile.layer.cache_utils import KVCache
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
 
@@ -346,8 +346,7 @@ def test_forward_dynamic_kvcache_last_token(context,
 
         diff_norm = np.linalg.norm(chunk_decoded - ref_slice)
         ref_norm = np.linalg.norm(ref_slice)
-        denom = ref_norm if ref_norm > 0 else 1.0
-        assert diff_norm <= rtol * denom
+        assert diff_norm <= rtol * ref_norm
         offset += chunk_np.shape[1]
 
     nntile_layer.unregister()

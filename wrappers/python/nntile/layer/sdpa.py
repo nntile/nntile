@@ -23,7 +23,7 @@ from nntile.functions import (
 from nntile.layer.base_layer import BaseLayer
 from nntile.nntile_core.tensor import Tensor_bf16, Tensor_fp16, Tensor_fp32
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorOrNone, TensorTraits, Tensor_bool,
+    Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
     add_slice_inplace_async, clear_async, copy_intersection_async, fill_async,
     gemm_async, mask_scalar_async, maxsumexp_async, multiply_inplace_async,
     notrans, softmax_inplace_async, sumprod_slice_async, trans)
@@ -250,7 +250,9 @@ class Sdpa(BaseLayer):
         attn_max_shape = [2, q_seq] + batch_shape
         attn_max_bt = [2, attn_bt[1]] + attn_bt[2:]
         attn_max_traits = TensorTraits(attn_max_shape, attn_max_bt)
-        attn_max = type(q.value)(attn_max_traits, [0] * attn_max_traits.grid.nelems)
+        attn_max = type(q.value)(
+            attn_max_traits, [0] * attn_max_traits.grid.nelems
+        )
 
         gemm_async(
             self.scale,
