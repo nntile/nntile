@@ -26,6 +26,7 @@ set(TESTS_MPI
     "add_slice_inplace"
     "adam_step"
     "adamw_step"
+    "lars_step"
     "sgd_step"
     "clear"
     "conv2d_bwd_input_inplace"
@@ -138,6 +139,7 @@ set(TESTS_NOT_IMPLEMENTED
     "subtract_indexed_outputs"
     "tensor"
     "total_sum_accum"
+    "lars_step"
 )
 
 # Add target for local coverage

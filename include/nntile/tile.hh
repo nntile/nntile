@@ -67,6 +67,7 @@
 #include <nntile/tile/hypot_inplace.hh>
 #include <nntile/tile/adam_step.hh>
 #include <nntile/tile/adamw_step.hh>
+#include <nntile/tile/lars_step.hh>
 #include <nntile/tile/silu.hh>
 #include <nntile/tile/silu_backward.hh>
 #include <nntile/tile/rope.hh>
