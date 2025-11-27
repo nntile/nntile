@@ -501,9 +501,13 @@ class Sdpa(BaseLayer):
         if mask_bool is None:
             return None, False
 
+        expected_bt = (
+            min(k_bt, k_seq),
+            min(q_bt, q_seq),
+        )
         if (
-            k_seq == q_seq
-            and tuple(mask_bool.shape) == (k_seq, q_seq)
+            tuple(mask_bool.shape) == (k_seq, q_seq)
+            and tuple(mask_bool.basetile_shape) == expected_bt
         ):
             return mask_bool, False
 
@@ -516,7 +520,10 @@ class Sdpa(BaseLayer):
             ),
         )
         copy_intersection_async(
-            mask_bool, [0, 0], mask_tmp, [0, 0]
+            mask_bool,
+            [0, 0],
+            mask_tmp,
+            [0, k_seq - q_seq],
         )
         return mask_tmp, True
 

@@ -23,8 +23,9 @@ from transformers.models.llama.modeling_llama import (
 import nntile.utils.constructors as nntc
 
 from nntile.tensor import (
-    Tensor_bool, TensorMoments, TensorTraits, add_slice_inplace_async, notrans,
-    rope_async, rope_backward_async, sum_slice_async, to_numpy,
+    Tensor_bool, TensorMoments, TensorTraits, add_slice_inplace_async,
+    copy_intersection_async, notrans, rope_async, rope_backward_async,
+    sum_slice_async, to_numpy,
     transpose_async)
 
 from ..layer.linear import Linear
@@ -325,6 +326,44 @@ class LlamaAttention(BaseModel):
         super().__init__(activations, layers, config)
         self.temporaries.extend([self.sin, self.cos])
 
+    def _rope_slice(
+        self, seq_len: int, batch: int, kv_cache_size: int = 0
+    ):
+        if (
+            kv_cache_size == 0
+            and seq_len == self.sin.shape[1]
+            and batch == self.sin.shape[2]
+        ):
+            return self.sin, self.cos
+
+        sin_bt = [
+            self.sin.basetile_shape[0],
+            min(seq_len, self.sin.basetile_shape[1]),
+            self.sin.basetile_shape[2],
+        ]
+        cos_bt = [
+            self.cos.basetile_shape[0],
+            min(seq_len, self.cos.basetile_shape[1]),
+            self.cos.basetile_shape[2],
+        ]
+        sin_slice = nntc.zeros(
+            (self.head_size // 2, seq_len, batch),
+            basetile_shape=sin_bt,
+            dtype=type(self.sin),
+        )
+        cos_slice = nntc.zeros(
+            (self.head_size // 2, seq_len, batch),
+            basetile_shape=cos_bt,
+            dtype=type(self.cos),
+        )
+        copy_intersection_async(
+            self.sin, [0, kv_cache_size, 0], sin_slice, [0, 0, 0]
+        )
+        copy_intersection_async(
+            self.cos, [0, kv_cache_size, 0], cos_slice, [0, 0, 0]
+        )
+        return sin_slice, cos_slice
+
     # ---- Forward / Backward -------------------------------------------------
 
     def forward_async(self):
@@ -372,27 +411,32 @@ class LlamaAttention(BaseModel):
     ):
         # Allocate temporaries on the fly (no backward support here)
         q_tmp = self.q_proj.forward_dynamic(x)
-        q_shape = [
-            self.head_size,
-            q_tmp.value.shape[3],
-            q_tmp.value.shape[4],
-            self.kv_group_size,
-            self.n_head_kv,
-        ]
-        q_bt = [
-            self.q.value.basetile_shape[0],
-            min(q_shape[1], self.q.value.basetile_shape[1]),
-            self.q.value.basetile_shape[2],
-            self.q.value.basetile_shape[3],
-            self.q.value.basetile_shape[4],
-        ]
-        q_transposed = nntc.empty(
-            q_shape,
-            basetile_shape=q_bt,
-            dtype=type(q_tmp.value),
-        )
-        transpose_async(1.0, q_tmp.value, q_transposed, 2)
-        q_tmp.value.invalidate_submit()
+        if q_tmp.value.shape[0] == self.head_size:
+            q_transposed = q_tmp.value
+            q_shape = list(q_tmp.value.shape)
+            q_bt = list(q_tmp.value.basetile_shape)
+        else:
+            q_shape = [
+                self.head_size,
+                q_tmp.value.shape[3],
+                q_tmp.value.shape[4],
+                self.kv_group_size,
+                self.n_head_kv,
+            ]
+            q_bt = [
+                self.q.value.basetile_shape[0],
+                min(q_shape[1], self.q.value.basetile_shape[1]),
+                self.q.value.basetile_shape[2],
+                self.q.value.basetile_shape[3],
+                self.q.value.basetile_shape[4],
+            ]
+            q_transposed = nntc.empty(
+                q_shape,
+                basetile_shape=q_bt,
+                dtype=type(q_tmp.value),
+            )
+            transpose_async(1.0, q_tmp.value, q_transposed, 2)
+            q_tmp.value.invalidate_submit()
 
         q_rope_tmp = TensorMoments(
             nntc.empty(
@@ -403,29 +447,38 @@ class LlamaAttention(BaseModel):
             None,
             False,
         )
-        rope_async(self.sin, self.cos, q_transposed, q_rope_tmp.value)
+        kv_size = len(kv_cache) if kv_cache is not None else 0
+        sin_local, cos_local = self._rope_slice(
+            q_transposed.shape[1], q_transposed.shape[2], kv_size
+        )
+        rope_async(sin_local, cos_local, q_transposed, q_rope_tmp.value)
         q_transposed.invalidate_submit()
 
         k_tmp = self.k_proj.forward_dynamic(x)
-        k_shape = [
-            self.head_size,
-            k_tmp.value.shape[2],
-            k_tmp.value.shape[3],
-            self.n_head_kv,
-        ]
-        k_bt = [
-            self.k.value.basetile_shape[0],
-            min(k_shape[1], self.k.value.basetile_shape[1]),
-            self.k.value.basetile_shape[2],
-            self.k.value.basetile_shape[3],
-        ]
-        k_transposed = nntc.empty(
-            k_shape,
-            basetile_shape=k_bt,
-            dtype=type(k_tmp.value),
-        )
-        transpose_async(1.0, k_tmp.value, k_transposed, 1)
-        k_tmp.value.invalidate_submit()
+        if k_tmp.value.shape[0] == self.head_size:
+            k_transposed = k_tmp.value
+            k_shape = list(k_tmp.value.shape)
+            k_bt = list(k_tmp.value.basetile_shape)
+        else:
+            k_shape = [
+                self.head_size,
+                k_tmp.value.shape[2],
+                k_tmp.value.shape[3],
+                self.n_head_kv,
+            ]
+            k_bt = [
+                self.k.value.basetile_shape[0],
+                min(k_shape[1], self.k.value.basetile_shape[1]),
+                self.k.value.basetile_shape[2],
+                self.k.value.basetile_shape[3],
+            ]
+            k_transposed = nntc.empty(
+                k_shape,
+                basetile_shape=k_bt,
+                dtype=type(k_tmp.value),
+            )
+            transpose_async(1.0, k_tmp.value, k_transposed, 1)
+            k_tmp.value.invalidate_submit()
 
         k_rope_tmp = TensorMoments(
             nntc.empty(
@@ -436,29 +489,35 @@ class LlamaAttention(BaseModel):
             None,
             False,
         )
-        rope_async(self.sin, self.cos, k_transposed, k_rope_tmp.value)
+        rope_async(sin_local, cos_local, k_transposed, k_rope_tmp.value)
         k_transposed.invalidate_submit()
+        if sin_local is not self.sin:
+            sin_local.invalidate_submit()
+            cos_local.invalidate_submit()
 
         v_tmp = self.v_proj.forward_dynamic(x)
-        v_shape = [
-            self.head_size,
-            v_tmp.value.shape[2],
-            v_tmp.value.shape[3],
-            self.n_head_kv,
-        ]
-        v_bt = [
-            self.v.value.basetile_shape[0],
-            min(v_shape[1], self.v.value.basetile_shape[1]),
-            self.v.value.basetile_shape[2],
-            self.v.value.basetile_shape[3],
-        ]
-        v_transposed = nntc.empty(
-            v_shape,
-            basetile_shape=v_bt,
-            dtype=type(v_tmp.value),
-        )
-        transpose_async(1.0, v_tmp.value, v_transposed, 1)
-        v_tmp.value.invalidate_submit()
+        if v_tmp.value.shape[0] == self.head_size:
+            v_transposed = v_tmp.value
+        else:
+            v_shape = [
+                self.head_size,
+                v_tmp.value.shape[2],
+                v_tmp.value.shape[3],
+                self.n_head_kv,
+            ]
+            v_bt = [
+                self.v.value.basetile_shape[0],
+                min(v_shape[1], self.v.value.basetile_shape[1]),
+                self.v.value.basetile_shape[2],
+                self.v.value.basetile_shape[3],
+            ]
+            v_transposed = nntc.empty(
+                v_shape,
+                basetile_shape=v_bt,
+                dtype=type(v_tmp.value),
+            )
+            transpose_async(1.0, v_tmp.value, v_transposed, 1)
+            v_tmp.value.invalidate_submit()
 
         k_src = k_rope_tmp.value
         v_src = v_transposed
@@ -483,7 +542,7 @@ class LlamaAttention(BaseModel):
         ]
         k_rep_bt = [
             self.k_rep.value.basetile_shape[0],
-            min(seq_len, self.k_rep.value.basetile_shape[1]),
+            k_src.basetile_shape[1],
             self.k_rep.value.basetile_shape[2],
             self.k_rep.value.basetile_shape[3],
             self.k_rep.value.basetile_shape[4],
@@ -503,7 +562,7 @@ class LlamaAttention(BaseModel):
         ]
         v_rep_bt = [
             self.v_rep.value.basetile_shape[0],
-            min(seq_len, self.v_rep.value.basetile_shape[1]),
+            v_src.basetile_shape[1],
             self.v_rep.value.basetile_shape[2],
             self.v_rep.value.basetile_shape[3],
             self.v_rep.value.basetile_shape[4],
@@ -521,16 +580,46 @@ class LlamaAttention(BaseModel):
         k_rope_tmp.value.invalidate_submit()
         v_transposed.invalidate_submit()
 
+        mask_local = self.sdpa.mask
+        if kv_cache is not None and self.sdpa.mask is not None:
+            q_seq = q_rope_tmp.value.shape[1]
+            k_seq = k_rep_shape[1]
+            mask_bt = [
+                min(k_src.basetile_shape[1], k_seq),
+                min(q_rope_tmp.value.basetile_shape[1], q_seq),
+            ]
+            mask_traits = TensorTraits([k_seq, q_seq], mask_bt)
+            mask_tensor = Tensor_bool(mask_traits, [0] * mask_traits.grid.nelems)
+            mask_np = np.zeros((k_seq, q_seq), dtype=bool, order="F")
+            for j in range(q_seq):
+                cutoff = kv_size + j
+                if cutoff + 1 < k_seq:
+                    mask_np[cutoff + 1 :, j] = True
+            mask_tensor.from_array(mask_np)
+            mask_local = mask_tensor
+
         sdpa_out = self.sdpa.forward_dynamic(
             q_rope_tmp,
             k_rep_tmp,
             v_rep_tmp,
-            mask=self.sdpa.mask,
+            mask=mask_local,
         )
 
         attn_transposed_tmp = nntc.empty(
-            self.attn_output_transposed.value.shape,
-            basetile_shape=self.attn_output_transposed.value.basetile_shape,
+            [
+                sdpa_out.value.shape[3],
+                sdpa_out.value.shape[4],
+                sdpa_out.value.shape[0],
+                sdpa_out.value.shape[1],
+                sdpa_out.value.shape[2],
+            ],
+            basetile_shape=[
+                sdpa_out.value.basetile_shape[3],
+                sdpa_out.value.basetile_shape[4],
+                sdpa_out.value.basetile_shape[0],
+                sdpa_out.value.basetile_shape[1],
+                sdpa_out.value.basetile_shape[2],
+            ],
             dtype=type(sdpa_out.value),
         )
         transpose_async(
