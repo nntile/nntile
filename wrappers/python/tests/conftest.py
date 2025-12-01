@@ -11,10 +11,32 @@
 #
 # @version 1.1.0
 
+import os
+import tempfile
+from pathlib import Path
 from typing import Generator
 
 import numpy as np
 import pytest
+
+
+def _ensure_starpu_home() -> None:
+    """StarPU needs a writable $HOME/.starpu directory for calibration."""
+    home = Path.home()
+    try:
+        starpu_dir = home / '.starpu'
+        starpu_dir.mkdir(parents=True, exist_ok=True)
+        test_file = starpu_dir / '.write_test'
+        test_file.write_text('')
+        test_file.unlink()
+    except OSError:
+        fallback = Path(tempfile.mkdtemp(prefix='starpu-home-', dir=Path.cwd()))
+        os.environ['HOME'] = str(fallback)
+        starpu_dir = fallback / '.starpu'
+        starpu_dir.mkdir(parents=True, exist_ok=True)
+
+
+_ensure_starpu_home()
 
 import nntile
 

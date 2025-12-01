@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/norm.hh
- * Euclidean norm of all elements in a Tensor<T>
+ * @file include/nntile/tensor/lars_step.hh
+ * Fuse LARS step operation for Tensor<T>
  *
  * @version 1.1.0
  * */
@@ -21,16 +21,13 @@ namespace nntile::tensor
 {
 
 template<typename T>
-using norm_dst_tensor_t = Tensor<norm_value_t<T>>;
+void lars_step_async(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<T> &grad, const Tensor<T> &p,
+    const Tensor<norm_value_t<T>> &grad_norm, const Tensor<norm_value_t<T>> &p_norm);
 
-// Tensor-wise norm
 template<typename T>
-void norm_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
-        const norm_dst_tensor_t<T> &dst);
-
-// Tensor-wise norm
-template<typename T>
-void norm(Scalar alpha, const Tensor<T> &src, Scalar beta,
-        const norm_dst_tensor_t<T> &dst);
+void lars_step(Scalar lr, Scalar trust_ratio, Scalar weight_decay,
+    const Tensor<T> &grad, const Tensor<T> &p,
+    const Tensor<norm_value_t<T>> &grad_norm, const Tensor<norm_value_t<T>> &p_norm);
 
 } // namespace nntile::tensor
