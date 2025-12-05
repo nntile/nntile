@@ -177,6 +177,10 @@ void rope_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &sin,
         const Tensor<fp32_fast_bf16_t> &dst);
 
 template
+void rope_async<fp16_t>(const Tensor<fp16_t> &sin, const Tensor<fp16_t> &cos,
+        const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
+
+template
 void rope_async<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,
         const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
 
@@ -206,6 +210,10 @@ void rope<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &sin,
         const Tensor<fp32_fast_bf16_t> &cos,
         const Tensor<fp32_fast_bf16_t> &src,
         const Tensor<fp32_fast_bf16_t> &dst);
+
+template
+void rope<fp16_t>(const Tensor<fp16_t> &sin, const Tensor<fp16_t> &cos,
+        const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
 
 template
 void rope<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,

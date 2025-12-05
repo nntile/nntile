@@ -22,9 +22,9 @@ from nntile.layer.cache_utils import KVCache
 from nntile.tensor import TensorMoments
 
 from ..layer.add import Add
-from ..layer.llama_attention import LlamaAttention
 from ..layer.rms_norm import RMSNorm
 from .base_model import BaseModel
+from .llama_attention import LlamaAttention
 from .llama_config import LlamaConfigNNTile
 from .llama_mlp import LlamaMLP as LlamaMLP_nntile
 
@@ -48,13 +48,21 @@ class LlamaDecoder(BaseModel):
         self.mlp = llama_mlp
         layers = [input_norm, attention_layer, post_attn_add, post_attn_norm]
         layers = layers + llama_mlp.layers + [post_mlp_add]
-        activations = [x] + input_norm.activations_output + \
-                      attention_layer.activations_output + \
-                      post_attn_add.activations_output + \
-                      post_attn_norm.activations_output + \
-                      llama_mlp.activations[1:] + \
-                      post_mlp_add.activations_output
+        activations = (
+            [x]
+            + input_norm.activations_output
+            + attention_layer.activations[1:]
+            + post_attn_add.activations_output
+            + post_attn_norm.activations_output
+            + llama_mlp.activations[1:]
+            + post_mlp_add.activations_output
+        )
         self.config = config
+        self.input_norm = input_norm
+        self.attention_layer = attention_layer
+        self.post_attn_add = post_attn_add
+        self.post_attn_norm = post_attn_norm
+        self.post_mlp_add = post_mlp_add
         # Fill Base Model with the generated data
         super().__init__(activations, layers, config)
 
@@ -62,21 +70,22 @@ class LlamaDecoder(BaseModel):
         self,
         x: TensorMoments,
         kv_cache: Optional[KVCache] = None
-    ):
-        (input_norm, attention_layer, post_attn_add, post_attn_norm) = self.layers[:4]  # noqa: E501
-        post_mlp_add = self.layers[-1]
-
-        x_normalized = input_norm.forward_dynamic(x)
-        attn_outs, kv_cache = attention_layer.forward_dynamic(
+    ) -> tuple[TensorMoments, Optional[KVCache]]:
+        x_normalized = self.input_norm.forward_dynamic(x)
+        attn_outs, updated_kv_cache = self.attention_layer.forward_dynamic(
             x_normalized, kv_cache=kv_cache
         )
-        post_attn_outs = post_attn_add.forward_dynamic(attn_outs, x)
-        post_attn_norm_outs = post_attn_norm.forward_dynamic(post_attn_outs)
+        post_attn_outs = self.post_attn_add.forward_dynamic(attn_outs, x)
+        post_attn_norm_outs = self.post_attn_norm.forward_dynamic(
+            post_attn_outs
+        )
 
         mlp_outs = self.mlp.forward_dynamic(post_attn_norm_outs)
-        post_mlp_outs = post_mlp_add.forward_dynamic(mlp_outs, post_attn_outs)
+        post_mlp_outs = self.post_mlp_add.forward_dynamic(
+            mlp_outs, post_attn_outs
+        )
 
-        return post_mlp_outs, kv_cache
+        return post_mlp_outs, updated_kv_cache
 
     @staticmethod
     def from_torch(
@@ -98,7 +107,7 @@ class LlamaDecoder(BaseModel):
             mask,
             config)
         post_attn_add = Add.generate_simple(
-            x, attention_layer.activations_output[0])
+            x, attention_layer.activations[-1])
 
         rms_norm_post_attn_layer = RMSNorm.from_torch(
             torch_llama_decoder.post_attention_layernorm,
@@ -133,14 +142,14 @@ class LlamaDecoder(BaseModel):
             rms_norm_eps=self.config.rms_norm_eps,
             n_attention_head=self.config.n_attention_head)
 
-        llama_decoder_torch = LlamaModel_torch(config_torch).layers[0]
-        llama_decoder_torch.input_layernorm = self.layers[0].to_torch()
-        llama_decoder_torch.self_attn = self.layers[1].to_torch()
-        p_attn_n = self.layers[3]
-        llama_decoder_torch.post_attention_layernorm = p_attn_n.to_torch()
-        llama_decoder_torch.mlp = self.mlp.to_torch()
+        decoder_torch = LlamaModel_torch(config_torch).layers[0]
+        decoder_torch.input_layernorm = self.input_norm.to_torch()
+        decoder_torch.self_attn = self.attention_layer.to_torch()
+        decoder_torch.post_attention_layernorm = \
+            self.post_attn_norm.to_torch()
+        decoder_torch.mlp = self.mlp.to_torch()
 
-        return llama_decoder_torch
+        return decoder_torch
 
     def to_torch_with_grads(self):
         config_torch = LlamaConfig_torch(
@@ -153,9 +162,11 @@ class LlamaDecoder(BaseModel):
             n_attention_head=self.config.n_attention_head)
 
         decoder_torch = LlamaModel_torch(config_torch).layers[0]
-        decoder_torch.input_layernorm = self.layers[0].to_torch_with_grads()
-        decoder_torch.self_attn = self.layers[1].to_torch_with_grads()
-        p_attn_n = self.layers[3]
-        decoder_torch.post_attention_layernorm = p_attn_n.to_torch_with_grads()
+        decoder_torch.input_layernorm = \
+            self.input_norm.to_torch_with_grads()
+        decoder_torch.self_attn = \
+            self.attention_layer.to_torch_with_grads()
+        decoder_torch.post_attention_layernorm = \
+            self.post_attn_norm.to_torch_with_grads()
         decoder_torch.mlp = self.mlp.to_torch_with_grads()
         return decoder_torch
