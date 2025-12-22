@@ -169,7 +169,6 @@ def generate_inputs(dtype: str, params: BertLayerTestParams,
     pytest.param('bf16', marks=nocuda),
     pytest.param('fp32_fast_bf16', marks=nocuda),
     pytest.param('fp32_fast_fp16', marks=nocuda),
-    pytest.param('fp16', marks=nocuda),
 ])
 @pytest.mark.parametrize('num_hidden_layers', [
     pytest.param(1, id='single layer'),

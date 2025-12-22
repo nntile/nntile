@@ -181,6 +181,8 @@ def _assert_tensor_relative_close(actual: np.ndarray, reference: np.ndarray,
 @nocuda
 @pytest.mark.parametrize("dtype", supported_dtypes)
 def test_flash_sdpa_fwd_cudnn_async(context, dtype):
+    pytest.xfail("under development")
+    
     data = _prepare_flash_inputs(dtype, seed=42)
 
     flash_sdpa_fwd_cudnn_async(

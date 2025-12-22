@@ -65,7 +65,7 @@ requires-python = ">=3.10,<4"
 [project.optional-dependencies]
 dev = ["isort", "mypy", "ruff"]
 test = [
-    "datasets", "pytest>=8.2", "sentencepiece", "tokenizers", "torchvision",
+    "datasets", "pytest>=8.2", "pytest-benchmark", "sentencepiece", "tokenizers", "torchvision",
 ]
 ci = [
     "mypy",
