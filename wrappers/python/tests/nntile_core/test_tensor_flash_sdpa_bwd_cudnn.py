@@ -167,7 +167,7 @@ def _torch_flash_sdpa_backward_reference(data):
 @pytest.mark.parametrize("dtype", supported_dtypes)
 def test_flash_sdpa_bwd_cudnn_async(context, dtype):
     pytest.xfail("under development")
-    
+
     data = _prepare_flash_backward_inputs(dtype)
 
     flash_sdpa_fwd_cudnn_async(
