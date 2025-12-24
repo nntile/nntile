@@ -85,10 +85,6 @@ class TensorMoments(object):
         self.grad = grad
         self.grad_required = grad_required
 
-    def __del__(self):
-        # Lazy unregister is the default
-        self.unregister_submit()
-
     def unregister(self):
         # You shall only unregister such TensorMoments, that are already used
         # in all underlying computations. If the tensor is still required by

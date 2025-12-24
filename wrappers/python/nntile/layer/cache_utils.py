@@ -76,7 +76,6 @@ class ParallelSamplingCacheStorage(KVCacheStorage):
             )
             for _ in range(self.num_layers)
         ]
-        self._is_initialized = True
 
     def get_cache(self):
         """
