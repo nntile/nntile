@@ -63,9 +63,8 @@ void cpu<fp64_t>(Index m, Index n, const fp64_t *sin, const fp64_t *cos,
     noexcept;
 
 template
-void cpu<fp32_fast_tf32_t>(Index m, Index n, const fp32_fast_tf32_t *sin,
-        const fp32_fast_tf32_t *cos, const fp32_fast_tf32_t *src,
-        fp32_fast_tf32_t *dst)
+void cpu<fp16_t>(Index m, Index n, const fp16_t *sin, const fp16_t *cos,
+        const fp16_t *src, fp16_t *dst)
     noexcept;
 
 template

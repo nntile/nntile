@@ -131,6 +131,10 @@ void rope<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &sin,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
+void rope<fp16_t>(const Tile<fp16_t> &sin, const Tile<fp16_t> &cos,
+        const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
+
+template
 void rope<bf16_t>(const Tile<bf16_t> &sin, const Tile<bf16_t> &cos,
         const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
