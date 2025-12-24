@@ -985,6 +985,138 @@ class LlamaAttention(BaseModel):
         )
         return torch_layer
 
+    # ---- FLOPS -------------------------------------------------------------
+
+    def get_forward_flops(self):
+        total_forward_flops = 0
+        # Q projection: (kv_group_size, n_head_kv, head_size, n_emb) @
+        # (n_emb, n_seq, n_batch)
+        w_q_shape = self.q_proj.w.value.shape
+        x_q_shape = self.q_proj.x.value.shape
+        total_forward_flops += 2 * np.prod(w_q_shape) * np.prod(x_q_shape[1:])
+        # K projection: (n_head_kv, head_size, n_emb) @ (n_emb, n_seq, n_batch)
+        w_k_shape = self.k_proj.w.value.shape
+        x_k_shape = self.k_proj.x.value.shape
+        total_forward_flops += 2 * np.prod(w_k_shape) * np.prod(x_k_shape[1:])
+        # V projection: (n_head_kv, head_size, n_emb) @ (n_emb, n_seq, n_batch)
+        w_v_shape = self.v_proj.w.value.shape
+        x_v_shape = self.v_proj.x.value.shape
+        total_forward_flops += 2 * np.prod(w_v_shape) * np.prod(x_v_shape[1:])
+        # Attention logits: K_rep @ Q_rope
+        k_rep_shape = self.k_rep.value.shape
+        q_rope_shape = self.q_rope.value.shape
+        total_forward_flops += (
+            2 * np.prod(k_rep_shape[:2]) * np.prod(q_rope_shape[1:])
+        )
+        # Attention weights applied to V
+        k_seq = k_rep_shape[1]
+        q_seq = q_rope_shape[1]
+        batch = q_rope_shape[2]
+        kv_group_size = k_rep_shape[3]
+        n_head_kv = k_rep_shape[4]
+        attn_elems = k_seq * q_seq * batch * kv_group_size * n_head_kv
+        v_rep_shape = self.v_rep.value.shape
+        total_forward_flops += 2 * attn_elems * v_rep_shape[0]
+        # Output projection: (n_emb, kv_group_size, n_head_kv, head_size) @
+        # (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
+        w_shape = self.out_proj.w.value.shape
+        attn_tr_shape = self.attn_output_transposed.value.shape
+        total_forward_flops += (
+            2 * np.prod(w_shape) * np.prod(attn_tr_shape[3:])
+        )
+        return total_forward_flops
+
+    def get_backward_flops(self):
+        total_backward_flops = 0
+
+        y_grad_shape = self.out_proj.y.grad.shape
+        bt_shape = self.attn_output_transposed.value.shape
+        w_shape = self.out_proj.w.value.shape
+
+        if self.out_proj.w.grad_required:
+            total_backward_flops += 2 * np.prod(bt_shape) * np.prod(
+                y_grad_shape[0]
+            )
+        if self.attn_output_transposed.grad_required:
+            total_backward_flops += 2 * np.prod(w_shape) * np.prod(
+                y_grad_shape[1:]
+            )
+
+        v_rep_shape = self.v_rep.value.shape
+        b_grad_shape = self.attn_output.grad.shape
+
+        if self.sdpa.attn is not None:
+            a_shape = self.sdpa.attn.value.shape
+            a_grad_shape = (
+                self.sdpa.attn.grad.shape
+                if self.sdpa.attn.grad is not None
+                else a_shape
+            )
+            attn_grad_required = self.sdpa.attn.grad_required
+        else:
+            a_shape = (
+                self.k_rep.value.shape[1],
+                self.q_rope.value.shape[1],
+                self.q_rope.value.shape[2],
+                self.k_rep.value.shape[3],
+                self.k_rep.value.shape[4],
+            )
+            a_grad_shape = a_shape
+            attn_grad_required = True
+
+        if attn_grad_required:
+            total_backward_flops += (
+                2 * np.prod(v_rep_shape) * b_grad_shape[1]
+            )
+        if self.v_rep.grad_required:
+            total_backward_flops += 2 * np.prod(a_shape) * b_grad_shape[0]
+        if self.k_rep.grad_required:
+            total_backward_flops += (
+                2 * np.prod(a_grad_shape) * self.q_rope.value.shape[0]
+            )
+        if self.q_rope.grad_required:
+            total_backward_flops += (
+                2 * np.prod(a_grad_shape) * self.k_rep.value.shape[0]
+            )
+
+        v_t_grad_shape = self.v_proj.activations_output[0].grad.shape
+        w_v_shape = self.v_proj.w.value.shape
+        x_v_shape = self.v_proj.x.value.shape
+        if self.v_proj.x.grad_required:
+            total_backward_flops += (
+                2 * np.prod(w_v_shape) * np.prod(v_t_grad_shape[2:])
+            )
+        if self.v_proj.w.grad_required:
+            total_backward_flops += (
+                2 * np.prod(x_v_shape) * np.prod(v_t_grad_shape[:-2])
+            )
+
+        kt_grad_shape = self.k_proj.activations_output[0].grad.shape
+        w_k_shape = self.k_proj.w.value.shape
+        x_k_shape = self.k_proj.x.value.shape
+        if self.k_proj.x.grad_required:
+            total_backward_flops += (
+                2 * np.prod(w_k_shape) * np.prod(kt_grad_shape[2:])
+            )
+        if self.k_proj.w.grad_required:
+            total_backward_flops += (
+                2 * np.prod(kt_grad_shape) * x_k_shape[0]
+            )
+
+        qt_grad_shape = self.q_proj.activations_output[0].grad.shape
+        w_q_shape = self.q_proj.w.value.shape
+        x_q_shape = self.q_proj.x.value.shape
+        if self.q_proj.x.grad_required:
+            total_backward_flops += (
+                2 * np.prod(w_q_shape) * np.prod(qt_grad_shape[3:])
+            )
+        if self.q_proj.w.grad_required:
+            total_backward_flops += (
+                2 * np.prod(x_q_shape) * np.prod(qt_grad_shape[:-2])
+            )
+
+        return total_backward_flops
+
     # ---- Helpers -----------------------------------------------------------
 
     def _fill_sin_cos(self, position_ids: np.ndarray):
