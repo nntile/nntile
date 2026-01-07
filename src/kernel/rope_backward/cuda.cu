@@ -67,9 +67,8 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, const fp64_t *sin,
     noexcept;
 
 template
-void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index m, Index n,
-        const fp32_fast_tf32_t *sin, const fp32_fast_tf32_t *cos,
-        const fp32_fast_tf32_t *src, fp32_fast_tf32_t *dst)
+void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, const fp16_t *sin,
+        const fp16_t *cos, const fp16_t *src, fp16_t *dst)
     noexcept;
 
 template

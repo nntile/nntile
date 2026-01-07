@@ -72,6 +72,7 @@ class ParallelSamplingCacheStorage(KVCacheStorage):
                 num_beams=self.num_beams,
                 max_cache_size=max_cache_size,
                 seq_size_dim=seq_size_dim,
+                clone_input=True,
             )
             for _ in range(self.num_layers)
         ]

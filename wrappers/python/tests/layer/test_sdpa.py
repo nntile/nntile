@@ -13,19 +13,29 @@ import torch
 import nntile
 from nntile.layer import Sdpa
 from nntile.tensor import (
-    Tensor_bf16, Tensor_bool, Tensor_fp16, Tensor_fp32, TensorMoments,
-    TensorTraits, clear_async)
+    Tensor_bool, Tensor_fp32, TensorMoments, TensorTraits, clear_async)
 
-dtype2tensor = {"fp32": Tensor_fp32, "fp16": Tensor_fp16, "bf16": Tensor_bf16}
-dtype2tol = {
-    "fp32": {"rtol": 1e-5, "atol": 1e-6},
-    "fp16": {"rtol": 2e-3, "atol": 1e-4},
-    "bf16": {"rtol": 1e-2, "atol": 5e-4},
+# NNTile dtype via corresponding Tensor type
+dtype2nntile = {
+    'fp32': nntile.tensor.Tensor_fp32,
+    'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
+    'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
+    'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
+    'bf16': nntile.tensor.Tensor_bf16,
+    'fp16': nntile.tensor.Tensor_fp16,
 }
 
-nocuda = pytest.mark.skipif(
-    not torch.cuda.is_available(), reason="no cuda"
-)
+dtype2tol = {
+    'fp32': {'rtol': 1e-5},
+    'fp32_fast_tf32': {'rtol': 2e-3},
+    'fp32_fast_fp16': {'rtol': 8e-3},
+    'fp32_fast_bf16': {'rtol': 8e-3},
+    'fp16': {'rtol': 5e-3},
+    'bf16': {'rtol': 4e-2},
+}
+
+nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
+flash_dtypes = {"fp16", "bf16"}
 
 
 @dataclass
@@ -53,6 +63,7 @@ single_tile = SDPATestParams(
     n_head_kv=2,
     n_head_kv_tile=2,
 )
+
 multi_tile = SDPATestParams(
     head_size=8,
     n_seq=8,
@@ -136,7 +147,7 @@ def _tensor_to_numpy(tensor, dtype=np.float32):
 def _assert_tensor_close(actual: np.ndarray, reference: np.ndarray, tol):
     diff = np.linalg.norm(actual - reference)
     ref_norm = np.linalg.norm(reference)
-    limit = tol["rtol"] * (ref_norm if ref_norm != 0 else 1.0) + tol["atol"]
+    limit = tol["rtol"] * (ref_norm if ref_norm != 0 else 1.0)
     assert diff <= limit, f"diff {diff} exceeds limit {limit}"
 
 
@@ -186,7 +197,7 @@ def generate_sdpa_inputs(
     mask_dtype: str,
 ) -> dict[str, np.ndarray | Sdpa]:
     rng = np.random.default_rng(params.seed)
-    tensor_type = dtype2tensor[dtype]
+    tensor_type = dtype2nntile[dtype]
     shape = (
         params.head_size,
         params.n_seq,
@@ -274,14 +285,14 @@ def generate_sdpa_inputs(
     }
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [
-        pytest.param("fp32", id="fp32"),
-        pytest.param("fp16", id="fp16", marks=nocuda),
-        pytest.param("bf16", id="bf16", marks=nocuda),
-    ],
-)
+@pytest.mark.parametrize('dtype', [
+    'fp32',
+    pytest.param('fp32_fast_tf32', marks=nocuda),
+    pytest.param('fp32_fast_fp16', marks=nocuda),
+    pytest.param('fp32_fast_bf16', marks=nocuda),
+    pytest.param('bf16', marks=nocuda),
+    pytest.param('fp16', marks=nocuda),
+])
 @pytest.mark.parametrize(
     "params",
     [
@@ -311,6 +322,33 @@ class TestSDPAVanilla:
         y_ref, _, _, _ = torch_sdpa_reference(
             q_ref, k_ref, v_ref, inputs["mask_np"]
         )
+        tol = dtype2tol[dtype]
+        _assert_tensor_close(y_nntile, y_ref, tol)
+
+    def test_forward_dynamic(
+        self, context, dtype: str, params: SDPATestParams
+    ):
+        inputs = generate_sdpa_inputs(
+            dtype,
+            params,
+            require_backward=False,
+            mask_dtype="bool",
+        )
+        layer = inputs["layer"]
+
+        y_dyn = layer.forward_dynamic(
+            layer.q, layer.k, layer.v, layer.mask
+        )
+        nntile.starpu.wait_for_all()
+
+        q_ref = _flatten_sdpa_tensor(inputs["q_np"])
+        k_ref = _flatten_sdpa_tensor(inputs["k_np"])
+        v_ref = _flatten_sdpa_tensor(inputs["v_np"])
+        y_ref, _, _, _ = torch_sdpa_reference(
+            q_ref, k_ref, v_ref, inputs["mask_np"]
+        )
+
+        y_nntile = _flatten_sdpa_tensor(_tensor_to_numpy(y_dyn.value))
         tol = dtype2tol[dtype]
         _assert_tensor_close(y_nntile, y_ref, tol)
 
@@ -363,12 +401,15 @@ class TestSDPAVanilla:
         _assert_tensor_close(v_grad, v_grad_ref, tol)
 
 
-@pytest.mark.parametrize("dtype", ["fp16", "bf16"])
+@pytest.mark.parametrize('dtype', [
+    pytest.param('bf16', marks=nocuda),
+    pytest.param('fp16', marks=nocuda),
+])
 @pytest.mark.parametrize(
     "params",
     [
-        pytest.param(flash_single_tile, id="flash_single_tile"),
-        pytest.param(flash_multi_tile, id="flash_multi_tile"),
+        pytest.param(flash_single_tile, id="single_tile"),
+        pytest.param(flash_multi_tile, id="multi_tile"),
     ],
 )
 @nocuda
@@ -403,6 +444,35 @@ class TestSDPAFlash:
         )
 
         y_nntile = _flatten_sdpa_tensor(_tensor_to_numpy(layer.y.value))
+        tol = dtype2tol[dtype]
+        _assert_tensor_close(y_nntile, y_ref, tol)
+
+    def test_forward_dynamic(
+        self,
+        context,
+        dtype: str,
+        params: SDPAFlashTestParams,
+    ):
+        inputs = generate_sdpa_inputs(
+            dtype,
+            params,
+            require_backward=False,
+            mask_dtype="float32",
+        )
+        layer = inputs["layer"]
+        y_dyn = layer.forward_dynamic(
+            layer.q, layer.k, layer.v, layer.mask
+        )
+        nntile.starpu.wait_for_all()
+
+        q_ref = _flatten_sdpa_tensor(inputs["q_np"])
+        k_ref = _flatten_sdpa_tensor(inputs["k_np"])
+        v_ref = _flatten_sdpa_tensor(inputs["v_np"])
+        y_ref, _, _, _ = torch_sdpa_reference(
+            q_ref, k_ref, v_ref, inputs["mask_np"]
+        )
+
+        y_nntile = _flatten_sdpa_tensor(_tensor_to_numpy(y_dyn.value))
         tol = dtype2tol[dtype]
         _assert_tensor_close(y_nntile, y_ref, tol)
 

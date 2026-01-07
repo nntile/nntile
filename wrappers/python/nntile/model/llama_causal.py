@@ -42,9 +42,17 @@ class LlamaForCausalLM(BaseModel, LLMGenerationMixin):
         self.config = config
         self.eos_token_id = self.config.eos_token_id
 
-        if self.dtype not in ["fp32", "fp32_fast_tf32", "bf16"]:
-            raise TypeError("Only fp32, fp32_fast_tf32 and bf16 are"
-                            "supported for weight type")
+        if self.dtype not in [
+            "fp32",
+            "fp32_fast_tf32",
+            "fp32_fast_fp16",
+            "fp32_fast_bf16",
+            "bf16",
+            "fp16",
+        ]:
+            raise TypeError("Only fp32, fp32_fast_tf32, fp32_fast_fp16, "
+                            "fp32_fast_bf16, bf16 and fp16 are supported "
+                            "for weight type")
         activations = []
         activations.extend(llama_model_.activations)
         layers = []
@@ -80,7 +88,10 @@ class LlamaForCausalLM(BaseModel, LLMGenerationMixin):
             self, x: TensorMoments,
             use_cache: bool = False,
             kv_caches: Optional[KVCacheStorage] = None
-        ):
+        ) -> tuple[TensorMoments, Optional[KVCacheStorage]]:
+        if kv_caches is None and use_cache:
+            kv_caches = KVCacheStorage()
+
         llama_logits, kv_caches = self.llama_model_.forward_dynamic(
             x, use_cache=use_cache, kv_caches=kv_caches
         )
@@ -127,9 +138,17 @@ class LlamaForCausalLM(BaseModel, LLMGenerationMixin):
                    mask: np.ndarray,
                    config: LlamaConfigNNTile):
 
-        if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16"]:
-            raise TypeError("Only fp32, fp32_fast_tf32 and bf16 are"
-                            "supported for weight type")
+        if config.dtype not in [
+            "fp32",
+            "fp32_fast_tf32",
+            "fp32_fast_fp16",
+            "fp32_fast_bf16",
+            "bf16",
+            "fp16",
+        ]:
+            raise TypeError("Only fp32, fp32_fast_tf32, fp32_fast_fp16, "
+                            "fp32_fast_bf16, bf16 and fp16 are supported "
+                            "for weight type")
 
         llama_model = Llama_nntile.from_torch(
                    torch_llama_causal.model,
