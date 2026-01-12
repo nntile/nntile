@@ -17,7 +17,7 @@ import torch
 
 import nntile
 from nntile.loss import CrossEntropy as cross_entropy
-from nntile.tensor import TensorMoments
+from nntile.tensor import TensorMoments, clear_async
 
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
@@ -100,6 +100,7 @@ def test_cross_entropy(context, dtype: np.dtype, reduction: str,
                                 final_layer_output_tm,
                                 scale=1. / np.sum(true_class_lables != -100))
     xentropy_loss.y.from_array(true_class_lables)
+    clear_async(xentropy_loss.val)
     xentropy_loss.calc_async()
 
     nntile_xentropy_nnntile = xentropy_loss.get_val()

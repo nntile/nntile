@@ -194,11 +194,14 @@ class Linear(BaseLayer):
                 "Implemented only for from_torch version:"
                 "self.side == 'R' and self.trans_x == notrans"
             )
+        # Preserve basetile geometry for trailing dimensions to keep gemm
+        # expectations identical to the static path.
+        x_basetile_tail = list(x.value.basetile_shape[self.ndim :])
         y = nntc.empty(
             self.out_features_shape + x.value.shape[self.ndim :],
             dtype=type(x.value),
             basetile_shape=self.out_features_basetile_shape
-            + x.value.shape[self.ndim :],
+            + x_basetile_tail,
         )
         # Y = einsum('ij,jk->ik', W, op(X))
         # 'i' is a multi-index of dimension W.ndim-ndim

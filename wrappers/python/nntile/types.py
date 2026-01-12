@@ -85,15 +85,23 @@ class TensorMoments(object):
         self.grad = grad
         self.grad_required = grad_required
 
-    def __del__(self):
-        self.unregister()
-
     def unregister(self):
+        # You shall only unregister such TensorMoments, that are already used
+        # in all underlying computations. If the tensor is still required by
+        # some task, then there will be a segfault or similar problem.
         if self.value is not None:
             self.value.unregister()
             self.value = None
         if self.grad is not None:
             self.grad.unregister()
+            self.grad = None
+
+    def unregister_submit(self):
+        if self.value is not None:
+            self.value.unregister_submit()
+            self.value = None
+        if self.grad is not None:
+            self.grad.unregister_submit()
             self.grad = None
 
     def get_nbytes(self):

@@ -466,6 +466,11 @@ void copy_intersection_async<int64_t>(const Tensor<int64_t> &src,
         const std::vector<Index> &dst_offset);
 
 template
+void copy_intersection_async<fp16_t>(const Tensor<fp16_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp16_t> &dst,
+        const std::vector<Index> &dst_offset);
+
+template
 void copy_intersection_async<bf16_t>(const Tensor<bf16_t> &src,
         const std::vector<Index> &src_offset, const Tensor<bf16_t> &dst,
         const std::vector<Index> &dst_offset);
@@ -504,6 +509,11 @@ void copy_intersection<fp64_t>(const Tensor<fp64_t> &src,
 template
 void copy_intersection<int64_t>(const Tensor<int64_t> &src,
         const std::vector<Index> &src_offset, const Tensor<int64_t> &dst,
+        const std::vector<Index> &dst_offset);
+
+template
+void copy_intersection<fp16_t>(const Tensor<fp16_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp16_t> &dst,
         const std::vector<Index> &dst_offset);
 
 template
