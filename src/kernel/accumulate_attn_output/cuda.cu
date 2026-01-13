@@ -73,7 +73,7 @@ void cuda_kernel(Index head, Index nelems, const fp32_t *src_lse,
 
     const Index attn_offset = idx * head;
     constexpr size_t vector_size = sizeof(float4) / sizeof(T);
-    
+
     // If head is a multiple of vector_size, use vectorized approach
     if (head % vector_size == 0)
     {
