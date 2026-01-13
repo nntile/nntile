@@ -73,27 +73,42 @@ void cuda_kernel(Index head, Index nelems, const fp32_t *src_lse,
 
     const Index attn_offset = idx * head;
     constexpr size_t vector_size = sizeof(float4) / sizeof(T);
-    // Prefetch dst and src vectors
-    float4 *dst_vector_ptr = reinterpret_cast<float4 *>(dst_attn + attn_offset);
-    float4 dst_vector = dst_vector_ptr[0];
-    float4 src_vector = reinterpret_cast<const float4 *>(src_attn + attn_offset)[0];
-    for(Index h = 0; h < head; h += vector_size)
+    
+    // If head is a multiple of vector_size, use vectorized approach
+    if (head % vector_size == 0)
     {
-        #pragma unroll vector_size
-        for(Index i = 0; i < vector_size; ++i)
+        // Prefetch dst and src vectors
+        float4 *dst_vector_ptr = reinterpret_cast<float4 *>(dst_attn + attn_offset);
+        float4 dst_vector = dst_vector_ptr[0];
+        float4 src_vector = reinterpret_cast<const float4 *>(src_attn + attn_offset)[0];
+        for(Index h = 0; h < head; h += vector_size)
         {
-            const Y dst_val = static_cast<Y>(reinterpret_cast<T *>(&dst_vector)[i]);
-            const Y src_val = static_cast<Y>(reinterpret_cast<T *>(&src_vector)[i]);
-            const Y updated = dst_weight * dst_val + src_weight * src_val;
-            reinterpret_cast<T *>(&dst_vector)[i] = static_cast<T>(updated);
+            #pragma unroll vector_size
+            for(Index i = 0; i < vector_size; ++i)
+            {
+                const Y dst_val = static_cast<Y>(reinterpret_cast<T *>(&dst_vector)[i]);
+                const Y src_val = static_cast<Y>(reinterpret_cast<T *>(&src_vector)[i]);
+                const Y updated = dst_weight * dst_val + src_weight * src_val;
+                reinterpret_cast<T *>(&dst_vector)[i] = static_cast<T>(updated);
+            }
+            dst_vector_ptr[0] = dst_vector;
+            // Prefetch next dst and src vectors
+            if(h + vector_size < head)
+            {
+                dst_vector_ptr = reinterpret_cast<float4 *>(dst_attn + attn_offset + h + vector_size);
+                dst_vector = dst_vector_ptr[0];
+                src_vector = reinterpret_cast<const float4 *>(src_attn + attn_offset + h + vector_size)[0];
+            }
         }
-        dst_vector_ptr[0] = dst_vector;
-        // Prefetch next dst and src vectors
-        if(h + vector_size < head)
+    }
+    else
+    {
+        for(Index h = 0; h < head; ++h)
         {
-            dst_vector_ptr = reinterpret_cast<float4 *>(dst_attn + attn_offset + h + vector_size);
-            dst_vector = dst_vector_ptr[0];
-            src_vector = reinterpret_cast<const float4 *>(src_attn + attn_offset + h + vector_size)[0];
+            const Y dst_val = static_cast<Y>(dst_attn[attn_offset + h]);
+            const Y src_val = static_cast<Y>(src_attn[attn_offset + h]);
+            const Y updated = dst_weight * dst_val + src_weight * src_val;
+            dst_attn[attn_offset + h] = static_cast<T>(updated);
         }
     }
 }

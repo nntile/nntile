@@ -423,7 +423,7 @@ TEMPLATE_TEST_CASE("Accumulate attention output kernel verification",
 {
     using T = TestType;
     // Include head sizes above warp size to exercise CUDA warp-stride loop.
-    const Index head = GENERATE(16, 32, 64);
+    const Index head = GENERATE(1, 3, 4, 8, 15, 16, 32, 64);
     const Index seq = GENERATE(1, 3, 9);
     const Index batch = GENERATE(1, 5, 7);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
