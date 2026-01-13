@@ -31,6 +31,7 @@ void cuda_kernel(Index head, Index nelems, const fp32_t *src_lse,
         const T *src_attn, fp32_t *dst_lse, T *dst_attn)
 //! Accumulate attention outputs on CUDA
 /*! @copydoc nntile::kernel::accumulate_attn_output::cuda
+ * @note This kernel assumes that head is a multiple of 16.
  * */
 {
     using Y = typename T::repr_t;
@@ -50,23 +51,50 @@ void cuda_kernel(Index head, Index nelems, const fp32_t *src_lse,
     }
 
     const lse_repr_t old_lse = static_cast<lse_repr_t>(dst_lse[idx]);
-    const lse_repr_t max_lse = old_lse > incoming_lse ? old_lse : incoming_lse;
-    const lse_repr_t sum = ::expf(old_lse - max_lse)
-            + ::expf(incoming_lse - max_lse);
-    const lse_repr_t new_lse = max_lse + ::logf(sum);
-
-    const Y dst_weight = Y(::expf(old_lse - new_lse));
-    const Y src_weight = Y(::expf(incoming_lse - new_lse));
-
-    dst_lse[idx] = fp32_t(new_lse);
+    lse_repr_t max_lse, sum;
+    Y dst_weight, src_weight;
+    if(old_lse > incoming_lse)
+    {
+        max_lse = old_lse;
+        const lse_repr_t exp_diff = ::expf(incoming_lse - max_lse);
+        sum = lse_repr_t(1.0) + exp_diff;
+        dst_weight = Y(lse_repr_t(1.0) / sum);
+        src_weight = Y(exp_diff) * dst_weight;
+    }
+    else
+    {
+        max_lse = incoming_lse;
+        const lse_repr_t exp_diff = ::expf(old_lse - max_lse);
+        sum = lse_repr_t(1.0) + exp_diff;
+        src_weight = Y(lse_repr_t(1.0) / sum);
+        dst_weight = Y(exp_diff) * src_weight;
+    }
+    dst_lse[idx] = fp32_t(max_lse + ::logf(sum));
 
     const Index attn_offset = idx * head;
-    for(Index h = 0; h < head; ++h)
+    constexpr size_t vector_size = sizeof(float4) / sizeof(T);
+    // Prefetch dst and src vectors
+    float4 *dst_vector_ptr = reinterpret_cast<float4 *>(dst_attn + attn_offset);
+    float4 dst_vector = dst_vector_ptr[0];
+    float4 src_vector = reinterpret_cast<const float4 *>(src_attn + attn_offset)[0];
+    for(Index h = 0; h < head; h += vector_size)
     {
-        const Y dst_val = static_cast<Y>(dst_attn[attn_offset + h]);
-        const Y src_val = static_cast<Y>(src_attn[attn_offset + h]);
-        const Y updated = dst_weight * dst_val + src_weight * src_val;
-        dst_attn[attn_offset + h] = static_cast<T>(updated);
+        #pragma unroll vector_size
+        for(Index i = 0; i < vector_size; ++i)
+        {
+            const Y dst_val = static_cast<Y>(reinterpret_cast<T *>(&dst_vector)[i]);
+            const Y src_val = static_cast<Y>(reinterpret_cast<T *>(&src_vector)[i]);
+            const Y updated = dst_weight * dst_val + src_weight * src_val;
+            reinterpret_cast<T *>(&dst_vector)[i] = static_cast<T>(updated);
+        }
+        dst_vector_ptr[0] = dst_vector;
+        // Prefetch next dst and src vectors
+        if(h + vector_size < head)
+        {
+            dst_vector_ptr = reinterpret_cast<float4 *>(dst_attn + attn_offset + h + vector_size);
+            dst_vector = dst_vector_ptr[0];
+            src_vector = reinterpret_cast<const float4 *>(src_attn + attn_offset + h + vector_size)[0];
+        }
     }
 }
 
@@ -84,7 +112,7 @@ void cuda(cudaStream_t stream, Index head, Index seq, Index batch,
     }
 
     const Index nelems = seq * batch;
-    constexpr int threads = 256;
+    constexpr int threads = 32;
     const dim3 block_dim(threads);
     const dim3 grid_dim(static_cast<unsigned int>(
             (nelems + threads - 1) / threads));
