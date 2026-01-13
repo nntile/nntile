@@ -15,6 +15,8 @@
 #include "nntile/kernel/accumulate_attn_output/cuda.hh"
 #include "nntile/kernel/cuda.hh"
 
+#include <cuda_runtime.h>
+
 namespace nntile::kernel::accumulate_attn_output
 {
 
