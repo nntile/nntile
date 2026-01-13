@@ -422,7 +422,7 @@ TEMPLATE_TEST_CASE("Accumulate attention output kernel verification",
         fp32_t, fp16_t, bf16_t)
 {
     using T = TestType;
-    const Index head = GENERATE(1, 5);
+    const Index head = GENERATE(1, 3, 4, 8, 15, 16, 32, 64);
     const Index seq = GENERATE(1, 3, 9);
     const Index batch = GENERATE(1, 5, 7);
     const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
