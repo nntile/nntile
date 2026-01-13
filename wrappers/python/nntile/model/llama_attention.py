@@ -272,6 +272,7 @@ class LlamaAttention(BaseModel):
             flash_attention=config.flash_attention,
             redux=redux,
         )
+        print(f"SDPA FA: {config.flash_attention}")
         self.attn_output = self.sdpa.y
 
         self.attn_output_transposed = TensorMoments(
