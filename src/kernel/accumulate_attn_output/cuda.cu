@@ -31,7 +31,6 @@ void cuda_kernel(Index head, Index nelems, const fp32_t *src_lse,
         const T *src_attn, fp32_t *dst_lse, T *dst_attn)
 //! Accumulate attention outputs on CUDA
 /*! @copydoc nntile::kernel::accumulate_attn_output::cuda
- * @note This kernel assumes that head is a multiple of 16.
  * */
 {
     using Y = typename T::repr_t;
