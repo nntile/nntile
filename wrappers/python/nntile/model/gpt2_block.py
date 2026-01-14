@@ -11,9 +11,11 @@
 #
 # @version 1.1.0
 
+from typing import Optional
 from transformers import GPT2Config as GPT2ConfigTorch
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block as GPT2Block_torch
 
+from nntile.layer.cache_utils import KVCache
 from nntile.tensor import TensorMoments
 
 from ..layer.add import Add
@@ -56,7 +58,7 @@ class GPT2Block(BaseModel):
         self.ln_2 = self.layers[3]
         self.mlp = gpt2_mlp
 
-    def forward_dynamic(self, x: TensorMoments):
+    def forward_dynamic(self, x: TensorMoments, kv_cache: Optional[KVCache] = None):
         ln_1, attention_layer, post_attn_add, ln_2 = self.layers[:4]
         post_mlp_add = self.layers[-1]
 

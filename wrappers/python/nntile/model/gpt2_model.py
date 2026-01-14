@@ -11,12 +11,13 @@
 #
 # @version 1.1.0
 
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from transformers import GPT2Config as GPT2ConfigTorch
 from transformers.models.gpt2.modeling_gpt2 import GPT2Model as GPT2Model_torch
 
+from nntile.layer.cache_utils import KVCacheStorage
 from nntile.tensor import (
     Tensor_bf16, Tensor_fp16, Tensor_fp32, Tensor_fp32_fast_bf16,
     Tensor_fp32_fast_fp16, Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments,
@@ -76,6 +77,45 @@ class GPT2Model(BaseModel):
         activations.extend(lnorm_layer.activations_output)
 
         super().__init__(activations, layers, config)
+
+    def forward_dynamic(
+            self,
+            x: TensorMoments,
+            use_cache: bool = False,
+            kv_caches: Optional[KVCacheStorage] = None
+        ) -> tuple[TensorMoments, Optional[KVCacheStorage]]:
+        if kv_caches is None and use_cache:
+            kv_caches = KVCacheStorage()
+
+        cache_list = None
+        if kv_caches is not None:
+            if not kv_caches.is_initialized():
+                kv_caches.init(len(self.gpt2_blocks), self.seq_len, 1)
+            cache_list = kv_caches.get_cache()
+
+        # Generate positional ids for the input sequence
+        pos_ids_shape = [x.value.shape[0]]
+        pos_ids_traits = TensorTraits(pos_ids_shape, [x.value.basetile_shape[0]])
+        pos_ids_distr = [0] * pos_ids_traits.grid.nelems
+        pos_ids_value = Tensor_int64(pos_ids_traits, pos_ids_distr)
+        pos_ids_value.from_array(
+            np.array(np.arange(x.value.shape[0]), order="F", dtype=np.int64)
+        )
+        pos_ids = TensorMoments(pos_ids_value, None, False)
+
+        # Apply embeddings
+        wte_out = self.wte_layer.forward_dynamic(x)
+        wpe_out = self.wpe_layer.forward_dynamic(pos_ids)
+        add_out = self.add_slice_layer.forward_dynamic(wte_out, wpe_out)
+
+        # Pass through GPT2 blocks
+        block_out = add_out
+        for lid, block_layer in enumerate(self.gpt2_blocks):
+            block_out = block_layer.forward_dynamic(block_out)
+
+        # Apply final layer norm
+        normalized_out = self.final_lnorm.forward_dynamic(block_out)
+        return normalized_out, kv_caches
 
     @staticmethod
     def from_torch(torch_gpt2: GPT2Model_torch,

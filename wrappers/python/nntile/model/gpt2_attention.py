@@ -12,6 +12,7 @@
 # @version 1.1.0
 
 from __future__ import annotations
+from typing import Optional
 
 import numpy as np
 import torch
@@ -23,6 +24,7 @@ from nntile.functions import (
 from nntile.tensor import (
     Tensor_bool, TensorMoments, TensorTraits, notrans, to_numpy)
 
+from ..layer.cache_utils import KVCache
 from ..layer.linear import Linear
 from ..layer.sdpa import Sdpa
 from .base_model import BaseModel
@@ -246,7 +248,7 @@ class GPT2Attention(BaseModel):
                         self.context_transposed.value, 3)
         self.out_proj.forward_async()
 
-    def forward_dynamic(self, x: TensorMoments):
+    def forward_dynamic(self, x: TensorMoments, kv_cache: Optional[KVCache] = None):
         tensor_type = type(x.value)
         _, seq_len, batch_size = x.value.shape
         _, seq_len_tile, batch_tile = x.value.basetile_shape

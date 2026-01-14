@@ -11,12 +11,16 @@
 #
 # @version 1.1.0
 
+from typing import Optional
+
 from transformers import GPT2Config as GPT2ConfigTorch
 from transformers.models.gpt2.modeling_gpt2 import (
     GPT2LMHeadModel as GPT2Model_torch)
 
 import nntile
+from nntile.layer.cache_utils import KVCacheStorage
 from nntile.model.generation.llm import LLMGenerationMixin
+from nntile.tensor import TensorMoments
 
 from ..layer import Linear
 from .base_model import BaseModel
@@ -74,6 +78,21 @@ class GPT2LMHead(BaseModel, LLMGenerationMixin):
         self.set_input(x)
         self.forward_async()
         return self.get_output()
+
+    def forward_dynamic(
+            self, x: TensorMoments,
+            use_cache: bool = False,
+            kv_caches: Optional[KVCacheStorage] = None
+        ):
+        print("GPT2LMHead.forward_dynamic called")
+        if kv_caches is None and use_cache:
+            kv_caches = KVCacheStorage()
+
+        gpt2_logits, kv_caches = self.gpt2_model_.forward_dynamic(
+            x, use_cache=use_cache, kv_caches=kv_caches
+        )
+        out_logits = self.lin_.forward_dynamic(gpt2_logits)
+        return out_logits, kv_caches
 
     @staticmethod
     def from_torch(torch_gpt2_lmhead,
