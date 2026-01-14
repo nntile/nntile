@@ -509,10 +509,19 @@ class GPT2Attention(BaseModel):
 
     def get_forward_flops(self):
         n_emb = self.head_size * self.n_head
-        n_seq = self.x.value.shape[1]
-        n_batch = self.x.value.shape[2]
+        n_seq = self.activations[0].value.shape[1]
+        n_batch = self.activations[0].value.shape[2]
         proj_flops = 3 * 2 * n_emb * n_emb * n_seq * n_batch
         attn_scores = 2 * self.head_size * n_seq * n_seq * self.n_head * n_batch
         attn_ctx = 2 * self.head_size * n_seq * n_seq * self.n_head * n_batch
         out_proj = 2 * n_emb * n_emb * n_seq * n_batch
         return proj_flops + attn_scores + attn_ctx + out_proj
+
+    def get_backward_flops(self):
+        total_backward_flops = 0
+        # Add backward flops from all linear layers
+        for layer in [self.q_proj, self.k_proj, self.v_proj, self.out_proj]:
+            total_backward_flops += layer.get_backward_flops()
+        # SDPA layer returns 0 for backward flops
+        total_backward_flops += self.sdpa.get_backward_flops()
+        return total_backward_flops
