@@ -18,7 +18,6 @@ import torch
 from transformers.models.gpt2.modeling_gpt2 import (
     GPT2Attention as GPT2Attention_torch, GPT2Config as GPT2ConfigTorch)
 
-import nntile.utils.constructors as nntc
 from nntile.functions import (
     add_fiber_inplace_async, sum_fiber_async, transpose_async)
 from nntile.tensor import (
@@ -249,7 +248,7 @@ class GPT2Attention(BaseModel):
 
     def forward_dynamic(self, x: TensorMoments):
         tensor_type = type(x.value)
-        hidden_size, seq_len, batch_size = x.value.shape
+        _, seq_len, batch_size = x.value.shape
         _, seq_len_tile, batch_tile = x.value.basetile_shape
 
         # Q/K/V projections
@@ -259,7 +258,9 @@ class GPT2Attention(BaseModel):
 
         # Allocate temporary tensors for SDPA layout
         qkv_shape = [self.head_size, seq_len, batch_size, 1, self.n_head]
-        qkv_basetile = [self.head_size_tile, seq_len_tile, batch_tile, 1, self.n_head_tile]
+        qkv_basetile = [
+            self.head_size_tile, seq_len_tile, batch_tile, 1, self.n_head_tile
+        ]
         qkv_traits = TensorTraits(qkv_shape, qkv_basetile)
         qkv_distr = [0] * qkv_traits.grid.nelems
 
@@ -306,7 +307,9 @@ class GPT2Attention(BaseModel):
 
         # Transpose context for output projection
         ctx_tr_shape = [1, self.n_head, self.head_size, seq_len, batch_size]
-        ctx_tr_basetile = [1, self.n_head_tile, self.head_size_tile, seq_len_tile, batch_tile]
+        ctx_tr_basetile = [
+            1, self.n_head_tile, self.head_size_tile, seq_len_tile, batch_tile
+        ]
         ctx_tr_traits = TensorTraits(ctx_tr_shape, ctx_tr_basetile)
         ctx_tr_distr = [0] * ctx_tr_traits.grid.nelems
         context_transposed = TensorMoments(
@@ -512,7 +515,8 @@ class GPT2Attention(BaseModel):
         n_seq = self.activations[0].value.shape[1]
         n_batch = self.activations[0].value.shape[2]
         proj_flops = 3 * 2 * n_emb * n_emb * n_seq * n_batch
-        attn_scores = 2 * self.head_size * n_seq * n_seq * self.n_head * n_batch
+        attn_scores = 2 * self.head_size * n_seq * n_seq * self.n_head \
+            * n_batch
         attn_ctx = 2 * self.head_size * n_seq * n_seq * self.n_head * n_batch
         out_proj = 2 * n_emb * n_emb * n_seq * n_batch
         return proj_flops + attn_scores + attn_ctx + out_proj

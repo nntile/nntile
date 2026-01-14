@@ -275,7 +275,9 @@ class TestGPT2Attention:
         hidden_size = params.head_size * params.n_head
         hidden_size_tile = params.head_size * params.n_head_tile
         if hidden_size_tile != hidden_size:
-            pytest.skip("forward_dynamic currently supports untiled heads only")
+            pytest.skip(
+                "forward_dynamic currently supports untiled heads only"
+            )
         y, y_nntile = _forward_dynamic_helper(params, dtype, flash_attention)
         rtol = dtype2tol[dtype]["rtol"]
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)

@@ -253,7 +253,11 @@ class TestGPT2Decoder:
         tensor_type = dtype2nntile[dtype]
         x_traits = TensorTraits(
             list(x_np.T.shape),
-            [params.hidden_size_tile, params.seq_len_tile, params.n_batch_tile],
+            [
+                params.hidden_size_tile,
+                params.seq_len_tile,
+                params.n_batch_tile,
+            ],
         )
         x_distr = [0] * x_traits.grid.nelems
         x_nnt_value = tensor_type(x_traits, x_distr)

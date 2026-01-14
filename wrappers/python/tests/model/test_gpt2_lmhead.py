@@ -24,6 +24,7 @@ from transformers.models.gpt2.modeling_gpt2 import (
     GPT2LMHeadModel as GPT2Model_torch)
 
 import nntile
+import nntile.utils.constructors as nntc
 from nntile.model.gpt2_config import GPT2ConfigNNTile
 from nntile.model.gpt2_lmhead import GPT2LMHead
 from nntile.tensor import to_numpy
@@ -258,7 +259,9 @@ class TestGPT2Model:
         y_torch = y.logits
 
         x_np = x.cpu().detach().numpy()
-        x_nnt = nntile.tensor.TensorMoments(nntc.from_array(x_np.T), None, False)
+        x_nnt = nntile.tensor.TensorMoments(
+            nntc.from_array(x_np.T), None, False
+        )
         logits_nnt, _ = nntile_model.forward_dynamic(x_nnt)
         y_nntile = torch.Tensor(nntc.to_numpy(logits_nnt.value).T)
         nntile_model.unregister()
