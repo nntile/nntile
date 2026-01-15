@@ -11,15 +11,18 @@
 #
 # @version 1.1.0
 
+from typing import Optional
+
 from transformers import GPT2Config as GPT2ConfigTorch
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block as GPT2Block_torch
 
+from nntile.layer.cache_utils import KVCache
 from nntile.tensor import TensorMoments
 
 from ..layer.add import Add
-from ..layer.gpt2_attention import GPT2Attention
 from ..layer.layer_norm import LayerNorm
 from .base_model import BaseModel
+from .gpt2_attention import GPT2Attention
 from .gpt2_config import GPT2ConfigNNTile
 from .gpt2_mlp import GPT2MLP
 
@@ -43,7 +46,7 @@ class GPT2Block(BaseModel):
         layers = [input_norm, attention_layer, post_attn_add, post_attn_norm]
         layers = layers + gpt2_mlp.layers + [post_mlp_add]
         activations = [x] + input_norm.activations_output + \
-                      attention_layer.activations_output + \
+                      attention_layer.activations[1:] + \
                       post_attn_add.activations_output + \
                       post_attn_norm.activations_output + \
                       gpt2_mlp.activations[1:] + \
@@ -55,6 +58,24 @@ class GPT2Block(BaseModel):
         self.attn = self.layers[1]
         self.ln_2 = self.layers[3]
         self.mlp = gpt2_mlp
+
+    def forward_dynamic(
+        self,
+        x: TensorMoments,
+        kv_cache: Optional[KVCache] = None
+    ) -> tuple[TensorMoments, Optional[KVCache]]:
+        ln_1, attention_layer, post_attn_add, ln_2 = self.layers[:4]
+        post_mlp_add = self.layers[-1]
+
+        x_norm = ln_1.forward_dynamic(x)
+        attn_out, updated_kv_cache = attention_layer.forward_dynamic(
+            x_norm, kv_cache=kv_cache
+        )
+        post_attn = post_attn_add.forward_dynamic(attn_out, x)
+        ln_2_out = ln_2.forward_dynamic(post_attn)
+        mlp_out = self.mlp.forward_dynamic(ln_2_out)
+        post_mlp = post_mlp_add.forward_dynamic(mlp_out, post_attn)
+        return post_mlp, updated_kv_cache
 
     @staticmethod
     def from_torch(
@@ -69,8 +90,6 @@ class GPT2Block(BaseModel):
         )
         attention_layer = GPT2Attention.from_torch(
             torch_gpt2_block.attn,
-            layer_norm_input_layer.activations_output[0],
-            layer_norm_input_layer.activations_output[0],
             layer_norm_input_layer.activations_output[0],
             config)
         post_attn_add = Add.generate_simple(
