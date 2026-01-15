@@ -22,7 +22,8 @@ from transformers.models.gpt2.modeling_gpt2 import (
 
 import nntile.utils.constructors as nntc
 from nntile.functions import (
-    add_fiber_inplace_async, copy_intersection_async, sum_fiber_async, transpose_async)
+    add_fiber_inplace_async, copy_intersection_async, sum_fiber_async,
+    transpose_async)
 from nntile.tensor import (
     Tensor_bool, TensorMoments, TensorTraits, notrans, to_numpy)
 
@@ -272,7 +273,11 @@ class GPT2Attention(BaseModel):
                         self.context_transposed.value, 3)
         self.out_proj.forward_async()
 
-    def forward_dynamic(self, x: TensorMoments, kv_cache: Optional[KVCache] = None):
+    def forward_dynamic(
+        self,
+        x: TensorMoments,
+        kv_cache: Optional[KVCache] = None,
+    ) -> tuple[TensorMoments, Optional[KVCache]]:
         tensor_type = type(x.value)
         _, seq_len, batch_size = x.value.shape
         _, seq_len_tile, batch_tile = x.value.basetile_shape
@@ -309,7 +314,8 @@ class GPT2Attention(BaseModel):
         k_for_attn = k.value
         v_for_attn = v
 
-        # Handle KV cache - always append current K/V first, then use cache for attention
+        # Handle KV cache - always append current K/V first,
+        # then use cache for attention
         if kv_cache is not None:
             kv_cache.append(k.value, v.value)
 
@@ -323,7 +329,8 @@ class GPT2Attention(BaseModel):
             k_for_attn = k.value
             v_for_attn = v
 
-        # For GPT-2, use flash attention when possible, but handle masks correctly
+        # For GPT-2, use flash attention when possible
+        # but handle masks correctly
         original_flash = self.sdpa.flash_attention
         q_seq = q.value.shape[1]
         q_tile = q.value.basetile_shape[1]
@@ -343,7 +350,8 @@ class GPT2Attention(BaseModel):
         mask_arg = self.sdpa.mask
         if mask_arg is not None:
             if flash_active:
-                # For flash attention, create dynamic mask if sequence length doesn't match
+                # For flash attention, create dynamic mask
+                # if sequence length doesn't match
                 k_seq = k_for_attn.shape[1]
                 q_seq = q.value.shape[1]
                 mask_bt = (
@@ -392,7 +400,9 @@ class GPT2Attention(BaseModel):
 
         self.sdpa.flash_attention = flash_active
         try:
-            sdpa_out = self.sdpa.forward_dynamic(q, k_tensor, v_tensor, mask=mask_arg)
+            sdpa_out = self.sdpa.forward_dynamic(
+                q, k_tensor, v_tensor, mask=mask_arg
+            )
         finally:
             self.sdpa.flash_attention = original_flash
 
