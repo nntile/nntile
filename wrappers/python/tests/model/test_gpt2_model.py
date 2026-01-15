@@ -288,7 +288,6 @@ def test_forward_dynamic_kvcache_last_token(context, torch_rng,
                                             dtype: str,
                                             num_hidden_layers: int,
                                             flash_attention: bool):
-    pytest.skip("GPT2 incremental KV cache decoding implementation is incomplete - tensor management issues need resolution")
     if flash_attention and dtype not in flash_dtypes:
         pytest.skip("Flash attention supports only fp16 and bf16")
     _, nntile_model, *_ = generate_inputs(
@@ -308,7 +307,9 @@ def test_forward_dynamic_kvcache_last_token(context, torch_rng,
     decode_np = np.array(x_full_np[prefill:, :], dtype=np.int64, order="F")
 
     def make_tm(x_np):
-        bt = [min(x_tile[0], x_np.shape[0]), min(x_tile[1], x_np.shape[1])]
+        # Use compatible basetile shapes
+        bt = [x_tile[0] if x_np.shape[0] >= x_tile[0] else x_np.shape[0],
+              x_tile[1] if x_np.shape[1] >= x_tile[1] else x_np.shape[1]]
         traits = TensorTraits(list(x_np.shape), bt)
         val = tensor_type(traits, [0] * traits.grid.nelems)
         val.from_array(x_np)
