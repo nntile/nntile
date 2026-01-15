@@ -59,12 +59,18 @@ class GPT2Block(BaseModel):
         self.ln_2 = self.layers[3]
         self.mlp = gpt2_mlp
 
-    def forward_dynamic(self, x: TensorMoments, kv_cache: Optional[KVCache] = None):
+    def forward_dynamic(
+        self,
+        x: TensorMoments,
+        kv_cache: Optional[KVCache] = None
+    ) -> tuple[TensorMoments, Optional[KVCache]]:
         ln_1, attention_layer, post_attn_add, ln_2 = self.layers[:4]
         post_mlp_add = self.layers[-1]
 
         x_norm = ln_1.forward_dynamic(x)
-        attn_out, updated_kv_cache = attention_layer.forward_dynamic(x_norm, kv_cache=kv_cache)
+        attn_out, updated_kv_cache = attention_layer.forward_dynamic(
+            x_norm, kv_cache=kv_cache
+        )
         post_attn = post_attn_add.forward_dynamic(attn_out, x)
         ln_2_out = ln_2.forward_dynamic(post_attn)
         mlp_out = self.mlp.forward_dynamic(ln_2_out)
