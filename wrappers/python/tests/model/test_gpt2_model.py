@@ -23,7 +23,6 @@ from transformers.models.gpt2.modeling_gpt2 import GPT2Model as GPT2Model_torch
 
 import nntile
 from nntile.layer.cache_utils import KVCacheStorage
-import nntile.utils.constructors as nntc
 from nntile.model.gpt2_config import GPT2ConfigNNTile
 from nntile.model.gpt2_model import GPT2Model
 from nntile.tensor import TensorTraits, to_numpy
@@ -258,7 +257,9 @@ class TestGPT2Model:
         y = torch_model(x)
         y_torch = y.last_hidden_state
 
-        logits_nnt, _ = nntile_model.forward_dynamic(nntile_model.activations[0])
+        logits_nnt, _ = nntile_model.forward_dynamic(
+            nntile_model.activations[0]
+        )
         y_nntile = torch.Tensor(to_numpy(logits_nnt.value).T)
         nntile_model.unregister()
 
@@ -287,7 +288,7 @@ def test_forward_dynamic_kvcache_last_token(context, torch_rng,
                                             dtype: str,
                                             num_hidden_layers: int,
                                             flash_attention: bool):
-    pytest.skip("GPT2 does not support KV cache functionality yet")
+    pytest.skip("GPT2 incremental KV cache decoding implementation is incomplete - tensor management issues need resolution")
     if flash_attention and dtype not in flash_dtypes:
         pytest.skip("Flash attention supports only fp16 and bf16")
     _, nntile_model, *_ = generate_inputs(

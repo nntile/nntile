@@ -12,6 +12,7 @@
 # @version 1.1.0
 
 from typing import Optional
+
 from transformers import GPT2Config as GPT2ConfigTorch
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block as GPT2Block_torch
 
@@ -63,12 +64,12 @@ class GPT2Block(BaseModel):
         post_mlp_add = self.layers[-1]
 
         x_norm = ln_1.forward_dynamic(x)
-        attn_out = attention_layer.forward_dynamic(x_norm)
+        attn_out, updated_kv_cache = attention_layer.forward_dynamic(x_norm, kv_cache=kv_cache)
         post_attn = post_attn_add.forward_dynamic(attn_out, x)
         ln_2_out = ln_2.forward_dynamic(post_attn)
         mlp_out = self.mlp.forward_dynamic(ln_2_out)
         post_mlp = post_mlp_add.forward_dynamic(mlp_out, post_attn)
-        return post_mlp
+        return post_mlp, updated_kv_cache
 
     @staticmethod
     def from_torch(

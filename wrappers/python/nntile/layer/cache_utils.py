@@ -152,16 +152,24 @@ class KVCache:
         if not self.k:
             self.k = self._init_from_tensor(k_partial)
 
+        # Handle different tensor dimensions
+        k_offset = [0] * k_partial.ndim
+        k_offset[self.seq_size_dim] = self.k_cache_size
+        dest_k_offset = [0] * self.k.ndim
         copy_intersection_async(
-            k_partial, [0, self.k_cache_size, 0, 0], self.k, [0, 0, 0, 0]
+            k_partial, k_offset, self.k, dest_k_offset
         )
         self.k_cache_size += k_partial.shape[self.seq_size_dim]
 
         if not self.v:
             self.v = self._init_from_tensor(v_partial)
 
+        # Handle different tensor dimensions
+        v_offset = [0] * v_partial.ndim
+        v_offset[self.seq_size_dim] = self.v_cache_size
+        dest_v_offset = [0] * self.v.ndim
         copy_intersection_async(
-            v_partial, [0, self.v_cache_size, 0, 0], self.v, [0, 0, 0, 0]
+            v_partial, v_offset, self.v, dest_v_offset
         )
         self.v_cache_size += v_partial.shape[self.seq_size_dim]
 
@@ -180,7 +188,9 @@ class KVCache:
             dtype=type(self.k),
             basetile_shape=cached_basetile_shape,
         )
-        copy_intersection_async(self.k, [0, 0, 0, 0], k_partial, [0, 0, 0, 0])
+        src_offset = [0] * self.k.ndim
+        dest_offset = [0] * k_partial.ndim
+        copy_intersection_async(self.k, src_offset, k_partial, dest_offset)
         return k_partial
 
     @property
@@ -198,7 +208,9 @@ class KVCache:
             dtype=type(self.v),
             basetile_shape=cached_basetile_shape,
         )
-        copy_intersection_async(self.v, [0, 0, 0, 0], v_partial, [0, 0, 0, 0])
+        src_offset = [0] * self.v.ndim
+        dest_offset = [0] * v_partial.ndim
+        copy_intersection_async(self.v, src_offset, v_partial, dest_offset)
         return v_partial
 
     def clear(self):

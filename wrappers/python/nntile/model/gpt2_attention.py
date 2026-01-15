@@ -12,6 +12,7 @@
 # @version 1.1.0
 
 from __future__ import annotations
+
 from typing import Optional
 
 import numpy as np
@@ -19,8 +20,9 @@ import torch
 from transformers.models.gpt2.modeling_gpt2 import (
     GPT2Attention as GPT2Attention_torch, GPT2Config as GPT2ConfigTorch)
 
+import nntile.utils.constructors as nntc
 from nntile.functions import (
-    add_fiber_inplace_async, sum_fiber_async, transpose_async)
+    add_fiber_inplace_async, copy_intersection_async, sum_fiber_async, transpose_async)
 from nntile.tensor import (
     Tensor_bool, TensorMoments, TensorTraits, notrans, to_numpy)
 
@@ -59,6 +61,28 @@ class GPT2Attention(BaseModel):
         self.head_size_tile = head_size_tile
         if x.grad is not None:
             x.grad.set_reduction_add()
+
+        # Create mask for SDPA
+        mask_shape = [seq_len, seq_len]
+        mask_basetile = [seq_len_tile, seq_len_tile]
+        mask_traits = TensorTraits(mask_shape, mask_basetile)
+        mask_distr = [0] * mask_traits.grid.nelems
+        if self.flash_attention:
+            mask_type = type(x.value)
+            mask_values = np.tril(
+                np.float32("-inf") * np.ones((seq_len, seq_len),
+                                             dtype=np.float32, order="F"),
+                -1,
+            )
+            mask_tensor = mask_type(mask_traits, mask_distr)
+            mask_tensor.from_array(mask_values)
+        else:
+            mask_type = Tensor_bool
+            mask_values = np.triu(np.ones((seq_len, seq_len)), k=0)
+            mask_tensor = mask_type(mask_traits, mask_distr)
+            mask_tensor.from_array(
+                np.array(mask_values, dtype=bool, order="F")
+            )
 
         # Projections for Q/K/V: shape [1, n_head, head_size, seq, batch]
         out_shape_qkv = [1, n_head, head_size]
@@ -280,32 +304,100 @@ class GPT2Attention(BaseModel):
         transpose_async(1.0, v_proj_out.value, v.value, 2)
         add_fiber_inplace_async(1.0, self.v_bias.value, 1.0, v.value, 0, 1)
 
-        # Create mask dynamically
-        mask = None
-        if self.sdpa.mask is not None:
-            mask_traits = TensorTraits([seq_len, seq_len],
-                                       [seq_len_tile, seq_len_tile])
-            mask_distr = [0] * mask_traits.grid.nelems
-            if self.flash_attention:
-                mask_type = tensor_type
-                mask_values = np.tril(
-                    np.float32("-inf") * np.ones((seq_len, seq_len),
-                                                 dtype=np.float32, order="F"),
-                    -1,
-                )
-                mask_tensor = mask_type(mask_traits, mask_distr)
-                mask_tensor.from_array(mask_values)
-            else:
-                mask_type = Tensor_bool
-                mask_values = np.triu(np.ones((seq_len, seq_len)), k=0)
-                mask_tensor = mask_type(mask_traits, mask_distr)
-                mask_tensor.from_array(
-                    np.array(mask_values, dtype=bool, order="F")
-                )
-            mask = mask_tensor
+        # Handle KV cache for incremental decoding
+        kv_size_before = len(kv_cache) if kv_cache is not None else 0
+        k_for_attn = k.value
+        v_for_attn = v
 
-        # SDPA
-        sdpa_out = self.sdpa.forward_dynamic(q, k, v, mask=mask)
+        # Handle KV cache - always append current K/V first, then use cache for attention
+        if kv_cache is not None:
+            kv_cache.append(k.value, v.value)
+
+        kv_size_after = len(kv_cache) if kv_cache is not None else 0
+
+        # If we have cached data, use it for attention
+        if kv_cache is not None and kv_size_after > seq_len:
+            k_for_attn = kv_cache.k_partial
+            v_for_attn = kv_cache.v_partial
+        else:
+            k_for_attn = k.value
+            v_for_attn = v
+
+        # For GPT-2, use flash attention when possible, but handle masks correctly
+        original_flash = self.sdpa.flash_attention
+        q_seq = q.value.shape[1]
+        q_tile = q.value.basetile_shape[1]
+        q_seq_tiles = (
+            q.value.grid.shape[1]
+            if hasattr(q.value, "grid")
+            else None
+        )
+        flash_active = (
+            self.flash_attention
+            and kv_size_before == 0
+            and (q_seq % q_tile == 0 or q_seq_tiles == 1)
+        )
+        mask_tmp_allocated = False
+
+        # Create mask for SDPA
+        mask_arg = self.sdpa.mask
+        if mask_arg is not None:
+            if flash_active:
+                # For flash attention, create dynamic mask if sequence length doesn't match
+                k_seq = k_for_attn.shape[1]
+                q_seq = q.value.shape[1]
+                mask_bt = (
+                    min(mask_arg.basetile_shape[0], k_seq),
+                    min(mask_arg.basetile_shape[1], q_seq),
+                )
+                if (
+                    tuple(mask_arg.shape) != (k_seq, q_seq)
+                    or tuple(mask_arg.basetile_shape) != mask_bt
+                ):
+                    mask_tmp_allocated = True
+                    mask_tmp = nntc.zeros(
+                        (k_seq, q_seq),
+                        basetile_shape=mask_bt,
+                        dtype=type(mask_arg),
+                    )
+                    copy_intersection_async(
+                        mask_arg,
+                        [0, 0],
+                        mask_tmp,
+                        [0, max(k_seq - q_seq, 0)],
+                    )
+                    mask_arg = mask_tmp
+            else:
+                # For vanilla attention, prepare mask for KV cache
+                if kv_size_before > 0:
+                    mask_arg, mask_tmp_allocated = (
+                        self.sdpa._prepare_mask_for_kv_cache(
+                            mask_arg,
+                            k_for_attn.shape[1],
+                            q.value.shape[1],
+                            k_for_attn.basetile_shape[1],
+                            q.value.basetile_shape[1],
+                        )
+                    )
+
+        # SDPA - use cached K/V if available
+        if kv_cache is not None and kv_size_after > seq_len:
+            # Using cached data - wrap as TensorMoments
+            k_tensor = TensorMoments(k_for_attn, None, False)
+            v_tensor = TensorMoments(v_for_attn, None, False)
+        else:
+            # Using current data
+            k_tensor = k
+            v_tensor = v
+
+        self.sdpa.flash_attention = flash_active
+        try:
+            sdpa_out = self.sdpa.forward_dynamic(q, k_tensor, v_tensor, mask=mask_arg)
+        finally:
+            self.sdpa.flash_attention = original_flash
+
+        if mask_tmp_allocated:
+            mask_arg.invalidate_submit()
 
         # Transpose context for output projection
         ctx_tr_shape = [1, self.n_head, self.head_size, seq_len, batch_size]
@@ -328,10 +420,15 @@ class GPT2Attention(BaseModel):
         v.value.invalidate_submit()
         sdpa_out.value.invalidate_submit()
         context_transposed.value.invalidate_submit()
-        if mask is not None:
-            mask.invalidate_submit()
+        if mask_tmp_allocated:
+            mask_arg.invalidate_submit()
 
-        return out
+        # Invalidate cached tensors if they were used
+        if kv_cache is not None and kv_size_before > 0:
+            kv_cache.k_partial.invalidate_submit()
+            kv_cache.v_partial.invalidate_submit()
+
+        return out, kv_cache
 
     def backward_async(self):
         # Output projection backward
