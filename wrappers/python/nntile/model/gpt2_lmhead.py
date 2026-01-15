@@ -84,7 +84,6 @@ class GPT2LMHead(BaseModel, LLMGenerationMixin):
             use_cache: bool = False,
             kv_caches: Optional[KVCacheStorage] = None
         ):
-        print("GPT2LMHead.forward_dynamic called")
         if kv_caches is None and use_cache:
             kv_caches = KVCacheStorage()
 

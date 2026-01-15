@@ -406,9 +406,6 @@ class GPT2Attention(BaseModel):
         finally:
             self.sdpa.flash_attention = original_flash
 
-        if mask_tmp_allocated:
-            mask_arg.invalidate_submit()
-
         # Transpose context for output projection
         ctx_tr_shape = [1, self.n_head, self.head_size, seq_len, batch_size]
         ctx_tr_basetile = [
