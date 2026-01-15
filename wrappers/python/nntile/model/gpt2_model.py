@@ -109,7 +109,11 @@ class GPT2Model(BaseModel):
         pos_ids_distr = [0] * pos_ids_traits.grid.nelems
         pos_ids_value = Tensor_int64(pos_ids_traits, pos_ids_distr)
         pos_ids_value.from_array(
-            np.array(np.arange(position_offset, position_offset + x.value.shape[0]), order="F", dtype=np.int64)
+            np.array(
+                np.arange(position_offset, position_offset + x.value.shape[0]),
+                order="F",
+                dtype=np.int64
+            )
         )
         pos_ids = TensorMoments(pos_ids_value, None, False)
 
