@@ -1525,13 +1525,12 @@ physical_1024 = PhysicalGraph(logical_dynamic, shape_bindings={"seq_len": 1024})
 
 #### 4.1.4 Core Data Structures
 
-##### TensorSpec - Logical Tensor Specification
+##### Mixed Precision: Tensors as Heterogeneous Tile Collections
+
+**Design Principle**: A tensor is a collection of tiles, and each tile can have a different data type.
 
 ```cpp
 namespace nntile::graph {
-
-//! Dimension can be concrete or symbolic
-using Dimension = std::variant<Index, std::string>;
 
 //! Data types supported
 enum class DataType {
@@ -1539,6 +1538,88 @@ enum class DataType {
     FP32_FAST_TF32, FP32_FAST_FP16, FP32_FAST_BF16,
     INT32, INT64, BOOL
 };
+
+//! Tile-level dtype specification
+struct TileDTypeSpec {
+    //! Default dtype for all tiles
+    DataType default_dtype;
+    
+    //! Override dtype for specific tiles (tile_index -> dtype)
+    //! If empty, all tiles use default_dtype
+    std::map<Index, DataType> tile_overrides;
+    
+    //! Get dtype for a specific tile
+    DataType dtype_for_tile(Index tile_idx) const {
+        auto it = tile_overrides.find(tile_idx);
+        return (it != tile_overrides.end()) ? it->second : default_dtype;
+    }
+    
+    //! Check if all tiles have same dtype
+    bool is_homogeneous() const { return tile_overrides.empty(); }
+    
+    // Factory methods
+    static TileDTypeSpec uniform(DataType dt) {
+        return {dt, {}};
+    }
+    
+    static TileDTypeSpec mixed_precision(
+        DataType compute_dtype,      // For most tiles
+        DataType accumulate_dtype,   // For tiles that accumulate (e.g., reduction outputs)
+        const std::set<Index>& accumulate_tiles
+    ) {
+        TileDTypeSpec spec{compute_dtype, {}};
+        for (Index idx : accumulate_tiles) {
+            spec.tile_overrides[idx] = accumulate_dtype;
+        }
+        return spec;
+    }
+};
+```
+
+**Use Cases for Heterogeneous Tile Dtypes**:
+
+```python
+# Example 1: FP16 forward, FP32 master weights
+# Parameters stored in FP32 but computation tiles in FP16
+w_spec = TensorSpec(
+    shape=[4096, 4096],
+    dtype=TileDTypeSpec.uniform(FP32),  # Master weights in FP32
+)
+w = graph.tensor(w_spec, "weight", requires_grad=True, persistent=True)
+
+# Cast to FP16 for forward computation
+w_fp16 = graph.cast(w, FP16, name="weight_fp16")
+h = graph.matmul(x_fp16, w_fp16)  # Compute in FP16
+
+# Gradients accumulated in FP32
+dw = graph.tensor(TensorSpec([4096, 4096], FP32), "dw", persistent=True)
+
+
+# Example 2: Different precision for different tile regions
+# Edge tiles in FP32 for numerical stability, inner tiles in FP16
+spec = TileDTypeSpec(
+    default_dtype=FP16,
+    tile_overrides={
+        0: FP32,   # First tile (edge)
+        15: FP32,  # Last tile (edge)
+    }
+)
+
+
+# Example 3: Reduction tiles in higher precision
+# In a sum reduction, the output tile accumulates many values -> use FP32
+reduction_output_spec = TileDTypeSpec.mixed_precision(
+    compute_dtype=FP16,
+    accumulate_dtype=FP32,
+    accumulate_tiles={0}  # The single output tile of reduction
+)
+```
+
+##### TensorSpec - Logical Tensor Specification
+
+```cpp
+//! Dimension can be concrete or symbolic
+using Dimension = std::variant<Index, std::string>;
 
 //! Tensor role in computation
 enum class TensorRole {
@@ -1549,22 +1630,31 @@ enum class TensorRole {
     Constant     // Fixed value
 };
 
-//! Logical tensor specification (no tiling/distribution info)
+//! Logical tensor specification (no tiling/distribution info yet)
 struct TensorSpec {
     std::vector<Dimension> shape;  // Can mix concrete and symbolic dims
-    DataType dtype;
+    TileDTypeSpec dtype;           // Can be heterogeneous across tiles
     TensorRole role;
     std::string name;
     bool requires_grad = false;
     
     // Constructors
-    TensorSpec(std::vector<Index> shape, DataType dtype, std::string name = "");
-    TensorSpec(std::vector<Dimension> shape, DataType dtype, std::string name = "");
+    TensorSpec(std::vector<Index> shape, DataType dtype, std::string name = "")
+        : shape(shape.begin(), shape.end()), 
+          dtype(TileDTypeSpec::uniform(dtype)), 
+          name(name) {}
+    
+    TensorSpec(std::vector<Index> shape, TileDTypeSpec dtype, std::string name = "")
+        : shape(shape.begin(), shape.end()), dtype(dtype), name(name) {}
+    
+    TensorSpec(std::vector<Dimension> shape, DataType dtype, std::string name = "")
+        : shape(shape), dtype(TileDTypeSpec::uniform(dtype)), name(name) {}
     
     // Queries
     Index ndim() const { return shape.size(); }
     bool has_symbolic_dims() const;
     std::vector<std::string> symbolic_dim_names() const;
+    bool is_homogeneous_dtype() const { return dtype.is_homogeneous(); }
     
     // Create concrete spec by binding symbolic dims
     TensorSpec bind(const std::map<std::string, Index>& bindings) const;
@@ -3318,20 +3408,269 @@ transformer.mark_output(hidden, "output")
 print(f"Parameters: {transformer.num_parameters()}")  # 12 * 4 weight matrices
 ```
 
-### 10.4 Missing Components Analysis
+### 10.4 Optimizer and Loss Function Integration
+
+#### The Challenge: Large Graphs with Multiple Mini-Batches
+
+A training iteration typically involves:
+1. Multiple mini-batches (gradient accumulation)
+2. Gradient aggregation after all mini-batches
+3. Single optimizer step
+4. Loss computed per mini-batch, aggregated for logging
+
+**Approach**: Use **graph templates** and **iteration structure** rather than one monolithic graph.
+
+#### 10.4.1 Loss Functions as Graph Operations
+
+Loss functions are regular operations in the graph. They output a scalar (or per-sample) loss tensor.
+
+```cpp
+class LogicalGraph {
+public:
+    // Loss operations - output scalar or per-sample loss
+    
+    //! Cross-entropy loss: -sum(target * log(softmax(logits)))
+    TensorNode& cross_entropy_loss(
+        TensorNode& logits,      // [batch, num_classes]
+        TensorNode& targets,     // [batch] (class indices) or [batch, num_classes] (one-hot)
+        const std::string& name = ""
+    );
+    
+    //! MSE loss: mean((pred - target)^2)
+    TensorNode& mse_loss(
+        TensorNode& predictions,
+        TensorNode& targets,
+        const std::string& name = ""
+    );
+    
+    //! Generic reduction for aggregating losses
+    TensorNode& reduce_mean(TensorNode& x, const std::string& name = "");
+    TensorNode& reduce_sum(TensorNode& x, const std::string& name = "");
+};
+```
+
+**Example: Loss in Forward Graph**
+
+```python
+# Forward graph includes loss computation
+graph = LogicalGraph("forward_with_loss")
+
+x = graph.tensor(TensorSpec([batch, seq, embed]), "x", external=True)
+targets = graph.tensor(TensorSpec([batch, seq]), "targets", external=True)
+
+# Model forward
+logits = model_forward(graph, x)  # Returns [batch, seq, vocab]
+
+# Loss computation (part of the same graph)
+loss_per_sample = graph.cross_entropy_loss(logits, targets, name="ce_loss")
+loss = graph.reduce_mean(loss_per_sample, name="batch_loss")
+
+graph.mark_output(loss, "loss")
+graph.mark_output(logits, "logits")
+```
+
+#### 10.4.2 Optimizer as Separate Graph
+
+**Design**: Optimizer is a separate logical graph that operates on parameters and their gradients.
+
+```cpp
+class LogicalGraph {
+public:
+    // Optimizer operations
+    
+    //! SGD update: param = param - lr * grad
+    TensorNode& sgd_update(
+        TensorNode& param,
+        TensorNode& grad,
+        TensorNode& learning_rate,  // Scalar tensor
+        const std::string& name = ""
+    );
+    
+    //! SGD with momentum: 
+    //! velocity = momentum * velocity + grad
+    //! param = param - lr * velocity
+    TensorNode& sgd_momentum_update(
+        TensorNode& param,
+        TensorNode& grad,
+        TensorNode& velocity,       // Optimizer state
+        TensorNode& learning_rate,
+        TensorNode& momentum,       // Scalar (e.g., 0.9)
+        const std::string& name = ""
+    );
+    
+    //! Adam update
+    TensorNode& adam_update(
+        TensorNode& param,
+        TensorNode& grad,
+        TensorNode& m,              // First moment
+        TensorNode& v,              // Second moment
+        TensorNode& learning_rate,
+        TensorNode& beta1,          // e.g., 0.9
+        TensorNode& beta2,          // e.g., 0.999
+        TensorNode& epsilon,        // e.g., 1e-8
+        TensorNode& step,           // Current step (for bias correction)
+        const std::string& name = ""
+    );
+};
+```
+
+**Example: Optimizer Graph**
+
+```python
+def create_optimizer_graph(param_specs, optimizer_type="adam"):
+    """Create optimizer graph for given parameters."""
+    opt_graph = LogicalGraph("optimizer")
+    
+    # Hyperparameters as external inputs (can change between steps)
+    lr = opt_graph.tensor(TensorSpec([1], FP32), "learning_rate", external=True)
+    
+    if optimizer_type == "adam":
+        beta1 = opt_graph.tensor(TensorSpec([1], FP32), "beta1", external=True)
+        beta2 = opt_graph.tensor(TensorSpec([1], FP32), "beta2", external=True)
+        epsilon = opt_graph.tensor(TensorSpec([1], FP32), "epsilon", external=True)
+        step = opt_graph.tensor(TensorSpec([1], INT64), "step", external=True)
+    
+    for name, spec in param_specs.items():
+        # Parameter (external - comes from model)
+        param = opt_graph.tensor(spec, f"{name}", external=True, persistent=True)
+        
+        # Gradient (external - computed in backward graph)
+        grad = opt_graph.tensor(spec, f"{name}_grad", external=True)
+        
+        if optimizer_type == "sgd":
+            opt_graph.sgd_update(param, grad, lr, name=f"{name}_update")
+            
+        elif optimizer_type == "adam":
+            # Optimizer states (persistent across steps)
+            m = opt_graph.tensor(spec, f"{name}_m", persistent=True)
+            v = opt_graph.tensor(spec, f"{name}_v", persistent=True)
+            
+            opt_graph.adam_update(
+                param, grad, m, v, lr, beta1, beta2, epsilon, step,
+                name=f"{name}_update"
+            )
+    
+    return opt_graph
+```
+
+#### 10.4.3 Training Loop Structure: Three Separate Graphs
+
+```python
+# ═══════════════════════════════════════════════════════════════
+# Graph 1: Forward + Loss (executed per mini-batch)
+# ═══════════════════════════════════════════════════════════════
+forward_graph = LogicalGraph("forward")
+x = forward_graph.tensor(TensorSpec([batch, seq, embed]), "x", external=True)
+targets = forward_graph.tensor(TensorSpec([batch, seq]), "targets", external=True)
+
+logits = build_transformer(forward_graph, x)  # Your model
+loss = forward_graph.cross_entropy_loss(logits, targets)
+loss = forward_graph.reduce_mean(loss)
+
+forward_graph.mark_output(logits, "logits")
+forward_graph.mark_output(loss, "loss")
+
+# ═══════════════════════════════════════════════════════════════
+# Graph 2: Backward (executed per mini-batch, accumulates gradients)
+# ═══════════════════════════════════════════════════════════════
+backward_graph = LogicalGraph("backward")
+
+# Forward tensors needed for backward (external, come from forward graph)
+logits = backward_graph.tensor(logits_spec, "logits", external=True)
+# ... other activations needed for backward ...
+
+# Loss gradient (external, usually 1.0 / num_accumulation_steps)
+dloss = backward_graph.tensor(TensorSpec([1], FP32), "dloss", external=True)
+
+# Gradient tensors (persistent, accumulate across mini-batches)
+for name, spec in param_specs.items():
+    grad = backward_graph.tensor(spec, f"{name}_grad", persistent=True)
+    # Explicit backward ops that ADD to gradient (accumulation)
+    # ...
+
+# ═══════════════════════════════════════════════════════════════
+# Graph 3: Optimizer (executed once per N mini-batches)
+# ═══════════════════════════════════════════════════════════════
+optimizer_graph = create_optimizer_graph(param_specs, "adam")
+
+# ═══════════════════════════════════════════════════════════════
+# Training Loop
+# ═══════════════════════════════════════════════════════════════
+# Compile all graphs
+fwd_compiled = CompiledGraph.compile(forward_graph, dist_strategy)
+bwd_compiled = CompiledGraph.compile(backward_graph, dist_strategy)
+opt_compiled = CompiledGraph.compile(optimizer_graph, dist_strategy)
+
+num_accumulation_steps = 4
+
+for epoch in range(num_epochs):
+    for batch_idx, (data, labels) in enumerate(dataloader):
+        
+        # Forward
+        fwd_compiled.bind_input("x", data)
+        fwd_compiled.bind_input("targets", labels)
+        fwd_compiled.forward()
+        
+        # Get activations needed for backward
+        logits = fwd_compiled.get_output("logits")
+        
+        # Backward (accumulates gradients)
+        bwd_compiled.bind_input("logits", logits)
+        bwd_compiled.bind_input("dloss", 1.0 / num_accumulation_steps)
+        bwd_compiled.forward()  # "forward" runs the backward ops
+        
+        # Optimizer step every N mini-batches
+        if (batch_idx + 1) % num_accumulation_steps == 0:
+            opt_compiled.bind_input("learning_rate", lr)
+            opt_compiled.bind_input("step", global_step)
+            opt_compiled.forward()
+            
+            # Clear gradients for next accumulation
+            bwd_compiled.clear_gradients()
+            global_step += 1
+```
+
+#### 10.4.4 Alternative: Single Combined Graph with Conditional Execution
+
+For simpler cases, combine everything into one graph with execution phases:
+
+```python
+# Single graph with phases
+graph = LogicalGraph("training")
+
+# Mark operations with phase tags
+graph.set_phase("forward")
+# ... forward ops ...
+
+graph.set_phase("backward")
+# ... backward ops ...
+
+graph.set_phase("optimizer")
+# ... optimizer ops ...
+
+# Compile
+compiled = CompiledGraph.compile(graph, dist_strategy)
+
+# Execute specific phases
+compiled.forward(phases=["forward", "backward"])  # Mini-batch
+compiled.forward(phases=["optimizer"])             # After accumulation
+```
+
+### 10.5 Missing Components Analysis (Updated)
 
 | Component | Status | Priority | Notes |
 |-----------|--------|----------|-------|
-| **Backward operations** | Explicit in graph | Done | User defines backward ops explicitly, no autograd engine |
-| **Optimizer operations** | Not designed | High | Adam, SGD as explicit graph operations |
-| **Loss function ops** | Not designed | High | CrossEntropy, MSE as graph operations |
-| **Gradient checkpointing** | Natural fit | Medium | Just re-run forward ops in backward section of graph |
-| **Mixed precision** | Mentioned briefly | High | Cast ops in graph, FP16/BF16 forward, FP32 accumulation |
+| **Backward operations** | Explicit in graph | Done | User defines backward ops explicitly |
+| **Optimizer operations** | Designed | Done | Separate graph or phase, SGD/Adam ops |
+| **Loss function ops** | Designed | Done | CrossEntropy, MSE as graph ops |
+| **Gradient accumulation** | Natural | Done | Backward ops ADD to gradient tensors |
+| **Mixed precision** | Designed | Done | Heterogeneous tile dtypes, cast ops |
+| **Communication primitives** | Not needed | N/A | Backend runtime handles automatically |
+| **Gradient checkpointing** | Natural fit | Medium | Re-run forward ops in backward section |
 | **Data loading pipeline** | Not designed | Medium | How data gets to inputs |
 | **Profiling/debugging** | Not designed | Medium | Trace visualization, performance analysis |
 | **Serialization format** | Not designed | Medium | Checkpoint compatibility |
 | **Error handling** | Not designed | Medium | What happens when OOM, NaN, etc. |
-| **Communication primitives** | Implicit | High | AllReduce, AllGather - explicit ops or hidden in distribution? |
 | **Memory pool management** | Not designed | High | Reuse allocations across iterations |
 
 ### 10.5 Implementation Limitations and Risks
@@ -3522,7 +3861,7 @@ class ModelGraph:
 | Debugging | Straightforward | Need to understand internals |
 | Performance tuning | Direct control | Depends on autograd impl |
 
-### 10.8 Revised Open Questions
+### 10.6 Revised Open Questions
 
 1. **Dynamic shapes in compiled graphs**: Re-compile on shape change, or handle dynamically?
 2. **Multi-GPU within single node**: Is it one CompiledGraph or multiple coordinated ones?
@@ -3531,9 +3870,9 @@ class ModelGraph:
 5. **Error recovery**: What state is the graph in after a failed execution?
 6. **Graph mutation**: Can you modify a LogicalGraph after operations are added?
 7. **Thread safety**: Can multiple threads build the same LogicalGraph?
-8. **Communication ops**: Should AllReduce/AllGather be explicit graph ops or hidden in distribution strategy?
-9. **Execution order**: How to specify that backward ops run after forward ops in same graph?
-10. **Gradient accumulation**: Best pattern for accumulating gradients across micro-batches?
+8. **Cross-graph tensor sharing**: How do forward, backward, and optimizer graphs share parameter tensors?
+9. **Tile dtype inheritance**: When an operation has mixed-dtype inputs, what dtype are output tiles?
+10. **Memory planning across graphs**: Can we optimize memory reuse across forward/backward/optimizer graphs?
 
 ---
 
@@ -3589,15 +3928,17 @@ NNTile 2.0 introduces a transformative high-level graph abstraction that enables
 - **Explicit backward operations** - No autograd engine; users define backward ops in the same logical graph
 - **Forward and backward are just ops** - Same graph, same execution model
 - **Gradient checkpointing is natural** - Just re-execute forward ops in backward section
+- **Heterogeneous tile dtypes** - Each tile can have different dtype for flexible mixed precision
+- **Optimizer as separate graph** - Clean separation, executed once per N mini-batches
+- **Loss functions as graph ops** - CrossEntropy, MSE are regular operations
+- **No explicit communication primitives** - Backend runtime handles automatically
 
 ### Missing Components (To Be Designed)
 
-- Optimizer operations (Adam, SGD as explicit graph ops)
-- Loss function operations (CrossEntropy, MSE as graph ops)
-- Mixed precision support (cast operations in graph)
-- Communication primitives (AllReduce as explicit or implicit?)
 - Profiling and debugging tools
 - Serialization and checkpoint format
+- Memory pool management for allocation reuse
+- Data loading pipeline integration
 
 ### Benefits of Runtime Abstraction
 
