@@ -31,15 +31,17 @@ Throughout this document:
 ```cpp
 // C++ (actual implementation)
 auto graph = nntile::graph::LogicalGraph("model");
-auto x = graph.tensor(TensorSpec({batch, seq, embed}, DataType::FP32), "x", {.external = true});
-auto y = graph.matmul(x, w);
+auto& x = graph.tensor(TensorSpec({batch, seq, embed}, DataType::FP32), "x");
+auto& w = graph.tensor(TensorSpec({embed, hidden}, DataType::FP32), "w");
+auto& y = graph.matmul(x, w, "y");
 ```
 
 ```python
 # Python wrapper (equivalent)
 graph = LogicalGraph("model")
-x = graph.tensor(TensorSpec([batch, seq, embed], FP32), "x", external=True)
-y = graph.matmul(x, w)
+x = graph.tensor(TensorSpec([batch, seq, embed], FP32), "x")
+w = graph.tensor(TensorSpec([embed, hidden], FP32), "w")
+y = graph.matmul(x, w, "y")
 ```
 
 ---
@@ -1191,18 +1193,18 @@ from nntile.graph import Graph, TensorSpec, DistributionStrategy
 nntile.init()
 
 # Phase 1: Define graph structure (no computation)
-graph = Graph("transformer_block")
+graph = LogicalGraph("transformer_block")
 
-# Declare symbolic tensors
-x = graph.input(TensorSpec([seq_len, batch_size, embed_dim], dtype="fp32"), name="input")
-w = graph.parameter(TensorSpec([embed_dim, hidden_dim], dtype="fp32"), name="weight")
+# Declare tensors (just tensors, no roles)
+x = graph.tensor(TensorSpec([seq_len, batch_size, embed_dim], dtype="fp32"), "input")
+w = graph.tensor(TensorSpec([embed_dim, hidden_dim], dtype="fp32"), "weight")
 
 # Define operations (symbolic, no execution)
-y = graph.matmul(x, w)           # Returns TensorNode, no computation
-z = graph.gelu(y)                # Returns TensorNode, no computation
-out = graph.output(z, name="output")
+y = graph.matmul(x, w, "y")      # Returns TensorNode, no computation
+z = graph.gelu(y, "z")           # Returns TensorNode, no computation
+graph.mark_output("z")
 
-# Phase 2: Configure and compile
+# Phase 2: Compile with tiling and distribution
 compiled = CompiledGraph.compile(
     graph,
     num_nodes=8,
@@ -1211,10 +1213,10 @@ compiled = CompiledGraph.compile(
 )
 
 # Phase 3: Execute with actual data
-compiled.set_input("input", input_data)
-compiled.set_parameter("weight", weight_data)
+compiled.bind_data("input", input_data)
+compiled.bind_data("weight", weight_data)
 compiled.execute()
-result = compiled.get_output("output")
+result = compiled.get_output("z")
 
 # Can re-instantiate with different configuration
 compiled_ddp = CompiledGraph.compile(
@@ -1385,41 +1387,25 @@ nntile.init(mpi=True)
 # ═══════════════════════════════════════════════════════════════
 logical = LogicalGraph("transformer_layer")
 
-# Declare logical tensors (shapes only, no tiling/distribution)
-x = logical.input(
-    TensorSpec(shape=[seq_len, batch_size, embed_dim], dtype="fp32"),
-    name="input"
-)
-wq = logical.parameter(
-    TensorSpec(shape=[embed_dim, embed_dim], dtype="fp32"),
-    name="W_query"
-)
-wk = logical.parameter(
-    TensorSpec(shape=[embed_dim, embed_dim], dtype="fp32"),
-    name="W_key"
-)
-wv = logical.parameter(
-    TensorSpec(shape=[embed_dim, embed_dim], dtype="fp32"),
-    name="W_value"
-)
-wo = logical.parameter(
-    TensorSpec(shape=[embed_dim, embed_dim], dtype="fp32"),
-    name="W_out"
-)
+# Declare tensors (just tensors - no input/parameter distinction)
+x = logical.tensor(TensorSpec([seq_len, batch_size, embed_dim], dtype="fp32"), "x")
+wq = logical.tensor(TensorSpec([embed_dim, embed_dim], dtype="fp32"), "W_query")
+wk = logical.tensor(TensorSpec([embed_dim, embed_dim], dtype="fp32"), "W_key")
+wv = logical.tensor(TensorSpec([embed_dim, embed_dim], dtype="fp32"), "W_value")
+wo = logical.tensor(TensorSpec([embed_dim, embed_dim], dtype="fp32"), "W_out")
 
 # Define operations (logical, no tiling decisions)
-q = logical.matmul(x, wq, name="query_proj")
-k = logical.matmul(x, wk, name="key_proj")
-v = logical.matmul(x, wv, name="value_proj")
-attn = logical.scaled_dot_product_attention(q, k, v, name="attention")
-out = logical.matmul(attn, wo, name="output_proj")
-out = logical.add(out, x, name="residual")  # Residual connection
-
-output = logical.output(out, name="output")
+q = logical.matmul(x, wq, "query_proj")
+k = logical.matmul(x, wk, "key_proj")
+v = logical.matmul(x, wv, "value_proj")
+attn = logical.scaled_dot_product_attention(q, k, v, "attention")
+out = logical.matmul(attn, wo, "output_proj")
+out = logical.add(out, x, "residual")  # Residual connection
+logical.mark_output("residual")
 
 # Graph analysis available
 print(f"Operations: {logical.num_operations()}")
-print(f"Parameters: {logical.num_parameters()}")
+print(f"Tensors: {logical.num_tensors()}")
 print(f"FLOPs: {logical.estimate_flops()}")
 
 # ═══════════════════════════════════════════════════════════════
@@ -1467,33 +1453,29 @@ print(f"DDP memory per node: {physical_ddp.memory_on_node(0) / 1e9:.2f} GB")
 print(f"TP memory per node: {physical_tp.memory_on_node(0) / 1e9:.2f} GB")
 
 # ═══════════════════════════════════════════════════════════════
-# Stage 3: Executable Graph (bind to runtime and execute)
+# Stage 2b: Compile (combined with execution)
 # ═══════════════════════════════════════════════════════════════
 
-# Create executable from physical graph
-exe = ExecutableGraph(physical_fsdp)
+# Compile the logical graph with tiling and distribution
+compiled = CompiledGraph.compile(
+    logical,
+    num_nodes=8,
+    tiling=TilingStrategy.auto_tiling(),
+    configure_distribution=lambda pg: DistributionPreset.apply_fsdp(pg, 8)
+)
 
-# Load parameters (distributed according to physical graph)
-exe.load_parameters("checkpoint.pt")
+# Bind data to tensors
+compiled.bind_data("x", input_tensor)
+compiled.bind_data("W_query", wq_tensor)
+compiled.bind_data("W_key", wk_tensor)
+compiled.bind_data("W_value", wv_tensor)
+compiled.bind_data("W_out", wo_tensor)
 
-# Or initialize randomly
-exe.init_parameters("xavier_uniform")
-
-# Bind input data
-exe.bind_input("input", input_tensor)
-
-# Execute forward pass
-exe.execute()
+# Execute all operations
+compiled.execute()
 
 # Get output
-output = exe.get_output("output")
-
-# Execute backward pass (if gradients needed)
-exe.bind_output_grad("output", output_grad)
-exe.backward()
-
-# Access gradients
-w_query_grad = exe.get_parameter_grad("W_query")
+output = compiled.get_output("residual")
 
 # ═══════════════════════════════════════════════════════════════
 # Advanced: Dynamic shape handling
@@ -1501,18 +1483,15 @@ w_query_grad = exe.get_parameter_grad("W_query")
 
 # For variable sequence lengths, use symbolic dimensions
 logical_dynamic = LogicalGraph("transformer_dynamic")
-x_dyn = logical_dynamic.input(
-    TensorSpec(
-        shape=["seq_len", batch_size, embed_dim],  # "seq_len" is symbolic
-        dtype="fp32"
-    ),
-    name="input"
+x_dyn = logical_dynamic.tensor(
+    TensorSpec(["seq_len", batch_size, embed_dim], dtype="fp32"),  # "seq_len" is symbolic
+    "x"
 )
 # ... define operations ...
 
-# Specialize for specific shapes
-physical_512 = PhysicalGraph(logical_dynamic, shape_bindings={"seq_len": 512})
-physical_1024 = PhysicalGraph(logical_dynamic, shape_bindings={"seq_len": 1024})
+# Compile for specific shapes
+compiled_512 = CompiledGraph.compile(logical_dynamic, num_nodes=8, shape_bindings={"seq_len": 512})
+compiled_1024 = CompiledGraph.compile(logical_dynamic, num_nodes=8, shape_bindings={"seq_len": 1024})
 ```
 
 **Pros:**
@@ -1597,25 +1576,25 @@ public:
 
 **Mixed Precision Pattern**:
 
-```python
-graph = LogicalGraph("mixed_precision_forward")
+```cpp
+LogicalGraph graph("mixed_precision_forward");
 
-# Inputs and parameters in their native dtypes
-x = graph.tensor(TensorSpec([batch, seq, embed], FP16), "x", external=True)
-w = graph.tensor(TensorSpec([embed, hidden], FP32), "w", persistent=True)  # Master weight
+// Tensors in their dtypes - just tensors, no attributes
+auto& x = graph.tensor(TensorSpec({batch, seq, embed}, FP16), "x");
+auto& w = graph.tensor(TensorSpec({embed, hidden}, FP32), "w");  // Master weight in FP32
 
-# Explicit cast for computation
-w_fp16 = graph.cast(w, FP16, name="w_fp16")
+// Explicit cast for computation
+auto& w_fp16 = graph.cast(w, FP16, "w_fp16");
 
-# Compute in FP16
-h = graph.matmul(x, w_fp16, name="hidden")  # Both FP16, OK
+// Compute in FP16
+auto& h = graph.matmul(x, w_fp16, "hidden");  // Both FP16, OK
 
-# Accumulation in FP32
-h_fp32 = graph.cast(h, FP32, name="h_fp32")
-# ... further FP32 accumulation ...
+// Accumulation in FP32
+auto& h_fp32 = graph.cast(h, FP32, "h_fp32");
+// ... further FP32 accumulation ...
 
-# This would FAIL at graph construction:
-# h_bad = graph.matmul(x, w)  # Error: FP16 vs FP32 mismatch!
+// This would FAIL at graph construction:
+// auto& h_bad = graph.matmul(x, w);  // Error: FP16 vs FP32 mismatch!
 ```
 
 **Tile-Level Dtype (Simplified)**:
@@ -1645,29 +1624,17 @@ tile_fp16 = graph.tensor(TensorSpec([main_size, dim], FP16), "main_tile")
 //! Dimension can be concrete or symbolic
 using Dimension = std::variant<Index, std::string>;
 
-//! Tensor role in computation
-enum class TensorRole {
-    Input,       // Fed from outside
-    Output,      // Produced for outside consumption
-    Parameter,   // Trainable weight
-    Buffer,      // Intermediate activation
-    Constant     // Fixed value
-};
-
-//! Logical tensor specification (no tiling/distribution info yet)
+//! Logical tensor specification - just shape and dtype, nothing else
 struct TensorSpec {
     std::vector<Dimension> shape;  // Can mix concrete and symbolic dims
-    DataType dtype;                // Single dtype (explicit casts required for conversion)
-    TensorRole role;
-    std::string name;
-    bool requires_grad = false;
+    DataType dtype;
     
     // Constructors
-    TensorSpec(std::vector<Index> shape, DataType dtype, std::string name = "")
-        : shape(shape.begin(), shape.end()), dtype(dtype), name(name) {}
+    TensorSpec(std::vector<Index> shape, DataType dtype)
+        : shape(shape.begin(), shape.end()), dtype(dtype) {}
     
-    TensorSpec(std::vector<Dimension> shape, DataType dtype, std::string name = "")
-        : shape(shape), dtype(dtype), name(name) {}
+    TensorSpec(std::vector<Dimension> shape, DataType dtype)
+        : shape(shape), dtype(dtype) {}
     
     // Queries
     Index ndim() const { return shape.size(); }
@@ -1703,38 +1670,28 @@ class TensorNode {
     
 private:
     NodeId id_;
+    std::string name_;
     TensorSpec spec_;
     LogicalGraph* graph_;
     
     // Edges
-    OpNode* producer_ = nullptr;           // Op that creates this tensor
+    OpNode* producer_ = nullptr;           // Op that creates this tensor (nullptr if external)
     std::vector<OpNode*> consumers_;       // Ops that use this tensor
     
 public:
-    TensorNode(NodeId id, TensorSpec spec, LogicalGraph* graph);
+    TensorNode(NodeId id, const std::string& name, TensorSpec spec, LogicalGraph* graph);
     
     // Accessors
     NodeId id() const { return id_; }
+    const std::string& name() const { return name_; }
     const TensorSpec& spec() const { return spec_; }
-    const std::string& name() const { return spec_.name; }
     DataType dtype() const { return spec_.dtype; }
     const std::vector<Dimension>& shape() const { return spec_.shape; }
     
-    // Graph queries
-    bool is_input() const { return spec_.role == TensorRole::Input; }
-    bool is_output() const { return spec_.role == TensorRole::Output; }
-    bool is_parameter() const { return spec_.role == TensorRole::Parameter; }
+    // Graph structure
+    bool has_producer() const { return producer_ != nullptr; }
     OpNode* producer() const { return producer_; }
     const std::vector<OpNode*>& consumers() const { return consumers_; }
-    
-    // Fluent API for building graph (returns new TensorNode)
-    TensorNode& matmul(TensorNode& other, bool trans_a = false, bool trans_b = false);
-    TensorNode& add(TensorNode& other);
-    TensorNode& gelu();
-    TensorNode& relu();
-    TensorNode& softmax(int axis = -1);
-    TensorNode& layer_norm(TensorNode& gamma, TensorNode& beta, float eps = 1e-5f);
-    // ... more operations
 };
 
 } // namespace nntile::graph
@@ -1828,39 +1785,29 @@ private:
     std::string name_;
     std::vector<std::unique_ptr<TensorNode>> tensor_nodes_;
     std::vector<std::unique_ptr<OpNode>> op_nodes_;
-    
-    // Special node lists
-    std::vector<TensorNode*> inputs_;
-    std::vector<TensorNode*> outputs_;
-    std::vector<TensorNode*> parameters_;
+    std::set<std::string> output_names_;  // Tensors marked as outputs
     
     // Node ID counter
     NodeId next_id_ = 0;
     
-    // Helper to create nodes
-    TensorNode& create_tensor(TensorSpec spec);
+    // Helpers
+    TensorNode& create_tensor(const std::string& name, TensorSpec spec);
     OpNode& create_op(OpType type, OpAttributes attrs,
                       std::vector<TensorNode*> inputs,
-                      std::vector<TensorSpec> output_specs);
+                      std::vector<std::pair<std::string, TensorSpec>> outputs);
 
 public:
     explicit LogicalGraph(const std::string& name = "");
     
     // ═══════════════════════════════════════════════════════════
-    // Tensor Creation
+    // Tensor Creation - just tensors, no roles
     // ═══════════════════════════════════════════════════════════
     
-    //! Declare an input tensor
-    TensorNode& input(const TensorSpec& spec, const std::string& name = "");
+    //! Create a tensor
+    TensorNode& tensor(const TensorSpec& spec, const std::string& name);
     
-    //! Declare a trainable parameter
-    TensorNode& parameter(const TensorSpec& spec, const std::string& name = "");
-    
-    //! Declare a constant tensor
-    TensorNode& constant(const TensorSpec& spec, const std::string& name = "");
-    
-    //! Mark a tensor as output
-    TensorNode& output(TensorNode& tensor, const std::string& name = "");
+    //! Mark tensor as output (so it can be retrieved after execution)
+    void mark_output(const std::string& tensor_name);
     
     // ═══════════════════════════════════════════════════════════
     // Operations
@@ -1916,19 +1863,19 @@ public:
     //! Query methods
     size_t num_operations() const { return op_nodes_.size(); }
     size_t num_tensors() const { return tensor_nodes_.size(); }
-    size_t num_parameters() const { return parameters_.size(); }
-    const std::vector<TensorNode*>& inputs() const { return inputs_; }
-    const std::vector<TensorNode*>& outputs() const { return outputs_; }
-    const std::vector<TensorNode*>& parameters() const { return parameters_; }
+    const std::set<std::string>& outputs() const { return output_names_; }
     
-    //! Estimate total FLOPs (forward pass)
+    //! Get all tensor names
+    std::vector<std::string> tensor_names() const;
+    
+    //! Get tensor by name
+    TensorNode* get_tensor(const std::string& name);
+    
+    //! Estimate total FLOPs
     Index estimate_flops() const;
     
-    //! Estimate memory for activations (in bytes, single precision)
-    Index estimate_activation_memory() const;
-    
-    //! Estimate memory for parameters (in bytes)
-    Index estimate_parameter_memory() const;
+    //! Estimate total memory for all tensors (in bytes)
+    Index estimate_memory() const;
     
     //! Check if graph has symbolic dimensions
     bool has_symbolic_dims() const;
@@ -2204,29 +2151,29 @@ public:
     // Initialization
     // ═══════════════════════════════════════════════════════════
     
-    //! Initialize parameters with specific initializer
-    void init_parameters(const std::string& initializer);  // "zeros", "xavier", etc.
+    //! Initialize tensor with specific initializer
+    void init_tensor(const std::string& name, const std::string& initializer);  // "zeros", "xavier", "ones", etc.
     
-    //! Load parameters from checkpoint file
-    void load_parameters(const std::string& path);
+    //! Load tensor data from checkpoint file
+    void load_tensors(const std::string& path);
     
-    //! Save parameters to checkpoint file
-    void save_parameters(const std::string& path);
+    //! Save tensor data to checkpoint file
+    void save_tensors(const std::string& path, const std::vector<std::string>& names);
     
     // ═══════════════════════════════════════════════════════════
-    // Input/Output Binding
+    // Data Binding - just bind data to tensors by name
     // ═══════════════════════════════════════════════════════════
     
-    //! Bind input data (copies data into internal storage)
-    void bind_input(const std::string& name, const void* data, size_t size);
+    //! Bind data to tensor (copies data into internal storage)
+    void bind_data(const std::string& name, const void* data, size_t size);
     
-    //! Bind input from numpy array (Python interface)
-    void bind_input_numpy(const std::string& name, /* numpy array */);
+    //! Bind data from numpy array (Python interface)
+    void bind_data_numpy(const std::string& name, /* numpy array */);
     
-    //! Bind input from existing tensor (zero-copy if possible)
-    void bind_input_tensor(const std::string& name, const tensor::Tensor<auto>& t);
+    //! Bind data from existing tensor (zero-copy if possible)
+    void bind_data_tensor(const std::string& name, const tensor::Tensor<auto>& t);
     
-    //! Get output data (copies data out)
+    //! Get tensor data (copies data out) - only for tensors marked as output
     void get_output(const std::string& name, void* data, size_t size);
     
     //! Get output as new tensor
@@ -2246,8 +2193,8 @@ public:
     //! Wait for all operations to complete
     void synchronize();
     
-    //! Clear non-persistent tensors (free memory for next iteration)
-    void clear_buffers();
+    //! Clear specified tensors (free memory)
+    void clear_tensors(const std::vector<std::string>& names = {});  // Empty = clear all except bound
     
     // ═══════════════════════════════════════════════════════════
     // Advanced
@@ -2272,13 +2219,13 @@ public:
 
 ##### DOT Output Example
 
-```python
-graph = LogicalGraph("simple_mlp")
-x = graph.tensor(TensorSpec([128, 512]), "x", external=True)
-w = graph.tensor(TensorSpec([512, 256]), "w", requires_grad=True, persistent=True)
-h = graph.matmul(x, w, name="hidden")
-y = graph.gelu(h, name="activation")
-graph.mark_output(y, "output")
+```cpp
+LogicalGraph graph("simple_mlp");
+auto& x = graph.tensor(TensorSpec({128, 512}), "x");
+auto& w = graph.tensor(TensorSpec({512, 256}), "w");
+auto& h = graph.matmul(x, w, "hidden");
+auto& y = graph.gelu(h, "activation");
+graph.mark_output("activation");
 
 print(graph.to_dot())
 ```
@@ -2905,25 +2852,25 @@ from nntile.graph import ComputeGraph, DistributionStrategy, ExecutionPolicy
 nntile.init(mpi=True)
 
 # Define computation graph
-graph = ComputeGraph("transformer_block")
+graph = LogicalGraph("transformer_block")
 
-# Declare tensors
-x = graph.input([seq_len, batch_size, embed_dim], name="input")
-wq = graph.parameter([embed_dim, embed_dim], name="W_query")
-wk = graph.parameter([embed_dim, embed_dim], name="W_key")
-wv = graph.parameter([embed_dim, embed_dim], name="W_value")
-wo = graph.parameter([embed_dim, embed_dim], name="W_out")
-gamma = graph.parameter([embed_dim], name="ln_gamma")
-beta = graph.parameter([embed_dim], name="ln_beta")
+# Declare tensors (just tensors - no input/parameter distinction)
+x = graph.tensor(TensorSpec([seq_len, batch_size, embed_dim]), "x")
+wq = graph.tensor(TensorSpec([embed_dim, embed_dim]), "W_query")
+wk = graph.tensor(TensorSpec([embed_dim, embed_dim]), "W_key")
+wv = graph.tensor(TensorSpec([embed_dim, embed_dim]), "W_value")
+wo = graph.tensor(TensorSpec([embed_dim, embed_dim]), "W_out")
+gamma = graph.tensor(TensorSpec([embed_dim]), "ln_gamma")
+beta = graph.tensor(TensorSpec([embed_dim]), "ln_beta")
 
 # Define computation
-q = graph.matmul(x, wq)
-k = graph.matmul(x, wk)
-v = graph.matmul(x, wv)
-attn = graph.scaled_dot_product_attention(q, k, v)
-out = graph.matmul(attn, wo)
-out = graph.add(out, x)  # Residual
-out = graph.layer_norm(out, gamma, beta)
+q = graph.matmul(x, wq, "q")
+k = graph.matmul(x, wk, "k")
+v = graph.matmul(x, wv, "v")
+attn = graph.scaled_dot_product_attention(q, k, v, "attn")
+out = graph.matmul(attn, wo, "attn_out")
+out = graph.add(out, x, "residual")  # Residual
+out = graph.layer_norm(out, gamma, beta, "ln_out")
 
 # Configure for 8 nodes
 # (distribution configured at PhysicalGraph level, not LogicalGraph)
@@ -2937,7 +2884,7 @@ graph.set_execution_policy(policy)
 instance = graph.instantiate()
 
 # Load weights
-instance.load_parameters("checkpoint.pt")
+instance.load_tensors("checkpoint.pt")
 
 # Execute
 instance.execute()
@@ -3164,17 +3111,15 @@ model.backward_async()
 **After (NNTile 2.0)**:
 ```python
 # Graph-based definition
-graph = ComputeGraph()
-x = graph.input([seq_len, batch_size])
+graph = LogicalGraph()
+x = graph.tensor(TensorSpec([seq_len, batch_size]), "x")
 # ... define model in graph ...
 
-# Automatic distribution
-# Distribution configured at compile time
-instance = graph.instantiate()
+# Compile with distribution
+compiled = CompiledGraph.compile(graph, num_nodes=4)
 
-# Same execution API
-instance.execute()
-instance.backward()
+# Execute (forward and backward are both just operations in the graph)
+compiled.execute()
 ```
 
 ### 8.2 Backward Compatibility
@@ -3210,73 +3155,45 @@ NNTile 2.0 will maintain backward compatibility:
 
 ### 10.1 Unified Tensor Concept
 
-**Problem with current design**: Separate `input()`, `parameter()`, `constant()` methods create artificial distinctions. Everything should be a tensor.
-
-**Refined design**: Single `tensor()` method with attributes determining role:
+**Design**: A tensor is just a tensor. No roles, no attributes, just a name and shape. Since there's no autograd, there's no need to distinguish "parameter" from "input" from "buffer".
 
 ```cpp
 namespace nntile::graph {
 
-//! Tensor attributes that determine its role
-struct TensorAttributes {
-    bool requires_grad = false;      // Needs gradient computation
-    bool persistent = false;         // Saved in checkpoints, survives across batches
-    bool external = false;           // Data comes from outside the graph
-    
-    // Derived role
-    TensorRole role() const {
-        if (external && !persistent) return TensorRole::Input;
-        if (external && persistent) return TensorRole::Constant;
-        if (persistent && requires_grad) return TensorRole::Parameter;
-        return TensorRole::Buffer;  // Intermediate activation
-    }
-};
-
 class LogicalGraph {
 public:
-    //! Universal tensor creation - role determined by attributes
-    TensorNode& tensor(
-        const TensorSpec& spec,
-        const std::string& name,
-        TensorAttributes attrs = {}
-    );
+    //! Create a tensor - that's it, just a tensor
+    TensorNode& tensor(const TensorSpec& spec, const std::string& name);
     
-    // Convenience methods (call tensor() internally)
-    TensorNode& input(const TensorSpec& spec, const std::string& name) {
-        return tensor(spec, name, {.external = true});
-    }
-    
-    TensorNode& parameter(const TensorSpec& spec, const std::string& name) {
-        return tensor(spec, name, {.requires_grad = true, .persistent = true});
-    }
-    
-    TensorNode& constant(const TensorSpec& spec, const std::string& name) {
-        return tensor(spec, name, {.persistent = true, .external = true});
-    }
-    
-    //! Mark tensor as output (can be any tensor)
-    void mark_output(TensorNode& t, const std::string& output_name = "");
+    //! Mark tensors as graph outputs (for get_output() after execution)
+    void mark_output(const std::string& tensor_name);
 };
 
 } // namespace nntile::graph
 ```
 
 **Usage:**
-```python
-graph = LogicalGraph("model")
+```cpp
+auto graph = LogicalGraph("model");
 
-# All are just tensors with different attributes
-x = graph.tensor(TensorSpec([seq, batch, embed]), "x", external=True)
-w = graph.tensor(TensorSpec([embed, hidden]), "w", requires_grad=True, persistent=True)
-scale = graph.tensor(TensorSpec([hidden]), "scale", persistent=True, external=True)  # Constant
+// All are just tensors - no distinction
+auto& x = graph.tensor(TensorSpec({seq, batch, embed}, DataType::FP32), "x");
+auto& w = graph.tensor(TensorSpec({embed, hidden}, DataType::FP32), "w");
 
-# Operations create new tensors automatically
-y = graph.matmul(x, w)  # y is a buffer (not external, not persistent)
-z = graph.gelu(y)
+// Operations create new tensors
+auto& y = graph.matmul(x, w, "y");
+auto& z = graph.gelu(y, "z");
 
-# Any tensor can be marked as output
-graph.mark_output(z, "logits")
+// Mark what we want to retrieve after execution
+graph.mark_output("z");
 ```
+
+**What determines tensor usage?**
+- **External data**: You call `bind_data()` before execution
+- **Retrievable result**: You call `mark_output()` and later `get_output()`
+- **Persistent weights**: You call `load_tensors()` / `save_tensors()` on them
+
+The graph doesn't care - it just executes operations on tensors. There are no "roles".
 
 ### 10.2 Merging PhysicalGraph and ExecutableGraph
 
@@ -3340,7 +3257,7 @@ public:
     // Execution (triggers allocation on first call)
     // ═══════════════════════════════════════════════════════════
     
-    void bind_input(const std::string& name, const void* data, size_t size);
+    void bind_data(const std::string& name, const void* data, size_t size);
     void execute();  // Run all ops in the graph
     void get_output(const std::string& name, void* data, size_t size);
     
@@ -3372,7 +3289,7 @@ print(f"Memory per node: {compiled.memory_on_node(0) / 1e9:.2f} GB")
 print(compiled.dump_plan())
 
 # Execute (allocates on first call)
-compiled.bind_input("x", data)
+compiled.bind_data("x", data)
 compiled.execute()
 result = compiled.get_output("output")
 ```
@@ -3406,46 +3323,48 @@ public:
 ```
 
 **Usage:**
-```python
-# Define attention block as reusable graph
-def make_attention_block():
-    block = LogicalGraph("attention")
-    x = block.input(TensorSpec([seq, batch, embed]), "x")
-    wq = block.parameter(TensorSpec([embed, embed]), "Wq")
-    wk = block.parameter(TensorSpec([embed, embed]), "Wk")
-    wv = block.parameter(TensorSpec([embed, embed]), "Wv")
-    wo = block.parameter(TensorSpec([embed, embed]), "Wo")
+```cpp
+// Define attention block as reusable graph
+LogicalGraph make_attention_block() {
+    LogicalGraph block("attention");
     
-    q = block.matmul(x, wq)
-    k = block.matmul(x, wk)
-    v = block.matmul(x, wv)
-    attn = block.scaled_dot_product_attention(q, k, v)
-    out = block.matmul(attn, wo)
-    out = block.add(out, x)  # Residual
+    // All are just tensors - no input/parameter distinction
+    auto& x = block.tensor(TensorSpec({seq, batch, embed}), "x");
+    auto& wq = block.tensor(TensorSpec({embed, embed}), "Wq");
+    auto& wk = block.tensor(TensorSpec({embed, embed}), "Wk");
+    auto& wv = block.tensor(TensorSpec({embed, embed}), "Wv");
+    auto& wo = block.tensor(TensorSpec({embed, embed}), "Wo");
     
-    block.mark_output(out, "output")
-    return block
+    auto& q = block.matmul(x, wq, "q");
+    auto& k = block.matmul(x, wk, "k");
+    auto& v = block.matmul(x, wv, "v");
+    auto& attn = block.scaled_dot_product_attention(q, k, v, "attn");
+    auto& out = block.matmul(attn, wo, "out");
+    auto& res = block.add(out, x, "residual");
+    
+    block.mark_output("residual");
+    return block;
+}
 
-attention_template = make_attention_block()
+auto attention_template = make_attention_block();
 
-# Build transformer by stacking
-transformer = LogicalGraph("transformer")
-x = transformer.input(TensorSpec([seq, batch, embed]), "input")
+// Build transformer by stacking
+LogicalGraph transformer("transformer");
+auto& x = transformer.tensor(TensorSpec({seq, batch, embed}), "input");
 
-# Stack 12 attention blocks
-hidden = x
-for i in range(12):
-    outputs = transformer.embed(
+// Stack 12 attention blocks
+std::string hidden_name = "input";
+for (int i = 0; i < 12; ++i) {
+    auto outputs = transformer.embed(
         attention_template,
-        input_bindings={"x": hidden},
-        prefix=f"layer_{i}_"  # layer_0_Wq, layer_0_Wk, etc.
-    )
-    hidden = outputs["output"]
+        {{"x", hidden_name}},                // input bindings
+        "layer_" + std::to_string(i) + "_"   // prefix: layer_0_Wq, etc.
+    );
+    hidden_name = outputs["residual"];  // Output tensor name in parent graph
+}
 
-transformer.mark_output(hidden, "output")
-
-# All 12 blocks share the same structure but have separate parameters
-print(f"Parameters: {transformer.num_parameters()}")  # 12 * 4 weight matrices
+transformer.mark_output(hidden_name);
+std::cout << "Tensors: " << transformer.num_tensors() << std::endl;
 ```
 
 ### 10.4 Optimizer and Loss Function Integration
@@ -3491,22 +3410,22 @@ public:
 
 **Example: Loss in Forward Graph**
 
-```python
-# Forward graph includes loss computation
-graph = LogicalGraph("forward_with_loss")
+```cpp
+// Forward graph includes loss computation
+LogicalGraph graph("forward_with_loss");
 
-x = graph.tensor(TensorSpec([batch, seq, embed]), "x", external=True)
-targets = graph.tensor(TensorSpec([batch, seq]), "targets", external=True)
+auto& x = graph.tensor(TensorSpec({batch, seq, embed}), "x");
+auto& targets = graph.tensor(TensorSpec({batch, seq}), "targets");
 
-# Model forward
-logits = model_forward(graph, x)  # Returns [batch, seq, vocab]
+// Model forward
+auto& logits = model_forward(graph, x);  // Returns [batch, seq, vocab]
 
-# Loss computation (part of the same graph)
-loss_per_sample = graph.cross_entropy_loss(logits, targets, name="ce_loss")
-loss = graph.reduce_mean(loss_per_sample, name="batch_loss")
+// Loss computation (part of the same graph)
+auto& loss_per_sample = graph.cross_entropy_loss(logits, targets, "ce_loss");
+auto& loss = graph.reduce_mean(loss_per_sample, "batch_loss");
 
-graph.mark_output(loss, "loss")
-graph.mark_output(logits, "logits")
+graph.mark_output("batch_loss");
+graph.mark_output("logits");
 ```
 
 #### 10.4.2 Optimizer as Separate Graph
@@ -3556,118 +3475,133 @@ public:
 
 **Example: Optimizer Graph**
 
-```python
-def create_optimizer_graph(param_specs, optimizer_type="adam"):
-    """Create optimizer graph for given parameters."""
-    opt_graph = LogicalGraph("optimizer")
+```cpp
+// Create optimizer graph for given parameters
+LogicalGraph create_optimizer_graph(
+    const std::map<std::string, TensorSpec>& param_specs,
+    const std::string& optimizer_type = "adam"
+) {
+    LogicalGraph opt_graph("optimizer");
     
-    # Hyperparameters as external inputs (can change between steps)
-    lr = opt_graph.tensor(TensorSpec([1], FP32), "learning_rate", external=True)
+    // Hyperparameters (just tensors - will be bound before execution)
+    auto& lr = opt_graph.tensor(TensorSpec({1}, FP32), "learning_rate");
     
-    if optimizer_type == "adam":
-        beta1 = opt_graph.tensor(TensorSpec([1], FP32), "beta1", external=True)
-        beta2 = opt_graph.tensor(TensorSpec([1], FP32), "beta2", external=True)
-        epsilon = opt_graph.tensor(TensorSpec([1], FP32), "epsilon", external=True)
-        step = opt_graph.tensor(TensorSpec([1], INT64), "step", external=True)
+    if (optimizer_type == "adam") {
+        auto& beta1 = opt_graph.tensor(TensorSpec({1}, FP32), "beta1");
+        auto& beta2 = opt_graph.tensor(TensorSpec({1}, FP32), "beta2");
+        auto& epsilon = opt_graph.tensor(TensorSpec({1}, FP32), "epsilon");
+        auto& step = opt_graph.tensor(TensorSpec({1}, INT64), "step");
+    }
     
-    for name, spec in param_specs.items():
-        # Parameter (external - comes from model)
-        param = opt_graph.tensor(spec, f"{name}", external=True, persistent=True)
+    for (const auto& [name, spec] : param_specs) {
+        // Parameter tensor
+        auto& param = opt_graph.tensor(spec, name);
         
-        # Gradient (external - computed in backward graph)
-        grad = opt_graph.tensor(spec, f"{name}_grad", external=True)
+        // Gradient tensor
+        auto& grad = opt_graph.tensor(spec, name + "_grad");
         
-        if optimizer_type == "sgd":
-            opt_graph.sgd_update(param, grad, lr, name=f"{name}_update")
+        if (optimizer_type == "sgd") {
+            opt_graph.sgd_update(param, grad, lr, name + "_update");
+        }
+        else if (optimizer_type == "adam") {
+            // Optimizer state tensors
+            auto& m = opt_graph.tensor(spec, name + "_m");
+            auto& v = opt_graph.tensor(spec, name + "_v");
             
-        elif optimizer_type == "adam":
-            # Optimizer states (persistent across steps)
-            m = opt_graph.tensor(spec, f"{name}_m", persistent=True)
-            v = opt_graph.tensor(spec, f"{name}_v", persistent=True)
-            
-            opt_graph.adam_update(
-                param, grad, m, v, lr, beta1, beta2, epsilon, step,
-                name=f"{name}_update"
-            )
+            opt_graph.adam_update(param, grad, m, v, lr, 
+                                  *opt_graph.get_tensor("beta1"),
+                                  *opt_graph.get_tensor("beta2"),
+                                  *opt_graph.get_tensor("epsilon"),
+                                  *opt_graph.get_tensor("step"),
+                                  name + "_update");
+        }
+    }
     
-    return opt_graph
+    return opt_graph;
+}
 ```
 
 #### 10.4.3 Training Loop Structure: Three Separate Graphs
 
-```python
-# ═══════════════════════════════════════════════════════════════
-# Graph 1: Forward + Loss (executed per mini-batch)
-# ═══════════════════════════════════════════════════════════════
-forward_graph = LogicalGraph("forward")
-x = forward_graph.tensor(TensorSpec([batch, seq, embed]), "x", external=True)
-targets = forward_graph.tensor(TensorSpec([batch, seq]), "targets", external=True)
+```cpp
+// ═══════════════════════════════════════════════════════════════
+// Graph 1: Forward + Loss (executed per mini-batch)
+// ═══════════════════════════════════════════════════════════════
+LogicalGraph forward_graph("forward");
+auto& x = forward_graph.tensor(TensorSpec({batch, seq, embed}), "x");
+auto& targets = forward_graph.tensor(TensorSpec({batch, seq}), "targets");
 
-logits = build_transformer(forward_graph, x)  # Your model
-loss = forward_graph.cross_entropy_loss(logits, targets)
-loss = forward_graph.reduce_mean(loss)
+auto& logits = build_transformer(forward_graph, x);  // Your model
+auto& loss_per_sample = forward_graph.cross_entropy_loss(logits, targets, "ce_loss");
+auto& loss = forward_graph.reduce_mean(loss_per_sample, "loss");
 
-forward_graph.mark_output(logits, "logits")
-forward_graph.mark_output(loss, "loss")
+forward_graph.mark_output("logits");
+forward_graph.mark_output("loss");
 
-# ═══════════════════════════════════════════════════════════════
-# Graph 2: Backward (executed per mini-batch, accumulates gradients)
-# ═══════════════════════════════════════════════════════════════
-backward_graph = LogicalGraph("backward")
+// ═══════════════════════════════════════════════════════════════
+// Graph 2: Backward (executed per mini-batch, accumulates gradients)
+// ═══════════════════════════════════════════════════════════════
+LogicalGraph backward_graph("backward");
 
-# Forward tensors needed for backward (external, come from forward graph)
-logits = backward_graph.tensor(logits_spec, "logits", external=True)
-# ... other activations needed for backward ...
+// Forward tensors needed for backward (will be bound from forward output)
+auto& logits_bwd = backward_graph.tensor(logits_spec, "logits");
+// ... other activations needed for backward ...
 
-# Loss gradient (external, usually 1.0 / num_accumulation_steps)
-dloss = backward_graph.tensor(TensorSpec([1], FP32), "dloss", external=True)
+// Loss gradient scale (usually 1.0 / num_accumulation_steps)
+auto& dloss = backward_graph.tensor(TensorSpec({1}, FP32), "dloss");
 
-# Gradient tensors (persistent, accumulate across mini-batches)
-for name, spec in param_specs.items():
-    grad = backward_graph.tensor(spec, f"{name}_grad", persistent=True)
-    # Explicit backward ops that ADD to gradient (accumulation)
-    # ...
+// Gradient tensors (accumulate across mini-batches)
+for (const auto& [name, spec] : param_specs) {
+    auto& grad = backward_graph.tensor(spec, name + "_grad");
+    // Explicit backward ops that ADD to gradient (accumulation)
+    // ...
+}
 
-# ═══════════════════════════════════════════════════════════════
-# Graph 3: Optimizer (executed once per N mini-batches)
-# ═══════════════════════════════════════════════════════════════
-optimizer_graph = create_optimizer_graph(param_specs, "adam")
+// ═══════════════════════════════════════════════════════════════
+// Graph 3: Optimizer (executed once per N mini-batches)
+// ═══════════════════════════════════════════════════════════════
+auto optimizer_graph = create_optimizer_graph(param_specs, "adam");
 
-# ═══════════════════════════════════════════════════════════════
-# Training Loop
-# ═══════════════════════════════════════════════════════════════
-# Compile all graphs (single node for simplicity, or pass num_nodes)
-fwd_compiled = CompiledGraph.compile(forward_graph)
-bwd_compiled = CompiledGraph.compile(backward_graph)
-opt_compiled = CompiledGraph.compile(optimizer_graph)
+// ═══════════════════════════════════════════════════════════════
+// Training Loop
+// ═══════════════════════════════════════════════════════════════
+// Compile all graphs
+auto fwd_compiled = CompiledGraph::compile(forward_graph, num_nodes);
+auto bwd_compiled = CompiledGraph::compile(backward_graph, num_nodes);
+auto opt_compiled = CompiledGraph::compile(optimizer_graph, num_nodes);
 
-num_accumulation_steps = 4
+int num_accumulation_steps = 4;
+int global_step = 0;
 
-for epoch in range(num_epochs):
-    for batch_idx, (data, labels) in enumerate(dataloader):
+for (int epoch = 0; epoch < num_epochs; ++epoch) {
+    for (int batch_idx = 0; batch_idx < num_batches; ++batch_idx) {
         
-        # Execute forward graph
-        fwd_compiled.bind_input("x", data)
-        fwd_compiled.bind_input("targets", labels)
-        fwd_compiled.execute()
+        // Execute forward graph
+        fwd_compiled.bind_data("x", data);
+        fwd_compiled.bind_data("targets", labels);
+        fwd_compiled.execute();
         
-        # Get activations needed for gradient computation
-        logits = fwd_compiled.get_output("logits")
+        // Get activations needed for gradient computation
+        auto logits = fwd_compiled.get_output_tensor<float>("logits");
         
-        # Execute gradient graph (accumulates gradients)
-        bwd_compiled.bind_input("logits", logits)
-        bwd_compiled.bind_input("dloss", 1.0 / num_accumulation_steps)
-        bwd_compiled.execute()  # Just runs the ops in the graph
+        // Execute gradient graph (accumulates gradients)
+        bwd_compiled.bind_data_tensor("logits", logits);
+        float scale = 1.0f / num_accumulation_steps;
+        bwd_compiled.bind_data("dloss", &scale, sizeof(scale));
+        bwd_compiled.execute();
         
-        # Optimizer step every N mini-batches
-        if (batch_idx + 1) % num_accumulation_steps == 0:
-            opt_compiled.bind_input("learning_rate", lr)
-            opt_compiled.bind_input("step", global_step)
-            opt_compiled.execute()
+        // Optimizer step every N mini-batches
+        if ((batch_idx + 1) % num_accumulation_steps == 0) {
+            opt_compiled.bind_data("learning_rate", &lr, sizeof(lr));
+            opt_compiled.bind_data("step", &global_step, sizeof(global_step));
+            opt_compiled.execute();
             
-            # Clear gradient tensors for next accumulation
-            bwd_compiled.clear_buffers()
-            global_step += 1
+            // Clear gradient tensors for next accumulation
+            bwd_compiled.clear_tensors();
+            ++global_step;
+        }
+    }
+}
 ```
 
 #### 10.4.4 Alternative: Single Combined Graph with Conditional Execution
@@ -3767,14 +3701,14 @@ public:
 
 #### 10.5.2 Inference Pipeline Example
 
-```python
-# Inference with pipelined compilation
+```cpp
+// Inference with pipelined compilation
 
-# Create logical graph (shape-parametric)
-model_graph = LogicalGraph("transformer")
-x = model_graph.tensor(TensorSpec(["seq_len", batch_size, embed_dim], FP16), "x", external=True)
-# ... build model ...
-model_graph.mark_output(output, "output")
+// Create logical graph (shape-parametric)
+LogicalGraph model_graph("transformer");
+auto& x = model_graph.tensor(TensorSpec({"seq_len", batch_size, embed_dim}, FP16), "x");
+// ... build model ...
+model_graph.mark_output("output");
 
 # Compilation cache
 cache = CompilationCache()
@@ -3813,7 +3747,7 @@ for batch in inference_batches:
     )
     
     # Execute current batch
-    current_compiled.bind_input("x", batch)
+    current_compiled.bind_data("x", batch)
     current_compiled.execute()
     result = current_compiled.get_output("output")
     
@@ -3860,7 +3794,7 @@ class LLMInferenceEngine:
             compiled = self.get_compiled(seq_len)
             
             # Execute
-            compiled.bind_input("x", current_sequence)
+            compiled.bind_data("x", current_sequence)
             compiled.execute()
             next_token = sample(compiled.get_output("logits"))
             
@@ -4071,7 +4005,7 @@ class AdaptiveTilingManager:
         
         # Execute
         start = time.time()
-        self.compiled.bind_inputs(inputs)
+        self.compiled.bind_datas(inputs)
         self.compiled.execute()
         self.iteration_times.append(time.time() - start)
         
@@ -4234,7 +4168,7 @@ int main() {
     while (running) {
         read_sensor_data(input);
         
-        graph.bind_input("x", input, sizeof(input));
+        graph.bind_data("x", input, sizeof(input));
         graph.execute();
         graph.get_output("y", output, sizeof(output));
         
@@ -4341,35 +4275,31 @@ void execute_matmul(const PhysicalOp& op, ExecutionContext& ctx) {
 
 **Example: Explicit Forward and Backward**:
 
-```python
-graph = LogicalGraph("mlp_with_backward")
+```cpp
+LogicalGraph graph("mlp_with_backward");
 
-# ═══════════════════════════════════════════════════════════════
-# Forward tensors
-# ═══════════════════════════════════════════════════════════════
-x = graph.tensor(TensorSpec([batch, input_dim]), "x", external=True)
-w1 = graph.tensor(TensorSpec([input_dim, hidden_dim]), "w1", 
-                  requires_grad=True, persistent=True)
-w2 = graph.tensor(TensorSpec([hidden_dim, output_dim]), "w2",
-                  requires_grad=True, persistent=True)
+// ═══════════════════════════════════════════════════════════════
+// Forward tensors
+// ═══════════════════════════════════════════════════════════════
+auto& x = graph.tensor(TensorSpec({batch, input_dim}), "x");
+auto& w1 = graph.tensor(TensorSpec({input_dim, hidden_dim}), "w1");
+auto& w2 = graph.tensor(TensorSpec({hidden_dim, output_dim}), "w2");
 
-# Forward operations
-h = graph.matmul(x, w1, name="h")           # h = x @ w1
-a = graph.gelu(h, name="a")                  # a = gelu(h)
-y = graph.matmul(a, w2, name="y")           # y = a @ w2
-graph.mark_output(y, "output")
+// Forward operations
+auto& h = graph.matmul(x, w1, "h");           // h = x @ w1
+auto& a = graph.gelu(h, "a");                 // a = gelu(h)
+auto& y = graph.matmul(a, w2, "y");           // y = a @ w2
+graph.mark_output("y");
 
-# ═══════════════════════════════════════════════════════════════
-# Backward tensors (gradients)
-# ═══════════════════════════════════════════════════════════════
-# Gradient of loss w.r.t. output (fed externally)
-dy = graph.tensor(TensorSpec([batch, output_dim]), "dy", external=True)
+// ═══════════════════════════════════════════════════════════════
+// Backward tensors (gradients)
+// ═══════════════════════════════════════════════════════════════
+// Gradient of loss w.r.t. output (will be bound before execution)
+auto& dy = graph.tensor(TensorSpec({batch, output_dim}), "dy");
 
-# Gradient tensors for parameters (accumulated)
-dw1 = graph.tensor(TensorSpec([input_dim, hidden_dim]), "dw1",
-                   persistent=True)  # Accumulates across batches
-dw2 = graph.tensor(TensorSpec([hidden_dim, output_dim]), "dw2",
-                   persistent=True)
+// Gradient tensors for parameters (will accumulate across batches)
+auto& dw1 = graph.tensor(TensorSpec({input_dim, hidden_dim}), "dw1");
+auto& dw2 = graph.tensor(TensorSpec({hidden_dim, output_dim}), "dw2");
 
 # ═══════════════════════════════════════════════════════════════
 # Backward operations (explicit!)
@@ -4388,19 +4318,19 @@ dh = graph.gelu_backward(da, h, name="dh")
 dw1_batch = graph.matmul(x, dh, trans_a=True, name="dw1_batch")
 graph.add_inplace(dw1, dw1_batch, name="dw1_accum")  # Accumulate
 
-# Mark gradient outputs
-graph.mark_output(dw1, "grad_w1")
-graph.mark_output(dw2, "grad_w2")
+// Mark gradient outputs for retrieval
+graph.mark_output("dw1");
+graph.mark_output("dw2");
 ```
 
 **Execution** (using separate graphs as recommended):
-```python
-# Compile the forward+backward graph
-compiled = CompiledGraph.compile(graph, num_nodes=8)
+```cpp
+// Compile the forward+backward graph
+auto compiled = CompiledGraph::compile(graph, 8);
 
-# Bind all inputs including dy (loss gradient)
-compiled.bind_input("x", batch_data)
-compiled.bind_input("dy", dy)  # Loss gradient (computed externally or from loss op)
+// Bind all data including dy (loss gradient)
+compiled.bind_data("x", batch_data, batch_size);
+compiled.bind_data("dy", dy_data, dy_size);  // Loss gradient (computed externally or from loss op)
 
 # Execute ALL ops in the graph (forward AND gradient computation)
 compiled.execute()
@@ -4473,7 +4403,7 @@ NNTile 2.0 introduces a transformative high-level graph abstraction that enables
 6. **Multi-Stage Graph API**:
    - `LogicalGraph` - defines what to compute (operations, shapes, data flow)
    - `CompiledGraph` - combines physical decisions with lazy execution (merged Physical+Executable)
-7. **Unified Tensor Concept**: Single `tensor()` method with attributes (`requires_grad`, `persistent`, `external`) determining role
+7. **Unified Tensor Concept**: Single `tensor()` method - no roles (input, parameter, buffer), just tensors with names
 8. **Graph Composition**: `embed()` method allows stacking smaller graphs into larger ones
 
 ### Design Refinements from Review
