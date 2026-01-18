@@ -4378,7 +4378,7 @@ grad_w2 = compiled.get_output("grad_w2")
 
 ### 10.8 Layer Abstractions: Linear, GeLU, and MLP
 
-Since there's no autograd, we define layer abstractions as helper functions that add both forward and backward operations to a graph. Each layer function takes input tensors and gradient tensors, and returns output tensors and input gradients.
+Layers are classes with separate `forward()` and `backward()` methods. Each method adds operations to the graph. The MLP layer composes Linear and GeLU layers by calling their forward/backward methods.
 
 #### 10.8.1 Linear Layer
 
@@ -4386,72 +4386,86 @@ Since there's no autograd, we define layer abstractions as helper functions that
 namespace nntile::layers {
 
 //! Linear layer: y = x @ W + b
-//! Adds forward and backward operations to the graph
-struct LinearOutputs {
-    std::string y;      // Output tensor name
-    std::string dx;     // Input gradient tensor name (for chaining)
-};
+class Linear {
+private:
+    std::string prefix_;
+    Index in_features_;
+    Index out_features_;
+    
+    // Tensor names (set during forward)
+    std::string x_name_;      // Input (saved for backward)
+    std::string y_name_;      // Output
+    std::string W_name_;
+    std::string b_name_;
+    std::string dW_name_;
+    std::string db_name_;
 
-LinearOutputs linear(
-    LogicalGraph& graph,
-    const std::string& x,           // Input tensor name [batch, in_features]
-    const std::string& dy,          // Output gradient tensor name [batch, out_features]
-    Index in_features,
-    Index out_features,
-    Index batch_size,
-    const std::string& prefix = ""  // Prefix for tensor names
-) {
-    std::string p = prefix.empty() ? "" : prefix + "_";
+public:
+    Linear(Index in_features, Index out_features, const std::string& prefix = "linear")
+        : prefix_(prefix)
+        , in_features_(in_features)
+        , out_features_(out_features)
+        , W_name_(prefix + "_W")
+        , b_name_(prefix + "_b")
+        , dW_name_(prefix + "_dW")
+        , db_name_(prefix + "_db")
+    {}
     
-    // ═══════════════════════════════════════════════════════════════
-    // Weight tensors
-    // ═══════════════════════════════════════════════════════════════
-    auto& W = graph.tensor(
-        TensorSpec({in_features, out_features}, DataType::FP32),
-        p + "W"
-    );
-    auto& b = graph.tensor(
-        TensorSpec({out_features}, DataType::FP32),
-        p + "b"
-    );
+    //! Add weight and gradient tensors to graph (call once before forward/backward)
+    void create_tensors(LogicalGraph& graph) {
+        graph.tensor(TensorSpec({in_features_, out_features_}, DataType::FP32), W_name_);
+        graph.tensor(TensorSpec({out_features_}, DataType::FP32), b_name_);
+        graph.tensor(TensorSpec({in_features_, out_features_}, DataType::FP32), dW_name_);
+        graph.tensor(TensorSpec({out_features_}, DataType::FP32), db_name_);
+    }
     
-    // Gradient accumulators for weights
-    auto& dW = graph.tensor(
-        TensorSpec({in_features, out_features}, DataType::FP32),
-        p + "dW"
-    );
-    auto& db = graph.tensor(
-        TensorSpec({out_features}, DataType::FP32),
-        p + "db"
-    );
+    //! Forward: y = x @ W + b
+    //! Adds forward operations to graph, returns output tensor name
+    std::string forward(LogicalGraph& graph, const std::string& x) {
+        x_name_ = x;  // Save for backward
+        
+        auto& x_ref = *graph.get_tensor(x);
+        auto& W = *graph.get_tensor(W_name_);
+        auto& b = *graph.get_tensor(b_name_);
+        
+        auto& xW = graph.matmul(x_ref, W, prefix_ + "_xW");
+        auto& y = graph.add(xW, b, prefix_ + "_y");
+        
+        y_name_ = prefix_ + "_y";
+        return y_name_;
+    }
     
-    // ═══════════════════════════════════════════════════════════════
-    // Forward: y = x @ W + b
-    // ═══════════════════════════════════════════════════════════════
-    auto& x_ref = *graph.get_tensor(x);
-    auto& xW = graph.matmul(x_ref, W, p + "xW");    // [batch, out_features]
-    auto& y = graph.add(xW, b, p + "y");            // Broadcast add bias
+    //! Backward: compute dW, db, and dx
+    //! Adds backward operations to graph, returns input gradient tensor name
+    std::string backward(LogicalGraph& graph, const std::string& dy) {
+        auto& dy_ref = *graph.get_tensor(dy);
+        auto& x_ref = *graph.get_tensor(x_name_);
+        auto& W = *graph.get_tensor(W_name_);
+        auto& dW = *graph.get_tensor(dW_name_);
+        auto& db = *graph.get_tensor(db_name_);
+        
+        // dW = x^T @ dy
+        auto& dW_batch = graph.matmul(x_ref, dy_ref, prefix_ + "_dW_batch", 
+                                       /*trans_a=*/true, /*trans_b=*/false);
+        graph.add_inplace(dW, dW_batch, prefix_ + "_dW_accum");
+        
+        // db = sum(dy, axis=0)
+        auto& db_batch = graph.reduce_sum(dy_ref, /*axis=*/0, prefix_ + "_db_batch");
+        graph.add_inplace(db, db_batch, prefix_ + "_db_accum");
+        
+        // dx = dy @ W^T
+        auto& dx = graph.matmul(dy_ref, W, prefix_ + "_dx",
+                                /*trans_a=*/false, /*trans_b=*/true);
+        
+        return prefix_ + "_dx";
+    }
     
-    // ═══════════════════════════════════════════════════════════════
-    // Backward: compute gradients
-    // ═══════════════════════════════════════════════════════════════
-    auto& dy_ref = *graph.get_tensor(dy);
-    
-    // dW = x^T @ dy  (gradient w.r.t. weight)
-    auto& dW_batch = graph.matmul(x_ref, dy_ref, p + "dW_batch", 
-                                   /*trans_a=*/true, /*trans_b=*/false);
-    graph.add_inplace(dW, dW_batch, p + "dW_accum");
-    
-    // db = sum(dy, axis=0)  (gradient w.r.t. bias)
-    auto& db_batch = graph.reduce_sum(dy_ref, /*axis=*/0, p + "db_batch");
-    graph.add_inplace(db, db_batch, p + "db_accum");
-    
-    // dx = dy @ W^T  (gradient w.r.t. input, for upstream layers)
-    auto& dx = graph.matmul(dy_ref, W, p + "dx",
-                            /*trans_a=*/false, /*trans_b=*/true);
-    
-    return {p + "y", p + "dx"};
-}
+    // Accessors
+    const std::string& weight_name() const { return W_name_; }
+    const std::string& bias_name() const { return b_name_; }
+    const std::string& weight_grad_name() const { return dW_name_; }
+    const std::string& bias_grad_name() const { return db_name_; }
+};
 
 } // namespace nntile::layers
 ```
@@ -4461,131 +4475,98 @@ LinearOutputs linear(
 ```cpp
 namespace nntile::layers {
 
-//! GeLU activation: y = x * 0.5 * (1 + erf(x / sqrt(2)))
-//! Adds forward and backward operations to the graph
-struct GeluOutputs {
-    std::string y;      // Output tensor name
-    std::string dx;     // Input gradient tensor name
-};
+//! GeLU activation layer
+class GeLU {
+private:
+    std::string prefix_;
+    std::string x_name_;  // Input (saved for backward)
+    std::string y_name_;  // Output
 
-GeluOutputs gelu(
-    LogicalGraph& graph,
-    const std::string& x,           // Input tensor name
-    const std::string& dy,          // Output gradient tensor name
-    const std::string& prefix = ""
-) {
-    std::string p = prefix.empty() ? "" : prefix + "_";
+public:
+    explicit GeLU(const std::string& prefix = "gelu")
+        : prefix_(prefix)
+    {}
     
-    auto& x_ref = *graph.get_tensor(x);
-    auto& dy_ref = *graph.get_tensor(dy);
+    //! Forward: y = gelu(x)
+    std::string forward(LogicalGraph& graph, const std::string& x) {
+        x_name_ = x;  // Save for backward (need x for gelu')
+        
+        auto& x_ref = *graph.get_tensor(x);
+        auto& y = graph.gelu(x_ref, prefix_ + "_y");
+        
+        y_name_ = prefix_ + "_y";
+        return y_name_;
+    }
     
-    // ═══════════════════════════════════════════════════════════════
-    // Forward: y = gelu(x)
-    // ═══════════════════════════════════════════════════════════════
-    auto& y = graph.gelu(x_ref, p + "y");
-    
-    // ═══════════════════════════════════════════════════════════════
-    // Backward: dx = dy * gelu'(x)
-    // gelu'(x) = 0.5 * (1 + erf(x/sqrt(2))) + x * exp(-x^2/2) / sqrt(2*pi)
-    // ═══════════════════════════════════════════════════════════════
-    auto& dx = graph.gelu_backward(dy_ref, x_ref, p + "dx");
-    
-    return {p + "y", p + "dx"};
-}
+    //! Backward: dx = dy * gelu'(x)
+    std::string backward(LogicalGraph& graph, const std::string& dy) {
+        auto& dy_ref = *graph.get_tensor(dy);
+        auto& x_ref = *graph.get_tensor(x_name_);
+        
+        auto& dx = graph.gelu_backward(dy_ref, x_ref, prefix_ + "_dx");
+        
+        return prefix_ + "_dx";
+    }
+};
 
 } // namespace nntile::layers
 ```
 
-#### 10.8.3 MLP (Multi-Layer Perceptron)
+#### 10.8.3 MLP (Reuses Linear and GeLU)
 
 ```cpp
 namespace nntile::layers {
 
-//! MLP: Two linear layers with GeLU activation
-//! Architecture: x -> Linear1 -> GeLU -> Linear2 -> y
-struct MlpOutputs {
-    std::string y;      // Output tensor name
-    std::string dx;     // Input gradient tensor name
-};
+//! MLP: Linear -> GeLU -> Linear
+//! Reuses Linear and GeLU layer implementations
+class MLP {
+private:
+    Linear linear1_;
+    GeLU gelu_;
+    Linear linear2_;
+    
+    std::string y_name_;
 
-MlpOutputs mlp(
-    LogicalGraph& graph,
-    const std::string& x,           // Input [batch, in_features]
-    const std::string& dy,          // Output gradient [batch, out_features]
-    Index in_features,
-    Index hidden_features,
-    Index out_features,
-    Index batch_size,
-    const std::string& prefix = ""
-) {
-    std::string p = prefix.empty() ? "" : prefix + "_";
+public:
+    MLP(Index in_features, Index hidden_features, Index out_features,
+        const std::string& prefix = "mlp")
+        : linear1_(in_features, hidden_features, prefix + "_linear1")
+        , gelu_(prefix + "_gelu")
+        , linear2_(hidden_features, out_features, prefix + "_linear2")
+    {}
     
-    // We need intermediate gradient tensors
-    // These will be computed by backward ops and consumed by upstream backward ops
+    //! Create all weight tensors
+    void create_tensors(LogicalGraph& graph) {
+        linear1_.create_tensors(graph);
+        linear2_.create_tensors(graph);
+        // GeLU has no parameters
+    }
     
-    // ═══════════════════════════════════════════════════════════════
-    // Forward path (define tensors and operations)
-    // ═══════════════════════════════════════════════════════════════
+    //! Forward: x -> Linear1 -> GeLU -> Linear2 -> y
+    std::string forward(LogicalGraph& graph, const std::string& x) {
+        // Chain forward calls
+        std::string h1 = linear1_.forward(graph, x);
+        std::string a = gelu_.forward(graph, h1);
+        std::string y = linear2_.forward(graph, a);
+        
+        y_name_ = y;
+        return y_name_;
+    }
     
-    // Linear1: x -> h1
-    auto& x_ref = *graph.get_tensor(x);
-    auto& W1 = graph.tensor(TensorSpec({in_features, hidden_features}), p + "W1");
-    auto& b1 = graph.tensor(TensorSpec({hidden_features}), p + "b1");
-    auto& h1 = graph.matmul(x_ref, W1, p + "h1");
-    auto& h1_bias = graph.add(h1, b1, p + "h1_bias");
+    //! Backward: dy -> Linear2.backward -> GeLU.backward -> Linear1.backward -> dx
+    std::string backward(LogicalGraph& graph, const std::string& dy) {
+        // Chain backward calls in REVERSE order
+        std::string da = linear2_.backward(graph, dy);
+        std::string dh1 = gelu_.backward(graph, da);
+        std::string dx = linear1_.backward(graph, dh1);
+        
+        return dx;
+    }
     
-    // GeLU: h1_bias -> a
-    auto& a = graph.gelu(h1_bias, p + "a");
-    
-    // Linear2: a -> y
-    auto& W2 = graph.tensor(TensorSpec({hidden_features, out_features}), p + "W2");
-    auto& b2 = graph.tensor(TensorSpec({out_features}), p + "b2");
-    auto& y_pre = graph.matmul(a, W2, p + "y_pre");
-    auto& y = graph.add(y_pre, b2, p + "y");
-    
-    // ═══════════════════════════════════════════════════════════════
-    // Gradient accumulators
-    // ═══════════════════════════════════════════════════════════════
-    auto& dW1 = graph.tensor(TensorSpec({in_features, hidden_features}), p + "dW1");
-    auto& db1 = graph.tensor(TensorSpec({hidden_features}), p + "db1");
-    auto& dW2 = graph.tensor(TensorSpec({hidden_features, out_features}), p + "dW2");
-    auto& db2 = graph.tensor(TensorSpec({out_features}), p + "db2");
-    
-    // ═══════════════════════════════════════════════════════════════
-    // Backward path (reverse order)
-    // ═══════════════════════════════════════════════════════════════
-    auto& dy_ref = *graph.get_tensor(dy);
-    
-    // --- Linear2 backward ---
-    // dW2 = a^T @ dy
-    auto& dW2_batch = graph.matmul(a, dy_ref, p + "dW2_batch", true, false);
-    graph.add_inplace(dW2, dW2_batch, p + "dW2_accum");
-    
-    // db2 = sum(dy, axis=0)
-    auto& db2_batch = graph.reduce_sum(dy_ref, 0, p + "db2_batch");
-    graph.add_inplace(db2, db2_batch, p + "db2_accum");
-    
-    // da = dy @ W2^T
-    auto& da = graph.matmul(dy_ref, W2, p + "da", false, true);
-    
-    // --- GeLU backward ---
-    // dh1_bias = da * gelu'(h1_bias)
-    auto& dh1_bias = graph.gelu_backward(da, h1_bias, p + "dh1_bias");
-    
-    // --- Linear1 backward ---
-    // dW1 = x^T @ dh1_bias
-    auto& dW1_batch = graph.matmul(x_ref, dh1_bias, p + "dW1_batch", true, false);
-    graph.add_inplace(dW1, dW1_batch, p + "dW1_accum");
-    
-    // db1 = sum(dh1_bias, axis=0)
-    auto& db1_batch = graph.reduce_sum(dh1_bias, 0, p + "db1_batch");
-    graph.add_inplace(db1, db1_batch, p + "db1_accum");
-    
-    // dx = dh1_bias @ W1^T
-    auto& dx = graph.matmul(dh1_bias, W1, p + "dx", false, true);
-    
-    return {p + "y", p + "dx"};
-}
+    // Access to sub-layers for weight initialization, etc.
+    Linear& linear1() { return linear1_; }
+    Linear& linear2() { return linear2_; }
+};
 
 } // namespace nntile::layers
 ```
@@ -4597,250 +4578,176 @@ MlpOutputs mlp(
 #include <nntile/layers.hh>
 
 int main() {
-    using namespace nntile;
     using namespace nntile::graph;
     using namespace nntile::layers;
     
-    // Dimensions
     const Index batch = 32;
-    const Index seq = 512;
     const Index embed = 768;
-    const Index hidden = 3072;  // 4x embed, typical for transformers
+    const Index hidden = 3072;
     
     // ═══════════════════════════════════════════════════════════════
-    // Build the graph
+    // Create graph and layer
     // ═══════════════════════════════════════════════════════════════
-    LogicalGraph graph("transformer_mlp");
+    LogicalGraph graph("training");
     
-    // Input tensor (will be bound before execution)
-    auto& x = graph.tensor(TensorSpec({batch, seq, embed}, DataType::FP32), "x");
+    // Input and output gradient tensors
+    auto& x = graph.tensor(TensorSpec({batch, embed}, DataType::FP32), "x");
+    auto& dy = graph.tensor(TensorSpec({batch, embed}, DataType::FP32), "dy");
     
-    // Output gradient (will be bound before execution)  
-    auto& dy = graph.tensor(TensorSpec({batch, seq, embed}, DataType::FP32), "dy");
-    
-    // Add MLP layer (adds all forward and backward ops)
-    auto mlp_out = mlp(
-        graph,
-        "x",            // Input tensor name
-        "dy",           // Output gradient tensor name
-        embed,          // in_features
-        hidden,         // hidden_features (4x expansion)
-        embed,          // out_features (same as input for residual)
-        batch * seq,    // Effective batch size
-        "mlp"           // Prefix for all tensor names
-    );
-    
-    // Mark outputs we want to retrieve
-    graph.mark_output(mlp_out.y);     // "mlp_y" - forward output
-    graph.mark_output(mlp_out.dx);    // "mlp_dx" - input gradient
-    graph.mark_output("mlp_dW1");     // Weight gradients
-    graph.mark_output("mlp_dW2");
-    graph.mark_output("mlp_db1");
-    graph.mark_output("mlp_db2");
+    // Create MLP layer
+    MLP mlp(embed, hidden, embed, "mlp");
+    mlp.create_tensors(graph);  // Add W1, b1, W2, b2, dW1, db1, dW2, db2
     
     // ═══════════════════════════════════════════════════════════════
-    // Compile and execute
+    // Build forward graph
     // ═══════════════════════════════════════════════════════════════
-    auto compiled = CompiledGraph::compile(
-        graph,
-        /*num_nodes=*/4,
-        TilingStrategy::auto_tiling(),
-        [](PhysicalGraph& pg) {
-            DistributionPreset::apply_fsdp(pg, 4);
-        }
-    );
+    std::string y_name = mlp.forward(graph, "x");
+    graph.mark_output(y_name);
     
-    // Initialize weights (xavier uniform)
-    compiled.init_tensor("mlp_W1", "xavier_uniform");
-    compiled.init_tensor("mlp_W2", "xavier_uniform");
-    compiled.init_tensor("mlp_b1", "zeros");
-    compiled.init_tensor("mlp_b2", "zeros");
+    // ═══════════════════════════════════════════════════════════════
+    // Build backward graph
+    // ═══════════════════════════════════════════════════════════════
+    std::string dx_name = mlp.backward(graph, "dy");
+    graph.mark_output(dx_name);
+    graph.mark_output(mlp.linear1().weight_grad_name());  // "mlp_linear1_dW"
+    graph.mark_output(mlp.linear1().bias_grad_name());    // "mlp_linear1_db"
+    graph.mark_output(mlp.linear2().weight_grad_name());  // "mlp_linear2_dW"
+    graph.mark_output(mlp.linear2().bias_grad_name());    // "mlp_linear2_db"
     
-    // Zero out gradient accumulators
-    compiled.init_tensor("mlp_dW1", "zeros");
-    compiled.init_tensor("mlp_dW2", "zeros");
-    compiled.init_tensor("mlp_db1", "zeros");
-    compiled.init_tensor("mlp_db2", "zeros");
+    // ═══════════════════════════════════════════════════════════════
+    // Compile and run
+    // ═══════════════════════════════════════════════════════════════
+    auto compiled = CompiledGraph::compile(graph, /*num_nodes=*/4);
+    
+    // Initialize weights
+    compiled.init_tensor(mlp.linear1().weight_name(), "xavier_uniform");
+    compiled.init_tensor(mlp.linear1().bias_name(), "zeros");
+    compiled.init_tensor(mlp.linear2().weight_name(), "xavier_uniform");
+    compiled.init_tensor(mlp.linear2().bias_name(), "zeros");
+    
+    // Zero gradients
+    compiled.init_tensor(mlp.linear1().weight_grad_name(), "zeros");
+    compiled.init_tensor(mlp.linear1().bias_grad_name(), "zeros");
+    compiled.init_tensor(mlp.linear2().weight_grad_name(), "zeros");
+    compiled.init_tensor(mlp.linear2().bias_grad_name(), "zeros");
     
     // Training loop
     for (int step = 0; step < num_steps; ++step) {
-        // Bind input data
         compiled.bind_data("x", input_data, input_size);
+        compiled.bind_data("dy", grad_data, grad_size);
         
-        // For this example, assume dy comes from upstream loss/layer
-        compiled.bind_data("dy", grad_output_data, grad_size);
+        compiled.execute();  // Runs ALL ops (forward + backward)
         
-        // Execute ALL operations (forward + backward)
-        compiled.execute();
+        auto output = compiled.get_output_tensor<float>(y_name);
+        auto input_grad = compiled.get_output_tensor<float>(dx_name);
         
-        // Get results
-        auto output = compiled.get_output_tensor<float>(mlp_out.y);
-        auto input_grad = compiled.get_output_tensor<float>(mlp_out.dx);
-        
-        // Apply optimizer (separate graph or manual update)
-        // ...
-        
-        // Zero gradients for next iteration
-        compiled.init_tensor("mlp_dW1", "zeros");
-        compiled.init_tensor("mlp_dW2", "zeros");
-        compiled.init_tensor("mlp_db1", "zeros");
-        compiled.init_tensor("mlp_db2", "zeros");
+        // Zero gradients for next step
+        compiled.init_tensor(mlp.linear1().weight_grad_name(), "zeros");
+        compiled.init_tensor(mlp.linear1().bias_grad_name(), "zeros");
+        compiled.init_tensor(mlp.linear2().weight_grad_name(), "zeros");
+        compiled.init_tensor(mlp.linear2().bias_grad_name(), "zeros");
     }
     
     return 0;
 }
 ```
 
-#### 10.8.5 Stacking Multiple Layers
+#### 10.8.5 Stacking Layers
 
 ```cpp
-// Building a multi-layer network by chaining layer outputs
-LogicalGraph graph("deep_mlp");
+// Stack multiple MLP blocks
+LogicalGraph graph("deep_network");
 
-// Input and output gradient
-auto& x = graph.tensor(TensorSpec({batch, features}), "x");
-auto& dy_final = graph.tensor(TensorSpec({batch, features}), "dy");
+auto& x = graph.tensor(TensorSpec({batch, embed}), "x");
+auto& dy = graph.tensor(TensorSpec({batch, embed}), "dy");
 
-// Stack 3 MLP blocks
-std::string current_input = "x";
-std::string current_grad = "dy";  // Will be updated in reverse
-
-// We need to pre-create intermediate gradient tensors
-// because backward flows in reverse order
-std::vector<std::string> layer_outputs;
-std::vector<std::string> layer_grads;
-
-// Forward: create all layers
+// Create layers
+std::vector<MLP> layers;
 for (int i = 0; i < 3; ++i) {
-    std::string prefix = "layer" + std::to_string(i);
-    
-    // Create gradient tensor for this layer's output
-    // (will be computed by next layer's backward or be dy_final for last layer)
-    std::string grad_name = (i == 2) ? "dy" : prefix + "_dy";
-    if (i < 2) {
-        graph.tensor(TensorSpec({batch, features}), grad_name);
-    }
-    
-    auto out = mlp(graph, current_input, grad_name, 
-                   features, 4*features, features, batch, prefix);
-    
-    layer_outputs.push_back(out.y);
-    layer_grads.push_back(out.dx);
-    current_input = out.y;
+    layers.emplace_back(embed, hidden, embed, "layer" + std::to_string(i));
+    layers.back().create_tensors(graph);
 }
 
-// Connect gradients: each layer's dx becomes previous layer's dy
-// layer2_dx -> layer1_dy, layer1_dx -> layer0_dy
-for (int i = 1; i >= 0; --i) {
-    // Copy operation to connect gradients
-    graph.copy(*graph.get_tensor(layer_grads[i+1]), 
-               *graph.get_tensor("layer" + std::to_string(i) + "_dy"),
-               "connect_grad_" + std::to_string(i));
+// Forward pass: chain outputs
+std::string current = "x";
+for (auto& layer : layers) {
+    current = layer.forward(graph, current);
 }
+graph.mark_output(current);  // Final output
 
-graph.mark_output(layer_outputs.back());  // Final output
-graph.mark_output(layer_grads[0]);        // Input gradient
+// Backward pass: chain in reverse
+std::string current_grad = "dy";
+for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+    current_grad = it->backward(graph, current_grad);
+}
+graph.mark_output(current_grad);  // Input gradient
 ```
 
-#### 10.8.6 Alternative: Separate Forward and Backward Graphs
+#### 10.8.6 Separate Forward and Backward Graphs
 
-For cleaner code, use separate graphs for forward and backward:
+For cleaner memory management, use separate graphs:
 
 ```cpp
 // ═══════════════════════════════════════════════════════════════
-// Forward Graph
+// Forward-only graph
 // ═══════════════════════════════════════════════════════════════
-LogicalGraph forward_graph("mlp_forward");
+LogicalGraph fwd_graph("forward");
+auto& x_fwd = fwd_graph.tensor(TensorSpec({batch, embed}), "x");
 
-auto& x = forward_graph.tensor(TensorSpec({batch, embed}), "x");
-auto& W1 = forward_graph.tensor(TensorSpec({embed, hidden}), "W1");
-auto& b1 = forward_graph.tensor(TensorSpec({hidden}), "b1");
-auto& W2 = forward_graph.tensor(TensorSpec({hidden, embed}), "W2");
-auto& b2 = forward_graph.tensor(TensorSpec({embed}), "b2");
+MLP mlp_fwd(embed, hidden, embed, "mlp");
+mlp_fwd.create_tensors(fwd_graph);
+std::string y = mlp_fwd.forward(fwd_graph, "x");
 
-// Forward ops only
-auto& h = forward_graph.matmul(x, W1, "h");
-auto& h_bias = forward_graph.add(h, b1, "h_bias");
-auto& a = forward_graph.gelu(h_bias, "a");
-auto& y = forward_graph.matmul(a, W2, "y_pre");
-auto& output = forward_graph.add(y, b2, "output");
-
-forward_graph.mark_output("output");
-forward_graph.mark_output("a");       // Need for backward
-forward_graph.mark_output("h_bias");  // Need for backward
+fwd_graph.mark_output(y);
+// Mark intermediate activations needed for backward
+fwd_graph.mark_output("mlp_gelu_y");  // GeLU output = Linear2 input
 
 // ═══════════════════════════════════════════════════════════════
-// Backward Graph
+// Backward-only graph
 // ═══════════════════════════════════════════════════════════════
-LogicalGraph backward_graph("mlp_backward");
+LogicalGraph bwd_graph("backward");
 
-// Tensors from forward (will be bound from forward outputs)
-auto& a_bwd = backward_graph.tensor(TensorSpec({batch, hidden}), "a");
-auto& h_bias_bwd = backward_graph.tensor(TensorSpec({batch, hidden}), "h_bias");
-auto& x_bwd = backward_graph.tensor(TensorSpec({batch, embed}), "x");
+// Re-declare input tensors for backward
+auto& x_bwd = bwd_graph.tensor(TensorSpec({batch, embed}), "x");
+auto& dy_bwd = bwd_graph.tensor(TensorSpec({batch, embed}), "dy");
 
-// Weights (shared with forward - same data)
-auto& W1_bwd = backward_graph.tensor(TensorSpec({embed, hidden}), "W1");
-auto& W2_bwd = backward_graph.tensor(TensorSpec({hidden, embed}), "W2");
+// Create fresh MLP for backward (shares weight names)
+MLP mlp_bwd(embed, hidden, embed, "mlp");
+mlp_bwd.create_tensors(bwd_graph);
 
-// Output gradient
-auto& dy = backward_graph.tensor(TensorSpec({batch, embed}), "dy");
+// We need to reconstruct the forward path to save intermediate values
+// OR pass them as inputs from forward graph
+// For simplicity, re-run forward in backward graph:
+mlp_bwd.forward(bwd_graph, "x");
+std::string dx = mlp_bwd.backward(bwd_graph, "dy");
 
-// Gradient accumulators
-auto& dW1 = backward_graph.tensor(TensorSpec({embed, hidden}), "dW1");
-auto& db1 = backward_graph.tensor(TensorSpec({hidden}), "db1");
-auto& dW2 = backward_graph.tensor(TensorSpec({hidden, embed}), "dW2");
-auto& db2 = backward_graph.tensor(TensorSpec({embed}), "db2");
-
-// Backward ops
-auto& dW2_batch = backward_graph.matmul(a_bwd, dy, "dW2_batch", true, false);
-backward_graph.add_inplace(dW2, dW2_batch, "dW2_accum");
-auto& db2_batch = backward_graph.reduce_sum(dy, 0, "db2_batch");
-backward_graph.add_inplace(db2, db2_batch, "db2_accum");
-
-auto& da = backward_graph.matmul(dy, W2_bwd, "da", false, true);
-auto& dh_bias = backward_graph.gelu_backward(da, h_bias_bwd, "dh_bias");
-
-auto& dW1_batch = backward_graph.matmul(x_bwd, dh_bias, "dW1_batch", true, false);
-backward_graph.add_inplace(dW1, dW1_batch, "dW1_accum");
-auto& db1_batch = backward_graph.reduce_sum(dh_bias, 0, "db1_batch");
-backward_graph.add_inplace(db1, db1_batch, "db1_accum");
-
-auto& dx = backward_graph.matmul(dh_bias, W1_bwd, "dx", false, true);
-
-backward_graph.mark_output("dx");
-backward_graph.mark_output("dW1");
-backward_graph.mark_output("dW2");
-backward_graph.mark_output("db1");
-backward_graph.mark_output("db2");
+bwd_graph.mark_output(dx);
+bwd_graph.mark_output(mlp_bwd.linear1().weight_grad_name());
+bwd_graph.mark_output(mlp_bwd.linear2().weight_grad_name());
 
 // ═══════════════════════════════════════════════════════════════
-// Training loop with separate graphs
+// Training loop
 // ═══════════════════════════════════════════════════════════════
-auto fwd = CompiledGraph::compile(forward_graph, num_nodes);
-auto bwd = CompiledGraph::compile(backward_graph, num_nodes);
+auto fwd = CompiledGraph::compile(fwd_graph, num_nodes);
+auto bwd = CompiledGraph::compile(bwd_graph, num_nodes);
 
-// Share weight data between graphs
-fwd.share_tensor_data(bwd, {"W1", "W2", "b1", "b2"});
+// Share weights between graphs
+fwd.share_tensor_data(bwd, {
+    "mlp_linear1_W", "mlp_linear1_b",
+    "mlp_linear2_W", "mlp_linear2_b"
+});
 
 for (int step = 0; step < num_steps; ++step) {
-    // Forward pass
     fwd.bind_data("x", input);
     fwd.execute();
     
-    // Get activations needed for backward
-    auto a_data = fwd.get_output_tensor<float>("a");
-    auto h_bias_data = fwd.get_output_tensor<float>("h_bias");
-    
-    // Backward pass
-    bwd.bind_data("x", input);  // Need x for dW1
-    bwd.bind_data_tensor("a", a_data);
-    bwd.bind_data_tensor("h_bias", h_bias_data);
-    bwd.bind_data("dy", loss_gradient);
+    bwd.bind_data("x", input);
+    bwd.bind_data("dy", loss_grad);
     bwd.execute();
     
-    // Get gradients and update weights
-    // ...
+    // Gradients are in bwd graph
+    auto dW1 = bwd.get_output_tensor<float>("mlp_linear1_dW");
+    // ... update weights ...
 }
 ```
 
