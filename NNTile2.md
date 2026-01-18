@@ -4930,27 +4930,30 @@ public:
     // Cross-Graph Data Transfer
     // ═══════════════════════════════════════════════════════════════
     
-    //! Transfer tensor data to another compiled graph
-    //! Handles re-tiling if the target has different tile sizes
+    //! Transfer ALL data to another compiled graph
+    //! Transfers all tensors with matching names, handles re-tiling automatically
+    void transfer_to(CompiledGraph& target);
+    
+    //! Transfer specific tensors by name
+    void transfer_to(CompiledGraph& target, const std::vector<std::string>& tensor_names);
+    
+    //! Transfer single tensor
+    void transfer_to(CompiledGraph& target, const std::string& tensor_name);
+    
+    //! Transfer with name mapping (source_name -> target_name)
     void transfer_to(
         CompiledGraph& target,
-        const std::string& tensor_name
+        const std::map<std::string, std::string>& name_mapping
     );
     
-    //! Transfer multiple tensors
-    void transfer_to(
-        CompiledGraph& target,
-        const std::vector<std::string>& tensor_names
-    );
+    //! Check if any transfer would require re-tiling
+    bool requires_retiling(const CompiledGraph& target) const;
     
-    //! Transfer all tensors with matching names
-    void transfer_all_matching(CompiledGraph& target);
+    //! Check for specific tensor
+    bool requires_retiling(const CompiledGraph& target, const std::string& tensor_name) const;
     
-    //! Check if transfer would require re-tiling
-    bool requires_retiling(
-        const CompiledGraph& target,
-        const std::string& tensor_name
-    ) const;
+    //! Get list of tensors that would require re-tiling
+    std::vector<std::string> tensors_requiring_retiling(const CompiledGraph& target) const;
 };
 ```
 
@@ -4992,12 +4995,11 @@ for (int step = 0; step < num_steps; ++step) {
     fwd.bind_data("W", weights);
     fwd.execute();
     
-    // Transfer x and W to backward graph (re-tiles automatically if needed)
-    fwd.transfer_to(bwd, {"x", "W"});
+    // Transfer ALL matching tensors to backward graph (re-tiles automatically)
+    fwd.transfer_to(bwd);  // Transfers x, W, y - all tensors with matching names
     
-    // Transfer y as dy input (assuming loss gradient = 1)
-    fwd.transfer_to(bwd, "y");  // -> becomes "dy" input
-    bwd.rename_input("y", "dy");  // Or use explicit binding
+    // Or transfer with name mapping if names differ
+    fwd.transfer_to(bwd, {{"y", "dy"}});  // Forward's "y" -> Backward's "dy"
     
     bwd.execute();
     
@@ -5009,25 +5011,38 @@ for (int step = 0; step < num_steps; ++step) {
 **Zero-copy optimization**: If source and target have the **same tiling and distribution**, transfer is zero-copy (just share the data handle).
 
 ```cpp
-// Check if zero-copy is possible
-if (!fwd.requires_retiling(bwd, "W")) {
-    // Zero-copy transfer - just shares the StarPU data handle
-    fwd.transfer_to(bwd, "W");
+// Check if any re-tiling needed at graph level
+if (!fwd.requires_retiling(bwd)) {
+    // All tensors match - entire transfer is zero-copy
+    fwd.transfer_to(bwd);
 } else {
-    // Requires re-tiling - actual data movement
-    fwd.transfer_to(bwd, "W");
+    // Some tensors need re-tiling - check which ones
+    auto need_retiling = fwd.tensors_requiring_retiling(bwd);
+    std::cout << "Tensors requiring re-tiling: ";
+    for (const auto& name : need_retiling) std::cout << name << " ";
+    
+    // Transfer still works, just involves data movement for those tensors
+    fwd.transfer_to(bwd);
 }
 ```
 
-**Shared LogicalGraph optimization**: If two CompiledGraphs come from the same LogicalGraph (or share tensor names), the system can optimize transfers:
+**Graph-level transfer patterns**:
 
 ```cpp
-// Both compiled from same logical graph but different tiling
-auto compiled_a = CompiledGraph::compile(graph, 4, TilingStrategy::uniform({128, 128}));
-auto compiled_b = CompiledGraph::compile(graph, 4, TilingStrategy::uniform({256, 256}));
+// Pattern 1: Forward -> Backward (same tensors, maybe different tiling)
+fwd.transfer_to(bwd);  // All matching tensors
 
-// System knows they share the same logical tensors
-compiled_a.transfer_all_matching(compiled_b);  // Transfers all tensors with same names
+// Pattern 2: Backward -> Optimizer (gradients to optimizer)
+bwd.transfer_to(opt, {"dW1", "dW2", "db1", "db2"});
+
+// Pattern 3: Optimizer -> Forward (updated weights back)
+opt.transfer_to(fwd, {"W1", "W2", "b1", "b2"});
+
+// Pattern 4: Name mapping when tensor names differ
+fwd.transfer_to(bwd, {
+    {"output", "input"},      // fwd's output -> bwd's input
+    {"hidden", "hidden_fwd"}  // fwd's hidden -> bwd's hidden_fwd
+});
 ```
 
 ### 10.13 Remaining Open Questions
