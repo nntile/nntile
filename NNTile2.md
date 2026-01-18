@@ -4812,21 +4812,235 @@ hints.target_node = -1;   // StarPU picks the node
 hints.target_worker = -1; // StarPU picks the worker
 ```
 
-### 10.10 Remaining Open Questions
+### 10.10 Lazy Tensor Creation (Design Decision)
+
+**Question**: Should `graph.tensor()` create the node immediately?
+
+**Answer**: **No**. Tensor nodes are created lazily.
+
+```cpp
+// graph.tensor() only records the specification
+auto& x = graph.tensor(TensorSpec({batch, embed}), "x");  // No allocation
+
+// Actual memory allocation happens at compile time or first execution
+auto compiled = CompiledGraph::compile(graph, num_nodes);  // Still no allocation
+compiled.execute();  // NOW memory is allocated (lazy)
+```
+
+**Why lazy creation?**
+1. **Graph analysis**: Can analyze full graph before allocating
+2. **Memory optimization**: Can plan memory reuse across tensors
+3. **Symbolic dimensions**: Can't allocate until dimensions are bound
+4. **Multiple compilations**: Same LogicalGraph, different physical realizations
+
+### 10.11 Graph Mutation and Operations (Design Decision)
+
+**Question**: Can you modify a LogicalGraph after operations are added?
+
+**Answer**: **Yes**. LogicalGraph supports mutation, copy, move, stack, and clear.
+
+```cpp
+class LogicalGraph {
+public:
+    // ═══════════════════════════════════════════════════════════════
+    // Copy and Move
+    // ═══════════════════════════════════════════════════════════════
+    
+    //! Deep copy - creates independent copy of the graph
+    LogicalGraph clone() const;
+    
+    //! Move constructor and assignment
+    LogicalGraph(LogicalGraph&& other) noexcept;
+    LogicalGraph& operator=(LogicalGraph&& other) noexcept;
+    
+    //! Copy constructor and assignment
+    LogicalGraph(const LogicalGraph& other);
+    LogicalGraph& operator=(const LogicalGraph& other);
+    
+    // ═══════════════════════════════════════════════════════════════
+    // Mutation
+    // ═══════════════════════════════════════════════════════════════
+    
+    //! Remove a tensor and all operations that depend on it
+    void remove_tensor(const std::string& name);
+    
+    //! Remove an operation (outputs become dangling)
+    void remove_operation(const std::string& output_name);
+    
+    //! Replace a tensor with another (updates all references)
+    void replace_tensor(const std::string& old_name, const std::string& new_name);
+    
+    //! Rename a tensor
+    void rename_tensor(const std::string& old_name, const std::string& new_name);
+    
+    //! Clear all tensors and operations
+    void clear();
+    
+    // ═══════════════════════════════════════════════════════════════
+    // Composition
+    // ═══════════════════════════════════════════════════════════════
+    
+    //! Embed another graph (existing method)
+    std::map<std::string, std::string> embed(
+        const LogicalGraph& other,
+        const std::map<std::string, std::string>& input_bindings,
+        const std::string& prefix = ""
+    );
+    
+    //! Append another graph (merge without renaming)
+    //! Tensors with same name must have same spec
+    void append(const LogicalGraph& other);
+    
+    //! Stack: create N copies of a subgraph with prefixes
+    void stack(const LogicalGraph& block, int count, const std::string& prefix_format = "layer{}");
+};
+```
+
+**Usage examples**:
+
+```cpp
+// Clone a graph for experimentation
+LogicalGraph original("model");
+// ... build original ...
+LogicalGraph experimental = original.clone();
+experimental.remove_tensor("dropout");  // Try without dropout
+
+// Stack layers
+LogicalGraph block = make_transformer_block();
+LogicalGraph transformer("transformer");
+transformer.stack(block, 12, "layer{}");  // layer0, layer1, ..., layer11
+
+// Clear and reuse
+graph.clear();
+// ... build new graph in same object ...
+```
+
+**Thread safety**: **Single-threaded**. Graph building is done by a single thread. No synchronization overhead.
+
+### 10.12 Cross-Graph Data Transfer (Design Decision)
+
+**Question**: How do forward, gradient, and optimizer graphs share parameter tensors?
+
+**Answer**: Graphs can share **logical tensors by name**, but may have **different tiling**. Data transfer between CompiledGraphs handles re-tiling automatically.
+
+```cpp
+class CompiledGraph {
+public:
+    // ═══════════════════════════════════════════════════════════════
+    // Cross-Graph Data Transfer
+    // ═══════════════════════════════════════════════════════════════
+    
+    //! Transfer tensor data to another compiled graph
+    //! Handles re-tiling if the target has different tile sizes
+    void transfer_to(
+        CompiledGraph& target,
+        const std::string& tensor_name
+    );
+    
+    //! Transfer multiple tensors
+    void transfer_to(
+        CompiledGraph& target,
+        const std::vector<std::string>& tensor_names
+    );
+    
+    //! Transfer all tensors with matching names
+    void transfer_all_matching(CompiledGraph& target);
+    
+    //! Check if transfer would require re-tiling
+    bool requires_retiling(
+        const CompiledGraph& target,
+        const std::string& tensor_name
+    ) const;
+};
+```
+
+**Why different tiling per graph?**
+
+Different operations benefit from different tile shapes:
+- **Forward**: Large tiles for compute efficiency
+- **Gradient accumulation**: Tiles aligned with parameter sharding
+- **Optimizer**: May want different distribution for update efficiency
+
+**Example: Forward and Backward with different tiling**:
+
+```cpp
+// Forward graph - optimize for large matmuls
+LogicalGraph fwd_graph("forward");
+auto& x = fwd_graph.tensor(TensorSpec({batch, embed}), "x");
+auto& W = fwd_graph.tensor(TensorSpec({embed, hidden}), "W");
+auto& y = fwd_graph.matmul(x, W, "y");
+fwd_graph.mark_output("y");
+
+// Backward graph - optimize for gradient accumulation
+LogicalGraph bwd_graph("backward");
+auto& x_bwd = bwd_graph.tensor(TensorSpec({batch, embed}), "x");  // Same logical tensor
+auto& W_bwd = bwd_graph.tensor(TensorSpec({embed, hidden}), "W"); // Same logical tensor
+auto& dy = bwd_graph.tensor(TensorSpec({batch, hidden}), "dy");
+auto& dW = bwd_graph.matmul(x_bwd, dy, "dW", true, false);
+bwd_graph.mark_output("dW");
+
+// Compile with DIFFERENT tiling strategies
+auto fwd = CompiledGraph::compile(fwd_graph, num_nodes,
+    TilingStrategy::uniform({256, 256}));  // Large tiles for forward
+
+auto bwd = CompiledGraph::compile(bwd_graph, num_nodes,
+    TilingStrategy::uniform({64, 64}));    // Smaller tiles for gradient
+
+// Training loop
+for (int step = 0; step < num_steps; ++step) {
+    fwd.bind_data("x", input);
+    fwd.bind_data("W", weights);
+    fwd.execute();
+    
+    // Transfer x and W to backward graph (re-tiles automatically if needed)
+    fwd.transfer_to(bwd, {"x", "W"});
+    
+    // Transfer y as dy input (assuming loss gradient = 1)
+    fwd.transfer_to(bwd, "y");  // -> becomes "dy" input
+    bwd.rename_input("y", "dy");  // Or use explicit binding
+    
+    bwd.execute();
+    
+    auto grad = bwd.get_output_tensor<float>("dW");
+    // ... update weights ...
+}
+```
+
+**Zero-copy optimization**: If source and target have the **same tiling and distribution**, transfer is zero-copy (just share the data handle).
+
+```cpp
+// Check if zero-copy is possible
+if (!fwd.requires_retiling(bwd, "W")) {
+    // Zero-copy transfer - just shares the StarPU data handle
+    fwd.transfer_to(bwd, "W");
+} else {
+    // Requires re-tiling - actual data movement
+    fwd.transfer_to(bwd, "W");
+}
+```
+
+**Shared LogicalGraph optimization**: If two CompiledGraphs come from the same LogicalGraph (or share tensor names), the system can optimize transfers:
+
+```cpp
+// Both compiled from same logical graph but different tiling
+auto compiled_a = CompiledGraph::compile(graph, 4, TilingStrategy::uniform({128, 128}));
+auto compiled_b = CompiledGraph::compile(graph, 4, TilingStrategy::uniform({256, 256}));
+
+// System knows they share the same logical tensors
+compiled_a.transfer_all_matching(compiled_b);  // Transfers all tensors with same names
+```
+
+### 10.13 Remaining Open Questions
 
 1. **Checkpoint format**: Custom binary, or compatibility layer with PyTorch/SafeTensors/ONNX?
-2. **Lazy vs eager tensor creation**: Should `graph.tensor()` create the node immediately?
-3. **Error recovery**: What state is the graph in after a failed execution?
-4. **Graph mutation**: Can you modify a LogicalGraph after operations are added?
-5. **Thread safety**: Can multiple threads build the same LogicalGraph?
-6. **Cross-graph tensor sharing**: How do forward, gradient, and optimizer graphs share parameter tensors?
-7. **Memory planning across graphs**: Can we optimize memory reuse across multiple graphs?
-8. **Compilation cache eviction**: When to evict cached compilations for different shapes?
-9. **Tile boundary alignment**: Should tile boundaries be aligned to specific values (e.g., 64) for memory efficiency?
-10. **Load balancing feedback**: How to collect and report per-node timing for adaptive rebalancing?
-11. **Embedded graph format**: Binary format for pre-compiled graphs on embedded devices?
-12. **Quantization support**: INT8/INT4 operations for mobile inference?
-13. **Model encryption**: Protect model weights on edge devices?
+2. **Error recovery**: What state is the graph in after a failed execution?
+3. **Memory planning across graphs**: Can we optimize memory reuse across multiple graphs?
+4. **Compilation cache eviction**: When to evict cached compilations for different shapes?
+5. **Tile boundary alignment**: Should tile boundaries be aligned to specific values (e.g., 64) for memory efficiency?
+6. **Load balancing feedback**: How to collect and report per-node timing for adaptive rebalancing?
+7. **Embedded graph format**: Binary format for pre-compiled graphs on embedded devices?
+8. **Quantization support**: INT8/INT4 operations for mobile inference?
+9. **Model encryption**: Protect model weights on edge devices?
 
 ---
 
