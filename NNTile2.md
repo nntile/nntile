@@ -1525,9 +1525,9 @@ physical_1024 = PhysicalGraph(logical_dynamic, shape_bindings={"seq_len": 1024})
 
 #### 4.1.4 Core Data Structures
 
-##### Mixed Precision: Tensors as Heterogeneous Tile Collections
+##### Mixed Precision: Explicit Casts Only (No Implicit Conversion)
 
-**Design Principle**: A tensor is a collection of tiles, and each tile can have a different data type.
+**Design Principle**: All dtype conversions must be explicit. Operations with mismatched dtypes fail at graph construction time.
 
 ```cpp
 namespace nntile::graph {
@@ -1539,80 +1539,69 @@ enum class DataType {
     INT32, INT64, BOOL
 };
 
-//! Tile-level dtype specification
-struct TileDTypeSpec {
-    //! Default dtype for all tiles
-    DataType default_dtype;
+class LogicalGraph {
+public:
+    //! Explicit cast operation - the ONLY way to change dtype
+    TensorNode& cast(TensorNode& input, DataType target_dtype, const std::string& name = "");
     
-    //! Override dtype for specific tiles (tile_index -> dtype)
-    //! If empty, all tiles use default_dtype
-    std::map<Index, DataType> tile_overrides;
-    
-    //! Get dtype for a specific tile
-    DataType dtype_for_tile(Index tile_idx) const {
-        auto it = tile_overrides.find(tile_idx);
-        return (it != tile_overrides.end()) ? it->second : default_dtype;
-    }
-    
-    //! Check if all tiles have same dtype
-    bool is_homogeneous() const { return tile_overrides.empty(); }
-    
-    // Factory methods
-    static TileDTypeSpec uniform(DataType dt) {
-        return {dt, {}};
-    }
-    
-    static TileDTypeSpec mixed_precision(
-        DataType compute_dtype,      // For most tiles
-        DataType accumulate_dtype,   // For tiles that accumulate (e.g., reduction outputs)
-        const std::set<Index>& accumulate_tiles
-    ) {
-        TileDTypeSpec spec{compute_dtype, {}};
-        for (Index idx : accumulate_tiles) {
-            spec.tile_overrides[idx] = accumulate_dtype;
-        }
-        return spec;
-    }
+    //! All operations REQUIRE matching dtypes
+    //! This will throw if a.dtype != b.dtype
+    TensorNode& matmul(TensorNode& a, TensorNode& b, ...);  // Requires same dtype
+    TensorNode& add(TensorNode& a, TensorNode& b, ...);     // Requires same dtype
+    // etc.
+};
+
+} // namespace nntile::graph
+```
+
+**Rationale for No Implicit Casts**:
+1. **Predictability**: User knows exactly where precision changes
+2. **Performance visibility**: Casts have cost, should be explicit
+3. **Debugging**: Easy to trace precision issues
+4. **Optimization**: Compiler can see all casts and potentially fuse/eliminate them
+
+**Mixed Precision Pattern**:
+
+```python
+graph = LogicalGraph("mixed_precision_forward")
+
+# Inputs and parameters in their native dtypes
+x = graph.tensor(TensorSpec([batch, seq, embed], FP16), "x", external=True)
+w = graph.tensor(TensorSpec([embed, hidden], FP32), "w", persistent=True)  # Master weight
+
+# Explicit cast for computation
+w_fp16 = graph.cast(w, FP16, name="w_fp16")
+
+# Compute in FP16
+h = graph.matmul(x, w_fp16, name="hidden")  # Both FP16, OK
+
+# Accumulation in FP32
+h_fp32 = graph.cast(h, FP32, name="h_fp32")
+# ... further FP32 accumulation ...
+
+# This would FAIL at graph construction:
+# h_bad = graph.matmul(x, w)  # Error: FP16 vs FP32 mismatch!
+```
+
+**Tile-Level Dtype (Simplified)**:
+
+Since all casts are explicit, each tensor has a single dtype. Heterogeneous precision is achieved through explicit cast operations, not through per-tile dtype specifications.
+
+```cpp
+struct TensorSpec {
+    std::vector<Dimension> shape;
+    DataType dtype;  // Single dtype for entire tensor (all tiles)
+    // ...
 };
 ```
 
-**Use Cases for Heterogeneous Tile Dtypes**:
+If truly heterogeneous tile dtypes are needed (rare), use separate tensors and concat:
 
 ```python
-# Example 1: FP16 forward, FP32 master weights
-# Parameters stored in FP32 but computation tiles in FP16
-w_spec = TensorSpec(
-    shape=[4096, 4096],
-    dtype=TileDTypeSpec.uniform(FP32),  # Master weights in FP32
-)
-w = graph.tensor(w_spec, "weight", requires_grad=True, persistent=True)
-
-# Cast to FP16 for forward computation
-w_fp16 = graph.cast(w, FP16, name="weight_fp16")
-h = graph.matmul(x_fp16, w_fp16)  # Compute in FP16
-
-# Gradients accumulated in FP32
-dw = graph.tensor(TensorSpec([4096, 4096], FP32), "dw", persistent=True)
-
-
-# Example 2: Different precision for different tile regions
-# Edge tiles in FP32 for numerical stability, inner tiles in FP16
-spec = TileDTypeSpec(
-    default_dtype=FP16,
-    tile_overrides={
-        0: FP32,   # First tile (edge)
-        15: FP32,  # Last tile (edge)
-    }
-)
-
-
-# Example 3: Reduction tiles in higher precision
-# In a sum reduction, the output tile accumulates many values -> use FP32
-reduction_output_spec = TileDTypeSpec.mixed_precision(
-    compute_dtype=FP16,
-    accumulate_dtype=FP32,
-    accumulate_tiles={0}  # The single output tile of reduction
-)
+# Rare case: different dtypes for different regions
+tile_fp32 = graph.tensor(TensorSpec([edge_size, dim], FP32), "edge_tile")
+tile_fp16 = graph.tensor(TensorSpec([main_size, dim], FP16), "main_tile")
+# Process separately, concat results if needed
 ```
 
 ##### TensorSpec - Logical Tensor Specification
@@ -1633,28 +1622,22 @@ enum class TensorRole {
 //! Logical tensor specification (no tiling/distribution info yet)
 struct TensorSpec {
     std::vector<Dimension> shape;  // Can mix concrete and symbolic dims
-    TileDTypeSpec dtype;           // Can be heterogeneous across tiles
+    DataType dtype;                // Single dtype (explicit casts required for conversion)
     TensorRole role;
     std::string name;
     bool requires_grad = false;
     
     // Constructors
     TensorSpec(std::vector<Index> shape, DataType dtype, std::string name = "")
-        : shape(shape.begin(), shape.end()), 
-          dtype(TileDTypeSpec::uniform(dtype)), 
-          name(name) {}
-    
-    TensorSpec(std::vector<Index> shape, TileDTypeSpec dtype, std::string name = "")
         : shape(shape.begin(), shape.end()), dtype(dtype), name(name) {}
     
     TensorSpec(std::vector<Dimension> shape, DataType dtype, std::string name = "")
-        : shape(shape), dtype(TileDTypeSpec::uniform(dtype)), name(name) {}
+        : shape(shape), dtype(dtype), name(name) {}
     
     // Queries
     Index ndim() const { return shape.size(); }
     bool has_symbolic_dims() const;
     std::vector<std::string> symbolic_dim_names() const;
-    bool is_homogeneous_dtype() const { return dtype.is_homogeneous(); }
     
     // Create concrete spec by binding symbolic dims
     TensorSpec bind(const std::map<std::string, Index>& bindings) const;
@@ -3656,7 +3639,396 @@ compiled.forward(phases=["forward", "backward"])  # Mini-batch
 compiled.forward(phases=["optimizer"])             # After accumulation
 ```
 
-### 10.5 Missing Components Analysis (Updated)
+### 10.5 Inference Optimization: Compile While Executing
+
+**Use Case**: During inference (especially with dynamic shapes), compile the next graph while the current one executes.
+
+```
+Time ──────────────────────────────────────────────────────────────────►
+
+Thread 1 (Execution):
+    [Execute Graph 0]──────[Execute Graph 1]──────[Execute Graph 2]────►
+
+Thread 2 (Compilation):
+         [Compile Graph 1]──────[Compile Graph 2]──────[Compile Graph 3]►
+```
+
+#### 10.5.1 Asynchronous Compilation API
+
+```cpp
+namespace nntile::graph {
+
+//! Future for async compilation result
+class CompilationFuture {
+public:
+    //! Check if compilation is complete
+    bool is_ready() const;
+    
+    //! Wait for compilation to complete and get result
+    CompiledGraph get();
+    
+    //! Wait with timeout, returns nullptr if not ready
+    CompiledGraph* try_get(std::chrono::milliseconds timeout);
+};
+
+//! Async compilation
+CompilationFuture compile_async(
+    LogicalGraph& graph,
+    const DistributionStrategy& dist,
+    const TilingStrategy& tiling = TilingStrategy::auto_tiling(),
+    const std::map<std::string, Index>& shape_bindings = {}
+);
+
+//! Compilation cache for reusing compiled graphs
+class CompilationCache {
+public:
+    //! Get or compile graph with given parameters
+    //! Returns immediately if cached, compiles if not
+    CompiledGraph& get_or_compile(
+        LogicalGraph& graph,
+        const DistributionStrategy& dist,
+        const TilingStrategy& tiling,
+        const std::map<std::string, Index>& shape_bindings
+    );
+    
+    //! Pre-compile graphs for expected shapes
+    void prefetch(
+        LogicalGraph& graph,
+        const DistributionStrategy& dist,
+        const std::vector<std::map<std::string, Index>>& expected_shapes
+    );
+    
+    //! Evict least recently used entries
+    void evict(size_t target_cache_size);
+    
+    //! Clear all cached compilations
+    void clear();
+};
+
+} // namespace nntile::graph
+```
+
+#### 10.5.2 Inference Pipeline Example
+
+```python
+# Inference with pipelined compilation
+
+# Create logical graph (shape-parametric)
+model_graph = LogicalGraph("transformer")
+x = model_graph.tensor(TensorSpec(["seq_len", batch_size, embed_dim], FP16), "x", external=True)
+# ... build model ...
+model_graph.mark_output(output, "output")
+
+# Compilation cache
+cache = CompilationCache()
+
+# Pre-compile for common sequence lengths
+cache.prefetch(model_graph, dist_strategy, [
+    {"seq_len": 128},
+    {"seq_len": 256},
+    {"seq_len": 512},
+    {"seq_len": 1024},
+])
+
+# Inference loop
+pending_compilation = None
+current_compiled = None
+
+for batch in inference_batches:
+    seq_len = batch.shape[0]
+    
+    # Start compiling for this batch (if not cached)
+    shape_binding = {"seq_len": seq_len}
+    
+    if pending_compilation is None:
+        # First iteration: compile synchronously
+        current_compiled = cache.get_or_compile(
+            model_graph, dist_strategy, tiling_strategy, shape_binding
+        )
+    else:
+        # Wait for previous compilation if needed
+        current_compiled = pending_compilation.get()
+    
+    # Start async compilation for next batch (speculative)
+    next_seq_len = predict_next_seq_len(batch)  # Heuristic
+    pending_compilation = compile_async(
+        model_graph, dist_strategy, tiling_strategy, {"seq_len": next_seq_len}
+    )
+    
+    # Execute current batch
+    current_compiled.bind_input("x", batch)
+    current_compiled.forward()
+    result = current_compiled.get_output("output")
+    
+    yield result
+```
+
+#### 10.5.3 Speculative Compilation for LLM Inference
+
+For autoregressive generation, sequence length grows by 1 each step:
+
+```python
+class LLMInferenceEngine:
+    def __init__(self, model_graph, dist_strategy):
+        self.graph = model_graph
+        self.dist = dist_strategy
+        self.cache = CompilationCache()
+        self.pending = {}  # seq_len -> CompilationFuture
+    
+    def prefetch_compilations(self, current_len, lookahead=5):
+        """Speculatively compile for upcoming sequence lengths."""
+        for offset in range(1, lookahead + 1):
+            target_len = current_len + offset
+            if target_len not in self.pending:
+                self.pending[target_len] = compile_async(
+                    self.graph, self.dist, auto_tiling(), {"seq_len": target_len}
+                )
+    
+    def get_compiled(self, seq_len):
+        """Get compiled graph for sequence length, waiting if necessary."""
+        if seq_len in self.pending:
+            compiled = self.pending.pop(seq_len).get()
+            return compiled
+        return self.cache.get_or_compile(
+            self.graph, self.dist, auto_tiling(), {"seq_len": seq_len}
+        )
+    
+    def generate(self, prompt, max_new_tokens):
+        seq_len = len(prompt)
+        
+        for _ in range(max_new_tokens):
+            # Prefetch compilations for future steps
+            self.prefetch_compilations(seq_len, lookahead=5)
+            
+            # Get compiled graph for current length
+            compiled = self.get_compiled(seq_len)
+            
+            # Execute
+            compiled.bind_input("x", current_sequence)
+            compiled.forward()
+            next_token = sample(compiled.get_output("logits"))
+            
+            current_sequence.append(next_token)
+            seq_len += 1
+            
+            if next_token == EOS:
+                break
+        
+        return current_sequence
+```
+
+---
+
+### 10.6 Dynamic Non-Uniform Tiling
+
+**Problem**: Current NNTile uses uniform `basetile_shape` stamped across tensor, creating mostly equal tiles.
+
+**Requirement**: Support non-uniform tile sizes for:
+1. Load balancing across heterogeneous GPUs
+2. Better fitting irregular shapes
+3. Adapting to runtime performance measurements
+
+#### 10.6.1 Non-Uniform Tiling Specification
+
+```cpp
+namespace nntile::graph {
+
+//! Tiling for a single dimension
+struct DimensionTiling {
+    //! Option 1: Uniform tiling
+    struct Uniform {
+        Index tile_size;
+    };
+    
+    //! Option 2: Explicit boundaries
+    struct Explicit {
+        std::vector<Index> boundaries;  // [0, b1, b2, ..., dim_size]
+        // Tile i spans [boundaries[i], boundaries[i+1])
+    };
+    
+    //! Option 3: Proportional (for load balancing)
+    struct Proportional {
+        std::vector<float> weights;  // Relative sizes, will be normalized
+        // E.g., [1.0, 1.0, 0.8] for 3 tiles where last GPU is 20% slower
+    };
+    
+    std::variant<Uniform, Explicit, Proportional> spec;
+    
+    // Factory methods
+    static DimensionTiling uniform(Index tile_size) {
+        return {Uniform{tile_size}};
+    }
+    
+    static DimensionTiling explicit_boundaries(std::vector<Index> bounds) {
+        return {Explicit{std::move(bounds)}};
+    }
+    
+    static DimensionTiling proportional(std::vector<float> weights) {
+        return {Proportional{std::move(weights)}};
+    }
+    
+    //! Compute actual boundaries given dimension size
+    std::vector<Index> compute_boundaries(Index dim_size) const;
+    
+    //! Get number of tiles
+    Index num_tiles(Index dim_size) const;
+};
+
+//! Complete tiling specification for a tensor
+struct TilingSpec {
+    std::vector<DimensionTiling> dim_tilings;
+    
+    //! Get tile shape for a specific tile index
+    std::vector<Index> tile_shape(
+        const std::vector<Index>& tensor_shape,
+        const std::vector<Index>& tile_index
+    ) const;
+    
+    //! Get total number of tiles
+    Index num_tiles(const std::vector<Index>& tensor_shape) const;
+};
+
+} // namespace nntile::graph
+```
+
+#### 10.6.2 Usage Examples
+
+```python
+# Example 1: Uniform tiling (current behavior)
+tiling = TilingSpec([
+    DimensionTiling.uniform(1024),  # Dim 0: tiles of 1024
+    DimensionTiling.uniform(512),   # Dim 1: tiles of 512
+])
+
+# Example 2: Explicit boundaries for irregular shape
+# Tensor shape [3000, 2048]
+tiling = TilingSpec([
+    DimensionTiling.explicit_boundaries([0, 1000, 2000, 3000]),  # 3 tiles: 1000, 1000, 1000
+    DimensionTiling.explicit_boundaries([0, 1024, 2048]),        # 2 tiles: 1024, 1024
+])
+
+# Example 3: Load balancing across heterogeneous GPUs
+# GPU 0 and 1 are fast, GPU 2 is 20% slower
+tiling = TilingSpec([
+    DimensionTiling.proportional([1.0, 1.0, 0.8]),  # 3 tiles with relative sizes
+    DimensionTiling.uniform(1024),
+])
+# For tensor [8192, 4096], tiles would be approximately:
+# - Tile 0: [2926, 4096]  (1.0 / 2.8 * 8192)
+# - Tile 1: [2926, 4096]  (1.0 / 2.8 * 8192)
+# - Tile 2: [2340, 4096]  (0.8 / 2.8 * 8192)
+
+# Example 4: Mixed tiling strategies
+tiling = TilingSpec([
+    DimensionTiling.explicit_boundaries([0, 100, 500, 1000]),  # Explicit
+    DimensionTiling.uniform(256),                               # Uniform
+    DimensionTiling.proportional([1.0, 1.5, 1.0]),             # Proportional
+])
+```
+
+#### 10.6.3 Automatic Load-Balanced Tiling
+
+```cpp
+class TilingStrategy {
+public:
+    //! Auto-balanced tiling based on device performance profile
+    static TilingStrategy load_balanced(
+        const DevicePerformanceProfile& profile,
+        Index target_tile_bytes = 64 * 1024 * 1024
+    );
+};
+
+struct DevicePerformanceProfile {
+    //! Relative compute speed of each device (1.0 = baseline)
+    std::map<int, float> device_speeds;
+    
+    //! Memory available on each device
+    std::map<int, size_t> device_memory;
+    
+    //! Bandwidth between devices (for communication cost)
+    std::map<std::pair<int, int>, float> interconnect_bandwidth;
+    
+    // Factory methods
+    static DevicePerformanceProfile homogeneous(int num_devices);
+    static DevicePerformanceProfile from_benchmark(/* benchmark results */);
+    static DevicePerformanceProfile manual(
+        std::map<int, float> speeds,
+        std::map<int, size_t> memory
+    );
+};
+```
+
+**Usage**:
+
+```python
+# Profile devices (could be from benchmark or manual)
+profile = DevicePerformanceProfile.manual(
+    speeds={0: 1.0, 1: 1.0, 2: 0.8, 3: 0.8},  # GPUs 2,3 are 20% slower
+    memory={0: 80e9, 1: 80e9, 2: 40e9, 3: 40e9}  # GPUs 2,3 have less memory
+)
+
+# Auto-balanced tiling strategy
+tiling = TilingStrategy.load_balanced(profile, target_tile_bytes=64*1024*1024)
+
+# Compile with load-balanced tiling
+compiled = CompiledGraph.compile(graph, dist_strategy, tiling)
+
+# Tiles are automatically sized to balance load
+```
+
+#### 10.6.4 Runtime Tile Rebalancing (Advanced)
+
+For long-running training, dynamically adjust tiling based on observed performance:
+
+```python
+class AdaptiveTilingManager:
+    def __init__(self, graph, dist_strategy):
+        self.graph = graph
+        self.dist = dist_strategy
+        self.profile = DevicePerformanceProfile.homogeneous(num_devices)
+        self.compiled = None
+        self.iteration_times = []
+    
+    def recompile_if_needed(self):
+        """Recompile with updated tiling if performance is imbalanced."""
+        if len(self.iteration_times) < 10:
+            return  # Not enough data
+        
+        # Analyze per-device times
+        device_times = analyze_device_times(self.iteration_times[-10:])
+        
+        # Check if rebalancing would help
+        imbalance = max(device_times) / min(device_times)
+        if imbalance > 1.1:  # More than 10% imbalance
+            # Update profile based on measurements
+            self.profile = DevicePerformanceProfile.from_benchmark(device_times)
+            
+            # Recompile with new tiling
+            new_tiling = TilingStrategy.load_balanced(self.profile)
+            self.compiled = CompiledGraph.compile(self.graph, self.dist, new_tiling)
+    
+    def step(self, inputs):
+        if self.compiled is None:
+            self.compiled = CompiledGraph.compile(
+                self.graph, self.dist, TilingStrategy.auto_tiling()
+            )
+        
+        # Execute
+        start = time.time()
+        self.compiled.bind_inputs(inputs)
+        self.compiled.forward()
+        self.iteration_times.append(time.time() - start)
+        
+        # Periodically check if rebalancing needed
+        if len(self.iteration_times) % 100 == 0:
+            self.recompile_if_needed()
+        
+        return self.compiled.get_outputs()
+```
+
+---
+
+### 10.7 Missing Components Analysis (Updated)
 
 | Component | Status | Priority | Notes |
 |-----------|--------|----------|-------|
@@ -3664,8 +4036,11 @@ compiled.forward(phases=["optimizer"])             # After accumulation
 | **Optimizer operations** | Designed | Done | Separate graph or phase, SGD/Adam ops |
 | **Loss function ops** | Designed | Done | CrossEntropy, MSE as graph ops |
 | **Gradient accumulation** | Natural | Done | Backward ops ADD to gradient tensors |
-| **Mixed precision** | Designed | Done | Heterogeneous tile dtypes, cast ops |
+| **Mixed precision** | Designed | Done | Explicit cast ops only, no implicit conversion |
 | **Communication primitives** | Not needed | N/A | Backend runtime handles automatically |
+| **Async compilation** | Designed | Done | Compile next graph while executing current |
+| **Compilation cache** | Designed | Done | Reuse compiled graphs for same shapes |
+| **Non-uniform tiling** | Designed | Done | Explicit boundaries, proportional, load-balanced |
 | **Gradient checkpointing** | Natural fit | Medium | Re-run forward ops in backward section |
 | **Data loading pipeline** | Not designed | Medium | How data gets to inputs |
 | **Profiling/debugging** | Not designed | Medium | Trace visualization, performance analysis |
@@ -3861,18 +4236,19 @@ class ModelGraph:
 | Debugging | Straightforward | Need to understand internals |
 | Performance tuning | Direct control | Depends on autograd impl |
 
-### 10.6 Revised Open Questions
+### 10.8 Revised Open Questions
 
-1. **Dynamic shapes in compiled graphs**: Re-compile on shape change, or handle dynamically?
-2. **Multi-GPU within single node**: Is it one CompiledGraph or multiple coordinated ones?
-3. **Checkpoint format**: Custom binary, or compatibility layer with PyTorch/SafeTensors?
-4. **Lazy vs eager tensor creation**: Should `graph.tensor()` create the node immediately?
-5. **Error recovery**: What state is the graph in after a failed execution?
-6. **Graph mutation**: Can you modify a LogicalGraph after operations are added?
-7. **Thread safety**: Can multiple threads build the same LogicalGraph?
-8. **Cross-graph tensor sharing**: How do forward, backward, and optimizer graphs share parameter tensors?
-9. **Tile dtype inheritance**: When an operation has mixed-dtype inputs, what dtype are output tiles?
-10. **Memory planning across graphs**: Can we optimize memory reuse across forward/backward/optimizer graphs?
+1. **Multi-GPU within single node**: Is it one CompiledGraph or multiple coordinated ones?
+2. **Checkpoint format**: Custom binary, or compatibility layer with PyTorch/SafeTensors?
+3. **Lazy vs eager tensor creation**: Should `graph.tensor()` create the node immediately?
+4. **Error recovery**: What state is the graph in after a failed execution?
+5. **Graph mutation**: Can you modify a LogicalGraph after operations are added?
+6. **Thread safety**: Can multiple threads build the same LogicalGraph?
+7. **Cross-graph tensor sharing**: How do forward, backward, and optimizer graphs share parameter tensors?
+8. **Memory planning across graphs**: Can we optimize memory reuse across forward/backward/optimizer graphs?
+9. **Compilation cache eviction**: When to evict cached compilations for different shapes?
+10. **Tile boundary alignment**: Should tile boundaries be aligned to specific values (e.g., 64) for memory efficiency?
+11. **Load balancing feedback**: How to collect and report per-device timing for adaptive rebalancing?
 
 ---
 
@@ -3925,13 +4301,15 @@ NNTile 2.0 introduces a transformative high-level graph abstraction that enables
 
 ### Key Design Choices
 
-- **Explicit backward operations** - No autograd engine; users define backward ops in the same logical graph
+- **Explicit backward operations** - No autograd engine; users define backward ops explicitly
 - **Forward and backward are just ops** - Same graph, same execution model
-- **Gradient checkpointing is natural** - Just re-execute forward ops in backward section
-- **Heterogeneous tile dtypes** - Each tile can have different dtype for flexible mixed precision
+- **Explicit casts only** - No implicit dtype conversion; operations require matching dtypes
 - **Optimizer as separate graph** - Clean separation, executed once per N mini-batches
 - **Loss functions as graph ops** - CrossEntropy, MSE are regular operations
 - **No explicit communication primitives** - Backend runtime handles automatically
+- **Async compilation for inference** - Compile next graph while executing current
+- **Non-uniform tiling** - Support explicit boundaries, proportional, and load-balanced tiling
+- **Gradient checkpointing is natural** - Just re-execute forward ops in backward section
 
 ### Missing Components (To Be Designed)
 
@@ -3939,6 +4317,7 @@ NNTile 2.0 introduces a transformative high-level graph abstraction that enables
 - Serialization and checkpoint format
 - Memory pool management for allocation reuse
 - Data loading pipeline integration
+- Error handling and recovery
 
 ### Benefits of Runtime Abstraction
 
