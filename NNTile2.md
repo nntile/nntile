@@ -94,30 +94,57 @@ The tile-level layer provides important architectural benefits:
 
 ### 3.2 Refactoring Goals
 
-#### 3.2.1 Header-Only Implementation
+#### 3.2.1 Keep C++ Source Files
 
-Both **tile-level AND starpu-level** should become header-only where feasible:
+Both **tile-level and runtime-level** (formerly starpu-level) keep their `.cc` source files:
 
 **Rationale:**
-- Enables inlining for zero-overhead abstraction
-- Reduces compilation units and link times
-- Template-heavy code benefits from header-only design
-- Simplifies build system
+- Overhead is negligible (does not interfere with actual computations in tasks)
+- Maintains clear separation of interface and implementation
+- Faster incremental builds (changes don't trigger full recompilation)
+- Easier debugging with clear compilation units
 
-**Structure:**
+#### 3.2.2 Runtime Abstraction Layer
+
+Rename and restructure `starpu/` to a generic `runtime/` layer with pluggable backends:
+
+**New Directory Structure:**
 ```
+src/
+├── kernel/              # Unchanged - CPU/CUDA implementations
+├── runtime/             # NEW - Runtime abstraction layer
+│   ├── backend.cc       # Abstract backend interface
+│   ├── task_handle.cc   # Abstract task handle
+│   ├── data_handle.cc   # Abstract data handle
+│   ├── starpu/          # StarPU backend implementation
+│   │   ├── backend.cc
+│   │   ├── gelu.cc
+│   │   ├── gemm.cc
+│   │   └── ...
+│   ├── taskflow/        # Future: TaskFlow backend
+│   │   └── ...
+│   └── serial/          # Future: Serial/debug backend
+│       └── ...
+├── tile/                # Unchanged - uses runtime:: interface
+└── tensor/              # Unchanged - uses tile:: or runtime::
+
 include/nntile/
-├── kernel/          # Declarations only (implementations in .cc/.cu)
-├── starpu/          # Header-only templates + inline functions
-│   ├── gelu.hh      # Contains submit() implementation
+├── kernel/              # Unchanged
+├── runtime/             # NEW - Runtime-agnostic headers
+│   ├── backend.hh       # Abstract backend interface
+│   ├── task_handle.hh   # Abstract task handle
+│   ├── data_handle.hh   # Abstract data handle
+│   ├── codelet.hh       # Abstract codelet definition
+│   ├── gelu.hh          # Runtime-agnostic operation interface
+│   ├── gemm.hh
 │   └── ...
-├── tile/            # Header-only, calls starpu::
-│   ├── gelu.hh      # Contains gelu_async() and gelu()
-│   └── ...
-└── tensor/          # May remain .cc for complex logic
+│   ├── starpu/          # StarPU-specific headers
+│   │   ├── backend.hh
+│   │   └── ...
+│   └── taskflow/        # Future
+├── tile/                # Uses runtime:: namespace
+└── tensor/              # Uses runtime:: or tile::
 ```
-
-**Note:** Kernel-level cannot be header-only due to CUDA compilation requirements.
 
 #### 3.2.2 Task Handle Return for Proper Blocking
 
@@ -355,7 +382,7 @@ task.detach();  // Don't wait
 tile::gelu(src, dst);  // Blocks until THIS task completes
 
 // Pattern 3: Batch submission then wait
-starpu::TaskGroup group;
+runtime::TaskGroup group;
 for (int i = 0; i < n_tiles; ++i) {
     group.add(tile::gelu_async(src[i], dst[i]));
 }
@@ -363,20 +390,686 @@ group.wait_all();  // Wait for all tasks in this group
 
 // Pattern 4: Pipeline with dependencies
 auto task1 = tile::gelu_async(a, b);
-auto task2 = tile::relu_async(b, c);  // StarPU handles dependency via data handles
+auto task2 = tile::relu_async(b, c);  // Runtime handles dependency via data handles
 task2.wait();  // Waiting for task2 implicitly waits for task1 due to data dependency
 
 // Pattern 5: Tensor-level collecting tasks (for future synchronization)
 template<typename T>
-starpu::TaskGroup gelu_async(const Tensor<T>& src, const Tensor<T>& dst) {
-    starpu::TaskGroup tasks;
+runtime::TaskGroup gelu_async(const Tensor<T>& src, const Tensor<T>& dst) {
+    runtime::TaskGroup tasks;
     for (Index i = 0; i < src.grid.nelems; ++i) {
-        auto task = starpu::gelu.submit<std::tuple<T>>(...);
+        auto task = runtime::gelu.submit<std::tuple<T>>(...);
         tasks.add(std::move(task));
     }
     return tasks;  // Caller can wait or let destructor wait
 }
 ```
+
+---
+
+## 3.8 Runtime Abstraction Layer Design
+
+### 3.8.1 Design Goals
+
+1. **Runtime Agnostic Interface**: Tile-level and tensor-level code should not know which runtime is being used
+2. **Compile-Time Selection**: Choose runtime at build time for zero-overhead dispatch
+3. **Runtime Selection** (Optional): Choose runtime at initialization for maximum flexibility
+4. **Extensibility**: Easy to add new backends (TaskFlow, HPX, serial/debug)
+
+### 3.8.2 Backend Selection Strategies
+
+#### Option A: Compile-Time Selection (Recommended Default)
+
+```cmake
+# CMakeLists.txt
+option(NNTILE_RUNTIME_STARPU "Use StarPU runtime" ON)
+option(NNTILE_RUNTIME_TASKFLOW "Use TaskFlow runtime" OFF)
+option(NNTILE_RUNTIME_SERIAL "Use Serial runtime (debug)" OFF)
+
+# Only one can be enabled
+if(NNTILE_RUNTIME_STARPU)
+    add_compile_definitions(NNTILE_RUNTIME=starpu)
+    add_subdirectory(src/runtime/starpu)
+elseif(NNTILE_RUNTIME_TASKFLOW)
+    add_compile_definitions(NNTILE_RUNTIME=taskflow)
+    add_subdirectory(src/runtime/taskflow)
+endif()
+```
+
+**Pros**: Zero overhead, direct function calls, dead code elimination
+**Cons**: Must recompile to switch runtimes
+
+#### Option B: Runtime Selection via Polymorphism
+
+```cpp
+// At initialization
+nntile::runtime::set_backend(nntile::runtime::BackendType::StarPU);
+// or
+nntile::runtime::set_backend(nntile::runtime::BackendType::TaskFlow);
+```
+
+**Pros**: Single binary works with multiple runtimes, useful for testing/benchmarking
+**Cons**: Virtual call overhead (negligible for task submission)
+
+#### Option C: Hybrid Approach (Recommended)
+
+- **Default**: Compile-time selection for production (Option A)
+- **Optional**: Build with `NNTILE_RUNTIME_DYNAMIC=ON` for runtime selection (Option B)
+
+```cmake
+option(NNTILE_RUNTIME_DYNAMIC "Enable runtime backend selection" OFF)
+
+if(NNTILE_RUNTIME_DYNAMIC)
+    add_compile_definitions(NNTILE_RUNTIME_DYNAMIC)
+    # Build all enabled backends
+    add_subdirectory(src/runtime/starpu)
+    add_subdirectory(src/runtime/taskflow)
+endif()
+```
+
+### 3.8.3 Abstract Interface Design
+
+#### Backend Interface
+
+```cpp
+// include/nntile/runtime/backend.hh
+namespace nntile::runtime {
+
+//! Supported backend types
+enum class BackendType {
+    StarPU,
+    TaskFlow,
+    Serial,  // For debugging/testing
+    Auto     // Auto-detect best available
+};
+
+//! Abstract backend interface
+class Backend {
+public:
+    virtual ~Backend() = default;
+    
+    //! Initialize the runtime
+    virtual void init(int argc, char* argv[]) = 0;
+    
+    //! Shutdown the runtime
+    virtual void shutdown() = 0;
+    
+    //! Get backend type
+    virtual BackendType type() const = 0;
+    
+    //! Get number of workers (CPUs + GPUs)
+    virtual int num_workers() const = 0;
+    
+    //! Get number of CPU workers
+    virtual int num_cpu_workers() const = 0;
+    
+    //! Get number of GPU workers
+    virtual int num_gpu_workers() const = 0;
+    
+    //! Wait for all submitted tasks
+    virtual void wait_for_all() = 0;
+    
+    //! Pause task submission
+    virtual void pause() = 0;
+    
+    //! Resume task submission
+    virtual void resume() = 0;
+    
+    //! Factory for creating data handles
+    virtual std::unique_ptr<DataHandle> create_data_handle(size_t size) = 0;
+    virtual std::unique_ptr<DataHandle> create_data_handle(void* ptr, size_t size) = 0;
+};
+
+//! Global backend access
+Backend& get_backend();
+void set_backend(BackendType type);
+void set_backend(std::unique_ptr<Backend> backend);
+
+} // namespace nntile::runtime
+```
+
+#### Data Handle Interface
+
+```cpp
+// include/nntile/runtime/data_handle.hh
+namespace nntile::runtime {
+
+//! Data access modes
+enum class AccessMode {
+    Read,
+    Write,
+    ReadWrite,
+    Reduce
+};
+
+//! Abstract data handle interface
+class DataHandle {
+public:
+    virtual ~DataHandle() = default;
+    
+    //! Get raw pointer (backend-specific)
+    virtual void* raw_handle() = 0;
+    virtual const void* raw_handle() const = 0;
+    
+    //! Get data size in bytes
+    virtual size_t size() const = 0;
+    
+    //! Acquire data for CPU access
+    virtual void* acquire(AccessMode mode) = 0;
+    
+    //! Release data after CPU access
+    virtual void release() = 0;
+    
+    //! Invalidate cached data
+    virtual void invalidate() = 0;
+    
+    //! Hint that data won't be used soon
+    virtual void wont_use() = 0;
+    
+    //! Unregister handle
+    virtual void unregister() = 0;
+    
+    //! MPI-related (optional, may be no-op for some backends)
+    virtual int mpi_get_rank() const { return 0; }
+    virtual void mpi_transfer(int dst_rank, int src_rank) {}
+    virtual void mpi_flush() {}
+};
+
+//! Convenient typed wrapper
+template<typename T>
+class TypedDataHandle : public DataHandle {
+public:
+    T* acquire_typed(AccessMode mode) {
+        return static_cast<T*>(acquire(mode));
+    }
+};
+
+} // namespace nntile::runtime
+```
+
+#### Task Handle Interface
+
+```cpp
+// include/nntile/runtime/task_handle.hh
+namespace nntile::runtime {
+
+//! Abstract task handle interface
+class TaskHandle {
+public:
+    virtual ~TaskHandle() = default;
+    
+    //! Wait for task completion
+    virtual void wait() = 0;
+    
+    //! Check if task is complete (non-blocking)
+    virtual bool is_complete() const = 0;
+    
+    //! Detach task (don't wait on destruction)
+    virtual void detach() = 0;
+    
+    //! Get raw handle (backend-specific)
+    virtual void* raw_handle() = 0;
+};
+
+//! Owning task handle (RAII)
+class TaskHandleOwner {
+private:
+    std::unique_ptr<TaskHandle> handle_;
+    bool detached_ = false;
+
+public:
+    explicit TaskHandleOwner(std::unique_ptr<TaskHandle> h) : handle_(std::move(h)) {}
+    
+    TaskHandleOwner(TaskHandleOwner&&) = default;
+    TaskHandleOwner& operator=(TaskHandleOwner&&) = default;
+    TaskHandleOwner(const TaskHandleOwner&) = delete;
+    TaskHandleOwner& operator=(const TaskHandleOwner&) = delete;
+    
+    ~TaskHandleOwner() {
+        if (handle_ && !detached_) {
+            handle_->wait();
+        }
+    }
+    
+    void wait() { if (handle_) handle_->wait(); }
+    bool is_complete() const { return !handle_ || handle_->is_complete(); }
+    void detach() { detached_ = true; }
+    TaskHandle* get() { return handle_.get(); }
+};
+
+//! Task group for batch operations
+class TaskGroup {
+private:
+    std::vector<TaskHandleOwner> tasks_;
+
+public:
+    void add(TaskHandleOwner task) {
+        tasks_.push_back(std::move(task));
+    }
+    
+    void wait_all() {
+        for (auto& task : tasks_) {
+            task.wait();
+        }
+        tasks_.clear();
+    }
+    
+    size_t size() const { return tasks_.size(); }
+};
+
+} // namespace nntile::runtime
+```
+
+#### Codelet Interface
+
+```cpp
+// include/nntile/runtime/codelet.hh
+namespace nntile::runtime {
+
+//! CPU function signature
+using CpuFunc = void (*)(void* buffers[], void* cl_args);
+
+//! CUDA function signature
+using CudaFunc = void (*)(void* buffers[], void* cl_args);
+
+//! Abstract codelet definition
+struct CodeletDef {
+    std::string name;
+    CpuFunc cpu_func = nullptr;
+    CudaFunc cuda_func = nullptr;
+    uint32_t (*footprint)(void* cl_args) = nullptr;
+    
+    bool can_run_on_cpu() const { return cpu_func != nullptr; }
+    bool can_run_on_cuda() const { return cuda_func != nullptr; }
+};
+
+//! Abstract codelet interface (registered with backend)
+class Codelet {
+public:
+    virtual ~Codelet() = default;
+    
+    //! Get codelet definition
+    virtual const CodeletDef& definition() const = 0;
+    
+    //! Get raw backend-specific codelet
+    virtual void* raw_codelet() = 0;
+};
+
+//! Codelet registry
+class CodeletRegistry {
+public:
+    static CodeletRegistry& instance();
+    
+    //! Register a codelet definition
+    void register_codelet(const std::string& name, const CodeletDef& def);
+    
+    //! Get codelet for current backend
+    Codelet& get_codelet(const std::string& name);
+    
+private:
+    std::unordered_map<std::string, CodeletDef> definitions_;
+    std::unordered_map<std::string, std::unique_ptr<Codelet>> codelets_;
+};
+
+} // namespace nntile::runtime
+```
+
+#### Operation Submission Interface
+
+```cpp
+// include/nntile/runtime/gelu.hh
+namespace nntile::runtime {
+
+//! Execution hints for task placement
+struct ExecutionHints {
+    int target_node = -1;      // -1 = any
+    int target_worker = -1;    // -1 = any
+    int priority = 0;
+    bool prefetch = true;
+};
+
+//! GELU operation - runtime agnostic interface
+template<typename T>
+class GeluOp {
+public:
+    //! Submit GELU task
+    static TaskHandleOwner submit(
+        Index nelems,
+        DataHandle& src,
+        DataHandle& dst,
+        const ExecutionHints& hints = {}
+    );
+};
+
+//! Convenience global instance
+template<typename T>
+inline TaskHandleOwner gelu_submit(Index nelems, DataHandle& src, DataHandle& dst,
+                                    const ExecutionHints& hints = {}) {
+    return GeluOp<T>::submit(nelems, src, dst, hints);
+}
+
+} // namespace nntile::runtime
+```
+
+### 3.8.4 StarPU Backend Implementation
+
+```cpp
+// include/nntile/runtime/starpu/backend.hh
+namespace nntile::runtime::starpu {
+
+class StarPUBackend : public Backend {
+public:
+    void init(int argc, char* argv[]) override;
+    void shutdown() override;
+    BackendType type() const override { return BackendType::StarPU; }
+    int num_workers() const override;
+    int num_cpu_workers() const override;
+    int num_gpu_workers() const override;
+    void wait_for_all() override;
+    void pause() override;
+    void resume() override;
+    std::unique_ptr<DataHandle> create_data_handle(size_t size) override;
+    std::unique_ptr<DataHandle> create_data_handle(void* ptr, size_t size) override;
+};
+
+class StarPUDataHandle : public DataHandle {
+private:
+    starpu_data_handle_t handle_;
+    
+public:
+    explicit StarPUDataHandle(starpu_data_handle_t h) : handle_(h) {}
+    
+    void* raw_handle() override { return handle_; }
+    const void* raw_handle() const override { return handle_; }
+    
+    size_t size() const override {
+        return starpu_variable_get_elemsize(handle_);
+    }
+    
+    void* acquire(AccessMode mode) override {
+        starpu_data_access_mode smode;
+        switch (mode) {
+            case AccessMode::Read: smode = STARPU_R; break;
+            case AccessMode::Write: smode = STARPU_W; break;
+            case AccessMode::ReadWrite: smode = STARPU_RW; break;
+            default: smode = STARPU_RW;
+        }
+        starpu_data_acquire(handle_, smode);
+        return starpu_variable_get_local_ptr(handle_);
+    }
+    
+    void release() override {
+        starpu_data_release(handle_);
+    }
+    
+    // ... other methods
+};
+
+class StarPUTaskHandle : public TaskHandle {
+private:
+    struct starpu_task* task_;
+    
+public:
+    explicit StarPUTaskHandle(struct starpu_task* t) : task_(t) {}
+    
+    void wait() override {
+        if (task_) {
+            starpu_task_wait(task_);
+            task_ = nullptr;
+        }
+    }
+    
+    bool is_complete() const override {
+        return task_ == nullptr || starpu_task_finished(task_);
+    }
+    
+    void detach() override {
+        task_ = nullptr;
+    }
+    
+    void* raw_handle() override { return task_; }
+};
+
+} // namespace nntile::runtime::starpu
+```
+
+```cpp
+// src/runtime/starpu/gelu.cc
+namespace nntile::runtime {
+
+template<typename T>
+TaskHandleOwner GeluOp<T>::submit(
+    Index nelems,
+    DataHandle& src,
+    DataHandle& dst,
+    const ExecutionHints& hints
+) {
+    // Get StarPU-specific handles
+    auto src_handle = static_cast<starpu_data_handle_t>(src.raw_handle());
+    auto dst_handle = static_cast<starpu_data_handle_t>(dst.raw_handle());
+    
+    // Get codelet
+    auto& codelet = CodeletRegistry::instance().get_codelet("gelu_" + type_name<T>());
+    auto* starpu_cl = static_cast<struct starpu_codelet*>(codelet.raw_codelet());
+    
+    // Allocate arguments
+    struct args_t { Index nelems; };
+    auto* args = new args_t{nelems};
+    
+    // Create task
+    struct starpu_task* task = starpu_task_create();
+    task->cl = starpu_cl;
+    task->handles[0] = src_handle;
+    task->handles[1] = dst_handle;
+    task->cl_arg = args;
+    task->cl_arg_size = sizeof(*args);
+    task->cl_arg_free = 1;
+    task->detach = 0;
+    task->destroy = 1;
+    
+    // Apply hints
+    if (hints.target_worker >= 0) {
+        task->execute_on_a_specific_worker = 1;
+        task->workerid = hints.target_worker;
+    }
+    task->priority = hints.priority;
+    
+    // Submit
+    int ret = starpu_task_submit(task);
+    if (ret != 0) {
+        throw std::runtime_error("Failed to submit gelu task");
+    }
+    
+    return TaskHandleOwner(std::make_unique<starpu::StarPUTaskHandle>(task));
+}
+
+// Explicit instantiations
+template class GeluOp<fp32_t>;
+template class GeluOp<fp64_t>;
+// ...
+
+} // namespace nntile::runtime
+```
+
+### 3.8.5 Future TaskFlow Backend (Sketch)
+
+```cpp
+// include/nntile/runtime/taskflow/backend.hh
+namespace nntile::runtime::taskflow {
+
+class TaskFlowBackend : public Backend {
+private:
+    tf::Executor executor_;
+    tf::Taskflow taskflow_;
+    
+public:
+    void init(int argc, char* argv[]) override {
+        // Initialize with hardware concurrency
+    }
+    
+    void shutdown() override {
+        executor_.wait_for_all();
+    }
+    
+    // ... implement other methods
+};
+
+class TaskFlowTaskHandle : public TaskHandle {
+private:
+    tf::Future<void> future_;
+    
+public:
+    void wait() override {
+        future_.wait();
+    }
+    
+    bool is_complete() const override {
+        return future_.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+    }
+    
+    // ...
+};
+
+} // namespace nntile::runtime::taskflow
+```
+
+### 3.8.6 Compile-Time Backend Selection (Zero Overhead)
+
+For compile-time selection, use type aliases and conditional compilation:
+
+```cpp
+// include/nntile/runtime/current_backend.hh
+namespace nntile::runtime {
+
+#if defined(NNTILE_RUNTIME_STARPU)
+    using CurrentBackend = starpu::StarPUBackend;
+    using CurrentDataHandle = starpu::StarPUDataHandle;
+    using CurrentTaskHandle = starpu::StarPUTaskHandle;
+#elif defined(NNTILE_RUNTIME_TASKFLOW)
+    using CurrentBackend = taskflow::TaskFlowBackend;
+    using CurrentDataHandle = taskflow::TaskFlowDataHandle;
+    using CurrentTaskHandle = taskflow::TaskFlowTaskHandle;
+#else
+    #error "No runtime backend selected"
+#endif
+
+// Direct function calls (no virtual dispatch)
+inline CurrentBackend& backend() {
+    static CurrentBackend instance;
+    return instance;
+}
+
+} // namespace nntile::runtime
+```
+
+### 3.8.7 Runtime Backend Selection (Optional)
+
+When `NNTILE_RUNTIME_DYNAMIC` is defined:
+
+```cpp
+// include/nntile/runtime/dynamic_backend.hh
+namespace nntile::runtime {
+
+#ifdef NNTILE_RUNTIME_DYNAMIC
+
+//! Factory for creating backends
+std::unique_ptr<Backend> create_backend(BackendType type) {
+    switch (type) {
+        case BackendType::StarPU:
+            return std::make_unique<starpu::StarPUBackend>();
+        case BackendType::TaskFlow:
+            return std::make_unique<taskflow::TaskFlowBackend>();
+        case BackendType::Serial:
+            return std::make_unique<serial::SerialBackend>();
+        case BackendType::Auto:
+            // Prefer StarPU if available, then TaskFlow, then Serial
+            #ifdef NNTILE_HAS_STARPU
+                return std::make_unique<starpu::StarPUBackend>();
+            #elif defined(NNTILE_HAS_TASKFLOW)
+                return std::make_unique<taskflow::TaskFlowBackend>();
+            #else
+                return std::make_unique<serial::SerialBackend>();
+            #endif
+        default:
+            throw std::runtime_error("Unknown backend type");
+    }
+}
+
+//! Global backend storage
+class BackendManager {
+private:
+    std::unique_ptr<Backend> backend_;
+    
+public:
+    static BackendManager& instance() {
+        static BackendManager mgr;
+        return mgr;
+    }
+    
+    void set(BackendType type) {
+        backend_ = create_backend(type);
+    }
+    
+    void set(std::unique_ptr<Backend> b) {
+        backend_ = std::move(b);
+    }
+    
+    Backend& get() {
+        if (!backend_) {
+            backend_ = create_backend(BackendType::Auto);
+        }
+        return *backend_;
+    }
+};
+
+inline Backend& get_backend() {
+    return BackendManager::instance().get();
+}
+
+inline void set_backend(BackendType type) {
+    BackendManager::instance().set(type);
+}
+
+#endif // NNTILE_RUNTIME_DYNAMIC
+
+} // namespace nntile::runtime
+```
+
+### 3.8.8 Tile-Level Using Runtime Abstraction
+
+```cpp
+// include/nntile/tile/gelu.hh
+namespace nntile::tile {
+
+template<typename T>
+runtime::TaskHandleOwner gelu_async(const Tile<T>& src, const Tile<T>& dst) {
+    // Validation
+    if (src.nelems != dst.nelems) {
+        throw std::runtime_error("Tile size mismatch in gelu");
+    }
+    
+    // Submit via runtime-agnostic interface
+    return runtime::gelu_submit<T>(src.nelems, src.handle(), dst.handle());
+}
+
+template<typename T>
+void gelu(const Tile<T>& src, const Tile<T>& dst) {
+    gelu_async<T>(src, dst).wait();
+}
+
+} // namespace nntile::tile
+```
+
+### 3.8.9 Summary: Choosing Selection Strategy
+
+| Scenario | Recommendation |
+|----------|----------------|
+| Production deployment | Compile-time (zero overhead) |
+| Development/testing | Runtime selection for flexibility |
+| Benchmarking runtimes | Runtime selection to compare |
+| Library distribution | Build multiple variants or dynamic |
+
+**Default recommendation**: Compile-time selection with StarPU, with optional `NNTILE_RUNTIME_DYNAMIC` for testing.
 
 ---
 
@@ -878,29 +1571,54 @@ nntile.shutdown()
 5. [ ] Add gradient synchronization primitives
 6. [ ] Add optimizer state sharding
 
-### Phase 7: Refactor to Header-Only and Task Handle Returns (Parallel Track F)
+### Phase 7: Runtime Abstraction Layer (Parallel Track F)
 
-**Goal**: Make starpu-level and tile-level header-only with proper task waiting
+**Goal**: Create runtime-agnostic interface supporting multiple backends (StarPU, TaskFlow, etc.)
 
 **Tasks**:
-1. [ ] Implement `TaskHandle` RAII wrapper class
-2. [ ] Implement `TaskGroup` for batch task management
-3. [ ] Refactor starpu-level `submit()` to use `starpu_task_create()` + `starpu_task_submit()`
-4. [ ] Update starpu-level `submit()` to return `TaskHandle`
-5. [ ] Move starpu-level implementations to headers (template + inline)
-6. [ ] Update tile-level to return `TaskHandle` from async functions
-7. [ ] Move tile-level implementations to headers
-8. [ ] Update blocking tile functions to use `task.wait()` instead of `starpu_task_wait_for_all()`
-9. [ ] Update tensor-level to optionally collect `TaskGroup` for synchronization
-10. [ ] Remove empty `.cc` files from `src/starpu/` and `src/tile/`
+1. [ ] Create `include/nntile/runtime/` directory structure
+2. [ ] Implement abstract `Backend` interface class
+3. [ ] Implement abstract `DataHandle` interface class
+4. [ ] Implement abstract `TaskHandle` interface class with RAII wrapper (`TaskHandleOwner`)
+5. [ ] Implement `TaskGroup` for batch task management
+6. [ ] Implement `CodeletDef` and `Codelet` abstract interface
+7. [ ] Implement `CodeletRegistry` for codelet management
+8. [ ] Implement `ExecutionHints` structure
+9. [ ] Create runtime-agnostic operation interfaces (e.g., `GeluOp<T>`)
+10. [ ] Move `src/starpu/` to `src/runtime/starpu/`
+11. [ ] Implement `StarPUBackend` class
+12. [ ] Implement `StarPUDataHandle` class
+13. [ ] Implement `StarPUTaskHandle` class
+14. [ ] Refactor StarPU operations to use `starpu_task_create()` + `starpu_task_submit()`
+15. [ ] Update all StarPU operations to return `TaskHandleOwner`
+16. [ ] Implement compile-time backend selection via CMake
+17. [ ] (Optional) Implement runtime backend selection with `NNTILE_RUNTIME_DYNAMIC`
+18. [ ] Update tile-level to use `runtime::` namespace instead of `starpu::`
+19. [ ] Update tile-level async functions to return `TaskHandleOwner`
+20. [ ] Update blocking tile functions to use `task.wait()` instead of `wait_for_all()`
+21. [ ] Update tensor-level to use runtime abstraction
+22. [ ] Add serial backend for debugging/testing
+23. [ ] (Future) Add TaskFlow backend skeleton
 
 **New files**:
-- `include/nntile/starpu/task_handle.hh`
+- `include/nntile/runtime/backend.hh`
+- `include/nntile/runtime/data_handle.hh`
+- `include/nntile/runtime/task_handle.hh`
+- `include/nntile/runtime/codelet.hh`
+- `include/nntile/runtime/execution_hints.hh`
+- `include/nntile/runtime/gelu.hh` (and other operations)
+- `include/nntile/runtime/starpu/backend.hh`
+- `include/nntile/runtime/starpu/data_handle.hh`
+- `include/nntile/runtime/starpu/task_handle.hh`
+- `src/runtime/backend.cc`
+- `src/runtime/starpu/backend.cc`
+- `src/runtime/starpu/gelu.cc` (and other operations)
 
 **Files to modify**:
-- `include/nntile/starpu/*.hh` (move implementations from .cc)
-- `include/nntile/tile/*.hh` (move implementations from .cc)
-- `src/tensor/*.cc` (update to use TaskGroup where beneficial)
+- `CMakeLists.txt` (add runtime selection options)
+- `include/nntile/tile/*.hh` (use runtime:: namespace)
+- `src/tile/*.cc` (use runtime:: namespace)
+- `src/tensor/*.cc` (use runtime:: or tile::, add TaskGroup support)
 
 ---
 
@@ -909,27 +1627,44 @@ nntile.shutdown()
 The following tracks can be developed **in parallel** by different teams:
 
 ```
-Track A (MPI)              ─────────────────────────────────┐
-Track B (StarPU Hints)     ─────────────────────────────────┤
-Track C (Tensor Ctx)       ───────────────────────┐         │
-Track D (Graph API)        ───────────────────────┼─────────┼───> Integration
-Track E (Python)           ───────────────────────┘         │
-Track F (Header-Only+Task) ─────────────────────────────────┘
-                                                            │
-                                      Phase 6 (Dist) ───────┘
+Track A (MPI)                  ─────────────────────────────────┐
+Track B (Execution Hints)      ─────────────────────────────────┤
+Track C (Tensor Ctx)           ───────────────────────┐         │
+Track D (Graph API)            ───────────────────────┼─────────┼───> Integration
+Track E (Python)               ───────────────────────┘         │
+Track F (Runtime Abstraction)  ═════════════════════════════════╪═══> Foundation
+                                                                │
+                                        Phase 6 (Dist) ─────────┘
 ```
 
 **Dependencies**:
-- Track C depends on Track B (needs `TaskExecutionHints`)
-- Track F (Header-Only + TaskHandle) is **independent** and can start immediately
+- **Track F is foundational** - should be prioritized first as other tracks depend on its interfaces
+- Track B (Execution Hints) integrates into Track F's `ExecutionHints` structure
+- Track C depends on Track F (uses `runtime::` interfaces)
 - Phase 6 depends on Track A (MPI), Track C (ExecutionContext), Track D (DistributionStrategy)
-- Track F should complete before Phase 6 to ensure proper task synchronization in distributed setting
 
-**Recommended Priority for Track F**:
-Track F (Header-Only + TaskHandle) is foundational and should be prioritized early because:
-1. `TaskHandle` enables correct blocking semantics throughout the codebase
-2. Header-only design reduces build times for all subsequent development
-3. Other tracks will benefit from cleaner task management API
+**Recommended Development Order**:
+
+1. **Track F (Runtime Abstraction)** - Start first, defines interfaces for all other tracks
+   - Abstract interfaces (`Backend`, `DataHandle`, `TaskHandle`)
+   - StarPU implementation
+   - TaskHandle RAII wrapper
+   
+2. **Tracks A, B, D, E** - Can proceed in parallel once Track F interfaces are defined
+   - Track A: MPI support integrates into `DataHandle::mpi_*` methods
+   - Track B: Execution hints integrate into `ExecutionHints` struct
+   - Track D: Graph API uses runtime interfaces
+   - Track E: Python bindings wrap runtime API
+
+3. **Track C** - Depends on Track B and Track F being stable
+
+4. **Phase 6** - Final integration of distribution strategies
+
+**Why Track F is Critical**:
+1. Defines `TaskHandleOwner` for correct blocking semantics
+2. Enables future TaskFlow/HPX backends without changing tile/tensor code
+3. Establishes clean abstraction boundary between runtime and computation
+4. `ExecutionHints` structure consolidates task placement from Track B
 
 ---
 
@@ -1014,13 +1749,33 @@ NNTile 2.0 introduces a transformative high-level graph abstraction that enables
 2. **Explicit Placement**: Fine-grained control over task execution location
 3. **Multi-Node Scaling**: True distributed training across nodes
 4. **Simplified API**: Declarative model definition with automatic optimization
-5. **Proper Task Synchronization**: `TaskHandle` wrapper enables waiting on specific tasks instead of all tasks
-6. **Runtime Abstraction**: Preserved tile-level enables future support for alternative runtimes (TaskFlow, HPX)
+5. **Proper Task Synchronization**: `TaskHandleOwner` wrapper enables waiting on specific tasks instead of all tasks
+6. **Runtime Abstraction**: Pluggable backend system supports StarPU, TaskFlow, and future runtimes
 
 ### Key Architectural Decisions
 
 1. **Keep Tile-Level**: The tile-level is retained for runtime abstraction and clean single-tile testing interface
-2. **Header-Only Design**: Both starpu-level and tile-level become header-only for zero-overhead abstraction and faster builds
-3. **Task Handle Returns**: All async operations return `TaskHandle` for precise synchronization control
+2. **Keep C++ Sources**: Both tile-level and runtime-level keep `.cc` files (overhead is negligible)
+3. **Runtime Abstraction Layer**: New `nntile::runtime` namespace with abstract interfaces:
+   - `Backend` - runtime initialization and management
+   - `DataHandle` - data registration and access
+   - `TaskHandle` - task submission and synchronization
+   - `Codelet` - kernel registration
+4. **Flexible Backend Selection**:
+   - Compile-time selection for zero-overhead production builds
+   - Optional runtime selection for testing and benchmarking
+5. **Directory Restructure**: `src/starpu/` → `src/runtime/starpu/` with room for `taskflow/`, `serial/`, etc.
 
-The phased approach allows parallel development across 6 tracks while maintaining backward compatibility. By implementing these changes, NNTile will evolve from a low-level tiled tensor library into a production-ready distributed deep learning framework competitive with state-of-the-art systems like DeepSpeed and Megatron-LM.
+### Benefits of Runtime Abstraction
+
+| Aspect | Benefit |
+|--------|---------|
+| **Portability** | Same tile/tensor code works with any backend |
+| **Future-Proofing** | Easy to add TaskFlow, HPX, or custom backends |
+| **Testing** | Serial backend for debugging without StarPU |
+| **Benchmarking** | Compare runtime performance with same workload |
+| **Maintenance** | Backend-specific code isolated in `src/runtime/<backend>/` |
+
+The phased approach allows parallel development across 6 tracks while maintaining backward compatibility. Track F (Runtime Abstraction) is foundational and should be prioritized as it defines interfaces used by all other tracks.
+
+By implementing these changes, NNTile will evolve from a low-level tiled tensor library into a production-ready distributed deep learning framework competitive with state-of-the-art systems like DeepSpeed and Megatron-LM, while maintaining the flexibility to adopt future runtime systems as they emerge.
