@@ -2132,9 +2132,8 @@ public:
     //! Override tile distribution for specific tensor
     void set_tensor_distribution(const std::string& name, const TileDistribution& dist);
     
-    //! Set default distribution pattern for tensors by role
-    void set_parameter_distribution(TileDistribution::Pattern pattern);
-    void set_activation_distribution(TileDistribution::Pattern pattern);
+    //! Set distribution for specific tensor
+    void set_tensor_distribution(const std::string& name, const TileDistribution& dist);
     
     // ═══════════════════════════════════════════════════════════
     // Compilation
@@ -2394,82 +2393,129 @@ graph.to_json()  # Export for D3.js or similar
 
 **StarPU Model**: Each tile has one owner node. StarPU handles data movement.
 
-The high-level distribution strategies (DDP, FSDP, etc.) are implemented by choosing appropriate tile ownership patterns.
+**Design**: TileDistribution is simply the ownership mapping (`tile_index → node_id`). Predefined functions create these mappings. The mapping can be dynamically adjusted for resilient computing.
 
 ```cpp
 namespace nntile::graph {
 
-//! Pattern for distributing tiles across nodes
-namespace TileDistribution {
-    enum class Pattern {
-        RoundRobin,     // Tile i goes to node (i % num_nodes)
-        Block,          // Contiguous blocks of tiles per node
-        BlockAlongDim,  // Block along specific dimension
-        LoadBalanced,   // Based on tile sizes and node performance
-        Custom          // User-specified
-    };
-}
-
-//! High-level distribution presets (syntactic sugar over tile ownership)
-struct DistributionPreset {
-    //! DDP: Parameters on all nodes (each node owns copy), data tiles distributed
-    static void apply_ddp(PhysicalGraph& pg, int num_nodes) {
-        // Parameters: each node owns tiles for its data partition
-        // Activations: distributed by batch dimension
-        pg.set_parameter_distribution(TileDistribution::block_along_dim(
-            /*dim=*/0, num_nodes));  // Shard along batch
-        pg.set_activation_distribution(TileDistribution::block_along_dim(
-            /*dim=*/-1, num_nodes));  // Shard along batch (last dim typically)
+//! Tile distribution = ownership mapping, nothing more
+struct TileDistribution {
+    std::vector<int> tile_owners;  // tile_owners[tile_idx] = node_id
+    
+    //! Get owner of a tile
+    int owner(Index tile_idx) const { return tile_owners[tile_idx]; }
+    
+    //! Get all tiles owned by a node
+    std::vector<Index> tiles_on_node(int node_id) const;
+    
+    //! Modify ownership (for resilient computing)
+    void set_owner(Index tile_idx, int new_node_id) {
+        tile_owners[tile_idx] = new_node_id;
     }
     
-    //! FSDP: Parameters sharded across nodes
-    static void apply_fsdp(PhysicalGraph& pg, int num_nodes) {
-        // Parameters: tiles distributed across nodes
-        pg.set_parameter_distribution(TileDistribution::round_robin(num_nodes));
-        // Activations: also distributed
-        pg.set_activation_distribution(TileDistribution::round_robin(num_nodes));
-    }
+    //! Migrate tiles from one node to another (resilience)
+    void migrate_from_node(int from_node, int to_node);
     
-    //! Tensor parallel: shard specific dimension
-    static void apply_tensor_parallel(PhysicalGraph& pg, int num_nodes, int shard_dim) {
-        pg.set_parameter_distribution(TileDistribution::block_along_dim(
-            shard_dim, num_nodes));
-        pg.set_activation_distribution(TileDistribution::block_along_dim(
-            shard_dim, num_nodes));
-    }
+    //! Rebalance across available nodes (excludes failed nodes)
+    void rebalance(const std::vector<int>& available_nodes);
 };
+
+//! ═══════════════════════════════════════════════════════════════
+//! Predefined distribution functions
+//! ═══════════════════════════════════════════════════════════════
+
+//! Round-robin distribution
+TileDistribution distribute_round_robin(Index num_tiles, int num_nodes);
+
+//! Block distribution (contiguous tiles per node)
+TileDistribution distribute_block(Index num_tiles, int num_nodes);
+
+//! Block along specific dimension of tile grid
+TileDistribution distribute_block_along_dim(
+    const std::vector<Index>& grid_shape,
+    int dim,
+    int num_nodes
+);
+
+//! Load-balanced based on tile sizes and node performance
+TileDistribution distribute_load_balanced(
+    const std::vector<Index>& tile_sizes,  // Size of each tile
+    const std::vector<float>& node_weights // Relative capacity of each node
+);
+
+//! ═══════════════════════════════════════════════════════════════
+//! High-level distribution strategies (use the above functions)
+//! ═══════════════════════════════════════════════════════════════
+
+//! DDP: shard data (batch dimension), parameters distributed with data
+void apply_ddp(PhysicalGraph& pg, int num_nodes, int batch_dim = -1);
+
+//! FSDP: shard everything (parameters, gradients, optimizer states)
+void apply_fsdp(PhysicalGraph& pg, int num_nodes);
+
+//! Tensor Parallel: shard along hidden dimension
+void apply_tensor_parallel(PhysicalGraph& pg, int num_nodes, int shard_dim);
+
+//! Pipeline Parallel: shard layers across nodes
+void apply_pipeline_parallel(PhysicalGraph& pg, int num_nodes, 
+                              const std::vector<std::string>& stage_boundaries);
 
 } // namespace nntile::graph
 ```
 
-**Key Insight**: All distribution strategies ultimately reduce to "which node owns which tile". StarPU's runtime handles:
-- Data transfer when a task needs non-local data
-- Caching of remote data
-- Coherency
+**Resilient Computing Support**:
+
+```cpp
+// Example: GPU 2 is overheating, migrate its tiles to other nodes
+void handle_node_degradation(PhysicalGraph& pg, int degraded_node) {
+    auto available_nodes = get_healthy_nodes();  // Excludes degraded_node
+    
+    for (auto& [name, tensor] : pg.tensors()) {
+        auto& dist = tensor.distribution;
+        
+        // Option 1: Migrate to specific node
+        dist.migrate_from_node(degraded_node, /*to=*/0);
+        
+        // Option 2: Rebalance across remaining nodes
+        dist.rebalance(available_nodes);
+    }
+    
+    // Recompile to update task assignments
+    pg.recompile();
+}
+
+// Example: Node recovered, rebalance to include it
+void handle_node_recovery(PhysicalGraph& pg, int recovered_node) {
+    auto all_nodes = get_all_nodes();  // Now includes recovered_node
+    
+    for (auto& [name, tensor] : pg.tensors()) {
+        tensor.distribution.rebalance(all_nodes);
+    }
+    
+    pg.recompile();
+}
+```
 
 **Example Usage**:
 
-```python
-# Create physical graph
-pg = PhysicalGraph(logical_graph, num_nodes=8)
-pg.set_tiling(TilingStrategy.auto_tiling())
+```cpp
+// Create physical graph
+auto pg = PhysicalGraph(logical_graph, num_nodes);
+pg.set_tiling(TilingStrategy::auto_tiling());
 
-# Option 1: Use preset
-DistributionPreset.apply_fsdp(pg, num_nodes=8)
+// Apply high-level strategy
+apply_fsdp(pg, num_nodes);
 
-# Option 2: Fine-grained control
-# Distribute weight tiles round-robin
-pg.set_tensor_distribution("W_query", TileDistribution.round_robin(8))
-pg.set_tensor_distribution("W_key", TileDistribution.round_robin(8))
+// Or fine-grained control using distribution functions
+pg.set_tensor_distribution("W_query", distribute_round_robin(num_tiles, num_nodes));
+pg.set_tensor_distribution("hidden", distribute_block_along_dim(grid_shape, /*dim=*/1, num_nodes));
 
-# Distribute activation tiles along batch dimension
-pg.set_tensor_distribution("hidden", TileDistribution.block_along_dim(
-    grid_shape=[4, 8, 2],  # Tile grid shape
-    dim=1,                  # Batch dimension
-    num_nodes=8
-))
+pg.compile();
 
-pg.compile()
+// Later: handle degraded node
+if (node_overheating(2)) {
+    handle_node_degradation(pg, 2);
+}
 ```
 
 #### 4.1.7 TilingStrategy Class
