@@ -94,18 +94,18 @@ The current NNTile implementation consists of four abstraction layers:
 │                         Python User API (nntile.nn)                         │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                    High-Level Graph (NEW - nntile.graph)                    │
-│  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────────────────┐ │
-│  │ComputeGraph│  │DistStrategy│  │ TensorSpec │  │ ExecutionPolicy        │ │
-│  │   (DAG)    │  │ (FSDP/DDP) │  │(ShapeHints)│  │(Node/Worker Assignment)│ │
-│  └────────────┘  └────────────┘  └────────────┘  └────────────────────────┘ │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────┐  ┌────────────────────┐  │
+│  │LogicalGraph │  │CompiledGraph │  │ TensorSpec │  │ TileDistribution   │  │
+│  │   (DAG)     │  │(Tiled+Dist)  │  │(Shape+Dtype│  │(Owner Mapping)     │  │
+│  └─────────────┘  └──────────────┘  └────────────┘  └────────────────────┘  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                       Tensor Level (Enhanced)                               │
 │     - Accepts ExecutionContext with node/worker hints                       │
-│     - Automatic tile-to-node mapping based on DistStrategy                  │
+│     - Automatic tile-to-node mapping based on TileDistribution              │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                       StarPU Level (Enhanced)                               │
-│     - Extended submit() with execution_node and execution_worker params     │
-│     - Task priority hints, worker binding support                           │
+│                      Runtime Level (Abstracted)                             │
+│     - Extended submit() with execution hints                                │
+│     - TaskHandle for precise waiting, DataHandle for ownership              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                          Kernel Level (Unchanged)                           │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1188,7 +1188,7 @@ Graph is fully constructed first, then compiled/instantiated, then executed.
 **Example Usage:**
 ```python
 import nntile
-from nntile.graph import Graph, TensorSpec, DistributionStrategy
+from nntile.graph import LogicalGraph, CompiledGraph, TensorSpec
 
 nntile.init()
 
@@ -1377,8 +1377,8 @@ This separation allows the same logical graph to have multiple physical realizat
 **Example Usage:**
 ```python
 import nntile
-from nntile.graph import LogicalGraph, PhysicalGraph, ExecutableGraph
-from nntile.graph import TensorSpec, OpSpec, DistributionStrategy, TilingStrategy
+from nntile.graph import LogicalGraph, CompiledGraph
+from nntile.graph import TensorSpec, TilingStrategy, DistributionPreset
 
 nntile.init(mpi=True)
 
@@ -2319,14 +2319,14 @@ graph.to_json()  # Export for D3.js or similar
 
 ##### Visualization Color Scheme
 
-| Tensor Role | Color | Hex |
-|-------------|-------|-----|
-| Input | Green | `#a8d5ba` |
-| Parameter | Orange | `#f4a460` |
-| Constant | Purple | `#dda0dd` |
-| Buffer | Gray | `#d3d3d3` |
-| Output | Blue | `#87ceeb` |
-| Gradient | Red | `#f08080` |
+Since tensors have no intrinsic roles, coloring is based on graph structure:
+
+| Tensor Usage | Color | Hex | Description |
+|--------------|-------|-----|-------------|
+| No producer | Green | `#a8d5ba` | Tensor with no incoming edge (data comes from outside) |
+| Marked output | Blue | `#87ceeb` | Tensor marked via `mark_output()` |
+| Intermediate | Gray | `#d3d3d3` | Has producer and consumers, not marked as output |
+| Named with "_grad" | Red | `#f08080` | Convention for gradient tensors |
 
 | Node Type | Shape |
 |-----------|-------|
@@ -2566,7 +2566,7 @@ public:
     //! Compute tile shapes for all tensors in graph
     std::map<std::string, std::vector<Index>> compute_tilings(
         const LogicalGraph& graph,
-        const DistributionStrategy& dist
+        int num_nodes
     ) const;
 };
 
@@ -2703,17 +2703,18 @@ void Gelu<std::tuple<T>>::submit(
 struct ExecutionContext {
     int mpi_rank;
     int mpi_size;
-    DistributionStrategy dist_strategy;
     ExecutionPolicy exec_policy;
     
-    // Get target node for a tile based on distribution strategy
-    int get_tile_node(const TensorTraits& tensor, Index tile_idx) const;
+    // Get target node for a tile (from TileDistribution stored in PhysicalGraph)
+    int get_tile_node(const TileDistribution& dist, Index tile_idx) const {
+        return dist.get_owner(tile_idx);
+    }
     
-    // Get target worker for a tile
-    int get_tile_worker(const TensorTraits& tensor, Index tile_idx) const;
+    // Get target worker for a tile on a given node
+    int get_tile_worker(int node_id, Index local_tile_idx) const;
     
     // Build execution hints for a tile
-    TaskExecutionHints get_hints(const TensorTraits& tensor, Index tile_idx) const;
+    TaskExecutionHints get_hints(const TileDistribution& dist, Index tile_idx) const;
 };
 ```
 
@@ -2781,72 +2782,89 @@ void gelu_async(const Tensor<T> &src, const Tensor<T> &dst, const ExecutionConte
 ```python
 # nntile/graph/__init__.py
 
-class ComputeGraph:
+class LogicalGraph:
+    """Logical graph - defines what to compute."""
+    
     def __init__(self, name: str = ""):
-        self._nodes = []
-        self._ops = []
-        self._dist_strategy = None
-        self._exec_policy = None
+        self._name = name
+        self._tensor_nodes = []
+        self._op_nodes = []
+        self._output_names = set()
     
-    def input(self, shape: List[int], dtype: str = "fp32", name: str = "") -> TensorNode:
-        """Declare an input tensor."""
+    def tensor(self, spec: TensorSpec, name: str) -> TensorNode:
+        """Create a tensor. Just a tensor - no roles."""
         
-    def parameter(self, shape: List[int], dtype: str = "fp32", name: str = "") -> TensorNode:
-        """Declare a trainable parameter."""
-        
-    def constant(self, value: np.ndarray, name: str = "") -> TensorNode:
-        """Declare a constant tensor."""
+    def mark_output(self, name: str):
+        """Mark a tensor as output (retrievable after execution)."""
     
-    # Operations
-    def matmul(self, a: TensorNode, b: TensorNode, 
+    # Operations - return new TensorNode
+    def matmul(self, a: TensorNode, b: TensorNode, name: str,
                trans_a: bool = False, trans_b: bool = False) -> TensorNode:
         """Matrix multiplication."""
         
-    def gelu(self, x: TensorNode) -> TensorNode:
+    def gelu(self, x: TensorNode, name: str) -> TensorNode:
         """GeLU activation."""
         
     def layer_norm(self, x: TensorNode, gamma: TensorNode, 
-                   beta: TensorNode, eps: float = 1e-5) -> TensorNode:
+                   beta: TensorNode, name: str, eps: float = 1e-5) -> TensorNode:
         """Layer normalization."""
     
-    # Distribution
-    def set_distribution(self, strategy: DistributionStrategy):
-        """Set the distribution strategy for this graph."""
-        
-    def set_execution_policy(self, policy: ExecutionPolicy):
-        """Set the execution policy."""
+    def cast(self, x: TensorNode, dtype: DataType, name: str) -> TensorNode:
+        """Explicit dtype conversion."""
     
-    # Instantiation
-    def instantiate(self, ctx: Optional[ExecutionContext] = None) -> "GraphInstance":
-        """Create actual tensors and prepare for execution."""
+    # Graph composition
+    def embed(self, other: "LogicalGraph", 
+              input_bindings: Dict[str, str],
+              prefix: str = "") -> Dict[str, str]:
+        """Embed another graph, returning output tensor names."""
+    
+    # Queries
+    def num_tensors(self) -> int: ...
+    def num_operations(self) -> int: ...
+    def tensor_names(self) -> List[str]: ...
+    def get_tensor(self, name: str) -> Optional[TensorNode]: ...
+    
+    # Visualization
+    def to_dot(self) -> str: ...
+    def to_mermaid(self) -> str: ...
 
 
-class DistributionStrategy:
+class CompiledGraph:
+    """Compiled graph - ready for execution."""
+    
     @staticmethod
-    def ddp(world_size: int) -> "DistributionStrategy":
-        """Data Distributed Parallel strategy."""
+    def compile(logical: LogicalGraph, 
+                num_nodes: int = 1,
+                tiling: Optional[TilingStrategy] = None,
+                configure_distribution: Optional[Callable] = None,
+                shape_bindings: Optional[Dict[str, int]] = None) -> "CompiledGraph":
+        """Compile a logical graph."""
         
+    def bind_data(self, name: str, data: np.ndarray): ...
+    def get_output(self, name: str) -> np.ndarray: ...
+    def execute(self): ...
+    def load_tensors(self, path: str): ...
+    def save_tensors(self, path: str, names: List[str]): ...
+
+
+class DistributionPreset:
+    """Distribution preset functions."""
+    
+    @staticmethod
+    def apply_ddp(pg: "PhysicalGraph", num_nodes: int): ...
+    
     @staticmethod  
-    def fsdp(world_size: int, shard_degree: int = -1) -> "DistributionStrategy":
-        """Fully Sharded Data Parallel strategy."""
-        
+    def apply_fsdp(pg: "PhysicalGraph", num_nodes: int, shard_degree: int = -1): ...
+    
     @staticmethod
-    def tensor_parallel(world_size: int, dims: List[int]) -> "DistributionStrategy":
-        """Tensor parallel strategy."""
-
-
-class ExecutionPolicy:
-    placement: str = "owner_computes"  # "auto", "owner_computes", "affinity", "explicit"
-    preferred_gpus: List[int] = None
-    enable_offloading: bool = False
-    prefetch: bool = True
+    def apply_tensor_parallel(pg: "PhysicalGraph", num_nodes: int, partition_dim: int): ...
 ```
 
 ### 5.2 Usage Example
 
 ```python
 import nntile
-from nntile.graph import ComputeGraph, DistributionStrategy, ExecutionPolicy
+from nntile.graph import LogicalGraph, CompiledGraph, TensorSpec
 
 # Initialize NNTile with MPI
 nntile.init(mpi=True)
@@ -2871,26 +2889,26 @@ attn = graph.scaled_dot_product_attention(q, k, v, "attn")
 out = graph.matmul(attn, wo, "attn_out")
 out = graph.add(out, x, "residual")  # Residual
 out = graph.layer_norm(out, gamma, beta, "ln_out")
+graph.mark_output("ln_out")
 
-# Configure for 8 nodes
-# (distribution configured at PhysicalGraph level, not LogicalGraph)
-
-policy = ExecutionPolicy()
-policy.placement = "owner_computes"
-policy.enable_offloading = True
-graph.set_execution_policy(policy)
-
-# Instantiate - creates actual tensors with proper tiling
-instance = graph.instantiate()
+# Compile with distribution
+compiled = CompiledGraph.compile(
+    graph,
+    num_nodes=8,
+    configure_distribution=lambda pg: DistributionPreset.apply_fsdp(pg, 8)
+)
 
 # Load weights
-instance.load_tensors("checkpoint.pt")
+compiled.load_tensors("checkpoint.pt")
+
+# Bind input data
+compiled.bind_data("x", input_data)
 
 # Execute
-instance.execute()
+compiled.execute()
 
 # Get outputs
-output = instance.get_tensor("output")
+output = compiled.get_output("ln_out")
 
 nntile.shutdown()
 ```
@@ -2953,11 +2971,11 @@ nntile.shutdown()
 
 **Tasks**:
 1. [ ] Define `TensorNode` and `OpNode` classes
-2. [ ] Implement `ComputeGraph` class
+2. [ ] Implement `LogicalGraph` class
 3. [ ] Implement `TensorSpec` and shape inference
-4. [ ] Implement `DistributionStrategy` class
-5. [ ] Implement `ExecutionPolicy` class
-6. [ ] Implement graph instantiation logic
+4. [ ] Implement `TileDistribution` class (simple vector mapping)
+5. [ ] Implement distribution preset functions (apply_fsdp, apply_ddp, etc.)
+6. [ ] Implement `CompiledGraph` class (combined physical + executable)
 7. [ ] Add automatic tiling algorithm
 
 **New files**:
@@ -3064,7 +3082,7 @@ Track F (Runtime Abstraction)  ════════════════�
 - **Track F is foundational** - should be prioritized first as other tracks depend on its interfaces
 - Track B (Execution Hints) integrates into Track F's `ExecutionHints` structure
 - Track C depends on Track F (uses `runtime::` interfaces)
-- Phase 6 depends on Track A (MPI), Track C (ExecutionContext), Track D (DistributionStrategy)
+- Phase 6 depends on Track A (MPI), Track C (ExecutionContext), Track D (Graph API)
 
 **Recommended Development Order**:
 
@@ -3665,8 +3683,9 @@ public:
 //! Async compilation
 CompilationFuture compile_async(
     LogicalGraph& graph,
-    const DistributionStrategy& dist,
+    int num_nodes,
     const TilingStrategy& tiling = TilingStrategy::auto_tiling(),
+    std::function<void(PhysicalGraph&)> configure_distribution = nullptr,
     const std::map<std::string, Index>& shape_bindings = {}
 );
 
@@ -3677,7 +3696,7 @@ public:
     //! Returns immediately if cached, compiles if not
     CompiledGraph& get_or_compile(
         LogicalGraph& graph,
-        const DistributionStrategy& dist,
+        int num_nodes,
         const TilingStrategy& tiling,
         const std::map<std::string, Index>& shape_bindings
     );
@@ -3685,7 +3704,7 @@ public:
     //! Pre-compile graphs for expected shapes
     void prefetch(
         LogicalGraph& graph,
-        const DistributionStrategy& dist,
+        int num_nodes,
         const std::vector<std::map<std::string, Index>>& expected_shapes
     );
     
