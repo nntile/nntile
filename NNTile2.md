@@ -1842,8 +1842,54 @@ public:
     //! Load graph from file
     static LogicalGraph load(const std::string& path);
     
-    //! Export to visualization format (DOT, etc.)
-    std::string to_dot() const;
+    // ═══════════════════════════════════════════════════════════
+    // Visualization
+    // ═══════════════════════════════════════════════════════════
+    
+    //! Export to DOT format (Graphviz)
+    std::string to_dot(const VisualizationOptions& opts = {}) const;
+    
+    //! Export to Mermaid format (renders in GitHub markdown)
+    std::string to_mermaid(const VisualizationOptions& opts = {}) const;
+    
+    //! Export to JSON for custom visualizers
+    std::string to_json(bool pretty = true) const;
+    
+    //! Render graph to image file (requires Graphviz installed)
+    void render(const std::string& path, const std::string& format = "svg") const;
+    
+    //! Display in Jupyter notebook (Python only)
+    // void display() const;  // Implemented in Python wrapper
+};
+
+//! Visualization options
+struct VisualizationOptions {
+    // Node display
+    bool show_shapes = true;           // Show tensor shapes
+    bool show_dtypes = true;           // Show data types
+    bool show_tensor_names = true;     // Show tensor names
+    bool show_op_names = true;         // Show operation names
+    
+    // Grouping
+    bool group_by_prefix = false;      // Group nodes by name prefix (e.g., "layer_0_")
+    bool separate_forward_backward = true;  // Visually separate fwd/bwd ops
+    
+    // Coloring
+    bool color_by_role = true;         // Different colors for input/param/buffer/output
+    bool color_by_dtype = false;       // Different colors for fp32/fp16/etc.
+    
+    // Layout
+    enum class Direction { TopToBottom, LeftToRight };
+    Direction direction = Direction::TopToBottom;
+    
+    // Filtering
+    std::set<std::string> hide_tensors;  // Tensor names to hide
+    std::set<OpType> hide_ops;           // Op types to hide
+    bool hide_constants = false;         // Hide constant tensors
+    
+    // Detail level
+    enum class DetailLevel { Minimal, Normal, Detailed };
+    DetailLevel detail = DetailLevel::Normal;
 };
 
 } // namespace nntile::graph
@@ -2104,7 +2150,172 @@ public:
 } // namespace nntile::graph
 ```
 
-#### 4.1.5 DistributionStrategy Class
+#### 4.1.5 Graph Visualization
+
+##### DOT Output Example
+
+```python
+graph = LogicalGraph("simple_mlp")
+x = graph.tensor(TensorSpec([128, 512]), "x", external=True)
+w = graph.tensor(TensorSpec([512, 256]), "w", requires_grad=True, persistent=True)
+h = graph.matmul(x, w, name="hidden")
+y = graph.gelu(h, name="activation")
+graph.mark_output(y, "output")
+
+print(graph.to_dot())
+```
+
+Output:
+```dot
+digraph simple_mlp {
+    rankdir=TB;
+    node [shape=box, style=filled];
+    
+    // Tensors
+    x [label="x\n[128, 512]\nfp32", fillcolor="#a8d5ba"];  // Input: green
+    w [label="w\n[512, 256]\nfp32", fillcolor="#f4a460"];  // Parameter: orange
+    hidden [label="hidden\n[128, 256]\nfp32", fillcolor="#d3d3d3"];  // Buffer: gray
+    activation [label="activation\n[128, 256]\nfp32", fillcolor="#87ceeb"];  // Output: blue
+    
+    // Operations
+    matmul_0 [label="MatMul", shape=ellipse, fillcolor="#ffffcc"];
+    gelu_0 [label="GeLU", shape=ellipse, fillcolor="#ffffcc"];
+    
+    // Edges
+    x -> matmul_0;
+    w -> matmul_0;
+    matmul_0 -> hidden;
+    hidden -> gelu_0;
+    gelu_0 -> activation;
+}
+```
+
+Render with: `dot -Tsvg graph.dot -o graph.svg`
+
+##### Mermaid Output Example
+
+```python
+print(graph.to_mermaid())
+```
+
+Output (renders directly in GitHub/GitLab markdown):
+```mermaid
+graph TD
+    subgraph Inputs
+        x["x<br/>[128, 512]<br/>fp32"]
+    end
+    
+    subgraph Parameters
+        w["w<br/>[512, 256]<br/>fp32"]
+    end
+    
+    subgraph Operations
+        matmul_0(("MatMul"))
+        gelu_0(("GeLU"))
+    end
+    
+    subgraph Outputs
+        activation["activation<br/>[128, 256]<br/>fp32"]
+    end
+    
+    x --> matmul_0
+    w --> matmul_0
+    matmul_0 --> hidden["hidden<br/>[128, 256]"]
+    hidden --> gelu_0
+    gelu_0 --> activation
+    
+    style x fill:#a8d5ba
+    style w fill:#f4a460
+    style activation fill:#87ceeb
+```
+
+##### Python Visualization Integration
+
+```python
+# In Jupyter notebook
+graph.display()  # Renders inline SVG
+
+# Save to file
+graph.render("model.svg")
+graph.render("model.png")
+graph.render("model.pdf")
+
+# With options
+opts = VisualizationOptions(
+    show_shapes=True,
+    group_by_prefix=True,  # Groups "layer_0_*", "layer_1_*", etc.
+    separate_forward_backward=True,
+    direction="LR"  # Left to right
+)
+graph.render("model_detailed.svg", options=opts)
+
+# Interactive visualization (if using web-based viewer)
+graph.to_json()  # Export for D3.js or similar
+```
+
+##### Forward + Backward Visualization
+
+When visualizing graphs with explicit backward ops:
+
+```python
+opts = VisualizationOptions(separate_forward_backward=True)
+print(graph.to_dot(opts))
+```
+
+Output:
+```dot
+digraph mlp_with_backward {
+    rankdir=TB;
+    
+    subgraph cluster_forward {
+        label="Forward Pass";
+        style=filled;
+        fillcolor="#e8f5e9";
+        
+        x; w; h; y;
+        matmul_fwd; gelu_fwd;
+    }
+    
+    subgraph cluster_backward {
+        label="Backward Pass";
+        style=filled;
+        fillcolor="#ffebee";
+        
+        dy; dw; dh;
+        matmul_bwd; gelu_bwd;
+    }
+    
+    // Forward edges
+    x -> matmul_fwd -> h -> gelu_fwd -> y;
+    w -> matmul_fwd;
+    
+    // Backward edges
+    dy -> gelu_bwd -> dh -> matmul_bwd -> dw;
+    h -> gelu_bwd [style=dashed];  // Reused from forward
+    x -> matmul_bwd [style=dashed];
+}
+```
+
+##### Visualization Color Scheme
+
+| Tensor Role | Color | Hex |
+|-------------|-------|-----|
+| Input | Green | `#a8d5ba` |
+| Parameter | Orange | `#f4a460` |
+| Constant | Purple | `#dda0dd` |
+| Buffer | Gray | `#d3d3d3` |
+| Output | Blue | `#87ceeb` |
+| Gradient | Red | `#f08080` |
+
+| Node Type | Shape |
+|-----------|-------|
+| Tensor | Rectangle |
+| Operation | Ellipse |
+| Subgraph | Dashed box |
+
+---
+
+#### 4.1.6 DistributionStrategy Class
 
 ```cpp
 namespace nntile::graph {
@@ -2189,7 +2400,7 @@ struct DistributionStrategy {
 } // namespace nntile::graph
 ```
 
-#### 4.1.6 TilingStrategy Class
+#### 4.1.7 TilingStrategy Class
 
 ```cpp
 namespace nntile::graph {
@@ -2297,7 +2508,7 @@ public:
 } // namespace nntile::graph
 ```
 
-#### 4.1.7 ExecutionPolicy Class
+#### 4.1.8 ExecutionPolicy Class
 
 ```cpp
 struct ExecutionPolicy {
