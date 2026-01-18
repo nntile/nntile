@@ -3111,16 +3111,16 @@ print(f"Parameters: {transformer.num_parameters()}")  # 12 * 4 weight matrices
 
 | Component | Status | Priority | Notes |
 |-----------|--------|----------|-------|
-| **Autograd engine** | Not designed | Critical | How gradients flow through graph |
-| **Optimizer integration** | Not designed | High | Adam, SGD as graph operations or separate? |
-| **Loss functions** | Not designed | High | CrossEntropy, MSE integration |
-| **Gradient checkpointing** | Not designed | High | Activation recomputation for memory |
-| **Mixed precision** | Mentioned briefly | High | FP16/BF16 forward, FP32 gradients |
+| **Backward operations** | Explicit in graph | Done | User defines backward ops explicitly, no autograd engine |
+| **Optimizer operations** | Not designed | High | Adam, SGD as explicit graph operations |
+| **Loss function ops** | Not designed | High | CrossEntropy, MSE as graph operations |
+| **Gradient checkpointing** | Natural fit | Medium | Just re-run forward ops in backward section of graph |
+| **Mixed precision** | Mentioned briefly | High | Cast ops in graph, FP16/BF16 forward, FP32 accumulation |
 | **Data loading pipeline** | Not designed | Medium | How data gets to inputs |
 | **Profiling/debugging** | Not designed | Medium | Trace visualization, performance analysis |
 | **Serialization format** | Not designed | Medium | Checkpoint compatibility |
 | **Error handling** | Not designed | Medium | What happens when OOM, NaN, etc. |
-| **Communication primitives** | Implicit | High | AllReduce, AllGather explicit or hidden? |
+| **Communication primitives** | Implicit | High | AllReduce, AllGather - explicit ops or hidden in distribution? |
 | **Memory pool management** | Not designed | High | Reuse allocations across iterations |
 
 ### 10.5 Implementation Limitations and Risks
@@ -3183,54 +3183,146 @@ void execute_matmul(const PhysicalOp& op, ExecutionContext& ctx) {
 - Graph API is "orchestration layer" on top of existing code
 - Gradual migration - existing code still works
 
-### 10.7 Autograd Design Sketch
+### 10.7 Explicit Backward Operations (No Autograd Engine)
 
-**Approach**: Build backward graph during forward graph construction
+**Design Decision**: No automatic differentiation engine. Users explicitly define backward operations in the logical graph.
 
-```cpp
-class LogicalGraph {
-private:
-    // For each tensor, store how to compute its gradient
-    struct GradientInfo {
-        std::vector<std::pair<OpNode*, int>> consumers;  // (op, input_index)
-    };
-    std::map<NodeId, GradientInfo> grad_info_;
-    
-public:
-    //! Build backward graph for given output
-    LogicalGraph build_backward(
-        const std::vector<TensorNode*>& loss_tensors,
-        const std::vector<TensorNode*>& wrt_tensors  // Compute gradients w.r.t. these
-    ) const;
-};
+**Rationale**:
+1. **Simplicity**: No complex autograd machinery to implement and maintain
+2. **Control**: User decides exactly which backward operations to use
+3. **Flexibility**: Easy to implement custom backward passes, gradient checkpointing, etc.
+4. **Transparency**: No "magic" - what you write is what executes
+5. **Optimization**: Can fuse or reorganize backward ops manually for efficiency
 
-// Each OpNode knows how to generate its backward
-class MatMulOp : public OpNode {
-public:
-    // Given gradient of output, produce gradients of inputs
-    std::vector<OpNode*> backward(
-        LogicalGraph& grad_graph,
-        TensorNode* output_grad
-    ) const override {
-        // dA = dC @ B^T (if not trans_a)
-        // dB = A^T @ dC (if not trans_b)
-        auto dA = grad_graph.matmul(output_grad, inputs_[1], false, true);
-        auto dB = grad_graph.matmul(inputs_[0], output_grad, true, false);
-        return {dA.producer(), dB.producer()};
-    }
-};
+**Example: Explicit Forward and Backward**:
+
+```python
+graph = LogicalGraph("mlp_with_backward")
+
+# ═══════════════════════════════════════════════════════════════
+# Forward tensors
+# ═══════════════════════════════════════════════════════════════
+x = graph.tensor(TensorSpec([batch, input_dim]), "x", external=True)
+w1 = graph.tensor(TensorSpec([input_dim, hidden_dim]), "w1", 
+                  requires_grad=True, persistent=True)
+w2 = graph.tensor(TensorSpec([hidden_dim, output_dim]), "w2",
+                  requires_grad=True, persistent=True)
+
+# Forward operations
+h = graph.matmul(x, w1, name="h")           # h = x @ w1
+a = graph.gelu(h, name="a")                  # a = gelu(h)
+y = graph.matmul(a, w2, name="y")           # y = a @ w2
+graph.mark_output(y, "output")
+
+# ═══════════════════════════════════════════════════════════════
+# Backward tensors (gradients)
+# ═══════════════════════════════════════════════════════════════
+# Gradient of loss w.r.t. output (fed externally)
+dy = graph.tensor(TensorSpec([batch, output_dim]), "dy", external=True)
+
+# Gradient tensors for parameters (accumulated)
+dw1 = graph.tensor(TensorSpec([input_dim, hidden_dim]), "dw1",
+                   persistent=True)  # Accumulates across batches
+dw2 = graph.tensor(TensorSpec([hidden_dim, output_dim]), "dw2",
+                   persistent=True)
+
+# ═══════════════════════════════════════════════════════════════
+# Backward operations (explicit!)
+# ═══════════════════════════════════════════════════════════════
+# dy/dw2 = a^T @ dy  (gradient of w2)
+dw2_batch = graph.matmul(a, dy, trans_a=True, name="dw2_batch")
+graph.add_inplace(dw2, dw2_batch, name="dw2_accum")  # Accumulate
+
+# dy/da = dy @ w2^T  (gradient flowing back through second matmul)
+da = graph.matmul(dy, w2, trans_b=True, name="da")
+
+# dy/dh = da * gelu'(h)  (gradient through gelu)
+dh = graph.gelu_backward(da, h, name="dh")
+
+# dy/dw1 = x^T @ dh  (gradient of w1)
+dw1_batch = graph.matmul(x, dh, trans_a=True, name="dw1_batch")
+graph.add_inplace(dw1, dw1_batch, name="dw1_accum")  # Accumulate
+
+# Mark gradient outputs
+graph.mark_output(dw1, "grad_w1")
+graph.mark_output(dw2, "grad_w2")
 ```
+
+**Execution**:
+```python
+compiled = CompiledGraph.compile(graph, DistributionStrategy.fsdp(8))
+
+# Forward pass
+compiled.bind_input("x", batch_data)
+compiled.forward()
+output = compiled.get_output("output")
+
+# Compute loss externally and get gradient
+loss, dy = compute_loss_and_grad(output, targets)
+
+# Backward pass (explicit operations in same graph)
+compiled.bind_input("dy", dy)
+compiled.forward()  # Runs the backward ops too (they're just ops!)
+
+# Get gradients
+grad_w1 = compiled.get_output("grad_w1")
+grad_w2 = compiled.get_output("grad_w2")
+```
+
+**Key Insight**: Forward and backward are just operations in the same graph. The "backward pass" is simply executing the backward operations, which happen to depend on forward tensors.
+
+**Organizing Forward vs Backward**:
+
+For clarity, users can use helper methods or conventions:
+
+```python
+class ModelGraph:
+    """Helper to organize forward/backward in logical graph."""
+    
+    def __init__(self, name):
+        self.graph = LogicalGraph(name)
+        self.forward_ops = []
+        self.backward_ops = []
+    
+    def forward_matmul(self, a, b, **kwargs):
+        """Add matmul to forward pass."""
+        result = self.graph.matmul(a, b, **kwargs)
+        self.forward_ops.append(result.producer())
+        return result
+    
+    def backward_matmul_dA(self, dC, B, **kwargs):
+        """dA = dC @ B^T"""
+        return self.graph.matmul(dC, B, trans_b=True, **kwargs)
+    
+    def backward_matmul_dB(self, A, dC, **kwargs):
+        """dB = A^T @ dC"""
+        return self.graph.matmul(A, dC, trans_a=True, **kwargs)
+```
+
+**Comparison with Autograd**:
+
+| Aspect | Explicit Backward | Autograd Engine |
+|--------|-------------------|-----------------|
+| Implementation complexity | Low | High |
+| User control | Full | Limited |
+| Custom backward ops | Easy | Requires hooks |
+| Gradient checkpointing | Explicit in graph | Separate mechanism |
+| Code clarity | What you see is what runs | Hidden transformations |
+| Debugging | Straightforward | Need to understand internals |
+| Performance tuning | Direct control | Depends on autograd impl |
 
 ### 10.8 Revised Open Questions
 
-1. **Autograd granularity**: One backward graph per forward graph, or fused forward+backward?
-2. **Dynamic shapes in compiled graphs**: Re-compile on shape change, or handle dynamically?
-3. **Multi-GPU within single node**: Is it one CompiledGraph or multiple coordinated ones?
-4. **Checkpoint format**: Custom binary, or compatibility layer with PyTorch/SafeTensors?
-5. **Lazy vs eager tensor creation**: Should `graph.tensor()` create the node immediately?
-6. **Error recovery**: What state is the graph in after a failed forward/backward?
-7. **Graph mutation**: Can you modify a LogicalGraph after operations are added?
-8. **Thread safety**: Can multiple threads build the same LogicalGraph?
+1. **Dynamic shapes in compiled graphs**: Re-compile on shape change, or handle dynamically?
+2. **Multi-GPU within single node**: Is it one CompiledGraph or multiple coordinated ones?
+3. **Checkpoint format**: Custom binary, or compatibility layer with PyTorch/SafeTensors?
+4. **Lazy vs eager tensor creation**: Should `graph.tensor()` create the node immediately?
+5. **Error recovery**: What state is the graph in after a failed execution?
+6. **Graph mutation**: Can you modify a LogicalGraph after operations are added?
+7. **Thread safety**: Can multiple threads build the same LogicalGraph?
+8. **Communication ops**: Should AllReduce/AllGather be explicit graph ops or hidden in distribution strategy?
+9. **Execution order**: How to specify that backward ops run after forward ops in same graph?
+10. **Gradient accumulation**: Best pattern for accumulating gradients across micro-batches?
 
 ---
 
@@ -3281,12 +3373,18 @@ NNTile 2.0 introduces a transformative high-level graph abstraction that enables
 | **Correctness** | Tiling edge cases, distributed gradients | Extensive testing, gradient checking |
 | **Integration** | Existing code compatibility | Graph API orchestrates existing tensor ops |
 
+### Key Design Choices
+
+- **Explicit backward operations** - No autograd engine; users define backward ops in the same logical graph
+- **Forward and backward are just ops** - Same graph, same execution model
+- **Gradient checkpointing is natural** - Just re-execute forward ops in backward section
+
 ### Missing Components (To Be Designed)
 
-- Autograd engine and backward graph generation
-- Optimizer integration (Adam, SGD as graph ops)
-- Gradient checkpointing for memory efficiency
-- Mixed precision training support
+- Optimizer operations (Adam, SGD as explicit graph ops)
+- Loss function operations (CrossEntropy, MSE as graph ops)
+- Mixed precision support (cast operations in graph)
+- Communication primitives (AllReduce as explicit or implicit?)
 - Profiling and debugging tools
 - Serialization and checkpoint format
 
