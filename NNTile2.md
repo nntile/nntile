@@ -2876,14 +2876,361 @@ NNTile 2.0 will maintain backward compatibility:
 
 ---
 
-## 10. Open Questions and Future Work
+## 10. Design Refinements and Open Questions
 
-1. **Memory Estimation**: How to accurately estimate memory for automatic tiling?
-2. **Heterogeneous Clusters**: Support for mixed GPU types?
-3. **Checkpoint Format**: Compatible with PyTorch/Megatron checkpoints?
-4. **Dynamic Shapes**: Support for variable sequence lengths?
-5. **Gradient Checkpointing**: Integration with activation checkpointing?
-6. **Mixed Precision**: Automatic mixed precision in graph level?
+### 10.1 Unified Tensor Concept
+
+**Problem with current design**: Separate `input()`, `parameter()`, `constant()` methods create artificial distinctions. Everything should be a tensor.
+
+**Refined design**: Single `tensor()` method with attributes determining role:
+
+```cpp
+namespace nntile::graph {
+
+//! Tensor attributes that determine its role
+struct TensorAttributes {
+    bool requires_grad = false;      // Needs gradient computation
+    bool persistent = false;         // Saved in checkpoints, survives across batches
+    bool external = false;           // Data comes from outside the graph
+    
+    // Derived role
+    TensorRole role() const {
+        if (external && !persistent) return TensorRole::Input;
+        if (external && persistent) return TensorRole::Constant;
+        if (persistent && requires_grad) return TensorRole::Parameter;
+        return TensorRole::Buffer;  // Intermediate activation
+    }
+};
+
+class LogicalGraph {
+public:
+    //! Universal tensor creation - role determined by attributes
+    TensorNode& tensor(
+        const TensorSpec& spec,
+        const std::string& name,
+        TensorAttributes attrs = {}
+    );
+    
+    // Convenience methods (call tensor() internally)
+    TensorNode& input(const TensorSpec& spec, const std::string& name) {
+        return tensor(spec, name, {.external = true});
+    }
+    
+    TensorNode& parameter(const TensorSpec& spec, const std::string& name) {
+        return tensor(spec, name, {.requires_grad = true, .persistent = true});
+    }
+    
+    TensorNode& constant(const TensorSpec& spec, const std::string& name) {
+        return tensor(spec, name, {.persistent = true, .external = true});
+    }
+    
+    //! Mark tensor as output (can be any tensor)
+    void mark_output(TensorNode& t, const std::string& output_name = "");
+};
+
+} // namespace nntile::graph
+```
+
+**Usage:**
+```python
+graph = LogicalGraph("model")
+
+# All are just tensors with different attributes
+x = graph.tensor(TensorSpec([seq, batch, embed]), "x", external=True)
+w = graph.tensor(TensorSpec([embed, hidden]), "w", requires_grad=True, persistent=True)
+scale = graph.tensor(TensorSpec([hidden]), "scale", persistent=True, external=True)  # Constant
+
+# Operations create new tensors automatically
+y = graph.matmul(x, w)  # y is a buffer (not external, not persistent)
+z = graph.gelu(y)
+
+# Any tensor can be marked as output
+graph.mark_output(z, "logits")
+```
+
+### 10.2 Merging PhysicalGraph and ExecutableGraph
+
+**Problem**: The separation between PhysicalGraph and ExecutableGraph is artificial. In practice, you always go Physical → Executable immediately.
+
+**Analysis of why they were separate:**
+1. Analyze memory before allocating (can do this before creating executable)
+2. Create multiple executables from same physical (rare use case)
+
+**Refined design**: Merge into single `CompiledGraph` with lazy allocation:
+
+```cpp
+namespace nntile::graph {
+
+//! Compilation result - combines physical decisions + execution capability
+class CompiledGraph {
+private:
+    LogicalGraph* logical_;
+    
+    // Physical decisions (computed at compile time)
+    std::map<NodeId, TilingSpec> tilings_;
+    std::map<NodeId, DistributionSpec> distributions_;
+    DistributionStrategy dist_strategy_;
+    
+    // Execution state (allocated lazily on first use)
+    enum class AllocationState { NotAllocated, Allocated };
+    AllocationState alloc_state_ = AllocationState::NotAllocated;
+    std::map<NodeId, std::unique_ptr<runtime::DataHandle>> handles_;
+    
+    void ensure_allocated();
+
+public:
+    //! Compile logical graph with distribution/tiling
+    static CompiledGraph compile(
+        LogicalGraph& logical,
+        const DistributionStrategy& dist,
+        const TilingStrategy& tiling = TilingStrategy::auto_tiling(),
+        const std::map<std::string, Index>& shape_bindings = {}
+    );
+    
+    // ═══════════════════════════════════════════════════════════
+    // Analysis (available immediately after compile, before allocation)
+    // ═══════════════════════════════════════════════════════════
+    
+    Index memory_per_device(int device_id) const;
+    Index max_memory_per_device() const;
+    Index estimate_communication() const;
+    const TilingSpec& tiling(const std::string& tensor_name) const;
+    const DistributionSpec& distribution(const std::string& tensor_name) const;
+    std::string dump_plan() const;  // Human-readable plan
+    
+    // ═══════════════════════════════════════════════════════════
+    // Execution (triggers allocation on first call)
+    // ═══════════════════════════════════════════════════════════
+    
+    void bind_input(const std::string& name, const void* data, size_t size);
+    void forward();
+    void backward();
+    void get_output(const std::string& name, void* data, size_t size);
+    
+    // ... rest of execution API
+};
+
+} // namespace nntile::graph
+```
+
+**Usage becomes simpler:**
+```python
+# Define
+graph = LogicalGraph("model")
+# ... build graph ...
+
+# Compile with strategy (no allocation yet)
+compiled = CompiledGraph.compile(
+    graph,
+    DistributionStrategy.fsdp(world_size=8),
+    TilingStrategy.auto_tiling()
+)
+
+# Analyze before running
+print(f"Memory per GPU: {compiled.memory_per_device(0) / 1e9:.2f} GB")
+print(compiled.dump_plan())
+
+# Execute (allocates on first call)
+compiled.bind_input("x", data)
+compiled.forward()
+result = compiled.get_output("output")
+```
+
+### 10.3 Graph Composition (Stacking Logical Graphs)
+
+**Requirement**: Build complex models by composing smaller logical graphs (like functions).
+
+```cpp
+namespace nntile::graph {
+
+class LogicalGraph {
+public:
+    //! Embed another graph as a subgraph
+    //! Returns mapping of subgraph outputs to nodes in this graph
+    std::map<std::string, TensorNode*> embed(
+        const LogicalGraph& subgraph,
+        const std::map<std::string, TensorNode*>& input_bindings,
+        const std::string& prefix = ""  // Prefix for tensor names
+    );
+    
+    //! Create a reusable "function" from a graph
+    //! (Clones the graph structure each time it's called)
+    static std::function<std::map<std::string, TensorNode*>(
+        LogicalGraph&,
+        const std::map<std::string, TensorNode*>&
+    )> as_function(const LogicalGraph& template_graph);
+};
+
+} // namespace nntile::graph
+```
+
+**Usage:**
+```python
+# Define attention block as reusable graph
+def make_attention_block():
+    block = LogicalGraph("attention")
+    x = block.input(TensorSpec([seq, batch, embed]), "x")
+    wq = block.parameter(TensorSpec([embed, embed]), "Wq")
+    wk = block.parameter(TensorSpec([embed, embed]), "Wk")
+    wv = block.parameter(TensorSpec([embed, embed]), "Wv")
+    wo = block.parameter(TensorSpec([embed, embed]), "Wo")
+    
+    q = block.matmul(x, wq)
+    k = block.matmul(x, wk)
+    v = block.matmul(x, wv)
+    attn = block.scaled_dot_product_attention(q, k, v)
+    out = block.matmul(attn, wo)
+    out = block.add(out, x)  # Residual
+    
+    block.mark_output(out, "output")
+    return block
+
+attention_template = make_attention_block()
+
+# Build transformer by stacking
+transformer = LogicalGraph("transformer")
+x = transformer.input(TensorSpec([seq, batch, embed]), "input")
+
+# Stack 12 attention blocks
+hidden = x
+for i in range(12):
+    outputs = transformer.embed(
+        attention_template,
+        input_bindings={"x": hidden},
+        prefix=f"layer_{i}_"  # layer_0_Wq, layer_0_Wk, etc.
+    )
+    hidden = outputs["output"]
+
+transformer.mark_output(hidden, "output")
+
+# All 12 blocks share the same structure but have separate parameters
+print(f"Parameters: {transformer.num_parameters()}")  # 12 * 4 weight matrices
+```
+
+### 10.4 Missing Components Analysis
+
+| Component | Status | Priority | Notes |
+|-----------|--------|----------|-------|
+| **Autograd engine** | Not designed | Critical | How gradients flow through graph |
+| **Optimizer integration** | Not designed | High | Adam, SGD as graph operations or separate? |
+| **Loss functions** | Not designed | High | CrossEntropy, MSE integration |
+| **Gradient checkpointing** | Not designed | High | Activation recomputation for memory |
+| **Mixed precision** | Mentioned briefly | High | FP16/BF16 forward, FP32 gradients |
+| **Data loading pipeline** | Not designed | Medium | How data gets to inputs |
+| **Profiling/debugging** | Not designed | Medium | Trace visualization, performance analysis |
+| **Serialization format** | Not designed | Medium | Checkpoint compatibility |
+| **Error handling** | Not designed | Medium | What happens when OOM, NaN, etc. |
+| **Communication primitives** | Implicit | High | AllReduce, AllGather explicit or hidden? |
+| **Memory pool management** | Not designed | High | Reuse allocations across iterations |
+
+### 10.5 Implementation Limitations and Risks
+
+#### StarPU-Related Limitations
+
+| Limitation | Impact | Mitigation |
+|------------|--------|------------|
+| **Task granularity overhead** | Small tiles → scheduling overhead dominates | Auto-tune tile size, minimum tile threshold |
+| **Limited reduction support** | STARPU_REDUX can be tricky | Implement explicit reduction trees |
+| **MPI+StarPU complexity** | starpu_mpi is less mature | Thorough testing, fallback to manual MPI |
+| **Worker binding limitations** | Can't always force GPU affinity | Use execution hints, accept some flexibility |
+| **Profiling overhead** | FxT traces are large | Selective profiling, sampling |
+
+#### Scalability Concerns
+
+| Concern | At Scale | Mitigation |
+|---------|----------|------------|
+| **Graph construction time** | O(ops) - may be slow for huge models | Lazy construction, parallel building |
+| **Compilation time** | Tiling analysis can be expensive | Cache compiled graphs, incremental recompilation |
+| **Memory for graph metadata** | Many nodes = significant overhead | Use indices instead of pointers, compact representation |
+| **Python/C++ boundary** | Many small calls are expensive | Batch operations, minimize crossings |
+
+#### Correctness Risks
+
+| Risk | Consequence | Mitigation |
+|------|-------------|------------|
+| **Tiling correctness** | Wrong results if tile boundaries mishandled | Extensive edge-case testing, formal verification for critical ops |
+| **Distribution correctness** | Gradients wrong under sharding | Gradient checking, comparison with single-GPU |
+| **Race conditions** | StarPU handles dependencies, but custom code might not | Careful API design, dependency analysis |
+| **Numerical stability** | Tiled operations may accumulate differently | Test numerical equivalence, configurable precision |
+
+### 10.6 Integration with Existing NNTile Code
+
+**Challenge**: NNTile already has tensor/tile/layer code. How does graph API integrate?
+
+**Strategy**: Graph API generates calls to existing tensor operations:
+
+```cpp
+// During ExecutableGraph::forward(), for a matmul op:
+void execute_matmul(const PhysicalOp& op, ExecutionContext& ctx) {
+    // Get existing NNTile tensors from handles
+    auto& A = get_tensor<T>(op.inputs[0]);
+    auto& B = get_tensor<T>(op.inputs[1]);
+    auto& C = get_tensor<T>(op.outputs[0]);
+    
+    // Call existing tensor-level gemm
+    tensor::gemm_async<T>(
+        op.attrs.alpha, op.attrs.trans_a, A,
+        op.attrs.trans_b, B,
+        op.attrs.beta, C,
+        op.attrs.ndim, op.attrs.batch_ndim,
+        ctx.redux_mode
+    );
+}
+```
+
+**Benefits**:
+- Reuse battle-tested tensor operations
+- Graph API is "orchestration layer" on top of existing code
+- Gradual migration - existing code still works
+
+### 10.7 Autograd Design Sketch
+
+**Approach**: Build backward graph during forward graph construction
+
+```cpp
+class LogicalGraph {
+private:
+    // For each tensor, store how to compute its gradient
+    struct GradientInfo {
+        std::vector<std::pair<OpNode*, int>> consumers;  // (op, input_index)
+    };
+    std::map<NodeId, GradientInfo> grad_info_;
+    
+public:
+    //! Build backward graph for given output
+    LogicalGraph build_backward(
+        const std::vector<TensorNode*>& loss_tensors,
+        const std::vector<TensorNode*>& wrt_tensors  // Compute gradients w.r.t. these
+    ) const;
+};
+
+// Each OpNode knows how to generate its backward
+class MatMulOp : public OpNode {
+public:
+    // Given gradient of output, produce gradients of inputs
+    std::vector<OpNode*> backward(
+        LogicalGraph& grad_graph,
+        TensorNode* output_grad
+    ) const override {
+        // dA = dC @ B^T (if not trans_a)
+        // dB = A^T @ dC (if not trans_b)
+        auto dA = grad_graph.matmul(output_grad, inputs_[1], false, true);
+        auto dB = grad_graph.matmul(inputs_[0], output_grad, true, false);
+        return {dA.producer(), dB.producer()};
+    }
+};
+```
+
+### 10.8 Revised Open Questions
+
+1. **Autograd granularity**: One backward graph per forward graph, or fused forward+backward?
+2. **Dynamic shapes in compiled graphs**: Re-compile on shape change, or handle dynamically?
+3. **Multi-GPU within single node**: Is it one CompiledGraph or multiple coordinated ones?
+4. **Checkpoint format**: Custom binary, or compatibility layer with PyTorch/SafeTensors?
+5. **Lazy vs eager tensor creation**: Should `graph.tensor()` create the node immediately?
+6. **Error recovery**: What state is the graph in after a failed forward/backward?
+7. **Graph mutation**: Can you modify a LogicalGraph after operations are added?
+8. **Thread safety**: Can multiple threads build the same LogicalGraph?
 
 ---
 
@@ -2911,6 +3258,37 @@ NNTile 2.0 introduces a transformative high-level graph abstraction that enables
    - Compile-time selection for zero-overhead production builds
    - Optional runtime selection for testing and benchmarking
 5. **Directory Restructure**: `src/starpu/` → `src/runtime/starpu/` with room for `taskflow/`, `serial/`, etc.
+6. **Multi-Stage Graph API**:
+   - `LogicalGraph` - defines what to compute (operations, shapes, data flow)
+   - `CompiledGraph` - combines physical decisions with lazy execution (merged Physical+Executable)
+7. **Unified Tensor Concept**: Single `tensor()` method with attributes (`requires_grad`, `persistent`, `external`) determining role
+8. **Graph Composition**: `embed()` method allows stacking smaller graphs into larger ones
+
+### Design Refinements from Review
+
+| Original Design | Refined Design | Rationale |
+|-----------------|----------------|-----------|
+| Separate `input()`, `parameter()`, `constant()` | Unified `tensor()` with attributes | Everything is a tensor; role derived from attributes |
+| Separate PhysicalGraph + ExecutableGraph | Merged `CompiledGraph` | Simpler API; allocation is lazy on first execution |
+| No graph composition | `embed()` for stacking graphs | Build transformers by composing attention blocks |
+
+### Identified Risks and Mitigations
+
+| Risk Category | Key Risks | Mitigations |
+|---------------|-----------|-------------|
+| **StarPU** | Task granularity overhead, MPI complexity | Auto-tune tile sizes, thorough MPI testing |
+| **Scalability** | Graph construction time, compilation time | Lazy construction, cached compilation |
+| **Correctness** | Tiling edge cases, distributed gradients | Extensive testing, gradient checking |
+| **Integration** | Existing code compatibility | Graph API orchestrates existing tensor ops |
+
+### Missing Components (To Be Designed)
+
+- Autograd engine and backward graph generation
+- Optimizer integration (Adam, SGD as graph ops)
+- Gradient checkpointing for memory efficiency
+- Mixed precision training support
+- Profiling and debugging tools
+- Serialization and checkpoint format
 
 ### Benefits of Runtime Abstraction
 
