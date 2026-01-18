@@ -1175,7 +1175,7 @@ compiled = CompiledGraph.compile(
 # Phase 3: Execute with actual data
 compiled.set_input("input", input_data)
 compiled.set_parameter("weight", weight_data)
-compiled.forward()
+compiled.execute()
 result = compiled.get_output("output")
 
 # Can re-instantiate with different configuration
@@ -1445,7 +1445,7 @@ exe.init_parameters("xavier_uniform")
 exe.bind_input("input", input_tensor)
 
 # Execute forward pass
-exe.forward()
+exe.execute()
 
 # Get output
 output = exe.get_output("output")
@@ -1774,10 +1774,6 @@ public:
     // Analysis
     std::string name() const;  // Human-readable name
     Index estimate_flops() const;  // FLOPs for this operation
-    
-    // Gradient information
-    bool has_backward() const;
-    std::vector<OpNode*> backward_ops() const;  // Ops for gradient computation
 };
 
 } // namespace nntile::graph
@@ -1942,7 +1938,6 @@ struct VisualizationOptions {
     
     // Grouping
     bool group_by_prefix = false;      // Group nodes by name prefix (e.g., "layer_0_")
-    bool separate_forward_backward = true;  // Visually separate fwd/bwd ops
     
     // Coloring
     bool color_by_role = true;         // Different colors for input/param/buffer/output
@@ -2160,12 +2155,7 @@ private:
     State state_ = State::Uninitialized;
     
     // Task handles for async execution
-    runtime::TaskGroup forward_tasks_;
-    runtime::TaskGroup backward_tasks_;
-    
-    // Gradient storage (if backward needed)
-    std::map<NodeId, std::unique_ptr<runtime::DataHandle>> grad_handles_;
-    bool gradients_enabled_ = false;
+    runtime::TaskGroup tasks_;
 
 public:
     //! Create executable from physical graph
@@ -2185,9 +2175,6 @@ public:
     
     //! Save parameters to checkpoint file
     void save_parameters(const std::string& path);
-    
-    //! Enable gradient computation
-    void enable_gradients(bool enable = true);
     
     // ═══════════════════════════════════════════════════════════
     // Input/Output Binding
@@ -2209,36 +2196,21 @@ public:
     template<typename T>
     tensor::Tensor<T> get_output_tensor(const std::string& name);
     
-    //! Bind output gradient (for backward pass)
-    void bind_output_grad(const std::string& name, const void* data, size_t size);
-    
-    //! Get parameter gradient
-    void get_parameter_grad(const std::string& name, void* data, size_t size);
-    
     // ═══════════════════════════════════════════════════════════
     // Execution
     // ═══════════════════════════════════════════════════════════
     
-    //! Execute forward pass (async)
-    void forward_async();
+    //! Execute graph (async)
+    void execute_async();
     
-    //! Execute forward pass (blocking)
-    void forward();
-    
-    //! Execute backward pass (async)
-    void backward_async();
-    
-    //! Execute backward pass (blocking)
-    void backward();
+    //! Execute graph (blocking)
+    void execute();
     
     //! Wait for all operations to complete
     void synchronize();
     
-    //! Clear intermediate activations (free memory)
-    void clear_activations();
-    
-    //! Clear gradients
-    void clear_gradients();
+    //! Clear non-persistent tensors (free memory for next iteration)
+    void clear_buffers();
     
     // ═══════════════════════════════════════════════════════════
     // Advanced
@@ -2249,8 +2221,7 @@ public:
     
     //! Get execution statistics
     struct ExecutionStats {
-        double forward_time_ms;
-        double backward_time_ms;
+        double execution_time_ms;
         Index bytes_transferred;
         Index flops_executed;
     };
@@ -2354,56 +2325,12 @@ graph.render("model.pdf")
 opts = VisualizationOptions(
     show_shapes=True,
     group_by_prefix=True,  # Groups "layer_0_*", "layer_1_*", etc.
-    separate_forward_backward=True,
     direction="LR"  # Left to right
 )
 graph.render("model_detailed.svg", options=opts)
 
 # Interactive visualization (if using web-based viewer)
 graph.to_json()  # Export for D3.js or similar
-```
-
-##### Forward + Backward Visualization
-
-When visualizing graphs with explicit backward ops:
-
-```python
-opts = VisualizationOptions(separate_forward_backward=True)
-print(graph.to_dot(opts))
-```
-
-Output:
-```dot
-digraph mlp_with_backward {
-    rankdir=TB;
-    
-    subgraph cluster_forward {
-        label="Forward Pass";
-        style=filled;
-        fillcolor="#e8f5e9";
-        
-        x; w; h; y;
-        matmul_fwd; gelu_fwd;
-    }
-    
-    subgraph cluster_backward {
-        label="Backward Pass";
-        style=filled;
-        fillcolor="#ffebee";
-        
-        dy; dw; dh;
-        matmul_bwd; gelu_bwd;
-    }
-    
-    // Forward edges
-    x -> matmul_fwd -> h -> gelu_fwd -> y;
-    w -> matmul_fwd;
-    
-    // Backward edges
-    dy -> gelu_bwd -> dh -> matmul_bwd -> dw;
-    h -> gelu_bwd [style=dashed];  // Reused from forward
-    x -> matmul_bwd [style=dashed];
-}
 ```
 
 ##### Visualization Color Scheme
@@ -2927,7 +2854,7 @@ instance = graph.instantiate()
 instance.load_parameters("checkpoint.pt")
 
 # Execute
-instance.forward()
+instance.execute()
 
 # Get outputs
 output = instance.get_tensor("output")
@@ -3160,7 +3087,7 @@ x = graph.input([seq_len, batch_size])
 instance = graph.instantiate()
 
 # Same execution API
-instance.forward()
+instance.execute()
 instance.backward()
 ```
 
@@ -3328,8 +3255,7 @@ public:
     // ═══════════════════════════════════════════════════════════
     
     void bind_input(const std::string& name, const void* data, size_t size);
-    void forward();
-    void backward();
+    void execute();  // Run all ops in the graph
     void get_output(const std::string& name, void* data, size_t size);
     
     // ... rest of execution API
@@ -3361,7 +3287,7 @@ print(compiled.dump_plan())
 
 # Execute (allocates on first call)
 compiled.bind_input("x", data)
-compiled.forward()
+compiled.execute()
 result = compiled.get_output("output")
 ```
 
@@ -3634,27 +3560,27 @@ num_accumulation_steps = 4
 for epoch in range(num_epochs):
     for batch_idx, (data, labels) in enumerate(dataloader):
         
-        # Forward
+        # Execute forward graph
         fwd_compiled.bind_input("x", data)
         fwd_compiled.bind_input("targets", labels)
-        fwd_compiled.forward()
+        fwd_compiled.execute()
         
-        # Get activations needed for backward
+        # Get activations needed for gradient computation
         logits = fwd_compiled.get_output("logits")
         
-        # Backward (accumulates gradients)
+        # Execute gradient graph (accumulates gradients)
         bwd_compiled.bind_input("logits", logits)
         bwd_compiled.bind_input("dloss", 1.0 / num_accumulation_steps)
-        bwd_compiled.forward()  # "forward" runs the backward ops
+        bwd_compiled.execute()  # Just runs the ops in the graph
         
         # Optimizer step every N mini-batches
         if (batch_idx + 1) % num_accumulation_steps == 0:
             opt_compiled.bind_input("learning_rate", lr)
             opt_compiled.bind_input("step", global_step)
-            opt_compiled.forward()
+            opt_compiled.execute()
             
-            # Clear gradients for next accumulation
-            bwd_compiled.clear_gradients()
+            # Clear gradient tensors for next accumulation
+            bwd_compiled.clear_buffers()
             global_step += 1
 ```
 
@@ -3802,7 +3728,7 @@ for batch in inference_batches:
     
     # Execute current batch
     current_compiled.bind_input("x", batch)
-    current_compiled.forward()
+    current_compiled.execute()
     result = current_compiled.get_output("output")
     
     yield result
@@ -3849,7 +3775,7 @@ class LLMInferenceEngine:
             
             # Execute
             compiled.bind_input("x", current_sequence)
-            compiled.forward()
+            compiled.execute()
             next_token = sample(compiled.get_output("logits"))
             
             current_sequence.append(next_token)
@@ -4060,7 +3986,7 @@ class AdaptiveTilingManager:
         # Execute
         start = time.time()
         self.compiled.bind_inputs(inputs)
-        self.compiled.forward()
+        self.compiled.execute()
         self.iteration_times.append(time.time() - start)
         
         # Periodically check if rebalancing needed
@@ -4217,56 +4143,27 @@ graph.mark_output(dw1, "grad_w1")
 graph.mark_output(dw2, "grad_w2")
 ```
 
-**Execution**:
+**Execution** (using separate graphs as recommended):
 ```python
+# Compile the forward+backward graph
 compiled = CompiledGraph.compile(graph, num_nodes=8)
 
-# Forward pass
+# Bind all inputs including dy (loss gradient)
 compiled.bind_input("x", batch_data)
-compiled.forward()
+compiled.bind_input("dy", dy)  # Loss gradient (computed externally or from loss op)
+
+# Execute ALL ops in the graph (forward AND gradient computation)
+compiled.execute()
+
+# Get all outputs
 output = compiled.get_output("output")
-
-# Compute loss externally and get gradient
-loss, dy = compute_loss_and_grad(output, targets)
-
-# Backward pass (explicit operations in same graph)
-compiled.bind_input("dy", dy)
-compiled.forward()  # Runs the backward ops too (they're just ops!)
-
-# Get gradients
 grad_w1 = compiled.get_output("grad_w1")
 grad_w2 = compiled.get_output("grad_w2")
 ```
 
-**Key Insight**: Forward and backward are just operations in the same graph. The "backward pass" is simply executing the backward operations, which happen to depend on forward tensors.
+**Key Insight**: There is no "forward pass" vs "backward pass" distinction at the execution level. All operations are just operations. The graph executes and all ops run based on data dependencies.
 
-**Organizing Forward vs Backward**:
-
-For clarity, users can use helper methods or conventions:
-
-```python
-class ModelGraph:
-    """Helper to organize forward/backward in logical graph."""
-    
-    def __init__(self, name):
-        self.graph = LogicalGraph(name)
-        self.forward_ops = []
-        self.backward_ops = []
-    
-    def forward_matmul(self, a, b, **kwargs):
-        """Add matmul to forward pass."""
-        result = self.graph.matmul(a, b, **kwargs)
-        self.forward_ops.append(result.producer())
-        return result
-    
-    def backward_matmul_dA(self, dC, B, **kwargs):
-        """dA = dC @ B^T"""
-        return self.graph.matmul(dC, B, trans_b=True, **kwargs)
-    
-    def backward_matmul_dB(self, A, dC, **kwargs):
-        """dB = A^T @ dC"""
-        return self.graph.matmul(A, dC, trans_a=True, **kwargs)
-```
+**Recommended Pattern**: Use separate graphs for clarity (see Training Loop Structure section).
 
 **Comparison with Autograd**:
 
@@ -4345,15 +4242,15 @@ NNTile 2.0 introduces a transformative high-level graph abstraction that enables
 
 ### Key Design Choices
 
-- **Explicit backward operations** - No autograd engine; users define backward ops explicitly
-- **Forward and backward are just ops** - Same graph, same execution model
+- **All operations are explicit** - No autograd; gradient computation ops defined by user
+- **No special "backward" concept** - All ops are just ops; graph executes based on data dependencies
 - **Explicit casts only** - No implicit dtype conversion; operations require matching dtypes
-- **Optimizer as separate graph** - Clean separation, executed once per N mini-batches
+- **Separate graphs for different phases** - Forward, gradient, optimizer as separate LogicalGraphs
 - **Loss functions as graph ops** - CrossEntropy, MSE are regular operations
 - **No explicit communication primitives** - Backend runtime handles automatically
 - **Async compilation for inference** - Compile next graph while executing current
 - **Non-uniform tiling** - Support explicit boundaries, proportional, and load-balanced tiling
-- **Gradient checkpointing is natural** - Just re-execute forward ops in backward section
+- **Tile ownership model** - Each tile has one owner node; StarPU handles data movement
 
 ### Missing Components (To Be Designed)
 
