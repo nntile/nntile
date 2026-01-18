@@ -4751,22 +4751,82 @@ for (int step = 0; step < num_steps; ++step) {
 }
 ```
 
-### 10.9 Revised Open Questions
+### 10.9 Static Task Distribution (Design Decision)
 
-1. **Multi-GPU within single node**: Is it one CompiledGraph or multiple coordinated ones?
-2. **Checkpoint format**: Custom binary, or compatibility layer with PyTorch/SafeTensors/ONNX?
-3. **Lazy vs eager tensor creation**: Should `graph.tensor()` create the node immediately?
-4. **Error recovery**: What state is the graph in after a failed execution?
-5. **Graph mutation**: Can you modify a LogicalGraph after operations are added?
-6. **Thread safety**: Can multiple threads build the same LogicalGraph?
-7. **Cross-graph tensor sharing**: How do forward, gradient, and optimizer graphs share parameter tensors?
-8. **Memory planning across graphs**: Can we optimize memory reuse across multiple graphs?
-9. **Compilation cache eviction**: When to evict cached compilations for different shapes?
-10. **Tile boundary alignment**: Should tile boundaries be aligned to specific values (e.g., 64) for memory efficiency?
-11. **Load balancing feedback**: How to collect and report per-node timing for adaptive rebalancing?
-12. **Embedded graph format**: Binary format for pre-compiled graphs on embedded devices?
-13. **Quantization support**: INT8/INT4 operations for mobile inference?
-14. **Model encryption**: Protect model weights on edge devices?
+**Question**: Multi-GPU within single node - is it one CompiledGraph or multiple coordinated ones?
+
+**Answer**: One CompiledGraph. StarPU handles multi-GPU coordination automatically - it distributes tasks across available workers (CPU cores, CUDA GPUs). However, **NNTile 2.0 prioritizes static task distribution**.
+
+#### StarPU's Default Behavior
+
+By default, StarPU dynamically schedules tasks to workers at runtime:
+- Tasks are submitted to a queue
+- StarPU decides which worker (CPU/GPU) executes each task
+- Data is transferred as needed between workers
+- User doesn't know beforehand where a task will execute
+
+#### NNTile 2.0: Static Distribution First
+
+NNTile 2.0 intentionally prioritizes **static task distribution**:
+
+```cpp
+//! Static distribution: user explicitly controls placement
+struct TaskExecutionHints {
+    int target_node = -1;      // MPI node (-1 = let StarPU decide)
+    int target_worker = -1;    // Worker on node (-1 = let StarPU decide)
+    int priority = 0;          // Task priority
+};
+```
+
+**Why static distribution?**
+
+1. **Predictable memory usage**: Know exactly which node holds which tiles
+2. **Deterministic execution**: Same graph produces same data placement every time
+3. **Efficient communication**: Minimize data transfers by co-locating related tiles
+4. **HPC requirements**: Many HPC workloads need explicit control over placement
+5. **Debugging**: Easier to debug when you control where things execute
+
+**How it works**:
+
+```cpp
+// TileDistribution explicitly maps tiles to nodes
+TileDistribution dist = distribute_block(num_tiles, num_nodes);
+// dist.tile_owners = [0, 0, 1, 1, 2, 2, 3, 3]  // 8 tiles across 4 nodes
+
+// When submitting a task, NNTile provides hints to StarPU
+TaskExecutionHints hints;
+hints.target_node = dist.get_owner(tile_idx);
+
+// StarPU respects the hint (via starpu_mpi_task_insert with STARPU_EXECUTE_ON_NODE)
+starpu_mpi_task_insert(..., STARPU_EXECUTE_ON_NODE, hints.target_node, ...);
+```
+
+**Within a node**: StarPU still manages multiple GPUs on a single node. The static distribution controls **which node** owns each tile, but within that node, StarPU can distribute work across available GPUs.
+
+**Optional dynamic fallback**: For workloads that benefit from dynamic scheduling, hints can be set to `-1`:
+
+```cpp
+// Let StarPU decide (dynamic scheduling)
+TaskExecutionHints hints;
+hints.target_node = -1;   // StarPU picks the node
+hints.target_worker = -1; // StarPU picks the worker
+```
+
+### 10.10 Remaining Open Questions
+
+1. **Checkpoint format**: Custom binary, or compatibility layer with PyTorch/SafeTensors/ONNX?
+2. **Lazy vs eager tensor creation**: Should `graph.tensor()` create the node immediately?
+3. **Error recovery**: What state is the graph in after a failed execution?
+4. **Graph mutation**: Can you modify a LogicalGraph after operations are added?
+5. **Thread safety**: Can multiple threads build the same LogicalGraph?
+6. **Cross-graph tensor sharing**: How do forward, gradient, and optimizer graphs share parameter tensors?
+7. **Memory planning across graphs**: Can we optimize memory reuse across multiple graphs?
+8. **Compilation cache eviction**: When to evict cached compilations for different shapes?
+9. **Tile boundary alignment**: Should tile boundaries be aligned to specific values (e.g., 64) for memory efficiency?
+10. **Load balancing feedback**: How to collect and report per-node timing for adaptive rebalancing?
+11. **Embedded graph format**: Binary format for pre-compiled graphs on embedded devices?
+12. **Quantization support**: INT8/INT4 operations for mobile inference?
+13. **Model encryption**: Protect model weights on edge devices?
 
 ---
 
