@@ -1165,10 +1165,12 @@ z = graph.gelu(y)                # Returns TensorNode, no computation
 out = graph.output(z, name="output")
 
 # Phase 2: Configure and compile
-graph.set_distribution(DistributionStrategy.fsdp(world_size=8))
-graph.set_tiling({"weight": [embed_dim_tile, hidden_dim_tile]})
-
-compiled = graph.compile()       # Analyze, optimize, allocate
+compiled = CompiledGraph.compile(
+    graph,
+    num_nodes=8,
+    tiling=TilingStrategy.auto_tiling(),
+    configure_distribution=lambda pg: DistributionPreset.apply_fsdp(pg, 8)
+)
 
 # Phase 3: Execute with actual data
 compiled.set_input("input", input_data)
@@ -1177,7 +1179,10 @@ compiled.forward()
 result = compiled.get_output("output")
 
 # Can re-instantiate with different configuration
-compiled_ddp = graph.compile(DistributionStrategy.ddp(world_size=8))
+compiled_ddp = CompiledGraph.compile(
+    graph, num_nodes=8,
+    configure_distribution=lambda pg: DistributionPreset.apply_ddp(pg, 8)
+)
 ```
 
 **Pros:**
@@ -1234,8 +1239,8 @@ with lazy.trace() as trace:
     y = lazy.matmul(x, w)
     z = lazy.gelu(y)
 
-# Compile traced graph with distribution
-compiled = trace.compile(distribution=DistributionStrategy.fsdp(8))
+# Compile traced graph for multiple nodes
+compiled = trace.compile(num_nodes=8)
 compiled.execute()
 ```
 
@@ -1284,7 +1289,7 @@ def forward(params, x):
 grad_fn = grad(forward, argnums=0)  # Gradient w.r.t. params
 
 # Transform for distribution
-dist_forward = distribute(forward, strategy=DistributionStrategy.fsdp(8))
+dist_forward = distribute(forward, num_nodes=8)
 
 # Transform for JIT compilation
 fast_forward = jit(forward)
@@ -1383,53 +1388,45 @@ print(f"FLOPs: {logical.estimate_flops()}")
 # Stage 2: Physical Graph (how to tile and distribute)
 # ═══════════════════════════════════════════════════════════════
 
-# Option A: FSDP - shard parameters across all GPUs
-physical_fsdp = PhysicalGraph(logical)
-physical_fsdp.set_distribution(DistributionStrategy.fsdp(
-    world_size=8,
-    shard_degree=8,
-    shard_optimizer_states=True
-))
-physical_fsdp.set_tiling(TilingStrategy.auto(
-    target_tile_size_mb=64,
-    constraints={
-        "input": {"batch_dim": "shard"},      # Shard batch across GPUs
-        "W_query": {"both_dims": "shard"},    # FSDP shards weights
-    }
-))
-physical_fsdp.compile()  # Compute tile shapes, distribution map
+# Option A: FSDP - shard parameters across all nodes
+physical_fsdp = PhysicalGraph(logical, num_nodes=8)
+physical_fsdp.set_tiling(TilingStrategy.auto_tiling(target_tile_bytes=64*1024*1024))
+# Distribute parameter tiles round-robin across nodes
+for param_name in ["W_query", "W_key", "W_value", "W_out"]:
+    physical_fsdp.set_tensor_distribution(
+        param_name, 
+        TileDistribution.round_robin(8)
+    )
+physical_fsdp.compile()
 
-# Option B: DDP - replicate parameters, shard data
-physical_ddp = PhysicalGraph(logical)
-physical_ddp.set_distribution(DistributionStrategy.ddp(world_size=8))
-physical_ddp.set_tiling(TilingStrategy.auto(
-    target_tile_size_mb=64,
-    constraints={
-        "input": {"batch_dim": "shard"},      # Shard batch
-        "W_query": {"both_dims": "replicate"} # Replicate weights
-    }
-))
+# Option B: DDP style - parameters distributed by batch dimension
+physical_ddp = PhysicalGraph(logical, num_nodes=8)
+physical_ddp.set_tiling(TilingStrategy.auto_tiling(target_tile_bytes=64*1024*1024))
+# Each node owns tiles for its portion of the batch
+DistributionPreset.apply_ddp(physical_ddp, num_nodes=8)
 physical_ddp.compile()
 
-# Option C: Tensor Parallel - shard hidden dimension
-physical_tp = PhysicalGraph(logical)
-physical_tp.set_distribution(DistributionStrategy.tensor_parallel(
-    world_size=8,
-    parallel_dim=1  # Shard output dimension of projections
-))
+# Option C: Tensor Parallel - shard hidden dimension across nodes
+physical_tp = PhysicalGraph(logical, num_nodes=8)
 physical_tp.set_tiling(TilingStrategy.manual({
     "input": [seq_tile, batch_tile, embed_tile],
-    "W_query": [embed_tile, embed_tile // 8],  # Column parallel
+    "W_query": [embed_tile, embed_tile // 8],  # 8 tiles along output dim
     "W_key": [embed_tile, embed_tile // 8],
     "W_value": [embed_tile, embed_tile // 8],
-    "W_out": [embed_tile // 8, embed_tile],    # Row parallel
+    "W_out": [embed_tile // 8, embed_tile],
 }))
+# Distribute weight tiles: each node owns one column/row slice
+for param_name in ["W_query", "W_key", "W_value"]:
+    physical_tp.set_tensor_distribution(
+        param_name,
+        TileDistribution.block_along_dim(grid_shape=[1, 8], dim=1, num_nodes=8)
+    )
 physical_tp.compile()
 
 # Compare memory usage
-print(f"FSDP memory per GPU: {physical_fsdp.memory_per_device() / 1e9:.2f} GB")
-print(f"DDP memory per GPU: {physical_ddp.memory_per_device() / 1e9:.2f} GB")
-print(f"TP memory per GPU: {physical_tp.memory_per_device() / 1e9:.2f} GB")
+print(f"FSDP memory per node: {physical_fsdp.memory_on_node(0) / 1e9:.2f} GB")
+print(f"DDP memory per node: {physical_ddp.memory_on_node(0) / 1e9:.2f} GB")
+print(f"TP memory per node: {physical_tp.memory_on_node(0) / 1e9:.2f} GB")
 
 # ═══════════════════════════════════════════════════════════════
 # Stage 3: Executable Graph (bind to runtime and execute)
@@ -1970,60 +1967,98 @@ struct VisualizationOptions {
 
 ##### PhysicalGraph - Stage 2: How to Tile and Distribute
 
+**StarPU Ownership Model**: Each tile (DataHandle) has exactly one owning node. StarPU automatically handles data transfers when tasks on other nodes need the data.
+
 ```cpp
 namespace nntile::graph {
 
-//! Tiling specification for a tensor
+//! Tiling specification for a tensor (supports non-uniform tiling)
 struct TilingSpec {
-    std::vector<Index> tile_shape;
+    std::vector<DimensionTiling> dim_tilings;
     
-    // Computed from shape and tile_shape
-    std::vector<Index> grid_shape;
+    // Computed properties
+    std::vector<std::vector<Index>> tile_boundaries;  // Per dimension
+    std::vector<Index> grid_shape;                     // Number of tiles per dim
     Index num_tiles;
     
-    static TilingSpec from_tile_shape(const std::vector<Index>& shape,
-                                       const std::vector<Index>& tile_shape);
+    //! Get shape of specific tile
+    std::vector<Index> tile_shape(const std::vector<Index>& tile_index) const;
+    
+    //! Get linear tile index from multi-dimensional index
+    Index linear_index(const std::vector<Index>& tile_index) const;
+    
+    // Factory methods
+    static TilingSpec uniform(const std::vector<Index>& tile_shape);
+    static TilingSpec from_boundaries(const std::vector<std::vector<Index>>& boundaries);
+    static TilingSpec load_balanced(const std::vector<Index>& shape,
+                                     const DevicePerformanceProfile& profile);
 };
 
-//! Distribution specification for a tensor
-struct DistributionSpec {
-    enum class Pattern {
-        Replicated,     // Same data on all devices
-        Sharded,        // Split across devices
-        Partial         // Partial results on different devices
-    };
+//! Distribution: simply maps each tile to its owning node
+//! StarPU handles all data movement automatically
+struct TileDistribution {
+    //! tile_linear_index -> owning_node_id
+    std::vector<int> tile_owners;
     
-    Pattern pattern;
-    int shard_dim = -1;              // Which dimension to shard (-1 = none)
-    std::vector<int> device_mapping;  // tile_idx -> device_id
+    //! Get owner of a tile
+    int owner(Index tile_idx) const { return tile_owners[tile_idx]; }
     
-    static DistributionSpec replicated(int num_devices);
-    static DistributionSpec sharded(int dim, int num_devices);
+    //! Get all tiles owned by a node
+    std::vector<Index> tiles_on_node(int node_id) const;
+    
+    //! Get number of tiles on a node
+    Index num_tiles_on_node(int node_id) const;
+    
+    // Factory methods for common patterns
+    
+    //! Round-robin distribution
+    static TileDistribution round_robin(Index num_tiles, int num_nodes);
+    
+    //! Block distribution (contiguous tiles per node)
+    static TileDistribution block(Index num_tiles, int num_nodes);
+    
+    //! Block distribution along specific dimension
+    static TileDistribution block_along_dim(
+        const std::vector<Index>& grid_shape,
+        int dim,
+        int num_nodes
+    );
+    
+    //! Custom mapping
+    static TileDistribution custom(std::vector<int> owners);
+    
+    //! Load-balanced based on tile sizes and node performance
+    static TileDistribution load_balanced(
+        const TilingSpec& tiling,
+        const std::vector<Index>& tensor_shape,
+        const DevicePerformanceProfile& profile
+    );
 };
 
-//! Physical tensor - logical tensor + tiling + distribution
+//! Physical tensor = logical tensor + tiling + tile ownership
 struct PhysicalTensor {
     TensorNode* logical;
     TilingSpec tiling;
-    DistributionSpec distribution;
+    TileDistribution distribution;
     
-    // Computed properties
-    Index memory_per_device() const;
-    std::vector<Index> tiles_on_device(int device_id) const;
+    // Analysis
+    Index memory_on_node(int node_id) const;
+    Index total_memory() const;
 };
 
-//! Physical operation - logical op + execution decisions
+//! Physical operation - which node executes each output tile
+//! Rule: task executes on the node that owns the output tile
 struct PhysicalOp {
     OpNode* logical;
     
-    // Execution hints per tile
-    struct TileExecution {
-        Index tile_idx;
-        int device_id;
-        int worker_id = -1;  // -1 = any worker on device
+    //! For each output tile, execution info
+    struct TileTask {
+        Index output_tile_idx;
+        int execute_on_node;      // Usually = output tile owner
+        int preferred_worker = -1; // -1 = any worker on node
         int priority = 0;
     };
-    std::vector<TileExecution> tile_executions;
+    std::vector<TileTask> tile_tasks;
 };
 
 //! Physical graph - logical graph + physical decisions
@@ -2037,25 +2072,23 @@ private:
     std::map<NodeId, PhysicalOp> op_physical_;
     
     // Strategy
-    DistributionStrategy dist_strategy_;
+    int num_nodes_;
     TilingStrategy tiling_strategy_;
     
     // Computed
     bool compiled_ = false;
     Index total_memory_ = 0;
-    std::map<int, Index> memory_per_device_;
+    std::map<int, Index> memory_per_node_;
 
 public:
     //! Create physical graph from logical graph
     PhysicalGraph(LogicalGraph& logical,
+                  int num_nodes,
                   const std::map<std::string, Index>& shape_bindings = {});
     
     // ═══════════════════════════════════════════════════════════
     // Configuration
     // ═══════════════════════════════════════════════════════════
-    
-    //! Set distribution strategy
-    void set_distribution(const DistributionStrategy& strategy);
     
     //! Set tiling strategy
     void set_tiling(const TilingStrategy& strategy);
@@ -2063,8 +2096,12 @@ public:
     //! Override tiling for specific tensor
     void set_tensor_tiling(const std::string& name, const TilingSpec& spec);
     
-    //! Override distribution for specific tensor
-    void set_tensor_distribution(const std::string& name, const DistributionSpec& spec);
+    //! Override tile distribution for specific tensor
+    void set_tensor_distribution(const std::string& name, const TileDistribution& dist);
+    
+    //! Set default distribution pattern for tensors by role
+    void set_parameter_distribution(TileDistribution::Pattern pattern);
+    void set_activation_distribution(TileDistribution::Pattern pattern);
     
     // ═══════════════════════════════════════════════════════════
     // Compilation
@@ -2080,13 +2117,13 @@ public:
     // Analysis (available after compile)
     // ═══════════════════════════════════════════════════════════
     
-    //! Memory per device (bytes)
-    Index memory_per_device(int device_id) const;
+    //! Memory per node (bytes)
+    Index memory_on_node(int node_id) const;
     
-    //! Maximum memory across all devices
-    Index max_memory_per_device() const;
+    //! Maximum memory across all nodes
+    Index max_memory_per_node() const;
     
-    //! Total memory (sum across devices)
+    //! Total memory (sum across nodes)
     Index total_memory() const;
     
     //! Get physical tensor info
@@ -2095,7 +2132,7 @@ public:
     //! Get physical op info
     const PhysicalOp& physical_op(const OpNode& op) const;
     
-    //! Communication volume estimate (bytes)
+    //! Estimate data movement (bytes transferred between nodes)
     Index estimate_communication() const;
     
     //! Export tiling/distribution decisions for debugging
@@ -2388,89 +2425,86 @@ digraph mlp_with_backward {
 
 ---
 
-#### 4.1.6 DistributionStrategy Class
+#### 4.1.6 Tile Ownership Assignment
+
+**StarPU Model**: Each tile has one owner node. StarPU handles data movement.
+
+The high-level distribution strategies (DDP, FSDP, etc.) are implemented by choosing appropriate tile ownership patterns.
 
 ```cpp
 namespace nntile::graph {
 
-enum class ParallelismMode {
-    DDP,                 // Data Distributed Parallel - replicate model, shard data
-    FSDP,                // Fully Sharded Data Parallel - shard everything
-    TENSOR_PARALLEL,     // Shard specific tensor dimensions
-    PIPELINE_PARALLEL,   // Shard layers across nodes
-    HYBRID               // Combination of above
-};
+//! Pattern for distributing tiles across nodes
+namespace TileDistribution {
+    enum class Pattern {
+        RoundRobin,     // Tile i goes to node (i % num_nodes)
+        Block,          // Contiguous blocks of tiles per node
+        BlockAlongDim,  // Block along specific dimension
+        LoadBalanced,   // Based on tile sizes and node performance
+        Custom          // User-specified
+    };
+}
 
-struct DistributionStrategy {
-    ParallelismMode mode;
-    int world_size = 1;
-    
-    // DDP settings
-    int data_parallel_size = 1;
-    
-    // FSDP settings
-    int shard_degree = 1;           // Number of shards per tensor
-    bool shard_optimizer_states = true;
-    bool shard_gradients = true;
-    
-    // Tensor parallel settings  
-    std::vector<int> tensor_parallel_dims;  // Which dims to shard
-    int tensor_parallel_size = 1;
-    
-    // Pipeline parallel settings
-    int pipeline_stages = 1;
-    std::vector<int> stage_to_device;  // stage_idx -> device_id
-    
-    // Factory methods
-    static DistributionStrategy ddp(int world_size) {
-        DistributionStrategy s;
-        s.mode = ParallelismMode::DDP;
-        s.world_size = world_size;
-        s.data_parallel_size = world_size;
-        return s;
+//! High-level distribution presets (syntactic sugar over tile ownership)
+struct DistributionPreset {
+    //! DDP: Parameters on all nodes (each node owns copy), data tiles distributed
+    static void apply_ddp(PhysicalGraph& pg, int num_nodes) {
+        // Parameters: each node owns tiles for its data partition
+        // Activations: distributed by batch dimension
+        pg.set_parameter_distribution(TileDistribution::block_along_dim(
+            /*dim=*/0, num_nodes));  // Shard along batch
+        pg.set_activation_distribution(TileDistribution::block_along_dim(
+            /*dim=*/-1, num_nodes));  // Shard along batch (last dim typically)
     }
     
-    static DistributionStrategy fsdp(int world_size, int shard_degree = -1) {
-        DistributionStrategy s;
-        s.mode = ParallelismMode::FSDP;
-        s.world_size = world_size;
-        s.shard_degree = (shard_degree < 0) ? world_size : shard_degree;
-        return s;
+    //! FSDP: Parameters sharded across nodes
+    static void apply_fsdp(PhysicalGraph& pg, int num_nodes) {
+        // Parameters: tiles distributed across nodes
+        pg.set_parameter_distribution(TileDistribution::round_robin(num_nodes));
+        // Activations: also distributed
+        pg.set_activation_distribution(TileDistribution::round_robin(num_nodes));
     }
     
-    static DistributionStrategy tensor_parallel(int world_size, std::vector<int> dims) {
-        DistributionStrategy s;
-        s.mode = ParallelismMode::TENSOR_PARALLEL;
-        s.world_size = world_size;
-        s.tensor_parallel_size = world_size;
-        s.tensor_parallel_dims = dims;
-        return s;
-    }
-    
-    static DistributionStrategy pipeline(int world_size, int num_stages) {
-        DistributionStrategy s;
-        s.mode = ParallelismMode::PIPELINE_PARALLEL;
-        s.world_size = world_size;
-        s.pipeline_stages = num_stages;
-        return s;
-    }
-    
-    static DistributionStrategy hybrid(
-        int data_parallel_size,
-        int tensor_parallel_size,
-        int pipeline_stages = 1
-    ) {
-        DistributionStrategy s;
-        s.mode = ParallelismMode::HYBRID;
-        s.world_size = data_parallel_size * tensor_parallel_size * pipeline_stages;
-        s.data_parallel_size = data_parallel_size;
-        s.tensor_parallel_size = tensor_parallel_size;
-        s.pipeline_stages = pipeline_stages;
-        return s;
+    //! Tensor parallel: shard specific dimension
+    static void apply_tensor_parallel(PhysicalGraph& pg, int num_nodes, int shard_dim) {
+        pg.set_parameter_distribution(TileDistribution::block_along_dim(
+            shard_dim, num_nodes));
+        pg.set_activation_distribution(TileDistribution::block_along_dim(
+            shard_dim, num_nodes));
     }
 };
 
 } // namespace nntile::graph
+```
+
+**Key Insight**: All distribution strategies ultimately reduce to "which node owns which tile". StarPU's runtime handles:
+- Data transfer when a task needs non-local data
+- Caching of remote data
+- Coherency
+
+**Example Usage**:
+
+```python
+# Create physical graph
+pg = PhysicalGraph(logical_graph, num_nodes=8)
+pg.set_tiling(TilingStrategy.auto_tiling())
+
+# Option 1: Use preset
+DistributionPreset.apply_fsdp(pg, num_nodes=8)
+
+# Option 2: Fine-grained control
+# Distribute weight tiles round-robin
+pg.set_tensor_distribution("W_query", TileDistribution.round_robin(8))
+pg.set_tensor_distribution("W_key", TileDistribution.round_robin(8))
+
+# Distribute activation tiles along batch dimension
+pg.set_tensor_distribution("hidden", TileDistribution.block_along_dim(
+    grid_shape=[4, 8, 2],  # Tile grid shape
+    dim=1,                  # Batch dimension
+    num_nodes=8
+))
+
+pg.compile()
 ```
 
 #### 4.1.7 TilingStrategy Class
@@ -2878,9 +2912,8 @@ out = graph.matmul(attn, wo)
 out = graph.add(out, x)  # Residual
 out = graph.layer_norm(out, gamma, beta)
 
-# Configure distribution for 8 GPUs across 2 nodes
-dist = DistributionStrategy.fsdp(world_size=8, shard_degree=4)
-graph.set_distribution(dist)
+# Configure for 8 nodes
+# (distribution configured at PhysicalGraph level, not LogicalGraph)
 
 policy = ExecutionPolicy()
 policy.placement = "owner_computes"
@@ -3123,7 +3156,7 @@ x = graph.input([seq_len, batch_size])
 # ... define model in graph ...
 
 # Automatic distribution
-graph.set_distribution(DistributionStrategy.fsdp(world_size=8))
+# Distribution configured at compile time
 instance = graph.instantiate()
 
 # Same execution API
@@ -3252,8 +3285,8 @@ private:
     
     // Physical decisions (computed at compile time)
     std::map<NodeId, TilingSpec> tilings_;
-    std::map<NodeId, DistributionSpec> distributions_;
-    DistributionStrategy dist_strategy_;
+    std::map<NodeId, TileDistribution> distributions_;
+    int num_nodes_;
     
     // Execution state (allocated lazily on first use)
     enum class AllocationState { NotAllocated, Allocated };
@@ -3263,12 +3296,20 @@ private:
     void ensure_allocated();
 
 public:
-    //! Compile logical graph with distribution/tiling
+    //! Compile logical graph with tiling (single node)
     static CompiledGraph compile(
         LogicalGraph& logical,
-        const DistributionStrategy& dist,
         const TilingStrategy& tiling = TilingStrategy::auto_tiling(),
         const std::map<std::string, Index>& shape_bindings = {}
+    );
+    
+    //! Compile logical graph for multiple nodes
+    static CompiledGraph compile(
+        LogicalGraph& logical,
+        int num_nodes,
+        const TilingStrategy& tiling = TilingStrategy::auto_tiling(),
+        const std::map<std::string, Index>& shape_bindings = {},
+        std::function<void(PhysicalGraph&)> configure_distribution = nullptr
     );
     
     // ═══════════════════════════════════════════════════════════
@@ -3303,15 +3344,19 @@ public:
 graph = LogicalGraph("model")
 # ... build graph ...
 
-# Compile with strategy (no allocation yet)
+# Compile for single node
+compiled = CompiledGraph.compile(graph, TilingStrategy.auto_tiling())
+
+# Or compile for multiple nodes with distribution configuration
 compiled = CompiledGraph.compile(
     graph,
-    DistributionStrategy.fsdp(world_size=8),
-    TilingStrategy.auto_tiling()
+    num_nodes=8,
+    tiling=TilingStrategy.auto_tiling(),
+    configure_distribution=lambda pg: DistributionPreset.apply_fsdp(pg, 8)
 )
 
 # Analyze before running
-print(f"Memory per GPU: {compiled.memory_per_device(0) / 1e9:.2f} GB")
+print(f"Memory per node: {compiled.memory_on_node(0) / 1e9:.2f} GB")
 print(compiled.dump_plan())
 
 # Execute (allocates on first call)
@@ -3579,10 +3624,10 @@ optimizer_graph = create_optimizer_graph(param_specs, "adam")
 # ═══════════════════════════════════════════════════════════════
 # Training Loop
 # ═══════════════════════════════════════════════════════════════
-# Compile all graphs
-fwd_compiled = CompiledGraph.compile(forward_graph, dist_strategy)
-bwd_compiled = CompiledGraph.compile(backward_graph, dist_strategy)
-opt_compiled = CompiledGraph.compile(optimizer_graph, dist_strategy)
+# Compile all graphs (single node for simplicity, or pass num_nodes)
+fwd_compiled = CompiledGraph.compile(forward_graph)
+bwd_compiled = CompiledGraph.compile(backward_graph)
+opt_compiled = CompiledGraph.compile(optimizer_graph)
 
 num_accumulation_steps = 4
 
@@ -3632,7 +3677,7 @@ graph.set_phase("optimizer")
 # ... optimizer ops ...
 
 # Compile
-compiled = CompiledGraph.compile(graph, dist_strategy)
+compiled = CompiledGraph.compile(graph)
 
 # Execute specific phases
 compiled.forward(phases=["forward", "backward"])  # Mini-batch
@@ -3723,7 +3768,7 @@ model_graph.mark_output(output, "output")
 cache = CompilationCache()
 
 # Pre-compile for common sequence lengths
-cache.prefetch(model_graph, dist_strategy, [
+cache.prefetch(model_graph, [
     {"seq_len": 128},
     {"seq_len": 256},
     {"seq_len": 512},
@@ -3743,7 +3788,7 @@ for batch in inference_batches:
     if pending_compilation is None:
         # First iteration: compile synchronously
         current_compiled = cache.get_or_compile(
-            model_graph, dist_strategy, tiling_strategy, shape_binding
+            model_graph, tiling_strategy, shape_binding
         )
     else:
         # Wait for previous compilation if needed
@@ -3752,7 +3797,7 @@ for batch in inference_batches:
     # Start async compilation for next batch (speculative)
     next_seq_len = predict_next_seq_len(batch)  # Heuristic
     pending_compilation = compile_async(
-        model_graph, dist_strategy, tiling_strategy, {"seq_len": next_seq_len}
+        model_graph, tiling_strategy, {"seq_len": next_seq_len}
     )
     
     # Execute current batch
@@ -3769,9 +3814,8 @@ For autoregressive generation, sequence length grows by 1 each step:
 
 ```python
 class LLMInferenceEngine:
-    def __init__(self, model_graph, dist_strategy):
+    def __init__(self, model_graph):
         self.graph = model_graph
-        self.dist = dist_strategy
         self.cache = CompilationCache()
         self.pending = {}  # seq_len -> CompilationFuture
     
@@ -3781,7 +3825,7 @@ class LLMInferenceEngine:
             target_len = current_len + offset
             if target_len not in self.pending:
                 self.pending[target_len] = compile_async(
-                    self.graph, self.dist, auto_tiling(), {"seq_len": target_len}
+                    self.graph, auto_tiling(), {"seq_len": target_len}
                 )
     
     def get_compiled(self, seq_len):
@@ -3790,7 +3834,7 @@ class LLMInferenceEngine:
             compiled = self.pending.pop(seq_len).get()
             return compiled
         return self.cache.get_or_compile(
-            self.graph, self.dist, auto_tiling(), {"seq_len": seq_len}
+            self.graph, auto_tiling(), {"seq_len": seq_len}
         )
     
     def generate(self, prompt, max_new_tokens):
@@ -3971,7 +4015,7 @@ profile = DevicePerformanceProfile.manual(
 tiling = TilingStrategy.load_balanced(profile, target_tile_bytes=64*1024*1024)
 
 # Compile with load-balanced tiling
-compiled = CompiledGraph.compile(graph, dist_strategy, tiling)
+compiled = CompiledGraph.compile(graph, tiling)
 
 # Tiles are automatically sized to balance load
 ```
@@ -3982,10 +4026,10 @@ For long-running training, dynamically adjust tiling based on observed performan
 
 ```python
 class AdaptiveTilingManager:
-    def __init__(self, graph, dist_strategy):
+    def __init__(self, graph, num_nodes=1):
         self.graph = graph
-        self.dist = dist_strategy
-        self.profile = DevicePerformanceProfile.homogeneous(num_devices)
+        self.num_nodes = num_nodes
+        self.profile = DevicePerformanceProfile.homogeneous(num_nodes)
         self.compiled = None
         self.iteration_times = []
     
@@ -3994,23 +4038,23 @@ class AdaptiveTilingManager:
         if len(self.iteration_times) < 10:
             return  # Not enough data
         
-        # Analyze per-device times
-        device_times = analyze_device_times(self.iteration_times[-10:])
+        # Analyze per-node times
+        node_times = analyze_node_times(self.iteration_times[-10:])
         
         # Check if rebalancing would help
-        imbalance = max(device_times) / min(device_times)
+        imbalance = max(node_times) / min(node_times)
         if imbalance > 1.1:  # More than 10% imbalance
             # Update profile based on measurements
-            self.profile = DevicePerformanceProfile.from_benchmark(device_times)
+            self.profile = DevicePerformanceProfile.from_benchmark(node_times)
             
             # Recompile with new tiling
             new_tiling = TilingStrategy.load_balanced(self.profile)
-            self.compiled = CompiledGraph.compile(self.graph, self.dist, new_tiling)
+            self.compiled = CompiledGraph.compile(self.graph, new_tiling)
     
     def step(self, inputs):
         if self.compiled is None:
             self.compiled = CompiledGraph.compile(
-                self.graph, self.dist, TilingStrategy.auto_tiling()
+                self.graph, TilingStrategy.auto_tiling()
             )
         
         # Execute
@@ -4175,7 +4219,7 @@ graph.mark_output(dw2, "grad_w2")
 
 **Execution**:
 ```python
-compiled = CompiledGraph.compile(graph, DistributionStrategy.fsdp(8))
+compiled = CompiledGraph.compile(graph, num_nodes=8)
 
 # Forward pass
 compiled.bind_input("x", batch_data)
