@@ -1075,66 +1075,1040 @@ void gelu(const Tile<T>& src, const Tile<T>& dst) {
 
 ## 4. Detailed Component Design
 
-### 4.1 High-Level Graph (`nntile::graph` namespace)
+### 4.1 High-Level Graph API Design
 
-#### 4.1.1 ComputeGraph Class
+#### 4.1.1 Graph Construction Approaches: Analysis
+
+There are several approaches to building computational graphs. We analyze each with pros, cons, and usage examples.
+
+---
+
+##### Approach A: Implicit Graph (PyTorch Style)
+
+Operations execute immediately, building the graph implicitly through automatic differentiation tape.
+
+**How it works:**
+- Tensors carry gradient information
+- Operations record themselves onto a tape when executed
+- Backward pass replays the tape in reverse
+
+**Example Usage:**
+```python
+import nntile
+
+# Initialize
+nntile.init()
+
+# Create tensors - they exist immediately
+x = nntile.tensor([seq_len, batch_size, embed_dim], dtype="fp32")
+w = nntile.parameter([embed_dim, hidden_dim], dtype="fp32", requires_grad=True)
+
+# Operations execute immediately, graph recorded implicitly
+y = nntile.matmul(x, w)          # Executes NOW, records to tape
+z = nntile.gelu(y)               # Executes NOW, records to tape
+loss = nntile.sum(z)             # Executes NOW, records to tape
+
+# Backward traverses recorded tape
+loss.backward()                   # Replays operations in reverse
+
+# Gradients available
+print(w.grad)
+```
+
+**Pros:**
+| Advantage | Description |
+|-----------|-------------|
+| Intuitive | Matches imperative programming mental model |
+| Dynamic shapes | Easy to handle variable-length sequences |
+| Debugging | Can inspect intermediate values at any point |
+| Familiarity | PyTorch users already know this pattern |
+| Control flow | Python if/for naturally become part of graph |
+
+**Cons:**
+| Disadvantage | Description |
+|--------------|-------------|
+| No ahead-of-time optimization | Can't optimize full graph before execution |
+| Distribution difficulty | Hard to analyze graph for FSDP/DDP partitioning |
+| Repeated tracing | Must re-record tape for each forward pass |
+| Memory overhead | Must keep all intermediate tensors for backward |
+| No tiling analysis | Can't determine optimal tiling before execution |
+
+---
+
+##### Approach B: Explicit Graph with Deferred Execution (cuDNN Frontend Style)
+
+Graph is fully constructed first, then compiled/instantiated, then executed.
+
+**How it works:**
+- Create symbolic tensor nodes (no data yet)
+- Define operations as graph edges
+- Compile graph with specific configuration (tiling, distribution)
+- Execute compiled graph with actual data
+
+**Example Usage:**
+```python
+import nntile
+from nntile.graph import Graph, TensorSpec, DistributionStrategy
+
+nntile.init()
+
+# Phase 1: Define graph structure (no computation)
+graph = Graph("transformer_block")
+
+# Declare symbolic tensors
+x = graph.input(TensorSpec([seq_len, batch_size, embed_dim], dtype="fp32"), name="input")
+w = graph.parameter(TensorSpec([embed_dim, hidden_dim], dtype="fp32"), name="weight")
+
+# Define operations (symbolic, no execution)
+y = graph.matmul(x, w)           # Returns TensorNode, no computation
+z = graph.gelu(y)                # Returns TensorNode, no computation
+out = graph.output(z, name="output")
+
+# Phase 2: Configure and compile
+graph.set_distribution(DistributionStrategy.fsdp(world_size=8))
+graph.set_tiling({"weight": [embed_dim_tile, hidden_dim_tile]})
+
+compiled = graph.compile()       # Analyze, optimize, allocate
+
+# Phase 3: Execute with actual data
+compiled.set_input("input", input_data)
+compiled.set_parameter("weight", weight_data)
+compiled.forward()
+result = compiled.get_output("output")
+
+# Can re-instantiate with different configuration
+compiled_ddp = graph.compile(DistributionStrategy.ddp(world_size=8))
+```
+
+**Pros:**
+| Advantage | Description |
+|-----------|-------------|
+| Full graph visibility | Can analyze entire computation before execution |
+| Optimization opportunities | Dead code elimination, fusion, scheduling |
+| Distribution planning | Can partition tensors optimally for FSDP/DDP |
+| Tiling analysis | Determine optimal tile sizes based on full graph |
+| Reusable definition | Same graph, multiple instantiations |
+| Memory planning | Allocate exact memory needed, plan reuse |
+
+**Cons:**
+| Disadvantage | Description |
+|--------------|-------------|
+| Less intuitive | Two-phase (define, then execute) mental model |
+| Dynamic shapes harder | Must handle shape variability explicitly |
+| Debugging complexity | Can't easily inspect intermediate values |
+| Boilerplate | More code to set up graph structure |
+
+---
+
+##### Approach C: Lazy Tensor / Tracing JIT (PyTorch 2.0 / JAX Style)
+
+Hybrid approach: write eager code, but trace it into a graph for optimization.
+
+**How it works:**
+- Operations are recorded but not immediately executed
+- Graph is built lazily as operations are called
+- Explicit "sync point" triggers compilation and execution
+- Can re-trace when shapes change
+
+**Example Usage:**
+```python
+import nntile
+from nntile import lazy
+
+nntile.init()
+
+# Mark tensors as lazy
+x = lazy.tensor([seq_len, batch_size, embed_dim], dtype="fp32")
+w = lazy.parameter([embed_dim, hidden_dim], dtype="fp32")
+
+# Operations are recorded, not executed
+y = lazy.matmul(x, w)            # Recorded
+z = lazy.gelu(y)                 # Recorded
+loss = lazy.sum(z)               # Recorded
+
+# Explicit sync triggers compilation and execution
+loss.sync()                       # Compile + Execute everything
+
+# Or use context manager
+with lazy.trace() as trace:
+    y = lazy.matmul(x, w)
+    z = lazy.gelu(y)
+
+# Compile traced graph with distribution
+compiled = trace.compile(distribution=DistributionStrategy.fsdp(8))
+compiled.execute()
+```
+
+**Pros:**
+| Advantage | Description |
+|-----------|-------------|
+| Familiar syntax | Looks like eager code |
+| Optimization possible | Full graph available at sync point |
+| Flexibility | Can mix lazy and eager operations |
+| Gradual adoption | Easy to convert existing code |
+
+**Cons:**
+| Disadvantage | Description |
+|--------------|-------------|
+| Implicit graph boundaries | Unclear when graph ends |
+| Re-tracing overhead | May re-trace on shape changes |
+| Hidden complexity | Debugging traced vs eager execution differs |
+| Limited control | Less explicit control over compilation |
+
+---
+
+##### Approach D: Functional Transformations (JAX Style)
+
+Pure functions transformed by decorators for autodiff, distribution, etc.
+
+**How it works:**
+- Define computation as pure functions
+- Apply transformations (grad, vmap, pmap) as decorators
+- Transformations compose and are explicit
+
+**Example Usage:**
+```python
+import nntile
+from nntile import functional as F
+from nntile.transforms import grad, distribute, jit
+
+nntile.init()
+
+# Define pure function
+def forward(params, x):
+    y = F.matmul(x, params['w'])
+    z = F.gelu(y)
+    return F.sum(z)
+
+# Transform for gradients
+grad_fn = grad(forward, argnums=0)  # Gradient w.r.t. params
+
+# Transform for distribution
+dist_forward = distribute(forward, strategy=DistributionStrategy.fsdp(8))
+
+# Transform for JIT compilation
+fast_forward = jit(forward)
+
+# Compose transformations
+fast_grad = jit(grad(forward))
+
+# Use
+params = {'w': nntile.randn([embed_dim, hidden_dim])}
+x = nntile.randn([seq_len, batch_size, embed_dim])
+
+loss = fast_forward(params, x)
+grads = fast_grad(params, x)
+```
+
+**Pros:**
+| Advantage | Description |
+|-----------|-------------|
+| Composable | Transformations stack cleanly |
+| Explicit | Clear what each transformation does |
+| Functional purity | Easier to reason about, parallelize |
+| Powerful abstractions | vmap for batching, pmap for parallelism |
+
+**Cons:**
+| Disadvantage | Description |
+|--------------|-------------|
+| Different paradigm | Requires functional programming mindset |
+| State management | Must explicitly thread state through functions |
+| Learning curve | Unfamiliar to PyTorch users |
+| Less flexible | Harder to do imperative control flow |
+
+---
+
+##### Approach E: Multi-Stage Graph (Recommended for NNTile)
+
+Combines explicit graph with multiple instantiation stages.
+
+**How it works:**
+1. **Logical Graph**: Define operations and tensor relationships
+2. **Physical Graph**: Apply tiling and distribution decisions
+3. **Executable Graph**: Bind to actual memory and runtime
+
+This separation allows the same logical graph to have multiple physical realizations.
+
+**Example Usage:**
+```python
+import nntile
+from nntile.graph import LogicalGraph, PhysicalGraph, ExecutableGraph
+from nntile.graph import TensorSpec, OpSpec, DistributionStrategy, TilingStrategy
+
+nntile.init(mpi=True)
+
+# ═══════════════════════════════════════════════════════════════
+# Stage 1: Logical Graph (what to compute)
+# ═══════════════════════════════════════════════════════════════
+logical = LogicalGraph("transformer_layer")
+
+# Declare logical tensors (shapes only, no tiling/distribution)
+x = logical.input(
+    TensorSpec(shape=[seq_len, batch_size, embed_dim], dtype="fp32"),
+    name="input"
+)
+wq = logical.parameter(
+    TensorSpec(shape=[embed_dim, embed_dim], dtype="fp32"),
+    name="W_query"
+)
+wk = logical.parameter(
+    TensorSpec(shape=[embed_dim, embed_dim], dtype="fp32"),
+    name="W_key"
+)
+wv = logical.parameter(
+    TensorSpec(shape=[embed_dim, embed_dim], dtype="fp32"),
+    name="W_value"
+)
+wo = logical.parameter(
+    TensorSpec(shape=[embed_dim, embed_dim], dtype="fp32"),
+    name="W_out"
+)
+
+# Define operations (logical, no tiling decisions)
+q = logical.matmul(x, wq, name="query_proj")
+k = logical.matmul(x, wk, name="key_proj")
+v = logical.matmul(x, wv, name="value_proj")
+attn = logical.scaled_dot_product_attention(q, k, v, name="attention")
+out = logical.matmul(attn, wo, name="output_proj")
+out = logical.add(out, x, name="residual")  # Residual connection
+
+output = logical.output(out, name="output")
+
+# Graph analysis available
+print(f"Operations: {logical.num_operations()}")
+print(f"Parameters: {logical.num_parameters()}")
+print(f"FLOPs: {logical.estimate_flops()}")
+
+# ═══════════════════════════════════════════════════════════════
+# Stage 2: Physical Graph (how to tile and distribute)
+# ═══════════════════════════════════════════════════════════════
+
+# Option A: FSDP - shard parameters across all GPUs
+physical_fsdp = PhysicalGraph(logical)
+physical_fsdp.set_distribution(DistributionStrategy.fsdp(
+    world_size=8,
+    shard_degree=8,
+    shard_optimizer_states=True
+))
+physical_fsdp.set_tiling(TilingStrategy.auto(
+    target_tile_size_mb=64,
+    constraints={
+        "input": {"batch_dim": "shard"},      # Shard batch across GPUs
+        "W_query": {"both_dims": "shard"},    # FSDP shards weights
+    }
+))
+physical_fsdp.compile()  # Compute tile shapes, distribution map
+
+# Option B: DDP - replicate parameters, shard data
+physical_ddp = PhysicalGraph(logical)
+physical_ddp.set_distribution(DistributionStrategy.ddp(world_size=8))
+physical_ddp.set_tiling(TilingStrategy.auto(
+    target_tile_size_mb=64,
+    constraints={
+        "input": {"batch_dim": "shard"},      # Shard batch
+        "W_query": {"both_dims": "replicate"} # Replicate weights
+    }
+))
+physical_ddp.compile()
+
+# Option C: Tensor Parallel - shard hidden dimension
+physical_tp = PhysicalGraph(logical)
+physical_tp.set_distribution(DistributionStrategy.tensor_parallel(
+    world_size=8,
+    parallel_dim=1  # Shard output dimension of projections
+))
+physical_tp.set_tiling(TilingStrategy.manual({
+    "input": [seq_tile, batch_tile, embed_tile],
+    "W_query": [embed_tile, embed_tile // 8],  # Column parallel
+    "W_key": [embed_tile, embed_tile // 8],
+    "W_value": [embed_tile, embed_tile // 8],
+    "W_out": [embed_tile // 8, embed_tile],    # Row parallel
+}))
+physical_tp.compile()
+
+# Compare memory usage
+print(f"FSDP memory per GPU: {physical_fsdp.memory_per_device() / 1e9:.2f} GB")
+print(f"DDP memory per GPU: {physical_ddp.memory_per_device() / 1e9:.2f} GB")
+print(f"TP memory per GPU: {physical_tp.memory_per_device() / 1e9:.2f} GB")
+
+# ═══════════════════════════════════════════════════════════════
+# Stage 3: Executable Graph (bind to runtime and execute)
+# ═══════════════════════════════════════════════════════════════
+
+# Create executable from physical graph
+exe = ExecutableGraph(physical_fsdp)
+
+# Load parameters (distributed according to physical graph)
+exe.load_parameters("checkpoint.pt")
+
+# Or initialize randomly
+exe.init_parameters("xavier_uniform")
+
+# Bind input data
+exe.bind_input("input", input_tensor)
+
+# Execute forward pass
+exe.forward()
+
+# Get output
+output = exe.get_output("output")
+
+# Execute backward pass (if gradients needed)
+exe.bind_output_grad("output", output_grad)
+exe.backward()
+
+# Access gradients
+w_query_grad = exe.get_parameter_grad("W_query")
+
+# ═══════════════════════════════════════════════════════════════
+# Advanced: Dynamic shape handling
+# ═══════════════════════════════════════════════════════════════
+
+# For variable sequence lengths, use symbolic dimensions
+logical_dynamic = LogicalGraph("transformer_dynamic")
+x_dyn = logical_dynamic.input(
+    TensorSpec(
+        shape=["seq_len", batch_size, embed_dim],  # "seq_len" is symbolic
+        dtype="fp32"
+    ),
+    name="input"
+)
+# ... define operations ...
+
+# Specialize for specific shapes
+physical_512 = PhysicalGraph(logical_dynamic, shape_bindings={"seq_len": 512})
+physical_1024 = PhysicalGraph(logical_dynamic, shape_bindings={"seq_len": 1024})
+```
+
+**Pros:**
+| Advantage | Description |
+|-----------|-------------|
+| Clear separation | Logical vs physical vs executable clearly delineated |
+| Multiple instantiations | Same logical graph, different physical realizations |
+| Distribution flexibility | Try FSDP, DDP, TP with same graph definition |
+| Memory planning | Know exact memory per device before execution |
+| Optimization opportunities | Full graph visible at each stage |
+| Reusability | Logical graph is a reusable template |
+
+**Cons:**
+| Disadvantage | Description |
+|--------------|-------------|
+| More complex API | Three stages instead of one |
+| Boilerplate | More setup code required |
+| Learning curve | New concepts (logical vs physical) to learn |
+
+---
+
+#### 4.1.2 Recommendation: Multi-Stage Explicit Graph (Approach E)
+
+**Rationale:**
+
+1. **Distribution Experimentation**: The primary goal is to try different instantiations (FSDP, DDP, TP). Multi-stage approach makes this natural - same logical graph, different physical graphs.
+
+2. **Tiling Decisions**: NNTile's core value is efficient tiling. Separating logical shape from physical tiling allows:
+   - Automatic tiling based on hardware
+   - Manual override for specific tensors
+   - Comparison of tiling strategies
+
+3. **Memory Planning**: With explicit physical graph, we can:
+   - Compute exact memory per device before execution
+   - Reject infeasible configurations early
+   - Plan tensor reuse and offloading
+
+4. **StarPU Integration**: StarPU expects a task graph. Explicit graph maps naturally to StarPU's model.
+
+5. **Backward Compatibility**: Existing tensor/tile code can be used inside `ExecutableGraph` - no rewrite needed.
+
+---
+
+#### 4.1.3 Detailed Multi-Stage Graph Design
+
+#### 4.1.4 Core Data Structures
+
+##### TensorSpec - Logical Tensor Specification
 
 ```cpp
 namespace nntile::graph {
 
-class ComputeGraph {
-public:
-    // Graph building API
-    TensorNode& input(const TensorSpec& spec, const std::string& name);
-    TensorNode& parameter(const TensorSpec& spec, const std::string& name);
-    TensorNode& output(TensorNode& node, const std::string& name);
+//! Dimension can be concrete or symbolic
+using Dimension = std::variant<Index, std::string>;
+
+//! Data types supported
+enum class DataType {
+    FP16, BF16, FP32, FP64,
+    FP32_FAST_TF32, FP32_FAST_FP16, FP32_FAST_BF16,
+    INT32, INT64, BOOL
+};
+
+//! Tensor role in computation
+enum class TensorRole {
+    Input,       // Fed from outside
+    Output,      // Produced for outside consumption
+    Parameter,   // Trainable weight
+    Buffer,      // Intermediate activation
+    Constant     // Fixed value
+};
+
+//! Logical tensor specification (no tiling/distribution info)
+struct TensorSpec {
+    std::vector<Dimension> shape;  // Can mix concrete and symbolic dims
+    DataType dtype;
+    TensorRole role;
+    std::string name;
+    bool requires_grad = false;
     
-    // Operation nodes (lazy - no computation yet)
-    TensorNode& matmul(TensorNode& a, TensorNode& b, TransOp trans_a, TransOp trans_b);
-    TensorNode& gelu(TensorNode& input);
-    TensorNode& layernorm(TensorNode& input, TensorNode& gamma, TensorNode& beta);
-    // ... more operations
+    // Constructors
+    TensorSpec(std::vector<Index> shape, DataType dtype, std::string name = "");
+    TensorSpec(std::vector<Dimension> shape, DataType dtype, std::string name = "");
     
-    // Distribution configuration
-    void set_distribution_strategy(DistributionStrategy strategy);
-    void set_execution_policy(ExecutionPolicy policy);
+    // Queries
+    Index ndim() const { return shape.size(); }
+    bool has_symbolic_dims() const;
+    std::vector<std::string> symbolic_dim_names() const;
     
-    // Instantiation - creates actual tensors with proper tiling/distribution
-    GraphInstance instantiate(const ExecutionContext& ctx);
+    // Create concrete spec by binding symbolic dims
+    TensorSpec bind(const std::map<std::string, Index>& bindings) const;
     
-    // Analysis
-    std::vector<TensorNode*> topological_order() const;
-    size_t estimate_memory_usage() const;
-    
-private:
-    std::vector<std::unique_ptr<TensorNode>> nodes_;
-    std::vector<std::unique_ptr<OpNode>> operations_;
-    DistributionStrategy dist_strategy_;
-    ExecutionPolicy exec_policy_;
+    // Compute number of elements (only if fully concrete)
+    std::optional<Index> nelems() const;
 };
 
 } // namespace nntile::graph
 ```
 
-#### 4.1.2 TensorSpec Class
+##### TensorNode - Node in Logical Graph
 
 ```cpp
-struct TensorSpec {
-    std::vector<Index> shape;           // Logical shape
-    std::vector<Index> tile_hint;       // Suggested tile size (optional)
-    DataType dtype;                      // fp32, bf16, etc.
-    DistributionHint dist_hint;         // REPLICATED, SHARDED_DIM0, etc.
-    std::string name;                    // For debugging
+namespace nntile::graph {
+
+//! Unique identifier for nodes
+using NodeId = uint64_t;
+
+//! Forward declarations
+class OpNode;
+class LogicalGraph;
+
+//! A tensor node in the logical graph
+class TensorNode {
+    friend class LogicalGraph;
+    friend class OpNode;
     
-    // Factory methods
-    static TensorSpec parameter(std::vector<Index> shape, DataType dtype);
-    static TensorSpec activation(std::vector<Index> shape, DataType dtype);
+private:
+    NodeId id_;
+    TensorSpec spec_;
+    LogicalGraph* graph_;
+    
+    // Edges
+    OpNode* producer_ = nullptr;           // Op that creates this tensor
+    std::vector<OpNode*> consumers_;       // Ops that use this tensor
+    
+public:
+    TensorNode(NodeId id, TensorSpec spec, LogicalGraph* graph);
+    
+    // Accessors
+    NodeId id() const { return id_; }
+    const TensorSpec& spec() const { return spec_; }
+    const std::string& name() const { return spec_.name; }
+    DataType dtype() const { return spec_.dtype; }
+    const std::vector<Dimension>& shape() const { return spec_.shape; }
+    
+    // Graph queries
+    bool is_input() const { return spec_.role == TensorRole::Input; }
+    bool is_output() const { return spec_.role == TensorRole::Output; }
+    bool is_parameter() const { return spec_.role == TensorRole::Parameter; }
+    OpNode* producer() const { return producer_; }
+    const std::vector<OpNode*>& consumers() const { return consumers_; }
+    
+    // Fluent API for building graph (returns new TensorNode)
+    TensorNode& matmul(TensorNode& other, bool trans_a = false, bool trans_b = false);
+    TensorNode& add(TensorNode& other);
+    TensorNode& gelu();
+    TensorNode& relu();
+    TensorNode& softmax(int axis = -1);
+    TensorNode& layer_norm(TensorNode& gamma, TensorNode& beta, float eps = 1e-5f);
+    // ... more operations
 };
+
+} // namespace nntile::graph
 ```
 
-#### 4.1.3 DistributionStrategy Class
+##### OpNode - Operation Node in Logical Graph
 
 ```cpp
+namespace nntile::graph {
+
+//! Operation types
+enum class OpType {
+    // Elementwise
+    Add, Sub, Mul, Div, Gelu, Relu, Silu, Tanh, Sigmoid, Sqrt, Pow,
+    // Reductions
+    Sum, Mean, Max, Min, Softmax, LogSumExp,
+    // Linear algebra
+    MatMul, BatchedMatMul,
+    // Normalization
+    LayerNorm, RMSNorm, BatchNorm,
+    // Attention
+    ScaledDotProductAttention,
+    // Data movement
+    Transpose, Reshape, Slice, Concat, Gather, Scatter,
+    // Special
+    Embedding, EmbeddingBackward,
+    // Optimizer operations
+    AdamStep, SGDStep
+};
+
+//! Operation attributes (varies by op type)
+struct OpAttributes {
+    // MatMul
+    bool trans_a = false;
+    bool trans_b = false;
+    
+    // Reduction/Normalization
+    int axis = -1;
+    float epsilon = 1e-5f;
+    
+    // Attention
+    bool causal_mask = false;
+    float dropout = 0.0f;
+    
+    // Generic
+    std::map<std::string, std::variant<int, float, bool, std::string>> extra;
+};
+
+//! An operation node in the logical graph
+class OpNode {
+    friend class LogicalGraph;
+    
+private:
+    NodeId id_;
+    OpType type_;
+    OpAttributes attrs_;
+    LogicalGraph* graph_;
+    
+    // Edges
+    std::vector<TensorNode*> inputs_;
+    std::vector<TensorNode*> outputs_;
+    
+public:
+    OpNode(NodeId id, OpType type, OpAttributes attrs, LogicalGraph* graph);
+    
+    // Accessors
+    NodeId id() const { return id_; }
+    OpType type() const { return type_; }
+    const OpAttributes& attributes() const { return attrs_; }
+    
+    // Graph structure
+    const std::vector<TensorNode*>& inputs() const { return inputs_; }
+    const std::vector<TensorNode*>& outputs() const { return outputs_; }
+    
+    // Analysis
+    std::string name() const;  // Human-readable name
+    Index estimate_flops() const;  // FLOPs for this operation
+    
+    // Gradient information
+    bool has_backward() const;
+    std::vector<OpNode*> backward_ops() const;  // Ops for gradient computation
+};
+
+} // namespace nntile::graph
+```
+
+##### LogicalGraph - Stage 1: What to Compute
+
+```cpp
+namespace nntile::graph {
+
+//! Logical graph - defines computation without physical decisions
+class LogicalGraph {
+private:
+    std::string name_;
+    std::vector<std::unique_ptr<TensorNode>> tensor_nodes_;
+    std::vector<std::unique_ptr<OpNode>> op_nodes_;
+    
+    // Special node lists
+    std::vector<TensorNode*> inputs_;
+    std::vector<TensorNode*> outputs_;
+    std::vector<TensorNode*> parameters_;
+    
+    // Node ID counter
+    NodeId next_id_ = 0;
+    
+    // Helper to create nodes
+    TensorNode& create_tensor(TensorSpec spec);
+    OpNode& create_op(OpType type, OpAttributes attrs,
+                      std::vector<TensorNode*> inputs,
+                      std::vector<TensorSpec> output_specs);
+
+public:
+    explicit LogicalGraph(const std::string& name = "");
+    
+    // ═══════════════════════════════════════════════════════════
+    // Tensor Creation
+    // ═══════════════════════════════════════════════════════════
+    
+    //! Declare an input tensor
+    TensorNode& input(const TensorSpec& spec, const std::string& name = "");
+    
+    //! Declare a trainable parameter
+    TensorNode& parameter(const TensorSpec& spec, const std::string& name = "");
+    
+    //! Declare a constant tensor
+    TensorNode& constant(const TensorSpec& spec, const std::string& name = "");
+    
+    //! Mark a tensor as output
+    TensorNode& output(TensorNode& tensor, const std::string& name = "");
+    
+    // ═══════════════════════════════════════════════════════════
+    // Operations
+    // ═══════════════════════════════════════════════════════════
+    
+    // Elementwise
+    TensorNode& add(TensorNode& a, TensorNode& b, const std::string& name = "");
+    TensorNode& mul(TensorNode& a, TensorNode& b, const std::string& name = "");
+    TensorNode& gelu(TensorNode& x, const std::string& name = "");
+    TensorNode& relu(TensorNode& x, const std::string& name = "");
+    TensorNode& silu(TensorNode& x, const std::string& name = "");
+    
+    // Linear algebra
+    TensorNode& matmul(TensorNode& a, TensorNode& b,
+                       bool trans_a = false, bool trans_b = false,
+                       const std::string& name = "");
+    
+    // Normalization
+    TensorNode& layer_norm(TensorNode& x, TensorNode& gamma, TensorNode& beta,
+                           float eps = 1e-5f, const std::string& name = "");
+    TensorNode& rms_norm(TensorNode& x, TensorNode& gamma,
+                         float eps = 1e-5f, const std::string& name = "");
+    
+    // Attention
+    TensorNode& scaled_dot_product_attention(
+        TensorNode& q, TensorNode& k, TensorNode& v,
+        bool causal = false, float dropout = 0.0f,
+        const std::string& name = "");
+    
+    // Data movement
+    TensorNode& transpose(TensorNode& x, std::vector<int> perm,
+                          const std::string& name = "");
+    TensorNode& reshape(TensorNode& x, std::vector<Dimension> new_shape,
+                        const std::string& name = "");
+    
+    // Embedding
+    TensorNode& embedding(TensorNode& indices, TensorNode& table,
+                          const std::string& name = "");
+    
+    // ═══════════════════════════════════════════════════════════
+    // Analysis
+    // ═══════════════════════════════════════════════════════════
+    
+    //! Get topological order of operations
+    std::vector<OpNode*> topological_order() const;
+    
+    //! Get all tensor nodes
+    const std::vector<std::unique_ptr<TensorNode>>& tensors() const;
+    
+    //! Get all operation nodes
+    const std::vector<std::unique_ptr<OpNode>>& operations() const;
+    
+    //! Query methods
+    size_t num_operations() const { return op_nodes_.size(); }
+    size_t num_tensors() const { return tensor_nodes_.size(); }
+    size_t num_parameters() const { return parameters_.size(); }
+    const std::vector<TensorNode*>& inputs() const { return inputs_; }
+    const std::vector<TensorNode*>& outputs() const { return outputs_; }
+    const std::vector<TensorNode*>& parameters() const { return parameters_; }
+    
+    //! Estimate total FLOPs (forward pass)
+    Index estimate_flops() const;
+    
+    //! Estimate memory for activations (in bytes, single precision)
+    Index estimate_activation_memory() const;
+    
+    //! Estimate memory for parameters (in bytes)
+    Index estimate_parameter_memory() const;
+    
+    //! Check if graph has symbolic dimensions
+    bool has_symbolic_dims() const;
+    
+    //! Get all symbolic dimension names
+    std::set<std::string> symbolic_dim_names() const;
+    
+    // ═══════════════════════════════════════════════════════════
+    // Serialization
+    // ═══════════════════════════════════════════════════════════
+    
+    //! Save graph to file (JSON or binary)
+    void save(const std::string& path) const;
+    
+    //! Load graph from file
+    static LogicalGraph load(const std::string& path);
+    
+    //! Export to visualization format (DOT, etc.)
+    std::string to_dot() const;
+};
+
+} // namespace nntile::graph
+```
+
+##### PhysicalGraph - Stage 2: How to Tile and Distribute
+
+```cpp
+namespace nntile::graph {
+
+//! Tiling specification for a tensor
+struct TilingSpec {
+    std::vector<Index> tile_shape;
+    
+    // Computed from shape and tile_shape
+    std::vector<Index> grid_shape;
+    Index num_tiles;
+    
+    static TilingSpec from_tile_shape(const std::vector<Index>& shape,
+                                       const std::vector<Index>& tile_shape);
+};
+
+//! Distribution specification for a tensor
+struct DistributionSpec {
+    enum class Pattern {
+        Replicated,     // Same data on all devices
+        Sharded,        // Split across devices
+        Partial         // Partial results on different devices
+    };
+    
+    Pattern pattern;
+    int shard_dim = -1;              // Which dimension to shard (-1 = none)
+    std::vector<int> device_mapping;  // tile_idx -> device_id
+    
+    static DistributionSpec replicated(int num_devices);
+    static DistributionSpec sharded(int dim, int num_devices);
+};
+
+//! Physical tensor - logical tensor + tiling + distribution
+struct PhysicalTensor {
+    TensorNode* logical;
+    TilingSpec tiling;
+    DistributionSpec distribution;
+    
+    // Computed properties
+    Index memory_per_device() const;
+    std::vector<Index> tiles_on_device(int device_id) const;
+};
+
+//! Physical operation - logical op + execution decisions
+struct PhysicalOp {
+    OpNode* logical;
+    
+    // Execution hints per tile
+    struct TileExecution {
+        Index tile_idx;
+        int device_id;
+        int worker_id = -1;  // -1 = any worker on device
+        int priority = 0;
+    };
+    std::vector<TileExecution> tile_executions;
+};
+
+//! Physical graph - logical graph + physical decisions
+class PhysicalGraph {
+private:
+    LogicalGraph* logical_;
+    std::map<std::string, Index> shape_bindings_;  // Symbolic dim bindings
+    
+    // Physical decisions
+    std::map<NodeId, PhysicalTensor> tensor_physical_;
+    std::map<NodeId, PhysicalOp> op_physical_;
+    
+    // Strategy
+    DistributionStrategy dist_strategy_;
+    TilingStrategy tiling_strategy_;
+    
+    // Computed
+    bool compiled_ = false;
+    Index total_memory_ = 0;
+    std::map<int, Index> memory_per_device_;
+
+public:
+    //! Create physical graph from logical graph
+    PhysicalGraph(LogicalGraph& logical,
+                  const std::map<std::string, Index>& shape_bindings = {});
+    
+    // ═══════════════════════════════════════════════════════════
+    // Configuration
+    // ═══════════════════════════════════════════════════════════
+    
+    //! Set distribution strategy
+    void set_distribution(const DistributionStrategy& strategy);
+    
+    //! Set tiling strategy
+    void set_tiling(const TilingStrategy& strategy);
+    
+    //! Override tiling for specific tensor
+    void set_tensor_tiling(const std::string& name, const TilingSpec& spec);
+    
+    //! Override distribution for specific tensor
+    void set_tensor_distribution(const std::string& name, const DistributionSpec& spec);
+    
+    // ═══════════════════════════════════════════════════════════
+    // Compilation
+    // ═══════════════════════════════════════════════════════════
+    
+    //! Compile physical decisions (tiling, distribution, scheduling)
+    void compile();
+    
+    //! Check if compiled
+    bool is_compiled() const { return compiled_; }
+    
+    // ═══════════════════════════════════════════════════════════
+    // Analysis (available after compile)
+    // ═══════════════════════════════════════════════════════════
+    
+    //! Memory per device (bytes)
+    Index memory_per_device(int device_id) const;
+    
+    //! Maximum memory across all devices
+    Index max_memory_per_device() const;
+    
+    //! Total memory (sum across devices)
+    Index total_memory() const;
+    
+    //! Get physical tensor info
+    const PhysicalTensor& physical_tensor(const std::string& name) const;
+    
+    //! Get physical op info
+    const PhysicalOp& physical_op(const OpNode& op) const;
+    
+    //! Communication volume estimate (bytes)
+    Index estimate_communication() const;
+    
+    //! Export tiling/distribution decisions for debugging
+    std::string dump_physical_plan() const;
+};
+
+} // namespace nntile::graph
+```
+
+##### ExecutableGraph - Stage 3: Bind to Runtime and Execute
+
+```cpp
+namespace nntile::graph {
+
+//! Executable graph - physical graph bound to actual memory and runtime
+class ExecutableGraph {
+private:
+    PhysicalGraph* physical_;
+    
+    // Actual tensor storage (maps to runtime::DataHandle)
+    std::map<NodeId, std::unique_ptr<runtime::DataHandle>> data_handles_;
+    
+    // Execution state
+    enum class State { Uninitialized, Ready, Executing, Completed };
+    State state_ = State::Uninitialized;
+    
+    // Task handles for async execution
+    runtime::TaskGroup forward_tasks_;
+    runtime::TaskGroup backward_tasks_;
+    
+    // Gradient storage (if backward needed)
+    std::map<NodeId, std::unique_ptr<runtime::DataHandle>> grad_handles_;
+    bool gradients_enabled_ = false;
+
+public:
+    //! Create executable from physical graph
+    explicit ExecutableGraph(PhysicalGraph& physical);
+    
+    ~ExecutableGraph();
+    
+    // ═══════════════════════════════════════════════════════════
+    // Initialization
+    // ═══════════════════════════════════════════════════════════
+    
+    //! Initialize parameters with specific initializer
+    void init_parameters(const std::string& initializer);  // "zeros", "xavier", etc.
+    
+    //! Load parameters from checkpoint file
+    void load_parameters(const std::string& path);
+    
+    //! Save parameters to checkpoint file
+    void save_parameters(const std::string& path);
+    
+    //! Enable gradient computation
+    void enable_gradients(bool enable = true);
+    
+    // ═══════════════════════════════════════════════════════════
+    // Input/Output Binding
+    // ═══════════════════════════════════════════════════════════
+    
+    //! Bind input data (copies data into internal storage)
+    void bind_input(const std::string& name, const void* data, size_t size);
+    
+    //! Bind input from numpy array (Python interface)
+    void bind_input_numpy(const std::string& name, /* numpy array */);
+    
+    //! Bind input from existing tensor (zero-copy if possible)
+    void bind_input_tensor(const std::string& name, const tensor::Tensor<auto>& t);
+    
+    //! Get output data (copies data out)
+    void get_output(const std::string& name, void* data, size_t size);
+    
+    //! Get output as new tensor
+    template<typename T>
+    tensor::Tensor<T> get_output_tensor(const std::string& name);
+    
+    //! Bind output gradient (for backward pass)
+    void bind_output_grad(const std::string& name, const void* data, size_t size);
+    
+    //! Get parameter gradient
+    void get_parameter_grad(const std::string& name, void* data, size_t size);
+    
+    // ═══════════════════════════════════════════════════════════
+    // Execution
+    // ═══════════════════════════════════════════════════════════
+    
+    //! Execute forward pass (async)
+    void forward_async();
+    
+    //! Execute forward pass (blocking)
+    void forward();
+    
+    //! Execute backward pass (async)
+    void backward_async();
+    
+    //! Execute backward pass (blocking)
+    void backward();
+    
+    //! Wait for all operations to complete
+    void synchronize();
+    
+    //! Clear intermediate activations (free memory)
+    void clear_activations();
+    
+    //! Clear gradients
+    void clear_gradients();
+    
+    // ═══════════════════════════════════════════════════════════
+    // Advanced
+    // ═══════════════════════════════════════════════════════════
+    
+    //! Access underlying data handle (for advanced use)
+    runtime::DataHandle& data_handle(const std::string& tensor_name);
+    
+    //! Get execution statistics
+    struct ExecutionStats {
+        double forward_time_ms;
+        double backward_time_ms;
+        Index bytes_transferred;
+        Index flops_executed;
+    };
+    ExecutionStats get_stats() const;
+};
+
+} // namespace nntile::graph
+```
+
+#### 4.1.5 DistributionStrategy Class
+
+```cpp
+namespace nntile::graph {
+
 enum class ParallelismMode {
     DDP,                 // Data Distributed Parallel - replicate model, shard data
     FSDP,                // Fully Sharded Data Parallel - shard everything
@@ -1145,6 +2119,7 @@ enum class ParallelismMode {
 
 struct DistributionStrategy {
     ParallelismMode mode;
+    int world_size = 1;
     
     // DDP settings
     int data_parallel_size = 1;
@@ -1160,15 +2135,169 @@ struct DistributionStrategy {
     
     // Pipeline parallel settings
     int pipeline_stages = 1;
+    std::vector<int> stage_to_device;  // stage_idx -> device_id
     
     // Factory methods
-    static DistributionStrategy ddp(int world_size);
-    static DistributionStrategy fsdp(int world_size, int shard_degree);
-    static DistributionStrategy tensor_parallel(int world_size, std::vector<int> dims);
+    static DistributionStrategy ddp(int world_size) {
+        DistributionStrategy s;
+        s.mode = ParallelismMode::DDP;
+        s.world_size = world_size;
+        s.data_parallel_size = world_size;
+        return s;
+    }
+    
+    static DistributionStrategy fsdp(int world_size, int shard_degree = -1) {
+        DistributionStrategy s;
+        s.mode = ParallelismMode::FSDP;
+        s.world_size = world_size;
+        s.shard_degree = (shard_degree < 0) ? world_size : shard_degree;
+        return s;
+    }
+    
+    static DistributionStrategy tensor_parallel(int world_size, std::vector<int> dims) {
+        DistributionStrategy s;
+        s.mode = ParallelismMode::TENSOR_PARALLEL;
+        s.world_size = world_size;
+        s.tensor_parallel_size = world_size;
+        s.tensor_parallel_dims = dims;
+        return s;
+    }
+    
+    static DistributionStrategy pipeline(int world_size, int num_stages) {
+        DistributionStrategy s;
+        s.mode = ParallelismMode::PIPELINE_PARALLEL;
+        s.world_size = world_size;
+        s.pipeline_stages = num_stages;
+        return s;
+    }
+    
+    static DistributionStrategy hybrid(
+        int data_parallel_size,
+        int tensor_parallel_size,
+        int pipeline_stages = 1
+    ) {
+        DistributionStrategy s;
+        s.mode = ParallelismMode::HYBRID;
+        s.world_size = data_parallel_size * tensor_parallel_size * pipeline_stages;
+        s.data_parallel_size = data_parallel_size;
+        s.tensor_parallel_size = tensor_parallel_size;
+        s.pipeline_stages = pipeline_stages;
+        return s;
+    }
 };
+
+} // namespace nntile::graph
 ```
 
-#### 4.1.4 ExecutionPolicy Class
+#### 4.1.6 TilingStrategy Class
+
+```cpp
+namespace nntile::graph {
+
+//! Tiling constraint for a specific dimension
+struct DimTilingConstraint {
+    enum class Type {
+        Auto,           // Let the system decide
+        Fixed,          // Use exact tile size
+        Multiple,       // Tile size must be multiple of this
+        Divisor,        // Tile size must divide this evenly
+        Full,           // No tiling (tile = full dimension)
+        Shard           // Tile across devices (for distribution)
+    };
+    
+    Type type = Type::Auto;
+    Index value = 0;  // Meaning depends on type
+};
+
+//! Tiling constraints for a tensor
+struct TensorTilingConstraints {
+    std::string tensor_name;
+    std::map<int, DimTilingConstraint> dim_constraints;  // dim_idx -> constraint
+    
+    // Convenience setters
+    TensorTilingConstraints& dim(int idx, DimTilingConstraint::Type type, Index value = 0) {
+        dim_constraints[idx] = {type, value};
+        return *this;
+    }
+    
+    TensorTilingConstraints& full_dim(int idx) {
+        return dim(idx, DimTilingConstraint::Type::Full);
+    }
+    
+    TensorTilingConstraints& shard_dim(int idx) {
+        return dim(idx, DimTilingConstraint::Type::Shard);
+    }
+    
+    TensorTilingConstraints& fixed_dim(int idx, Index tile_size) {
+        return dim(idx, DimTilingConstraint::Type::Fixed, tile_size);
+    }
+};
+
+//! Overall tiling strategy
+class TilingStrategy {
+private:
+    enum class Mode { Auto, Manual, Constrained };
+    Mode mode_;
+    
+    // Auto mode settings
+    Index target_tile_bytes_ = 64 * 1024 * 1024;  // 64 MB default
+    Index min_tile_size_ = 64;
+    Index max_tile_size_ = 8192;
+    
+    // Manual mode settings
+    std::map<std::string, std::vector<Index>> manual_tilings_;
+    
+    // Constrained mode settings
+    std::vector<TensorTilingConstraints> constraints_;
+
+public:
+    //! Auto tiling - system determines tile sizes
+    static TilingStrategy auto_tiling(
+        Index target_tile_bytes = 64 * 1024 * 1024,
+        Index min_tile_size = 64,
+        Index max_tile_size = 8192
+    ) {
+        TilingStrategy s;
+        s.mode_ = Mode::Auto;
+        s.target_tile_bytes_ = target_tile_bytes;
+        s.min_tile_size_ = min_tile_size;
+        s.max_tile_size_ = max_tile_size;
+        return s;
+    }
+    
+    //! Manual tiling - user specifies exact tile sizes
+    static TilingStrategy manual(
+        const std::map<std::string, std::vector<Index>>& tilings
+    ) {
+        TilingStrategy s;
+        s.mode_ = Mode::Manual;
+        s.manual_tilings_ = tilings;
+        return s;
+    }
+    
+    //! Constrained tiling - auto with constraints
+    static TilingStrategy constrained(
+        const std::vector<TensorTilingConstraints>& constraints,
+        Index target_tile_bytes = 64 * 1024 * 1024
+    ) {
+        TilingStrategy s;
+        s.mode_ = Mode::Constrained;
+        s.constraints_ = constraints;
+        s.target_tile_bytes_ = target_tile_bytes;
+        return s;
+    }
+    
+    //! Compute tile shapes for all tensors in graph
+    std::map<std::string, std::vector<Index>> compute_tilings(
+        const LogicalGraph& graph,
+        const DistributionStrategy& dist
+    ) const;
+};
+
+} // namespace nntile::graph
+```
+
+#### 4.1.7 ExecutionPolicy Class
 
 ```cpp
 struct ExecutionPolicy {
@@ -1199,9 +2328,26 @@ struct ExecutionPolicy {
 };
 ```
 
-### 4.2 Enhanced StarPU Level
+### 4.2 Graph API Comparison Summary
 
-#### 4.2.1 Extended Submit Interface
+| Aspect | Implicit (PyTorch) | Explicit (cuDNN) | Lazy (JAX) | Functional | **Multi-Stage (Recommended)** |
+|--------|-------------------|------------------|------------|------------|-------------------------------|
+| Ease of use | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ |
+| Optimization | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Distribution | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Tiling control | ⭐ | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Dynamic shapes | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ |
+| Memory planning | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Debugging | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ |
+| Reusability | ⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+
+**Recommendation**: Multi-Stage Explicit Graph (Approach E) provides the best balance for NNTile's goals of experimenting with different distribution strategies while maintaining full control over tiling decisions.
+
+---
+
+### 4.3 Enhanced Runtime Level (formerly StarPU Level)
+
+#### 4.3.1 Extended Submit Interface
 
 Current signature:
 ```cpp
@@ -1226,7 +2372,7 @@ void Gelu<std::tuple<T>>::submit(
 );
 ```
 
-#### 4.2.2 Implementation Changes
+#### 4.3.2 Implementation Changes
 
 In `src/starpu/gelu.cc`:
 ```cpp
@@ -1273,9 +2419,9 @@ void Gelu<std::tuple<T>>::submit(
 }
 ```
 
-### 4.3 Enhanced Tensor Level
+### 4.4 Enhanced Tensor Level
 
-#### 4.3.1 Execution Context
+#### 4.4.1 Execution Context
 
 ```cpp
 struct ExecutionContext {
@@ -1295,7 +2441,7 @@ struct ExecutionContext {
 };
 ```
 
-#### 4.3.2 Enhanced Tensor Operations
+#### 4.4.2 Enhanced Tensor Operations
 
 Current signature:
 ```cpp
