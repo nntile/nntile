@@ -4,6 +4,44 @@
 
 This document outlines the development plan for NNTile version 2.0, which introduces a **high-level computational graph abstraction** that enables automatic tensor distribution (FSDP/DDP-like functionality), task placement control, and multi-node distributed execution. The goal is to transform NNTile from a low-level tiled tensor framework into a production-ready distributed deep learning system while preserving the efficiency of the StarPU runtime.
 
+### Target Platforms and Language Strategy
+
+- **Primary Language**: C++ (C++17 or later)
+- **Python**: Thin wrappers via pybind11 for ease of use in research/prototyping
+- **Target Platforms**:
+  - High-performance computing clusters (multi-node, multi-GPU)
+  - Single-node workstations
+  - **Embedded systems** (edge inference)
+  - **Mobile devices** (iOS, Android)
+
+**Rationale for C++-first design**:
+1. No Python runtime dependency for deployment
+2. Minimal memory footprint for embedded/mobile
+3. Direct hardware access and optimization
+4. Static linking for single-binary deployment
+5. Predictable performance (no GC pauses)
+
+### Code Examples Convention
+
+Throughout this document:
+- **C++ code blocks** show the actual API design
+- **Python code blocks** show equivalent wrapper usage (for readability)
+- All Python examples have direct C++ equivalents
+
+```cpp
+// C++ (actual implementation)
+auto graph = nntile::graph::LogicalGraph("model");
+auto x = graph.tensor(TensorSpec({batch, seq, embed}, DataType::FP32), "x", {.external = true});
+auto y = graph.matmul(x, w);
+```
+
+```python
+# Python wrapper (equivalent)
+graph = LogicalGraph("model")
+x = graph.tensor(TensorSpec([batch, seq, embed], FP32), "x", external=True)
+y = graph.matmul(x, w)
+```
+
 ---
 
 ## 1. Current Architecture Analysis
@@ -2741,7 +2779,9 @@ void gelu_async(const Tensor<T> &src, const Tensor<T> &dst, const ExecutionConte
 
 ---
 
-## 5. Python API Design
+## 5. Python Wrapper Design
+
+**Note**: Python API is a thin wrapper over the C++ API via pybind11. All functionality exists in C++ first.
 
 ### 5.1 Graph Builder API
 
@@ -3998,7 +4038,171 @@ class AdaptiveTilingManager:
 
 ---
 
-### 10.7 Missing Components Analysis (Updated)
+### 10.7 Embedded and Mobile Deployment Considerations
+
+#### 10.7.1 Design Constraints for Edge Deployment
+
+| Constraint | Implication |
+|------------|-------------|
+| No Python runtime | All APIs must be pure C++ |
+| Limited memory | Careful allocation, no hidden copies |
+| No dynamic linking (sometimes) | Support static linking |
+| Limited compute | Efficient single-threaded fallback |
+| Battery constraints | Minimize memory bandwidth |
+| Binary size | Modular build, exclude unused ops |
+
+#### 10.7.2 Build Configurations
+
+```cmake
+# Full build (HPC clusters)
+option(NNTILE_ENABLE_MPI "Enable MPI support" ON)
+option(NNTILE_ENABLE_CUDA "Enable CUDA support" ON)
+option(NNTILE_ENABLE_STARPU "Enable StarPU runtime" ON)
+
+# Embedded build (mobile/edge)
+option(NNTILE_EMBEDDED "Minimal build for embedded" OFF)
+if(NNTILE_EMBEDDED)
+    set(NNTILE_ENABLE_MPI OFF)
+    set(NNTILE_ENABLE_CUDA OFF)  # Or ON for Jetson
+    set(NNTILE_ENABLE_STARPU OFF)
+    set(NNTILE_RUNTIME_SERIAL ON)  # Simple serial executor
+    set(BUILD_SHARED_LIBS OFF)     # Static linking
+endif()
+
+# Select operations to include (reduce binary size)
+option(NNTILE_OPS_MINIMAL "Only essential ops" OFF)
+option(NNTILE_OPS_INFERENCE "Inference ops only" OFF)
+option(NNTILE_OPS_TRAINING "All ops including training" ON)
+```
+
+#### 10.7.3 Serial Runtime Backend for Embedded
+
+For embedded systems without StarPU:
+
+```cpp
+namespace nntile::runtime::serial {
+
+//! Simple serial executor - no task parallelism, minimal overhead
+class SerialBackend : public Backend {
+public:
+    void init(int argc, char* argv[]) override {
+        // No-op or minimal init
+    }
+    
+    void shutdown() override {}
+    
+    int num_workers() const override { return 1; }
+    int num_cpu_workers() const override { return 1; }
+    int num_gpu_workers() const override { return 0; }  // Or 1 for GPU devices
+    
+    void wait_for_all() override {}  // Already synchronous
+    
+    std::unique_ptr<DataHandle> create_data_handle(size_t size) override {
+        return std::make_unique<SerialDataHandle>(size);
+    }
+};
+
+//! Simple memory handle - just malloc/free
+class SerialDataHandle : public DataHandle {
+private:
+    void* ptr_;
+    size_t size_;
+    
+public:
+    explicit SerialDataHandle(size_t size) : size_(size) {
+        ptr_ = std::malloc(size);
+    }
+    
+    ~SerialDataHandle() {
+        std::free(ptr_);
+    }
+    
+    void* acquire(AccessMode) override { return ptr_; }
+    void release() override {}  // No-op for serial
+};
+
+//! Serial task - executes immediately
+class SerialTaskHandle : public TaskHandle {
+public:
+    void wait() override {}  // Already done
+    bool is_complete() const override { return true; }
+    void detach() override {}
+};
+
+} // namespace nntile::runtime::serial
+```
+
+#### 10.7.4 Mobile-Specific Optimizations
+
+```cpp
+namespace nntile::mobile {
+
+//! Memory pool to avoid repeated allocations
+class MemoryPool {
+public:
+    void* allocate(size_t size);
+    void deallocate(void* ptr);
+    void reset();  // Reclaim all memory for next inference
+    
+    //! Pre-allocate for known graph
+    void reserve_for_graph(const CompiledGraph& graph);
+};
+
+//! Graph executor optimized for repeated inference
+class InferenceEngine {
+private:
+    CompiledGraph* graph_;
+    MemoryPool pool_;
+    
+public:
+    //! One-time setup
+    void load_model(const std::string& path);
+    
+    //! Repeated inference (no allocation after warmup)
+    void infer(const void* input, void* output);
+};
+
+} // namespace nntile::mobile
+```
+
+#### 10.7.5 C++ API for Embedded Usage
+
+```cpp
+#include <nntile/graph.hh>
+#include <nntile/runtime/serial.hh>
+
+int main() {
+    using namespace nntile;
+    
+    // Initialize serial runtime (no StarPU needed)
+    runtime::serial::SerialBackend backend;
+    backend.init(0, nullptr);
+    
+    // Load pre-compiled graph (compiled offline on workstation)
+    auto graph = graph::CompiledGraph::load("model.nntile");
+    
+    // Inference loop
+    float input[INPUT_SIZE];
+    float output[OUTPUT_SIZE];
+    
+    while (running) {
+        read_sensor_data(input);
+        
+        graph.bind_input("x", input, sizeof(input));
+        graph.execute();
+        graph.get_output("y", output, sizeof(output));
+        
+        process_output(output);
+    }
+    
+    backend.shutdown();
+    return 0;
+}
+```
+
+---
+
+### 10.8 Missing Components Analysis (Updated)
 
 | Component | Status | Priority | Notes |
 |-----------|--------|----------|-------|
@@ -4177,19 +4381,22 @@ grad_w2 = compiled.get_output("grad_w2")
 | Debugging | Straightforward | Need to understand internals |
 | Performance tuning | Direct control | Depends on autograd impl |
 
-### 10.8 Revised Open Questions
+### 10.9 Revised Open Questions
 
 1. **Multi-GPU within single node**: Is it one CompiledGraph or multiple coordinated ones?
-2. **Checkpoint format**: Custom binary, or compatibility layer with PyTorch/SafeTensors?
+2. **Checkpoint format**: Custom binary, or compatibility layer with PyTorch/SafeTensors/ONNX?
 3. **Lazy vs eager tensor creation**: Should `graph.tensor()` create the node immediately?
 4. **Error recovery**: What state is the graph in after a failed execution?
 5. **Graph mutation**: Can you modify a LogicalGraph after operations are added?
 6. **Thread safety**: Can multiple threads build the same LogicalGraph?
-7. **Cross-graph tensor sharing**: How do forward, backward, and optimizer graphs share parameter tensors?
-8. **Memory planning across graphs**: Can we optimize memory reuse across forward/backward/optimizer graphs?
+7. **Cross-graph tensor sharing**: How do forward, gradient, and optimizer graphs share parameter tensors?
+8. **Memory planning across graphs**: Can we optimize memory reuse across multiple graphs?
 9. **Compilation cache eviction**: When to evict cached compilations for different shapes?
 10. **Tile boundary alignment**: Should tile boundaries be aligned to specific values (e.g., 64) for memory efficiency?
-11. **Load balancing feedback**: How to collect and report per-device timing for adaptive rebalancing?
+11. **Load balancing feedback**: How to collect and report per-node timing for adaptive rebalancing?
+12. **Embedded graph format**: Binary format for pre-compiled graphs on embedded devices?
+13. **Quantization support**: INT8/INT4 operations for mobile inference?
+14. **Model encryption**: Protect model weights on edge devices?
 
 ---
 
@@ -4272,4 +4479,9 @@ NNTile 2.0 introduces a transformative high-level graph abstraction that enables
 
 The phased approach allows parallel development across 6 tracks while maintaining backward compatibility. Track F (Runtime Abstraction) is foundational and should be prioritized as it defines interfaces used by all other tracks.
 
-By implementing these changes, NNTile will evolve from a low-level tiled tensor library into a production-ready distributed deep learning framework competitive with state-of-the-art systems like DeepSpeed and Megatron-LM, while maintaining the flexibility to adopt future runtime systems as they emerge.
+By implementing these changes, NNTile will evolve from a low-level tiled tensor library into a production-ready distributed deep learning framework competitive with state-of-the-art systems like DeepSpeed and Megatron-LM, while maintaining:
+
+- **Flexibility** to adopt future runtime systems (TaskFlow, HPX)
+- **Portability** from HPC clusters to embedded/mobile devices
+- **C++-first design** enabling deployment without Python runtime
+- **Modular build system** for minimal binary size on edge devices
