@@ -397,6 +397,9 @@ set(LOGGER_SRC
     "logger/websocket_client.cc"
 )
 
+# Add graph subdirectory
+add_subdirectory(graph)
+
 # Set the list of all sources
 set(NNTILE_SRC
     ${BASE_SRC}

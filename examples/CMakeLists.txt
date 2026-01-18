@@ -56,7 +56,7 @@ function(add_example)
     message(STATUS "Adding example ${_args_TARGET_NAME}")
 endfunction()
 
-#add_example(TARGET_NAME examples_example
-#    EXEC_NAME "example"
-#    SOURCES "example.cc"
-#    LINK_LIBRARIES nntile)
+add_example(TARGET_NAME examples_graph_mlp
+    EXEC_NAME "graph_mlp_example"
+    SOURCES "graph_mlp_example.cc"
+    LINK_LIBRARIES nntile_graph)
