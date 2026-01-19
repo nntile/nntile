@@ -60,6 +60,12 @@ TensorNode& LogicalGraph::gemm(
     Index batch_ndim
 )
 {
+    // Validate input dtypes match
+    if(a.dtype() != b.dtype())
+    {
+        throw std::invalid_argument("gemm: input tensors must have the same dtype");
+    }
+
     // Validate input shapes are compatible
     TensorSpec output_spec = compute_gemm_output_spec(a.spec(), b.spec(),
             trans_a, trans_b, ndim, batch_ndim);
