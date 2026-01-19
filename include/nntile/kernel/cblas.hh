@@ -27,12 +27,15 @@
 #   else // Use standard int otherwise
 #       define CBLAS_INT int
 #   endif
+#elif __has_include(<vecLib/cblas.h>) // Look for Apple Accelerate framework
+#   include <vecLib/cblas.h>
+#   define CBLAS_INT int
 #elif __has_include(<mkl.h>) // Look for MKL (OneAPI) header
 #   include <mkl.h>
 #   define CBLAS_INT MKL_INT
 #else
-#   error "CBLAS header not found (tried <cblas.h> and <mkl.h>)"
-#endif // __has_include(<cblas.h>) || __has_include(<mkl.h>)
+#   error "CBLAS header not found (tried <cblas.h>, <vecLib/cblas.h>, and <mkl.h>)"
+#endif // __has_include(<cblas.h>) || __has_include(<vecLib/cblas.h>) || __has_include(<mkl.h>)
 
 // Other NNTile headers
 #include <nntile/base_types.hh>
