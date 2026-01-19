@@ -25,6 +25,12 @@ std::string dtype_to_string(DataType dtype)
     {
         case DataType::FP32:
             return "FP32";
+        case DataType::FP32_FAST_TF32:
+            return "FP32_FAST_TF32";
+        case DataType::FP32_FAST_FP16:
+            return "FP32_FAST_FP16";
+        case DataType::FP32_FAST_BF16:
+            return "FP32_FAST_BF16";
         case DataType::FP64:
             return "FP64";
         case DataType::FP16:
@@ -47,20 +53,30 @@ size_t dtype_size(DataType dtype)
 {
     switch(dtype)
     {
-        case DataType::FP32:
-            return 4;
-        case DataType::FP64:
-            return 8;
+        // 1 byte
+        case DataType::BOOL:
+            return 1;
+        // 2 bytes
         case DataType::FP16:
             return 2;
         case DataType::BF16:
             return 2;
-        case DataType::INT64:
-            return 8;
+        // 4 bytes
+        case DataType::FP32:
+            return 4;
+        case DataType::FP32_FAST_TF32:
+            return 4;
+        case DataType::FP32_FAST_FP16:
+            return 4;
+        case DataType::FP32_FAST_BF16:
+            return 4;
         case DataType::INT32:
             return 4;
-        case DataType::BOOL:
-            return 1;
+        // 8 bytes
+        case DataType::FP64:
+            return 8;
+        case DataType::INT64:
+            return 8;
         default:
             throw std::invalid_argument("Unknown DataType");
     }

@@ -23,6 +23,9 @@ namespace nntile::graph {
 //! Data types supported
 enum class DataType {
     FP32,
+    FP32_FAST_TF32,
+    FP32_FAST_FP16,
+    FP32_FAST_BF16,
     FP64,
     FP16,
     BF16,
