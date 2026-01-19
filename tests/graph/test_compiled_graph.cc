@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include <nntile/context.hh>
 #include <nntile/graph/graph.hh>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
@@ -19,7 +20,15 @@
 
 using namespace nntile::graph;
 
-TEST_CASE("CompiledGraph SimpleMatmul", "[graph]") {
+// Fixture to initialize NNTile context for graph tests
+class GraphTestFixture {
+protected:
+    nntile::Context context;
+public:
+    GraphTestFixture() : context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0) {}
+};
+
+TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph SimpleMatmul", "[graph]") {
     LogicalGraph g("test");
 
     auto& a = g.tensor(TensorSpec({2, 3}, DataType::FP32), "a");
@@ -42,19 +51,21 @@ TEST_CASE("CompiledGraph SimpleMatmul", "[graph]") {
 
     auto c_data = compiled.get_output<float>("c");
 
-    // C = A @ B = [[38,44,50,56], [83,98,113,128]]
+    // C = A @ B in column-major storage
+    // A = [[1,3,5], [2,4,6]], B = [[1,4,7,10], [2,5,8,11], [3,6,9,12]]
+    // C = [[22,49,76,103], [28,64,100,136]]
     REQUIRE(c_data.size() == 8);
-    REQUIRE(c_data[0] == 38);
-    REQUIRE(c_data[1] == 44);
-    REQUIRE(c_data[2] == 50);
-    REQUIRE(c_data[3] == 56);
-    REQUIRE(c_data[4] == 83);
-    REQUIRE(c_data[5] == 98);
-    REQUIRE(c_data[6] == 113);
-    REQUIRE(c_data[7] == 128);
+    REQUIRE(c_data[0] == 22);
+    REQUIRE(c_data[1] == 28);
+    REQUIRE(c_data[2] == 49);
+    REQUIRE(c_data[3] == 64);
+    REQUIRE(c_data[4] == 76);
+    REQUIRE(c_data[5] == 100);
+    REQUIRE(c_data[6] == 103);
+    REQUIRE(c_data[7] == 136);
 }
 
-TEST_CASE("CompiledGraph GeluActivation", "[graph]") {
+TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph GeluActivation", "[graph]") {
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({4}, DataType::FP32), "x");
@@ -78,7 +89,7 @@ TEST_CASE("CompiledGraph GeluActivation", "[graph]") {
     REQUIRE(y_data[3] == Catch::Approx(1.955f).epsilon(0.01));
 }
 
-TEST_CASE("CompiledGraph MLP", "[graph]") {
+TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph MLP", "[graph]") {
     LogicalGraph g("mlp");
 
     // x: [2, 4], w1: [4, 8], w2: [8, 4]
@@ -115,7 +126,7 @@ TEST_CASE("CompiledGraph MLP", "[graph]") {
     }
 }
 
-TEST_CASE("CompiledGraph DataTypeMismatch", "[graph]") {
+TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph DataTypeMismatch", "[graph]") {
     LogicalGraph g("test");
 
     auto& a = g.tensor(TensorSpec({2, 2}, DataType::FP32), "a");
@@ -130,18 +141,13 @@ TEST_CASE("CompiledGraph DataTypeMismatch", "[graph]") {
     REQUIRE_THROWS_AS(compiled.bind_data("a", wrong_data), std::runtime_error);
 }
 
-TEST_CASE("CompiledGraph UnsupportedDataType", "[graph]") {
+TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph UnsupportedDataType", "[graph]") {
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({2}, DataType::INT64), "x");
     auto& y = g.gelu(x, "y");
     g.mark_output("y");
 
-    auto compiled = CompiledGraph::compile(g);
-
-    std::vector<long long> x_data(2, 1);
-    compiled.bind_data("x", x_data);
-
-    // Should throw when executing unsupported operation
-    REQUIRE_THROWS_AS(compiled.execute(), std::runtime_error);
+    // Should throw during compilation for unsupported data type
+    REQUIRE_THROWS_AS(CompiledGraph::compile(g), std::runtime_error);
 }
