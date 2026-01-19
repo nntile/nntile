@@ -77,10 +77,6 @@ public:
     template<typename T>
     std::vector<T> get_output(const std::string& name);
 
-    //! Get raw pointer to output (must call wait() first)
-    template<typename T>
-    const T* get_output_ptr(const std::string& name);
-
 private:
     CompiledGraph() = default;
 

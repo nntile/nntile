@@ -819,15 +819,6 @@ std::vector<T> CompiledGraph::get_output(const std::string& name)
     return result;
 }
 
-//! Get raw pointer to output (must call wait() first)
-template<typename T>
-const T* CompiledGraph::get_output_ptr(const std::string& name)
-{
-    // This is a simplified implementation - in a real implementation,
-    // we'd need to manage the tile acquisition/release properly
-    throw std::runtime_error("get_output_ptr not implemented in minimal version");
-}
-
 // Template instantiations
 template nntile::tensor::Tensor<nntile::fp32_t>& CompiledGraph::get_tensor<nntile::fp32_t>(
         const std::string& name);
@@ -863,8 +854,5 @@ template void CompiledGraph::bind_data<long long>(const std::string& name,
 
 template std::vector<float> CompiledGraph::get_output<float>(const std::string& name);
 template std::vector<double> CompiledGraph::get_output<double>(const std::string& name);
-
-template const float* CompiledGraph::get_output_ptr<float>(const std::string& name);
-template const double* CompiledGraph::get_output_ptr<double>(const std::string& name);
 
 } // namespace nntile::graph
