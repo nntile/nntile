@@ -150,9 +150,9 @@ void CompiledGraph::execute_matmul(const OpNode* op) {
         // Use nntile::tensor::gemm
         nntile::tensor::gemm<float>(
             static_cast<float>(attrs.alpha),
-            attrs.trans_a ? nntile::TransOp::Trans : nntile::TransOp::NoTrans,
+            attrs.trans_a ? nntile::TransOp(nntile::TransOp::Trans) : nntile::TransOp(nntile::TransOp::NoTrans),
             a,
-            attrs.trans_b ? nntile::TransOp::Trans : nntile::TransOp::NoTrans,
+            attrs.trans_b ? nntile::TransOp(nntile::TransOp::Trans) : nntile::TransOp(nntile::TransOp::NoTrans),
             b,
             static_cast<float>(attrs.beta),
             c,
@@ -166,9 +166,9 @@ void CompiledGraph::execute_matmul(const OpNode* op) {
 
         nntile::tensor::gemm<double>(
             static_cast<double>(attrs.alpha),
-            attrs.trans_a ? nntile::TransOp::Trans : nntile::TransOp::NoTrans,
+            attrs.trans_a ? nntile::TransOp(nntile::TransOp::Trans) : nntile::TransOp(nntile::TransOp::NoTrans),
             a,
-            attrs.trans_b ? nntile::TransOp::Trans : nntile::TransOp::NoTrans,
+            attrs.trans_b ? nntile::TransOp(nntile::TransOp::Trans) : nntile::TransOp(nntile::TransOp::NoTrans),
             b,
             static_cast<double>(attrs.beta),
             c,
