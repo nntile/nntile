@@ -30,16 +30,15 @@ namespace nntile::graph
 CompiledGraph CompiledGraph::compile(const LogicalGraph& logical)
 {
     CompiledGraph cg;
-    cg.logical_ = &logical;
-    cg.allocate_tensors();
-    cg.compute_execution_order();
+    cg.allocate_tensors(logical);
+    cg.compute_execution_order(logical);
     return cg;
 }
 
 //! Allocate NNTile tensors for all graph tensors
-void CompiledGraph::allocate_tensors()
+void CompiledGraph::allocate_tensors(const LogicalGraph& logical)
 {
-    for(const auto& node : logical_->tensors())
+    for(const auto& node : logical.tensors())
     {
         const auto& spec = node->spec();
         tensor_dtypes_[node->name()] = spec.dtype();
@@ -135,13 +134,13 @@ void CompiledGraph::allocate_tensors()
 }
 
 //! Compute topological order of operations
-void CompiledGraph::compute_execution_order()
+void CompiledGraph::compute_execution_order(const LogicalGraph& logical)
 {
     execution_order_.clear();
     std::set<NodeId> executed_tensors;
 
     // Mark all input tensors (no producer) as executed
-    for(const auto& t : logical_->tensors())
+    for(const auto& t : logical.tensors())
     {
         if(!t->has_producer())
         {
@@ -151,10 +150,10 @@ void CompiledGraph::compute_execution_order()
 
     // Keep adding ops whose inputs are all ready
     std::set<NodeId> executed_ops;
-    while(execution_order_.size() < logical_->num_ops())
+    while(execution_order_.size() < logical.num_ops())
     {
         bool added = false;
-        for(const auto& op : logical_->ops())
+        for(const auto& op : logical.ops())
         {
             if(executed_ops.count(op->id()))
             {
@@ -174,7 +173,21 @@ void CompiledGraph::compute_execution_order()
 
             if(ready)
             {
-                execution_order_.push_back(op.get());
+                // Extract execution info instead of storing raw pointer
+                OpExecutionInfo op_info;
+                op_info.type = op->type();
+                op_info.attrs = op->attrs();
+                op_info.input_names.reserve(op->inputs().size());
+                for(const auto* input : op->inputs())
+                {
+                    op_info.input_names.push_back(input->name());
+                }
+                op_info.output_names.reserve(op->outputs().size());
+                for(const auto* output : op->outputs())
+                {
+                    op_info.output_names.push_back(output->name());
+                }
+                execution_order_.push_back(op_info);
                 executed_ops.insert(op->id());
                 for(const auto* output : op->outputs())
                 {
@@ -193,9 +206,9 @@ void CompiledGraph::compute_execution_order()
 //! Execute the graph
 void CompiledGraph::execute()
 {
-    for(const OpNode* op : execution_order_)
+    for(const auto& op_info : execution_order_)
     {
-        execute_op(op);
+        execute_op(op_info);
     }
 }
 
@@ -207,27 +220,27 @@ void CompiledGraph::wait()
 }
 
 //! Execute a single operation
-void CompiledGraph::execute_op(const OpNode* op)
+void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
 {
-    switch(op->type())
+    switch(op_info.type)
     {
         case OpType::GEMM:
-            execute_gemm(op);
+            execute_gemm(op_info);
             break;
         case OpType::GELU:
-            execute_gelu(op);
+            execute_gelu(op_info);
             break;
     }
 }
 
 //! Execute gemm operation
-void CompiledGraph::execute_gemm(const OpNode* op)
+void CompiledGraph::execute_gemm(const OpExecutionInfo& op_info)
 {
-    const auto& attrs = std::get<GemmAttrs>(op->attrs());
+    const auto& attrs = std::get<GemmAttrs>(op_info.attrs);
 
-    const std::string& a_name = op->input(0)->name();
-    const std::string& b_name = op->input(1)->name();
-    const std::string& c_name = op->output(0)->name();
+    const std::string& a_name = op_info.input_names[0];
+    const std::string& b_name = op_info.input_names[1];
+    const std::string& c_name = op_info.output_names[0];
 
     DataType dtype = tensor_dtypes_[a_name];
 
@@ -386,10 +399,10 @@ void CompiledGraph::execute_gemm(const OpNode* op)
 }
 
 //! Execute gelu operation
-void CompiledGraph::execute_gelu(const OpNode* op)
+void CompiledGraph::execute_gelu(const OpExecutionInfo& op_info)
 {
-    const std::string& x_name = op->input(0)->name();
-    const std::string& y_name = op->output(0)->name();
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.output_names[0];
 
     DataType dtype = tensor_dtypes_[x_name];
 

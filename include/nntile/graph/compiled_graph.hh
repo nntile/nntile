@@ -23,18 +23,25 @@
 namespace nntile::graph
 {
 
+//! Operation execution information (extracted during compilation)
+struct OpExecutionInfo
+{
+    OpType type;
+    OpAttrs attrs;
+    std::vector<std::string> input_names;
+    std::vector<std::string> output_names;
+};
+
 //! Compiled graph - ready for execution
 class CompiledGraph
 {
 private:
-    const LogicalGraph* logical_;
-
     // Runtime tensors (NNTile tensors, one tile each)
     std::map<std::string, std::shared_ptr<void>> tensors_;  // Type-erased tensor pointers
     std::map<std::string, DataType> tensor_dtypes_;
 
-    // Execution order (topologically sorted ops)
-    std::vector<const OpNode*> execution_order_;
+    // Execution order (topologically sorted ops with extracted info)
+    std::vector<OpExecutionInfo> execution_order_;
 
 public:
     //! Compile a logical graph
@@ -78,19 +85,19 @@ private:
     CompiledGraph() = default;
 
     //! Allocate NNTile tensors for all graph tensors
-    void allocate_tensors();
+    void allocate_tensors(const LogicalGraph& logical);
 
     //! Compute topological order of operations
-    void compute_execution_order();
+    void compute_execution_order(const LogicalGraph& logical);
 
     //! Execute a single operation
-    void execute_op(const OpNode* op);
+    void execute_op(const OpExecutionInfo& op_info);
 
     //! Execute gemm operation
-    void execute_gemm(const OpNode* op);
+    void execute_gemm(const OpExecutionInfo& op_info);
 
     //! Execute gelu operation
-    void execute_gelu(const OpNode* op);
+    void execute_gelu(const OpExecutionInfo& op_info);
 
     //! Get typed tensor pointer
     template<typename T>
