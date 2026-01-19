@@ -12,13 +12,15 @@
  * @version 1.1.0
  * */
 
+#include <nntile/context.hh>
 #include <nntile/graph/graph.hh>
 #include <iostream>
 #include <vector>
 #include <chrono>
 
 int main(int argc, char** argv) {
-    // Initialize StarPU (assuming it's already done in the application)
+    // Initialize NNTile context (this initializes StarPU)
+    nntile::Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
 
     // Define a simple MLP: x -> Linear -> GELU -> Linear -> y
     nntile::graph::LogicalGraph graph("MLP");

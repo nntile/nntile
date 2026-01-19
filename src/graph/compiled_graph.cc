@@ -157,8 +157,8 @@ void CompiledGraph::execute_matmul(const OpNode* op) {
             b,
             static_cast<nntile::Scalar>(attrs.beta),
             c,
-            2,  // ndim = 2 for matrices
-            0   // batch_ndim = 0
+            1,  // ndim = 1 for matrix contraction
+            0   // batch_ndim = 0 for 2D matrices
         );
     } else if (dtype == DataType::FP64) {
         auto& a = get_tensor<nntile::fp64_t>(a_name);
@@ -173,8 +173,8 @@ void CompiledGraph::execute_matmul(const OpNode* op) {
             b,
             static_cast<nntile::Scalar>(attrs.beta),
             c,
-            2,  // ndim = 2 for matrices
-            0   // batch_ndim = 0
+            1,  // ndim = 1 for matrix contraction
+            0   // batch_ndim = 0 for 2D matrices
         );
     } else {
         throw std::runtime_error("Unsupported data type for matmul");
