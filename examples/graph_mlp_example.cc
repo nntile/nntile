@@ -64,9 +64,6 @@ int main(int argc, char** argv) {
     auto& a = graph.gelu(h, "activation");
     auto& y = graph.gemm(a, w2, "output");
 
-    // Mark output
-    graph.mark_output("output");
-
     std::cout << "Logical Graph:" << std::endl;
     std::cout << graph.to_string() << std::endl;
 

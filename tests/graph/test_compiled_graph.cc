@@ -35,7 +35,6 @@ TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph SimpleGemm", "[graph]")
     auto& a = g.tensor(TensorSpec({2, 3}, DataType::FP32), "a");
     auto& b = g.tensor(TensorSpec({3, 4}, DataType::FP32), "b");
     auto& c = g.gemm(a, b, "c");
-    g.mark_output("c");
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -71,7 +70,6 @@ TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph GeluActivation", "[graph]") {
 
     auto& x = g.tensor(TensorSpec({4}, DataType::FP32), "x");
     auto& y = g.gelu(x, "y");
-    g.mark_output("y");
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -101,7 +99,6 @@ TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph MLP", "[graph]") {
     auto& h = g.gemm(x, w1, "h");
     auto& a = g.gelu(h, "a");
     auto& y = g.gemm(a, w2, "y");
-    g.mark_output("y");
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -133,7 +130,6 @@ TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph DataTypeMismatch", "[graph]") 
     auto& a = g.tensor(TensorSpec({2, 2}, DataType::FP32), "a");
     auto& b = g.tensor(TensorSpec({2, 2}, DataType::FP32), "b");
     auto& c = g.gemm(a, b, "c");
-    g.mark_output("c");
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -147,7 +143,6 @@ TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph UnsupportedDataType", "[graph]
 
     auto& x = g.tensor(TensorSpec({2}, DataType::INT64), "x");
     auto& y = g.gelu(x, "y");
-    g.mark_output("y");
 
     // Should throw during compilation for unsupported data type
     REQUIRE_THROWS_AS(CompiledGraph::compile(g), std::runtime_error);

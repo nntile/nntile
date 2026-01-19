@@ -31,7 +31,6 @@ private:
     std::vector<std::unique_ptr<TensorNode>> tensors_;
     std::vector<std::unique_ptr<OpNode>> ops_;
     std::map<std::string, TensorNode*> tensor_by_name_;
-    std::set<std::string> output_names_;
 
     NodeId next_tensor_id_ = 0;
     NodeId next_op_id_ = 0;
@@ -45,9 +44,6 @@ public:
 
     //! Create a tensor
     TensorNode& tensor(const TensorSpec& spec, const std::string& name);
-
-    //! Mark tensor as output
-    void mark_output(const std::string& name);
 
     // ═══════════════════════════════════════════════════════════════
     // Operations
@@ -88,10 +84,10 @@ public:
     //! Get all tensor names
     std::vector<std::string> tensor_names() const;
 
-    //! Get output tensor names
-    const std::set<std::string>& output_names() const { return output_names_; }
+    //! Get output tensor names (tensors with no consumers)
+    std::set<std::string> output_names() const;
 
-    //! Check if tensor is an output
+    //! Check if tensor is an output (has no consumers)
     bool is_output(const std::string& name) const;
 
     //! Get all tensors (for iteration)

@@ -45,17 +45,6 @@ TensorNode& LogicalGraph::tensor(const TensorSpec& spec, const std::string& name
     return *node_ptr;
 }
 
-//! Mark tensor as output
-void LogicalGraph::mark_output(const std::string& name)
-{
-    // Check tensor exists
-    if(tensor_by_name_.count(name) == 0)
-    {
-        throw std::invalid_argument("LogicalGraph::mark_output: tensor '" + name +
-                "' does not exist");
-    }
-    output_names_.insert(name);
-}
 
 //! General matrix multiplication: C = alpha * A @ B + beta * C
 TensorNode& LogicalGraph::gemm(
@@ -143,10 +132,29 @@ std::vector<std::string> LogicalGraph::tensor_names() const
     return names;
 }
 
-//! Check if tensor is an output
+//! Get output tensor names (tensors with no consumers)
+std::set<std::string> LogicalGraph::output_names() const
+{
+    std::set<std::string> result;
+    for(const auto& t : tensors_)
+    {
+        if(t->consumers().empty())
+        {
+            result.insert(t->name());
+        }
+    }
+    return result;
+}
+
+//! Check if tensor is an output (has no consumers)
 bool LogicalGraph::is_output(const std::string& name) const
 {
-    return output_names_.count(name) > 0;
+    const TensorNode* t = get_tensor(name);
+    if(t == nullptr)
+    {
+        return false;
+    }
+    return t->consumers().empty();
 }
 
 //! String representation
@@ -169,9 +177,10 @@ std::string LogicalGraph::to_string() const
     }
 
     ss << "Outputs: {";
-    for(auto it = output_names_.begin(); it != output_names_.end(); ++it)
+    auto outputs = output_names();
+    for(auto it = outputs.begin(); it != outputs.end(); ++it)
     {
-        if(it != output_names_.begin())
+        if(it != outputs.begin())
         {
             ss << ", ";
         }

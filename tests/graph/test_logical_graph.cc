@@ -78,8 +78,6 @@ TEST_CASE("LogicalGraph Chain", "[graph]") {
     auto& a = g.gelu(h, "a");
     auto& y = g.gemm(a, w2, "y");
 
-    g.mark_output("y");
-
     REQUIRE(g.num_tensors() == 6);  // x, w1, w2, h, a, y
     REQUIRE(g.num_ops() == 3);      // gemm, gelu, gemm
     REQUIRE(g.is_output("y"));
