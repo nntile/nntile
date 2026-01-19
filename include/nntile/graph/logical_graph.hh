@@ -26,7 +26,8 @@ namespace nntile::graph
 {
 
 //! Logical graph - defines computation without physical details
-class LogicalGraph {
+class LogicalGraph
+{
 private:
     std::string name_;
     std::vector<std::unique_ptr<TensorNode>> tensors_;

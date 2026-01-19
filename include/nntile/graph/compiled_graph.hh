@@ -24,7 +24,8 @@ namespace nntile::graph
 {
 
 //! Compiled graph - ready for execution
-class CompiledGraph {
+class CompiledGraph
+{
 private:
     const LogicalGraph* logical_;
 

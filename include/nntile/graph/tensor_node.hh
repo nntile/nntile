@@ -30,7 +30,8 @@ class LogicalGraph;
 using NodeId = uint64_t;
 
 //! A tensor node in the logical graph
-class TensorNode {
+class TensorNode
+{
     friend class LogicalGraph;
     friend class OpNode;
 

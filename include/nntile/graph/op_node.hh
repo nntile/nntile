@@ -35,7 +35,8 @@ enum class OpType {
 std::string op_type_to_string(OpType type);
 
 //! Operation attributes (parameters that aren't tensors)
-struct GemmAttrs {
+struct GemmAttrs
+{
     bool trans_a = false;
     bool trans_b = false;
     // For GEMM: C = alpha * A @ B + beta * C
@@ -45,14 +46,16 @@ struct GemmAttrs {
     Index batch_ndim = 0;  // Number of last dimensions used for batching
 };
 
-struct GeluAttrs {
+struct GeluAttrs
+{
     // No attributes for basic gelu
 };
 
 using OpAttrs = std::variant<GemmAttrs, GeluAttrs>;
 
 //! An operation node in the logical graph
-class OpNode {
+class OpNode
+{
     friend class LogicalGraph;
 
 private:

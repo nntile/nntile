@@ -42,7 +42,8 @@ std::string dtype_to_string(DataType dtype);
 size_t dtype_size(DataType dtype);
 
 //! Tensor specification - shape and data type
-class TensorSpec {
+class TensorSpec
+{
 private:
     std::vector<Index> shape_;
     DataType dtype_;
