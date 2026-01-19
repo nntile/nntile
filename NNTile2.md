@@ -234,9 +234,9 @@ private:
 public:
     //! Construct from raw StarPU task
     explicit TaskHandle(struct starpu_task *task) : task_(task) {}
-    
+
     //! Move-only semantics
-    TaskHandle(TaskHandle&& other) noexcept 
+    TaskHandle(TaskHandle&& other) noexcept
         : task_(other.task_), detached_(other.detached_) {
         other.task_ = nullptr;
     }
@@ -249,18 +249,18 @@ public:
         }
         return *this;
     }
-    
+
     //! No copy
     TaskHandle(const TaskHandle&) = delete;
     TaskHandle& operator=(const TaskHandle&) = delete;
-    
+
     //! Destructor waits if not detached
     ~TaskHandle() {
         if (task_ && !detached_) {
             wait();
         }
     }
-    
+
     //! Wait for this specific task to complete
     void wait() {
         if (task_) {
@@ -268,22 +268,22 @@ public:
             task_ = nullptr;  // Task is freed after wait
         }
     }
-    
+
     //! Detach task (fire-and-forget, StarPU manages lifetime)
     void detach() {
         detached_ = true;
         task_ = nullptr;
     }
-    
+
     //! Check if task is complete without blocking
     bool is_complete() const {
         if (!task_) return true;
         return starpu_task_finished(task_) != 0;
     }
-    
+
     //! Get raw handle (use with caution)
     struct starpu_task* get() const { return task_; }
-    
+
     //! Check if handle is valid
     explicit operator bool() const { return task_ != nullptr; }
 };
@@ -297,7 +297,7 @@ public:
     void add(TaskHandle&& task) {
         tasks_.push_back(std::move(task));
     }
-    
+
     //! Wait for all tasks in this group
     void wait_all() {
         for (auto& task : tasks_) {
@@ -305,7 +305,7 @@ public:
         }
         tasks_.clear();
     }
-    
+
     //! Wait for any one task to complete, return its index
     size_t wait_any() {
         while (true) {
@@ -319,7 +319,7 @@ public:
             starpu_do_schedule();
         }
     }
-    
+
     size_t size() const { return tasks_.size(); }
     bool empty() const { return tasks_.empty(); }
 };
@@ -336,33 +336,33 @@ template<typename T>
 class Gelu<std::tuple<T>> {
 public:
     Codelet codelet;
-    
+
     //! Submit task and return handle for optional waiting
     TaskHandle submit(Index nelems, Handle src, Handle dst,
-                      const TaskExecutionHints& hints = {}) 
+                      const TaskExecutionHints& hints = {})
     {
         // Allocate arguments
         args_t *args = (args_t *)std::malloc(sizeof(*args));
         args->nelems = nelems;
-        
+
         // Create task explicitly (not starpu_task_insert)
         struct starpu_task *task = starpu_task_create();
         task->cl = &codelet;
         task->detach = 0;  // Make waitable
         task->destroy = 1; // Auto-destroy after completion
-        
+
         // Set data handles
         task->handles[0] = src.get();
         task->handles[1] = dst.get();
         task->modes[0] = STARPU_R;
         task->modes[1] = STARPU_W;
         task->nbuffers = 2;
-        
+
         // Set codelet arguments
         task->cl_arg = args;
         task->cl_arg_size = sizeof(*args);
         task->cl_arg_free = 1;  // Auto-free args
-        
+
         // Apply execution hints
         if (hints.target_node >= 0) {
             task->execute_on_a_specific_worker = 1;
@@ -371,13 +371,13 @@ public:
         if (hints.priority != 0) {
             task->priority = hints.priority;
         }
-        
+
         // Submit
         int ret = starpu_task_submit(task);
         if (ret != 0) {
             throw std::runtime_error("Error in gelu task submission");
         }
-        
+
         return TaskHandle(task);
     }
 };
@@ -527,34 +527,34 @@ enum class BackendType {
 class Backend {
 public:
     virtual ~Backend() = default;
-    
+
     //! Initialize the runtime
     virtual void init(int argc, char* argv[]) = 0;
-    
+
     //! Shutdown the runtime
     virtual void shutdown() = 0;
-    
+
     //! Get backend type
     virtual BackendType type() const = 0;
-    
+
     //! Get number of workers (CPUs + GPUs)
     virtual int num_workers() const = 0;
-    
+
     //! Get number of CPU workers
     virtual int num_cpu_workers() const = 0;
-    
+
     //! Get number of GPU workers
     virtual int num_gpu_workers() const = 0;
-    
+
     //! Wait for all submitted tasks
     virtual void wait_for_all() = 0;
-    
+
     //! Pause task submission
     virtual void pause() = 0;
-    
+
     //! Resume task submission
     virtual void resume() = 0;
-    
+
     //! Factory for creating data handles
     virtual std::unique_ptr<DataHandle> create_data_handle(size_t size) = 0;
     virtual std::unique_ptr<DataHandle> create_data_handle(void* ptr, size_t size) = 0;
@@ -586,29 +586,29 @@ enum class AccessMode {
 class DataHandle {
 public:
     virtual ~DataHandle() = default;
-    
+
     //! Get raw pointer (backend-specific)
     virtual void* raw_handle() = 0;
     virtual const void* raw_handle() const = 0;
-    
+
     //! Get data size in bytes
     virtual size_t size() const = 0;
-    
+
     //! Acquire data for CPU access
     virtual void* acquire(AccessMode mode) = 0;
-    
+
     //! Release data after CPU access
     virtual void release() = 0;
-    
+
     //! Invalidate cached data
     virtual void invalidate() = 0;
-    
+
     //! Hint that data won't be used soon
     virtual void wont_use() = 0;
-    
+
     //! Unregister handle
     virtual void unregister() = 0;
-    
+
     //! MPI-related (optional, may be no-op for some backends)
     virtual int mpi_get_rank() const { return 0; }
     virtual void mpi_transfer(int dst_rank, int src_rank) {}
@@ -637,16 +637,16 @@ namespace nntile::runtime {
 class TaskHandle {
 public:
     virtual ~TaskHandle() = default;
-    
+
     //! Wait for task completion
     virtual void wait() = 0;
-    
+
     //! Check if task is complete (non-blocking)
     virtual bool is_complete() const = 0;
-    
+
     //! Detach task (don't wait on destruction)
     virtual void detach() = 0;
-    
+
     //! Get raw handle (backend-specific)
     virtual void* raw_handle() = 0;
 };
@@ -659,18 +659,18 @@ private:
 
 public:
     explicit TaskHandleOwner(std::unique_ptr<TaskHandle> h) : handle_(std::move(h)) {}
-    
+
     TaskHandleOwner(TaskHandleOwner&&) = default;
     TaskHandleOwner& operator=(TaskHandleOwner&&) = default;
     TaskHandleOwner(const TaskHandleOwner&) = delete;
     TaskHandleOwner& operator=(const TaskHandleOwner&) = delete;
-    
+
     ~TaskHandleOwner() {
         if (handle_ && !detached_) {
             handle_->wait();
         }
     }
-    
+
     void wait() { if (handle_) handle_->wait(); }
     bool is_complete() const { return !handle_ || handle_->is_complete(); }
     void detach() { detached_ = true; }
@@ -686,14 +686,14 @@ public:
     void add(TaskHandleOwner task) {
         tasks_.push_back(std::move(task));
     }
-    
+
     void wait_all() {
         for (auto& task : tasks_) {
             task.wait();
         }
         tasks_.clear();
     }
-    
+
     size_t size() const { return tasks_.size(); }
 };
 
@@ -718,7 +718,7 @@ struct CodeletDef {
     CpuFunc cpu_func = nullptr;
     CudaFunc cuda_func = nullptr;
     uint32_t (*footprint)(void* cl_args) = nullptr;
-    
+
     bool can_run_on_cpu() const { return cpu_func != nullptr; }
     bool can_run_on_cuda() const { return cuda_func != nullptr; }
 };
@@ -727,10 +727,10 @@ struct CodeletDef {
 class Codelet {
 public:
     virtual ~Codelet() = default;
-    
+
     //! Get codelet definition
     virtual const CodeletDef& definition() const = 0;
-    
+
     //! Get raw backend-specific codelet
     virtual void* raw_codelet() = 0;
 };
@@ -739,13 +739,13 @@ public:
 class CodeletRegistry {
 public:
     static CodeletRegistry& instance();
-    
+
     //! Register a codelet definition
     void register_codelet(const std::string& name, const CodeletDef& def);
-    
+
     //! Get codelet for current backend
     Codelet& get_codelet(const std::string& name);
-    
+
 private:
     std::unordered_map<std::string, CodeletDef> definitions_;
     std::unordered_map<std::string, std::unique_ptr<Codelet>> codelets_;
@@ -815,17 +815,17 @@ public:
 class StarPUDataHandle : public DataHandle {
 private:
     starpu_data_handle_t handle_;
-    
+
 public:
     explicit StarPUDataHandle(starpu_data_handle_t h) : handle_(h) {}
-    
+
     void* raw_handle() override { return handle_; }
     const void* raw_handle() const override { return handle_; }
-    
+
     size_t size() const override {
         return starpu_variable_get_elemsize(handle_);
     }
-    
+
     void* acquire(AccessMode mode) override {
         starpu_data_access_mode smode;
         switch (mode) {
@@ -837,36 +837,36 @@ public:
         starpu_data_acquire(handle_, smode);
         return starpu_variable_get_local_ptr(handle_);
     }
-    
+
     void release() override {
         starpu_data_release(handle_);
     }
-    
+
     // ... other methods
 };
 
 class StarPUTaskHandle : public TaskHandle {
 private:
     struct starpu_task* task_;
-    
+
 public:
     explicit StarPUTaskHandle(struct starpu_task* t) : task_(t) {}
-    
+
     void wait() override {
         if (task_) {
             starpu_task_wait(task_);
             task_ = nullptr;
         }
     }
-    
+
     bool is_complete() const override {
         return task_ == nullptr || starpu_task_finished(task_);
     }
-    
+
     void detach() override {
         task_ = nullptr;
     }
-    
+
     void* raw_handle() override { return task_; }
 };
 
@@ -887,15 +887,15 @@ TaskHandleOwner GeluOp<T>::submit(
     // Get StarPU-specific handles
     auto src_handle = static_cast<starpu_data_handle_t>(src.raw_handle());
     auto dst_handle = static_cast<starpu_data_handle_t>(dst.raw_handle());
-    
+
     // Get codelet
     auto& codelet = CodeletRegistry::instance().get_codelet("gelu_" + type_name<T>());
     auto* starpu_cl = static_cast<struct starpu_codelet*>(codelet.raw_codelet());
-    
+
     // Allocate arguments
     struct args_t { Index nelems; };
     auto* args = new args_t{nelems};
-    
+
     // Create task
     struct starpu_task* task = starpu_task_create();
     task->cl = starpu_cl;
@@ -906,20 +906,20 @@ TaskHandleOwner GeluOp<T>::submit(
     task->cl_arg_free = 1;
     task->detach = 0;
     task->destroy = 1;
-    
+
     // Apply hints
     if (hints.target_worker >= 0) {
         task->execute_on_a_specific_worker = 1;
         task->workerid = hints.target_worker;
     }
     task->priority = hints.priority;
-    
+
     // Submit
     int ret = starpu_task_submit(task);
     if (ret != 0) {
         throw std::runtime_error("Failed to submit gelu task");
     }
-    
+
     return TaskHandleOwner(std::make_unique<starpu::StarPUTaskHandle>(task));
 }
 
@@ -941,32 +941,32 @@ class TaskFlowBackend : public Backend {
 private:
     tf::Executor executor_;
     tf::Taskflow taskflow_;
-    
+
 public:
     void init(int argc, char* argv[]) override {
         // Initialize with hardware concurrency
     }
-    
+
     void shutdown() override {
         executor_.wait_for_all();
     }
-    
+
     // ... implement other methods
 };
 
 class TaskFlowTaskHandle : public TaskHandle {
 private:
     tf::Future<void> future_;
-    
+
 public:
     void wait() override {
         future_.wait();
     }
-    
+
     bool is_complete() const override {
         return future_.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
     }
-    
+
     // ...
 };
 
@@ -1039,21 +1039,21 @@ std::unique_ptr<Backend> create_backend(BackendType type) {
 class BackendManager {
 private:
     std::unique_ptr<Backend> backend_;
-    
+
 public:
     static BackendManager& instance() {
         static BackendManager mgr;
         return mgr;
     }
-    
+
     void set(BackendType type) {
         backend_ = create_backend(type);
     }
-    
+
     void set(std::unique_ptr<Backend> b) {
         backend_ = std::move(b);
     }
-    
+
     Backend& get() {
         if (!backend_) {
             backend_ = create_backend(BackendType::Auto);
@@ -1087,7 +1087,7 @@ runtime::TaskHandleOwner gelu_async(const Tile<T>& src, const Tile<T>& dst) {
     if (src.nelems != dst.nelems) {
         throw std::runtime_error("Tile size mismatch in gelu");
     }
-    
+
     // Submit via runtime-agnostic interface
     return runtime::gelu_submit<T>(src.nelems, src.handle(), dst.handle());
 }
@@ -1418,7 +1418,7 @@ physical_fsdp.set_tiling(TilingStrategy.auto_tiling(target_tile_bytes=64*1024*10
 # Distribute parameter tiles round-robin across nodes
 for param_name in ["W_query", "W_key", "W_value", "W_out"]:
     physical_fsdp.set_tensor_distribution(
-        param_name, 
+        param_name,
         TileDistribution.round_robin(8)
     )
 physical_fsdp.compile()
@@ -1557,7 +1557,7 @@ class LogicalGraph {
 public:
     //! Explicit cast operation - the ONLY way to change dtype
     TensorNode& cast(TensorNode& input, DataType target_dtype, const std::string& name = "");
-    
+
     //! All operations REQUIRE matching dtypes
     //! This will throw if a.dtype != b.dtype
     TensorNode& matmul(TensorNode& a, TensorNode& b, ...);  // Requires same dtype
@@ -1628,22 +1628,22 @@ using Dimension = std::variant<Index, std::string>;
 struct TensorSpec {
     std::vector<Dimension> shape;  // Can mix concrete and symbolic dims
     DataType dtype;
-    
+
     // Constructors
     TensorSpec(std::vector<Index> shape, DataType dtype)
         : shape(shape.begin(), shape.end()), dtype(dtype) {}
-    
+
     TensorSpec(std::vector<Dimension> shape, DataType dtype)
         : shape(shape), dtype(dtype) {}
-    
+
     // Queries
     Index ndim() const { return shape.size(); }
     bool has_symbolic_dims() const;
     std::vector<std::string> symbolic_dim_names() const;
-    
+
     // Create concrete spec by binding symbolic dims
     TensorSpec bind(const std::map<std::string, Index>& bindings) const;
-    
+
     // Compute number of elements (only if fully concrete)
     std::optional<Index> nelems() const;
 };
@@ -1667,27 +1667,27 @@ class LogicalGraph;
 class TensorNode {
     friend class LogicalGraph;
     friend class OpNode;
-    
+
 private:
     NodeId id_;
     std::string name_;
     TensorSpec spec_;
     LogicalGraph* graph_;
-    
+
     // Edges
     OpNode* producer_ = nullptr;           // Op that creates this tensor (nullptr if external)
     std::vector<OpNode*> consumers_;       // Ops that use this tensor
-    
+
 public:
     TensorNode(NodeId id, const std::string& name, TensorSpec spec, LogicalGraph* graph);
-    
+
     // Accessors
     NodeId id() const { return id_; }
     const std::string& name() const { return name_; }
     const TensorSpec& spec() const { return spec_; }
     DataType dtype() const { return spec_.dtype; }
     const std::vector<Dimension>& shape() const { return spec_.shape; }
-    
+
     // Graph structure
     bool has_producer() const { return producer_ != nullptr; }
     OpNode* producer() const { return producer_; }
@@ -1727,15 +1727,15 @@ struct OpAttributes {
     // MatMul
     bool trans_a = false;
     bool trans_b = false;
-    
+
     // Reduction/Normalization
     int axis = -1;
     float epsilon = 1e-5f;
-    
+
     // Attention
     bool causal_mask = false;
     float dropout = 0.0f;
-    
+
     // Generic
     std::map<std::string, std::variant<int, float, bool, std::string>> extra;
 };
@@ -1743,29 +1743,29 @@ struct OpAttributes {
 //! An operation node in the logical graph
 class OpNode {
     friend class LogicalGraph;
-    
+
 private:
     NodeId id_;
     OpType type_;
     OpAttributes attrs_;
     LogicalGraph* graph_;
-    
+
     // Edges
     std::vector<TensorNode*> inputs_;
     std::vector<TensorNode*> outputs_;
-    
+
 public:
     OpNode(NodeId id, OpType type, OpAttributes attrs, LogicalGraph* graph);
-    
+
     // Accessors
     NodeId id() const { return id_; }
     OpType type() const { return type_; }
     const OpAttributes& attributes() const { return attrs_; }
-    
+
     // Graph structure
     const std::vector<TensorNode*>& inputs() const { return inputs_; }
     const std::vector<TensorNode*>& outputs() const { return outputs_; }
-    
+
     // Analysis
     std::string name() const;  // Human-readable name
     Index estimate_flops() const;  // FLOPs for this operation
@@ -1786,10 +1786,10 @@ private:
     std::vector<std::unique_ptr<TensorNode>> tensor_nodes_;
     std::vector<std::unique_ptr<OpNode>> op_nodes_;
     std::set<std::string> output_names_;  // Tensors marked as outputs
-    
+
     // Node ID counter
     NodeId next_id_ = 0;
-    
+
     // Helpers
     TensorNode& create_tensor(const std::string& name, TensorSpec spec);
     OpNode& create_op(OpType type, OpAttributes attrs,
@@ -1798,117 +1798,117 @@ private:
 
 public:
     explicit LogicalGraph(const std::string& name = "");
-    
+
     // ═══════════════════════════════════════════════════════════
     // Tensor Creation - just tensors, no roles
     // ═══════════════════════════════════════════════════════════
-    
+
     //! Create a tensor
     TensorNode& tensor(const TensorSpec& spec, const std::string& name);
-    
+
     //! Mark tensor as output (so it can be retrieved after execution)
     void mark_output(const std::string& tensor_name);
-    
+
     // ═══════════════════════════════════════════════════════════
     // Operations
     // ═══════════════════════════════════════════════════════════
-    
+
     // Elementwise
     TensorNode& add(TensorNode& a, TensorNode& b, const std::string& name = "");
     TensorNode& mul(TensorNode& a, TensorNode& b, const std::string& name = "");
     TensorNode& gelu(TensorNode& x, const std::string& name = "");
     TensorNode& relu(TensorNode& x, const std::string& name = "");
     TensorNode& silu(TensorNode& x, const std::string& name = "");
-    
+
     // Linear algebra
     TensorNode& matmul(TensorNode& a, TensorNode& b,
                        bool trans_a = false, bool trans_b = false,
                        const std::string& name = "");
-    
+
     // Normalization
     TensorNode& layer_norm(TensorNode& x, TensorNode& gamma, TensorNode& beta,
                            float eps = 1e-5f, const std::string& name = "");
     TensorNode& rms_norm(TensorNode& x, TensorNode& gamma,
                          float eps = 1e-5f, const std::string& name = "");
-    
+
     // Attention
     TensorNode& scaled_dot_product_attention(
         TensorNode& q, TensorNode& k, TensorNode& v,
         bool causal = false, float dropout = 0.0f,
         const std::string& name = "");
-    
+
     // Data movement
     TensorNode& transpose(TensorNode& x, std::vector<int> perm,
                           const std::string& name = "");
     TensorNode& reshape(TensorNode& x, std::vector<Dimension> new_shape,
                         const std::string& name = "");
-    
+
     // Embedding
     TensorNode& embedding(TensorNode& indices, TensorNode& table,
                           const std::string& name = "");
-    
+
     // ═══════════════════════════════════════════════════════════
     // Analysis
     // ═══════════════════════════════════════════════════════════
-    
+
     //! Get topological order of operations
     std::vector<OpNode*> topological_order() const;
-    
+
     //! Get all tensor nodes
     const std::vector<std::unique_ptr<TensorNode>>& tensors() const;
-    
+
     //! Get all operation nodes
     const std::vector<std::unique_ptr<OpNode>>& operations() const;
-    
+
     //! Query methods
     size_t num_operations() const { return op_nodes_.size(); }
     size_t num_tensors() const { return tensor_nodes_.size(); }
     const std::set<std::string>& outputs() const { return output_names_; }
-    
+
     //! Get all tensor names
     std::vector<std::string> tensor_names() const;
-    
+
     //! Get tensor by name
     TensorNode* get_tensor(const std::string& name);
-    
+
     //! Estimate total FLOPs
     Index estimate_flops() const;
-    
+
     //! Estimate total memory for all tensors (in bytes)
     Index estimate_memory() const;
-    
+
     //! Check if graph has symbolic dimensions
     bool has_symbolic_dims() const;
-    
+
     //! Get all symbolic dimension names
     std::set<std::string> symbolic_dim_names() const;
-    
+
     // ═══════════════════════════════════════════════════════════
     // Serialization
     // ═══════════════════════════════════════════════════════════
-    
+
     //! Save graph to file (JSON or binary)
     void save(const std::string& path) const;
-    
+
     //! Load graph from file
     static LogicalGraph load(const std::string& path);
-    
+
     // ═══════════════════════════════════════════════════════════
     // Visualization
     // ═══════════════════════════════════════════════════════════
-    
+
     //! Export to DOT format (Graphviz)
     std::string to_dot(const VisualizationOptions& opts = {}) const;
-    
+
     //! Export to Mermaid format (renders in GitHub markdown)
     std::string to_mermaid(const VisualizationOptions& opts = {}) const;
-    
+
     //! Export to JSON for custom visualizers
     std::string to_json(bool pretty = true) const;
-    
+
     //! Render graph to image file (requires Graphviz installed)
     void render(const std::string& path, const std::string& format = "svg") const;
-    
+
     //! Display in Jupyter notebook (Python only)
     // void display() const;  // Implemented in Python wrapper
 };
@@ -1920,23 +1920,23 @@ struct VisualizationOptions {
     bool show_dtypes = true;           // Show data types
     bool show_tensor_names = true;     // Show tensor names
     bool show_op_names = true;         // Show operation names
-    
+
     // Grouping
     bool group_by_prefix = false;      // Group nodes by name prefix (e.g., "layer_0_")
-    
+
     // Coloring
     bool color_by_role = true;         // Different colors for input/param/buffer/output
     bool color_by_dtype = false;       // Different colors for fp32/fp16/etc.
-    
+
     // Layout
     enum class Direction { TopToBottom, LeftToRight };
     Direction direction = Direction::TopToBottom;
-    
+
     // Filtering
     std::set<std::string> hide_tensors;  // Tensor names to hide
     std::set<OpType> hide_ops;           // Op types to hide
     bool hide_constants = false;         // Hide constant tensors
-    
+
     // Detail level
     enum class DetailLevel { Minimal, Normal, Detailed };
     DetailLevel detail = DetailLevel::Normal;
@@ -1955,18 +1955,18 @@ namespace nntile::graph {
 //! Tiling specification for a tensor (supports non-uniform tiling)
 struct TilingSpec {
     std::vector<DimensionTiling> dim_tilings;
-    
+
     // Computed properties
     std::vector<std::vector<Index>> tile_boundaries;  // Per dimension
     std::vector<Index> grid_shape;                     // Number of tiles per dim
     Index num_tiles;
-    
+
     //! Get shape of specific tile
     std::vector<Index> tile_shape(const std::vector<Index>& tile_index) const;
-    
+
     //! Get linear tile index from multi-dimensional index
     Index linear_index(const std::vector<Index>& tile_index) const;
-    
+
     // Factory methods
     static TilingSpec uniform(const std::vector<Index>& tile_shape);
     static TilingSpec from_boundaries(const std::vector<std::vector<Index>>& boundaries);
@@ -1979,34 +1979,34 @@ struct TilingSpec {
 struct TileDistribution {
     //! tile_linear_index -> owning_node_id
     std::vector<int> tile_owners;
-    
+
     //! Get owner of a tile
     int owner(Index tile_idx) const { return tile_owners[tile_idx]; }
-    
+
     //! Get all tiles owned by a node
     std::vector<Index> tiles_on_node(int node_id) const;
-    
+
     //! Get number of tiles on a node
     Index num_tiles_on_node(int node_id) const;
-    
+
     // Factory methods for common patterns
-    
+
     //! Round-robin distribution
     static TileDistribution round_robin(Index num_tiles, int num_nodes);
-    
+
     //! Block distribution (contiguous tiles per node)
     static TileDistribution block(Index num_tiles, int num_nodes);
-    
+
     //! Block distribution along specific dimension
     static TileDistribution block_along_dim(
         const std::vector<Index>& grid_shape,
         int dim,
         int num_nodes
     );
-    
+
     //! Custom mapping
     static TileDistribution custom(std::vector<int> owners);
-    
+
     //! Load-balanced based on tile sizes and node performance
     static TileDistribution load_balanced(
         const TilingSpec& tiling,
@@ -2020,7 +2020,7 @@ struct PhysicalTensor {
     TensorNode* logical;
     TilingSpec tiling;
     TileDistribution distribution;
-    
+
     // Analysis
     Index memory_on_node(int node_id) const;
     Index total_memory() const;
@@ -2030,7 +2030,7 @@ struct PhysicalTensor {
 //! Rule: task executes on the node that owns the output tile
 struct PhysicalOp {
     OpNode* logical;
-    
+
     //! For each output tile, execution info
     struct TileTask {
         Index output_tile_idx;
@@ -2046,15 +2046,15 @@ class PhysicalGraph {
 private:
     LogicalGraph* logical_;
     std::map<std::string, Index> shape_bindings_;  // Symbolic dim bindings
-    
+
     // Physical decisions
     std::map<NodeId, PhysicalTensor> tensor_physical_;
     std::map<NodeId, PhysicalOp> op_physical_;
-    
+
     // Strategy
     int num_nodes_;
     TilingStrategy tiling_strategy_;
-    
+
     // Computed
     bool compiled_ = false;
     Index total_memory_ = 0;
@@ -2065,55 +2065,55 @@ public:
     PhysicalGraph(LogicalGraph& logical,
                   int num_nodes,
                   const std::map<std::string, Index>& shape_bindings = {});
-    
+
     // ═══════════════════════════════════════════════════════════
     // Configuration
     // ═══════════════════════════════════════════════════════════
-    
+
     //! Set tiling strategy
     void set_tiling(const TilingStrategy& strategy);
-    
+
     //! Override tiling for specific tensor
     void set_tensor_tiling(const std::string& name, const TilingSpec& spec);
-    
+
     //! Override tile distribution for specific tensor
     void set_tensor_distribution(const std::string& name, const TileDistribution& dist);
-    
+
     //! Set distribution for specific tensor
     void set_tensor_distribution(const std::string& name, const TileDistribution& dist);
-    
+
     // ═══════════════════════════════════════════════════════════
     // Compilation
     // ═══════════════════════════════════════════════════════════
-    
+
     //! Compile physical decisions (tiling, distribution, scheduling)
     void compile();
-    
+
     //! Check if compiled
     bool is_compiled() const { return compiled_; }
-    
+
     // ═══════════════════════════════════════════════════════════
     // Analysis (available after compile)
     // ═══════════════════════════════════════════════════════════
-    
+
     //! Memory per node (bytes)
     Index memory_on_node(int node_id) const;
-    
+
     //! Maximum memory across all nodes
     Index max_memory_per_node() const;
-    
+
     //! Total memory (sum across nodes)
     Index total_memory() const;
-    
+
     //! Get physical tensor info
     const PhysicalTensor& physical_tensor(const std::string& name) const;
-    
+
     //! Get physical op info
     const PhysicalOp& physical_op(const OpNode& op) const;
-    
+
     //! Estimate data movement (bytes transferred between nodes)
     Index estimate_communication() const;
-    
+
     //! Export tiling/distribution decisions for debugging
     std::string dump_physical_plan() const;
 };
@@ -2130,79 +2130,79 @@ namespace nntile::graph {
 class ExecutableGraph {
 private:
     PhysicalGraph* physical_;
-    
+
     // Actual tensor storage (maps to runtime::DataHandle)
     std::map<NodeId, std::unique_ptr<runtime::DataHandle>> data_handles_;
-    
+
     // Execution state
     enum class State { Uninitialized, Ready, Executing, Completed };
     State state_ = State::Uninitialized;
-    
+
     // Task handles for async execution
     runtime::TaskGroup tasks_;
 
 public:
     //! Create executable from physical graph
     explicit ExecutableGraph(PhysicalGraph& physical);
-    
+
     ~ExecutableGraph();
-    
+
     // ═══════════════════════════════════════════════════════════
     // Initialization
     // ═══════════════════════════════════════════════════════════
-    
+
     //! Initialize tensor with specific initializer
     void init_tensor(const std::string& name, const std::string& initializer);  // "zeros", "xavier", "ones", etc.
-    
+
     //! Load tensor data from checkpoint file
     void load_tensors(const std::string& path);
-    
+
     //! Save tensor data to checkpoint file
     void save_tensors(const std::string& path, const std::vector<std::string>& names);
-    
+
     // ═══════════════════════════════════════════════════════════
     // Data Binding - just bind data to tensors by name
     // ═══════════════════════════════════════════════════════════
-    
+
     //! Bind data to tensor (copies data into internal storage)
     void bind_data(const std::string& name, const void* data, size_t size);
-    
+
     //! Bind data from numpy array (Python interface)
     void bind_data_numpy(const std::string& name, /* numpy array */);
-    
+
     //! Bind data from existing tensor (zero-copy if possible)
     void bind_data_tensor(const std::string& name, const tensor::Tensor<auto>& t);
-    
+
     //! Get tensor data (copies data out) - only for tensors marked as output
     void get_output(const std::string& name, void* data, size_t size);
-    
+
     //! Get output as new tensor
     template<typename T>
     tensor::Tensor<T> get_output_tensor(const std::string& name);
-    
+
     // ═══════════════════════════════════════════════════════════
     // Execution
     // ═══════════════════════════════════════════════════════════
-    
+
     //! Execute graph (async)
     void execute_async();
-    
+
     //! Execute graph (blocking)
     void execute();
-    
+
     //! Wait for all operations to complete
     void synchronize();
-    
+
     //! Clear specified tensors (free memory)
     void clear_tensors(const std::vector<std::string>& names = {});  // Empty = clear all except bound
-    
+
     // ═══════════════════════════════════════════════════════════
     // Advanced
     // ═══════════════════════════════════════════════════════════
-    
+
     //! Access underlying data handle (for advanced use)
     runtime::DataHandle& data_handle(const std::string& tensor_name);
-    
+
     //! Get execution statistics
     struct ExecutionStats {
         double execution_time_ms;
@@ -2235,17 +2235,17 @@ Output:
 digraph simple_mlp {
     rankdir=TB;
     node [shape=box, style=filled];
-    
+
     // Tensors
     x [label="x\n[128, 512]\nfp32", fillcolor="#a8d5ba"];  // Input: green
     w [label="w\n[512, 256]\nfp32", fillcolor="#f4a460"];  // Parameter: orange
     hidden [label="hidden\n[128, 256]\nfp32", fillcolor="#d3d3d3"];  // Buffer: gray
     activation [label="activation\n[128, 256]\nfp32", fillcolor="#87ceeb"];  // Output: blue
-    
+
     // Operations
     matmul_0 [label="MatMul", shape=ellipse, fillcolor="#ffffcc"];
     gelu_0 [label="GeLU", shape=ellipse, fillcolor="#ffffcc"];
-    
+
     // Edges
     x -> matmul_0;
     w -> matmul_0;
@@ -2269,26 +2269,26 @@ graph TD
     subgraph Inputs
         x["x<br/>[128, 512]<br/>fp32"]
     end
-    
+
     subgraph Parameters
         w["w<br/>[512, 256]<br/>fp32"]
     end
-    
+
     subgraph Operations
         matmul_0(("MatMul"))
         gelu_0(("GeLU"))
     end
-    
+
     subgraph Outputs
         activation["activation<br/>[128, 256]<br/>fp32"]
     end
-    
+
     x --> matmul_0
     w --> matmul_0
     matmul_0 --> hidden["hidden<br/>[128, 256]"]
     hidden --> gelu_0
     gelu_0 --> activation
-    
+
     style x fill:#a8d5ba
     style w fill:#f4a460
     style activation fill:#87ceeb
@@ -2348,21 +2348,21 @@ namespace nntile::graph {
 //! Tile distribution = ownership mapping, nothing more
 struct TileDistribution {
     std::vector<int> tile_owners;  // tile_owners[tile_idx] = node_id
-    
+
     //! Get owner of a tile
     int owner(Index tile_idx) const { return tile_owners[tile_idx]; }
-    
+
     //! Get all tiles owned by a node
     std::vector<Index> tiles_on_node(int node_id) const;
-    
+
     //! Modify ownership (for resilient computing)
     void set_owner(Index tile_idx, int new_node_id) {
         tile_owners[tile_idx] = new_node_id;
     }
-    
+
     //! Migrate tiles from one node to another (resilience)
     void migrate_from_node(int from_node, int to_node);
-    
+
     //! Rebalance across available nodes (excludes failed nodes)
     void rebalance(const std::vector<int>& available_nodes);
 };
@@ -2404,7 +2404,7 @@ void apply_fsdp(PhysicalGraph& pg, int num_nodes);
 void apply_tensor_parallel(PhysicalGraph& pg, int num_nodes, int shard_dim);
 
 //! Pipeline Parallel: shard layers across nodes
-void apply_pipeline_parallel(PhysicalGraph& pg, int num_nodes, 
+void apply_pipeline_parallel(PhysicalGraph& pg, int num_nodes,
                               const std::vector<std::string>& stage_boundaries);
 
 } // namespace nntile::graph
@@ -2416,17 +2416,17 @@ void apply_pipeline_parallel(PhysicalGraph& pg, int num_nodes,
 // Example: GPU 2 is overheating, migrate its tiles to other nodes
 void handle_node_degradation(PhysicalGraph& pg, int degraded_node) {
     auto available_nodes = get_healthy_nodes();  // Excludes degraded_node
-    
+
     for (auto& [name, tensor] : pg.tensors()) {
         auto& dist = tensor.distribution;
-        
+
         // Option 1: Migrate to specific node
         dist.migrate_from_node(degraded_node, /*to=*/0);
-        
+
         // Option 2: Rebalance across remaining nodes
         dist.rebalance(available_nodes);
     }
-    
+
     // Recompile to update task assignments
     pg.recompile();
 }
@@ -2434,11 +2434,11 @@ void handle_node_degradation(PhysicalGraph& pg, int degraded_node) {
 // Example: Node recovered, rebalance to include it
 void handle_node_recovery(PhysicalGraph& pg, int recovered_node) {
     auto all_nodes = get_all_nodes();  // Now includes recovered_node
-    
+
     for (auto& [name, tensor] : pg.tensors()) {
         tensor.distribution.rebalance(all_nodes);
     }
-    
+
     pg.recompile();
 }
 ```
@@ -2480,7 +2480,7 @@ struct DimTilingConstraint {
         Full,           // No tiling (tile = full dimension)
         Shard           // Tile across devices (for distribution)
     };
-    
+
     Type type = Type::Auto;
     Index value = 0;  // Meaning depends on type
 };
@@ -2489,21 +2489,21 @@ struct DimTilingConstraint {
 struct TensorTilingConstraints {
     std::string tensor_name;
     std::map<int, DimTilingConstraint> dim_constraints;  // dim_idx -> constraint
-    
+
     // Convenience setters
     TensorTilingConstraints& dim(int idx, DimTilingConstraint::Type type, Index value = 0) {
         dim_constraints[idx] = {type, value};
         return *this;
     }
-    
+
     TensorTilingConstraints& full_dim(int idx) {
         return dim(idx, DimTilingConstraint::Type::Full);
     }
-    
+
     TensorTilingConstraints& shard_dim(int idx) {
         return dim(idx, DimTilingConstraint::Type::Shard);
     }
-    
+
     TensorTilingConstraints& fixed_dim(int idx, Index tile_size) {
         return dim(idx, DimTilingConstraint::Type::Fixed, tile_size);
     }
@@ -2514,15 +2514,15 @@ class TilingStrategy {
 private:
     enum class Mode { Auto, Manual, Constrained };
     Mode mode_;
-    
+
     // Auto mode settings
     Index target_tile_bytes_ = 64 * 1024 * 1024;  // 64 MB default
     Index min_tile_size_ = 64;
     Index max_tile_size_ = 8192;
-    
+
     // Manual mode settings
     std::map<std::string, std::vector<Index>> manual_tilings_;
-    
+
     // Constrained mode settings
     std::vector<TensorTilingConstraints> constraints_;
 
@@ -2540,7 +2540,7 @@ public:
         s.max_tile_size_ = max_tile_size;
         return s;
     }
-    
+
     //! Manual tiling - user specifies exact tile sizes
     static TilingStrategy manual(
         const std::map<std::string, std::vector<Index>>& tilings
@@ -2550,7 +2550,7 @@ public:
         s.manual_tilings_ = tilings;
         return s;
     }
-    
+
     //! Constrained tiling - auto with constraints
     static TilingStrategy constrained(
         const std::vector<TensorTilingConstraints>& constraints,
@@ -2562,7 +2562,7 @@ public:
         s.target_tile_bytes_ = target_tile_bytes;
         return s;
     }
-    
+
     //! Compute tile shapes for all tensors in graph
     std::map<std::string, std::vector<Index>> compute_tilings(
         const LogicalGraph& graph,
@@ -2584,20 +2584,20 @@ struct ExecutionPolicy {
         AFFINITY_BASED, // Consider data locality
         EXPLICIT        // User specifies mapping
     };
-    
+
     PlacementStrategy placement = PlacementStrategy::OWNER_COMPUTES;
-    
+
     // Worker binding
     bool bind_to_gpu = true;
     std::vector<int> preferred_gpus;  // Empty = use all
-    
+
     // Task priority
     int base_priority = 0;
-    
+
     // Memory management
     bool enable_offloading = false;
     float offload_threshold = 0.8;  // Offload when GPU memory > 80%
-    
+
     // Execution hints for StarPU
     bool enable_commute = false;    // Allow commutative task reordering
     bool prefetch_data = true;
@@ -2641,8 +2641,8 @@ struct TaskExecutionHints {
 };
 
 void Gelu<std::tuple<T>>::submit(
-    Index nelems, 
-    Handle src, 
+    Index nelems,
+    Handle src,
     Handle dst,
     const TaskExecutionHints& hints = {}
 );
@@ -2661,7 +2661,7 @@ void Gelu<std::tuple<T>>::submit(
 ) {
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
-    
+
     // Build task insertion arguments
     std::vector<int> task_args;
     task_args.push_back(STARPU_R);
@@ -2671,7 +2671,7 @@ void Gelu<std::tuple<T>>::submit(
     task_args.push_back(STARPU_CL_ARGS);
     task_args.push_back(reinterpret_cast<int>(args));
     task_args.push_back(sizeof(*args));
-    
+
     // Add execution hints if specified
     if (hints.target_node >= 0) {
         task_args.push_back(STARPU_EXECUTE_ON_NODE);
@@ -2685,9 +2685,9 @@ void Gelu<std::tuple<T>>::submit(
         task_args.push_back(STARPU_PRIORITY);
         task_args.push_back(hints.priority);
     }
-    
+
     task_args.push_back(0);  // Terminator
-    
+
     int ret = starpu_task_insert(&codelet, /* variadic from task_args */);
     if(ret != 0) {
         throw std::runtime_error("Error in gelu task submission");
@@ -2704,15 +2704,15 @@ struct ExecutionContext {
     int mpi_rank;
     int mpi_size;
     ExecutionPolicy exec_policy;
-    
+
     // Get target node for a tile (from TileDistribution stored in PhysicalGraph)
     int get_tile_node(const TileDistribution& dist, Index tile_idx) const {
         return dist.get_owner(tile_idx);
     }
-    
+
     // Get target worker for a tile on a given node
     int get_tile_worker(int node_id, Index local_tile_idx) const;
-    
+
     // Build execution hints for a tile
     TaskExecutionHints get_hints(const TileDistribution& dist, Index tile_idx) const;
 };
@@ -2730,7 +2730,7 @@ Enhanced signature:
 ```cpp
 template<typename T>
 void gelu_async(
-    const Tensor<T> &src, 
+    const Tensor<T> &src,
     const Tensor<T> &dst,
     const ExecutionContext& ctx = ExecutionContext::default_context()
 );
@@ -2745,22 +2745,22 @@ void gelu_async(const Tensor<T> &src, const Tensor<T> &dst, const ExecutionConte
         throw std::runtime_error("dst.ndim != src.ndim");
     }
     // ... shape checks ...
-    
+
     int mpi_rank = ctx.mpi_rank;
     for(Index i = 0; i < src.grid.nelems; ++i) {
         auto src_tile_handle = src.get_tile_handle(i);
         auto dst_tile_handle = dst.get_tile_handle(i);
         int dst_tile_rank = ctx.get_tile_node(dst, i);
-        
+
         // Transfer data to target node
         src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        
+
         // Execute only on destination node
         if(mpi_rank == dst_tile_rank) {
             auto tile_traits = src.get_tile_traits(i);
             auto hints = ctx.get_hints(dst, i);
             starpu::gelu.submit<std::tuple<T>>(
-                tile_traits.nelems, 
+                tile_traits.nelems,
                 src_tile_handle,
                 dst_tile_handle,
                 hints
@@ -2784,46 +2784,46 @@ void gelu_async(const Tensor<T> &src, const Tensor<T> &dst, const ExecutionConte
 
 class LogicalGraph:
     """Logical graph - defines what to compute."""
-    
+
     def __init__(self, name: str = ""):
         self._name = name
         self._tensor_nodes = []
         self._op_nodes = []
         self._output_names = set()
-    
+
     def tensor(self, spec: TensorSpec, name: str) -> TensorNode:
         """Create a tensor. Just a tensor - no roles."""
-        
+
     def mark_output(self, name: str):
         """Mark a tensor as output (retrievable after execution)."""
-    
+
     # Operations - return new TensorNode
     def matmul(self, a: TensorNode, b: TensorNode, name: str,
                trans_a: bool = False, trans_b: bool = False) -> TensorNode:
         """Matrix multiplication."""
-        
+
     def gelu(self, x: TensorNode, name: str) -> TensorNode:
         """GeLU activation."""
-        
-    def layer_norm(self, x: TensorNode, gamma: TensorNode, 
+
+    def layer_norm(self, x: TensorNode, gamma: TensorNode,
                    beta: TensorNode, name: str, eps: float = 1e-5) -> TensorNode:
         """Layer normalization."""
-    
+
     def cast(self, x: TensorNode, dtype: DataType, name: str) -> TensorNode:
         """Explicit dtype conversion."""
-    
+
     # Graph composition
-    def embed(self, other: "LogicalGraph", 
+    def embed(self, other: "LogicalGraph",
               input_bindings: Dict[str, str],
               prefix: str = "") -> Dict[str, str]:
         """Embed another graph, returning output tensor names."""
-    
+
     # Queries
     def num_tensors(self) -> int: ...
     def num_operations(self) -> int: ...
     def tensor_names(self) -> List[str]: ...
     def get_tensor(self, name: str) -> Optional[TensorNode]: ...
-    
+
     # Visualization
     def to_dot(self) -> str: ...
     def to_mermaid(self) -> str: ...
@@ -2831,15 +2831,15 @@ class LogicalGraph:
 
 class CompiledGraph:
     """Compiled graph - ready for execution."""
-    
+
     @staticmethod
-    def compile(logical: LogicalGraph, 
+    def compile(logical: LogicalGraph,
                 num_nodes: int = 1,
                 tiling: Optional[TilingStrategy] = None,
                 configure_distribution: Optional[Callable] = None,
                 shape_bindings: Optional[Dict[str, int]] = None) -> "CompiledGraph":
         """Compile a logical graph."""
-        
+
     def bind_data(self, name: str, data: np.ndarray): ...
     def get_output(self, name: str) -> np.ndarray: ...
     def execute(self): ...
@@ -2849,13 +2849,13 @@ class CompiledGraph:
 
 class DistributionPreset:
     """Distribution preset functions."""
-    
+
     @staticmethod
     def apply_ddp(pg: "PhysicalGraph", num_nodes: int): ...
-    
-    @staticmethod  
+
+    @staticmethod
     def apply_fsdp(pg: "PhysicalGraph", num_nodes: int, shard_degree: int = -1): ...
-    
+
     @staticmethod
     def apply_tensor_parallel(pg: "PhysicalGraph", num_nodes: int, partition_dim: int): ...
 ```
@@ -3090,7 +3090,7 @@ Track F (Runtime Abstraction)  ════════════════�
    - Abstract interfaces (`Backend`, `DataHandle`, `TaskHandle`)
    - StarPU implementation
    - TaskHandle RAII wrapper
-   
+
 2. **Tracks A, B, D, E** - Can proceed in parallel once Track F interfaces are defined
    - Track A: MPI support integrates into `DataHandle::mpi_*` methods
    - Track B: Execution hints integrate into `ExecutionHints` struct
@@ -3182,7 +3182,7 @@ class LogicalGraph {
 public:
     //! Create a tensor - that's it, just a tensor
     TensorNode& tensor(const TensorSpec& spec, const std::string& name);
-    
+
     //! Mark tensors as graph outputs (for get_output() after execution)
     void mark_output(const std::string& tensor_name);
 };
@@ -3230,17 +3230,17 @@ namespace nntile::graph {
 class CompiledGraph {
 private:
     LogicalGraph* logical_;
-    
+
     // Physical decisions (computed at compile time)
     std::map<NodeId, TilingSpec> tilings_;
     std::map<NodeId, TileDistribution> distributions_;
     int num_nodes_;
-    
+
     // Execution state (allocated lazily on first use)
     enum class AllocationState { NotAllocated, Allocated };
     AllocationState alloc_state_ = AllocationState::NotAllocated;
     std::map<NodeId, std::unique_ptr<runtime::DataHandle>> handles_;
-    
+
     void ensure_allocated();
 
 public:
@@ -3250,7 +3250,7 @@ public:
         const TilingStrategy& tiling = TilingStrategy::auto_tiling(),
         const std::map<std::string, Index>& shape_bindings = {}
     );
-    
+
     //! Compile logical graph for multiple nodes
     static CompiledGraph compile(
         LogicalGraph& logical,
@@ -3259,26 +3259,26 @@ public:
         const std::map<std::string, Index>& shape_bindings = {},
         std::function<void(PhysicalGraph&)> configure_distribution = nullptr
     );
-    
+
     // ═══════════════════════════════════════════════════════════
     // Analysis (available immediately after compile, before allocation)
     // ═══════════════════════════════════════════════════════════
-    
+
     Index memory_per_device(int device_id) const;
     Index max_memory_per_device() const;
     Index estimate_communication() const;
     const TilingSpec& tiling(const std::string& tensor_name) const;
     const DistributionSpec& distribution(const std::string& tensor_name) const;
     std::string dump_plan() const;  // Human-readable plan
-    
+
     // ═══════════════════════════════════════════════════════════
     // Execution (triggers allocation on first call)
     // ═══════════════════════════════════════════════════════════
-    
+
     void bind_data(const std::string& name, const void* data, size_t size);
     void execute();  // Run all ops in the graph
     void get_output(const std::string& name, void* data, size_t size);
-    
+
     // ... rest of execution API
 };
 
@@ -3328,7 +3328,7 @@ public:
         const std::map<std::string, TensorNode*>& input_bindings,
         const std::string& prefix = ""  // Prefix for tensor names
     );
-    
+
     //! Create a reusable "function" from a graph
     //! (Clones the graph structure each time it's called)
     static std::function<std::map<std::string, TensorNode*>(
@@ -3345,21 +3345,21 @@ public:
 // Define attention block as reusable graph
 LogicalGraph make_attention_block() {
     LogicalGraph block("attention");
-    
+
     // All are just tensors - no input/parameter distinction
     auto& x = block.tensor(TensorSpec({seq, batch, embed}), "x");
     auto& wq = block.tensor(TensorSpec({embed, embed}), "Wq");
     auto& wk = block.tensor(TensorSpec({embed, embed}), "Wk");
     auto& wv = block.tensor(TensorSpec({embed, embed}), "Wv");
     auto& wo = block.tensor(TensorSpec({embed, embed}), "Wo");
-    
+
     auto& q = block.matmul(x, wq, "q");
     auto& k = block.matmul(x, wk, "k");
     auto& v = block.matmul(x, wv, "v");
     auto& attn = block.scaled_dot_product_attention(q, k, v, "attn");
     auto& out = block.matmul(attn, wo, "out");
     auto& res = block.add(out, x, "residual");
-    
+
     block.mark_output("residual");
     return block;
 }
@@ -3405,21 +3405,21 @@ Loss functions are regular operations in the graph. They output a scalar (or per
 class LogicalGraph {
 public:
     // Loss operations - output scalar or per-sample loss
-    
+
     //! Cross-entropy loss: -sum(target * log(softmax(logits)))
     TensorNode& cross_entropy_loss(
         TensorNode& logits,      // [batch, num_classes]
         TensorNode& targets,     // [batch] (class indices) or [batch, num_classes] (one-hot)
         const std::string& name = ""
     );
-    
+
     //! MSE loss: mean((pred - target)^2)
     TensorNode& mse_loss(
         TensorNode& predictions,
         TensorNode& targets,
         const std::string& name = ""
     );
-    
+
     //! Generic reduction for aggregating losses
     TensorNode& reduce_mean(TensorNode& x, const std::string& name = "");
     TensorNode& reduce_sum(TensorNode& x, const std::string& name = "");
@@ -3454,7 +3454,7 @@ graph.mark_output("logits");
 class LogicalGraph {
 public:
     // Optimizer operations
-    
+
     //! SGD update: param = param - lr * grad
     TensorNode& sgd_update(
         TensorNode& param,
@@ -3462,8 +3462,8 @@ public:
         TensorNode& learning_rate,  // Scalar tensor
         const std::string& name = ""
     );
-    
-    //! SGD with momentum: 
+
+    //! SGD with momentum:
     //! velocity = momentum * velocity + grad
     //! param = param - lr * velocity
     TensorNode& sgd_momentum_update(
@@ -3474,7 +3474,7 @@ public:
         TensorNode& momentum,       // Scalar (e.g., 0.9)
         const std::string& name = ""
     );
-    
+
     //! Adam update
     TensorNode& adam_update(
         TensorNode& param,
@@ -3500,24 +3500,24 @@ LogicalGraph create_optimizer_graph(
     const std::string& optimizer_type = "adam"
 ) {
     LogicalGraph opt_graph("optimizer");
-    
+
     // Hyperparameters (just tensors - will be bound before execution)
     auto& lr = opt_graph.tensor(TensorSpec({1}, FP32), "learning_rate");
-    
+
     if (optimizer_type == "adam") {
         auto& beta1 = opt_graph.tensor(TensorSpec({1}, FP32), "beta1");
         auto& beta2 = opt_graph.tensor(TensorSpec({1}, FP32), "beta2");
         auto& epsilon = opt_graph.tensor(TensorSpec({1}, FP32), "epsilon");
         auto& step = opt_graph.tensor(TensorSpec({1}, INT64), "step");
     }
-    
+
     for (const auto& [name, spec] : param_specs) {
         // Parameter tensor
         auto& param = opt_graph.tensor(spec, name);
-        
+
         // Gradient tensor
         auto& grad = opt_graph.tensor(spec, name + "_grad");
-        
+
         if (optimizer_type == "sgd") {
             opt_graph.sgd_update(param, grad, lr, name + "_update");
         }
@@ -3525,8 +3525,8 @@ LogicalGraph create_optimizer_graph(
             // Optimizer state tensors
             auto& m = opt_graph.tensor(spec, name + "_m");
             auto& v = opt_graph.tensor(spec, name + "_v");
-            
-            opt_graph.adam_update(param, grad, m, v, lr, 
+
+            opt_graph.adam_update(param, grad, m, v, lr,
                                   *opt_graph.get_tensor("beta1"),
                                   *opt_graph.get_tensor("beta2"),
                                   *opt_graph.get_tensor("epsilon"),
@@ -3534,7 +3534,7 @@ LogicalGraph create_optimizer_graph(
                                   name + "_update");
         }
     }
-    
+
     return opt_graph;
 }
 ```
@@ -3593,27 +3593,27 @@ int global_step = 0;
 
 for (int epoch = 0; epoch < num_epochs; ++epoch) {
     for (int batch_idx = 0; batch_idx < num_batches; ++batch_idx) {
-        
+
         // Execute forward graph
         fwd_compiled.bind_data("x", data);
         fwd_compiled.bind_data("targets", labels);
         fwd_compiled.execute();
-        
+
         // Get activations needed for gradient computation
         auto logits = fwd_compiled.get_output_tensor<float>("logits");
-        
+
         // Execute gradient graph (accumulates gradients)
         bwd_compiled.bind_data_tensor("logits", logits);
         float scale = 1.0f / num_accumulation_steps;
         bwd_compiled.bind_data("dloss", &scale, sizeof(scale));
         bwd_compiled.execute();
-        
+
         // Optimizer step every N mini-batches
         if ((batch_idx + 1) % num_accumulation_steps == 0) {
             opt_compiled.bind_data("learning_rate", &lr, sizeof(lr));
             opt_compiled.bind_data("step", &global_step, sizeof(global_step));
             opt_compiled.execute();
-            
+
             // Clear gradient tensors for next accumulation
             bwd_compiled.clear_tensors();
             ++global_step;
@@ -3672,10 +3672,10 @@ class CompilationFuture {
 public:
     //! Check if compilation is complete
     bool is_ready() const;
-    
+
     //! Wait for compilation to complete and get result
     CompiledGraph get();
-    
+
     //! Wait with timeout, returns nullptr if not ready
     CompiledGraph* try_get(std::chrono::milliseconds timeout);
 };
@@ -3700,17 +3700,17 @@ public:
         const TilingStrategy& tiling,
         const std::map<std::string, Index>& shape_bindings
     );
-    
+
     //! Pre-compile graphs for expected shapes
     void prefetch(
         LogicalGraph& graph,
         int num_nodes,
         const std::vector<std::map<std::string, Index>>& expected_shapes
     );
-    
+
     //! Evict least recently used entries
     void evict(size_t target_cache_size);
-    
+
     //! Clear all cached compilations
     void clear();
 };
@@ -3746,10 +3746,10 @@ current_compiled = None
 
 for batch in inference_batches:
     seq_len = batch.shape[0]
-    
+
     # Start compiling for this batch (if not cached)
     shape_binding = {"seq_len": seq_len}
-    
+
     if pending_compilation is None:
         # First iteration: compile synchronously
         current_compiled = cache.get_or_compile(
@@ -3758,18 +3758,18 @@ for batch in inference_batches:
     else:
         # Wait for previous compilation if needed
         current_compiled = pending_compilation.get()
-    
+
     # Start async compilation for next batch (speculative)
     next_seq_len = predict_next_seq_len(batch)  # Heuristic
     pending_compilation = compile_async(
         model_graph, tiling_strategy, {"seq_len": next_seq_len}
     )
-    
+
     # Execute current batch
     current_compiled.bind_data("x", batch)
     current_compiled.execute()
     result = current_compiled.get_output("output")
-    
+
     yield result
 ```
 
@@ -3783,7 +3783,7 @@ class LLMInferenceEngine:
         self.graph = model_graph
         self.cache = CompilationCache()
         self.pending = {}  # seq_len -> CompilationFuture
-    
+
     def prefetch_compilations(self, current_len, lookahead=5):
         """Speculatively compile for upcoming sequence lengths."""
         for offset in range(1, lookahead + 1):
@@ -3792,7 +3792,7 @@ class LLMInferenceEngine:
                 self.pending[target_len] = compile_async(
                     self.graph, auto_tiling(), {"seq_len": target_len}
                 )
-    
+
     def get_compiled(self, seq_len):
         """Get compiled graph for sequence length, waiting if necessary."""
         if seq_len in self.pending:
@@ -3801,28 +3801,28 @@ class LLMInferenceEngine:
         return self.cache.get_or_compile(
             self.graph, auto_tiling(), {"seq_len": seq_len}
         )
-    
+
     def generate(self, prompt, max_new_tokens):
         seq_len = len(prompt)
-        
+
         for _ in range(max_new_tokens):
             # Prefetch compilations for future steps
             self.prefetch_compilations(seq_len, lookahead=5)
-            
+
             # Get compiled graph for current length
             compiled = self.get_compiled(seq_len)
-            
+
             # Execute
             compiled.bind_data("x", current_sequence)
             compiled.execute()
             next_token = sample(compiled.get_output("logits"))
-            
+
             current_sequence.append(next_token)
             seq_len += 1
-            
+
             if next_token == EOS:
                 break
-        
+
         return current_sequence
 ```
 
@@ -3848,37 +3848,37 @@ struct DimensionTiling {
     struct Uniform {
         Index tile_size;
     };
-    
+
     //! Option 2: Explicit boundaries
     struct Explicit {
         std::vector<Index> boundaries;  // [0, b1, b2, ..., dim_size]
         // Tile i spans [boundaries[i], boundaries[i+1])
     };
-    
+
     //! Option 3: Proportional (for load balancing)
     struct Proportional {
         std::vector<float> weights;  // Relative sizes, will be normalized
         // E.g., [1.0, 1.0, 0.8] for 3 tiles where last GPU is 20% slower
     };
-    
+
     std::variant<Uniform, Explicit, Proportional> spec;
-    
+
     // Factory methods
     static DimensionTiling uniform(Index tile_size) {
         return {Uniform{tile_size}};
     }
-    
+
     static DimensionTiling explicit_boundaries(std::vector<Index> bounds) {
         return {Explicit{std::move(bounds)}};
     }
-    
+
     static DimensionTiling proportional(std::vector<float> weights) {
         return {Proportional{std::move(weights)}};
     }
-    
+
     //! Compute actual boundaries given dimension size
     std::vector<Index> compute_boundaries(Index dim_size) const;
-    
+
     //! Get number of tiles
     Index num_tiles(Index dim_size) const;
 };
@@ -3886,13 +3886,13 @@ struct DimensionTiling {
 //! Complete tiling specification for a tensor
 struct TilingSpec {
     std::vector<DimensionTiling> dim_tilings;
-    
+
     //! Get tile shape for a specific tile index
     std::vector<Index> tile_shape(
         const std::vector<Index>& tensor_shape,
         const std::vector<Index>& tile_index
     ) const;
-    
+
     //! Get total number of tiles
     Index num_tiles(const std::vector<Index>& tensor_shape) const;
 };
@@ -3950,13 +3950,13 @@ public:
 struct DevicePerformanceProfile {
     //! Relative compute speed of each device (1.0 = baseline)
     std::map<int, float> device_speeds;
-    
+
     //! Memory available on each device
     std::map<int, size_t> device_memory;
-    
+
     //! Bandwidth between devices (for communication cost)
     std::map<std::pair<int, int>, float> interconnect_bandwidth;
-    
+
     // Factory methods
     static DevicePerformanceProfile homogeneous(int num_devices);
     static DevicePerformanceProfile from_benchmark(/* benchmark results */);
@@ -3997,41 +3997,41 @@ class AdaptiveTilingManager:
         self.profile = DevicePerformanceProfile.homogeneous(num_nodes)
         self.compiled = None
         self.iteration_times = []
-    
+
     def recompile_if_needed(self):
         """Recompile with updated tiling if performance is imbalanced."""
         if len(self.iteration_times) < 10:
             return  # Not enough data
-        
+
         # Analyze per-node times
         node_times = analyze_node_times(self.iteration_times[-10:])
-        
+
         # Check if rebalancing would help
         imbalance = max(node_times) / min(node_times)
         if imbalance > 1.1:  # More than 10% imbalance
             # Update profile based on measurements
             self.profile = DevicePerformanceProfile.from_benchmark(node_times)
-            
+
             # Recompile with new tiling
             new_tiling = TilingStrategy.load_balanced(self.profile)
             self.compiled = CompiledGraph.compile(self.graph, new_tiling)
-    
+
     def step(self, inputs):
         if self.compiled is None:
             self.compiled = CompiledGraph.compile(
                 self.graph, TilingStrategy.auto_tiling()
             )
-        
+
         # Execute
         start = time.time()
         self.compiled.bind_datas(inputs)
         self.compiled.execute()
         self.iteration_times.append(time.time() - start)
-        
+
         # Periodically check if rebalancing needed
         if len(self.iteration_times) % 100 == 0:
             self.recompile_if_needed()
-        
+
         return self.compiled.get_outputs()
 ```
 
@@ -4087,15 +4087,15 @@ public:
     void init(int argc, char* argv[]) override {
         // No-op or minimal init
     }
-    
+
     void shutdown() override {}
-    
+
     int num_workers() const override { return 1; }
     int num_cpu_workers() const override { return 1; }
     int num_gpu_workers() const override { return 0; }  // Or 1 for GPU devices
-    
+
     void wait_for_all() override {}  // Already synchronous
-    
+
     std::unique_ptr<DataHandle> create_data_handle(size_t size) override {
         return std::make_unique<SerialDataHandle>(size);
     }
@@ -4106,16 +4106,16 @@ class SerialDataHandle : public DataHandle {
 private:
     void* ptr_;
     size_t size_;
-    
+
 public:
     explicit SerialDataHandle(size_t size) : size_(size) {
         ptr_ = std::malloc(size);
     }
-    
+
     ~SerialDataHandle() {
         std::free(ptr_);
     }
-    
+
     void* acquire(AccessMode) override { return ptr_; }
     void release() override {}  // No-op for serial
 };
@@ -4142,7 +4142,7 @@ public:
     void* allocate(size_t size);
     void deallocate(void* ptr);
     void reset();  // Reclaim all memory for next inference
-    
+
     //! Pre-allocate for known graph
     void reserve_for_graph(const CompiledGraph& graph);
 };
@@ -4152,11 +4152,11 @@ class InferenceEngine {
 private:
     CompiledGraph* graph_;
     MemoryPool pool_;
-    
+
 public:
     //! One-time setup
     void load_model(const std::string& path);
-    
+
     //! Repeated inference (no allocation after warmup)
     void infer(const void* input, void* output);
 };
@@ -4172,28 +4172,28 @@ public:
 
 int main() {
     using namespace nntile;
-    
+
     // Initialize serial runtime (no StarPU needed)
     runtime::serial::SerialBackend backend;
     backend.init(0, nullptr);
-    
+
     // Load pre-compiled graph (compiled offline on workstation)
     auto graph = graph::CompiledGraph::load("model.nntile");
-    
+
     // Inference loop
     float input[INPUT_SIZE];
     float output[OUTPUT_SIZE];
-    
+
     while (running) {
         read_sensor_data(input);
-        
+
         graph.bind_data("x", input, sizeof(input));
         graph.execute();
         graph.get_output("y", output, sizeof(output));
-        
+
         process_output(output);
     }
-    
+
     backend.shutdown();
     return 0;
 }
@@ -4264,7 +4264,7 @@ void execute_matmul(const PhysicalOp& op, ExecutionContext& ctx) {
     auto& A = get_tensor<T>(op.inputs[0]);
     auto& B = get_tensor<T>(op.inputs[1]);
     auto& C = get_tensor<T>(op.outputs[0]);
-    
+
     // Call existing tensor-level gemm
     tensor::gemm_async<T>(
         op.attrs.alpha, op.attrs.trans_a, A,
@@ -4391,7 +4391,7 @@ private:
     std::string prefix_;
     Index in_features_;
     Index out_features_;
-    
+
     // Tensor names (set during forward)
     std::string x_name_;      // Input (saved for backward)
     std::string y_name_;      // Output
@@ -4410,7 +4410,7 @@ public:
         , dW_name_(prefix + "_dW")
         , db_name_(prefix + "_db")
     {}
-    
+
     //! Add weight and gradient tensors to graph (call once before forward/backward)
     void create_tensors(LogicalGraph& graph) {
         graph.tensor(TensorSpec({in_features_, out_features_}, DataType::FP32), W_name_);
@@ -4418,23 +4418,23 @@ public:
         graph.tensor(TensorSpec({in_features_, out_features_}, DataType::FP32), dW_name_);
         graph.tensor(TensorSpec({out_features_}, DataType::FP32), db_name_);
     }
-    
+
     //! Forward: y = x @ W + b
     //! Adds forward operations to graph, returns output tensor name
     std::string forward(LogicalGraph& graph, const std::string& x) {
         x_name_ = x;  // Save for backward
-        
+
         auto& x_ref = *graph.get_tensor(x);
         auto& W = *graph.get_tensor(W_name_);
         auto& b = *graph.get_tensor(b_name_);
-        
+
         auto& xW = graph.matmul(x_ref, W, prefix_ + "_xW");
         auto& y = graph.add(xW, b, prefix_ + "_y");
-        
+
         y_name_ = prefix_ + "_y";
         return y_name_;
     }
-    
+
     //! Backward: compute dW, db, and dx
     //! Adds backward operations to graph, returns input gradient tensor name
     std::string backward(LogicalGraph& graph, const std::string& dy) {
@@ -4443,23 +4443,23 @@ public:
         auto& W = *graph.get_tensor(W_name_);
         auto& dW = *graph.get_tensor(dW_name_);
         auto& db = *graph.get_tensor(db_name_);
-        
+
         // dW = x^T @ dy
-        auto& dW_batch = graph.matmul(x_ref, dy_ref, prefix_ + "_dW_batch", 
+        auto& dW_batch = graph.matmul(x_ref, dy_ref, prefix_ + "_dW_batch",
                                        /*trans_a=*/true, /*trans_b=*/false);
         graph.add_inplace(dW, dW_batch, prefix_ + "_dW_accum");
-        
+
         // db = sum(dy, axis=0)
         auto& db_batch = graph.reduce_sum(dy_ref, /*axis=*/0, prefix_ + "_db_batch");
         graph.add_inplace(db, db_batch, prefix_ + "_db_accum");
-        
+
         // dx = dy @ W^T
         auto& dx = graph.matmul(dy_ref, W, prefix_ + "_dx",
                                 /*trans_a=*/false, /*trans_b=*/true);
-        
+
         return prefix_ + "_dx";
     }
-    
+
     // Accessors
     const std::string& weight_name() const { return W_name_; }
     const std::string& bias_name() const { return b_name_; }
@@ -4486,25 +4486,25 @@ public:
     explicit GeLU(const std::string& prefix = "gelu")
         : prefix_(prefix)
     {}
-    
+
     //! Forward: y = gelu(x)
     std::string forward(LogicalGraph& graph, const std::string& x) {
         x_name_ = x;  // Save for backward (need x for gelu')
-        
+
         auto& x_ref = *graph.get_tensor(x);
         auto& y = graph.gelu(x_ref, prefix_ + "_y");
-        
+
         y_name_ = prefix_ + "_y";
         return y_name_;
     }
-    
+
     //! Backward: dx = dy * gelu'(x)
     std::string backward(LogicalGraph& graph, const std::string& dy) {
         auto& dy_ref = *graph.get_tensor(dy);
         auto& x_ref = *graph.get_tensor(x_name_);
-        
+
         auto& dx = graph.gelu_backward(dy_ref, x_ref, prefix_ + "_dx");
-        
+
         return prefix_ + "_dx";
     }
 };
@@ -4524,7 +4524,7 @@ private:
     Linear linear1_;
     GeLU gelu_;
     Linear linear2_;
-    
+
     std::string y_name_;
 
 public:
@@ -4534,35 +4534,35 @@ public:
         , gelu_(prefix + "_gelu")
         , linear2_(hidden_features, out_features, prefix + "_linear2")
     {}
-    
+
     //! Create all weight tensors
     void create_tensors(LogicalGraph& graph) {
         linear1_.create_tensors(graph);
         linear2_.create_tensors(graph);
         // GeLU has no parameters
     }
-    
+
     //! Forward: x -> Linear1 -> GeLU -> Linear2 -> y
     std::string forward(LogicalGraph& graph, const std::string& x) {
         // Chain forward calls
         std::string h1 = linear1_.forward(graph, x);
         std::string a = gelu_.forward(graph, h1);
         std::string y = linear2_.forward(graph, a);
-        
+
         y_name_ = y;
         return y_name_;
     }
-    
+
     //! Backward: dy -> Linear2.backward -> GeLU.backward -> Linear1.backward -> dx
     std::string backward(LogicalGraph& graph, const std::string& dy) {
         // Chain backward calls in REVERSE order
         std::string da = linear2_.backward(graph, dy);
         std::string dh1 = gelu_.backward(graph, da);
         std::string dx = linear1_.backward(graph, dh1);
-        
+
         return dx;
     }
-    
+
     // Access to sub-layers for weight initialization, etc.
     Linear& linear1() { return linear1_; }
     Linear& linear2() { return linear2_; }
@@ -4580,30 +4580,30 @@ public:
 int main() {
     using namespace nntile::graph;
     using namespace nntile::layers;
-    
+
     const Index batch = 32;
     const Index embed = 768;
     const Index hidden = 3072;
-    
+
     // ═══════════════════════════════════════════════════════════════
     // Create graph and layer
     // ═══════════════════════════════════════════════════════════════
     LogicalGraph graph("training");
-    
+
     // Input and output gradient tensors
     auto& x = graph.tensor(TensorSpec({batch, embed}, DataType::FP32), "x");
     auto& dy = graph.tensor(TensorSpec({batch, embed}, DataType::FP32), "dy");
-    
+
     // Create MLP layer
     MLP mlp(embed, hidden, embed, "mlp");
     mlp.create_tensors(graph);  // Add W1, b1, W2, b2, dW1, db1, dW2, db2
-    
+
     // ═══════════════════════════════════════════════════════════════
     // Build forward graph
     // ═══════════════════════════════════════════════════════════════
     std::string y_name = mlp.forward(graph, "x");
     graph.mark_output(y_name);
-    
+
     // ═══════════════════════════════════════════════════════════════
     // Build backward graph
     // ═══════════════════════════════════════════════════════════════
@@ -4613,41 +4613,41 @@ int main() {
     graph.mark_output(mlp.linear1().bias_grad_name());    // "mlp_linear1_db"
     graph.mark_output(mlp.linear2().weight_grad_name());  // "mlp_linear2_dW"
     graph.mark_output(mlp.linear2().bias_grad_name());    // "mlp_linear2_db"
-    
+
     // ═══════════════════════════════════════════════════════════════
     // Compile and run
     // ═══════════════════════════════════════════════════════════════
     auto compiled = CompiledGraph::compile(graph, /*num_nodes=*/4);
-    
+
     // Initialize weights
     compiled.init_tensor(mlp.linear1().weight_name(), "xavier_uniform");
     compiled.init_tensor(mlp.linear1().bias_name(), "zeros");
     compiled.init_tensor(mlp.linear2().weight_name(), "xavier_uniform");
     compiled.init_tensor(mlp.linear2().bias_name(), "zeros");
-    
+
     // Zero gradients
     compiled.init_tensor(mlp.linear1().weight_grad_name(), "zeros");
     compiled.init_tensor(mlp.linear1().bias_grad_name(), "zeros");
     compiled.init_tensor(mlp.linear2().weight_grad_name(), "zeros");
     compiled.init_tensor(mlp.linear2().bias_grad_name(), "zeros");
-    
+
     // Training loop
     for (int step = 0; step < num_steps; ++step) {
         compiled.bind_data("x", input_data, input_size);
         compiled.bind_data("dy", grad_data, grad_size);
-        
+
         compiled.execute();  // Runs ALL ops (forward + backward)
-        
+
         auto output = compiled.get_output_tensor<float>(y_name);
         auto input_grad = compiled.get_output_tensor<float>(dx_name);
-        
+
         // Zero gradients for next step
         compiled.init_tensor(mlp.linear1().weight_grad_name(), "zeros");
         compiled.init_tensor(mlp.linear1().bias_grad_name(), "zeros");
         compiled.init_tensor(mlp.linear2().weight_grad_name(), "zeros");
         compiled.init_tensor(mlp.linear2().bias_grad_name(), "zeros");
     }
-    
+
     return 0;
 }
 ```
@@ -4740,11 +4740,11 @@ fwd.share_tensor_data(bwd, {
 for (int step = 0; step < num_steps; ++step) {
     fwd.bind_data("x", input);
     fwd.execute();
-    
+
     bwd.bind_data("x", input);
     bwd.bind_data("dy", loss_grad);
     bwd.execute();
-    
+
     // Gradients are in bwd graph
     auto dW1 = bwd.get_output_tensor<float>("mlp_linear1_dW");
     // ... update weights ...
@@ -4845,52 +4845,52 @@ public:
     // ═══════════════════════════════════════════════════════════════
     // Copy and Move
     // ═══════════════════════════════════════════════════════════════
-    
+
     //! Deep copy - creates independent copy of the graph
     LogicalGraph clone() const;
-    
+
     //! Move constructor and assignment
     LogicalGraph(LogicalGraph&& other) noexcept;
     LogicalGraph& operator=(LogicalGraph&& other) noexcept;
-    
+
     //! Copy constructor and assignment
     LogicalGraph(const LogicalGraph& other);
     LogicalGraph& operator=(const LogicalGraph& other);
-    
+
     // ═══════════════════════════════════════════════════════════════
     // Mutation
     // ═══════════════════════════════════════════════════════════════
-    
+
     //! Remove a tensor and all operations that depend on it
     void remove_tensor(const std::string& name);
-    
+
     //! Remove an operation (outputs become dangling)
     void remove_operation(const std::string& output_name);
-    
+
     //! Replace a tensor with another (updates all references)
     void replace_tensor(const std::string& old_name, const std::string& new_name);
-    
+
     //! Rename a tensor
     void rename_tensor(const std::string& old_name, const std::string& new_name);
-    
+
     //! Clear all tensors and operations
     void clear();
-    
+
     // ═══════════════════════════════════════════════════════════════
     // Composition
     // ═══════════════════════════════════════════════════════════════
-    
+
     //! Embed another graph (existing method)
     std::map<std::string, std::string> embed(
         const LogicalGraph& other,
         const std::map<std::string, std::string>& input_bindings,
         const std::string& prefix = ""
     );
-    
+
     //! Append another graph (merge without renaming)
     //! Tensors with same name must have same spec
     void append(const LogicalGraph& other);
-    
+
     //! Stack: create N copies of a subgraph with prefixes
     void stack(const LogicalGraph& block, int count, const std::string& prefix_format = "layer{}");
 };
@@ -4929,29 +4929,29 @@ public:
     // ═══════════════════════════════════════════════════════════════
     // Cross-Graph Data Transfer
     // ═══════════════════════════════════════════════════════════════
-    
+
     //! Transfer ALL data to another compiled graph
     //! Transfers all tensors with matching names, handles re-tiling automatically
     void transfer_to(CompiledGraph& target);
-    
+
     //! Transfer specific tensors by name
     void transfer_to(CompiledGraph& target, const std::vector<std::string>& tensor_names);
-    
+
     //! Transfer single tensor
     void transfer_to(CompiledGraph& target, const std::string& tensor_name);
-    
+
     //! Transfer with name mapping (source_name -> target_name)
     void transfer_to(
         CompiledGraph& target,
         const std::map<std::string, std::string>& name_mapping
     );
-    
+
     //! Check if any transfer would require re-tiling
     bool requires_retiling(const CompiledGraph& target) const;
-    
+
     //! Check for specific tensor
     bool requires_retiling(const CompiledGraph& target, const std::string& tensor_name) const;
-    
+
     //! Get list of tensors that would require re-tiling
     std::vector<std::string> tensors_requiring_retiling(const CompiledGraph& target) const;
 };
@@ -4994,15 +4994,15 @@ for (int step = 0; step < num_steps; ++step) {
     fwd.bind_data("x", input);
     fwd.bind_data("W", weights);
     fwd.execute();
-    
+
     // Transfer ALL matching tensors to backward graph (re-tiles automatically)
     fwd.transfer_to(bwd);  // Transfers x, W, y - all tensors with matching names
-    
+
     // Or transfer with name mapping if names differ
     fwd.transfer_to(bwd, {{"y", "dy"}});  // Forward's "y" -> Backward's "dy"
-    
+
     bwd.execute();
-    
+
     auto grad = bwd.get_output_tensor<float>("dW");
     // ... update weights ...
 }
@@ -5020,7 +5020,7 @@ if (!fwd.requires_retiling(bwd)) {
     auto need_retiling = fwd.tensors_requiring_retiling(bwd);
     std::cout << "Tensors requiring re-tiling: ";
     for (const auto& name : need_retiling) std::cout << name << " ";
-    
+
     // Transfer still works, just involves data movement for those tensors
     fwd.transfer_to(bwd);
 }

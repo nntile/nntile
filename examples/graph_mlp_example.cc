@@ -20,19 +20,44 @@
 
 int main(int argc, char** argv) {
     // Initialize NNTile context (this initializes StarPU)
-    nntile::Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
+    nntile::Context context(
+        1, // ncpu: number of CPU workers
+        0, // ncuda: number of CUDA workers
+        0, // ooc: enable Out-of-Core (0=disabled)
+        "/tmp/nntile_ooc", // ooc_path: path for OOC disk
+        16777216, // ooc_size: OOC disk size in bytes
+        0, // logger: enable logger (0=disabled)
+        "localhost", // logger_addr: logger server address
+        5001, // logger_port: logger server port
+        0 // verbose: verbosity level (0=quiet)
+    );
 
     // Define a simple MLP: x -> Linear -> GELU -> Linear -> y
     nntile::graph::LogicalGraph graph("MLP");
 
     // Input: batch_size x input_dim
-    auto& x = graph.tensor(nntile::graph::TensorSpec({4, 8}, nntile::graph::DataType::FP32), "input");
+    auto& x = graph.tensor(
+        nntile::graph::TensorSpec(
+            {4, 8}, nntile::graph::DataType::FP32
+        ),
+        "input"
+    );
 
     // First linear layer: input_dim x hidden_dim
-    auto& w1 = graph.tensor(nntile::graph::TensorSpec({8, 16}, nntile::graph::DataType::FP32), "weight1");
+    auto& w1 = graph.tensor(
+        nntile::graph::TensorSpec(
+            {8, 16}, nntile::graph::DataType::FP32
+        ),
+        "weight1"
+    );
 
     // Second linear layer: hidden_dim x output_dim
-    auto& w2 = graph.tensor(nntile::graph::TensorSpec({16, 4}, nntile::graph::DataType::FP32), "weight2");
+    auto& w2 = graph.tensor(
+        nntile::graph::TensorSpec(
+            {16, 4}, nntile::graph::DataType::FP32
+        ),
+        "weight2"
+    );
 
     // Forward pass
     auto& h = graph.matmul(x, w1, "hidden");
@@ -63,15 +88,14 @@ int main(int argc, char** argv) {
     compiled.execute();
     compiled.wait();
     auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+        end - start).count();
 
     // Get results
     auto y_data = compiled.get_output<float>("output");
 
-    std::cout << "Execution time: "
-              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
-              << " microseconds" << std::endl;
-
-    std::cout << "Output shape: [4, 4]" << std::endl;
+    std::cout << "Execution time: " << duration << " microseconds\n";
+    std::cout << "Output shape: [4, 4]\n";
     std::cout << "Sample output values: ";
     for (size_t i = 0; i < std::min(size_t(8), y_data.size()); ++i) {
         std::cout << y_data[i] << " ";
