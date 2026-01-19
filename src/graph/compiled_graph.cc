@@ -311,8 +311,10 @@ template nntile::tensor::Tensor<nntile::fp64_t>& CompiledGraph::get_tensor<nntil
 
 template void CompiledGraph::bind_data<float>(const std::string& name, const float* data, size_t count);
 template void CompiledGraph::bind_data<double>(const std::string& name, const double* data, size_t count);
+template void CompiledGraph::bind_data<long long>(const std::string& name, const long long* data, size_t count);
 template void CompiledGraph::bind_data<float>(const std::string& name, const std::vector<float>& data);
 template void CompiledGraph::bind_data<double>(const std::string& name, const std::vector<double>& data);
+template void CompiledGraph::bind_data<long long>(const std::string& name, const std::vector<long long>& data);
 
 template std::vector<float> CompiledGraph::get_output<float>(const std::string& name);
 template std::vector<double> CompiledGraph::get_output<double>(const std::string& name);

@@ -83,13 +83,13 @@ void gemm(
 
 //! Helper to check if CBLAS supports the given type
 template<typename T>
-constexpr bool gemm_is_supported = false;
+inline constexpr bool gemm_is_supported = false;
 
 template<>
-constexpr bool gemm_is_supported<fp64_t> = true;
+inline constexpr bool gemm_is_supported<fp64_t> = true;
 
 template<>
-constexpr bool gemm_is_supported<fp32_t> = true;
+inline constexpr bool gemm_is_supported<fp32_t> = true;
 
 } // namespace nntile:kernel::cblas
 #endif // NNTILE_USE_CBLAS

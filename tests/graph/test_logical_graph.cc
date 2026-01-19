@@ -13,59 +13,59 @@
  * */
 
 #include <nntile/graph/graph.hh>
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
 
 using namespace nntile::graph;
 
-TEST(LogicalGraph, CreateTensor) {
+TEST_CASE("LogicalGraph CreateTensor", "[graph]") {
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
 
-    EXPECT_EQ(x.name(), "x");
-    EXPECT_EQ(x.shape().size(), 2);
-    EXPECT_EQ(x.shape()[0], 32);
-    EXPECT_EQ(x.shape()[1], 768);
-    EXPECT_EQ(x.dtype(), DataType::FP32);
-    EXPECT_FALSE(x.has_producer());
+    REQUIRE(x.name() == "x");
+    REQUIRE(x.shape().size() == 2);
+    REQUIRE(x.shape()[0] == 32);
+    REQUIRE(x.shape()[1] == 768);
+    REQUIRE(x.dtype() == DataType::FP32);
+    REQUIRE_FALSE(x.has_producer());
 }
 
-TEST(LogicalGraph, Matmul) {
+TEST_CASE("LogicalGraph Matmul", "[graph]") {
     LogicalGraph g("test");
 
     auto& a = g.tensor(TensorSpec({32, 768}, DataType::FP32), "a");
     auto& b = g.tensor(TensorSpec({768, 256}, DataType::FP32), "b");
     auto& c = g.matmul(a, b, "c");
 
-    EXPECT_EQ(c.shape()[0], 32);
-    EXPECT_EQ(c.shape()[1], 256);
-    EXPECT_TRUE(c.has_producer());
-    EXPECT_EQ(c.producer()->type(), OpType::MATMUL);
+    REQUIRE(c.shape()[0] == 32);
+    REQUIRE(c.shape()[1] == 256);
+    REQUIRE(c.has_producer());
+    REQUIRE(c.producer()->type() == OpType::MATMUL);
 }
 
-TEST(LogicalGraph, MatmulTranspose) {
+TEST_CASE("LogicalGraph MatmulTranspose", "[graph]") {
     LogicalGraph g("test");
 
     auto& a = g.tensor(TensorSpec({768, 32}, DataType::FP32), "a");  // Will be transposed
     auto& b = g.tensor(TensorSpec({768, 256}, DataType::FP32), "b");
     auto& c = g.matmul(a, b, "c", /*trans_a=*/true, /*trans_b=*/false);
 
-    EXPECT_EQ(c.shape()[0], 32);   // M from A^T
-    EXPECT_EQ(c.shape()[1], 256);  // N from B
+    REQUIRE(c.shape()[0] == 32);   // M from A^T
+    REQUIRE(c.shape()[1] == 256);  // N from B
 }
 
-TEST(LogicalGraph, Gelu) {
+TEST_CASE("LogicalGraph Gelu", "[graph]") {
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
     auto& y = g.gelu(x, "y");
 
-    EXPECT_EQ(y.shape(), x.shape());
-    EXPECT_TRUE(y.has_producer());
-    EXPECT_EQ(y.producer()->type(), OpType::GELU);
+    REQUIRE(y.shape() == x.shape());
+    REQUIRE(y.has_producer());
+    REQUIRE(y.producer()->type() == OpType::GELU);
 }
 
-TEST(LogicalGraph, Chain) {
+TEST_CASE("LogicalGraph Chain", "[graph]") {
     LogicalGraph g("mlp");
 
     auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
@@ -78,37 +78,37 @@ TEST(LogicalGraph, Chain) {
 
     g.mark_output("y");
 
-    EXPECT_EQ(g.num_tensors(), 6);  // x, w1, w2, h, a, y
-    EXPECT_EQ(g.num_ops(), 3);      // matmul, gelu, matmul
-    EXPECT_TRUE(g.is_output("y"));
+    REQUIRE(g.num_tensors() == 6);  // x, w1, w2, h, a, y
+    REQUIRE(g.num_ops() == 3);      // matmul, gelu, matmul
+    REQUIRE(g.is_output("y"));
 }
 
-TEST(LogicalGraph, TensorNameUniqueness) {
+TEST_CASE("LogicalGraph TensorNameUniqueness", "[graph]") {
     LogicalGraph g("test");
 
     g.tensor(TensorSpec({10}, DataType::FP32), "x");
-    EXPECT_THROW(g.tensor(TensorSpec({10}, DataType::FP32), "x"), std::invalid_argument);
+    REQUIRE_THROWS_AS(g.tensor(TensorSpec({10}, DataType::FP32), "x"), std::invalid_argument);
 }
 
-TEST(LogicalGraph, GetTensor) {
+TEST_CASE("LogicalGraph GetTensor", "[graph]") {
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({10}, DataType::FP32), "x");
     auto& y = g.tensor(TensorSpec({20}, DataType::FP32), "y");
 
-    EXPECT_EQ(g.get_tensor("x"), &x);
-    EXPECT_EQ(g.get_tensor("y"), &y);
-    EXPECT_EQ(g.get_tensor("z"), nullptr);
+    REQUIRE(g.get_tensor("x") == &x);
+    REQUIRE(g.get_tensor("y") == &y);
+    REQUIRE(g.get_tensor("z") == nullptr);
 }
 
-TEST(LogicalGraph, TensorNames) {
+TEST_CASE("LogicalGraph TensorNames", "[graph]") {
     LogicalGraph g("test");
 
     g.tensor(TensorSpec({10}, DataType::FP32), "x");
     g.tensor(TensorSpec({20}, DataType::FP32), "y");
 
     auto names = g.tensor_names();
-    EXPECT_EQ(names.size(), 2);
-    EXPECT_NE(std::find(names.begin(), names.end(), "x"), names.end());
-    EXPECT_NE(std::find(names.begin(), names.end(), "y"), names.end());
+    REQUIRE(names.size() == 2);
+    REQUIRE(std::find(names.begin(), names.end(), "x") != names.end());
+    REQUIRE(std::find(names.begin(), names.end(), "y") != names.end());
 }

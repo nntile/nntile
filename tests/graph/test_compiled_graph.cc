@@ -13,24 +13,13 @@
  * */
 
 #include <nntile/graph/graph.hh>
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include <cmath>
 
 using namespace nntile::graph;
 
-class CompiledGraphTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        // Initialize StarPU if needed
-        // For minimal implementation, assume it's already initialized
-    }
-
-    void TearDown() override {
-        // Cleanup if needed
-    }
-};
-
-TEST_F(CompiledGraphTest, SimpleMatmul) {
+TEST_CASE("CompiledGraph SimpleMatmul", "[graph]") {
     LogicalGraph g("test");
 
     auto& a = g.tensor(TensorSpec({2, 3}, DataType::FP32), "a");
@@ -54,18 +43,18 @@ TEST_F(CompiledGraphTest, SimpleMatmul) {
     auto c_data = compiled.get_output<float>("c");
 
     // C = A @ B = [[38,44,50,56], [83,98,113,128]]
-    EXPECT_EQ(c_data.size(), 8);
-    EXPECT_FLOAT_EQ(c_data[0], 38);
-    EXPECT_FLOAT_EQ(c_data[1], 44);
-    EXPECT_FLOAT_EQ(c_data[2], 50);
-    EXPECT_FLOAT_EQ(c_data[3], 56);
-    EXPECT_FLOAT_EQ(c_data[4], 83);
-    EXPECT_FLOAT_EQ(c_data[5], 98);
-    EXPECT_FLOAT_EQ(c_data[6], 113);
-    EXPECT_FLOAT_EQ(c_data[7], 128);
+    REQUIRE(c_data.size() == 8);
+    REQUIRE(c_data[0] == 38);
+    REQUIRE(c_data[1] == 44);
+    REQUIRE(c_data[2] == 50);
+    REQUIRE(c_data[3] == 56);
+    REQUIRE(c_data[4] == 83);
+    REQUIRE(c_data[5] == 98);
+    REQUIRE(c_data[6] == 113);
+    REQUIRE(c_data[7] == 128);
 }
 
-TEST_F(CompiledGraphTest, GeluActivation) {
+TEST_CASE("CompiledGraph GeluActivation", "[graph]") {
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({4}, DataType::FP32), "x");
@@ -83,13 +72,13 @@ TEST_F(CompiledGraphTest, GeluActivation) {
     auto y_data = compiled.get_output<float>("y");
 
     // GELU(-1) ≈ -0.159, GELU(0) = 0, GELU(1) ≈ 0.841, GELU(2) ≈ 1.955
-    EXPECT_NEAR(y_data[0], -0.159f, 0.01f);
-    EXPECT_NEAR(y_data[1], 0.0f, 0.01f);
-    EXPECT_NEAR(y_data[2], 0.841f, 0.01f);
-    EXPECT_NEAR(y_data[3], 1.955f, 0.01f);
+    REQUIRE(y_data[0] == Catch::Approx(-0.159f).epsilon(0.01));
+    REQUIRE(y_data[1] == Catch::Approx(0.0f).epsilon(0.01));
+    REQUIRE(y_data[2] == Catch::Approx(0.841f).epsilon(0.01));
+    REQUIRE(y_data[3] == Catch::Approx(1.955f).epsilon(0.01));
 }
 
-TEST_F(CompiledGraphTest, MLP) {
+TEST_CASE("CompiledGraph MLP", "[graph]") {
     LogicalGraph g("mlp");
 
     // x: [2, 4], w1: [4, 8], w2: [8, 4]
@@ -118,15 +107,15 @@ TEST_F(CompiledGraphTest, MLP) {
 
     auto y_data = compiled.get_output<float>("y");
 
-    EXPECT_EQ(y_data.size(), 8);  // [2, 4]
+    REQUIRE(y_data.size() == 8);  // [2, 4]
     // Values should be non-zero and reasonable
     for (float v : y_data) {
-        EXPECT_GT(v, 0.0f);
-        EXPECT_LT(v, 10.0f);
+        REQUIRE(v > 0.0f);
+        REQUIRE(v < 10.0f);
     }
 }
 
-TEST_F(CompiledGraphTest, DataTypeMismatch) {
+TEST_CASE("CompiledGraph DataTypeMismatch", "[graph]") {
     LogicalGraph g("test");
 
     auto& a = g.tensor(TensorSpec({2, 2}, DataType::FP32), "a");
@@ -138,10 +127,10 @@ TEST_F(CompiledGraphTest, DataTypeMismatch) {
 
     // Wrong size
     std::vector<float> wrong_data(1, 1.0f);
-    EXPECT_THROW(compiled.bind_data("a", wrong_data), std::runtime_error);
+    REQUIRE_THROWS_AS(compiled.bind_data("a", wrong_data), std::runtime_error);
 }
 
-TEST_F(CompiledGraphTest, UnsupportedDataType) {
+TEST_CASE("CompiledGraph UnsupportedDataType", "[graph]") {
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({2}, DataType::INT64), "x");
@@ -154,5 +143,5 @@ TEST_F(CompiledGraphTest, UnsupportedDataType) {
     compiled.bind_data("x", x_data);
 
     // Should throw when executing unsupported operation
-    EXPECT_THROW(compiled.execute(), std::runtime_error);
+    REQUIRE_THROWS_AS(compiled.execute(), std::runtime_error);
 }
