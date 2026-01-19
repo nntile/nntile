@@ -31,7 +31,28 @@ CompiledGraph CompiledGraph::compile(const LogicalGraph& logical)
 {
     CompiledGraph cg;
     cg.allocate_tensors(logical);
-    cg.compute_execution_order(logical);
+    
+    // Build execution order directly from logical graph ops (already topologically sorted)
+    cg.execution_order_.clear();
+    cg.execution_order_.reserve(logical.num_ops());
+    for(const auto& op : logical.ops())
+    {
+        OpExecutionInfo op_info;
+        op_info.type = op->type();
+        op_info.attrs = op->attrs();
+        op_info.input_names.reserve(op->inputs().size());
+        for(const auto* input : op->inputs())
+        {
+            op_info.input_names.push_back(input->name());
+        }
+        op_info.output_names.reserve(op->outputs().size());
+        for(const auto* output : op->outputs())
+        {
+            op_info.output_names.push_back(output->name());
+        }
+        cg.execution_order_.push_back(op_info);
+    }
+    
     return cg;
 }
 
@@ -129,76 +150,6 @@ void CompiledGraph::allocate_tensors(const LogicalGraph& logical)
             }
             default:
                 throw std::runtime_error("Unsupported data type for tensor allocation");
-        }
-    }
-}
-
-//! Compute topological order of operations
-void CompiledGraph::compute_execution_order(const LogicalGraph& logical)
-{
-    execution_order_.clear();
-    std::set<NodeId> executed_tensors;
-
-    // Mark all input tensors (no producer) as executed
-    for(const auto& t : logical.tensors())
-    {
-        if(!t->has_producer())
-        {
-            executed_tensors.insert(t->id());
-        }
-    }
-
-    // Keep adding ops whose inputs are all ready
-    std::set<NodeId> executed_ops;
-    while(execution_order_.size() < logical.num_ops())
-    {
-        bool added = false;
-        for(const auto& op : logical.ops())
-        {
-            if(executed_ops.count(op->id()))
-            {
-                continue;
-            }
-
-            // Check if all inputs are ready
-            bool ready = true;
-            for(const auto* input : op->inputs())
-            {
-                if(!executed_tensors.count(input->id()))
-                {
-                    ready = false;
-                    break;
-                }
-            }
-
-            if(ready)
-            {
-                // Extract execution info instead of storing raw pointer
-                OpExecutionInfo op_info;
-                op_info.type = op->type();
-                op_info.attrs = op->attrs();
-                op_info.input_names.reserve(op->inputs().size());
-                for(const auto* input : op->inputs())
-                {
-                    op_info.input_names.push_back(input->name());
-                }
-                op_info.output_names.reserve(op->outputs().size());
-                for(const auto* output : op->outputs())
-                {
-                    op_info.output_names.push_back(output->name());
-                }
-                execution_order_.push_back(op_info);
-                executed_ops.insert(op->id());
-                for(const auto* output : op->outputs())
-                {
-                    executed_tensors.insert(output->id());
-                }
-                added = true;
-            }
-        }
-        if(!added)
-        {
-            throw std::runtime_error("Graph contains cycles or invalid dependencies");
         }
     }
 }

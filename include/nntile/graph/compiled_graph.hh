@@ -83,9 +83,6 @@ private:
     //! Allocate NNTile tensors for all graph tensors
     void allocate_tensors(const LogicalGraph& logical);
 
-    //! Compute topological order of operations
-    void compute_execution_order(const LogicalGraph& logical);
-
     //! Execute a single operation
     void execute_op(const OpExecutionInfo& op_info);
 
