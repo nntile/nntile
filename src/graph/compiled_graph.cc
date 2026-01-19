@@ -393,6 +393,18 @@ void CompiledGraph::execute_gemm(const OpExecutionInfo& op_info)
             0  // redux = 0
         );
     }
+    else if(dtype == DataType::INT64)
+    {
+        throw std::runtime_error("INT64 data type not supported for gemm operation");
+    }
+    else if(dtype == DataType::INT32)
+    {
+        throw std::runtime_error("INT32 data type not supported for gemm operation");
+    }
+    else if(dtype == DataType::BOOL)
+    {
+        throw std::runtime_error("BOOL data type not supported for gemm operation");
+    }
     else
     {
         throw std::runtime_error("Unsupported data type for gemm");
@@ -456,6 +468,18 @@ void CompiledGraph::execute_gelu(const OpExecutionInfo& op_info)
         auto& y = get_tensor<nntile::bf16_t>(y_name);
 
         nntile::tensor::gelu<nntile::bf16_t>(x, y);
+    }
+    else if(dtype == DataType::INT64)
+    {
+        throw std::runtime_error("INT64 data type not supported for gelu operation");
+    }
+    else if(dtype == DataType::INT32)
+    {
+        throw std::runtime_error("INT32 data type not supported for gelu operation");
+    }
+    else if(dtype == DataType::BOOL)
+    {
+        throw std::runtime_error("BOOL data type not supported for gelu operation");
     }
     else
     {
