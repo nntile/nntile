@@ -599,6 +599,10 @@ void CompiledGraph::bind_data(const std::string& name, const T* data, size_t cou
         }
         tile_local.release();
     }
+    else if(dtype == DataType::INT32)
+    {
+        throw std::runtime_error("INT32 data type not supported for binding");
+    }
     else if(dtype == DataType::BOOL)
     {
         auto& tensor = get_tensor<nntile::bool_t>(name);
@@ -747,6 +751,10 @@ std::vector<T> CompiledGraph::get_output(const std::string& name)
             result[i] = static_cast<T>(static_cast<long long>(tile_local[i]));
         }
         tile_local.release();
+    }
+    else if(dtype == DataType::INT32)
+    {
+        throw std::runtime_error("INT32 data type not supported for output retrieval");
     }
     else if(dtype == DataType::BOOL)
     {
