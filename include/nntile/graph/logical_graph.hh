@@ -16,6 +16,7 @@
 
 #include <nntile/graph/tensor_node.hh>
 #include <nntile/graph/op_node.hh>
+#include <nntile/base_types.hh>
 #include <memory>
 #include <vector>
 #include <map>
@@ -58,8 +59,8 @@ public:
         TensorNode& a,
         TensorNode& b,
         const std::string& output_name,
-        double alpha = 1.0,
-        double beta = 0.0,
+        Scalar alpha = 1.0,
+        Scalar beta = 0.0,
         bool trans_a = false,
         bool trans_b = false,
         Index ndim = 1,

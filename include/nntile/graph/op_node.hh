@@ -38,8 +38,8 @@ struct GemmAttrs {
     bool trans_a = false;
     bool trans_b = false;
     // For GEMM: C = alpha * A @ B + beta * C
-    double alpha = 1.0;
-    double beta = 0.0;
+    Scalar alpha = 1.0;
+    Scalar beta = 0.0;
     Index ndim = 1;  // Number of dimensions used in gemm contraction
     Index batch_ndim = 0;  // Number of last dimensions used for batching
 };
