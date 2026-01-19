@@ -16,7 +16,8 @@
 #include <stdexcept>
 #include <sstream>
 
-namespace nntile::graph {
+namespace nntile::graph
+{
 
 //! Logical graph - defines computation without physical details
 LogicalGraph::LogicalGraph(const std::string& name)

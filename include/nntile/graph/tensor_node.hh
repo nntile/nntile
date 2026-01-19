@@ -19,7 +19,8 @@
 #include <vector>
 #include <cstdint>
 
-namespace nntile::graph {
+namespace nntile::graph
+{
 
 // Forward declarations
 class OpNode;

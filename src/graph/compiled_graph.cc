@@ -23,7 +23,8 @@
 #include <memory>
 #include <algorithm>
 
-namespace nntile::graph {
+namespace nntile::graph
+{
 
 //! Compile a logical graph
 CompiledGraph CompiledGraph::compile(const LogicalGraph& logical)

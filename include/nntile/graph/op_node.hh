@@ -21,7 +21,8 @@
 #include <variant>
 #include <map>
 
-namespace nntile::graph {
+namespace nntile::graph
+{
 
 //! Operation types
 enum class OpType {

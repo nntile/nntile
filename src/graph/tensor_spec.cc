@@ -16,7 +16,8 @@
 #include <stdexcept>
 #include <numeric>
 
-namespace nntile::graph {
+namespace nntile::graph
+{
 
 //! Convert DataType to string
 std::string dtype_to_string(DataType dtype)

@@ -15,7 +15,8 @@
 #include <nntile/graph/op_node.hh>
 #include <stdexcept>
 
-namespace nntile::graph {
+namespace nntile::graph
+{
 
 //! Convert OpType to string
 std::string op_type_to_string(OpType type)

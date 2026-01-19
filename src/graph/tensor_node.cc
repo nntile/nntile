@@ -14,7 +14,8 @@
 
 #include <nntile/graph/tensor_node.hh>
 
-namespace nntile::graph {
+namespace nntile::graph
+{
 
 //! A tensor node in the logical graph
 TensorNode::TensorNode(NodeId id, const std::string& name, TensorSpec spec, LogicalGraph* graph)

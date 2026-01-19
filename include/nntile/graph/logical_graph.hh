@@ -22,7 +22,8 @@
 #include <map>
 #include <set>
 
-namespace nntile::graph {
+namespace nntile::graph
+{
 
 //! Logical graph - defines computation without physical details
 class LogicalGraph {

@@ -18,7 +18,8 @@
 #include <vector>
 #include <string>
 
-namespace nntile::graph {
+namespace nntile::graph
+{
 
 //! Data types supported
 enum class DataType {

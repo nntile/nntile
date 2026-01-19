@@ -20,7 +20,8 @@
 #include <map>
 #include <vector>
 
-namespace nntile::graph {
+namespace nntile::graph
+{
 
 //! Compiled graph - ready for execution
 class CompiledGraph {
