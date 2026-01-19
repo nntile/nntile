@@ -397,8 +397,14 @@ set(LOGGER_SRC
     "logger/websocket_client.cc"
 )
 
-# Add graph subdirectory
-add_subdirectory(graph)
+# Graph-related sources
+set(GRAPH_SRC
+    "graph/tensor_spec.cc"
+    "graph/tensor_node.cc"
+    "graph/op_node.cc"
+    "graph/logical_graph.cc"
+    "graph/compiled_graph.cc"
+)
 
 # Set the list of all sources
 set(NNTILE_SRC
@@ -412,6 +418,7 @@ set(NNTILE_SRC
     ${TENSOR_BASE_SRC}
     ${TENSOR_OPERATION_SRC}
     ${LOGGER_SRC}
+    ${GRAPH_SRC}
 )
 
 target_sources(nntile PRIVATE ${NNTILE_SRC})
