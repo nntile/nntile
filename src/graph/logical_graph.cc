@@ -132,30 +132,6 @@ std::vector<std::string> LogicalGraph::tensor_names() const
     return names;
 }
 
-//! Get output tensor names (tensors with no consumers)
-std::set<std::string> LogicalGraph::output_names() const
-{
-    std::set<std::string> result;
-    for(const auto& t : tensors_)
-    {
-        if(t->consumers().empty())
-        {
-            result.insert(t->name());
-        }
-    }
-    return result;
-}
-
-//! Check if tensor is an output (has no consumers)
-bool LogicalGraph::is_output(const std::string& name) const
-{
-    const TensorNode* t = get_tensor(name);
-    if(t == nullptr)
-    {
-        return false;
-    }
-    return t->consumers().empty();
-}
 
 //! String representation
 std::string LogicalGraph::to_string() const
@@ -175,18 +151,6 @@ std::string LogicalGraph::to_string() const
     {
         ss << "  " << op->to_string() << "\n";
     }
-
-    ss << "Outputs: {";
-    auto outputs = output_names();
-    for(auto it = outputs.begin(); it != outputs.end(); ++it)
-    {
-        if(it != outputs.begin())
-        {
-            ss << ", ";
-        }
-        ss << *it;
-    }
-    ss << "}";
 
     return ss.str();
 }

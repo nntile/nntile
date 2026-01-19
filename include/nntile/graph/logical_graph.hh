@@ -84,12 +84,6 @@ public:
     //! Get all tensor names
     std::vector<std::string> tensor_names() const;
 
-    //! Get output tensor names (tensors with no consumers)
-    std::set<std::string> output_names() const;
-
-    //! Check if tensor is an output (has no consumers)
-    bool is_output(const std::string& name) const;
-
     //! Get all tensors (for iteration)
     const std::vector<std::unique_ptr<TensorNode>>& tensors() const { return tensors_; }
 

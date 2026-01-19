@@ -80,7 +80,6 @@ TEST_CASE("LogicalGraph Chain", "[graph]") {
 
     REQUIRE(g.num_tensors() == 6);  // x, w1, w2, h, a, y
     REQUIRE(g.num_ops() == 3);      // gemm, gelu, gemm
-    REQUIRE(g.is_output("y"));
 }
 
 TEST_CASE("LogicalGraph TensorNameUniqueness", "[graph]") {
