@@ -215,8 +215,9 @@ void CompiledGraph::execute()
 //! Wait for all operations to complete
 void CompiledGraph::wait()
 {
-    // In single-threaded StarPU, operations are synchronous
-    // For now, do nothing
+    // For now, wait for all StarPU tasks globally
+    // Later, we will change it with actual wait on tasks of the compiled graph
+    starpu_task_wait_for_all();
 }
 
 //! Execute a single operation
