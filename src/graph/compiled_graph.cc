@@ -26,7 +26,8 @@
 namespace nntile::graph {
 
 //! Compile a logical graph
-CompiledGraph CompiledGraph::compile(const LogicalGraph& logical) {
+CompiledGraph CompiledGraph::compile(const LogicalGraph& logical)
+{
     CompiledGraph cg;
     cg.logical_ = &logical;
     cg.allocate_tensors();
@@ -35,8 +36,10 @@ CompiledGraph CompiledGraph::compile(const LogicalGraph& logical) {
 }
 
 //! Allocate NNTile tensors for all graph tensors
-void CompiledGraph::allocate_tensors() {
-    for (const auto& node : logical_->tensors()) {
+void CompiledGraph::allocate_tensors()
+{
+    for(const auto& node : logical_->tensors())
+    {
         const auto& spec = node->spec();
         tensor_dtypes_[node->name()] = spec.dtype();
 
@@ -44,88 +47,125 @@ void CompiledGraph::allocate_tensors() {
         std::vector<Index> shape = spec.shape();
         std::vector<Index> tile_shape = shape;  // Same as shape = 1 tile
 
-        switch (spec.dtype()) {
-            case DataType::FP32: {
+        switch(spec.dtype())
+        {
+            case DataType::FP32:
+            {
                 auto t = std::make_shared<nntile::tensor::Tensor<nntile::fp32_t>>(
                     nntile::tensor::TensorTraits(shape, tile_shape)
                 );
                 tensors_[node->name()] = t;
                 break;
             }
-            case DataType::FP64: {
+            case DataType::FP64:
+            {
                 auto t = std::make_shared<nntile::tensor::Tensor<nntile::fp64_t>>(
                     nntile::tensor::TensorTraits(shape, tile_shape)
                 );
                 tensors_[node->name()] = t;
                 break;
             }
+            case DataType::FP16:
+            {
+                auto t = std::make_shared<nntile::tensor::Tensor<nntile::fp16_t>>(
+                    nntile::tensor::TensorTraits(shape, tile_shape)
+                );
+                tensors_[node->name()] = t;
+                break;
+            }
+            case DataType::BF16:
+            {
+                auto t = std::make_shared<nntile::tensor::Tensor<nntile::bf16_t>>(
+                    nntile::tensor::TensorTraits(shape, tile_shape)
+                );
+                tensors_[node->name()] = t;
+                break;
+            }
             default:
-                throw std::runtime_error("Unsupported data type");
+                throw std::runtime_error("Unsupported data type for tensor allocation");
         }
     }
 }
 
 //! Compute topological order of operations
-void CompiledGraph::compute_execution_order() {
+void CompiledGraph::compute_execution_order()
+{
     execution_order_.clear();
     std::set<NodeId> executed_tensors;
 
     // Mark all input tensors (no producer) as executed
-    for (const auto& t : logical_->tensors()) {
-        if (!t->has_producer()) {
+    for(const auto& t : logical_->tensors())
+    {
+        if(!t->has_producer())
+        {
             executed_tensors.insert(t->id());
         }
     }
 
     // Keep adding ops whose inputs are all ready
     std::set<NodeId> executed_ops;
-    while (execution_order_.size() < logical_->num_ops()) {
+    while(execution_order_.size() < logical_->num_ops())
+    {
         bool added = false;
-        for (const auto& op : logical_->ops()) {
-            if (executed_ops.count(op->id())) continue;
+        for(const auto& op : logical_->ops())
+        {
+            if(executed_ops.count(op->id()))
+            {
+                continue;
+            }
 
             // Check if all inputs are ready
             bool ready = true;
-            for (const auto* input : op->inputs()) {
-                if (!executed_tensors.count(input->id())) {
+            for(const auto* input : op->inputs())
+            {
+                if(!executed_tensors.count(input->id()))
+                {
                     ready = false;
                     break;
                 }
             }
 
-            if (ready) {
+            if(ready)
+            {
                 execution_order_.push_back(op.get());
                 executed_ops.insert(op->id());
-                for (const auto* output : op->outputs()) {
+                for(const auto* output : op->outputs())
+                {
                     executed_tensors.insert(output->id());
                 }
                 added = true;
             }
         }
-        if (!added) {
+        if(!added)
+        {
             throw std::runtime_error("Graph contains cycles or invalid dependencies");
         }
     }
 }
 
 //! Execute the graph
-void CompiledGraph::execute() {
-    for (const OpNode* op : execution_order_) {
+void CompiledGraph::execute()
+{
+    for(const OpNode* op : execution_order_)
+    {
         execute_op(op);
     }
 }
 
 //! Wait for all operations to complete
-void CompiledGraph::wait() {
+void CompiledGraph::wait()
+{
     // In single-threaded StarPU, operations are synchronous
     // For now, do nothing
 }
 
 //! Execute a single operation
-void CompiledGraph::execute_op(const OpNode* op) {
-    switch (op->type()) {
-        case OpType::MATMUL:
-            execute_matmul(op);
+void CompiledGraph::execute_op(const OpNode* op)
+{
+    switch(op->type())
+    {
+        case OpType::GEMM:
+            execute_gemm(op);
             break;
         case OpType::GELU:
             execute_gelu(op);
@@ -133,9 +173,10 @@ void CompiledGraph::execute_op(const OpNode* op) {
     }
 }
 
-//! Execute matmul operation
-void CompiledGraph::execute_matmul(const OpNode* op) {
-    const auto& attrs = std::get<MatmulAttrs>(op->attrs());
+//! Execute gemm operation
+void CompiledGraph::execute_gemm(const OpNode* op)
+{
+    const auto& attrs = std::get<GemmAttrs>(op->attrs());
 
     const std::string& a_name = op->input(0)->name();
     const std::string& b_name = op->input(1)->name();
@@ -143,7 +184,8 @@ void CompiledGraph::execute_matmul(const OpNode* op) {
 
     DataType dtype = tensor_dtypes_[a_name];
 
-    if (dtype == DataType::FP32) {
+    if(dtype == DataType::FP32)
+    {
         auto& a = get_tensor<nntile::fp32_t>(a_name);
         auto& b = get_tensor<nntile::fp32_t>(b_name);
         auto& c = get_tensor<nntile::fp32_t>(c_name);
@@ -151,64 +193,138 @@ void CompiledGraph::execute_matmul(const OpNode* op) {
         // Use nntile::tensor::gemm
         nntile::tensor::gemm<nntile::fp32_t>(
             static_cast<nntile::Scalar>(attrs.alpha),
-            attrs.trans_a ? nntile::TransOp(nntile::TransOp::Trans) : nntile::TransOp(nntile::TransOp::NoTrans),
+            attrs.trans_a ? nntile::TransOp(nntile::TransOp::Trans) :
+                    nntile::TransOp(nntile::TransOp::NoTrans),
             a,
-            attrs.trans_b ? nntile::TransOp(nntile::TransOp::Trans) : nntile::TransOp(nntile::TransOp::NoTrans),
+            attrs.trans_b ? nntile::TransOp(nntile::TransOp::Trans) :
+                    nntile::TransOp(nntile::TransOp::NoTrans),
             b,
             static_cast<nntile::Scalar>(attrs.beta),
             c,
-            1,  // ndim = 1 for matrix contraction
-            0   // batch_ndim = 0 for 2D matrices
+            attrs.ndim,
+            attrs.batch_ndim,
+            0  // redux = 0
         );
-    } else if (dtype == DataType::FP64) {
+    }
+    else if(dtype == DataType::FP64)
+    {
         auto& a = get_tensor<nntile::fp64_t>(a_name);
         auto& b = get_tensor<nntile::fp64_t>(b_name);
         auto& c = get_tensor<nntile::fp64_t>(c_name);
 
         nntile::tensor::gemm<nntile::fp64_t>(
             static_cast<nntile::Scalar>(attrs.alpha),
-            attrs.trans_a ? nntile::TransOp(nntile::TransOp::Trans) : nntile::TransOp(nntile::TransOp::NoTrans),
+            attrs.trans_a ? nntile::TransOp(nntile::TransOp::Trans) :
+                    nntile::TransOp(nntile::TransOp::NoTrans),
             a,
-            attrs.trans_b ? nntile::TransOp(nntile::TransOp::Trans) : nntile::TransOp(nntile::TransOp::NoTrans),
+            attrs.trans_b ? nntile::TransOp(nntile::TransOp::Trans) :
+                    nntile::TransOp(nntile::TransOp::NoTrans),
             b,
             static_cast<nntile::Scalar>(attrs.beta),
             c,
-            1,  // ndim = 1 for matrix contraction
-            0   // batch_ndim = 0 for 2D matrices
+            attrs.ndim,
+            attrs.batch_ndim,
+            0  // redux = 0
         );
-    } else {
-        throw std::runtime_error("Unsupported data type for matmul");
+    }
+    else if(dtype == DataType::FP16)
+    {
+        auto& a = get_tensor<nntile::fp16_t>(a_name);
+        auto& b = get_tensor<nntile::fp16_t>(b_name);
+        auto& c = get_tensor<nntile::fp16_t>(c_name);
+
+        nntile::tensor::gemm<nntile::fp16_t>(
+            static_cast<nntile::Scalar>(attrs.alpha),
+            attrs.trans_a ? nntile::TransOp(nntile::TransOp::Trans) :
+                    nntile::TransOp(nntile::TransOp::NoTrans),
+            a,
+            attrs.trans_b ? nntile::TransOp(nntile::TransOp::Trans) :
+                    nntile::TransOp(nntile::TransOp::NoTrans),
+            b,
+            static_cast<nntile::Scalar>(attrs.beta),
+            c,
+            attrs.ndim,
+            attrs.batch_ndim,
+            0  // redux = 0
+        );
+    }
+    else if(dtype == DataType::BF16)
+    {
+        auto& a = get_tensor<nntile::bf16_t>(a_name);
+        auto& b = get_tensor<nntile::bf16_t>(b_name);
+        auto& c = get_tensor<nntile::bf16_t>(c_name);
+
+        nntile::tensor::gemm<nntile::bf16_t>(
+            static_cast<nntile::Scalar>(attrs.alpha),
+            attrs.trans_a ? nntile::TransOp(nntile::TransOp::Trans) :
+                    nntile::TransOp(nntile::TransOp::NoTrans),
+            a,
+            attrs.trans_b ? nntile::TransOp(nntile::TransOp::Trans) :
+                    nntile::TransOp(nntile::TransOp::NoTrans),
+            b,
+            static_cast<nntile::Scalar>(attrs.beta),
+            c,
+            attrs.ndim,
+            attrs.batch_ndim,
+            0  // redux = 0
+        );
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type for gemm");
     }
 }
 
 //! Execute gelu operation
-void CompiledGraph::execute_gelu(const OpNode* op) {
+void CompiledGraph::execute_gelu(const OpNode* op)
+{
     const std::string& x_name = op->input(0)->name();
     const std::string& y_name = op->output(0)->name();
 
     DataType dtype = tensor_dtypes_[x_name];
 
-    if (dtype == DataType::FP32) {
+    if(dtype == DataType::FP32)
+    {
         auto& x = get_tensor<nntile::fp32_t>(x_name);
         auto& y = get_tensor<nntile::fp32_t>(y_name);
 
         // Use nntile::tensor::gelu
         nntile::tensor::gelu<nntile::fp32_t>(x, y);
-    } else if (dtype == DataType::FP64) {
+    }
+    else if(dtype == DataType::FP64)
+    {
         auto& x = get_tensor<nntile::fp64_t>(x_name);
         auto& y = get_tensor<nntile::fp64_t>(y_name);
 
         nntile::tensor::gelu<nntile::fp64_t>(x, y);
-    } else {
+    }
+    else if(dtype == DataType::FP16)
+    {
+        auto& x = get_tensor<nntile::fp16_t>(x_name);
+        auto& y = get_tensor<nntile::fp16_t>(y_name);
+
+        nntile::tensor::gelu<nntile::fp16_t>(x, y);
+    }
+    else if(dtype == DataType::BF16)
+    {
+        auto& x = get_tensor<nntile::bf16_t>(x_name);
+        auto& y = get_tensor<nntile::bf16_t>(y_name);
+
+        nntile::tensor::gelu<nntile::bf16_t>(x, y);
+    }
+    else
+    {
         throw std::runtime_error("Unsupported data type for gelu");
     }
 }
 
 //! Get typed tensor pointer
 template<typename T>
-nntile::tensor::Tensor<T>& CompiledGraph::get_tensor(const std::string& name) {
+nntile::tensor::Tensor<T>& CompiledGraph::get_tensor(const std::string& name)
+{
     auto it = tensors_.find(name);
-    if (it == tensors_.end()) {
+    if(it == tensors_.end())
+    {
         throw std::runtime_error("Tensor not found: " + name);
     }
     return *static_cast<nntile::tensor::Tensor<T>*>(it->second.get());
@@ -216,81 +332,163 @@ nntile::tensor::Tensor<T>& CompiledGraph::get_tensor(const std::string& name) {
 
 //! Bind data to a tensor (copies data)
 template<typename T>
-void CompiledGraph::bind_data(const std::string& name, const T* data, size_t count) {
+void CompiledGraph::bind_data(const std::string& name, const T* data, size_t count)
+{
     auto it = tensors_.find(name);
-    if (it == tensors_.end()) {
+    if(it == tensors_.end())
+    {
         throw std::runtime_error("Tensor not found: " + name);
     }
 
     DataType dtype = tensor_dtypes_[name];
 
     // Check count matches tensor size and convert data to appropriate wrapper type
-    if (dtype == DataType::FP32) {
+    if(dtype == DataType::FP32)
+    {
         auto& tensor = get_tensor<nntile::fp32_t>(name);
-        if (count != static_cast<size_t>(tensor.nelems)) {
+        if(count != static_cast<size_t>(tensor.nelems))
+        {
             throw std::runtime_error("Data size mismatch for tensor " + name);
         }
 
         // Acquire the single tile and copy data (converting to fp32_t)
         auto tile = tensor.get_tile(0);
         auto tile_local = tile.acquire(STARPU_W);
-        for (size_t i = 0; i < count; ++i) {
+        for(size_t i = 0; i < count; ++i)
+        {
             tile_local[i] = nntile::fp32_t(static_cast<float>(data[i]));
         }
         tile_local.release();
-    } else if (dtype == DataType::FP64) {
+    }
+    else if(dtype == DataType::FP64)
+    {
         auto& tensor = get_tensor<nntile::fp64_t>(name);
-        if (count != static_cast<size_t>(tensor.nelems)) {
+        if(count != static_cast<size_t>(tensor.nelems))
+        {
             throw std::runtime_error("Data size mismatch for tensor " + name);
         }
 
         // Acquire the single tile and copy data (converting to fp64_t)
         auto tile = tensor.get_tile(0);
         auto tile_local = tile.acquire(STARPU_W);
-        for (size_t i = 0; i < count; ++i) {
+        for(size_t i = 0; i < count; ++i)
+        {
             tile_local[i] = nntile::fp64_t(static_cast<double>(data[i]));
         }
         tile_local.release();
-    } else {
+    }
+    else if(dtype == DataType::FP16)
+    {
+        auto& tensor = get_tensor<nntile::fp16_t>(name);
+        if(count != static_cast<size_t>(tensor.nelems))
+        {
+            throw std::runtime_error("Data size mismatch for tensor " + name);
+        }
+
+        // Acquire the single tile and copy data (converting to fp16_t)
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        for(size_t i = 0; i < count; ++i)
+        {
+            tile_local[i] = nntile::fp16_t(static_cast<float>(data[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::BF16)
+    {
+        auto& tensor = get_tensor<nntile::bf16_t>(name);
+        if(count != static_cast<size_t>(tensor.nelems))
+        {
+            throw std::runtime_error("Data size mismatch for tensor " + name);
+        }
+
+        // Acquire the single tile and copy data (converting to bf16_t)
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        for(size_t i = 0; i < count; ++i)
+        {
+            tile_local[i] = nntile::bf16_t(static_cast<float>(data[i]));
+        }
+        tile_local.release();
+    }
+    else
+    {
         throw std::runtime_error("Unsupported data type for binding");
     }
 }
 
 //! Bind data from vector
 template<typename T>
-void CompiledGraph::bind_data(const std::string& name, const std::vector<T>& data) {
+void CompiledGraph::bind_data(const std::string& name, const std::vector<T>& data)
+{
     bind_data(name, data.data(), data.size());
 }
 
 //! Get output data (copies data out)
 template<typename T>
-std::vector<T> CompiledGraph::get_output(const std::string& name) {
+std::vector<T> CompiledGraph::get_output(const std::string& name)
+{
     DataType dtype = tensor_dtypes_[name];
     std::vector<T> result;
 
-    if (dtype == DataType::FP32) {
+    if(dtype == DataType::FP32)
+    {
         auto& tensor = get_tensor<nntile::fp32_t>(name);
         result.resize(tensor.nelems);
 
         // Acquire the single tile and copy data out (converting from fp32_t)
         auto tile = tensor.get_tile(0);
         auto tile_local = tile.acquire(STARPU_R);
-        for (Index i = 0; i < tensor.nelems; ++i) {
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
             result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
         }
         tile_local.release();
-    } else if (dtype == DataType::FP64) {
+    }
+    else if(dtype == DataType::FP64)
+    {
         auto& tensor = get_tensor<nntile::fp64_t>(name);
         result.resize(tensor.nelems);
 
         // Acquire the single tile and copy data out (converting from fp64_t)
         auto tile = tensor.get_tile(0);
         auto tile_local = tile.acquire(STARPU_R);
-        for (Index i = 0; i < tensor.nelems; ++i) {
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
             result[i] = static_cast<T>(static_cast<double>(tile_local[i]));
         }
         tile_local.release();
-    } else {
+    }
+    else if(dtype == DataType::FP16)
+    {
+        auto& tensor = get_tensor<nntile::fp16_t>(name);
+        result.resize(tensor.nelems);
+
+        // Acquire the single tile and copy data out (converting from fp16_t)
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
+            result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::BF16)
+    {
+        auto& tensor = get_tensor<nntile::bf16_t>(name);
+        result.resize(tensor.nelems);
+
+        // Acquire the single tile and copy data out (converting from bf16_t)
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
+            result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
+        }
+        tile_local.release();
+    }
+    else
+    {
         throw std::runtime_error("Unsupported data type for output retrieval");
     }
 
@@ -299,22 +497,35 @@ std::vector<T> CompiledGraph::get_output(const std::string& name) {
 
 //! Get raw pointer to output (must call wait() first)
 template<typename T>
-const T* CompiledGraph::get_output_ptr(const std::string& name) {
+const T* CompiledGraph::get_output_ptr(const std::string& name)
+{
     // This is a simplified implementation - in a real implementation,
     // we'd need to manage the tile acquisition/release properly
     throw std::runtime_error("get_output_ptr not implemented in minimal version");
 }
 
 // Template instantiations
-template nntile::tensor::Tensor<nntile::fp32_t>& CompiledGraph::get_tensor<nntile::fp32_t>(const std::string& name);
-template nntile::tensor::Tensor<nntile::fp64_t>& CompiledGraph::get_tensor<nntile::fp64_t>(const std::string& name);
+template nntile::tensor::Tensor<nntile::fp32_t>& CompiledGraph::get_tensor<nntile::fp32_t>(
+        const std::string& name);
+template nntile::tensor::Tensor<nntile::fp64_t>& CompiledGraph::get_tensor<nntile::fp64_t>(
+        const std::string& name);
+template nntile::tensor::Tensor<nntile::fp16_t>& CompiledGraph::get_tensor<nntile::fp16_t>(
+        const std::string& name);
+template nntile::tensor::Tensor<nntile::bf16_t>& CompiledGraph::get_tensor<nntile::bf16_t>(
+        const std::string& name);
 
-template void CompiledGraph::bind_data<float>(const std::string& name, const float* data, size_t count);
-template void CompiledGraph::bind_data<double>(const std::string& name, const double* data, size_t count);
-template void CompiledGraph::bind_data<long long>(const std::string& name, const long long* data, size_t count);
-template void CompiledGraph::bind_data<float>(const std::string& name, const std::vector<float>& data);
-template void CompiledGraph::bind_data<double>(const std::string& name, const std::vector<double>& data);
-template void CompiledGraph::bind_data<long long>(const std::string& name, const std::vector<long long>& data);
+template void CompiledGraph::bind_data<float>(const std::string& name, const float* data,
+        size_t count);
+template void CompiledGraph::bind_data<double>(const std::string& name, const double* data,
+        size_t count);
+template void CompiledGraph::bind_data<long long>(const std::string& name,
+        const long long* data, size_t count);
+template void CompiledGraph::bind_data<float>(const std::string& name,
+        const std::vector<float>& data);
+template void CompiledGraph::bind_data<double>(const std::string& name,
+        const std::vector<double>& data);
+template void CompiledGraph::bind_data<long long>(const std::string& name,
+        const std::vector<long long>& data);
 
 template std::vector<float> CompiledGraph::get_output<float>(const std::string& name);
 template std::vector<double> CompiledGraph::get_output<double>(const std::string& name);

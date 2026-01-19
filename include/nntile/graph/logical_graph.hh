@@ -52,14 +52,18 @@ public:
     // Operations
     // ═══════════════════════════════════════════════════════════════
 
-    //! Matrix multiplication: C = A @ B
+    //! General matrix multiplication: C = alpha * A @ B + beta * C
     //! Returns reference to output tensor
-    TensorNode& matmul(
+    TensorNode& gemm(
         TensorNode& a,
         TensorNode& b,
         const std::string& output_name,
+        double alpha = 1.0,
+        double beta = 0.0,
         bool trans_a = false,
-        bool trans_b = false
+        bool trans_b = false,
+        Index ndim = 1,
+        Index batch_ndim = 0
     );
 
     //! GeLU activation: y = gelu(x)
@@ -106,12 +110,14 @@ private:
         const std::string& name
     );
 
-    //! Compute output shape for matmul
-    TensorSpec compute_matmul_output_spec(
+    //! Compute output shape for gemm
+    TensorSpec compute_gemm_output_spec(
         const TensorSpec& a,
         const TensorSpec& b,
         bool trans_a,
-        bool trans_b
+        bool trans_b,
+        Index ndim,
+        Index batch_ndim
     );
 };
 

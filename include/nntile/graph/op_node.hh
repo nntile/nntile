@@ -15,6 +15,7 @@
 #pragma once
 
 #include <nntile/graph/tensor_node.hh>
+#include <nntile/base_types.hh>
 #include <string>
 #include <vector>
 #include <variant>
@@ -24,7 +25,7 @@ namespace nntile::graph {
 
 //! Operation types
 enum class OpType {
-    MATMUL,
+    GEMM,
     GELU
     // Add more as needed
 };
@@ -33,19 +34,21 @@ enum class OpType {
 std::string op_type_to_string(OpType type);
 
 //! Operation attributes (parameters that aren't tensors)
-struct MatmulAttrs {
+struct GemmAttrs {
     bool trans_a = false;
     bool trans_b = false;
     // For GEMM: C = alpha * A @ B + beta * C
     double alpha = 1.0;
     double beta = 0.0;
+    Index ndim = 1;  // Number of dimensions used in gemm contraction
+    Index batch_ndim = 0;  // Number of last dimensions used for batching
 };
 
 struct GeluAttrs {
     // No attributes for basic gelu
 };
 
-using OpAttrs = std::variant<MatmulAttrs, GeluAttrs>;
+using OpAttrs = std::variant<GemmAttrs, GeluAttrs>;
 
 //! An operation node in the logical graph
 class OpNode {

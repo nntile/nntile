@@ -60,9 +60,9 @@ int main(int argc, char** argv) {
     );
 
     // Forward pass
-    auto& h = graph.matmul(x, w1, "hidden");
+    auto& h = graph.gemm(x, w1, "hidden");
     auto& a = graph.gelu(h, "activation");
-    auto& y = graph.matmul(a, w2, "output");
+    auto& y = graph.gemm(a, w2, "output");
 
     // Mark output
     graph.mark_output("output");

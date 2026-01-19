@@ -30,25 +30,27 @@ TEST_CASE("LogicalGraph CreateTensor", "[graph]") {
     REQUIRE_FALSE(x.has_producer());
 }
 
-TEST_CASE("LogicalGraph Matmul", "[graph]") {
+TEST_CASE("LogicalGraph Gemm", "[graph]")
+{
     LogicalGraph g("test");
 
     auto& a = g.tensor(TensorSpec({32, 768}, DataType::FP32), "a");
     auto& b = g.tensor(TensorSpec({768, 256}, DataType::FP32), "b");
-    auto& c = g.matmul(a, b, "c");
+    auto& c = g.gemm(a, b, "c");
 
     REQUIRE(c.shape()[0] == 32);
     REQUIRE(c.shape()[1] == 256);
     REQUIRE(c.has_producer());
-    REQUIRE(c.producer()->type() == OpType::MATMUL);
+    REQUIRE(c.producer()->type() == OpType::GEMM);
 }
 
-TEST_CASE("LogicalGraph MatmulTranspose", "[graph]") {
+TEST_CASE("LogicalGraph GemmTranspose", "[graph]")
+{
     LogicalGraph g("test");
 
     auto& a = g.tensor(TensorSpec({768, 32}, DataType::FP32), "a");  // Will be transposed
     auto& b = g.tensor(TensorSpec({768, 256}, DataType::FP32), "b");
-    auto& c = g.matmul(a, b, "c", /*trans_a=*/true, /*trans_b=*/false);
+    auto& c = g.gemm(a, b, "c", 1.0, 0.0, /*trans_a=*/true, /*trans_b=*/false);
 
     REQUIRE(c.shape()[0] == 32);   // M from A^T
     REQUIRE(c.shape()[1] == 256);  // N from B
@@ -72,14 +74,14 @@ TEST_CASE("LogicalGraph Chain", "[graph]") {
     auto& w1 = g.tensor(TensorSpec({768, 3072}, DataType::FP32), "w1");
     auto& w2 = g.tensor(TensorSpec({3072, 768}, DataType::FP32), "w2");
 
-    auto& h = g.matmul(x, w1, "h");
+    auto& h = g.gemm(x, w1, "h");
     auto& a = g.gelu(h, "a");
-    auto& y = g.matmul(a, w2, "y");
+    auto& y = g.gemm(a, w2, "y");
 
     g.mark_output("y");
 
     REQUIRE(g.num_tensors() == 6);  // x, w1, w2, h, a, y
-    REQUIRE(g.num_ops() == 3);      // matmul, gelu, matmul
+    REQUIRE(g.num_ops() == 3);      // gemm, gelu, gemm
     REQUIRE(g.is_output("y"));
 }
 

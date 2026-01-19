@@ -18,11 +18,16 @@
 namespace nntile::graph {
 
 //! Convert OpType to string
-std::string op_type_to_string(OpType type) {
-    switch (type) {
-        case OpType::MATMUL: return "MatMul";
-        case OpType::GELU: return "GELU";
-        default: throw std::invalid_argument("Unknown OpType");
+std::string op_type_to_string(OpType type)
+{
+    switch(type)
+    {
+        case OpType::GEMM:
+            return "GEMM";
+        case OpType::GELU:
+            return "GELU";
+        default:
+            throw std::invalid_argument("Unknown OpType");
     }
 }
 
@@ -36,15 +41,25 @@ OpNode::OpNode(NodeId id, OpType type, OpAttrs attrs, LogicalGraph* graph)
 }
 
 //! String representation
-std::string OpNode::to_string() const {
-    std::string result = op_type_to_string(type_) + "(id=" + std::to_string(id_) + ", inputs=[";
-    for (size_t i = 0; i < inputs_.size(); ++i) {
-        if (i > 0) result += ", ";
+std::string OpNode::to_string() const
+{
+    std::string result = op_type_to_string(type_) + "(id=" + std::to_string(id_) +
+            ", inputs=[";
+    for(size_t i = 0; i < inputs_.size(); ++i)
+    {
+        if(i > 0)
+        {
+            result += ", ";
+        }
         result += inputs_[i]->name();
     }
     result += "], outputs=[";
-    for (size_t i = 0; i < outputs_.size(); ++i) {
-        if (i > 0) result += ", ";
+    for(size_t i = 0; i < outputs_.size(); ++i)
+    {
+        if(i > 0)
+        {
+            result += ", ";
+        }
         result += outputs_[i]->name();
     }
     result += "])";
@@ -52,13 +67,15 @@ std::string OpNode::to_string() const {
 }
 
 //! Only LogicalGraph can modify
-void OpNode::add_input(TensorNode* t) {
+void OpNode::add_input(TensorNode* t)
+{
     inputs_.push_back(t);
     t->add_consumer(this);
 }
 
 //! Only LogicalGraph can modify
-void OpNode::add_output(TensorNode* t) {
+void OpNode::add_output(TensorNode* t)
+{
     outputs_.push_back(t);
     t->set_producer(this);
 }

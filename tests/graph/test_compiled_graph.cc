@@ -28,12 +28,13 @@ public:
     GraphTestFixture() : context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0) {}
 };
 
-TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph SimpleMatmul", "[graph]") {
+TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph SimpleGemm", "[graph]")
+{
     LogicalGraph g("test");
 
     auto& a = g.tensor(TensorSpec({2, 3}, DataType::FP32), "a");
     auto& b = g.tensor(TensorSpec({3, 4}, DataType::FP32), "b");
-    auto& c = g.matmul(a, b, "c");
+    auto& c = g.gemm(a, b, "c");
     g.mark_output("c");
 
     auto compiled = CompiledGraph::compile(g);
@@ -97,9 +98,9 @@ TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph MLP", "[graph]") {
     auto& w1 = g.tensor(TensorSpec({4, 8}, DataType::FP32), "w1");
     auto& w2 = g.tensor(TensorSpec({8, 4}, DataType::FP32), "w2");
 
-    auto& h = g.matmul(x, w1, "h");
+    auto& h = g.gemm(x, w1, "h");
     auto& a = g.gelu(h, "a");
-    auto& y = g.matmul(a, w2, "y");
+    auto& y = g.gemm(a, w2, "y");
     g.mark_output("y");
 
     auto compiled = CompiledGraph::compile(g);
@@ -131,7 +132,7 @@ TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph DataTypeMismatch", "[graph]") 
 
     auto& a = g.tensor(TensorSpec({2, 2}, DataType::FP32), "a");
     auto& b = g.tensor(TensorSpec({2, 2}, DataType::FP32), "b");
-    auto& c = g.matmul(a, b, "c");
+    auto& c = g.gemm(a, b, "c");
     g.mark_output("c");
 
     auto compiled = CompiledGraph::compile(g);

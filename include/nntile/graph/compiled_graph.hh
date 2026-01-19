@@ -84,8 +84,8 @@ private:
     //! Execute a single operation
     void execute_op(const OpNode* op);
 
-    //! Execute matmul operation
-    void execute_matmul(const OpNode* op);
+    //! Execute gemm operation
+    void execute_gemm(const OpNode* op);
 
     //! Execute gelu operation
     void execute_gelu(const OpNode* op);
