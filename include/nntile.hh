@@ -40,5 +40,8 @@
 // Tensor as a set of tiles with its operations
 #include <nntile/tensor.hh>
 
+// Logical and compiled graphs for computation
+#include <nntile/graph.hh>
+
 // Logger thread to log activities
 #include <nntile/logger.hh>

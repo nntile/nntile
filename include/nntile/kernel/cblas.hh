@@ -27,12 +27,15 @@
 #   else // Use standard int otherwise
 #       define CBLAS_INT int
 #   endif
+#elif defined(__APPLE__) && __has_include(<Accelerate/Accelerate.h>) // Look for Apple Accelerate framework
+#   include <Accelerate/Accelerate.h>
+#   define CBLAS_INT int
 #elif __has_include(<mkl.h>) // Look for MKL (OneAPI) header
 #   include <mkl.h>
 #   define CBLAS_INT MKL_INT
 #else
-#   error "CBLAS header not found (tried <cblas.h> and <mkl.h>)"
-#endif // __has_include(<cblas.h>) || __has_include(<mkl.h>)
+#   error "CBLAS header not found (tried <cblas.h>, <Accelerate/Accelerate.h>, and <mkl.h>)"
+#endif // __has_include(<cblas.h>) || __has_include(<Accelerate/Accelerate.h>) || __has_include(<mkl.h>)
 
 // Other NNTile headers
 #include <nntile/base_types.hh>
@@ -80,13 +83,13 @@ void gemm(
 
 //! Helper to check if CBLAS supports the given type
 template<typename T>
-constexpr bool gemm_is_supported = false;
+inline constexpr bool gemm_is_supported = false;
 
 template<>
-constexpr bool gemm_is_supported<fp64_t> = true;
+inline constexpr bool gemm_is_supported<fp64_t> = true;
 
 template<>
-constexpr bool gemm_is_supported<fp32_t> = true;
+inline constexpr bool gemm_is_supported<fp32_t> = true;
 
 } // namespace nntile:kernel::cblas
 #endif // NNTILE_USE_CBLAS

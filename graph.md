@@ -95,24 +95,24 @@ private:
 public:
     //! Construct with shape and dtype
     TensorSpec(std::vector<Index> shape, DataType dtype = DataType::FP32);
-    
+
     //! Accessors
     const std::vector<Index>& shape() const { return shape_; }
     DataType dtype() const { return dtype_; }
     Index ndim() const { return static_cast<Index>(shape_.size()); }
-    
+
     //! Get dimension at index (supports negative indexing)
     Index dim(int idx) const;
-    
+
     //! Total number of elements
     Index nelems() const;
-    
+
     //! Total size in bytes
     size_t size_bytes() const;
-    
+
     //! Check if shapes are compatible for operations
     bool is_compatible(const TensorSpec& other) const;
-    
+
     //! String representation
     std::string to_string() const;
 };
@@ -162,14 +162,14 @@ private:
     std::string name_;
     TensorSpec spec_;
     LogicalGraph* graph_;
-    
+
     // Graph edges
     OpNode* producer_ = nullptr;           // Op that creates this tensor (nullptr if input)
     std::vector<OpNode*> consumers_;       // Ops that use this tensor
 
 public:
     TensorNode(NodeId id, const std::string& name, TensorSpec spec, LogicalGraph* graph);
-    
+
     // Accessors
     NodeId id() const { return id_; }
     const std::string& name() const { return name_; }
@@ -177,12 +177,12 @@ public:
     DataType dtype() const { return spec_.dtype(); }
     const std::vector<Index>& shape() const { return spec_.shape(); }
     Index ndim() const { return spec_.ndim(); }
-    
+
     // Graph structure
     bool has_producer() const { return producer_ != nullptr; }
     OpNode* producer() const { return producer_; }
     const std::vector<OpNode*>& consumers() const { return consumers_; }
-    
+
     // String representation
     std::string to_string() const;
 
@@ -250,27 +250,27 @@ private:
     OpType type_;
     OpAttrs attrs_;
     LogicalGraph* graph_;
-    
+
     // Graph edges
     std::vector<TensorNode*> inputs_;
     std::vector<TensorNode*> outputs_;
 
 public:
     OpNode(NodeId id, OpType type, OpAttrs attrs, LogicalGraph* graph);
-    
+
     // Accessors
     NodeId id() const { return id_; }
     OpType type() const { return type_; }
     const OpAttrs& attrs() const { return attrs_; }
-    
+
     // Graph structure
     const std::vector<TensorNode*>& inputs() const { return inputs_; }
     const std::vector<TensorNode*>& outputs() const { return outputs_; }
-    
+
     // Convenience accessors for common cases
     TensorNode* input(size_t idx = 0) const { return inputs_.at(idx); }
     TensorNode* output(size_t idx = 0) const { return outputs_.at(idx); }
-    
+
     // String representation
     std::string to_string() const;
 
@@ -317,27 +317,27 @@ private:
     std::vector<std::unique_ptr<OpNode>> ops_;
     std::map<std::string, TensorNode*> tensor_by_name_;
     std::set<std::string> output_names_;
-    
+
     NodeId next_tensor_id_ = 0;
     NodeId next_op_id_ = 0;
 
 public:
     explicit LogicalGraph(const std::string& name = "");
-    
+
     // ═══════════════════════════════════════════════════════════════
     // Tensor Creation
     // ═══════════════════════════════════════════════════════════════
-    
+
     //! Create a tensor
     TensorNode& tensor(const TensorSpec& spec, const std::string& name);
-    
+
     //! Mark tensor as output
     void mark_output(const std::string& name);
-    
+
     // ═══════════════════════════════════════════════════════════════
     // Operations
     // ═══════════════════════════════════════════════════════════════
-    
+
     //! Matrix multiplication: C = A @ B
     //! Returns reference to output tensor
     TensorNode& matmul(
@@ -347,40 +347,40 @@ public:
         bool trans_a = false,
         bool trans_b = false
     );
-    
+
     //! GeLU activation: y = gelu(x)
     TensorNode& gelu(
         TensorNode& x,
         const std::string& output_name
     );
-    
+
     // ═══════════════════════════════════════════════════════════════
     // Queries
     // ═══════════════════════════════════════════════════════════════
-    
+
     const std::string& name() const { return name_; }
     size_t num_tensors() const { return tensors_.size(); }
     size_t num_ops() const { return ops_.size(); }
-    
+
     //! Get tensor by name (returns nullptr if not found)
     TensorNode* get_tensor(const std::string& name);
     const TensorNode* get_tensor(const std::string& name) const;
-    
+
     //! Get all tensor names
     std::vector<std::string> tensor_names() const;
-    
+
     //! Get output tensor names
     const std::set<std::string>& output_names() const { return output_names_; }
-    
+
     //! Check if tensor is an output
     bool is_output(const std::string& name) const;
-    
+
     //! Get all tensors (for iteration)
     const std::vector<std::unique_ptr<TensorNode>>& tensors() const { return tensors_; }
-    
+
     //! Get all ops (for iteration)
     const std::vector<std::unique_ptr<OpNode>>& ops() const { return ops_; }
-    
+
     //! String representation
     std::string to_string() const;
 
@@ -391,7 +391,7 @@ private:
         const TensorSpec& spec,
         const std::string& name
     );
-    
+
     //! Compute output shape for matmul
     TensorSpec compute_matmul_output_spec(
         const TensorSpec& a,
@@ -438,9 +438,9 @@ Key implementations:
    Index K_a = trans_a ? a.dim(0) : a.dim(1);
    Index K_b = trans_b ? b.dim(1) : b.dim(0);
    Index N = trans_b ? b.dim(0) : b.dim(1);
-   
+
    if (K_a != K_b) throw std::invalid_argument("matmul: incompatible shapes");
-   
+
    return TensorSpec({M, N}, a.dtype());
    ```
 
@@ -465,14 +465,14 @@ namespace nntile::graph {
 class CompiledGraph {
 private:
     const LogicalGraph* logical_;
-    
+
     // Runtime tensors (NNTile tensors, one tile each)
     std::map<std::string, std::shared_ptr<void>> tensors_;  // Type-erased tensor pointers
     std::map<std::string, DataType> tensor_dtypes_;
-    
+
     // Execution order (topologically sorted ops)
     std::vector<const OpNode*> execution_order_;
-    
+
     // StarPU config
     starpu::Config* config_ = nullptr;
 
@@ -483,59 +483,59 @@ public:
         const LogicalGraph& logical,
         starpu::Config& config
     );
-    
+
     // ═══════════════════════════════════════════════════════════════
     // Data Binding
     // ═══════════════════════════════════════════════════════════════
-    
+
     //! Bind data to a tensor (copies data)
     template<typename T>
     void bind_data(const std::string& name, const T* data, size_t count);
-    
+
     //! Bind data from vector
     template<typename T>
     void bind_data(const std::string& name, const std::vector<T>& data);
-    
+
     // ═══════════════════════════════════════════════════════════════
     // Execution
     // ═══════════════════════════════════════════════════════════════
-    
+
     //! Execute the graph
     void execute();
-    
+
     //! Wait for all operations to complete
     void wait();
-    
+
     // ═══════════════════════════════════════════════════════════════
     // Output Retrieval
     // ═══════════════════════════════════════════════════════════════
-    
+
     //! Get output data (copies data out)
     template<typename T>
     std::vector<T> get_output(const std::string& name);
-    
+
     //! Get raw pointer to output (must call wait() first)
     template<typename T>
     const T* get_output_ptr(const std::string& name);
 
 private:
     CompiledGraph() = default;
-    
+
     //! Allocate NNTile tensors for all graph tensors
     void allocate_tensors();
-    
+
     //! Compute topological order of operations
     void compute_execution_order();
-    
+
     //! Execute a single operation
     void execute_op(const OpNode* op);
-    
+
     //! Execute matmul operation
     void execute_matmul(const OpNode* op);
-    
+
     //! Execute gelu operation
     void execute_gelu(const OpNode* op);
-    
+
     //! Get typed tensor pointer
     template<typename T>
     nntile::tensor::Tensor<T>& get_tensor(const std::string& name);
@@ -554,10 +554,10 @@ Key implementations:
        CompiledGraph cg;
        cg.logical_ = &logical;
        cg.config_ = &config;
-       
+
        cg.allocate_tensors();
        cg.compute_execution_order();
-       
+
        return cg;
    }
    ```
@@ -566,17 +566,17 @@ Key implementations:
    - For each TensorNode in logical graph:
    - Create NNTile tensor with shape = node's shape, tile_shape = full shape (no tiling)
    - Store in tensors_ map with type erasure
-   
+
    ```cpp
    void CompiledGraph::allocate_tensors() {
        for (const auto& node : logical_->tensors()) {
            const auto& spec = node->spec();
            tensor_dtypes_[node->name()] = spec.dtype();
-           
+
            // Create tensor with single tile (no tiling)
            std::vector<Index> shape = spec.shape();
            std::vector<Index> tile_shape = shape;  // Same as shape = 1 tile
-           
+
            switch (spec.dtype()) {
                case DataType::FP32: {
                    auto t = std::make_shared<nntile::tensor::Tensor<float>>(
@@ -601,25 +601,25 @@ Key implementations:
 3. **`compute_execution_order()`**:
    - Topological sort of ops based on dependencies
    - Simple algorithm: ops with no unexecuted dependencies go first
-   
+
    ```cpp
    void CompiledGraph::compute_execution_order() {
        execution_order_.clear();
        std::set<NodeId> executed_tensors;
-       
+
        // Mark all input tensors (no producer) as executed
        for (const auto& t : logical_->tensors()) {
            if (!t->has_producer()) {
                executed_tensors.insert(t->id());
            }
        }
-       
+
        // Keep adding ops whose inputs are all ready
        std::set<NodeId> executed_ops;
        while (execution_order_.size() < logical_->num_ops()) {
            for (const auto& op : logical_->ops()) {
                if (executed_ops.count(op->id())) continue;
-               
+
                // Check if all inputs are ready
                bool ready = true;
                for (const auto* input : op->inputs()) {
@@ -628,7 +628,7 @@ Key implementations:
                        break;
                    }
                }
-               
+
                if (ready) {
                    execution_order_.push_back(op.get());
                    executed_ops.insert(op->id());
@@ -668,18 +668,18 @@ Key implementations:
    ```cpp
    void CompiledGraph::execute_matmul(const OpNode* op) {
        const auto& attrs = std::get<MatmulAttrs>(op->attrs());
-       
+
        const std::string& a_name = op->input(0)->name();
        const std::string& b_name = op->input(1)->name();
        const std::string& c_name = op->output(0)->name();
-       
+
        DataType dtype = tensor_dtypes_[a_name];
-       
+
        if (dtype == DataType::FP32) {
            auto& a = get_tensor<float>(a_name);
            auto& b = get_tensor<float>(b_name);
            auto& c = get_tensor<float>(c_name);
-           
+
            // Use nntile::tensor::gemm
            // gemm(alpha, trans_a, a, trans_b, b, beta, c)
            nntile::tensor::gemm<float>(
@@ -701,13 +701,13 @@ Key implementations:
    void CompiledGraph::execute_gelu(const OpNode* op) {
        const std::string& x_name = op->input(0)->name();
        const std::string& y_name = op->output(0)->name();
-       
+
        DataType dtype = tensor_dtypes_[x_name];
-       
+
        if (dtype == DataType::FP32) {
            auto& x = get_tensor<float>(x_name);
            auto& y = get_tensor<float>(y_name);
-           
+
            // Use nntile::tensor::gelu
            nntile::tensor::gelu<float>(x, y);
        }
@@ -778,75 +778,85 @@ Update `src/CMakeLists.txt` to include `add_subdirectory(graph)`.
 **File**: `tests/graph/test_logical_graph.cc`
 
 ```cpp
-#include <nntile/graph/graph.hh>
-#include <gtest/gtest.h>
+#include <nntile/graph.hh>
+#include <catch2/catch_test_macros.hpp>
 
 using namespace nntile::graph;
 
-TEST(LogicalGraph, CreateTensor) {
+TEST_CASE("LogicalGraph CreateTensor", "[graph]")
+{
     LogicalGraph g("test");
-    
+
     auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
-    
-    EXPECT_EQ(x.name(), "x");
-    EXPECT_EQ(x.shape().size(), 2);
-    EXPECT_EQ(x.shape()[0], 32);
-    EXPECT_EQ(x.shape()[1], 768);
-    EXPECT_EQ(x.dtype(), DataType::FP32);
-    EXPECT_FALSE(x.has_producer());
+
+    REQUIRE(x.name() == "x");
+    REQUIRE(x.shape().size() == 2);
+    REQUIRE(x.shape()[0] == 32);
+    REQUIRE(x.shape()[1] == 768);
+    REQUIRE(x.dtype() == DataType::FP32);
+    REQUIRE_FALSE(x.has_producer());
 }
 
-TEST(LogicalGraph, Matmul) {
+TEST_CASE("LogicalGraph Gemm", "[graph]")
+{
     LogicalGraph g("test");
-    
+
     auto& a = g.tensor(TensorSpec({32, 768}, DataType::FP32), "a");
     auto& b = g.tensor(TensorSpec({768, 256}, DataType::FP32), "b");
-    auto& c = g.matmul(a, b, "c");
-    
-    EXPECT_EQ(c.shape()[0], 32);
-    EXPECT_EQ(c.shape()[1], 256);
-    EXPECT_TRUE(c.has_producer());
-    EXPECT_EQ(c.producer()->type(), OpType::MATMUL);
+    auto& c = gemm(a, b, "c");
+
+    REQUIRE(c.shape()[0] == 32);
+    REQUIRE(c.shape()[1] == 256);
+    REQUIRE(c.has_producer());
+    REQUIRE(c.producer()->type() == OpType::GEMM);
 }
 
-TEST(LogicalGraph, MatmulTranspose) {
+TEST_CASE("LogicalGraph GemmTranspose", "[graph]")
+{
     LogicalGraph g("test");
-    
-    auto& a = g.tensor(TensorSpec({768, 32}, DataType::FP32), "a");  // Will be transposed
+
+    auto& a = g.tensor(
+        TensorSpec({768, 32}, DataType::FP32),
+        "a");  // Will be transposed
     auto& b = g.tensor(TensorSpec({768, 256}, DataType::FP32), "b");
-    auto& c = g.matmul(a, b, "c", /*trans_a=*/true, /*trans_b=*/false);
-    
-    EXPECT_EQ(c.shape()[0], 32);   // M from A^T
-    EXPECT_EQ(c.shape()[1], 256);  // N from B
+    auto& c = gemm(
+        a,
+        b,
+        "c",
+        1.0,
+        /*trans_a=*/true,
+        /*trans_b=*/false);
+
+    REQUIRE(c.shape()[0] == 32);   // M from A^T
+    REQUIRE(c.shape()[1] == 256);  // N from B
 }
 
-TEST(LogicalGraph, Gelu) {
+TEST_CASE("LogicalGraph Gelu", "[graph]")
+{
     LogicalGraph g("test");
-    
+
     auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
-    auto& y = g.gelu(x, "y");
-    
-    EXPECT_EQ(y.shape(), x.shape());
-    EXPECT_TRUE(y.has_producer());
-    EXPECT_EQ(y.producer()->type(), OpType::GELU);
+    auto& y = gelu(x, "y");
+
+    REQUIRE(y.shape() == x.shape());
+    REQUIRE(y.has_producer());
+    REQUIRE(y.producer()->type() == OpType::GELU);
 }
 
-TEST(LogicalGraph, Chain) {
+TEST_CASE("LogicalGraph Chain", "[graph]")
+{
     LogicalGraph g("mlp");
-    
+
     auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
     auto& w1 = g.tensor(TensorSpec({768, 3072}, DataType::FP32), "w1");
     auto& w2 = g.tensor(TensorSpec({3072, 768}, DataType::FP32), "w2");
-    
-    auto& h = g.matmul(x, w1, "h");
-    auto& a = g.gelu(h, "a");
-    auto& y = g.matmul(a, w2, "y");
-    
-    g.mark_output("y");
-    
-    EXPECT_EQ(g.num_tensors(), 6);  // x, w1, w2, h, a, y
-    EXPECT_EQ(g.num_ops(), 3);      // matmul, gelu, matmul
-    EXPECT_TRUE(g.is_output("y"));
+
+    auto& h = gemm(x, w1, "h");
+    auto& a = gelu(h, "a");
+    auto& y = gemm(a, w2, "y");
+
+    REQUIRE(g.num_tensors() == 6);  // x, w1, w2, h, a, y
+    REQUIRE(g.num_ops() == 3);      // gemm, gelu, gemm
 }
 ```
 
@@ -855,115 +865,130 @@ TEST(LogicalGraph, Chain) {
 **File**: `tests/graph/test_compiled_graph.cc`
 
 ```cpp
-#include <nntile/graph/graph.hh>
-#include <nntile/starpu/config.hh>
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include <cmath>
+
+#include "nntile/context.hh"
+#include "nntile/graph.hh"
 
 using namespace nntile::graph;
 
-class CompiledGraphTest : public ::testing::Test {
+// Fixture to initialize NNTile context for graph tests
+class GraphTestFixture
+{
 protected:
-    void SetUp() override {
-        config_ = new nntile::starpu::Config(1, 1, 0);  // 1 CPU, 1 CUDA
-    }
-    
-    void TearDown() override {
-        delete config_;
-    }
-    
-    nntile::starpu::Config* config_;
+    nntile::Context context;
+public:
+    GraphTestFixture():
+        context(
+            1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0
+        )
+    {}
 };
 
-TEST_F(CompiledGraphTest, SimpleMatmul) {
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph SimpleGemm",
+    "[graph]"
+)
+{
     LogicalGraph g("test");
-    
+
     auto& a = g.tensor(TensorSpec({2, 3}, DataType::FP32), "a");
     auto& b = g.tensor(TensorSpec({3, 4}, DataType::FP32), "b");
-    auto& c = g.matmul(a, b, "c");
-    g.mark_output("c");
-    
-    auto compiled = CompiledGraph::compile(g, *config_);
-    
+    auto& c = gemm(a, b, "c");
+
+    auto compiled = CompiledGraph::compile(g);
+
+    // NNTile tensors use column-major (Fortran) layout.
     // A = [[1,2,3], [4,5,6]]
-    std::vector<float> a_data = {1, 2, 3, 4, 5, 6};
+    std::vector<float> a_data = {1, 4, 2, 5, 3, 6};
     // B = [[1,2,3,4], [5,6,7,8], [9,10,11,12]]
-    std::vector<float> b_data = {1,2,3,4, 5,6,7,8, 9,10,11,12};
-    
+    std::vector<float> b_data = {1, 5, 9, 2, 6, 10, 3, 7, 11, 4, 8, 12};
+
     compiled.bind_data("a", a_data);
     compiled.bind_data("b", b_data);
-    
+
     compiled.execute();
     compiled.wait();
-    
+
     auto c_data = compiled.get_output<float>("c");
-    
+
     // C = A @ B = [[38,44,50,56], [83,98,113,128]]
-    EXPECT_EQ(c_data.size(), 8);
-    EXPECT_FLOAT_EQ(c_data[0], 38);
-    EXPECT_FLOAT_EQ(c_data[1], 44);
-    EXPECT_FLOAT_EQ(c_data[4], 83);
-    EXPECT_FLOAT_EQ(c_data[5], 98);
+    REQUIRE(c_data.size() == 8);
+    REQUIRE(c_data[0] == 38.0f);
+    REQUIRE(c_data[1] == 83.0f);
+    REQUIRE(c_data[2] == 44.0f);
+    REQUIRE(c_data[3] == 98.0f);
 }
 
-TEST_F(CompiledGraphTest, GeluActivation) {
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph GeluActivation",
+    "[graph]"
+)
+{
     LogicalGraph g("test");
-    
+
     auto& x = g.tensor(TensorSpec({4}, DataType::FP32), "x");
-    auto& y = g.gelu(x, "y");
-    g.mark_output("y");
-    
-    auto compiled = CompiledGraph::compile(g, *config_);
-    
+    auto& y = gelu(x, "y");
+
+    auto compiled = CompiledGraph::compile(g);
+
     std::vector<float> x_data = {-1.0f, 0.0f, 1.0f, 2.0f};
     compiled.bind_data("x", x_data);
-    
+
     compiled.execute();
     compiled.wait();
-    
+
     auto y_data = compiled.get_output<float>("y");
-    
+
     // GELU(-1) ≈ -0.159, GELU(0) = 0, GELU(1) ≈ 0.841, GELU(2) ≈ 1.955
-    EXPECT_NEAR(y_data[0], -0.159f, 0.01f);
-    EXPECT_NEAR(y_data[1], 0.0f, 0.01f);
-    EXPECT_NEAR(y_data[2], 0.841f, 0.01f);
-    EXPECT_NEAR(y_data[3], 1.955f, 0.01f);
+    REQUIRE_THAT(y_data[0], Catch::Approx(-0.159f).margin(0.01f));
+    REQUIRE_THAT(y_data[1], Catch::Approx(0.0f).margin(0.01f));
+    REQUIRE_THAT(y_data[2], Catch::Approx(0.841f).margin(0.01f));
+    REQUIRE_THAT(y_data[3], Catch::Approx(1.955f).margin(0.01f));
 }
 
-TEST_F(CompiledGraphTest, MLP) {
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph MLP",
+    "[graph]"
+)
+{
     LogicalGraph g("mlp");
-    
+
     // x: [2, 4], w1: [4, 8], w2: [8, 4]
     auto& x = g.tensor(TensorSpec({2, 4}, DataType::FP32), "x");
     auto& w1 = g.tensor(TensorSpec({4, 8}, DataType::FP32), "w1");
     auto& w2 = g.tensor(TensorSpec({8, 4}, DataType::FP32), "w2");
-    
-    auto& h = g.matmul(x, w1, "h");
-    auto& a = g.gelu(h, "a");
-    auto& y = g.matmul(a, w2, "y");
-    g.mark_output("y");
-    
-    auto compiled = CompiledGraph::compile(g, *config_);
-    
+
+    auto& h = gemm(x, w1, "h");
+    auto& a = gelu(h, "a");
+    auto& y = gemm(a, w2, "y");
+
+    auto compiled = CompiledGraph::compile(g);
+
     // Initialize with simple values
     std::vector<float> x_data(8, 1.0f);
     std::vector<float> w1_data(32, 0.1f);
     std::vector<float> w2_data(32, 0.1f);
-    
+
     compiled.bind_data("x", x_data);
     compiled.bind_data("w1", w1_data);
     compiled.bind_data("w2", w2_data);
-    
+
     compiled.execute();
     compiled.wait();
-    
+
     auto y_data = compiled.get_output<float>("y");
-    
-    EXPECT_EQ(y_data.size(), 8);  // [2, 4]
+
+    REQUIRE(y_data.size() == 8);  // [2, 4]
     // Values should be non-zero and reasonable
     for (float v : y_data) {
-        EXPECT_GT(v, 0.0f);
-        EXPECT_LT(v, 10.0f);
+        REQUIRE(v > 0.0f);
+        REQUIRE(v < 10.0f);
     }
 }
 ```

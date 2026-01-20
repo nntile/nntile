@@ -397,6 +397,44 @@ set(LOGGER_SRC
     "logger/websocket_client.cc"
 )
 
+# Graph-related sources (common)
+set(GRAPH_COMMON_SRC
+    "graph/tensor_spec.cc"
+    "graph/tensor_node.cc"
+    "graph/op_node.cc"
+)
+
+# Logical graph core
+set(GRAPH_LOGICAL_CORE_SRC
+    "graph/logical_graph.cc"
+)
+
+# Logical graph operations (split for compilation parallelism)
+set(GRAPH_LOGICAL_OPS_SRC
+    "graph/logical/gemm.cc"
+    "graph/logical/gelu.cc"
+)
+
+# Compiled graph core
+set(GRAPH_COMPILED_CORE_SRC
+    "graph/compiled_graph.cc"
+)
+
+# Compiled graph operations (split for compilation parallelism)
+set(GRAPH_COMPILED_OPS_SRC
+    "graph/compiled/gemm.cc"
+    "graph/compiled/gelu.cc"
+)
+
+# All graph sources combined
+set(GRAPH_SRC
+    ${GRAPH_COMMON_SRC}
+    ${GRAPH_LOGICAL_CORE_SRC}
+    ${GRAPH_LOGICAL_OPS_SRC}
+    ${GRAPH_COMPILED_CORE_SRC}
+    ${GRAPH_COMPILED_OPS_SRC}
+)
+
 # Set the list of all sources
 set(NNTILE_SRC
     ${BASE_SRC}
@@ -409,6 +447,7 @@ set(NNTILE_SRC
     ${TENSOR_BASE_SRC}
     ${TENSOR_OPERATION_SRC}
     ${LOGGER_SRC}
+    ${GRAPH_SRC}
 )
 
 target_sources(nntile PRIVATE ${NNTILE_SRC})
