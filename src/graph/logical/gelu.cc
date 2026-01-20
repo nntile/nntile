@@ -34,17 +34,21 @@ TensorNode& gelu(
     // Output shape = input shape
     TensorSpec output_spec = TensorSpec(x.shape(), x.dtype());
 
+    // Create output tensor
+    TensorNode& output = x.graph().tensor(output_spec, output_name);
+
     // Create operation attributes
     OpAttrs attrs = GeluAttrs{};
 
     // Add operation to graph using public builder API
-    return x.graph().add_op(
+    x.graph().add_op(
         OpType::GELU,
         attrs,
         {&x},
-        output_spec,
-        output_name
+        {&output}
     );
+
+    return output;
 }
 
 } // namespace nntile::graph

@@ -157,6 +157,40 @@ TensorNode& your_op(
 } // namespace nntile::graph
 ```
 
+### Step 2b: In-Place Operations (Optional)
+
+Some operations support both variants:
+1. **Creating new tensor**: `y = f(x)` - uses `add_op()`
+2. **Accumulating into existing tensor**: `y = f(x) + beta * y` - uses `add_inplace_op()`
+
+Example with gemm:
+
+```cpp
+// Variant 1: C = alpha * A @ B (creates new tensor)
+TensorNode& gemm(TensorNode& a, TensorNode& b, const std::string& output_name, ...);
+
+// Variant 2: C = alpha * A @ B + beta * C (accumulates into existing tensor)
+void gemm(TensorNode& a, TensorNode& b, TensorNode& c, Scalar alpha, Scalar beta, ...);
+```
+
+For in-place operations, use `add_inplace_op()`:
+
+```cpp
+void your_op_inplace(TensorNode& x, TensorNode& y, float some_param)
+{
+    OpAttrs attrs = YourOpAttrs{some_param};
+    
+    // Use add_inplace_op for operations that modify existing tensors
+    // The tensor y appears in both inputs and outputs
+    x.graph().add_inplace_op(
+        OpType::YOUR_OP,
+        attrs,
+        {&x},    // Additional inputs (not including y)
+        &y       // Tensor that is both read and modified
+    );
+}
+```
+
 ### Step 3: Create Compiled Operation
 
 Create `include/nntile/graph/compiled/your_op.hh`:
@@ -299,17 +333,31 @@ LogicalGraph g("example");
 
 // Create input tensors
 auto& x = g.tensor(TensorSpec({128, 64}, DataType::FP32), "x");
+auto& w = g.tensor(TensorSpec({64, 32}, DataType::FP32), "w");
 
 // Apply operations (free functions - graph inferred from tensors)
-auto& y = your_op(x, "y", 0.5f);
-auto& z = gelu(y, "z");
+auto& h = gemm(x, w, "h");           // C = A @ B (creates new tensor)
+auto& y = gelu(h, "y");
 
 // Compile and execute
 auto compiled = CompiledGraph::compile(g);
 compiled.bind_data("x", input_data);
+compiled.bind_data("w", weight_data);
 compiled.execute();
 compiled.wait();
-auto result = compiled.get_output<float>("z");
+auto result = compiled.get_output<float>("y");
+```
+
+### In-Place Accumulation Example
+
+```cpp
+// Create tensors
+auto& a = g.tensor(TensorSpec({32, 64}, DataType::FP32), "a");
+auto& b = g.tensor(TensorSpec({64, 128}, DataType::FP32), "b");
+auto& c = g.tensor(TensorSpec({32, 128}, DataType::FP32), "c");
+
+// Accumulate: C = alpha * A @ B + beta * C
+gemm(a, b, c, /*alpha=*/1.0, /*beta=*/0.5);  // Modifies c in-place
 ```
 
 ## Design Principles
@@ -320,13 +368,17 @@ auto result = compiled.get_output<float>("z");
 2. **Graph inferred from tensors**: Operations get the graph from input tensors via
    `tensor.graph()`, so no explicit graph parameter is needed.
 
-3. **Public builder API**: LogicalGraph exposes `add_op()` for operations to use,
-   avoiding friend declarations.
+3. **Two API patterns for operations**:
+   - **Creating new tensor**: `TensorNode& op(inputs..., output_name)` - uses `add_op()`
+   - **In-place accumulation**: `void op(inputs..., inout_tensor)` - uses `add_inplace_op()`
 
-4. **Separate files per operation**: Each operation has its own header and source
+4. **Public builder API**: LogicalGraph exposes `add_op()` and `add_inplace_op()` for
+   operations to use, avoiding friend declarations.
+
+5. **Separate files per operation**: Each operation has its own header and source
    files for parallel compilation.
 
-5. **Type dispatching in compiled operations**: The compiled operation handles
+6. **Type dispatching in compiled operations**: The compiled operation handles
    runtime type dispatching to call the appropriate NNTile tensor function.
 
 ## Data Type Support

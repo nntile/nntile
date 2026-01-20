@@ -60,13 +60,12 @@ TensorNode& LogicalGraph::tensor(
     return *node_ptr;
 }
 
-//! Add an operation to the graph and return reference to its output tensor
-TensorNode& LogicalGraph::add_op(
+//! Add an operation to the graph with specified output tensors
+void LogicalGraph::add_op(
     OpType type,
     OpAttrs attrs,
     const std::vector<TensorNode*>& inputs,
-    const TensorSpec& output_spec,
-    const std::string& output_name)
+    const std::vector<TensorNode*>& outputs)
 {
     // Validate all inputs belong to this graph
     for(const auto* input : inputs)
@@ -79,12 +78,15 @@ TensorNode& LogicalGraph::add_op(
         }
     }
 
-    // Check output name doesn't already exist
-    if(tensor_by_name_.count(output_name) > 0)
+    // Validate all outputs belong to this graph
+    for(const auto* output : outputs)
     {
-        throw std::invalid_argument(
-            "LogicalGraph::add_op: tensor '" + output_name +
-            "' already exists");
+        if(&output->graph() != this)
+        {
+            throw std::invalid_argument(
+                "LogicalGraph::add_op: output tensor '" + output->name() +
+                "' does not belong to this graph");
+        }
     }
 
     // Create OpNode
@@ -103,25 +105,14 @@ TensorNode& LogicalGraph::add_op(
         op_ptr->add_input(input);
     }
 
-    // Create output TensorNode
-    auto output_node = std::make_unique<TensorNode>(
-        next_tensor_id_,
-        output_name,
-        output_spec,
-        this
-    );
-    ++next_tensor_id_;
-    TensorNode* output_ptr = output_node.get();
+    // Wire up outputs
+    for(auto* output : outputs)
+    {
+        op_ptr->add_output(output);
+    }
 
-    // Wire up output
-    op_ptr->add_output(output_ptr);
-
-    // Store in containers
-    tensors_.push_back(std::move(output_node));
-    tensor_by_name_[output_name] = output_ptr;
+    // Store operation
     ops_.push_back(std::move(op));
-
-    return *output_ptr;
 }
 
 //! Get tensor by name (returns nullptr if not found)

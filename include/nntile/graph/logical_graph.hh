@@ -56,20 +56,17 @@ public:
     // Operation Builder API (used by free functions to add operations)
     // -----------------------------------------------------------------
 
-    //! Add an operation to the graph and return reference to its output tensor
+    //! Add an operation to the graph with specified output tensors
     //! This is the public builder API for operation implementations.
     //! @param type The operation type
     //! @param attrs The operation attributes
     //! @param inputs Vector of input tensor pointers (must belong to this graph)
-    //! @param output_spec Specification for the output tensor
-    //! @param output_name Name for the output tensor
-    //! @return Reference to the created output tensor
-    TensorNode& add_op(
+    //! @param outputs Vector of output tensor pointers (must belong to this graph)
+    void add_op(
         OpType type,
         OpAttrs attrs,
         const std::vector<TensorNode*>& inputs,
-        const TensorSpec& output_spec,
-        const std::string& output_name
+        const std::vector<TensorNode*>& outputs
     );
 
     // -----------------------------------------------------------------

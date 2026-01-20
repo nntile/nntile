@@ -64,7 +64,6 @@ TEST_CASE("LogicalGraph GemmTranspose", "[graph]")
         b,
         "c",
         1.0,
-        0.0,
         /*trans_a=*/true,
         /*trans_b=*/false);
 

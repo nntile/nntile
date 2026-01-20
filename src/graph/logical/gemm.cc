@@ -164,24 +164,14 @@ TensorSpec compute_gemm_output_spec(
 
 } // namespace
 
-//! General matrix multiplication (tensor contraction):
-//!   C = alpha * op(A) @ op(B) + beta * C
-//!
-//! Performs tensor contraction over ndim dimensions, with batch_ndim
-//! trailing batch dimensions that must match between A and B.
-TensorNode& gemm(
+//! Validate inputs for gemm operation
+void validate_gemm_inputs(
     TensorNode& a,
     TensorNode& b,
-    const std::string& output_name,
-    Scalar alpha,
-    Scalar beta,
-    bool trans_a,
-    bool trans_b,
-    Index ndim,
-    Index batch_ndim)
+    LogicalGraph& expected_graph)
 {
     // Validate inputs belong to the same graph
-    if(&a.graph() != &b.graph())
+    if(&a.graph() != &expected_graph || &b.graph() != &expected_graph)
     {
         throw std::invalid_argument(
             "gemm: input tensors must belong to the same graph");
@@ -193,22 +183,91 @@ TensorNode& gemm(
         throw std::invalid_argument(
             "gemm: input tensors must have the same dtype");
     }
+}
+
+//! Tensor contraction creating new output: C = alpha * op(A) @ op(B)
+TensorNode& gemm(
+    TensorNode& a,
+    TensorNode& b,
+    const std::string& output_name,
+    Scalar alpha,
+    bool trans_a,
+    bool trans_b,
+    Index ndim,
+    Index batch_ndim)
+{
+    validate_gemm_inputs(a, b, a.graph());
 
     // Compute output specification
     TensorSpec output_spec = compute_gemm_output_spec(
         a.spec(), b.spec(), trans_a, trans_b, ndim, batch_ndim
     );
 
-    // Create operation attributes
-    OpAttrs attrs = GemmAttrs{trans_a, trans_b, alpha, beta, ndim, batch_ndim};
+    // Create output tensor
+    TensorNode& output = a.graph().tensor(output_spec, output_name);
+
+    // Create operation attributes (beta = 0 for new output)
+    OpAttrs attrs = GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim};
 
     // Add operation to graph using public builder API
-    return a.graph().add_op(
+    a.graph().add_op(
         OpType::GEMM,
         attrs,
         {&a, &b},
-        output_spec,
-        output_name
+        {&output}
+    );
+
+    return output;
+}
+
+//! Tensor contraction with accumulation: C = alpha * op(A) @ op(B) + beta * C
+void gemm(
+    TensorNode& a,
+    TensorNode& b,
+    TensorNode& c,
+    Scalar alpha,
+    Scalar beta,
+    bool trans_a,
+    bool trans_b,
+    Index ndim,
+    Index batch_ndim)
+{
+    validate_gemm_inputs(a, b, a.graph());
+
+    // Validate c belongs to the same graph
+    if(&c.graph() != &a.graph())
+    {
+        throw std::invalid_argument(
+            "gemm: tensor c must belong to the same graph as a and b");
+    }
+
+    // Validate c dtype matches
+    if(c.dtype() != a.dtype())
+    {
+        throw std::invalid_argument(
+            "gemm: tensor c must have the same dtype as a and b");
+    }
+
+    // Compute expected output shape and validate against c
+    TensorSpec expected_spec = compute_gemm_output_spec(
+        a.spec(), b.spec(), trans_a, trans_b, ndim, batch_ndim
+    );
+
+    if(c.shape() != expected_spec.shape())
+    {
+        throw std::invalid_argument(
+            "gemm: tensor c has incompatible shape for accumulation");
+    }
+
+    // Create operation attributes
+    OpAttrs attrs = GemmAttrs{trans_a, trans_b, alpha, beta, ndim, batch_ndim};
+
+    // Add operation to graph
+    a.graph().add_op(
+        OpType::GEMM,
+        attrs,
+        {&a, &b},
+        {&c}
     );
 }
 
