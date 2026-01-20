@@ -66,6 +66,10 @@ public:
     const std::vector<Index>& shape() const { return spec_.shape(); }
     Index ndim() const { return spec_.ndim(); }
 
+    // Graph access
+    LogicalGraph& graph() { return *graph_; }
+    const LogicalGraph& graph() const { return *graph_; }
+
     // Graph structure
     bool has_producer() const { return producer_ != nullptr; }
     OpNode* producer() const { return producer_; }

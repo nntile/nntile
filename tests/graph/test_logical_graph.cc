@@ -43,7 +43,7 @@ TEST_CASE("LogicalGraph Gemm", "[graph]")
 
     auto& a = g.tensor(TensorSpec({32, 768}, DataType::FP32), "a");
     auto& b = g.tensor(TensorSpec({768, 256}, DataType::FP32), "b");
-    auto& c = g.gemm(a, b, "c");
+    auto& c = gemm(a, b, "c");
 
     REQUIRE(c.shape()[0] == 32);
     REQUIRE(c.shape()[1] == 256);
@@ -59,7 +59,7 @@ TEST_CASE("LogicalGraph GemmTranspose", "[graph]")
         TensorSpec({768, 32}, DataType::FP32),
         "a");  // Will be transposed
     auto& b = g.tensor(TensorSpec({768, 256}, DataType::FP32), "b");
-    auto& c = g.gemm(
+    auto& c = gemm(
         a,
         b,
         "c",
@@ -77,7 +77,7 @@ TEST_CASE("LogicalGraph Gelu", "[graph]")
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
-    auto& y = g.gelu(x, "y");
+    auto& y = gelu(x, "y");
 
     REQUIRE(y.shape() == x.shape());
     REQUIRE(y.has_producer());
@@ -92,9 +92,9 @@ TEST_CASE("LogicalGraph Chain", "[graph]")
     auto& w1 = g.tensor(TensorSpec({768, 3072}, DataType::FP32), "w1");
     auto& w2 = g.tensor(TensorSpec({3072, 768}, DataType::FP32), "w2");
 
-    auto& h = g.gemm(x, w1, "h");
-    auto& a = g.gelu(h, "a");
-    auto& y = g.gemm(a, w2, "y");
+    auto& h = gemm(x, w1, "h");
+    auto& a = gelu(h, "a");
+    auto& y = gemm(a, w2, "y");
 
     REQUIRE(g.num_tensors() == 6);  // x, w1, w2, h, a, y
     REQUIRE(g.num_ops() == 3);      // gemm, gelu, gemm

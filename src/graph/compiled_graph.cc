@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/graph/compiled_graph.cc
- * Implementation of CompiledGraph class.
+ * Implementation of CompiledGraph class (main body).
  *
  * @version 1.1.0
  * */
@@ -28,44 +28,12 @@
 #include "nntile/constants.hh"
 #include "nntile/graph/op_node.hh"
 #include "nntile/graph/tensor_spec.hh"
-#include "nntile/tensor/gemm.hh"
-#include "nntile/tensor/gelu.hh"
+#include "nntile/graph/compiled/gemm.hh"
+#include "nntile/graph/compiled/gelu.hh"
 #include "nntile/tensor/tensor.hh"
 
 namespace nntile::graph
 {
-
-namespace
-{
-
-template<typename T>
-void run_gemm(const GemmAttrs& attrs, nntile::tensor::Tensor<T>& a,
-              nntile::tensor::Tensor<T>& b, nntile::tensor::Tensor<T>& c)
-{
-    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
-    const auto beta = static_cast<nntile::Scalar>(attrs.beta);
-    const auto trans_a = attrs.trans_a ?
-        nntile::TransOp(nntile::TransOp::Trans) :
-        nntile::TransOp(nntile::TransOp::NoTrans);
-    const auto trans_b = attrs.trans_b ?
-        nntile::TransOp(nntile::TransOp::Trans) :
-        nntile::TransOp(nntile::TransOp::NoTrans);
-
-    nntile::tensor::gemm<T>(
-        alpha,
-        trans_a,
-        a,
-        trans_b,
-        b,
-        beta,
-        c,
-        attrs.ndim,
-        attrs.batch_ndim,
-        0  // redux = 0
-    );
-}
-
-} // namespace
 
 //! Validate that operation data types are supported
 void validate_operation_data_types(const LogicalGraph& logical)
@@ -264,178 +232,11 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
     switch(op_info.type)
     {
         case OpType::GEMM:
-            execute_gemm(op_info);
+            execute_gemm(*this, op_info);
             break;
         case OpType::GELU:
-            execute_gelu(op_info);
+            execute_gelu(*this, op_info);
             break;
-    }
-}
-
-//! Execute gemm operation
-void CompiledGraph::execute_gemm(const OpExecutionInfo& op_info)
-{
-    const auto& attrs = std::get<GemmAttrs>(op_info.attrs);
-
-    const std::string& a_name = op_info.input_names[0];
-    const std::string& b_name = op_info.input_names[1];
-    const std::string& c_name = op_info.output_names[0];
-
-    DataType dtype = tensor_dtypes_[a_name];
-
-    if(dtype == DataType::FP32)
-    {
-        auto& a = get_tensor<nntile::fp32_t>(a_name);
-        auto& b = get_tensor<nntile::fp32_t>(b_name);
-        auto& c = get_tensor<nntile::fp32_t>(c_name);
-
-        run_gemm<nntile::fp32_t>(attrs, a, b, c);
-    }
-    else if(dtype == DataType::FP32_FAST_TF32)
-    {
-        auto& a = get_tensor<nntile::fp32_fast_tf32_t>(a_name);
-        auto& b = get_tensor<nntile::fp32_fast_tf32_t>(b_name);
-        auto& c = get_tensor<nntile::fp32_fast_tf32_t>(c_name);
-
-        run_gemm<nntile::fp32_fast_tf32_t>(attrs, a, b, c);
-    }
-    else if(dtype == DataType::FP32_FAST_FP16)
-    {
-        auto& a = get_tensor<nntile::fp32_fast_fp16_t>(a_name);
-        auto& b = get_tensor<nntile::fp32_fast_fp16_t>(b_name);
-        auto& c = get_tensor<nntile::fp32_fast_fp16_t>(c_name);
-
-        run_gemm<nntile::fp32_fast_fp16_t>(attrs, a, b, c);
-    }
-    else if(dtype == DataType::FP32_FAST_BF16)
-    {
-        auto& a = get_tensor<nntile::fp32_fast_bf16_t>(a_name);
-        auto& b = get_tensor<nntile::fp32_fast_bf16_t>(b_name);
-        auto& c = get_tensor<nntile::fp32_fast_bf16_t>(c_name);
-
-        run_gemm<nntile::fp32_fast_bf16_t>(attrs, a, b, c);
-    }
-    else if(dtype == DataType::FP64)
-    {
-        auto& a = get_tensor<nntile::fp64_t>(a_name);
-        auto& b = get_tensor<nntile::fp64_t>(b_name);
-        auto& c = get_tensor<nntile::fp64_t>(c_name);
-
-        run_gemm<nntile::fp64_t>(attrs, a, b, c);
-    }
-    else if(dtype == DataType::FP16)
-    {
-        auto& a = get_tensor<nntile::fp16_t>(a_name);
-        auto& b = get_tensor<nntile::fp16_t>(b_name);
-        auto& c = get_tensor<nntile::fp16_t>(c_name);
-
-        run_gemm<nntile::fp16_t>(attrs, a, b, c);
-    }
-    else if(dtype == DataType::BF16)
-    {
-        auto& a = get_tensor<nntile::bf16_t>(a_name);
-        auto& b = get_tensor<nntile::bf16_t>(b_name);
-        auto& c = get_tensor<nntile::bf16_t>(c_name);
-
-        run_gemm<nntile::bf16_t>(attrs, a, b, c);
-    }
-    else if(dtype == DataType::INT64)
-    {
-        throw std::runtime_error(
-            "INT64 data type not supported for gemm operation");
-    }
-    else if(dtype == DataType::INT32)
-    {
-        throw std::runtime_error(
-            "INT32 data type not supported for gemm operation");
-    }
-    else if(dtype == DataType::BOOL)
-    {
-        throw std::runtime_error(
-            "BOOL data type not supported for gemm operation");
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data type for gemm");
-    }
-}
-
-//! Execute gelu operation
-void CompiledGraph::execute_gelu(const OpExecutionInfo& op_info)
-{
-    const std::string& x_name = op_info.input_names[0];
-    const std::string& y_name = op_info.output_names[0];
-
-    DataType dtype = tensor_dtypes_[x_name];
-
-    if(dtype == DataType::FP32)
-    {
-        auto& x = get_tensor<nntile::fp32_t>(x_name);
-        auto& y = get_tensor<nntile::fp32_t>(y_name);
-
-        // Use nntile::tensor::gelu
-        nntile::tensor::gelu<nntile::fp32_t>(x, y);
-    }
-    else if(dtype == DataType::FP32_FAST_TF32)
-    {
-        auto& x = get_tensor<nntile::fp32_fast_tf32_t>(x_name);
-        auto& y = get_tensor<nntile::fp32_fast_tf32_t>(y_name);
-
-        nntile::tensor::gelu<nntile::fp32_fast_tf32_t>(x, y);
-    }
-    else if(dtype == DataType::FP32_FAST_FP16)
-    {
-        auto& x = get_tensor<nntile::fp32_fast_fp16_t>(x_name);
-        auto& y = get_tensor<nntile::fp32_fast_fp16_t>(y_name);
-
-        nntile::tensor::gelu<nntile::fp32_fast_fp16_t>(x, y);
-    }
-    else if(dtype == DataType::FP32_FAST_BF16)
-    {
-        auto& x = get_tensor<nntile::fp32_fast_bf16_t>(x_name);
-        auto& y = get_tensor<nntile::fp32_fast_bf16_t>(y_name);
-
-        nntile::tensor::gelu<nntile::fp32_fast_bf16_t>(x, y);
-    }
-    else if(dtype == DataType::FP64)
-    {
-        auto& x = get_tensor<nntile::fp64_t>(x_name);
-        auto& y = get_tensor<nntile::fp64_t>(y_name);
-
-        nntile::tensor::gelu<nntile::fp64_t>(x, y);
-    }
-    else if(dtype == DataType::FP16)
-    {
-        auto& x = get_tensor<nntile::fp16_t>(x_name);
-        auto& y = get_tensor<nntile::fp16_t>(y_name);
-
-        nntile::tensor::gelu<nntile::fp16_t>(x, y);
-    }
-    else if(dtype == DataType::BF16)
-    {
-        auto& x = get_tensor<nntile::bf16_t>(x_name);
-        auto& y = get_tensor<nntile::bf16_t>(y_name);
-
-        nntile::tensor::gelu<nntile::bf16_t>(x, y);
-    }
-    else if(dtype == DataType::INT64)
-    {
-        throw std::runtime_error(
-            "INT64 data type not supported for gelu operation");
-    }
-    else if(dtype == DataType::INT32)
-    {
-        throw std::runtime_error(
-            "INT32 data type not supported for gelu operation");
-    }
-    else if(dtype == DataType::BOOL)
-    {
-        throw std::runtime_error(
-            "BOOL data type not supported for gelu operation");
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data type for gelu");
     }
 }
 

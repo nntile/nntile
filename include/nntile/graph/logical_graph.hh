@@ -17,7 +17,6 @@
 // Include standard headers
 #include <map>
 #include <memory>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -50,30 +49,26 @@ public:
     // Tensor Creation
     // -----------------------------------------------------------------
 
-    //! Create a tensor
+    //! Create an input tensor (not produced by any operation)
     TensorNode& tensor(const TensorSpec& spec, const std::string& name);
 
     // -----------------------------------------------------------------
-    // Operations
+    // Operation Builder API (used by free functions to add operations)
     // -----------------------------------------------------------------
 
-    //! General matrix multiplication: C = alpha * A @ B + beta * C
-    //! Returns reference to output tensor
-    TensorNode& gemm(
-        TensorNode& a,
-        TensorNode& b,
-        const std::string& output_name,
-        Scalar alpha = 1.0,
-        Scalar beta = 0.0,
-        bool trans_a = false,
-        bool trans_b = false,
-        Index ndim = 1,
-        Index batch_ndim = 0
-    );
-
-    //! GeLU activation: y = gelu(x)
-    TensorNode& gelu(
-        TensorNode& x,
+    //! Add an operation to the graph and return reference to its output tensor
+    //! This is the public builder API for operation implementations.
+    //! @param type The operation type
+    //! @param attrs The operation attributes
+    //! @param inputs Vector of input tensor pointers (must belong to this graph)
+    //! @param output_spec Specification for the output tensor
+    //! @param output_name Name for the output tensor
+    //! @return Reference to the created output tensor
+    TensorNode& add_op(
+        OpType type,
+        OpAttrs attrs,
+        const std::vector<TensorNode*>& inputs,
+        const TensorSpec& output_spec,
         const std::string& output_name
     );
 
@@ -106,24 +101,6 @@ public:
 
     //! String representation
     std::string to_string() const;
-
-private:
-    //! Internal: create output tensor for an operation
-    TensorNode& create_op_output(
-        OpNode& op,
-        const TensorSpec& spec,
-        const std::string& name
-    );
-
-    //! Compute output shape for gemm
-    TensorSpec compute_gemm_output_spec(
-        const TensorSpec& a,
-        const TensorSpec& b,
-        bool trans_a,
-        bool trans_b,
-        Index ndim,
-        Index batch_ndim
-    );
 };
 
 } // namespace nntile::graph

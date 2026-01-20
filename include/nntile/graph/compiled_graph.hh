@@ -83,6 +83,20 @@ public:
     template<typename T>
     std::vector<T> get_output(const std::string& name);
 
+    // -----------------------------------------------------------------
+    // Internal Access (for operation implementations)
+    // -----------------------------------------------------------------
+
+    //! Get typed tensor pointer (used by operation implementations)
+    template<typename T>
+    nntile::tensor::Tensor<T>& get_tensor(const std::string& name);
+
+    //! Get data type of tensor
+    DataType get_dtype(const std::string& name) const
+    {
+        return tensor_dtypes_.at(name);
+    }
+
 private:
     CompiledGraph() = default;
 
@@ -91,16 +105,6 @@ private:
 
     //! Execute a single operation
     void execute_op(const OpExecutionInfo& op_info);
-
-    //! Execute gemm operation
-    void execute_gemm(const OpExecutionInfo& op_info);
-
-    //! Execute gelu operation
-    void execute_gelu(const OpExecutionInfo& op_info);
-
-    //! Get typed tensor pointer
-    template<typename T>
-    nntile::tensor::Tensor<T>& get_tensor(const std::string& name);
 };
 
 } // namespace nntile::graph

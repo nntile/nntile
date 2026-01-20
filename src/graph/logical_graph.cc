@@ -26,13 +26,12 @@
 namespace nntile::graph
 {
 
-//! Logical graph - defines computation without physical details
 LogicalGraph::LogicalGraph(const std::string& name)
     : name_(name)
 {
 }
 
-//! Create a tensor
+//! Create an input tensor (not produced by any operation)
 TensorNode& LogicalGraph::tensor(
     const TensorSpec& spec,
     const std::string& name)
@@ -61,86 +60,68 @@ TensorNode& LogicalGraph::tensor(
     return *node_ptr;
 }
 
-
-//! General matrix multiplication: C = alpha * A @ B + beta * C
-TensorNode& LogicalGraph::gemm(
-    TensorNode& a,
-    TensorNode& b,
-    const std::string& output_name,
-    Scalar alpha,
-    Scalar beta,
-    bool trans_a,
-    bool trans_b,
-    Index ndim,
-    Index batch_ndim
-)
+//! Add an operation to the graph and return reference to its output tensor
+TensorNode& LogicalGraph::add_op(
+    OpType type,
+    OpAttrs attrs,
+    const std::vector<TensorNode*>& inputs,
+    const TensorSpec& output_spec,
+    const std::string& output_name)
 {
-    // Validate input dtypes match
-    if(a.dtype() != b.dtype())
+    // Validate all inputs belong to this graph
+    for(const auto* input : inputs)
     {
-        throw std::invalid_argument(
-            "gemm: input tensors must have the same dtype");
+        if(&input->graph() != this)
+        {
+            throw std::invalid_argument(
+                "LogicalGraph::add_op: input tensor '" + input->name() +
+                "' does not belong to this graph");
+        }
     }
 
-    // Validate input shapes are compatible
-    TensorSpec output_spec = compute_gemm_output_spec(
-        a.spec(), b.spec(), trans_a, trans_b, ndim, batch_ndim
-    );
+    // Check output name doesn't already exist
+    if(tensor_by_name_.count(output_name) > 0)
+    {
+        throw std::invalid_argument(
+            "LogicalGraph::add_op: tensor '" + output_name +
+            "' already exists");
+    }
 
-    // Create OpNode with GemmAttrs
-    OpAttrs attrs = GemmAttrs{trans_a, trans_b, alpha, beta, ndim, batch_ndim};
+    // Create OpNode
     auto op = std::make_unique<OpNode>(
         next_op_id_,
-        OpType::GEMM,
+        type,
         attrs,
         this
     );
     ++next_op_id_;
     OpNode* op_ptr = op.get();
 
+    // Wire up inputs
+    for(auto* input : inputs)
+    {
+        op_ptr->add_input(input);
+    }
+
     // Create output TensorNode
-    TensorNode& output = create_op_output(*op_ptr, output_spec, output_name);
-
-    // Wire up edges (inputs/outputs/producer/consumers)
-    op_ptr->add_input(&a);
-    op_ptr->add_input(&b);
-
-    // Store operation
-    ops_.push_back(std::move(op));
-
-    return output;
-}
-
-//! GeLU activation: y = gelu(x)
-TensorNode& LogicalGraph::gelu(
-    TensorNode& x,
-    const std::string& output_name
-)
-{
-    // Output shape = input shape
-    TensorSpec output_spec = TensorSpec(x.shape(), x.dtype());
-
-    // Create OpNode with GeluAttrs
-    OpAttrs attrs = GeluAttrs{};
-    auto op = std::make_unique<OpNode>(
-        next_op_id_,
-        OpType::GELU,
-        attrs,
+    auto output_node = std::make_unique<TensorNode>(
+        next_tensor_id_,
+        output_name,
+        output_spec,
         this
     );
-    ++next_op_id_;
-    OpNode* op_ptr = op.get();
+    ++next_tensor_id_;
+    TensorNode* output_ptr = output_node.get();
 
-    // Create output TensorNode
-    TensorNode& output = create_op_output(*op_ptr, output_spec, output_name);
+    // Wire up output
+    op_ptr->add_output(output_ptr);
 
-    // Wire up edges
-    op_ptr->add_input(&x);
-
-    // Store operation
+    // Store in containers
+    tensors_.push_back(std::move(output_node));
+    tensor_by_name_[output_name] = output_ptr;
     ops_.push_back(std::move(op));
 
-    return output;
+    return *output_ptr;
 }
 
 //! Get tensor by name (returns nullptr if not found)
@@ -169,7 +150,6 @@ std::vector<std::string> LogicalGraph::tensor_names() const
     return names;
 }
 
-
 //! String representation
 std::string LogicalGraph::to_string() const
 {
@@ -190,80 +170,6 @@ std::string LogicalGraph::to_string() const
     }
 
     return ss.str();
-}
-
-//! Internal: create output tensor for an operation
-TensorNode& LogicalGraph::create_op_output(
-    OpNode& op,
-    const TensorSpec& spec,
-    const std::string& name
-)
-{
-    // Check name doesn't already exist
-    if(tensor_by_name_.count(name) > 0)
-    {
-        throw std::invalid_argument(
-            "LogicalGraph::create_op_output: tensor '" + name +
-            "' already exists");
-    }
-
-    // Create TensorNode with unique ID
-    auto node = std::make_unique<TensorNode>(
-        next_tensor_id_,
-        name,
-        spec,
-        this);
-    ++next_tensor_id_;
-    TensorNode* node_ptr = node.get();
-
-    // Wire up with operation
-    op.add_output(node_ptr);
-
-    // Store in containers
-    tensors_.push_back(std::move(node));
-    tensor_by_name_[name] = node_ptr;
-
-    return *node_ptr;
-}
-
-//! Compute output shape for gemm
-TensorSpec LogicalGraph::compute_gemm_output_spec(
-    const TensorSpec& a,
-    const TensorSpec& b,
-    bool trans_a,
-    bool trans_b,
-    Index ndim,
-    Index batch_ndim
-)
-{
-    // For now, support only 2D case (ndim=1, batch_ndim=0)
-    // This matches the current implementation
-    if(ndim != 1 || batch_ndim != 0)
-    {
-        throw std::invalid_argument(
-            "gemm: only 2D matrices (ndim=1, batch_ndim=0) "
-            "are currently supported");
-    }
-    if(a.ndim() != 2 || b.ndim() != 2)
-    {
-        throw std::invalid_argument("gemm: tensors must be 2D");
-    }
-
-    // A: [M, K] (or [K, M] if trans_a)
-    // B: [K, N] (or [N, K] if trans_b)
-    // C: [M, N]
-    Index M = trans_a ? a.dim(1) : a.dim(0);
-    Index K_a = trans_a ? a.dim(0) : a.dim(1);
-    Index K_b = trans_b ? b.dim(1) : b.dim(0);
-    Index N = trans_b ? b.dim(0) : b.dim(1);
-
-    if(K_a != K_b)
-    {
-        throw std::invalid_argument(
-            "gemm: incompatible shapes - K dimensions don't match");
-    }
-
-    return TensorSpec({M, N}, a.dtype());
 }
 
 } // namespace nntile::graph

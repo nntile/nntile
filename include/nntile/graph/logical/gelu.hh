@@ -6,25 +6,32 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/graph.hh
- * Convenience header for NNTile graph system.
+ * @file include/nntile/graph/logical/gelu.hh
+ * GELU operation for logical graph.
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-// Include related NNTile headers - core classes
-#include <nntile/graph/tensor_spec.hh>
+// Include standard headers
+#include <string>
+
+// Include third-party headers
+
+// Include other NNTile headers
 #include <nntile/graph/tensor_node.hh>
-#include <nntile/graph/op_node.hh>
-#include <nntile/graph/logical_graph.hh>
-#include <nntile/graph/compiled_graph.hh>
 
-// Include logical graph operations
-#include <nntile/graph/logical/gemm.hh>
-#include <nntile/graph/logical/gelu.hh>
+namespace nntile::graph
+{
 
-// Include compiled graph operations
-#include <nntile/graph/compiled/gemm.hh>
-#include <nntile/graph/compiled/gelu.hh>
+//! GeLU activation: y = gelu(x)
+//! @param x Input tensor
+//! @param output_name Name for the output tensor
+//! @return Reference to the output tensor
+TensorNode& gelu(
+    TensorNode& x,
+    const std::string& output_name
+);
+
+} // namespace nntile::graph

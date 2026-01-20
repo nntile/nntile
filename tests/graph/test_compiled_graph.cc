@@ -44,7 +44,7 @@ TEST_CASE_METHOD(
 
     auto& a = g.tensor(TensorSpec({2, 3}, DataType::FP32), "a");
     auto& b = g.tensor(TensorSpec({3, 4}, DataType::FP32), "b");
-    auto& c = g.gemm(a, b, "c");
+    auto& c = gemm(a, b, "c");
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -85,7 +85,7 @@ TEST_CASE_METHOD(
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({4}, DataType::FP32), "x");
-    auto& y = g.gelu(x, "y");
+    auto& y = gelu(x, "y");
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -116,9 +116,9 @@ TEST_CASE_METHOD(
     auto& w1 = g.tensor(TensorSpec({4, 8}, DataType::FP32), "w1");
     auto& w2 = g.tensor(TensorSpec({8, 4}, DataType::FP32), "w2");
 
-    auto& h = g.gemm(x, w1, "h");
-    auto& a = g.gelu(h, "a");
-    auto& y = g.gemm(a, w2, "y");
+    auto& h = gemm(x, w1, "h");
+    auto& a = gelu(h, "a");
+    auto& y = gemm(a, w2, "y");
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -154,7 +154,7 @@ TEST_CASE_METHOD(
 
     auto& a = g.tensor(TensorSpec({2, 2}, DataType::FP32), "a");
     auto& b = g.tensor(TensorSpec({2, 2}, DataType::FP32), "b");
-    auto& c = g.gemm(a, b, "c");
+    auto& c = gemm(a, b, "c");
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -171,7 +171,7 @@ TEST_CASE_METHOD(
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({2}, DataType::INT64), "x");
-    auto& y = g.gelu(x, "y");
+    auto& y = gelu(x, "y");
 
     // Should throw during compilation for unsupported data type
     REQUIRE_THROWS_AS(CompiledGraph::compile(g), std::runtime_error);

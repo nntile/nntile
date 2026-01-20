@@ -60,9 +60,9 @@ int main(int argc, char** argv) {
     );
 
     // Forward pass
-    auto& h = graph.gemm(x, w1, "hidden");
-    auto& a = graph.gelu(h, "activation");
-    auto& y = graph.gemm(a, w2, "output");
+    auto& h = nntile::graph::gemm(x, w1, "hidden");
+    auto& a = nntile::graph::gelu(h, "activation");
+    auto& y = nntile::graph::gemm(a, w2, "output");
 
     std::cout << "Logical Graph:" << std::endl;
     std::cout << graph.to_string() << std::endl;
