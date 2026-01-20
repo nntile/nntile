@@ -237,6 +237,10 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
         case OpType::GELU:
             execute_gelu(*this, op_info);
             break;
+        default:
+            throw std::runtime_error(
+                "Unsupported operation type in execute_op: " +
+                std::to_string(static_cast<int>(op_info.type)));
     }
 }
 
