@@ -7,17 +7,31 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file tests/graph/CMakeLists.txt
-# CMake configuration for graph tests
+# Tests for nntile::graph functions
 #
 # @version 1.1.0
 
-# Graph tests
-add_executable(test_logical_graph test_logical_graph.cc)
-target_link_libraries(test_logical_graph nntile Catch2::Catch2WithMain)
+# All graph tests using Catch2
+set(TESTS_CATCH2
+    "logical_graph"
+    "compiled_graph"
+)
 
-add_executable(test_compiled_graph test_compiled_graph.cc)
-target_link_libraries(test_compiled_graph nntile Catch2::Catch2WithMain)
+# Setup a target for coverage of graph tests
+if(BUILD_COVERAGE)
+    setup_target_for_coverage_lcov(NAME coverage_graph
+        EXECUTABLE ctest -R tests_graph_
+        LCOV_ARGS --no-external
+        GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
+endif()
 
-# Add tests to CTest
-add_test(NAME LogicalGraphTest COMMAND test_logical_graph)
-add_test(NAME CompiledGraphTest COMMAND test_compiled_graph)
+foreach(test IN LISTS TESTS_CATCH2)
+    add_test_set(TARGET_NAME tests_graph_${test}
+        EXEC_NAME test_${test}
+        SOURCES test_${test}.cc
+        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_graph_${test}
+        COV_GLOBAL coverage_graph coverage
+    )
+endforeach()
