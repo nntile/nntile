@@ -576,7 +576,7 @@ std::vector<T> CompiledGraph::get_output(const std::string& name)
         auto tile_local = tile.acquire(STARPU_R);
         for(Index i = 0; i < tensor.nelems; ++i)
         {
-            result[i] = static_cast<T>(static_cast<long long>(tile_local[i]));
+            result[i] = static_cast<T>(static_cast<std::int64_t>(tile_local[i]));
         }
         tile_local.release();
     }
