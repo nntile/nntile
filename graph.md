@@ -901,10 +901,11 @@ TEST_CASE_METHOD(
 
     auto compiled = CompiledGraph::compile(g);
 
+    // NNTile tensors use column-major (Fortran) layout.
     // A = [[1,2,3], [4,5,6]]
-    std::vector<float> a_data = {1, 2, 3, 4, 5, 6};
+    std::vector<float> a_data = {1, 4, 2, 5, 3, 6};
     // B = [[1,2,3,4], [5,6,7,8], [9,10,11,12]]
-    std::vector<float> b_data = {1,2,3,4, 5,6,7,8, 9,10,11,12};
+    std::vector<float> b_data = {1, 5, 9, 2, 6, 10, 3, 7, 11, 4, 8, 12};
 
     compiled.bind_data("a", a_data);
     compiled.bind_data("b", b_data);
@@ -917,9 +918,9 @@ TEST_CASE_METHOD(
     // C = A @ B = [[38,44,50,56], [83,98,113,128]]
     REQUIRE(c_data.size() == 8);
     REQUIRE(c_data[0] == 38.0f);
-    REQUIRE(c_data[1] == 44.0f);
-    REQUIRE(c_data[4] == 83.0f);
-    REQUIRE(c_data[5] == 98.0f);
+    REQUIRE(c_data[1] == 83.0f);
+    REQUIRE(c_data[2] == 44.0f);
+    REQUIRE(c_data[3] == 98.0f);
 }
 
 TEST_CASE_METHOD(
