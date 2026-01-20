@@ -12,23 +12,33 @@
  * @version 1.1.0
  * */
 
-#include <nntile/context.hh>
-#include <nntile/graph/graph.hh>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 #include <cmath>
 
+#include "nntile/context.hh"
+#include "nntile/graph/graph.hh"
+
 using namespace nntile::graph;
 
 // Fixture to initialize NNTile context for graph tests
-class GraphTestFixture {
+class GraphTestFixture
+{
 protected:
     nntile::Context context;
 public:
-    GraphTestFixture() : context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0) {}
+    GraphTestFixture():
+        context(
+            1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0
+        )
+    {}
 };
 
-TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph SimpleGemm", "[graph]")
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph SimpleGemm",
+    "[graph]"
+)
 {
     LogicalGraph g("test");
 
@@ -41,7 +51,9 @@ TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph SimpleGemm", "[graph]")
     // A = [[1,2,3], [4,5,6]]
     std::vector<float> a_data = {1, 2, 3, 4, 5, 6};
     // B = [[1,2,3,4], [5,6,7,8], [9,10,11,12]]
-    std::vector<float> b_data = {1,2,3,4, 5,6,7,8, 9,10,11,12};
+    std::vector<float> b_data = {
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+    };
 
     compiled.bind_data("a", a_data);
     compiled.bind_data("b", b_data);
@@ -65,7 +77,11 @@ TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph SimpleGemm", "[graph]")
     REQUIRE(c_data[7] == 136);
 }
 
-TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph GeluActivation", "[graph]") {
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph GeluActivation",
+    "[graph]")
+{
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({4}, DataType::FP32), "x");
@@ -88,7 +104,11 @@ TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph GeluActivation", "[graph]") {
     REQUIRE(y_data[3] == Catch::Approx(1.955f).epsilon(0.01));
 }
 
-TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph MLP", "[graph]") {
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph MLP",
+    "[graph]")
+{
     LogicalGraph g("mlp");
 
     // x: [2, 4], w1: [4, 8], w2: [8, 4]
@@ -118,13 +138,18 @@ TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph MLP", "[graph]") {
 
     REQUIRE(y_data.size() == 8);  // [2, 4]
     // Values should be non-zero and reasonable
-    for (float v : y_data) {
+    for(float v : y_data)
+    {
         REQUIRE(v > 0.0f);
         REQUIRE(v < 10.0f);
     }
 }
 
-TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph DataTypeMismatch", "[graph]") {
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph DataTypeMismatch",
+    "[graph]")
+{
     LogicalGraph g("test");
 
     auto& a = g.tensor(TensorSpec({2, 2}, DataType::FP32), "a");
@@ -138,7 +163,11 @@ TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph DataTypeMismatch", "[graph]") 
     REQUIRE_THROWS_AS(compiled.bind_data("a", wrong_data), std::runtime_error);
 }
 
-TEST_CASE_METHOD(GraphTestFixture, "CompiledGraph UnsupportedDataType", "[graph]") {
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph UnsupportedDataType",
+    "[graph]")
+{
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({2}, DataType::INT64), "x");

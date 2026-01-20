@@ -98,6 +98,21 @@ void gemm(Scalar alpha, const TransOp &transA, const Tensor<T> &A,
         const Tensor<T> &C, Index ndim, Index batch_ndim)
 ```
 
+### Line Length
+
+- Maximum line length is 79 characters
+- Break long lines at logical points (operators, commas, etc.)
+- Indent continuation lines appropriately
+- Prefer BLACK style for function calls that exceed line length:
+```cpp
+auto x = long_function_name(
+    argument_number_1,
+    argument_number_2_as_a_function(
+        arg1, arg2, arg3
+    )
+);
+```
+
 ## Comments
 
 - Use `//!` for documentation comments (Doxygen-style)
