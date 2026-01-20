@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/graph.hh
+ * @file include/nntile/graph.hh
  * Convenience header for NNTile graph system.
  *
  * @version 1.1.0

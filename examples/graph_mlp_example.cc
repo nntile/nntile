@@ -13,7 +13,7 @@
  * */
 
 #include <nntile/context.hh>
-#include <nntile/graph/graph.hh>
+#include <nntile/graph.hh>
 #include <iostream>
 #include <vector>
 #include <chrono>

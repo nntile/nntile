@@ -778,75 +778,85 @@ Update `src/CMakeLists.txt` to include `add_subdirectory(graph)`.
 **File**: `tests/graph/test_logical_graph.cc`
 
 ```cpp
-#include <nntile/graph/graph.hh>
-#include <gtest/gtest.h>
+#include <nntile/graph.hh>
+#include <catch2/catch_test_macros.hpp>
 
 using namespace nntile::graph;
 
-TEST(LogicalGraph, CreateTensor) {
+TEST_CASE("LogicalGraph CreateTensor", "[graph]")
+{
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
 
-    EXPECT_EQ(x.name(), "x");
-    EXPECT_EQ(x.shape().size(), 2);
-    EXPECT_EQ(x.shape()[0], 32);
-    EXPECT_EQ(x.shape()[1], 768);
-    EXPECT_EQ(x.dtype(), DataType::FP32);
-    EXPECT_FALSE(x.has_producer());
+    REQUIRE(x.name() == "x");
+    REQUIRE(x.shape().size() == 2);
+    REQUIRE(x.shape()[0] == 32);
+    REQUIRE(x.shape()[1] == 768);
+    REQUIRE(x.dtype() == DataType::FP32);
+    REQUIRE_FALSE(x.has_producer());
 }
 
-TEST(LogicalGraph, Matmul) {
+TEST_CASE("LogicalGraph Gemm", "[graph]")
+{
     LogicalGraph g("test");
 
     auto& a = g.tensor(TensorSpec({32, 768}, DataType::FP32), "a");
     auto& b = g.tensor(TensorSpec({768, 256}, DataType::FP32), "b");
-    auto& c = g.matmul(a, b, "c");
+    auto& c = gemm(a, b, "c");
 
-    EXPECT_EQ(c.shape()[0], 32);
-    EXPECT_EQ(c.shape()[1], 256);
-    EXPECT_TRUE(c.has_producer());
-    EXPECT_EQ(c.producer()->type(), OpType::MATMUL);
+    REQUIRE(c.shape()[0] == 32);
+    REQUIRE(c.shape()[1] == 256);
+    REQUIRE(c.has_producer());
+    REQUIRE(c.producer()->type() == OpType::GEMM);
 }
 
-TEST(LogicalGraph, MatmulTranspose) {
+TEST_CASE("LogicalGraph GemmTranspose", "[graph]")
+{
     LogicalGraph g("test");
 
-    auto& a = g.tensor(TensorSpec({768, 32}, DataType::FP32), "a");  // Will be transposed
+    auto& a = g.tensor(
+        TensorSpec({768, 32}, DataType::FP32),
+        "a");  // Will be transposed
     auto& b = g.tensor(TensorSpec({768, 256}, DataType::FP32), "b");
-    auto& c = g.matmul(a, b, "c", /*trans_a=*/true, /*trans_b=*/false);
+    auto& c = gemm(
+        a,
+        b,
+        "c",
+        1.0,
+        /*trans_a=*/true,
+        /*trans_b=*/false);
 
-    EXPECT_EQ(c.shape()[0], 32);   // M from A^T
-    EXPECT_EQ(c.shape()[1], 256);  // N from B
+    REQUIRE(c.shape()[0] == 32);   // M from A^T
+    REQUIRE(c.shape()[1] == 256);  // N from B
 }
 
-TEST(LogicalGraph, Gelu) {
+TEST_CASE("LogicalGraph Gelu", "[graph]")
+{
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
-    auto& y = g.gelu(x, "y");
+    auto& y = gelu(x, "y");
 
-    EXPECT_EQ(y.shape(), x.shape());
-    EXPECT_TRUE(y.has_producer());
-    EXPECT_EQ(y.producer()->type(), OpType::GELU);
+    REQUIRE(y.shape() == x.shape());
+    REQUIRE(y.has_producer());
+    REQUIRE(y.producer()->type() == OpType::GELU);
 }
 
-TEST(LogicalGraph, Chain) {
+TEST_CASE("LogicalGraph Chain", "[graph]")
+{
     LogicalGraph g("mlp");
 
     auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
     auto& w1 = g.tensor(TensorSpec({768, 3072}, DataType::FP32), "w1");
     auto& w2 = g.tensor(TensorSpec({3072, 768}, DataType::FP32), "w2");
 
-    auto& h = g.matmul(x, w1, "h");
-    auto& a = g.gelu(h, "a");
-    auto& y = g.matmul(a, w2, "y");
+    auto& h = gemm(x, w1, "h");
+    auto& a = gelu(h, "a");
+    auto& y = gemm(a, w2, "y");
 
-    g.mark_output("y");
-
-    EXPECT_EQ(g.num_tensors(), 6);  // x, w1, w2, h, a, y
-    EXPECT_EQ(g.num_ops(), 3);      // matmul, gelu, matmul
-    EXPECT_TRUE(g.is_output("y"));
+    REQUIRE(g.num_tensors() == 6);  // x, w1, w2, h, a, y
+    REQUIRE(g.num_ops() == 3);      // gemm, gelu, gemm
 }
 ```
 
@@ -855,35 +865,41 @@ TEST(LogicalGraph, Chain) {
 **File**: `tests/graph/test_compiled_graph.cc`
 
 ```cpp
-#include <nntile/graph/graph.hh>
-#include <nntile/starpu/config.hh>
-#include <gtest/gtest.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include <cmath>
+
+#include "nntile/context.hh"
+#include "nntile/graph.hh"
 
 using namespace nntile::graph;
 
-class CompiledGraphTest : public ::testing::Test {
+// Fixture to initialize NNTile context for graph tests
+class GraphTestFixture
+{
 protected:
-    void SetUp() override {
-        config_ = new nntile::starpu::Config(1, 1, 0);  // 1 CPU, 1 CUDA
-    }
-
-    void TearDown() override {
-        delete config_;
-    }
-
-    nntile::starpu::Config* config_;
+    nntile::Context context;
+public:
+    GraphTestFixture():
+        context(
+            1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0
+        )
+    {}
 };
 
-TEST_F(CompiledGraphTest, SimpleMatmul) {
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph SimpleGemm",
+    "[graph]"
+)
+{
     LogicalGraph g("test");
 
     auto& a = g.tensor(TensorSpec({2, 3}, DataType::FP32), "a");
     auto& b = g.tensor(TensorSpec({3, 4}, DataType::FP32), "b");
-    auto& c = g.matmul(a, b, "c");
-    g.mark_output("c");
+    auto& c = gemm(a, b, "c");
 
-    auto compiled = CompiledGraph::compile(g, *config_);
+    auto compiled = CompiledGraph::compile(g);
 
     // A = [[1,2,3], [4,5,6]]
     std::vector<float> a_data = {1, 2, 3, 4, 5, 6};
@@ -899,21 +915,25 @@ TEST_F(CompiledGraphTest, SimpleMatmul) {
     auto c_data = compiled.get_output<float>("c");
 
     // C = A @ B = [[38,44,50,56], [83,98,113,128]]
-    EXPECT_EQ(c_data.size(), 8);
-    EXPECT_FLOAT_EQ(c_data[0], 38);
-    EXPECT_FLOAT_EQ(c_data[1], 44);
-    EXPECT_FLOAT_EQ(c_data[4], 83);
-    EXPECT_FLOAT_EQ(c_data[5], 98);
+    REQUIRE(c_data.size() == 8);
+    REQUIRE(c_data[0] == 38.0f);
+    REQUIRE(c_data[1] == 44.0f);
+    REQUIRE(c_data[4] == 83.0f);
+    REQUIRE(c_data[5] == 98.0f);
 }
 
-TEST_F(CompiledGraphTest, GeluActivation) {
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph GeluActivation",
+    "[graph]"
+)
+{
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({4}, DataType::FP32), "x");
-    auto& y = g.gelu(x, "y");
-    g.mark_output("y");
+    auto& y = gelu(x, "y");
 
-    auto compiled = CompiledGraph::compile(g, *config_);
+    auto compiled = CompiledGraph::compile(g);
 
     std::vector<float> x_data = {-1.0f, 0.0f, 1.0f, 2.0f};
     compiled.bind_data("x", x_data);
@@ -924,13 +944,18 @@ TEST_F(CompiledGraphTest, GeluActivation) {
     auto y_data = compiled.get_output<float>("y");
 
     // GELU(-1) ≈ -0.159, GELU(0) = 0, GELU(1) ≈ 0.841, GELU(2) ≈ 1.955
-    EXPECT_NEAR(y_data[0], -0.159f, 0.01f);
-    EXPECT_NEAR(y_data[1], 0.0f, 0.01f);
-    EXPECT_NEAR(y_data[2], 0.841f, 0.01f);
-    EXPECT_NEAR(y_data[3], 1.955f, 0.01f);
+    REQUIRE_THAT(y_data[0], Catch::Approx(-0.159f).margin(0.01f));
+    REQUIRE_THAT(y_data[1], Catch::Approx(0.0f).margin(0.01f));
+    REQUIRE_THAT(y_data[2], Catch::Approx(0.841f).margin(0.01f));
+    REQUIRE_THAT(y_data[3], Catch::Approx(1.955f).margin(0.01f));
 }
 
-TEST_F(CompiledGraphTest, MLP) {
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph MLP",
+    "[graph]"
+)
+{
     LogicalGraph g("mlp");
 
     // x: [2, 4], w1: [4, 8], w2: [8, 4]
@@ -938,12 +963,11 @@ TEST_F(CompiledGraphTest, MLP) {
     auto& w1 = g.tensor(TensorSpec({4, 8}, DataType::FP32), "w1");
     auto& w2 = g.tensor(TensorSpec({8, 4}, DataType::FP32), "w2");
 
-    auto& h = g.matmul(x, w1, "h");
-    auto& a = g.gelu(h, "a");
-    auto& y = g.matmul(a, w2, "y");
-    g.mark_output("y");
+    auto& h = gemm(x, w1, "h");
+    auto& a = gelu(h, "a");
+    auto& y = gemm(a, w2, "y");
 
-    auto compiled = CompiledGraph::compile(g, *config_);
+    auto compiled = CompiledGraph::compile(g);
 
     // Initialize with simple values
     std::vector<float> x_data(8, 1.0f);
@@ -959,11 +983,11 @@ TEST_F(CompiledGraphTest, MLP) {
 
     auto y_data = compiled.get_output<float>("y");
 
-    EXPECT_EQ(y_data.size(), 8);  // [2, 4]
+    REQUIRE(y_data.size() == 8);  // [2, 4]
     // Values should be non-zero and reasonable
     for (float v : y_data) {
-        EXPECT_GT(v, 0.0f);
-        EXPECT_LT(v, 10.0f);
+        REQUIRE(v > 0.0f);
+        REQUIRE(v < 10.0f);
     }
 }
 ```

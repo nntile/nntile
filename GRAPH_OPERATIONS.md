@@ -327,7 +327,7 @@ In `include/nntile/graph/graph.hh`, add includes:
 After adding your operation, it can be used like this:
 
 ```cpp
-#include <nntile/graph/graph.hh>
+#include <nntile/graph.hh>
 
 using namespace nntile::graph;
 

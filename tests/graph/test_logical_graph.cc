@@ -19,7 +19,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 // Include other NNTile headers
-#include "nntile/graph/graph.hh"
+#include "nntile/graph.hh"
 
 using namespace nntile::graph;
 

@@ -17,7 +17,7 @@
 #include <cmath>
 
 #include "nntile/context.hh"
-#include "nntile/graph/graph.hh"
+#include "nntile/graph.hh"
 
 using namespace nntile::graph;
 
