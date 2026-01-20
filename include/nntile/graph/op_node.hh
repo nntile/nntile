@@ -14,12 +14,17 @@
 
 #pragma once
 
-#include <nntile/graph/tensor_node.hh>
-#include <nntile/base_types.hh>
-#include <string>
-#include <vector>
-#include <variant>
+// Include standard headers
 #include <map>
+#include <string>
+#include <variant>
+#include <vector>
+
+// Include third-party headers
+
+// Include other NNTile headers
+#include "nntile/base_types.hh"
+#include "nntile/graph/tensor_node.hh"
 
 namespace nntile::graph
 {

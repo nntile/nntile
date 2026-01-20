@@ -12,9 +12,16 @@
  * @version 1.1.0
  * */
 
-#include <nntile/graph/tensor_spec.hh>
-#include <stdexcept>
+// Include corresponding header
+#include "nntile/graph/tensor_spec.hh"
+
+// Include standard headers
 #include <numeric>
+#include <stdexcept>
+
+// Include third-party headers
+
+// Include other NNTile headers
 
 namespace nntile::graph
 {
@@ -93,7 +100,8 @@ TensorSpec::TensorSpec(std::vector<Index> shape, DataType dtype)
     {
         if(dim <= 0)
         {
-            throw std::invalid_argument("TensorSpec: all dimensions must be positive");
+            throw std::invalid_argument(
+                "TensorSpec: all dimensions must be positive");
         }
     }
 }

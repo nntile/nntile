@@ -12,12 +12,19 @@
  * @version 1.1.0
  * */
 
-#include <nntile/graph/graph.hh>
+// Include standard headers
+#include <algorithm>
+
+// Include third-party headers
 #include <catch2/catch_test_macros.hpp>
+
+// Include other NNTile headers
+#include "nntile/graph/graph.hh"
 
 using namespace nntile::graph;
 
-TEST_CASE("LogicalGraph CreateTensor", "[graph]") {
+TEST_CASE("LogicalGraph CreateTensor", "[graph]")
+{
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
@@ -48,15 +55,25 @@ TEST_CASE("LogicalGraph GemmTranspose", "[graph]")
 {
     LogicalGraph g("test");
 
-    auto& a = g.tensor(TensorSpec({768, 32}, DataType::FP32), "a");  // Will be transposed
+    auto& a = g.tensor(
+        TensorSpec({768, 32}, DataType::FP32),
+        "a");  // Will be transposed
     auto& b = g.tensor(TensorSpec({768, 256}, DataType::FP32), "b");
-    auto& c = g.gemm(a, b, "c", 1.0, 0.0, /*trans_a=*/true, /*trans_b=*/false);
+    auto& c = g.gemm(
+        a,
+        b,
+        "c",
+        1.0,
+        0.0,
+        /*trans_a=*/true,
+        /*trans_b=*/false);
 
     REQUIRE(c.shape()[0] == 32);   // M from A^T
     REQUIRE(c.shape()[1] == 256);  // N from B
 }
 
-TEST_CASE("LogicalGraph Gelu", "[graph]") {
+TEST_CASE("LogicalGraph Gelu", "[graph]")
+{
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
@@ -67,7 +84,8 @@ TEST_CASE("LogicalGraph Gelu", "[graph]") {
     REQUIRE(y.producer()->type() == OpType::GELU);
 }
 
-TEST_CASE("LogicalGraph Chain", "[graph]") {
+TEST_CASE("LogicalGraph Chain", "[graph]")
+{
     LogicalGraph g("mlp");
 
     auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
@@ -82,14 +100,18 @@ TEST_CASE("LogicalGraph Chain", "[graph]") {
     REQUIRE(g.num_ops() == 3);      // gemm, gelu, gemm
 }
 
-TEST_CASE("LogicalGraph TensorNameUniqueness", "[graph]") {
+TEST_CASE("LogicalGraph TensorNameUniqueness", "[graph]")
+{
     LogicalGraph g("test");
 
     g.tensor(TensorSpec({10}, DataType::FP32), "x");
-    REQUIRE_THROWS_AS(g.tensor(TensorSpec({10}, DataType::FP32), "x"), std::invalid_argument);
+    REQUIRE_THROWS_AS(
+        g.tensor(TensorSpec({10}, DataType::FP32), "x"),
+        std::invalid_argument);
 }
 
-TEST_CASE("LogicalGraph GetTensor", "[graph]") {
+TEST_CASE("LogicalGraph GetTensor", "[graph]")
+{
     LogicalGraph g("test");
 
     auto& x = g.tensor(TensorSpec({10}, DataType::FP32), "x");
@@ -100,7 +122,8 @@ TEST_CASE("LogicalGraph GetTensor", "[graph]") {
     REQUIRE(g.get_tensor("z") == nullptr);
 }
 
-TEST_CASE("LogicalGraph TensorNames", "[graph]") {
+TEST_CASE("LogicalGraph TensorNames", "[graph]")
+{
     LogicalGraph g("test");
 
     g.tensor(TensorSpec({10}, DataType::FP32), "x");

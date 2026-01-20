@@ -14,11 +14,16 @@
 
 #pragma once
 
-#include <nntile/graph/logical_graph.hh>
-#include <nntile/tensor/tensor.hh>
-#include <memory>
+// Include standard headers
 #include <map>
+#include <memory>
 #include <vector>
+
+// Include third-party headers
+
+// Include other NNTile headers
+#include "nntile/graph/logical_graph.hh"
+#include "nntile/tensor/tensor.hh"
 
 namespace nntile::graph
 {
@@ -37,7 +42,8 @@ class CompiledGraph
 {
 private:
     // Runtime tensors (NNTile tensors, one tile each)
-    std::map<std::string, std::shared_ptr<void>> tensors_;  // Type-erased tensor pointers
+    // Type-erased tensor pointers
+    std::map<std::string, std::shared_ptr<void>> tensors_;
     std::map<std::string, DataType> tensor_dtypes_;
 
     // Execution order (topologically sorted ops with extracted info)
@@ -47,9 +53,9 @@ public:
     //! Compile a logical graph
     static CompiledGraph compile(const LogicalGraph& logical);
 
-    // ═══════════════════════════════════════════════════════════════
+    // -----------------------------------------------------------------
     // Data Binding
-    // ═══════════════════════════════════════════════════════════════
+    // -----------------------------------------------------------------
 
     //! Bind data to a tensor (copies data)
     template<typename T>
@@ -59,9 +65,9 @@ public:
     template<typename T>
     void bind_data(const std::string& name, const std::vector<T>& data);
 
-    // ═══════════════════════════════════════════════════════════════
+    // -----------------------------------------------------------------
     // Execution
-    // ═══════════════════════════════════════════════════════════════
+    // -----------------------------------------------------------------
 
     //! Execute the graph
     void execute();
@@ -69,9 +75,9 @@ public:
     //! Wait for all operations to complete
     void wait();
 
-    // ═══════════════════════════════════════════════════════════════
+    // -----------------------------------------------------------------
     // Output Retrieval
-    // ═══════════════════════════════════════════════════════════════
+    // -----------------------------------------------------------------
 
     //! Get output data (copies data out)
     template<typename T>

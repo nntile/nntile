@@ -14,10 +14,15 @@
 
 #pragma once
 
-#include <nntile/graph/tensor_spec.hh>
+// Include standard headers
+#include <cstdint>
 #include <string>
 #include <vector>
-#include <cstdint>
+
+// Include third-party headers
+
+// Include other NNTile headers
+#include "nntile/graph/tensor_spec.hh"
 
 namespace nntile::graph
 {
@@ -42,11 +47,16 @@ private:
     LogicalGraph* graph_;
 
     // Graph edges
-    OpNode* producer_ = nullptr;           // Op that creates this tensor (nullptr if input)
+    // Op that creates this tensor (nullptr if input)
+    OpNode* producer_ = nullptr;
     std::vector<OpNode*> consumers_;       // Ops that use this tensor
 
 public:
-    TensorNode(NodeId id, const std::string& name, TensorSpec spec, LogicalGraph* graph);
+    TensorNode(
+        NodeId id,
+        const std::string& name,
+        TensorSpec spec,
+        LogicalGraph* graph);
 
     // Accessors
     NodeId id() const { return id_; }

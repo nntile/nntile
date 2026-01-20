@@ -14,8 +14,9 @@
 
 #pragma once
 
-#include <nntile/graph/tensor_spec.hh>
-#include <nntile/graph/tensor_node.hh>
-#include <nntile/graph/op_node.hh>
-#include <nntile/graph/logical_graph.hh>
-#include <nntile/graph/compiled_graph.hh>
+// Include related NNTile headers
+#include "nntile/graph/compiled_graph.hh"
+#include "nntile/graph/logical_graph.hh"
+#include "nntile/graph/op_node.hh"
+#include "nntile/graph/tensor_node.hh"
+#include "nntile/graph/tensor_spec.hh"

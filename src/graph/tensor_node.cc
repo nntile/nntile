@@ -12,13 +12,25 @@
  * @version 1.1.0
  * */
 
-#include <nntile/graph/tensor_node.hh>
+// Include corresponding header
+#include "nntile/graph/tensor_node.hh"
+
+// Include standard headers
+#include <string>
+
+// Include third-party headers
+
+// Include other NNTile headers
 
 namespace nntile::graph
 {
 
 //! A tensor node in the logical graph
-TensorNode::TensorNode(NodeId id, const std::string& name, TensorSpec spec, LogicalGraph* graph)
+TensorNode::TensorNode(
+    NodeId id,
+    const std::string& name,
+    TensorSpec spec,
+    LogicalGraph* graph)
     : id_(id)
     , name_(name)
     , spec_(std::move(spec))
@@ -27,8 +39,10 @@ TensorNode::TensorNode(NodeId id, const std::string& name, TensorSpec spec, Logi
 }
 
 //! String representation
-std::string TensorNode::to_string() const {
-    return "TensorNode(id=" + std::to_string(id_) + ", name='" + name_ + "', " + spec_.to_string() + ")";
+std::string TensorNode::to_string() const
+{
+    return "TensorNode(id=" + std::to_string(id_) + ", name='" + name_ +
+        "', " + spec_.to_string() + ")";
 }
 
 } // namespace nntile::graph

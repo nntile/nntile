@@ -12,8 +12,15 @@
  * @version 1.1.0
  * */
 
-#include <nntile/graph/op_node.hh>
+// Include corresponding header
+#include "nntile/graph/op_node.hh"
+
+// Include standard headers
 #include <stdexcept>
+
+// Include third-party headers
+
+// Include other NNTile headers
 
 namespace nntile::graph
 {
@@ -44,8 +51,8 @@ OpNode::OpNode(NodeId id, OpType type, OpAttrs attrs, LogicalGraph* graph)
 //! String representation
 std::string OpNode::to_string() const
 {
-    std::string result = op_type_to_string(type_) + "(id=" + std::to_string(id_) +
-            ", inputs=[";
+    std::string result = op_type_to_string(type_) + "(id=" +
+        std::to_string(id_) + ", inputs=[";
     for(size_t i = 0; i < inputs_.size(); ++i)
     {
         if(i > 0)

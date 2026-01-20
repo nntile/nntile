@@ -12,9 +12,16 @@
  * @version 1.1.0
  * */
 
-#include <nntile/graph/logical_graph.hh>
-#include <stdexcept>
+// Include corresponding header
+#include "nntile/graph/logical_graph.hh"
+
+// Include standard headers
 #include <sstream>
+#include <stdexcept>
+
+// Include third-party headers
+
+// Include other NNTile headers
 
 namespace nntile::graph
 {
@@ -26,7 +33,9 @@ LogicalGraph::LogicalGraph(const std::string& name)
 }
 
 //! Create a tensor
-TensorNode& LogicalGraph::tensor(const TensorSpec& spec, const std::string& name)
+TensorNode& LogicalGraph::tensor(
+    const TensorSpec& spec,
+    const std::string& name)
 {
     // Check name doesn't already exist
     if(tensor_by_name_.count(name) > 0)
@@ -36,7 +45,13 @@ TensorNode& LogicalGraph::tensor(const TensorSpec& spec, const std::string& name
     }
 
     // Create TensorNode with unique ID
-    auto node = std::make_unique<TensorNode>(next_tensor_id_++, name, spec, this);
+    auto node = std::make_unique<TensorNode>(
+        next_tensor_id_,
+        name,
+        spec,
+        this
+    );
+    ++next_tensor_id_;
     TensorNode* node_ptr = node.get();
 
     // Store in containers
@@ -63,16 +78,24 @@ TensorNode& LogicalGraph::gemm(
     // Validate input dtypes match
     if(a.dtype() != b.dtype())
     {
-        throw std::invalid_argument("gemm: input tensors must have the same dtype");
+        throw std::invalid_argument(
+            "gemm: input tensors must have the same dtype");
     }
 
     // Validate input shapes are compatible
-    TensorSpec output_spec = compute_gemm_output_spec(a.spec(), b.spec(),
-            trans_a, trans_b, ndim, batch_ndim);
+    TensorSpec output_spec = compute_gemm_output_spec(
+        a.spec(), b.spec(), trans_a, trans_b, ndim, batch_ndim
+    );
 
     // Create OpNode with GemmAttrs
     OpAttrs attrs = GemmAttrs{trans_a, trans_b, alpha, beta, ndim, batch_ndim};
-    auto op = std::make_unique<OpNode>(next_op_id_++, OpType::GEMM, attrs, this);
+    auto op = std::make_unique<OpNode>(
+        next_op_id_,
+        OpType::GEMM,
+        attrs,
+        this
+    );
+    ++next_op_id_;
     OpNode* op_ptr = op.get();
 
     // Create output TensorNode
@@ -92,13 +115,20 @@ TensorNode& LogicalGraph::gemm(
 TensorNode& LogicalGraph::gelu(
     TensorNode& x,
     const std::string& output_name
-) {
+)
+{
     // Output shape = input shape
     TensorSpec output_spec = TensorSpec(x.shape(), x.dtype());
 
     // Create OpNode with GeluAttrs
     OpAttrs attrs = GeluAttrs{};
-    auto op = std::make_unique<OpNode>(next_op_id_++, OpType::GELU, attrs, this);
+    auto op = std::make_unique<OpNode>(
+        next_op_id_,
+        OpType::GELU,
+        attrs,
+        this
+    );
+    ++next_op_id_;
     OpNode* op_ptr = op.get();
 
     // Create output TensorNode
@@ -172,12 +202,18 @@ TensorNode& LogicalGraph::create_op_output(
     // Check name doesn't already exist
     if(tensor_by_name_.count(name) > 0)
     {
-        throw std::invalid_argument("LogicalGraph::create_op_output: tensor '" +
-                name + "' already exists");
+        throw std::invalid_argument(
+            "LogicalGraph::create_op_output: tensor '" + name +
+            "' already exists");
     }
 
     // Create TensorNode with unique ID
-    auto node = std::make_unique<TensorNode>(next_tensor_id_++, name, spec, this);
+    auto node = std::make_unique<TensorNode>(
+        next_tensor_id_,
+        name,
+        spec,
+        this);
+    ++next_tensor_id_;
     TensorNode* node_ptr = node.get();
 
     // Wire up with operation
@@ -204,8 +240,9 @@ TensorSpec LogicalGraph::compute_gemm_output_spec(
     // This matches the current implementation
     if(ndim != 1 || batch_ndim != 0)
     {
-        throw std::invalid_argument("gemm: only 2D matrices (ndim=1, batch_ndim=0) "
-                "are currently supported");
+        throw std::invalid_argument(
+            "gemm: only 2D matrices (ndim=1, batch_ndim=0) "
+            "are currently supported");
     }
     if(a.ndim() != 2 || b.ndim() != 2)
     {
@@ -222,8 +259,8 @@ TensorSpec LogicalGraph::compute_gemm_output_spec(
 
     if(K_a != K_b)
     {
-        throw std::invalid_argument("gemm: incompatible shapes - K dimensions "
-                "don't match");
+        throw std::invalid_argument(
+            "gemm: incompatible shapes - K dimensions don't match");
     }
 
     return TensorSpec({M, N}, a.dtype());

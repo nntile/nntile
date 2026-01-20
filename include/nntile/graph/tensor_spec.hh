@@ -14,9 +14,14 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
-#include <vector>
+// Include standard headers
 #include <string>
+#include <vector>
+
+// Include third-party headers
+
+// Include other NNTile headers
+#include "nntile/base_types.hh"
 
 namespace nntile::graph
 {

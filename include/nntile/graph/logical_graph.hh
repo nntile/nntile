@@ -14,13 +14,19 @@
 
 #pragma once
 
-#include <nntile/graph/tensor_node.hh>
-#include <nntile/graph/op_node.hh>
-#include <nntile/base_types.hh>
-#include <memory>
-#include <vector>
+// Include standard headers
 #include <map>
+#include <memory>
 #include <set>
+#include <string>
+#include <vector>
+
+// Include third-party headers
+
+// Include other NNTile headers
+#include "nntile/base_types.hh"
+#include "nntile/graph/op_node.hh"
+#include "nntile/graph/tensor_node.hh"
 
 namespace nntile::graph
 {
@@ -40,16 +46,16 @@ private:
 public:
     explicit LogicalGraph(const std::string& name = "");
 
-    // ═══════════════════════════════════════════════════════════════
+    // -----------------------------------------------------------------
     // Tensor Creation
-    // ═══════════════════════════════════════════════════════════════
+    // -----------------------------------------------------------------
 
     //! Create a tensor
     TensorNode& tensor(const TensorSpec& spec, const std::string& name);
 
-    // ═══════════════════════════════════════════════════════════════
+    // -----------------------------------------------------------------
     // Operations
-    // ═══════════════════════════════════════════════════════════════
+    // -----------------------------------------------------------------
 
     //! General matrix multiplication: C = alpha * A @ B + beta * C
     //! Returns reference to output tensor
@@ -71,9 +77,9 @@ public:
         const std::string& output_name
     );
 
-    // ═══════════════════════════════════════════════════════════════
+    // -----------------------------------------------------------------
     // Queries
-    // ═══════════════════════════════════════════════════════════════
+    // -----------------------------------------------------------------
 
     const std::string& name() const { return name_; }
     size_t num_tensors() const { return tensors_.size(); }
@@ -87,10 +93,16 @@ public:
     std::vector<std::string> tensor_names() const;
 
     //! Get all tensors (for iteration)
-    const std::vector<std::unique_ptr<TensorNode>>& tensors() const { return tensors_; }
+    const std::vector<std::unique_ptr<TensorNode>>& tensors() const
+    {
+        return tensors_;
+    }
 
     //! Get all ops (for iteration)
-    const std::vector<std::unique_ptr<OpNode>>& ops() const { return ops_; }
+    const std::vector<std::unique_ptr<OpNode>>& ops() const
+    {
+        return ops_;
+    }
 
     //! String representation
     std::string to_string() const;
