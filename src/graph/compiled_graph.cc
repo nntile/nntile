@@ -448,7 +448,17 @@ void CompiledGraph::bind_data(const std::string& name,
 template<typename T>
 std::vector<T> CompiledGraph::get_output(const std::string& name)
 {
-    DataType dtype = tensor_dtypes_[name];
+    auto tensor_it = tensors_.find(name);
+    if(tensor_it == tensors_.end())
+    {
+        throw std::runtime_error("Tensor not found: " + name);
+    }
+    auto dtype_it = tensor_dtypes_.find(name);
+    if(dtype_it == tensor_dtypes_.end())
+    {
+        throw std::runtime_error("Tensor dtype not found: " + name);
+    }
+    DataType dtype = dtype_it->second;
     std::vector<T> result;
 
     if(dtype == DataType::FP32)
