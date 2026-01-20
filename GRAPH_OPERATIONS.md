@@ -144,14 +144,18 @@ TensorNode& your_op(
     // 3. Create operation attributes
     OpAttrs attrs = YourOpAttrs{some_param};
 
-    // 4. Add operation to graph using public builder API
-    return x.graph().add_op(
+    // 4. Create output tensor
+    TensorNode& output = x.graph().tensor(output_spec, output_name);
+
+    // 5. Add operation to graph using public builder API
+    x.graph().add_op(
         OpType::YOUR_OP,
         attrs,
         {&x},           // Input tensors
-        output_spec,    // Output specification
-        output_name     // Output tensor name
+        {&output}       // Output tensors (must be pre-created)
     );
+
+    return output;
 }
 
 } // namespace nntile::graph
@@ -160,8 +164,8 @@ TensorNode& your_op(
 ### Step 2b: In-Place Operations (Optional)
 
 Some operations support both variants:
-1. **Creating new tensor**: `y = f(x)` - uses `add_op()`
-2. **Accumulating into existing tensor**: `y = f(x) + beta * y` - uses `add_inplace_op()`
+1. **Creating new tensor**: `y = f(x)` - creates output tensor and adds operation
+2. **Accumulating into existing tensor**: `y = f(x) + beta * y` - modifies existing tensor
 
 Example with gemm:
 
@@ -173,20 +177,19 @@ TensorNode& gemm(TensorNode& a, TensorNode& b, const std::string& output_name, .
 void gemm(TensorNode& a, TensorNode& b, TensorNode& c, Scalar alpha, Scalar beta, ...);
 ```
 
-For in-place operations, use `add_inplace_op()`:
+For in-place operations, use the unified `add_op()` with the output tensor in both inputs and outputs:
 
 ```cpp
 void your_op_inplace(TensorNode& x, TensorNode& y, float some_param)
 {
     OpAttrs attrs = YourOpAttrs{some_param};
-    
-    // Use add_inplace_op for operations that modify existing tensors
-    // The tensor y appears in both inputs and outputs
-    x.graph().add_inplace_op(
+
+    // For in-place operations, include the output tensor in both inputs and outputs
+    x.graph().add_op(
         OpType::YOUR_OP,
         attrs,
-        {&x},    // Additional inputs (not including y)
-        &y       // Tensor that is both read and modified
+        {&x, &y},    // All input tensors (including the one being modified)
+        {&y}         // Output tensors (the tensor being modified)
     );
 }
 ```
@@ -369,11 +372,11 @@ gemm(a, b, c, /*alpha=*/1.0, /*beta=*/0.5);  // Modifies c in-place
    `tensor.graph()`, so no explicit graph parameter is needed.
 
 3. **Two API patterns for operations**:
-   - **Creating new tensor**: `TensorNode& op(inputs..., output_name)` - uses `add_op()`
-   - **In-place accumulation**: `void op(inputs..., inout_tensor)` - uses `add_inplace_op()`
+   - **Creating new tensor**: `TensorNode& op(inputs..., output_name)` - creates tensor then uses `add_op()`
+   - **In-place accumulation**: `void op(inputs..., inout_tensor)` - uses `add_op()` with existing tensor
 
-4. **Public builder API**: LogicalGraph exposes `add_op()` and `add_inplace_op()` for
-   operations to use, avoiding friend declarations.
+4. **Public builder API**: LogicalGraph exposes `add_op()` for operations to use,
+   avoiding friend declarations. All output tensors must be pre-created.
 
 5. **Separate files per operation**: Each operation has its own header and source
    files for parallel compilation.
