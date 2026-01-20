@@ -22,8 +22,8 @@
 // Include third-party headers
 
 // Include other NNTile headers
-#include "nntile/graph/logical_graph.hh"
-#include "nntile/tensor/tensor.hh"
+#include <nntile/graph/logical_graph.hh>
+#include <nntile/tensor/tensor.hh>
 
 namespace nntile::graph
 {

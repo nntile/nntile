@@ -22,7 +22,7 @@
 // Include third-party headers
 
 // Include other NNTile headers
-#include "nntile/graph/tensor_spec.hh"
+#include <nntile/graph/tensor_spec.hh>
 
 namespace nntile::graph
 {

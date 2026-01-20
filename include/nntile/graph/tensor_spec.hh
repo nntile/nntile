@@ -21,7 +21,7 @@
 // Include third-party headers
 
 // Include other NNTile headers
-#include "nntile/base_types.hh"
+#include <nntile/base_types.hh>
 
 namespace nntile::graph
 {
