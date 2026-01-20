@@ -266,7 +266,7 @@ void gemm(
     a.graph().add_op(
         OpType::GEMM,
         attrs,
-        {&a, &b},
+        {&a, &b, &c},
         {&c}
     );
 }
