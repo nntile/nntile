@@ -41,7 +41,9 @@ void GradientRegistry::set_requires_grad(const std::string& tensor_name,
     }
 }
 
-void GradientRegistry::set_requires_grad(const TensorNode& tensor, bool requires)
+void GradientRegistry::set_requires_grad(
+    const LogicalGraphTensorNode& tensor,
+    bool requires)
 {
     set_requires_grad(tensor.name(), requires);
 }
@@ -53,7 +55,7 @@ bool GradientRegistry::requires_grad(const std::string& tensor_name) const
            has_grad(tensor_name);
 }
 
-bool GradientRegistry::requires_grad(const TensorNode& tensor) const
+bool GradientRegistry::requires_grad(const LogicalGraphTensorNode& tensor) const
 {
     return requires_grad(tensor.name());
 }
@@ -69,20 +71,22 @@ bool GradientRegistry::has_grad(const std::string& tensor_name) const
 }
 
 //! Check if a gradient is registered for the given tensor
-bool GradientRegistry::has_grad(const TensorNode& tensor) const
+bool GradientRegistry::has_grad(const LogicalGraphTensorNode& tensor) const
 {
     return has_grad(tensor.name());
 }
 
 //! Get gradient tensor for the given tensor name
-TensorNode* GradientRegistry::get_grad(const std::string& tensor_name) const
+LogicalGraphTensorNode* GradientRegistry::get_grad(
+    const std::string& tensor_name) const
 {
     auto it = grad_map_.find(tensor_name);
     return it != grad_map_.end() ? it->second : nullptr;
 }
 
 //! Get gradient tensor for the given tensor
-TensorNode* GradientRegistry::get_grad(const TensorNode& tensor) const
+LogicalGraphTensorNode* GradientRegistry::get_grad(
+    const LogicalGraphTensorNode& tensor) const
 {
     return get_grad(tensor.name());
 }
@@ -90,7 +94,7 @@ TensorNode* GradientRegistry::get_grad(const TensorNode& tensor) const
 //! Register a gradient tensor for the given tensor name
 void GradientRegistry::set_grad(
     const std::string& tensor_name,
-    TensorNode* grad_tensor)
+    LogicalGraphTensorNode* grad_tensor)
 {
     if(has_grad(tensor_name))
     {
@@ -104,27 +108,27 @@ void GradientRegistry::set_grad(
 
 //! Register a gradient tensor for the given tensor
 void GradientRegistry::set_grad(
-    const TensorNode& tensor,
-    TensorNode* grad_tensor)
+    const LogicalGraphTensorNode& tensor,
+    LogicalGraphTensorNode* grad_tensor)
 {
     set_grad(tensor.name(), grad_tensor);
 }
 
 //! Get existing gradient tensor or create a new one
-TensorNode& GradientRegistry::get_or_create_grad(
+LogicalGraphTensorNode& GradientRegistry::get_or_create_grad(
     LogicalGraph& graph,
-    const TensorNode& tensor,
+    const LogicalGraphTensorNode& tensor,
     const std::string& grad_name)
 {
     // Check if gradient already exists
-    TensorNode* existing = get_grad(tensor);
+    LogicalGraphTensorNode* existing = get_grad(tensor);
     if(existing != nullptr)
     {
         return *existing;
     }
 
     // Create new gradient tensor with same spec as original tensor
-    TensorNode& grad_tensor = graph.tensor(tensor.spec(), grad_name);
+    LogicalGraphTensorNode& grad_tensor = graph.tensor(tensor.spec(), grad_name);
 
     // Register it
     grad_map_[tensor.name()] = &grad_tensor;
@@ -139,7 +143,8 @@ bool GradientRegistry::is_first_grad(const std::string& tensor_name) const
 }
 
 //! Check if this is the first gradient contribution for a tensor
-bool GradientRegistry::is_first_grad(const TensorNode& tensor) const
+bool GradientRegistry::is_first_grad(
+    const LogicalGraphTensorNode& tensor) const
 {
     return is_first_grad(tensor.name());
 }

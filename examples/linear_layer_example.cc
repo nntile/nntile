@@ -14,10 +14,11 @@
 
 #include <nntile/context.hh>
 #include <nntile/module/linear.hh>
-#include <iostream>
-#include <vector>
+#include <algorithm>
 #include <chrono>
+#include <iostream>
 #include <random>
+#include <vector>
 
 int main(int argc, char** argv) {
     // Initialize NNTile context (this initializes StarPU)
@@ -33,34 +34,37 @@ int main(int argc, char** argv) {
         0 // verbose: verbosity level (0=quiet)
     );
 
-    // Create single logical graph for both forward and backward
-    nntile::graph::LogicalGraph graph("Linear_Graph");
+    // Create a neural network graph for forward and backward
+    nntile::graph::NNGraph graph("Linear_Graph");
 
-    // Create Linear (tied to the graph)
-    nntile::module::Linear linear(graph, "linear1", 8, 4, nntile::graph::DataType::FP32);
+    // Create Linear module (tied to the graph)
+    nntile::module::Linear linear(
+        graph, "linear1", 8, 4, nntile::graph::DataType::FP32);
 
-    // Create input tensor
+    // Create input tensor (requires_grad to compute input gradients)
     auto& input_tensor = graph.tensor(
-        nntile::graph::TensorSpec({4, 8}, nntile::graph::DataType::FP32), "external_input");
+        nntile::graph::TensorSpec({4, 8}, nntile::graph::DataType::FP32),
+        "external_input",
+        true);
 
     // Build forward operation and get output tensor
     auto& output_tensor = linear.build_forward(input_tensor);
 
-    // Create grad tensors in the same graph
-    auto& grad_output_tensor = graph.tensor(
-        nntile::graph::TensorSpec({4, 4}, nntile::graph::DataType::FP32), "external_grad_output");
-    auto& grad_input_tensor = graph.tensor(
-        nntile::graph::TensorSpec({4, 8}, nntile::graph::DataType::FP32), "external_grad_input");
+    // Attach an external gradient to the output (e.g., loss gradient)
+    auto& grad_output_tensor = graph.get_or_create_grad(
+        output_tensor,
+        "external_grad_output");
 
     // Build backward operations
-    linear.build_backward(grad_output_tensor, grad_input_tensor);
+    linear.build_backward();
 
     // Print graph structure for debugging
     std::cout << "Graph structure:" << std::endl;
     std::cout << graph.to_string() << std::endl;
 
     // Compile the graph
-    auto compiled_graph = nntile::graph::CompiledGraph::compile(graph);
+    auto compiled_graph = nntile::graph::CompiledGraph::compile(
+        graph.logical_graph());
 
     // Generate random input data
     std::vector<float> input_data(4 * 8);
@@ -84,13 +88,11 @@ int main(int argc, char** argv) {
     for (auto& val : weight_data) {
         val = dist2(gen2);
     }
-    compiled_graph.bind_data(linear.weight_name(), weight_data);
+    compiled_graph.bind_data(linear.weight_tensor()->name(), weight_data);
 
     // Initialize gradient data (for backward pass)
-    std::vector<float> grad_output_data(4 * 4, 1.0f); // Dummy gradient data
-    std::vector<float> grad_input_data(4 * 8, 0.0f);  // Will be filled by backward pass
-    compiled_graph.bind_data("external_grad_output", grad_output_data);
-    compiled_graph.bind_data("external_grad_input", grad_input_data);
+    std::vector<float> grad_output_data(4 * 4, 1.0f);
+    compiled_graph.bind_data(grad_output_tensor.name(), grad_output_data);
 
     // Execute the graph (contains both forward and backward operations)
     auto start = std::chrono::high_resolution_clock::now();
@@ -105,19 +107,21 @@ int main(int argc, char** argv) {
     std::cout << "Output shape: [4, 4]" << std::endl;
 
     // Get output data from the output tensor
-    auto output_data = compiled_graph.get_output<float>(linear.output_name());
+    auto output_data = compiled_graph.get_output<float>(output_tensor.name());
     std::cout << "Sample output values: ";
     for (size_t i = 0; i < std::min(size_t(8), output_data.size()); ++i) {
         std::cout << output_data[i] << " ";
     }
     std::cout << "..." << std::endl;
 
-    // Get output (this would normally be done after binding input data)
-    // For demonstration, we'll just show the graph structure
-    std::cout << "\nLinear module created with:" << std::endl;
-    std::cout << "- Weight tensor: " << linear.weight_name() << " [8, 4]" << std::endl;
-    std::cout << "- Input tensor: external_input [4, 8]" << std::endl;
-    std::cout << "- Output tensor: " << linear.output_name() << " [4, 4]" << std::endl;
+    // Get gradients
+    auto grad_weight = compiled_graph.get_output<float>(
+        linear.grad_name("weight"));
+    auto grad_input = compiled_graph.get_output<float>(
+        linear.grad_name("input"));
+
+    std::cout << "Weight grad size: " << grad_weight.size() << std::endl;
+    std::cout << "Input grad size: " << grad_input.size() << std::endl;
 
     std::cout << "\nLinear module successfully created and graphs built!" << std::endl;
 

@@ -28,9 +28,9 @@ namespace nntile::graph
 
 //! GeLU backward: dx += gelu_backward(x, dy)
 void gelu_backward(
-    TensorNode& x,
-    TensorNode& dy,
-    TensorNode& dx)
+    LogicalGraphTensorNode& x,
+    LogicalGraphTensorNode& dy,
+    LogicalGraphTensorNode& dx)
 {
     // Create operation attributes
     OpAttrs attrs = GeluBackwardAttrs{};

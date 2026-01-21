@@ -51,21 +51,21 @@ private:
     graph::DataType dtype_;
 
     //! Intermediate tensors (created during build_forward)
-    graph::TensorNode* hidden_tensor_ = nullptr;      // After fc1
-    graph::TensorNode* activation_tensor_ = nullptr;  // After GELU
+    graph::NNGraphTensorNode* hidden_tensor_ = nullptr;      // After fc1
+    graph::NNGraphTensorNode* activation_tensor_ = nullptr;  // After GELU
 
     //! Track if forward has been built
     bool forward_built_ = false;
 
 public:
     //! Constructor: creates MLP with specified dimensions
-    //! @param graph The logical graph this module belongs to
+    //! @param graph The neural network graph this module belongs to
     //! @param name Module name
     //! @param input_dim Input feature dimension
     //! @param intermediate_dim Hidden layer dimension (after fc1)
     //! @param output_dim Output feature dimension
     //! @param dtype Data type for all tensors
-    Mlp(graph::LogicalGraph& graph,
+    Mlp(graph::NNGraph& graph,
         const std::string& name,
         Index input_dim,
         Index intermediate_dim,
@@ -73,12 +73,12 @@ public:
         graph::DataType dtype = graph::DataType::FP32);
 
     //! Constructor: creates MLP where output_dim == input_dim (common in transformers)
-    //! @param graph The logical graph this module belongs to
+    //! @param graph The neural network graph this module belongs to
     //! @param name Module name
     //! @param input_dim Input/output feature dimension
     //! @param intermediate_dim Hidden layer dimension
     //! @param dtype Data type for all tensors
-    Mlp(graph::LogicalGraph& graph,
+    Mlp(graph::NNGraph& graph,
         const std::string& name,
         Index input_dim,
         Index intermediate_dim,
@@ -87,11 +87,11 @@ public:
     //! Build forward operations
     //! @param input Input tensor node
     //! @return Reference to output tensor
-    graph::TensorNode& build_forward(graph::TensorNode& input) override;
+    graph::NNGraphTensorNode& build_forward(
+        graph::NNGraphTensorNode& input) override;
 
-    //! Build backward operations using gradient registry
-    //! @param grad_reg Gradient registry
-    void build_backward(graph::GradientRegistry& grad_reg) override;
+    //! Build backward operations using grad fields on NNGraphTensorNode
+    void build_backward() override;
 
     //! Get string representation with dimensions
     std::string repr() const override;

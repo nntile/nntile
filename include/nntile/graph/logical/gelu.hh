@@ -29,8 +29,8 @@ namespace nntile::graph
 //! @param x Input tensor
 //! @param output_name Name for the output tensor
 //! @return Reference to the output tensor
-TensorNode& gelu(
-    TensorNode& x,
+LogicalGraphTensorNode& gelu(
+    LogicalGraphTensorNode& x,
     const std::string& output_name
 );
 

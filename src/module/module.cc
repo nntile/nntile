@@ -23,7 +23,7 @@ namespace nntile::module
 {
 
 //! Constructor
-Module::Module(graph::LogicalGraph& graph, const std::string& name)
+Module::Module(graph::NNGraph& graph, const std::string& name)
     : graph_(graph)
     , name_(name)
 {
@@ -34,7 +34,7 @@ Module::Module(graph::LogicalGraph& graph, const std::string& name)
 // -----------------------------------------------------------------
 
 void Module::register_parameter(const std::string& local_name,
-                                graph::TensorNode* tensor)
+                                graph::NNGraphTensorNode* tensor)
 {
     if(tensor == nullptr)
     {
@@ -45,13 +45,14 @@ void Module::register_parameter(const std::string& local_name,
 }
 
 void Module::register_buffer(const std::string& local_name,
-                            graph::TensorNode* tensor)
+                             graph::NNGraphTensorNode* tensor)
 {
     if(tensor == nullptr)
     {
         throw std::invalid_argument(
             "Module::register_buffer: tensor is nullptr");
     }
+    graph_.set_requires_grad(*tensor, false);
     buffers_.emplace_back(local_name, tensor);
 }
 
@@ -69,9 +70,9 @@ void Module::register_module(const std::string& local_name, Module* module)
 // Parameter Access
 // -----------------------------------------------------------------
 
-std::vector<graph::TensorNode*> Module::parameters() const
+std::vector<graph::NNGraphTensorNode*> Module::parameters() const
 {
-    std::vector<graph::TensorNode*> result;
+    std::vector<graph::NNGraphTensorNode*> result;
     result.reserve(parameters_.size());
     for(const auto& [name, tensor] : parameters_)
     {
@@ -80,15 +81,15 @@ std::vector<graph::TensorNode*> Module::parameters() const
     return result;
 }
 
-const std::vector<std::pair<std::string, graph::TensorNode*>>&
+const std::vector<std::pair<std::string, graph::NNGraphTensorNode*>>&
 Module::named_parameters() const
 {
     return parameters_;
 }
 
-std::vector<graph::TensorNode*> Module::parameters_recursive() const
+std::vector<graph::NNGraphTensorNode*> Module::parameters_recursive() const
 {
-    std::vector<graph::TensorNode*> result;
+    std::vector<graph::NNGraphTensorNode*> result;
 
     // Add own parameters
     for(const auto& [name, tensor] : parameters_)
@@ -106,17 +107,17 @@ std::vector<graph::TensorNode*> Module::parameters_recursive() const
     return result;
 }
 
-std::vector<std::pair<std::string, graph::TensorNode*>>
+std::vector<std::pair<std::string, graph::NNGraphTensorNode*>>
 Module::named_parameters_recursive() const
 {
-    std::vector<std::pair<std::string, graph::TensorNode*>> result;
+    std::vector<std::pair<std::string, graph::NNGraphTensorNode*>> result;
     collect_parameters_recursive(name_, result);
     return result;
 }
 
 void Module::collect_parameters_recursive(
     const std::string& prefix,
-    std::vector<std::pair<std::string, graph::TensorNode*>>& result) const
+    std::vector<std::pair<std::string, graph::NNGraphTensorNode*>>& result) const
 {
     // Add own parameters with prefix
     for(const auto& [local_name, tensor] : parameters_)
@@ -135,9 +136,9 @@ void Module::collect_parameters_recursive(
 // Buffer Access
 // -----------------------------------------------------------------
 
-std::vector<graph::TensorNode*> Module::buffers() const
+std::vector<graph::NNGraphTensorNode*> Module::buffers() const
 {
-    std::vector<graph::TensorNode*> result;
+    std::vector<graph::NNGraphTensorNode*> result;
     result.reserve(buffers_.size());
     for(const auto& [name, tensor] : buffers_)
     {
@@ -146,7 +147,7 @@ std::vector<graph::TensorNode*> Module::buffers() const
     return result;
 }
 
-const std::vector<std::pair<std::string, graph::TensorNode*>>&
+const std::vector<std::pair<std::string, graph::NNGraphTensorNode*>>&
 Module::named_buffers() const
 {
     return buffers_;
@@ -156,15 +157,17 @@ Module::named_buffers() const
 // Gradient Access
 // -----------------------------------------------------------------
 
-std::vector<std::pair<graph::TensorNode*, graph::TensorNode*>>
-Module::parameter_gradients(const graph::GradientRegistry& grad_reg) const
+std::vector<std::pair<graph::NNGraphTensorNode*,
+                      graph::LogicalGraphTensorNode*>>
+Module::parameter_gradients() const
 {
-    std::vector<std::pair<graph::TensorNode*, graph::TensorNode*>> result;
+    std::vector<std::pair<graph::NNGraphTensorNode*,
+                          graph::LogicalGraphTensorNode*>> result;
     result.reserve(parameters_.size());
 
     for(const auto& [name, param] : parameters_)
     {
-        graph::TensorNode* grad = grad_reg.get_grad(*param);
+        graph::LogicalGraphTensorNode* grad = param->grad();
         if(grad != nullptr)
         {
             result.emplace_back(param, grad);
@@ -174,16 +177,17 @@ Module::parameter_gradients(const graph::GradientRegistry& grad_reg) const
     return result;
 }
 
-std::vector<std::pair<graph::TensorNode*, graph::TensorNode*>>
-Module::parameter_gradients_recursive(
-    const graph::GradientRegistry& grad_reg) const
+std::vector<std::pair<graph::NNGraphTensorNode*,
+                      graph::LogicalGraphTensorNode*>>
+Module::parameter_gradients_recursive() const
 {
-    std::vector<std::pair<graph::TensorNode*, graph::TensorNode*>> result;
+    std::vector<std::pair<graph::NNGraphTensorNode*,
+                          graph::LogicalGraphTensorNode*>> result;
 
     // Add own parameter gradients
     for(const auto& [name, param] : parameters_)
     {
-        graph::TensorNode* grad = grad_reg.get_grad(*param);
+        graph::LogicalGraphTensorNode* grad = param->grad();
         if(grad != nullptr)
         {
             result.emplace_back(param, grad);
@@ -193,7 +197,7 @@ Module::parameter_gradients_recursive(
     // Add submodule parameter gradients recursively
     for(const auto& [name, module] : submodules_)
     {
-        auto sub_grads = module->parameter_gradients_recursive(grad_reg);
+        auto sub_grads = module->parameter_gradients_recursive();
         result.insert(result.end(), sub_grads.begin(), sub_grads.end());
     }
 

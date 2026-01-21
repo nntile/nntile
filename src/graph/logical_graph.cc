@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 
 // Include third-party headers
 
@@ -27,13 +28,112 @@
 namespace nntile::graph
 {
 
+//! Convert OpType to string
+std::string op_type_to_string(OpType type)
+{
+    switch(type)
+    {
+        case OpType::GEMM:
+            return "GEMM";
+        case OpType::GELU:
+            return "GELU";
+        case OpType::GELU_BACKWARD:
+            return "GELU_BACKWARD";
+        case OpType::ADD_FIBER:
+            return "ADD_FIBER";
+        case OpType::SUM_FIBER:
+            return "SUM_FIBER";
+        default:
+            throw std::invalid_argument("Unknown OpType");
+    }
+}
+
+//! A tensor node in the logical graph
+LogicalGraphTensorNode::LogicalGraphTensorNode(
+    NodeId id,
+    const std::string& name,
+    TensorSpec spec,
+    LogicalGraph* graph)
+    : id_(id)
+    , name_(name)
+    , spec_(std::move(spec))
+    , graph_(graph)
+{
+}
+
+//! String representation
+std::string LogicalGraphTensorNode::to_string() const
+{
+    return "LogicalGraphTensorNode(id=" + std::to_string(id_) + ", name='" +
+        name_ + "', " + spec_.to_string() + ")";
+}
+
+//! Remove a consumer from this tensor's consumer list
+void LogicalGraphTensorNode::remove_consumer(OpNode* op)
+{
+    auto it = std::find(consumers_.begin(), consumers_.end(), op);
+    if(it != consumers_.end())
+    {
+        consumers_.erase(it);
+    }
+}
+
+//! An operation node in the logical graph
+OpNode::OpNode(NodeId id, OpType type, OpAttrs attrs, LogicalGraph* graph)
+    : id_(id)
+    , type_(type)
+    , attrs_(std::move(attrs))
+    , graph_(graph)
+{
+}
+
+//! String representation
+std::string OpNode::to_string() const
+{
+    std::string result = op_type_to_string(type_) + "(id=" +
+        std::to_string(id_) + ", inputs=[";
+    for(size_t i = 0; i < inputs_.size(); ++i)
+    {
+        if(i > 0)
+        {
+            result += ", ";
+        }
+        result += inputs_[i]->name();
+    }
+    result += "], outputs=[";
+    for(size_t i = 0; i < outputs_.size(); ++i)
+    {
+        if(i > 0)
+        {
+            result += ", ";
+        }
+        result += outputs_[i]->name();
+    }
+    result += "])";
+    return result;
+}
+
+//! Only LogicalGraph can modify
+void OpNode::add_input(LogicalGraphTensorNode* t)
+{
+    inputs_.push_back(t);
+    t->add_consumer(this);
+}
+
+//! Only LogicalGraph can modify
+void OpNode::add_output(LogicalGraphTensorNode* t)
+{
+    outputs_.push_back(t);
+    t->set_producer(this);
+}
+
 LogicalGraph::LogicalGraph(const std::string& name)
     : name_(name)
 {
 }
 
 //! Create an input tensor (not produced by any operation)
-TensorNode& LogicalGraph::tensor(
+LogicalGraphTensorNode& LogicalGraph::tensor(
     const TensorSpec& spec,
     const std::string& name)
 {
@@ -44,15 +144,15 @@ TensorNode& LogicalGraph::tensor(
                 "' already exists");
     }
 
-    // Create TensorNode with unique ID
-    auto node = std::make_unique<TensorNode>(
+    // Create LogicalGraphTensorNode with unique ID
+    auto node = std::make_unique<LogicalGraphTensorNode>(
         next_tensor_id_,
         name,
         spec,
         this
     );
     ++next_tensor_id_;
-    TensorNode* node_ptr = node.get();
+    LogicalGraphTensorNode* node_ptr = node.get();
 
     // Store in containers
     tensors_.push_back(std::move(node));
@@ -65,8 +165,8 @@ TensorNode& LogicalGraph::tensor(
 void LogicalGraph::add_op(
     OpType type,
     OpAttrs attrs,
-    const std::vector<TensorNode*>& inputs,
-    const std::vector<TensorNode*>& outputs)
+    const std::vector<LogicalGraphTensorNode*>& inputs,
+    const std::vector<LogicalGraphTensorNode*>& outputs)
 {
     // Validate all inputs belong to this graph
     for(const auto* input : inputs)
@@ -117,14 +217,15 @@ void LogicalGraph::add_op(
 }
 
 //! Get tensor by name (returns nullptr if not found)
-TensorNode* LogicalGraph::get_tensor(const std::string& name)
+LogicalGraphTensorNode* LogicalGraph::get_tensor(const std::string& name)
 {
     auto it = tensor_by_name_.find(name);
     return it != tensor_by_name_.end() ? it->second : nullptr;
 }
 
 //! Get tensor by name (returns nullptr if not found)
-const TensorNode* LogicalGraph::get_tensor(const std::string& name) const
+const LogicalGraphTensorNode* LogicalGraph::get_tensor(
+    const std::string& name) const
 {
     auto it = tensor_by_name_.find(name);
     return it != tensor_by_name_.end() ? it->second : nullptr;
@@ -240,7 +341,7 @@ void LogicalGraph::remove_op(OpNode* op)
 }
 
 //! Check if a tensor can be removed
-bool LogicalGraph::can_remove_tensor(const TensorNode* tensor) const
+bool LogicalGraph::can_remove_tensor(const LogicalGraphTensorNode* tensor) const
 {
     if(tensor == nullptr)
     {
@@ -260,7 +361,7 @@ bool LogicalGraph::can_remove_tensor(const TensorNode* tensor) const
 }
 
 //! Remove a tensor from the graph
-void LogicalGraph::remove_tensor(TensorNode* tensor)
+void LogicalGraph::remove_tensor(LogicalGraphTensorNode* tensor)
 {
     if(tensor == nullptr)
     {
@@ -298,7 +399,7 @@ void LogicalGraph::remove_tensor(TensorNode* tensor)
 
     // Find and remove from tensors_ vector
     auto it = std::find_if(tensors_.begin(), tensors_.end(),
-        [tensor](const std::unique_ptr<TensorNode>& ptr) {
+        [tensor](const std::unique_ptr<LogicalGraphTensorNode>& ptr) {
             return ptr.get() == tensor;
         });
 
@@ -311,7 +412,7 @@ void LogicalGraph::remove_tensor(TensorNode* tensor)
 //! Remove a tensor by name
 void LogicalGraph::remove_tensor(const std::string& name)
 {
-    TensorNode* tensor = get_tensor(name);
+    LogicalGraphTensorNode* tensor = get_tensor(name);
     if(tensor == nullptr)
     {
         throw std::invalid_argument(
