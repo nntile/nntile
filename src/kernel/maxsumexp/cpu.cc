@@ -64,64 +64,53 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
                 // Read value from source
                 Y val = static_cast<Y>(src_slice[i0*m]);
                 // Ignore -inf value, which comes from mask
-                if(std::isinf(val))
-                {
-                    continue;
-                }
+                // if(std::isinf(val)) {
+                //     continue;
+                // }
                 // Update max and sum of exponents
-                if(max < val)
-                {
-                    //sum = sum*std::exp(max-val) + one;
-                    Y tmp = std::exp(max-val);
-                    y = one - c*tmp;
-                    sum *= tmp;
-                    t = sum + y;
-                    c = (t-sum) - y;
-                    sum = t;
-                    max = val;
-                }
-                else
-                {
-                    //sum += std::exp(val-max);
-                    y = std::exp(val-max) - c;
-                    t = sum + y;
-                    c = (t-sum) - y;
-                    sum = t;
-                }
-            }
-            // Save result, do nothing if all elements are masked out
-            if(not std::isinf(max))
-            {
-                Y sum_old = static_cast<Y>(maxsumexp[dst_offset+1]);
-                // If old sum is zero then just overwrite it with current sum
-                if(sum_old == zero)
-                {
-                    maxsumexp[dst_offset] = static_cast<T>(max);
-                    maxsumexp[dst_offset+1] = static_cast<T>(sum);
-                }
-                // Update non-zero initial sum
-                else
-                {
-                    Y max_old = static_cast<Y>(maxsumexp[dst_offset]);
-                    if(max_old < max)
-                    {
-                        maxsumexp[dst_offset] = static_cast<T>(max);
-                        maxsumexp[dst_offset+1] = static_cast<T>(sum_old*std::exp(max_old-max)
-                            + sum);
-                        y = sum_old*std::exp(max_old-max) - c;
-                        maxsumexp[dst_offset+1] = static_cast<T>(sum + y);
-                    }
-                    else
-                    {
-                        maxsumexp[dst_offset+1] = static_cast<T>(sum*std::exp(max-max_old)
-                            + sum_old);
-                        Y tmp = std::exp(max-max_old);
-                        y = sum_old - c*tmp;
-                        sum *= tmp;
-                        maxsumexp[dst_offset+1] = static_cast<T>(sum + y);
-                    }
+                // NOTE Each branch exploits Kahan summation algorithm.
+                if(max < val) {
+                    sum *= std::exp(max-val);
+                    sum += 1;
+                    // Y tmp = std::exp(max-val);
+                    // y = one - c*tmp;
+                    // sum *= tmp;
+
+                    // t = sum + y;
+                    // c = (t-sum) - y;
+                    // sum = t;
+
+                    max = val;  // New maximum.
+                } else {
+                    sum += std::exp(val-max);
+                    // y = std::exp(val-max) - c;
+                    // t = sum + y;
+                    // c = (t-sum) - y;
+                    // sum = t;
                 }
             }
+            // // Save result, do nothing if all elements are masked out
+            // if(not std::isinf(max)) {
+            //     Y sum_old = static_cast<Y>(maxsumexp[dst_offset+1]);
+            //     // If old sum is zero then just overwrite it with current sum
+            //     if(sum_old == zero) {
+            //         maxsumexp[dst_offset] = static_cast<T>(max);
+            //         maxsumexp[dst_offset+1] = static_cast<T>(sum);
+            //     } else {
+            //         // Update non-zero initial sum
+            //         Y max_old = static_cast<Y>(maxsumexp[dst_offset]);
+            //         if(max_old < max) {
+            //             y = sum_old*std::exp(max_old-max) - c;
+            //             maxsumexp[dst_offset] = static_cast<T>(max);
+            //             maxsumexp[dst_offset + 1] = static_cast<T>(sum + y);
+            //         } else {
+            //             Y tmp = std::exp(max-max_old);
+            //             y = sum_old - c*tmp;
+            //             sum *= tmp;
+            //             maxsumexp[dst_offset + 1] = static_cast<T>(sum + y);
+            //         }
+            //     }
+            // }
             dst_offset += 2;
         }
     }
