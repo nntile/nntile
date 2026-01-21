@@ -407,6 +407,7 @@ set(GRAPH_COMMON_SRC
 # Logical graph core
 set(GRAPH_LOGICAL_CORE_SRC
     "graph/logical_graph.cc"
+    "graph/gradient_registry.cc"
 )
 
 # Logical graph operations (split for compilation parallelism)
@@ -437,10 +438,11 @@ set(GRAPH_SRC
     ${GRAPH_COMPILED_OPS_SRC}
 )
 
-# Layer implementations
-set(LAYER_SRC
-    "mlp_layer.cc"
-    "linear_layer.cc"
+# Module implementations
+set(MODULE_SRC
+    "module/module.cc"
+    "module/mlp.cc"
+    "module/linear.cc"
 )
 
 # Set the list of all sources
@@ -456,7 +458,7 @@ set(NNTILE_SRC
     ${TENSOR_OPERATION_SRC}
     ${LOGGER_SRC}
     ${GRAPH_SRC}
-    ${LAYER_SRC}
+    ${MODULE_SRC}
 )
 
 target_sources(nntile PRIVATE ${NNTILE_SRC})

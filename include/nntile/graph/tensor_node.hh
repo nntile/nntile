@@ -82,6 +82,8 @@ private:
     // Only LogicalGraph/OpNode can modify edges
     void set_producer(OpNode* op) { producer_ = op; }
     void add_consumer(OpNode* op) { consumers_.push_back(op); }
+    void remove_consumer(OpNode* op);
+    void clear_producer() { producer_ = nullptr; }
 };
 
 } // namespace nntile::graph

@@ -16,6 +16,7 @@
 #include "nntile/graph/tensor_node.hh"
 
 // Include standard headers
+#include <algorithm>
 #include <string>
 
 // Include third-party headers
@@ -43,6 +44,16 @@ std::string TensorNode::to_string() const
 {
     return "TensorNode(id=" + std::to_string(id_) + ", name='" + name_ +
         "', " + spec_.to_string() + ")";
+}
+
+//! Remove a consumer from this tensor's consumer list
+void TensorNode::remove_consumer(OpNode* op)
+{
+    auto it = std::find(consumers_.begin(), consumers_.end(), op);
+    if(it != consumers_.end())
+    {
+        consumers_.erase(it);
+    }
 }
 
 } // namespace nntile::graph

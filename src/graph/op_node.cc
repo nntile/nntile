@@ -36,6 +36,10 @@ std::string op_type_to_string(OpType type)
             return "GELU";
         case OpType::GELU_BACKWARD:
             return "GELU_BACKWARD";
+        case OpType::ADD_FIBER:
+            return "ADD_FIBER";
+        case OpType::SUM_FIBER:
+            return "SUM_FIBER";
         default:
             throw std::invalid_argument("Unknown OpType");
     }

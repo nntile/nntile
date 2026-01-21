@@ -7,13 +7,13 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file examples/linear_layer_example.cc
- * Example demonstrating linear layer using NNTile graph API.
+ * Example demonstrating linear module using NNTile graph API.
  *
  * @version 1.1.0
  * */
 
 #include <nntile/context.hh>
-#include <nntile/linear_layer.hh>
+#include <nntile/module/linear.hh>
 #include <iostream>
 #include <vector>
 #include <chrono>
@@ -36,8 +36,8 @@ int main(int argc, char** argv) {
     // Create single logical graph for both forward and backward
     nntile::graph::LogicalGraph graph("Linear_Graph");
 
-    // Create LinearLayer (tied to the graph)
-    nntile::LinearLayer linear(graph, "linear1", 8, 4, nntile::graph::DataType::FP32);
+    // Create Linear (tied to the graph)
+    nntile::module::Linear linear(graph, "linear1", 8, 4, nntile::graph::DataType::FP32);
 
     // Create input tensor
     auto& input_tensor = graph.tensor(
@@ -114,12 +114,12 @@ int main(int argc, char** argv) {
 
     // Get output (this would normally be done after binding input data)
     // For demonstration, we'll just show the graph structure
-    std::cout << "\nLinear layer created with:" << std::endl;
+    std::cout << "\nLinear module created with:" << std::endl;
     std::cout << "- Weight tensor: " << linear.weight_name() << " [8, 4]" << std::endl;
     std::cout << "- Input tensor: external_input [4, 8]" << std::endl;
     std::cout << "- Output tensor: " << linear.output_name() << " [4, 4]" << std::endl;
 
-    std::cout << "\nLinear layer successfully created and graphs built!" << std::endl;
+    std::cout << "\nLinear module successfully created and graphs built!" << std::endl;
 
     return 0;
 }

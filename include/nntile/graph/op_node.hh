@@ -33,7 +33,9 @@ namespace nntile::graph
 enum class OpType {
     GEMM,
     GELU,
-    GELU_BACKWARD
+    GELU_BACKWARD,
+    ADD_FIBER,       // Broadcast-add a fiber (1D) tensor along last dimension
+    SUM_FIBER        // Sum along all but last dimension (reverse of ADD_FIBER)
     // Add more as needed
 };
 
@@ -62,7 +64,23 @@ struct GeluBackwardAttrs
     // No attributes for basic gelu_backward
 };
 
-using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs>;
+struct AddFiberAttrs
+{
+    // Broadcast-add bias along the last axis
+    // output = input + bias (bias has shape [last_dim])
+    Scalar alpha = 1.0;  // Scaling factor for bias
+};
+
+struct SumFiberAttrs
+{
+    // Sum along all dimensions except the last one
+    // output[i] = sum(input[..., i]) for all batch dimensions
+    Scalar alpha = 1.0;  // Scaling factor
+    Scalar beta = 0.0;   // For accumulation: output = alpha * sum + beta * output
+};
+
+using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
+                             AddFiberAttrs, SumFiberAttrs>;
 
 //! An operation node in the logical graph
 class OpNode
@@ -86,6 +104,10 @@ public:
     NodeId id() const { return id_; }
     OpType type() const { return type_; }
     const OpAttrs& attrs() const { return attrs_; }
+
+    // Graph access
+    LogicalGraph& graph() { return *graph_; }
+    const LogicalGraph& graph() const { return *graph_; }
 
     // Graph structure
     const std::vector<TensorNode*>& inputs() const { return inputs_; }

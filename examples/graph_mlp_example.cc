@@ -7,13 +7,13 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file examples/graph_mlp_example.cc
- * Example demonstrating trainable MLP layer using NNTile graph API.
+ * Example demonstrating trainable MLP module using NNTile graph API.
  *
  * @version 1.1.0
  * */
 
 #include <nntile/context.hh>
-#include <nntile/mlp_layer.hh>
+#include <nntile/module/mlp.hh>
 #include <iostream>
 #include <vector>
 #include <chrono>
@@ -33,8 +33,8 @@ int main(int argc, char** argv) {
         0 // verbose: verbosity level (0=quiet)
     );
 
-    // Create MLP layer (hidden_dim=16, intermediate_dim=4)
-    nntile::MlpLayer mlp(16, 4);
+    // Create MLP module (hidden_dim=16, intermediate_dim=4)
+    nntile::module::Mlp mlp(16, 4);
 
     // Define input shape (discovered during forward setup)
     std::vector<nntile::Index> input_shape = {4, 8}; // batch_size=4, input_dim=8
