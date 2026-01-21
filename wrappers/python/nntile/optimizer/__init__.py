@@ -14,6 +14,7 @@
 from .adam import Adam
 from .adamw import AdamW
 from .empty import Empty
+from .lars import Lars
 from .sgd import SGD
 
-__all__ = ('Adam', 'AdamW', 'Empty', 'SGD')
+__all__ = ('Adam', 'AdamW', 'Empty', 'Lars', 'SGD')

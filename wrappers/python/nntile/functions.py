@@ -1828,6 +1828,91 @@ def fused_adam_step(
         raise TypeError
 
 
+def fused_lars_step(
+    p: Tensor,
+    grad: Tensor,
+    lr: float,
+    trust_ratio: float,
+    grad_norm: Tensor,
+    p_norm: Tensor,
+    weight_decay: float = 0.0,
+):
+    if type(p) is not type(grad):
+        raise TypeError
+    if type(p) is core_tensor.Tensor_fp32:
+        core_tensor.lars_step_async_fp32(
+            lr,
+            trust_ratio,
+            weight_decay,
+            grad,
+            p,
+            grad_norm,
+            p_norm,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.lars_step_async_fp32_fast_tf32(
+            lr,
+            trust_ratio,
+            weight_decay,
+            grad,
+            p,
+            grad_norm,
+            p_norm,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.lars_step_async_fp32_fast_fp16(
+            lr,
+            trust_ratio,
+            weight_decay,
+            grad,
+            p,
+            grad_norm,
+            p_norm,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.lars_step_async_fp32_fast_bf16(
+            lr,
+            trust_ratio,
+            weight_decay,
+            grad,
+            p,
+            grad_norm,
+            p_norm,
+        )
+    elif type(p) is core_tensor.Tensor_fp64:
+        core_tensor.lars_step_async_fp64(
+            lr,
+            trust_ratio,
+            weight_decay,
+            grad,
+            p,
+            grad_norm,
+            p_norm,
+        )
+    elif type(p) is core_tensor.Tensor_bf16:
+        core_tensor.lars_step_async_bf16(
+            lr,
+            trust_ratio,
+            weight_decay,
+            grad,
+            p,
+            grad_norm,
+            p_norm,
+        )
+    elif type(p) is core_tensor.Tensor_fp16:
+        core_tensor.lars_step_async_fp16(
+            lr,
+            trust_ratio,
+            weight_decay,
+            grad,
+            p,
+            grad_norm,
+            p_norm,
+        )
+    else:
+        raise TypeError
+
+
 def fused_sgd_step(
     p: Tensor,
     grad: Tensor,
