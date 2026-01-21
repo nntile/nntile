@@ -22,7 +22,7 @@ namespace nntile::module
 {
 
 //! Constructor: creates MLP with specified dimensions
-Mlp::Mlp(graph::LogicalGraph& graph,
+Mlp::Mlp(graph::NNGraph& graph,
          const std::string& name,
          Index input_dim,
          Index intermediate_dim,
@@ -42,7 +42,7 @@ Mlp::Mlp(graph::LogicalGraph& graph,
 }
 
 //! Constructor: creates MLP where output_dim == input_dim
-Mlp::Mlp(graph::LogicalGraph& graph,
+Mlp::Mlp(graph::NNGraph& graph,
          const std::string& name,
          Index input_dim,
          Index intermediate_dim,
@@ -52,7 +52,7 @@ Mlp::Mlp(graph::LogicalGraph& graph,
 }
 
 //! Build forward operations
-graph::TensorNode& Mlp::build_forward(graph::TensorNode& input)
+graph::NNGraphTensorNode& Mlp::build_forward(graph::NNGraphTensorNode& input)
 {
     // Store input reference
     input_tensor_ = &input;
@@ -64,7 +64,8 @@ graph::TensorNode& Mlp::build_forward(graph::TensorNode& input)
     // Create activation output tensor
     activation_tensor_ = &graph_.tensor(
         hidden_tensor_->spec(),
-        tensor_name("activation"));
+        tensor_name("activation"),
+        graph_.requires_grad(*hidden_tensor_));
 
     graph_.add_op(
         graph::OpType::GELU,
@@ -84,7 +85,7 @@ graph::TensorNode& Mlp::build_forward(graph::TensorNode& input)
 }
 
 //! Build backward operations using gradient registry
-void Mlp::build_backward(graph::GradientRegistry& grad_reg)
+void Mlp::build_backward()
 {
     // Check that forward has been built
     if(!forward_built_)
@@ -95,13 +96,14 @@ void Mlp::build_backward(graph::GradientRegistry& grad_reg)
     }
 
     // Mark that activation tensor needs gradient (internal requirement)
-    grad_reg.set_requires_grad(*activation_tensor_, true);
+    graph_.set_requires_grad(*activation_tensor_, true);
 
     // Backward through fc2
-    fc2_.build_backward(grad_reg);
+    fc2_.build_backward();
 
     // Get gradient of activation tensor (output of GELU, input of fc2)
-    graph::TensorNode* grad_activation = grad_reg.get_grad(*activation_tensor_);
+    graph::LogicalGraphTensorNode* grad_activation =
+        activation_tensor_->grad();
     if(!grad_activation)
     {
         throw std::runtime_error(
@@ -110,29 +112,28 @@ void Mlp::build_backward(graph::GradientRegistry& grad_reg)
 
     // GELU backward: compute gradient of hidden tensor
     // Mark that hidden tensor needs gradient (for fc1 backward)
-    grad_reg.set_requires_grad(*hidden_tensor_, true);
+    graph_.set_requires_grad(*hidden_tensor_, true);
 
-    bool first_hidden_grad = grad_reg.is_first_grad(*hidden_tensor_);
-    graph::TensorNode& grad_hidden = grad_reg.get_or_create_grad(
-        graph_, *hidden_tensor_, tensor_name("hidden_grad"));
+    graph::LogicalGraphTensorNode& grad_hidden = graph_.get_or_create_grad(
+        *hidden_tensor_, tensor_name("hidden_grad"));
 
     // gelu_backward computes: grad_hidden = grad_activation * gelu'(hidden)
     // Note: GELU_BACKWARD takes (input, grad_output) and produces grad_input
     graph_.add_op(
         graph::OpType::GELU_BACKWARD,
         graph::OpAttrs{graph::GeluBackwardAttrs{}},
-        {hidden_tensor_, grad_activation},
+        {hidden_tensor_->data_ptr(), grad_activation, &grad_hidden},
         {&grad_hidden}
     );
 
     // Propagate requires_grad to fc1's input if MLP's input requires grad
-    if(grad_reg.requires_grad(*input_tensor_))
+    if(graph_.requires_grad(*input_tensor_))
     {
-        grad_reg.set_requires_grad(*fc1_.input_tensor(), true);
+        graph_.set_requires_grad(*fc1_.input_tensor(), true);
     }
 
     // Backward through fc1
-    fc1_.build_backward(grad_reg);
+    fc1_.build_backward();
 }
 
 //! Get string representation with dimensions

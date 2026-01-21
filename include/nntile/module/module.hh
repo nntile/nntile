@@ -44,32 +44,32 @@ class Module
 {
 protected:
     //! Reference to the graph this module belongs to
-    graph::LogicalGraph& graph_;
+    graph::NNGraph& graph_;
 
     //! Module name (used for generating tensor names)
     std::string name_;
 
     //! Registered parameters (tensors that need gradients)
     //! Pair of (local_name, tensor_pointer)
-    std::vector<std::pair<std::string, graph::TensorNode*>> parameters_;
+    std::vector<std::pair<std::string, graph::NNGraphTensorNode*>> parameters_;
 
     //! Registered buffers (tensors that don't need gradients)
-    std::vector<std::pair<std::string, graph::TensorNode*>> buffers_;
+    std::vector<std::pair<std::string, graph::NNGraphTensorNode*>> buffers_;
 
     //! Child modules
     std::vector<std::pair<std::string, Module*>> submodules_;
 
     //! Input tensor from last build_forward call
-    graph::TensorNode* input_tensor_ = nullptr;
+    graph::NNGraphTensorNode* input_tensor_ = nullptr;
 
     //! Output tensor from last build_forward call
-    graph::TensorNode* output_tensor_ = nullptr;
+    graph::NNGraphTensorNode* output_tensor_ = nullptr;
 
 public:
     //! Constructor
-    //! @param graph The logical graph this module belongs to
+    //! @param graph The neural network graph this module belongs to
     //! @param name Module name (used for generating unique tensor names)
-    Module(graph::LogicalGraph& graph, const std::string& name);
+    Module(graph::NNGraph& graph, const std::string& name);
 
     //! Virtual destructor for proper cleanup of derived classes
     virtual ~Module() = default;
@@ -94,31 +94,28 @@ public:
     //! 3. Add forward operations to the graph
     //!
     //! After this call, input_tensor() returns the input for use with
-    //! GradientRegistry (to mark requires_grad if needed).
+    //! requires_grad propagation if needed.
     //!
     //! @param input The input tensor
     //! @return Reference to output tensor
-    virtual graph::TensorNode& build_forward(graph::TensorNode& input) = 0;
+    virtual graph::NNGraphTensorNode& build_forward(
+        graph::NNGraphTensorNode& input) = 0;
 
-    //! Build backward operations using gradient registry
+    //! Build backward operations using grad fields on NNGraphTensorNode
     //!
     //! This method should:
-    //! 1. Get output gradient from registry
+    //! 1. Read output gradients from output_tensor()->grad()
     //! 2. Compute parameter gradients (accumulating if shared)
     //! 3. Compute input gradient if requires_grad(input) is true
-    //! 4. Register all computed gradients
-    //!
-    //! @param grad_reg Gradient registry tracking tensor->gradient mappings
-    //!                 and gradient requirements
-    virtual void build_backward(graph::GradientRegistry& grad_reg) = 0;
+    virtual void build_backward() = 0;
 
     // -----------------------------------------------------------------
     // Graph Access
     // -----------------------------------------------------------------
 
     //! Get the graph this module belongs to
-    graph::LogicalGraph& graph() { return graph_; }
-    const graph::LogicalGraph& graph() const { return graph_; }
+    graph::NNGraph& graph() { return graph_; }
+    const graph::NNGraph& graph() const { return graph_; }
 
     // -----------------------------------------------------------------
     // Parameter/Buffer Registration (called by subclasses)
@@ -128,13 +125,13 @@ public:
     //! @param local_name Local name within this module (e.g., "weight")
     //! @param tensor Pointer to the parameter tensor
     void register_parameter(const std::string& local_name,
-                           graph::TensorNode* tensor);
+                           graph::NNGraphTensorNode* tensor);
 
     //! Register a buffer tensor (non-trainable state)
     //! @param local_name Local name within this module
     //! @param tensor Pointer to the buffer tensor
     void register_buffer(const std::string& local_name,
-                        graph::TensorNode* tensor);
+                        graph::NNGraphTensorNode* tensor);
 
     //! Register a child module
     //! @param local_name Local name for the submodule
@@ -146,18 +143,18 @@ public:
     // -----------------------------------------------------------------
 
     //! Get all parameters (this module only, not submodules)
-    std::vector<graph::TensorNode*> parameters() const;
+    std::vector<graph::NNGraphTensorNode*> parameters() const;
 
     //! Get all parameters with local names (this module only)
-    const std::vector<std::pair<std::string, graph::TensorNode*>>&
+    const std::vector<std::pair<std::string, graph::NNGraphTensorNode*>>&
         named_parameters() const;
 
     //! Get all parameters recursively (including submodules)
-    std::vector<graph::TensorNode*> parameters_recursive() const;
+    std::vector<graph::NNGraphTensorNode*> parameters_recursive() const;
 
     //! Get all parameters with full qualified names recursively
     //! Names are formatted as "module_name.submodule_name.param_name"
-    std::vector<std::pair<std::string, graph::TensorNode*>>
+    std::vector<std::pair<std::string, graph::NNGraphTensorNode*>>
         named_parameters_recursive() const;
 
     // -----------------------------------------------------------------
@@ -165,26 +162,26 @@ public:
     // -----------------------------------------------------------------
 
     //! Get all buffers (this module only)
-    std::vector<graph::TensorNode*> buffers() const;
+    std::vector<graph::NNGraphTensorNode*> buffers() const;
 
     //! Get all buffers with local names (this module only)
-    const std::vector<std::pair<std::string, graph::TensorNode*>>&
+    const std::vector<std::pair<std::string, graph::NNGraphTensorNode*>>&
         named_buffers() const;
 
     // -----------------------------------------------------------------
     // Gradient Access (for optimizers after backward)
     // -----------------------------------------------------------------
 
-    //! Get parameter-gradient pairs from registry (this module only)
-    //! @param grad_reg The gradient registry after backward pass
+    //! Get parameter-gradient pairs from stored grad tensors (this module only)
     //! @return Vector of (parameter, gradient) pairs
-    std::vector<std::pair<graph::TensorNode*, graph::TensorNode*>>
-        parameter_gradients(const graph::GradientRegistry& grad_reg) const;
+    std::vector<std::pair<graph::NNGraphTensorNode*,
+                          graph::LogicalGraphTensorNode*>>
+        parameter_gradients() const;
 
     //! Get parameter-gradient pairs recursively (including submodules)
-    std::vector<std::pair<graph::TensorNode*, graph::TensorNode*>>
-        parameter_gradients_recursive(
-            const graph::GradientRegistry& grad_reg) const;
+    std::vector<std::pair<graph::NNGraphTensorNode*,
+                          graph::LogicalGraphTensorNode*>>
+        parameter_gradients_recursive() const;
 
     // -----------------------------------------------------------------
     // Module Hierarchy
@@ -204,10 +201,10 @@ public:
     // -----------------------------------------------------------------
 
     //! Get input tensor from last build_forward call
-    graph::TensorNode* input_tensor() const { return input_tensor_; }
+    graph::NNGraphTensorNode* input_tensor() const { return input_tensor_; }
 
     //! Get output tensor from last build_forward call
-    graph::TensorNode* output_tensor() const { return output_tensor_; }
+    graph::NNGraphTensorNode* output_tensor() const { return output_tensor_; }
 
     // -----------------------------------------------------------------
     // Name Access
@@ -241,7 +238,8 @@ protected:
     //! Helper to collect parameters recursively
     void collect_parameters_recursive(
         const std::string& prefix,
-        std::vector<std::pair<std::string, graph::TensorNode*>>& result) const;
+        std::vector<std::pair<std::string, graph::NNGraphTensorNode*>>& result)
+            const;
 
     //! Helper to collect modules recursively
     void collect_modules_recursive(std::vector<Module*>& result) const;

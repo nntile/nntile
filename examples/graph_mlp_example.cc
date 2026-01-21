@@ -14,10 +14,11 @@
 
 #include <nntile/context.hh>
 #include <nntile/module/mlp.hh>
-#include <iostream>
-#include <vector>
+#include <algorithm>
 #include <chrono>
+#include <iostream>
 #include <random>
+#include <vector>
 
 int main(int argc, char** argv) {
     // Initialize NNTile context (this initializes StarPU)
@@ -33,22 +34,37 @@ int main(int argc, char** argv) {
         0 // verbose: verbosity level (0=quiet)
     );
 
-    // Create MLP module (hidden_dim=16, intermediate_dim=4)
-    nntile::module::Mlp mlp(16, 4);
+    // Create a neural network graph for forward and backward
+    nntile::graph::NNGraph graph("MLP_Graph");
 
-    // Define input shape (discovered during forward setup)
-    std::vector<nntile::Index> input_shape = {4, 8}; // batch_size=4, input_dim=8
+    // Create MLP module (input_dim=8, intermediate_dim=16, output_dim=4)
+    nntile::module::Mlp mlp(
+        graph, "mlp", 8, 16, 4, nntile::graph::DataType::FP32);
 
-    // Create and build logical graphs
-    nntile::graph::LogicalGraph forward_logical("MLP_Forward");
-    nntile::graph::LogicalGraph backward_logical("MLP_Backward");
+    // Create input tensor (requires_grad to compute input gradients)
+    auto& input_tensor = graph.tensor(
+        nntile::graph::TensorSpec({4, 8}, nntile::graph::DataType::FP32),
+        "external_input",
+        true);
 
-    mlp.build_forward_graph(forward_logical, input_shape);
-    mlp.build_backward_graph(backward_logical, input_shape);
+    // Build forward operation and get output tensor
+    auto& output_tensor = mlp.build_forward(input_tensor);
 
-    // Compile the graphs
-    auto compiled_forward_graph = nntile::graph::CompiledGraph::compile(forward_logical);
-    auto compiled_backward_graph = nntile::graph::CompiledGraph::compile(backward_logical);
+    // Attach an external gradient to the output (e.g., loss gradient)
+    auto& grad_output_tensor = graph.get_or_create_grad(
+        output_tensor,
+        "external_grad_output");
+
+    // Build backward operations
+    mlp.build_backward();
+
+    // Print graph structure for debugging
+    std::cout << "Graph structure:" << std::endl;
+    std::cout << graph.to_string() << std::endl;
+
+    // Compile the graph
+    auto compiled_graph = nntile::graph::CompiledGraph::compile(
+        graph.logical_graph());
 
     // Generate random input data
     std::vector<float> input_data(4 * 8);
@@ -59,110 +75,62 @@ int main(int argc, char** argv) {
         val = dist(gen);
     }
 
-    // Generate target output (random for this example)
-    std::vector<float> target_output(4 * 4);
-    for (auto& val : target_output) {
-        val = dist(gen);
+    // Bind input data to the external input tensor
+    compiled_graph.bind_data("external_input", input_data);
+
+    // Initialize weights
+    std::vector<float> w1_data(8 * 16);
+    std::vector<float> w2_data(16 * 4);
+    std::random_device rd2;
+    std::mt19937 gen2(rd2());
+    std::normal_distribution<float> dist2(0.0f, 0.1f);
+    for (auto& val : w1_data) {
+        val = dist2(gen2);
+    }
+    for (auto& val : w2_data) {
+        val = dist2(gen2);
     }
 
-    std::cout << "=== Forward Pass ===" << std::endl;
+    compiled_graph.bind_data(mlp.fc1().weight_tensor()->name(), w1_data);
+    compiled_graph.bind_data(mlp.fc2().weight_tensor()->name(), w2_data);
 
-    // Bind input and execute forward pass
+    // Initialize gradient data (for backward pass)
+    std::vector<float> grad_output_data(4 * 4, 1.0f);
+    compiled_graph.bind_data(grad_output_tensor.name(), grad_output_data);
+
+    std::cout << "=== MLP Forward/Backward Pass ===" << std::endl;
+
+    // Execute the graph (contains both forward and backward operations)
     auto start = std::chrono::high_resolution_clock::now();
-    mlp.forward(compiled_forward_graph, input_data, input_shape);
-    compiled_forward_graph.execute();
-    compiled_forward_graph.wait();
+    compiled_graph.execute();
+    compiled_graph.wait();
     auto end = std::chrono::high_resolution_clock::now();
-    auto forward_duration = std::chrono::duration_cast<std::chrono::microseconds>(
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
         end - start).count();
 
-    // Get output
-    auto output = mlp.get_output(compiled_forward_graph);
+    std::cout << "Graph execution time: " << duration << " microseconds" << std::endl;
 
-    std::cout << "Forward pass time: " << forward_duration << " microseconds" << std::endl;
-    std::cout << "Output shape: [4, 4]" << std::endl;
+    // Get output data
+    auto output_data = compiled_graph.get_output<float>(output_tensor.name());
     std::cout << "Sample output values: ";
-    for (size_t i = 0; i < std::min(size_t(8), output.size()); ++i) {
-        std::cout << output[i] << " ";
+    for (size_t i = 0; i < std::min(size_t(8), output_data.size()); ++i) {
+        std::cout << output_data[i] << " ";
     }
     std::cout << "..." << std::endl;
 
-    std::cout << "\n=== Backward Pass ===" << std::endl;
+    // Get gradients
+    auto grad_w1 = compiled_graph.get_output<float>(
+        mlp.fc1().grad_name("weight"));
+    auto grad_w2 = compiled_graph.get_output<float>(
+        mlp.fc2().grad_name("weight"));
+    auto grad_input = compiled_graph.get_output<float>(
+        input_tensor.grad()->name());
 
-    // Compute simple loss gradient (output - target for MSE-like loss)
-    std::vector<float> output_grad(4 * 4);
-    for (size_t i = 0; i < output.size(); ++i) {
-        output_grad[i] = 2.0f * (output[i] - target_output[i]) / output.size();
-    }
+    std::cout << "Weight1 grad size: " << grad_w1.size() << std::endl;
+    std::cout << "Weight2 grad size: " << grad_w2.size() << std::endl;
+    std::cout << "Input grad size: " << grad_input.size() << std::endl;
 
-    // Bind gradients and execute backward pass
-    start = std::chrono::high_resolution_clock::now();
-    mlp.backward(compiled_forward_graph, compiled_backward_graph, output_grad, input_shape);
-    compiled_backward_graph.execute();
-    compiled_backward_graph.wait();
-    end = std::chrono::high_resolution_clock::now();
-    auto backward_duration = std::chrono::duration_cast<std::chrono::microseconds>(
-        end - start).count();
-
-    std::cout << "Backward pass time: " << backward_duration << " microseconds" << std::endl;
-
-    // Get weight gradients
-    auto grad_w1 = mlp.get_weight1_grad(compiled_backward_graph);
-    auto grad_w2 = mlp.get_weight2_grad(compiled_backward_graph);
-    auto input_grad = mlp.get_input_grad(compiled_backward_graph);
-
-    std::cout << "Weight1 gradient shape: [8, 16], norm: ";
-    float norm1 = 0.0f;
-    for (auto val : grad_w1) norm1 += val * val;
-    std::cout << std::sqrt(norm1) << std::endl;
-
-    std::cout << "Weight2 gradient shape: [16, 4], norm: ";
-    float norm2 = 0.0f;
-    for (auto val : grad_w2) norm2 += val * val;
-    std::cout << std::sqrt(norm2) << std::endl;
-
-    std::cout << "Input gradient shape: [4, 8], sample values: ";
-    for (size_t i = 0; i < std::min(size_t(4), input_grad.size()); ++i) {
-        std::cout << input_grad[i] << " ";
-    }
-    std::cout << "..." << std::endl;
-
-    std::cout << "\n=== Training Simulation ===" << std::endl;
-
-    // Simple gradient descent step
-    float learning_rate = 0.01f;
-
-    auto w1 = mlp.get_weight1(compiled_forward_graph);
-    auto w2 = mlp.get_weight2(compiled_forward_graph);
-
-    for (size_t i = 0; i < w1.size(); ++i) {
-        w1[i] -= learning_rate * grad_w1[i];
-    }
-    for (size_t i = 0; i < w2.size(); ++i) {
-        w2[i] -= learning_rate * grad_w2[i];
-    }
-
-    mlp.set_weight1(compiled_forward_graph, w1);
-    mlp.set_weight2(compiled_forward_graph, w2);
-
-    std::cout << "Applied gradient descent step with learning rate: " << learning_rate << std::endl;
-
-    // Second forward pass to see the change
-    mlp.forward(compiled_forward_graph, input_data, input_shape);
-    compiled_forward_graph.execute();
-    compiled_forward_graph.wait();
-    auto output2 = mlp.get_output(compiled_forward_graph);
-
-    std::cout << "Output after training step (first few values): ";
-    for (size_t i = 0; i < std::min(size_t(4), output2.size()); ++i) {
-        std::cout << output2[i] << " ";
-    }
-    std::cout << "..." << std::endl;
-
-    std::cout << "\n=== MLP Layer Successfully Handles Arbitrary Input Dimensions ===" << std::endl;
-    std::cout << "The implementation supports arbitrary dimensional input tensors." << std::endl;
-    std::cout << "For example, it can handle 2D [batch, features], 3D [batch, seq, features], etc." << std::endl;
-    std::cout << "The linear operations automatically preserve leading dimensions while transforming the last dimension." << std::endl;
+    std::cout << "\nMLP module successfully created and graphs built!" << std::endl;
 
     return 0;
 }
