@@ -37,16 +37,14 @@ Implement a minimal LogicalGraph that:
 ```
 include/nntile/graph/
 ├── tensor_spec.hh      # TensorSpec class
-├── tensor_node.hh      # TensorNode class
-├── op_node.hh          # OpNode class
-├── logical_graph.hh    # LogicalGraph class
+├── tensor_node.hh      # Compatibility header (LogicalGraphTensorNode)
+├── op_node.hh          # Compatibility header (OpNode, OpType, OpAttrs)
+├── logical_graph.hh    # LogicalGraph + tensor/op node classes
 ├── compiled_graph.hh   # CompiledGraph class
 └── graph.hh            # Convenience header (includes all)
 
 src/graph/
 ├── tensor_spec.cc
-├── tensor_node.cc
-├── op_node.cc
 ├── logical_graph.cc
 ├── compiled_graph.cc
 └── CMakeLists.txt

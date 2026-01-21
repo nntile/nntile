@@ -400,8 +400,6 @@ set(LOGGER_SRC
 # Graph-related sources (common)
 set(GRAPH_COMMON_SRC
     "graph/tensor_spec.cc"
-    "graph/tensor_node.cc"
-    "graph/op_node.cc"
 )
 
 # Logical graph core

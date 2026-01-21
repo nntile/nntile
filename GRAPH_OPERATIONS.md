@@ -18,10 +18,10 @@ Each operation requires:
 ```
 include/nntile/graph/
 ├── graph.hh              # Convenience header (includes all)
-├── logical_graph.hh      # LogicalGraph class
+├── logical_graph.hh      # LogicalGraph + tensor/op node classes
 ├── compiled_graph.hh     # CompiledGraph class
-├── op_node.hh            # OpType enum, OpAttrs variants
-├── tensor_node.hh        # LogicalGraphTensorNode class
+├── op_node.hh            # Compatibility header (includes logical_graph.hh)
+├── tensor_node.hh        # Compatibility header (includes logical_graph.hh)
 ├── tensor_spec.hh        # TensorSpec class
 ├── logical/              # Logical operation headers
 │   ├── gemm.hh
@@ -31,10 +31,8 @@ include/nntile/graph/
     └── gelu.hh
 
 src/graph/
-├── logical_graph.cc      # LogicalGraph implementation
+├── logical_graph.cc      # LogicalGraph + tensor/op node implementation
 ├── compiled_graph.cc     # CompiledGraph implementation
-├── op_node.cc            # OpType/OpAttrs helpers
-├── tensor_node.cc
 ├── tensor_spec.cc
 ├── logical/              # Logical operation implementations
 │   ├── gemm.cc

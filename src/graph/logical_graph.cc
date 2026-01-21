@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 
 // Include third-party headers
 
@@ -26,6 +27,105 @@
 
 namespace nntile::graph
 {
+
+//! Convert OpType to string
+std::string op_type_to_string(OpType type)
+{
+    switch(type)
+    {
+        case OpType::GEMM:
+            return "GEMM";
+        case OpType::GELU:
+            return "GELU";
+        case OpType::GELU_BACKWARD:
+            return "GELU_BACKWARD";
+        case OpType::ADD_FIBER:
+            return "ADD_FIBER";
+        case OpType::SUM_FIBER:
+            return "SUM_FIBER";
+        default:
+            throw std::invalid_argument("Unknown OpType");
+    }
+}
+
+//! A tensor node in the logical graph
+LogicalGraphTensorNode::LogicalGraphTensorNode(
+    NodeId id,
+    const std::string& name,
+    TensorSpec spec,
+    LogicalGraph* graph)
+    : id_(id)
+    , name_(name)
+    , spec_(std::move(spec))
+    , graph_(graph)
+{
+}
+
+//! String representation
+std::string LogicalGraphTensorNode::to_string() const
+{
+    return "LogicalGraphTensorNode(id=" + std::to_string(id_) + ", name='" +
+        name_ + "', " + spec_.to_string() + ")";
+}
+
+//! Remove a consumer from this tensor's consumer list
+void LogicalGraphTensorNode::remove_consumer(OpNode* op)
+{
+    auto it = std::find(consumers_.begin(), consumers_.end(), op);
+    if(it != consumers_.end())
+    {
+        consumers_.erase(it);
+    }
+}
+
+//! An operation node in the logical graph
+OpNode::OpNode(NodeId id, OpType type, OpAttrs attrs, LogicalGraph* graph)
+    : id_(id)
+    , type_(type)
+    , attrs_(std::move(attrs))
+    , graph_(graph)
+{
+}
+
+//! String representation
+std::string OpNode::to_string() const
+{
+    std::string result = op_type_to_string(type_) + "(id=" +
+        std::to_string(id_) + ", inputs=[";
+    for(size_t i = 0; i < inputs_.size(); ++i)
+    {
+        if(i > 0)
+        {
+            result += ", ";
+        }
+        result += inputs_[i]->name();
+    }
+    result += "], outputs=[";
+    for(size_t i = 0; i < outputs_.size(); ++i)
+    {
+        if(i > 0)
+        {
+            result += ", ";
+        }
+        result += outputs_[i]->name();
+    }
+    result += "])";
+    return result;
+}
+
+//! Only LogicalGraph can modify
+void OpNode::add_input(LogicalGraphTensorNode* t)
+{
+    inputs_.push_back(t);
+    t->add_consumer(this);
+}
+
+//! Only LogicalGraph can modify
+void OpNode::add_output(LogicalGraphTensorNode* t)
+{
+    outputs_.push_back(t);
+    t->set_producer(this);
+}
 
 LogicalGraph::LogicalGraph(const std::string& name)
     : name_(name)
