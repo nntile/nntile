@@ -35,13 +35,17 @@ namespace nntile::module
 //! 4. Named access to parameters and submodules
 //!
 //! Subclasses should:
-//! 1. Call register_parameter() for learnable tensors
-//! 2. Call register_buffer() for non-learnable state tensors
-//! 3. Call register_module() for child modules
-//! 4. Override build_forward() and build_backward()
+//! 1. Create parameters/buffers in constructor (using the graph reference)
+//! 2. Call register_parameter() for learnable tensors
+//! 3. Call register_buffer() for non-learnable state tensors
+//! 4. Call register_module() for child modules
+//! 5. Override build_forward() and build_backward()
 class Module
 {
 protected:
+    //! Reference to the graph this module belongs to
+    graph::LogicalGraph& graph_;
+
     //! Module name (used for generating tensor names)
     std::string name_;
 
@@ -63,19 +67,20 @@ protected:
 
 public:
     //! Constructor
+    //! @param graph The logical graph this module belongs to
     //! @param name Module name (used for generating unique tensor names)
-    explicit Module(const std::string& name);
+    Module(graph::LogicalGraph& graph, const std::string& name);
 
     //! Virtual destructor for proper cleanup of derived classes
     virtual ~Module() = default;
 
-    // Disable copy (modules often hold pointers to graph elements)
+    // Disable copy (modules hold references to graph elements)
     Module(const Module&) = delete;
     Module& operator=(const Module&) = delete;
 
-    // Allow move
-    Module(Module&&) = default;
-    Module& operator=(Module&&) = default;
+    // Disable move (due to graph reference)
+    Module(Module&&) = delete;
+    Module& operator=(Module&&) = delete;
 
     // -----------------------------------------------------------------
     // Graph Building Interface (to be overridden by subclasses)
@@ -84,30 +89,36 @@ public:
     //! Build forward operations into the graph
     //!
     //! This method should:
-    //! 1. Create parameter tensors if not already created
+    //! 1. Store input tensor reference
     //! 2. Create output tensor
     //! 3. Add forward operations to the graph
     //!
-    //! @param graph The logical graph to add operations to
+    //! After this call, input_tensor() returns the input for use with
+    //! GradientRegistry (to mark requires_grad if needed).
+    //!
     //! @param input The input tensor
     //! @return Reference to output tensor
-    virtual graph::TensorNode& build_forward(
-        graph::LogicalGraph& graph,
-        graph::TensorNode& input) = 0;
+    virtual graph::TensorNode& build_forward(graph::TensorNode& input) = 0;
 
     //! Build backward operations using gradient registry
     //!
     //! This method should:
     //! 1. Get output gradient from registry
     //! 2. Compute parameter gradients (accumulating if shared)
-    //! 3. Compute input gradient for upstream modules
+    //! 3. Compute input gradient if requires_grad(input) is true
     //! 4. Register all computed gradients
     //!
-    //! @param graph The logical graph to add operations to
     //! @param grad_reg Gradient registry tracking tensor->gradient mappings
-    virtual void build_backward(
-        graph::LogicalGraph& graph,
-        graph::GradientRegistry& grad_reg) = 0;
+    //!                 and gradient requirements
+    virtual void build_backward(graph::GradientRegistry& grad_reg) = 0;
+
+    // -----------------------------------------------------------------
+    // Graph Access
+    // -----------------------------------------------------------------
+
+    //! Get the graph this module belongs to
+    graph::LogicalGraph& graph() { return graph_; }
+    const graph::LogicalGraph& graph() const { return graph_; }
 
     // -----------------------------------------------------------------
     // Parameter/Buffer Registration (called by subclasses)

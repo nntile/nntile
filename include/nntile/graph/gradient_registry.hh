@@ -16,6 +16,7 @@
 
 // Include standard headers
 #include <map>
+#include <set>
 #include <string>
 
 // Include NNTile headers
@@ -27,21 +28,29 @@ namespace nntile::graph
 // Forward declarations
 class LogicalGraph;
 
-//! Registry that maps tensors to their gradient tensors
+//! Registry that maps tensors to their gradient tensors and tracks
+//! gradient requirements.
 //!
 //! This class is used during backward pass construction to:
-//! 1. Track which tensors have gradient tensors
-//! 2. Enable gradient accumulation for shared weights
-//! 3. Allow composable module backward passes
+//! 1. Track which tensors require gradients (requires_grad)
+//! 2. Track which tensors have gradient tensors computed (has_grad)
+//! 3. Enable gradient accumulation for shared weights
+//! 4. Allow composable module backward passes
 //!
 //! Usage pattern:
 //! @code
+//! // After building forward pass
 //! GradientRegistry grad_reg;
+//!
 //! // Set the initial gradient (e.g., from loss)
-//! grad_reg.set_grad("output", &grad_output_tensor);
-//! // Build backward passes - each module updates the registry
-//! module2.build_backward(graph, grad_reg);
-//! module1.build_backward(graph, grad_reg);
+//! grad_reg.set_grad(output, &grad_output_tensor);
+//!
+//! // Mark which tensors need gradients computed
+//! grad_reg.set_requires_grad(input, true);  // Want input gradient
+//!
+//! // Build backward passes - each module checks registry
+//! module2.build_backward(grad_reg);
+//! module1.build_backward(grad_reg);
 //! @endcode
 class GradientRegistry
 {
@@ -49,8 +58,32 @@ private:
     // Map from tensor name to its gradient tensor
     std::map<std::string, TensorNode*> grad_map_;
 
+    // Set of tensor names that require gradients
+    std::set<std::string> requires_grad_;
+
 public:
     GradientRegistry() = default;
+
+    // -----------------------------------------------------------------
+    // Gradient requirement tracking
+    // -----------------------------------------------------------------
+
+    //! Mark whether a tensor requires gradient computation
+    //! @param tensor_name Name of the tensor
+    //! @param requires Whether gradient is required (default true)
+    void set_requires_grad(const std::string& tensor_name, bool requires = true);
+
+    //! Mark whether a tensor requires gradient computation
+    void set_requires_grad(const TensorNode& tensor, bool requires = true);
+
+    //! Check if a tensor requires gradient computation
+    //! A tensor requires gradient if:
+    //! - It was explicitly marked with set_requires_grad(true), OR
+    //! - It already has a gradient registered (from downstream)
+    bool requires_grad(const std::string& tensor_name) const;
+
+    //! Check if a tensor requires gradient computation
+    bool requires_grad(const TensorNode& tensor) const;
 
     // -----------------------------------------------------------------
     // Query methods

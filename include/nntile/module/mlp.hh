@@ -59,41 +59,39 @@ private:
 
 public:
     //! Constructor: creates MLP with specified dimensions
+    //! @param graph The logical graph this module belongs to
     //! @param name Module name
     //! @param input_dim Input feature dimension
     //! @param intermediate_dim Hidden layer dimension (after fc1)
     //! @param output_dim Output feature dimension
     //! @param dtype Data type for all tensors
-    Mlp(const std::string& name,
+    Mlp(graph::LogicalGraph& graph,
+        const std::string& name,
         Index input_dim,
         Index intermediate_dim,
         Index output_dim,
         graph::DataType dtype = graph::DataType::FP32);
 
     //! Constructor: creates MLP where output_dim == input_dim (common in transformers)
+    //! @param graph The logical graph this module belongs to
     //! @param name Module name
     //! @param input_dim Input/output feature dimension
     //! @param intermediate_dim Hidden layer dimension
     //! @param dtype Data type for all tensors
-    Mlp(const std::string& name,
+    Mlp(graph::LogicalGraph& graph,
+        const std::string& name,
         Index input_dim,
         Index intermediate_dim,
         graph::DataType dtype = graph::DataType::FP32);
 
     //! Build forward operations
-    //! @param graph The logical graph to add operations to
     //! @param input Input tensor node
     //! @return Reference to output tensor
-    graph::TensorNode& build_forward(
-        graph::LogicalGraph& graph,
-        graph::TensorNode& input) override;
+    graph::TensorNode& build_forward(graph::TensorNode& input) override;
 
     //! Build backward operations using gradient registry
-    //! @param graph The logical graph to add operations to
     //! @param grad_reg Gradient registry
-    void build_backward(
-        graph::LogicalGraph& graph,
-        graph::GradientRegistry& grad_reg) override;
+    void build_backward(graph::GradientRegistry& grad_reg) override;
 
     //! Get string representation with dimensions
     std::string repr() const override;

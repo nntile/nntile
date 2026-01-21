@@ -21,43 +21,59 @@
 namespace nntile::module
 {
 
-//! Constructor: will create new weight tensor, no bias
-Linear::Linear(const std::string& name,
+//! Constructor: creates new weight tensor, no bias
+Linear::Linear(graph::LogicalGraph& graph,
+               const std::string& name,
                Index input_dim, Index output_dim,
                graph::DataType dtype)
-    : Module(name)
+    : Module(graph, name)
     , input_dim_(input_dim)
     , output_dim_(output_dim)
     , dtype_(dtype)
-    , create_weight_(true)
-    , create_bias_(false)
 {
+    // Create weight tensor during construction
+    weight_tensor_ = &graph_.tensor(
+        graph::TensorSpec({input_dim_, output_dim_}, dtype_),
+        tensor_name("weight"));
+    register_parameter("weight", weight_tensor_);
 }
 
-//! Constructor: will create new weight and optionally bias tensors
-Linear::Linear(const std::string& name,
+//! Constructor: creates new weight and optionally bias tensors
+Linear::Linear(graph::LogicalGraph& graph,
+               const std::string& name,
                Index input_dim, Index output_dim,
                bool with_bias,
                graph::DataType dtype)
-    : Module(name)
+    : Module(graph, name)
     , input_dim_(input_dim)
     , output_dim_(output_dim)
     , dtype_(dtype)
-    , create_weight_(true)
-    , create_bias_(with_bias)
 {
+    // Create weight tensor
+    weight_tensor_ = &graph_.tensor(
+        graph::TensorSpec({input_dim_, output_dim_}, dtype_),
+        tensor_name("weight"));
+    register_parameter("weight", weight_tensor_);
+
+    // Create bias tensor if requested
+    if(with_bias)
+    {
+        bias_tensor_ = &graph_.tensor(
+            graph::TensorSpec({output_dim_}, dtype_),
+            tensor_name("bias"));
+        register_parameter("bias", bias_tensor_);
+    }
 }
 
 //! Constructor: uses existing weight tensor, no bias
-Linear::Linear(const std::string& name,
+Linear::Linear(graph::LogicalGraph& graph,
+               const std::string& name,
                graph::TensorNode& weight_tensor)
-    : Module(name)
+    : Module(graph, name)
+    , weight_tensor_(&weight_tensor)
     , input_dim_(0)
     , output_dim_(0)
     , dtype_(weight_tensor.dtype())
-    , create_weight_(false)
-    , create_bias_(false)
-    , external_weight_(&weight_tensor)
 {
     // Validate weight tensor has at least 2 dimensions
     if(weight_tensor.ndim() < 2)
@@ -72,20 +88,21 @@ Linear::Linear(const std::string& name,
     const auto& w_shape = weight_tensor.shape();
     input_dim_ = w_shape[0];
     output_dim_ = w_shape[1];
+
+    register_parameter("weight", weight_tensor_);
 }
 
 //! Constructor: uses existing weight and bias tensors
-Linear::Linear(const std::string& name,
+Linear::Linear(graph::LogicalGraph& graph,
+               const std::string& name,
                graph::TensorNode& weight_tensor,
                graph::TensorNode& bias_tensor)
-    : Module(name)
+    : Module(graph, name)
+    , weight_tensor_(&weight_tensor)
+    , bias_tensor_(&bias_tensor)
     , input_dim_(0)
     , output_dim_(0)
     , dtype_(weight_tensor.dtype())
-    , create_weight_(false)
-    , create_bias_(false)
-    , external_weight_(&weight_tensor)
-    , external_bias_(&bias_tensor)
 {
     // Validate weight tensor has at least 2 dimensions
     if(weight_tensor.ndim() < 2)
@@ -122,45 +139,14 @@ Linear::Linear(const std::string& name,
         throw std::invalid_argument(
             "Linear::Linear: bias tensor dtype must match weight tensor dtype");
     }
+
+    register_parameter("weight", weight_tensor_);
+    register_parameter("bias", bias_tensor_);
 }
 
 //! Build forward operation and return output tensor
-graph::TensorNode& Linear::build_forward(
-    graph::LogicalGraph& graph,
-    graph::TensorNode& input)
+graph::TensorNode& Linear::build_forward(graph::TensorNode& input)
 {
-    // Create or use weight tensor
-    if(!forward_built_)
-    {
-        if(create_weight_)
-        {
-            // Create new weight tensor
-            weight_tensor_ = &graph.tensor(
-                graph::TensorSpec({input_dim_, output_dim_}, dtype_),
-                tensor_name("weight"));
-        }
-        else
-        {
-            // Use external weight tensor
-            weight_tensor_ = external_weight_;
-        }
-        register_parameter("weight", weight_tensor_);
-
-        // Create or use bias tensor
-        if(create_bias_)
-        {
-            bias_tensor_ = &graph.tensor(
-                graph::TensorSpec({output_dim_}, dtype_),
-                tensor_name("bias"));
-            register_parameter("bias", bias_tensor_);
-        }
-        else if(external_bias_ != nullptr)
-        {
-            bias_tensor_ = external_bias_;
-            register_parameter("bias", bias_tensor_);
-        }
-    }
-
     // Verify input tensor has correct feature dimension
     if(input.shape().back() != input_dim_)
     {
@@ -176,12 +162,12 @@ graph::TensorNode& Linear::build_forward(
     // Create output tensor with same leading dimensions but output_dim features
     std::vector<Index> output_shape = input.shape();
     output_shape.back() = output_dim_;
-    output_tensor_ = &graph.tensor(
+    output_tensor_ = &graph_.tensor(
         graph::TensorSpec(output_shape, dtype_), tensor_name("output"));
 
     // Linear transformation: output = input @ weight
     // Uses ndim=1, batch_ndim=0 for arbitrary dimensional tensors
-    graph.add_op(
+    graph_.add_op(
         graph::OpType::GEMM,
         graph::OpAttrs{graph::GemmAttrs{false, false, 1.0, 0.0, 1, 0}},
         {&input, weight_tensor_},
@@ -191,7 +177,7 @@ graph::TensorNode& Linear::build_forward(
     // Add bias if present: output += bias (broadcast along last dim)
     if(bias_tensor_ != nullptr)
     {
-        graph.add_op(
+        graph_.add_op(
             graph::OpType::ADD_FIBER,
             graph::OpAttrs{graph::AddFiberAttrs{1.0}},
             {output_tensor_, bias_tensor_},
@@ -204,9 +190,7 @@ graph::TensorNode& Linear::build_forward(
 }
 
 //! Build backward operations using gradient registry
-void Linear::build_backward(
-    graph::LogicalGraph& graph,
-    graph::GradientRegistry& grad_reg)
+void Linear::build_backward(graph::GradientRegistry& grad_reg)
 {
     // Check that build_forward was called
     if(!forward_built_ || !input_tensor_ || !output_tensor_)
@@ -229,12 +213,12 @@ void Linear::build_backward(
     // Check if this is the first contribution (beta=0) or accumulation (beta=1)
     bool first_weight_grad = grad_reg.is_first_grad(*weight_tensor_);
     graph::TensorNode& grad_weight = grad_reg.get_or_create_grad(
-        graph, *weight_tensor_, grad_name("weight"));
+        graph_, *weight_tensor_, grad_name("weight"));
 
     Scalar beta_weight = first_weight_grad ? 0.0 : 1.0;
 
     // grad_weight += input^T @ grad_output
-    graph.add_op(
+    graph_.add_op(
         graph::OpType::GEMM,
         graph::OpAttrs{graph::GemmAttrs{true, false, 1.0, beta_weight, 1, 0}},
         {input_tensor_, grad_output},
@@ -247,12 +231,12 @@ void Linear::build_backward(
     {
         bool first_bias_grad = grad_reg.is_first_grad(*bias_tensor_);
         graph::TensorNode& grad_bias = grad_reg.get_or_create_grad(
-            graph, *bias_tensor_, grad_name("bias"));
+            graph_, *bias_tensor_, grad_name("bias"));
 
         Scalar beta_bias = first_bias_grad ? 0.0 : 1.0;
 
         // grad_bias += sum(grad_output, axis=0...-1)
-        graph.add_op(
+        graph_.add_op(
             graph::OpType::SUM_FIBER,
             graph::OpAttrs{graph::SumFiberAttrs{1.0, beta_bias}},
             {grad_output},
@@ -260,20 +244,23 @@ void Linear::build_backward(
         );
     }
 
-    // Compute input gradient (for upstream modules)
-    bool first_input_grad = grad_reg.is_first_grad(*input_tensor_);
-    graph::TensorNode& grad_input = grad_reg.get_or_create_grad(
-        graph, *input_tensor_, grad_name("input"));
+    // Compute input gradient only if required
+    if(grad_reg.requires_grad(*input_tensor_))
+    {
+        bool first_input_grad = grad_reg.is_first_grad(*input_tensor_);
+        graph::TensorNode& grad_input = grad_reg.get_or_create_grad(
+            graph_, *input_tensor_, grad_name("input"));
 
-    Scalar beta_input = first_input_grad ? 0.0 : 1.0;
+        Scalar beta_input = first_input_grad ? 0.0 : 1.0;
 
-    // grad_input += grad_output @ weight^T
-    graph.add_op(
-        graph::OpType::GEMM,
-        graph::OpAttrs{graph::GemmAttrs{false, true, 1.0, beta_input, 1, 0}},
-        {grad_output, weight_tensor_},
-        {&grad_input}
-    );
+        // grad_input += grad_output @ weight^T
+        graph_.add_op(
+            graph::OpType::GEMM,
+            graph::OpAttrs{graph::GemmAttrs{false, true, 1.0, beta_input, 1, 0}},
+            {grad_output, weight_tensor_},
+            {&grad_input}
+        );
+    }
 }
 
 //! Get string representation with dimensions

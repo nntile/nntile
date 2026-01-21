@@ -33,7 +33,6 @@ namespace nntile::module
 //! Supports flexible construction modes:
 //! 1. Create new weight/bias tensors (specify dimensions)
 //! 2. Use existing weight/bias tensors (for weight/bias sharing)
-//! 3. Mix: create weight, share bias or vice versa
 class Linear : public Module
 {
 private:
@@ -46,37 +45,33 @@ private:
     Index output_dim_;
     graph::DataType dtype_;
 
-    // Configuration for tensor creation (used in build_forward)
-    bool create_weight_;  // Whether to create weight tensor
-    bool create_bias_;    // Whether to create bias tensor
-
-    // External tensors (if provided in constructor)
-    graph::TensorNode* external_weight_ = nullptr;
-    graph::TensorNode* external_bias_ = nullptr;
-
     // Track if forward has been built
     bool forward_built_ = false;
 
 public:
-    //! Constructor: will create new weight tensor, no bias
+    //! Constructor: creates new weight tensor, no bias
+    //! @param graph The logical graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
     //! @param input_dim Input feature dimension
     //! @param output_dim Output feature dimension
     //! @param dtype Data type for tensors
     Linear(
+        graph::LogicalGraph& graph,
         const std::string& name,
         Index input_dim,
         Index output_dim,
         graph::DataType dtype = graph::DataType::FP32
     );
 
-    //! Constructor: will create new weight and optionally bias tensors
+    //! Constructor: creates new weight and optionally bias tensors
+    //! @param graph The logical graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
     //! @param input_dim Input feature dimension
     //! @param output_dim Output feature dimension
     //! @param with_bias Whether to create bias tensor
     //! @param dtype Data type for tensors
     Linear(
+        graph::LogicalGraph& graph,
         const std::string& name,
         Index input_dim,
         Index output_dim,
@@ -85,31 +80,31 @@ public:
     );
 
     //! Constructor: uses existing weight tensor, no bias
+    //! @param graph The logical graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
     //! @param weight_tensor Existing weight tensor to use [input_dim, output_dim]
     Linear(
+        graph::LogicalGraph& graph,
         const std::string& name,
         graph::TensorNode& weight_tensor
     );
 
     //! Constructor: uses existing weight and bias tensors
+    //! @param graph The logical graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
     //! @param weight_tensor Existing weight tensor [input_dim, output_dim]
     //! @param bias_tensor Existing bias tensor [output_dim]
     Linear(
+        graph::LogicalGraph& graph,
         const std::string& name,
         graph::TensorNode& weight_tensor,
         graph::TensorNode& bias_tensor
     );
 
     //! Build forward operation and return output tensor
-    //! Creates parameter tensors on first call if not using external tensors.
-    //! @param graph The logical graph to add operations to
     //! @param input Input tensor node
     //! @return Reference to the created output tensor
-    graph::TensorNode& build_forward(
-        graph::LogicalGraph& graph,
-        graph::TensorNode& input) override;
+    graph::TensorNode& build_forward(graph::TensorNode& input) override;
 
     //! Build backward operations using gradient registry
     //!
@@ -117,16 +112,13 @@ public:
     //! 1. Looks up gradient of output tensor from registry
     //! 2. Computes gradient of weight tensor (accumulates if shared)
     //! 3. Computes gradient of bias tensor if present (accumulates if shared)
-    //! 4. Computes gradient of input tensor (for upstream modules)
+    //! 4. Computes gradient of input tensor if requires_grad is set
     //! 5. Registers computed gradients in the registry
     //!
-    //! @param graph The logical graph to add operations to
     //! @param grad_reg Gradient registry (maps tensors to their gradients)
     //! @throws std::runtime_error if output gradient not found in registry
     //! @throws std::runtime_error if build_forward was not called first
-    void build_backward(
-        graph::LogicalGraph& graph,
-        graph::GradientRegistry& grad_reg) override;
+    void build_backward(graph::GradientRegistry& grad_reg) override;
 
     //! Get string representation with dimensions
     std::string repr() const override;
@@ -136,9 +128,7 @@ public:
     graph::TensorNode* bias_tensor() const { return bias_tensor_; }
 
     // Check if bias is enabled
-    bool has_bias() const { return bias_tensor_ != nullptr ||
-                                  create_bias_ ||
-                                  external_bias_ != nullptr; }
+    bool has_bias() const { return bias_tensor_ != nullptr; }
 
     // Dimension accessors
     Index input_dim() const { return input_dim_; }

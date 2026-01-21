@@ -23,8 +23,9 @@ namespace nntile::module
 {
 
 //! Constructor
-Module::Module(const std::string& name)
-    : name_(name)
+Module::Module(graph::LogicalGraph& graph, const std::string& name)
+    : graph_(graph)
+    , name_(name)
 {
 }
 

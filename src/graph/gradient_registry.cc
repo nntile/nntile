@@ -24,6 +24,44 @@
 namespace nntile::graph
 {
 
+// -----------------------------------------------------------------
+// Gradient requirement tracking
+// -----------------------------------------------------------------
+
+void GradientRegistry::set_requires_grad(const std::string& tensor_name,
+                                          bool requires)
+{
+    if(requires)
+    {
+        requires_grad_.insert(tensor_name);
+    }
+    else
+    {
+        requires_grad_.erase(tensor_name);
+    }
+}
+
+void GradientRegistry::set_requires_grad(const TensorNode& tensor, bool requires)
+{
+    set_requires_grad(tensor.name(), requires);
+}
+
+bool GradientRegistry::requires_grad(const std::string& tensor_name) const
+{
+    // A tensor requires gradient if explicitly marked OR if it already has one
+    return requires_grad_.find(tensor_name) != requires_grad_.end() ||
+           has_grad(tensor_name);
+}
+
+bool GradientRegistry::requires_grad(const TensorNode& tensor) const
+{
+    return requires_grad(tensor.name());
+}
+
+// -----------------------------------------------------------------
+// Query methods
+// -----------------------------------------------------------------
+
 //! Check if a gradient is registered for the given tensor name
 bool GradientRegistry::has_grad(const std::string& tensor_name) const
 {
