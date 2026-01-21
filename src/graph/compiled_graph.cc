@@ -30,6 +30,7 @@
 #include "nntile/graph/tensor_spec.hh"
 #include "nntile/graph/compiled/gemm.hh"
 #include "nntile/graph/compiled/gelu.hh"
+#include "nntile/graph/compiled/gelu_backward.hh"
 #include "nntile/tensor/tensor.hh"
 
 namespace nntile::graph
@@ -45,7 +46,7 @@ void validate_operation_data_types(const LogicalGraph& logical)
         DataType dtype = first_input->spec().dtype();
 
         // Check supported data types based on operation type
-        if(op->type() == OpType::GELU || op->type() == OpType::GEMM)
+        if(op->type() == OpType::GELU || op->type() == OpType::GELU_BACKWARD || op->type() == OpType::GEMM)
         {
             // These operations support floating point types only
             if(dtype != DataType::FP32 &&
@@ -236,6 +237,9 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
             break;
         case OpType::GELU:
             execute_gelu(*this, op_info);
+            break;
+        case OpType::GELU_BACKWARD:
+            execute_gelu_backward(*this, op_info);
             break;
         default:
             throw std::runtime_error(

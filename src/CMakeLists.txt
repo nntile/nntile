@@ -413,6 +413,7 @@ set(GRAPH_LOGICAL_CORE_SRC
 set(GRAPH_LOGICAL_OPS_SRC
     "graph/logical/gemm.cc"
     "graph/logical/gelu.cc"
+    "graph/logical/gelu_backward.cc"
 )
 
 # Compiled graph core
@@ -424,6 +425,7 @@ set(GRAPH_COMPILED_CORE_SRC
 set(GRAPH_COMPILED_OPS_SRC
     "graph/compiled/gemm.cc"
     "graph/compiled/gelu.cc"
+    "graph/compiled/gelu_backward.cc"
 )
 
 # All graph sources combined
@@ -433,6 +435,12 @@ set(GRAPH_SRC
     ${GRAPH_LOGICAL_OPS_SRC}
     ${GRAPH_COMPILED_CORE_SRC}
     ${GRAPH_COMPILED_OPS_SRC}
+)
+
+# Layer implementations
+set(LAYER_SRC
+    "mlp_layer.cc"
+    "linear_layer.cc"
 )
 
 # Set the list of all sources
@@ -448,6 +456,7 @@ set(NNTILE_SRC
     ${TENSOR_OPERATION_SRC}
     ${LOGGER_SRC}
     ${GRAPH_SRC}
+    ${LAYER_SRC}
 )
 
 target_sources(nntile PRIVATE ${NNTILE_SRC})

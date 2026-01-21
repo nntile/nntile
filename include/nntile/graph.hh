@@ -24,7 +24,9 @@
 // Include logical graph operations
 #include <nntile/graph/logical/gemm.hh>
 #include <nntile/graph/logical/gelu.hh>
+#include <nntile/graph/logical/gelu_backward.hh>
 
 // Include compiled graph operations
 #include <nntile/graph/compiled/gemm.hh>
 #include <nntile/graph/compiled/gelu.hh>
+#include <nntile/graph/compiled/gelu_backward.hh>

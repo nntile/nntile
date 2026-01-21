@@ -32,7 +32,8 @@ namespace nntile::graph
 //! Operation types
 enum class OpType {
     GEMM,
-    GELU
+    GELU,
+    GELU_BACKWARD
     // Add more as needed
 };
 
@@ -56,7 +57,12 @@ struct GeluAttrs
     // No attributes for basic gelu
 };
 
-using OpAttrs = std::variant<GemmAttrs, GeluAttrs>;
+struct GeluBackwardAttrs
+{
+    // No attributes for basic gelu_backward
+};
+
+using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs>;
 
 //! An operation node in the logical graph
 class OpNode
