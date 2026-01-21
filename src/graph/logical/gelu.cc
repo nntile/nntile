@@ -27,15 +27,15 @@ namespace nntile::graph
 {
 
 //! GeLU activation: y = gelu(x)
-TensorNode& gelu(
-    TensorNode& x,
+LogicalGraphTensorNode& gelu(
+    LogicalGraphTensorNode& x,
     const std::string& output_name)
 {
     // Output shape = input shape
     TensorSpec output_spec = TensorSpec(x.shape(), x.dtype());
 
     // Create output tensor
-    TensorNode& output = x.graph().tensor(output_spec, output_name);
+    LogicalGraphTensorNode& output = x.graph().tensor(output_spec, output_name);
 
     // Create operation attributes
     OpAttrs attrs = GeluAttrs{};

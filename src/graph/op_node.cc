@@ -81,14 +81,14 @@ std::string OpNode::to_string() const
 }
 
 //! Only LogicalGraph can modify
-void OpNode::add_input(TensorNode* t)
+void OpNode::add_input(LogicalGraphTensorNode* t)
 {
     inputs_.push_back(t);
     t->add_consumer(this);
 }
 
 //! Only LogicalGraph can modify
-void OpNode::add_output(TensorNode* t)
+void OpNode::add_output(LogicalGraphTensorNode* t)
 {
     outputs_.push_back(t);
     t->set_producer(this);

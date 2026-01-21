@@ -35,9 +35,9 @@ class LogicalGraph
 {
 private:
     std::string name_;
-    std::vector<std::unique_ptr<TensorNode>> tensors_;
+    std::vector<std::unique_ptr<LogicalGraphTensorNode>> tensors_;
     std::vector<std::unique_ptr<OpNode>> ops_;
-    std::map<std::string, TensorNode*> tensor_by_name_;
+    std::map<std::string, LogicalGraphTensorNode*> tensor_by_name_;
 
     NodeId next_tensor_id_ = 0;
     NodeId next_op_id_ = 0;
@@ -50,7 +50,7 @@ public:
     // -----------------------------------------------------------------
 
     //! Create an input tensor (not produced by any operation)
-    TensorNode& tensor(const TensorSpec& spec, const std::string& name);
+    LogicalGraphTensorNode& tensor(const TensorSpec& spec, const std::string& name);
 
     // -----------------------------------------------------------------
     // Operation Builder API (used by free functions to add operations)
@@ -65,8 +65,8 @@ public:
     void add_op(
         OpType type,
         OpAttrs attrs,
-        const std::vector<TensorNode*>& inputs,
-        const std::vector<TensorNode*>& outputs
+        const std::vector<LogicalGraphTensorNode*>& inputs,
+        const std::vector<LogicalGraphTensorNode*>& outputs
     );
 
     // -----------------------------------------------------------------
@@ -91,7 +91,7 @@ public:
     //! Check if a tensor can be removed (not used in any operation)
     //! @param tensor Pointer to the tensor node
     //! @return true if the tensor can be safely removed
-    bool can_remove_tensor(const TensorNode* tensor) const;
+    bool can_remove_tensor(const LogicalGraphTensorNode* tensor) const;
 
     //! Remove a tensor from the graph
     //! The tensor can only be removed if it is not used in any operation
@@ -99,7 +99,7 @@ public:
     //! @param tensor Pointer to the tensor node to remove
     //! @throws std::invalid_argument if tensor doesn't belong to this graph
     //! @throws std::runtime_error if tensor is used by any operation
-    void remove_tensor(TensorNode* tensor);
+    void remove_tensor(LogicalGraphTensorNode* tensor);
 
     //! Remove a tensor by name
     //! @param name Name of the tensor to remove
@@ -116,14 +116,14 @@ public:
     size_t num_ops() const { return ops_.size(); }
 
     //! Get tensor by name (returns nullptr if not found)
-    TensorNode* get_tensor(const std::string& name);
-    const TensorNode* get_tensor(const std::string& name) const;
+    LogicalGraphTensorNode* get_tensor(const std::string& name);
+    const LogicalGraphTensorNode* get_tensor(const std::string& name) const;
 
     //! Get all tensor names
     std::vector<std::string> tensor_names() const;
 
     //! Get all tensors (for iteration)
-    const std::vector<std::unique_ptr<TensorNode>>& tensors() const
+    const std::vector<std::unique_ptr<LogicalGraphTensorNode>>& tensors() const
     {
         return tensors_;
     }

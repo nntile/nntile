@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/tensor_node.hh
- * TensorNode class for logical graph tensor nodes.
+ * LogicalGraphTensorNode class for logical graph tensor nodes.
  *
  * @version 1.1.0
  * */
@@ -35,7 +35,7 @@ class LogicalGraph;
 using NodeId = uint64_t;
 
 //! A tensor node in the logical graph
-class TensorNode
+class LogicalGraphTensorNode
 {
     friend class LogicalGraph;
     friend class OpNode;
@@ -52,7 +52,7 @@ private:
     std::vector<OpNode*> consumers_;       // Ops that use this tensor
 
 public:
-    TensorNode(
+    LogicalGraphTensorNode(
         NodeId id,
         const std::string& name,
         TensorSpec spec,
@@ -85,5 +85,8 @@ private:
     void remove_consumer(OpNode* op);
     void clear_producer() { producer_ = nullptr; }
 };
+
+//! Backward-compatible alias
+using TensorNode = LogicalGraphTensorNode;
 
 } // namespace nntile::graph

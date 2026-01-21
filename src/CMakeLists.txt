@@ -407,6 +407,7 @@ set(GRAPH_COMMON_SRC
 # Logical graph core
 set(GRAPH_LOGICAL_CORE_SRC
     "graph/logical_graph.cc"
+    "graph/nn_graph.cc"
     "graph/gradient_registry.cc"
 )
 

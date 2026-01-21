@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/graph/tensor_node.cc
- * Implementation of TensorNode class.
+ * Implementation of LogicalGraphTensorNode class.
  *
  * @version 1.1.0
  * */
@@ -27,7 +27,7 @@ namespace nntile::graph
 {
 
 //! A tensor node in the logical graph
-TensorNode::TensorNode(
+LogicalGraphTensorNode::LogicalGraphTensorNode(
     NodeId id,
     const std::string& name,
     TensorSpec spec,
@@ -40,14 +40,15 @@ TensorNode::TensorNode(
 }
 
 //! String representation
-std::string TensorNode::to_string() const
+std::string LogicalGraphTensorNode::to_string() const
 {
-    return "TensorNode(id=" + std::to_string(id_) + ", name='" + name_ +
+    return "LogicalGraphTensorNode(id=" + std::to_string(id_) + ", name='" +
+        name_ +
         "', " + spec_.to_string() + ")";
 }
 
 //! Remove a consumer from this tensor's consumer list
-void TensorNode::remove_consumer(OpNode* op)
+void LogicalGraphTensorNode::remove_consumer(OpNode* op)
 {
     auto it = std::find(consumers_.begin(), consumers_.end(), op);
     if(it != consumers_.end())

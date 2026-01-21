@@ -28,9 +28,9 @@ namespace nntile::graph
 //! @param dy Gradient of output (upstream gradient)
 //! @param dx Gradient tensor to accumulate into (gradient of input)
 void gelu_backward(
-    TensorNode& x,
-    TensorNode& dy,
-    TensorNode& dx
+    LogicalGraphTensorNode& x,
+    LogicalGraphTensorNode& dy,
+    LogicalGraphTensorNode& dx
 );
 
 } // namespace nntile::graph

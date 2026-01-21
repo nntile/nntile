@@ -94,8 +94,8 @@ private:
     LogicalGraph* graph_;
 
     // Graph edges
-    std::vector<TensorNode*> inputs_;
-    std::vector<TensorNode*> outputs_;
+    std::vector<LogicalGraphTensorNode*> inputs_;
+    std::vector<LogicalGraphTensorNode*> outputs_;
 
 public:
     OpNode(NodeId id, OpType type, OpAttrs attrs, LogicalGraph* graph);
@@ -110,20 +110,32 @@ public:
     const LogicalGraph& graph() const { return *graph_; }
 
     // Graph structure
-    const std::vector<TensorNode*>& inputs() const { return inputs_; }
-    const std::vector<TensorNode*>& outputs() const { return outputs_; }
+    const std::vector<LogicalGraphTensorNode*>& inputs() const
+    {
+        return inputs_;
+    }
+    const std::vector<LogicalGraphTensorNode*>& outputs() const
+    {
+        return outputs_;
+    }
 
     // Convenience accessors for common cases
-    TensorNode* input(size_t idx = 0) const { return inputs_.at(idx); }
-    TensorNode* output(size_t idx = 0) const { return outputs_.at(idx); }
+    LogicalGraphTensorNode* input(size_t idx = 0) const
+    {
+        return inputs_.at(idx);
+    }
+    LogicalGraphTensorNode* output(size_t idx = 0) const
+    {
+        return outputs_.at(idx);
+    }
 
     // String representation
     std::string to_string() const;
 
 private:
     // Only LogicalGraph can modify
-    void add_input(TensorNode* t);
-    void add_output(TensorNode* t);
+    void add_input(LogicalGraphTensorNode* t);
+    void add_output(LogicalGraphTensorNode* t);
 };
 
 } // namespace nntile::graph
