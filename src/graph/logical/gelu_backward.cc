@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/graph/logical/gelu.cc
- * GELU operation implementation for logical graph.
+ * @file src/graph/logical/gelu_backward.cc
+ * GELU_BACKWARD operation implementation for logical graph.
  *
  * @version 1.1.0
  * */
 
 // Include corresponding header
-#include "nntile/graph/logical/gelu.hh"
+#include "nntile/graph/logical/gelu_backward.hh"
 
 // Include standard headers
 
@@ -26,29 +26,23 @@
 namespace nntile::graph
 {
 
-//! GeLU activation: y = gelu(x)
-LogicalGraphTensorNode& gelu(
+//! GeLU backward: dx += gelu_backward(x, dy)
+void gelu_backward(
     LogicalGraphTensorNode& x,
-    const std::string& output_name)
+    LogicalGraphTensorNode& dy,
+    LogicalGraphTensorNode& dx)
 {
-    // Output shape = input shape
-    TensorSpec output_spec = TensorSpec(x.shape(), x.dtype());
-
-    // Create output tensor
-    LogicalGraphTensorNode& output = x.graph().tensor(output_spec, output_name);
-
     // Create operation attributes
-    OpAttrs attrs = GeluAttrs{};
+    OpAttrs attrs = GeluBackwardAttrs{};
 
     // Add operation to graph using public builder API
+    // Note: dx is both input and output (accumulates gradients)
     x.graph().add_op(
-        OpType::GELU,
+        OpType::GELU_BACKWARD,
         attrs,
-        {&x},
-        {&output}
+        {&x, &dy, &dx},
+        {&dx}
     );
-
-    return output;
 }
 
 } // namespace nntile::graph

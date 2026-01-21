@@ -43,5 +43,11 @@
 // Logical and compiled graphs for computation
 #include <nntile/graph.hh>
 
+// MLP module using graph API
+#include <nntile/module/mlp.hh>
+
+// Linear module using graph API
+#include <nntile/module/linear.hh>
+
 // Logger thread to log activities
 #include <nntile/logger.hh>

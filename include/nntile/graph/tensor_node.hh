@@ -7,81 +7,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/tensor_node.hh
- * TensorNode class for logical graph tensor nodes.
+ * Compatibility header (LogicalGraphTensorNode now lives in logical_graph.hh).
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-// Include standard headers
-#include <cstdint>
-#include <string>
-#include <vector>
-
-// Include third-party headers
-
-// Include other NNTile headers
-#include <nntile/graph/tensor_spec.hh>
-
-namespace nntile::graph
-{
-
-// Forward declarations
-class OpNode;
-class LogicalGraph;
-
-//! Unique identifier for nodes
-using NodeId = uint64_t;
-
-//! A tensor node in the logical graph
-class TensorNode
-{
-    friend class LogicalGraph;
-    friend class OpNode;
-
-private:
-    NodeId id_;
-    std::string name_;
-    TensorSpec spec_;
-    LogicalGraph* graph_;
-
-    // Graph edges
-    // Op that creates this tensor (nullptr if input)
-    OpNode* producer_ = nullptr;
-    std::vector<OpNode*> consumers_;       // Ops that use this tensor
-
-public:
-    TensorNode(
-        NodeId id,
-        const std::string& name,
-        TensorSpec spec,
-        LogicalGraph* graph);
-
-    // Accessors
-    NodeId id() const { return id_; }
-    const std::string& name() const { return name_; }
-    const TensorSpec& spec() const { return spec_; }
-    DataType dtype() const { return spec_.dtype(); }
-    const std::vector<Index>& shape() const { return spec_.shape(); }
-    Index ndim() const { return spec_.ndim(); }
-
-    // Graph access
-    LogicalGraph& graph() { return *graph_; }
-    const LogicalGraph& graph() const { return *graph_; }
-
-    // Graph structure
-    bool has_producer() const { return producer_ != nullptr; }
-    OpNode* producer() const { return producer_; }
-    const std::vector<OpNode*>& consumers() const { return consumers_; }
-
-    // String representation
-    std::string to_string() const;
-
-private:
-    // Only LogicalGraph/OpNode can modify edges
-    void set_producer(OpNode* op) { producer_ = op; }
-    void add_consumer(OpNode* op) { consumers_.push_back(op); }
-};
-
-} // namespace nntile::graph
+#include <nntile/graph/logical_graph.hh>

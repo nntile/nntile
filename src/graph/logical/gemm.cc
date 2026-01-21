@@ -166,8 +166,8 @@ TensorSpec compute_gemm_output_spec(
 
 //! Validate inputs for gemm operation
 void validate_gemm_inputs(
-    TensorNode& a,
-    TensorNode& b,
+    LogicalGraphTensorNode& a,
+    LogicalGraphTensorNode& b,
     LogicalGraph& expected_graph)
 {
     // Validate inputs belong to the same graph
@@ -186,9 +186,9 @@ void validate_gemm_inputs(
 }
 
 //! Tensor contraction creating new output: C = alpha * op(A) @ op(B)
-TensorNode& gemm(
-    TensorNode& a,
-    TensorNode& b,
+LogicalGraphTensorNode& gemm(
+    LogicalGraphTensorNode& a,
+    LogicalGraphTensorNode& b,
     const std::string& output_name,
     Scalar alpha,
     bool trans_a,
@@ -204,7 +204,7 @@ TensorNode& gemm(
     );
 
     // Create output tensor
-    TensorNode& output = a.graph().tensor(output_spec, output_name);
+    LogicalGraphTensorNode& output = a.graph().tensor(output_spec, output_name);
 
     // Create operation attributes (beta = 0 for new output)
     OpAttrs attrs = GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim};
@@ -222,9 +222,9 @@ TensorNode& gemm(
 
 //! Tensor contraction with accumulation: C = alpha * op(A) @ op(B) + beta * C
 void gemm(
-    TensorNode& a,
-    TensorNode& b,
-    TensorNode& c,
+    LogicalGraphTensorNode& a,
+    LogicalGraphTensorNode& b,
+    LogicalGraphTensorNode& c,
     Scalar alpha,
     Scalar beta,
     bool trans_a,

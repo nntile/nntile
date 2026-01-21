@@ -45,9 +45,9 @@ namespace nntile::graph
 //! @param ndim Number of contraction dimensions (K) (default: 1)
 //! @param batch_ndim Number of trailing batch dimensions (default: 0)
 //! @return Reference to the created output tensor
-TensorNode& gemm(
-    TensorNode& a,
-    TensorNode& b,
+LogicalGraphTensorNode& gemm(
+    LogicalGraphTensorNode& a,
+    LogicalGraphTensorNode& b,
     const std::string& output_name,
     Scalar alpha = 1.0,
     bool trans_a = false,
@@ -70,9 +70,9 @@ TensorNode& gemm(
 //! @param ndim Number of contraction dimensions (K) (default: 1)
 //! @param batch_ndim Number of trailing batch dimensions (default: 0)
 void gemm(
-    TensorNode& a,
-    TensorNode& b,
-    TensorNode& c,
+    LogicalGraphTensorNode& a,
+    LogicalGraphTensorNode& b,
+    LogicalGraphTensorNode& c,
     Scalar alpha = 1.0,
     Scalar beta = 1.0,
     bool trans_a = false,

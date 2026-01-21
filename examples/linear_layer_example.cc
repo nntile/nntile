@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file examples/graph_mlp_example.cc
- * Example demonstrating trainable MLP module using NNTile graph API.
+ * @file examples/linear_layer_example.cc
+ * Example demonstrating linear module using NNTile graph API.
  *
  * @version 1.1.0
  * */
 
 #include <nntile/context.hh>
-#include <nntile/module/mlp.hh>
+#include <nntile/module/linear.hh>
 #include <algorithm>
 #include <chrono>
 #include <iostream>
@@ -35,11 +35,11 @@ int main(int argc, char** argv) {
     );
 
     // Create a neural network graph for forward and backward
-    nntile::graph::NNGraph graph("MLP_Graph");
+    nntile::graph::NNGraph graph("Linear_Graph");
 
-    // Create MLP module (input_dim=8, intermediate_dim=16, output_dim=4)
-    nntile::module::Mlp mlp(
-        graph, "mlp", 8, 16, 4, nntile::graph::DataType::FP32);
+    // Create Linear module (tied to the graph)
+    nntile::module::Linear linear(
+        graph, "linear1", 8, 4, nntile::graph::DataType::FP32);
 
     // Create input tensor (requires_grad to compute input gradients)
     auto& input_tensor = graph.tensor(
@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
         true);
 
     // Build forward operation and get output tensor
-    auto& output_tensor = mlp.build_forward(input_tensor);
+    auto& output_tensor = linear.build_forward(input_tensor);
 
     // Attach an external gradient to the output (e.g., loss gradient)
     auto& grad_output_tensor = graph.get_or_create_grad(
@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
         "external_grad_output");
 
     // Build backward operations
-    mlp.build_backward();
+    linear.build_backward();
 
     // Print graph structure for debugging
     std::cout << "Graph structure:" << std::endl;
@@ -75,30 +75,24 @@ int main(int argc, char** argv) {
         val = dist(gen);
     }
 
+    std::cout << "=== Linear Layer Forward/Backward Pass ===" << std::endl;
+
     // Bind input data to the external input tensor
     compiled_graph.bind_data("external_input", input_data);
 
-    // Initialize weights
-    std::vector<float> w1_data(8 * 16);
-    std::vector<float> w2_data(16 * 4);
+    // Initialize weight data
+    std::vector<float> weight_data(linear.input_dim() * linear.output_dim());
     std::random_device rd2;
     std::mt19937 gen2(rd2());
     std::normal_distribution<float> dist2(0.0f, 0.1f);
-    for (auto& val : w1_data) {
+    for (auto& val : weight_data) {
         val = dist2(gen2);
     }
-    for (auto& val : w2_data) {
-        val = dist2(gen2);
-    }
-
-    compiled_graph.bind_data(mlp.fc1().weight_tensor()->name(), w1_data);
-    compiled_graph.bind_data(mlp.fc2().weight_tensor()->name(), w2_data);
+    compiled_graph.bind_data(linear.weight_tensor()->name(), weight_data);
 
     // Initialize gradient data (for backward pass)
     std::vector<float> grad_output_data(4 * 4, 1.0f);
     compiled_graph.bind_data(grad_output_tensor.name(), grad_output_data);
-
-    std::cout << "=== MLP Forward/Backward Pass ===" << std::endl;
 
     // Execute the graph (contains both forward and backward operations)
     auto start = std::chrono::high_resolution_clock::now();
@@ -109,8 +103,10 @@ int main(int argc, char** argv) {
         end - start).count();
 
     std::cout << "Graph execution time: " << duration << " microseconds" << std::endl;
+    std::cout << "Input shape: [4, 8]" << std::endl;
+    std::cout << "Output shape: [4, 4]" << std::endl;
 
-    // Get output data
+    // Get output data from the output tensor
     auto output_data = compiled_graph.get_output<float>(output_tensor.name());
     std::cout << "Sample output values: ";
     for (size_t i = 0; i < std::min(size_t(8), output_data.size()); ++i) {
@@ -119,18 +115,15 @@ int main(int argc, char** argv) {
     std::cout << "..." << std::endl;
 
     // Get gradients
-    auto grad_w1 = compiled_graph.get_output<float>(
-        mlp.fc1().grad_name("weight"));
-    auto grad_w2 = compiled_graph.get_output<float>(
-        mlp.fc2().grad_name("weight"));
+    auto grad_weight = compiled_graph.get_output<float>(
+        linear.grad_name("weight"));
     auto grad_input = compiled_graph.get_output<float>(
-        input_tensor.grad()->name());
+        linear.grad_name("input"));
 
-    std::cout << "Weight1 grad size: " << grad_w1.size() << std::endl;
-    std::cout << "Weight2 grad size: " << grad_w2.size() << std::endl;
+    std::cout << "Weight grad size: " << grad_weight.size() << std::endl;
     std::cout << "Input grad size: " << grad_input.size() << std::endl;
 
-    std::cout << "\nMLP module successfully created and graphs built!" << std::endl;
+    std::cout << "\nLinear module successfully created and graphs built!" << std::endl;
 
     return 0;
 }
