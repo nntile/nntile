@@ -14,7 +14,11 @@
 # All graph tests using Catch2
 set(TESTS_CATCH2
     "logical_graph"
+    "logical_gemm"
+    "logical_ops"
+    "nn_graph"
     "compiled_graph"
+    "compiled_ops"
 )
 
 # Setup a target for coverage of graph tests
@@ -35,3 +39,4 @@ foreach(test IN LISTS TESTS_CATCH2)
         COV_GLOBAL coverage_graph coverage
     )
 endforeach()
+

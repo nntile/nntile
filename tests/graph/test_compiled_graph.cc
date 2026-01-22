@@ -176,3 +176,162 @@ TEST_CASE_METHOD(
     // Should throw during compilation for unsupported data type
     REQUIRE_THROWS_AS(CompiledGraph::compile(g), std::runtime_error);
 }
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph Int32TensorUnsupported",
+    "[graph]")
+{
+    LogicalGraph g("test");
+
+    g.tensor({2}, "x", DataType::INT32);
+
+    REQUIRE_THROWS_AS(CompiledGraph::compile(g), std::runtime_error);
+}
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph ClearInt32Unsupported",
+    "[graph]")
+{
+    LogicalGraph g("test");
+
+    auto& x = g.tensor({2}, "x", DataType::INT32);
+    clear(x);
+
+    REQUIRE_THROWS_AS(CompiledGraph::compile(g), std::runtime_error);
+}
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph GemmInt64Unsupported",
+    "[graph]")
+{
+    LogicalGraph g("test");
+
+    auto& a = g.tensor({2, 2}, "a", DataType::INT64);
+    auto& b = g.tensor({2, 2}, "b", DataType::INT64);
+    gemm(a, b, "c");
+
+    REQUIRE_THROWS_AS(CompiledGraph::compile(g), std::runtime_error);
+}
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph UnsupportedOpTypeExecute",
+    "[graph]")
+{
+    LogicalGraph g("test");
+
+    auto& x = g.tensor({2, 2}, "x", DataType::FP32);
+    auto& bias = g.tensor({2}, "bias", DataType::FP32);
+    auto& y = g.tensor({2, 2}, "y", DataType::FP32);
+
+    g.add_op(OpType::ADD_FIBER, AddFiberAttrs{}, {&x, &bias}, {&y});
+
+    auto compiled = CompiledGraph::compile(g);
+    REQUIRE_THROWS_AS(compiled.execute(), std::runtime_error);
+}
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph BindAndGetOutputFloatTypes",
+    "[graph]")
+{
+    auto roundtrip = [](
+        DataType dtype,
+        const std::vector<float>& data,
+        bool expect_bool = false)
+    {
+        LogicalGraph g("test");
+        g.tensor({static_cast<nntile::Index>(data.size())}, "x", dtype);
+        auto compiled = CompiledGraph::compile(g);
+
+        compiled.bind_data("x", data);
+        auto out = compiled.get_output<float>("x");
+
+        REQUIRE(out.size() == data.size());
+        for(size_t i = 0; i < data.size(); ++i)
+        {
+            float expected = expect_bool ? (data[i] != 0.0f ? 1.0f : 0.0f)
+                                         : data[i];
+            if(expect_bool)
+            {
+                REQUIRE(out[i] == expected);
+            }
+            else
+            {
+                REQUIRE(out[i] == Catch::Approx(expected));
+            }
+        }
+    };
+
+    std::vector<float> data = {0.0f, 1.0f, -1.0f, 2.0f};
+    roundtrip(DataType::FP32, data);
+    roundtrip(DataType::FP32_FAST_TF32, data);
+    roundtrip(DataType::FP32_FAST_FP16, data);
+    roundtrip(DataType::FP32_FAST_BF16, data);
+    roundtrip(DataType::FP16, data);
+    roundtrip(DataType::BF16, data);
+    roundtrip(DataType::BOOL, {0.0f, 1.0f, 0.0f, 3.0f}, true);
+}
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph BindAndGetOutputFp64",
+    "[graph]")
+{
+    LogicalGraph g("test");
+
+    g.tensor({2}, "x", DataType::FP64);
+    auto compiled = CompiledGraph::compile(g);
+
+    std::vector<double> data = {1.5, -2.25};
+    compiled.bind_data("x", data);
+    auto out = compiled.get_output<double>("x");
+
+    REQUIRE(out.size() == data.size());
+    REQUIRE(out[0] == Catch::Approx(1.5));
+    REQUIRE(out[1] == Catch::Approx(-2.25));
+}
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph BindAndGetOutputInt64",
+    "[graph]")
+{
+    LogicalGraph g("test");
+
+    g.tensor({3}, "x", DataType::INT64);
+    auto compiled = CompiledGraph::compile(g);
+
+    std::vector<long long> data = {1, -2, 3};
+    compiled.bind_data("x", data);
+    auto out = compiled.get_output<float>("x");
+
+    REQUIRE(out.size() == data.size());
+    REQUIRE(out[0] == Catch::Approx(1.0f));
+    REQUIRE(out[1] == Catch::Approx(-2.0f));
+    REQUIRE(out[2] == Catch::Approx(3.0f));
+}
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph MissingTensorLookups",
+    "[graph]")
+{
+    LogicalGraph g("test");
+
+    g.tensor({2}, "x", DataType::FP32);
+    auto compiled = CompiledGraph::compile(g);
+
+    REQUIRE_THROWS_AS(
+        compiled.bind_data("missing", std::vector<float>{1.0f}),
+        std::runtime_error);
+    REQUIRE_THROWS_AS(
+        compiled.get_output<float>("missing"),
+        std::runtime_error);
+    REQUIRE_THROWS_AS(
+        compiled.get_tensor<nntile::fp32_t>("missing"),
+        std::runtime_error);
+}
