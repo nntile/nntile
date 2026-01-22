@@ -102,4 +102,9 @@ void execute_scale_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_scale_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_randn(CompiledGraph& graph, const OpExecutionInfo& op_info);
 
+//! Execute optimizer operations
+void execute_sgd_step(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_adam_step(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_adamw_step(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
 } // namespace nntile::graph

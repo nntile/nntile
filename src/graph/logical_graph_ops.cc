@@ -940,6 +940,125 @@ void randn(
     );
 }
 
+//! SGD step: p = sgd_step(grad, velocity, p)
+void sgd_step(
+    Index num_iter,
+    Scalar momentum,
+    Scalar lr,
+    Scalar weight_decay,
+    Scalar dampening,
+    bool nesterov,
+    LogicalGraph::TensorNode& grad,
+    LogicalGraph::TensorNode& velocity,
+    LogicalGraph::TensorNode& p)
+{
+    if(&grad.graph() != &velocity.graph() || &grad.graph() != &p.graph())
+    {
+        throw std::invalid_argument(
+            "sgd_step: tensors must belong to the same graph");
+    }
+
+    if(grad.dtype() != velocity.dtype() || grad.dtype() != p.dtype())
+    {
+        throw std::invalid_argument(
+            "sgd_step: all tensors must have the same dtype");
+    }
+
+    if(grad.shape() != velocity.shape() || grad.shape() != p.shape())
+    {
+        throw std::invalid_argument(
+            "sgd_step: all tensors must have the same shape");
+    }
+
+    OpAttrs attrs = SgdStepAttrs{num_iter, momentum, lr, weight_decay, dampening, nesterov};
+    grad.graph().add_op(
+        OpType::SGD_STEP,
+        attrs,
+        {&grad, &velocity, &p},
+        {&p}
+    );
+}
+
+//! Adam step: p = adam_step(grad, first_moment, second_moment, p)
+void adam_step(
+    Index num_iter,
+    Scalar beta_1,
+    Scalar beta_2,
+    Scalar eps,
+    Scalar lr,
+    Scalar weight_decay,
+    LogicalGraph::TensorNode& grad,
+    LogicalGraph::TensorNode& first_moment,
+    LogicalGraph::TensorNode& second_moment,
+    LogicalGraph::TensorNode& p)
+{
+    if(&grad.graph() != &first_moment.graph() || &grad.graph() != &second_moment.graph() || &grad.graph() != &p.graph())
+    {
+        throw std::invalid_argument(
+            "adam_step: tensors must belong to the same graph");
+    }
+
+    if(grad.dtype() != first_moment.dtype() || grad.dtype() != second_moment.dtype() || grad.dtype() != p.dtype())
+    {
+        throw std::invalid_argument(
+            "adam_step: all tensors must have the same dtype");
+    }
+
+    if(grad.shape() != first_moment.shape() || grad.shape() != second_moment.shape() || grad.shape() != p.shape())
+    {
+        throw std::invalid_argument(
+            "adam_step: all tensors must have the same shape");
+    }
+
+    OpAttrs attrs = AdamStepAttrs{num_iter, beta_1, beta_2, eps, lr, weight_decay};
+    grad.graph().add_op(
+        OpType::ADAM_STEP,
+        attrs,
+        {&grad, &first_moment, &second_moment, &p},
+        {&p}
+    );
+}
+
+//! AdamW step: p = adamw_step(grad, first_moment, second_moment, p)
+void adamw_step(
+    Index num_iter,
+    Scalar beta_1,
+    Scalar beta_2,
+    Scalar eps,
+    Scalar lr,
+    Scalar weight_decay,
+    LogicalGraph::TensorNode& grad,
+    LogicalGraph::TensorNode& first_moment,
+    LogicalGraph::TensorNode& second_moment,
+    LogicalGraph::TensorNode& p)
+{
+    if(&grad.graph() != &first_moment.graph() || &grad.graph() != &second_moment.graph() || &grad.graph() != &p.graph())
+    {
+        throw std::invalid_argument(
+            "adamw_step: tensors must belong to the same graph");
+    }
+
+    if(grad.dtype() != first_moment.dtype() || grad.dtype() != second_moment.dtype() || grad.dtype() != p.dtype())
+    {
+        throw std::invalid_argument(
+            "adamw_step: all tensors must have the same dtype");
+    }
+
+    if(grad.shape() != first_moment.shape() || grad.shape() != second_moment.shape() || grad.shape() != p.shape())
+    {
+        throw std::invalid_argument(
+            "adamw_step: all tensors must have the same shape");
+    }
+
+    OpAttrs attrs = AdamStepAttrs{num_iter, beta_1, beta_2, eps, lr, weight_decay};
+    grad.graph().add_op(
+        OpType::ADAMW_STEP,
+        attrs,
+        {&grad, &first_moment, &second_moment, &p},
+        {&p}
+    );
+}
+
 //! Total sum of all elements: y = alpha * sum(x) + beta * y
 void sum(
     LogicalGraph::TensorNode& x,
