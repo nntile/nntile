@@ -81,6 +81,10 @@ void execute_logsumexp(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_maxsumexp(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_sumprod_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_sumprod_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_norm_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_norm_fiber_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_norm_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_norm_slice_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
 
 //! Execute utility operations
 void execute_fill(CompiledGraph& graph, const OpExecutionInfo& op_info);

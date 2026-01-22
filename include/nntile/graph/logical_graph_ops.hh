@@ -294,6 +294,74 @@ void sumprod_slice(
     Scalar beta = 0.0
 );
 
+//! Norm along fibers: y = alpha * norm_fiber(x) + beta * y
+//! @param x Input tensor
+//! @param y Output tensor to accumulate into
+//! @param axis Axis along which to compute norm
+//! @param batch_ndim Number of trailing batch dimensions (default: 0)
+//! @param redux Whether to use reduction (default: 0)
+//! @param alpha Scaling factor for norm (default: 1.0)
+//! @param beta Scaling factor for existing y (default: 0.0)
+void norm_fiber(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    Index batch_ndim = 0,
+    int redux = 0,
+    Scalar alpha = 1.0,
+    Scalar beta = 0.0
+);
+
+//! Norm along fibers (in-place): y = alpha * norm_fiber(x) + beta * y
+//! @param x Input tensor
+//! @param y Output tensor to accumulate into
+//! @param axis Axis along which to compute norm
+//! @param batch_ndim Number of trailing batch dimensions (default: 0)
+//! @param redux Whether to use reduction (default: 0)
+//! @param alpha Scaling factor for norm (default: 1.0)
+//! @param beta Scaling factor for existing y (default: 0.0)
+void norm_fiber_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    Index batch_ndim = 0,
+    int redux = 0,
+    Scalar alpha = 1.0,
+    Scalar beta = 0.0
+);
+
+//! Norm along slices: y = alpha * norm_slice(x) + beta * y
+//! @param x Input tensor
+//! @param y Output tensor to accumulate into
+//! @param axis Axis along which to compute norm
+//! @param redux Whether to use reduction (default: 0)
+//! @param alpha Scaling factor for norm (default: 1.0)
+//! @param beta Scaling factor for existing y (default: 0.0)
+void norm_slice(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux = 0,
+    Scalar alpha = 1.0,
+    Scalar beta = 0.0
+);
+
+//! Norm along slices (in-place): y = alpha * norm_slice(x) + beta * y
+//! @param x Input tensor
+//! @param y Output tensor to accumulate into
+//! @param axis Axis along which to compute norm
+//! @param redux Whether to use reduction (default: 0)
+//! @param alpha Scaling factor for norm (default: 1.0)
+//! @param beta Scaling factor for existing y (default: 0.0)
+void norm_slice_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux = 0,
+    Scalar alpha = 1.0,
+    Scalar beta = 0.0
+);
+
 //! Scale operation: y = alpha * x
 //! @param x Input tensor
 //! @param output_name Name for the output tensor

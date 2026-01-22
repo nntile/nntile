@@ -516,6 +516,58 @@ void run_sumprod_slice(CompiledGraph& graph, const ReductionAttrs& attrs,
     nntile::tensor::sumprod_slice<T>(alpha, x1, x2, beta, y, attrs.axis, attrs.redux);
 }
 
+template<typename T>
+void run_norm_fiber(CompiledGraph& graph, const ReductionAttrs& attrs,
+                    const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    const auto beta = static_cast<nntile::Scalar>(attrs.beta);
+
+    nntile::tensor::norm_fiber<T>(alpha, x, beta, x, y, attrs.axis, attrs.batch_ndim, attrs.redux);
+}
+
+template<typename T>
+void run_norm_fiber_inplace(CompiledGraph& graph, const ReductionAttrs& attrs,
+                            const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    const auto beta = static_cast<nntile::Scalar>(attrs.beta);
+
+    nntile::tensor::norm_fiber_inplace<T>(alpha, x, beta, y, attrs.axis, attrs.batch_ndim, attrs.redux);
+}
+
+template<typename T>
+void run_norm_slice(CompiledGraph& graph, const ReductionAttrs& attrs,
+                    const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    const auto beta = static_cast<nntile::Scalar>(attrs.beta);
+
+    nntile::tensor::norm_slice<T>(alpha, x, beta, x, y, attrs.axis, attrs.redux);
+}
+
+template<typename T>
+void run_norm_slice_inplace(CompiledGraph& graph, const ReductionAttrs& attrs,
+                            const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    const auto beta = static_cast<nntile::Scalar>(attrs.beta);
+
+    nntile::tensor::norm_slice_inplace<T>(alpha, x, beta, y, attrs.axis, attrs.redux);
+}
+
 // Element-wise operations
 template<typename T>
 void run_hypot_scalar_inverse(CompiledGraph& graph, const HypotScalarInverseAttrs& attrs,
@@ -2156,6 +2208,174 @@ void execute_sumprod_slice(CompiledGraph& graph, const OpExecutionInfo& op_info)
                 " data type not supported for sumprod_slice operation");
         default:
             throw std::runtime_error("Unsupported data type for sumprod_slice");
+    }
+}
+
+//! Execute norm_fiber operation
+void execute_norm_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ReductionAttrs& attrs = std::get<ReductionAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.input_names[1];  // y is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_norm_fiber<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_norm_fiber<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_norm_fiber<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_norm_fiber<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_norm_fiber<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_norm_fiber<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_norm_fiber<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for norm_fiber operation");
+        default:
+            throw std::runtime_error("Unsupported data type for norm_fiber");
+    }
+}
+
+//! Execute norm_fiber_inplace operation
+void execute_norm_fiber_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ReductionAttrs& attrs = std::get<ReductionAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.input_names[1];  // y is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_norm_fiber_inplace<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_norm_fiber_inplace<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_norm_fiber_inplace<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_norm_fiber_inplace<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_norm_fiber_inplace<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_norm_fiber_inplace<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_norm_fiber_inplace<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for norm_fiber_inplace operation");
+        default:
+            throw std::runtime_error("Unsupported data type for norm_fiber_inplace");
+    }
+}
+
+//! Execute norm_slice operation
+void execute_norm_slice(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ReductionAttrs& attrs = std::get<ReductionAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.input_names[1];  // y is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_norm_slice<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_norm_slice<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_norm_slice<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_norm_slice<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_norm_slice<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_norm_slice<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_norm_slice<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for norm_slice operation");
+        default:
+            throw std::runtime_error("Unsupported data type for norm_slice");
+    }
+}
+
+//! Execute norm_slice_inplace operation
+void execute_norm_slice_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ReductionAttrs& attrs = std::get<ReductionAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.input_names[1];  // y is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_norm_slice_inplace<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_norm_slice_inplace<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_norm_slice_inplace<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_norm_slice_inplace<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_norm_slice_inplace<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_norm_slice_inplace<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_norm_slice_inplace<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for norm_slice_inplace operation");
+        default:
+            throw std::runtime_error("Unsupported data type for norm_slice_inplace");
     }
 }
 

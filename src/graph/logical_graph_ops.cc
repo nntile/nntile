@@ -1095,6 +1095,164 @@ void sumprod_slice(
     );
 }
 
+//! Norm along fibers: y = alpha * norm_fiber(x) + beta * y
+void norm_fiber(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    Index batch_ndim,
+    int redux,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "norm_fiber: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "norm_fiber: input and output tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "norm_fiber: axis out of bounds");
+    }
+
+    if(batch_ndim < 0 || axis + batch_ndim > x.ndim())
+    {
+        throw std::invalid_argument(
+            "norm_fiber: invalid batch_ndim");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, batch_ndim, redux};
+    x.graph().add_op(
+        OpType::NORM_FIBER,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Norm along fibers (in-place): y = alpha * norm_fiber(x) + beta * y
+void norm_fiber_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    Index batch_ndim,
+    int redux,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "norm_fiber_inplace: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "norm_fiber_inplace: input and output tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "norm_fiber_inplace: axis out of bounds");
+    }
+
+    if(batch_ndim < 0 || axis + batch_ndim > x.ndim())
+    {
+        throw std::invalid_argument(
+            "norm_fiber_inplace: invalid batch_ndim");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, batch_ndim, redux};
+    x.graph().add_op(
+        OpType::NORM_FIBER_INPLACE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Norm along slices: y = alpha * norm_slice(x) + beta * y
+void norm_slice(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "norm_slice: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "norm_slice: input and output tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "norm_slice: axis out of bounds");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, 0, redux};  // batch_ndim = 0 for slice
+    x.graph().add_op(
+        OpType::NORM_SLICE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Norm along slices (in-place): y = alpha * norm_slice(x) + beta * y
+void norm_slice_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "norm_slice_inplace: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "norm_slice_inplace: input and output tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "norm_slice_inplace: axis out of bounds");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, 0, redux};  // batch_ndim = 0 for slice
+    x.graph().add_op(
+        OpType::NORM_SLICE_INPLACE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
 //! Scale operation: y = alpha * x
 LogicalGraph::TensorNode& scale(
     LogicalGraph::TensorNode& x,
