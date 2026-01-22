@@ -85,6 +85,7 @@ enum class OpType {
     MULTIPLY,
     MULTIPLY_INPLACE,
     HYPOT_SCALAR_INVERSE,
+    SUBTRACT_INDEXED_OUTPUTS,
 
     // Reduction operations
     SUM,
@@ -323,13 +324,28 @@ struct TransposeAttrs
     Index ndim = 0;
 };
 
+// Hypot scalar inverse operation (eps, alpha)
+struct HypotScalarInverseAttrs
+{
+    Scalar eps = 0.0;
+    Scalar alpha = 1.0;
+};
+
+// Subtract indexed outputs operation (val, ignore_index)
+struct SubtractIndexedOutputsAttrs
+{
+    Scalar val = 0.0;
+    Index ignore_index = -1;
+};
+
 using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
                              AddFiberAttrs, SumFiberAttrs, ClearAttrs,
                              BinaryOpAttrs, ReductionAttrs, TotalSumAttrs,
                              LogSumExpAttrs, ScaleAttrs, Conv2dAttrs,
                              EmbeddingAttrs, MaskScalarAttrs, TotalSumAccumAttrs,
                              SgdStepAttrs, AdamStepAttrs, RandnAttrs,
-                             PowAttrs, LogScalarAttrs, FillAttrs, TransposeAttrs>;
+                             PowAttrs, LogScalarAttrs, FillAttrs, TransposeAttrs,
+                             HypotScalarInverseAttrs, SubtractIndexedOutputsAttrs>;
 
 //! Logical graph - defines computation without physical details
 class LogicalGraph

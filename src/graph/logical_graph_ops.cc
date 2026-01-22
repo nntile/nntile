@@ -752,6 +752,49 @@ LogicalGraph::TensorNode& gather(
     return output;
 }
 
+//! Hypot scalar inverse operation: y = 1.0 / hypot(eps, alpha * y)
+void hypot_scalar_inverse(
+    LogicalGraph::TensorNode& x,
+    Scalar eps,
+    Scalar alpha)
+{
+    OpAttrs attrs = HypotScalarInverseAttrs{eps, alpha};
+    x.graph().add_op(
+        OpType::HYPOT_SCALAR_INVERSE,
+        attrs,
+        {&x},
+        {&x}
+    );
+}
+
+//! Subtract indexed outputs operation: subtract val from elements indexed by labels
+void subtract_indexed_outputs(
+    LogicalGraph::TensorNode& labels,
+    LogicalGraph::TensorNode& x,
+    Scalar val,
+    Index ignore_index)
+{
+    if(&labels.graph() != &x.graph())
+    {
+        throw std::invalid_argument(
+            "subtract_indexed_outputs: tensors must belong to the same graph");
+    }
+
+    if(labels.dtype() != DataType::INT64)
+    {
+        throw std::invalid_argument(
+            "subtract_indexed_outputs: labels tensor must have int64 dtype");
+    }
+
+    OpAttrs attrs = SubtractIndexedOutputsAttrs{val, ignore_index};
+    labels.graph().add_op(
+        OpType::SUBTRACT_INDEXED_OUTPUTS,
+        attrs,
+        {&labels, &x},
+        {&x}
+    );
+}
+
 //! Total sum of all elements: y = alpha * sum(x) + beta * y
 void sum(
     LogicalGraph::TensorNode& x,

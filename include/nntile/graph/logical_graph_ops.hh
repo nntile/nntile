@@ -454,4 +454,26 @@ LogicalGraph::TensorNode& gather(
     const std::string& output_name
 );
 
+//! Hypot scalar inverse operation: y = 1.0 / hypot(eps, alpha * y)
+//! @param x Input/output tensor (modified in-place)
+//! @param eps Epsilon value for numerical stability
+//! @param alpha Scaling factor
+void hypot_scalar_inverse(
+    LogicalGraph::TensorNode& x,
+    Scalar eps = 0.0,
+    Scalar alpha = 1.0
+);
+
+//! Subtract indexed outputs operation: subtract val from elements indexed by labels
+//! @param labels Index tensor (int64_t) indicating which elements to modify
+//! @param x Input/output tensor (modified in-place)
+//! @param val Value to subtract
+//! @param ignore_index Index value to ignore (-1 by default)
+void subtract_indexed_outputs(
+    LogicalGraph::TensorNode& labels,
+    LogicalGraph::TensorNode& x,
+    Scalar val = 0.0,
+    Index ignore_index = -1
+);
+
 } // namespace nntile::graph

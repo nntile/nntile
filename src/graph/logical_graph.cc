@@ -146,6 +146,8 @@ std::string op_type_to_string(OpType type)
             return "MULTIPLY_INPLACE";
         case OpType::HYPOT_SCALAR_INVERSE:
             return "HYPOT_SCALAR_INVERSE";
+        case OpType::SUBTRACT_INDEXED_OUTPUTS:
+            return "SUBTRACT_INDEXED_OUTPUTS";
 
         // Reduction operations
         case OpType::SUM:

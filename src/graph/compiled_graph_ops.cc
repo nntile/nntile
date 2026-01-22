@@ -56,6 +56,7 @@
 #include "nntile/tensor/silu_inplace.hh"
 #include "nntile/tensor/sqrt.hh"
 #include "nntile/tensor/sqrt_inplace.hh"
+#include "nntile/tensor/subtract_indexed_outputs.hh"
 #include "nntile/tensor/sum.hh"
 #include "nntile/tensor/sum_fiber.hh"
 #include "nntile/tensor/sum_slice.hh"
@@ -481,6 +482,26 @@ void run_maxsumexp(CompiledGraph& graph, const LogSumExpAttrs& attrs,
     auto& y = graph.get_tensor<T>(y_name);
 
     nntile::tensor::maxsumexp<T>(x, y, attrs.axis, 0);  // redux = 0
+}
+
+// Element-wise operations
+template<typename T>
+void run_hypot_scalar_inverse(CompiledGraph& graph, const HypotScalarInverseAttrs& attrs,
+                              const std::string& x_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+
+    nntile::tensor::hypot_scalar_inverse<T>(attrs.eps, attrs.alpha, x);
+}
+
+template<typename T>
+void run_subtract_indexed_outputs(CompiledGraph& graph, const SubtractIndexedOutputsAttrs& attrs,
+                                  const std::string& labels_name, const std::string& x_name)
+{
+    auto& labels = graph.get_tensor<int64_t>(labels_name);
+    auto& x = graph.get_tensor<T>(x_name);
+
+    nntile::tensor::subtract_indexed_outputs<T>(attrs.val, labels, x, attrs.ignore_index);
 }
 
 // Utility operations
@@ -2193,6 +2214,89 @@ void execute_gather(CompiledGraph& graph, const OpExecutionInfo& op_info)
             break;
         default:
             throw std::runtime_error("Unsupported data type for gather");
+    }
+}
+
+//! Execute hypot_scalar_inverse operation
+void execute_hypot_scalar_inverse(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const HypotScalarInverseAttrs& attrs = std::get<HypotScalarInverseAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_hypot_scalar_inverse<nntile::fp32_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_hypot_scalar_inverse<nntile::fp32_fast_tf32_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_hypot_scalar_inverse<nntile::fp32_fast_fp16_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_hypot_scalar_inverse<nntile::fp32_fast_bf16_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP64:
+            run_hypot_scalar_inverse<nntile::fp64_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP16:
+            run_hypot_scalar_inverse<nntile::fp16_t>(graph, attrs, x_name);
+            break;
+        case DataType::BF16:
+            run_hypot_scalar_inverse<nntile::bf16_t>(graph, attrs, x_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for hypot_scalar_inverse operation");
+        default:
+            throw std::runtime_error("Unsupported data type for hypot_scalar_inverse");
+    }
+}
+
+//! Execute subtract_indexed_outputs operation
+void execute_subtract_indexed_outputs(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const SubtractIndexedOutputsAttrs& attrs = std::get<SubtractIndexedOutputsAttrs>(op_info.attrs);
+    const std::string& labels_name = op_info.input_names[0];
+    const std::string& x_name = op_info.input_names[1];  // x is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_subtract_indexed_outputs<nntile::fp32_t>(graph, attrs, labels_name, x_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_subtract_indexed_outputs<nntile::fp32_fast_tf32_t>(graph, attrs, labels_name, x_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_subtract_indexed_outputs<nntile::fp32_fast_fp16_t>(graph, attrs, labels_name, x_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_subtract_indexed_outputs<nntile::fp32_fast_bf16_t>(graph, attrs, labels_name, x_name);
+            break;
+        case DataType::FP64:
+            run_subtract_indexed_outputs<nntile::fp64_t>(graph, attrs, labels_name, x_name);
+            break;
+        case DataType::FP16:
+            run_subtract_indexed_outputs<nntile::fp16_t>(graph, attrs, labels_name, x_name);
+            break;
+        case DataType::BF16:
+            run_subtract_indexed_outputs<nntile::bf16_t>(graph, attrs, labels_name, x_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for subtract_indexed_outputs operation");
+        default:
+            throw std::runtime_error("Unsupported data type for subtract_indexed_outputs");
     }
 }
 

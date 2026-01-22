@@ -67,10 +67,12 @@ void execute_embedding_backward(CompiledGraph& graph, const OpExecutionInfo& op_
 //! Execute additional element-wise operations
 void execute_hypot(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_hypot_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_hypot_scalar_inverse(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_pow(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_pow_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_log_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_mask_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_subtract_indexed_outputs(CompiledGraph& graph, const OpExecutionInfo& op_info);
 
 //! Execute additional reduction operations
 void execute_sum_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
