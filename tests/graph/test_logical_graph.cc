@@ -27,7 +27,7 @@ TEST_CASE("LogicalGraph CreateTensor", "[graph]")
 {
     LogicalGraph g("test");
 
-    auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
+    auto& x = g.tensor({32, 768}, "x", DataType::FP32);
 
     REQUIRE(x.name() == "x");
     REQUIRE(x.shape().size() == 2);
@@ -41,8 +41,8 @@ TEST_CASE("LogicalGraph Gemm", "[graph]")
 {
     LogicalGraph g("test");
 
-    auto& a = g.tensor(TensorSpec({32, 768}, DataType::FP32), "a");
-    auto& b = g.tensor(TensorSpec({768, 256}, DataType::FP32), "b");
+    auto& a = g.tensor({32, 768}, "a", DataType::FP32);
+    auto& b = g.tensor({768, 256}, "b", DataType::FP32);
     auto& c = gemm(a, b, "c");
 
     REQUIRE(c.shape()[0] == 32);
@@ -56,9 +56,10 @@ TEST_CASE("LogicalGraph GemmTranspose", "[graph]")
     LogicalGraph g("test");
 
     auto& a = g.tensor(
-        TensorSpec({768, 32}, DataType::FP32),
-        "a");  // Will be transposed
-    auto& b = g.tensor(TensorSpec({768, 256}, DataType::FP32), "b");
+        {768, 32},
+        "a",
+        DataType::FP32);  // Will be transposed
+    auto& b = g.tensor({768, 256}, "b", DataType::FP32);
     auto& c = gemm(
         a,
         b,
@@ -75,7 +76,7 @@ TEST_CASE("LogicalGraph Gelu", "[graph]")
 {
     LogicalGraph g("test");
 
-    auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
+    auto& x = g.tensor({32, 768}, "x", DataType::FP32);
     auto& y = gelu(x, "y");
 
     REQUIRE(y.shape() == x.shape());
@@ -87,9 +88,9 @@ TEST_CASE("LogicalGraph Chain", "[graph]")
 {
     LogicalGraph g("mlp");
 
-    auto& x = g.tensor(TensorSpec({32, 768}, DataType::FP32), "x");
-    auto& w1 = g.tensor(TensorSpec({768, 3072}, DataType::FP32), "w1");
-    auto& w2 = g.tensor(TensorSpec({3072, 768}, DataType::FP32), "w2");
+    auto& x = g.tensor({32, 768}, "x", DataType::FP32);
+    auto& w1 = g.tensor({768, 3072}, "w1", DataType::FP32);
+    auto& w2 = g.tensor({3072, 768}, "w2", DataType::FP32);
 
     auto& h = gemm(x, w1, "h");
     auto& a = gelu(h, "a");
@@ -103,9 +104,9 @@ TEST_CASE("LogicalGraph TensorNameUniqueness", "[graph]")
 {
     LogicalGraph g("test");
 
-    g.tensor(TensorSpec({10}, DataType::FP32), "x");
+    g.tensor({10}, "x", DataType::FP32);
     REQUIRE_THROWS_AS(
-        g.tensor(TensorSpec({10}, DataType::FP32), "x"),
+        g.tensor({10}, "x", DataType::FP32),
         std::invalid_argument);
 }
 
@@ -113,8 +114,8 @@ TEST_CASE("LogicalGraph GetTensor", "[graph]")
 {
     LogicalGraph g("test");
 
-    auto& x = g.tensor(TensorSpec({10}, DataType::FP32), "x");
-    auto& y = g.tensor(TensorSpec({20}, DataType::FP32), "y");
+    auto& x = g.tensor({10}, "x", DataType::FP32);
+    auto& y = g.tensor({20}, "y", DataType::FP32);
 
     REQUIRE(g.get_tensor("x") == &x);
     REQUIRE(g.get_tensor("y") == &y);
@@ -125,8 +126,8 @@ TEST_CASE("LogicalGraph TensorNames", "[graph]")
 {
     LogicalGraph g("test");
 
-    g.tensor(TensorSpec({10}, DataType::FP32), "x");
-    g.tensor(TensorSpec({20}, DataType::FP32), "y");
+    g.tensor({10}, "x", DataType::FP32);
+    g.tensor({20}, "y", DataType::FP32);
 
     auto names = g.tensor_names();
     REQUIRE(names.size() == 2);

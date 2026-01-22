@@ -43,8 +43,9 @@ int main(int argc, char** argv) {
 
     // Create input tensor (requires_grad to compute input gradients)
     auto& input_tensor = graph.tensor(
-        nntile::graph::TensorSpec({4, 8}, nntile::graph::DataType::FP32),
+        {4, 8},
         "external_input",
+        nntile::graph::DataType::FP32,
         true);
 
     // Build forward operation and get output tensor

@@ -63,8 +63,9 @@ graph::NNGraphTensorNode& Mlp::build_forward(graph::NNGraphTensorNode& input)
     // GELU activation: hidden -> activation
     // Create activation output tensor
     activation_tensor_ = &graph_.tensor(
-        hidden_tensor_->spec(),
+        hidden_tensor_->shape(),
         tensor_name("activation"),
+        hidden_tensor_->dtype(),
         graph_.requires_grad(*hidden_tensor_));
 
     graph_.add_op(

@@ -33,8 +33,9 @@ Linear::Linear(graph::NNGraph& graph,
 {
     // Create weight tensor during construction
     weight_tensor_ = &graph_.tensor(
-        graph::TensorSpec({input_dim_, output_dim_}, dtype_),
+        {input_dim_, output_dim_},
         tensor_name("weight"),
+        dtype_,
         true);
     register_parameter("weight", weight_tensor_);
 }
@@ -52,8 +53,9 @@ Linear::Linear(graph::NNGraph& graph,
 {
     // Create weight tensor
     weight_tensor_ = &graph_.tensor(
-        graph::TensorSpec({input_dim_, output_dim_}, dtype_),
+        {input_dim_, output_dim_},
         tensor_name("weight"),
+        dtype_,
         true);
     register_parameter("weight", weight_tensor_);
 
@@ -61,8 +63,9 @@ Linear::Linear(graph::NNGraph& graph,
     if(with_bias)
     {
         bias_tensor_ = &graph_.tensor(
-            graph::TensorSpec({output_dim_}, dtype_),
+            {output_dim_},
             tensor_name("bias"),
+            dtype_,
             true);
         register_parameter("bias", bias_tensor_);
     }
@@ -174,8 +177,9 @@ graph::NNGraphTensorNode& Linear::build_forward(graph::NNGraphTensorNode& input)
     }
 
     output_tensor_ = &graph_.tensor(
-        graph::TensorSpec(output_shape, dtype_),
+        std::move(output_shape),
         tensor_name("output"),
+        dtype_,
         output_requires_grad);
 
     // Linear transformation: output = input @ weight

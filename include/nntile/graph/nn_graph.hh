@@ -55,7 +55,6 @@ public:
 
     // Convenience accessors (forwarded to data tensor)
     const std::string& name() const { return data_->name(); }
-    const TensorSpec& spec() const { return data_->spec(); }
     DataType dtype() const { return data_->dtype(); }
     const std::vector<Index>& shape() const { return data_->shape(); }
     Index ndim() const { return data_->ndim(); }
@@ -85,8 +84,9 @@ public:
 
     //! Create an input tensor (not produced by any operation)
     NNGraphTensorNode& tensor(
-        const TensorSpec& spec,
+        std::vector<Index> shape,
         const std::string& name,
+        DataType dtype = DataType::FP32,
         bool requires_grad = false);
 
     // -----------------------------------------------------------------
@@ -98,7 +98,8 @@ public:
         OpType type,
         OpAttrs attrs,
         const std::vector<NNGraphTensorNode*>& inputs,
-        const std::vector<NNGraphTensorNode*>& outputs
+        const std::vector<NNGraphTensorNode*>& outputs,
+        const std::string& name = ""
     );
 
     //! Add an operation using underlying logical tensor nodes
@@ -106,7 +107,8 @@ public:
         OpType type,
         OpAttrs attrs,
         const std::vector<LogicalGraph::TensorNode*>& inputs,
-        const std::vector<LogicalGraph::TensorNode*>& outputs
+        const std::vector<LogicalGraph::TensorNode*>& outputs,
+        const std::string& name = ""
     );
 
     // -----------------------------------------------------------------

@@ -17,6 +17,7 @@
 
 // Include standard headers
 #include <stdexcept>
+#include <utility>
 
 // Include other NNTile headers
 #include "nntile/graph/logical_graph.hh"
@@ -43,9 +44,9 @@ namespace
 //!   - ndim = number of contraction dimensions (K)
 //!   - batch_ndim = number of batch dimensions (must match between A and B)
 //!
-TensorSpec compute_gemm_output_spec(
-    const TensorSpec& a,
-    const TensorSpec& b,
+std::vector<Index> compute_gemm_output_shape(
+    const LogicalGraph::TensorNode& a,
+    const LogicalGraph::TensorNode& b,
     bool trans_a,
     bool trans_b,
     Index ndim,
@@ -158,7 +159,7 @@ TensorSpec compute_gemm_output_spec(
         output_shape.push_back(batch_dims_a[i]);
     }
 
-    return TensorSpec(output_shape, a.dtype());
+    return output_shape;
 }
 
 } // namespace
@@ -198,12 +199,15 @@ LogicalGraph::TensorNode& gemm(
     validate_gemm_inputs(a, b, a.graph());
 
     // Compute output specification
-    TensorSpec output_spec = compute_gemm_output_spec(
-        a.spec(), b.spec(), trans_a, trans_b, ndim, batch_ndim
+    std::vector<Index> output_shape = compute_gemm_output_shape(
+        a, b, trans_a, trans_b, ndim, batch_ndim
     );
 
     // Create output tensor
-    LogicalGraph::TensorNode& output = a.graph().tensor(output_spec, output_name);
+    LogicalGraph::TensorNode& output = a.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        a.dtype());
 
     // Create operation attributes (beta = 0 for new output)
     OpAttrs attrs = GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim};
@@ -248,11 +252,11 @@ void gemm(
     }
 
     // Compute expected output shape and validate against c
-    TensorSpec expected_spec = compute_gemm_output_spec(
-        a.spec(), b.spec(), trans_a, trans_b, ndim, batch_ndim
+    std::vector<Index> expected_shape = compute_gemm_output_shape(
+        a, b, trans_a, trans_b, ndim, batch_ndim
     );
 
-    if(c.shape() != expected_spec.shape())
+    if(c.shape() != expected_shape)
     {
         throw std::invalid_argument(
             "gemm: tensor c has incompatible shape for accumulation");

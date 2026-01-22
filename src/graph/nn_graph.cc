@@ -50,7 +50,16 @@ std::string NNGraphTensorNode::to_string() const
     {
         ss << ", grad=null";
     }
-    ss << ", " << spec().to_string() << ")";
+    ss << ", shape=[";
+    for(size_t i = 0; i < shape().size(); ++i)
+    {
+        if(i > 0)
+        {
+            ss << ", ";
+        }
+        ss << shape()[i];
+    }
+    ss << "], dtype=" << dtype_to_string(dtype()) << ")";
     return ss.str();
 }
 
@@ -61,8 +70,9 @@ NNGraph::NNGraph(const std::string& name)
 }
 
 NNGraphTensorNode& NNGraph::tensor(
-    const TensorSpec& spec,
+    std::vector<Index> shape,
     const std::string& name,
+    DataType dtype,
     bool requires_grad)
 {
     if(tensor_by_name_.count(name) > 0)
@@ -71,7 +81,7 @@ NNGraphTensorNode& NNGraph::tensor(
             "' already exists");
     }
 
-    LogicalGraph::TensorNode& data = logical_.tensor(spec, name);
+    LogicalGraph::TensorNode& data = logical_.tensor(std::move(shape), name, dtype);
     auto node = std::make_unique<NNGraphTensorNode>(&data, requires_grad);
     NNGraphTensorNode* node_ptr = node.get();
 
@@ -85,7 +95,8 @@ void NNGraph::add_op(
     OpType type,
     OpAttrs attrs,
     const std::vector<NNGraphTensorNode*>& inputs,
-    const std::vector<NNGraphTensorNode*>& outputs)
+    const std::vector<NNGraphTensorNode*>& outputs,
+    const std::string& name)
 {
     std::vector<LogicalGraph::TensorNode*> input_nodes;
     std::vector<LogicalGraph::TensorNode*> output_nodes;
@@ -111,16 +122,17 @@ void NNGraph::add_op(
         output_nodes.push_back(output->data_ptr());
     }
 
-    logical_.add_op(type, std::move(attrs), input_nodes, output_nodes);
+    logical_.add_op(type, std::move(attrs), input_nodes, output_nodes, name);
 }
 
 void NNGraph::add_op(
     OpType type,
     OpAttrs attrs,
     const std::vector<LogicalGraph::TensorNode*>& inputs,
-    const std::vector<LogicalGraph::TensorNode*>& outputs)
+    const std::vector<LogicalGraph::TensorNode*>& outputs,
+    const std::string& name)
 {
-    logical_.add_op(type, std::move(attrs), inputs, outputs);
+    logical_.add_op(type, std::move(attrs), inputs, outputs, name);
 }
 
 bool NNGraph::can_remove_tensor(const NNGraphTensorNode* tensor) const
@@ -231,8 +243,9 @@ LogicalGraph::TensorNode& NNGraph::get_or_create_grad(
     }
 
     LogicalGraph::TensorNode& grad_tensor = logical_.tensor(
-        tensor.spec(),
-        grad_name);
+        tensor.shape(),
+        grad_name,
+        tensor.dtype());
     tensor.set_grad(&grad_tensor);
     tensor.set_requires_grad(true);
     return grad_tensor;

@@ -26,7 +26,6 @@
 // Include other NNTile headers
 #include "nntile/base_types.hh"
 #include "nntile/constants.hh"
-#include "nntile/graph/tensor_spec.hh"
 #include "nntile/graph/compiled/gemm.hh"
 #include "nntile/graph/compiled/gelu.hh"
 #include "nntile/graph/compiled/gelu_backward.hh"
@@ -42,7 +41,7 @@ void validate_operation_data_types(const LogicalGraph& logical)
     {
         // Get the data type from the first input tensor
         const auto* first_input = op->inputs()[0];
-        DataType dtype = first_input->spec().dtype();
+        DataType dtype = first_input->dtype();
 
         // Check supported data types based on operation type
         if(op->type() == OpType::GELU || op->type() == OpType::GELU_BACKWARD || op->type() == OpType::GEMM)
@@ -105,14 +104,14 @@ void CompiledGraph::allocate_tensors(const LogicalGraph& logical)
 {
     for(const auto& node : logical.tensors())
     {
-        const auto& spec = node->spec();
-        tensor_dtypes_[node->name()] = spec.dtype();
+        DataType dtype = node->dtype();
+        tensor_dtypes_[node->name()] = dtype;
 
         // Create tensor with single tile (no tiling)
-        std::vector<Index> shape = spec.shape();
+        std::vector<Index> shape = node->shape();
         std::vector<Index> tile_shape = shape;  // Same as shape = 1 tile
 
-        switch(spec.dtype())
+        switch(dtype)
         {
             case DataType::FP32:
             {

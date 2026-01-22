@@ -15,6 +15,7 @@
 #pragma once
 
 // Include standard headers
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -26,13 +27,30 @@
 
 // Include other NNTile headers
 #include <nntile/base_types.hh>
-#include <nntile/graph/tensor_spec.hh>
 
 namespace nntile::graph
 {
 
-//! Unique identifier for nodes
-using NodeId = uint64_t;
+//! Data types supported
+enum class DataType
+{
+    FP32,
+    FP32_FAST_TF32,
+    FP32_FAST_FP16,
+    FP32_FAST_BF16,
+    FP64,
+    FP16,
+    BF16,
+    INT64,
+    INT32,
+    BOOL
+};
+
+//! Convert DataType to string
+std::string dtype_to_string(DataType dtype);
+
+//! Get size in bytes for DataType
+size_t dtype_size(DataType dtype);
 
 //! Operation types
 enum class OpType {
@@ -91,6 +109,9 @@ using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
 class LogicalGraph
 {
 public:
+    //! Unique identifier for nodes
+    using NodeId = uint64_t;
+
     //! An operation node in the logical graph (forward declaration)
     class OpNode;
 
@@ -105,29 +126,38 @@ public:
 
     private:
         NodeId id_;
-        std::string name_;
-        TensorSpec spec_;
         LogicalGraph* graph_;
+        std::vector<Index> shape_;
+        DataType dtype_;
+        std::string name_;
+        bool is_input_ = false;
+        bool is_output_ = false;
 
         // Graph edges
         // Op that creates this tensor (nullptr if input)
         OpNode* producer_ = nullptr;
-        std::vector<OpNode*> consumers_;       // Ops that use this tensor
+        // Ops that use this tensor
+        std::vector<OpNode*> consumers_;
 
     public:
         TensorNode(
             NodeId id,
-            const std::string& name,
-            TensorSpec spec,
-            LogicalGraph* graph);
+            LogicalGraph* graph,
+            std::vector<Index> shape,
+            DataType dtype,
+            const std::string& name = ""
+        );
 
         // Accessors
         NodeId id() const { return id_; }
         const std::string& name() const { return name_; }
-        const TensorSpec& spec() const { return spec_; }
-        DataType dtype() const { return spec_.dtype(); }
-        const std::vector<Index>& shape() const { return spec_.shape(); }
-        Index ndim() const { return spec_.ndim(); }
+        DataType dtype() const { return dtype_; }
+        const std::vector<Index>& shape() const { return shape_; }
+        Index ndim() const { return static_cast<Index>(shape_.size()); }
+        Index dim(int idx) const;
+        Index nelems() const;
+        size_t size_bytes() const;
+        bool is_compatible(const TensorNode& other) const;
 
         // Graph access
         LogicalGraph& graph() { return *graph_; }
@@ -137,6 +167,10 @@ public:
         bool has_producer() const { return producer_ != nullptr; }
         OpNode* producer() const { return producer_; }
         const std::vector<OpNode*>& consumers() const { return consumers_; }
+        bool is_input() const { return is_input_; }
+        bool is_output() const { return is_output_; }
+        void mark_input(bool is_input = true) { is_input_ = is_input; }
+        void mark_output(bool is_output = true) { is_output_ = is_output; }
 
         // String representation
         std::string to_string() const;
@@ -149,26 +183,36 @@ public:
         void clear_producer() { producer_ = nullptr; }
     };
 
-    //! An operation node in the logical graph
+    //! An operation node in the logical graph (implementation)
     class OpNode
     {
         friend class LogicalGraph;
 
     private:
         NodeId id_;
+        LogicalGraph* graph_;
         OpType type_;
         OpAttrs attrs_;
-        LogicalGraph* graph_;
+        std::string name_;
 
         // Graph edges
         std::vector<TensorNode*> inputs_;
         std::vector<TensorNode*> outputs_;
 
     public:
-        OpNode(NodeId id, OpType type, OpAttrs attrs, LogicalGraph* graph);
+        OpNode(
+            NodeId id,
+            LogicalGraph* graph,
+            OpType type,
+            OpAttrs attrs,
+            const std::vector<TensorNode*>& inputs,
+            const std::vector<TensorNode*>& outputs,
+            const std::string& name = ""
+        );
 
         // Accessors
         NodeId id() const { return id_; }
+        const std::string& name() const { return name_; }
         OpType type() const { return type_; }
         const OpAttrs& attrs() const { return attrs_; }
 
@@ -222,7 +266,10 @@ public:
     // -----------------------------------------------------------------
 
     //! Create an input tensor (not produced by any operation)
-    TensorNode& tensor(const TensorSpec& spec, const std::string& name);
+    TensorNode& tensor(
+        std::vector<Index> shape,
+        const std::string& name,
+        DataType dtype = DataType::FP32);
 
     // -----------------------------------------------------------------
     // Operation Builder API (used by free functions to add operations)
@@ -238,7 +285,8 @@ public:
         OpType type,
         OpAttrs attrs,
         const std::vector<TensorNode*>& inputs,
-        const std::vector<TensorNode*>& outputs
+        const std::vector<TensorNode*>& outputs,
+        const std::string& name = ""
     );
 
     // -----------------------------------------------------------------

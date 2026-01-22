@@ -16,6 +16,7 @@
 #include "nntile/graph/logical/gelu.hh"
 
 // Include standard headers
+#include <utility>
 
 // Include third-party headers
 
@@ -31,10 +32,13 @@ LogicalGraph::TensorNode& gelu(
     const std::string& output_name)
 {
     // Output shape = input shape
-    TensorSpec output_spec = TensorSpec(x.shape(), x.dtype());
+    std::vector<Index> output_shape = x.shape();
 
     // Create output tensor
-    LogicalGraph::TensorNode& output = x.graph().tensor(output_spec, output_name);
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
 
     // Create operation attributes
     OpAttrs attrs = GeluAttrs{};

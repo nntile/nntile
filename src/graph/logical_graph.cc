@@ -17,6 +17,8 @@
 
 // Include standard headers
 #include <algorithm>
+#include <functional>
+#include <numeric>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
@@ -27,6 +29,64 @@
 
 namespace nntile::graph
 {
+
+//! Convert DataType to string
+std::string dtype_to_string(DataType dtype)
+{
+    switch(dtype)
+    {
+        case DataType::FP32:
+            return "FP32";
+        case DataType::FP32_FAST_TF32:
+            return "FP32_FAST_TF32";
+        case DataType::FP32_FAST_FP16:
+            return "FP32_FAST_FP16";
+        case DataType::FP32_FAST_BF16:
+            return "FP32_FAST_BF16";
+        case DataType::FP64:
+            return "FP64";
+        case DataType::FP16:
+            return "FP16";
+        case DataType::BF16:
+            return "BF16";
+        case DataType::INT64:
+            return "INT64";
+        case DataType::INT32:
+            return "INT32";
+        case DataType::BOOL:
+            return "BOOL";
+        default:
+            throw std::invalid_argument("Unknown DataType");
+    }
+}
+
+//! Get size in bytes for DataType
+size_t dtype_size(DataType dtype)
+{
+    switch(dtype)
+    {
+        // 1 byte
+        case DataType::BOOL:
+            return 1;
+        // 2 bytes
+        case DataType::FP16:
+        case DataType::BF16:
+            return 2;
+        // 4 bytes
+        case DataType::FP32:
+        case DataType::FP32_FAST_TF32:
+        case DataType::FP32_FAST_FP16:
+        case DataType::FP32_FAST_BF16:
+        case DataType::INT32:
+            return 4;
+        // 8 bytes
+        case DataType::FP64:
+        case DataType::INT64:
+            return 8;
+        default:
+            throw std::invalid_argument("Unknown DataType");
+    }
+}
 
 //! Convert OpType to string
 std::string op_type_to_string(OpType type)
@@ -51,21 +111,75 @@ std::string op_type_to_string(OpType type)
 //! A tensor node in the logical graph
 LogicalGraph::TensorNode::TensorNode(
     NodeId id,
-    const std::string& name,
-    TensorSpec spec,
-    LogicalGraph* graph)
+    LogicalGraph* graph,
+    std::vector<Index> shape,
+    DataType dtype,
+    const std::string& name
+)
     : id_(id)
-    , name_(name)
-    , spec_(std::move(spec))
     , graph_(graph)
+    , shape_(std::move(shape))
+    , dtype_(dtype)
+    , name_(name)
 {
+    for(Index dim : shape_)
+    {
+        if(dim <= 0)
+        {
+            throw std::invalid_argument(
+                "TensorNode: all dimensions must be positive");
+        }
+    }
+}
+
+//! Get dimension at index (supports negative indexing)
+Index LogicalGraph::TensorNode::dim(int idx) const
+{
+    if(idx < 0)
+    {
+        idx += static_cast<int>(shape_.size());
+    }
+    if(idx < 0 || static_cast<size_t>(idx) >= shape_.size())
+    {
+        throw std::out_of_range("TensorNode::dim: index out of range");
+    }
+    return shape_[static_cast<size_t>(idx)];
+}
+
+//! Total number of elements
+Index LogicalGraph::TensorNode::nelems() const
+{
+    return std::accumulate(shape_.begin(), shape_.end(), Index(1),
+        std::multiplies<Index>());
+}
+
+//! Total size in bytes
+size_t LogicalGraph::TensorNode::size_bytes() const
+{
+    return static_cast<size_t>(nelems()) * dtype_size(dtype_);
+}
+
+//! Check if tensor specs are compatible for operations
+bool LogicalGraph::TensorNode::is_compatible(const TensorNode& other) const
+{
+    return dtype_ == other.dtype_;
 }
 
 //! String representation
 std::string LogicalGraph::TensorNode::to_string() const
 {
-    return "LogicalGraph::TensorNode(id=" + std::to_string(id_) + ", name='" +
-        name_ + "', " + spec_.to_string() + ")";
+    std::string result = "LogicalGraph::TensorNode(id=" +
+        std::to_string(id_) + ", name='" + name_ + "', shape=[";
+    for(size_t i = 0; i < shape_.size(); ++i)
+    {
+        if(i > 0)
+        {
+            result += ", ";
+        }
+        result += std::to_string(shape_[i]);
+    }
+    result += "], dtype=" + dtype_to_string(dtype_) + ")";
+    return result;
 }
 
 //! Remove a consumer from this tensor's consumer list
@@ -81,21 +195,39 @@ void LogicalGraph::TensorNode::remove_consumer(OpNode* op)
 //! An operation node in the logical graph
 LogicalGraph::OpNode::OpNode(
     NodeId id,
+    LogicalGraph* graph,
     OpType type,
     OpAttrs attrs,
-    LogicalGraph* graph)
+    const std::vector<TensorNode*>& inputs,
+    const std::vector<TensorNode*>& outputs,
+    const std::string& name
+)
     : id_(id)
+    , graph_(graph)
     , type_(type)
     , attrs_(std::move(attrs))
-    , graph_(graph)
+    , name_(name)
 {
+    for(auto* input : inputs)
+    {
+        add_input(input);
+    }
+    for(auto* output : outputs)
+    {
+        add_output(output);
+    }
 }
 
 //! String representation
 std::string LogicalGraph::OpNode::to_string() const
 {
     std::string result = op_type_to_string(type_) + "(id=" +
-        std::to_string(id_) + ", inputs=[";
+        std::to_string(id_);
+    if(!name_.empty())
+    {
+        result += ", name='" + name_ + "'";
+    }
+    result += ", inputs=[";
     for(size_t i = 0; i < inputs_.size(); ++i)
     {
         if(i > 0)
@@ -138,8 +270,10 @@ LogicalGraph::LogicalGraph(const std::string& name)
 
 //! Create an input tensor (not produced by any operation)
 LogicalGraph::TensorNode& LogicalGraph::tensor(
-    const TensorSpec& spec,
-    const std::string& name)
+    std::vector<Index> shape,
+    const std::string& name,
+    DataType dtype
+)
 {
     // Check name doesn't already exist
     if(tensor_by_name_.count(name) > 0)
@@ -151,9 +285,10 @@ LogicalGraph::TensorNode& LogicalGraph::tensor(
     // Create TensorNode with unique ID
     auto node = std::make_unique<TensorNode>(
         next_tensor_id_,
-        name,
-        spec,
-        this
+        this,
+        std::move(shape),
+        dtype,
+        name
     );
     ++next_tensor_id_;
     TensorNode* node_ptr = node.get();
@@ -170,7 +305,8 @@ void LogicalGraph::add_op(
     OpType type,
     OpAttrs attrs,
     const std::vector<TensorNode*>& inputs,
-    const std::vector<TensorNode*>& outputs)
+    const std::vector<TensorNode*>& outputs,
+    const std::string& name)
 {
     // Validate all inputs belong to this graph
     for(const auto* input : inputs)
@@ -197,24 +333,15 @@ void LogicalGraph::add_op(
     // Create OpNode
     auto op = std::make_unique<OpNode>(
         next_op_id_,
+        this,
         type,
         attrs,
-        this
+        inputs,
+        outputs,
+        name
     );
     ++next_op_id_;
     OpNode* op_ptr = op.get();
-
-    // Wire up inputs
-    for(auto* input : inputs)
-    {
-        op_ptr->add_input(input);
-    }
-
-    // Wire up outputs
-    for(auto* output : outputs)
-    {
-        op_ptr->add_output(output);
-    }
 
     // Store operation
     ops_.push_back(std::move(op));
