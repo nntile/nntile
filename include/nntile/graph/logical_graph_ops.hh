@@ -36,6 +36,62 @@ LogicalGraph::TensorNode& gelu(
     const std::string& output_name
 );
 
+//! GeLU in-place: x = gelu(x)
+//! @param x Input/output tensor (modified in-place)
+void gelu_inplace(LogicalGraph::TensorNode& x);
+
+//! GeLU tanh activation: y = gelu_tanh(x)
+//! @param x Input tensor
+//! @param output_name Name for the output tensor
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& gelutanh(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name
+);
+
+//! GeLU tanh in-place: x = gelu_tanh(x)
+//! @param x Input/output tensor (modified in-place)
+void gelutanh_inplace(LogicalGraph::TensorNode& x);
+
+//! ReLU activation: y = relu(x)
+//! @param x Input tensor
+//! @param output_name Name for the output tensor
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& relu(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name
+);
+
+//! ReLU in-place: x = relu(x)
+//! @param x Input/output tensor (modified in-place)
+void relu_inplace(LogicalGraph::TensorNode& x);
+
+//! SiLU activation: y = silu(x)
+//! @param x Input tensor
+//! @param output_name Name for the output tensor
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& silu(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name
+);
+
+//! SiLU in-place: x = silu(x)
+//! @param x Input/output tensor (modified in-place)
+void silu_inplace(LogicalGraph::TensorNode& x);
+
+//! Sqrt activation: y = sqrt(x)
+//! @param x Input tensor
+//! @param output_name Name for the output tensor
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& sqrt(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name
+);
+
+//! Sqrt in-place: x = sqrt(x)
+//! @param x Input/output tensor (modified in-place)
+void sqrt_inplace(LogicalGraph::TensorNode& x);
+
 //! GeLU backward: dx += gelu_backward(x, dy)
 //! @param x Input tensor (forward pass activation)
 //! @param dy Gradient of output (upstream gradient)
@@ -44,6 +100,156 @@ void gelu_backward(
     LogicalGraph::TensorNode& x,
     LogicalGraph::TensorNode& dy,
     LogicalGraph::TensorNode& dx
+);
+
+//! GeLU tanh backward: dx += gelu_tanh_backward(x, dy)
+//! @param x Input tensor (forward pass activation)
+//! @param dy Gradient of output (upstream gradient)
+//! @param dx Gradient tensor to accumulate into (gradient of input)
+void gelutanh_backward(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& dy,
+    LogicalGraph::TensorNode& dx
+);
+
+//! ReLU backward: dx += relu_backward(x, dy)
+//! @param x Input tensor (forward pass activation)
+//! @param dy Gradient of output (upstream gradient)
+//! @param dx Gradient tensor to accumulate into (gradient of input)
+void relu_backward(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& dy,
+    LogicalGraph::TensorNode& dx
+);
+
+//! SiLU backward: dx += silu_backward(x, dy)
+//! @param x Input tensor (forward pass activation)
+//! @param dy Gradient of output (upstream gradient)
+//! @param dx Gradient tensor to accumulate into (gradient of input)
+void silu_backward(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& dy,
+    LogicalGraph::TensorNode& dx
+);
+
+//! Add operation: z = alpha * x + beta * y
+//! @param x First input tensor
+//! @param y Second input tensor
+//! @param output_name Name for the output tensor
+//! @param alpha Scaling factor for x (default: 1.0)
+//! @param beta Scaling factor for y (default: 1.0)
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& add(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    const std::string& output_name,
+    Scalar alpha = 1.0,
+    Scalar beta = 1.0
+);
+
+//! Add in-place: y = alpha * x + beta * y
+//! @param x First input tensor
+//! @param y Second input/output tensor (modified in-place)
+//! @param alpha Scaling factor for x (default: 1.0)
+//! @param beta Scaling factor for y (default: 1.0)
+void add_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha = 1.0,
+    Scalar beta = 1.0
+);
+
+//! Multiply operation: z = x * y
+//! @param x First input tensor
+//! @param y Second input tensor
+//! @param output_name Name for the output tensor
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& multiply(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    const std::string& output_name
+);
+
+//! Multiply in-place: y = x * y
+//! @param x First input tensor
+//! @param y Second input/output tensor (modified in-place)
+void multiply_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y
+);
+
+//! Total sum of all elements: y = alpha * sum(x) + beta * y
+//! @param x Input tensor
+//! @param y Output tensor to accumulate into
+//! @param alpha Scaling factor for sum (default: 1.0)
+//! @param beta Scaling factor for existing y (default: 0.0)
+void sum(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha = 1.0,
+    Scalar beta = 0.0
+);
+
+//! Sum along fibers: y = alpha * sum_fiber(x) + beta * y
+//! @param x Input tensor
+//! @param y Output tensor to accumulate into
+//! @param axis Axis along which to sum (default: 0)
+//! @param batch_ndim Number of trailing batch dimensions (default: 0)
+//! @param redux Whether to use reduction (default: 0)
+//! @param alpha Scaling factor for sum (default: 1.0)
+//! @param beta Scaling factor for existing y (default: 0.0)
+void sum_fiber(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis = 0,
+    Index batch_ndim = 0,
+    int redux = 0,
+    Scalar alpha = 1.0,
+    Scalar beta = 0.0
+);
+
+//! Scale operation: y = alpha * x
+//! @param x Input tensor
+//! @param output_name Name for the output tensor
+//! @param alpha Scaling factor (default: 1.0)
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& scale(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name,
+    Scalar alpha = 1.0
+);
+
+//! Scale in-place: x = alpha * x
+//! @param x Input/output tensor (modified in-place)
+//! @param alpha Scaling factor (default: 1.0)
+void scale_inplace(
+    LogicalGraph::TensorNode& x,
+    Scalar alpha = 1.0
+);
+
+//! Embedding lookup: y = embedding(x, vocab)
+//! @param index Index tensor (int64_t)
+//! @param vocab Vocabulary tensor (float type)
+//! @param output_name Name for the output tensor
+//! @param axis Axis along which to perform embedding (default: 0)
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& embedding(
+    LogicalGraph::TensorNode& index,
+    LogicalGraph::TensorNode& vocab,
+    const std::string& output_name,
+    Index axis = 0
+);
+
+//! Embedding backward: vocab += embedding_backward(embed, index, vocab)
+//! @param embed Embedding tensor (forward pass output)
+//! @param index Index tensor (int64_t)
+//! @param vocab Vocabulary tensor (modified in-place)
+//! @param axis Axis along which to perform embedding (default: 0)
+void embedding_backward(
+    LogicalGraph::TensorNode& embed,
+    LogicalGraph::TensorNode& index,
+    LogicalGraph::TensorNode& vocab,
+    Index axis = 0
 );
 
 //! Tensor contraction creating new output: C = alpha * op(A) @ op(B)

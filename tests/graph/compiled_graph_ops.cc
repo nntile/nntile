@@ -155,3 +155,42 @@ TEST_CASE_METHOD(
         REQUIRE(out[i] == Catch::Approx(expected).epsilon(1e-3f));
     }
 }
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph Add",
+    "[graph]")
+{
+    LogicalGraph g("test");
+
+    auto& x = g.tensor({4}, "x", DataType::FP32);
+    auto& y = g.tensor({4}, "y", DataType::FP32);
+    auto& z = add(x, y, "z", 2.0f, 3.0f);
+
+    auto compiled = CompiledGraph::compile(g);
+
+    std::vector<float> x_data = {1.0f, 2.0f, 3.0f, 4.0f};
+    std::vector<float> y_data = {0.5f, 1.5f, 2.5f, 3.5f};
+
+    compiled.bind_data("x", x_data);
+    compiled.bind_data("y", y_data);
+
+    compiled.execute();
+    compiled.wait();
+
+    auto out = compiled.get_output<float>("z");
+    REQUIRE(out.size() == 4);
+
+    // z = 2.0 * x + 3.0 * y
+    const std::vector<float> expected = {
+        2.0f * 1.0f + 3.0f * 0.5f,  // 2.0 + 1.5 = 3.5
+        2.0f * 2.0f + 3.0f * 1.5f,  // 4.0 + 4.5 = 8.5
+        2.0f * 3.0f + 3.0f * 2.5f,  // 6.0 + 7.5 = 13.5
+        2.0f * 4.0f + 3.0f * 3.5f   // 8.0 + 10.5 = 18.5
+    };
+
+    for(size_t i = 0; i < out.size(); ++i)
+    {
+        REQUIRE(out[i] == Catch::Approx(expected[i]));
+    }
+}

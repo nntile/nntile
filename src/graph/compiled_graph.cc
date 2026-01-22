@@ -53,7 +53,19 @@ void validate_operation_data_types(const LogicalGraph& logical)
         }
 
         // Check supported data types based on operation type
-        if(op->type() == OpType::GELU || op->type() == OpType::GELU_BACKWARD || op->type() == OpType::GEMM)
+        if(op->type() == OpType::GELU || op->type() == OpType::GELU_BACKWARD ||
+           op->type() == OpType::GELU_INPLACE || op->type() == OpType::GELUTANH ||
+           op->type() == OpType::GELUTANH_INPLACE || op->type() == OpType::GELUTANH_BACKWARD ||
+           op->type() == OpType::RELU || op->type() == OpType::RELU_INPLACE ||
+           op->type() == OpType::RELU_BACKWARD || op->type() == OpType::SILU ||
+           op->type() == OpType::SILU_INPLACE || op->type() == OpType::SILU_BACKWARD ||
+           op->type() == OpType::SQRT || op->type() == OpType::SQRT_INPLACE ||
+           op->type() == OpType::ADD || op->type() == OpType::ADD_INPLACE ||
+           op->type() == OpType::MULTIPLY || op->type() == OpType::MULTIPLY_INPLACE ||
+           op->type() == OpType::SUM || op->type() == OpType::SUM_FIBER ||
+           op->type() == OpType::SCALE || op->type() == OpType::SCALE_INPLACE ||
+           op->type() == OpType::EMBEDDING || op->type() == OpType::EMBEDDING_BACKWARD ||
+           op->type() == OpType::GEMM)
         {
             // These operations support floating point types only
             if(dtype != DataType::FP32 &&
@@ -77,6 +89,18 @@ void validate_operation_data_types(const LogicalGraph& logical)
                 throw std::runtime_error(
                     "CLEAR operation does not support data type " +
                     dtype_to_string(dtype));
+            }
+        }
+        // Special case for embedding: index tensor should be INT64
+        else if(op->type() == OpType::EMBEDDING || op->type() == OpType::EMBEDDING_BACKWARD)
+        {
+            // For embedding operations, check the index tensor (first input)
+            if(!op->inputs().empty() && op->inputs()[0]->dtype() != DataType::INT64)
+            {
+                throw std::runtime_error(
+                    std::string(op_type_to_string(op->type())) +
+                    " operation requires INT64 index tensor, got " +
+                    dtype_to_string(op->inputs()[0]->dtype()));
             }
         }
         // Add validation for other operations here as they are added
@@ -260,6 +284,83 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
         case OpType::CLEAR:
             execute_clear(*this, op_info);
             break;
+
+        // Element-wise unary operations
+        case OpType::GELU_INPLACE:
+            execute_gelu_inplace(*this, op_info);
+            break;
+        case OpType::GELUTANH:
+            execute_gelutanh(*this, op_info);
+            break;
+        case OpType::GELUTANH_INPLACE:
+            execute_gelutanh_inplace(*this, op_info);
+            break;
+        case OpType::GELUTANH_BACKWARD:
+            execute_gelutanh_backward(*this, op_info);
+            break;
+        case OpType::RELU:
+            execute_relu(*this, op_info);
+            break;
+        case OpType::RELU_INPLACE:
+            execute_relu_inplace(*this, op_info);
+            break;
+        case OpType::RELU_BACKWARD:
+            execute_relu_backward(*this, op_info);
+            break;
+        case OpType::SILU:
+            execute_silu(*this, op_info);
+            break;
+        case OpType::SILU_INPLACE:
+            execute_silu_inplace(*this, op_info);
+            break;
+        case OpType::SILU_BACKWARD:
+            execute_silu_backward(*this, op_info);
+            break;
+        case OpType::SQRT:
+            execute_sqrt(*this, op_info);
+            break;
+        case OpType::SQRT_INPLACE:
+            execute_sqrt_inplace(*this, op_info);
+            break;
+
+        // Binary operations
+        case OpType::ADD:
+            execute_add(*this, op_info);
+            break;
+        case OpType::ADD_INPLACE:
+            execute_add_inplace(*this, op_info);
+            break;
+        case OpType::MULTIPLY:
+            execute_multiply(*this, op_info);
+            break;
+        case OpType::MULTIPLY_INPLACE:
+            execute_multiply_inplace(*this, op_info);
+            break;
+
+        // Reduction operations
+        case OpType::SUM:
+            execute_sum(*this, op_info);
+            break;
+        case OpType::SUM_FIBER:
+            execute_sum_fiber(*this, op_info);
+            break;
+
+        // Scale operations
+        case OpType::SCALE:
+            execute_scale(*this, op_info);
+            break;
+        case OpType::SCALE_INPLACE:
+            execute_scale_inplace(*this, op_info);
+            break;
+
+        // Embedding operations
+        case OpType::EMBEDDING:
+            execute_embedding(*this, op_info);
+            break;
+        case OpType::EMBEDDING_BACKWARD:
+            execute_embedding_backward(*this, op_info);
+            break;
+
         default:
             throw std::runtime_error(
                 "Unsupported operation type in execute_op: " +

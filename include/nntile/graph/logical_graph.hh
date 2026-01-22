@@ -15,6 +15,7 @@
 #pragma once
 
 // Include standard headers
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <map>
@@ -54,13 +55,101 @@ size_t dtype_size(DataType dtype);
 
 //! Operation types
 enum class OpType {
+    // Existing operations
     GEMM,
     GELU,
     GELU_BACKWARD,
-    ADD_FIBER,       // Broadcast-add a fiber (1D) tensor along last dimension
-    SUM_FIBER,       // Sum along all but last dimension (reverse of ADD_FIBER)
-    CLEAR            // Overwrite output tensor with zeros
-    // Add more as needed
+    ADD_FIBER,
+    SUM_FIBER,
+    CLEAR,
+
+    // Element-wise unary operations
+    GELU_INPLACE,
+    GELUTANH,
+    GELUTANH_INPLACE,
+    GELUTANH_BACKWARD,
+    RELU,
+    RELU_INPLACE,
+    RELU_BACKWARD,
+    SILU,
+    SILU_INPLACE,
+    SILU_BACKWARD,
+    SQRT,
+    SQRT_INPLACE,
+    HYPOT,
+    HYPOT_INPLACE,
+
+    // Element-wise binary operations
+    ADD,
+    ADD_INPLACE,
+    MULTIPLY,
+    MULTIPLY_INPLACE,
+    HYPOT_SCALAR_INVERSE,
+
+    // Reduction operations
+    SUM,
+    SUM_SLICE,
+    NORM,
+    NORM_FIBER,
+    NORM_FIBER_INPLACE,
+    NORM_SLICE,
+    NORM_SLICE_INPLACE,
+    LOGSUMEXP,
+    MAXSUMEXP,
+    SUMPROD_FIBER,
+    SUMPROD_SLICE,
+
+    // Scale operations
+    SCALE,
+    SCALE_INPLACE,
+    SCALE_FIBER,
+    SCALE_SLICE,
+
+    // Add operations
+    ADD_FIBER_INPLACE,
+    ADD_SLICE,
+    ADD_SLICE_INPLACE,
+
+    // Matrix operations
+    TRANSPOSE,
+
+    // Convolution operations
+    CONV2D_INPLACE,
+    CONV2D_BWD_INPUT_INPLACE,
+    CONV2D_BWD_WEIGHT_INPLACE,
+
+    // Embedding operations
+    EMBEDDING,
+    EMBEDDING_BACKWARD,
+
+    // Mixed-dtype operations
+    MASK_SCALAR,
+    TOTAL_SUM_ACCUM,
+
+    // Optimizer operations
+    SGD_STEP,
+    ADAM_STEP,
+    ADAMW_STEP,
+
+    // Utility operations
+    COPY,
+    COPY_INTERSECTION,
+    GATHER,
+    SCATTER,
+    FILL,
+    POW,
+    LOG_SCALAR,
+
+    // Random operations
+    RANDN,
+
+    // Flash attention (CUDA-only)
+    FLASH_SDPA_FWD_CUDNN,
+    FLASH_SDPA_BWD_CUDNN,
+
+    // Rotary position embedding
+    ROPE,
+    ROPE_BACKWARD
 };
 
 //! Convert OpType to string
@@ -108,8 +197,124 @@ struct ClearAttrs
     // No attributes for clear
 };
 
+// Element-wise binary operations (alpha, beta scaling)
+struct BinaryOpAttrs
+{
+    Scalar alpha = 1.0;
+    Scalar beta = 0.0;
+};
+
+// Reduction operations (alpha, beta, axis, batch_ndim, redux)
+struct ReductionAttrs
+{
+    Scalar alpha = 1.0;
+    Scalar beta = 0.0;
+    Index axis = 0;
+    Index batch_ndim = 0;
+    int redux = 0;
+};
+
+// Total sum operation (alpha, beta)
+struct TotalSumAttrs
+{
+    Scalar alpha = 1.0;
+    Scalar beta = 0.0;
+};
+
+// Logsumexp/maxsumexp operations (alpha, beta, axis)
+struct LogSumExpAttrs
+{
+    Scalar alpha = 1.0;
+    Scalar beta = 0.0;
+    Index axis = 0;
+};
+
+// Scale operations (alpha scaling)
+struct ScaleAttrs
+{
+    Scalar alpha = 1.0;
+};
+
+// Convolution operations (padding, stride, dilation)
+struct Conv2dAttrs
+{
+    Scalar alpha = 1.0;
+    Scalar beta = 0.0;
+    std::array<Index, 2> padding = {0, 0};
+    std::array<Index, 2> stride = {1, 1};
+    std::array<Index, 2> dilation = {1, 1};
+};
+
+// Embedding operations (axis)
+struct EmbeddingAttrs
+{
+    Index axis = 0;
+};
+
+// Mask scalar operation (val, batch_ndim)
+struct MaskScalarAttrs
+{
+    Scalar val = 0.0;
+    Index batch_ndim = 0;
+};
+
+// Total sum accumulation (alpha, ignore_index)
+struct TotalSumAccumAttrs
+{
+    Scalar alpha = 1.0;
+    Index ignore_index = -1;
+};
+
+// Optimizer operations (various parameters)
+struct SgdStepAttrs
+{
+    Index num_iter = 0;
+    Scalar momentum = 0.0;
+    Scalar lr = 0.01;
+    Scalar weight_decay = 0.0;
+    Scalar dampening = 0.0;
+    bool nesterov = false;
+};
+
+struct AdamStepAttrs
+{
+    Index num_iter = 0;
+    Scalar beta_1 = 0.9;
+    Scalar beta_2 = 0.999;
+    Scalar eps = 1e-8;
+    Scalar lr = 0.001;
+    Scalar weight_decay = 0.0;
+};
+
+// Random number generation (start, underlying_shape, seed, mean, stddev)
+struct RandnAttrs
+{
+    std::vector<Index> start;
+    std::vector<Index> underlying_shape;
+    unsigned long long seed = 0;
+    Scalar mean = 0.0;
+    Scalar stddev = 1.0;
+};
+
+// Power operation (exponent)
+struct PowAttrs
+{
+    Scalar exponent = 1.0;
+};
+
+// Log scalar operation (base)
+struct LogScalarAttrs
+{
+    Scalar base = 1.0;  // Natural log if 1.0
+};
+
 using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
-                             AddFiberAttrs, SumFiberAttrs, ClearAttrs>;
+                             AddFiberAttrs, SumFiberAttrs, ClearAttrs,
+                             BinaryOpAttrs, ReductionAttrs, TotalSumAttrs,
+                             LogSumExpAttrs, ScaleAttrs, Conv2dAttrs,
+                             EmbeddingAttrs, MaskScalarAttrs, TotalSumAccumAttrs,
+                             SgdStepAttrs, AdamStepAttrs, RandnAttrs,
+                             PowAttrs, LogScalarAttrs>;
 
 //! Logical graph - defines computation without physical details
 class LogicalGraph

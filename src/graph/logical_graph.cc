@@ -104,6 +104,155 @@ std::string op_type_to_string(OpType type)
             return "SUM_FIBER";
         case OpType::CLEAR:
             return "CLEAR";
+
+        // Element-wise unary operations
+        case OpType::GELU_INPLACE:
+            return "GELU_INPLACE";
+        case OpType::GELUTANH:
+            return "GELUTANH";
+        case OpType::GELUTANH_INPLACE:
+            return "GELUTANH_INPLACE";
+        case OpType::GELUTANH_BACKWARD:
+            return "GELUTANH_BACKWARD";
+        case OpType::RELU:
+            return "RELU";
+        case OpType::RELU_INPLACE:
+            return "RELU_INPLACE";
+        case OpType::RELU_BACKWARD:
+            return "RELU_BACKWARD";
+        case OpType::SILU:
+            return "SILU";
+        case OpType::SILU_INPLACE:
+            return "SILU_INPLACE";
+        case OpType::SILU_BACKWARD:
+            return "SILU_BACKWARD";
+        case OpType::SQRT:
+            return "SQRT";
+        case OpType::SQRT_INPLACE:
+            return "SQRT_INPLACE";
+        case OpType::HYPOT:
+            return "HYPOT";
+        case OpType::HYPOT_INPLACE:
+            return "HYPOT_INPLACE";
+
+        // Element-wise binary operations
+        case OpType::ADD:
+            return "ADD";
+        case OpType::ADD_INPLACE:
+            return "ADD_INPLACE";
+        case OpType::MULTIPLY:
+            return "MULTIPLY";
+        case OpType::MULTIPLY_INPLACE:
+            return "MULTIPLY_INPLACE";
+        case OpType::HYPOT_SCALAR_INVERSE:
+            return "HYPOT_SCALAR_INVERSE";
+
+        // Reduction operations
+        case OpType::SUM:
+            return "SUM";
+        case OpType::SUM_SLICE:
+            return "SUM_SLICE";
+        case OpType::NORM:
+            return "NORM";
+        case OpType::NORM_FIBER:
+            return "NORM_FIBER";
+        case OpType::NORM_FIBER_INPLACE:
+            return "NORM_FIBER_INPLACE";
+        case OpType::NORM_SLICE:
+            return "NORM_SLICE";
+        case OpType::NORM_SLICE_INPLACE:
+            return "NORM_SLICE_INPLACE";
+        case OpType::LOGSUMEXP:
+            return "LOGSUMEXP";
+        case OpType::MAXSUMEXP:
+            return "MAXSUMEXP";
+        case OpType::SUMPROD_FIBER:
+            return "SUMPROD_FIBER";
+        case OpType::SUMPROD_SLICE:
+            return "SUMPROD_SLICE";
+
+        // Scale operations
+        case OpType::SCALE:
+            return "SCALE";
+        case OpType::SCALE_INPLACE:
+            return "SCALE_INPLACE";
+        case OpType::SCALE_FIBER:
+            return "SCALE_FIBER";
+        case OpType::SCALE_SLICE:
+            return "SCALE_SLICE";
+
+        // Add operations
+        case OpType::ADD_FIBER_INPLACE:
+            return "ADD_FIBER_INPLACE";
+        case OpType::ADD_SLICE:
+            return "ADD_SLICE";
+        case OpType::ADD_SLICE_INPLACE:
+            return "ADD_SLICE_INPLACE";
+
+        // Matrix operations
+        case OpType::TRANSPOSE:
+            return "TRANSPOSE";
+
+        // Convolution operations
+        case OpType::CONV2D_INPLACE:
+            return "CONV2D_INPLACE";
+        case OpType::CONV2D_BWD_INPUT_INPLACE:
+            return "CONV2D_BWD_INPUT_INPLACE";
+        case OpType::CONV2D_BWD_WEIGHT_INPLACE:
+            return "CONV2D_BWD_WEIGHT_INPLACE";
+
+        // Embedding operations
+        case OpType::EMBEDDING:
+            return "EMBEDDING";
+        case OpType::EMBEDDING_BACKWARD:
+            return "EMBEDDING_BACKWARD";
+
+        // Mixed-dtype operations
+        case OpType::MASK_SCALAR:
+            return "MASK_SCALAR";
+        case OpType::TOTAL_SUM_ACCUM:
+            return "TOTAL_SUM_ACCUM";
+
+        // Optimizer operations
+        case OpType::SGD_STEP:
+            return "SGD_STEP";
+        case OpType::ADAM_STEP:
+            return "ADAM_STEP";
+        case OpType::ADAMW_STEP:
+            return "ADAMW_STEP";
+
+        // Utility operations
+        case OpType::COPY:
+            return "COPY";
+        case OpType::COPY_INTERSECTION:
+            return "COPY_INTERSECTION";
+        case OpType::GATHER:
+            return "GATHER";
+        case OpType::SCATTER:
+            return "SCATTER";
+        case OpType::FILL:
+            return "FILL";
+        case OpType::POW:
+            return "POW";
+        case OpType::LOG_SCALAR:
+            return "LOG_SCALAR";
+
+        // Random operations
+        case OpType::RANDN:
+            return "RANDN";
+
+        // Flash attention (CUDA-only)
+        case OpType::FLASH_SDPA_FWD_CUDNN:
+            return "FLASH_SDPA_FWD_CUDNN";
+        case OpType::FLASH_SDPA_BWD_CUDNN:
+            return "FLASH_SDPA_BWD_CUDNN";
+
+        // Rotary position embedding
+        case OpType::ROPE:
+            return "ROPE";
+        case OpType::ROPE_BACKWARD:
+            return "ROPE_BACKWARD";
+
         default:
             throw std::invalid_argument("Unknown OpType");
     }

@@ -32,4 +32,36 @@ void execute_gelu_backward(CompiledGraph& graph, const OpExecutionInfo& op_info)
 //! Execute gemm operation on compiled graph
 void execute_gemm(CompiledGraph& graph, const OpExecutionInfo& op_info);
 
+//! Execute element-wise unary operations
+void execute_gelu_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_gelutanh(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_gelutanh_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_gelutanh_backward(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_relu(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_relu_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_relu_backward(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_silu(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_silu_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_silu_backward(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_sqrt(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_sqrt_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
+//! Execute binary operations
+void execute_add(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_add_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_multiply(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_multiply_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
+//! Execute reduction operations
+void execute_sum(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_sum_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
+//! Execute scale operations
+void execute_scale(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_scale_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
+//! Execute embedding operations
+void execute_embedding(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_embedding_backward(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
 } // namespace nntile::graph

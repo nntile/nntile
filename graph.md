@@ -45,27 +45,108 @@ src/graph/
 
 `OpType` currently includes:
 
-- `GEMM`
-- `GELU`
-- `GELU_BACKWARD`
-- `CLEAR`
-- `ADD_FIBER` (declared, no graph op implementation yet)
-- `SUM_FIBER` (declared, no graph op implementation yet)
+**Element-wise unary operations:**
+- `GELU`, `GELU_INPLACE`
+- `GELUTANH`, `GELUTANH_INPLACE`
+- `GELUTANH_BACKWARD`
+- `RELU`, `RELU_INPLACE`, `RELU_BACKWARD`
+- `SILU`, `SILU_INPLACE`, `SILU_BACKWARD`
+- `SQRT`, `SQRT_INPLACE`
+- `HYPOT`, `HYPOT_INPLACE`
 
-Only the operations listed under "Logical graph operations" are implemented as
-graph builders.
+**Element-wise binary operations:**
+- `ADD`, `ADD_INPLACE`
+- `MULTIPLY`, `MULTIPLY_INPLACE`
+- `HYPOT_SCALAR_INVERSE`
+
+**Reduction operations:**
+- `SUM` (total sum)
+- `SUM_FIBER`, `SUM_SLICE`
+- `NORM_FIBER`, `NORM_FIBER_INPLACE`, `NORM_SLICE`, `NORM_SLICE_INPLACE`
+- `LOGSUMEXP`, `MAXSUMEXP`
+- `SUMPROD_FIBER`, `SUMPROD_SLICE`
+
+**Scale operations:**
+- `SCALE`, `SCALE_INPLACE`
+- `SCALE_FIBER`, `SCALE_SLICE`
+
+**Matrix operations:**
+- `GEMM`
+- `TRANSPOSE`
+
+**Convolution operations:**
+- `CONV2D_INPLACE`, `CONV2D_BWD_INPUT_INPLACE`, `CONV2D_BWD_WEIGHT_INPLACE`
+
+**Embedding operations:**
+- `EMBEDDING`, `EMBEDDING_BACKWARD`
+
+**Mixed-dtype operations:**
+- `MASK_SCALAR`
+- `TOTAL_SUM_ACCUM`
+
+**Optimizer operations:**
+- `SGD_STEP`, `ADAM_STEP`, `ADAMW_STEP`
+
+**Utility operations:**
+- `CLEAR`
+- `COPY`, `COPY_INTERSECTION`
+- `GATHER`, `SCATTER`
+- `FILL`
+- `POW`, `LOG_SCALAR`
+- `RANDN`
+
+**Flash attention (CUDA-only):**
+- `FLASH_SDPA_FWD_CUDNN`, `FLASH_SDPA_BWD_CUDNN`
+
+**Rotary position embedding:**
+- `ROPE`, `ROPE_BACKWARD`
+
+Only a subset of these operations are currently implemented as graph builders.
+See below for the implemented operations.
 
 ## Logical graph operations
 
 Defined in `logical_graph_ops.hh/.cc` as free functions:
 
-- `clear(x)` - in-place clear; output tensor is `x`, no inputs.
-- `gelu(x, output_name)` - creates a new output tensor.
-- `gelu_backward(x, dy, dx)` - accumulates into `dx` (input and output).
+**Element-wise operations:**
+- `gelu(x, output_name)` - creates GeLU output tensor
+- `gelu_inplace(x)` - in-place GeLU
+- `gelutanh(x, output_name)` - creates GeLU tanh output tensor
+- `gelutanh_inplace(x)` - in-place GeLU tanh
+- `relu(x, output_name)` - creates ReLU output tensor
+- `relu_inplace(x)` - in-place ReLU
+- `silu(x, output_name)` - creates SiLU output tensor
+- `silu_inplace(x)` - in-place SiLU
+- `sqrt(x, output_name)` - creates sqrt output tensor
+- `sqrt_inplace(x)` - in-place sqrt
+- `*_backward(x, dy, dx)` - backward operations that accumulate gradients
+
+**Binary operations:**
+- `add(x, y, output_name, alpha=1.0, beta=1.0)` - creates z = alpha*x + beta*y
+- `add_inplace(x, y, alpha=1.0, beta=1.0)` - in-place y = alpha*x + beta*y
+- `multiply(x, y, output_name)` - creates z = x*y
+- `multiply_inplace(x, y)` - in-place y = x*y
+
+**Reduction operations:**
+- `sum(x, y, alpha=1.0, beta=0.0)` - total sum: y = alpha*sum(x) + beta*y
+- `sum_fiber(x, y, axis=0, batch_ndim=0, redux=0, alpha=1.0, beta=0.0)` - sum along fibers
+
+**Scale operations:**
+- `scale(x, output_name, alpha=1.0)` - creates y = alpha*x
+- `scale_inplace(x, alpha=1.0)` - in-place x = alpha*x
+
+**Embedding operations:**
+- `embedding(index, vocab, output_name, axis=0)` - embedding lookup
+- `embedding_backward(embed, index, vocab, axis=0)` - embedding backward
+
+**Matrix operations:**
 - `gemm(a, b, output_name, alpha, trans_a, trans_b, ndim, batch_ndim)` -
   creates a new output tensor.
 - `gemm(a, b, c, alpha, beta, trans_a, trans_b, ndim, batch_ndim)` - in-place
   accumulation into `c`.
+
+**Utility operations:**
+- `clear(x)` - in-place clear; output tensor is `x`, no inputs.
 
 GEMM shape rules (see `compute_gemm_output_shape` in
 `logical_graph_ops.cc`):
