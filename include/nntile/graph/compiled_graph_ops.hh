@@ -86,6 +86,11 @@ void execute_norm_fiber_inplace(CompiledGraph& graph, const OpExecutionInfo& op_
 void execute_norm_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_norm_slice_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
 
+//! Execute convolution operations
+void execute_conv2d_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_conv2d_bwd_input_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_conv2d_bwd_weight_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
 //! Execute utility operations
 void execute_fill(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_copy(CompiledGraph& graph, const OpExecutionInfo& op_info);

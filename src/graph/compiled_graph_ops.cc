@@ -63,6 +63,9 @@
 #include "nntile/tensor/sumprod_fiber.hh"
 #include "nntile/tensor/sumprod_slice.hh"
 #include "nntile/tensor/transpose.hh"
+#include "nntile/tensor/conv2d_bwd_input_inplace.hh"
+#include "nntile/tensor/conv2d_bwd_weight_inplace.hh"
+#include "nntile/tensor/conv2d_inplace.hh"
 
 namespace nntile::graph
 {
@@ -566,6 +569,55 @@ void run_norm_slice_inplace(CompiledGraph& graph, const ReductionAttrs& attrs,
     const auto beta = static_cast<nntile::Scalar>(attrs.beta);
 
     nntile::tensor::norm_slice_inplace<T>(alpha, x, beta, y, attrs.axis, attrs.redux);
+}
+
+// Convolution operations
+template<typename T>
+void run_conv2d_inplace(CompiledGraph& graph, const Conv2dAttrs& attrs,
+                        const std::string& x_name, const std::string& c_name,
+                        const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& c = graph.get_tensor<T>(c_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    const auto beta = static_cast<nntile::Scalar>(attrs.beta);
+
+    nntile::tensor::conv2d_inplace<T>(alpha, x, c, beta, y,
+                                     attrs.padding, attrs.stride, attrs.dilation);
+}
+
+template<typename T>
+void run_conv2d_bwd_input_inplace(CompiledGraph& graph, const Conv2dAttrs& attrs,
+                                  const std::string& dy_name, const std::string& c_name,
+                                  const std::string& dx_name)
+{
+    auto& dy = graph.get_tensor<T>(dy_name);
+    auto& c = graph.get_tensor<T>(c_name);
+    auto& dx = graph.get_tensor<T>(dx_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    const auto beta = static_cast<nntile::Scalar>(attrs.beta);
+
+    nntile::tensor::conv2d_bwd_input_inplace<T>(alpha, dy, c, beta, dx,
+                                               attrs.padding, attrs.stride, attrs.dilation);
+}
+
+template<typename T>
+void run_conv2d_bwd_weight_inplace(CompiledGraph& graph, const Conv2dAttrs& attrs,
+                                   const std::string& x_name, const std::string& dy_name,
+                                   const std::string& dc_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& dy = graph.get_tensor<T>(dy_name);
+    auto& dc = graph.get_tensor<T>(dc_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    const auto beta = static_cast<nntile::Scalar>(attrs.beta);
+
+    nntile::tensor::conv2d_bwd_weight_inplace<T>(alpha, x, dy, beta, dc,
+                                                attrs.padding, attrs.stride, attrs.dilation);
 }
 
 // Element-wise operations
@@ -2376,6 +2428,135 @@ void execute_norm_slice_inplace(CompiledGraph& graph, const OpExecutionInfo& op_
                 " data type not supported for norm_slice_inplace operation");
         default:
             throw std::runtime_error("Unsupported data type for norm_slice_inplace");
+    }
+}
+
+//! Execute conv2d_inplace operation
+void execute_conv2d_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const Conv2dAttrs& attrs = std::get<Conv2dAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& c_name = op_info.input_names[1];
+    const std::string& y_name = op_info.input_names[2];  // y is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_conv2d_inplace<nntile::fp32_t>(graph, attrs, x_name, c_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_conv2d_inplace<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, c_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_conv2d_inplace<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, c_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_conv2d_inplace<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, c_name, y_name);
+            break;
+        case DataType::FP64:
+            run_conv2d_inplace<nntile::fp64_t>(graph, attrs, x_name, c_name, y_name);
+            break;
+        case DataType::FP16:
+            run_conv2d_inplace<nntile::fp16_t>(graph, attrs, x_name, c_name, y_name);
+            break;
+        case DataType::BF16:
+            run_conv2d_inplace<nntile::bf16_t>(graph, attrs, x_name, c_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for conv2d_inplace operation");
+        default:
+            throw std::runtime_error("Unsupported data type for conv2d_inplace");
+    }
+}
+
+//! Execute conv2d_bwd_input_inplace operation
+void execute_conv2d_bwd_input_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const Conv2dAttrs& attrs = std::get<Conv2dAttrs>(op_info.attrs);
+    const std::string& dy_name = op_info.input_names[0];
+    const std::string& c_name = op_info.input_names[1];
+    const std::string& dx_name = op_info.input_names[2];  // dx is both input and output
+    DataType dtype = graph.get_dtype(dy_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_conv2d_bwd_input_inplace<nntile::fp32_t>(graph, attrs, dy_name, c_name, dx_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_conv2d_bwd_input_inplace<nntile::fp32_fast_tf32_t>(graph, attrs, dy_name, c_name, dx_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_conv2d_bwd_input_inplace<nntile::fp32_fast_fp16_t>(graph, attrs, dy_name, c_name, dx_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_conv2d_bwd_input_inplace<nntile::fp32_fast_bf16_t>(graph, attrs, dy_name, c_name, dx_name);
+            break;
+        case DataType::FP64:
+            run_conv2d_bwd_input_inplace<nntile::fp64_t>(graph, attrs, dy_name, c_name, dx_name);
+            break;
+        case DataType::FP16:
+            run_conv2d_bwd_input_inplace<nntile::fp16_t>(graph, attrs, dy_name, c_name, dx_name);
+            break;
+        case DataType::BF16:
+            run_conv2d_bwd_input_inplace<nntile::bf16_t>(graph, attrs, dy_name, c_name, dx_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for conv2d_bwd_input_inplace operation");
+        default:
+            throw std::runtime_error("Unsupported data type for conv2d_bwd_input_inplace");
+    }
+}
+
+//! Execute conv2d_bwd_weight_inplace operation
+void execute_conv2d_bwd_weight_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const Conv2dAttrs& attrs = std::get<Conv2dAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& dy_name = op_info.input_names[1];
+    const std::string& dc_name = op_info.input_names[2];  // dc is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_conv2d_bwd_weight_inplace<nntile::fp32_t>(graph, attrs, x_name, dy_name, dc_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_conv2d_bwd_weight_inplace<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, dy_name, dc_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_conv2d_bwd_weight_inplace<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, dy_name, dc_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_conv2d_bwd_weight_inplace<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, dy_name, dc_name);
+            break;
+        case DataType::FP64:
+            run_conv2d_bwd_weight_inplace<nntile::fp64_t>(graph, attrs, x_name, dy_name, dc_name);
+            break;
+        case DataType::FP16:
+            run_conv2d_bwd_weight_inplace<nntile::fp16_t>(graph, attrs, x_name, dy_name, dc_name);
+            break;
+        case DataType::BF16:
+            run_conv2d_bwd_weight_inplace<nntile::bf16_t>(graph, attrs, x_name, dy_name, dc_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for conv2d_bwd_weight_inplace operation");
+        default:
+            throw std::runtime_error("Unsupported data type for conv2d_bwd_weight_inplace");
     }
 }
 

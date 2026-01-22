@@ -362,6 +362,66 @@ void norm_slice_inplace(
     Scalar beta = 0.0
 );
 
+//! 2D Convolution forward: Y = alpha * conv2d(X, C) + beta * Y
+//! @param x Input tensor (WHCN format)
+//! @param c Kernel tensor (WHCN format)
+//! @param y Output tensor to accumulate into (WHCN format)
+//! @param alpha Scaling factor for convolution result (default: 1.0)
+//! @param beta Scaling factor for existing y (default: 1.0)
+//! @param padding Padding for height and width [pad_h, pad_w]
+//! @param stride Stride for height and width [stride_h, stride_w]
+//! @param dilation Dilation for height and width [dilation_h, dilation_w]
+void conv2d_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& c,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha = 1.0,
+    Scalar beta = 1.0,
+    std::array<Index, 2> padding = {0, 0},
+    std::array<Index, 2> stride = {1, 1},
+    std::array<Index, 2> dilation = {1, 1}
+);
+
+//! 2D Convolution backward w.r.t. input: dX = alpha * conv2d_bwd_input(dY, C) + beta * dX
+//! @param dy Gradient of output tensor (WHCN format)
+//! @param c Kernel tensor (WHCN format)
+//! @param dx Gradient tensor to accumulate into (WHCN format)
+//! @param alpha Scaling factor for backward result (default: 1.0)
+//! @param beta Scaling factor for existing dx (default: 1.0)
+//! @param padding Padding for height and width [pad_h, pad_w]
+//! @param stride Stride for height and width [stride_h, stride_w]
+//! @param dilation Dilation for height and width [dilation_h, dilation_w]
+void conv2d_bwd_input_inplace(
+    LogicalGraph::TensorNode& dy,
+    LogicalGraph::TensorNode& c,
+    LogicalGraph::TensorNode& dx,
+    Scalar alpha = 1.0,
+    Scalar beta = 1.0,
+    std::array<Index, 2> padding = {0, 0},
+    std::array<Index, 2> stride = {1, 1},
+    std::array<Index, 2> dilation = {1, 1}
+);
+
+//! 2D Convolution backward w.r.t. weights: dC = alpha * conv2d_bwd_weight(X, dY) + beta * dC
+//! @param x Input tensor (WHCN format)
+//! @param dy Gradient of output tensor (WHCN format)
+//! @param dc Gradient tensor to accumulate into (WHCN format)
+//! @param alpha Scaling factor for backward result (default: 1.0)
+//! @param beta Scaling factor for existing dc (default: 1.0)
+//! @param padding Padding for height and width [pad_h, pad_w]
+//! @param stride Stride for height and width [stride_h, stride_w]
+//! @param dilation Dilation for height and width [dilation_h, dilation_w]
+void conv2d_bwd_weight_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& dy,
+    LogicalGraph::TensorNode& dc,
+    Scalar alpha = 1.0,
+    Scalar beta = 1.0,
+    std::array<Index, 2> padding = {0, 0},
+    std::array<Index, 2> stride = {1, 1},
+    std::array<Index, 2> dilation = {1, 1}
+);
+
 //! Scale operation: y = alpha * x
 //! @param x Input tensor
 //! @param output_name Name for the output tensor
