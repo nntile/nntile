@@ -922,6 +922,24 @@ void scale_slice(
     );
 }
 
+//! Random normal generation: x = randn(start, underlying_shape, seed, mean, stddev)
+void randn(
+    LogicalGraph::TensorNode& x,
+    const std::vector<Index>& start,
+    const std::vector<Index>& underlying_shape,
+    unsigned long long seed,
+    Scalar mean,
+    Scalar stddev)
+{
+    OpAttrs attrs = RandnAttrs{start, underlying_shape, seed, mean, stddev};
+    x.graph().add_op(
+        OpType::RANDN,
+        attrs,
+        {},
+        {&x}
+    );
+}
+
 //! Total sum of all elements: y = alpha * sum(x) + beta * y
 void sum(
     LogicalGraph::TensorNode& x,

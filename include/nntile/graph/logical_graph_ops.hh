@@ -665,6 +665,22 @@ void scale_slice(
     Index axis = 0
 );
 
+//! Random normal generation: x = randn(start, underlying_shape, seed, mean, stddev)
+//! @param x Output tensor (modified in-place)
+//! @param start Starting indices for the random region
+//! @param underlying_shape Shape of the underlying tensor
+//! @param seed Random seed
+//! @param mean Mean of the normal distribution
+//! @param stddev Standard deviation of the normal distribution
+void randn(
+    LogicalGraph::TensorNode& x,
+    const std::vector<Index>& start,
+    const std::vector<Index>& underlying_shape,
+    unsigned long long seed = 0,
+    Scalar mean = 0.0,
+    Scalar stddev = 1.0
+);
+
 //! Hypot scalar inverse operation: y = 1.0 / hypot(eps, alpha * y)
 //! @param x Input/output tensor (modified in-place)
 //! @param eps Epsilon value for numerical stability
