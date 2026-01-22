@@ -6,21 +6,18 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/graph/logical/gemm.cc
- * GEMM operation implementation for logical graph.
+ * @file src/graph/logical_graph_ops.cc
+ * Logical graph operations.
  *
  * @version 1.1.0
  * */
 
 // Include corresponding header
-#include "nntile/graph/logical/gemm.hh"
+#include "nntile/graph/logical_graph_ops.hh"
 
 // Include standard headers
 #include <stdexcept>
 #include <utility>
-
-// Include other NNTile headers
-#include "nntile/graph/logical_graph.hh"
 
 namespace nntile::graph
 {
@@ -163,6 +160,67 @@ std::vector<Index> compute_gemm_output_shape(
 }
 
 } // namespace
+
+//! Clear tensor: x = 0
+void clear(LogicalGraph::TensorNode& x)
+{
+    OpAttrs attrs = ClearAttrs{};
+
+    // In-place operation: inputs and outputs are the same tensor
+    x.graph().add_op(
+        OpType::CLEAR,
+        attrs,
+        {},
+        {&x}
+    );
+}
+
+//! GeLU activation: y = gelu(x)
+LogicalGraph::TensorNode& gelu(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name)
+{
+    // Output shape = input shape
+    std::vector<Index> output_shape = x.shape();
+
+    // Create output tensor
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    // Create operation attributes
+    OpAttrs attrs = GeluAttrs{};
+
+    // Add operation to graph using public builder API
+    x.graph().add_op(
+        OpType::GELU,
+        attrs,
+        {&x},
+        {&output}
+    );
+
+    return output;
+}
+
+//! GeLU backward: dx += gelu_backward(x, dy)
+void gelu_backward(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& dy,
+    LogicalGraph::TensorNode& dx)
+{
+    // Create operation attributes
+    OpAttrs attrs = GeluBackwardAttrs{};
+
+    // Add operation to graph using public builder API
+    // Note: dx is both input and output (accumulates gradients)
+    x.graph().add_op(
+        OpType::GELU_BACKWARD,
+        attrs,
+        {&x, &dy, &dx},
+        {&dx}
+    );
+}
 
 //! Validate inputs for gemm operation
 void validate_gemm_inputs(

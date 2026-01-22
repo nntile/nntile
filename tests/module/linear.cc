@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/module/test_linear.cc
+ * @file tests/module/linear.cc
  * Tests for Linear module.
  *
  * @version 1.1.0

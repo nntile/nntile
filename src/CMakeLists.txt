@@ -408,10 +408,7 @@ set(GRAPH_LOGICAL_CORE_SRC
 
 # Logical graph operations (split for compilation parallelism)
 set(GRAPH_LOGICAL_OPS_SRC
-    "graph/logical/clear.cc"
-    "graph/logical/gemm.cc"
-    "graph/logical/gelu.cc"
-    "graph/logical/gelu_backward.cc"
+    "graph/logical_graph_ops.cc"
 )
 
 # Compiled graph core
@@ -421,10 +418,7 @@ set(GRAPH_COMPILED_CORE_SRC
 
 # Compiled graph operations (split for compilation parallelism)
 set(GRAPH_COMPILED_OPS_SRC
-    "graph/compiled/clear.cc"
-    "graph/compiled/gemm.cc"
-    "graph/compiled/gelu.cc"
-    "graph/compiled/gelu_backward.cc"
+    "graph/compiled_graph_ops.cc"
 )
 
 # All graph sources combined

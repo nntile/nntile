@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/graph/test_compiled_graph.cc
+ * @file tests/graph/compiled_graph.cc
  * Tests for CompiledGraph class.
  *
  * @version 1.1.0

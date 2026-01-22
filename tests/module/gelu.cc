@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/module/test_gelu.cc
+ * @file tests/module/gelu.cc
  * Tests for Gelu module.
  *
  * @version 1.1.0

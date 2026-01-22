@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/logical/gemm.hh
- * GEMM operation for logical graph.
+ * @file include/nntile/graph/logical_graph_ops.hh
+ * Logical graph operations.
  *
  * @version 1.1.0
  * */
@@ -18,24 +18,35 @@
 #include <string>
 
 // Include other NNTile headers
-#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
 
+//! Clear tensor: x = 0
+//! @param x Tensor to clear (modified in-place)
+void clear(LogicalGraph::TensorNode& x);
+
+//! GeLU activation: y = gelu(x)
+//! @param x Input tensor
+//! @param output_name Name for the output tensor
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& gelu(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name
+);
+
+//! GeLU backward: dx += gelu_backward(x, dy)
+//! @param x Input tensor (forward pass activation)
+//! @param dy Gradient of output (upstream gradient)
+//! @param dx Gradient tensor to accumulate into (gradient of input)
+void gelu_backward(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& dy,
+    LogicalGraph::TensorNode& dx
+);
+
 //! Tensor contraction creating new output: C = alpha * op(A) @ op(B)
-//!
-//! Tensor layout (column-major, dimensions listed from inner to outer):
-//!
-//!   A (no trans): [M_dims..., K_dims..., batch_dims...]
-//!   A (trans):    [K_dims..., M_dims..., batch_dims...]
-//!
-//!   B (no trans): [K_dims..., N_dims..., batch_dims...]
-//!   B (trans):    [N_dims..., K_dims..., batch_dims...]
-//!
-//!   C:            [M_dims..., N_dims..., batch_dims...]
-//!
 //! @param a First input tensor
 //! @param b Second input tensor
 //! @param output_name Name for the output tensor
@@ -57,9 +68,6 @@ LogicalGraph::TensorNode& gemm(
 );
 
 //! Tensor contraction with accumulation: C = alpha * op(A) @ op(B) + beta * C
-//!
-//! This variant accumulates the result into an existing tensor C.
-//!
 //! @param a First input tensor
 //! @param b Second input tensor
 //! @param c Existing tensor to accumulate into (modified in-place)

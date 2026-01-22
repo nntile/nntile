@@ -21,7 +21,7 @@
 #include <utility>
 
 // Include other NNTile headers
-#include "nntile/graph/logical/clear.hh"
+#include "nntile/graph/logical_graph_ops.hh"
 
 namespace nntile::graph
 {

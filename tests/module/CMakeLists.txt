@@ -30,7 +30,7 @@ endif()
 foreach(test IN LISTS TESTS_CATCH2)
     add_test_set(TARGET_NAME tests_module_${test}
         EXEC_NAME test_${test}
-        SOURCES test_${test}.cc
+        SOURCES ${test}.cc
         LINK_LIBRARIES nntile Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_module_${test}

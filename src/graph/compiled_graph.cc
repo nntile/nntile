@@ -26,10 +26,7 @@
 // Include other NNTile headers
 #include "nntile/base_types.hh"
 #include "nntile/constants.hh"
-#include "nntile/graph/compiled/clear.hh"
-#include "nntile/graph/compiled/gemm.hh"
-#include "nntile/graph/compiled/gelu.hh"
-#include "nntile/graph/compiled/gelu_backward.hh"
+#include "nntile/graph/compiled_graph_ops.hh"
 #include "nntile/tensor/tensor.hh"
 
 namespace nntile::graph

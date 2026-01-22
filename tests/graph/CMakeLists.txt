@@ -14,11 +14,10 @@
 # All graph tests using Catch2
 set(TESTS_CATCH2
     "logical_graph"
-    "logical_gemm"
-    "logical_ops"
+    "logical_graph_ops"
     "nn_graph"
     "compiled_graph"
-    "compiled_ops"
+    "compiled_graph_ops"
 )
 
 # Setup a target for coverage of graph tests
@@ -32,7 +31,7 @@ endif()
 foreach(test IN LISTS TESTS_CATCH2)
     add_test_set(TARGET_NAME tests_graph_${test}
         EXEC_NAME test_${test}
-        SOURCES test_${test}.cc
+        SOURCES ${test}.cc
         LINK_LIBRARIES nntile Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_graph_${test}
