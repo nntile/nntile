@@ -26,54 +26,56 @@
 namespace nntile::graph
 {
 
-//! A tensor node in NNGraph, holding data and gradient logical nodes.
-class NNGraphTensorNode
-{
-    friend class NNGraph;
-
-private:
-    LogicalGraph::TensorNode* data_ = nullptr;
-    LogicalGraph::TensorNode* grad_ = nullptr;
-    bool requires_grad_ = false;
-
-public:
-    NNGraphTensorNode(LogicalGraph::TensorNode* data, bool requires_grad);
-
-    // Accessors for underlying logical nodes
-    LogicalGraph::TensorNode& data() { return *data_; }
-    const LogicalGraph::TensorNode& data() const { return *data_; }
-    LogicalGraph::TensorNode* data_ptr() { return data_; }
-    const LogicalGraph::TensorNode* data_ptr() const { return data_; }
-
-    LogicalGraph::TensorNode* grad() { return grad_; }
-    const LogicalGraph::TensorNode* grad() const { return grad_; }
-    bool has_grad() const { return grad_ != nullptr; }
-
-    // Gradient requirement
-    bool requires_grad() const { return requires_grad_; }
-    void set_requires_grad(bool requires) { requires_grad_ = requires; }
-
-    // Convenience accessors (forwarded to data tensor)
-    const std::string& name() const { return data_->name(); }
-    DataType dtype() const { return data_->dtype(); }
-    const std::vector<Index>& shape() const { return data_->shape(); }
-    Index ndim() const { return data_->ndim(); }
-
-    // String representation
-    std::string to_string() const;
-
-private:
-    void set_grad(LogicalGraph::TensorNode* grad) { grad_ = grad; }
-};
-
 //! Neural network graph - wraps logical graph and tracks gradients
 class NNGraph
 {
+public:
+    //! A tensor node in NNGraph, holding data and gradient tensor node.
+    class TensorNode
+    {
+        friend class NNGraph;
+
+    private:
+        LogicalGraph::TensorNode* data_ = nullptr;
+        // Gradient is itself an NNGraph::TensorNode for convenience
+        TensorNode* grad_ = nullptr;
+        bool requires_grad_ = true;
+
+    public:
+        TensorNode(LogicalGraph::TensorNode* data, bool requires_grad = true);
+
+        // Accessors for underlying logical nodes
+        LogicalGraph::TensorNode& data() { return *data_; }
+        const LogicalGraph::TensorNode& data() const { return *data_; }
+        LogicalGraph::TensorNode* data_ptr() { return data_; }
+        const LogicalGraph::TensorNode* data_ptr() const { return data_; }
+
+        TensorNode* grad() { return grad_; }
+        const TensorNode* grad() const { return grad_; }
+        bool has_grad() const { return grad_ != nullptr; }
+
+        // Gradient requirement
+        bool requires_grad() const { return requires_grad_; }
+        void set_requires_grad(bool requires) { requires_grad_ = requires; }
+
+        // Convenience accessors (forwarded to data tensor)
+        const std::string& name() const { return data_->name(); }
+        DataType dtype() const { return data_->dtype(); }
+        const std::vector<Index>& shape() const { return data_->shape(); }
+        Index ndim() const { return data_->ndim(); }
+
+        // String representation
+        std::string to_string() const;
+
+    private:
+        void set_grad(TensorNode* grad) { grad_ = grad; }
+    };
+
 private:
     std::string name_;
     LogicalGraph logical_;
-    std::vector<std::unique_ptr<NNGraphTensorNode>> tensors_;
-    std::map<std::string, NNGraphTensorNode*> tensor_by_name_;
+    std::vector<std::unique_ptr<TensorNode>> tensors_;
+    std::map<std::string, TensorNode*> tensor_by_name_;
 
 public:
     explicit NNGraph(const std::string& name = "");
@@ -83,11 +85,12 @@ public:
     // -----------------------------------------------------------------
 
     //! Create an input tensor (not produced by any operation)
-    NNGraphTensorNode& tensor(
+    TensorNode& tensor(
         std::vector<Index> shape,
         const std::string& name,
         DataType dtype = DataType::FP32,
-        bool requires_grad = false);
+        bool requires_grad = true
+    );
 
     // -----------------------------------------------------------------
     // Operation Builder API (forward or gradient ops)
@@ -97,33 +100,10 @@ public:
     void add_op(
         OpType type,
         OpAttrs attrs,
-        const std::vector<NNGraphTensorNode*>& inputs,
-        const std::vector<NNGraphTensorNode*>& outputs,
+        const std::vector<TensorNode*>& inputs,
+        const std::vector<TensorNode*>& outputs,
         const std::string& name = ""
     );
-
-    //! Add an operation using underlying logical tensor nodes
-    void add_op(
-        OpType type,
-        OpAttrs attrs,
-        const std::vector<LogicalGraph::TensorNode*>& inputs,
-        const std::vector<LogicalGraph::TensorNode*>& outputs,
-        const std::string& name = ""
-    );
-
-    // -----------------------------------------------------------------
-    // Removal API
-    // -----------------------------------------------------------------
-
-    bool can_remove_op(const LogicalGraph::OpNode* op) const
-    {
-        return logical_.can_remove_op(op);
-    }
-    void remove_op(LogicalGraph::OpNode* op) { logical_.remove_op(op); }
-
-    bool can_remove_tensor(const NNGraphTensorNode* tensor) const;
-    void remove_tensor(NNGraphTensorNode* tensor);
-    void remove_tensor(const std::string& name);
 
     // -----------------------------------------------------------------
     // Queries
@@ -133,12 +113,12 @@ public:
     size_t num_tensors() const { return tensors_.size(); }
     size_t num_ops() const { return logical_.num_ops(); }
 
-    NNGraphTensorNode* get_tensor(const std::string& name);
-    const NNGraphTensorNode* get_tensor(const std::string& name) const;
+    TensorNode* get_tensor(const std::string& name);
+    const TensorNode* get_tensor(const std::string& name) const;
 
     std::vector<std::string> tensor_names() const;
 
-    const std::vector<std::unique_ptr<NNGraphTensorNode>>& tensors() const
+    const std::vector<std::unique_ptr<TensorNode>>& tensors() const
     {
         return tensors_;
     }
@@ -154,16 +134,16 @@ public:
     // Gradient helpers
     // -----------------------------------------------------------------
 
-    bool requires_grad(const NNGraphTensorNode& tensor) const;
-    void set_requires_grad(NNGraphTensorNode& tensor, bool requires = true);
+    bool requires_grad(const TensorNode& tensor) const;
+    void set_requires_grad(TensorNode& tensor, bool requires = true);
 
-    bool is_first_grad(const NNGraphTensorNode& tensor) const
+    bool is_first_grad(const TensorNode& tensor) const
     {
         return tensor.grad() == nullptr;
     }
 
-    LogicalGraph::TensorNode& get_or_create_grad(
-        NNGraphTensorNode& tensor,
+    TensorNode& get_or_create_grad(
+        TensorNode& tensor,
         const std::string& grad_name);
 
     // -----------------------------------------------------------------

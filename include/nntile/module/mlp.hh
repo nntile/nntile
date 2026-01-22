@@ -51,8 +51,8 @@ private:
     graph::DataType dtype_;
 
     //! Intermediate tensors (created during build_forward)
-    graph::NNGraphTensorNode* hidden_tensor_ = nullptr;      // After fc1
-    graph::NNGraphTensorNode* activation_tensor_ = nullptr;  // After GELU
+    graph::NNGraph::TensorNode* hidden_tensor_ = nullptr;      // After fc1
+    graph::NNGraph::TensorNode* activation_tensor_ = nullptr;  // After GELU
 
     //! Track if forward has been built
     bool forward_built_ = false;
@@ -87,10 +87,10 @@ public:
     //! Build forward operations
     //! @param input Input tensor node
     //! @return Reference to output tensor
-    graph::NNGraphTensorNode& build_forward(
-        graph::NNGraphTensorNode& input) override;
+    graph::NNGraph::TensorNode& build_forward(
+        graph::NNGraph::TensorNode& input) override;
 
-    //! Build backward operations using grad fields on NNGraphTensorNode
+    //! Build backward operations using grad fields on NNGraph::TensorNode
     void build_backward() override;
 
     //! Get string representation with dimensions

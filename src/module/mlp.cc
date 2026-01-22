@@ -52,7 +52,7 @@ Mlp::Mlp(graph::NNGraph& graph,
 }
 
 //! Build forward operations
-graph::NNGraphTensorNode& Mlp::build_forward(graph::NNGraphTensorNode& input)
+graph::NNGraph::TensorNode& Mlp::build_forward(graph::NNGraph::TensorNode& input)
 {
     // Store input reference
     input_tensor_ = &input;
@@ -103,7 +103,7 @@ void Mlp::build_backward()
     fc2_.build_backward();
 
     // Get gradient of activation tensor (output of GELU, input of fc2)
-    graph::LogicalGraph::TensorNode* grad_activation =
+    graph::NNGraph::TensorNode* grad_activation =
         activation_tensor_->grad();
     if(!grad_activation)
     {
@@ -115,7 +115,7 @@ void Mlp::build_backward()
     // Mark that hidden tensor needs gradient (for fc1 backward)
     graph_.set_requires_grad(*hidden_tensor_, true);
 
-    graph::LogicalGraph::TensorNode& grad_hidden = graph_.get_or_create_grad(
+    graph::NNGraph::TensorNode& grad_hidden = graph_.get_or_create_grad(
         *hidden_tensor_, tensor_name("hidden_grad"));
 
     // gelu_backward computes: grad_hidden = grad_activation * gelu'(hidden)
@@ -123,7 +123,7 @@ void Mlp::build_backward()
     graph_.add_op(
         graph::OpType::GELU_BACKWARD,
         graph::OpAttrs{graph::GeluBackwardAttrs{}},
-        {hidden_tensor_->data_ptr(), grad_activation, &grad_hidden},
+        {hidden_tensor_, grad_activation, &grad_hidden},
         {&grad_hidden}
     );
 

@@ -37,8 +37,8 @@ class Linear : public Module
 {
 private:
     // References to parameter tensors (also registered via register_parameter)
-    graph::NNGraphTensorNode* weight_tensor_ = nullptr;
-    graph::NNGraphTensorNode* bias_tensor_ = nullptr;
+    graph::NNGraph::TensorNode* weight_tensor_ = nullptr;
+    graph::NNGraph::TensorNode* bias_tensor_ = nullptr;
 
     // Dimensions and data type
     Index input_dim_;
@@ -86,7 +86,7 @@ public:
     Linear(
         graph::NNGraph& graph,
         const std::string& name,
-        graph::NNGraphTensorNode& weight_tensor
+        graph::NNGraph::TensorNode& weight_tensor
     );
 
     //! Constructor: uses existing weight and bias tensors
@@ -97,17 +97,17 @@ public:
     Linear(
         graph::NNGraph& graph,
         const std::string& name,
-        graph::NNGraphTensorNode& weight_tensor,
-        graph::NNGraphTensorNode& bias_tensor
+        graph::NNGraph::TensorNode& weight_tensor,
+        graph::NNGraph::TensorNode& bias_tensor
     );
 
     //! Build forward operation and return output tensor
     //! @param input Input tensor node
     //! @return Reference to the created output tensor
-    graph::NNGraphTensorNode& build_forward(
-        graph::NNGraphTensorNode& input) override;
+    graph::NNGraph::TensorNode& build_forward(
+        graph::NNGraph::TensorNode& input) override;
 
-    //! Build backward operations using grad fields on NNGraphTensorNode
+    //! Build backward operations using grad fields on NNGraph::TensorNode
     //!
     //! This method:
     //! 1. Looks up gradient of output tensor from output_tensor()->grad()
@@ -122,8 +122,8 @@ public:
     std::string repr() const override;
 
     // Tensor accessors
-    graph::NNGraphTensorNode* weight_tensor() const { return weight_tensor_; }
-    graph::NNGraphTensorNode* bias_tensor() const { return bias_tensor_; }
+    graph::NNGraph::TensorNode* weight_tensor() const { return weight_tensor_; }
+    graph::NNGraph::TensorNode* bias_tensor() const { return bias_tensor_; }
 
     // Check if bias is enabled
     bool has_bias() const { return bias_tensor_ != nullptr; }

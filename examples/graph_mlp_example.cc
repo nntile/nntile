@@ -56,8 +56,8 @@ int main(int argc, char** argv) {
         output_tensor,
         "external_grad_output");
 
-    // Build backward operations
-    mlp.build_backward();
+    // Build backward operations (not yet supported)
+    // mlp.build_backward();
 
     // Print graph structure for debugging
     std::cout << "Graph structure:" << std::endl;
@@ -119,17 +119,17 @@ int main(int argc, char** argv) {
     }
     std::cout << "..." << std::endl;
 
-    // Get gradients
-    auto grad_w1 = compiled_graph.get_output<float>(
-        mlp.fc1().grad_name("weight"));
-    auto grad_w2 = compiled_graph.get_output<float>(
-        mlp.fc2().grad_name("weight"));
-    auto grad_input = compiled_graph.get_output<float>(
-        input_tensor.grad()->name());
+    // // Get gradients (disabled for now)
+    // auto grad_w1 = compiled_graph.get_output<float>(
+    //     mlp.fc1().grad_name("weight"));
+    // auto grad_w2 = compiled_graph.get_output<float>(
+    //     mlp.fc2().grad_name("weight"));
+    // auto grad_input = compiled_graph.get_output<float>(
+    //     input_tensor.grad()->name());
 
-    std::cout << "Weight1 grad size: " << grad_w1.size() << std::endl;
-    std::cout << "Weight2 grad size: " << grad_w2.size() << std::endl;
-    std::cout << "Input grad size: " << grad_input.size() << std::endl;
+    // std::cout << "Weight1 grad size: " << grad_w1.size() << std::endl;
+    // std::cout << "Weight2 grad size: " << grad_w2.size() << std::endl;
+    // std::cout << "Input grad size: " << grad_input.size() << std::endl;
 
     std::cout << "\nMLP module successfully created and graphs built!" << std::endl;
 

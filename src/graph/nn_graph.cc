@@ -16,7 +16,6 @@
 #include "nntile/graph/nn_graph.hh"
 
 // Include standard headers
-#include <algorithm>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
@@ -24,23 +23,24 @@
 namespace nntile::graph
 {
 
-NNGraphTensorNode::NNGraphTensorNode(
+NNGraph::TensorNode::TensorNode(
     LogicalGraph::TensorNode* data,
-    bool requires_grad)
+    bool requires_grad
+)
     : data_(data)
     , requires_grad_(requires_grad)
 {
     if(data_ == nullptr)
     {
         throw std::invalid_argument(
-            "NNGraphTensorNode: data tensor is nullptr");
+            "NNGraph::TensorNode: data tensor is nullptr");
     }
 }
 
-std::string NNGraphTensorNode::to_string() const
+std::string NNGraph::TensorNode::to_string() const
 {
     std::stringstream ss;
-    ss << "NNGraphTensorNode(name='" << name() << "', requires_grad="
+    ss << "NNGraph::TensorNode(name='" << name() << "', requires_grad="
        << (requires_grad_ ? "true" : "false");
     if(grad_ != nullptr)
     {
@@ -69,11 +69,12 @@ NNGraph::NNGraph(const std::string& name)
 {
 }
 
-NNGraphTensorNode& NNGraph::tensor(
+NNGraph::TensorNode& NNGraph::tensor(
     std::vector<Index> shape,
     const std::string& name,
     DataType dtype,
-    bool requires_grad)
+    bool requires_grad
+)
 {
     if(tensor_by_name_.count(name) > 0)
     {
@@ -82,8 +83,8 @@ NNGraphTensorNode& NNGraph::tensor(
     }
 
     LogicalGraph::TensorNode& data = logical_.tensor(std::move(shape), name, dtype);
-    auto node = std::make_unique<NNGraphTensorNode>(&data, requires_grad);
-    NNGraphTensorNode* node_ptr = node.get();
+    auto node = std::make_unique<TensorNode>(&data, requires_grad);
+    TensorNode* node_ptr = node.get();
 
     tensors_.push_back(std::move(node));
     tensor_by_name_[name] = node_ptr;
@@ -94,8 +95,8 @@ NNGraphTensorNode& NNGraph::tensor(
 void NNGraph::add_op(
     OpType type,
     OpAttrs attrs,
-    const std::vector<NNGraphTensorNode*>& inputs,
-    const std::vector<NNGraphTensorNode*>& outputs,
+    const std::vector<TensorNode*>& inputs,
+    const std::vector<TensorNode*>& outputs,
     const std::string& name)
 {
     std::vector<LogicalGraph::TensorNode*> input_nodes;
@@ -125,88 +126,13 @@ void NNGraph::add_op(
     logical_.add_op(type, std::move(attrs), input_nodes, output_nodes, name);
 }
 
-void NNGraph::add_op(
-    OpType type,
-    OpAttrs attrs,
-    const std::vector<LogicalGraph::TensorNode*>& inputs,
-    const std::vector<LogicalGraph::TensorNode*>& outputs,
-    const std::string& name)
-{
-    logical_.add_op(type, std::move(attrs), inputs, outputs, name);
-}
-
-bool NNGraph::can_remove_tensor(const NNGraphTensorNode* tensor) const
-{
-    if(tensor == nullptr)
-    {
-        return false;
-    }
-
-    if(tensor->grad() != nullptr)
-    {
-        if(!logical_.can_remove_tensor(tensor->grad()))
-        {
-            return false;
-        }
-    }
-
-    return logical_.can_remove_tensor(tensor->data_ptr());
-}
-
-void NNGraph::remove_tensor(NNGraphTensorNode* tensor)
-{
-    if(tensor == nullptr)
-    {
-        throw std::invalid_argument(
-            "NNGraph::remove_tensor: tensor is nullptr");
-    }
-
-    if(!can_remove_tensor(tensor))
-    {
-        throw std::runtime_error(
-            "NNGraph::remove_tensor: cannot remove tensor '" +
-            tensor->name() + "' - it is used by operations");
-    }
-
-    const std::string tensor_name = tensor->name();
-    LogicalGraph::TensorNode* grad = tensor->grad();
-    LogicalGraph::TensorNode* data = tensor->data_ptr();
-
-    if(grad != nullptr)
-    {
-        logical_.remove_tensor(grad);
-    }
-    logical_.remove_tensor(data);
-
-    tensor_by_name_.erase(tensor_name);
-    auto it = std::find_if(tensors_.begin(), tensors_.end(),
-        [tensor](const std::unique_ptr<NNGraphTensorNode>& ptr) {
-            return ptr.get() == tensor;
-        });
-    if(it != tensors_.end())
-    {
-        tensors_.erase(it);
-    }
-}
-
-void NNGraph::remove_tensor(const std::string& name)
-{
-    NNGraphTensorNode* tensor = get_tensor(name);
-    if(tensor == nullptr)
-    {
-        throw std::invalid_argument(
-            "NNGraph::remove_tensor: tensor '" + name + "' not found");
-    }
-    remove_tensor(tensor);
-}
-
-NNGraphTensorNode* NNGraph::get_tensor(const std::string& name)
+NNGraph::TensorNode* NNGraph::get_tensor(const std::string& name)
 {
     auto it = tensor_by_name_.find(name);
     return it != tensor_by_name_.end() ? it->second : nullptr;
 }
 
-const NNGraphTensorNode* NNGraph::get_tensor(const std::string& name) const
+const NNGraph::TensorNode* NNGraph::get_tensor(const std::string& name) const
 {
     auto it = tensor_by_name_.find(name);
     return it != tensor_by_name_.end() ? it->second : nullptr;
@@ -223,18 +149,18 @@ std::vector<std::string> NNGraph::tensor_names() const
     return names;
 }
 
-bool NNGraph::requires_grad(const NNGraphTensorNode& tensor) const
+bool NNGraph::requires_grad(const TensorNode& tensor) const
 {
     return tensor.requires_grad() || tensor.grad() != nullptr;
 }
 
-void NNGraph::set_requires_grad(NNGraphTensorNode& tensor, bool requires)
+void NNGraph::set_requires_grad(TensorNode& tensor, bool requires)
 {
     tensor.set_requires_grad(requires);
 }
 
-LogicalGraph::TensorNode& NNGraph::get_or_create_grad(
-    NNGraphTensorNode& tensor,
+NNGraph::TensorNode& NNGraph::get_or_create_grad(
+    TensorNode& tensor,
     const std::string& grad_name)
 {
     if(tensor.grad() != nullptr)
@@ -246,9 +172,14 @@ LogicalGraph::TensorNode& NNGraph::get_or_create_grad(
         tensor.shape(),
         grad_name,
         tensor.dtype());
-    tensor.set_grad(&grad_tensor);
+    auto grad_node = std::make_unique<TensorNode>(&grad_tensor, false);
+    TensorNode* grad_ptr = grad_node.get();
+    tensors_.push_back(std::move(grad_node));
+    tensor_by_name_[grad_name] = grad_ptr;
+
+    tensor.set_grad(grad_ptr);
     tensor.set_requires_grad(true);
-    return grad_tensor;
+    return *grad_ptr;
 }
 
 std::string NNGraph::to_string() const

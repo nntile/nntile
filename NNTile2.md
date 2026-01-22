@@ -4862,21 +4862,8 @@ public:
     // ═══════════════════════════════════════════════════════════════
     // Mutation
     // ═══════════════════════════════════════════════════════════════
-
-    //! Remove a tensor and all operations that depend on it
-    void remove_tensor(const std::string& name);
-
-    //! Remove an operation (outputs become dangling)
-    void remove_operation(const std::string& output_name);
-
-    //! Replace a tensor with another (updates all references)
-    void replace_tensor(const std::string& old_name, const std::string& new_name);
-
-    //! Rename a tensor
-    void rename_tensor(const std::string& old_name, const std::string& new_name);
-
-    //! Clear all tensors and operations
-    void clear();
+    // LogicalGraph currently supports incremental construction only.
+    // Removal/renaming APIs are intentionally omitted.
 
     // ═══════════════════════════════════════════════════════════════
     // Composition
@@ -4905,7 +4892,6 @@ public:
 LogicalGraph original("model");
 // ... build original ...
 LogicalGraph experimental = original.clone();
-experimental.remove_tensor("dropout");  // Try without dropout
 
 // Stack layers
 LogicalGraph block = make_transformer_block();

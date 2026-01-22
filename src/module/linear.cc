@@ -74,7 +74,7 @@ Linear::Linear(graph::NNGraph& graph,
 //! Constructor: uses existing weight tensor, no bias
 Linear::Linear(graph::NNGraph& graph,
                const std::string& name,
-               graph::NNGraphTensorNode& weight_tensor)
+               graph::NNGraph::TensorNode& weight_tensor)
     : Module(graph, name)
     , weight_tensor_(&weight_tensor)
     , input_dim_(0)
@@ -101,8 +101,8 @@ Linear::Linear(graph::NNGraph& graph,
 //! Constructor: uses existing weight and bias tensors
 Linear::Linear(graph::NNGraph& graph,
                const std::string& name,
-               graph::NNGraphTensorNode& weight_tensor,
-               graph::NNGraphTensorNode& bias_tensor)
+               graph::NNGraph::TensorNode& weight_tensor,
+               graph::NNGraph::TensorNode& bias_tensor)
     : Module(graph, name)
     , weight_tensor_(&weight_tensor)
     , bias_tensor_(&bias_tensor)
@@ -151,7 +151,7 @@ Linear::Linear(graph::NNGraph& graph,
 }
 
 //! Build forward operation and return output tensor
-graph::NNGraphTensorNode& Linear::build_forward(graph::NNGraphTensorNode& input)
+graph::NNGraph::TensorNode& Linear::build_forward(graph::NNGraph::TensorNode& input)
 {
     // Verify input tensor has correct feature dimension
     if(input.shape().back() != input_dim_)
@@ -218,7 +218,7 @@ void Linear::build_backward()
     }
 
     // Get gradient of output tensor (must exist - set by downstream module)
-    graph::LogicalGraph::TensorNode* grad_output = output_tensor_->grad();
+    graph::NNGraph::TensorNode* grad_output = output_tensor_->grad();
     if(!grad_output)
     {
         throw std::runtime_error(
@@ -231,7 +231,7 @@ void Linear::build_backward()
     {
         // Check if this is the first contribution (beta=0) or accumulation
         bool first_weight_grad = graph_.is_first_grad(*weight_tensor_);
-        graph::LogicalGraph::TensorNode& grad_weight = graph_.get_or_create_grad(
+        graph::NNGraph::TensorNode& grad_weight = graph_.get_or_create_grad(
             *weight_tensor_, grad_name("weight"));
 
         Scalar beta_weight = first_weight_grad ? 0.0 : 1.0;
@@ -240,7 +240,7 @@ void Linear::build_backward()
         graph_.add_op(
             graph::OpType::GEMM,
             graph::OpAttrs{graph::GemmAttrs{true, false, 1.0, beta_weight, 1, 0}},
-            {input_tensor_->data_ptr(), grad_output},
+            {input_tensor_, grad_output},
             {&grad_weight}
         );
     }
@@ -250,7 +250,7 @@ void Linear::build_backward()
     if(bias_tensor_ != nullptr && graph_.requires_grad(*bias_tensor_))
     {
         bool first_bias_grad = graph_.is_first_grad(*bias_tensor_);
-        graph::LogicalGraph::TensorNode& grad_bias = graph_.get_or_create_grad(
+        graph::NNGraph::TensorNode& grad_bias = graph_.get_or_create_grad(
             *bias_tensor_, grad_name("bias"));
 
         Scalar beta_bias = first_bias_grad ? 0.0 : 1.0;
@@ -268,7 +268,7 @@ void Linear::build_backward()
     if(graph_.requires_grad(*input_tensor_))
     {
         bool first_input_grad = graph_.is_first_grad(*input_tensor_);
-        graph::LogicalGraph::TensorNode& grad_input = graph_.get_or_create_grad(
+        graph::NNGraph::TensorNode& grad_input = graph_.get_or_create_grad(
             *input_tensor_, grad_name("input"));
 
         Scalar beta_input = first_input_grad ? 0.0 : 1.0;
@@ -277,7 +277,7 @@ void Linear::build_backward()
         graph_.add_op(
             graph::OpType::GEMM,
             graph::OpAttrs{graph::GemmAttrs{false, true, 1.0, beta_input, 1, 0}},
-            {grad_output, weight_tensor_->data_ptr()},
+            {grad_output, weight_tensor_},
             {&grad_input}
         );
     }

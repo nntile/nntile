@@ -179,8 +179,6 @@ public:
         // Only LogicalGraph/OpNode can modify edges
         void set_producer(OpNode* op) { producer_ = op; }
         void add_consumer(OpNode* op) { consumers_.push_back(op); }
-        void remove_consumer(OpNode* op);
-        void clear_producer() { producer_ = nullptr; }
     };
 
     //! An operation node in the logical graph (implementation)
@@ -288,44 +286,6 @@ public:
         const std::vector<TensorNode*>& outputs,
         const std::string& name = ""
     );
-
-    // -----------------------------------------------------------------
-    // Removal API
-    // -----------------------------------------------------------------
-
-    //! Check if an operation can be removed (no other ops depend on its outputs)
-    //! @param op Pointer to the operation node
-    //! @return true if the operation can be safely removed
-    bool can_remove_op(const OpNode* op) const;
-
-    //! Remove an operation from the graph
-    //! The operation can only be removed if no other operation depends on its
-    //! outputs (i.e., output tensors have no consumers other than this op).
-    //! This disconnects the op from its input/output tensors but does NOT
-    //! remove the output tensors themselves.
-    //! @param op Pointer to the operation node to remove
-    //! @throws std::invalid_argument if op doesn't belong to this graph
-    //! @throws std::runtime_error if operation has dependent operations
-    void remove_op(OpNode* op);
-
-    //! Check if a tensor can be removed (not used in any operation)
-    //! @param tensor Pointer to the tensor node
-    //! @return true if the tensor can be safely removed
-    bool can_remove_tensor(const TensorNode* tensor) const;
-
-    //! Remove a tensor from the graph
-    //! The tensor can only be removed if it is not used in any operation
-    //! (no producer and no consumers).
-    //! @param tensor Pointer to the tensor node to remove
-    //! @throws std::invalid_argument if tensor doesn't belong to this graph
-    //! @throws std::runtime_error if tensor is used by any operation
-    void remove_tensor(TensorNode* tensor);
-
-    //! Remove a tensor by name
-    //! @param name Name of the tensor to remove
-    //! @throws std::invalid_argument if tensor not found
-    //! @throws std::runtime_error if tensor is used by any operation
-    void remove_tensor(const std::string& name);
 
     // -----------------------------------------------------------------
     // Queries

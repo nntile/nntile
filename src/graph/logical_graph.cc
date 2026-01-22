@@ -16,7 +16,6 @@
 #include "nntile/graph/logical_graph.hh"
 
 // Include standard headers
-#include <algorithm>
 #include <functional>
 #include <numeric>
 #include <sstream>
@@ -183,15 +182,6 @@ std::string LogicalGraph::TensorNode::to_string() const
 }
 
 //! Remove a consumer from this tensor's consumer list
-void LogicalGraph::TensorNode::remove_consumer(OpNode* op)
-{
-    auto it = std::find(consumers_.begin(), consumers_.end(), op);
-    if(it != consumers_.end())
-    {
-        consumers_.erase(it);
-    }
-}
-
 //! An operation node in the logical graph
 LogicalGraph::OpNode::OpNode(
     NodeId id,
@@ -394,162 +384,6 @@ std::string LogicalGraph::to_string() const
     }
 
     return ss.str();
-}
-
-//! Check if an operation can be removed
-bool LogicalGraph::can_remove_op(const OpNode* op) const
-{
-    if(op == nullptr)
-    {
-        return false;
-    }
-
-    // Check that op belongs to this graph
-    if(&op->graph() != this)
-    {
-        return false;
-    }
-
-    // An operation can be removed if none of its output tensors have
-    // consumers (other operations that use them)
-    for(const auto* output : op->outputs())
-    {
-        if(!output->consumers().empty())
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-//! Remove an operation from the graph
-void LogicalGraph::remove_op(OpNode* op)
-{
-    if(op == nullptr)
-    {
-        throw std::invalid_argument(
-            "LogicalGraph::remove_op: op is nullptr");
-    }
-
-    // Verify op belongs to this graph
-    if(&op->graph() != this)
-    {
-        throw std::invalid_argument(
-            "LogicalGraph::remove_op: operation does not belong to this graph");
-    }
-
-    // Check if operation can be removed
-    if(!can_remove_op(op))
-    {
-        throw std::runtime_error(
-            "LogicalGraph::remove_op: cannot remove operation - "
-            "other operations depend on its outputs");
-    }
-
-    // Disconnect from input tensors (remove this op from their consumers)
-    for(auto* input : op->inputs())
-    {
-        input->remove_consumer(op);
-    }
-
-    // Disconnect from output tensors (clear their producer)
-    for(auto* output : op->outputs())
-    {
-        output->clear_producer();
-    }
-
-    // Find and remove the operation from ops_ vector
-    auto it = std::find_if(ops_.begin(), ops_.end(),
-        [op](const std::unique_ptr<OpNode>& ptr) {
-            return ptr.get() == op;
-        });
-
-    if(it != ops_.end())
-    {
-        ops_.erase(it);
-    }
-}
-
-//! Check if a tensor can be removed
-bool LogicalGraph::can_remove_tensor(const TensorNode* tensor) const
-{
-    if(tensor == nullptr)
-    {
-        return false;
-    }
-
-    // Check that tensor belongs to this graph
-    if(&tensor->graph() != this)
-    {
-        return false;
-    }
-
-    // A tensor can be removed if:
-    // 1. It has no producer (not an output of any operation)
-    // 2. It has no consumers (not an input to any operation)
-    return !tensor->has_producer() && tensor->consumers().empty();
-}
-
-//! Remove a tensor from the graph
-void LogicalGraph::remove_tensor(TensorNode* tensor)
-{
-    if(tensor == nullptr)
-    {
-        throw std::invalid_argument(
-            "LogicalGraph::remove_tensor: tensor is nullptr");
-    }
-
-    // Verify tensor belongs to this graph
-    if(&tensor->graph() != this)
-    {
-        throw std::invalid_argument(
-            "LogicalGraph::remove_tensor: tensor does not belong to this graph");
-    }
-
-    // Check if tensor can be removed
-    if(!can_remove_tensor(tensor))
-    {
-        std::string reason;
-        if(tensor->has_producer())
-        {
-            reason = "it is produced by an operation";
-        }
-        else if(!tensor->consumers().empty())
-        {
-            reason = "it is consumed by " +
-                std::to_string(tensor->consumers().size()) + " operation(s)";
-        }
-        throw std::runtime_error(
-            "LogicalGraph::remove_tensor: cannot remove tensor '" +
-            tensor->name() + "' - " + reason);
-    }
-
-    // Remove from name map
-    tensor_by_name_.erase(tensor->name());
-
-    // Find and remove from tensors_ vector
-    auto it = std::find_if(tensors_.begin(), tensors_.end(),
-        [tensor](const std::unique_ptr<TensorNode>& ptr) {
-            return ptr.get() == tensor;
-        });
-
-    if(it != tensors_.end())
-    {
-        tensors_.erase(it);
-    }
-}
-
-//! Remove a tensor by name
-void LogicalGraph::remove_tensor(const std::string& name)
-{
-    TensorNode* tensor = get_tensor(name);
-    if(tensor == nullptr)
-    {
-        throw std::invalid_argument(
-            "LogicalGraph::remove_tensor: tensor '" + name + "' not found");
-    }
-    remove_tensor(tensor);
 }
 
 } // namespace nntile::graph
