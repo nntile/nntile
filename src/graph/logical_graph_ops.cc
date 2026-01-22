@@ -795,6 +795,133 @@ void subtract_indexed_outputs(
     );
 }
 
+//! Scatter operation: y = scatter(x)
+LogicalGraph::TensorNode& scatter(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name)
+{
+    // For now, assume scatter doesn't change shape
+    // In practice, this would depend on the indices
+    std::vector<Index> output_shape = x.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = ClearAttrs{};  // No attributes needed
+    x.graph().add_op(
+        OpType::SCATTER,
+        attrs,
+        {&x},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Copy intersection operation: copy overlapping regions between tensors
+void copy_intersection(
+    LogicalGraph::TensorNode& src,
+    const std::vector<Index>& src_offset,
+    LogicalGraph::TensorNode& dst,
+    const std::vector<Index>& dst_offset)
+{
+    if(&src.graph() != &dst.graph())
+    {
+        throw std::invalid_argument(
+            "copy_intersection: tensors must belong to the same graph");
+    }
+
+    if(src.dtype() != dst.dtype())
+    {
+        throw std::invalid_argument(
+            "copy_intersection: tensors must have the same dtype");
+    }
+
+    OpAttrs attrs = CopyIntersectionAttrs{src_offset, dst_offset};
+    src.graph().add_op(
+        OpType::COPY_INTERSECTION,
+        attrs,
+        {&src, &dst},
+        {&dst}
+    );
+}
+
+//! Scale along fibers: y = alpha * scale_fiber(x, y)
+void scale_fiber(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha,
+    Index axis,
+    Index batch_ndim)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "scale_fiber: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "scale_fiber: tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "scale_fiber: axis out of bounds");
+    }
+
+    if(batch_ndim < 0 || axis + batch_ndim > x.ndim())
+    {
+        throw std::invalid_argument(
+            "scale_fiber: invalid batch_ndim");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, 0.0, axis, batch_ndim, 0};  // beta=0, redux=0
+    x.graph().add_op(
+        OpType::SCALE_FIBER,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Scale along slices: y = alpha * scale_slice(x, y)
+void scale_slice(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha,
+    Index axis)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "scale_slice: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "scale_slice: tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "scale_slice: axis out of bounds");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, 0.0, axis, 0, 0};  // batch_ndim=0, redux=0
+    x.graph().add_op(
+        OpType::SCALE_SLICE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
 //! Total sum of all elements: y = alpha * sum(x) + beta * y
 void sum(
     LogicalGraph::TensorNode& x,

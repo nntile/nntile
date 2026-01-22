@@ -338,6 +338,13 @@ struct SubtractIndexedOutputsAttrs
     Index ignore_index = -1;
 };
 
+// Copy intersection operation (src_offset, dst_offset)
+struct CopyIntersectionAttrs
+{
+    std::vector<Index> src_offset;
+    std::vector<Index> dst_offset;
+};
+
 using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
                              AddFiberAttrs, SumFiberAttrs, ClearAttrs,
                              BinaryOpAttrs, ReductionAttrs, TotalSumAttrs,
@@ -345,7 +352,8 @@ using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
                              EmbeddingAttrs, MaskScalarAttrs, TotalSumAccumAttrs,
                              SgdStepAttrs, AdamStepAttrs, RandnAttrs,
                              PowAttrs, LogScalarAttrs, FillAttrs, TransposeAttrs,
-                             HypotScalarInverseAttrs, SubtractIndexedOutputsAttrs>;
+                             HypotScalarInverseAttrs, SubtractIndexedOutputsAttrs,
+                             CopyIntersectionAttrs>;
 
 //! Logical graph - defines computation without physical details
 class LogicalGraph

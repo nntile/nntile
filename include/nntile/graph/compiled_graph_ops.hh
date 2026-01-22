@@ -96,5 +96,9 @@ void execute_fill(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_copy(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_transpose(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_gather(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_scatter(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_copy_intersection(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_scale_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_scale_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
 
 } // namespace nntile::graph

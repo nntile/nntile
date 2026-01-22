@@ -66,6 +66,9 @@
 #include "nntile/tensor/conv2d_bwd_input_inplace.hh"
 #include "nntile/tensor/conv2d_bwd_weight_inplace.hh"
 #include "nntile/tensor/conv2d_inplace.hh"
+#include "nntile/tensor/scale_fiber.hh"
+#include "nntile/tensor/scale_slice.hh"
+#include "nntile/tensor/scatter.hh"
 
 namespace nntile::graph
 {
@@ -678,6 +681,50 @@ void run_gather(CompiledGraph& graph, const ClearAttrs& attrs,
     auto& y = graph.get_tensor<T>(y_name);
 
     nntile::tensor::gather<T>(x, y);
+}
+
+template<typename T>
+void run_scatter(CompiledGraph& graph, const ClearAttrs& attrs,
+                 const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    nntile::tensor::scatter<T>(x, y);
+}
+
+template<typename T>
+void run_copy_intersection(CompiledGraph& graph, const CopyIntersectionAttrs& attrs,
+                          const std::string& src_name, const std::string& dst_name)
+{
+    auto& src = graph.get_tensor<T>(src_name);
+    auto& dst = graph.get_tensor<T>(dst_name);
+
+    nntile::tensor::copy_intersection<T>(src, attrs.src_offset, dst, attrs.dst_offset);
+}
+
+template<typename T>
+void run_scale_fiber(CompiledGraph& graph, const ReductionAttrs& attrs,
+                     const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+
+    nntile::tensor::scale_fiber<T>(alpha, x, y, attrs.axis, attrs.batch_ndim);
+}
+
+template<typename T>
+void run_scale_slice(CompiledGraph& graph, const ReductionAttrs& attrs,
+                     const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+
+    nntile::tensor::scale_slice<T>(alpha, x, y, attrs.axis);
 }
 
 } // namespace
@@ -2733,6 +2780,180 @@ void execute_gather(CompiledGraph& graph, const OpExecutionInfo& op_info)
             break;
         default:
             throw std::runtime_error("Unsupported data type for gather");
+    }
+}
+
+//! Execute scatter operation
+void execute_scatter(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ClearAttrs& attrs = std::get<ClearAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.output_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_scatter<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_scatter<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_scatter<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_scatter<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_scatter<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_scatter<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_scatter<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+            run_scatter<nntile::int64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT32:
+            run_scatter<nntile::int32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BOOL:
+            run_scatter<nntile::bool_t>(graph, attrs, x_name, y_name);
+            break;
+        default:
+            throw std::runtime_error("Unsupported data type for scatter");
+    }
+}
+
+//! Execute copy_intersection operation
+void execute_copy_intersection(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const CopyIntersectionAttrs& attrs = std::get<CopyIntersectionAttrs>(op_info.attrs);
+    const std::string& src_name = op_info.input_names[0];
+    const std::string& dst_name = op_info.input_names[1];  // dst is both input and output
+    DataType dtype = graph.get_dtype(src_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_copy_intersection<nntile::fp32_t>(graph, attrs, src_name, dst_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_copy_intersection<nntile::fp32_fast_tf32_t>(graph, attrs, src_name, dst_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_copy_intersection<nntile::fp32_fast_fp16_t>(graph, attrs, src_name, dst_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_copy_intersection<nntile::fp32_fast_bf16_t>(graph, attrs, src_name, dst_name);
+            break;
+        case DataType::FP64:
+            run_copy_intersection<nntile::fp64_t>(graph, attrs, src_name, dst_name);
+            break;
+        case DataType::FP16:
+            run_copy_intersection<nntile::fp16_t>(graph, attrs, src_name, dst_name);
+            break;
+        case DataType::BF16:
+            run_copy_intersection<nntile::bf16_t>(graph, attrs, src_name, dst_name);
+            break;
+        case DataType::INT64:
+            run_copy_intersection<nntile::int64_t>(graph, attrs, src_name, dst_name);
+            break;
+        case DataType::INT32:
+            run_copy_intersection<nntile::int32_t>(graph, attrs, src_name, dst_name);
+            break;
+        case DataType::BOOL:
+            run_copy_intersection<nntile::bool_t>(graph, attrs, src_name, dst_name);
+            break;
+        default:
+            throw std::runtime_error("Unsupported data type for copy_intersection");
+    }
+}
+
+//! Execute scale_fiber operation
+void execute_scale_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ReductionAttrs& attrs = std::get<ReductionAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.input_names[1];  // y is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_scale_fiber<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_scale_fiber<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_scale_fiber<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_scale_fiber<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_scale_fiber<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_scale_fiber<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_scale_fiber<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for scale_fiber operation");
+        default:
+            throw std::runtime_error("Unsupported data type for scale_fiber");
+    }
+}
+
+//! Execute scale_slice operation
+void execute_scale_slice(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ReductionAttrs& attrs = std::get<ReductionAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.input_names[1];  // y is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_scale_slice<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_scale_slice<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_scale_slice<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_scale_slice<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_scale_slice<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_scale_slice<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_scale_slice<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for scale_slice operation");
+        default:
+            throw std::runtime_error("Unsupported data type for scale_slice");
     }
 }
 

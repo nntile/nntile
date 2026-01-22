@@ -618,6 +618,53 @@ LogicalGraph::TensorNode& gather(
     const std::string& output_name
 );
 
+//! Scatter operation: y = scatter(x)
+//! @param x Input tensor
+//! @param output_name Name for the output tensor
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& scatter(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name
+);
+
+//! Copy intersection operation: copy overlapping regions between tensors
+//! @param src Source tensor
+//! @param src_offset Offset in source tensor
+//! @param dst Destination tensor (modified in-place)
+//! @param dst_offset Offset in destination tensor
+void copy_intersection(
+    LogicalGraph::TensorNode& src,
+    const std::vector<Index>& src_offset,
+    LogicalGraph::TensorNode& dst,
+    const std::vector<Index>& dst_offset
+);
+
+//! Scale along fibers: y = alpha * scale_fiber(x, y)
+//! @param x Scaling tensor (broadcasted along fibers)
+//! @param y Input/output tensor (modified in-place)
+//! @param alpha Scaling factor
+//! @param axis Axis along which to broadcast scaling
+//! @param batch_ndim Number of trailing batch dimensions
+void scale_fiber(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha = 1.0,
+    Index axis = 0,
+    Index batch_ndim = 0
+);
+
+//! Scale along slices: y = alpha * scale_slice(x, y)
+//! @param x Scaling tensor (broadcasted along slices)
+//! @param y Input/output tensor (modified in-place)
+//! @param alpha Scaling factor
+//! @param axis Axis along which to broadcast scaling
+void scale_slice(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha = 1.0,
+    Index axis = 0
+);
+
 //! Hypot scalar inverse operation: y = 1.0 / hypot(eps, alpha * y)
 //! @param x Input/output tensor (modified in-place)
 //! @param eps Epsilon value for numerical stability
