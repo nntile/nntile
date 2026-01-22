@@ -25,7 +25,7 @@ namespace nntile::graph
 {
 
 NNGraphTensorNode::NNGraphTensorNode(
-    LogicalGraphTensorNode* data,
+    LogicalGraph::TensorNode* data,
     bool requires_grad)
     : data_(data)
     , requires_grad_(requires_grad)
@@ -71,7 +71,7 @@ NNGraphTensorNode& NNGraph::tensor(
             "' already exists");
     }
 
-    LogicalGraphTensorNode& data = logical_.tensor(spec, name);
+    LogicalGraph::TensorNode& data = logical_.tensor(spec, name);
     auto node = std::make_unique<NNGraphTensorNode>(&data, requires_grad);
     NNGraphTensorNode* node_ptr = node.get();
 
@@ -87,8 +87,8 @@ void NNGraph::add_op(
     const std::vector<NNGraphTensorNode*>& inputs,
     const std::vector<NNGraphTensorNode*>& outputs)
 {
-    std::vector<LogicalGraphTensorNode*> input_nodes;
-    std::vector<LogicalGraphTensorNode*> output_nodes;
+    std::vector<LogicalGraph::TensorNode*> input_nodes;
+    std::vector<LogicalGraph::TensorNode*> output_nodes;
     input_nodes.reserve(inputs.size());
     output_nodes.reserve(outputs.size());
 
@@ -117,8 +117,8 @@ void NNGraph::add_op(
 void NNGraph::add_op(
     OpType type,
     OpAttrs attrs,
-    const std::vector<LogicalGraphTensorNode*>& inputs,
-    const std::vector<LogicalGraphTensorNode*>& outputs)
+    const std::vector<LogicalGraph::TensorNode*>& inputs,
+    const std::vector<LogicalGraph::TensorNode*>& outputs)
 {
     logical_.add_op(type, std::move(attrs), inputs, outputs);
 }
@@ -157,8 +157,8 @@ void NNGraph::remove_tensor(NNGraphTensorNode* tensor)
     }
 
     const std::string tensor_name = tensor->name();
-    LogicalGraphTensorNode* grad = tensor->grad();
-    LogicalGraphTensorNode* data = tensor->data_ptr();
+    LogicalGraph::TensorNode* grad = tensor->grad();
+    LogicalGraph::TensorNode* data = tensor->data_ptr();
 
     if(grad != nullptr)
     {
@@ -221,7 +221,7 @@ void NNGraph::set_requires_grad(NNGraphTensorNode& tensor, bool requires)
     tensor.set_requires_grad(requires);
 }
 
-LogicalGraphTensorNode& NNGraph::get_or_create_grad(
+LogicalGraph::TensorNode& NNGraph::get_or_create_grad(
     NNGraphTensorNode& tensor,
     const std::string& grad_name)
 {
@@ -230,7 +230,7 @@ LogicalGraphTensorNode& NNGraph::get_or_create_grad(
         return *tensor.grad();
     }
 
-    LogicalGraphTensorNode& grad_tensor = logical_.tensor(
+    LogicalGraph::TensorNode& grad_tensor = logical_.tensor(
         tensor.spec(),
         grad_name);
     tensor.set_grad(&grad_tensor);

@@ -32,21 +32,21 @@ class NNGraphTensorNode
     friend class NNGraph;
 
 private:
-    LogicalGraphTensorNode* data_ = nullptr;
-    LogicalGraphTensorNode* grad_ = nullptr;
+    LogicalGraph::TensorNode* data_ = nullptr;
+    LogicalGraph::TensorNode* grad_ = nullptr;
     bool requires_grad_ = false;
 
 public:
-    NNGraphTensorNode(LogicalGraphTensorNode* data, bool requires_grad);
+    NNGraphTensorNode(LogicalGraph::TensorNode* data, bool requires_grad);
 
     // Accessors for underlying logical nodes
-    LogicalGraphTensorNode& data() { return *data_; }
-    const LogicalGraphTensorNode& data() const { return *data_; }
-    LogicalGraphTensorNode* data_ptr() { return data_; }
-    const LogicalGraphTensorNode* data_ptr() const { return data_; }
+    LogicalGraph::TensorNode& data() { return *data_; }
+    const LogicalGraph::TensorNode& data() const { return *data_; }
+    LogicalGraph::TensorNode* data_ptr() { return data_; }
+    const LogicalGraph::TensorNode* data_ptr() const { return data_; }
 
-    LogicalGraphTensorNode* grad() { return grad_; }
-    const LogicalGraphTensorNode* grad() const { return grad_; }
+    LogicalGraph::TensorNode* grad() { return grad_; }
+    const LogicalGraph::TensorNode* grad() const { return grad_; }
     bool has_grad() const { return grad_ != nullptr; }
 
     // Gradient requirement
@@ -64,7 +64,7 @@ public:
     std::string to_string() const;
 
 private:
-    void set_grad(LogicalGraphTensorNode* grad) { grad_ = grad; }
+    void set_grad(LogicalGraph::TensorNode* grad) { grad_ = grad; }
 };
 
 //! Neural network graph - wraps logical graph and tracks gradients
@@ -105,16 +105,19 @@ public:
     void add_op(
         OpType type,
         OpAttrs attrs,
-        const std::vector<LogicalGraphTensorNode*>& inputs,
-        const std::vector<LogicalGraphTensorNode*>& outputs
+        const std::vector<LogicalGraph::TensorNode*>& inputs,
+        const std::vector<LogicalGraph::TensorNode*>& outputs
     );
 
     // -----------------------------------------------------------------
     // Removal API
     // -----------------------------------------------------------------
 
-    bool can_remove_op(const OpNode* op) const { return logical_.can_remove_op(op); }
-    void remove_op(OpNode* op) { logical_.remove_op(op); }
+    bool can_remove_op(const LogicalGraph::OpNode* op) const
+    {
+        return logical_.can_remove_op(op);
+    }
+    void remove_op(LogicalGraph::OpNode* op) { logical_.remove_op(op); }
 
     bool can_remove_tensor(const NNGraphTensorNode* tensor) const;
     void remove_tensor(NNGraphTensorNode* tensor);
@@ -137,7 +140,7 @@ public:
     {
         return tensors_;
     }
-    const std::vector<std::unique_ptr<OpNode>>& ops() const
+    const std::vector<std::unique_ptr<LogicalGraph::OpNode>>& ops() const
     {
         return logical_.ops();
     }
@@ -157,7 +160,7 @@ public:
         return tensor.grad() == nullptr;
     }
 
-    LogicalGraphTensorNode& get_or_create_grad(
+    LogicalGraph::TensorNode& get_or_create_grad(
         NNGraphTensorNode& tensor,
         const std::string& grad_name);
 

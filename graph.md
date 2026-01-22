@@ -37,8 +37,6 @@ Implement a minimal LogicalGraph that:
 ```
 include/nntile/graph/
 ├── tensor_spec.hh      # TensorSpec class
-├── tensor_node.hh      # Compatibility header (LogicalGraphTensorNode)
-├── op_node.hh          # Compatibility header (OpNode, OpType, OpAttrs)
 ├── logical_graph.hh    # LogicalGraph + tensor/op node classes
 ├── compiled_graph.hh   # CompiledGraph class
 └── graph.hh            # Convenience header (includes all)
@@ -129,165 +127,36 @@ Implement all methods. Key points:
 
 ---
 
-### Step 2: TensorNode
+### Step 2: Tensor/Op Nodes (nested in LogicalGraph)
 
-**File**: `include/nntile/graph/tensor_node.hh`
+**File**: `include/nntile/graph/logical_graph.hh`
 
 ```cpp
-#pragma once
-
-#include <nntile/graph/tensor_spec.hh>
-#include <string>
-#include <vector>
-#include <cstdint>
-
 namespace nntile::graph {
 
-// Forward declarations
-class OpNode;
-class LogicalGraph;
-
-//! Unique identifier for nodes
-using NodeId = uint64_t;
-
-//! A tensor node in the logical graph
-class TensorNode {
-    friend class LogicalGraph;
-    friend class OpNode;
-
-private:
-    NodeId id_;
-    std::string name_;
-    TensorSpec spec_;
-    LogicalGraph* graph_;
-
-    // Graph edges
-    OpNode* producer_ = nullptr;           // Op that creates this tensor (nullptr if input)
-    std::vector<OpNode*> consumers_;       // Ops that use this tensor
-
+class LogicalGraph {
 public:
-    TensorNode(NodeId id, const std::string& name, TensorSpec spec, LogicalGraph* graph);
+    class OpNode;
+    class TensorNode;
 
-    // Accessors
-    NodeId id() const { return id_; }
-    const std::string& name() const { return name_; }
-    const TensorSpec& spec() const { return spec_; }
-    DataType dtype() const { return spec_.dtype(); }
-    const std::vector<Index>& shape() const { return spec_.shape(); }
-    Index ndim() const { return spec_.ndim(); }
+    class TensorNode {
+        friend class LogicalGraph;
+        friend class OpNode;
+        // ...
+    };
 
-    // Graph structure
-    bool has_producer() const { return producer_ != nullptr; }
-    OpNode* producer() const { return producer_; }
-    const std::vector<OpNode*>& consumers() const { return consumers_; }
-
-    // String representation
-    std::string to_string() const;
-
-private:
-    // Only LogicalGraph/OpNode can modify edges
-    void set_producer(OpNode* op) { producer_ = op; }
-    void add_consumer(OpNode* op) { consumers_.push_back(op); }
+    class OpNode {
+        friend class LogicalGraph;
+        // ...
+    };
 };
 
 } // namespace nntile::graph
 ```
 
-**File**: `src/graph/tensor_node.cc`
+**File**: `src/graph/logical_graph.cc`
 
-Implement constructor and `to_string()`.
-
----
-
-### Step 3: OpNode
-
-**File**: `include/nntile/graph/op_node.hh`
-
-```cpp
-#pragma once
-
-#include <nntile/graph/tensor_node.hh>
-#include <string>
-#include <vector>
-#include <variant>
-#include <map>
-
-namespace nntile::graph {
-
-//! Operation types
-enum class OpType {
-    MATMUL,
-    GELU
-    // Add more as needed
-};
-
-//! Convert OpType to string
-std::string op_type_to_string(OpType type);
-
-//! Operation attributes (parameters that aren't tensors)
-struct MatmulAttrs {
-    bool trans_a = false;
-    bool trans_b = false;
-    // For GEMM: C = alpha * A @ B + beta * C
-    double alpha = 1.0;
-    double beta = 0.0;
-};
-
-struct GeluAttrs {
-    // No attributes for basic gelu
-};
-
-using OpAttrs = std::variant<MatmulAttrs, GeluAttrs>;
-
-//! An operation node in the logical graph
-class OpNode {
-    friend class LogicalGraph;
-
-private:
-    NodeId id_;
-    OpType type_;
-    OpAttrs attrs_;
-    LogicalGraph* graph_;
-
-    // Graph edges
-    std::vector<TensorNode*> inputs_;
-    std::vector<TensorNode*> outputs_;
-
-public:
-    OpNode(NodeId id, OpType type, OpAttrs attrs, LogicalGraph* graph);
-
-    // Accessors
-    NodeId id() const { return id_; }
-    OpType type() const { return type_; }
-    const OpAttrs& attrs() const { return attrs_; }
-
-    // Graph structure
-    const std::vector<TensorNode*>& inputs() const { return inputs_; }
-    const std::vector<TensorNode*>& outputs() const { return outputs_; }
-
-    // Convenience accessors for common cases
-    TensorNode* input(size_t idx = 0) const { return inputs_.at(idx); }
-    TensorNode* output(size_t idx = 0) const { return outputs_.at(idx); }
-
-    // String representation
-    std::string to_string() const;
-
-private:
-    // Only LogicalGraph can modify
-    void add_input(TensorNode* t);
-    void add_output(TensorNode* t);
-};
-
-} // namespace nntile::graph
-```
-
-**File**: `src/graph/op_node.cc`
-
-Implement:
-- Constructor
-- `add_input()`: adds tensor and sets this op as consumer
-- `add_output()`: adds tensor and sets this op as producer
-- `to_string()`: e.g., "MatMul(a, b) -> c"
+Implement constructors and `to_string()` for both nested classes.
 
 ---
 
@@ -298,8 +167,7 @@ Implement:
 ```cpp
 #pragma once
 
-#include <nntile/graph/tensor_node.hh>
-#include <nntile/graph/op_node.hh>
+#include <nntile/graph/logical_graph.hh>
 #include <memory>
 #include <vector>
 #include <map>
@@ -727,8 +595,6 @@ Key implementations:
 # Graph library sources
 set(GRAPH_SOURCES
     tensor_spec.cc
-    tensor_node.cc
-    op_node.cc
     logical_graph.cc
     compiled_graph.cc
 )
@@ -761,9 +627,8 @@ Update `src/CMakeLists.txt` to include `add_subdirectory(graph)`.
 #pragma once
 
 #include <nntile/graph/tensor_spec.hh>
-#include <nntile/graph/tensor_node.hh>
-#include <nntile/graph/op_node.hh>
 #include <nntile/graph/logical_graph.hh>
+#include <nntile/graph/nn_graph.hh>
 #include <nntile/graph/compiled_graph.hh>
 ```
 

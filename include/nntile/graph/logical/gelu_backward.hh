@@ -18,7 +18,7 @@
 #include <string>
 
 // Include other NNTile headers
-#include <nntile/graph/tensor_node.hh>
+#include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
@@ -28,9 +28,9 @@ namespace nntile::graph
 //! @param dy Gradient of output (upstream gradient)
 //! @param dx Gradient tensor to accumulate into (gradient of input)
 void gelu_backward(
-    LogicalGraphTensorNode& x,
-    LogicalGraphTensorNode& dy,
-    LogicalGraphTensorNode& dx
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& dy,
+    LogicalGraph::TensorNode& dx
 );
 
 } // namespace nntile::graph

@@ -1651,7 +1651,10 @@ struct TensorSpec {
 } // namespace nntile::graph
 ```
 
-##### TensorNode - Node in Logical Graph
+Note: `TensorNode` and `OpNode` are nested inside `LogicalGraph`
+(use `LogicalGraph::TensorNode` and `LogicalGraph::OpNode` in code).
+
+##### LogicalGraph::TensorNode - Node in Logical Graph
 
 ```cpp
 namespace nntile::graph {
@@ -1697,7 +1700,7 @@ public:
 } // namespace nntile::graph
 ```
 
-##### OpNode - Operation Node in Logical Graph
+##### LogicalGraph::OpNode - Operation Node in Logical Graph
 
 ```cpp
 namespace nntile::graph {
@@ -2979,8 +2982,7 @@ nntile.shutdown()
 7. [ ] Add automatic tiling algorithm
 
 **New files**:
-- `include/nntile/graph/tensor_node.hh`
-- `include/nntile/graph/op_node.hh`
+- `include/nntile/graph/logical_graph.hh`
 - `include/nntile/graph/compute_graph.hh`
 - `include/nntile/graph/distribution_strategy.hh`
 - `include/nntile/graph/execution_policy.hh`

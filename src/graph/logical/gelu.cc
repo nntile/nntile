@@ -21,21 +21,20 @@
 
 // Include other NNTile headers
 #include "nntile/graph/logical_graph.hh"
-#include "nntile/graph/op_node.hh"
 
 namespace nntile::graph
 {
 
 //! GeLU activation: y = gelu(x)
-LogicalGraphTensorNode& gelu(
-    LogicalGraphTensorNode& x,
+LogicalGraph::TensorNode& gelu(
+    LogicalGraph::TensorNode& x,
     const std::string& output_name)
 {
     // Output shape = input shape
     TensorSpec output_spec = TensorSpec(x.shape(), x.dtype());
 
     // Create output tensor
-    LogicalGraphTensorNode& output = x.graph().tensor(output_spec, output_name);
+    LogicalGraph::TensorNode& output = x.graph().tensor(output_spec, output_name);
 
     // Create operation attributes
     OpAttrs attrs = GeluAttrs{};

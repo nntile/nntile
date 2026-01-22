@@ -9,7 +9,7 @@ The graph system has two components:
 - **Compiled Graph**: Executes the computation using NNTile tensors
 
 Each operation requires:
-1. An `OpType` enum value and `OpAttrs` struct (in `op_node.hh`)
+1. An `OpType` enum value and `OpAttrs` struct (in `logical_graph.hh`)
 2. A logical operation (free function that adds the op to LogicalGraph)
 3. A compiled operation (free function that executes the op on CompiledGraph)
 
@@ -18,10 +18,8 @@ Each operation requires:
 ```
 include/nntile/graph/
 ├── graph.hh              # Convenience header (includes all)
-├── logical_graph.hh      # LogicalGraph + tensor/op node classes
+├── logical_graph.hh      # LogicalGraph + nested tensor/op node classes
 ├── compiled_graph.hh     # CompiledGraph class
-├── op_node.hh            # Compatibility header (includes logical_graph.hh)
-├── tensor_node.hh        # Compatibility header (includes logical_graph.hh)
 ├── tensor_spec.hh        # TensorSpec class
 ├── logical/              # Logical operation headers
 │   ├── gemm.hh
@@ -46,7 +44,7 @@ src/graph/
 
 ### Step 1: Add OpType and OpAttrs
 
-In `include/nntile/graph/op_node.hh`:
+In `include/nntile/graph/logical_graph.hh`:
 
 ```cpp
 // Add to OpType enum
@@ -68,7 +66,7 @@ struct YourOpAttrs
 using OpAttrs = std::variant<GemmAttrs, GeluAttrs, YourOpAttrs>;
 ```
 
-In `src/graph/op_node.cc`, add the string conversion:
+In `src/graph/logical_graph.cc`, add the string conversion:
 
 ```cpp
 std::string op_type_to_string(OpType type)
@@ -92,7 +90,7 @@ Create `include/nntile/graph/logical/your_op.hh`:
 
 #include <string>
 #include <nntile/base_types.hh>
-#include <nntile/graph/tensor_node.hh>
+#include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
@@ -102,8 +100,8 @@ namespace nntile::graph
 //! @param output_name Name for the output tensor
 //! @param some_param Some parameter
 //! @return Reference to the output tensor
-LogicalGraphTensorNode& your_op(
-    LogicalGraphTensorNode& x,
+LogicalGraph::TensorNode& your_op(
+    LogicalGraph::TensorNode& x,
     const std::string& output_name,
     float some_param = 0.0f
 );
@@ -116,14 +114,13 @@ Create `src/graph/logical/your_op.cc`:
 ```cpp
 #include "nntile/graph/logical/your_op.hh"
 #include "nntile/graph/logical_graph.hh"
-#include "nntile/graph/op_node.hh"
 #include <stdexcept>
 
 namespace nntile::graph
 {
 
-LogicalGraphTensorNode& your_op(
-    LogicalGraphTensorNode& x,
+LogicalGraph::TensorNode& your_op(
+    LogicalGraph::TensorNode& x,
     const std::string& output_name,
     float some_param)
 {
@@ -143,7 +140,7 @@ LogicalGraphTensorNode& your_op(
     OpAttrs attrs = YourOpAttrs{some_param};
 
     // 4. Create output tensor
-    LogicalGraphTensorNode& output = x.graph().tensor(output_spec, output_name);
+    LogicalGraph::TensorNode& output = x.graph().tensor(output_spec, output_name);
 
     // 5. Add operation to graph using public builder API
     x.graph().add_op(
@@ -169,15 +166,15 @@ Example with gemm:
 
 ```cpp
 // Variant 1: C = alpha * A @ B (creates new tensor)
-LogicalGraphTensorNode& gemm(LogicalGraphTensorNode& a,
-                             LogicalGraphTensorNode& b,
+LogicalGraph::TensorNode& gemm(LogicalGraph::TensorNode& a,
+                             LogicalGraph::TensorNode& b,
                              const std::string& output_name,
                              ...);
 
 // Variant 2: C = alpha * A @ B + beta * C (accumulates into existing tensor)
-void gemm(LogicalGraphTensorNode& a,
-          LogicalGraphTensorNode& b,
-          LogicalGraphTensorNode& c,
+void gemm(LogicalGraph::TensorNode& a,
+          LogicalGraph::TensorNode& b,
+          LogicalGraph::TensorNode& c,
           Scalar alpha,
           Scalar beta,
           ...);
@@ -186,8 +183,8 @@ void gemm(LogicalGraphTensorNode& a,
 For in-place operations, use the unified `add_op()` with the output tensor in both inputs and outputs:
 
 ```cpp
-void your_op_inplace(LogicalGraphTensorNode& x,
-                     LogicalGraphTensorNode& y,
+void your_op_inplace(LogicalGraph::TensorNode& x,
+                     LogicalGraph::TensorNode& y,
                      float some_param)
 {
     OpAttrs attrs = YourOpAttrs{some_param};
@@ -380,7 +377,7 @@ gemm(a, b, c, /*alpha=*/1.0, /*beta=*/0.5);  // Modifies c in-place
    `tensor.graph()`, so no explicit graph parameter is needed.
 
 3. **Two API patterns for operations**:
-   - **Creating new tensor**: `LogicalGraphTensorNode& op(inputs..., output_name)` - creates tensor then uses `add_op()`
+   - **Creating new tensor**: `LogicalGraph::TensorNode& op(inputs..., output_name)` - creates tensor then uses `add_op()`
    - **In-place accumulation**: `void op(inputs..., inout_tensor)` - uses `add_op()` with existing tensor
 
 4. **Public builder API**: LogicalGraph exposes `add_op()` for operations to use,

@@ -66,23 +66,17 @@ size_t dtype_size(DataType dtype)
             return 1;
         // 2 bytes
         case DataType::FP16:
-            return 2;
         case DataType::BF16:
             return 2;
         // 4 bytes
         case DataType::FP32:
-            return 4;
         case DataType::FP32_FAST_TF32:
-            return 4;
         case DataType::FP32_FAST_FP16:
-            return 4;
         case DataType::FP32_FAST_BF16:
-            return 4;
         case DataType::INT32:
             return 4;
         // 8 bytes
         case DataType::FP64:
-            return 8;
         case DataType::INT64:
             return 8;
         default:

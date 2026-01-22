@@ -21,16 +21,15 @@
 
 // Include other NNTile headers
 #include "nntile/graph/logical_graph.hh"
-#include "nntile/graph/op_node.hh"
 
 namespace nntile::graph
 {
 
 //! GeLU backward: dx += gelu_backward(x, dy)
 void gelu_backward(
-    LogicalGraphTensorNode& x,
-    LogicalGraphTensorNode& dy,
-    LogicalGraphTensorNode& dx)
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& dy,
+    LogicalGraph::TensorNode& dx)
 {
     // Create operation attributes
     OpAttrs attrs = GeluBackwardAttrs{};

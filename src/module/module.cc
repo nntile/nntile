@@ -158,16 +158,16 @@ Module::named_buffers() const
 // -----------------------------------------------------------------
 
 std::vector<std::pair<graph::NNGraphTensorNode*,
-                      graph::LogicalGraphTensorNode*>>
+                      graph::LogicalGraph::TensorNode*>>
 Module::parameter_gradients() const
 {
     std::vector<std::pair<graph::NNGraphTensorNode*,
-                          graph::LogicalGraphTensorNode*>> result;
+                          graph::LogicalGraph::TensorNode*>> result;
     result.reserve(parameters_.size());
 
     for(const auto& [name, param] : parameters_)
     {
-        graph::LogicalGraphTensorNode* grad = param->grad();
+        graph::LogicalGraph::TensorNode* grad = param->grad();
         if(grad != nullptr)
         {
             result.emplace_back(param, grad);
@@ -178,16 +178,16 @@ Module::parameter_gradients() const
 }
 
 std::vector<std::pair<graph::NNGraphTensorNode*,
-                      graph::LogicalGraphTensorNode*>>
+                      graph::LogicalGraph::TensorNode*>>
 Module::parameter_gradients_recursive() const
 {
     std::vector<std::pair<graph::NNGraphTensorNode*,
-                          graph::LogicalGraphTensorNode*>> result;
+                          graph::LogicalGraph::TensorNode*>> result;
 
     // Add own parameter gradients
     for(const auto& [name, param] : parameters_)
     {
-        graph::LogicalGraphTensorNode* grad = param->grad();
+        graph::LogicalGraph::TensorNode* grad = param->grad();
         if(grad != nullptr)
         {
             result.emplace_back(param, grad);

@@ -15,10 +15,8 @@
 #pragma once
 
 // Include related NNTile headers - core classes
-#include <nntile/graph/tensor_spec.hh>
 #include <nntile/graph/logical_graph.hh>
 #include <nntile/graph/nn_graph.hh>
-#include <nntile/graph/gradient_registry.hh>
 #include <nntile/graph/compiled_graph.hh>
 
 // Include logical graph operations

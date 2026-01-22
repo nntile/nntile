@@ -20,7 +20,6 @@
 
 // Include other NNTile headers
 #include "nntile/graph/logical_graph.hh"
-#include "nntile/graph/op_node.hh"
 
 namespace nntile::graph
 {
@@ -166,8 +165,8 @@ TensorSpec compute_gemm_output_spec(
 
 //! Validate inputs for gemm operation
 void validate_gemm_inputs(
-    LogicalGraphTensorNode& a,
-    LogicalGraphTensorNode& b,
+    LogicalGraph::TensorNode& a,
+    LogicalGraph::TensorNode& b,
     LogicalGraph& expected_graph)
 {
     // Validate inputs belong to the same graph
@@ -186,9 +185,9 @@ void validate_gemm_inputs(
 }
 
 //! Tensor contraction creating new output: C = alpha * op(A) @ op(B)
-LogicalGraphTensorNode& gemm(
-    LogicalGraphTensorNode& a,
-    LogicalGraphTensorNode& b,
+LogicalGraph::TensorNode& gemm(
+    LogicalGraph::TensorNode& a,
+    LogicalGraph::TensorNode& b,
     const std::string& output_name,
     Scalar alpha,
     bool trans_a,
@@ -204,7 +203,7 @@ LogicalGraphTensorNode& gemm(
     );
 
     // Create output tensor
-    LogicalGraphTensorNode& output = a.graph().tensor(output_spec, output_name);
+    LogicalGraph::TensorNode& output = a.graph().tensor(output_spec, output_name);
 
     // Create operation attributes (beta = 0 for new output)
     OpAttrs attrs = GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim};
@@ -222,9 +221,9 @@ LogicalGraphTensorNode& gemm(
 
 //! Tensor contraction with accumulation: C = alpha * op(A) @ op(B) + beta * C
 void gemm(
-    LogicalGraphTensorNode& a,
-    LogicalGraphTensorNode& b,
-    LogicalGraphTensorNode& c,
+    LogicalGraph::TensorNode& a,
+    LogicalGraph::TensorNode& b,
+    LogicalGraph::TensorNode& c,
     Scalar alpha,
     Scalar beta,
     bool trans_a,

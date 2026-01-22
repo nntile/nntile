@@ -175,12 +175,12 @@ public:
     //! Get parameter-gradient pairs from stored grad tensors (this module only)
     //! @return Vector of (parameter, gradient) pairs
     std::vector<std::pair<graph::NNGraphTensorNode*,
-                          graph::LogicalGraphTensorNode*>>
+                          graph::LogicalGraph::TensorNode*>>
         parameter_gradients() const;
 
     //! Get parameter-gradient pairs recursively (including submodules)
     std::vector<std::pair<graph::NNGraphTensorNode*,
-                          graph::LogicalGraphTensorNode*>>
+                          graph::LogicalGraph::TensorNode*>>
         parameter_gradients_recursive() const;
 
     // -----------------------------------------------------------------

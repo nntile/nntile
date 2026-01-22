@@ -202,7 +202,7 @@ graph::NNGraphTensorNode& Linear::build_forward(graph::NNGraphTensorNode& input)
     return *output_tensor_;
 }
 
-//! Build backward operations using gradient registry
+//! Build backward operations using gradient tracking
 void Linear::build_backward()
 {
     // Check that build_forward was called
@@ -214,7 +214,7 @@ void Linear::build_backward()
     }
 
     // Get gradient of output tensor (must exist - set by downstream module)
-    graph::LogicalGraphTensorNode* grad_output = output_tensor_->grad();
+    graph::LogicalGraph::TensorNode* grad_output = output_tensor_->grad();
     if(!grad_output)
     {
         throw std::runtime_error(
@@ -227,7 +227,7 @@ void Linear::build_backward()
     {
         // Check if this is the first contribution (beta=0) or accumulation
         bool first_weight_grad = graph_.is_first_grad(*weight_tensor_);
-        graph::LogicalGraphTensorNode& grad_weight = graph_.get_or_create_grad(
+        graph::LogicalGraph::TensorNode& grad_weight = graph_.get_or_create_grad(
             *weight_tensor_, grad_name("weight"));
 
         Scalar beta_weight = first_weight_grad ? 0.0 : 1.0;
@@ -246,7 +246,7 @@ void Linear::build_backward()
     if(bias_tensor_ != nullptr && graph_.requires_grad(*bias_tensor_))
     {
         bool first_bias_grad = graph_.is_first_grad(*bias_tensor_);
-        graph::LogicalGraphTensorNode& grad_bias = graph_.get_or_create_grad(
+        graph::LogicalGraph::TensorNode& grad_bias = graph_.get_or_create_grad(
             *bias_tensor_, grad_name("bias"));
 
         Scalar beta_bias = first_bias_grad ? 0.0 : 1.0;
@@ -264,7 +264,7 @@ void Linear::build_backward()
     if(graph_.requires_grad(*input_tensor_))
     {
         bool first_input_grad = graph_.is_first_grad(*input_tensor_);
-        graph::LogicalGraphTensorNode& grad_input = graph_.get_or_create_grad(
+        graph::LogicalGraph::TensorNode& grad_input = graph_.get_or_create_grad(
             *input_tensor_, grad_name("input"));
 
         Scalar beta_input = first_input_grad ? 0.0 : 1.0;

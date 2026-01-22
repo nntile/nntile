@@ -26,7 +26,6 @@
 // Include other NNTile headers
 #include "nntile/base_types.hh"
 #include "nntile/constants.hh"
-#include "nntile/graph/op_node.hh"
 #include "nntile/graph/tensor_spec.hh"
 #include "nntile/graph/compiled/gemm.hh"
 #include "nntile/graph/compiled/gelu.hh"

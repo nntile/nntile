@@ -19,7 +19,7 @@
 
 // Include other NNTile headers
 #include <nntile/base_types.hh>
-#include <nntile/graph/tensor_node.hh>
+#include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
@@ -45,9 +45,9 @@ namespace nntile::graph
 //! @param ndim Number of contraction dimensions (K) (default: 1)
 //! @param batch_ndim Number of trailing batch dimensions (default: 0)
 //! @return Reference to the created output tensor
-LogicalGraphTensorNode& gemm(
-    LogicalGraphTensorNode& a,
-    LogicalGraphTensorNode& b,
+LogicalGraph::TensorNode& gemm(
+    LogicalGraph::TensorNode& a,
+    LogicalGraph::TensorNode& b,
     const std::string& output_name,
     Scalar alpha = 1.0,
     bool trans_a = false,
@@ -70,9 +70,9 @@ LogicalGraphTensorNode& gemm(
 //! @param ndim Number of contraction dimensions (K) (default: 1)
 //! @param batch_ndim Number of trailing batch dimensions (default: 0)
 void gemm(
-    LogicalGraphTensorNode& a,
-    LogicalGraphTensorNode& b,
-    LogicalGraphTensorNode& c,
+    LogicalGraph::TensorNode& a,
+    LogicalGraph::TensorNode& b,
+    LogicalGraph::TensorNode& c,
     Scalar alpha = 1.0,
     Scalar beta = 1.0,
     bool trans_a = false,

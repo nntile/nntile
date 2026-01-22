@@ -406,7 +406,6 @@ set(GRAPH_COMMON_SRC
 set(GRAPH_LOGICAL_CORE_SRC
     "graph/logical_graph.cc"
     "graph/nn_graph.cc"
-    "graph/gradient_registry.cc"
 )
 
 # Logical graph operations (split for compilation parallelism)

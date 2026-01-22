@@ -31,10 +31,6 @@
 namespace nntile::graph
 {
 
-// Forward declarations
-class LogicalGraph;
-class OpNode;
-
 //! Unique identifier for nodes
 using NodeId = uint64_t;
 
@@ -91,125 +87,129 @@ struct SumFiberAttrs
 using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
                              AddFiberAttrs, SumFiberAttrs>;
 
-//! A tensor node in the logical graph
-class LogicalGraphTensorNode
-{
-    friend class LogicalGraph;
-    friend class OpNode;
-
-private:
-    NodeId id_;
-    std::string name_;
-    TensorSpec spec_;
-    LogicalGraph* graph_;
-
-    // Graph edges
-    // Op that creates this tensor (nullptr if input)
-    OpNode* producer_ = nullptr;
-    std::vector<OpNode*> consumers_;       // Ops that use this tensor
-
-public:
-    LogicalGraphTensorNode(
-        NodeId id,
-        const std::string& name,
-        TensorSpec spec,
-        LogicalGraph* graph);
-
-    // Accessors
-    NodeId id() const { return id_; }
-    const std::string& name() const { return name_; }
-    const TensorSpec& spec() const { return spec_; }
-    DataType dtype() const { return spec_.dtype(); }
-    const std::vector<Index>& shape() const { return spec_.shape(); }
-    Index ndim() const { return spec_.ndim(); }
-
-    // Graph access
-    LogicalGraph& graph() { return *graph_; }
-    const LogicalGraph& graph() const { return *graph_; }
-
-    // Graph structure
-    bool has_producer() const { return producer_ != nullptr; }
-    OpNode* producer() const { return producer_; }
-    const std::vector<OpNode*>& consumers() const { return consumers_; }
-
-    // String representation
-    std::string to_string() const;
-
-private:
-    // Only LogicalGraph/OpNode can modify edges
-    void set_producer(OpNode* op) { producer_ = op; }
-    void add_consumer(OpNode* op) { consumers_.push_back(op); }
-    void remove_consumer(OpNode* op);
-    void clear_producer() { producer_ = nullptr; }
-};
-
-//! Backward-compatible alias
-using TensorNode = LogicalGraphTensorNode;
-
-//! An operation node in the logical graph
-class OpNode
-{
-    friend class LogicalGraph;
-
-private:
-    NodeId id_;
-    OpType type_;
-    OpAttrs attrs_;
-    LogicalGraph* graph_;
-
-    // Graph edges
-    std::vector<LogicalGraphTensorNode*> inputs_;
-    std::vector<LogicalGraphTensorNode*> outputs_;
-
-public:
-    OpNode(NodeId id, OpType type, OpAttrs attrs, LogicalGraph* graph);
-
-    // Accessors
-    NodeId id() const { return id_; }
-    OpType type() const { return type_; }
-    const OpAttrs& attrs() const { return attrs_; }
-
-    // Graph access
-    LogicalGraph& graph() { return *graph_; }
-    const LogicalGraph& graph() const { return *graph_; }
-
-    // Graph structure
-    const std::vector<LogicalGraphTensorNode*>& inputs() const
-    {
-        return inputs_;
-    }
-    const std::vector<LogicalGraphTensorNode*>& outputs() const
-    {
-        return outputs_;
-    }
-
-    // Convenience accessors for common cases
-    LogicalGraphTensorNode* input(size_t idx = 0) const
-    {
-        return inputs_.at(idx);
-    }
-    LogicalGraphTensorNode* output(size_t idx = 0) const
-    {
-        return outputs_.at(idx);
-    }
-
-    // String representation
-    std::string to_string() const;
-
-private:
-    // Only LogicalGraph can modify
-    void add_input(LogicalGraphTensorNode* t);
-    void add_output(LogicalGraphTensorNode* t);
-};
-
 //! Logical graph - defines computation without physical details
 class LogicalGraph
 {
+public:
+    //! An operation node in the logical graph (forward declaration)
+    class OpNode;
+
+    //! A tensor node in the logical graph (forward declaration)
+    class TensorNode;
+
+    //! A tensor node in the logical graph (implementation)
+    class TensorNode
+    {
+        friend class LogicalGraph;
+        friend class OpNode;
+
+    private:
+        NodeId id_;
+        std::string name_;
+        TensorSpec spec_;
+        LogicalGraph* graph_;
+
+        // Graph edges
+        // Op that creates this tensor (nullptr if input)
+        OpNode* producer_ = nullptr;
+        std::vector<OpNode*> consumers_;       // Ops that use this tensor
+
+    public:
+        TensorNode(
+            NodeId id,
+            const std::string& name,
+            TensorSpec spec,
+            LogicalGraph* graph);
+
+        // Accessors
+        NodeId id() const { return id_; }
+        const std::string& name() const { return name_; }
+        const TensorSpec& spec() const { return spec_; }
+        DataType dtype() const { return spec_.dtype(); }
+        const std::vector<Index>& shape() const { return spec_.shape(); }
+        Index ndim() const { return spec_.ndim(); }
+
+        // Graph access
+        LogicalGraph& graph() { return *graph_; }
+        const LogicalGraph& graph() const { return *graph_; }
+
+        // Graph structure
+        bool has_producer() const { return producer_ != nullptr; }
+        OpNode* producer() const { return producer_; }
+        const std::vector<OpNode*>& consumers() const { return consumers_; }
+
+        // String representation
+        std::string to_string() const;
+
+    private:
+        // Only LogicalGraph/OpNode can modify edges
+        void set_producer(OpNode* op) { producer_ = op; }
+        void add_consumer(OpNode* op) { consumers_.push_back(op); }
+        void remove_consumer(OpNode* op);
+        void clear_producer() { producer_ = nullptr; }
+    };
+
+    //! An operation node in the logical graph
+    class OpNode
+    {
+        friend class LogicalGraph;
+
+    private:
+        NodeId id_;
+        OpType type_;
+        OpAttrs attrs_;
+        LogicalGraph* graph_;
+
+        // Graph edges
+        std::vector<TensorNode*> inputs_;
+        std::vector<TensorNode*> outputs_;
+
+    public:
+        OpNode(NodeId id, OpType type, OpAttrs attrs, LogicalGraph* graph);
+
+        // Accessors
+        NodeId id() const { return id_; }
+        OpType type() const { return type_; }
+        const OpAttrs& attrs() const { return attrs_; }
+
+        // Graph access
+        LogicalGraph& graph() { return *graph_; }
+        const LogicalGraph& graph() const { return *graph_; }
+
+        // Graph structure
+        const std::vector<TensorNode*>& inputs() const
+        {
+            return inputs_;
+        }
+        const std::vector<TensorNode*>& outputs() const
+        {
+            return outputs_;
+        }
+
+        // Convenience accessors for common cases
+        TensorNode* input(size_t idx = 0) const
+        {
+            return inputs_.at(idx);
+        }
+        TensorNode* output(size_t idx = 0) const
+        {
+            return outputs_.at(idx);
+        }
+
+        // String representation
+        std::string to_string() const;
+
+    private:
+        // Only LogicalGraph can modify
+        void add_input(TensorNode* t);
+        void add_output(TensorNode* t);
+    };
+
 private:
     std::string name_;
-    std::vector<std::unique_ptr<LogicalGraphTensorNode>> tensors_;
+    std::vector<std::unique_ptr<TensorNode>> tensors_;
     std::vector<std::unique_ptr<OpNode>> ops_;
-    std::map<std::string, LogicalGraphTensorNode*> tensor_by_name_;
+    std::map<std::string, TensorNode*> tensor_by_name_;
 
     NodeId next_tensor_id_ = 0;
     NodeId next_op_id_ = 0;
@@ -222,7 +222,7 @@ public:
     // -----------------------------------------------------------------
 
     //! Create an input tensor (not produced by any operation)
-    LogicalGraphTensorNode& tensor(const TensorSpec& spec, const std::string& name);
+    TensorNode& tensor(const TensorSpec& spec, const std::string& name);
 
     // -----------------------------------------------------------------
     // Operation Builder API (used by free functions to add operations)
@@ -237,8 +237,8 @@ public:
     void add_op(
         OpType type,
         OpAttrs attrs,
-        const std::vector<LogicalGraphTensorNode*>& inputs,
-        const std::vector<LogicalGraphTensorNode*>& outputs
+        const std::vector<TensorNode*>& inputs,
+        const std::vector<TensorNode*>& outputs
     );
 
     // -----------------------------------------------------------------
@@ -263,7 +263,7 @@ public:
     //! Check if a tensor can be removed (not used in any operation)
     //! @param tensor Pointer to the tensor node
     //! @return true if the tensor can be safely removed
-    bool can_remove_tensor(const LogicalGraphTensorNode* tensor) const;
+    bool can_remove_tensor(const TensorNode* tensor) const;
 
     //! Remove a tensor from the graph
     //! The tensor can only be removed if it is not used in any operation
@@ -271,7 +271,7 @@ public:
     //! @param tensor Pointer to the tensor node to remove
     //! @throws std::invalid_argument if tensor doesn't belong to this graph
     //! @throws std::runtime_error if tensor is used by any operation
-    void remove_tensor(LogicalGraphTensorNode* tensor);
+    void remove_tensor(TensorNode* tensor);
 
     //! Remove a tensor by name
     //! @param name Name of the tensor to remove
@@ -288,14 +288,14 @@ public:
     size_t num_ops() const { return ops_.size(); }
 
     //! Get tensor by name (returns nullptr if not found)
-    LogicalGraphTensorNode* get_tensor(const std::string& name);
-    const LogicalGraphTensorNode* get_tensor(const std::string& name) const;
+    TensorNode* get_tensor(const std::string& name);
+    const TensorNode* get_tensor(const std::string& name) const;
 
     //! Get all tensor names
     std::vector<std::string> tensor_names() const;
 
     //! Get all tensors (for iteration)
-    const std::vector<std::unique_ptr<LogicalGraphTensorNode>>& tensors() const
+    const std::vector<std::unique_ptr<TensorNode>>& tensors() const
     {
         return tensors_;
     }

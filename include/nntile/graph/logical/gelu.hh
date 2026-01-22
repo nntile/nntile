@@ -20,7 +20,7 @@
 // Include third-party headers
 
 // Include other NNTile headers
-#include <nntile/graph/tensor_node.hh>
+#include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
@@ -29,8 +29,8 @@ namespace nntile::graph
 //! @param x Input tensor
 //! @param output_name Name for the output tensor
 //! @return Reference to the output tensor
-LogicalGraphTensorNode& gelu(
-    LogicalGraphTensorNode& x,
+LogicalGraph::TensorNode& gelu(
+    LogicalGraph::TensorNode& x,
     const std::string& output_name
 );
 
