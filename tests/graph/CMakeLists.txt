@@ -39,4 +39,3 @@ foreach(test IN LISTS TESTS_CATCH2)
         COV_GLOBAL coverage_graph coverage
     )
 endforeach()
-

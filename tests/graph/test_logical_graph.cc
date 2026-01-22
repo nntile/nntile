@@ -218,4 +218,3 @@ TEST_CASE("LogicalGraph ToStringContainsDetails", "[graph]")
     REQUIRE(op_text.find("inputs=[a, b]") != std::string::npos);
     REQUIRE(op_text.find("outputs=[c]") != std::string::npos);
 }
-
