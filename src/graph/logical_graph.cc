@@ -102,6 +102,8 @@ std::string op_type_to_string(OpType type)
             return "ADD_FIBER";
         case OpType::SUM_FIBER:
             return "SUM_FIBER";
+        case OpType::CLEAR:
+            return "CLEAR";
         default:
             throw std::invalid_argument("Unknown OpType");
     }

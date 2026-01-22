@@ -84,6 +84,19 @@ TEST_CASE("LogicalGraph Gelu", "[graph]")
     REQUIRE(y.producer()->type() == OpType::GELU);
 }
 
+TEST_CASE("LogicalGraph Clear", "[graph]")
+{
+    LogicalGraph g("test");
+
+    auto& x = g.tensor({16, 16}, "x", DataType::FP32);
+    clear(x);
+
+    REQUIRE(x.has_producer());
+    REQUIRE(x.producer()->type() == OpType::CLEAR);
+    REQUIRE(x.producer()->inputs().size() == 1);
+    REQUIRE(x.producer()->outputs().size() == 1);
+}
+
 TEST_CASE("LogicalGraph Chain", "[graph]")
 {
     LogicalGraph g("mlp");

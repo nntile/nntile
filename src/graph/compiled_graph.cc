@@ -26,6 +26,7 @@
 // Include other NNTile headers
 #include "nntile/base_types.hh"
 #include "nntile/constants.hh"
+#include "nntile/graph/compiled/clear.hh"
 #include "nntile/graph/compiled/gemm.hh"
 #include "nntile/graph/compiled/gelu.hh"
 #include "nntile/graph/compiled/gelu_backward.hh"
@@ -39,9 +40,20 @@ void validate_operation_data_types(const LogicalGraph& logical)
 {
     for(const auto& op : logical.ops())
     {
-        // Get the data type from the first input tensor
-        const auto* first_input = op->inputs()[0];
-        DataType dtype = first_input->dtype();
+        // Get the data type from the first input tensor (or output if no inputs)
+        DataType dtype;
+        if(!op->inputs().empty())
+        {
+            dtype = op->inputs()[0]->dtype();
+        }
+        else if(!op->outputs().empty())
+        {
+            dtype = op->outputs()[0]->dtype();
+        }
+        else
+        {
+            throw std::runtime_error("Operation has no inputs or outputs");
+        }
 
         // Check supported data types based on operation type
         if(op->type() == OpType::GELU || op->type() == OpType::GELU_BACKWARD || op->type() == OpType::GEMM)
@@ -58,6 +70,15 @@ void validate_operation_data_types(const LogicalGraph& logical)
                 throw std::runtime_error(
                     std::string(op_type_to_string(op->type())) +
                     " operation does not support data type " +
+                    dtype_to_string(dtype));
+            }
+        }
+        else if(op->type() == OpType::CLEAR)
+        {
+            if(dtype == DataType::INT32)
+            {
+                throw std::runtime_error(
+                    "CLEAR operation does not support data type " +
                     dtype_to_string(dtype));
             }
         }
@@ -238,6 +259,9 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
             break;
         case OpType::GELU_BACKWARD:
             execute_gelu_backward(*this, op_info);
+            break;
+        case OpType::CLEAR:
+            execute_clear(*this, op_info);
             break;
         default:
             throw std::runtime_error(

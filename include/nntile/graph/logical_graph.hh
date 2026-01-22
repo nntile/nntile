@@ -58,7 +58,8 @@ enum class OpType {
     GELU,
     GELU_BACKWARD,
     ADD_FIBER,       // Broadcast-add a fiber (1D) tensor along last dimension
-    SUM_FIBER        // Sum along all but last dimension (reverse of ADD_FIBER)
+    SUM_FIBER,       // Sum along all but last dimension (reverse of ADD_FIBER)
+    CLEAR            // Overwrite output tensor with zeros
     // Add more as needed
 };
 
@@ -102,8 +103,13 @@ struct SumFiberAttrs
     Scalar beta = 0.0;   // For accumulation: output = alpha * sum + beta * output
 };
 
+struct ClearAttrs
+{
+    // No attributes for clear
+};
+
 using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
-                             AddFiberAttrs, SumFiberAttrs>;
+                             AddFiberAttrs, SumFiberAttrs, ClearAttrs>;
 
 //! Logical graph - defines computation without physical details
 class LogicalGraph

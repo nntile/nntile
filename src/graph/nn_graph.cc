@@ -20,6 +20,9 @@
 #include <stdexcept>
 #include <utility>
 
+// Include other NNTile headers
+#include "nntile/graph/logical/clear.hh"
+
 namespace nntile::graph
 {
 
@@ -176,6 +179,9 @@ NNGraph::TensorNode& NNGraph::get_or_create_grad(
     TensorNode* grad_ptr = grad_node.get();
     tensors_.push_back(std::move(grad_node));
     tensor_by_name_[grad_name] = grad_ptr;
+
+    // Clear freshly registered gradient tensor
+    clear(grad_tensor);
 
     tensor.set_grad(grad_ptr);
     tensor.set_requires_grad(true);
