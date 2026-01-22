@@ -30,6 +30,7 @@ Mlp::Mlp(graph::NNGraph& graph,
          graph::DataType dtype)
     : Module(graph, name)
     , fc1_(graph, name + "_fc1", input_dim, intermediate_dim, dtype)
+    , gelu_(graph, name + "_gelu")
     , fc2_(graph, name + "_fc2", intermediate_dim, output_dim, dtype)
     , input_dim_(input_dim)
     , intermediate_dim_(intermediate_dim)
@@ -38,6 +39,7 @@ Mlp::Mlp(graph::NNGraph& graph,
 {
     // Register submodules
     register_module("fc1", &fc1_);
+    register_module("gelu", &gelu_);
     register_module("fc2", &fc2_);
 }
 
@@ -61,22 +63,7 @@ graph::NNGraph::TensorNode& Mlp::build_forward(graph::NNGraph::TensorNode& input
     hidden_tensor_ = &fc1_.build_forward(input);
 
     // GELU activation: hidden -> activation
-    // Create activation output tensor
-    activation_tensor_ = &graph_.tensor(
-        hidden_tensor_->shape(),
-        tensor_name("activation"),
-        hidden_tensor_->dtype(),
-        graph_.requires_grad(*hidden_tensor_));
-
-    graph_.add_op(
-        graph::OpType::GELU,
-        graph::OpAttrs{graph::GeluAttrs{}},
-        {hidden_tensor_},
-        {activation_tensor_}
-    );
-
-    // Mark that activation tensor needs gradient (for GELU backward)
-    // This is internal to the module
+    activation_tensor_ = &gelu_.build_forward(*hidden_tensor_);
 
     // fc2: activation -> output
     output_tensor_ = &fc2_.build_forward(*activation_tensor_);
@@ -96,9 +83,6 @@ void Mlp::build_backward()
             "call build_forward first");
     }
 
-    // Mark that activation tensor needs gradient (internal requirement)
-    graph_.set_requires_grad(*activation_tensor_, true);
-
     // Backward through fc2
     fc2_.build_backward();
 
@@ -111,21 +95,8 @@ void Mlp::build_backward()
             "Mlp::build_backward: no gradient for activation tensor");
     }
 
-    // GELU backward: compute gradient of hidden tensor
-    // Mark that hidden tensor needs gradient (for fc1 backward)
-    graph_.set_requires_grad(*hidden_tensor_, true);
-
-    graph::NNGraph::TensorNode& grad_hidden = graph_.get_or_create_grad(
-        *hidden_tensor_, tensor_name("hidden_grad"));
-
-    // gelu_backward computes: grad_hidden = grad_activation * gelu'(hidden)
-    // Note: GELU_BACKWARD takes (input, grad_output) and produces grad_input
-    graph_.add_op(
-        graph::OpType::GELU_BACKWARD,
-        graph::OpAttrs{graph::GeluBackwardAttrs{}},
-        {hidden_tensor_, grad_activation, &grad_hidden},
-        {&grad_hidden}
-    );
+    // Backward through GELU
+    gelu_.build_backward();
 
     // Propagate requires_grad to fc1's input if MLP's input requires grad
     if(graph_.requires_grad(*input_tensor_))

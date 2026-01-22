@@ -45,9 +45,6 @@ private:
     Index output_dim_;
     graph::DataType dtype_;
 
-    // Track if forward has been built
-    bool forward_built_ = false;
-
 public:
     //! Constructor: creates new weight tensor, no bias
     //! @param graph The neural network graph this module belongs to

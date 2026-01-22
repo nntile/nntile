@@ -65,6 +65,9 @@ protected:
     //! Output tensor from last build_forward call
     graph::NNGraph::TensorNode* output_tensor_ = nullptr;
 
+    //! Track if forward has been built
+    bool forward_built_ = false;
+
 public:
     //! Constructor
     //! @param graph The neural network graph this module belongs to

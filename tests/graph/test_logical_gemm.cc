@@ -102,8 +102,9 @@ TEST_CASE("LogicalOp GemmAccumulation", "[graph]")
     auto& b = g.tensor({3, 4}, "b", DataType::FP32);
     auto& c = g.tensor({2, 4}, "c", DataType::FP32);
 
-    gemm(a, b, c, 2.0f, 3.0f);
+    auto& out = gemm(a, b, c, 2.0f, 3.0f);
 
+    REQUIRE(&out == &c);
     REQUIRE(c.has_producer());
     REQUIRE(c.producer()->type() == OpType::GEMM);
     REQUIRE(c.producer()->inputs().size() == 3);

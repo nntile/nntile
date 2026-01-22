@@ -21,8 +21,9 @@
 
 // Include NNTile headers
 #include <nntile/graph.hh>
-#include <nntile/module/module.hh>
+#include <nntile/module/gelu.hh>
 #include <nntile/module/linear.hh>
+#include <nntile/module/module.hh>
 
 namespace nntile::module
 {
@@ -41,7 +42,10 @@ private:
     //! First linear layer: input -> intermediate
     Linear fc1_;
 
-    //! Second linear layer: intermediate -> output
+    //! Activation module: hidden -> activation
+    Gelu gelu_;
+
+    //! Second linear layer: activation -> output
     Linear fc2_;
 
     //! Dimensions
@@ -53,9 +57,6 @@ private:
     //! Intermediate tensors (created during build_forward)
     graph::NNGraph::TensorNode* hidden_tensor_ = nullptr;      // After fc1
     graph::NNGraph::TensorNode* activation_tensor_ = nullptr;  // After GELU
-
-    //! Track if forward has been built
-    bool forward_built_ = false;
 
 public:
     //! Constructor: creates MLP with specified dimensions
@@ -104,6 +105,8 @@ public:
     // Submodule accessors
     Linear& fc1() { return fc1_; }
     const Linear& fc1() const { return fc1_; }
+    Gelu& gelu() { return gelu_; }
+    const Gelu& gelu() const { return gelu_; }
     Linear& fc2() { return fc2_; }
     const Linear& fc2() const { return fc2_; }
 };

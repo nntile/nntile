@@ -439,6 +439,7 @@ set(GRAPH_SRC
 # Module implementations
 set(MODULE_SRC
     "module/module.cc"
+    "module/gelu.cc"
     "module/mlp.cc"
     "module/linear.cc"
 )
