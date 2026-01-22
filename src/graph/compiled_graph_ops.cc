@@ -47,7 +47,6 @@
 #include "nntile/tensor/multiply_inplace.hh"
 #include "nntile/tensor/norm.hh"
 #include "nntile/tensor/pow.hh"
-#include "nntile/tensor/pow_inplace.hh"
 #include "nntile/tensor/relu.hh"
 #include "nntile/tensor/relu_backward.hh"
 #include "nntile/tensor/relu_inplace.hh"
@@ -285,7 +284,9 @@ void run_multiply(CompiledGraph& graph, const BinaryOpAttrs& attrs,
     auto& y = graph.get_tensor<T>(y_name);
     auto& z = graph.get_tensor<T>(z_name);
 
-    nntile::tensor::multiply<T>(x, y, z);
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    const auto beta = static_cast<nntile::Scalar>(attrs.beta);
+    nntile::tensor::multiply<T>(alpha, x, y, z);
 }
 
 template<typename T>
@@ -295,7 +296,8 @@ void run_multiply_inplace(CompiledGraph& graph, const BinaryOpAttrs& attrs,
     auto& x = graph.get_tensor<T>(x_name);
     auto& y = graph.get_tensor<T>(y_name);
 
-    nntile::tensor::multiply_inplace<T>(x, y);
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    nntile::tensor::multiply_inplace<T>(alpha, x, y);
 }
 
 // Reduction operations
@@ -414,7 +416,9 @@ void run_pow(CompiledGraph& graph, const PowAttrs& attrs,
     const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
     const auto exp = static_cast<nntile::Scalar>(attrs.exponent);
 
-    nntile::tensor::pow<T>(alpha, exp, x, y);
+    // For pow, we need to copy x to y first, then apply pow in-place to y
+    nntile::tensor::copy<T>(x, y);
+    nntile::tensor::pow<T>(alpha, exp, y);
 }
 
 template<typename T>
@@ -426,7 +430,7 @@ void run_pow_inplace(CompiledGraph& graph, const PowAttrs& attrs,
     const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
     const auto exp = static_cast<nntile::Scalar>(attrs.exponent);
 
-    nntile::tensor::pow_inplace<T>(alpha, exp, x);
+    nntile::tensor::pow<T>(alpha, exp, x);
 }
 
 template<typename T>
@@ -2770,8 +2774,6 @@ void execute_fill(CompiledGraph& graph, const OpExecutionInfo& op_info)
             run_fill<nntile::int64_t>(graph, attrs, x_name);
             break;
         case DataType::INT32:
-            run_fill<nntile::int32_t>(graph, attrs, x_name);
-            break;
         case DataType::BOOL:
             run_fill<nntile::bool_t>(graph, attrs, x_name);
             break;
@@ -2815,8 +2817,6 @@ void execute_copy(CompiledGraph& graph, const OpExecutionInfo& op_info)
             run_copy<nntile::int64_t>(graph, attrs, x_name, y_name);
             break;
         case DataType::INT32:
-            run_copy<nntile::int32_t>(graph, attrs, x_name, y_name);
-            break;
         case DataType::BOOL:
             run_copy<nntile::bool_t>(graph, attrs, x_name, y_name);
             break;
@@ -2902,8 +2902,6 @@ void execute_gather(CompiledGraph& graph, const OpExecutionInfo& op_info)
             run_gather<nntile::int64_t>(graph, attrs, x_name, y_name);
             break;
         case DataType::INT32:
-            run_gather<nntile::int32_t>(graph, attrs, x_name, y_name);
-            break;
         case DataType::BOOL:
             run_gather<nntile::bool_t>(graph, attrs, x_name, y_name);
             break;
@@ -2947,8 +2945,6 @@ void execute_scatter(CompiledGraph& graph, const OpExecutionInfo& op_info)
             run_scatter<nntile::int64_t>(graph, attrs, x_name, y_name);
             break;
         case DataType::INT32:
-            run_scatter<nntile::int32_t>(graph, attrs, x_name, y_name);
-            break;
         case DataType::BOOL:
             run_scatter<nntile::bool_t>(graph, attrs, x_name, y_name);
             break;
@@ -2989,14 +2985,11 @@ void execute_copy_intersection(CompiledGraph& graph, const OpExecutionInfo& op_i
             run_copy_intersection<nntile::bf16_t>(graph, attrs, src_name, dst_name);
             break;
         case DataType::INT64:
-            run_copy_intersection<nntile::int64_t>(graph, attrs, src_name, dst_name);
-            break;
         case DataType::INT32:
-            run_copy_intersection<nntile::int32_t>(graph, attrs, src_name, dst_name);
-            break;
         case DataType::BOOL:
-            run_copy_intersection<nntile::bool_t>(graph, attrs, src_name, dst_name);
-            break;
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for copy_intersection operation");
         default:
             throw std::runtime_error("Unsupported data type for copy_intersection");
     }
