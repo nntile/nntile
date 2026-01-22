@@ -77,8 +77,7 @@ LogicalGraph::TensorNode& gemm(
 //! @param trans_b Swap K and N dimensions in B (default: false)
 //! @param ndim Number of contraction dimensions (K) (default: 1)
 //! @param batch_ndim Number of trailing batch dimensions (default: 0)
-//! @return Reference to the output tensor C
-LogicalGraph::TensorNode& gemm(
+void gemm(
     LogicalGraph::TensorNode& a,
     LogicalGraph::TensorNode& b,
     LogicalGraph::TensorNode& c,

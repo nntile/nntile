@@ -282,7 +282,7 @@ LogicalGraph::TensorNode& gemm(
 }
 
 //! Tensor contraction with accumulation: C = alpha * op(A) @ op(B) + beta * C
-LogicalGraph::TensorNode& gemm(
+void gemm(
     LogicalGraph::TensorNode& a,
     LogicalGraph::TensorNode& b,
     LogicalGraph::TensorNode& c,
@@ -330,8 +330,6 @@ LogicalGraph::TensorNode& gemm(
         {&a, &b, &c},
         {&c}
     );
-
-    return c;
 }
 
 } // namespace nntile::graph

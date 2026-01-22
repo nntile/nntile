@@ -417,19 +417,13 @@ set(TENSOR_HDR
     "nntile/tensor/rope_backward.hh"
     )
 
-set(LAYER_HDR
-    #"nntile/layer.hh"
-    #"nntile/layer/base.hh"
-    #"nntile/layer/gelu.hh"
-    #"nntile/layer/gelutanh.hh"
-    #"nntile/layer/linear.hh"
-    #"nntile/layer/mlp.hh"
-    )
-
-set(MODEL_HDR
-    #"nntile/model.hh"
-    #"nntile/model/base.hh"
-    #"nntile/model/deep_linear.hh"
+set(GRAPH_HDR
+    "nntile/graph.hh"
+    "nntile/graph/compiled_graph.hh"
+    "nntile/graph/compiled_graph_ops.hh"
+    "nntile/graph/logical_graph.hh"
+    "nntile/graph/logical_graph_ops.hh"
+    "nntile/graph/nn_graph.hh"
     )
 
 set(OPTIMIZER_HDR
@@ -444,8 +438,7 @@ set(LOGGER_HDR
     "nntile/logger/websocket_client.hh"
     )
 
-set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR}
-    ${LOGGER_HDR})
-    #${LAYER_HDR})# ${MODEL_HDR} ${OPTIMIZER_HDR})
+set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR}
+    ${TENSOR_HDR} ${GRAPH_HDR} ${LOGGER_HDR})
 
 target_sources(nntile PUBLIC ${HDR})
