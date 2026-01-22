@@ -93,7 +93,7 @@ TEST_CASE("LogicalGraph Clear", "[graph]")
 
     REQUIRE(x.has_producer());
     REQUIRE(x.producer()->type() == OpType::CLEAR);
-    REQUIRE(x.producer()->inputs().size() == 1);
+    REQUIRE(x.producer()->inputs().size() == 0);
     REQUIRE(x.producer()->outputs().size() == 1);
 }
 
