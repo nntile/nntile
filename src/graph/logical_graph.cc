@@ -234,6 +234,8 @@ std::string op_type_to_string(OpType type)
             return "FILL";
         case OpType::POW:
             return "POW";
+        case OpType::POW_INPLACE:
+            return "POW_INPLACE";
         case OpType::LOG_SCALAR:
             return "LOG_SCALAR";
 

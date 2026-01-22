@@ -295,4 +295,74 @@ void gemm(
     Index batch_ndim = 0
 );
 
+//! Hypot operation: z = hypot(alpha * x, beta * y)
+//! @param x First input tensor
+//! @param y Second input tensor
+//! @param output_name Name for the output tensor
+//! @param alpha Scaling factor for x (default: 1.0)
+//! @param beta Scaling factor for y (default: 1.0)
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& hypot(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    const std::string& output_name,
+    Scalar alpha = 1.0,
+    Scalar beta = 1.0
+);
+
+//! Hypot in-place: y = hypot(alpha * x, beta * y)
+//! @param x First input tensor
+//! @param y Second input/output tensor (modified in-place)
+//! @param alpha Scaling factor for x (default: 1.0)
+//! @param beta Scaling factor for y (default: 1.0)
+void hypot_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha = 1.0,
+    Scalar beta = 1.0
+);
+
+//! Power operation: y = alpha * (x ^ exp)
+//! @param x Input tensor
+//! @param output_name Name for the output tensor
+//! @param alpha Scaling factor (default: 1.0)
+//! @param exp Exponent (default: 1.0)
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& pow(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name,
+    Scalar alpha = 1.0,
+    Scalar exp = 1.0
+);
+
+//! Power in-place: x = alpha * (x ^ exp)
+//! @param x Input/output tensor (modified in-place)
+//! @param alpha Scaling factor (default: 1.0)
+//! @param exp Exponent (default: 1.0)
+void pow_inplace(
+    LogicalGraph::TensorNode& x,
+    Scalar alpha = 1.0,
+    Scalar exp = 1.0
+);
+
+//! Log scalar operation: log value with given name
+//! @param x Input tensor
+//! @param name Name for logging
+void log_scalar(
+    LogicalGraph::TensorNode& x,
+    const std::string& name
+);
+
+//! Mask scalar operation: conditionally set values based on mask
+//! @param mask Boolean mask tensor
+//! @param x Input/output tensor (modified in-place)
+//! @param val Value to set where mask is true (default: 0.0)
+//! @param batch_ndim Number of batch dimensions (default: 0)
+void mask_scalar(
+    LogicalGraph::TensorNode& mask,
+    LogicalGraph::TensorNode& x,
+    Scalar val = 0.0,
+    Index batch_ndim = 0
+);
+
 } // namespace nntile::graph

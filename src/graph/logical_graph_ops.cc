@@ -532,6 +532,132 @@ void multiply_inplace(
     );
 }
 
+//! Hypot operation: z = hypot(alpha * x, beta * y)
+LogicalGraph::TensorNode& hypot(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    const std::string& output_name,
+    Scalar alpha,
+    Scalar beta)
+{
+    validate_binary_inputs(x, y, x.graph());
+
+    std::vector<Index> output_shape = x.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = BinaryOpAttrs{alpha, beta};
+    x.graph().add_op(
+        OpType::HYPOT,
+        attrs,
+        {&x, &y},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Hypot in-place: y = hypot(alpha * x, beta * y)
+void hypot_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha,
+    Scalar beta)
+{
+    validate_binary_inputs(x, y, x.graph());
+
+    OpAttrs attrs = BinaryOpAttrs{alpha, beta};
+    x.graph().add_op(
+        OpType::HYPOT_INPLACE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Power operation: y = alpha * (x ^ exp)
+LogicalGraph::TensorNode& pow(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name,
+    Scalar alpha,
+    Scalar exp)
+{
+    std::vector<Index> output_shape = x.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = PowAttrs{alpha, exp};
+    x.graph().add_op(
+        OpType::POW,
+        attrs,
+        {&x},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Power in-place: x = alpha * (x ^ exp)
+void pow_inplace(
+    LogicalGraph::TensorNode& x,
+    Scalar alpha,
+    Scalar exp)
+{
+    OpAttrs attrs = PowAttrs{alpha, exp};
+    x.graph().add_op(
+        OpType::POW_INPLACE,
+        attrs,
+        {&x},
+        {&x}
+    );
+}
+
+//! Log scalar operation: log value with given name
+void log_scalar(
+    LogicalGraph::TensorNode& x,
+    const std::string& name)
+{
+    OpAttrs attrs = LogScalarAttrs{name};
+    x.graph().add_op(
+        OpType::LOG_SCALAR,
+        attrs,
+        {&x},
+        {}
+    );
+}
+
+//! Mask scalar operation: conditionally set values based on mask
+void mask_scalar(
+    LogicalGraph::TensorNode& mask,
+    LogicalGraph::TensorNode& x,
+    Scalar val,
+    Index batch_ndim)
+{
+    if(&mask.graph() != &x.graph())
+    {
+        throw std::invalid_argument(
+            "mask_scalar: tensors must belong to the same graph");
+    }
+
+    if(mask.dtype() != DataType::BOOL)
+    {
+        throw std::invalid_argument(
+            "mask_scalar: mask tensor must have bool dtype");
+    }
+
+    OpAttrs attrs = MaskScalarAttrs{val, batch_ndim};
+    mask.graph().add_op(
+        OpType::MASK_SCALAR,
+        attrs,
+        {&mask, &x},
+        {&x}
+    );
+}
+
 //! Total sum of all elements: y = alpha * sum(x) + beta * y
 void sum(
     LogicalGraph::TensorNode& x,

@@ -64,4 +64,12 @@ void execute_scale_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
 void execute_embedding(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_embedding_backward(CompiledGraph& graph, const OpExecutionInfo& op_info);
 
+//! Execute additional element-wise operations
+void execute_hypot(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_hypot_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_pow(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_pow_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_log_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_mask_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
 } // namespace nntile::graph

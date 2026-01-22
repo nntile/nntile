@@ -21,6 +21,7 @@
 // Include other NNTile headers
 #include "nntile/base_types.hh"
 #include "nntile/tensor/add.hh"
+#include "nntile/tensor/add_inplace.hh"
 #include "nntile/tensor/clear.hh"
 #include "nntile/tensor/embedding.hh"
 #include "nntile/tensor/embedding_backward.hh"
@@ -31,7 +32,14 @@
 #include "nntile/tensor/gelutanh_inplace.hh"
 #include "nntile/tensor/gelu_inplace.hh"
 #include "nntile/tensor/gemm.hh"
+#include "nntile/tensor/hypot.hh"
+#include "nntile/tensor/hypot_inplace.hh"
+#include "nntile/tensor/log_scalar.hh"
+#include "nntile/tensor/mask_scalar.hh"
 #include "nntile/tensor/multiply.hh"
+#include "nntile/tensor/multiply_inplace.hh"
+#include "nntile/tensor/pow.hh"
+#include "nntile/tensor/pow_inplace.hh"
 #include "nntile/tensor/relu.hh"
 #include "nntile/tensor/relu_backward.hh"
 #include "nntile/tensor/relu_inplace.hh"
@@ -340,7 +348,84 @@ void run_embedding_backward(CompiledGraph& graph, const EmbeddingAttrs& attrs,
     auto& index = graph.get_tensor<int64_t>(index_name);
     auto& vocab = graph.get_tensor<T>(vocab_name);
 
-    nntile::tensor::embedding_backward<T>(embed, index, vocab, attrs.axis);
+    nntile::tensor::embedding_backward<T>(index, vocab, embed, attrs.axis);
+}
+
+// Element-wise operations
+template<typename T>
+void run_hypot(CompiledGraph& graph, const BinaryOpAttrs& attrs,
+               const std::string& x_name, const std::string& y_name,
+               const std::string& z_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+    auto& z = graph.get_tensor<T>(z_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    const auto beta = static_cast<nntile::Scalar>(attrs.beta);
+
+    nntile::tensor::hypot<T>(alpha, x, beta, y, z);
+}
+
+template<typename T>
+void run_hypot_inplace(CompiledGraph& graph, const BinaryOpAttrs& attrs,
+                       const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    const auto beta = static_cast<nntile::Scalar>(attrs.beta);
+
+    nntile::tensor::hypot_inplace<T>(alpha, x, beta, y);
+}
+
+template<typename T>
+void run_pow(CompiledGraph& graph, const PowAttrs& attrs,
+             const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    const auto exp = static_cast<nntile::Scalar>(attrs.exponent);
+
+    nntile::tensor::pow<T>(alpha, exp, x, y);
+}
+
+template<typename T>
+void run_pow_inplace(CompiledGraph& graph, const PowAttrs& attrs,
+                     const std::string& x_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    const auto exp = static_cast<nntile::Scalar>(attrs.exponent);
+
+    nntile::tensor::pow_inplace<T>(alpha, exp, x);
+}
+
+template<typename T>
+void run_log_scalar(CompiledGraph& graph, const LogScalarAttrs& attrs,
+                    const std::string& x_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+
+    // Note: LogScalarAttrs.base is not used in the current tensor operation
+    // The tensor::log_scalar takes a name parameter
+    nntile::tensor::log_scalar<T>("tensor_value", x);
+}
+
+template<typename T>
+void run_mask_scalar(CompiledGraph& graph, const MaskScalarAttrs& attrs,
+                     const std::string& mask_name, const std::string& x_name)
+{
+    auto& mask = graph.get_tensor<bool_t>(mask_name);
+    auto& x = graph.get_tensor<T>(x_name);
+
+    const auto val = static_cast<nntile::Scalar>(attrs.val);
+
+    nntile::tensor::mask_scalar<T>(mask, val, x, attrs.batch_ndim);
 }
 
 } // namespace
@@ -686,60 +771,990 @@ void execute_embedding(CompiledGraph& graph, const OpExecutionInfo& op_info)
     }
 }
 
-// Add stub implementations for remaining operations
-void execute_gelutanh(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_gelutanh not implemented yet");
+//! Execute gelutanh operation
+void execute_gelutanh(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.output_names[0];
+
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_gelutanh<nntile::fp32_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_gelutanh<nntile::fp32_fast_tf32_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_gelutanh<nntile::fp32_fast_fp16_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_gelutanh<nntile::fp32_fast_bf16_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_gelutanh<nntile::fp64_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_gelutanh<nntile::fp16_t>(graph, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_gelutanh<nntile::bf16_t>(graph, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for gelutanh operation");
+        default:
+            throw std::runtime_error("Unsupported data type for gelutanh");
+    }
 }
-void execute_gelutanh_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_gelutanh_inplace not implemented yet");
+//! Execute gelutanh_inplace operation
+void execute_gelutanh_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const std::string& x_name = op_info.input_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_gelutanh_inplace<nntile::fp32_t>(graph, x_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_gelutanh_inplace<nntile::fp32_fast_tf32_t>(graph, x_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_gelutanh_inplace<nntile::fp32_fast_fp16_t>(graph, x_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_gelutanh_inplace<nntile::fp32_fast_bf16_t>(graph, x_name);
+            break;
+        case DataType::FP64:
+            run_gelutanh_inplace<nntile::fp64_t>(graph, x_name);
+            break;
+        case DataType::FP16:
+            run_gelutanh_inplace<nntile::fp16_t>(graph, x_name);
+            break;
+        case DataType::BF16:
+            run_gelutanh_inplace<nntile::bf16_t>(graph, x_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for gelutanh_inplace operation");
+        default:
+            throw std::runtime_error("Unsupported data type for gelutanh_inplace");
+    }
 }
-void execute_gelutanh_backward(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_gelutanh_backward not implemented yet");
+//! Execute gelutanh_backward operation
+void execute_gelutanh_backward(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& dy_name = op_info.input_names[1];
+    const std::string& dx_name = op_info.input_names[2];  // dx is both input and output
+
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_gelutanh_backward<nntile::fp32_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_gelutanh_backward<nntile::fp32_fast_tf32_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_gelutanh_backward<nntile::fp32_fast_fp16_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_gelutanh_backward<nntile::fp32_fast_bf16_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP64:
+            run_gelutanh_backward<nntile::fp64_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP16:
+            run_gelutanh_backward<nntile::fp16_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::BF16:
+            run_gelutanh_backward<nntile::bf16_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for gelutanh_backward operation");
+        default:
+            throw std::runtime_error("Unsupported data type for gelutanh_backward");
+    }
 }
-void execute_relu(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_relu not implemented yet");
+//! Execute relu operation
+void execute_relu(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.output_names[0];
+
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_relu<nntile::fp32_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_relu<nntile::fp32_fast_tf32_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_relu<nntile::fp32_fast_fp16_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_relu<nntile::fp32_fast_bf16_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_relu<nntile::fp64_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_relu<nntile::fp16_t>(graph, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_relu<nntile::bf16_t>(graph, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for relu operation");
+        default:
+            throw std::runtime_error("Unsupported data type for relu");
+    }
 }
-void execute_relu_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_relu_inplace not implemented yet");
+//! Execute relu_inplace operation
+void execute_relu_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const std::string& x_name = op_info.input_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_relu_inplace<nntile::fp32_t>(graph, x_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_relu_inplace<nntile::fp32_fast_tf32_t>(graph, x_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_relu_inplace<nntile::fp32_fast_fp16_t>(graph, x_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_relu_inplace<nntile::fp32_fast_bf16_t>(graph, x_name);
+            break;
+        case DataType::FP64:
+            run_relu_inplace<nntile::fp64_t>(graph, x_name);
+            break;
+        case DataType::FP16:
+            run_relu_inplace<nntile::fp16_t>(graph, x_name);
+            break;
+        case DataType::BF16:
+            run_relu_inplace<nntile::bf16_t>(graph, x_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for relu_inplace operation");
+        default:
+            throw std::runtime_error("Unsupported data type for relu_inplace");
+    }
 }
-void execute_relu_backward(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_relu_backward not implemented yet");
+//! Execute relu_backward operation
+void execute_relu_backward(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& dy_name = op_info.input_names[1];
+    const std::string& dx_name = op_info.input_names[2];  // dx is both input and output
+
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_relu_backward<nntile::fp32_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_relu_backward<nntile::fp32_fast_tf32_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_relu_backward<nntile::fp32_fast_fp16_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_relu_backward<nntile::fp32_fast_bf16_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP64:
+            run_relu_backward<nntile::fp64_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP16:
+            run_relu_backward<nntile::fp16_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::BF16:
+            run_relu_backward<nntile::bf16_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for relu_backward operation");
+        default:
+            throw std::runtime_error("Unsupported data type for relu_backward");
+    }
 }
-void execute_silu(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_silu not implemented yet");
+//! Execute silu operation
+void execute_silu(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.output_names[0];
+
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_silu<nntile::fp32_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_silu<nntile::fp32_fast_tf32_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_silu<nntile::fp32_fast_fp16_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_silu<nntile::fp32_fast_bf16_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_silu<nntile::fp64_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_silu<nntile::fp16_t>(graph, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_silu<nntile::bf16_t>(graph, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for silu operation");
+        default:
+            throw std::runtime_error("Unsupported data type for silu");
+    }
 }
-void execute_silu_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_silu_inplace not implemented yet");
+//! Execute silu_inplace operation
+void execute_silu_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const std::string& x_name = op_info.input_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_silu_inplace<nntile::fp32_t>(graph, x_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_silu_inplace<nntile::fp32_fast_tf32_t>(graph, x_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_silu_inplace<nntile::fp32_fast_fp16_t>(graph, x_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_silu_inplace<nntile::fp32_fast_bf16_t>(graph, x_name);
+            break;
+        case DataType::FP64:
+            run_silu_inplace<nntile::fp64_t>(graph, x_name);
+            break;
+        case DataType::FP16:
+            run_silu_inplace<nntile::fp16_t>(graph, x_name);
+            break;
+        case DataType::BF16:
+            run_silu_inplace<nntile::bf16_t>(graph, x_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for silu_inplace operation");
+        default:
+            throw std::runtime_error("Unsupported data type for silu_inplace");
+    }
 }
-void execute_silu_backward(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_silu_backward not implemented yet");
+//! Execute silu_backward operation
+void execute_silu_backward(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& dy_name = op_info.input_names[1];
+    const std::string& dx_name = op_info.input_names[2];  // dx is both input and output
+
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_silu_backward<nntile::fp32_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_silu_backward<nntile::fp32_fast_tf32_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_silu_backward<nntile::fp32_fast_fp16_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_silu_backward<nntile::fp32_fast_bf16_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP64:
+            run_silu_backward<nntile::fp64_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::FP16:
+            run_silu_backward<nntile::fp16_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::BF16:
+            run_silu_backward<nntile::bf16_t>(graph, x_name, dy_name, dx_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for silu_backward operation");
+        default:
+            throw std::runtime_error("Unsupported data type for silu_backward");
+    }
 }
-void execute_sqrt(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_sqrt not implemented yet");
+//! Execute sqrt operation
+void execute_sqrt(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.output_names[0];
+
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_sqrt<nntile::fp32_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_sqrt<nntile::fp32_fast_tf32_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_sqrt<nntile::fp32_fast_fp16_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_sqrt<nntile::fp32_fast_bf16_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_sqrt<nntile::fp64_t>(graph, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_sqrt<nntile::fp16_t>(graph, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_sqrt<nntile::bf16_t>(graph, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for sqrt operation");
+        default:
+            throw std::runtime_error("Unsupported data type for sqrt");
+    }
 }
-void execute_sqrt_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_sqrt_inplace not implemented yet");
+//! Execute sqrt_inplace operation
+void execute_sqrt_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const std::string& x_name = op_info.input_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_sqrt_inplace<nntile::fp32_t>(graph, x_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_sqrt_inplace<nntile::fp32_fast_tf32_t>(graph, x_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_sqrt_inplace<nntile::fp32_fast_fp16_t>(graph, x_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_sqrt_inplace<nntile::fp32_fast_bf16_t>(graph, x_name);
+            break;
+        case DataType::FP64:
+            run_sqrt_inplace<nntile::fp64_t>(graph, x_name);
+            break;
+        case DataType::FP16:
+            run_sqrt_inplace<nntile::fp16_t>(graph, x_name);
+            break;
+        case DataType::BF16:
+            run_sqrt_inplace<nntile::bf16_t>(graph, x_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for sqrt_inplace operation");
+        default:
+            throw std::runtime_error("Unsupported data type for sqrt_inplace");
+    }
 }
-void execute_add_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_add_inplace not implemented yet");
+//! Execute add_inplace operation
+void execute_add_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const BinaryOpAttrs& attrs = std::get<BinaryOpAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.input_names[1];  // y is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_add_inplace<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_add_inplace<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_add_inplace<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_add_inplace<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_add_inplace<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_add_inplace<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_add_inplace<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for add_inplace operation");
+        default:
+            throw std::runtime_error("Unsupported data type for add_inplace");
+    }
 }
-void execute_multiply(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_multiply not implemented yet");
+//! Execute multiply operation
+void execute_multiply(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const BinaryOpAttrs& attrs = std::get<BinaryOpAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.input_names[1];
+    const std::string& z_name = op_info.output_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_multiply<nntile::fp32_t>(graph, attrs, x_name, y_name, z_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_multiply<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name, z_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_multiply<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name, z_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_multiply<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name, z_name);
+            break;
+        case DataType::FP64:
+            run_multiply<nntile::fp64_t>(graph, attrs, x_name, y_name, z_name);
+            break;
+        case DataType::FP16:
+            run_multiply<nntile::fp16_t>(graph, attrs, x_name, y_name, z_name);
+            break;
+        case DataType::BF16:
+            run_multiply<nntile::bf16_t>(graph, attrs, x_name, y_name, z_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for multiply operation");
+        default:
+            throw std::runtime_error("Unsupported data type for multiply");
+    }
 }
-void execute_multiply_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_multiply_inplace not implemented yet");
+//! Execute multiply_inplace operation
+void execute_multiply_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const BinaryOpAttrs& attrs = std::get<BinaryOpAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.input_names[1];  // y is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_multiply_inplace<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_multiply_inplace<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_multiply_inplace<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_multiply_inplace<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_multiply_inplace<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_multiply_inplace<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_multiply_inplace<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for multiply_inplace operation");
+        default:
+            throw std::runtime_error("Unsupported data type for multiply_inplace");
+    }
 }
-void execute_sum_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_sum_fiber not implemented yet");
+//! Execute sum_fiber operation
+void execute_sum_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ReductionAttrs& attrs = std::get<ReductionAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.input_names[1];  // y is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_sum_fiber<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_sum_fiber<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_sum_fiber<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_sum_fiber<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_sum_fiber<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_sum_fiber<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_sum_fiber<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for sum_fiber operation");
+        default:
+            throw std::runtime_error("Unsupported data type for sum_fiber");
+    }
 }
-void execute_scale(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_scale not implemented yet");
+//! Execute scale operation
+void execute_scale(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ScaleAttrs& attrs = std::get<ScaleAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.output_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_scale<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_scale<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_scale<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_scale<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_scale<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_scale<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_scale<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for scale operation");
+        default:
+            throw std::runtime_error("Unsupported data type for scale");
+    }
 }
-void execute_scale_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_scale_inplace not implemented yet");
+//! Execute scale_inplace operation
+void execute_scale_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ScaleAttrs& attrs = std::get<ScaleAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_scale_inplace<nntile::fp32_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_scale_inplace<nntile::fp32_fast_tf32_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_scale_inplace<nntile::fp32_fast_fp16_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_scale_inplace<nntile::fp32_fast_bf16_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP64:
+            run_scale_inplace<nntile::fp64_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP16:
+            run_scale_inplace<nntile::fp16_t>(graph, attrs, x_name);
+            break;
+        case DataType::BF16:
+            run_scale_inplace<nntile::bf16_t>(graph, attrs, x_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for scale_inplace operation");
+        default:
+            throw std::runtime_error("Unsupported data type for scale_inplace");
+    }
 }
-void execute_embedding_backward(CompiledGraph& graph, const OpExecutionInfo& op_info) {
-    throw std::runtime_error("execute_embedding_backward not implemented yet");
+//! Execute embedding_backward operation
+void execute_embedding_backward(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const EmbeddingAttrs& attrs = std::get<EmbeddingAttrs>(op_info.attrs);
+    const std::string& embed_name = op_info.input_names[0];
+    const std::string& index_name = op_info.input_names[1];
+    const std::string& vocab_name = op_info.input_names[2];  // vocab is both input and output
+    DataType dtype = graph.get_dtype(vocab_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_embedding_backward<nntile::fp32_t>(graph, attrs, embed_name, index_name, vocab_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_embedding_backward<nntile::fp32_fast_tf32_t>(graph, attrs, embed_name, index_name, vocab_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_embedding_backward<nntile::fp32_fast_fp16_t>(graph, attrs, embed_name, index_name, vocab_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_embedding_backward<nntile::fp32_fast_bf16_t>(graph, attrs, embed_name, index_name, vocab_name);
+            break;
+        case DataType::FP64:
+            run_embedding_backward<nntile::fp64_t>(graph, attrs, embed_name, index_name, vocab_name);
+            break;
+        case DataType::FP16:
+            run_embedding_backward<nntile::fp16_t>(graph, attrs, embed_name, index_name, vocab_name);
+            break;
+        case DataType::BF16:
+            run_embedding_backward<nntile::bf16_t>(graph, attrs, embed_name, index_name, vocab_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for embedding_backward operation");
+        default:
+            throw std::runtime_error("Unsupported data type for embedding_backward");
+    }
+}
+
+//! Execute hypot operation
+void execute_hypot(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const BinaryOpAttrs& attrs = std::get<BinaryOpAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.input_names[1];
+    const std::string& z_name = op_info.output_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_hypot<nntile::fp32_t>(graph, attrs, x_name, y_name, z_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_hypot<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name, z_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_hypot<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name, z_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_hypot<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name, z_name);
+            break;
+        case DataType::FP64:
+            run_hypot<nntile::fp64_t>(graph, attrs, x_name, y_name, z_name);
+            break;
+        case DataType::FP16:
+            run_hypot<nntile::fp16_t>(graph, attrs, x_name, y_name, z_name);
+            break;
+        case DataType::BF16:
+            run_hypot<nntile::bf16_t>(graph, attrs, x_name, y_name, z_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for hypot operation");
+        default:
+            throw std::runtime_error("Unsupported data type for hypot");
+    }
+}
+
+//! Execute hypot_inplace operation
+void execute_hypot_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const BinaryOpAttrs& attrs = std::get<BinaryOpAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.input_names[1];  // y is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_hypot_inplace<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_hypot_inplace<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_hypot_inplace<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_hypot_inplace<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_hypot_inplace<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_hypot_inplace<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_hypot_inplace<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for hypot_inplace operation");
+        default:
+            throw std::runtime_error("Unsupported data type for hypot_inplace");
+    }
+}
+
+//! Execute pow operation
+void execute_pow(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const PowAttrs& attrs = std::get<PowAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.output_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_pow<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_pow<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_pow<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_pow<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_pow<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_pow<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_pow<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for pow operation");
+        default:
+            throw std::runtime_error("Unsupported data type for pow");
+    }
+}
+
+//! Execute pow_inplace operation
+void execute_pow_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const PowAttrs& attrs = std::get<PowAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_pow_inplace<nntile::fp32_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_pow_inplace<nntile::fp32_fast_tf32_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_pow_inplace<nntile::fp32_fast_fp16_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_pow_inplace<nntile::fp32_fast_bf16_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP64:
+            run_pow_inplace<nntile::fp64_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP16:
+            run_pow_inplace<nntile::fp16_t>(graph, attrs, x_name);
+            break;
+        case DataType::BF16:
+            run_pow_inplace<nntile::bf16_t>(graph, attrs, x_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for pow_inplace operation");
+        default:
+            throw std::runtime_error("Unsupported data type for pow_inplace");
+    }
+}
+
+//! Execute log_scalar operation
+void execute_log_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const LogScalarAttrs& attrs = std::get<LogScalarAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_log_scalar<nntile::fp32_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_log_scalar<nntile::fp32_fast_tf32_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_log_scalar<nntile::fp32_fast_fp16_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_log_scalar<nntile::fp32_fast_bf16_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP64:
+            run_log_scalar<nntile::fp64_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP16:
+            run_log_scalar<nntile::fp16_t>(graph, attrs, x_name);
+            break;
+        case DataType::BF16:
+            run_log_scalar<nntile::bf16_t>(graph, attrs, x_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for log_scalar operation");
+        default:
+            throw std::runtime_error("Unsupported data type for log_scalar");
+    }
+}
+
+//! Execute mask_scalar operation
+void execute_mask_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const MaskScalarAttrs& attrs = std::get<MaskScalarAttrs>(op_info.attrs);
+    const std::string& mask_name = op_info.input_names[0];
+    const std::string& x_name = op_info.input_names[1];  // x is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_mask_scalar<nntile::fp32_t>(graph, attrs, mask_name, x_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_mask_scalar<nntile::fp32_fast_tf32_t>(graph, attrs, mask_name, x_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_mask_scalar<nntile::fp32_fast_fp16_t>(graph, attrs, mask_name, x_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_mask_scalar<nntile::fp32_fast_bf16_t>(graph, attrs, mask_name, x_name);
+            break;
+        case DataType::FP64:
+            run_mask_scalar<nntile::fp64_t>(graph, attrs, mask_name, x_name);
+            break;
+        case DataType::FP16:
+            run_mask_scalar<nntile::fp16_t>(graph, attrs, mask_name, x_name);
+            break;
+        case DataType::BF16:
+            run_mask_scalar<nntile::bf16_t>(graph, attrs, mask_name, x_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for mask_scalar operation");
+        default:
+            throw std::runtime_error("Unsupported data type for mask_scalar");
+    }
 }
 
 } // namespace nntile::graph

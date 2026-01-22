@@ -138,6 +138,7 @@ enum class OpType {
     SCATTER,
     FILL,
     POW,
+    POW_INPLACE,
     LOG_SCALAR,
 
     // Random operations
@@ -296,9 +297,10 @@ struct RandnAttrs
     Scalar stddev = 1.0;
 };
 
-// Power operation (exponent)
+// Power operation (alpha, exponent)
 struct PowAttrs
 {
+    Scalar alpha = 1.0;
     Scalar exponent = 1.0;
 };
 
