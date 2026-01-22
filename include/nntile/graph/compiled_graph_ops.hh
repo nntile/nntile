@@ -91,6 +91,12 @@ void execute_conv2d_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info
 void execute_conv2d_bwd_input_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_conv2d_bwd_weight_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
 
+//! Execute advanced operations
+void execute_flash_sdpa_fwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_flash_sdpa_bwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_rope(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_rope_backward(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
 //! Execute utility operations
 void execute_fill(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_copy(CompiledGraph& graph, const OpExecutionInfo& op_info);

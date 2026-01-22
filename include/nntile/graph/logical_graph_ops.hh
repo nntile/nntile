@@ -751,6 +751,70 @@ void adamw_step(
     LogicalGraph::TensorNode& p
 );
 
+//! Flash attention forward pass (CUDA-only): A = flash_sdpa_fwd_cudnn(K, Q, mask, logsumexp, V)
+//! @param K Key tensor
+//! @param Q Query tensor
+//! @param mask Attention mask tensor
+//! @param logsumexp Log-sum-exp tensor (fp32)
+//! @param V Value tensor
+//! @param A Output attention tensor
+void flash_sdpa_fwd_cudnn(
+    LogicalGraph::TensorNode& K,
+    LogicalGraph::TensorNode& Q,
+    LogicalGraph::TensorNode& mask,
+    LogicalGraph::TensorNode& logsumexp,
+    LogicalGraph::TensorNode& V,
+    LogicalGraph::TensorNode& A
+);
+
+//! Flash attention backward pass (CUDA-only): gradients w.r.t. K, Q, V
+//! @param K Key tensor
+//! @param Q Query tensor
+//! @param V Value tensor
+//! @param A Forward pass attention output
+//! @param dA Gradient of attention output
+//! @param mask Attention mask tensor
+//! @param logsumexp Log-sum-exp tensor (fp32)
+//! @param dK Gradient tensor for K (modified in-place)
+//! @param dQ Gradient tensor for Q (modified in-place)
+//! @param dV Gradient tensor for V (modified in-place)
+void flash_sdpa_bwd_cudnn(
+    LogicalGraph::TensorNode& K,
+    LogicalGraph::TensorNode& Q,
+    LogicalGraph::TensorNode& V,
+    LogicalGraph::TensorNode& A,
+    LogicalGraph::TensorNode& dA,
+    LogicalGraph::TensorNode& mask,
+    LogicalGraph::TensorNode& logsumexp,
+    LogicalGraph::TensorNode& dK,
+    LogicalGraph::TensorNode& dQ,
+    LogicalGraph::TensorNode& dV
+);
+
+//! Rotary position embedding: dst = rope(sin, cos, src)
+//! @param sin_tensor Sine tensor for rotation
+//! @param cos_tensor Cosine tensor for rotation
+//! @param src Input tensor
+//! @param dst Output tensor
+void rope(
+    LogicalGraph::TensorNode& sin_tensor,
+    LogicalGraph::TensorNode& cos_tensor,
+    LogicalGraph::TensorNode& src,
+    LogicalGraph::TensorNode& dst
+);
+
+//! Rotary position embedding backward: dx = rope_backward(sin, cos, dy)
+//! @param sin_tensor Sine tensor for rotation
+//! @param cos_tensor Cosine tensor for rotation
+//! @param dy Gradient of output
+//! @param dx Gradient of input (modified in-place)
+void rope_backward(
+    LogicalGraph::TensorNode& sin_tensor,
+    LogicalGraph::TensorNode& cos_tensor,
+    LogicalGraph::TensorNode& dy,
+    LogicalGraph::TensorNode& dx
+);
+
 //! Hypot scalar inverse operation: y = 1.0 / hypot(eps, alpha * y)
 //! @param x Input/output tensor (modified in-place)
 //! @param eps Epsilon value for numerical stability

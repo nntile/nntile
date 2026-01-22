@@ -1059,6 +1059,142 @@ void adamw_step(
     );
 }
 
+//! Flash attention forward pass (CUDA-only): A = flash_sdpa_fwd_cudnn(K, Q, mask, logsumexp, V)
+void flash_sdpa_fwd_cudnn(
+    LogicalGraph::TensorNode& K,
+    LogicalGraph::TensorNode& Q,
+    LogicalGraph::TensorNode& mask,
+    LogicalGraph::TensorNode& logsumexp,
+    LogicalGraph::TensorNode& V,
+    LogicalGraph::TensorNode& A)
+{
+    if(&K.graph() != &Q.graph() || &K.graph() != &mask.graph() ||
+       &K.graph() != &logsumexp.graph() || &K.graph() != &V.graph() || &K.graph() != &A.graph())
+    {
+        throw std::invalid_argument(
+            "flash_sdpa_fwd_cudnn: tensors must belong to the same graph");
+    }
+
+    if(K.dtype() != Q.dtype() || K.dtype() != V.dtype() || K.dtype() != A.dtype())
+    {
+        throw std::invalid_argument(
+            "flash_sdpa_fwd_cudnn: K, Q, V, A must have the same dtype");
+    }
+
+    if(logsumexp.dtype() != DataType::FP32)
+    {
+        throw std::invalid_argument(
+            "flash_sdpa_fwd_cudnn: logsumexp must have fp32 dtype");
+    }
+
+    OpAttrs attrs = ClearAttrs{};  // No additional attributes needed
+    K.graph().add_op(
+        OpType::FLASH_SDPA_FWD_CUDNN,
+        attrs,
+        {&K, &Q, &mask, &logsumexp, &V},
+        {&A}
+    );
+}
+
+//! Flash attention backward pass (CUDA-only): gradients w.r.t. K, Q, V = flash_sdpa_bwd_cudnn(...)
+void flash_sdpa_bwd_cudnn(
+    LogicalGraph::TensorNode& K,
+    LogicalGraph::TensorNode& Q,
+    LogicalGraph::TensorNode& V,
+    LogicalGraph::TensorNode& A,
+    LogicalGraph::TensorNode& dA,
+    LogicalGraph::TensorNode& mask,
+    LogicalGraph::TensorNode& logsumexp,
+    LogicalGraph::TensorNode& dK,
+    LogicalGraph::TensorNode& dQ,
+    LogicalGraph::TensorNode& dV)
+{
+    if(&K.graph() != &Q.graph() || &K.graph() != &V.graph() || &K.graph() != &A.graph() ||
+       &K.graph() != &dA.graph() || &K.graph() != &mask.graph() || &K.graph() != &logsumexp.graph() ||
+       &K.graph() != &dK.graph() || &K.graph() != &dQ.graph() || &K.graph() != &dV.graph())
+    {
+        throw std::invalid_argument(
+            "flash_sdpa_bwd_cudnn: tensors must belong to the same graph");
+    }
+
+    if(K.dtype() != Q.dtype() || K.dtype() != V.dtype() || K.dtype() != A.dtype() ||
+       K.dtype() != dA.dtype() || K.dtype() != dK.dtype() || K.dtype() != dQ.dtype() || K.dtype() != dV.dtype())
+    {
+        throw std::invalid_argument(
+            "flash_sdpa_bwd_cudnn: all tensors must have the same dtype");
+    }
+
+    if(logsumexp.dtype() != DataType::FP32)
+    {
+        throw std::invalid_argument(
+            "flash_sdpa_bwd_cudnn: logsumexp must have fp32 dtype");
+    }
+
+    OpAttrs attrs = ClearAttrs{};  // No additional attributes needed
+    K.graph().add_op(
+        OpType::FLASH_SDPA_BWD_CUDNN,
+        attrs,
+        {&K, &Q, &V, &A, &dA, &mask, &logsumexp, &dK, &dQ, &dV},
+        {&dK, &dQ, &dV}
+    );
+}
+
+//! Rotary position embedding: dst = rope(sin, cos, src)
+void rope(
+    LogicalGraph::TensorNode& sin_tensor,
+    LogicalGraph::TensorNode& cos_tensor,
+    LogicalGraph::TensorNode& src,
+    LogicalGraph::TensorNode& dst)
+{
+    if(&sin_tensor.graph() != &cos_tensor.graph() || &sin_tensor.graph() != &src.graph() || &sin_tensor.graph() != &dst.graph())
+    {
+        throw std::invalid_argument(
+            "rope: tensors must belong to the same graph");
+    }
+
+    if(sin_tensor.dtype() != cos_tensor.dtype() || sin_tensor.dtype() != src.dtype() || sin_tensor.dtype() != dst.dtype())
+    {
+        throw std::invalid_argument(
+            "rope: all tensors must have the same dtype");
+    }
+
+    OpAttrs attrs = ClearAttrs{};  // No additional attributes needed
+    sin_tensor.graph().add_op(
+        OpType::ROPE,
+        attrs,
+        {&sin_tensor, &cos_tensor, &src},
+        {&dst}
+    );
+}
+
+//! Rotary position embedding backward: dx = rope_backward(sin, cos, dy)
+void rope_backward(
+    LogicalGraph::TensorNode& sin_tensor,
+    LogicalGraph::TensorNode& cos_tensor,
+    LogicalGraph::TensorNode& dy,
+    LogicalGraph::TensorNode& dx)
+{
+    if(&sin_tensor.graph() != &cos_tensor.graph() || &sin_tensor.graph() != &dy.graph() || &sin_tensor.graph() != &dx.graph())
+    {
+        throw std::invalid_argument(
+            "rope_backward: tensors must belong to the same graph");
+    }
+
+    if(sin_tensor.dtype() != cos_tensor.dtype() || sin_tensor.dtype() != dy.dtype() || sin_tensor.dtype() != dx.dtype())
+    {
+        throw std::invalid_argument(
+            "rope_backward: all tensors must have the same dtype");
+    }
+
+    OpAttrs attrs = ClearAttrs{};  // No additional attributes needed
+    sin_tensor.graph().add_op(
+        OpType::ROPE_BACKWARD,
+        attrs,
+        {&sin_tensor, &cos_tensor, &dy, &dx},
+        {&dx}
+    );
+}
+
 //! Total sum of all elements: y = alpha * sum(x) + beta * y
 void sum(
     LogicalGraph::TensorNode& x,

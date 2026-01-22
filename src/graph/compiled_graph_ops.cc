@@ -68,6 +68,10 @@
 #include "nntile/tensor/conv2d_bwd_input_inplace.hh"
 #include "nntile/tensor/conv2d_bwd_weight_inplace.hh"
 #include "nntile/tensor/conv2d_inplace.hh"
+#include "nntile/tensor/flash_sdpa_bwd_cudnn.hh"
+#include "nntile/tensor/flash_sdpa_fwd_cudnn.hh"
+#include "nntile/tensor/rope.hh"
+#include "nntile/tensor/rope_backward.hh"
 #include "nntile/tensor/scale_fiber.hh"
 #include "nntile/tensor/scale_slice.hh"
 #include "nntile/tensor/scatter.hh"
@@ -785,6 +789,71 @@ void run_adamw_step(CompiledGraph& graph, const AdamStepAttrs& attrs,
     nntile::tensor::adam_step<T>(attrs.num_iter, attrs.beta_1, attrs.beta_2,
                                 attrs.eps, attrs.lr, attrs.weight_decay,
                                 grad, first_moment, second_moment, p);
+}
+
+// Advanced operations (CUDA-only for flash attention)
+template<typename T>
+void run_flash_sdpa_fwd_cudnn(CompiledGraph& graph, const ClearAttrs& attrs,
+                              const std::string& K_name, const std::string& Q_name,
+                              const std::string& mask_name, const std::string& logsumexp_name,
+                              const std::string& V_name, const std::string& A_name)
+{
+    auto& K = graph.get_tensor<T>(K_name);
+    auto& Q = graph.get_tensor<T>(Q_name);
+    auto& mask = graph.get_tensor<T>(mask_name);
+    auto& logsumexp = graph.get_tensor<fp32_t>(logsumexp_name);
+    auto& V = graph.get_tensor<T>(V_name);
+    auto& A = graph.get_tensor<T>(A_name);
+
+    nntile::tensor::flash_sdpa_fwd_cudnn<T>(K, Q, mask, logsumexp, V, A);
+}
+
+template<typename T>
+void run_flash_sdpa_bwd_cudnn(CompiledGraph& graph, const ClearAttrs& attrs,
+                              const std::string& K_name, const std::string& Q_name,
+                              const std::string& V_name, const std::string& A_name,
+                              const std::string& dA_name, const std::string& mask_name,
+                              const std::string& logsumexp_name, const std::string& dK_name,
+                              const std::string& dQ_name, const std::string& dV_name)
+{
+    auto& K = graph.get_tensor<T>(K_name);
+    auto& Q = graph.get_tensor<T>(Q_name);
+    auto& V = graph.get_tensor<T>(V_name);
+    auto& A = graph.get_tensor<T>(A_name);
+    auto& dA = graph.get_tensor<T>(dA_name);
+    auto& mask = graph.get_tensor<T>(mask_name);
+    auto& logsumexp = graph.get_tensor<fp32_t>(logsumexp_name);
+    auto& dK = graph.get_tensor<T>(dK_name);
+    auto& dQ = graph.get_tensor<T>(dQ_name);
+    auto& dV = graph.get_tensor<T>(dV_name);
+
+    nntile::tensor::flash_sdpa_bwd_cudnn<T>(K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
+}
+
+template<typename T>
+void run_rope(CompiledGraph& graph, const ClearAttrs& attrs,
+              const std::string& sin_name, const std::string& cos_name,
+              const std::string& src_name, const std::string& dst_name)
+{
+    auto& sin_tensor = graph.get_tensor<T>(sin_name);
+    auto& cos_tensor = graph.get_tensor<T>(cos_name);
+    auto& src = graph.get_tensor<T>(src_name);
+    auto& dst = graph.get_tensor<T>(dst_name);
+
+    nntile::tensor::rope<T>(sin_tensor, cos_tensor, src, dst);
+}
+
+template<typename T>
+void run_rope_backward(CompiledGraph& graph, const ClearAttrs& attrs,
+                       const std::string& sin_name, const std::string& cos_name,
+                       const std::string& dy_name, const std::string& dx_name)
+{
+    auto& sin_tensor = graph.get_tensor<T>(sin_name);
+    auto& cos_tensor = graph.get_tensor<T>(cos_name);
+    auto& dy = graph.get_tensor<T>(dy_name);
+    auto& dx = graph.get_tensor<T>(dx_name);
+
+    nntile::tensor::rope_backward<T>(sin_tensor, cos_tensor, dy, dx);
 }
 
 } // namespace
@@ -3186,6 +3255,178 @@ void execute_adamw_step(CompiledGraph& graph, const OpExecutionInfo& op_info)
                 " data type not supported for adamw_step operation");
         default:
             throw std::runtime_error("Unsupported data type for adamw_step");
+    }
+}
+
+//! Execute flash_sdpa_fwd_cudnn operation (CUDA-only)
+void execute_flash_sdpa_fwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ClearAttrs& attrs = std::get<ClearAttrs>(op_info.attrs);
+    const std::string& K_name = op_info.input_names[0];
+    const std::string& Q_name = op_info.input_names[1];
+    const std::string& mask_name = op_info.input_names[2];
+    const std::string& logsumexp_name = op_info.input_names[3];
+    const std::string& V_name = op_info.input_names[4];
+    const std::string& A_name = op_info.output_names[0];
+    DataType dtype = graph.get_dtype(K_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_flash_sdpa_fwd_cudnn<nntile::fp32_t>(graph, attrs, K_name, Q_name, mask_name, logsumexp_name, V_name, A_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_flash_sdpa_fwd_cudnn<nntile::fp32_fast_tf32_t>(graph, attrs, K_name, Q_name, mask_name, logsumexp_name, V_name, A_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_flash_sdpa_fwd_cudnn<nntile::fp32_fast_fp16_t>(graph, attrs, K_name, Q_name, mask_name, logsumexp_name, V_name, A_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_flash_sdpa_fwd_cudnn<nntile::fp32_fast_bf16_t>(graph, attrs, K_name, Q_name, mask_name, logsumexp_name, V_name, A_name);
+            break;
+        case DataType::FP64:
+        case DataType::FP16:
+        case DataType::BF16:
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for flash_sdpa_fwd_cudnn operation (CUDA-only)");
+        default:
+            throw std::runtime_error("Unsupported data type for flash_sdpa_fwd_cudnn");
+    }
+}
+
+//! Execute flash_sdpa_bwd_cudnn operation (CUDA-only)
+void execute_flash_sdpa_bwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ClearAttrs& attrs = std::get<ClearAttrs>(op_info.attrs);
+    const std::string& K_name = op_info.input_names[0];
+    const std::string& Q_name = op_info.input_names[1];
+    const std::string& V_name = op_info.input_names[2];
+    const std::string& A_name = op_info.input_names[3];
+    const std::string& dA_name = op_info.input_names[4];
+    const std::string& mask_name = op_info.input_names[5];
+    const std::string& logsumexp_name = op_info.input_names[6];
+    const std::string& dK_name = op_info.input_names[7];
+    const std::string& dQ_name = op_info.input_names[8];
+    const std::string& dV_name = op_info.input_names[9];
+    DataType dtype = graph.get_dtype(K_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_flash_sdpa_bwd_cudnn<nntile::fp32_t>(graph, attrs, K_name, Q_name, V_name, A_name, dA_name, mask_name, logsumexp_name, dK_name, dQ_name, dV_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_flash_sdpa_bwd_cudnn<nntile::fp32_fast_tf32_t>(graph, attrs, K_name, Q_name, V_name, A_name, dA_name, mask_name, logsumexp_name, dK_name, dQ_name, dV_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_flash_sdpa_bwd_cudnn<nntile::fp32_fast_fp16_t>(graph, attrs, K_name, Q_name, V_name, A_name, dA_name, mask_name, logsumexp_name, dK_name, dQ_name, dV_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_flash_sdpa_bwd_cudnn<nntile::fp32_fast_bf16_t>(graph, attrs, K_name, Q_name, V_name, A_name, dA_name, mask_name, logsumexp_name, dK_name, dQ_name, dV_name);
+            break;
+        case DataType::FP64:
+        case DataType::FP16:
+        case DataType::BF16:
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for flash_sdpa_bwd_cudnn operation (CUDA-only)");
+        default:
+            throw std::runtime_error("Unsupported data type for flash_sdpa_bwd_cudnn");
+    }
+}
+
+//! Execute rope operation
+void execute_rope(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ClearAttrs& attrs = std::get<ClearAttrs>(op_info.attrs);
+    const std::string& sin_name = op_info.input_names[0];
+    const std::string& cos_name = op_info.input_names[1];
+    const std::string& src_name = op_info.input_names[2];
+    const std::string& dst_name = op_info.output_names[0];
+    DataType dtype = graph.get_dtype(sin_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_rope<nntile::fp32_t>(graph, attrs, sin_name, cos_name, src_name, dst_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_rope<nntile::fp32_fast_tf32_t>(graph, attrs, sin_name, cos_name, src_name, dst_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_rope<nntile::fp32_fast_fp16_t>(graph, attrs, sin_name, cos_name, src_name, dst_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_rope<nntile::fp32_fast_bf16_t>(graph, attrs, sin_name, cos_name, src_name, dst_name);
+            break;
+        case DataType::FP64:
+            run_rope<nntile::fp64_t>(graph, attrs, sin_name, cos_name, src_name, dst_name);
+            break;
+        case DataType::FP16:
+            run_rope<nntile::fp16_t>(graph, attrs, sin_name, cos_name, src_name, dst_name);
+            break;
+        case DataType::BF16:
+            run_rope<nntile::bf16_t>(graph, attrs, sin_name, cos_name, src_name, dst_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for rope operation");
+        default:
+            throw std::runtime_error("Unsupported data type for rope");
+    }
+}
+
+//! Execute rope_backward operation
+void execute_rope_backward(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ClearAttrs& attrs = std::get<ClearAttrs>(op_info.attrs);
+    const std::string& sin_name = op_info.input_names[0];
+    const std::string& cos_name = op_info.input_names[1];
+    const std::string& dy_name = op_info.input_names[2];
+    const std::string& dx_name = op_info.input_names[3];  // dx is both input and output
+    DataType dtype = graph.get_dtype(sin_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_rope_backward<nntile::fp32_t>(graph, attrs, sin_name, cos_name, dy_name, dx_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_rope_backward<nntile::fp32_fast_tf32_t>(graph, attrs, sin_name, cos_name, dy_name, dx_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_rope_backward<nntile::fp32_fast_fp16_t>(graph, attrs, sin_name, cos_name, dy_name, dx_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_rope_backward<nntile::fp32_fast_bf16_t>(graph, attrs, sin_name, cos_name, dy_name, dx_name);
+            break;
+        case DataType::FP64:
+            run_rope_backward<nntile::fp64_t>(graph, attrs, sin_name, cos_name, dy_name, dx_name);
+            break;
+        case DataType::FP16:
+            run_rope_backward<nntile::fp16_t>(graph, attrs, sin_name, cos_name, dy_name, dx_name);
+            break;
+        case DataType::BF16:
+            run_rope_backward<nntile::bf16_t>(graph, attrs, sin_name, cos_name, dy_name, dx_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for rope_backward operation");
+        default:
+            throw std::runtime_error("Unsupported data type for rope_backward");
     }
 }
 
