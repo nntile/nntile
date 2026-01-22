@@ -258,6 +258,42 @@ void maxsumexp(
     int redux = 0
 );
 
+//! Sum of products along fibers: y = alpha * sum_fiber(x1 * x2) + beta * y
+//! @param x1 First input tensor
+//! @param x2 Second input tensor
+//! @param y Output tensor to accumulate into
+//! @param axis Axis along which to sum
+//! @param redux Whether to use reduction (default: 0)
+//! @param alpha Scaling factor for sum (default: 1.0)
+//! @param beta Scaling factor for existing y (default: 0.0)
+void sumprod_fiber(
+    LogicalGraph::TensorNode& x1,
+    LogicalGraph::TensorNode& x2,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux = 0,
+    Scalar alpha = 1.0,
+    Scalar beta = 0.0
+);
+
+//! Sum of products along slices: y = alpha * sum_slice(x1 * x2) + beta * y
+//! @param x1 First input tensor
+//! @param x2 Second input tensor
+//! @param y Output tensor to accumulate into
+//! @param axis Axis along which to sum
+//! @param redux Whether to use reduction (default: 0)
+//! @param alpha Scaling factor for sum (default: 1.0)
+//! @param beta Scaling factor for existing y (default: 0.0)
+void sumprod_slice(
+    LogicalGraph::TensorNode& x1,
+    LogicalGraph::TensorNode& x2,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux = 0,
+    Scalar alpha = 1.0,
+    Scalar beta = 0.0
+);
+
 //! Scale operation: y = alpha * x
 //! @param x Input tensor
 //! @param output_name Name for the output tensor
