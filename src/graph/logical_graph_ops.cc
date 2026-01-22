@@ -658,6 +658,100 @@ void mask_scalar(
     );
 }
 
+//! Fill operation: x = val
+void fill(
+    LogicalGraph::TensorNode& x,
+    Scalar val)
+{
+    OpAttrs attrs = FillAttrs{val};
+    x.graph().add_op(
+        OpType::FILL,
+        attrs,
+        {},
+        {&x}
+    );
+}
+
+//! Copy operation: y = x
+LogicalGraph::TensorNode& copy(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name)
+{
+    std::vector<Index> output_shape = x.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = ClearAttrs{};  // No attributes needed
+    x.graph().add_op(
+        OpType::COPY,
+        attrs,
+        {&x},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Transpose operation: y = alpha * transpose(x)
+LogicalGraph::TensorNode& transpose(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name,
+    Scalar alpha,
+    Index ndim)
+{
+    // For transpose, we need to reverse the first ndim dimensions
+    std::vector<Index> output_shape = x.shape();
+    if(ndim > 0 && ndim <= x.ndim())
+    {
+        // Reverse the first ndim dimensions
+        for(Index i = 0; i < ndim/2; ++i)
+        {
+            std::swap(output_shape[i], output_shape[ndim-1-i]);
+        }
+    }
+
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = TransposeAttrs{alpha, ndim};
+    x.graph().add_op(
+        OpType::TRANSPOSE,
+        attrs,
+        {&x},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Gather operation: y = gather(x)
+LogicalGraph::TensorNode& gather(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name)
+{
+    // For now, assume gather doesn't change shape
+    // In practice, this would depend on the indices
+    std::vector<Index> output_shape = x.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = ClearAttrs{};  // No attributes needed
+    x.graph().add_op(
+        OpType::GATHER,
+        attrs,
+        {&x},
+        {&output}
+    );
+
+    return output;
+}
+
 //! Total sum of all elements: y = alpha * sum(x) + beta * y
 void sum(
     LogicalGraph::TensorNode& x,

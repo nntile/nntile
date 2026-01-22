@@ -307,7 +307,20 @@ struct PowAttrs
 // Log scalar operation (base)
 struct LogScalarAttrs
 {
-    Scalar base = 1.0;  // Natural log if 1.0
+    std::string name;  // Name for logging
+};
+
+// Fill operation (value)
+struct FillAttrs
+{
+    Scalar val = 0.0;
+};
+
+// Transpose operation (alpha, ndim)
+struct TransposeAttrs
+{
+    Scalar alpha = 1.0;
+    Index ndim = 0;
 };
 
 using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
@@ -316,7 +329,7 @@ using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
                              LogSumExpAttrs, ScaleAttrs, Conv2dAttrs,
                              EmbeddingAttrs, MaskScalarAttrs, TotalSumAccumAttrs,
                              SgdStepAttrs, AdamStepAttrs, RandnAttrs,
-                             PowAttrs, LogScalarAttrs>;
+                             PowAttrs, LogScalarAttrs, FillAttrs, TransposeAttrs>;
 
 //! Logical graph - defines computation without physical details
 class LogicalGraph

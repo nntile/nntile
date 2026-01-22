@@ -415,4 +415,43 @@ void mask_scalar(
     Index batch_ndim = 0
 );
 
+//! Fill operation: x = val
+//! @param x Input/output tensor (modified in-place)
+//! @param val Value to fill tensor with
+void fill(
+    LogicalGraph::TensorNode& x,
+    Scalar val = 0.0
+);
+
+//! Copy operation: y = x
+//! @param x Input tensor
+//! @param output_name Name for the output tensor
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& copy(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name
+);
+
+//! Transpose operation: y = alpha * transpose(x)
+//! @param x Input tensor
+//! @param output_name Name for the output tensor
+//! @param alpha Scaling factor (default: 1.0)
+//! @param ndim Number of dimensions to transpose (default: 0)
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& transpose(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name,
+    Scalar alpha = 1.0,
+    Index ndim = 0
+);
+
+//! Gather operation: y = gather(x)
+//! @param x Input tensor
+//! @param output_name Name for the output tensor
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& gather(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name
+);
+
 } // namespace nntile::graph

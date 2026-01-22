@@ -23,8 +23,11 @@
 #include "nntile/tensor/add.hh"
 #include "nntile/tensor/add_inplace.hh"
 #include "nntile/tensor/clear.hh"
+#include "nntile/tensor/copy.hh"
 #include "nntile/tensor/embedding.hh"
 #include "nntile/tensor/embedding_backward.hh"
+#include "nntile/tensor/fill.hh"
+#include "nntile/tensor/gather.hh"
 #include "nntile/tensor/gelu.hh"
 #include "nntile/tensor/gelu_backward.hh"
 #include "nntile/tensor/gelutanh.hh"
@@ -56,6 +59,7 @@
 #include "nntile/tensor/sum.hh"
 #include "nntile/tensor/sum_fiber.hh"
 #include "nntile/tensor/sum_slice.hh"
+#include "nntile/tensor/transpose.hh"
 
 namespace nntile::graph
 {
@@ -477,6 +481,46 @@ void run_maxsumexp(CompiledGraph& graph, const LogSumExpAttrs& attrs,
     auto& y = graph.get_tensor<T>(y_name);
 
     nntile::tensor::maxsumexp<T>(x, y, attrs.axis, 0);  // redux = 0
+}
+
+// Utility operations
+template<typename T>
+void run_fill(CompiledGraph& graph, const FillAttrs& attrs,
+              const std::string& x_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+
+    nntile::tensor::fill<T>(attrs.val, x);
+}
+
+template<typename T>
+void run_copy(CompiledGraph& graph, const ClearAttrs& attrs,
+              const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    nntile::tensor::copy<T>(x, y);
+}
+
+template<typename T>
+void run_transpose(CompiledGraph& graph, const TransposeAttrs& attrs,
+                   const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    nntile::tensor::transpose<T>(attrs.alpha, x, y, attrs.ndim);
+}
+
+template<typename T>
+void run_gather(CompiledGraph& graph, const ClearAttrs& attrs,
+                const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    nntile::tensor::gather<T>(x, y);
 }
 
 } // namespace
@@ -1973,6 +2017,182 @@ void execute_maxsumexp(CompiledGraph& graph, const OpExecutionInfo& op_info)
                 " data type not supported for maxsumexp operation");
         default:
             throw std::runtime_error("Unsupported data type for maxsumexp");
+    }
+}
+
+//! Execute fill operation
+void execute_fill(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const FillAttrs& attrs = std::get<FillAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.output_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_fill<nntile::fp32_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_fill<nntile::fp32_fast_tf32_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_fill<nntile::fp32_fast_fp16_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_fill<nntile::fp32_fast_bf16_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP64:
+            run_fill<nntile::fp64_t>(graph, attrs, x_name);
+            break;
+        case DataType::FP16:
+            run_fill<nntile::fp16_t>(graph, attrs, x_name);
+            break;
+        case DataType::BF16:
+            run_fill<nntile::bf16_t>(graph, attrs, x_name);
+            break;
+        case DataType::INT64:
+            run_fill<nntile::int64_t>(graph, attrs, x_name);
+            break;
+        case DataType::INT32:
+            run_fill<nntile::int32_t>(graph, attrs, x_name);
+            break;
+        case DataType::BOOL:
+            run_fill<nntile::bool_t>(graph, attrs, x_name);
+            break;
+        default:
+            throw std::runtime_error("Unsupported data type for fill");
+    }
+}
+
+//! Execute copy operation
+void execute_copy(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ClearAttrs& attrs = std::get<ClearAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.output_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_copy<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_copy<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_copy<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_copy<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_copy<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_copy<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_copy<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+            run_copy<nntile::int64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT32:
+            run_copy<nntile::int32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BOOL:
+            run_copy<nntile::bool_t>(graph, attrs, x_name, y_name);
+            break;
+        default:
+            throw std::runtime_error("Unsupported data type for copy");
+    }
+}
+
+//! Execute transpose operation
+void execute_transpose(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const TransposeAttrs& attrs = std::get<TransposeAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.output_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_transpose<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_transpose<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_transpose<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_transpose<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_transpose<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_transpose<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_transpose<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for transpose operation");
+        default:
+            throw std::runtime_error("Unsupported data type for transpose");
+    }
+}
+
+//! Execute gather operation
+void execute_gather(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ClearAttrs& attrs = std::get<ClearAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.output_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_gather<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_gather<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_gather<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_gather<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_gather<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_gather<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_gather<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+            run_gather<nntile::int64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT32:
+            run_gather<nntile::int32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BOOL:
+            run_gather<nntile::bool_t>(graph, attrs, x_name, y_name);
+            break;
+        default:
+            throw std::runtime_error("Unsupported data type for gather");
     }
 }
 
