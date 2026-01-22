@@ -35,9 +35,12 @@
 #include "nntile/tensor/hypot.hh"
 #include "nntile/tensor/hypot_inplace.hh"
 #include "nntile/tensor/log_scalar.hh"
+#include "nntile/tensor/logsumexp.hh"
 #include "nntile/tensor/mask_scalar.hh"
+#include "nntile/tensor/maxsumexp.hh"
 #include "nntile/tensor/multiply.hh"
 #include "nntile/tensor/multiply_inplace.hh"
+#include "nntile/tensor/norm.hh"
 #include "nntile/tensor/pow.hh"
 #include "nntile/tensor/pow_inplace.hh"
 #include "nntile/tensor/relu.hh"
@@ -52,6 +55,7 @@
 #include "nntile/tensor/sqrt_inplace.hh"
 #include "nntile/tensor/sum.hh"
 #include "nntile/tensor/sum_fiber.hh"
+#include "nntile/tensor/sum_slice.hh"
 
 namespace nntile::graph
 {
@@ -426,6 +430,53 @@ void run_mask_scalar(CompiledGraph& graph, const MaskScalarAttrs& attrs,
     const auto val = static_cast<nntile::Scalar>(attrs.val);
 
     nntile::tensor::mask_scalar<T>(mask, val, x, attrs.batch_ndim);
+}
+
+// Reduction operations
+template<typename T>
+void run_sum_slice(CompiledGraph& graph, const ReductionAttrs& attrs,
+                   const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    const auto beta = static_cast<nntile::Scalar>(attrs.beta);
+
+    nntile::tensor::sum_slice<T>(alpha, x, beta, y, attrs.axis, attrs.redux);
+}
+
+template<typename T>
+void run_norm(CompiledGraph& graph, const TotalSumAttrs& attrs,
+              const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
+    const auto beta = static_cast<nntile::Scalar>(attrs.beta);
+
+    nntile::tensor::norm<T>(alpha, x, beta, y);
+}
+
+template<typename T>
+void run_logsumexp(CompiledGraph& graph, const LogSumExpAttrs& attrs,
+                   const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    nntile::tensor::logsumexp<T>(x, y);
+}
+
+template<typename T>
+void run_maxsumexp(CompiledGraph& graph, const LogSumExpAttrs& attrs,
+                   const std::string& x_name, const std::string& y_name)
+{
+    auto& x = graph.get_tensor<T>(x_name);
+    auto& y = graph.get_tensor<T>(y_name);
+
+    nntile::tensor::maxsumexp<T>(x, y, attrs.axis, 0);  // redux = 0
 }
 
 } // namespace
@@ -1754,6 +1805,174 @@ void execute_mask_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info)
                 " data type not supported for mask_scalar operation");
         default:
             throw std::runtime_error("Unsupported data type for mask_scalar");
+    }
+}
+
+//! Execute sum_slice operation
+void execute_sum_slice(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const ReductionAttrs& attrs = std::get<ReductionAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.input_names[1];  // y is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_sum_slice<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_sum_slice<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_sum_slice<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_sum_slice<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_sum_slice<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_sum_slice<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_sum_slice<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for sum_slice operation");
+        default:
+            throw std::runtime_error("Unsupported data type for sum_slice");
+    }
+}
+
+//! Execute norm operation
+void execute_norm(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const TotalSumAttrs& attrs = std::get<TotalSumAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.input_names[1];  // y is both input and output
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_norm<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_norm<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_norm<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_norm<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_norm<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_norm<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_norm<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for norm operation");
+        default:
+            throw std::runtime_error("Unsupported data type for norm");
+    }
+}
+
+//! Execute logsumexp operation
+void execute_logsumexp(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const LogSumExpAttrs& attrs = std::get<LogSumExpAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.output_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_logsumexp<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_logsumexp<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_logsumexp<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_logsumexp<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_logsumexp<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_logsumexp<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_logsumexp<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for logsumexp operation");
+        default:
+            throw std::runtime_error("Unsupported data type for logsumexp");
+    }
+}
+
+//! Execute maxsumexp operation
+void execute_maxsumexp(CompiledGraph& graph, const OpExecutionInfo& op_info)
+{
+    const LogSumExpAttrs& attrs = std::get<LogSumExpAttrs>(op_info.attrs);
+    const std::string& x_name = op_info.input_names[0];
+    const std::string& y_name = op_info.output_names[0];
+    DataType dtype = graph.get_dtype(x_name);
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_maxsumexp<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_maxsumexp<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_maxsumexp<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_maxsumexp<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP64:
+            run_maxsumexp<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::FP16:
+            run_maxsumexp<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::BF16:
+            run_maxsumexp<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            break;
+        case DataType::INT64:
+        case DataType::INT32:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) +
+                " data type not supported for maxsumexp operation");
+        default:
+            throw std::runtime_error("Unsupported data type for maxsumexp");
     }
 }
 

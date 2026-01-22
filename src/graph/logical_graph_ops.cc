@@ -735,6 +735,143 @@ void sum_fiber(
     );
 }
 
+//! Sum along slices: y = alpha * sum_slice(x) + beta * y
+void sum_slice(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "sum_slice: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "sum_slice: input and output tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "sum_slice: axis out of bounds");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, 0, redux};  // batch_ndim = 0 for slice
+    x.graph().add_op(
+        OpType::SUM_SLICE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Euclidean norm: y = alpha * norm(x) + beta * y
+void norm(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "norm: tensors must belong to the same graph");
+    }
+
+    if(y.ndim() != 1 || y.shape()[0] != 1)
+    {
+        throw std::invalid_argument(
+            "norm: output tensor must be scalar (shape [1])");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "norm: input and output tensors must have the same dtype");
+    }
+
+    OpAttrs attrs = TotalSumAttrs{alpha, beta};
+    x.graph().add_op(
+        OpType::NORM,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Log sum exp along axis: y = log(sum(exp(x)))
+void logsumexp(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "logsumexp: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "logsumexp: input and output tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "logsumexp: axis out of bounds");
+    }
+
+    OpAttrs attrs = LogSumExpAttrs{1.0, 0.0, axis};  // alpha=1, beta=0
+    x.graph().add_op(
+        OpType::LOGSUMEXP,
+        attrs,
+        {&x},
+        {&y}
+    );
+}
+
+//! Max and sum of exponents along axis: y = max + log(sum(exp(x - max)))
+void maxsumexp(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "maxsumexp: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "maxsumexp: input and output tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "maxsumexp: axis out of bounds");
+    }
+
+    OpAttrs attrs = LogSumExpAttrs{1.0, 0.0, axis};  // alpha=1, beta=0, axis
+    x.graph().add_op(
+        OpType::MAXSUMEXP,
+        attrs,
+        {&x},
+        {&y}
+    );
+}
+
 //! Scale operation: y = alpha * x
 LogicalGraph::TensorNode& scale(
     LogicalGraph::TensorNode& x,

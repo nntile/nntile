@@ -72,4 +72,10 @@ void execute_pow_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_log_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_mask_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info);
 
+//! Execute additional reduction operations
+void execute_sum_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_norm(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_logsumexp(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_maxsumexp(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
 } // namespace nntile::graph

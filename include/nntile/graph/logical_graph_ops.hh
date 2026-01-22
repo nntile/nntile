@@ -208,6 +208,56 @@ void sum_fiber(
     Scalar beta = 0.0
 );
 
+//! Sum along slices: y = alpha * sum_slice(x) + beta * y
+//! @param x Input tensor
+//! @param y Output tensor to accumulate into
+//! @param axis Axis along which to sum
+//! @param redux Whether to use reduction (default: 0)
+//! @param alpha Scaling factor for sum (default: 1.0)
+//! @param beta Scaling factor for existing y (default: 0.0)
+void sum_slice(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux = 0,
+    Scalar alpha = 1.0,
+    Scalar beta = 0.0
+);
+
+//! Euclidean norm: y = alpha * norm(x) + beta * y
+//! @param x Input tensor
+//! @param y Output tensor to accumulate into (must be scalar)
+//! @param alpha Scaling factor for norm (default: 1.0)
+//! @param beta Scaling factor for existing y (default: 0.0)
+void norm(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha = 1.0,
+    Scalar beta = 0.0
+);
+
+//! Log sum exp along axis: y = log(sum(exp(x)))
+//! @param x Input tensor
+//! @param y Output tensor
+//! @param axis Axis along which to compute logsumexp
+void logsumexp(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis
+);
+
+//! Max and sum of exponents along axis: y = max + log(sum(exp(x - max)))
+//! @param x Input tensor
+//! @param y Output tensor
+//! @param axis Axis along which to compute maxsumexp
+//! @param redux Whether to use reduction (default: 0)
+void maxsumexp(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux = 0
+);
+
 //! Scale operation: y = alpha * x
 //! @param x Input tensor
 //! @param output_name Name for the output tensor
