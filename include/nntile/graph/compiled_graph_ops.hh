@@ -17,7 +17,11 @@
 #include <nntile/graph/compiled_graph.hh>
 
 #include <nntile/graph/compiled/add.hh>
+#include <nntile/graph/compiled/add_fiber.hh>
+#include <nntile/graph/compiled/add_fiber_inplace.hh>
 #include <nntile/graph/compiled/add_inplace.hh>
+#include <nntile/graph/compiled/add_slice.hh>
+#include <nntile/graph/compiled/add_slice_inplace.hh>
 #include <nntile/graph/compiled/adam_step.hh>
 #include <nntile/graph/compiled/adamw_step.hh>
 #include <nntile/graph/compiled/clear.hh>
@@ -47,7 +51,10 @@
 #include <nntile/graph/compiled/mask_scalar.hh>
 #include <nntile/graph/compiled/maxsumexp.hh>
 #include <nntile/graph/compiled/multiply.hh>
+#include <nntile/graph/compiled/multiply_fiber.hh>
+#include <nntile/graph/compiled/multiply_fiber_inplace.hh>
 #include <nntile/graph/compiled/multiply_inplace.hh>
+#include <nntile/graph/compiled/multiply_slice.hh>
 #include <nntile/graph/compiled/norm.hh>
 #include <nntile/graph/compiled/norm_fiber.hh>
 #include <nntile/graph/compiled/norm_fiber_inplace.hh>
@@ -70,6 +77,8 @@
 #include <nntile/graph/compiled/silu.hh>
 #include <nntile/graph/compiled/silu_backward.hh>
 #include <nntile/graph/compiled/silu_inplace.hh>
+#include <nntile/graph/compiled/softmax.hh>
+#include <nntile/graph/compiled/softmax_inplace.hh>
 #include <nntile/graph/compiled/sqrt.hh>
 #include <nntile/graph/compiled/sqrt_inplace.hh>
 #include <nntile/graph/compiled/subtract_indexed_outputs.hh>
@@ -78,4 +87,5 @@
 #include <nntile/graph/compiled/sum_slice.hh>
 #include <nntile/graph/compiled/sumprod_fiber.hh>
 #include <nntile/graph/compiled/sumprod_slice.hh>
+#include <nntile/graph/compiled/total_sum_accum.hh>
 #include <nntile/graph/compiled/transpose.hh>

@@ -126,6 +126,10 @@ std::string op_type_to_string(OpType type)
             return "SILU_INPLACE";
         case OpType::SILU_BACKWARD:
             return "SILU_BACKWARD";
+        case OpType::SOFTMAX:
+            return "SOFTMAX";
+        case OpType::SOFTMAX_INPLACE:
+            return "SOFTMAX_INPLACE";
         case OpType::SQRT:
             return "SQRT";
         case OpType::SQRT_INPLACE:
@@ -190,6 +194,14 @@ std::string op_type_to_string(OpType type)
             return "ADD_SLICE";
         case OpType::ADD_SLICE_INPLACE:
             return "ADD_SLICE_INPLACE";
+
+        // Multiply operations
+        case OpType::MULTIPLY_FIBER:
+            return "MULTIPLY_FIBER";
+        case OpType::MULTIPLY_FIBER_INPLACE:
+            return "MULTIPLY_FIBER_INPLACE";
+        case OpType::MULTIPLY_SLICE:
+            return "MULTIPLY_SLICE";
 
         // Matrix operations
         case OpType::TRANSPOSE:

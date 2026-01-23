@@ -74,6 +74,8 @@ enum class OpType {
     SILU,
     SILU_INPLACE,
     SILU_BACKWARD,
+    SOFTMAX,
+    SOFTMAX_INPLACE,
     SQRT,
     SQRT_INPLACE,
     HYPOT,
@@ -110,6 +112,11 @@ enum class OpType {
     ADD_FIBER_INPLACE,
     ADD_SLICE,
     ADD_SLICE_INPLACE,
+
+    // Multiply operations
+    MULTIPLY_FIBER,
+    MULTIPLY_FIBER_INPLACE,
+    MULTIPLY_SLICE,
 
     // Matrix operations
     TRANSPOSE,

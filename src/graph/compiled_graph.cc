@@ -316,6 +316,12 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
         case OpType::SILU_BACKWARD:
             execute_silu_backward(*this, op_info);
             break;
+        case OpType::SOFTMAX:
+            execute_softmax(*this, op_info);
+            break;
+        case OpType::SOFTMAX_INPLACE:
+            execute_softmax_inplace(*this, op_info);
+            break;
         case OpType::SQRT:
             execute_sqrt(*this, op_info);
             break;
@@ -330,11 +336,32 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
         case OpType::ADD_INPLACE:
             execute_add_inplace(*this, op_info);
             break;
+        case OpType::ADD_FIBER:
+            execute_add_fiber(*this, op_info);
+            break;
+        case OpType::ADD_FIBER_INPLACE:
+            execute_add_fiber_inplace(*this, op_info);
+            break;
+        case OpType::ADD_SLICE:
+            execute_add_slice(*this, op_info);
+            break;
+        case OpType::ADD_SLICE_INPLACE:
+            execute_add_slice_inplace(*this, op_info);
+            break;
         case OpType::MULTIPLY:
             execute_multiply(*this, op_info);
             break;
         case OpType::MULTIPLY_INPLACE:
             execute_multiply_inplace(*this, op_info);
+            break;
+        case OpType::MULTIPLY_FIBER:
+            execute_multiply_fiber(*this, op_info);
+            break;
+        case OpType::MULTIPLY_FIBER_INPLACE:
+            execute_multiply_fiber_inplace(*this, op_info);
+            break;
+        case OpType::MULTIPLY_SLICE:
+            execute_multiply_slice(*this, op_info);
             break;
 
         // Reduction operations
@@ -359,6 +386,11 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
             break;
         case OpType::EMBEDDING_BACKWARD:
             execute_embedding_backward(*this, op_info);
+            break;
+
+        // Mixed-dtype operations
+        case OpType::TOTAL_SUM_ACCUM:
+            execute_total_sum_accum(*this, op_info);
             break;
 
         default:

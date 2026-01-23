@@ -387,6 +387,93 @@ void silu_backward(
     );
 }
 
+//! Softmax operation: y = softmax(maxsumexp, x, alpha)
+LogicalGraph::TensorNode& softmax(
+    LogicalGraph::TensorNode& maxsumexp,
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name,
+    Scalar alpha,
+    Index axis)
+{
+    if(&maxsumexp.graph() != &x.graph())
+    {
+        throw std::invalid_argument(
+            "softmax: tensors must belong to the same graph");
+    }
+
+    if(maxsumexp.dtype() != x.dtype())
+    {
+        throw std::invalid_argument(
+            "softmax: tensors must have the same dtype");
+    }
+
+    if(axis < 0)
+    {
+        axis += x.ndim();
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "softmax: axis out of bounds");
+    }
+
+    std::vector<Index> output_shape = x.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = LogSumExpAttrs{alpha, 1.0, axis};
+    x.graph().add_op(
+        OpType::SOFTMAX,
+        attrs,
+        {&maxsumexp, &x},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Softmax in-place: x = softmax(maxsumexp, x, alpha)
+void softmax_inplace(
+    LogicalGraph::TensorNode& maxsumexp,
+    LogicalGraph::TensorNode& x,
+    Scalar alpha,
+    Index axis)
+{
+    if(&maxsumexp.graph() != &x.graph())
+    {
+        throw std::invalid_argument(
+            "softmax_inplace: tensors must belong to the same graph");
+    }
+
+    if(maxsumexp.dtype() != x.dtype())
+    {
+        throw std::invalid_argument(
+            "softmax_inplace: tensors must have the same dtype");
+    }
+
+    if(axis < 0)
+    {
+        axis += x.ndim();
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "softmax_inplace: axis out of bounds");
+    }
+
+    OpAttrs attrs = LogSumExpAttrs{alpha, 1.0, axis};
+    x.graph().add_op(
+        OpType::SOFTMAX_INPLACE,
+        attrs,
+        {&maxsumexp, &x},
+        {&x}
+    );
+}
+
 //! Sqrt activation: y = sqrt(x)
 LogicalGraph::TensorNode& sqrt(
     LogicalGraph::TensorNode& x,
@@ -485,6 +572,199 @@ void add_inplace(
     OpAttrs attrs = BinaryOpAttrs{alpha, beta};
     x.graph().add_op(
         OpType::ADD_INPLACE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Add fiber operation: z = alpha * y + beta * x
+LogicalGraph::TensorNode& add_fiber(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    const std::string& output_name,
+    Scalar alpha,
+    Scalar beta,
+    Index axis,
+    Index batch_ndim)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "add_fiber: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "add_fiber: tensors must have the same dtype");
+    }
+
+    if(axis < 0)
+    {
+        axis += x.ndim();
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "add_fiber: axis out of bounds");
+    }
+
+    if(batch_ndim < 0 || axis + batch_ndim > x.ndim())
+    {
+        throw std::invalid_argument(
+            "add_fiber: invalid batch_ndim");
+    }
+
+    // Output shape coincides with y.shape
+    std::vector<Index> output_shape = y.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, batch_ndim, 0};
+    x.graph().add_op(
+        OpType::ADD_FIBER,
+        attrs,
+        {&x, &y},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Add fiber in-place: y = alpha * fiber + beta * y
+void add_fiber_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha,
+    Scalar beta,
+    Index axis,
+    Index batch_ndim)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "add_fiber_inplace: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "add_fiber_inplace: tensors must have the same dtype");
+    }
+
+    if(axis < 0)
+    {
+        axis += y.ndim();
+    }
+
+    if(axis < 0 || axis >= y.ndim())
+    {
+        throw std::invalid_argument(
+            "add_fiber_inplace: axis out of bounds");
+    }
+
+    if(batch_ndim < 0 || axis + batch_ndim > y.ndim())
+    {
+        throw std::invalid_argument(
+            "add_fiber_inplace: invalid batch_ndim");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, batch_ndim, 0};
+    x.graph().add_op(
+        OpType::ADD_FIBER_INPLACE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Add slice operation: z = alpha * y + beta * x
+LogicalGraph::TensorNode& add_slice(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    const std::string& output_name,
+    Scalar alpha,
+    Scalar beta,
+    Index axis)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "add_slice: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "add_slice: tensors must have the same dtype");
+    }
+
+    if(axis < 0)
+    {
+        axis += x.ndim();
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "add_slice: axis out of bounds");
+    }
+
+    std::vector<Index> output_shape = x.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, 0, 0};
+    x.graph().add_op(
+        OpType::ADD_SLICE,
+        attrs,
+        {&x, &y},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Add slice in-place: y = alpha * slice + beta * y
+void add_slice_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha,
+    Scalar beta,
+    Index axis)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "add_slice_inplace: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "add_slice_inplace: tensors must have the same dtype");
+    }
+
+    if(axis < 0)
+    {
+        axis += y.ndim();
+    }
+
+    if(axis < 0 || axis >= y.ndim())
+    {
+        throw std::invalid_argument(
+            "add_slice_inplace: axis out of bounds");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, 0, 0};
+    x.graph().add_op(
+        OpType::ADD_SLICE_INPLACE,
         attrs,
         {&x, &y},
         {&y}
@@ -1195,6 +1475,132 @@ void rope_backward(
     );
 }
 
+//! Multiply fiber operation: z = alpha * x * y
+LogicalGraph::TensorNode& multiply_fiber(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    const std::string& output_name,
+    Scalar alpha,
+    Index axis)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "multiply_fiber: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "multiply_fiber: tensors must have the same dtype");
+    }
+
+    if(axis < 0)
+    {
+        axis += x.ndim();
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "multiply_fiber: axis out of bounds");
+    }
+
+    std::vector<Index> output_shape = x.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = ReductionAttrs{alpha, 1.0, axis, 0, 0};
+    x.graph().add_op(
+        OpType::MULTIPLY_FIBER,
+        attrs,
+        {&x, &y},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Multiply fiber in-place: y = alpha * y * fiber
+void multiply_fiber_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha,
+    Index axis)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "multiply_fiber_inplace: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "multiply_fiber_inplace: tensors must have the same dtype");
+    }
+
+    if(axis < 0)
+    {
+        axis += y.ndim();
+    }
+
+    if(axis < 0 || axis >= y.ndim())
+    {
+        throw std::invalid_argument(
+            "multiply_fiber_inplace: axis out of bounds");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, 1.0, axis, 0, 0};
+    x.graph().add_op(
+        OpType::MULTIPLY_FIBER_INPLACE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Multiply slice in-place: y = alpha * y * slice
+void multiply_slice(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha,
+    Index axis)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "multiply_slice: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "multiply_slice: tensors must have the same dtype");
+    }
+
+    if(axis < 0)
+    {
+        axis += y.ndim();
+    }
+
+    if(axis < 0 || axis >= y.ndim())
+    {
+        throw std::invalid_argument(
+            "multiply_slice: axis out of bounds");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, 1.0, axis, 0, 0};
+    x.graph().add_op(
+        OpType::MULTIPLY_SLICE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
 //! Total sum of all elements: y = alpha * sum(x) + beta * y
 void sum(
     LogicalGraph::TensorNode& x,
@@ -1305,6 +1711,48 @@ void sum_slice(
         attrs,
         {&x, &y},
         {&y}
+    );
+}
+
+//! Total sum accumulation: val = alpha * sum(logsumexp * src) + beta * val
+void total_sum_accum(
+    LogicalGraph::TensorNode& logsumexp,
+    LogicalGraph::TensorNode& src,
+    LogicalGraph::TensorNode& class_labels,
+    LogicalGraph::TensorNode& val,
+    Scalar alpha,
+    Index ignore_index)
+{
+    if(&logsumexp.graph() != &src.graph() || &src.graph() != &class_labels.graph() || &class_labels.graph() != &val.graph())
+    {
+        throw std::invalid_argument(
+            "total_sum_accum: all tensors must belong to the same graph");
+    }
+
+    if(logsumexp.dtype() != src.dtype())
+    {
+        throw std::invalid_argument(
+            "total_sum_accum: logsumexp and src must have the same dtype");
+    }
+
+    if(class_labels.dtype() != DataType::INT64)
+    {
+        throw std::invalid_argument(
+            "total_sum_accum: class_labels must be INT64");
+    }
+
+    if(val.dtype() != DataType::FP32)
+    {
+        throw std::invalid_argument(
+            "total_sum_accum: val must be FP32");
+    }
+
+    OpAttrs attrs = TotalSumAccumAttrs{alpha, ignore_index};
+    logsumexp.graph().add_op(
+        OpType::TOTAL_SUM_ACCUM,
+        attrs,
+        {&logsumexp, &src, &class_labels, &val},
+        {&val}
     );
 }
 

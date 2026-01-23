@@ -132,6 +132,33 @@ void silu_backward(
     LogicalGraph::TensorNode& dx
 );
 
+//! Softmax operation: y = softmax(maxsumexp, x, alpha)
+//! @param maxsumexp Max and sum tensor from maxsumexp operation
+//! @param x Input tensor
+//! @param output_name Name for the output tensor
+//! @param alpha Scaling factor (default: 1.0)
+//! @param axis Axis along which to compute softmax (default: -1, last axis)
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& softmax(
+    LogicalGraph::TensorNode& maxsumexp,
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name,
+    Scalar alpha = 1.0,
+    Index axis = -1
+);
+
+//! Softmax in-place: x = softmax(maxsumexp, x, alpha)
+//! @param maxsumexp Max and sum tensor from maxsumexp operation
+//! @param x Input/output tensor (modified in-place)
+//! @param alpha Scaling factor (default: 1.0)
+//! @param axis Axis along which to compute softmax (default: -1, last axis)
+void softmax_inplace(
+    LogicalGraph::TensorNode& maxsumexp,
+    LogicalGraph::TensorNode& x,
+    Scalar alpha = 1.0,
+    Index axis = -1
+);
+
 //! Add operation: z = alpha * x + beta * y
 //! @param x First input tensor
 //! @param y Second input tensor
@@ -159,6 +186,72 @@ void add_inplace(
     Scalar beta = 1.0
 );
 
+//! Add fiber operation: z = alpha * fiber + beta * x
+//! @param x Input tensor
+//! @param y Fiber tensor
+//! @param output_name Name for the output tensor
+//! @param alpha Scaling factor for fiber (default: 1.0)
+//! @param beta Scaling factor for x (default: 1.0)
+//! @param axis Axis along which to broadcast (default: -1, last axis)
+//! @param batch_ndim Number of batch dimensions (default: 0)
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& add_fiber(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    const std::string& output_name,
+    Scalar alpha = 1.0,
+    Scalar beta = 1.0,
+    Index axis = -1,
+    Index batch_ndim = 0
+);
+
+//! Add fiber in-place: y = alpha * fiber + beta * y
+//! @param x Fiber tensor
+//! @param y Input/output tensor (modified in-place)
+//! @param alpha Scaling factor for fiber (default: 1.0)
+//! @param beta Scaling factor for y (default: 1.0)
+//! @param axis Axis along which to broadcast (default: -1, last axis)
+//! @param batch_ndim Number of batch dimensions (default: 0)
+void add_fiber_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha = 1.0,
+    Scalar beta = 1.0,
+    Index axis = -1,
+    Index batch_ndim = 0
+);
+
+//! Add slice operation: z = alpha * slice + beta * x
+//! @param x Input tensor
+//! @param y Slice tensor
+//! @param output_name Name for the output tensor
+//! @param alpha Scaling factor for slice (default: 1.0)
+//! @param beta Scaling factor for x (default: 1.0)
+//! @param axis Axis along which to broadcast (default: -1, last axis)
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& add_slice(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    const std::string& output_name,
+    Scalar alpha = 1.0,
+    Scalar beta = 1.0,
+    Index axis = -1
+);
+
+//! Add slice in-place: y = alpha * slice + beta * y
+//! @param x Slice tensor
+//! @param y Input/output tensor (modified in-place)
+//! @param alpha Scaling factor for slice (default: 1.0)
+//! @param beta Scaling factor for y (default: 1.0)
+//! @param axis Axis along which to broadcast (default: -1, last axis)
+void add_slice_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha = 1.0,
+    Scalar beta = 1.0,
+    Index axis = -1
+);
+
 //! Multiply operation: z = x * y
 //! @param x First input tensor
 //! @param y Second input tensor
@@ -176,6 +269,45 @@ LogicalGraph::TensorNode& multiply(
 void multiply_inplace(
     LogicalGraph::TensorNode& x,
     LogicalGraph::TensorNode& y
+);
+
+//! Multiply fiber operation: z = alpha * x * fiber
+//! @param x Input tensor
+//! @param y Fiber tensor
+//! @param output_name Name for the output tensor
+//! @param alpha Scaling factor (default: 1.0)
+//! @param axis Axis along which to broadcast (default: -1, last axis)
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& multiply_fiber(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    const std::string& output_name,
+    Scalar alpha = 1.0,
+    Index axis = -1
+);
+
+//! Multiply fiber in-place: y = alpha * y * fiber
+//! @param x Fiber tensor
+//! @param y Input/output tensor (modified in-place)
+//! @param alpha Scaling factor (default: 1.0)
+//! @param axis Axis along which to broadcast (default: -1, last axis)
+void multiply_fiber_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha = 1.0,
+    Index axis = -1
+);
+
+//! Multiply slice operation: y = alpha * x * slice
+//! @param x Input tensor
+//! @param y Input/output tensor (modified in-place)
+//! @param alpha Scaling factor (default: 1.0)
+//! @param axis Axis along which to broadcast (default: -1, last axis)
+void multiply_slice(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha = 1.0,
+    Index axis = -1
 );
 
 //! Total sum of all elements: y = alpha * sum(x) + beta * y
@@ -222,6 +354,22 @@ void sum_slice(
     int redux = 0,
     Scalar alpha = 1.0,
     Scalar beta = 0.0
+);
+
+//! Total sum accumulation: val = alpha * sum(logsumexp * src) + beta * val
+//! @param logsumexp Log-sum-exp tensor
+//! @param src Source tensor
+//! @param class_labels Class labels tensor (int64)
+//! @param val Output value tensor (fp32)
+//! @param alpha Scaling factor (default: 1.0)
+//! @param ignore_index Index to ignore (default: -1)
+void total_sum_accum(
+    LogicalGraph::TensorNode& logsumexp,
+    LogicalGraph::TensorNode& src,
+    LogicalGraph::TensorNode& class_labels,
+    LogicalGraph::TensorNode& val,
+    Scalar alpha = 1.0,
+    Index ignore_index = -1
 );
 
 //! Euclidean norm: y = alpha * norm(x) + beta * y
