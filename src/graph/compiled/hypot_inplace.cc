@@ -1,3 +1,17 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/graph/compiled/hypot_inplace.cc
+ * Compiled graph hypot_inplace operation.
+ *
+ * @version 1.1.0
+ * */
+
 #include "nntile/graph/compiled/hypot_inplace.hh"
 
 #include <stdexcept>
@@ -51,7 +65,7 @@ void execute_hypot_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
             run_hypot_inplace<nntile::fp64_t>(graph, attrs, x_name, y_name);
             break;
         case DataType::FP16:
-            run_hypot_inplace<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            throw std::runtime_error("FP16 data type not supported for hypot_inplace operation");
             break;
         case DataType::BF16:
             run_hypot_inplace<nntile::bf16_t>(graph, attrs, x_name, y_name);

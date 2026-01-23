@@ -1,3 +1,17 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/graph/compiled/scale_slice.cc
+ * Compiled graph scale_slice operation.
+ *
+ * @version 1.1.0
+ * */
+
 #include "nntile/graph/compiled/scale_slice.hh"
 
 #include <stdexcept>

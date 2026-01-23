@@ -768,6 +768,10 @@ template void CompiledGraph::bind_data<double>(
 template void CompiledGraph::bind_data<long long>(
     const std::string& name, const long long* data, size_t count);
 
+// Use char instead of bool, as std::vector<bool> does not have data member
+template void CompiledGraph::bind_data<char>(
+    const std::string& name, const char* data, size_t count);
+
 template void CompiledGraph::bind_data<float>(
     const std::string& name, const std::vector<float>& data);
 
@@ -776,6 +780,13 @@ template void CompiledGraph::bind_data<double>(
 
 template void CompiledGraph::bind_data<long long>(
     const std::string& name, const std::vector<long long>& data);
+
+// Use char instead of bool, as std::vector<bool> does not have data member
+template void CompiledGraph::bind_data<char>(
+    const std::string& name, const std::vector<char>& data);
+
+template std::vector<char>
+CompiledGraph::get_output<char>(const std::string& name);
 
 template std::vector<float>
 CompiledGraph::get_output<float>(const std::string& name);

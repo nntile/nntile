@@ -17,7 +17,34 @@ set(TESTS_CATCH2
     "logical_graph_ops"
     "nn_graph"
     "compiled_graph"
-    "compiled_graph_ops"
+)
+
+# All compiled graph operation tests using Catch2
+set(TESTS_COMPILED_CATCH2
+    "add"
+    "clear"
+    "copy"
+    "embedding"
+    "fill"
+    "gelu"
+    "gelu_backward"
+    "gemm"
+    "hypot"
+    "hypot_scalar_inverse"
+    "mask_scalar"
+    "multiply"
+    "multiply_inplace"
+    "norm"
+    "pow"
+    "relu"
+    "relu_inplace"
+    "scale"
+    "scale_inplace"
+    "sqrt"
+    "sum"
+    "sum_fiber"
+    "sum_slice"
+    "transpose"
 )
 
 # Setup a target for coverage of graph tests
@@ -35,6 +62,17 @@ foreach(test IN LISTS TESTS_CATCH2)
         LINK_LIBRARIES nntile Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_graph_${test}
+        COV_GLOBAL coverage_graph coverage
+    )
+endforeach()
+
+foreach(test IN LISTS TESTS_COMPILED_CATCH2)
+    add_test_set(TARGET_NAME tests_graph_compiled_${test}
+        EXEC_NAME test_compiled_${test}
+        SOURCES compiled/${test}.cc
+        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_graph_compiled_${test}
         COV_GLOBAL coverage_graph coverage
     )
 endforeach()

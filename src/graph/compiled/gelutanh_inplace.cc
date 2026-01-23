@@ -58,7 +58,7 @@ void execute_gelutanh_inplace(CompiledGraph& graph, const OpExecutionInfo& op_in
             run_gelutanh_inplace<nntile::fp64_t>(graph, x_name);
             break;
         case DataType::FP16:
-            run_gelutanh_inplace<nntile::fp16_t>(graph, x_name);
+            throw std::runtime_error("FP16 data type not supported for gelutanh_inplace operation");
             break;
         case DataType::BF16:
             run_gelutanh_inplace<nntile::bf16_t>(graph, x_name);

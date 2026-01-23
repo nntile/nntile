@@ -18,10 +18,10 @@ TEST_CASE_METHOD(
 
     auto compiled = CompiledGraph::compile(g);
 
-    std::vector<nntile::bool_t> mask_data(24);
+    std::vector<char> mask_data(24);
     for(size_t i = 0; i < mask_data.size(); ++i)
     {
-        mask_data[i] = nntile::bool_t((i % 2) == 0);
+        mask_data[i] = static_cast<char>(static_cast<bool>((i % 2) == 0));
     }
     std::vector<float> x_data = make_pattern<float>(24, 0.1f);
 
@@ -38,7 +38,13 @@ TEST_CASE_METHOD(
     nntile::tensor::TensorTraits x_traits({4, 6}, {4, 6});
     nntile::tensor::Tensor<nntile::fp32_t> x_tensor(x_traits);
 
-    write_tensor(mask_tensor, mask_data);
+    // Use char instead of bool, as std::vector<bool> does not have data member
+    std::vector<char> mask_data_repr(24);
+    for(size_t i = 0; i < mask_data.size(); ++i)
+    {
+        mask_data_repr[i] = static_cast<char>(static_cast<bool>(mask_data[i]));
+    }
+    write_tensor(mask_tensor, mask_data_repr);
     write_tensor(x_tensor, x_data);
 
     nntile::tensor::mask_scalar<nntile::fp32_t>(mask_tensor, 0.5f, x_tensor, 0);

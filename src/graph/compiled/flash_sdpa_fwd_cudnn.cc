@@ -44,19 +44,19 @@ void execute_flash_sdpa_fwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& o
     switch(dtype)
     {
         case DataType::FP32:
-            run_flash_sdpa_fwd_cudnn<nntile::fp32_t>(graph, attrs, K_name, Q_name, mask_name, logsumexp_name, V_name, A_name);
+            throw std::runtime_error("FP32 data type not supported for flash_sdpa_fwd_cudnn operation");
             break;
         case DataType::FP32_FAST_TF32:
-            run_flash_sdpa_fwd_cudnn<nntile::fp32_fast_tf32_t>(graph, attrs, K_name, Q_name, mask_name, logsumexp_name, V_name, A_name);
+            throw std::runtime_error("FP32_FAST_TF32 data type not supported for flash_sdpa_fwd_cudnn operation");
             break;
         case DataType::FP32_FAST_FP16:
-            run_flash_sdpa_fwd_cudnn<nntile::fp32_fast_fp16_t>(graph, attrs, K_name, Q_name, mask_name, logsumexp_name, V_name, A_name);
+            throw std::runtime_error("FP32_FAST_FP16 data type not supported for flash_sdpa_fwd_cudnn operation");
             break;
         case DataType::FP32_FAST_BF16:
-            run_flash_sdpa_fwd_cudnn<nntile::fp32_fast_bf16_t>(graph, attrs, K_name, Q_name, mask_name, logsumexp_name, V_name, A_name);
+            throw std::runtime_error("FP32_FAST_BF16 data type not supported for flash_sdpa_fwd_cudnn operation");
             break;
         case DataType::FP64:
-            run_flash_sdpa_fwd_cudnn<nntile::fp64_t>(graph, attrs, K_name, Q_name, mask_name, logsumexp_name, V_name, A_name);
+            throw std::runtime_error("FP64 data type not supported for flash_sdpa_fwd_cudnn operation");
             break;
         case DataType::FP16:
             run_flash_sdpa_fwd_cudnn<nntile::fp16_t>(graph, attrs, K_name, Q_name, mask_name, logsumexp_name, V_name, A_name);

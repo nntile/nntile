@@ -15,13 +15,13 @@ TEST_CASE_METHOD(
 
     auto compiled = CompiledGraph::compile(g);
 
-    std::vector<nntile::bool_t> x_data = {true, false, true, false};
+    std::vector<char> x_data = {static_cast<char>(true), static_cast<char>(false), static_cast<char>(true), static_cast<char>(false)};
     compiled.bind_data("x", x_data);
 
     compiled.execute();
     compiled.wait();
 
-    auto out = compiled.get_output<nntile::bool_t>("x");
+    auto out = compiled.get_output<char>("x");
     REQUIRE(out.size() == 4);
     for(const auto& v : out)
     {

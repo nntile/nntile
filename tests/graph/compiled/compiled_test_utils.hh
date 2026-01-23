@@ -64,6 +64,17 @@ inline void write_tensor(nntile::tensor::Tensor<WrapperT>& tensor,
     tile_local.release();
 }
 
+inline void write_tensor(nntile::tensor::Tensor<bool_t>& tensor,
+                                 const std::vector<char>& data)
+{
+    auto tile = tensor.get_tile(0);
+    auto tile_local = tile.acquire(STARPU_W);
+    for(Index i = 0; i < tensor.nelems; ++i) {
+        tile_local[i] = nntile::bool_t(data[static_cast<size_t>(i)]);
+    }
+    tile_local.release();
+}
+
 template<typename WrapperT>
 inline std::vector<typename WrapperT::repr_t> read_tensor(
     const nntile::tensor::Tensor<WrapperT>& tensor)
@@ -96,8 +107,8 @@ inline void bind_inputs(CompiledGraph& compiled,
     for(const auto& name : input_names)
     {
         const auto& tensor = g.get_tensor(name);
-        const auto size = tensor_nelems(tensor.shape());
-        const auto dtype = tensor.dtype();
+        const auto size = tensor_nelems(tensor->shape());
+        const auto dtype = tensor->dtype();
 
         if(dtype == DataType::BOOL)
         {
@@ -177,7 +188,7 @@ inline void verify_graph_vs_tensor(
     for(const auto& name : input_names)
     {
         const auto& tensor = g.get_tensor(name);
-        const auto size = tensor_nelems(tensor.shape());
+        const auto size = tensor_nelems(tensor->shape());
         auto it = custom_inputs.find(name);
         if(it != custom_inputs.end())
         {
