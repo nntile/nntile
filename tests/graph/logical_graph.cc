@@ -218,3 +218,48 @@ TEST_CASE("LogicalGraph ToStringContainsDetails", "[graph]")
     REQUIRE(op_text.find("inputs=[a, b]") != std::string::npos);
     REQUIRE(op_text.find("outputs=[c]") != std::string::npos);
 }
+
+TEST_CASE("LogicalGraph ToMermaidGeneratesValidOutput", "[graph]")
+{
+    LogicalGraph g("test_mlp");
+
+    auto& x = g.tensor({32, 768}, "input", DataType::FP32);
+    auto& w1 = g.tensor({768, 3072}, "w1", DataType::FP32);
+    auto& w2 = g.tensor({3072, 768}, "w2", DataType::FP32);
+
+    auto& h = gemm(x, w1, "hidden");
+    auto& a = gelu(h, "activated");
+    auto& y = gemm(a, w2, "output");
+
+    x.mark_input(true);
+    y.mark_output(true);
+
+    auto mermaid_text = g.to_mermaid();
+
+    // Check basic structure
+    REQUIRE(mermaid_text.find("graph TD") != std::string::npos);
+    REQUIRE(mermaid_text.find("classDef") != std::string::npos);
+
+    // Check tensor nodes
+    REQUIRE(mermaid_text.find("T0[") != std::string::npos);  // input tensor
+    REQUIRE(mermaid_text.find("T1[") != std::string::npos);  // w1 tensor
+    REQUIRE(mermaid_text.find("T2[") != std::string::npos);  // w2 tensor
+    REQUIRE(mermaid_text.find("T3[") != std::string::npos);  // hidden tensor
+    REQUIRE(mermaid_text.find("T4[") != std::string::npos);  // activated tensor
+    REQUIRE(mermaid_text.find("T5[") != std::string::npos);  // output tensor
+
+    // Check operation nodes
+    REQUIRE(mermaid_text.find("O0{{") != std::string::npos);  // gemm operation
+    REQUIRE(mermaid_text.find("O1{{") != std::string::npos);  // gelu operation
+    REQUIRE(mermaid_text.find("O2{{") != std::string::npos);  // gemm operation
+
+    // Check edges
+    REQUIRE(mermaid_text.find("T0 --> O0") != std::string::npos);
+    REQUIRE(mermaid_text.find("T1 --> O0") != std::string::npos);
+    REQUIRE(mermaid_text.find("O0 --> T3") != std::string::npos);
+    REQUIRE(mermaid_text.find("T3 --> O1") != std::string::npos);
+    REQUIRE(mermaid_text.find("O1 --> T4") != std::string::npos);
+    REQUIRE(mermaid_text.find("T4 --> O2") != std::string::npos);
+    REQUIRE(mermaid_text.find("T2 --> O2") != std::string::npos);
+    REQUIRE(mermaid_text.find("O2 --> T5") != std::string::npos);
+}

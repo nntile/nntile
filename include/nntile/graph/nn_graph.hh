@@ -151,6 +151,9 @@ public:
     // -----------------------------------------------------------------
 
     std::string to_string() const;
+
+    //! Generate mermaid graph visualization (delegates to logical graph)
+    std::string to_mermaid() const { return logical_.to_mermaid(); }
 };
 
 } // namespace nntile::graph

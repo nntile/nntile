@@ -573,6 +573,9 @@ public:
 
     //! String representation
     std::string to_string() const;
+
+    //! Generate mermaid graph visualization
+    std::string to_mermaid() const;
 };
 
 } // namespace nntile::graph

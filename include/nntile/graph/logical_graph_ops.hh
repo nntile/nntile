@@ -19,284 +19,68 @@
 
 // Include other NNTile headers
 #include <nntile/graph/logical_graph.hh>
+#include <nntile/graph/logical/gelu.hh>
+#include <nntile/graph/logical/gelu_inplace.hh>
+#include <nntile/graph/logical/gelu_backward.hh>
+#include <nntile/graph/logical/relu.hh>
+#include <nntile/graph/logical/silu.hh>
+#include <nntile/graph/logical/sqrt.hh>
+#include <nntile/graph/logical/add.hh>
+#include <nntile/graph/logical/add_inplace.hh>
+#include <nntile/graph/logical/multiply.hh>
+#include <nntile/graph/logical/multiply_inplace.hh>
+#include <nntile/graph/logical/clear.hh>
+#include <nntile/graph/logical/softmax.hh>
+#include <nntile/graph/logical/pow.hh>
+#include <nntile/graph/logical/pow_inplace.hh>
+#include <nntile/graph/logical/hypot.hh>
+#include <nntile/graph/logical/hypot_inplace.hh>
+#include <nntile/graph/logical/hypot_scalar_inverse.hh>
+#include <nntile/graph/logical/fill.hh>
+#include <nntile/graph/logical/copy.hh>
+#include <nntile/graph/logical/transpose.hh>
+#include <nntile/graph/logical/scatter.hh>
+#include <nntile/graph/logical/copy_intersection.hh>
+#include <nntile/graph/logical/log_scalar.hh>
+#include <nntile/graph/logical/mask_scalar.hh>
+#include <nntile/graph/logical/subtract_indexed_outputs.hh>
+#include <nntile/graph/logical/gather.hh>
+#include <nntile/graph/logical/scale_fiber.hh>
+#include <nntile/graph/logical/scale_slice.hh>
+#include <nntile/graph/logical/randn.hh>
+#include <nntile/graph/logical/sum.hh>
+#include <nntile/graph/logical/sum_fiber.hh>
+#include <nntile/graph/logical/sum_slice.hh>
+#include <nntile/graph/logical/norm.hh>
+#include <nntile/graph/logical/logsumexp.hh>
+#include <nntile/graph/logical/maxsumexp.hh>
+#include <nntile/graph/logical/total_sum_accum.hh>
+#include <nntile/graph/logical/sumprod_fiber.hh>
+#include <nntile/graph/logical/sumprod_slice.hh>
+#include <nntile/graph/logical/norm_fiber.hh>
+#include <nntile/graph/logical/norm_fiber_inplace.hh>
+#include <nntile/graph/logical/norm_slice.hh>
+#include <nntile/graph/logical/norm_slice_inplace.hh>
+#include <nntile/graph/logical/sgd_step.hh>
+#include <nntile/graph/logical/adam_step.hh>
+#include <nntile/graph/logical/adamw_step.hh>
+#include <nntile/graph/logical/flash_sdpa_fwd_cudnn.hh>
+#include <nntile/graph/logical/flash_sdpa_bwd_cudnn.hh>
+#include <nntile/graph/logical/rope.hh>
+#include <nntile/graph/logical/rope_backward.hh>
+#include <nntile/graph/logical/conv2d_inplace.hh>
+#include <nntile/graph/logical/conv2d_bwd_input_inplace.hh>
+#include <nntile/graph/logical/conv2d_bwd_weight_inplace.hh>
+#include <nntile/graph/logical/add_fiber.hh>
+#include <nntile/graph/logical/add_fiber_inplace.hh>
+#include <nntile/graph/logical/add_slice.hh>
+#include <nntile/graph/logical/add_slice_inplace.hh>
+#include <nntile/graph/logical/multiply_fiber.hh>
+#include <nntile/graph/logical/multiply_fiber_inplace.hh>
+#include <nntile/graph/logical/sqrt_inplace.hh>
 
 namespace nntile::graph
 {
-
-//! Clear tensor: x = 0
-//! @param x Tensor to clear (modified in-place)
-void clear(LogicalGraph::TensorNode& x);
-
-//! GeLU activation: y = gelu(x)
-//! @param x Input tensor
-//! @param output_name Name for the output tensor
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& gelu(
-    LogicalGraph::TensorNode& x,
-    const std::string& output_name
-);
-
-//! GeLU in-place: x = gelu(x)
-//! @param x Input/output tensor (modified in-place)
-void gelu_inplace(LogicalGraph::TensorNode& x);
-
-//! GeLU tanh activation: y = gelu_tanh(x)
-//! @param x Input tensor
-//! @param output_name Name for the output tensor
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& gelutanh(
-    LogicalGraph::TensorNode& x,
-    const std::string& output_name
-);
-
-//! GeLU tanh in-place: x = gelu_tanh(x)
-//! @param x Input/output tensor (modified in-place)
-void gelutanh_inplace(LogicalGraph::TensorNode& x);
-
-//! ReLU activation: y = relu(x)
-//! @param x Input tensor
-//! @param output_name Name for the output tensor
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& relu(
-    LogicalGraph::TensorNode& x,
-    const std::string& output_name
-);
-
-//! ReLU in-place: x = relu(x)
-//! @param x Input/output tensor (modified in-place)
-void relu_inplace(LogicalGraph::TensorNode& x);
-
-//! SiLU activation: y = silu(x)
-//! @param x Input tensor
-//! @param output_name Name for the output tensor
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& silu(
-    LogicalGraph::TensorNode& x,
-    const std::string& output_name
-);
-
-//! SiLU in-place: x = silu(x)
-//! @param x Input/output tensor (modified in-place)
-void silu_inplace(LogicalGraph::TensorNode& x);
-
-//! Sqrt activation: y = sqrt(x)
-//! @param x Input tensor
-//! @param output_name Name for the output tensor
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& sqrt(
-    LogicalGraph::TensorNode& x,
-    const std::string& output_name
-);
-
-//! Sqrt in-place: x = sqrt(x)
-//! @param x Input/output tensor (modified in-place)
-void sqrt_inplace(LogicalGraph::TensorNode& x);
-
-//! GeLU backward: dx += gelu_backward(x, dy)
-//! @param x Input tensor (forward pass activation)
-//! @param dy Gradient of output (upstream gradient)
-//! @param dx Gradient tensor to accumulate into (gradient of input)
-void gelu_backward(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& dy,
-    LogicalGraph::TensorNode& dx
-);
-
-//! GeLU tanh backward: dx += gelu_tanh_backward(x, dy)
-//! @param x Input tensor (forward pass activation)
-//! @param dy Gradient of output (upstream gradient)
-//! @param dx Gradient tensor to accumulate into (gradient of input)
-void gelutanh_backward(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& dy,
-    LogicalGraph::TensorNode& dx
-);
-
-//! ReLU backward: dx += relu_backward(x, dy)
-//! @param x Input tensor (forward pass activation)
-//! @param dy Gradient of output (upstream gradient)
-//! @param dx Gradient tensor to accumulate into (gradient of input)
-void relu_backward(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& dy,
-    LogicalGraph::TensorNode& dx
-);
-
-//! SiLU backward: dx += silu_backward(x, dy)
-//! @param x Input tensor (forward pass activation)
-//! @param dy Gradient of output (upstream gradient)
-//! @param dx Gradient tensor to accumulate into (gradient of input)
-void silu_backward(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& dy,
-    LogicalGraph::TensorNode& dx
-);
-
-//! Softmax operation: y = softmax(maxsumexp, x, alpha)
-//! @param maxsumexp Max and sum tensor from maxsumexp operation
-//! @param x Input tensor
-//! @param output_name Name for the output tensor
-//! @param alpha Scaling factor (default: 1.0)
-//! @param axis Axis along which to compute softmax (default: -1, last axis)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& softmax(
-    LogicalGraph::TensorNode& maxsumexp,
-    LogicalGraph::TensorNode& x,
-    const std::string& output_name,
-    Scalar alpha = 1.0,
-    Index axis = -1
-);
-
-//! Softmax in-place: x = softmax(maxsumexp, x, alpha)
-//! @param maxsumexp Max and sum tensor from maxsumexp operation
-//! @param x Input/output tensor (modified in-place)
-//! @param alpha Scaling factor (default: 1.0)
-//! @param axis Axis along which to compute softmax (default: -1, last axis)
-void softmax_inplace(
-    LogicalGraph::TensorNode& maxsumexp,
-    LogicalGraph::TensorNode& x,
-    Scalar alpha = 1.0,
-    Index axis = -1
-);
-
-//! Add operation: z = alpha * x + beta * y
-//! @param x First input tensor
-//! @param y Second input tensor
-//! @param output_name Name for the output tensor
-//! @param alpha Scaling factor for x (default: 1.0)
-//! @param beta Scaling factor for y (default: 1.0)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& add(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    const std::string& output_name,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0
-);
-
-//! Add in-place: y = alpha * x + beta * y
-//! @param x First input tensor
-//! @param y Second input/output tensor (modified in-place)
-//! @param alpha Scaling factor for x (default: 1.0)
-//! @param beta Scaling factor for y (default: 1.0)
-void add_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0
-);
-
-//! Add fiber operation: z = alpha * fiber + beta * x
-//! @param x Input tensor
-//! @param y Fiber tensor
-//! @param output_name Name for the output tensor
-//! @param alpha Scaling factor for fiber (default: 1.0)
-//! @param beta Scaling factor for x (default: 1.0)
-//! @param axis Axis along which to broadcast (default: -1, last axis)
-//! @param batch_ndim Number of batch dimensions (default: 0)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& add_fiber(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    const std::string& output_name,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0,
-    Index axis = -1,
-    Index batch_ndim = 0
-);
-
-//! Add fiber in-place: y = alpha * fiber + beta * y
-//! @param x Fiber tensor
-//! @param y Input/output tensor (modified in-place)
-//! @param alpha Scaling factor for fiber (default: 1.0)
-//! @param beta Scaling factor for y (default: 1.0)
-//! @param axis Axis along which to broadcast (default: -1, last axis)
-//! @param batch_ndim Number of batch dimensions (default: 0)
-void add_fiber_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0,
-    Index axis = -1,
-    Index batch_ndim = 0
-);
-
-//! Add slice operation: z = alpha * slice + beta * x
-//! @param x Input tensor
-//! @param y Slice tensor
-//! @param output_name Name for the output tensor
-//! @param alpha Scaling factor for slice (default: 1.0)
-//! @param beta Scaling factor for x (default: 1.0)
-//! @param axis Axis along which to broadcast (default: -1, last axis)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& add_slice(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    const std::string& output_name,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0,
-    Index axis = -1
-);
-
-//! Add slice in-place: y = alpha * slice + beta * y
-//! @param x Slice tensor
-//! @param y Input/output tensor (modified in-place)
-//! @param alpha Scaling factor for slice (default: 1.0)
-//! @param beta Scaling factor for y (default: 1.0)
-//! @param axis Axis along which to broadcast (default: -1, last axis)
-void add_slice_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0,
-    Index axis = -1
-);
-
-//! Multiply operation: z = x * y
-//! @param x First input tensor
-//! @param y Second input tensor
-//! @param output_name Name for the output tensor
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& multiply(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    const std::string& output_name
-);
-
-//! Multiply in-place: y = x * y
-//! @param x First input tensor
-//! @param y Second input/output tensor (modified in-place)
-void multiply_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y
-);
-
-//! Multiply fiber operation: z = alpha * x * fiber
-//! @param x Input tensor
-//! @param y Fiber tensor
-//! @param output_name Name for the output tensor
-//! @param alpha Scaling factor (default: 1.0)
-//! @param axis Axis along which to broadcast (default: -1, last axis)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& multiply_fiber(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    const std::string& output_name,
-    Scalar alpha = 1.0,
-    Index axis = -1
-);
-
-//! Multiply fiber in-place: y = alpha * y * fiber
-//! @param x Fiber tensor
-//! @param y Input/output tensor (modified in-place)
-//! @param alpha Scaling factor (default: 1.0)
-//! @param axis Axis along which to broadcast (default: -1, last axis)
-void multiply_fiber_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Scalar alpha = 1.0,
-    Index axis = -1
-);
 
 //! Multiply slice operation: y = alpha * x * slice
 //! @param x Input tensor
@@ -310,51 +94,7 @@ void multiply_slice(
     Index axis = -1
 );
 
-//! Total sum of all elements: y = alpha * sum(x) + beta * y
-//! @param x Input tensor
-//! @param y Output tensor to accumulate into
-//! @param alpha Scaling factor for sum (default: 1.0)
-//! @param beta Scaling factor for existing y (default: 0.0)
-void sum(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0
-);
 
-//! Sum along fibers: y = alpha * sum_fiber(x) + beta * y
-//! @param x Input tensor
-//! @param y Output tensor to accumulate into
-//! @param axis Axis along which to sum (default: 0)
-//! @param batch_ndim Number of trailing batch dimensions (default: 0)
-//! @param redux Whether to use reduction (default: 0)
-//! @param alpha Scaling factor for sum (default: 1.0)
-//! @param beta Scaling factor for existing y (default: 0.0)
-void sum_fiber(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Index axis = 0,
-    Index batch_ndim = 0,
-    int redux = 0,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0
-);
-
-//! Sum along slices: y = alpha * sum_slice(x) + beta * y
-//! @param x Input tensor
-//! @param y Output tensor to accumulate into
-//! @param axis Axis along which to sum
-//! @param redux Whether to use reduction (default: 0)
-//! @param alpha Scaling factor for sum (default: 1.0)
-//! @param beta Scaling factor for existing y (default: 0.0)
-void sum_slice(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Index axis,
-    int redux = 0,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0
-);
 
 //! Total sum accumulation: val = alpha * sum(logsumexp * src) + beta * val
 //! @param logsumexp Log-sum-exp tensor
@@ -363,48 +103,7 @@ void sum_slice(
 //! @param val Output value tensor (fp32)
 //! @param alpha Scaling factor (default: 1.0)
 //! @param ignore_index Index to ignore (default: -1)
-void total_sum_accum(
-    LogicalGraph::TensorNode& logsumexp,
-    LogicalGraph::TensorNode& src,
-    LogicalGraph::TensorNode& class_labels,
-    LogicalGraph::TensorNode& val,
-    Scalar alpha = 1.0,
-    Index ignore_index = -1
-);
 
-//! Euclidean norm: y = alpha * norm(x) + beta * y
-//! @param x Input tensor
-//! @param y Output tensor to accumulate into (must be scalar)
-//! @param alpha Scaling factor for norm (default: 1.0)
-//! @param beta Scaling factor for existing y (default: 0.0)
-void norm(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0
-);
-
-//! Log sum exp along axis: y = log(sum(exp(x)))
-//! @param x Input tensor
-//! @param y Output tensor
-//! @param axis Axis along which to compute logsumexp
-void logsumexp(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Index axis
-);
-
-//! Max and sum of exponents along axis: y = max + log(sum(exp(x - max)))
-//! @param x Input tensor
-//! @param y Output tensor
-//! @param axis Axis along which to compute maxsumexp
-//! @param redux Whether to use reduction (default: 0)
-void maxsumexp(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Index axis,
-    int redux = 0
-);
 
 //! Sum of products along fibers: y = alpha * sum_fiber(x1 * x2) + beta * y
 //! @param x1 First input tensor
@@ -414,15 +113,6 @@ void maxsumexp(
 //! @param redux Whether to use reduction (default: 0)
 //! @param alpha Scaling factor for sum (default: 1.0)
 //! @param beta Scaling factor for existing y (default: 0.0)
-void sumprod_fiber(
-    LogicalGraph::TensorNode& x1,
-    LogicalGraph::TensorNode& x2,
-    LogicalGraph::TensorNode& y,
-    Index axis,
-    int redux = 0,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0
-);
 
 //! Sum of products along slices: y = alpha * sum_slice(x1 * x2) + beta * y
 //! @param x1 First input tensor
@@ -432,15 +122,6 @@ void sumprod_fiber(
 //! @param redux Whether to use reduction (default: 0)
 //! @param alpha Scaling factor for sum (default: 1.0)
 //! @param beta Scaling factor for existing y (default: 0.0)
-void sumprod_slice(
-    LogicalGraph::TensorNode& x1,
-    LogicalGraph::TensorNode& x2,
-    LogicalGraph::TensorNode& y,
-    Index axis,
-    int redux = 0,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0
-);
 
 //! Norm along fibers: y = alpha * norm_fiber(x) + beta * y
 //! @param x Input tensor
@@ -450,15 +131,6 @@ void sumprod_slice(
 //! @param redux Whether to use reduction (default: 0)
 //! @param alpha Scaling factor for norm (default: 1.0)
 //! @param beta Scaling factor for existing y (default: 0.0)
-void norm_fiber(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Index axis,
-    Index batch_ndim = 0,
-    int redux = 0,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0
-);
 
 //! Norm along fibers (in-place): y = alpha * norm_fiber(x) + beta * y
 //! @param x Input tensor
@@ -468,15 +140,6 @@ void norm_fiber(
 //! @param redux Whether to use reduction (default: 0)
 //! @param alpha Scaling factor for norm (default: 1.0)
 //! @param beta Scaling factor for existing y (default: 0.0)
-void norm_fiber_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Index axis,
-    Index batch_ndim = 0,
-    int redux = 0,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0
-);
 
 //! Norm along slices: y = alpha * norm_slice(x) + beta * y
 //! @param x Input tensor
@@ -485,14 +148,6 @@ void norm_fiber_inplace(
 //! @param redux Whether to use reduction (default: 0)
 //! @param alpha Scaling factor for norm (default: 1.0)
 //! @param beta Scaling factor for existing y (default: 0.0)
-void norm_slice(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Index axis,
-    int redux = 0,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0
-);
 
 //! Norm along slices (in-place): y = alpha * norm_slice(x) + beta * y
 //! @param x Input tensor
@@ -501,74 +156,7 @@ void norm_slice(
 //! @param redux Whether to use reduction (default: 0)
 //! @param alpha Scaling factor for norm (default: 1.0)
 //! @param beta Scaling factor for existing y (default: 0.0)
-void norm_slice_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Index axis,
-    int redux = 0,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0
-);
 
-//! 2D Convolution forward: Y = alpha * conv2d(X, C) + beta * Y
-//! @param x Input tensor (WHCN format)
-//! @param c Kernel tensor (WHCN format)
-//! @param y Output tensor to accumulate into (WHCN format)
-//! @param alpha Scaling factor for convolution result (default: 1.0)
-//! @param beta Scaling factor for existing y (default: 1.0)
-//! @param padding Padding for height and width [pad_h, pad_w]
-//! @param stride Stride for height and width [stride_h, stride_w]
-//! @param dilation Dilation for height and width [dilation_h, dilation_w]
-void conv2d_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& c,
-    LogicalGraph::TensorNode& y,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0,
-    std::array<Index, 2> padding = {0, 0},
-    std::array<Index, 2> stride = {1, 1},
-    std::array<Index, 2> dilation = {1, 1}
-);
-
-//! 2D Convolution backward w.r.t. input: dX = alpha * conv2d_bwd_input(dY, C) + beta * dX
-//! @param dy Gradient of output tensor (WHCN format)
-//! @param c Kernel tensor (WHCN format)
-//! @param dx Gradient tensor to accumulate into (WHCN format)
-//! @param alpha Scaling factor for backward result (default: 1.0)
-//! @param beta Scaling factor for existing dx (default: 1.0)
-//! @param padding Padding for height and width [pad_h, pad_w]
-//! @param stride Stride for height and width [stride_h, stride_w]
-//! @param dilation Dilation for height and width [dilation_h, dilation_w]
-void conv2d_bwd_input_inplace(
-    LogicalGraph::TensorNode& dy,
-    LogicalGraph::TensorNode& c,
-    LogicalGraph::TensorNode& dx,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0,
-    std::array<Index, 2> padding = {0, 0},
-    std::array<Index, 2> stride = {1, 1},
-    std::array<Index, 2> dilation = {1, 1}
-);
-
-//! 2D Convolution backward w.r.t. weights: dC = alpha * conv2d_bwd_weight(X, dY) + beta * dC
-//! @param x Input tensor (WHCN format)
-//! @param dy Gradient of output tensor (WHCN format)
-//! @param dc Gradient tensor to accumulate into (WHCN format)
-//! @param alpha Scaling factor for backward result (default: 1.0)
-//! @param beta Scaling factor for existing dc (default: 1.0)
-//! @param padding Padding for height and width [pad_h, pad_w]
-//! @param stride Stride for height and width [stride_h, stride_w]
-//! @param dilation Dilation for height and width [dilation_h, dilation_w]
-void conv2d_bwd_weight_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& dy,
-    LogicalGraph::TensorNode& dc,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0,
-    std::array<Index, 2> padding = {0, 0},
-    std::array<Index, 2> stride = {1, 1},
-    std::array<Index, 2> dilation = {1, 1}
-);
 
 //! Scale operation: y = alpha * x
 //! @param x Input tensor
@@ -657,247 +245,7 @@ void gemm(
     Index batch_ndim = 0
 );
 
-//! Hypot operation: z = hypot(alpha * x, beta * y)
-//! @param x First input tensor
-//! @param y Second input tensor
-//! @param output_name Name for the output tensor
-//! @param alpha Scaling factor for x (default: 1.0)
-//! @param beta Scaling factor for y (default: 1.0)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& hypot(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    const std::string& output_name,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0
-);
 
-//! Hypot in-place: y = hypot(alpha * x, beta * y)
-//! @param x First input tensor
-//! @param y Second input/output tensor (modified in-place)
-//! @param alpha Scaling factor for x (default: 1.0)
-//! @param beta Scaling factor for y (default: 1.0)
-void hypot_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0
-);
-
-//! Power operation: y = alpha * (x ^ exp)
-//! @param x Input tensor
-//! @param output_name Name for the output tensor
-//! @param alpha Scaling factor (default: 1.0)
-//! @param exp Exponent (default: 1.0)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& pow(
-    LogicalGraph::TensorNode& x,
-    const std::string& output_name,
-    Scalar alpha = 1.0,
-    Scalar exp = 1.0
-);
-
-//! Power in-place: x = alpha * (x ^ exp)
-//! @param x Input/output tensor (modified in-place)
-//! @param alpha Scaling factor (default: 1.0)
-//! @param exp Exponent (default: 1.0)
-void pow_inplace(
-    LogicalGraph::TensorNode& x,
-    Scalar alpha = 1.0,
-    Scalar exp = 1.0
-);
-
-//! Log scalar operation: log value with given name
-//! @param x Input tensor
-//! @param name Name for logging
-void log_scalar(
-    LogicalGraph::TensorNode& x,
-    const std::string& name
-);
-
-//! Mask scalar operation: conditionally set values based on mask
-//! @param mask Boolean mask tensor
-//! @param x Input/output tensor (modified in-place)
-//! @param val Value to set where mask is true (default: 0.0)
-//! @param batch_ndim Number of batch dimensions (default: 0)
-void mask_scalar(
-    LogicalGraph::TensorNode& mask,
-    LogicalGraph::TensorNode& x,
-    Scalar val = 0.0,
-    Index batch_ndim = 0
-);
-
-//! Fill operation: x = val
-//! @param x Input/output tensor (modified in-place)
-//! @param val Value to fill tensor with
-void fill(
-    LogicalGraph::TensorNode& x,
-    Scalar val = 0.0
-);
-
-//! Copy operation: y = x
-//! @param x Input tensor
-//! @param output_name Name for the output tensor
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& copy(
-    LogicalGraph::TensorNode& x,
-    const std::string& output_name
-);
-
-//! Transpose operation: y = alpha * transpose(x)
-//! @param x Input tensor
-//! @param output_name Name for the output tensor
-//! @param alpha Scaling factor (default: 1.0)
-//! @param ndim Number of dimensions to transpose (default: 0)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& transpose(
-    LogicalGraph::TensorNode& x,
-    const std::string& output_name,
-    Scalar alpha = 1.0,
-    Index ndim = 0
-);
-
-//! Gather operation: y = gather(x)
-//! @param x Input tensor
-//! @param output_name Name for the output tensor
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& gather(
-    LogicalGraph::TensorNode& x,
-    const std::string& output_name
-);
-
-//! Scatter operation: y = scatter(x)
-//! @param x Input tensor
-//! @param output_name Name for the output tensor
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& scatter(
-    LogicalGraph::TensorNode& x,
-    const std::string& output_name
-);
-
-//! Copy intersection operation: copy overlapping regions between tensors
-//! @param src Source tensor
-//! @param src_offset Offset in source tensor
-//! @param dst Destination tensor (modified in-place)
-//! @param dst_offset Offset in destination tensor
-void copy_intersection(
-    LogicalGraph::TensorNode& src,
-    const std::vector<Index>& src_offset,
-    LogicalGraph::TensorNode& dst,
-    const std::vector<Index>& dst_offset
-);
-
-//! Scale along fibers: y = alpha * scale_fiber(x, y)
-//! @param x Scaling tensor (broadcasted along fibers)
-//! @param y Input/output tensor (modified in-place)
-//! @param alpha Scaling factor
-//! @param axis Axis along which to broadcast scaling
-//! @param batch_ndim Number of trailing batch dimensions
-void scale_fiber(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Scalar alpha = 1.0,
-    Index axis = 0,
-    Index batch_ndim = 0
-);
-
-//! Scale along slices: y = alpha * scale_slice(x, y)
-//! @param x Scaling tensor (broadcasted along slices)
-//! @param y Input/output tensor (modified in-place)
-//! @param alpha Scaling factor
-//! @param axis Axis along which to broadcast scaling
-void scale_slice(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Scalar alpha = 1.0,
-    Index axis = 0
-);
-
-//! Random normal generation: x = randn(start, underlying_shape, seed, mean, stddev)
-//! @param x Output tensor (modified in-place)
-//! @param start Starting indices for the random region
-//! @param underlying_shape Shape of the underlying tensor
-//! @param seed Random seed
-//! @param mean Mean of the normal distribution
-//! @param stddev Standard deviation of the normal distribution
-void randn(
-    LogicalGraph::TensorNode& x,
-    const std::vector<Index>& start,
-    const std::vector<Index>& underlying_shape,
-    unsigned long long seed = 0,
-    Scalar mean = 0.0,
-    Scalar stddev = 1.0
-);
-
-//! SGD optimizer step: p = sgd_step(grad, velocity, p)
-//! @param num_iter Current iteration number
-//! @param momentum Momentum factor
-//! @param lr Learning rate
-//! @param weight_decay Weight decay factor
-//! @param dampening Dampening factor
-//! @param nesterov Whether to use Nesterov momentum
-//! @param grad Gradient tensor
-//! @param velocity Velocity tensor (momentum buffer)
-//! @param p Parameter tensor (modified in-place)
-void sgd_step(
-    Index num_iter,
-    Scalar momentum,
-    Scalar lr,
-    Scalar weight_decay,
-    Scalar dampening,
-    bool nesterov,
-    LogicalGraph::TensorNode& grad,
-    LogicalGraph::TensorNode& velocity,
-    LogicalGraph::TensorNode& p
-);
-
-//! Adam optimizer step: p = adam_step(grad, first_moment, second_moment, p)
-//! @param num_iter Current iteration number
-//! @param beta_1 First moment decay rate
-//! @param beta_2 Second moment decay rate
-//! @param eps Small constant for numerical stability
-//! @param lr Learning rate
-//! @param weight_decay Weight decay factor
-//! @param grad Gradient tensor
-//! @param first_moment First moment tensor
-//! @param second_moment Second moment tensor
-//! @param p Parameter tensor (modified in-place)
-void adam_step(
-    Index num_iter,
-    Scalar beta_1,
-    Scalar beta_2,
-    Scalar eps,
-    Scalar lr,
-    Scalar weight_decay,
-    LogicalGraph::TensorNode& grad,
-    LogicalGraph::TensorNode& first_moment,
-    LogicalGraph::TensorNode& second_moment,
-    LogicalGraph::TensorNode& p
-);
-
-//! AdamW optimizer step: p = adamw_step(grad, first_moment, second_moment, p)
-//! @param num_iter Current iteration number
-//! @param beta_1 First moment decay rate
-//! @param beta_2 Second moment decay rate
-//! @param eps Small constant for numerical stability
-//! @param lr Learning rate
-//! @param weight_decay Weight decay factor
-//! @param grad Gradient tensor
-//! @param first_moment First moment tensor
-//! @param second_moment Second moment tensor
-//! @param p Parameter tensor (modified in-place)
-void adamw_step(
-    Index num_iter,
-    Scalar beta_1,
-    Scalar beta_2,
-    Scalar eps,
-    Scalar lr,
-    Scalar weight_decay,
-    LogicalGraph::TensorNode& grad,
-    LogicalGraph::TensorNode& first_moment,
-    LogicalGraph::TensorNode& second_moment,
-    LogicalGraph::TensorNode& p
-);
 
 //! Flash attention forward pass (CUDA-only): A = flash_sdpa_fwd_cudnn(K, Q, mask, logsumexp, V)
 //! @param K Key tensor
@@ -906,14 +254,6 @@ void adamw_step(
 //! @param logsumexp Log-sum-exp tensor (fp32)
 //! @param V Value tensor
 //! @param A Output attention tensor
-void flash_sdpa_fwd_cudnn(
-    LogicalGraph::TensorNode& K,
-    LogicalGraph::TensorNode& Q,
-    LogicalGraph::TensorNode& mask,
-    LogicalGraph::TensorNode& logsumexp,
-    LogicalGraph::TensorNode& V,
-    LogicalGraph::TensorNode& A
-);
 
 //! Flash attention backward pass (CUDA-only): gradients w.r.t. K, Q, V
 //! @param K Key tensor
@@ -926,63 +266,18 @@ void flash_sdpa_fwd_cudnn(
 //! @param dK Gradient tensor for K (modified in-place)
 //! @param dQ Gradient tensor for Q (modified in-place)
 //! @param dV Gradient tensor for V (modified in-place)
-void flash_sdpa_bwd_cudnn(
-    LogicalGraph::TensorNode& K,
-    LogicalGraph::TensorNode& Q,
-    LogicalGraph::TensorNode& V,
-    LogicalGraph::TensorNode& A,
-    LogicalGraph::TensorNode& dA,
-    LogicalGraph::TensorNode& mask,
-    LogicalGraph::TensorNode& logsumexp,
-    LogicalGraph::TensorNode& dK,
-    LogicalGraph::TensorNode& dQ,
-    LogicalGraph::TensorNode& dV
-);
 
 //! Rotary position embedding: dst = rope(sin, cos, src)
 //! @param sin_tensor Sine tensor for rotation
 //! @param cos_tensor Cosine tensor for rotation
 //! @param src Input tensor
 //! @param dst Output tensor
-void rope(
-    LogicalGraph::TensorNode& sin_tensor,
-    LogicalGraph::TensorNode& cos_tensor,
-    LogicalGraph::TensorNode& src,
-    LogicalGraph::TensorNode& dst
-);
 
 //! Rotary position embedding backward: dx = rope_backward(sin, cos, dy)
 //! @param sin_tensor Sine tensor for rotation
 //! @param cos_tensor Cosine tensor for rotation
 //! @param dy Gradient of output
 //! @param dx Gradient of input (modified in-place)
-void rope_backward(
-    LogicalGraph::TensorNode& sin_tensor,
-    LogicalGraph::TensorNode& cos_tensor,
-    LogicalGraph::TensorNode& dy,
-    LogicalGraph::TensorNode& dx
-);
 
-//! Hypot scalar inverse operation: y = 1.0 / hypot(eps, alpha * y)
-//! @param x Input/output tensor (modified in-place)
-//! @param eps Epsilon value for numerical stability
-//! @param alpha Scaling factor
-void hypot_scalar_inverse(
-    LogicalGraph::TensorNode& x,
-    Scalar eps = 0.0,
-    Scalar alpha = 1.0
-);
-
-//! Subtract indexed outputs operation: subtract val from elements indexed by labels
-//! @param labels Index tensor (int64_t) indicating which elements to modify
-//! @param x Input/output tensor (modified in-place)
-//! @param val Value to subtract
-//! @param ignore_index Index value to ignore (-1 by default)
-void subtract_indexed_outputs(
-    LogicalGraph::TensorNode& labels,
-    LogicalGraph::TensorNode& x,
-    Scalar val = 0.0,
-    Index ignore_index = -1
-);
 
 } // namespace nntile::graph

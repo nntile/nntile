@@ -98,3 +98,26 @@ TEST_CASE("NNGraph GradHelpersAndToString", "[graph]")
     REQUIRE(graph_text.find("NNGraph(name='grad'") != std::string::npos);
     REQUIRE(graph_text.find("Operations:") != std::string::npos);
 }
+
+TEST_CASE("NNGraph ToMermaidDelegatesToLogicalGraph", "[graph]")
+{
+    NNGraph nng("test_nn");
+
+    auto& x = nng.tensor({2, 3}, "input", DataType::FP32);
+    auto& w = nng.tensor({3, 4}, "weights", DataType::FP32);
+
+    auto& y = nng.tensor({2, 4}, "output", DataType::FP32);
+
+    // Add a simple operation
+    nng.add_op(OpType::GEMM, GemmAttrs{}, {&x, &w}, {&y}, "matmul");
+
+    // Test that NNGraph to_mermaid delegates to logical graph
+    auto nn_mermaid = nng.to_mermaid();
+    auto logical_mermaid = nng.logical_graph().to_mermaid();
+
+    REQUIRE(nn_mermaid == logical_mermaid);
+
+    // Check basic structure
+    REQUIRE(nn_mermaid.find("graph TD") != std::string::npos);
+    REQUIRE(nn_mermaid.find("classDef") != std::string::npos);
+}

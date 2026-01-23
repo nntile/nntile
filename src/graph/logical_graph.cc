@@ -553,4 +553,94 @@ std::string LogicalGraph::to_string() const
     return ss.str();
 }
 
+//! Generate mermaid graph visualization
+std::string LogicalGraph::to_mermaid() const
+{
+    std::stringstream ss;
+    ss << "graph TD\n";
+
+    // Create tensor nodes
+    for(const auto& tensor : tensors_)
+    {
+        std::string node_id = "T" + std::to_string(tensor->id());
+        std::string label = tensor->name();
+        if(label.empty())
+        {
+            label = "Tensor" + std::to_string(tensor->id());
+        }
+
+        // Add shape info
+        std::string shape_str = "[";
+        const auto& shape = tensor->shape();
+        for(size_t i = 0; i < shape.size(); ++i)
+        {
+            if(i > 0) shape_str += ",";
+            shape_str += std::to_string(shape[i]);
+        }
+        shape_str += "]";
+
+        label += "\\n" + dtype_to_string(tensor->dtype()) + "\\n" + shape_str;
+
+        if(tensor->is_input())
+        {
+            ss << "    " << node_id << "[\"" << label << "\"]\n";
+            ss << "    class " << node_id << " inputTensor\n";
+        }
+        else if(tensor->is_output())
+        {
+            ss << "    " << node_id << "[\"" << label << "\"]\n";
+            ss << "    class " << node_id << " outputTensor\n";
+        }
+        else
+        {
+            ss << "    " << node_id << "[\"" << label << "\"]\n";
+            ss << "    class " << node_id << " tensor\n";
+        }
+    }
+
+    // Create operation nodes
+    for(const auto& op : ops_)
+    {
+        std::string node_id = "O" + std::to_string(op->id());
+        std::string label = op_type_to_string(op->type());
+        if(!op->name().empty())
+        {
+            label += "\\n" + op->name();
+        }
+
+        ss << "    " << node_id << "{{\"" << label << "\"}}\n";
+        ss << "    class " << node_id << " operation\n";
+    }
+
+    // Create edges from inputs to operations
+    for(const auto& op : ops_)
+    {
+        std::string op_id = "O" + std::to_string(op->id());
+        for(const auto* input : op->inputs())
+        {
+            std::string tensor_id = "T" + std::to_string(input->id());
+            ss << "    " << tensor_id << " --> " << op_id << "\n";
+        }
+    }
+
+    // Create edges from operations to outputs
+    for(const auto& op : ops_)
+    {
+        std::string op_id = "O" + std::to_string(op->id());
+        for(const auto* output : op->outputs())
+        {
+            std::string tensor_id = "T" + std::to_string(output->id());
+            ss << "    " << op_id << " --> " << tensor_id << "\n";
+        }
+    }
+
+    // Add CSS styling
+    ss << "\n    classDef inputTensor fill:#e1f5fe,stroke:#01579b,stroke-width:2px\n";
+    ss << "    classDef outputTensor fill:#f3e5f5,stroke:#4a148c,stroke-width:2px\n";
+    ss << "    classDef tensor fill:#fff3e0,stroke:#e65100,stroke-width:2px\n";
+    ss << "    classDef operation fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px\n";
+
+    return ss.str();
+}
+
 } // namespace nntile::graph
