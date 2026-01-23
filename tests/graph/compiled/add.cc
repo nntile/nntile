@@ -1,0 +1,41 @@
+#include "compiled_test_utils.hh"
+
+#include "nntile/tensor/add.hh"
+
+using namespace nntile;
+using namespace nntile::graph;
+using namespace nntile::graph::test;
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph Add vs Tensor",
+    "[graph][verification]")
+{
+    auto build_graph = [](LogicalGraph& g) {
+        auto& x = g.tensor({4}, "x", DataType::FP32);
+        auto& y = g.tensor({4}, "y", DataType::FP32);
+        add(x, y, "z", 2.0f, 3.0f);
+    };
+
+    auto run_tensor_direct = [](std::map<std::string, std::vector<float>>& inputs,
+                               std::map<std::string, std::vector<float>>& outputs,
+                               const nntile::Context&) {
+        using T = nntile::fp32_t;
+        nntile::tensor::TensorTraits x_traits({4}, {4});
+        nntile::tensor::Tensor<T> x(x_traits);
+        nntile::tensor::TensorTraits y_traits({4}, {4});
+        nntile::tensor::Tensor<T> y(y_traits);
+        nntile::tensor::TensorTraits z_traits({4}, {4});
+        nntile::tensor::Tensor<T> z(z_traits);
+
+        write_tensor(x, inputs["x"]);
+        write_tensor(y, inputs["y"]);
+        nntile::tensor::add<T>(2.0f, x, 3.0f, y, z);
+        outputs["z"] = read_tensor(z);
+    };
+
+    verify_graph_vs_tensor<nntile::fp32_t>(
+        build_graph, run_tensor_direct,
+        {"x", "y"}, {"z"}, context
+    );
+}

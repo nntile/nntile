@@ -16,101 +16,66 @@
 
 #include <nntile/graph/compiled_graph.hh>
 
-namespace nntile::graph
-{
-
-//! Execute clear operation on compiled graph
-void execute_clear(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-//! Execute gelu operation on compiled graph
-void execute_gelu(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-//! Execute gelu_backward operation on compiled graph
-//! Note: dx tensor accumulates gradients (is both input and output)
-void execute_gelu_backward(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-//! Execute gemm operation on compiled graph
-void execute_gemm(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-//! Execute element-wise unary operations
-void execute_gelu_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_gelutanh(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_gelutanh_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_gelutanh_backward(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_relu(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_relu_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_relu_backward(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_silu(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_silu_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_silu_backward(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_sqrt(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_sqrt_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-//! Execute binary operations
-void execute_add(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_add_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_multiply(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_multiply_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-//! Execute reduction operations
-void execute_sum(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_sum_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-//! Execute scale operations
-void execute_scale(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_scale_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-//! Execute embedding operations
-void execute_embedding(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_embedding_backward(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-//! Execute additional element-wise operations
-void execute_hypot(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_hypot_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_hypot_scalar_inverse(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_pow(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_pow_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_log_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_mask_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_subtract_indexed_outputs(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-//! Execute additional reduction operations
-void execute_sum_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_norm(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_logsumexp(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_maxsumexp(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_sumprod_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_sumprod_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_norm_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_norm_fiber_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_norm_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_norm_slice_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-//! Execute convolution operations
-void execute_conv2d_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_conv2d_bwd_input_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_conv2d_bwd_weight_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-//! Execute advanced operations
-void execute_flash_sdpa_fwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_flash_sdpa_bwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_rope(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_rope_backward(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-//! Execute utility operations
-void execute_fill(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_copy(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_transpose(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_gather(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_scatter(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_copy_intersection(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_scale_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_scale_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_randn(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-//! Execute optimizer operations
-void execute_sgd_step(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_adam_step(CompiledGraph& graph, const OpExecutionInfo& op_info);
-void execute_adamw_step(CompiledGraph& graph, const OpExecutionInfo& op_info);
-
-} // namespace nntile::graph
+#include <nntile/graph/compiled/add.hh>
+#include <nntile/graph/compiled/add_inplace.hh>
+#include <nntile/graph/compiled/adam_step.hh>
+#include <nntile/graph/compiled/adamw_step.hh>
+#include <nntile/graph/compiled/clear.hh>
+#include <nntile/graph/compiled/conv2d_bwd_input_inplace.hh>
+#include <nntile/graph/compiled/conv2d_bwd_weight_inplace.hh>
+#include <nntile/graph/compiled/conv2d_inplace.hh>
+#include <nntile/graph/compiled/copy.hh>
+#include <nntile/graph/compiled/copy_intersection.hh>
+#include <nntile/graph/compiled/embedding.hh>
+#include <nntile/graph/compiled/embedding_backward.hh>
+#include <nntile/graph/compiled/fill.hh>
+#include <nntile/graph/compiled/flash_sdpa_bwd_cudnn.hh>
+#include <nntile/graph/compiled/flash_sdpa_fwd_cudnn.hh>
+#include <nntile/graph/compiled/gather.hh>
+#include <nntile/graph/compiled/gelu.hh>
+#include <nntile/graph/compiled/gelu_backward.hh>
+#include <nntile/graph/compiled/gelu_inplace.hh>
+#include <nntile/graph/compiled/gelutanh.hh>
+#include <nntile/graph/compiled/gelutanh_backward.hh>
+#include <nntile/graph/compiled/gelutanh_inplace.hh>
+#include <nntile/graph/compiled/gemm.hh>
+#include <nntile/graph/compiled/hypot.hh>
+#include <nntile/graph/compiled/hypot_inplace.hh>
+#include <nntile/graph/compiled/hypot_scalar_inverse.hh>
+#include <nntile/graph/compiled/log_scalar.hh>
+#include <nntile/graph/compiled/logsumexp.hh>
+#include <nntile/graph/compiled/mask_scalar.hh>
+#include <nntile/graph/compiled/maxsumexp.hh>
+#include <nntile/graph/compiled/multiply.hh>
+#include <nntile/graph/compiled/multiply_inplace.hh>
+#include <nntile/graph/compiled/norm.hh>
+#include <nntile/graph/compiled/norm_fiber.hh>
+#include <nntile/graph/compiled/norm_fiber_inplace.hh>
+#include <nntile/graph/compiled/norm_slice.hh>
+#include <nntile/graph/compiled/norm_slice_inplace.hh>
+#include <nntile/graph/compiled/pow.hh>
+#include <nntile/graph/compiled/pow_inplace.hh>
+#include <nntile/graph/compiled/randn.hh>
+#include <nntile/graph/compiled/relu.hh>
+#include <nntile/graph/compiled/relu_backward.hh>
+#include <nntile/graph/compiled/relu_inplace.hh>
+#include <nntile/graph/compiled/rope.hh>
+#include <nntile/graph/compiled/rope_backward.hh>
+#include <nntile/graph/compiled/scale.hh>
+#include <nntile/graph/compiled/scale_fiber.hh>
+#include <nntile/graph/compiled/scale_inplace.hh>
+#include <nntile/graph/compiled/scale_slice.hh>
+#include <nntile/graph/compiled/scatter.hh>
+#include <nntile/graph/compiled/sgd_step.hh>
+#include <nntile/graph/compiled/silu.hh>
+#include <nntile/graph/compiled/silu_backward.hh>
+#include <nntile/graph/compiled/silu_inplace.hh>
+#include <nntile/graph/compiled/sqrt.hh>
+#include <nntile/graph/compiled/sqrt_inplace.hh>
+#include <nntile/graph/compiled/subtract_indexed_outputs.hh>
+#include <nntile/graph/compiled/sum.hh>
+#include <nntile/graph/compiled/sum_fiber.hh>
+#include <nntile/graph/compiled/sum_slice.hh>
+#include <nntile/graph/compiled/sumprod_fiber.hh>
+#include <nntile/graph/compiled/sumprod_slice.hh>
+#include <nntile/graph/compiled/transpose.hh>
