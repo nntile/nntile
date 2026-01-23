@@ -23,18 +23,21 @@
 namespace nntile::graph
 {
 
-//! Multiply along fibers: y = alpha * x * y + beta * y
-//! @param x Input tensor
-//! @param y Input/output tensor (modified in-place)
-//! @param axis Axis along which to perform fiber-wise operation
-//! @param alpha Scaling factor for x * y product
-//! @param beta Scaling factor for existing y
-void multiply_fiber(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+//! Multiply along fibers: output = alpha * fiber * tensor
+//! @param alpha Scaling factor for fiber * tensor product
+//! @param fiber Input fiber tensor (1D)
+//! @param tensor Input tensor
+//! @param output_name Name for the output tensor
+//! @param axis Axis along which to broadcast the fiber
+//! @param batch_ndim Number of trailing batch dimensions (default: 0)
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& multiply_fiber(
+    Scalar alpha,
+    LogicalGraph::TensorNode& fiber,
+    LogicalGraph::TensorNode& tensor,
+    const std::string& output_name,
     Index axis,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0
+    Index batch_ndim = 0
 );
 
 } // namespace nntile::graph

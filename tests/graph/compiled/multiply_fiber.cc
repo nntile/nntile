@@ -28,7 +28,7 @@ TEST_CASE_METHOD(
     auto build_graph = [](LogicalGraph& g) {
         auto& x = g.tensor({4, 6}, "x", DataType::FP32);
         auto& y = g.tensor({4, 1}, "y", DataType::FP32);
-        multiply_fiber(x, y, "z", 2.0f, 0);
+        multiply_fiber(2.0f, x, y, "z", 0, 0);
     };
 
     auto run_tensor_direct = [](std::map<std::string, std::vector<float>>& inputs,

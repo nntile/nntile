@@ -25,44 +25,44 @@
 namespace nntile::graph
 {
 
-//! Multiply slice: y = alpha * x * y
+//! Multiply slice: tensor = alpha * slice * tensor
 void multiply_slice(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
     Scalar alpha,
+    LogicalGraph::TensorNode& slice,
+    LogicalGraph::TensorNode& tensor,
     Index axis)
 {
-    if(&x.graph() != &y.graph())
+    if(&slice.graph() != &tensor.graph())
     {
         throw std::invalid_argument(
             "multiply_slice: tensors must belong to the same graph");
     }
 
-    if(x.dtype() != y.dtype())
+    if(slice.dtype() != tensor.dtype())
     {
         throw std::invalid_argument(
             "multiply_slice: all tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= x.ndim())
+    if(axis < 0 || axis >= slice.ndim())
     {
         throw std::invalid_argument(
             "multiply_slice: axis out of bounds");
     }
 
     // Check that shapes are compatible for slice-wise operation
-    if(x.shape() != y.shape())
+    if(slice.shape() != tensor.shape())
     {
         throw std::invalid_argument(
             "multiply_slice: tensors must have the same shape");
     }
 
     OpAttrs attrs = MultiplySliceAttrs{axis, alpha, 0.0};  // beta is not used in this operation
-    x.graph().add_op(
+    slice.graph().add_op(
         OpType::MULTIPLY_SLICE,
         attrs,
-        {&x, &y},
-        {&y}
+        {&slice, &tensor},
+        {&tensor}
     );
 }
 

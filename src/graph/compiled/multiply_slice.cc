@@ -26,15 +26,15 @@ namespace
 {
 
 template<typename T>
-void run_multiply_slice(CompiledGraph& graph, const ReductionAttrs& attrs,
-                      const std::string& x_name, const std::string& y_name)
+void run_multiply_slice(CompiledGraph& graph, const MultiplySliceAttrs& attrs,
+                      const std::string& slice_name, const std::string& tensor_name)
 {
-    auto& x = graph.get_tensor<T>(x_name);
-    auto& y = graph.get_tensor<T>(y_name);
+    auto& slice = graph.get_tensor<T>(slice_name);
+    auto& tensor = graph.get_tensor<T>(tensor_name);
 
     const auto alpha = static_cast<nntile::Scalar>(attrs.alpha);
 
-    nntile::tensor::multiply_slice<T>(alpha, x, y, attrs.axis);
+    nntile::tensor::multiply_slice<T>(alpha, slice, tensor, attrs.axis);
 }
 
 } // namespace
@@ -42,33 +42,33 @@ void run_multiply_slice(CompiledGraph& graph, const ReductionAttrs& attrs,
 //! Execute multiply_slice operation
 void execute_multiply_slice(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const ReductionAttrs& attrs = std::get<ReductionAttrs>(op_info.attrs);
-    const std::string& x_name = op_info.input_names[0];
-    const std::string& y_name = op_info.output_names[0];
-    DataType dtype = graph.get_dtype(x_name);
+    const MultiplySliceAttrs& attrs = std::get<MultiplySliceAttrs>(op_info.attrs);
+    const std::string& slice_name = op_info.input_names[0];
+    const std::string& tensor_name = op_info.output_names[0];
+    DataType dtype = graph.get_dtype(slice_name);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_multiply_slice<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            run_multiply_slice<nntile::fp32_t>(graph, attrs, slice_name, tensor_name);
             break;
         case DataType::FP32_FAST_TF32:
-            run_multiply_slice<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            run_multiply_slice<nntile::fp32_fast_tf32_t>(graph, attrs, slice_name, tensor_name);
             break;
         case DataType::FP32_FAST_FP16:
-            run_multiply_slice<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            run_multiply_slice<nntile::fp32_fast_fp16_t>(graph, attrs, slice_name, tensor_name);
             break;
         case DataType::FP32_FAST_BF16:
-            run_multiply_slice<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            run_multiply_slice<nntile::fp32_fast_bf16_t>(graph, attrs, slice_name, tensor_name);
             break;
         case DataType::FP64:
-            run_multiply_slice<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            run_multiply_slice<nntile::fp64_t>(graph, attrs, slice_name, tensor_name);
             break;
         case DataType::FP16:
-            run_multiply_slice<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            run_multiply_slice<nntile::fp16_t>(graph, attrs, slice_name, tensor_name);
             break;
         case DataType::BF16:
-            run_multiply_slice<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            run_multiply_slice<nntile::bf16_t>(graph, attrs, slice_name, tensor_name);
             break;
         case DataType::INT64:
         case DataType::INT32:

@@ -203,6 +203,22 @@ struct AddSliceAttrs
     Scalar beta = 1.0;      // Scaling factor for tensor
 };
 
+struct MultiplyFiberAttrs
+{
+    // Multiply along fibers: output = alpha * fiber * tensor
+    Index axis = 0;         // Axis along which to broadcast the fiber
+    Index batch_ndim = 0;   // Number of trailing batch dimensions
+    Scalar alpha = 1.0;     // Scaling factor for fiber * tensor product
+};
+
+struct MultiplySliceAttrs
+{
+    // Multiply along slices: output = alpha * slice * tensor
+    Index axis = 0;         // Axis along which to broadcast the slice
+    Scalar alpha = 1.0;     // Scaling factor for slice * tensor product
+    Scalar beta = 0.0;      // Not used (for compatibility)
+};
+
 struct SumFiberAttrs
 {
     // Sum along all dimensions except the last one
@@ -363,7 +379,7 @@ struct CopyIntersectionAttrs
 };
 
 using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
-                             AddFiberAttrs, AddSliceAttrs, SumFiberAttrs, ClearAttrs,
+                             AddFiberAttrs, AddSliceAttrs, MultiplyFiberAttrs, MultiplySliceAttrs, SumFiberAttrs, ClearAttrs,
                              BinaryOpAttrs, ReductionAttrs, TotalSumAttrs,
                              LogSumExpAttrs, ScaleAttrs, Conv2dAttrs,
                              EmbeddingAttrs, MaskScalarAttrs, TotalSumAccumAttrs,
