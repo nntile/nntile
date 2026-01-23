@@ -188,9 +188,19 @@ struct GeluBackwardAttrs
 
 struct AddFiberAttrs
 {
-    // Broadcast-add bias along the last axis
-    // output = input + bias (bias has shape [last_dim])
-    Scalar alpha = 1.0;  // Scaling factor for bias
+    // Add along fibers: output = alpha * fiber + beta * tensor
+    Index axis = 0;         // Axis along which to broadcast the fiber
+    Index batch_ndim = 0;   // Number of trailing batch dimensions
+    Scalar alpha = 1.0;     // Scaling factor for fiber
+    Scalar beta = 1.0;      // Scaling factor for tensor
+};
+
+struct AddSliceAttrs
+{
+    // Add along slices: output = alpha * slice + beta * tensor
+    Index axis = 0;         // Axis along which to broadcast the slice
+    Scalar alpha = 1.0;     // Scaling factor for slice
+    Scalar beta = 1.0;      // Scaling factor for tensor
 };
 
 struct SumFiberAttrs
@@ -353,7 +363,7 @@ struct CopyIntersectionAttrs
 };
 
 using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
-                             AddFiberAttrs, SumFiberAttrs, ClearAttrs,
+                             AddFiberAttrs, AddSliceAttrs, SumFiberAttrs, ClearAttrs,
                              BinaryOpAttrs, ReductionAttrs, TotalSumAttrs,
                              LogSumExpAttrs, ScaleAttrs, Conv2dAttrs,
                              EmbeddingAttrs, MaskScalarAttrs, TotalSumAccumAttrs,

@@ -27,12 +27,13 @@ namespace nntile::graph
 
 //! Add along fibers: output = alpha * fiber + beta * tensor
 LogicalGraph::TensorNode& add_fiber(
+    Scalar alpha,
     LogicalGraph::TensorNode& fiber,
+    Scalar beta,
     LogicalGraph::TensorNode& tensor,
     const std::string& output_name,
     Index axis,
-    Scalar alpha,
-    Scalar beta)
+    Index batch_ndim)
 {
     if(&fiber.graph() != &tensor.graph())
     {
@@ -50,6 +51,12 @@ LogicalGraph::TensorNode& add_fiber(
     {
         throw std::invalid_argument(
             "add_fiber: axis out of bounds");
+    }
+
+    if(batch_ndim < 0 || axis + batch_ndim > tensor.ndim())
+    {
+        throw std::invalid_argument(
+            "add_fiber: invalid batch_ndim");
     }
 
     // Check fiber dimensions (should be 1D for the axis being broadcast)
@@ -73,7 +80,7 @@ LogicalGraph::TensorNode& add_fiber(
         output_name,
         fiber.dtype());
 
-    OpAttrs attrs = AddFiberAttrs{alpha};
+    OpAttrs attrs = AddFiberAttrs{axis, batch_ndim, alpha, beta};
     fiber.graph().add_op(
         OpType::ADD_FIBER,
         attrs,

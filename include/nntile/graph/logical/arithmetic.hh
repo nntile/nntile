@@ -87,19 +87,20 @@ void add_fiber_inplace(
 
 //! Add slice operation: z = alpha * slice + beta * x
 //! @param x Input tensor
-//! @param y Slice tensor
+//! @param alpha Scaling factor for slice
+//! @param slice Input slice tensor
+//! @param beta Scaling factor for tensor
+//! @param tensor Input tensor
 //! @param output_name Name for the output tensor
-//! @param alpha Scaling factor for slice (default: 1.0)
-//! @param beta Scaling factor for x (default: 1.0)
-//! @param axis Axis along which to broadcast (default: -1, last axis)
+//! @param axis Axis along which to broadcast (default: 0)
 //! @return Reference to the output tensor
 LogicalGraph::TensorNode& add_slice(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    Scalar alpha,
+    LogicalGraph::TensorNode& slice,
+    Scalar beta,
+    LogicalGraph::TensorNode& tensor,
     const std::string& output_name,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0,
-    Index axis = -1
+    Index axis = 0
 );
 
 //! Add slice in-place: y = alpha * slice + beta * y

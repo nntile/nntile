@@ -25,45 +25,45 @@
 namespace nntile::graph
 {
 
-//! Add along slices in-place: y = alpha * x + beta * y
+//! Add along slices in-place: tensor = alpha * slice + beta * tensor
 void add_slice_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Index axis,
     Scalar alpha,
-    Scalar beta)
+    LogicalGraph::TensorNode& slice,
+    Scalar beta,
+    LogicalGraph::TensorNode& tensor,
+    Index axis)
 {
-    if(&x.graph() != &y.graph())
+    if(&slice.graph() != &tensor.graph())
     {
         throw std::invalid_argument(
             "add_slice_inplace: tensors must belong to the same graph");
     }
 
-    if(x.dtype() != y.dtype())
+    if(slice.dtype() != tensor.dtype())
     {
         throw std::invalid_argument(
             "add_slice_inplace: all tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= x.ndim())
+    if(axis < 0 || axis >= slice.ndim())
     {
         throw std::invalid_argument(
             "add_slice_inplace: axis out of bounds");
     }
 
     // Check that shapes are compatible for slice-wise operation
-    if(x.shape() != y.shape())
+    if(slice.shape() != tensor.shape())
     {
         throw std::invalid_argument(
             "add_slice_inplace: tensors must have the same shape");
     }
 
     OpAttrs attrs = AddSliceAttrs{axis, alpha, beta};
-    x.graph().add_op(
+    slice.graph().add_op(
         OpType::ADD_SLICE_INPLACE,
         attrs,
-        {&x, &y},
-        {&y}
+        {&slice, &tensor},
+        {&tensor}
     );
 }
 

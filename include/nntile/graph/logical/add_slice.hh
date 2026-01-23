@@ -23,18 +23,21 @@
 namespace nntile::graph
 {
 
-//! Add along slices: y = alpha * x + beta * y
-//! @param x Input tensor
-//! @param y Input/output tensor (modified in-place)
+//! Add along slices: output = alpha * slice + beta * tensor
+//! @param alpha Scaling factor for slice
+//! @param slice Input slice tensor
+//! @param beta Scaling factor for tensor
+//! @param tensor Input tensor
+//! @param output_name Name for the output tensor
 //! @param axis Axis along which to perform slice-wise operation
-//! @param alpha Scaling factor for x
-//! @param beta Scaling factor for y
-void add_slice(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Index axis,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0
+//! @return Reference to the output tensor
+LogicalGraph::TensorNode& add_slice(
+    Scalar alpha,
+    LogicalGraph::TensorNode& slice,
+    Scalar beta,
+    LogicalGraph::TensorNode& tensor,
+    const std::string& output_name,
+    Index axis
 );
 
 } // namespace nntile::graph

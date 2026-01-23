@@ -25,46 +25,56 @@
 namespace nntile::graph
 {
 
-//! Add along slices: y = alpha * x + beta * y
-void add_slice(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Index axis,
+//! Add along slices: output = alpha * slice + beta * tensor
+LogicalGraph::TensorNode& add_slice(
     Scalar alpha,
-    Scalar beta)
+    LogicalGraph::TensorNode& slice,
+    Scalar beta,
+    LogicalGraph::TensorNode& tensor,
+    const std::string& output_name,
+    Index axis)
 {
-    if(&x.graph() != &y.graph())
+    if(&slice.graph() != &tensor.graph())
     {
         throw std::invalid_argument(
             "add_slice: tensors must belong to the same graph");
     }
 
-    if(x.dtype() != y.dtype())
+    if(slice.dtype() != tensor.dtype())
     {
         throw std::invalid_argument(
             "add_slice: all tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= x.ndim())
+    if(axis < 0 || axis >= slice.ndim())
     {
         throw std::invalid_argument(
             "add_slice: axis out of bounds");
     }
 
     // Check that shapes are compatible for slice-wise operation
-    if(x.shape() != y.shape())
+    if(slice.shape() != tensor.shape())
     {
         throw std::invalid_argument(
             "add_slice: tensors must have the same shape");
     }
 
+    // Output has the same shape as the input tensors
+    std::vector<Index> output_shape = slice.shape();
+    LogicalGraph::TensorNode& output = slice.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        slice.dtype());
+
     OpAttrs attrs = AddSliceAttrs{axis, alpha, beta};
-    x.graph().add_op(
+    slice.graph().add_op(
         OpType::ADD_SLICE,
         attrs,
-        {&x, &y},
-        {&y}
+        {&slice, &tensor},
+        {&output}
     );
+
+    return output;
 }
 
 } // namespace nntile::graph
