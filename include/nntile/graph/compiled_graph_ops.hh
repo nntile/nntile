@@ -64,4 +64,53 @@ void execute_scale_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
 void execute_embedding(CompiledGraph& graph, const OpExecutionInfo& op_info);
 void execute_embedding_backward(CompiledGraph& graph, const OpExecutionInfo& op_info);
 
+//! Execute additional element-wise operations
+void execute_hypot(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_hypot_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_hypot_scalar_inverse(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_pow(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_pow_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_log_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_mask_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_subtract_indexed_outputs(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
+//! Execute additional reduction operations
+void execute_sum_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_norm(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_logsumexp(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_maxsumexp(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_sumprod_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_sumprod_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_norm_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_norm_fiber_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_norm_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_norm_slice_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
+//! Execute convolution operations
+void execute_conv2d_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_conv2d_bwd_input_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_conv2d_bwd_weight_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
+//! Execute advanced operations
+void execute_flash_sdpa_fwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_flash_sdpa_bwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_rope(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_rope_backward(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
+//! Execute utility operations
+void execute_fill(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_copy(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_transpose(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_gather(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_scatter(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_copy_intersection(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_scale_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_scale_slice(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_randn(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
+//! Execute optimizer operations
+void execute_sgd_step(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_adam_step(CompiledGraph& graph, const OpExecutionInfo& op_info);
+void execute_adamw_step(CompiledGraph& graph, const OpExecutionInfo& op_info);
+
 } // namespace nntile::graph

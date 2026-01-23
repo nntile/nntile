@@ -85,6 +85,7 @@ enum class OpType {
     MULTIPLY,
     MULTIPLY_INPLACE,
     HYPOT_SCALAR_INVERSE,
+    SUBTRACT_INDEXED_OUTPUTS,
 
     // Reduction operations
     SUM,
@@ -138,6 +139,7 @@ enum class OpType {
     SCATTER,
     FILL,
     POW,
+    POW_INPLACE,
     LOG_SCALAR,
 
     // Random operations
@@ -296,16 +298,51 @@ struct RandnAttrs
     Scalar stddev = 1.0;
 };
 
-// Power operation (exponent)
+// Power operation (alpha, exponent)
 struct PowAttrs
 {
+    Scalar alpha = 1.0;
     Scalar exponent = 1.0;
 };
 
 // Log scalar operation (base)
 struct LogScalarAttrs
 {
-    Scalar base = 1.0;  // Natural log if 1.0
+    std::string name;  // Name for logging
+};
+
+// Fill operation (value)
+struct FillAttrs
+{
+    Scalar val = 0.0;
+};
+
+// Transpose operation (alpha, ndim)
+struct TransposeAttrs
+{
+    Scalar alpha = 1.0;
+    Index ndim = 0;
+};
+
+// Hypot scalar inverse operation (eps, alpha)
+struct HypotScalarInverseAttrs
+{
+    Scalar eps = 0.0;
+    Scalar alpha = 1.0;
+};
+
+// Subtract indexed outputs operation (val, ignore_index)
+struct SubtractIndexedOutputsAttrs
+{
+    Scalar val = 0.0;
+    Index ignore_index = -1;
+};
+
+// Copy intersection operation (src_offset, dst_offset)
+struct CopyIntersectionAttrs
+{
+    std::vector<Index> src_offset;
+    std::vector<Index> dst_offset;
 };
 
 using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
@@ -314,7 +351,9 @@ using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
                              LogSumExpAttrs, ScaleAttrs, Conv2dAttrs,
                              EmbeddingAttrs, MaskScalarAttrs, TotalSumAccumAttrs,
                              SgdStepAttrs, AdamStepAttrs, RandnAttrs,
-                             PowAttrs, LogScalarAttrs>;
+                             PowAttrs, LogScalarAttrs, FillAttrs, TransposeAttrs,
+                             HypotScalarInverseAttrs, SubtractIndexedOutputsAttrs,
+                             CopyIntersectionAttrs>;
 
 //! Logical graph - defines computation without physical details
 class LogicalGraph

@@ -532,6 +532,669 @@ void multiply_inplace(
     );
 }
 
+//! Hypot operation: z = hypot(alpha * x, beta * y)
+LogicalGraph::TensorNode& hypot(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    const std::string& output_name,
+    Scalar alpha,
+    Scalar beta)
+{
+    validate_binary_inputs(x, y, x.graph());
+
+    std::vector<Index> output_shape = x.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = BinaryOpAttrs{alpha, beta};
+    x.graph().add_op(
+        OpType::HYPOT,
+        attrs,
+        {&x, &y},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Hypot in-place: y = hypot(alpha * x, beta * y)
+void hypot_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha,
+    Scalar beta)
+{
+    validate_binary_inputs(x, y, x.graph());
+
+    OpAttrs attrs = BinaryOpAttrs{alpha, beta};
+    x.graph().add_op(
+        OpType::HYPOT_INPLACE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Power operation: y = alpha * (x ^ exp)
+LogicalGraph::TensorNode& pow(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name,
+    Scalar alpha,
+    Scalar exp)
+{
+    std::vector<Index> output_shape = x.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = PowAttrs{alpha, exp};
+    x.graph().add_op(
+        OpType::POW,
+        attrs,
+        {&x},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Power in-place: x = alpha * (x ^ exp)
+void pow_inplace(
+    LogicalGraph::TensorNode& x,
+    Scalar alpha,
+    Scalar exp)
+{
+    OpAttrs attrs = PowAttrs{alpha, exp};
+    x.graph().add_op(
+        OpType::POW_INPLACE,
+        attrs,
+        {&x},
+        {&x}
+    );
+}
+
+//! Log scalar operation: log value with given name
+void log_scalar(
+    LogicalGraph::TensorNode& x,
+    const std::string& name)
+{
+    OpAttrs attrs = LogScalarAttrs{name};
+    x.graph().add_op(
+        OpType::LOG_SCALAR,
+        attrs,
+        {&x},
+        {}
+    );
+}
+
+//! Mask scalar operation: conditionally set values based on mask
+void mask_scalar(
+    LogicalGraph::TensorNode& mask,
+    LogicalGraph::TensorNode& x,
+    Scalar val,
+    Index batch_ndim)
+{
+    if(&mask.graph() != &x.graph())
+    {
+        throw std::invalid_argument(
+            "mask_scalar: tensors must belong to the same graph");
+    }
+
+    if(mask.dtype() != DataType::BOOL)
+    {
+        throw std::invalid_argument(
+            "mask_scalar: mask tensor must have bool dtype");
+    }
+
+    OpAttrs attrs = MaskScalarAttrs{val, batch_ndim};
+    mask.graph().add_op(
+        OpType::MASK_SCALAR,
+        attrs,
+        {&mask, &x},
+        {&x}
+    );
+}
+
+//! Fill operation: x = val
+void fill(
+    LogicalGraph::TensorNode& x,
+    Scalar val)
+{
+    OpAttrs attrs = FillAttrs{val};
+    x.graph().add_op(
+        OpType::FILL,
+        attrs,
+        {},
+        {&x}
+    );
+}
+
+//! Copy operation: y = x
+LogicalGraph::TensorNode& copy(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name)
+{
+    std::vector<Index> output_shape = x.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = ClearAttrs{};  // No attributes needed
+    x.graph().add_op(
+        OpType::COPY,
+        attrs,
+        {&x},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Transpose operation: y = alpha * transpose(x)
+LogicalGraph::TensorNode& transpose(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name,
+    Scalar alpha,
+    Index ndim)
+{
+    // For transpose, we need to reverse the first ndim dimensions
+    std::vector<Index> output_shape = x.shape();
+    if(ndim > 0 && ndim <= x.ndim())
+    {
+        // Reverse the first ndim dimensions
+        for(Index i = 0; i < ndim/2; ++i)
+        {
+            std::swap(output_shape[i], output_shape[ndim-1-i]);
+        }
+    }
+
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = TransposeAttrs{alpha, ndim};
+    x.graph().add_op(
+        OpType::TRANSPOSE,
+        attrs,
+        {&x},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Gather operation: y = gather(x)
+LogicalGraph::TensorNode& gather(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name)
+{
+    // For now, assume gather doesn't change shape
+    // In practice, this would depend on the indices
+    std::vector<Index> output_shape = x.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = ClearAttrs{};  // No attributes needed
+    x.graph().add_op(
+        OpType::GATHER,
+        attrs,
+        {&x},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Hypot scalar inverse operation: y = 1.0 / hypot(eps, alpha * y)
+void hypot_scalar_inverse(
+    LogicalGraph::TensorNode& x,
+    Scalar eps,
+    Scalar alpha)
+{
+    OpAttrs attrs = HypotScalarInverseAttrs{eps, alpha};
+    x.graph().add_op(
+        OpType::HYPOT_SCALAR_INVERSE,
+        attrs,
+        {&x},
+        {&x}
+    );
+}
+
+//! Subtract indexed outputs operation: subtract val from elements indexed by labels
+void subtract_indexed_outputs(
+    LogicalGraph::TensorNode& labels,
+    LogicalGraph::TensorNode& x,
+    Scalar val,
+    Index ignore_index)
+{
+    if(&labels.graph() != &x.graph())
+    {
+        throw std::invalid_argument(
+            "subtract_indexed_outputs: tensors must belong to the same graph");
+    }
+
+    if(labels.dtype() != DataType::INT64)
+    {
+        throw std::invalid_argument(
+            "subtract_indexed_outputs: labels tensor must have int64 dtype");
+    }
+
+    OpAttrs attrs = SubtractIndexedOutputsAttrs{val, ignore_index};
+    labels.graph().add_op(
+        OpType::SUBTRACT_INDEXED_OUTPUTS,
+        attrs,
+        {&labels, &x},
+        {&x}
+    );
+}
+
+//! Scatter operation: y = scatter(x)
+LogicalGraph::TensorNode& scatter(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name)
+{
+    // For now, assume scatter doesn't change shape
+    // In practice, this would depend on the indices
+    std::vector<Index> output_shape = x.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = ClearAttrs{};  // No attributes needed
+    x.graph().add_op(
+        OpType::SCATTER,
+        attrs,
+        {&x},
+        {&output}
+    );
+
+    return output;
+}
+
+//! Copy intersection operation: copy overlapping regions between tensors
+void copy_intersection(
+    LogicalGraph::TensorNode& src,
+    const std::vector<Index>& src_offset,
+    LogicalGraph::TensorNode& dst,
+    const std::vector<Index>& dst_offset)
+{
+    if(&src.graph() != &dst.graph())
+    {
+        throw std::invalid_argument(
+            "copy_intersection: tensors must belong to the same graph");
+    }
+
+    if(src.dtype() != dst.dtype())
+    {
+        throw std::invalid_argument(
+            "copy_intersection: tensors must have the same dtype");
+    }
+
+    OpAttrs attrs = CopyIntersectionAttrs{src_offset, dst_offset};
+    src.graph().add_op(
+        OpType::COPY_INTERSECTION,
+        attrs,
+        {&src, &dst},
+        {&dst}
+    );
+}
+
+//! Scale along fibers: y = alpha * scale_fiber(x, y)
+void scale_fiber(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha,
+    Index axis,
+    Index batch_ndim)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "scale_fiber: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "scale_fiber: tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "scale_fiber: axis out of bounds");
+    }
+
+    if(batch_ndim < 0 || axis + batch_ndim > x.ndim())
+    {
+        throw std::invalid_argument(
+            "scale_fiber: invalid batch_ndim");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, 0.0, axis, batch_ndim, 0};  // beta=0, redux=0
+    x.graph().add_op(
+        OpType::SCALE_FIBER,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Scale along slices: y = alpha * scale_slice(x, y)
+void scale_slice(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha,
+    Index axis)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "scale_slice: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "scale_slice: tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "scale_slice: axis out of bounds");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, 0.0, axis, 0, 0};  // batch_ndim=0, redux=0
+    x.graph().add_op(
+        OpType::SCALE_SLICE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Random normal generation: x = randn(start, underlying_shape, seed, mean, stddev)
+void randn(
+    LogicalGraph::TensorNode& x,
+    const std::vector<Index>& start,
+    const std::vector<Index>& underlying_shape,
+    unsigned long long seed,
+    Scalar mean,
+    Scalar stddev)
+{
+    OpAttrs attrs = RandnAttrs{start, underlying_shape, seed, mean, stddev};
+    x.graph().add_op(
+        OpType::RANDN,
+        attrs,
+        {},
+        {&x}
+    );
+}
+
+//! SGD step: p = sgd_step(grad, velocity, p)
+void sgd_step(
+    Index num_iter,
+    Scalar momentum,
+    Scalar lr,
+    Scalar weight_decay,
+    Scalar dampening,
+    bool nesterov,
+    LogicalGraph::TensorNode& grad,
+    LogicalGraph::TensorNode& velocity,
+    LogicalGraph::TensorNode& p)
+{
+    if(&grad.graph() != &velocity.graph() || &grad.graph() != &p.graph())
+    {
+        throw std::invalid_argument(
+            "sgd_step: tensors must belong to the same graph");
+    }
+
+    if(grad.dtype() != velocity.dtype() || grad.dtype() != p.dtype())
+    {
+        throw std::invalid_argument(
+            "sgd_step: all tensors must have the same dtype");
+    }
+
+    if(grad.shape() != velocity.shape() || grad.shape() != p.shape())
+    {
+        throw std::invalid_argument(
+            "sgd_step: all tensors must have the same shape");
+    }
+
+    OpAttrs attrs = SgdStepAttrs{num_iter, momentum, lr, weight_decay, dampening, nesterov};
+    grad.graph().add_op(
+        OpType::SGD_STEP,
+        attrs,
+        {&grad, &velocity, &p},
+        {&p}
+    );
+}
+
+//! Adam step: p = adam_step(grad, first_moment, second_moment, p)
+void adam_step(
+    Index num_iter,
+    Scalar beta_1,
+    Scalar beta_2,
+    Scalar eps,
+    Scalar lr,
+    Scalar weight_decay,
+    LogicalGraph::TensorNode& grad,
+    LogicalGraph::TensorNode& first_moment,
+    LogicalGraph::TensorNode& second_moment,
+    LogicalGraph::TensorNode& p)
+{
+    if(&grad.graph() != &first_moment.graph() || &grad.graph() != &second_moment.graph() || &grad.graph() != &p.graph())
+    {
+        throw std::invalid_argument(
+            "adam_step: tensors must belong to the same graph");
+    }
+
+    if(grad.dtype() != first_moment.dtype() || grad.dtype() != second_moment.dtype() || grad.dtype() != p.dtype())
+    {
+        throw std::invalid_argument(
+            "adam_step: all tensors must have the same dtype");
+    }
+
+    if(grad.shape() != first_moment.shape() || grad.shape() != second_moment.shape() || grad.shape() != p.shape())
+    {
+        throw std::invalid_argument(
+            "adam_step: all tensors must have the same shape");
+    }
+
+    OpAttrs attrs = AdamStepAttrs{num_iter, beta_1, beta_2, eps, lr, weight_decay};
+    grad.graph().add_op(
+        OpType::ADAM_STEP,
+        attrs,
+        {&grad, &first_moment, &second_moment, &p},
+        {&p}
+    );
+}
+
+//! AdamW step: p = adamw_step(grad, first_moment, second_moment, p)
+void adamw_step(
+    Index num_iter,
+    Scalar beta_1,
+    Scalar beta_2,
+    Scalar eps,
+    Scalar lr,
+    Scalar weight_decay,
+    LogicalGraph::TensorNode& grad,
+    LogicalGraph::TensorNode& first_moment,
+    LogicalGraph::TensorNode& second_moment,
+    LogicalGraph::TensorNode& p)
+{
+    if(&grad.graph() != &first_moment.graph() || &grad.graph() != &second_moment.graph() || &grad.graph() != &p.graph())
+    {
+        throw std::invalid_argument(
+            "adamw_step: tensors must belong to the same graph");
+    }
+
+    if(grad.dtype() != first_moment.dtype() || grad.dtype() != second_moment.dtype() || grad.dtype() != p.dtype())
+    {
+        throw std::invalid_argument(
+            "adamw_step: all tensors must have the same dtype");
+    }
+
+    if(grad.shape() != first_moment.shape() || grad.shape() != second_moment.shape() || grad.shape() != p.shape())
+    {
+        throw std::invalid_argument(
+            "adamw_step: all tensors must have the same shape");
+    }
+
+    OpAttrs attrs = AdamStepAttrs{num_iter, beta_1, beta_2, eps, lr, weight_decay};
+    grad.graph().add_op(
+        OpType::ADAMW_STEP,
+        attrs,
+        {&grad, &first_moment, &second_moment, &p},
+        {&p}
+    );
+}
+
+//! Flash attention forward pass (CUDA-only): A = flash_sdpa_fwd_cudnn(K, Q, mask, logsumexp, V)
+void flash_sdpa_fwd_cudnn(
+    LogicalGraph::TensorNode& K,
+    LogicalGraph::TensorNode& Q,
+    LogicalGraph::TensorNode& mask,
+    LogicalGraph::TensorNode& logsumexp,
+    LogicalGraph::TensorNode& V,
+    LogicalGraph::TensorNode& A)
+{
+    if(&K.graph() != &Q.graph() || &K.graph() != &mask.graph() ||
+       &K.graph() != &logsumexp.graph() || &K.graph() != &V.graph() || &K.graph() != &A.graph())
+    {
+        throw std::invalid_argument(
+            "flash_sdpa_fwd_cudnn: tensors must belong to the same graph");
+    }
+
+    if(K.dtype() != Q.dtype() || K.dtype() != V.dtype() || K.dtype() != A.dtype())
+    {
+        throw std::invalid_argument(
+            "flash_sdpa_fwd_cudnn: K, Q, V, A must have the same dtype");
+    }
+
+    if(logsumexp.dtype() != DataType::FP32)
+    {
+        throw std::invalid_argument(
+            "flash_sdpa_fwd_cudnn: logsumexp must have fp32 dtype");
+    }
+
+    OpAttrs attrs = ClearAttrs{};  // No additional attributes needed
+    K.graph().add_op(
+        OpType::FLASH_SDPA_FWD_CUDNN,
+        attrs,
+        {&K, &Q, &mask, &logsumexp, &V},
+        {&A}
+    );
+}
+
+//! Flash attention backward pass (CUDA-only): gradients w.r.t. K, Q, V = flash_sdpa_bwd_cudnn(...)
+void flash_sdpa_bwd_cudnn(
+    LogicalGraph::TensorNode& K,
+    LogicalGraph::TensorNode& Q,
+    LogicalGraph::TensorNode& V,
+    LogicalGraph::TensorNode& A,
+    LogicalGraph::TensorNode& dA,
+    LogicalGraph::TensorNode& mask,
+    LogicalGraph::TensorNode& logsumexp,
+    LogicalGraph::TensorNode& dK,
+    LogicalGraph::TensorNode& dQ,
+    LogicalGraph::TensorNode& dV)
+{
+    if(&K.graph() != &Q.graph() || &K.graph() != &V.graph() || &K.graph() != &A.graph() ||
+       &K.graph() != &dA.graph() || &K.graph() != &mask.graph() || &K.graph() != &logsumexp.graph() ||
+       &K.graph() != &dK.graph() || &K.graph() != &dQ.graph() || &K.graph() != &dV.graph())
+    {
+        throw std::invalid_argument(
+            "flash_sdpa_bwd_cudnn: tensors must belong to the same graph");
+    }
+
+    if(K.dtype() != Q.dtype() || K.dtype() != V.dtype() || K.dtype() != A.dtype() ||
+       K.dtype() != dA.dtype() || K.dtype() != dK.dtype() || K.dtype() != dQ.dtype() || K.dtype() != dV.dtype())
+    {
+        throw std::invalid_argument(
+            "flash_sdpa_bwd_cudnn: all tensors must have the same dtype");
+    }
+
+    if(logsumexp.dtype() != DataType::FP32)
+    {
+        throw std::invalid_argument(
+            "flash_sdpa_bwd_cudnn: logsumexp must have fp32 dtype");
+    }
+
+    OpAttrs attrs = ClearAttrs{};  // No additional attributes needed
+    K.graph().add_op(
+        OpType::FLASH_SDPA_BWD_CUDNN,
+        attrs,
+        {&K, &Q, &V, &A, &dA, &mask, &logsumexp, &dK, &dQ, &dV},
+        {&dK, &dQ, &dV}
+    );
+}
+
+//! Rotary position embedding: dst = rope(sin, cos, src)
+void rope(
+    LogicalGraph::TensorNode& sin_tensor,
+    LogicalGraph::TensorNode& cos_tensor,
+    LogicalGraph::TensorNode& src,
+    LogicalGraph::TensorNode& dst)
+{
+    if(&sin_tensor.graph() != &cos_tensor.graph() || &sin_tensor.graph() != &src.graph() || &sin_tensor.graph() != &dst.graph())
+    {
+        throw std::invalid_argument(
+            "rope: tensors must belong to the same graph");
+    }
+
+    if(sin_tensor.dtype() != cos_tensor.dtype() || sin_tensor.dtype() != src.dtype() || sin_tensor.dtype() != dst.dtype())
+    {
+        throw std::invalid_argument(
+            "rope: all tensors must have the same dtype");
+    }
+
+    OpAttrs attrs = ClearAttrs{};  // No additional attributes needed
+    sin_tensor.graph().add_op(
+        OpType::ROPE,
+        attrs,
+        {&sin_tensor, &cos_tensor, &src},
+        {&dst}
+    );
+}
+
+//! Rotary position embedding backward: dx = rope_backward(sin, cos, dy)
+void rope_backward(
+    LogicalGraph::TensorNode& sin_tensor,
+    LogicalGraph::TensorNode& cos_tensor,
+    LogicalGraph::TensorNode& dy,
+    LogicalGraph::TensorNode& dx)
+{
+    if(&sin_tensor.graph() != &cos_tensor.graph() || &sin_tensor.graph() != &dy.graph() || &sin_tensor.graph() != &dx.graph())
+    {
+        throw std::invalid_argument(
+            "rope_backward: tensors must belong to the same graph");
+    }
+
+    if(sin_tensor.dtype() != cos_tensor.dtype() || sin_tensor.dtype() != dy.dtype() || sin_tensor.dtype() != dx.dtype())
+    {
+        throw std::invalid_argument(
+            "rope_backward: all tensors must have the same dtype");
+    }
+
+    OpAttrs attrs = ClearAttrs{};  // No additional attributes needed
+    sin_tensor.graph().add_op(
+        OpType::ROPE_BACKWARD,
+        attrs,
+        {&sin_tensor, &cos_tensor, &dy, &dx},
+        {&dx}
+    );
+}
+
 //! Total sum of all elements: y = alpha * sum(x) + beta * y
 void sum(
     LogicalGraph::TensorNode& x,
@@ -606,6 +1269,483 @@ void sum_fiber(
         attrs,
         {&x, &y},
         {&y}
+    );
+}
+
+//! Sum along slices: y = alpha * sum_slice(x) + beta * y
+void sum_slice(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "sum_slice: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "sum_slice: input and output tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "sum_slice: axis out of bounds");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, 0, redux};  // batch_ndim = 0 for slice
+    x.graph().add_op(
+        OpType::SUM_SLICE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Euclidean norm: y = alpha * norm(x) + beta * y
+void norm(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "norm: tensors must belong to the same graph");
+    }
+
+    if(y.ndim() != 1 || y.shape()[0] != 1)
+    {
+        throw std::invalid_argument(
+            "norm: output tensor must be scalar (shape [1])");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "norm: input and output tensors must have the same dtype");
+    }
+
+    OpAttrs attrs = TotalSumAttrs{alpha, beta};
+    x.graph().add_op(
+        OpType::NORM,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Log sum exp along axis: y = log(sum(exp(x)))
+void logsumexp(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "logsumexp: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "logsumexp: input and output tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "logsumexp: axis out of bounds");
+    }
+
+    OpAttrs attrs = LogSumExpAttrs{1.0, 0.0, axis};  // alpha=1, beta=0
+    x.graph().add_op(
+        OpType::LOGSUMEXP,
+        attrs,
+        {&x},
+        {&y}
+    );
+}
+
+//! Max and sum of exponents along axis: y = max + log(sum(exp(x - max)))
+void maxsumexp(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "maxsumexp: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "maxsumexp: input and output tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "maxsumexp: axis out of bounds");
+    }
+
+    OpAttrs attrs = LogSumExpAttrs{1.0, 0.0, axis};  // alpha=1, beta=0, axis
+    x.graph().add_op(
+        OpType::MAXSUMEXP,
+        attrs,
+        {&x},
+        {&y}
+    );
+}
+
+//! Sum of products along fibers: y = alpha * sum_fiber(x1 * x2) + beta * y
+void sumprod_fiber(
+    LogicalGraph::TensorNode& x1,
+    LogicalGraph::TensorNode& x2,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(&x1.graph() != &x2.graph() || &x1.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "sumprod_fiber: tensors must belong to the same graph");
+    }
+
+    if(x1.dtype() != x2.dtype() || x1.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "sumprod_fiber: all tensors must have the same dtype");
+    }
+
+    if(x1.shape() != x2.shape())
+    {
+        throw std::invalid_argument(
+            "sumprod_fiber: x1 and x2 must have the same shape");
+    }
+
+    if(axis < 0 || axis >= x1.ndim())
+    {
+        throw std::invalid_argument(
+            "sumprod_fiber: axis out of bounds");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, 0, redux};  // batch_ndim = 0 for fiber
+    x1.graph().add_op(
+        OpType::SUMPROD_FIBER,
+        attrs,
+        {&x1, &x2, &y},
+        {&y}
+    );
+}
+
+//! Sum of products along slices: y = alpha * sum_slice(x1 * x2) + beta * y
+void sumprod_slice(
+    LogicalGraph::TensorNode& x1,
+    LogicalGraph::TensorNode& x2,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(&x1.graph() != &x2.graph() || &x1.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "sumprod_slice: tensors must belong to the same graph");
+    }
+
+    if(x1.dtype() != x2.dtype() || x1.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "sumprod_slice: all tensors must have the same dtype");
+    }
+
+    if(x1.shape() != x2.shape())
+    {
+        throw std::invalid_argument(
+            "sumprod_slice: x1 and x2 must have the same shape");
+    }
+
+    if(axis < 0 || axis >= x1.ndim())
+    {
+        throw std::invalid_argument(
+            "sumprod_slice: axis out of bounds");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, 0, redux};  // batch_ndim = 0 for slice
+    x1.graph().add_op(
+        OpType::SUMPROD_SLICE,
+        attrs,
+        {&x1, &x2, &y},
+        {&y}
+    );
+}
+
+//! Norm along fibers: y = alpha * norm_fiber(x) + beta * y
+void norm_fiber(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    Index batch_ndim,
+    int redux,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "norm_fiber: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "norm_fiber: input and output tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "norm_fiber: axis out of bounds");
+    }
+
+    if(batch_ndim < 0 || axis + batch_ndim > x.ndim())
+    {
+        throw std::invalid_argument(
+            "norm_fiber: invalid batch_ndim");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, batch_ndim, redux};
+    x.graph().add_op(
+        OpType::NORM_FIBER,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Norm along fibers (in-place): y = alpha * norm_fiber(x) + beta * y
+void norm_fiber_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    Index batch_ndim,
+    int redux,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "norm_fiber_inplace: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "norm_fiber_inplace: input and output tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "norm_fiber_inplace: axis out of bounds");
+    }
+
+    if(batch_ndim < 0 || axis + batch_ndim > x.ndim())
+    {
+        throw std::invalid_argument(
+            "norm_fiber_inplace: invalid batch_ndim");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, batch_ndim, redux};
+    x.graph().add_op(
+        OpType::NORM_FIBER_INPLACE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Norm along slices: y = alpha * norm_slice(x) + beta * y
+void norm_slice(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "norm_slice: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "norm_slice: input and output tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "norm_slice: axis out of bounds");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, 0, redux};  // batch_ndim = 0 for slice
+    x.graph().add_op(
+        OpType::NORM_SLICE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! Norm along slices (in-place): y = alpha * norm_slice(x) + beta * y
+void norm_slice_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y,
+    Index axis,
+    int redux,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(&x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "norm_slice_inplace: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "norm_slice_inplace: input and output tensors must have the same dtype");
+    }
+
+    if(axis < 0 || axis >= x.ndim())
+    {
+        throw std::invalid_argument(
+            "norm_slice_inplace: axis out of bounds");
+    }
+
+    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, 0, redux};  // batch_ndim = 0 for slice
+    x.graph().add_op(
+        OpType::NORM_SLICE_INPLACE,
+        attrs,
+        {&x, &y},
+        {&y}
+    );
+}
+
+//! 2D Convolution forward: Y = alpha * conv2d(X, C) + beta * Y
+void conv2d_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& c,
+    LogicalGraph::TensorNode& y,
+    Scalar alpha,
+    Scalar beta,
+    std::array<Index, 2> padding,
+    std::array<Index, 2> stride,
+    std::array<Index, 2> dilation)
+{
+    if(&x.graph() != &c.graph() || &x.graph() != &y.graph())
+    {
+        throw std::invalid_argument(
+            "conv2d_inplace: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != c.dtype() || x.dtype() != y.dtype())
+    {
+        throw std::invalid_argument(
+            "conv2d_inplace: all tensors must have the same dtype");
+    }
+
+    OpAttrs attrs = Conv2dAttrs{alpha, beta, padding, stride, dilation};
+    x.graph().add_op(
+        OpType::CONV2D_INPLACE,
+        attrs,
+        {&x, &c, &y},
+        {&y}
+    );
+}
+
+//! 2D Convolution backward w.r.t. input: dX = alpha * conv2d_bwd_input(dY, C) + beta * dX
+void conv2d_bwd_input_inplace(
+    LogicalGraph::TensorNode& dy,
+    LogicalGraph::TensorNode& c,
+    LogicalGraph::TensorNode& dx,
+    Scalar alpha,
+    Scalar beta,
+    std::array<Index, 2> padding,
+    std::array<Index, 2> stride,
+    std::array<Index, 2> dilation)
+{
+    if(&dy.graph() != &c.graph() || &dy.graph() != &dx.graph())
+    {
+        throw std::invalid_argument(
+            "conv2d_bwd_input_inplace: tensors must belong to the same graph");
+    }
+
+    if(dy.dtype() != c.dtype() || dy.dtype() != dx.dtype())
+    {
+        throw std::invalid_argument(
+            "conv2d_bwd_input_inplace: all tensors must have the same dtype");
+    }
+
+    OpAttrs attrs = Conv2dAttrs{alpha, beta, padding, stride, dilation};
+    dy.graph().add_op(
+        OpType::CONV2D_BWD_INPUT_INPLACE,
+        attrs,
+        {&dy, &c, &dx},
+        {&dx}
+    );
+}
+
+//! 2D Convolution backward w.r.t. weights: dC = alpha * conv2d_bwd_weight(X, dY) + beta * dC
+void conv2d_bwd_weight_inplace(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& dy,
+    LogicalGraph::TensorNode& dc,
+    Scalar alpha,
+    Scalar beta,
+    std::array<Index, 2> padding,
+    std::array<Index, 2> stride,
+    std::array<Index, 2> dilation)
+{
+    if(&x.graph() != &dy.graph() || &x.graph() != &dc.graph())
+    {
+        throw std::invalid_argument(
+            "conv2d_bwd_weight_inplace: tensors must belong to the same graph");
+    }
+
+    if(x.dtype() != dy.dtype() || x.dtype() != dc.dtype())
+    {
+        throw std::invalid_argument(
+            "conv2d_bwd_weight_inplace: all tensors must have the same dtype");
+    }
+
+    OpAttrs attrs = Conv2dAttrs{alpha, beta, padding, stride, dilation};
+    x.graph().add_op(
+        OpType::CONV2D_BWD_WEIGHT_INPLACE,
+        attrs,
+        {&x, &dy, &dc},
+        {&dc}
     );
 }
 
