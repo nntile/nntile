@@ -196,7 +196,7 @@ graph::NNGraph::TensorNode& Linear::build_forward(graph::NNGraph::TensorNode& in
     {
         graph_.add_op(
             graph::OpType::ADD_FIBER,
-            graph::OpAttrs{graph::AddFiberAttrs{1.0}},
+            graph::OpAttrs{graph::AddFiberAttrs{output_tensor_->ndim() - 1, 0, 1.0, 1.0}},
             {output_tensor_, bias_tensor_},
             {output_tensor_}  // In-place addition
         );

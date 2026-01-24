@@ -23,6 +23,7 @@
 #include <nntile/graph/logical/gelu_inplace.hh>
 #include <nntile/graph/logical/gelu_backward.hh>
 #include <nntile/graph/logical/relu.hh>
+#include <nntile/graph/logical/relu_inplace.hh>
 #include <nntile/graph/logical/silu.hh>
 #include <nntile/graph/logical/sqrt.hh>
 #include <nntile/graph/logical/add.hh>
@@ -31,6 +32,7 @@
 #include <nntile/graph/logical/multiply_inplace.hh>
 #include <nntile/graph/logical/clear.hh>
 #include <nntile/graph/logical/softmax.hh>
+#include <nntile/graph/logical/softmax_inplace.hh>
 #include <nntile/graph/logical/pow.hh>
 #include <nntile/graph/logical/pow_inplace.hh>
 #include <nntile/graph/logical/hypot.hh>
