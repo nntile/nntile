@@ -49,6 +49,8 @@
 #include <nntile/graph/logical/gather.hh>
 #include <nntile/graph/logical/scale_fiber.hh>
 #include <nntile/graph/logical/scale_slice.hh>
+#include <nntile/graph/logical/scale.hh>
+#include <nntile/graph/logical/scale_inplace.hh>
 #include <nntile/graph/logical/randn.hh>
 #include <nntile/graph/logical/sum.hh>
 #include <nntile/graph/logical/sum_fiber.hh>
@@ -84,16 +86,16 @@
 namespace nntile::graph
 {
 
-//! Multiply slice operation: y = alpha * x * slice
-//! @param x Input tensor
-//! @param y Input/output tensor (modified in-place)
-//! @param alpha Scaling factor (default: 1.0)
-//! @param axis Axis along which to broadcast (default: -1, last axis)
+//! Multiply slice operation: tensor = alpha * tensor * slice (broadcasted along axis)
+//! @param alpha Scaling factor
+//! @param slice Input slice tensor (ndim dimensions)
+//! @param tensor Input/output tensor (ndim+1 dimensions, modified in-place)
+//! @param axis Axis in tensor along which slice is broadcasted
 void multiply_slice(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Scalar alpha = 1.0,
-    Index axis = -1
+    Scalar alpha,
+    LogicalGraph::TensorNode& slice,
+    LogicalGraph::TensorNode& tensor,
+    Index axis
 );
 
 
@@ -168,7 +170,7 @@ void multiply_slice(
 LogicalGraph::TensorNode& scale(
     LogicalGraph::TensorNode& x,
     const std::string& output_name,
-    Scalar alpha = 1.0
+    Scalar alpha
 );
 
 //! Scale in-place: x = alpha * x
@@ -176,7 +178,7 @@ LogicalGraph::TensorNode& scale(
 //! @param alpha Scaling factor (default: 1.0)
 void scale_inplace(
     LogicalGraph::TensorNode& x,
-    Scalar alpha = 1.0
+    Scalar alpha
 );
 
 //! Embedding lookup: y = embedding(x, vocab)

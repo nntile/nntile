@@ -213,9 +213,9 @@ struct MultiplyFiberAttrs
 
 struct MultiplySliceAttrs
 {
-    // Multiply along slices: output = alpha * slice * tensor
+    // Multiply along slices: output = alpha * tensor * slice (broadcasted)
     Index axis = 0;         // Axis along which to broadcast the slice
-    Scalar alpha = 1.0;     // Scaling factor for slice * tensor product
+    Scalar alpha = 1.0;     // Scaling factor for tensor * slice product
     Scalar beta = 0.0;      // Not used (for compatibility)
 };
 

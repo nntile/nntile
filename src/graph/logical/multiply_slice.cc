@@ -25,7 +25,7 @@
 namespace nntile::graph
 {
 
-//! Multiply slice: tensor = alpha * slice * tensor
+//! Multiply slice: tensor = alpha * tensor * slice (broadcasted along axis)
 void multiply_slice(
     Scalar alpha,
     LogicalGraph::TensorNode& slice,
@@ -44,17 +44,36 @@ void multiply_slice(
             "multiply_slice: all tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= slice.ndim())
+    // Check dimension compatibility: tensor should have one more dimension than slice
+    if(tensor.ndim() != slice.ndim() + 1)
     {
         throw std::invalid_argument(
-            "multiply_slice: axis out of bounds");
+            "multiply_slice: tensor.ndim() must equal slice.ndim() + 1");
     }
 
-    // Check that shapes are compatible for slice-wise operation
-    if(slice.shape() != tensor.shape())
+    if(axis < 0 || axis >= tensor.ndim())
     {
         throw std::invalid_argument(
-            "multiply_slice: tensors must have the same shape");
+            "multiply_slice: axis out of bounds for tensor");
+    }
+
+    // Check that shapes are compatible for broadcasting
+    // Dimensions before axis and after axis (adjusted for slice) must match
+    for(Index i = 0; i < axis; ++i)
+    {
+        if(slice.shape()[i] != tensor.shape()[i])
+        {
+            throw std::invalid_argument(
+                "multiply_slice: shape mismatch before broadcast axis");
+        }
+    }
+    for(Index i = axis; i < slice.ndim(); ++i)
+    {
+        if(slice.shape()[i] != tensor.shape()[i+1])
+        {
+            throw std::invalid_argument(
+                "multiply_slice: shape mismatch after broadcast axis");
+        }
     }
 
     OpAttrs attrs = MultiplySliceAttrs{axis, alpha, 0.0};  // beta is not used in this operation

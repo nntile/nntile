@@ -1,0 +1,38 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file include/nntile/graph/logical/embedding_backward.hh
+ * Logical graph embedding backward operation.
+ *
+ * @version 1.1.0
+ * */
+
+#pragma once
+
+// Include standard headers
+#include <string>
+
+// Include other NNTile headers
+#include <nntile/graph/logical_graph.hh>
+
+namespace nntile::graph
+{
+
+//! Embedding backward: vocab += embedding_backward(embed, index, vocab)
+//! @param embed Embedding tensor (forward pass output)
+//! @param index Index tensor (int64_t)
+//! @param vocab Vocabulary tensor (modified in-place)
+//! @param axis Axis along which to perform embedding (default: 0)
+void embedding_backward(
+    LogicalGraph::TensorNode& embed,
+    LogicalGraph::TensorNode& index,
+    LogicalGraph::TensorNode& vocab,
+    Index axis = 0
+);
+
+} // namespace nntile::graph
