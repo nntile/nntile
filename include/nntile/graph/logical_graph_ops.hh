@@ -41,12 +41,12 @@
 #include <nntile/graph/logical/fill.hh>
 #include <nntile/graph/logical/copy.hh>
 #include <nntile/graph/logical/transpose.hh>
-#include <nntile/graph/logical/scatter.hh>
-#include <nntile/graph/logical/copy_intersection.hh>
+// #include <nntile/graph/logical/scatter.hh>
+// #include <nntile/graph/logical/copy_intersection.hh>
 #include <nntile/graph/logical/log_scalar.hh>
 #include <nntile/graph/logical/mask_scalar.hh>
 #include <nntile/graph/logical/subtract_indexed_outputs.hh>
-#include <nntile/graph/logical/gather.hh>
+// #include <nntile/graph/logical/gather.hh>
 #include <nntile/graph/logical/scale_fiber.hh>
 #include <nntile/graph/logical/scale_slice.hh>
 #include <nntile/graph/logical/scale.hh>

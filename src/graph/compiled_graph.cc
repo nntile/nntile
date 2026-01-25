@@ -60,6 +60,7 @@ void validate_operation_data_types(const LogicalGraph& logical)
            op->type() == OpType::RELU_BACKWARD || op->type() == OpType::SILU ||
            op->type() == OpType::SILU_INPLACE || op->type() == OpType::SILU_BACKWARD ||
            op->type() == OpType::SQRT || op->type() == OpType::SQRT_INPLACE ||
+           op->type() == OpType::POW || op->type() == OpType::POW_INPLACE ||
            op->type() == OpType::ADD || op->type() == OpType::ADD_INPLACE ||
            op->type() == OpType::MULTIPLY || op->type() == OpType::MULTIPLY_INPLACE ||
            op->type() == OpType::SUM || op->type() == OpType::SUM_FIBER ||
@@ -327,6 +328,12 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
             break;
         case OpType::SQRT_INPLACE:
             execute_sqrt_inplace(*this, op_info);
+            break;
+        case OpType::POW:
+            execute_pow(*this, op_info);
+            break;
+        case OpType::POW_INPLACE:
+            execute_pow_inplace(*this, op_info);
             break;
 
         // Binary operations

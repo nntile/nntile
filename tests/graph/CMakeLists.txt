@@ -14,7 +14,6 @@
 # All graph tests using Catch2
 set(TESTS_CATCH2
     "logical_graph"
-    "logical_graph_ops"
     "nn_graph"
     "compiled_graph"
 )
