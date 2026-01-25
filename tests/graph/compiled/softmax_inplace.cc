@@ -26,7 +26,7 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& maxsumexp = g.tensor({4}, "maxsumexp", DataType::FP32);
+        auto& maxsumexp = g.tensor({2, 6}, "maxsumexp", DataType::FP32);
         auto& x = g.tensor({4, 6}, "x", DataType::FP32);
         softmax_inplace(maxsumexp, x, 1.0f, 0);
     };
@@ -35,7 +35,7 @@ TEST_CASE_METHOD(
                                std::map<std::string, std::vector<float>>& outputs,
                                const nntile::Context&) {
         using T = nntile::fp32_t;
-        nntile::tensor::TensorTraits maxsumexp_traits({4}, {4});
+        nntile::tensor::TensorTraits maxsumexp_traits({2, 6}, {2, 6});
         nntile::tensor::Tensor<T> maxsumexp(maxsumexp_traits);
         nntile::tensor::TensorTraits x_traits({4, 6}, {4, 6});
         nntile::tensor::Tensor<T> x(x_traits);

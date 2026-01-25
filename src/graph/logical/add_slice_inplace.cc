@@ -45,17 +45,33 @@ void add_slice_inplace(
             "add_slice_inplace: all tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= slice.ndim())
+    if(axis < 0 || axis >= tensor.ndim())
     {
         throw std::invalid_argument(
             "add_slice_inplace: axis out of bounds");
     }
 
-    // Check that shapes are compatible for slice-wise operation
-    if(slice.shape() != tensor.shape())
+    // Check basic dimension compatibility
+    if(slice.ndim() + 1 != tensor.ndim())
     {
         throw std::invalid_argument(
-            "add_slice_inplace: tensors must have the same shape");
+            "add_slice_inplace: slice must have one fewer dimension than tensor");
+    }
+
+    // Check that slice shape is compatible with tensor shape for broadcasting
+    Index slice_dim = 0;
+    for(Index i = 0; i < tensor.ndim(); ++i)
+    {
+        if(i != axis)
+        {
+            if(slice_dim >= slice.ndim() ||
+               slice.shape()[slice_dim] != tensor.shape()[i])
+            {
+                throw std::invalid_argument(
+                    "add_slice_inplace: slice shape incompatible with tensor shape");
+            }
+            ++slice_dim;
+        }
     }
 
     OpAttrs attrs = AddSliceAttrs{axis, alpha, beta};

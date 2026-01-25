@@ -27,10 +27,10 @@ namespace nntile::graph
 
 //! Add in-place: y = alpha * x + beta * y
 void add_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
     Scalar alpha,
-    Scalar beta)
+    LogicalGraph::TensorNode& x,
+    Scalar beta,
+    LogicalGraph::TensorNode& y)
 {
     // Validate inputs belong to the same graph
     if(&x.graph() != &y.graph())

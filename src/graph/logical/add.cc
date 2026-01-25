@@ -27,11 +27,11 @@ namespace nntile::graph
 
 //! Add operation: z = alpha * x + beta * y
 LogicalGraph::TensorNode& add(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    const std::string& output_name,
     Scalar alpha,
-    Scalar beta)
+    LogicalGraph::TensorNode& x,
+    Scalar beta,
+    LogicalGraph::TensorNode& y,
+    const std::string& output_name)
 {
     // Validate inputs belong to the same graph
     if(&x.graph() != &y.graph())

@@ -122,8 +122,8 @@ Defined in `logical_graph_ops.hh/.cc` as free functions:
 - `*_backward(x, dy, dx)` - backward operations that accumulate gradients
 
 **Binary operations:**
-- `add(x, y, output_name, alpha=1.0, beta=1.0)` - creates z = alpha*x + beta*y
-- `add_inplace(x, y, alpha=1.0, beta=1.0)` - in-place y = alpha*x + beta*y
+- `add(alpha, x, beta, y, output_name)` - creates z = alpha*x + beta*y
+- `add_inplace(alpha, x, beta, y)` - in-place y = alpha*x + beta*y
 - `multiply(x, y, output_name)` - creates z = x*y
 - `multiply_inplace(x, y)` - in-place y = x*y
 

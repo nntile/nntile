@@ -28,7 +28,7 @@ TEST_CASE_METHOD(
     auto build_graph = [](LogicalGraph& g) {
         auto& x = g.tensor({4}, "x", DataType::FP32);
         auto& y = g.tensor({4}, "y", DataType::FP32);
-        add(x, y, "z", 2.0f, 3.0f);
+        add(2.0f, x, 3.0f, y, "z");
     };
 
     auto run_tensor_direct = [](std::map<std::string, std::vector<float>>& inputs,
