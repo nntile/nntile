@@ -61,7 +61,7 @@ void adamw_step(
         OpType::ADAMW_STEP,
         attrs,
         {&grad, &first_moment, &second_moment, &p},
-        {&p}
+        {&first_moment, &second_moment, &p}
     );
 }
 

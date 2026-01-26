@@ -47,7 +47,7 @@ LogicalGraph::TensorNode& add_fiber(
             "add_fiber: all tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= tensor.ndim())
+    if(axis < 0 || axis >= tensor.ndim() - batch_ndim)
     {
         throw std::invalid_argument(
             "add_fiber: axis out of bounds");
@@ -59,11 +59,11 @@ LogicalGraph::TensorNode& add_fiber(
             "add_fiber: invalid batch_ndim");
     }
 
-    // Check fiber dimensions (should be 1D for the axis being broadcast)
-    if(fiber.ndim() != 1)
+    // Check fiber dimensions (should have batch_ndim+1 dimensions)
+    if(fiber.ndim() != batch_ndim + 1)
     {
         throw std::invalid_argument(
-            "add_fiber: fiber tensor must be 1-dimensional");
+            "add_fiber: fiber tensor must have batch_ndim+1 dimensions");
     }
 
     // Check that fiber size matches the dimension being broadcast
@@ -71,6 +71,16 @@ LogicalGraph::TensorNode& add_fiber(
     {
         throw std::invalid_argument(
             "add_fiber: fiber size must match tensor dimension at specified axis");
+    }
+
+    // Check batch dimensions compatibility
+    for(Index i = 0; i < batch_ndim; ++i)
+    {
+        if(fiber.shape()[i+1] != tensor.shape()[tensor.ndim() - batch_ndim + i])
+        {
+            throw std::invalid_argument(
+                "add_fiber: fiber and tensor batch dimensions must match");
+        }
     }
 
     // Output has the same shape as the input tensor

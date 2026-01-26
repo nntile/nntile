@@ -14,16 +14,13 @@
 
 #pragma once
 
-// Include standard headers
-#include <string>
-
 // Include other NNTile headers
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
 
-//! Adam optimizer step: p = adam_step(grad, first_moment, second_moment, p)
+//! Adam optimizer step
 //! @param num_iter Current iteration number
 //! @param beta_1 First moment decay rate
 //! @param beta_2 Second moment decay rate

@@ -413,6 +413,12 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
         case OpType::MULTIPLY_SLICE:
             execute_multiply_slice(*this, op_info);
             break;
+        case OpType::HYPOT:
+            execute_hypot(*this, op_info);
+            break;
+        case OpType::HYPOT_INPLACE:
+            execute_hypot_inplace(*this, op_info);
+            break;
 
         // Reduction operations
         case OpType::SUM:
