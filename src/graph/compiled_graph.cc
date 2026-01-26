@@ -426,6 +426,12 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
         case OpType::SCALE_INPLACE:
             execute_scale_inplace(*this, op_info);
             break;
+        case OpType::SCALE_FIBER:
+            execute_scale_fiber(*this, op_info);
+            break;
+        case OpType::SCALE_SLICE:
+            execute_scale_slice(*this, op_info);
+            break;
 
         // Embedding operations
         case OpType::EMBEDDING:
@@ -449,6 +455,14 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
             break;
         case OpType::ADAMW_STEP:
             execute_adamw_step(*this, op_info);
+            break;
+
+        // RoPE operations
+        case OpType::ROPE:
+            execute_rope(*this, op_info);
+            break;
+        case OpType::ROPE_BACKWARD:
+            execute_rope_backward(*this, op_info);
             break;
 
         // Flash attention operations

@@ -12,7 +12,7 @@ namespace
 {
 
 template<typename T>
-void run_rope(CompiledGraph& graph, const ClearAttrs& attrs,
+void run_rope(CompiledGraph& graph,
               const std::string& sin_name, const std::string& cos_name,
               const std::string& src_name, const std::string& dst_name)
 {
@@ -28,7 +28,6 @@ void run_rope(CompiledGraph& graph, const ClearAttrs& attrs,
 
 void execute_rope(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const ClearAttrs& attrs = std::get<ClearAttrs>(op_info.attrs);
     const std::string& sin_name = op_info.input_names[0];
     const std::string& cos_name = op_info.input_names[1];
     const std::string& src_name = op_info.input_names[2];
@@ -38,25 +37,25 @@ void execute_rope(CompiledGraph& graph, const OpExecutionInfo& op_info)
     switch(dtype)
     {
         case DataType::FP32:
-            run_rope<nntile::fp32_t>(graph, attrs, sin_name, cos_name, src_name, dst_name);
+            run_rope<nntile::fp32_t>(graph, sin_name, cos_name, src_name, dst_name);
             break;
         case DataType::FP32_FAST_TF32:
-            run_rope<nntile::fp32_fast_tf32_t>(graph, attrs, sin_name, cos_name, src_name, dst_name);
+            run_rope<nntile::fp32_fast_tf32_t>(graph, sin_name, cos_name, src_name, dst_name);
             break;
         case DataType::FP32_FAST_FP16:
-            run_rope<nntile::fp32_fast_fp16_t>(graph, attrs, sin_name, cos_name, src_name, dst_name);
+            run_rope<nntile::fp32_fast_fp16_t>(graph, sin_name, cos_name, src_name, dst_name);
             break;
         case DataType::FP32_FAST_BF16:
-            run_rope<nntile::fp32_fast_bf16_t>(graph, attrs, sin_name, cos_name, src_name, dst_name);
+            run_rope<nntile::fp32_fast_bf16_t>(graph, sin_name, cos_name, src_name, dst_name);
             break;
         case DataType::FP64:
-            run_rope<nntile::fp64_t>(graph, attrs, sin_name, cos_name, src_name, dst_name);
+            run_rope<nntile::fp64_t>(graph, sin_name, cos_name, src_name, dst_name);
             break;
         case DataType::FP16:
-            run_rope<nntile::fp16_t>(graph, attrs, sin_name, cos_name, src_name, dst_name);
+            run_rope<nntile::fp16_t>(graph, sin_name, cos_name, src_name, dst_name);
             break;
         case DataType::BF16:
-            run_rope<nntile::bf16_t>(graph, attrs, sin_name, cos_name, src_name, dst_name);
+            run_rope<nntile::bf16_t>(graph, sin_name, cos_name, src_name, dst_name);
             break;
         case DataType::INT64:
         case DataType::INT32:
