@@ -2,6 +2,8 @@
 
 #include <stdexcept>
 
+#include <starpu.h>
+
 #include "nntile/base_types.hh"
 #include "nntile/tensor/flash_sdpa_fwd_cudnn.hh"
 
@@ -32,6 +34,12 @@ void run_flash_sdpa_fwd_cudnn(CompiledGraph& graph, const ClearAttrs& attrs,
 
 void execute_flash_sdpa_fwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
+    // Flash attention requires CUDA
+    if(!starpu_cuda_worker_get_count())
+    {
+        throw std::runtime_error("flash_sdpa_fwd_cudnn operation requires CUDA but no CUDA workers are available");
+    }
+
     const ClearAttrs& attrs = std::get<ClearAttrs>(op_info.attrs);
     const std::string& K_name = op_info.input_names[0];
     const std::string& Q_name = op_info.input_names[1];

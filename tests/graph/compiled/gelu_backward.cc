@@ -26,21 +26,34 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({3}, "x", DataType::FP32);
-        auto& dy = g.tensor({3}, "dy", DataType::FP32);
-        auto& dx = g.tensor({3}, "dx", DataType::FP32);
+        auto& x = g.tensor({11, 12}, "x", DataType::FP32);
+        auto& dy = g.tensor({11, 12}, "dy", DataType::FP32);
+        auto& dx = g.tensor({11, 12}, "dx", DataType::FP32);
         gelu_backward(x, dy, dx);
     };
+
+    // Create custom inputs with more realistic test data
+    std::map<std::string, std::vector<float>> custom_inputs;
+    size_t nelems = 11 * 12;
+    custom_inputs["x"].resize(nelems);
+    custom_inputs["dy"].resize(nelems);
+    custom_inputs["dx"].resize(nelems);
+    for(size_t i = 0; i < nelems; ++i)
+    {
+        custom_inputs["x"][i] = static_cast<float>(i % 10 - 5);  // Values from -5 to 4
+        custom_inputs["dy"][i] = static_cast<float>(i % 7 + 1);  // Values from 1 to 7
+        custom_inputs["dx"][i] = 0.0f;                           // Initialize to zero
+    }
 
     auto run_tensor_direct = [](std::map<std::string, std::vector<float>>& inputs,
                                std::map<std::string, std::vector<float>>& outputs,
                                const nntile::Context&) {
         using T = nntile::fp32_t;
-        nntile::tensor::TensorTraits x_traits({3}, {3});
+        nntile::tensor::TensorTraits x_traits({11, 12}, {11, 12});
         nntile::tensor::Tensor<T> x(x_traits);
-        nntile::tensor::TensorTraits dy_traits({3}, {3});
+        nntile::tensor::TensorTraits dy_traits({11, 12}, {11, 12});
         nntile::tensor::Tensor<T> dy(dy_traits);
-        nntile::tensor::TensorTraits dx_traits({3}, {3});
+        nntile::tensor::TensorTraits dx_traits({11, 12}, {11, 12});
         nntile::tensor::Tensor<T> dx(dx_traits);
 
         write_tensor(x, inputs["x"]);
@@ -53,6 +66,6 @@ TEST_CASE_METHOD(
 
     verify_graph_vs_tensor<nntile::fp32_t>(
         build_graph, run_tensor_direct,
-        {"x", "dy", "dx"}, {"dx"}, context
+        {"x", "dy", "dx"}, {"dx"}, context, custom_inputs
     );
 }

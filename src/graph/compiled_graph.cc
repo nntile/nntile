@@ -440,6 +440,11 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
             execute_total_sum_accum(*this, op_info);
             break;
 
+        // Flash attention operations
+        case OpType::FLASH_SDPA_FWD_CUDNN:
+            execute_flash_sdpa_fwd_cudnn(*this, op_info);
+            break;
+
         default:
             throw std::runtime_error(
                 "Unsupported operation type in execute_op: " +

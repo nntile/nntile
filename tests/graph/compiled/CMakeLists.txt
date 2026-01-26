@@ -24,6 +24,7 @@ set(TESTS_COMPILED_CATCH2
     "embedding"
     "embedding_backward"
     "fill"
+    "flash_sdpa_fwd_cudnn"
     # "gather"
     "gelu"
     "gelu_backward"
