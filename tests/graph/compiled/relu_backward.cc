@@ -26,30 +26,32 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({4, 6}, "x", DataType::FP32);
-        auto& dy = g.tensor({4, 6}, "dy", DataType::FP32);
-        auto& dx = relu_backward(x, dy, "dx");
+        auto& x = g.tensor({12}, "x", DataType::FP32);
+        auto& dy = g.tensor({12}, "dy", DataType::FP32);
+        auto& dx = g.tensor({12}, "dx", DataType::FP32);
+        relu_backward(x, dy, dx);
     };
 
     auto run_tensor_direct = [](std::map<std::string, std::vector<float>>& inputs,
                                std::map<std::string, std::vector<float>>& outputs,
                                const nntile::Context&) {
         using T = nntile::fp32_t;
-        nntile::tensor::TensorTraits x_traits({4, 6}, {4, 6});
+        nntile::tensor::TensorTraits x_traits({12}, {12});
         nntile::tensor::Tensor<T> x(x_traits);
-        nntile::tensor::TensorTraits dy_traits({4, 6}, {4, 6});
+        nntile::tensor::TensorTraits dy_traits({12}, {12});
         nntile::tensor::Tensor<T> dy(dy_traits);
-        nntile::tensor::TensorTraits dx_traits({4, 6}, {4, 6});
+        nntile::tensor::TensorTraits dx_traits({12}, {12});
         nntile::tensor::Tensor<T> dx(dx_traits);
 
         write_tensor(x, inputs["x"]);
         write_tensor(dy, inputs["dy"]);
+        write_tensor(dx, inputs["dx"]);
         nntile::tensor::relu_backward<T>(x, dy, dx);
         outputs["dx"] = read_tensor(dx);
     };
 
     verify_graph_vs_tensor<nntile::fp32_t>(
         build_graph, run_tensor_direct,
-        {"x", "dy"}, {"dx"}, context
+        {"x", "dy", "dx"}, {"dx"}, context
     );
 }

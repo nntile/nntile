@@ -186,6 +186,36 @@ struct GeluBackwardAttrs
     // No attributes for basic gelu_backward
 };
 
+struct GelutanhAttrs
+{
+    // No attributes for basic gelutanh
+};
+
+struct GelutanhBackwardAttrs
+{
+    // No attributes for basic gelutanh_backward
+};
+
+struct ReluAttrs
+{
+    // No attributes for basic relu
+};
+
+struct ReluBackwardAttrs
+{
+    // No attributes for basic relu_backward
+};
+
+struct SiluAttrs
+{
+    // No attributes for basic silu
+};
+
+struct SiluBackwardAttrs
+{
+    // No attributes for basic silu_backward
+};
+
 struct AddFiberAttrs
 {
     // Add along fibers: output = alpha * fiber + beta * tensor
@@ -379,6 +409,7 @@ struct CopyIntersectionAttrs
 };
 
 using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
+                             GelutanhAttrs, GelutanhBackwardAttrs, ReluAttrs, ReluBackwardAttrs, SiluAttrs, SiluBackwardAttrs,
                              AddFiberAttrs, AddSliceAttrs, MultiplyFiberAttrs, MultiplySliceAttrs, SumFiberAttrs, ClearAttrs,
                              BinaryOpAttrs, ReductionAttrs, TotalSumAttrs,
                              LogSumExpAttrs, ScaleAttrs, Conv2dAttrs,

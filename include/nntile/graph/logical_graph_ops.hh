@@ -22,9 +22,15 @@
 #include <nntile/graph/logical/gelu.hh>
 #include <nntile/graph/logical/gelu_inplace.hh>
 #include <nntile/graph/logical/gelu_backward.hh>
+#include <nntile/graph/logical/gelutanh.hh>
+#include <nntile/graph/logical/gelutanh_inplace.hh>
+#include <nntile/graph/logical/gelutanh_backward.hh>
 #include <nntile/graph/logical/relu.hh>
 #include <nntile/graph/logical/relu_inplace.hh>
+#include <nntile/graph/logical/relu_backward.hh>
 #include <nntile/graph/logical/silu.hh>
+#include <nntile/graph/logical/silu_inplace.hh>
+#include <nntile/graph/logical/silu_backward.hh>
 #include <nntile/graph/logical/sqrt.hh>
 #include <nntile/graph/logical/add.hh>
 #include <nntile/graph/logical/add_inplace.hh>
