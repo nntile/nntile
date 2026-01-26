@@ -310,6 +310,9 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
         case OpType::GEMM:
             execute_gemm(*this, op_info);
             break;
+        case OpType::TRANSPOSE:
+            execute_transpose(*this, op_info);
+            break;
         case OpType::GELU:
             execute_gelu(*this, op_info);
             break;

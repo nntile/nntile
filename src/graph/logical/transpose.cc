@@ -32,15 +32,16 @@ LogicalGraph::TensorNode& transpose(
     Scalar alpha,
     Index ndim)
 {
-    // For transpose, we need to reverse the first ndim dimensions
-    std::vector<Index> output_shape = x.shape();
-    if(ndim > 0 && ndim <= x.ndim())
+    // Check dimensions
+    if(ndim <= 0 || ndim >= x.ndim())
     {
-        // Reverse the first ndim dimensions
-        for(Index i = 0; i < ndim/2; ++i)
-        {
-            std::swap(output_shape[i], output_shape[ndim-1-i]);
-        }
+        throw std::runtime_error("ndim <= 0 or ndim >= x.ndim()");
+    }
+    // For transpose, we need to cyclically shift dimensions by ndim positions
+    std::vector<Index> output_shape(x.ndim());
+    for(Index i = 0; i < x.ndim(); ++i)
+    {
+        output_shape[i] = x.shape()[(i + ndim) % x.ndim()];
     }
 
     LogicalGraph::TensorNode& output = x.graph().tensor(
