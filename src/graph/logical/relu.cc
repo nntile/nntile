@@ -1,0 +1,50 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/graph/logical/relu.cc
+ * Logical graph ReLU operation.
+ *
+ * @version 1.1.0
+ * */
+
+// Include corresponding header
+#include "nntile/graph/logical/relu.hh"
+
+// Include standard headers
+#include <stdexcept>
+#include <utility>
+
+// Include other NNTile headers
+#include <nntile/graph/logical_graph.hh>
+
+namespace nntile::graph
+{
+
+//! ReLU activation: y = relu(x)
+LogicalGraph::TensorNode& relu(
+    LogicalGraph::TensorNode& x,
+    const std::string& output_name)
+{
+    std::vector<Index> output_shape = x.shape();
+    LogicalGraph::TensorNode& output = x.graph().tensor(
+        std::move(output_shape),
+        output_name,
+        x.dtype());
+
+    OpAttrs attrs = GeluAttrs{};  // Reuse for now
+    x.graph().add_op(
+        OpType::RELU,
+        attrs,
+        {&x},
+        {&output}
+    );
+
+    return output;
+}
+
+} // namespace nntile::graph

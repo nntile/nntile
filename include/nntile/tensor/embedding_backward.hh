@@ -27,7 +27,7 @@ void embedding_backward_async(const Tensor<int64_t> &index,
 
 // Tensor-wise embedding_backward operation
 template<typename T>
-void embedding_backward(const Tensor<int64_t> &index, const Tensor<T> &vocab,
-        const Tensor<T> &embed, Index axis, int redux=0);
+void embedding_backward(const Tensor<int64_t> &index, const Tensor<T> &embed,
+        const Tensor<T> &vocab, Index axis, int redux=0);
 
 } // namespace nntile::tensor
