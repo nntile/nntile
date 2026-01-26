@@ -27,8 +27,8 @@ namespace nntile::graph
 
 //! Fill operation: x = val
 void fill(
-    LogicalGraph::TensorNode& x,
-    Scalar val)
+    Scalar val,
+    LogicalGraph::TensorNode& x)
 {
     OpAttrs attrs = FillAttrs{val};
     x.graph().add_op(

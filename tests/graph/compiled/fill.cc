@@ -20,29 +20,73 @@ using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::graph::test;
 
+namespace
+{
+
+template<typename T>
+DataType dtype_for();
+
+template<>
+DataType dtype_for<fp32_t>()
+{
+    return DataType::FP32;
+}
+
+template<>
+DataType dtype_for<fp64_t>()
+{
+    return DataType::FP64;
+}
+
+template<typename T>
+void check_fill(const std::vector<Index>& shape, Scalar val,
+                const nntile::Context& context)
+{
+    auto build_graph = [shape, val](LogicalGraph& g) {
+        auto& x = g.tensor(shape, "x", dtype_for<T>());
+        fill(val, x);
+    };
+
+    auto run_tensor_direct = [shape, val](
+        std::map<std::string, std::vector<typename T::repr_t>>&,
+        std::map<std::string, std::vector<typename T::repr_t>>& outputs,
+        const nntile::Context&)
+    {
+        nntile::tensor::TensorTraits x_traits(shape, shape);
+        nntile::tensor::Tensor<T> x(x_traits);
+
+        nntile::tensor::fill<T>(val, x);
+        outputs["x"] = read_tensor(x);
+    };
+
+    verify_graph_vs_tensor<T>(
+        build_graph, run_tensor_direct,
+        {}, {"x"}, context
+    );
+}
+
+} // namespace
+
 TEST_CASE_METHOD(
     GraphTestFixture,
     "CompiledGraph Fill vs Tensor",
     "[graph][verification]")
 {
-    auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({4, 6}, "x", DataType::FP32);
-        fill(x, 3.14f);
+    const Scalar val = -0.5;
+    const std::vector<std::vector<Index>> shapes = {
+        {},
+        {5},
+        {11},
+        {11, 12, 13}
     };
 
-    auto run_tensor_direct = [](std::map<std::string, std::vector<float>>&,
-                               std::map<std::string, std::vector<float>>& outputs,
-                               const nntile::Context&) {
-        using T = nntile::fp32_t;
-        nntile::tensor::TensorTraits x_traits({4, 6}, {4, 6});
-        nntile::tensor::Tensor<T> x(x_traits);
+    for(const auto& shape : shapes)
+    {
+        check_fill<nntile::fp32_t>(shape, val, context);
+    }
 
-        nntile::tensor::fill<T>(3.14f, x);
-        outputs["x"] = read_tensor(x);
-    };
-
-    verify_graph_vs_tensor<nntile::fp32_t>(
-        build_graph, run_tensor_direct,
-        {}, {"x"}, context
-    );
+    for(const auto& shape : shapes)
+    {
+        check_fill<nntile::fp64_t>(shape, val, context);
+    }
 }

@@ -24,11 +24,11 @@ namespace nntile::graph
 {
 
 //! Fill operation: x = val
-//! @param x Input/output tensor (modified in-place)
 //! @param val Value to fill tensor with
+//! @param x Input/output tensor (modified in-place)
 void fill(
-    LogicalGraph::TensorNode& x,
-    Scalar val = 0.0
+    Scalar val,
+    LogicalGraph::TensorNode& x
 );
 
 } // namespace nntile::graph

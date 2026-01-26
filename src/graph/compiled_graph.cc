@@ -319,6 +319,9 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
         case OpType::CLEAR:
             execute_clear(*this, op_info);
             break;
+        case OpType::FILL:
+            execute_fill(*this, op_info);
+            break;
         case OpType::COPY:
             execute_copy(*this, op_info);
             break;
