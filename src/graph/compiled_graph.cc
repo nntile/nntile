@@ -440,6 +440,17 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
             execute_total_sum_accum(*this, op_info);
             break;
 
+        // Optimizer operations
+        case OpType::SGD_STEP:
+            execute_sgd_step(*this, op_info);
+            break;
+        case OpType::ADAM_STEP:
+            execute_adam_step(*this, op_info);
+            break;
+        case OpType::ADAMW_STEP:
+            execute_adamw_step(*this, op_info);
+            break;
+
         // Flash attention operations
         case OpType::FLASH_SDPA_FWD_CUDNN:
             execute_flash_sdpa_fwd_cudnn(*this, op_info);
