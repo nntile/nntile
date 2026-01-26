@@ -68,6 +68,8 @@ void execute_copy(CompiledGraph& graph, const OpExecutionInfo& op_info)
             run_copy<nntile::bf16_t>(graph, attrs, x_name, y_name);
             break;
         case DataType::INT64:
+            run_copy<nntile::int64_t>(graph, attrs, x_name, y_name);
+            break;
         case DataType::INT32:
         case DataType::BOOL:
             throw std::runtime_error(

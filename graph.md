@@ -137,7 +137,7 @@ Defined in `logical_graph_ops.hh/.cc` as free functions:
 
 **Embedding operations:**
 - `embedding(index, vocab, output_name, axis=0)` - embedding lookup
-- `embedding_backward(embed, index, vocab, axis=0)` - embedding backward
+- `embedding_backward(index, vocab, embed, axis=0)` - embedding backward
 
 **Matrix operations:**
 - `gemm(a, b, output_name, alpha, trans_a, trans_b, ndim, batch_ndim)` -

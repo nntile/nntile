@@ -50,9 +50,9 @@ LogicalGraph::TensorNode& embedding(
             "embedding: axis out of bounds");
     }
 
-    // Compute output shape
+    // Compute output shape: insert vocab dimension at axis
     std::vector<Index> output_shape = index.shape();
-    output_shape[axis] = vocab.shape()[axis];
+    output_shape.insert(output_shape.begin() + axis, vocab.shape()[0]);
 
     // Create output tensor
     LogicalGraph::TensorNode& output = index.graph().tensor(

@@ -15,6 +15,7 @@
 #include "compiled_test_utils.hh"
 
 #include "nntile/tensor/embedding.hh"
+#include "nntile/graph/logical/embedding.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -25,41 +26,38 @@ TEST_CASE_METHOD(
     "CompiledGraph Embedding vs Tensor",
     "[graph][verification]")
 {
-    LogicalGraph g("test");
-    auto& index = g.tensor({2, 3}, "index", DataType::INT64);
-    auto& vocab = g.tensor({4, 10}, "vocab", DataType::FP32);
-    auto& embed = embedding(index, vocab, "embed");
+    auto build_graph = [](LogicalGraph& g) {
+        auto& index = g.tensor({6}, "index", DataType::INT64);
+        auto& vocab = g.tensor({4, 6}, "vocab", DataType::FP32);
+        embedding(index, vocab, "embed");
+    };
 
-    auto compiled = CompiledGraph::compile(g);
+    auto run_tensor_direct = [](std::map<std::string, std::vector<float>>& inputs,
+                               std::map<std::string, std::vector<float>>& outputs,
+                               const nntile::Context&) {
+        using T = nntile::fp32_t;
+        nntile::tensor::TensorTraits index_traits({6}, {6});
+        nntile::tensor::Tensor<nntile::int64_t> index_tensor(index_traits);
+        nntile::tensor::TensorTraits vocab_traits({4, 6}, {4, 6});
+        nntile::tensor::Tensor<T> vocab_tensor(vocab_traits);
+        nntile::tensor::TensorTraits embed_traits({4, 6}, {4, 6});
+        nntile::tensor::Tensor<T> embed_tensor(embed_traits);
 
-    std::vector<long long> index_data = {0, 1, 2, 3, 4, 5};
-    std::vector<float> vocab_data = make_pattern<float>(40, 0.05f);
+        // Generate the same index data as bind_inputs does for INT64
+        std::vector<long long> index_data(6);
+        for(size_t i = 0; i < 6; ++i) {
+            index_data[i] = static_cast<long long>(i % 4);  // Valid indices 0-3
+        }
 
-    compiled.bind_data("index", index_data);
-    compiled.bind_data("vocab", vocab_data);
+        write_tensor(index_tensor, index_data);
+        write_tensor(vocab_tensor, inputs["vocab"]);
 
-    compiled.execute();
-    compiled.wait();
+        nntile::tensor::embedding<T>(index_tensor, vocab_tensor, embed_tensor, 0);
+        outputs["embed"] = read_tensor(embed_tensor);
+    };
 
-    auto graph_out = compiled.get_output<float>("embed");
-
-    using T = nntile::fp32_t;
-    nntile::tensor::TensorTraits index_traits({2, 3}, {2, 3});
-    nntile::tensor::Tensor<nntile::int64_t> index_tensor(index_traits);
-    nntile::tensor::TensorTraits vocab_traits({4, 10}, {4, 10});
-    nntile::tensor::Tensor<T> vocab_tensor(vocab_traits);
-    nntile::tensor::TensorTraits embed_traits({4, 2, 3}, {4, 2, 3});
-    nntile::tensor::Tensor<T> embed_tensor(embed_traits);
-
-    write_tensor(index_tensor, index_data);
-    write_tensor(vocab_tensor, vocab_data);
-
-    nntile::tensor::embedding<T>(index_tensor, vocab_tensor, embed_tensor, 0);
-    auto tensor_out = read_tensor(embed_tensor);
-
-    REQUIRE(graph_out.size() == tensor_out.size());
-    for(size_t i = 0; i < graph_out.size(); ++i)
-    {
-        REQUIRE(graph_out[i] == Catch::Approx(tensor_out[i]).epsilon(1e-5));
-    }
+    verify_graph_vs_tensor<nntile::fp32_t>(
+        build_graph, run_tensor_direct,
+        {"index", "vocab"}, {"embed"}, context
+    );
 }

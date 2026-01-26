@@ -27,11 +27,11 @@ namespace
 
 template<typename T>
 void run_embedding_backward(CompiledGraph& graph, const EmbeddingAttrs& attrs,
-                            const std::string& embed_name, const std::string& index_name,
+                            const std::string& index_name, const std::string& embed_name,
                             const std::string& vocab_name)
 {
-    auto& embed = graph.get_tensor<T>(embed_name);
     auto& index = graph.get_tensor<int64_t>(index_name);
+    auto& embed = graph.get_tensor<T>(embed_name);
     auto& vocab = graph.get_tensor<T>(vocab_name);
 
     nntile::tensor::embedding_backward<T>(index, vocab, embed, attrs.axis);
@@ -42,33 +42,33 @@ void run_embedding_backward(CompiledGraph& graph, const EmbeddingAttrs& attrs,
 void execute_embedding_backward(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
     const EmbeddingAttrs& attrs = std::get<EmbeddingAttrs>(op_info.attrs);
-    const std::string& embed_name = op_info.input_names[0];
-    const std::string& index_name = op_info.input_names[1];
+    const std::string& index_name = op_info.input_names[0];
+    const std::string& embed_name = op_info.input_names[1];
     const std::string& vocab_name = op_info.input_names[2];
-    DataType dtype = graph.get_dtype(embed_name);
+    DataType dtype = graph.get_dtype(vocab_name);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_embedding_backward<nntile::fp32_t>(graph, attrs, embed_name, index_name, vocab_name);
+            run_embedding_backward<nntile::fp32_t>(graph, attrs, index_name, embed_name, vocab_name);
             break;
         case DataType::FP32_FAST_TF32:
-            run_embedding_backward<nntile::fp32_fast_tf32_t>(graph, attrs, embed_name, index_name, vocab_name);
+            run_embedding_backward<nntile::fp32_fast_tf32_t>(graph, attrs, index_name, embed_name, vocab_name);
             break;
         case DataType::FP32_FAST_FP16:
-            run_embedding_backward<nntile::fp32_fast_fp16_t>(graph, attrs, embed_name, index_name, vocab_name);
+            run_embedding_backward<nntile::fp32_fast_fp16_t>(graph, attrs, index_name, embed_name, vocab_name);
             break;
         case DataType::FP32_FAST_BF16:
-            run_embedding_backward<nntile::fp32_fast_bf16_t>(graph, attrs, embed_name, index_name, vocab_name);
+            run_embedding_backward<nntile::fp32_fast_bf16_t>(graph, attrs, index_name, embed_name, vocab_name);
             break;
         case DataType::FP64:
-            run_embedding_backward<nntile::fp64_t>(graph, attrs, embed_name, index_name, vocab_name);
+            run_embedding_backward<nntile::fp64_t>(graph, attrs, index_name, embed_name, vocab_name);
             break;
         case DataType::FP16:
-            run_embedding_backward<nntile::fp16_t>(graph, attrs, embed_name, index_name, vocab_name);
+            run_embedding_backward<nntile::fp16_t>(graph, attrs, index_name, embed_name, vocab_name);
             break;
         case DataType::BF16:
-            run_embedding_backward<nntile::bf16_t>(graph, attrs, embed_name, index_name, vocab_name);
+            run_embedding_backward<nntile::bf16_t>(graph, attrs, index_name, embed_name, vocab_name);
             break;
         case DataType::INT64:
         case DataType::INT32:

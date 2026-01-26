@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/logical/embedding_backward.hh
- * Logical graph embedding backward operation.
+ * @file include/nntile/graph/logical/multiply_slice.hh
+ * Multiply slice operation.
  *
  * @version 1.1.0
  * */
@@ -23,16 +23,16 @@
 namespace nntile::graph
 {
 
-//! Embedding backward: vocab += embedding_backward(index, embed, vocab)
-//! @param index Index tensor (int64_t)
-//! @param embed Embedding tensor (forward pass output)
-//! @param vocab Vocabulary tensor (modified in-place)
-//! @param axis Axis along which to perform embedding (default: 0)
-void embedding_backward(
-    LogicalGraph::TensorNode& index,
-    LogicalGraph::TensorNode& embed,
-    LogicalGraph::TensorNode& vocab,
-    Index axis = 0
+//! Multiply slice operation: tensor = alpha * tensor * slice (broadcasted along axis)
+//! @param alpha Scaling factor
+//! @param slice Input slice tensor (ndim dimensions)
+//! @param tensor Input/output tensor (ndim+1 dimensions, modified in-place)
+//! @param axis Axis in tensor along which slice is broadcasted
+void multiply_slice(
+    Scalar alpha,
+    LogicalGraph::TensorNode& slice,
+    LogicalGraph::TensorNode& tensor,
+    Index axis
 );
 
 } // namespace nntile::graph

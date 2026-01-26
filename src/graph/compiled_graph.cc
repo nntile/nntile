@@ -65,7 +65,6 @@ void validate_operation_data_types(const LogicalGraph& logical)
            op->type() == OpType::MULTIPLY || op->type() == OpType::MULTIPLY_INPLACE ||
            op->type() == OpType::SUM || op->type() == OpType::SUM_FIBER ||
            op->type() == OpType::SCALE || op->type() == OpType::SCALE_INPLACE ||
-           op->type() == OpType::EMBEDDING || op->type() == OpType::EMBEDDING_BACKWARD ||
            op->type() == OpType::GEMM)
         {
             // These operations support floating point types only
@@ -92,16 +91,51 @@ void validate_operation_data_types(const LogicalGraph& logical)
                     dtype_to_string(dtype));
             }
         }
-        // Special case for embedding: index tensor should be INT64
+        // Special case for embedding: index tensor should be INT64, others floating-point
         else if(op->type() == OpType::EMBEDDING || op->type() == OpType::EMBEDDING_BACKWARD)
         {
-            // For embedding operations, check the index tensor (first input)
+            // For embedding operations, check the index tensor (first input) is INT64
             if(!op->inputs().empty() && op->inputs()[0]->dtype() != DataType::INT64)
             {
                 throw std::runtime_error(
                     std::string(op_type_to_string(op->type())) +
                     " operation requires INT64 index tensor, got " +
                     dtype_to_string(op->inputs()[0]->dtype()));
+            }
+            // Check that vocab/embed tensors are floating-point
+            for(size_t i = 1; i < op->inputs().size(); ++i)
+            {
+                DataType input_dtype = op->inputs()[i]->dtype();
+                if(input_dtype != DataType::FP32 &&
+                   input_dtype != DataType::FP32_FAST_TF32 &&
+                   input_dtype != DataType::FP32_FAST_FP16 &&
+                   input_dtype != DataType::FP32_FAST_BF16 &&
+                   input_dtype != DataType::FP64 &&
+                   input_dtype != DataType::FP16 &&
+                   input_dtype != DataType::BF16)
+                {
+                    throw std::runtime_error(
+                        std::string(op_type_to_string(op->type())) +
+                        " operation requires floating-point tensors, got " +
+                        dtype_to_string(input_dtype) + " for input " + std::to_string(i));
+                }
+            }
+            for(size_t i = 0; i < op->outputs().size(); ++i)
+            {
+                DataType output_dtype = op->outputs()[i]->dtype();
+                if(output_dtype != DataType::FP32 &&
+                   output_dtype != DataType::FP32_FAST_TF32 &&
+                   output_dtype != DataType::FP32_FAST_FP16 &&
+                   output_dtype != DataType::FP32_FAST_BF16 &&
+                   output_dtype != DataType::FP64 &&
+                   output_dtype != DataType::FP16 &&
+                   output_dtype != DataType::BF16)
+                {
+                    throw std::runtime_error(
+                        std::string(op_type_to_string(op->type())) +
+                        " operation requires floating-point tensors, got " +
+                        dtype_to_string(output_dtype) + " for output " + std::to_string(i));
+                }
             }
         }
         // Add validation for other operations here as they are added
@@ -284,6 +318,9 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
             break;
         case OpType::CLEAR:
             execute_clear(*this, op_info);
+            break;
+        case OpType::COPY:
+            execute_copy(*this, op_info);
             break;
 
         // Element-wise unary operations

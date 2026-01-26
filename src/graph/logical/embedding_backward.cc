@@ -25,14 +25,14 @@
 namespace nntile::graph
 {
 
-//! Embedding backward: vocab += embedding_backward(embed, index, vocab)
+//! Embedding backward: vocab += embedding_backward(index, embed, vocab)
 void embedding_backward(
-    LogicalGraph::TensorNode& embed,
     LogicalGraph::TensorNode& index,
+    LogicalGraph::TensorNode& embed,
     LogicalGraph::TensorNode& vocab,
     Index axis)
 {
-    if(&embed.graph() != &index.graph() || &embed.graph() != &vocab.graph())
+    if(&index.graph() != &vocab.graph() || &index.graph() != &embed.graph())
     {
         throw std::invalid_argument(
             "embedding_backward: tensors must belong to the same graph");
@@ -57,10 +57,10 @@ void embedding_backward(
     }
 
     OpAttrs attrs = EmbeddingAttrs{axis};
-    embed.graph().add_op(
+    index.graph().add_op(
         OpType::EMBEDDING_BACKWARD,
         attrs,
-        {&embed, &index, &vocab},
+        {&index, &embed, &vocab},
         {&vocab}
     );
 }

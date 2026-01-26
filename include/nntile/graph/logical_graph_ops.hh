@@ -30,6 +30,7 @@
 #include <nntile/graph/logical/add_inplace.hh>
 #include <nntile/graph/logical/multiply.hh>
 #include <nntile/graph/logical/multiply_inplace.hh>
+#include <nntile/graph/logical/multiply_slice.hh>
 #include <nntile/graph/logical/clear.hh>
 #include <nntile/graph/logical/softmax.hh>
 #include <nntile/graph/logical/softmax_inplace.hh>
@@ -47,6 +48,7 @@
 #include <nntile/graph/logical/mask_scalar.hh>
 #include <nntile/graph/logical/subtract_indexed_outputs.hh>
 // #include <nntile/graph/logical/gather.hh>
+#include <nntile/graph/logical/gemm.hh>
 #include <nntile/graph/logical/scale_fiber.hh>
 #include <nntile/graph/logical/scale_slice.hh>
 #include <nntile/graph/logical/scale.hh>
@@ -85,18 +87,6 @@
 
 namespace nntile::graph
 {
-
-//! Multiply slice operation: tensor = alpha * tensor * slice (broadcasted along axis)
-//! @param alpha Scaling factor
-//! @param slice Input slice tensor (ndim dimensions)
-//! @param tensor Input/output tensor (ndim+1 dimensions, modified in-place)
-//! @param axis Axis in tensor along which slice is broadcasted
-void multiply_slice(
-    Scalar alpha,
-    LogicalGraph::TensorNode& slice,
-    LogicalGraph::TensorNode& tensor,
-    Index axis
-);
 
 
 
@@ -162,92 +152,9 @@ void multiply_slice(
 //! @param beta Scaling factor for existing y (default: 0.0)
 
 
-//! Scale operation: y = alpha * x
-//! @param x Input tensor
-//! @param output_name Name for the output tensor
-//! @param alpha Scaling factor (default: 1.0)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& scale(
-    LogicalGraph::TensorNode& x,
-    const std::string& output_name,
-    Scalar alpha
-);
 
-//! Scale in-place: x = alpha * x
-//! @param x Input/output tensor (modified in-place)
-//! @param alpha Scaling factor (default: 1.0)
-void scale_inplace(
-    LogicalGraph::TensorNode& x,
-    Scalar alpha
-);
 
-//! Embedding lookup: y = embedding(x, vocab)
-//! @param index Index tensor (int64_t)
-//! @param vocab Vocabulary tensor (float type)
-//! @param output_name Name for the output tensor
-//! @param axis Axis along which to perform embedding (default: 0)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& embedding(
-    LogicalGraph::TensorNode& index,
-    LogicalGraph::TensorNode& vocab,
-    const std::string& output_name,
-    Index axis = 0
-);
 
-//! Embedding backward: vocab += embedding_backward(embed, index, vocab)
-//! @param embed Embedding tensor (forward pass output)
-//! @param index Index tensor (int64_t)
-//! @param vocab Vocabulary tensor (modified in-place)
-//! @param axis Axis along which to perform embedding (default: 0)
-void embedding_backward(
-    LogicalGraph::TensorNode& embed,
-    LogicalGraph::TensorNode& index,
-    LogicalGraph::TensorNode& vocab,
-    Index axis = 0
-);
-
-//! Tensor contraction creating new output: C = alpha * op(A) @ op(B)
-//! @param a First input tensor
-//! @param b Second input tensor
-//! @param output_name Name for the output tensor
-//! @param alpha Scalar multiplier for A @ B (default: 1.0)
-//! @param trans_a Swap M and K dimensions in A (default: false)
-//! @param trans_b Swap K and N dimensions in B (default: false)
-//! @param ndim Number of contraction dimensions (K) (default: 1)
-//! @param batch_ndim Number of trailing batch dimensions (default: 0)
-//! @return Reference to the created output tensor
-LogicalGraph::TensorNode& gemm(
-    LogicalGraph::TensorNode& a,
-    LogicalGraph::TensorNode& b,
-    const std::string& output_name,
-    Scalar alpha = 1.0,
-    bool trans_a = false,
-    bool trans_b = false,
-    Index ndim = 1,
-    Index batch_ndim = 0
-);
-
-//! Tensor contraction with accumulation: C = alpha * op(A) @ op(B) + beta * C
-//! @param a First input tensor
-//! @param b Second input tensor
-//! @param c Existing tensor to accumulate into (modified in-place)
-//! @param alpha Scalar multiplier for A @ B (default: 1.0)
-//! @param beta Scalar multiplier for existing C (default: 1.0)
-//! @param trans_a Swap M and K dimensions in A (default: false)
-//! @param trans_b Swap K and N dimensions in B (default: false)
-//! @param ndim Number of contraction dimensions (K) (default: 1)
-//! @param batch_ndim Number of trailing batch dimensions (default: 0)
-void gemm(
-    LogicalGraph::TensorNode& a,
-    LogicalGraph::TensorNode& b,
-    LogicalGraph::TensorNode& c,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0,
-    bool trans_a = false,
-    bool trans_b = false,
-    Index ndim = 1,
-    Index batch_ndim = 0
-);
 
 
 
