@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/embedding_backward.hh"
 #include "nntile/starpu/embedding_backward.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -103,7 +104,7 @@ void embedding_backward_async(const Tensor<int64_t> &index,
             k = embed_tile_traits.shape[axis];
             k_start = (j-vocab_start) * vocab.basetile_shape[0];
             k_size = vocab_tile_traits.shape[0];
-            starpu::embedding_backward::submit<T>(m, n, k, k_start, k_size,
+            starpu::embedding_backward.submit<std::tuple<T>>(m, n, k, k_start, k_size,
                     index_tile_handle, embed_tile_handle, vocab_tile_handle,
                     redux);
         }
@@ -155,6 +156,11 @@ void embedding_backward_async<bf16_t>(const Tensor<int64_t> &index,
         const Tensor<bf16_t> &embed, const Tensor<bf16_t> &vocab, Index axis,
         int redux);
 
+template
+void embedding_backward_async<fp16_t>(const Tensor<int64_t> &index,
+        const Tensor<fp16_t> &embed, const Tensor<fp16_t> &vocab, Index axis,
+        int redux);
+
 // Explicit instantiation
 template
 void embedding_backward<fp32_t>(const Tensor<int64_t> &index,
@@ -184,6 +190,11 @@ void embedding_backward<fp64_t>(const Tensor<int64_t> &index,
 template
 void embedding_backward<bf16_t>(const Tensor<int64_t> &index,
         const Tensor<bf16_t> &embed, const Tensor<bf16_t> &vocab, Index axis,
+        int redux);
+
+template
+void embedding_backward<fp16_t>(const Tensor<int64_t> &index,
+        const Tensor<fp16_t> &embed, const Tensor<fp16_t> &vocab, Index axis,
         int redux);
 
 } // namespace nntile::tensor

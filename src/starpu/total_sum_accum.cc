@@ -12,17 +12,30 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/total_sum_accum.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/total_sum_accum.hh"
 
-namespace nntile::starpu::total_sum_accum
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/total_sum_accum.hh"
+
+namespace nntile::starpu
 {
 
-//! total_sum_accumulation operation of StarPU buffer on CPU
+//! Constructor
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+TotalSumAccum<std::tuple<T>>::TotalSumAccum():
+    codelet("nntile_total_sum_accum", footprint, cpu_funcs, cuda_funcs)
+{
+    // Modes are not fixed, they are decided during runtime by default
+}
+
+//! StarPU wrapper for kernel::total_sum_accum::cpu<T>
+template<typename T>
+void TotalSumAccum<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -44,10 +57,35 @@ void cpu(void *buffers[], void *cl_args)
 #endif // STARPU_SIMGRID
 }
 
+// Specializations of CPU wrapper for accelerated types
+template<>
+void TotalSumAccum<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    TotalSumAccum<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void TotalSumAccum<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    TotalSumAccum<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void TotalSumAccum<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    TotalSumAccum<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
 #ifdef NNTILE_USE_CUDA
-//! Apply total_sum_accum operation on StarPU buffer on CUDA
+//! StarPU wrapper for kernel::total_sum_accum::cuda<T>
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void TotalSumAccum<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -70,11 +108,36 @@ void cuda(void *buffers[], void *cl_args)
         ignore_index, logsumexp, src, labels, val);
 #endif // STARPU_SIMGRID
 }
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void TotalSumAccum<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    TotalSumAccum<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void TotalSumAccum<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    TotalSumAccum<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void TotalSumAccum<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    TotalSumAccum<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for total_sum_accum tasks
-static
-uint32_t footprint(struct starpu_task *task)
+template<typename T>
+uint32_t TotalSumAccum<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -86,95 +149,9 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
-
-void init()
-{
-    codelet_fp32.init("nntile_total_sum_accum_fp32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_bf16.init("nntile_total_sum_accum_bf16",
-            footprint,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_total_sum_accum_fp32_fast_tf32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_fp16.init("nntile_total_sum_accum_fp32_fast_fp16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_bf16.init("nntile_total_sum_accum_fp32_fast_bf16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-
-    codelet_fp64.init("nntile_total_sum_accum_fp64",
-            footprint,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp32_fast_fp16.restrict_where(where);
-    codelet_fp32_fast_bf16.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp32_fast_fp16.restore_where();
-    codelet_fp32_fast_bf16.restore_where();
-    codelet_fp64.restore_where();
-}
-
 template<typename T>
-void submit(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
+void TotalSumAccum<std::tuple<T>>::submit(Scalar alpha, Index n_labels,
+        Index n_outputs, Index ignore_index,
             Handle logsumexp, Handle src, Handle class_labels, Handle val)
 {
     // Codelet arguments
@@ -184,12 +161,12 @@ void submit(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
     args->n_outputs = n_outputs;
     args->ignore_index = ignore_index;
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(logsumexp),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
-            STARPU_R, static_cast<starpu_data_handle_t>(class_labels),
+    int ret = starpu_task_insert(&codelet,
+            STARPU_R, logsumexp.get(),
+            STARPU_R, src.get(),
+            STARPU_R, class_labels.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            Config::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(val),
+            STARPU_RW | STARPU_COMMUTE, val.get(),
             0);
     // Check submission
     if(ret != 0)
@@ -199,28 +176,17 @@ void submit(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
 }
 
 // Explicit instantiation
-template
-void submit<fp32_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
-        Handle logsumexp, Handle src, Handle class_labels, Handle val);
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class TotalSumAccum<std::tuple<nntile::fp64_t>>;
+template class TotalSumAccum<std::tuple<nntile::fp32_t>>;
+template class TotalSumAccum<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class TotalSumAccum<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class TotalSumAccum<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class TotalSumAccum<std::tuple<nntile::bf16_t>>;
+template class TotalSumAccum<std::tuple<nntile::fp16_t>>;
 
-template
-void submit<fp32_fast_tf32_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
-        Handle logsumexp, Handle src, Handle class_labels, Handle val);
+//! Pack of total_sum_accum operations for different types
+total_sum_accum_pack_t total_sum_accum;
 
-template
-void submit<fp32_fast_fp16_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
-        Handle logsumexp, Handle src, Handle class_labels, Handle val);
-
-template
-void submit<fp32_fast_bf16_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
-        Handle logsumexp, Handle src, Handle class_labels, Handle val);
-
-template
-void submit<fp64_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
-        Handle logsumexp, Handle src, Handle class_labels, Handle val);
-
-template
-void submit<bf16_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
-        Handle logsumexp, Handle src, Handle class_labels, Handle val);
-
-} // namespace nntile::starpu::total_sum_accum
+} // namespace nntile::starpu

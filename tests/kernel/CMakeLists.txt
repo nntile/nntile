@@ -13,82 +13,38 @@
 
 # All unit tests without arguments to test executable
 set(TESTS
-    "adam_step"
-    "adamw_step"
-    "add"
-    "add_inplace"
-    "add_fiber_inplace"
-    "add_fiber"
-    "add_slice_inplace"
-    "add_slice"
-    "addcdiv"
-    "dgelu"
-    "dgelutanh"
-    "drelu"
-    "fill"
-    "gelu"
-    "gelu_backward"
-    "gelutanh"
-    "gelutanh_inplace"
-    "gelutanh_backward"
-    "hypot"
-    "logsumexp"
-    "maximum"
-    "norm_slice"
-    "normalize"
-    "pow"
-    "prod_inplace"
-    "prod_fiber"
-    "prod_fiber3"
-    "prod_slice"
+    "conv2d_bwd_input_inplace"
+    "conv2d_bwd_weight_inplace"
+    "conv2d_inplace"
+    "mask_scalar"
+    "norm_fiber_inplace"
     "randn"
-    "relu"
-    "relu_backward"
     "rope"
     "rope_backward"
-    "softmax"
+    "scale_inplace"
     "softmax_inplace"
-    "sqrt"
     "sqrt_inplace"
     "subcopy"
     "subtract_indexed_column"
-    "sum_fiber"
-    "norm_fiber"
+    "subtract_indexed_outputs"
     "sum_slice"
-    "sumnorm"
     "sumprod_fiber"
     "sumprod_slice"
     "total_sum_accum"
-    "mask_scalar"
-    "scal"
     "transpose"
-    )
+)
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
-    "adam_step"
-    "adamw_step"
-    "add_fiber_inplace"
-    "add_fiber"
-    "gelu_backward"
-    "gelutanh"
-    "gelutanh_backward"
-    "logsumexp"
-    "pow"
-    "prod_fiber"
-    "prod_slice"
-    "relu_backward"
+    "conv2d_bwd_input_inplace"
+    "conv2d_bwd_weight_inplace"
+    "conv2d_inplace"
+    "scale_inplace"
     "subtract_indexed_column"
-    "sum_fiber"
+    "subtract_indexed_outputs"
     "sumprod_fiber"
     "total_sum_accum"
-    "sqrt"
-    "scal"
-    "softmax"
-    "hypot"
-    "add_slice"
-    "prod_fiber3"
-    )
+)
 
 # Setup a target for coverage of kernels
 if(BUILD_COVERAGE)
@@ -111,12 +67,83 @@ foreach(test IN LISTS TESTS)
         COV_NAME coverage_kernel_${test}
         COV_GLOBAL coverage_kernel coverage
         LABELS ${labels}
-        )
+    )
 endforeach()
 
-#add_executable("tests_kernel_maxsumexp" maxsumexp.cc)
-#target_link_libraries("tests_kernel_maxsumexp" PRIVATE
-#    GTest::gtest_main
-#    nntile
-#    $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>)
-#gtest_discover_tests("tests_kernel_maxsumexp")
+set(TESTS_CATCH2
+    "accumulate_attn_output"
+    "add"
+    "accumulate_maxsumexp"
+    "add_fiber"
+    "add_fiber_inplace"
+    "scale_fiber"
+    "add_inplace"
+    "add_slice_inplace"
+    "adam_step"
+    "adamw_step"
+    "sgd_step"
+    "add_slice"
+    "embedding"
+    "embedding_backward"
+    "fill"
+    "gelu"
+    "gelu_inplace"
+    "gelu_backward"
+    "gelutanh"
+    "gelutanh_inplace"
+    "gelutanh_backward"
+    "hypot_inplace"
+    "hypot"
+    "hypot_scalar_inverse"
+    "logsumexp"
+    "maxsumexp"
+    "norm"
+    "norm_fiber"
+    "norm_slice_inplace"
+    "norm_slice"
+    "pow"
+    "multiply_fiber_inplace"
+    "multiply_fiber"
+    "multiply_inplace"
+    "multiply_slice"
+    "multiply"
+    "relu_inplace"
+    "relu_backward"
+    "relu"
+    "scale"
+    "scale_slice"
+    "silu_backward"
+    "silu"
+    "silu_inplace"
+    "softmax"
+    "sqrt"
+    "sum"
+    "sum_fiber"
+)
+
+# CUDA-only tests (only added when CUDA is available)
+if(NNTILE_USE_CUDA)
+    list(APPEND TESTS_CATCH2
+        "flash_sdpa_fwd_cudnn"
+        "flash_sdpa_bwd_cudnn"
+    )
+endif()
+
+foreach(test IN LISTS TESTS_CATCH2)
+    set(labels)
+    if(test IN_LIST TESTS_NOT_IMPLEMENTED)
+        set(labels "NotImplemented")
+    endif()
+    add_test_set(TARGET_NAME tests_kernel_${test}
+        EXEC_NAME test_${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES
+            nntile
+            $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
+            Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_kernel_${test}
+        COV_GLOBAL coverage_kernel coverage
+        LABELS ${labels}
+    )
+endforeach()

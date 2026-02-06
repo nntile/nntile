@@ -12,8 +12,12 @@
  * @version 1.1.0
  * */
 
+// Corresponding header
 #include "nntile/tensor/adam_step.hh"
+
+// Other NNTile headers
 #include "nntile/starpu/adam_step.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -62,7 +66,7 @@ void adam_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, S
         if(mpi_rank == p_tile_rank)
         {
             auto traits = p.get_tile_traits(i);
-            starpu::adam_step::submit<T>(num_iter, traits.nelems, beta_1, beta_2, eps, lr, weight_decay,
+            starpu::adam_step.submit<std::tuple<T>>(num_iter, traits.nelems, beta_1, beta_2, eps, lr, weight_decay,
                                          grad_tile_handle, first_moment_tile_handle,
                                          second_moment_tile_handle, p_tile_handle);
         }
@@ -71,7 +75,7 @@ void adam_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, S
     }
 }
 
-//! Blocking version of tensor-wise addcdiv operation
+//! Blocking version of tensor-wise adam_step operation
 template<typename T>
 void adam_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
                const Tensor<T> &grad, const Tensor<T> &first_moment, const Tensor<T> &second_moment,
@@ -113,6 +117,11 @@ void adam_step_async<bf16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scala
     const Tensor<bf16_t> &grad, const Tensor<bf16_t> &first_moment, const Tensor<bf16_t> &second_moment,
                    const Tensor<bf16_t> &p);
 
+template
+void adam_step_async<fp16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+    const Tensor<fp16_t> &grad, const Tensor<fp16_t> &first_moment, const Tensor<fp16_t> &second_moment,
+                   const Tensor<fp16_t> &p);
+
 // Explicit instantiation
 template
 void adam_step<fp32_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
@@ -143,5 +152,10 @@ template
 void adam_step<bf16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
     const Tensor<bf16_t> &grad, const Tensor<bf16_t> &first_moment, const Tensor<bf16_t> &second_moment,
                    const Tensor<bf16_t> &p);
+
+template
+void adam_step<fp16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+    const Tensor<fp16_t> &grad, const Tensor<fp16_t> &first_moment, const Tensor<fp16_t> &second_moment,
+                   const Tensor<fp16_t> &p);
 
 } // namespace nntile::tensor

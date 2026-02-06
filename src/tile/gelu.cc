@@ -18,62 +18,76 @@
 namespace nntile::tile
 {
 
-//! Asynchronous tile-wise GeLU operation
-/*! @param[inout] A: Tile for the element-wise GeLU operation
+//! Asyncrhonous tile-wise GeLU operation
+/*! @param[in] src: Input tile for the element-wise GeLU operation
+ * @param[out] dst: Output tile for the element-wise GeLU operation
  * */
 template<typename T>
-void gelu_async(const Tile<T> &A)
+void gelu_async(const Tile<T> &src, const Tile<T> &dst)
 {
     // Submit task without any arguments checked
-    starpu::gelu::submit<T>(A.nelems, A);
+    starpu::gelu.submit<std::tuple<T>>(src.nelems, src, dst);
 }
 
 //! Blocking version of tile-wise GeLU operation
-/*! @param[inout] A: Tile for the element-wise GeLU operation
+/*! @param[in] src: Input tile for the element-wise GeLU operation
+ * @param[out] dst: Output tile for the element-wise GeLU operation
  * */
 template<typename T>
-void gelu(const Tile<T> &A)
+void gelu(const Tile<T> &src, const Tile<T> &dst)
 {
-    gelu_async<T>(A);
+    gelu_async<T>(src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void gelu_async<fp32_t>(const Tile<fp32_t> &A);
+void gelu_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void gelu_async<fp64_t>(const Tile<fp64_t> &A);
+void gelu_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+                                  const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void gelu_async<bf16_t>(const Tile<bf16_t> &A);
+void gelu_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+                                const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void gelu_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &A);
+void gelu_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+                                const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void gelu_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &A);
+void gelu_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
-void gelu_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &A);
+void gelu_async<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+
+template
+void gelu_async<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
 
 // Explicit instantiation
 template
-void gelu<fp32_t>(const Tile<fp32_t> &A);
+void gelu<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void gelu<fp64_t>(const Tile<fp64_t> &A);
+void gelu<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+                            const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void gelu<bf16_t>(const Tile<bf16_t> &A);
+void gelu<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+                            const Tile<fp32_fast_fp16_t> &dst);
 
 template
-void gelu<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &A);
+void gelu<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+                            const Tile<fp32_fast_bf16_t> &dst);
 
 template
-void gelu<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &A);
+void gelu<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
-void gelu<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &A);
+void gelu<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+
+template
+void gelu<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
 
 } // namespace nntile::tile

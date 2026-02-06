@@ -12,19 +12,30 @@
  * @version 1.1.0
  * */
 
+// Corresponding header
 #include "nntile/starpu/log_scalar.hh"
-#ifndef STARPU_SIMGRID
-#include "nntile/logger/logger_thread.hh"
-#endif // STARPU_SIMGRID
-#include <cstdlib>
 
-//! StarPU wrappers to log scalar
-namespace nntile::starpu::log_scalar
+// Standard headers
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/logger/logger_thread.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+LogScalar<std::tuple<T>>::LogScalar():
+    codelet("nntile_log_scalar", nullptr, cpu_funcs, cuda_funcs)
+{
+    // Modes are not fixed, they are decided during runtime by default
+}
 
 //! Apply log_scalar operation for StarPU buffers in CPU
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void LogScalar<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -41,53 +52,34 @@ void cpu(void *buffers[], void *cl_args)
 #endif // STARPU_SIMGRID
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
-
-void init()
+// Specializations of CPU wrapper for accelerated types
+template<>
+void LogScalar<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
 {
-    codelet_fp32.init("nntile_log_scalar_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-            {}
-            );
-
-    codelet_bf16.init("nntile_log_scalar_bf16",
-            nullptr,
-            {cpu<bf16_t>},
-            {}
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_log_scalar_fp32_fast_tf32",
-            nullptr,
-            {cpu<fp32_t>},
-            {}
-            );
-
-    codelet_fp64.init("nntile_log_scalar_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-            {}
-            );
+    // Fall back to FP32
+    LogScalar<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
-void restrict_where(uint32_t where)
+template<>
+void LogScalar<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
 {
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp64.restrict_where(where);
+    // Fall back to FP32
+    LogScalar<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
-void restore_where()
+template<>
+void LogScalar<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
 {
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp64.restore_where();
+    // Fall back to FP32
+    LogScalar<std::tuple<fp32_t>>::cpu(buffers, cl_args);
 }
 
+//! Submit log_scalar task
 template<typename T>
-void submit(const std::string &name, Handle value)
+void LogScalar<std::tuple<T>>::submit(const std::string &name, Handle value)
 //! Insert log_scalar task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -100,11 +92,11 @@ void submit(const std::string &name, Handle value)
         return;
     }
     // Codelet arguments
-    args_t *args = new args_t;
+    args_t *args = new args_t();
     args->name = name;
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(value),
+    int ret = starpu_task_insert(&codelet,
+            STARPU_R, value.get(),
             STARPU_CL_ARGS_NFREE, args, sizeof(*args),
             0);
     // Check submission
@@ -115,16 +107,16 @@ void submit(const std::string &name, Handle value)
 }
 
 // Explicit instantiation
-template
-void submit<fp32_t>(const std::string &name, Handle value);
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class LogScalar<std::tuple<nntile::fp64_t>>;
+template class LogScalar<std::tuple<nntile::fp32_t>>;
+template class LogScalar<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class LogScalar<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class LogScalar<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class LogScalar<std::tuple<nntile::bf16_t>>;
 
-template
-void submit<fp64_t>(const std::string &name, Handle value);
+//! Pack of log_scalar operations for different types
+log_scalar_pack_t log_scalar;
 
-template
-void submit<fp32_fast_tf32_t>(const std::string &name, Handle value);
-
-template
-void submit<bf16_t>(const std::string &name, Handle value);
-
-} // namespace nntile::starpu::log_scalar
+} // namespace nntile::starpu

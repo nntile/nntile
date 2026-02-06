@@ -19,9 +19,9 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, add_fiber_inplace_async,
     add_inplace_async, add_slice_async, add_slice_inplace_async, clear_async,
-    fill_async, hypot_scalar_inverse_async, norm_slice_async,
-    prod_fiber3_async, prod_slice_async, sum_fiber_async, sum_slice_async,
-    sumprod_fiber_async, sumprod_slice_async)
+    fill_async, hypot_scalar_inverse_async, multiply_fiber_async,
+    multiply_slice_async, norm_slice_inplace_async, sum_fiber_async,
+    sum_slice_async, sumprod_fiber_async, sumprod_slice_async)
 
 
 class LayerNorm(BaseLayer):
@@ -84,18 +84,15 @@ class LayerNorm(BaseLayer):
         x: TensorMoments,
         axis: int,
         eps: float,
-        next_tag: int,
         redux: bool = False,
     ):
         # Get traits of X
         x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
         x_distr = x.value.distribution
-        y_value = type(x.value)(x_traits, x_distr, next_tag)
-        next_tag = y_value.next_tag
+        y_value = type(x.value)(x_traits, x_distr)
         # Create grad Y with the same traits and distribution as X
-        y_grad = type(x.value)(x_traits, x_distr, next_tag)
-        next_tag = y_grad.next_tag
+        y_grad = type(x.value)(x_traits, x_distr)
         # Wrap Y
         y = TensorMoments(y_value, y_grad, True)
         # Gamma parameter
@@ -105,23 +102,17 @@ class LayerNorm(BaseLayer):
         gamma_distr = []
         for i in range(x.value.grid.shape[axis]):
             gamma_distr.append(x_distr[x.value.grid.stride[axis] * i])
-        gamma_value = type(x.value)(gamma_traits, gamma_distr, next_tag)
-        next_tag = gamma_value.next_tag
-        gamma_grad = type(x.value)(gamma_traits, gamma_distr, next_tag)
-        next_tag = gamma_grad.next_tag
+        gamma_value = type(x.value)(gamma_traits, gamma_distr)
+        gamma_grad = type(x.value)(gamma_traits, gamma_distr)
         gamma = TensorMoments(gamma_value, gamma_grad, True)
         # Beta parameter
-        beta_value = type(x.value)(gamma_traits, gamma_distr, next_tag)
-        next_tag = beta_value.next_tag
-        beta_grad = type(x.value)(gamma_traits, gamma_distr, next_tag)
-        next_tag = beta_grad.next_tag
+        beta_value = type(x.value)(gamma_traits, gamma_distr)
+        beta_grad = type(x.value)(gamma_traits, gamma_distr)
         beta = TensorMoments(beta_value, beta_grad, True)
         # Temporary tensor for normalized input
-        tmp_y_value = type(x.value)(x_traits, x_distr, next_tag)
-        next_tag = tmp_y_value.next_tag
+        tmp_y_value = type(x.value)(x_traits, x_distr)
         # Temporary tensor for gradient of normalized input
-        tmp_y_grad = type(x.value)(x_traits, x_distr, next_tag)
-        next_tag = tmp_y_grad.next_tag
+        tmp_y_grad = type(x.value)(x_traits, x_distr)
         # Define auxiliary tensors to hold mean, inverse of stddev and scalar
         # products along given axis
         mean_shape = x.value.shape[:axis] + x.value.shape[axis + 1 :]
@@ -139,10 +130,8 @@ class LayerNorm(BaseLayer):
             )
             x_tile_offset = x.value.grid.index_to_linear(x_tile_index)
             mean_distr.append(x_distr[x_tile_offset])
-        mean = type(x.value)(mean_traits, mean_distr, next_tag)
-        next_tag = mean.next_tag
-        inv_stddev = type(x.value)(mean_traits, mean_distr, next_tag)
-        next_tag = inv_stddev.next_tag
+        mean = type(x.value)(mean_traits, mean_distr)
+        inv_stddev = type(x.value)(mean_traits, mean_distr)
         # Create LayerNorm object with all the provided tensors
         layer = LayerNorm(
             x,
@@ -160,8 +149,8 @@ class LayerNorm(BaseLayer):
         # Init gamma and beta
         clear_async(beta.value)
         fill_async(1.0, gamma.value)
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer
 
     # Forward propagation of the normalization layer
     def forward_async(self):
@@ -184,7 +173,7 @@ class LayerNorm(BaseLayer):
         self.x.value.wont_use()
         # Compute standard deviation of self.y.value
         # fill_async(self.eps, self.inv_stddev)
-        norm_slice_async(
+        norm_slice_inplace_async(
             1.0 / self.l**0.5,
             self.tmp_y_value,
             0.0,
@@ -196,12 +185,12 @@ class LayerNorm(BaseLayer):
         # Invert stddev (to multiply by it instead of dividing)
         # pow_async(1.0, -1.0, self.inv_stddev)
         # Finally, normalize input
-        prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
+        multiply_slice_async(1.0, self.inv_stddev, self.tmp_y_value, self.axis)
         # inv_stddev can be offloaded from GPU
         self.inv_stddev.wont_use()
         # Scale normalized input for the backward phase
-        prod_fiber3_async(
-            self.gamma.value, 1.0, self.tmp_y_value, self.y.value, self.axis
+        multiply_fiber_async(
+            1.0, self.gamma.value, self.tmp_y_value, self.y.value, self.axis
         )
         # tmp_Y_value can be offloaded from GPU
         self.tmp_y_value.wont_use()
@@ -243,7 +232,7 @@ class LayerNorm(BaseLayer):
         mean.wont_use()
 
         # Compute standard deviation of self.y.value
-        norm_slice_async(
+        norm_slice_inplace_async(
             1.0 / num_layers**0.5,
             tmp_y_value,
             0.0,
@@ -253,12 +242,12 @@ class LayerNorm(BaseLayer):
         )
         hypot_scalar_inverse_async(self.eps, 1.0, inv_stddev)
         # Finally, normalize input
-        prod_slice_async(inv_stddev, 1.0, tmp_y_value, self.axis)
+        multiply_slice_async(1.0, inv_stddev, tmp_y_value, self.axis)
         # inv_stddev can be offloaded from GPU
         inv_stddev.wont_use()
         # Scale normalized input for the backward phase
-        prod_fiber3_async(
-            self.gamma.value, 1.0, tmp_y_value, y.value, self.axis
+        multiply_fiber_async(
+            1.0, self.gamma.value, tmp_y_value, y.value, self.axis
         )
         # tmp_Y_value can be offloaded from GPU
         tmp_y_value.wont_use()
@@ -299,8 +288,8 @@ class LayerNorm(BaseLayer):
         # d_gamma can be offloaded from GPU
         self.gamma.grad.wont_use()
         # Define gradient over normalized input
-        prod_fiber3_async(
-            self.gamma.value, 1.0, self.y.grad, self.tmp_y_grad, self.axis
+        multiply_fiber_async(
+            1.0, self.gamma.value, self.y.grad, self.tmp_y_grad, self.axis
         )
         # dY can be offloaded from GPU
         self.y.grad.wont_use()
@@ -317,7 +306,7 @@ class LayerNorm(BaseLayer):
             redux=self.redux,
         )
         # Multiply tmp_Y_value by the mean
-        prod_slice_async(self.mean, 1.0, self.tmp_y_value, self.axis)
+        multiply_slice_async(1.0, self.mean, self.tmp_y_value, self.axis)
         # Add tmp_Y_grad to tmp_Y_value
         add_inplace_async(1., self.tmp_y_grad, 1., self.tmp_y_value)
         # Get mean value of tmp_Y_grad over the given axis
@@ -338,7 +327,7 @@ class LayerNorm(BaseLayer):
         # mean can be deleted
         self.mean.invalidate_submit()
         # Multiply tmp_Y_value by the inverse stddev
-        prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
+        multiply_slice_async(1.0, self.inv_stddev, self.tmp_y_value, self.axis)
         # inv_stddev can be deleted
         self.inv_stddev.invalidate_submit()
         # Accumulate gradient from tmp_Y_value
@@ -351,16 +340,15 @@ class LayerNorm(BaseLayer):
     @classmethod
     def from_torch(cls,
         torch_layer: LayerNormTorch, x: TensorMoments,
-        next_tag: int, redux: bool = False
+        redux: bool = False
     ):
         eps = torch_layer.eps
-        nntile_layer, next_tag = cls.generate_simple(x, 0, eps,
-                                                     next_tag, redux)
+        nntile_layer = cls.generate_simple(x, 0, eps, redux)
         nntile_layer.gamma.value.from_array(
             torch_layer.weight.data.cpu().detach().numpy())
         nntile_layer.beta.value.from_array(
             torch_layer.bias.data.cpu().detach().numpy())
-        return nntile_layer, next_tag
+        return nntile_layer
 
     def to_torch(self) -> LayerNormTorch:
         target_shape = self.activations_input[0].value.shape

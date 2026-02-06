@@ -15,5 +15,5 @@ import pytest
 
 
 @pytest.mark.xfail(reason='not implemented')
-def test_sum_fiber_async():
+def test_sum_fiber_async(context):
     pass

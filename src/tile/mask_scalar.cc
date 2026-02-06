@@ -25,7 +25,7 @@ template<typename T>
 void mask_scalar_async(const Tile<bool_t> &mask, Scalar val, const Tile<T> &A)
 {
     // Submit task without any arguments checked
-    starpu::mask_scalar::submit<T>(A.matrix_shape[A.ndim-1][0],
+    starpu::mask_scalar.submit<std::tuple<T>>(A.matrix_shape[A.ndim-1][0],
             A.shape[A.ndim-1], mask, val, A);
 }
 
@@ -64,6 +64,10 @@ template
 void mask_scalar_async<bf16_t>(const Tile<bool_t> &mask, Scalar val,
         const Tile<bf16_t> &A);
 
+template
+void mask_scalar_async<fp16_t>(const Tile<bool_t> &mask, Scalar val,
+        const Tile<fp16_t> &A);
+
 // Explicit instantiation
 template
 void mask_scalar<fp32_t>(const Tile<bool_t> &mask, Scalar val,
@@ -88,5 +92,9 @@ void mask_scalar<fp64_t>(const Tile<bool_t> &mask, Scalar val,
 template
 void mask_scalar<bf16_t>(const Tile<bool_t> &mask, Scalar val,
         const Tile<bf16_t> &A);
+
+template
+void mask_scalar<fp16_t>(const Tile<bool_t> &mask, Scalar val,
+        const Tile<fp16_t> &A);
 
 } // namespace nntile::tile

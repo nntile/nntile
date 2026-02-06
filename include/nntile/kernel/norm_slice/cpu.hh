@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/norm_slice/cpu.hh
- * Euclidean norms of fibers into a slice of a buffer on CPU
+ * Euclidean norms of fibers into a slice of a buffer on CPU (out-of-place version)
  *
  * @version 1.1.0
  * */
@@ -21,8 +21,8 @@ namespace nntile::kernel::norm_slice
 
 // Euclidean norms over fibers along middle axis into a slice of a tensor
 template<typename T>
-void cpu(Index m, Index n, Index k, Scalar alpha, const T *src, Scalar beta,
-        T *dst)
+void cpu(Index m, Index n, Index k, Scalar alpha, const T *src1, Scalar beta,
+        const T *src2, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::norm_slice

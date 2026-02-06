@@ -11,17 +11,22 @@
 #
 # @version 1.1.0
 
+from typing import Optional
+
 import numpy as np
 import torch
 from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoAttention as GPTNeoAttentionTorch, GPTNeoConfig as GPTNeoConfigTorch)
 
+import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
+from nntile.layer.cache_utils import KVCache
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_inplace_async,
-    add_slice_inplace_async, clear_async, gemm_async, mask_scalar_async,
-    maxsumexp_async, notrans, prod_inplace_async, softmax_inplace_async,
-    sum_fiber_async, sumprod_slice_async, to_numpy, trans, transpose_async)
+    add_slice_inplace_async, clear_async, copy_intersection_async, gemm_async,
+    mask_scalar_async, maxsumexp_async, multiply_inplace_async, notrans,
+    softmax_inplace_async, sum_fiber_async, sumprod_slice_async, to_numpy,
+    trans, transpose_async)
 
 from ..model.gpt_neo_config import GPTNeoConfig
 
@@ -57,6 +62,10 @@ class GPTNeoAttention(BaseLayer):
     n_head: int
     attention_type: str
     layer_id: int
+    out_proj_bias: TensorMoments
+    n_head_tile: int
+    n_emb: int
+    n_emb_tile: int
 
     # Construct attention layer with all the provided data
     def __init__(
@@ -155,6 +164,9 @@ class GPTNeoAttention(BaseLayer):
         self.b_transposed.grad.set_reduction_add()
         self.out_proj_bias = out_proj_bias
         self.n_head = w_q.value.shape[0]
+        self.n_head_tile = w_q.value.basetile_shape[0]
+        self.n_emb = x_q.value.shape[0]
+        self.n_emb_tile = x_q.value.basetile_shape[0]
         n_emb = x_q.value.shape[0]
         head_size = n_emb // self.n_head
         # Stupid check, that is not necessary, as the code shall work
@@ -174,7 +186,7 @@ class GPTNeoAttention(BaseLayer):
     def generate_simple(x_q: TensorMoments,
                         x_k: TensorMoments,
                         x_v: TensorMoments,
-                        n_head: int, n_head_tile: int, next_tag: int,
+                        n_head: int, n_head_tile: int,
                         layer_id: int, attention_type: str, mask=None,
                         redux: bool = False):
         # Get sizes
@@ -320,140 +332,97 @@ class GPTNeoAttention(BaseLayer):
         b_transposed_distr = [0] * b_transposed_traits.grid.nelems
         # Define all the lists
         # w_q
-        w_q_value = type(x_q.value)(w_q_traits, w_q_distr, next_tag)
-        next_tag = w_q_value.next_tag
-        w_q_grad = type(x_q.value)(w_q_traits, w_q_distr, next_tag)
-        next_tag = w_q_grad.next_tag
+        w_q_value = type(x_q.value)(w_q_traits, w_q_distr)
+        w_q_grad = type(x_q.value)(w_q_traits, w_q_distr)
         w_q = TensorMoments(w_q_value, w_q_grad, True)
         # w_k
-        w_k_value = type(x_q.value)(w_k_traits, w_k_distr, next_tag)
-        next_tag = w_k_value.next_tag
-        w_k_grad = type(x_q.value)(w_k_traits, w_k_distr, next_tag)
-        next_tag = w_k_grad.next_tag
+        w_k_value = type(x_q.value)(w_k_traits, w_k_distr)
+        w_k_grad = type(x_q.value)(w_k_traits, w_k_distr)
         w_k = TensorMoments(w_k_value, w_k_grad, True)
         # w_v
-        w_v_value = type(x_q.value)(w_v_traits, w_v_distr, next_tag)
-        next_tag = w_v_value.next_tag
-        w_v_grad = type(x_q.value)(w_v_traits, w_v_distr, next_tag)
-        next_tag = w_v_grad.next_tag
+        w_v_value = type(x_q.value)(w_v_traits, w_v_distr)
+        w_v_grad = type(x_q.value)(w_v_traits, w_v_distr)
         w_v = TensorMoments(w_v_value, w_v_grad, True)
         # w
-        w_value = type(x_q.value)(w_traits, w_distr, next_tag)
-        next_tag = w_value.next_tag
-        w_grad = type(x_q.value)(w_traits, w_distr, next_tag)
-        next_tag = w_grad.next_tag
+        w_value = type(x_q.value)(w_traits, w_distr)
+        w_grad = type(x_q.value)(w_traits, w_distr)
         w = TensorMoments(w_value, w_grad, True)
         # q_transposed
         q_transposed_value = type(x_q.value)(
             q_transposed_traits,
-            q_transposed_distr,
-            next_tag
+            q_transposed_distr
         )
-        next_tag = q_transposed_value.next_tag
         q_transposed_grad = type(x_q.value)(
             q_transposed_traits,
-            q_transposed_distr,
-            next_tag
+            q_transposed_distr
         )
-        next_tag = q_transposed_grad.next_tag
         q_transposed = TensorMoments(
             q_transposed_value,
             q_transposed_grad,
             True
         )
         # q
-        q_value = type(x_q.value)(q_traits, q_distr, next_tag)
-        next_tag = q_value.next_tag
-        q_grad = type(x_q.value)(q_traits, q_distr, next_tag)
-        next_tag = q_grad.next_tag
+        q_value = type(x_q.value)(q_traits, q_distr)
+        q_grad = type(x_q.value)(q_traits, q_distr)
         q = TensorMoments(q_value, q_grad, True)
         # k_transposed
         k_transposed_value = type(x_q.value)(
             k_transposed_traits,
-            k_transposed_distr,
-            next_tag
+            k_transposed_distr
         )
-        next_tag = k_transposed_value.next_tag
         k_transposed_grad = type(x_q.value)(
             k_transposed_traits,
-            k_transposed_distr,
-            next_tag
+            k_transposed_distr
         )
-        next_tag = k_transposed_grad.next_tag
         k_transposed = TensorMoments(
             k_transposed_value,
             k_transposed_grad,
             True
         )
         # k
-        k_value = type(x_q.value)(k_traits, k_distr, next_tag)
-        next_tag = k_value.next_tag
-        k_grad = type(x_q.value)(k_traits, k_distr, next_tag)
-        next_tag = k_grad.next_tag
+        k_value = type(x_q.value)(k_traits, k_distr)
+        k_grad = type(x_q.value)(k_traits, k_distr)
         k = TensorMoments(k_value, k_grad, True)
         # v_transposed
         v_transposed_value = type(x_q.value)(
             v_transposed_traits,
-            v_transposed_distr,
-            next_tag
+            v_transposed_distr
         )
-        next_tag = v_transposed_value.next_tag
         v_transposed_grad = type(x_q.value)(
             v_transposed_traits,
-            v_transposed_distr,
-            next_tag
+            v_transposed_distr
         )
-        next_tag = v_transposed_grad.next_tag
         v_transposed = TensorMoments(
             v_transposed_value,
             v_transposed_grad,
             True
         )
         # v
-        v_value = type(x_q.value)(v_traits, v_distr, next_tag)
-        next_tag = v_value.next_tag
-        v_grad = type(x_q.value)(v_traits, v_distr, next_tag)
-        next_tag = v_grad.next_tag
+        v_value = type(x_q.value)(v_traits, v_distr)
+        v_grad = type(x_q.value)(v_traits, v_distr)
         v = TensorMoments(v_value, v_grad, True)
         # a
-        a_value = type(x_q.value)(a_traits, a_distr, next_tag)
-        next_tag = a_value.next_tag
-        a_grad = type(x_q.value)(a_traits, a_distr, next_tag)
-        next_tag = a_grad.next_tag
+        a_value = type(x_q.value)(a_traits, a_distr)
+        a_grad = type(x_q.value)(a_traits, a_distr)
         a = TensorMoments(a_value, a_grad, True)
         # a_maxsumexp
-        a_maxsumexp = type(x_q.value)(
-            a_maxsumexp_traits,
-            a_maxsumexp_distr,
-            next_tag
-        )
-        next_tag = a_maxsumexp.next_tag
+        a_maxsumexp = type(x_q.value)(a_maxsumexp_traits, a_maxsumexp_distr)
         # a_sumprod_slice
         a_sumprod_slice = type(x_q.value)(
-            a_sumprod_slice_traits,
-            a_sumprod_slice_distr,
-            next_tag
+            a_sumprod_slice_traits, a_sumprod_slice_distr
         )
-        next_tag = a_sumprod_slice.next_tag
         # b
-        b_value = type(x_q.value)(b_traits, b_distr, next_tag)
-        next_tag = b_value.next_tag
-        b_grad = type(x_q.value)(b_traits, b_distr, next_tag)
-        next_tag = b_grad.next_tag
+        b_value = type(x_q.value)(b_traits, b_distr)
+        b_grad = type(x_q.value)(b_traits, b_distr)
         b = TensorMoments(b_value, b_grad, True)
         # b_transposed
         b_transposed_value = type(x_q.value)(
-            b_transposed_traits,
-            b_transposed_distr,
-            next_tag
+            b_transposed_traits, b_transposed_distr
         )
-        next_tag = b_transposed_value.next_tag
         b_transposed_grad = type(x_q.value)(
             b_transposed_traits,
-            b_transposed_distr,
-            next_tag
+            b_transposed_distr
         )
-        next_tag = b_transposed_grad.next_tag
         b_transposed = TensorMoments(
             b_transposed_value,
             b_transposed_grad,
@@ -464,16 +433,12 @@ class GPTNeoAttention(BaseLayer):
         out_proj_bias_distr = [0] * out_proj_bias_traits.grid.nelems
         out_proj_bias_value = type(x_q.value)(
             out_proj_bias_traits,
-            out_proj_bias_distr,
-            next_tag
+            out_proj_bias_distr
         )
-        next_tag = out_proj_bias_value.next_tag
         out_proj_bias_grad = type(x_q.value)(
             out_proj_bias_traits,
-            out_proj_bias_distr,
-            next_tag
+            out_proj_bias_distr
         )
-        next_tag = out_proj_bias_grad.next_tag
         out_proj_bias = TensorMoments(
             out_proj_bias_value,
             out_proj_bias_grad,
@@ -481,10 +446,8 @@ class GPTNeoAttention(BaseLayer):
         )
         # Allocate tensor for output y
         y_traits = TensorTraits(x_q.value.shape, x_q.value.basetile_shape)
-        y_value = type(x_q.value)(y_traits, x_q.value.distribution, next_tag)
-        next_tag = y_value.next_tag
-        y_grad = type(x_q.value)(y_traits, x_q.value.distribution, next_tag)
-        next_tag = y_grad.next_tag
+        y_value = type(x_q.value)(y_traits, x_q.value.distribution)
+        y_grad = type(x_q.value)(y_traits, x_q.value.distribution)
         y = TensorMoments(y_value, y_grad, True)
         # Mask
         if mask is not None:
@@ -496,10 +459,8 @@ class GPTNeoAttention(BaseLayer):
             )
             layer_mask = Tensor_bool(
                     layer_mask_traits,
-                    [0] * layer_mask_traits.grid.nelems,
-                    next_tag
+                    [0] * layer_mask_traits.grid.nelems
             )
-            next_tag = layer_mask.next_tag
             layer_mask.from_array(mask)
         else:
             layer_mask = None
@@ -509,8 +470,8 @@ class GPTNeoAttention(BaseLayer):
                 v, a, a_maxsumexp, a_sumprod_slice, b, b_transposed,
                 out_proj_bias,
                 layer_id, attention_type, layer_mask, redux=redux)
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer
 
     # Forward propagation of the attention layer
     def forward_async(self):
@@ -679,7 +640,7 @@ class GPTNeoAttention(BaseLayer):
             # self.a_sumprod_slice.wont_use()
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A
-            prod_inplace_async(self.a.value, self.a.grad)
+            multiply_inplace_async(1.0, self.a.value, self.a.grad)
         # A can be deleted
         # self.a.value.wont_use()
         self.a.value.invalidate_submit()
@@ -800,12 +761,238 @@ class GPTNeoAttention(BaseLayer):
         # self.q_transposed.grad.wont_use()
         self.q_transposed.grad.invalidate_submit()
 
+    def _get_tmp_tr_for_cache(self, x):
+        partial_tr_shape = (self.n_head, self.head_size) + tuple(x.shape[1:])
+        partial_tr_basetile_shape = (self.n_head_tile, self.head_size) + tuple(
+            x.shape[1:]
+        )
+        return nntc.empty(
+            partial_tr_shape,
+            dtype=type(x),
+            basetile_shape=partial_tr_basetile_shape,
+        )
+
+    def _get_tmp_for_cache(self, x):
+        partial_shape = (self.head_size,) + tuple(x.shape[1:]) + (self.n_head,)
+        partial_basetile_shape = (
+            (self.head_size,) + tuple(x.shape[1:]) + (self.n_head_tile,)
+        )
+        return nntc.empty(
+            partial_shape, dtype=type(x), basetile_shape=partial_basetile_shape
+        )
+
+    def _forward_mlp_q_dynamic(self, x: Tensor):
+        q_partial_tr = self._get_tmp_tr_for_cache(x)
+        q_partial = self._get_tmp_for_cache(x)
+
+        gemm_async(
+            1.0,
+            notrans,
+            self.w_q.value,
+            notrans,
+            x,
+            0.0,
+            q_partial_tr,
+            1,
+            0,
+            redux=self.redux,
+        )
+
+        transpose_async(1.0, q_partial_tr, q_partial, 1)
+
+        return q_partial
+
+    def _forward_mlp_k_dynamic(self, x: Tensor):
+        k_partial_tr = self._get_tmp_tr_for_cache(x)
+        k_partial = self._get_tmp_for_cache(x)
+
+        gemm_async(
+            1.0,
+            notrans,
+            self.w_k.value,
+            notrans,
+            x,
+            0.0,
+            k_partial_tr,
+            1,
+            0,
+            redux=self.redux,
+        )
+
+        transpose_async(1.0, k_partial_tr, k_partial, 1)
+
+        return k_partial
+
+    def _forward_mlp_v_dynamic(self, x: Tensor):
+        v_partial_tr = self._get_tmp_tr_for_cache(x)
+        v_partial = self._get_tmp_for_cache(x)
+
+        gemm_async(
+            1.0,
+            notrans,
+            self.w_v.value,
+            notrans,
+            x,
+            0.0,
+            v_partial_tr,
+            1,
+            0,
+            redux=self.redux,
+        )
+
+        transpose_async(1.0, v_partial_tr, v_partial, 1)
+
+        return v_partial
+
+    def _forward_attn_dynamic(self, q, k, v):
+        a_tmp = nntc.empty(
+            (k.shape[1],) + (q.shape[1],) + tuple(k.shape[2:]),
+            dtype=type(q),
+            basetile_shape=(k.shape[1],)
+            + (q.shape[1],)
+            + (k.shape[2],)
+            + (self.n_head_tile,),
+        )  # (n_seq, n_seq, batch=n_batch, batch=n_head)
+        a_maxsumexp_tmp = nntc.empty(
+            (2,) + tuple(a_tmp.shape[1:]),
+            dtype=type(q),
+            basetile_shape=(2,)
+            + tuple(a_tmp.shape[1:-1])
+            + (self.n_head_tile,),
+        )
+        b_tmp = nntc.empty(
+            q.shape,
+            dtype=type(q),
+            basetile_shape=tuple(q.shape[:-1]) + (self.n_head_tile,),
+        )  # (head_size, n_seq, n_batch, n_head)
+        b_tr_tmp = nntc.empty(
+            (self.n_head, self.head_size) + tuple(q.shape[1:3]),
+            dtype=type(q),
+            basetile_shape=(self.n_head_tile, self.head_size)
+            + tuple(q.shape[1:3]),
+        )  # (n_head, head_size, n_seq, n_batch)
+        self.y_tensor = nntc.empty(
+            (self.n_emb,) + tuple(q.shape[1:3]),
+            dtype=type(q),
+            basetile_shape=(self.n_emb_tile,) + tuple(q.shape[1:3]),
+        )  # (n_emb, n_seq, n_batch)
+        y_tensor = self.y_tensor
+
+        # Get tensor for softmax
+        # A = einsum('jklb,jmlb->kmlb', K, Q)
+        # single batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
+        # by (head_size, n_seq, batch=n_batch, batch=n_head) into
+        # (n_seq, n_seq, batch=n_batch, batch=n_head)
+        # Note: no scaling factor applied here, unlike in the regular
+        # Attention class
+        gemm_async(
+            1.0,
+            trans,
+            k,
+            notrans,
+            q,
+            0.0,
+            a_tmp,
+            1,
+            2,
+            redux=self.redux,
+        )
+
+        clear_async(a_maxsumexp_tmp)
+        # Q and K can be offloaded from GPU
+        q.wont_use()
+        k.wont_use()
+
+        # Calculate softmax inplace
+        # A = softmax(A, axis=0)
+        # Apply mask if needed
+        if self.mask:
+            mask_tmp = nntc.empty(a_tmp.shape[:2], dtype=Tensor_bool)
+            copy_intersection_async(
+                self.mask, [0, 0], mask_tmp, [0, k.shape[1] - q.shape[1]]
+            )
+            mask_scalar_async(mask_tmp, self.val, a_tmp, 2)
+
+        # Calculate max and sumexp along axis
+        maxsumexp_async(a_tmp, a_maxsumexp_tmp, 0, redux=self.redux)
+        # Finally, get the inplace softmax
+        softmax_inplace_async(a_maxsumexp_tmp, 1.0, a_tmp, 0)
+
+        # Apply value tensor
+        # B = einsum('jklb,kmlb->jmlb', V, A)
+        # batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
+        # by (n_seq, n_seq, batch=n_batch, batch=n_head) into
+        # (head_size, n_seq, batch=n_batch, batch=n_head)
+        gemm_async(
+            1.0, notrans, v, notrans, a_tmp, 0.0, b_tmp, 1, 2, redux=self.redux
+        )
+        # V and A can be offloaded from GPU
+        v.wont_use()
+        a_tmp.wont_use()
+
+        # Accumulate result from all the heads
+        # rotate axes (head_size, n_seq, n_batch, n_head) into
+        # (n_head, head_size, n_seq, n_batch) and then
+        transpose_async(1.0, b_tmp, b_tr_tmp, 3)
+        # Y = einsum('jkl,klmn->jmn', W, B_transposed)
+        # gemm (n_emb, n_head, head_size) by
+        # (n_head, head_size, n_seq, n_batch) into (n_emb, n_seq, n_batch)
+        gemm_async(
+            1.0,
+            notrans,
+            self.w.value,
+            notrans,
+            b_tr_tmp,
+            0.0,
+            y_tensor,
+            2,
+            0,
+            redux=self.redux,
+        )
+        # W, B and B_transposed can be offloaded from GPU
+        self.w.value.wont_use()
+        b_tr_tmp.wont_use()
+
+        # Apply bias if needed
+        if self.out_proj_bias is not None:
+            add_fiber_inplace_async(
+                1.0, self.out_proj_bias.value, 1.0, y_tensor, 0, 0
+            )
+            self.out_proj_bias.value.wont_use()
+        return y_tensor
+
+    def forward_dynamic(
+            self, x: TensorMoments, kv_cache: Optional[KVCache] = None
+        ):
+        if (kv_cache is not None) and (x.value.shape[1] + len(kv_cache) > self.x_v.value.shape[1]):  # noqa: E501
+            raise Exception(
+                "Overload internal state: "
+                f"try add {x.value.shape[1]} "
+                f"to {len(kv_cache)}, max: {self.x_v.value.shape[1]}. "
+            )
+
+        # Compute query, key and value tensors
+        q_partial = self._forward_mlp_q_dynamic(x.value)
+        k_partial = self._forward_mlp_k_dynamic(x.value)
+        v_partial = self._forward_mlp_v_dynamic(x.value)
+
+        if kv_cache is not None:
+            kv_cache.append(k_partial, v_partial)
+            k = kv_cache.k_partial
+            v = kv_cache.v_partial
+        else:
+            k = k_partial
+            v = v_partial
+
+        # compute attention and weight result
+        y_tensor = self._forward_attn_dynamic(q_partial, k, v)
+        return TensorMoments(y_tensor, None, False), kv_cache
+
     @classmethod
     def from_torch(cls,
         torch_layer: GPTNeoAttentionTorch,
         x_q: TensorMoments, x_k: TensorMoments, x_v: TensorMoments,
         config: GPTNeoConfig,
-        next_tag: int = 0
     ):  # -> Self: does not work with Python 3.10
         torch_attn = torch_layer.attention
         n_emb, n_seq, _ = x_q.value.shape
@@ -818,13 +1005,12 @@ class GPTNeoAttention(BaseLayer):
             mask_np = np.bitwise_xor(
                 mask_np, np.triu(mask_np, config.window_size)
             )
-        layer, next_tag = cls.generate_simple(
+        layer = cls.generate_simple(
             x_q,
             x_k,
             x_v,
             n_head=config.num_heads,
             n_head_tile=config.num_heads_tile,
-            next_tag=next_tag,
             layer_id=torch_layer.layer_id,
             attention_type=attn_type,
             mask=mask_np,
@@ -863,7 +1049,7 @@ class GPTNeoAttention(BaseLayer):
             .detach()
             .numpy()
         )
-        return layer, next_tag
+        return layer
 
     def to_torch(self) -> GPTNeoAttentionTorch:
         n_emb = self.head_size * self.n_head

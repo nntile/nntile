@@ -72,4 +72,9 @@ void cuda<bf16_t>(cudaStream_t stream, Index nelems, const bf16_t *src,
         bf16_t *dst)
     noexcept;
 
+template
+void cuda<fp16_t>(cudaStream_t stream, Index nelems, const fp16_t *src,
+        fp16_t *dst)
+    noexcept;
+
 } // namespace nntile::kernel::gelutanh

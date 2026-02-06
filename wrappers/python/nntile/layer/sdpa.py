@@ -1,0 +1,697 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/nntile/layer/sdpa.py
+# Scaled dot-product attention (SDPA) layer of NNTile Python package
+#
+# @version 1.1.0
+
+from __future__ import annotations
+
+from typing import Optional
+
+import numpy as np
+
+import nntile.utils.constructors as nntc
+from nntile.functions import (
+    flash_sdpa_bwd_cudnn_async, flash_sdpa_fwd_cudnn_async, is_tensor_of)
+from nntile.layer.base_layer import BaseLayer
+from nntile.nntile_core.tensor import Tensor_bf16, Tensor_fp16, Tensor_fp32
+from nntile.tensor import (
+    Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
+    add_slice_inplace_async, clear_async, copy_intersection_async, fill_async,
+    gemm_async, mask_scalar_async, maxsumexp_async, multiply_inplace_async,
+    notrans, softmax_inplace_async, sumprod_slice_async, trans)
+
+
+class Sdpa(BaseLayer):
+    """
+    Scaled dot-product attention layer with vanilla and flash implementations.
+
+    Args:
+        q: Query tensor moments (head_size, n_seq, n_batch, n_head[, ...]).
+        k: Key tensor moments with shape compatible with q.
+        v: Value tensor moments matching q layout.
+        y: Output tensor moments, shape must match v.
+        attn: Attention logits buffer (required for vanilla SDPA).
+        attn_maxsumexp: Workspace for numerically stable softmax.
+        attn_sumprod_slice: Workspace for softmax backward pass.
+        mask: Optional causal mask broadcastable to attention logits.
+        flash_attention: Enables cuDNN FlashAttention forward path.
+        flash_logsumexp: fp32 scratch buffer required by cuDNN kernel.
+        redux: Enables reduction semantics for distributed training.
+    """
+
+    def __init__(
+        self,
+        q: TensorMoments,
+        k: TensorMoments,
+        v: TensorMoments,
+        y: TensorMoments,
+        attn: Optional[TensorMoments] = None,
+        attn_maxsumexp: Optional[Tensor] = None,
+        attn_sumprod_slice: Optional[Tensor] = None,
+        mask: TensorOrNone = None,
+        flash_attention: bool = False,
+        flash_logsumexp: Optional[Tensor] = None,
+        redux: bool = False,
+    ):
+        q_shape = q.value.shape
+
+        if not flash_attention and (
+            attn is None or
+            attn_maxsumexp is None or
+            attn_sumprod_slice is None
+        ):
+            raise ValueError(
+                "Vanilla SDPA requires attn, attn_maxsumexp and "
+                "attn_sumprod_slice"
+            )
+        if flash_attention and flash_logsumexp is None:
+            raise ValueError("Flash SDPA requires flash_logsumexp workspace")
+        if flash_logsumexp is not None and not isinstance(
+            flash_logsumexp, Tensor_fp32
+        ):
+            raise TypeError("flash_logsumexp must be a Tensor_fp32 instance")
+        if flash_attention and flash_logsumexp is not None:
+            expected_shape = tuple(q_shape[1:])
+            actual_shape = tuple(flash_logsumexp.shape)
+            if actual_shape != expected_shape:
+                raise ValueError(
+                    "flash_logsumexp must match q shape without the head "
+                    f"dimension ({expected_shape}), got {actual_shape}"
+                )
+
+        temporaries = []
+        for tmp in (attn, attn_maxsumexp, attn_sumprod_slice, flash_logsumexp):
+            if tmp is not None:
+                temporaries.append(tmp)
+
+        super().__init__([q, k, v], [y], [], temporaries)
+
+        if len(q_shape) != 5:
+            raise ValueError(
+                "SDPA tensors must have shape "
+                "[head_size, n_seq, n_batch, kv_group_size, n_head_kv]"
+            )
+
+        self.q = q
+        if self.q.grad is not None:
+            self.q.grad.set_reduction_add()
+        self.k = k
+        if self.k.grad is not None:
+            self.k.grad.set_reduction_add()
+        self.v = v
+        if self.v.grad is not None:
+            self.v.grad.set_reduction_add()
+        self.y = y
+        self.y.value.set_reduction_add()
+        if self.y.grad is not None:
+            self.y.grad.set_reduction_add()
+
+        self.attn = attn
+        if self.attn is not None:
+            self.attn.value.set_reduction_add()
+            if self.attn.grad is not None:
+                self.attn.grad.set_reduction_add()
+        self.attn_maxsumexp = attn_maxsumexp
+        if self.attn_maxsumexp is not None:
+            self.attn_maxsumexp.set_reduction_maxsumexp()
+        self.attn_sumprod_slice = attn_sumprod_slice
+        if self.attn_sumprod_slice is not None:
+            self.attn_sumprod_slice.set_reduction_add()
+
+        self.mask = mask
+        self._bool_mask_cache = None
+        if self.mask is not None and not isinstance(self.mask, Tensor_bool):
+            mask_np = nntc.to_numpy(self.mask)
+            mask_bool = np.isfinite(mask_np)
+            mask_traits = TensorTraits(
+                list(self.mask.shape), list(self.mask.basetile_shape)
+            )
+            mask_bool_tensor = Tensor_bool(
+                mask_traits, [0] * mask_traits.grid.nelems
+            )
+            mask_bool_tensor.from_array(
+                np.array(mask_bool, dtype=bool, order="F")
+            )
+            self._bool_mask_cache = mask_bool_tensor
+        self.flash_attention = flash_attention
+        self.flash_logsumexp = flash_logsumexp
+        self.head_size = q_shape[0]
+        if self.head_size <= 0:
+            raise ValueError("Query tensor must have non-zero head size")
+        self.scale = float(1.0 / np.float32(self.head_size ** 0.5))
+        self.val = -np.float32(np.inf)
+        self.redux = 1 if redux else 0
+        self.batch_ndim = len(q_shape) - 2
+        self._flash_mask = None
+
+        # Validate tensor dtypes for flash attention
+        if self.flash_attention:
+            tensors = (self.q.value, self.k.value, self.v.value, self.y.value)
+            if not (
+                is_tensor_of(tensors, Tensor_bf16)
+                or is_tensor_of(tensors, Tensor_fp16)
+            ):
+                raise TypeError(
+                    "Flash SDPA currently supports only bf16 or fp16 tensors"
+                )
+            self._flash_mask = self._init_flash_mask()
+
+    def forward_async(self, effective_size=None):
+        if self.flash_attention:
+            self._forward_flash()
+        else:
+            self._forward_vanilla()
+
+    def forward_dynamic(
+        self,
+        q: TensorMoments,
+        k: TensorMoments,
+        v: TensorMoments,
+        mask: TensorOrNone = None,
+    ) -> TensorMoments:
+        """
+        Dynamic forward path that allocates temporaries on the fly.
+        Backward is not supported for this path.
+        """
+        q_shape = list(q.value.shape)
+        q_bt = list(q.value.basetile_shape)
+        batch_shape = q_shape[2:]
+        batch_bt = q_bt[2:]
+        mask_local = mask if mask is not None else self.mask
+
+        y_traits = TensorTraits(q_shape, q_bt)
+        y_value = type(q.value)(y_traits, [0] * y_traits.grid.nelems)
+        y = TensorMoments(y_value, None, False)
+
+        k_value = k.value
+        v_value = v.value
+
+        use_flash = (
+            self.flash_attention
+            and k_value.shape[1] == q_shape[1]
+        )
+
+        if use_flash:
+            logsumexp_shape = q_shape[1:]
+            logsumexp_bt = q_bt[1:]
+            logsumexp_traits = TensorTraits(logsumexp_shape, logsumexp_bt)
+            logsumexp = Tensor_fp32(
+                logsumexp_traits, [0] * logsumexp_traits.grid.nelems
+            )
+
+            if mask_local is None:
+                mask_shape = [q_shape[1], q_shape[1]]
+                mask_bt = [q_bt[1], q_bt[1]]
+                mask_local = nntc.zeros(
+                    mask_shape, basetile_shape=mask_bt, dtype=type(q.value)
+                )
+
+            fill_async(np.float32("-inf"), logsumexp)
+            clear_async(y_value)
+            flash_sdpa_fwd_cudnn_async(
+                k_value,
+                q.value,
+                mask_local,
+                logsumexp,
+                v_value,
+                y_value,
+            )
+            logsumexp.unregister_submit()
+            y_value.wont_use()
+            if (
+                mask is None
+                and self.mask is None
+                and mask_local is not None
+                and mask_local is not self.mask
+            ):
+                mask_local.unregister_submit()
+            return y
+
+        k_seq = k_value.shape[1]
+        q_seq = q_shape[1]
+
+        attn_shape = [k_seq, q_seq] + batch_shape
+        attn_bt = [k_value.basetile_shape[1], q_bt[1]] + batch_bt
+        attn_bt = [
+            min(k_value.basetile_shape[1], k_seq),
+            min(q_bt[1], q_seq),
+        ] + [min(bt, dim) for bt, dim in zip(batch_bt, batch_shape)]
+        attn_traits = TensorTraits(attn_shape, attn_bt)
+        attn_value = type(q.value)(attn_traits, [0] * attn_traits.grid.nelems)
+
+        attn_max_shape = [2, q_seq] + batch_shape
+        attn_max_bt = [2, attn_bt[1]] + attn_bt[2:]
+        attn_max_traits = TensorTraits(attn_max_shape, attn_max_bt)
+        attn_max = type(q.value)(
+            attn_max_traits, [0] * attn_max_traits.grid.nelems
+        )
+
+        gemm_async(
+            self.scale,
+            trans,
+            k_value,
+            notrans,
+            q.value,
+            0.0,
+            attn_value,
+            1,
+            self.batch_ndim,
+            redux=self.redux,
+        )
+        clear_async(attn_max)
+        q.value.wont_use()
+        k_value.wont_use()
+
+        if mask_local is not None:
+            mask_tmp, is_tmp = self._prepare_mask_for_kv_cache(
+                mask_local,
+                k_seq,
+                q_seq,
+                attn_bt[0],
+                attn_bt[1],
+            )
+            if mask_tmp is not None:
+                mask_scalar_async(
+                    mask_tmp, self.val, attn_value, self.batch_ndim
+                )
+                if is_tmp:
+                    mask_tmp.wont_use()
+        maxsumexp_async(attn_value, attn_max, 0, redux=self.redux)
+        softmax_inplace_async(attn_max, 1.0, attn_value, 0)
+        attn_max.unregister_submit()
+
+        gemm_async(
+            1.0,
+            notrans,
+            v_value,
+            notrans,
+            attn_value,
+            0.0,
+            y_value,
+            1,
+            self.batch_ndim,
+            redux=self.redux,
+        )
+        v_value.wont_use()
+        attn_value.unregister_submit()
+        y_value.wont_use()
+        return y
+
+    def backward_async(self):
+        if self.flash_attention:
+            self._backward_flash()
+        else:
+            self._backward_vanilla()
+
+    @staticmethod
+    def generate_simple(
+        q: TensorMoments,
+        k: TensorMoments,
+        v: TensorMoments,
+        mask: TensorOrNone = None,
+        flash_attention: bool = False,
+        redux: bool = False,
+    ) -> "Sdpa":
+        """Utility constructor that allocates outputs/temporaries."""
+        if not (type(q.value) is type(k.value) is type(v.value)):
+            raise TypeError("Q, K and V tensors must share the same dtype")
+
+        q_shape = list(q.value.shape)
+        k_shape = list(k.value.shape)
+        v_shape = list(v.value.shape)
+        if q_shape != k_shape or q_shape != v_shape:
+            raise ValueError("Q, K and V tensors must share the same shape")
+        if len(q_shape) != 5:
+            raise ValueError(
+                "SDPA tensors must have shape "
+                "[head_size, n_seq, n_batch, kv_group_size, n_head_kv]"
+            )
+
+        q_basetile = list(q.value.basetile_shape)
+        batch_shape = q_shape[2:]
+        batch_basetile = q_basetile[2:]
+        k_seq = k_shape[1]
+        q_seq = q_shape[1]
+
+        tensor_type = type(q.value)
+
+        # Output tensor
+        y_traits = TensorTraits(q_shape, q_basetile)
+        y_distr = [0] * y_traits.grid.nelems
+        y_value = tensor_type(y_traits, y_distr)
+        y_grad = tensor_type(y_traits, y_distr)
+        y = TensorMoments(y_value, y_grad, True)
+
+        attn = None
+        attn_max = None
+        attn_sum = None
+        logsumexp = None
+
+        if flash_attention:
+            logsumexp_shape = q_shape[1:]
+            logsumexp_basetile = q_basetile[1:]
+            logsumexp_traits = TensorTraits(
+                logsumexp_shape, logsumexp_basetile
+            )
+            logsumexp = Tensor_fp32(
+                logsumexp_traits, [0] * logsumexp_traits.grid.nelems
+            )
+        else:
+            attn_shape = [k_seq, q_seq] + batch_shape
+            attn_basetile = [k.value.basetile_shape[1], q_basetile[1]] \
+                + batch_basetile
+            attn_traits = TensorTraits(attn_shape, attn_basetile)
+            attn_distr = [0] * attn_traits.grid.nelems
+            attn_value = tensor_type(attn_traits, attn_distr)
+            attn_grad = tensor_type(attn_traits, attn_distr)
+            attn = TensorMoments(attn_value, attn_grad, True)
+
+            attn_max_shape = [2, q_seq] + batch_shape
+            attn_max_basetile = [2, q_basetile[1]] + batch_basetile
+            attn_max_traits = TensorTraits(attn_max_shape, attn_max_basetile)
+            attn_max = tensor_type(
+                attn_max_traits, [0] * attn_max_traits.grid.nelems
+            )
+
+            attn_sum_shape = [q_seq] + batch_shape
+            attn_sum_basetile = [q_basetile[1]] + batch_basetile
+            attn_sum_traits = TensorTraits(attn_sum_shape, attn_sum_basetile)
+            attn_sum = tensor_type(
+                attn_sum_traits, [0] * attn_sum_traits.grid.nelems
+            )
+
+        return Sdpa(
+            q=q,
+            k=k,
+            v=v,
+            y=y,
+            attn=attn,
+            attn_maxsumexp=attn_max,
+            attn_sumprod_slice=attn_sum,
+            mask=mask,
+            flash_attention=flash_attention,
+            flash_logsumexp=logsumexp,
+            redux=redux,
+        )
+
+    # ---- Internal helpers -------------------------------------------------
+
+    def _forward_vanilla(self):
+        if self.attn is None or self.attn_maxsumexp is None:
+            raise RuntimeError("Vanilla SDPA buffers are not initialized")
+
+        gemm_async(
+            self.scale,
+            trans,
+            self.k.value,
+            notrans,
+            self.q.value,
+            0.0,
+            self.attn.value,
+            1,
+            self.batch_ndim,
+            redux=self.redux,
+        )
+        clear_async(self.attn_maxsumexp)
+        self.q.value.wont_use()
+        self.k.value.wont_use()
+
+        if self.mask is not None:
+            mask_scalar_async(
+                self.mask, self.val, self.attn.value, self.batch_ndim
+            )
+            self.mask.wont_use()
+        maxsumexp_async(
+            self.attn.value,
+            self.attn_maxsumexp,
+            0,
+            redux=self.redux
+        )
+        softmax_inplace_async(self.attn_maxsumexp, 1.0, self.attn.value, 0)
+        # self.attn_maxsumexp.invalidate_submit()
+
+        gemm_async(
+            1.0,
+            notrans,
+            self.v.value,
+            notrans,
+            self.attn.value,
+            0.0,
+            self.y.value,
+            1,
+            self.batch_ndim,
+            redux=self.redux,
+        )
+        self.v.value.wont_use()
+        self.attn.value.wont_use()
+        self.y.value.wont_use()
+
+    def _init_flash_mask(self):
+        mask_dtype = type(self.q.value)
+        if self.mask is not None:
+            if type(self.mask) is not mask_dtype:
+                raise TypeError(
+                    "Flash SDPA mask must match the dtype of Q/K/V tensors"
+                )
+            return self.mask
+
+        n_seq = self.q.value.shape[1]
+        mask_shape = [n_seq, n_seq]
+        mask_basetile = [
+            self.q.value.basetile_shape[1],
+            self.q.value.basetile_shape[1],
+        ]
+        mask = nntc.zeros(mask_shape, basetile_shape=mask_basetile,
+                          dtype=mask_dtype)
+        return mask
+
+    def _ensure_bool_mask(self, mask: Tensor) -> Optional[Tensor_bool]:
+        if isinstance(mask, Tensor_bool):
+            return mask
+        if mask is self.mask and self._bool_mask_cache is not None:
+            return self._bool_mask_cache
+
+        mask_np = nntc.to_numpy(mask)
+        mask_bool = np.isfinite(mask_np)
+        traits = TensorTraits(list(mask.shape), list(mask.basetile_shape))
+        mask_tensor = Tensor_bool(traits, [0] * traits.grid.nelems)
+        mask_tensor.from_array(np.array(mask_bool, dtype=bool, order="F"))
+        return mask_tensor
+
+    def _prepare_mask_for_kv_cache(
+        self,
+        mask: Tensor,
+        k_seq: int,
+        q_seq: int,
+        k_bt: int,
+        q_bt: int,
+    ) -> tuple[Tensor_bool | None, bool]:
+        """
+        Returns a mask slice aligned with cached keys along the sequence
+        dimension. The boolean return value indicates whether the mask should
+        be treated as a temporary tensor (i.e. released after use).
+        """
+        mask_bool = self._ensure_bool_mask(mask)
+        if mask_bool is None:
+            return None, False
+
+        expected_bt = (
+            min(k_bt, k_seq),
+            min(q_bt, q_seq),
+        )
+        if (
+            tuple(mask_bool.shape) == (k_seq, q_seq)
+            and tuple(mask_bool.basetile_shape) == expected_bt
+        ):
+            return mask_bool, False
+
+        mask_tmp = nntc.empty(
+            (k_seq, q_seq),
+            dtype=Tensor_bool,
+            basetile_shape=(
+                min(k_bt, k_seq),
+                min(q_bt, q_seq),
+            ),
+        )
+        copy_intersection_async(
+            mask_bool,
+            [0, 0],
+            mask_tmp,
+            [0, k_seq - q_seq],
+        )
+        return mask_tmp, True
+
+    def _forward_flash(self):
+        if self.flash_logsumexp is None:
+            raise RuntimeError("flash_logsumexp buffer is missing")
+
+        # Prepare outputs
+        fill_async(np.float32("-inf"), self.flash_logsumexp)
+        clear_async(self.y.value)
+        mask = self._flash_mask
+        if mask is None:
+            raise RuntimeError("Flash SDPA mask is not initialized")
+
+        # Run the distributed Flash Attention with result accumulation
+        flash_sdpa_fwd_cudnn_async(
+            self.k.value,
+            self.q.value,
+            mask,
+            self.flash_logsumexp,
+            self.v.value,
+            self.y.value,
+        )
+        mask.wont_use()
+        self.q.value.wont_use()
+        self.k.value.wont_use()
+        self.v.value.wont_use()
+        self.y.value.wont_use()
+
+    def _backward_flash(self):
+        if self.flash_logsumexp is None:
+            raise RuntimeError("flash_logsumexp buffer is missing")
+        if self.y.grad is None:
+            raise RuntimeError("Output gradient tensor is missing")
+
+        mask = self._flash_mask
+        if mask is None:
+            raise RuntimeError("Flash SDPA mask is not initialized")
+
+        grads = [self.q.grad, self.k.grad, self.v.grad]
+        if any(x is None for x in grads):
+            raise RuntimeError("Gradient tensors for Q/K/V must be allocated")
+
+        flash_sdpa_bwd_cudnn_async(
+            self.k.value,
+            self.q.value,
+            self.v.value,
+            self.y.value,
+            self.y.grad,
+            mask,
+            self.flash_logsumexp,
+            self.k.grad,
+            self.q.grad,
+            self.v.grad,
+        )
+        mask.wont_use()
+        self.k.value.wont_use()
+        self.q.value.wont_use()
+        self.v.value.wont_use()
+        self.y.value.wont_use()
+        self.k.grad.wont_use()
+        self.q.grad.wont_use()
+        self.v.grad.wont_use()
+        self.flash_logsumexp.invalidate_submit()
+
+    def _backward_vanilla(self):
+        if (
+            self.attn is None
+            or self.attn_sumprod_slice is None
+            or self.attn_maxsumexp is None
+        ):
+            raise RuntimeError("Vanilla SDPA buffers are not initialized")
+        if self.y.grad is None:
+            raise RuntimeError("Output gradient tensor is missing")
+
+        if self.attn.grad_required:
+            if self.attn.grad is None:
+                raise RuntimeError("Attention gradient tensor is missing")
+            gemm_async(
+                1.0,
+                trans,
+                self.v.value,
+                notrans,
+                self.y.grad,
+                0.0,
+                self.attn.grad,
+                1,
+                self.batch_ndim,
+                redux=self.redux,
+            )
+
+        if self.v.grad_required:
+            if self.v.grad is None:
+                raise RuntimeError("Value gradient tensor is missing")
+            gemm_async(
+                1.0,
+                notrans,
+                self.y.grad,
+                trans,
+                self.attn.value,
+                1.0,
+                self.v.grad,
+                1,
+                self.batch_ndim,
+                redux=self.redux,
+            )
+
+        if self.attn.grad_required:
+            if self.attn.grad is None:
+                raise RuntimeError("Attention gradient tensor is missing")
+            sumprod_slice_async(
+                1.0,
+                self.y.value,
+                self.y.grad,
+                0.0,
+                self.attn_sumprod_slice,
+                0,
+                redux=self.redux,
+            )
+            add_slice_inplace_async(
+                -1.0, self.attn_sumprod_slice, 1.0, self.attn.grad, 0
+            )
+            self.attn_sumprod_slice.invalidate_submit()
+            multiply_inplace_async(1.0, self.attn.value, self.attn.grad)
+        self.attn.value.invalidate_submit()
+
+        if self.mask is not None and self.attn.grad_required:
+            mask_scalar_async(
+                self.mask, 0, self.attn.grad, self.batch_ndim
+            )
+            self.mask.wont_use()
+
+        if self.k.grad_required:
+            if self.k.grad is None:
+                raise RuntimeError("Key gradient tensor is missing")
+            if self.attn.grad is None:
+                raise RuntimeError("Attention gradient tensor is missing")
+            gemm_async(
+                self.scale,
+                notrans,
+                self.q.value,
+                trans,
+                self.attn.grad,
+                1.0,
+                self.k.grad,
+                1,
+                self.batch_ndim,
+                redux=self.redux,
+            )
+
+        if self.q.grad_required:
+            if self.q.grad is None:
+                raise RuntimeError("Query gradient tensor is missing")
+            if self.attn.grad is None:
+                raise RuntimeError("Attention gradient tensor is missing")
+            gemm_async(
+                self.scale,
+                notrans,
+                self.k.value,
+                notrans,
+                self.attn.grad,
+                1.0,
+                self.q.grad,
+                1,
+                self.batch_ndim,
+                redux=self.redux,
+            )
+        if self.attn.grad_required and self.attn.grad is not None:
+            self.attn.grad.invalidate_submit()

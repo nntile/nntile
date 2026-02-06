@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/tile/maxsumexp.hh"
 #include "nntile/starpu/maxsumexp.hh"
 #include "../testing.hh"
@@ -50,7 +51,7 @@ void check()
     }
     // Check axis=0
     {
-        starpu::maxsumexp::submit<T>(1, 20, 3, src, dst[0]);
+        starpu::maxsumexp.submit<std::tuple<T>>(1, 20, 3, src, dst[0]);
         maxsumexp<T>(src, dst2[0], 0);
         auto dst_local = dst[0].acquire(STARPU_R);
         auto dst2_local = dst2[0].acquire(STARPU_R);
@@ -63,7 +64,7 @@ void check()
     }
     // Check axis=1
     {
-        starpu::maxsumexp::submit<T>(3, 5, 4, src, dst[1]);
+        starpu::maxsumexp.submit<std::tuple<T>>(3, 5, 4, src, dst[1]);
         maxsumexp<T>(src, dst2[1], 1);
         auto dst_local = dst[1].acquire(STARPU_R);
         auto dst2_local = dst2[1].acquire(STARPU_R);
@@ -76,7 +77,7 @@ void check()
     }
     // Check axis=2
     {
-        starpu::maxsumexp::submit<T>(12, 1, 5, src, dst[2]);
+        starpu::maxsumexp.submit<std::tuple<T>>(12, 1, 5, src, dst[2]);
         maxsumexp<T>(src, dst2[2], 2);
         auto dst_local = dst[2].acquire(STARPU_R);
         auto dst2_local = dst2[2].acquire(STARPU_R);
@@ -110,13 +111,15 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::maxsumexp::init();
-    starpu::maxsumexp::restrict_where(STARPU_CPU);
+    // Initialize StarPU
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
+
     return 0;
 }

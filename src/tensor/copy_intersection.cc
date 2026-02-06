@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/copy_intersection.hh"
 #include "nntile/starpu/subcopy.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -62,9 +63,12 @@ void copy_intersection_async(const Tensor<T> &src,
         if(mpi_rank == dst_tile_rank)
         {
             ret = starpu_data_cpy(
-                    static_cast<starpu_data_handle_t>(dst_tile_handle),
-                    static_cast<starpu_data_handle_t>(src_tile_handle),
-                    1, nullptr, nullptr);
+                dst_tile_handle.get(),
+                src_tile_handle.get(),
+                1,
+                nullptr,
+                nullptr
+            );
             if(ret != 0)
             {
                 throw std::runtime_error("Error in starpu_data_cpy");
@@ -89,9 +93,12 @@ void copy_intersection_async(const Tensor<T> &src,
             if(mpi_rank == dst_tile_rank)
             {
                 ret = starpu_data_cpy(
-                        static_cast<starpu_data_handle_t>(dst_tile_handle),
-                        static_cast<starpu_data_handle_t>(src_tile_handle),
-                        1, nullptr, nullptr);
+                    dst_tile_handle.get(),
+                    src_tile_handle.get(),
+                    1,
+                    nullptr,
+                    nullptr
+                );
                 if(ret != 0)
                 {
                     throw std::runtime_error("Error in starpu_data_cpy");
@@ -104,7 +111,7 @@ void copy_intersection_async(const Tensor<T> &src,
     }
     // Do the slow complex copy
     // Temporary buffer for indexing, that is allocated per-worker when needed
-    starpu::VariableHandle scratch(2*src.ndim*sizeof(Index), STARPU_SCRATCH);
+    starpu::VariableHandle scratch(2*src.ndim*sizeof(Index));
     Index ndim = src.ndim;
     // We define starting coordinates and shapes for all complex copies of
     // tiles
@@ -265,10 +272,12 @@ void copy_intersection_async(const Tensor<T> &src,
             if(mpi_rank == dst_tile_rank)
             {
                 ret = starpu_data_cpy(
-                        static_cast<starpu_data_handle_t>(dst_tile_handle),
-                        static_cast<starpu_data_handle_t>(
-                            src_first_tile_handle),
-                        1, nullptr, nullptr);
+                    dst_tile_handle.get(),
+                    src_first_tile_handle.get(),
+                    1,
+                    nullptr,
+                    nullptr
+                );
                 if(ret != 0)
                 {
                     throw std::runtime_error("Error in starpu_data_cpy");
@@ -281,7 +290,7 @@ void copy_intersection_async(const Tensor<T> &src,
             // Execute on dest node
             if(mpi_rank == dst_tile_rank)
             {
-                starpu::subcopy::submit<T>(ndim, src_tile_start,
+                starpu::subcopy.submit<std::tuple<T>>(ndim, src_tile_start,
                         src_first_tile_traits.stride, dst_tile_start,
                         dst_tile_traits.stride, copy_tile_shape,
                         src_first_tile_handle, dst_tile_handle,
@@ -370,7 +379,7 @@ void copy_intersection_async(const Tensor<T> &src,
                 {
                     auto src_tile_traits = src.get_tile_traits(
                             src_tile_offset);
-                    starpu::subcopy::submit<T>(ndim, src_tile_start,
+                    starpu::subcopy.submit<std::tuple<T>>(ndim, src_tile_start,
                             src_tile_traits.stride, dst_tile_start,
                             dst_tile_traits.stride, copy_tile_shape,
                             src_tile_handle, dst_tile_handle,
@@ -395,6 +404,8 @@ void copy_intersection_async(const Tensor<T> &src,
             ++dst_tile_index[k];
         }
     }
+    // Unregister scratch in an async way
+    scratch.unregister_submit();
 }
 
 //! Blocking version of tensor-wise copy operation
@@ -430,6 +441,21 @@ void copy_intersection_async<fp32_t>(const Tensor<fp32_t> &src,
         const std::vector<Index> &dst_offset);
 
 template
+void copy_intersection_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp32_fast_tf32_t> &dst,
+        const std::vector<Index> &dst_offset);
+
+template
+void copy_intersection_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp32_fast_fp16_t> &dst,
+        const std::vector<Index> &dst_offset);
+
+template
+void copy_intersection_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp32_fast_bf16_t> &dst,
+        const std::vector<Index> &dst_offset);
+
+template
 void copy_intersection_async<fp64_t>(const Tensor<fp64_t> &src,
         const std::vector<Index> &src_offset, const Tensor<fp64_t> &dst,
         const std::vector<Index> &dst_offset);
@@ -437,6 +463,16 @@ void copy_intersection_async<fp64_t>(const Tensor<fp64_t> &src,
 template
 void copy_intersection_async<int64_t>(const Tensor<int64_t> &src,
         const std::vector<Index> &src_offset, const Tensor<int64_t> &dst,
+        const std::vector<Index> &dst_offset);
+
+template
+void copy_intersection_async<fp16_t>(const Tensor<fp16_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp16_t> &dst,
+        const std::vector<Index> &dst_offset);
+
+template
+void copy_intersection_async<bf16_t>(const Tensor<bf16_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<bf16_t> &dst,
         const std::vector<Index> &dst_offset);
 
 // Explicit instantiation
@@ -451,6 +487,21 @@ void copy_intersection<fp32_t>(const Tensor<fp32_t> &src,
         const std::vector<Index> &dst_offset);
 
 template
+void copy_intersection<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp32_fast_tf32_t> &dst,
+        const std::vector<Index> &dst_offset);
+
+template
+void copy_intersection<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp32_fast_fp16_t> &dst,
+        const std::vector<Index> &dst_offset);
+
+template
+void copy_intersection<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp32_fast_bf16_t> &dst,
+        const std::vector<Index> &dst_offset);
+
+template
 void copy_intersection<fp64_t>(const Tensor<fp64_t> &src,
         const std::vector<Index> &src_offset, const Tensor<fp64_t> &dst,
         const std::vector<Index> &dst_offset);
@@ -458,6 +509,16 @@ void copy_intersection<fp64_t>(const Tensor<fp64_t> &src,
 template
 void copy_intersection<int64_t>(const Tensor<int64_t> &src,
         const std::vector<Index> &src_offset, const Tensor<int64_t> &dst,
+        const std::vector<Index> &dst_offset);
+
+template
+void copy_intersection<fp16_t>(const Tensor<fp16_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp16_t> &dst,
+        const std::vector<Index> &dst_offset);
+
+template
+void copy_intersection<bf16_t>(const Tensor<bf16_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<bf16_t> &dst,
         const std::vector<Index> &dst_offset);
 
 } // namespace nntile::tensor

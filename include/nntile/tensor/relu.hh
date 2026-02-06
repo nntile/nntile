@@ -20,9 +20,9 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void relu_async(const Tensor<T> &A);
+void relu_async(const Tensor<T> &src, const Tensor<T> &dst);
 
 template<typename T>
-void relu(const Tensor<T> &A);
+void relu(const Tensor<T> &src, const Tensor<T> &dst);
 
 } // namespace nntile::tensor

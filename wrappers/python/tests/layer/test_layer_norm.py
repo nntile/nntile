@@ -29,6 +29,13 @@ dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
+}
+
+dtype2np = {
+    'fp16': np.float32,
+    'bf16': np.float32,
+    'fp32': np.float32,
 }
 
 dtype2tol = {
@@ -89,7 +96,7 @@ def generate_inputs(dtype: str, params: LayerNormTestParams):
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
-    x_value = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
     x_grad = nntc.zeros_like(x_value)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     x_random = rng.standard_normal(x_shape)
@@ -98,7 +105,8 @@ def generate_inputs(dtype: str, params: LayerNormTestParams):
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_()
 
-    nntile_layer, _ = nntile.layer.LayerNorm.from_torch(torch_layer, X, 0)
+    nntile_layer = nntile.layer.LayerNorm.from_torch(torch_layer, X)
+    nntile_layer.clear_gradients()
     y_grad_random = rng.standard_normal(x_shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.y.grad.from_array(y_grad_nntile)
@@ -129,7 +137,7 @@ def generate_inputs_dynamic(dtype: str, params: LayerNormTestParams):
     )
     x_torch = torch.Tensor(x_nntile.T)
 
-    nntile_layer, _ = nntile.layer.LayerNorm.from_torch(torch_layer, X, 0)
+    nntile_layer = nntile.layer.LayerNorm.from_torch(torch_layer, X)
 
     x_shape = [params.n_size, params.m_size_dyn]
     x_basetile_shape = [params.n_size_tile, params.m_size_dyn_tile]
@@ -153,7 +161,7 @@ def generate_inputs_dynamic(dtype: str, params: LayerNormTestParams):
 ])
 class TestLayerNorm:
 
-    def test_torch_coercion(self, starpu_simple, torch_rng, dtype: str,
+    def test_torch_coercion(self, context, torch_rng, dtype: str,
                             params: LayerNormTestParams):
         torch_layer, nntile_layer, *_ = generate_inputs(dtype, params)
         torch_layer_other = nntile_layer.to_torch()
@@ -167,7 +175,7 @@ class TestLayerNorm:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng, dtype: str,
+    def test_forward(self, context, torch_rng, dtype: str,
                      params: LayerNormTestParams):
         torch_layer, nntile_layer, x, *_ = generate_inputs(dtype, params)
         y = torch_layer(x)
@@ -180,7 +188,7 @@ class TestLayerNorm:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_forward_dynamic(self, starpu_simple, torch_rng, dtype: str,
+    def test_forward_dynamic(self, context, torch_rng, dtype: str,
                              params: LayerNormTestParams):
         torch_layer, nntile_layer, torch_inputs, nntile_inputs = \
             generate_inputs_dynamic(dtype, params)
@@ -200,7 +208,7 @@ class TestLayerNorm:
         nntile_layer.y.unregister()
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng, dtype: str,
+    def test_backward(self, context, torch_rng, dtype: str,
                               params: LayerNormTestParams):
         torch_layer, nntile_layer, x, y_grad = generate_inputs(dtype, params)
         y = torch_layer(x)
@@ -223,3 +231,92 @@ class TestLayerNorm:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
+def test_bench_layernorm_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    # minimal setup
+    n_size = 128
+    m_size = 256
+    eps = 1e-5
+
+    # torch layer to seed params
+    torch_ln = LayerNorm(n_size, eps=eps)
+
+    # build nntile input
+    x_traits = TensorTraits([n_size, m_size], [n_size, m_size])
+    x_distr = [0]
+    x_type = dtype2nntile[dtype]
+    x_val = x_type(x_traits, x_distr)
+    x_grad = x_type(x_traits, x_distr)
+
+    rng = np.random.default_rng(42)
+    x_np = np.array(
+        rng.standard_normal((n_size, m_size)),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
+    x_val.from_array(x_np)
+    nntile.tensor.clear_async(x_grad)
+
+    X = TensorMoments(x_val, x_grad, grad_required=True)
+
+    # build nntile layer from torch
+    nnt_ln = nntile.layer.LayerNorm.from_torch(torch_ln, X)
+
+    def bench_fn():
+        nnt_ln.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
+def test_bench_layernorm_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    n_size = 128
+    m_size = 256
+    eps = 1e-5
+
+    torch_ln = LayerNorm(n_size, eps=eps)
+
+    x_traits = TensorTraits([n_size, m_size], [n_size, m_size])
+    x_distr = [0]
+    x_type = dtype2nntile[dtype]
+    x_val = x_type(x_traits, x_distr)
+    x_grad = x_type(x_traits, x_distr)
+
+    rng = np.random.default_rng(42)
+    x_np = np.array(
+        rng.standard_normal((n_size, m_size)),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
+    x_val.from_array(x_np)
+
+    X = TensorMoments(x_val, x_grad, grad_required=True)
+
+    nnt_ln = nntile.layer.LayerNorm.from_torch(torch_ln, X)
+
+    nnt_ln.clear_gradients()
+    # prepare grad buffer
+    grad_np = np.array(
+        rng.standard_normal((n_size, m_size)),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
+
+    def bench_fn():
+        nnt_ln.forward_async()
+        nnt_ln.y.grad.from_array(grad_np)
+        nnt_ln.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

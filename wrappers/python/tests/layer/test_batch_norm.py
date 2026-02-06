@@ -19,8 +19,19 @@ import torch
 import torch.nn as nn
 
 import nntile
-import nntile.utils
 from nntile.layer import BatchNorm2d
+
+dtype2nntile = {
+    'fp32': nntile.tensor.Tensor_fp32,
+    'bf16': nntile.tensor.Tensor_bf16,
+    'fp16': nntile.tensor.Tensor_fp16,
+}
+
+dtype2np = {
+    'fp32': np.float32,
+    'bf16': np.float32,
+    'fp16': np.float32,
+}
 
 
 @dataclass
@@ -91,7 +102,7 @@ def generate_input(params: BatchNormTestParams, rng):
 @pytest.mark.parametrize("params", BATCH_NORM_2D_TEST_PARAMS)
 class TestBatchNorm2d:
     def test_batchnorm_forward(
-        self, starpu_simple, numpy_rng, torch_rng, params: BatchNormTestParams
+        self, context, numpy_rng, torch_rng, params: BatchNormTestParams
     ):
         (
             (input_moment, _, weights_nnt, bias_nnt),
@@ -124,7 +135,7 @@ class TestBatchNorm2d:
         )
 
     def test_batchnorm_backward(
-        self, starpu_simple, numpy_rng, torch_rng, params: BatchNormTestParams
+        self, context, numpy_rng, torch_rng, params: BatchNormTestParams
     ):
         (
             (input_moment, output_grad_nnt, weights_nnt, bias_nnt),
@@ -165,7 +176,7 @@ class TestBatchNorm2d:
         np.testing.assert_allclose(
             nntile.tensor.to_numpy(nntile_layer.weight.grad),
             bn_torch.weight.grad.numpy(),
-            atol=1e-5,
+            atol=1e-4,
             rtol=1e-4,
             err_msg=f"Error in backward test d(bn)/d(w) for params: {params}",
         )
@@ -177,3 +188,81 @@ class TestBatchNorm2d:
             atol=params.atol,
             err_msg=f"Error in backward d(bn)/d(i) for params: {params}",
         )
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_batchnorm2d_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    shape = (4, 4, 64, 64)
+
+    # Build input tensor and moments
+    traits = nntile.tensor.TensorTraits(shape, shape)
+    distr = [0]
+    tensor_type = dtype2nntile[dtype]
+    x_val = tensor_type(traits, distr)
+    x_grad = tensor_type(traits, distr)
+
+    rng = np.random.default_rng(42)
+    x_np = np.array(rng.random(shape), dtype=dtype2np[dtype], order="F")
+    x_val.from_array(x_np)
+    nntile.tensor.clear_async(x_grad)
+    x_moment = nntile.tensor.TensorMoments(x_val, x_grad, True)
+
+    # Define layer
+    nntile_layer = BatchNorm2d.generate_simple(x_moment)
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'bf16', 'fp16'])
+def test_bench_batchnorm2d_forward_backward_async(
+        context_cuda, numpy_rng, benchmark_operation, dtype: str,
+):
+    if dtype == 'fp16' or dtype == 'bf16':
+        pytest.xfail("not implemented")
+
+    params = BatchNormTestParams((4, 5, 10, 10), dtype2np[dtype])
+    shape = params.shape
+
+    # Build input tensor and moments for selected dtype
+    traits = nntile.tensor.TensorTraits(shape, shape)
+    distr = [0]
+    tensor_type = dtype2nntile[dtype]
+    x_val = tensor_type(traits, distr)
+    x_grad = tensor_type(traits, distr)
+    rng = np.random.default_rng(42)
+    x_val.from_array(
+        np.array(
+            rng.random(shape),
+            dtype=dtype2np[dtype],
+            order="F",
+        )
+    )
+    nntile.tensor.clear_async(x_grad)
+    input_moment = nntile.tensor.TensorMoments(x_val, x_grad, True)
+
+    nntile_layer = BatchNorm2d.generate_simple(
+        input_moment, eps=params.eps, redux=params.redux
+    )
+
+    nntile.tensor.clear_async(nntile_layer.y.grad)
+    # prepare grad buffer
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

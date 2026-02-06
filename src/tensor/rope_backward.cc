@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/rope_backward.hh"
 #include "nntile/starpu/rope_backward.hh"
+#include "nntile/starpu/config.hh"
 #include <iostream>
 
 namespace nntile::tensor
@@ -126,7 +127,7 @@ void rope_backward_async(const Tensor<T> &sin, const Tensor<T> &cos,
               n{dydx_tile_traits.matrix_shape[sin.ndim][1]};
 
         // Insert corresponding task
-        starpu::rope_backward::submit<T>(m, n, sin_tile_handle, cos_tile_handle,
+        starpu::rope_backward.submit<std::tuple<T>>(m, n, sin_tile_handle, cos_tile_handle,
                 dy_tile_handle, dx_tile_handle);
     }
 }
@@ -164,6 +165,22 @@ void rope_backward_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &sin,
         const Tensor<fp32_fast_tf32_t> &dx);
 
 template
+void rope_backward_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &sin,
+        const Tensor<fp32_fast_fp16_t> &cos,
+        const Tensor<fp32_fast_fp16_t> &dy,
+        const Tensor<fp32_fast_fp16_t> &dx);
+
+template
+void rope_backward_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &sin,
+        const Tensor<fp32_fast_bf16_t> &cos,
+        const Tensor<fp32_fast_bf16_t> &dy,
+        const Tensor<fp32_fast_bf16_t> &dx);
+
+template
+void rope_backward_async<fp16_t>(const Tensor<fp16_t> &sin, const Tensor<fp16_t> &cos,
+        const Tensor<fp16_t> &dy, const Tensor<fp16_t> &dx);
+
+template
 void rope_backward_async<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,
         const Tensor<bf16_t> &dy, const Tensor<bf16_t> &dx);
 
@@ -181,6 +198,22 @@ void rope_backward<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &sin,
         const Tensor<fp32_fast_tf32_t> &cos,
         const Tensor<fp32_fast_tf32_t> &dy,
         const Tensor<fp32_fast_tf32_t> &dx);
+
+template
+void rope_backward<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &sin,
+        const Tensor<fp32_fast_fp16_t> &cos,
+        const Tensor<fp32_fast_fp16_t> &dy,
+        const Tensor<fp32_fast_fp16_t> &dx);
+
+template
+void rope_backward<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &sin,
+        const Tensor<fp32_fast_bf16_t> &cos,
+        const Tensor<fp32_fast_bf16_t> &dy,
+        const Tensor<fp32_fast_bf16_t> &dx);
+
+template
+void rope_backward<fp16_t>(const Tensor<fp16_t> &sin, const Tensor<fp16_t> &cos,
+        const Tensor<fp16_t> &dy, const Tensor<fp16_t> &dx);
 
 template
 void rope_backward<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,

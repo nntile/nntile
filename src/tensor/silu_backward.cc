@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/silu_backward.hh"
 #include "nntile/starpu/silu_backward.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -55,16 +56,8 @@ void silu_backward_async(const Tensor<T> &x, const Tensor<T> &dy,
         if(mpi_rank == exec_rank)
         {
             auto x_tile_traits = x.get_tile_traits(i);
-            starpu::silu_backward::submit_mpi<T>(x_tile_traits.nelems,
-                    x_tile_handle, dy_tile_handle, dx_tile_handle, exec_rank);
-        }
-        // MPI transfers submission
-        else if(mpi_rank == x_tile_handle.mpi_get_rank()
-                or mpi_rank == dy_tile_handle.mpi_get_rank()
-                or mpi_rank == dx_tile_handle.mpi_get_rank())
-        {
-            starpu::silu_backward::submit_mpi<T>(0,
-                    x_tile_handle, dy_tile_handle, dx_tile_handle, exec_rank);
+            starpu::silu_backward.submit<std::tuple<T>>(x_tile_traits.nelems,
+                    x_tile_handle, dy_tile_handle, dx_tile_handle);
         }
         // Clear cached output value
         dx_tile_handle.mpi_flush();
@@ -89,12 +82,24 @@ void silu_backward_async<fp32_t>(const Tensor<fp32_t> &x,
         const Tensor<fp32_t> &dy, const Tensor<fp32_t> &dx);
 
 template
+void silu_backward_async<fp16_t>(const Tensor<fp16_t> &x,
+        const Tensor<fp16_t> &dy, const Tensor<fp16_t> &dx);
+
+template
 void silu_backward_async<bf16_t>(const Tensor<bf16_t> &x,
         const Tensor<bf16_t> &dy, const Tensor<bf16_t> &dx);
 
 template
 void silu_backward_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &x,
         const Tensor<fp32_fast_tf32_t> &dy, const Tensor<fp32_fast_tf32_t> &dx);
+
+template
+void silu_backward_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &x,
+        const Tensor<fp32_fast_fp16_t> &dy, const Tensor<fp32_fast_fp16_t> &dx);
+
+template
+void silu_backward_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &x,
+        const Tensor<fp32_fast_bf16_t> &dy, const Tensor<fp32_fast_bf16_t> &dx);
 
 template
 void silu_backward_async<fp64_t>(const Tensor<fp64_t> &x,
@@ -110,8 +115,20 @@ void silu_backward<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &x,
         const Tensor<fp32_fast_tf32_t> &dy, const Tensor<fp32_fast_tf32_t> &dx);
 
 template
+void silu_backward<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &x,
+        const Tensor<fp32_fast_fp16_t> &dy, const Tensor<fp32_fast_fp16_t> &dx);
+
+template
+void silu_backward<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &x,
+        const Tensor<fp32_fast_bf16_t> &dy, const Tensor<fp32_fast_bf16_t> &dx);
+
+template
 void silu_backward<fp64_t>(const Tensor<fp64_t> &x,
         const Tensor<fp64_t> &dy, const Tensor<fp64_t> &dx);
+
+template
+void silu_backward<fp16_t>(const Tensor<fp16_t> &x,
+        const Tensor<fp16_t> &dy, const Tensor<fp16_t> &dx);
 
 template
 void silu_backward<bf16_t>(const Tensor<bf16_t> &x,

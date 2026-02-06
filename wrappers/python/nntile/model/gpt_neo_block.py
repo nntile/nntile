@@ -11,9 +11,12 @@
 #
 # @version 1.1.0
 
+from typing import Optional
+
 from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoBlock as GPTNeoBlockTorch, GPTNeoConfig as GPTNeoConfigTorch)
 
+from nntile.layer.cache_utils import KVCache
 from nntile.tensor import TensorMoments
 
 from ..layer.add import Add
@@ -25,7 +28,6 @@ from .gpt_neo_mlp import GPTNeoMLP
 
 
 class GPTNeoBlock(BaseModel):
-    next_tag: int
     gpt_neo_mlp: GPTNeoMLP
     input_norm: LayerNorm
     post_attn_norm: LayerNorm
@@ -35,19 +37,19 @@ class GPTNeoBlock(BaseModel):
 
     # Construct model with all the provided data
     def __init__(self, x: TensorMoments, attention_layer: GPTNeoAttention,
-                 gpt2_mlp: GPTNeoMLP, input_norm: LayerNorm,
+                 mlp_layer: GPTNeoMLP, input_norm: LayerNorm,
                  post_attn_norm: LayerNorm,
                  post_attn_add: Add, post_mlp_add: Add,
                  config: GPTNeoConfig,
                  ):
         # Init activations and list of layers
         layers = [input_norm, attention_layer, post_attn_add, post_attn_norm]
-        layers = layers + gpt2_mlp.layers + [post_mlp_add]
+        layers = layers + mlp_layer.layers + [post_mlp_add]
         activations = [x] + input_norm.activations_output + \
                       attention_layer.activations_output + \
                       post_attn_add.activations_output + \
                       post_attn_norm.activations_output + \
-                      gpt2_mlp.activations[1:] + \
+                      mlp_layer.activations[1:] + \
                       post_mlp_add.activations_output
         self.config = config
         # Fill Base Model with the generated data
@@ -55,43 +57,59 @@ class GPTNeoBlock(BaseModel):
         self.ln_1 = self.layers[0]
         self.attn = self.layers[1]
         self.ln_2 = self.layers[3]
-        self.mlp = gpt2_mlp
+        self.mlp = mlp_layer
+
+    def forward_dynamic(
+        self,
+        x: TensorMoments,
+        kv_cache: Optional[KVCache] = None
+    ):
+        (input_norm, attention_layer, post_attn_add, post_attn_norm) = self.layers[:4]  # noqa: E501
+        post_mlp_add = self.layers[-1]
+
+        x_normalized = input_norm.forward_dynamic(x)
+        attn_outs, kv_cache = attention_layer.forward_dynamic(
+            x_normalized, kv_cache=kv_cache
+        )
+        post_attn_outs = post_attn_add.forward_dynamic(attn_outs, x)
+        post_attn_norm_outs = post_attn_norm.forward_dynamic(post_attn_outs)
+
+        mlp_outs = self.mlp.forward_dynamic(post_attn_norm_outs)
+        post_mlp_outs = post_mlp_add.forward_dynamic(mlp_outs, post_attn_outs)
+
+        return post_mlp_outs, kv_cache
 
     @staticmethod
     def from_torch(
         torch_block, x: TensorMoments,
-        config: GPTNeoConfig, next_tag: int):
+        config: GPTNeoConfig):
         """
         torch_gptneo_block is HF module for GPT-Neo Block
         """
-        layer_norm_input_layer, next_tag = LayerNorm.from_torch(
+        layer_norm_input_layer = LayerNorm.from_torch(
             torch_block.ln_1,
-            x,
-            next_tag
+            x
         )
-        attention_layer, next_tag = GPTNeoAttention.from_torch(
+        attention_layer = GPTNeoAttention.from_torch(
             torch_block.attn,
             layer_norm_input_layer.activations_output[0],
             layer_norm_input_layer.activations_output[0],
             layer_norm_input_layer.activations_output[0],
-            config, next_tag)
-        post_attn_add, next_tag = Add.generate_simple(
-            x, attention_layer.activations_output[0],
-            next_tag)
+            config)
+        post_attn_add = Add.generate_simple(
+            x, attention_layer.activations_output[0])
 
-        layer_norm_post_attn_layer, next_tag = LayerNorm.from_torch(
+        layer_norm_post_attn_layer = LayerNorm.from_torch(
             torch_block.ln_2,
-            post_attn_add.activations_output[0],
-            next_tag
+            post_attn_add.activations_output[0]
         )
-        gpt2_mlp_module, next_tag = GPTNeoMLP.from_torch(
+        gpt2_mlp_module = GPTNeoMLP.from_torch(
             torch_block.mlp,
             layer_norm_post_attn_layer.activations_output[0],
-            config, next_tag)
-        post_mlp_add, next_tag = Add.generate_simple(
+            config)
+        post_mlp_add = Add.generate_simple(
             gpt2_mlp_module.activations[-1],
-            post_attn_add.activations_output[0],
-            next_tag)
+            post_attn_add.activations_output[0])
 
         gpt_neo_block = GPTNeoBlock(x, attention_layer,
                                             gpt2_mlp_module,
@@ -101,7 +119,7 @@ class GPTNeoBlock(BaseModel):
                                             post_mlp_add,
                                             config)
 
-        return gpt_neo_block, next_tag
+        return gpt_neo_block
 
     def to_torch(self):
         config_torch = GPTNeoConfigTorch(

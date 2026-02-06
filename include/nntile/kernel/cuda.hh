@@ -16,15 +16,14 @@
 
 #include <nntile/defs.h>
 
-#ifdef NNTILE_USE_CUDA_FP16
-#   include <cuda_fp16.h>
-#endif
-
-//#ifdef NNTILE_USE_CUDA_BF16
+// Entire contents of this file is enabled iff CUDA is enabled
 #ifdef NNTILE_USE_CUDA
-#   include <cuda_bf16.h>
-#endif
 
+// FP16/BF16 are supported due to CUDA 11.0 minimal requirement
+#include <cuda_fp16.h>
+#include <cuda_bf16.h>
+
+// FP8 formats may be not supported by CUDA Toolkit
 #ifdef NNTILE_USE_CUDA_FP8
 #   include <cuda_fp8.h>
 #endif
@@ -87,9 +86,13 @@ struct CUDAComputeType<fp32_fast_tf32_t>
 template<>
 struct CUDAComputeType<bf16_t>
 {
-#ifdef NNTILE_USE_CUDA
     using value = __nv_bfloat16;
-#endif
+};
+
+template<>
+struct CUDAComputeType<fp16_t>
+{
+    using value = __half;
 };
 
 //! Convert any NNTile wrapped type value into a corresponding CUDA value
@@ -119,4 +122,15 @@ const typename CUDAComputeType<T>::value *cast_pointer_cuda(const T *ptr)
     return reinterpret_cast<const typename CUDAComputeType<T>::value *>(ptr);
 }
 
+//! Check CUDA error and throw runtime_error if error occurs
+#define CUDA_CHECK(error, message) \
+    do { \
+        cudaError_t _err = (error); \
+        if (_err != cudaSuccess) { \
+            throw std::runtime_error(std::string(message) + ": " + cudaGetErrorString(_err)); \
+        } \
+    } while (0)
+
 } // namespace nntile::kernel
+
+#endif // NNTILE_USE_CUDA

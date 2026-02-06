@@ -14,31 +14,59 @@
 
 #pragma once
 
-#include <nntile/starpu/config.hh>
+// Compile-time definitions
+#include <nntile/defs.h>
 
-namespace nntile::starpu::clear
+// NNTile headers
+#include <nntile/starpu/codelet.hh>
+#include <nntile/starpu/handle.hh>
+
+namespace nntile::starpu
 {
 
-// Clear a StarPU buffer on CPU
-void cpu(void *buffers[], void *cl_args)
-    noexcept;
+//! Wrapper class for clear operation
+class Clear
+{
+public:
+    //! Codelet for the current operation
+    Codelet codelet;
+
+    //! Constructor
+    Clear();
+
+    //! Structure for operation arguments
+    struct args_t
+    {
+    };
+
+    //! Wrapper for a generic CPU implementation
+    static void cpu(void *buffers[], void *cl_args)
+        noexcept;
+
+    //! Array of all wrappers for CPU implementations
+    static constexpr func_array cpu_funcs = {
+        cpu
+    };
 
 #ifdef NNTILE_USE_CUDA
-// Clear StarPU buffer on CUDA
-template<typename T>
-void cuda(void *buffers[], void *cl_args)
-    noexcept;
+    //! Wrapper for a generic CUDA implementation
+    static void cuda(void *buffers[], void *cl_args)
+        noexcept;
+
+    //! Array of all wrappers for CUDA implementations
+    static constexpr func_array cuda_funcs = {
+        cuda
+    };
+#else // NNTILE_USE_CUDA
+    //! Array of all wrappers for CUDA implementations
+    static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-extern Codelet codelet;
+    //! Submit clear task
+    void submit(Handle data);
+};
 
-void init();
+//! Clear operation object
+extern Clear clear;
 
-void restrict_where(uint32_t where);
-
-void restore_where();
-
-//! Insert task to clear buffer
-void submit(Handle data);
-
-} // namespace nntile::starpu::clear
+} // namespace nntile::starpu

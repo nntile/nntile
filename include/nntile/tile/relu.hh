@@ -19,12 +19,10 @@
 namespace nntile::tile
 {
 
-// Asynchronous tile-wise ReLU operation
 template<typename T>
-void relu_async(const Tile<T> &A);
+void relu_async(const Tile<T> &src, const Tile<T> &dst);
 
-// Blocking version of tile-wise ReLU operation
 template<typename T>
-void relu(const Tile<T> &A);
+void relu(const Tile<T> &src, const Tile<T> &dst);
 
 } // namespace nntile::tile

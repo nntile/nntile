@@ -11,8 +11,6 @@
 #
 # @version 1.1.0
 
-import time
-
 import numpy as np
 import pytest
 import torch
@@ -24,6 +22,18 @@ from nntile.layer.add import Add
 from nntile.layer.linear import Linear
 from nntile.model.base_model import BaseModel
 from nntile.tensor import Tensor_fp32, TensorMoments, TensorTraits, notrans
+
+dtype2nntile = {
+    'fp16': nntile.tensor.Tensor_fp16,
+    'bf16': nntile.tensor.Tensor_bf16,
+    'fp32': nntile.tensor.Tensor_fp32,
+}
+
+dtype2np = {
+    'fp16': np.float32,
+    'bf16': np.float32,
+    'fp32': np.float32,
+}
 
 
 class ToyFC_SkipConnectionTorch(nn.Module):
@@ -45,62 +55,57 @@ class ToyFC_SkipConnectionTorch(nn.Module):
 
 
 class ToyFC_SkipConnection(BaseModel):
-    next_tag: int
 
-    def __init__(self, x: TensorMoments, hidden_dim: int, next_tag: int):
+    def __init__(self, x: TensorMoments, hidden_dim: int):
         activations = [x]
         layers = []
         # Initial linear layer that converts input to internal shape
-        new_layer, next_tag = Linear.generate_simple(x, "L", notrans,
-                1, [hidden_dim], [hidden_dim], next_tag, bias=False)
+        new_layer = Linear.generate_simple(x, "L", notrans,
+                1, [hidden_dim], [hidden_dim], bias=False)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         # ReLU activation
-        new_layer, next_tag = Act.generate_simple(activations[-1], "relu",
-                                                  next_tag)
+        new_layer = Act.generate_simple(activations[-1], "relu")
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         # Linear layer
-        new_layer, next_tag = Linear.generate_simple(
+        new_layer = Linear.generate_simple(
                     activations[-1], "L", notrans, 1, [hidden_dim],
-                    [hidden_dim], next_tag, bias=False)
+                    [hidden_dim], bias=False)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         # Add operation
-        new_layer, next_tag = Add.generate_simple(
-            activations[1], activations[-1], next_tag)
+        new_layer = Add.generate_simple(
+            activations[1], activations[-1])
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         # ReLU activation
-        new_layer, next_tag = \
-            Act.generate_simple(activations[-1], "relu", next_tag)
+        new_layer = Act.generate_simple(activations[-1], "relu")
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Linear.generate_simple(activations[-1], "L",
-            notrans, 1, [x.value.shape[1]], [x.value.shape[1]], next_tag,
-            bias=False)
+        new_layer = Linear.generate_simple(activations[-1], "L",
+            notrans, 1, [x.value.shape[1]], [x.value.shape[1]], bias=False)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
-        self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
 
     @staticmethod
-    def from_torch(torch_model, input_moment, hidden_dim, next_tag: int):
+    def from_torch(torch_model, input_moment, hidden_dim):
         """`torch_mlp` is PyTorch MLP where all intermediate dimensions are the
         same and no biases in linear layers
         """
         print("Call from torch static method")
-        nntile_model = ToyFC_SkipConnection(input_moment, hidden_dim, next_tag)
+        nntile_model = ToyFC_SkipConnection(input_moment, hidden_dim)
         pairs = zip(nntile_model.parameters, torch_model.parameters())
         for p, p_torch in pairs:
             p.value.from_array(p_torch.detach().numpy().T)
-        return nntile_model, nntile_model.next_tag
+        return nntile_model
 
 
-@pytest.mark.xfail(reason='not implemented')
-def test_add(n=100, hidden_dim=50, num_samples=1000):
+@pytest.mark.skip(reason='Frob loss is not working now')
+def test_add(context, n=100, hidden_dim=50, num_samples=1000):
     torch_input = torch.randn(num_samples, n)
     torch_model = ToyFC_SkipConnectionTorch(n, hidden_dim)
     torch_output = torch_model(torch_input)
@@ -108,26 +113,16 @@ def test_add(n=100, hidden_dim=50, num_samples=1000):
     torch_loss.backward()
     print("Torch loss = {}".format(torch_loss.item()))
 
-    time0 = -time.time()
-    # Set up StarPU+MPI and init codelets
-    _config = nntile.starpu.Config(1, -1, 1)
-    nntile.starpu.init()
-    time0 += time.time()
-    print("StarPU + NNTile + MPI init in {} seconds".format(time0))
-    next_tag = 0
-
     x_traits = TensorTraits([num_samples, n], [num_samples, n])
     x_distr = [0] * x_traits.grid.nelems
-    nntile_input = Tensor_fp32(x_traits, x_distr, next_tag)
+    nntile_input = Tensor_fp32(x_traits, x_distr)
     nntile_input.from_array(torch_input.numpy())
-    next_tag = nntile_input.next_tag
     nntile_input_moment = TensorMoments(nntile_input, None, False)
-    nntile_model, next_tag = ToyFC_SkipConnection \
-        .from_torch(torch_model, nntile_input_moment, hidden_dim, next_tag)
+    nntile_model = ToyFC_SkipConnection \
+        .from_torch(torch_model, nntile_input_moment, hidden_dim)
     nntile_model.clear_gradients()
     nntile_model.forward_async()
-    fro_loss, next_tag = nntile.loss.Frob \
-        .generate_simple(nntile_model.activations[-1], next_tag)
+    fro_loss = nntile.loss.Frob.generate_simple(nntile_model.activations[-1])
     np_zero = np.zeros(nntile_model.activations[-1].value.shape,
                        dtype=np.float32, order='F')
     fro_loss.y.from_array(np_zero)
@@ -151,3 +146,85 @@ def test_add(n=100, hidden_dim=50, num_samples=1000):
 
     nntile_model.unregister()
     fro_loss.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
+def test_bench_add_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    shape = [128, 128]
+    traits = TensorTraits(shape, shape)
+    distr = [0]
+
+    # Create inputs
+    tensor_type = dtype2nntile[dtype]
+    X1 = tensor_type(traits, distr)
+    X2 = tensor_type(traits, distr)
+    G1 = tensor_type(traits, distr)
+    G2 = tensor_type(traits, distr)
+
+    rng = np.random.default_rng(42)
+    np_dtype = dtype2np[dtype]
+    x1_np = np.array(rng.standard_normal(shape), dtype=np_dtype, order='F')
+    x2_np = np.array(rng.standard_normal(shape), dtype=np_dtype, order='F')
+    X1.from_array(x1_np)
+    X2.from_array(x2_np)
+
+    x1_tm = TensorMoments(X1, G1, True)
+    x2_tm = TensorMoments(X2, G2, True)
+
+    layer = Add.generate_simple(x1_tm, x2_tm)
+
+    def bench_fn():
+        layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp16', 'bf16', 'fp32'])
+def test_bench_add_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    shape = [128, 128]
+    traits = TensorTraits(shape, shape)
+    distr = [0]
+
+    tensor_type = dtype2nntile[dtype]
+    X1 = tensor_type(traits, distr)
+    X2 = tensor_type(traits, distr)
+    G1 = tensor_type(traits, distr)
+    G2 = tensor_type(traits, distr)
+
+    rng = np.random.default_rng(42)
+    np_dtype = dtype2np[dtype]
+    x1_np = np.array(rng.standard_normal(shape), dtype=np_dtype, order='F')
+    x2_np = np.array(rng.standard_normal(shape), dtype=np_dtype, order='F')
+    X1.from_array(x1_np)
+    X2.from_array(x2_np)
+
+    x1_tm = TensorMoments(X1, G1, True)
+    x2_tm = TensorMoments(X2, G2, True)
+
+    layer = Add.generate_simple(x1_tm, x2_tm)
+
+    # Ensure grads are zeroed
+    nntile.tensor.clear_async(G1)
+    nntile.tensor.clear_async(G2)
+    layer.clear_gradients()
+
+    # forward once and prepare grad
+    layer.forward_async()
+    grad_np = np.array(rng.standard_normal(shape), dtype=np_dtype, order='F')
+    layer.res.grad.from_array(grad_np)
+
+    def bench_fn():
+        layer.forward_async()
+        layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

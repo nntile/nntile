@@ -12,8 +12,8 @@
 # @version 1.1.0
 
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, axpy_async, copy_async, nrm2_async,
-    prod_inplace_async, scal_inplace_async)
+    Tensor, TensorMoments, TensorTraits, add_inplace_async, copy_async,
+    multiply_inplace_async, scale_inplace_async)
 
 
 class Frob:
@@ -45,32 +45,29 @@ class Frob:
 
     # Simple geenrator
     @staticmethod
-    def generate_simple(x: TensorMoments, next_tag: int) -> tuple:
+    def generate_simple(x: TensorMoments):
         ndim = len(x.value.grid.shape)
         x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
-        y = type(x.value)(x_traits, x.value.distribution, next_tag)
-        next_tag = y.next_tag
+        y = type(x.value)(x_traits, x.value.distribution)
         val_traits = TensorTraits([], [])
-        val = type(x.value)(val_traits, [0], next_tag)
-        next_tag = val.next_tag
-        val2 = type(x.value)(val_traits, [0], next_tag)
-        next_tag = val2.next_tag
+        val = type(x.value)(val_traits, [0])
+        val2 = type(x.value)(val_traits, [0])
         tmp_traits = TensorTraits(x.value.grid.shape, [1] * ndim)
-        tmp = type(x.value)(tmp_traits, x.value.distribution, next_tag)
-        next_tag = tmp.next_tag
+        tmp = type(x.value)(tmp_traits, x.value.distribution)
         loss = Frob(x, y, val, val2, tmp)
-        return loss, next_tag
+        return loss
 
     # Get value and gradient if needed
     def calc_async(self):
         # Put X into gradient grad X
         copy_async(self.x.value, self.x.grad)
         # Define gradient dX as X-Y
-        axpy_async(-1, self.y, self.x.grad)
+        add_inplace_async(-1, self.y, 1.0, self.x.grad)
         # Values Y are not needed anymore
         # self.y.invalidate_submit()
         # Get value ||grad X||
-        nrm2_async(1.0, self.x.grad, 0.0, self.val_sqrt, self.tmp)
+        # The next function is temporary disabled because it is not used
+        # nrm2_async(1.0, self.x.grad, 0.0, self.val_sqrt, self.tmp)
         # Ignore temporary values
         # self.tmp.invalidate_submit()
         # Invalidate gradient if it is unnecessary
@@ -78,5 +75,5 @@ class Frob:
         #    self.x.grad.invalidate_submit()
         # Compute loss as 0.5*||dX||^2
         copy_async(self.val_sqrt, self.val)
-        prod_inplace_async(self.val_sqrt, self.val)
-        scal_inplace_async(0.5, self.val)
+        multiply_inplace_async(1.0, self.val_sqrt, self.val)
+        scale_inplace_async(0.5, self.val)

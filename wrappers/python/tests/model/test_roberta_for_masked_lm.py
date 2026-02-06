@@ -139,11 +139,11 @@ def generate_inputs(params: RobertaTestParams,
     )
     gen = np.random.default_rng(42)
 
-    nntile_model, _ = RobertaForMaskedLM.from_torch(
+    nntile_model = RobertaForMaskedLM.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
-            params.seq_len, params.seq_len_tile, nntile_config, 0)
+            params.seq_len, params.seq_len_tile, nntile_config)
     nntile_model.clear_gradients()
-    x_random = gen.integers(params.seq_len,
+    x_random = gen.integers(params.vocab_size,
                             size=nntile_model.activations[0].value.shape,
                             dtype=np.int64)
 
@@ -177,7 +177,7 @@ def generate_inputs(params: RobertaTestParams,
     pytest.param(5, id='five layers'),
 ])
 class TestBertModel:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: RobertaTestParams,
                       dtype: str, num_hidden_layers: int):
 
@@ -193,7 +193,7 @@ class TestBertModel:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: RobertaTestParams,
                      dtype: str, num_hidden_layers: int):
         torch_model, nntile_model, x, _ = generate_inputs(params,
@@ -207,7 +207,7 @@ class TestBertModel:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
 
-    def test_backward(self, starpu_simple, torch_rng,
+    def test_backward(self, context, torch_rng,
                       params: RobertaTestParams,
                       dtype: str, num_hidden_layers: int):
         torch_model, nntile_model, x, y_grad = generate_inputs(params,

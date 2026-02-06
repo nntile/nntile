@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/gelutanh_backward.hh"
 #include "nntile/starpu/gelutanh_backward.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -55,16 +56,8 @@ void gelutanh_backward_async(const Tensor<T> &x, const Tensor<T> &dy,
         if(mpi_rank == exec_rank)
         {
             auto x_tile_traits = x.get_tile_traits(i);
-            starpu::gelutanh_backward::submit_mpi<T>(x_tile_traits.nelems,
-                    x_tile_handle, dy_tile_handle, dx_tile_handle, exec_rank);
-        }
-        // MPI transfers submission
-        else if(mpi_rank == x_tile_handle.mpi_get_rank()
-                or mpi_rank == dy_tile_handle.mpi_get_rank()
-                or mpi_rank == dx_tile_handle.mpi_get_rank())
-        {
-            starpu::gelutanh_backward::submit_mpi<T>(0,
-                    x_tile_handle, dy_tile_handle, dx_tile_handle, exec_rank);
+            starpu::gelutanh_backward.submit<std::tuple<T>>(x_tile_traits.nelems,
+                    x_tile_handle, dy_tile_handle, dx_tile_handle);
         }
         // Clear cached output value
         dx_tile_handle.mpi_flush();
@@ -108,6 +101,10 @@ template
 void gelutanh_backward_async<bf16_t>(const Tensor<bf16_t> &x,
         const Tensor<bf16_t> &dy, const Tensor<bf16_t> &dx);
 
+template
+void gelutanh_backward_async<fp16_t>(const Tensor<fp16_t> &x,
+        const Tensor<fp16_t> &dy, const Tensor<fp16_t> &dx);
+
 // Explicit instantiation
 template
 void gelutanh_backward<fp32_t>(const Tensor<fp32_t> &x,
@@ -132,5 +129,9 @@ void gelutanh_backward<fp64_t>(const Tensor<fp64_t> &x,
 template
 void gelutanh_backward<bf16_t>(const Tensor<bf16_t> &x,
         const Tensor<bf16_t> &dy, const Tensor<bf16_t> &dx);
+
+template
+void gelutanh_backward<fp16_t>(const Tensor<fp16_t> &x,
+        const Tensor<fp16_t> &dy, const Tensor<fp16_t> &dx);
 
 } // namespace nntile::tensor

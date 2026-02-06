@@ -212,9 +212,39 @@ void cuda(cudaStream_t stream, Index ndim, const Index *src_start,
 
 // Explicit instantiation
 template
+void cuda<int64_t>(cudaStream_t stream, Index ndim, const Index *src_start,
+        const Index *src_stride, const Index *copy_shape, const int64_t *src_,
+        const Index *dst_start, const Index *dst_stride, int64_t *dst_)
+    noexcept;
+
+template
+void cuda<bool_t>(cudaStream_t stream, Index ndim, const Index *src_start,
+        const Index *src_stride, const Index *copy_shape, const bool_t *src_,
+        const Index *dst_start, const Index *dst_stride, bool_t *dst_)
+    noexcept;
+
+template
 void cuda<fp32_t>(cudaStream_t stream, Index ndim, const Index *src_start,
         const Index *src_stride, const Index *copy_shape, const fp32_t *src_,
         const Index *dst_start, const Index *dst_stride, fp32_t *dst_)
+    noexcept;
+
+template
+void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index ndim, const Index *src_start,
+        const Index *src_stride, const Index *copy_shape, const fp32_fast_tf32_t *src_,
+        const Index *dst_start, const Index *dst_stride, fp32_fast_tf32_t *dst_)
+    noexcept;
+
+template
+void cuda<fp32_fast_fp16_t>(cudaStream_t stream, Index ndim, const Index *src_start,
+        const Index *src_stride, const Index *copy_shape, const fp32_fast_fp16_t *src_,
+        const Index *dst_start, const Index *dst_stride, fp32_fast_fp16_t *dst_)
+    noexcept;
+
+template
+void cuda<fp32_fast_bf16_t>(cudaStream_t stream, Index ndim, const Index *src_start,
+        const Index *src_stride, const Index *copy_shape, const fp32_fast_bf16_t *src_,
+        const Index *dst_start, const Index *dst_stride, fp32_fast_bf16_t *dst_)
     noexcept;
 
 template
@@ -230,15 +260,9 @@ void cuda<bf16_t>(cudaStream_t stream, Index ndim, const Index *src_start,
     noexcept;
 
 template
-void cuda<int64_t>(cudaStream_t stream, Index ndim, const Index *src_start,
-        const Index *src_stride, const Index *copy_shape, const int64_t *src_,
-        const Index *dst_start, const Index *dst_stride, int64_t *dst_)
-    noexcept;
-
-template
-void cuda<bool_t>(cudaStream_t stream, Index ndim, const Index *src_start,
-        const Index *src_stride, const Index *copy_shape, const bool_t *src_,
-        const Index *dst_start, const Index *dst_stride, bool_t *dst_)
+void cuda<fp16_t>(cudaStream_t stream, Index ndim, const Index *src_start,
+        const Index *src_stride, const Index *copy_shape, const fp16_t *src_,
+        const Index *dst_start, const Index *dst_stride, fp16_t *dst_)
     noexcept;
 
 } // namespace nntile::kernel::subcopy

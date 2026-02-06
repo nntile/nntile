@@ -16,9 +16,6 @@ import pytest
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
-
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
@@ -29,14 +26,12 @@ sqrt_inplace = {np.float32: nntile.nntile_core.tensor.sqrt_inplace_fp32,
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_sqrt_inplace(dtype):
+def test_sqrt_inplace(context, dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 2]
-    mpi_distr = [0]
-    next_tag = 0
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)
+    A = Tensor[dtype](traits)
     # Set initial values of tensors
     rand = np.random.default_rng(42).standard_normal(shape)
     src_A = (rand ** 2).astype(dtype, 'F')

@@ -48,8 +48,15 @@ classifiers = [
 ]
 dependencies = [
     "fastapi",
+    "numpy>=1.21",
+    "numpy>=1.21.2; python_version>='3.10'",
+    "numpy>=1.23.3; python_version>='3.11'",
+    "numpy>=1.26.0; python_version>='3.12'",
+    "numpy>=2.1.0; python_version>='3.13'",
     "pydantic",
-    "numpy",
+    "scipy",
+    "torch",
+    "transformers<=4.52",
     "typing_extensions>=4.6.0; python_version<'3.12'",
     "uvicorn",
 ]
@@ -58,7 +65,22 @@ requires-python = ">=3.10,<4"
 [project.optional-dependencies]
 dev = ["isort", "mypy", "ruff"]
 test = [
-    "datasets", "pytest>=8.2", "scipy", "torch", "torchvision", "transformers",
+    "datasets", "pytest>=8.2", "pytest-benchmark", "sentencepiece", "tokenizers", "torchvision",
+]
+ci = [
+    "mypy",
+    "pytest-cov",
+    "pytest-dirty",
+    # Fancy-pancy `uv` is absolute nightmare. It resolve dependencies across
+    # all extra dependencies and extra index URLs. Consequently, it resolve
+    # mandatory dependency `torch` to `torch==2.7.1+cpu` since it is
+    # explicitely specified in extras despite tha is extra (i.e. optional).
+    # Wtf?!
+    "torch==2.7.1+cpu",
+    # For some reason, PyTorch's package index provides only cp313 wheel for
+    # `markupsafe==3.0.2` and `uv` could to discover older version and fails!
+    # Wtf!?
+    "markupsafe<3",
 ]
 
 [project.urls]

@@ -79,6 +79,11 @@ void cuda<bf16_t>(cudaStream_t stream, Index n_labels, Index n_outputs, Index ig
     noexcept;
 
 template
+void cuda<fp16_t>(cudaStream_t stream, Index n_labels, Index n_outputs, Index ignore_index,
+        Scalar val, const int64_t *labels, fp16_t *dst)
+    noexcept;
+
+template
 void cuda<fp32_fast_bf16_t>(cudaStream_t stream, Index n_labels, Index n_outputs, Index ignore_index,
         Scalar val, const int64_t *labels, fp32_fast_bf16_t *dst)
     noexcept;

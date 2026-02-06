@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/gelutanh.hh"
 #include "nntile/starpu/gelutanh.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -57,7 +58,7 @@ void gelutanh_async(const Tensor<T> &src, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto tile_traits = src.get_tile_traits(i);
-            starpu::gelutanh::submit<T>(tile_traits.nelems, src_tile_handle,
+            starpu::gelutanh.submit<std::tuple<T>>(tile_traits.nelems, src_tile_handle,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -100,6 +101,9 @@ void gelutanh_async<fp64_t>(const Tensor<fp64_t> &src,
 template
 void gelutanh_async<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
 
+template
+void gelutanh_async<fp16_t>(const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
+
 // Explicit instantiation
 template
 void gelutanh<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
@@ -120,5 +124,8 @@ void gelutanh<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 template
 void gelutanh<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
+
+template
+void gelutanh<fp16_t>(const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
 
 } // namespace nntile::tensor

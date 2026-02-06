@@ -12,12 +12,8 @@
 # @version 1.1.0
 
 class Empty:
-    def __init__(self, params, next_tag):
+    def __init__(self, params):
         self.params = params
-        self.next_tag = next_tag
-
-    def get_next_tag(self):
-        return self.next_tag
 
     def unregister(self):
         pass
@@ -27,3 +23,9 @@ class Empty:
 
     def get_nbytes(self):
         return 0
+
+    def force_offload_disk(self, portion: float = 0.0):
+        pass
+
+    def force_offload_ram(self, portion: float = 0.0):
+        pass

@@ -21,10 +21,10 @@ namespace nntile::tensor
 
 // Tensor-wise hypot operation
 template<typename T>
-void hypot_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst);
+void hypot_async(Scalar alpha, const Tensor<T> &src1, Scalar beta, const Tensor<T> &src2, const Tensor<T> &dst);
 
 // Tensor-wise hypot operation
 template<typename T>
-void hypot(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst);
+void hypot(Scalar alpha, const Tensor<T> &src1, Scalar beta, const Tensor<T> &src2, const Tensor<T> &dst);
 
 } // namespace nntile::tensor

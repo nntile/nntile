@@ -20,9 +20,9 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void gelu_async(const Tensor<T> &A);
+void gelu_async(const Tensor<T> &src, const Tensor<T> &dst);
 
 template<typename T>
-void gelu(const Tensor<T> &A);
+void gelu(const Tensor<T> &src, const Tensor<T> &dst);
 
 } // namespace nntile::tensor

@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/add_inplace.hh"
 #include "nntile/starpu/add_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -61,7 +62,7 @@ void add_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::add_inplace::submit<T>(traits.nelems, alpha,
+            starpu::add_inplace.submit<std::tuple<T>>(traits.nelems, alpha,
                     src_tile_handle, beta, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -87,6 +88,10 @@ void add_inplace_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
 template
 void add_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
         Scalar beta, const Tensor<bf16_t> &dst);
+
+template
+void add_inplace_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
+        Scalar beta, const Tensor<fp16_t> &dst);
 
 template
 void add_inplace_async<fp32_fast_tf32_t>(Scalar alpha,
@@ -115,6 +120,10 @@ void add_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
 template
 void add_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
         Scalar beta, const Tensor<bf16_t> &dst);
+
+template
+void add_inplace<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
+        Scalar beta, const Tensor<fp16_t> &dst);
 
 template
 void add_inplace<fp32_fast_tf32_t>(Scalar alpha,

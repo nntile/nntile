@@ -33,7 +33,11 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
 # List of options and cache variables
 # Build shared libraries instead of static
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
-option(USE_CUDA "Use CUDA toolkit" ON)
+option(USE_CUDA "Use CUDA toolkit (cuBLAS and cuDNN are required)" ON)
+option(USE_CUDA_FP16 "Enable FP16 CUDA support" ON)
+option(USE_CUDA_TF32 "Enable TF32 CUDA support" ON)
+option(USE_CUDA_BF16 "Enable BF16 CUDA support" ON)
+option(USE_CUDA_FP8 "Enable FP8 CUDA support" ON)
 option(USE_CBLAS "Use CPU CBLAS" ON)
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
@@ -56,6 +60,9 @@ add_library(nntile)
 
 # Get the pkg-config
 find_package(PkgConfig REQUIRED)
+
+# Add external sources/headers
+add_subdirectory("external")
 
 # Get the StarPU as the first dependency. StarPU defines if we are in
 # simulation by SimGrid mode or not.
@@ -80,11 +87,11 @@ endif()
 #add_compile_options(-Wall -Wextra)# -Wpedantic-errors)
 
 set(NNTILE_USE_CUDA OFF)
+set(NNTILE_LINK_CUDA OFF)
 # Emulate CUDA in case of SimGrid mode
 if(HAVE_STARPU_SIMGRID)
     if(USE_CUDA)
         set(NNTILE_USE_CUDA ON)
-        set(NNTILE_LINK_CUDA OFF)
     endif()
 # Check if CUDA is available only in normal mode (no SimGrid)
 elseif(USE_CUDA)
@@ -92,11 +99,49 @@ elseif(USE_CUDA)
     check_language(CUDA)
     if(CMAKE_CUDA_COMPILER)
         enable_language(CUDA)
-        # Get cublas
-        find_package(CUDAToolkit 10.1)
-	target_link_libraries(nntile PUBLIC CUDA::cublas)
+        find_package(CUDAToolkit 11.0 REQUIRED)
+        add_subdirectory("external/cudnn_frontend")
+        # Show paths to cudnn source and include corresponding CMake file
+        message(STATUS "cuDNN frontend SOURCE: ${cudnn_frontend_SOURCE_DIR}")
+        message(STATUS "cuDNN frontend BINARY: ${cudnn_frontend_BINARY_DIR}")
+        # Disable tests for cuDNN frontend
+        include(${cudnn_frontend_SOURCE_DIR}/cmake/cuDNN.cmake)
+        target_link_libraries(nntile PUBLIC CUDA::cublas CUDNN::cudnn_all)
+        target_include_directories(nntile PUBLIC ${cudnn_frontend_SOURCE_DIR}/include)
         set(NNTILE_USE_CUDA ON)
         set(NNTILE_LINK_CUDA ON)
+        # Set support for FP16
+        if(USE_CUDA_FP16)
+            set(NNTILE_USE_CUDA_FP16 ON)
+            message(STATUS "CUDA FP16 support enabled")
+        else()
+            set(NNTILE_USE_CUDA_FP16 OFF)
+            message(STATUS "CUDA FP16 support disabled")
+        endif()
+        # Set support for TF32
+        if(USE_CUDA_TF32)
+            set(NNTILE_USE_CUDA_TF32 ON)
+            message(STATUS "CUDA TF32 support enabled")
+        else()
+            set(NNTILE_USE_CUDA_TF32 OFF)
+            message(STATUS "CUDA TF32 support disabled")
+        endif()
+        # Set support for BF16
+        if(USE_CUDA_BF16)
+            set(NNTILE_USE_CUDA_BF16 ON)
+            message(STATUS "CUDA BF16 support enabled")
+        else()
+            set(NNTILE_USE_CUDA_BF16 OFF)
+            message(STATUS "CUDA BF16 support disabled")
+        endif()
+        # Set support for FP8
+        if(USE_CUDA_FP8 AND CUDAToolkit_VERSION GREATER_EQUAL 11.8)
+            set(NNTILE_USE_CUDA_FP8 ON)
+            message(STATUS "CUDA FP8 support enabled")
+        else()
+            set(NNTILE_USE_CUDA_FP8 OFF)
+            message(STATUS "CUDA FP8 support enabled")
+        endif()
     endif()
 endif()
 
@@ -112,15 +157,9 @@ if(HAVE_STARPU_SIMGRID)
 elseif(USE_CBLAS)
     find_package(BLAS)
     if(BLAS_FOUND)
-        target_link_libraries(nntile PRIVATE BLAS::BLAS)
+        target_link_libraries(nntile PUBLIC BLAS::BLAS)
         set(NNTILE_USE_CBLAS ON)
         set(NNTILE_LINK_CBLAS ON)
-        set(CBLAS_INT_TYPE "int" CACHE STRING
-            "CBLAS integer type: int, int32_t or int64_t")
-        set_property(CACHE CBLAS_INT_TYPE PROPERTY STRINGS "int" "int32_t"
-            "int64_t")
-        set(CBLAS_H_NAME "cblas.h" CACHE STRING
-            "Name of header file containing cblas routines")
     endif()
 endif()
 
@@ -135,38 +174,6 @@ target_include_directories(nntile PRIVATE
 # Configure list of definitions
 configure_file("${PROJECT_SOURCE_DIR}/include/nntile/defs.h.in"
     "${PROJECT_BINARY_DIR}/include/nntile/defs.h" @ONLY)
-
-# Configure src/starpu/axpy.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/src/starpu/axpy.cc.in"
-    "${PROJECT_BINARY_DIR}/src/starpu/axpy.cc" @ONLY)
-
-# Configure tests/starpu/axpy.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/axpy.cc.in"
-    "${PROJECT_BINARY_DIR}/tests/starpu/axpy.cc" @ONLY)
-
-# Configure include/nntile/kernel/gemm.hh.in that relies on cblas and cuda
-configure_file("${PROJECT_SOURCE_DIR}/include/nntile/kernel/gemm.hh.in"
-    "${PROJECT_BINARY_DIR}/include/nntile/kernel/gemm.hh" @ONLY)
-
-# Configure tests/starpu/gemm.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/gemm.cc.in"
-    "${PROJECT_BINARY_DIR}/tests/starpu/gemm.cc" @ONLY)
-
-# Configure src/starpu/nrm2.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/src/starpu/nrm2.cc.in"
-    "${PROJECT_BINARY_DIR}/src/starpu/nrm2.cc" @ONLY)
-
-# Configure tests/starpu/nrm2.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/nrm2.cc.in"
-    "${PROJECT_BINARY_DIR}/tests/starpu/nrm2.cc" @ONLY)
-
-# Configure src/starpu/scal_inplace.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/src/starpu/scal_inplace.cc.in"
-    "${PROJECT_BINARY_DIR}/src/starpu/scal_inplace.cc" @ONLY)
-
-# Configure tests/starpu/scal_inplace.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/scal_inplace.cc.in"
-    "${PROJECT_BINARY_DIR}/tests/starpu/scal_inplace.cc" @ONLY)
 
 # Check if code coverage report is needed
 if(BUILD_COVERAGE)
@@ -195,9 +202,6 @@ add_subdirectory("src")
 
 # Add sirectory with headers
 add_subdirectory("include")
-
-# Add external sources/headers
-add_subdirectory("external")
 
 # Add subdirectory with tests
 if(BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)

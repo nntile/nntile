@@ -19,9 +19,8 @@
 namespace nntile::kernel::relu
 {
 
-// ReLU operation on a buffer
 template<typename T>
-void cpu(Index nelems, T *data)
+void cpu(Index nelems, const T *src, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::relu

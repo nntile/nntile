@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/add_fiber_inplace.hh"
 #include "nntile/starpu/add_fiber_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -105,7 +106,7 @@ void add_fiber_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
             n = dst_tile_traits.matrix_shape[axis+1][1] / batch;
             k = dst_tile_traits.shape[axis];
             // Insert corresponding task
-            starpu::add_fiber_inplace::submit<T>(m, n, k, batch, alpha,
+            starpu::add_fiber_inplace.submit<std::tuple<T>>(m, n, k, batch, alpha,
                     src_tile_handle, beta, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -158,6 +159,10 @@ template
 void add_fiber_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis, Index batch_ndim);
 
+template
+void add_fiber_inplace_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, Scalar beta,
+        const Tensor<fp16_t> &dst, Index axis, Index batch_ndim);
+
 // Explicit instantiation of template
 template
 void add_fiber_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
@@ -182,5 +187,9 @@ void add_fiber_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar b
 template
 void add_fiber_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis, Index batch_ndim);
+
+template
+void add_fiber_inplace<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, Scalar beta,
+        const Tensor<fp16_t> &dst, Index axis, Index batch_ndim);
 
 } // namespace nntile::tensor

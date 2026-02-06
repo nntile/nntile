@@ -22,18 +22,30 @@ template<typename T>
 void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1, Scalar beta_,
         const T *src2, T *dst)
     noexcept
-//! Per-element addition of a tensor and a broadcasted slice on CPU
-/*! Performs the following operations:
+//! Add a tensor and a broadcasted slice with optional scaling on CPU
+/*! Performs the following operation:
  *      dst[i,l,j] = alpha*src1[i,j] + beta*src2[i,l,j]
+ *
+ * This function reads both src1 and src2 even if alpha or beta is zero.
+ * If alpha is zero and src1[i,j] is NaN, then dst[i,l,j] will be NaN.
+ * If beta is zero and src2[i,l,j] is NaN, then dst[i,l,j] will be NaN.
+ * If such behaviour is not desired, then in a case of alpha being zero,
+ * use nntile::kernel::scale, and in a case of beta being zero,
+ * use nntile::kernel::scale_slice instead.
+ * If both alpha and beta are zero, then use nntile::kernel::clear instead.
+ *
+ * @see nntile::kernel::scale
+ * @see nntile::kernel::scale_slice
+ * @see nntile::kernel::clear
  *
  * @param[in] m: Size of the first mode of src1, src2 and dst tensors
  * @param[in] n: Size of the last mode of src1, src2 and dst tensors
  * @param[in] k: Size of the middle mode of src2 and dst tensor
  * @param[in] alpha_: Scalar factor for src1
- * @param[in] src1_: Input contiguous m-by-n array
+ * @param[in] src1: Input contiguous m-by-n array
  * @param[in] beta_: Scaling factor for src1
- * @param[in] src2_: Input contiguous m-by-k-by-n array
- * @param[out] dst_: Output contiguous m-by-k-by-n array
+ * @param[in] src2: Input contiguous m-by-k-by-n array
+ * @param[out] dst: Output contiguous m-by-k-by-n array
  * */
 {
     using Y = typename T::repr_t;
@@ -51,24 +63,11 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1, Scalar beta_,
             T *dst_fiber = dst + i2*mk + i1;
             // Value to add to the output fiber
             const Y src1_val = alpha * Y{src1[i2*m+i1]};
-            // Overwrite or update output depending on beta
-            if(beta == zero)
+            // Cycle over output fiber elements
+            for(Index i0 = 0; i0 < k; ++i0)
             {
-                // Cycle over output fiber elements
-                for(Index i0 = 0; i0 < k; ++i0)
-                {
-                    // Set output value
-                    dst_fiber[i0*m] = static_cast<T>(src1_val);
-                }
-            }
-            else
-            {
-                // Cycle over output fiber elements
-                for(Index i0 = 0; i0 < k; ++i0)
-                {
-                    // And update it
-                    dst_fiber[i0*m] = static_cast<T>(beta * Y{src2_fiber[i0*m]} + src1_val);
-                }
+                // And update it
+                dst_fiber[i0*m] = static_cast<T>(beta * Y{src2_fiber[i0*m]} + src1_val);
             }
         }
     }
@@ -88,6 +87,11 @@ void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src1,
 template
 void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src1,
         Scalar beta, const bf16_t *src2, bf16_t *dst)
+    noexcept;
+
+template
+void cpu<fp16_t>(Index m, Index n, Index k, Scalar alpha, const fp16_t *src1,
+        Scalar beta, const fp16_t *src2, fp16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_slice

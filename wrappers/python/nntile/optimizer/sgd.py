@@ -22,68 +22,59 @@ class SGD:
         self,
         params,
         lr,
-        next_tag,
         momentum=0.0,
         nesterov=False,
         weight_decay=0.0,
-        damping=0.0,
+        dampening=0.0,
         dtype=np.float32,
     ):
         self.params = params
         self.nesterov = nesterov
-        self.num_iter = 0
+        self.num_iter = 1
         self.dtype = dtype
-        self.next_tag = next_tag
         if dtype == np.float32:
             self.lr = np.float32(lr)
             self.momentum = np.float32(momentum)
             self.weight_decay = np.float32(weight_decay)
-            self.damping = np.float32(damping)
+            self.dampening = np.float32(dampening)
         elif dtype == np.float64:
             self.lr = np.float64(lr)
             self.momentum = np.float64(momentum)
             self.weight_decay = np.float64(weight_decay)
-            self.damping = np.float64(damping)
+            self.dampening = np.float64(dampening)
         self.states = []
-        if momentum > 0:
-            for p in self.params:
-                p_traits = TensorTraits(p.value.shape, p.value.basetile_shape)
-                self.states.append(
-                    type(p.value)(
-                        p_traits, p.value.distribution, self.next_tag
-                    )
-                )
-                self.next_tag = self.states[-1].next_tag
-
-    def get_next_tag(self):
-        return self.next_tag
+        # Always create velocity buffers for fused kernel
+        for p in self.params:
+            p_traits = TensorTraits(p.value.shape, p.value.basetile_shape)
+            state = type(p.value)(
+                p_traits, p.value.distribution
+            )
+            # Initialize velocity to zero
+            zeros = np.zeros(p.value.shape, dtype=self.dtype, order="F")
+            state.from_array(zeros)
+            self.states.append(state)
 
     def unregister(self):
-        if self.momentum > 0:
-            for s in self.states:
-                s.unregister()
+        for s in self.states:
+            s.unregister()
 
     def step(self):
         for i, p in enumerate(self.params):
-            if self.weight_decay != 0.0:
-                nntile.tensor.add_inplace_async(
-                    self.weight_decay, p.value, 1.0, p.grad
-                )
-
-            if self.momentum > 0:
-                if self.num_iter == 0:
-                    nntile.tensor.copy_async(p.grad, self.states[i])
-                else:
-                    nntile.tensor.add_inplace_async(
-                        1 - self.damping, p.grad, self.momentum, self.states[i]
-                    )
-                if self.nesterov:
-                    nntile.tensor.add_inplace_async(
-                        self.momentum, self.states[i], 1.0, p.grad
-                    )
-                else:
-                    nntile.tensor.copy_async(self.states[i], p.grad)
-            nntile.tensor.add_inplace_async(-self.lr, p.grad, 1.0, p.value)
+            # Use fused SGD step with nesterov support
+            nntile.tensor.fused_sgd_step(
+                p.value,
+                p.grad,
+                self.states[i],
+                self.lr,
+                self.momentum,
+                self.weight_decay,
+                self.num_iter,
+                self.dampening,
+                self.nesterov,
+            )
+            p.value.wont_use()
+            p.grad.invalidate_submit()
+            self.states[i].wont_use()
         self.num_iter += 1
 
     def get_nbytes(self):
@@ -91,3 +82,23 @@ class SGD:
         for state in self.states:
             nbytes += state.get_nbytes()
         return nbytes
+
+    def force_offload_disk(self, portion: float = 0.0):
+        """Choose the first `portion` of parameters, whose optimizer
+        states are forced to be offloaded to disk in advance"""
+        enable_count = int(len(self.states) * portion)
+        disabled_count = len(self.states) - enable_count
+        for i in range(enable_count):
+            self.states[i].force_offload_disk_enable()
+        for i in range(disabled_count):
+            self.states[enable_count + i].force_offload_disk_disable()
+
+    def force_offload_ram(self, portion: float = 0.0):
+        """Choose the first `portion` of parameters, whose optimizer
+        states are forced to be offloaded to RAM in advance"""
+        enable_count = int(len(self.states) * portion)
+        disabled_count = len(self.states) - enable_count
+        for i in range(enable_count):
+            self.states[i].force_offload_ram_enable()
+        for i in range(disabled_count):
+            self.states[enable_count + i].force_offload_ram_disable()

@@ -21,6 +21,8 @@ import torch
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block, GPT2Config
 
 import nntile
+import nntile.utils.constructors as nntc
+from nntile.layer.cache_utils import KVCache
 from nntile.model.gpt2_block import GPT2Block as GPT2Block_nntile
 from nntile.model.gpt2_config import GPT2ConfigNNTile
 from nntile.tensor import TensorMoments, TensorTraits
@@ -28,22 +30,34 @@ from nntile.utils.constructors import to_numpy
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
-        'fp32': nntile.tensor.Tensor_fp32,
-        'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
-        'bf16': nntile.tensor.Tensor_bf16,
-        'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
-        'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16
+    'fp32': nntile.tensor.Tensor_fp32,
+    'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
+    'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
+    'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
+    'fp16': nntile.tensor.Tensor_fp16,
+    'bf16': nntile.tensor.Tensor_bf16,
+}
+
+dtype2np = {
+    'fp32': np.float32,
+    'fp32_fast_tf32': np.float32,
+    'fp32_fast_fp16': np.float32,
+    'fp32_fast_bf16': np.float32,
+    'bf16': np.float32,
+    'fp16': np.float32,
 }
 
 dtype2tol = {
-        'fp32': {'rtol': 1e-6},
-        'fp32_fast_tf32': {'rtol': 8e-4},
-        'bf16': {'rtol': 1.6e-2},
-        'fp32_fast_fp16': {'rtol': 8e-4},
-        'fp32_fast_bf16': {'rtol': 5e-3},
+    'fp32': {'rtol': 1e-6},
+    'fp32_fast_tf32': {'rtol': 8e-4},
+    'fp32_fast_fp16': {'rtol': 8e-4},
+    'fp32_fast_bf16': {'rtol': 5e-3},
+    'fp16': {'rtol': 5e-3},
+    'bf16': {'rtol': 1.6e-2},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
+flash_dtypes = {'fp16', 'bf16'}
 
 
 @dataclass
@@ -54,7 +68,7 @@ class GPT2BlockTestParams:
     intermediate_size_tile: int
     n_batch: int
     n_batch_tile: int
-    redux: bool = True
+    redux: bool = False
     seq_len: int = 100
     seq_len_tile: int = 100
     n_head: int = 16
@@ -66,24 +80,31 @@ single_tile = GPT2BlockTestParams(
     hidden_size_tile=128,
     intermediate_size=64,
     intermediate_size_tile=64,
+    n_head=2,
+    n_head_tile=2,
     seq_len=32,
     seq_len_tile=32,
     n_batch=3,
-    n_batch_tile=3)
+    n_batch_tile=3
+)
 
 multiple_tiles = GPT2BlockTestParams(
-    hidden_size=128,
-    hidden_size_tile=32,
+    hidden_size=256,
+    hidden_size_tile=64,
     intermediate_size=64,
     intermediate_size_tile=16,
+    n_head=4,
+    n_head_tile=1,
     seq_len=128,
     seq_len_tile=32,
     n_batch=4,
-    n_batch_tile=1)
+    n_batch_tile=1
+)
 
 
 def generate_inputs(params: GPT2BlockTestParams,
-                    dtype: str):
+                    dtype: str,
+                    flash_attention: bool = False):
     torch_layer_config = GPT2Config(
         n_embd=params.hidden_size,
         n_layer=1,
@@ -106,7 +127,8 @@ def generate_inputs(params: GPT2BlockTestParams,
         intermediate_size_tile=params.intermediate_size_tile,
         n_head=params.n_head,
         n_head_tile=params.n_head_tile,
-        dtype=dtype
+        dtype=dtype,
+        flash_attention=flash_attention,
     )
     x_shape = [params.hidden_size, params.seq_len, params.n_batch]
     x_basetile = [params.hidden_size_tile,
@@ -115,8 +137,8 @@ def generate_inputs(params: GPT2BlockTestParams,
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
-    x_value = x_type(x_traits, x_distr, 0)
-    x_grad = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
+    x_grad = x_type(x_traits, x_distr)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     gen = np.random.default_rng(42)
     x_random = gen.standard_normal(x_shape, dtype=np.float32)
@@ -124,8 +146,9 @@ def generate_inputs(params: GPT2BlockTestParams,
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_()
-    nntile_layer, _ = GPT2Block_nntile.from_torch(torch_layer, X,
-                                                     nntile_config, 0)
+    nntile_layer = GPT2Block_nntile.from_torch(
+        torch_layer, X, nntile_config
+    )
     nntile_layer.clear_gradients()
     y_grad_random = gen.standard_normal(x_shape, dtype=np.float32)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
@@ -141,14 +164,29 @@ def generate_inputs(params: GPT2BlockTestParams,
 @pytest.mark.parametrize('dtype', [
     'fp32',
     pytest.param('fp32_fast_tf32', marks=nocuda),
-    pytest.param('bf16', marks=nocuda),
     pytest.param('fp32_fast_fp16', marks=nocuda),
     pytest.param('fp32_fast_bf16', marks=nocuda),
+    pytest.param('fp16', marks=nocuda),
+    pytest.param('bf16', marks=nocuda),
+])
+@pytest.mark.parametrize("flash_attention", [
+    pytest.param(False, id='eager'),
+    pytest.param(True, marks=nocuda, id='cudnn FA')
 ])
 class TestGPT2Decoder:
-    def test_coercion(self, starpu_simple, torch_rng,
-                      params: GPT2BlockTestParams, dtype: str):
-        torch_layer, nntile_layer, *_ = generate_inputs(params, dtype)
+    @staticmethod
+    def _skip_if_unsupported(dtype: str, flash_attention: bool,
+                             params: GPT2BlockTestParams):
+        if flash_attention and dtype not in flash_dtypes:
+            pytest.skip("Flash attention requires fp16/bf16")
+
+    def test_coercion(self, context, torch_rng,
+                      params: GPT2BlockTestParams, dtype: str,
+                      flash_attention: bool):
+        self._skip_if_unsupported(dtype, flash_attention, params)
+        torch_layer, nntile_layer, *_ = generate_inputs(
+            params, dtype, flash_attention=flash_attention
+        )
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
 
@@ -158,10 +196,14 @@ class TestGPT2Decoder:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: GPT2BlockTestParams,
-                     dtype: str):
-        torch_layer, nntile_layer, x, _ = generate_inputs(params, dtype)
+                     dtype: str,
+                     flash_attention: bool):
+        self._skip_if_unsupported(dtype, flash_attention, params)
+        torch_layer, nntile_layer, x, _ = generate_inputs(
+            params, dtype, flash_attention=flash_attention
+        )
         y = torch_layer(x)[0]
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations[-1].value).T)
@@ -169,10 +211,14 @@ class TestGPT2Decoder:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng,
+    def test_forward_backward(self, context, torch_rng,
                       params: GPT2BlockTestParams,
-                      dtype: str):
-        torch_layer, nntile_layer, x, y_grad = generate_inputs(params, dtype)
+                      dtype: str,
+                      flash_attention: bool):
+        self._skip_if_unsupported(dtype, flash_attention, params)
+        torch_layer, nntile_layer, x, y_grad = generate_inputs(
+            params, dtype, flash_attention=flash_attention
+        )
         torch_layer_other = nntile_layer.to_torch()
         y = torch_layer(x)[0]
         nntile_layer.forward_async()
@@ -194,3 +240,147 @@ class TestGPT2Decoder:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+    def test_forward_dynamic(self, context, torch_rng,
+                             params: GPT2BlockTestParams,
+                             dtype: str,
+                             flash_attention: bool):
+        self._skip_if_unsupported(dtype, flash_attention, params)
+        torch_layer, nntile_layer, x, _ = generate_inputs(
+            params, dtype, flash_attention=flash_attention
+        )
+        y_torch = torch_layer(x)[0]
+        x_np = x.detach().cpu().numpy()
+        tensor_type = dtype2nntile[dtype]
+        x_traits = TensorTraits(
+            list(x_np.T.shape),
+            [
+                params.hidden_size_tile,
+                params.seq_len_tile,
+                params.n_batch_tile,
+            ],
+        )
+        x_distr = [0] * x_traits.grid.nelems
+        x_nnt_value = tensor_type(x_traits, x_distr)
+        x_nnt_value.from_array(np.array(x_np.T, order="F"))
+        x_nnt = nntile.tensor.TensorMoments(x_nnt_value, None, False)
+        y_nnt, _ = nntile_layer.forward_dynamic(x_nnt)
+        y_nntile = torch.Tensor(nntc.to_numpy(y_nnt.value).T)
+        nntile_layer.unregister()
+
+        rtol = dtype2tol[dtype]['rtol']
+        assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
+
+
+@pytest.mark.parametrize('params', [
+    pytest.param(single_tile, id='single_tile'),
+    pytest.param(multiple_tiles, id='multiple_tiles'),
+])
+@pytest.mark.parametrize('dtype', [
+    'fp32',
+    pytest.param('fp32_fast_tf32', marks=nocuda),
+    pytest.param('fp32_fast_fp16', marks=nocuda),
+    pytest.param('fp32_fast_bf16', marks=nocuda),
+    pytest.param('bf16', marks=nocuda),
+    pytest.param('fp16', marks=nocuda),
+])
+@pytest.mark.parametrize("flash_attention", [
+    pytest.param(False, id='eager'),
+    pytest.param(True, marks=nocuda, id='cudnn FA')
+])
+def test_forward_dynamic_kvcache_last_token(context,
+                                            params: GPT2BlockTestParams,
+                                            dtype: str,
+                                            flash_attention: bool):
+    if flash_attention and dtype not in flash_dtypes:
+        pytest.skip("Flash attention requires fp16/bf16")
+    _, nntile_layer, *_ = generate_inputs(params, dtype, flash_attention)
+
+    full_out, _ = nntile_layer.forward_dynamic(nntile_layer.activations[0])
+    full_np = to_numpy(full_out.value)
+
+    x_full_np = to_numpy(nntile_layer.activations[0].value)
+    x_tile = nntile_layer.activations[0].value.basetile_shape
+    tensor_type = dtype2nntile[dtype]
+
+    decode_tokens = min(2, params.seq_len)
+    prefill = params.seq_len - decode_tokens
+    prefill_np = np.array(x_full_np[:, :prefill, :], dtype=np.float32,
+                          order="F")
+    decode_np = np.array(x_full_np[:, prefill:, :], dtype=np.float32,
+                         order="F")
+
+    def make_tm(x_np):
+        # Use basetile that matches the actual tensor size for compatibility
+        bt = [x_tile[0], min(x_np.shape[1], x_tile[1]), x_tile[2]]
+        traits = TensorTraits(list(x_np.shape), bt)
+        val = tensor_type(traits, [0] * traits.grid.nelems)
+        val.from_array(x_np)
+        return TensorMoments(val, None, False)
+
+    prefill_tm = make_tm(prefill_np)
+
+    cache = KVCache(max_cache_size=params.seq_len, seq_size_dim=1)
+    _, cache = nntile_layer.forward_dynamic(prefill_tm, cache)
+
+    # Decode the remaining tokens in two steps to ensure cache updates work
+    first_len = min(1, decode_tokens)
+    second_len = decode_tokens - first_len
+    decode_slices = []
+    if first_len > 0:
+        decode_slices.append(decode_np[:, :first_len, :])
+    if second_len > 0:
+        decode_slices.append(decode_np[:, first_len:, :])
+
+    rtol = dtype2tol[dtype]["rtol"]
+    # Use higher tolerance for flash attention due to numerical differences
+    if flash_attention:
+        rtol *= 10
+    offset = prefill
+    for chunk_np in decode_slices:
+        chunk_tm = make_tm(chunk_np)
+        chunk_out, cache = nntile_layer.forward_dynamic(chunk_tm, cache)
+        chunk_decoded = to_numpy(chunk_out.value)
+        ref_slice = full_np[:, offset:offset + chunk_np.shape[1], :]
+
+        diff_norm = np.linalg.norm(chunk_decoded - ref_slice)
+        ref_norm = np.linalg.norm(ref_slice)
+        assert diff_norm <= rtol * ref_norm
+        offset += chunk_np.shape[1]
+
+    nntile_layer.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gpt2_block_forward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(params, dtype)
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_layer.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gpt2_block_forward_backward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(params, dtype)
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_layer.unregister()

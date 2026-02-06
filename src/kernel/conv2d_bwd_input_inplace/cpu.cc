@@ -220,6 +220,24 @@ void cpu<fp32_fast_tf32_t>(Index src1_m, Index src1_n, Index stride_m,
     noexcept;
 
 template
+void cpu<fp32_fast_fp16_t>(Index src1_m, Index src1_n, Index stride_m,
+        Index stride_n, Index src1_channels, Index batch, Index src2_m,
+        Index src2_n, Index dilation_m, Index dilation_n, Index dst_channels,
+        Index offset_m, Index offset_n, Scalar alpha,
+        const fp32_fast_fp16_t *src1, const fp32_fast_fp16_t *src2,
+        Index dst_m, Index dst_n, Scalar beta, fp32_fast_fp16_t *dst)
+    noexcept;
+
+template
+void cpu<fp32_fast_bf16_t>(Index src1_m, Index src1_n, Index stride_m,
+        Index stride_n, Index src1_channels, Index batch, Index src2_m,
+        Index src2_n, Index dilation_m, Index dilation_n, Index dst_channels,
+        Index offset_m, Index offset_n, Scalar alpha,
+        const fp32_fast_bf16_t *src1, const fp32_fast_bf16_t *src2,
+        Index dst_m, Index dst_n, Scalar beta, fp32_fast_bf16_t *dst)
+    noexcept;
+
+template
 void cpu<fp64_t>(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
         Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,

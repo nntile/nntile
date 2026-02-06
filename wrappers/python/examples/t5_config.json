@@ -1,0 +1,17 @@
+{
+    "vocab_size": 32100,
+    "d_model": 512,
+    "d_kv": 128,
+    "d_ff": 1024,
+    "num_layers": 4,
+    "num_heads": 8,
+    "relative_attention_num_buckets": 32,
+    "dropout_rate": 0.0,
+    "layer_norm_epsilon": 1e-5,
+    "initializer_factor": 1.0,
+    "feed_forward_proj": "gated-gelu",
+    "is_encoder_decoder": true,
+    "pad_token_id": 0,
+    "eos_token_id": 1,
+    "decoder_start_token_id": 0
+}

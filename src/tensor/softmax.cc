@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/softmax.hh"
 #include "nntile/starpu/softmax.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -154,7 +155,7 @@ void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &src,
                     k = dst_tile_traits.shape[axis];
                 }
                 // Insert corresponding task
-                starpu::softmax::submit<T>(m, n, k, maxsumexp_tile_handle,
+                starpu::softmax.submit<std::tuple<T>>(m, n, k, maxsumexp_tile_handle,
                         src_tile_handle, alpha, dst_tile_handle);
             }
             // Flush cache for the output tile on every node
@@ -203,6 +204,11 @@ void softmax_async<bf16_t>(const Tensor<bf16_t> &maxsumexp,
         const Tensor<bf16_t> &src, Scalar alpha, const Tensor<bf16_t> &dst,
         Index axis);
 
+template
+void softmax_async<fp16_t>(const Tensor<fp16_t> &maxsumexp,
+        const Tensor<fp16_t> &src, Scalar alpha, const Tensor<fp16_t> &dst,
+        Index axis);
+
 // Explicit instantiation
 template
 void softmax<fp32_t>(const Tensor<fp32_t> &maxsumexp,
@@ -232,6 +238,11 @@ void softmax<fp64_t>(const Tensor<fp64_t> &maxsumexp,
 template
 void softmax<bf16_t>(const Tensor<bf16_t> &maxsumexp,
         const Tensor<bf16_t> &src, Scalar alpha, const Tensor<bf16_t> &dst,
+        Index axis);
+
+template
+void softmax<fp16_t>(const Tensor<fp16_t> &maxsumexp,
+        const Tensor<fp16_t> &src, Scalar alpha, const Tensor<fp16_t> &dst,
         Index axis);
 
 } // namespace nntile::tensor

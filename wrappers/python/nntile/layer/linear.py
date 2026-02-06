@@ -76,7 +76,7 @@ class Linear(BaseLayer):
     @staticmethod
     def generate_simple(x: TensorMoments, side: str, trans_x: TransOp,
             in_features_ndim: int, out_features_shape: List[int],
-            out_features_basetile_shape: List[int], next_tag: int,
+            out_features_basetile_shape: List[int],
             bias: bool = True,
             redux: bool = False):
         # Define shapes
@@ -109,11 +109,9 @@ class Linear(BaseLayer):
         w_traits = TensorTraits(w_shape, w_tile)
         # TODO change distribution
         w_distr = [0] * w_traits.grid.nelems
-        w_value = type(x.value)(w_traits, w_distr, next_tag)
-        next_tag = w_value.next_tag
+        w_value = type(x.value)(w_traits, w_distr)
         # Create gradient of W with the same traits and distribution as W
-        w_grad = type(x.value)(w_traits, w_distr, next_tag)
-        next_tag = w_grad.next_tag
+        w_grad = type(x.value)(w_traits, w_distr)
         # Define W as TensorMoments
         w = TensorMoments(w_value, w_grad, True)
         if bias:
@@ -123,11 +121,9 @@ class Linear(BaseLayer):
             b_traits = TensorTraits(add_shape, add_basetile_shape)
             # TODO change distribution
             b_distr = [0] * b_traits.grid.nelems
-            b_value = type(x.value)(b_traits, b_distr, next_tag)
-            next_tag = b_value.next_tag
+            b_value = type(x.value)(b_traits, b_distr)
             # Create gradient of b with the same traits and distribution as b
-            b_grad = type(x.value)(b_traits, b_distr, next_tag)
-            next_tag = b_grad.next_tag
+            b_grad = type(x.value)(b_traits, b_distr)
             # Define b as TensorMoments
             b = TensorMoments(b_value, b_grad, True)
         else:
@@ -136,11 +132,9 @@ class Linear(BaseLayer):
         y_traits = TensorTraits(y_shape, y_tile)
         # TODO change distribution
         y_distr = [0] * y_traits.grid.nelems
-        y_value = type(x.value)(y_traits, y_distr, next_tag)
-        next_tag = y_value.next_tag
+        y_value = type(x.value)(y_traits, y_distr)
         # Create gradient of Y with the same traits and distribution as Y
-        y_grad = type(x.value)(y_traits, y_distr, next_tag)
-        next_tag = y_grad.next_tag
+        y_grad = type(x.value)(y_traits, y_distr)
         # Define Y as TensorMoments
         y = TensorMoments(y_value, y_grad, True)
         # Create linear layer with all the provided data
@@ -156,8 +150,8 @@ class Linear(BaseLayer):
             out_features_basetile_shape,
             redux=redux,
         )
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer
 
     # Forward propagation of the linear layer
     def forward_async(self):
@@ -200,11 +194,14 @@ class Linear(BaseLayer):
                 "Implemented only for from_torch version:"
                 "self.side == 'R' and self.trans_x == notrans"
             )
+        # Preserve basetile geometry for trailing dimensions to keep gemm
+        # expectations identical to the static path.
+        x_basetile_tail = list(x.value.basetile_shape[self.ndim :])
         y = nntc.empty(
             self.out_features_shape + x.value.shape[self.ndim :],
             dtype=type(x.value),
             basetile_shape=self.out_features_basetile_shape
-            + x.value.shape[self.ndim :],
+            + x_basetile_tail,
         )
         # Y = einsum('ij,jk->ik', W, op(X))
         # 'i' is a multi-index of dimension W.ndim-ndim
@@ -343,17 +340,16 @@ class Linear(BaseLayer):
         return lin_torch
 
     @staticmethod
-    def from_torch(torch_linear, x, hidden_dim_tile, redux, next_tag):
+    def from_torch(torch_linear, x, hidden_dim_tile, redux):
         gemm_ndim = 1
         hidden_dim = torch_linear.weight.shape[0]
-        linear_nntile, next_tag = Linear.generate_simple(
+        linear_nntile = Linear.generate_simple(
             x,
             "R",
             notrans,
             gemm_ndim,
             [hidden_dim],
             [hidden_dim_tile],
-            next_tag,
             redux=redux,
             bias=torch_linear.bias is not None
         )
@@ -362,7 +358,7 @@ class Linear(BaseLayer):
         if torch_linear.bias is not None:
             linear_nntile.b.value.from_array(torch_linear.bias.data.cpu().detach().numpy())
 
-        return linear_nntile, next_tag
+        return linear_nntile
 
     def get_forward_flops(self):
         x_shape = self.x.value.shape

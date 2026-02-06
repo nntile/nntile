@@ -48,7 +48,7 @@ void adamw_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, 
         throw std::runtime_error("Shapes of first_moment and parameters are not equal");
     }
     // Submit task
-    starpu::adamw_step::submit<T>(num_iter, p.nelems, beta_1, beta_2, eps, lr, weight_decay,
+    starpu::adamw_step.submit<std::tuple<T>>(num_iter, p.nelems, beta_1, beta_2, eps, lr, weight_decay,
                                  grad, first_moment, second_moment, p);
 }
 
@@ -103,6 +103,11 @@ void adamw_step_async<bf16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scal
                const Tile<bf16_t> &grad, const Tile<bf16_t> &first_moment, const Tile<bf16_t> &second_moment,
                const Tile<bf16_t> &p);
 
+template
+void adamw_step_async<fp16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+               const Tile<fp16_t> &grad, const Tile<fp16_t> &first_moment, const Tile<fp16_t> &second_moment,
+               const Tile<fp16_t> &p);
+
 // Explicit instantiation
 template
 void adamw_step<fp32_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
@@ -133,5 +138,10 @@ template
 void adamw_step<bf16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
                const Tile<bf16_t> &grad, const Tile<bf16_t> &first_moment, const Tile<bf16_t> &second_moment,
                const Tile<bf16_t> &p);
+
+template
+void adamw_step<fp16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+               const Tile<fp16_t> &grad, const Tile<fp16_t> &first_moment, const Tile<fp16_t> &second_moment,
+               const Tile<fp16_t> &p);
 
 } // namespace nntile::tile

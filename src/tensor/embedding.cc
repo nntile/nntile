@@ -15,6 +15,7 @@
 #include "nntile/tensor/embedding.hh"
 #include "nntile/starpu/embedding.hh"
 #include "nntile/starpu/clear.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -77,7 +78,7 @@ void embedding_async(const Tensor<int64_t> &index, const Tensor<T> &vocab,
         // Clear output tile at first
         if(mpi_rank == embed_tile_rank)
         {
-            starpu::clear::submit(embed_tile_handle);
+            starpu::clear.submit(embed_tile_handle);
         }
         // Get corresponding index tile
         std::vector<Index> index_tile_index(index.ndim);
@@ -108,7 +109,7 @@ void embedding_async(const Tensor<int64_t> &index, const Tensor<T> &vocab,
             k = embed_tile_traits.shape[axis];
             k_start = (j-vocab_start) * vocab.basetile_shape[0];
             k_size = vocab_tile_traits.shape[0];
-            starpu::embedding::submit<T>(m, n, k, k_start, k_size,
+            starpu::embedding.submit<std::tuple<T>>(m, n, k, k_start, k_size,
                     index_tile_handle, vocab_tile_handle, embed_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -135,6 +136,10 @@ void embedding_async<bf16_t>(const Tensor<int64_t> &index,
         const Tensor<bf16_t> &vocab, const Tensor<bf16_t> &embed, Index axis);
 
 template
+void embedding_async<fp16_t>(const Tensor<int64_t> &index,
+        const Tensor<fp16_t> &vocab, const Tensor<fp16_t> &embed, Index axis);
+
+template
 void embedding_async<fp32_fast_tf32_t>(const Tensor<int64_t> &index,
         const Tensor<fp32_fast_tf32_t> &vocab, const Tensor<fp32_fast_tf32_t> &embed, Index axis);
 
@@ -158,6 +163,10 @@ void embedding<fp32_t>(const Tensor<int64_t> &index, const Tensor<fp32_t> &vocab
 template
 void embedding<bf16_t>(const Tensor<int64_t> &index,
         const Tensor<bf16_t> &vocab, const Tensor<bf16_t> &embed, Index axis);
+
+template
+void embedding<fp16_t>(const Tensor<int64_t> &index,
+        const Tensor<fp16_t> &vocab, const Tensor<fp16_t> &embed, Index axis);
 
 template
 void embedding<fp32_fast_tf32_t>(const Tensor<int64_t> &index, const Tensor<fp32_fast_tf32_t> &vocab,

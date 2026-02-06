@@ -22,8 +22,7 @@ namespace nntile::kernel::hypot
 
 // Apply hypot for buffers on CUDA
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T* src, Scalar beta,
-        T* dst)
+void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T* src1, Scalar beta, const T* src2, T* dst)
     noexcept;
 
 } // namespace nntile::kernel::hypot

@@ -101,7 +101,7 @@ if args.pretrained == "remote":
     # Newer versions of transformers can use fast attention, so we disable it
     # through a parameter attn_implementation
     model_torch = LlamaForCausalLM.from_pretrained(args.remote_model_name,
-                cache_dir=args.model_path, local_files_only=True)
+                cache_dir=args.model_path, local_files_only=False)
 elif args.pretrained == "local":
     if args.config_path:
         f = open(args.config_path)
@@ -120,28 +120,33 @@ elif args.pretrained == "local":
             raise ValueError
         if args.checkpoint_path:
             checkpoint = torch.load(args.checkpoint_path)
-            model_torch.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            model_torch.load_state_dict(
+                checkpoint["model_state_dict"],
+                strict=False
+            )
 
 model_torch.eval()
 print(model_torch.config)
 
 # Initialize NNTile and StarPU
 time0 = time.time()
-# Set up StarPU+MPI and init codelets
-nntile_config = nntile.starpu.Config(-1, -1, 1, args.logger,
-        args.logger_server_addr, args.logger_server_port)
+context = nntile.Context(
+    ncpu=-1,
+    ncuda=-1,
+    logger=args.logger,
+    logger_addr=args.logger_server_addr,
+    logger_port=args.logger_server_port,
+    verbose=0
+)
 nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
-nntile.starpu.init()
 # Restrict computations to CUDA if possible
 if args.restrict == "cuda":
-    nntile.starpu.restrict_cuda()
+    context.restrict_cuda()
 elif args.restrict == "cpu":
-    nntile.starpu.restrict_cpu()
+    context.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
-next_tag = 0
 
 time0 = time.time()
 if args.n_head_tile == -1:
@@ -175,15 +180,14 @@ pos_ids = np.repeat(single_batch_pos_ids, args.minibatch_size, axis=0)
 
 mask = np.array(np.triu(np.ones((args.seq_len, args.seq_len))),
                     dtype=bool, order="F")
-llama_nntile, next_tag = Llama_nntile.from_torch(model_torch,
-                                                args.minibatch_size,
-                                                args.minibatch_size_tile,
-                                                args.seq_len,
-                                                args.seq_len_tile,
-                                                pos_ids,
-                                                mask,
-                                                llama_config_nntile,
-                                                next_tag)
+llama_nntile = Llama_nntile.from_torch(model_torch,
+                                        args.minibatch_size,
+                                        args.minibatch_size_tile,
+                                        args.seq_len,
+                                        args.seq_len_tile,
+                                        pos_ids,
+                                        mask,
+                                        llama_config_nntile)
 time1 = time.time() - time0
 print("Converting PyTorch model to NNTile",
         "requires {} seconds".format(time1))
@@ -220,17 +224,14 @@ batch_output = []
 x_traits = nntile.tensor.TensorTraits(
         [args.seq_len, args.minibatch_size],
         [args.seq_len_tile, args.minibatch_size_tile])
-x_distr = [0] * x_traits.grid.nelems
 for i in range(num_train_batches):
     minibatch_input = []
     minibatch_output = []
     for j in range(num_minibatch):
-        x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = x.next_tag
+        x = nntile.tensor.Tensor_int64(x_traits)
         x.from_array(np.asfortranarray(train_tokens[i, j, :, :-1].T))
         minibatch_input.append(x)
-        y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = y.next_tag
+        y = nntile.tensor.Tensor_int64(x_traits)
         y.from_array(np.asfortranarray(train_tokens[i, j, :, 1:].T))
         minibatch_output.append(y)
     batch_input.append(minibatch_input)
@@ -240,17 +241,16 @@ print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
 # Set up learning rate and optimizer for training
 if args.optimizer == "adam":
     optimizer = nntile.optimizer.Adam(llama_nntile.get_parameters(),
-            args.lr, next_tag)
+            args.lr)
 elif args.optimizer == "adamw":
     optimizer = nntile.optimizer.AdamW(llama_nntile.get_parameters(),
-            args.lr, next_tag)
+            args.lr)
 elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(llama_nntile.get_parameters(),
-            args.lr, next_tag)
-next_tag = optimizer.get_next_tag()
+            args.lr)
 # Define Cross Entropy loss function
-loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-        llama_nntile.activations[-1], next_tag,
+loss = nntile.loss.CrossEntropy.generate_simple(
+        llama_nntile.activations[-1],
         scale=1.0 / (args.batch_size * args.seq_len))
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_input, batch_output,
@@ -278,6 +278,17 @@ print("NNTile performance (model flops): {} Tflops/s".format(nflops_minibatch
 loss_np = np.zeros((1), dtype=np.float32)
 loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
+
+# Convert back to PyTorch and save checkpoint
+model_torch = llama_nntile.to_torch()
+torch.save(
+    {
+        "model_state_dict": model_torch.state_dict(),
+    },
+    args.save_checkpoint_path,
+)
+del model_torch
+
 loss.unregister()
 optimizer.unregister()
 for batch in batch_input + batch_output:

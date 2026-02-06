@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/maxsumexp.hh"
 #include "nntile/starpu/maxsumexp.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -116,7 +117,7 @@ void maxsumexp_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis,
                 n = src_tile_traits.matrix_shape[axis+1][1];
                 k = src_tile_traits.shape[axis];
                 // Insert task
-                starpu::maxsumexp::submit<T>(m, n, k, src_tile_handle,
+                starpu::maxsumexp.submit<std::tuple<T>>(m, n, k, src_tile_handle,
                         dst_tile_handle, redux);
             }
         }
@@ -160,6 +161,10 @@ template
 void maxsumexp_async<bf16_t>(const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst, Index axis, int redux);
 
+template
+void maxsumexp_async<fp16_t>(const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst, Index axis, int redux);
+
 // Explicit instantiation
 template
 void maxsumexp<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst,
@@ -184,5 +189,9 @@ void maxsumexp<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst,
 template
 void maxsumexp<bf16_t>(const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst, Index axis, int redux);
+
+template
+void maxsumexp<fp16_t>(const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst, Index axis, int redux);
 
 } // namespace nntile::tensor

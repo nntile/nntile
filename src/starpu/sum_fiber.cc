@@ -12,18 +12,30 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/sum_fiber.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/sum_fiber.hh"
-#include <cstdlib>
 
-namespace nntile::starpu::sum_fiber
+// Standard libraries
+#include <cstdlib>
+#include <stdexcept>
+
+// Other NNTile headers
+#include "nntile/kernel/sum_fiber.hh"
+
+namespace nntile::starpu
 {
+
+//! Constructor
+template<typename T>
+SumFiber<std::tuple<T>>::SumFiber():
+    codelet("nntile_sum_fiber", footprint, cpu_funcs, cuda_funcs)
+{
+    // Modes are not fixed, they are decided during runtime by default
+}
 
 //! StarPU wrapper for kernel::sum_fiber::cpu<T>
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void SumFiber<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -39,10 +51,35 @@ void cpu(void *buffers[], void *cl_args)
 #endif // STARPU_SIMGRID
 }
 
+// Specializations of CPU wrapper for accelerated types
+template<>
+void SumFiber<std::tuple<fp32_fast_tf32_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void SumFiber<std::tuple<fp32_fast_fp16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
+template<>
+void SumFiber<std::tuple<fp32_fast_bf16_t>>::cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumFiber<std::tuple<fp32_t>>::cpu(buffers, cl_args);
+}
+
 #ifdef NNTILE_USE_CUDA
 //! StarPU wrapper for kernel::sum_fiber::cuda<T>
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void SumFiber<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -59,11 +96,36 @@ void cuda(void *buffers[], void *cl_args)
             args->alpha, src, args->beta, dst);
 #endif // STARPU_SIMGRID
 }
+
+// Specializations of CUDA wrapper for accelerated types
+template<>
+void SumFiber<std::tuple<fp32_fast_tf32_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SumFiber<std::tuple<fp32_fast_fp16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
+
+template<>
+void SumFiber<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Fall back to FP32
+    SumFiber<std::tuple<fp32_t>>::cuda(buffers, cl_args);
+}
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for sum_fiber tasks
-static
-uint32_t footprint(struct starpu_task *task)
+template<typename T>
+uint32_t SumFiber<std::tuple<T>>::footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
@@ -76,94 +138,9 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
-
-void init()
-{
-    codelet_fp32.init("nntile_sum_fiber_fp32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_bf16.init("nntile_sum_fiber_bf16",
-            footprint,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_sum_fiber_fp32_fast_tf32",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_fp16.init("nntile_sum_fiber_fp32_fast_fp16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_bf16.init("nntile_sum_fiber_fp32_fast_bf16",
-            footprint,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp64.init("nntile_sum_fiber_fp64",
-            footprint,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp32_fast_fp16.restrict_where(where);
-    codelet_fp32_fast_bf16.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp32_fast_fp16.restore_where();
-    codelet_fp32_fast_bf16.restore_where();
-    codelet_fp64.restore_where();
-}
-
 template<typename T>
-void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
+void SumFiber<std::tuple<T>>::submit(Index m, Index n, Index k, Index batch,
+        Scalar alpha, Handle src,
         Scalar beta, Handle dst, int redux)
 //! Insert sum_fiber task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -183,11 +160,10 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
         if(redux != 0)
         {
             dst_mode = STARPU_REDUX;
-            //dst_mode = Config::STARPU_RW_COMMUTE;
         }
         else
         {
-            dst_mode = Config::STARPU_RW_COMMUTE;
+            dst_mode = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
         }
     }
     else
@@ -203,10 +179,10 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
     args->alpha = alpha;
     args->beta = beta;
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
+    int ret = starpu_task_insert(&codelet,
+            STARPU_R, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            dst_mode, static_cast<starpu_data_handle_t>(dst),
+            dst_mode, dst.get(),
             0);
     // Check submission
     if(ret != 0)
@@ -216,28 +192,17 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
 }
 
 // Explicit instantiation
-template
-void submit<fp32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        Handle src, Scalar beta, Handle dst, int redux);
+// For some strange reason, the compiler does not instantiate the template
+// automatically, so we need to do it manually
+template class SumFiber<std::tuple<nntile::fp64_t>>;
+template class SumFiber<std::tuple<nntile::fp32_t>>;
+template class SumFiber<std::tuple<nntile::fp32_fast_tf32_t>>;
+template class SumFiber<std::tuple<nntile::fp32_fast_fp16_t>>;
+template class SumFiber<std::tuple<nntile::fp32_fast_bf16_t>>;
+template class SumFiber<std::tuple<nntile::bf16_t>>;
+template class SumFiber<std::tuple<nntile::fp16_t>>;
 
-template
-void submit<bf16_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        Handle src, Scalar beta, Handle dst, int redux);
+//! Pack of sum_fiber operations for different types
+sum_fiber_pack_t sum_fiber;
 
-template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        Handle src, Scalar beta, Handle dst, int redux);
-
-template
-void submit<fp32_fast_fp16_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        Handle src, Scalar beta, Handle dst, int redux);
-
-template
-void submit<fp32_fast_bf16_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        Handle src, Scalar beta, Handle dst, int redux);
-
-template
-void submit<fp64_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        Handle src, Scalar beta, Handle dst, int redux);
-
-} // namespace nntile::starpu::sum_fiber
+} // namespace nntile::starpu

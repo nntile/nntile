@@ -25,7 +25,6 @@ class AdamW:
         self,
         params,
         lr,
-        next_tag,
         beta1=0.9,
         beta2=0.999,
         weight_decay=0.0,
@@ -35,7 +34,6 @@ class AdamW:
         full_lr_iter=None,
     ):
         self.params = params
-        self.next_tag = next_tag
         self.num_iter = 1
         self.dtype = dtype
         self.first_moments = []
@@ -43,13 +41,11 @@ class AdamW:
         for p in self.params:
             p_traits = TensorTraits(p.value.shape, p.value.basetile_shape)
             self.first_moments.append(
-                type(p.value)(p_traits, p.value.distribution, self.next_tag)
+                type(p.value)(p_traits, p.value.distribution)
             )
-            self.next_tag = self.first_moments[-1].next_tag
             self.second_moments.append(
-                type(p.value)(p_traits, p.value.distribution, self.next_tag)
+                type(p.value)(p_traits, p.value.distribution)
             )
-            self.next_tag = self.second_moments[-1].next_tag
         self.lr = lr
         self.start_lr = start_lr
         self.full_lr_iter = full_lr_iter
@@ -57,9 +53,6 @@ class AdamW:
         self.beta2 = beta2
         self.weight_decay = weight_decay
         self.eps = eps
-
-    def get_next_tag(self):
-        return self.next_tag
 
     def unregister(self):
         for i in range(len(self.first_moments)):
@@ -170,3 +163,27 @@ class AdamW:
             nbytes += self.first_moments[i].get_nbytes()
             nbytes += self.second_moments[i].get_nbytes()
         return nbytes
+
+    def force_offload_disk(self, portion: float = 0.0):
+        """Choose the first `portion` of parameters, whose optimizer
+        states are forced to be offloaded to disk in advance"""
+        enable_count = int(len(self.first_moments) * portion)
+        disabled_count = len(self.first_moments) - enable_count
+        for i in range(enable_count):
+            self.first_moments[i].force_offload_disk_enable()
+            self.second_moments[i].force_offload_disk_enable()
+        for i in range(disabled_count):
+            self.first_moments[enable_count + i].force_offload_disk_disable()
+            self.second_moments[enable_count + i].force_offload_disk_disable()
+
+    def force_offload_ram(self, portion: float = 0.0):
+        """Choose the first `portion` of parameters, whose optimizer
+        states are forced to be offloaded to RAM in advance"""
+        enable_count = int(len(self.first_moments) * portion)
+        disabled_count = len(self.first_moments) - enable_count
+        for i in range(enable_count):
+            self.first_moments[i].force_offload_ram_enable()
+            self.second_moments[i].force_offload_ram_enable()
+        for i in range(disabled_count):
+            self.first_moments[enable_count + i].force_offload_ram_disable()
+            self.second_moments[enable_count + i].force_offload_ram_disable()

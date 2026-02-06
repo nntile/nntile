@@ -24,11 +24,10 @@ from .gpt_neox_config import GPTNeoXConfig
 
 
 class GPTNeoXMLP(BaseModel):
-    next_tag: int
 
     # Construct model with all the provided data
     def __init__(self, x: TensorMoments,
-                 config: GPTNeoXConfig, next_tag: int):
+                 config: GPTNeoXConfig):
         # Init activations and list of layers
         activations = [x]
         layers = []
@@ -40,59 +39,62 @@ class GPTNeoXMLP(BaseModel):
         redux = config.redux
         gemm_ndim = 1
         # Initial linear layer that converts input to internal shape
-        new_layer, next_tag = Linear.generate_simple(
+        new_layer = Linear.generate_simple(
             x,
             "R",
             notrans,
             gemm_ndim,
             [self.intermediate_size],
             [intermediate_size_tile],
-            next_tag,
             redux=redux,
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Act.generate_simple(
-            activations[-1], activation_function, next_tag
+        new_layer = Act.generate_simple(
+            activations[-1], activation_function
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Linear.generate_simple(
+        new_layer = Linear.generate_simple(
             activations[-1],
             "R",
             notrans,
             gemm_ndim,
             [self.hidden_size],
             [hidden_size_tile],
-            next_tag,
             redux=redux,
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
-        self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers, config)
 
+    def forward_dynamic(self, x: TensorMoments):
+        up_proj, up_proj_act, down_proj = self.layers
+        up_proj_outs = up_proj.forward_dynamic(x)
+        up_proj_act_outs = up_proj_act.forward_dynamic(up_proj_outs)
+        down_proj_outs = down_proj.forward_dynamic(up_proj_act_outs)
+        return down_proj_outs
+
     @staticmethod
     def from_torch(
-        mlp_torch, x: TensorMoments, config: GPTNeoXConfig, next_tag: int
+        mlp_torch, x: TensorMoments, config: GPTNeoXConfig
     ):
         """
         torch_mlp is PyTorch MLP where no biases in linear layers
         """
-        mlp_nntile = GPTNeoXMLP(x, config, next_tag)
+        mlp_nntile = GPTNeoXMLP(x, config)
         torch_params = list(mlp_torch.parameters())
         for i, p in enumerate(mlp_nntile.parameters):
             p.value.from_array(torch_params[i].cpu().detach().numpy())
-        return mlp_nntile, mlp_nntile.next_tag
+        return mlp_nntile
 
     def to_torch(self):
-        config_torch = GPTNeoXConfigTorch(
-            hidden_size=self.hidden_size,
-            intermediate_size=self.intermediate_size
-        )
+        config_torch = GPTNeoXConfigTorch()
+        config_torch.hidden_size = self.hidden_size
+        config_torch.intermediate_size = self.intermediate_size
         mlp_torch = GPTNeoXMlpTorch(config_torch)
         for p_nntile, p_torch in zip(self.parameters,
                                      mlp_torch.parameters()):
@@ -101,10 +103,9 @@ class GPTNeoXMLP(BaseModel):
         return mlp_torch
 
     def to_torch_with_grads(self):
-        config_torch = GPTNeoXConfigTorch(
-            hidden_size=self.hidden_size,
-            intermediate_size=self.intermediate_size
-        )
+        config_torch = GPTNeoXConfigTorch()
+        config_torch.hidden_size = self.hidden_size
+        config_torch.intermediate_size = self.intermediate_size
         mlp_torch = GPTNeoXMlpTorch(config_torch)
         for p_nntile, p_torch in zip(self.parameters,
                                      mlp_torch.parameters()):

@@ -35,7 +35,7 @@ void gelutanh_backward_async(const Tile<T> &x, const Tile<T> &dy,
         throw std::runtime_error("x.shape != dx.shape");
     }
     // Submit task without any arguments checked
-    starpu::gelutanh_backward::submit<T>(x.nelems, x, dy, dx);
+    starpu::gelutanh_backward.submit<std::tuple<T>>(x.nelems, x, dy, dx);
 }
 
 //! Blocking version of tile-wise backward approximate GeLU operation
@@ -73,6 +73,10 @@ template
 void gelutanh_backward_async<bf16_t>(const Tile<bf16_t> &x, const Tile<bf16_t> &dy,
         const Tile<bf16_t> &dx);
 
+template
+void gelutanh_backward_async<fp16_t>(const Tile<fp16_t> &x, const Tile<fp16_t> &dy,
+        const Tile<fp16_t> &dx);
+
 // Explicit instantiation
 template
 void gelutanh_backward<fp32_t>(const Tile<fp32_t> &x, const Tile<fp32_t> &dy,
@@ -97,5 +101,9 @@ void gelutanh_backward<fp64_t>(const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
 template
 void gelutanh_backward<bf16_t>(const Tile<bf16_t> &x, const Tile<bf16_t> &dy,
         const Tile<bf16_t> &dx);
+
+template
+void gelutanh_backward<fp16_t>(const Tile<fp16_t> &x, const Tile<fp16_t> &dy,
+        const Tile<fp16_t> &dx);
 
 } // namespace nntile::tile

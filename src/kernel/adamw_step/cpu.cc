@@ -25,7 +25,13 @@ void cpu(Index num_iter, Index num_elems, Scalar beta_1_, Scalar beta_2_,
         T *first_moment, T *second_moment, T *p)
     noexcept
 //! Fused AdamW step on buffers
-/*!
+/*! This routine performs a single AdamW step described by the following
+ * formulas:
+ *      p_val *= 1 - lr * weight_decay
+ *      f_val = beta_1*f_val + (1-beta_1)*grad_val
+ *      s_val = hypot(sqrt(beta_2)*s_val, sqrt(1-beta_2)*grad_val)
+ *      p_val -= alpha*f_val / (s_val*beta + eps)
+ * where alpha is a learning rate and beta is a correction for moments.
  *
  * @param[in] num_iter: current iteration number
  * @param[in] num_elems: Number of elements in buffers
@@ -34,10 +40,10 @@ void cpu(Index num_iter, Index num_elems, Scalar beta_1_, Scalar beta_2_,
  * @param[in] eps_: small scalar to avoid division by zero
  * @param[in] lr_: learning rate
  * @param[in] weight_decay_: coefficient for l2 regularizer
- * @param[in] grad_: Input buffer stored gradient, can be updated if weight_decay > 0
- * @param[inout] first_moment_: Input buffer stored first moments
- * @param[inout] second_moment_: Input buffer stored square root of second moments for stability
- * @param[inout] p_: Input buffers with parameter that are updated in the end
+ * @param[in] grad: Input buffer stored gradient
+ * @param[inout] first_moment: Input/output buffer stored first moments
+ * @param[inout] second_moment: Input/output buffer stored second moments
+ * @param[inout] p: Input/output buffer with parameters that are updated
  * */
 {
     using Y = typename T::repr_t;
@@ -102,6 +108,12 @@ template
 void cpu<bf16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
         Scalar eps, Scalar lr, Scalar weight_decay, const bf16_t *grad,
         bf16_t *first_moment, bf16_t *second_moment, bf16_t *p)
+    noexcept;
+
+template
+void cpu<fp16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
+        Scalar eps, Scalar lr, Scalar weight_decay, const fp16_t *grad,
+        fp16_t *first_moment, fp16_t *second_moment, fp16_t *p)
     noexcept;
 
 } // namespace nntile::kernel::adamw_step

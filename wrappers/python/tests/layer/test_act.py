@@ -22,13 +22,22 @@ import nntile.tensor
 import nntile.utils.constructors as nntc
 from nntile.layer import Act
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
-
 # Define mapping between numpy and nntile types
 Tensor = {
     np.float32: nntile.tensor.Tensor_fp32,
     np.float64: nntile.tensor.Tensor_fp64,
+}
+
+dtype2nntile = {
+    'fp16': nntile.tensor.Tensor_fp16,
+    'bf16': nntile.tensor.Tensor_bf16,
+    'fp32': nntile.tensor.Tensor_fp32,
+}
+
+dtype2np = {
+    'fp16': np.float32,
+    'bf16': np.float32,
+    'fp32': np.float32,
 }
 
 
@@ -37,12 +46,9 @@ def setup(name: str, dtype: np.dtype):
     A_shape = [4, 5, 6]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
-    next_tag = 0
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
+    A = Tensor[dtype](A_traits, mpi_distr)
+    A_grad = Tensor[dtype](A_traits, mpi_distr)
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Set initial values of tensors
     rand_A = np.random.default_rng(42).standard_normal(A_shape)
@@ -53,7 +59,7 @@ def setup(name: str, dtype: np.dtype):
     A.from_array(np_A)
     nntile.tensor.clear_async(A_grad)
     # Set up activation layer
-    layer, _ = Act.generate_simple(A_moments, name, next_tag)
+    layer = Act.generate_simple(A_moments, name)
 
     return np_A, np_B, A_moments, layer
 
@@ -61,7 +67,7 @@ def setup(name: str, dtype: np.dtype):
 @pytest.mark.parametrize("name", ["relu", "gelu", "gelutanh", "silu"])
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
 class TestAct:
-    def test_forward(self, name: str, dtype: np.dtype):
+    def test_forward(self, context, name: str, dtype: np.dtype):
         if dtype == np.float32:
             tol = 1e-5
         elif dtype == np.float64:
@@ -88,7 +94,7 @@ class TestAct:
         A_moments.unregister()
         layer.unregister()
 
-    def test_backward(self, name: str, dtype: np.dtype):
+    def test_backward(self, context, name: str, dtype: np.dtype):
         if dtype == np.float32:
             tol = 1e-5
         elif dtype == np.float64:
@@ -128,7 +134,7 @@ class TestAct:
         A_moments.unregister()
         layer.unregister()
 
-    def test_dynamic(self, name: str, dtype: np.dtype):
+    def test_dynamic(self, context, name: str, dtype: np.dtype):
         if dtype == np.float32:
             tol = 1e-5
         elif dtype == np.float64:
@@ -157,3 +163,78 @@ class TestAct:
 
         A_moments.unregister()
         layer.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize("name", ["relu", "gelu", "gelutanh", "silu"])
+@pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
+def test_bench_act_forward_async(
+        context_cuda, benchmark_operation, name: str, dtype: str,
+):
+    A_shape = [128, 128]
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    mpi_distr = [0]
+    # Tensor objects
+    tensor_type = dtype2nntile[dtype]
+    A = tensor_type(A_traits, mpi_distr)
+    A_grad = tensor_type(A_traits, mpi_distr)
+
+    # Set initial values of tensors
+    rng = np.random.default_rng(42)
+    np_dtype = dtype2np[dtype]
+    np_A = np.array(rng.standard_normal(A_shape), dtype=np_dtype, order="F")
+    A.from_array(np_A)
+    nntile.tensor.clear_async(A_grad)
+
+    # Set up activation layer
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
+    layer = Act.generate_simple(A_moments, name)
+
+    def bench_fn():
+        layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize("name", ["relu", "gelu", "gelutanh", "silu"])
+@pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
+def test_bench_act_forward_backward_async(
+        context_cuda, benchmark_operation, name: str, dtype: str,
+):
+    if dtype == 'fp16' and name in ['relu', 'gelu', 'silu']:
+        pytest.xfail("not implemented")
+
+    A_shape = [128, 128]
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    mpi_distr = [0]
+    # Tensor objects
+    tensor_type = dtype2nntile[dtype]
+    A = tensor_type(A_traits, mpi_distr)
+    A_grad = tensor_type(A_traits, mpi_distr)
+
+    # Set initial values of tensors
+    rng = np.random.default_rng(42)
+    np_dtype = dtype2np[dtype]
+    np_A = np.array(rng.standard_normal(A_shape), dtype=np_dtype, order="F")
+    A.from_array(np_A)
+    nntile.tensor.clear_async(A_grad)
+
+    # Set up activation layer
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
+    layer = Act.generate_simple(A_moments, name)
+
+    layer.clear_gradients()
+    # Prepare grad and run forward once
+    layer.forward_async()
+    layer.y.grad.from_array(2 * np_A)
+
+    def bench_fn():
+        layer.forward_async()
+        layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

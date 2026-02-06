@@ -15,6 +15,7 @@
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/copy.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -53,7 +54,7 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
         // Execute on destination node
         if(mpi_rank == dst_tile_rank)
         {
-            starpu::copy::submit(src_tile_handle, dst_tile_handle);
+            starpu::copy.submit(src_tile_handle, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
@@ -62,7 +63,7 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
     // Do the slow complex copy
     // Temporary buffer for indexing, that is allocated per-worker when needed
     Index ndim = src.ndim;
-    starpu::VariableHandle scratch(2*ndim*sizeof(int64_t), STARPU_SCRATCH);
+    starpu::VariableHandle scratch(2*ndim*sizeof(int64_t));
     // We define starting coordinates and shapes for all complex copies of
     // tiles
     std::vector<Index> src_tile_start(ndim), dst_tile_start(ndim);
@@ -75,7 +76,7 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
     if(mpi_rank == dst_tile_rank)
     {
         auto src_first_tile_traits = src.get_tile_traits(0);
-        starpu::subcopy::submit<T>(ndim, src_tile_start,
+        starpu::subcopy.submit<std::tuple<T>>(ndim, src_tile_start,
                 src_first_tile_traits.stride, dst_tile_start,
                 dst_tile_traits.stride, src_first_tile_traits.shape,
                 src_first_tile_handle, dst_tile_handle, scratch, STARPU_W);
@@ -103,12 +104,14 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
             {
                 dst_tile_start[k] = src_tile_index[k] * src.basetile_shape[k];
             }
-            starpu::subcopy::submit<T>(ndim, src_tile_start,
+            starpu::subcopy.submit<std::tuple<T>>(ndim, src_tile_start,
                     src_tile_traits.stride, dst_tile_start,
                     dst_tile_traits.stride, src_tile_traits.shape,
                     src_tile_handle, dst_tile_handle, scratch, STARPU_RW);
         }
     }
+    // Unregister scratch buffer in an async manner
+    scratch.unregister_submit();
     // Flush cache for the output tile on every node
     dst_tile_handle.mpi_flush();
 }
@@ -161,6 +164,10 @@ template
 void gather_async<bf16_t>(const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst);
 
+template
+void gather_async<fp16_t>(const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst);
+
 // Explicit instantiation
 template
 void gather<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
@@ -188,5 +195,8 @@ void gather<bool_t>(const Tensor<bool_t> &src, const Tensor<bool_t> &dst);
 
 template
 void gather<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
+
+template
+void gather<fp16_t>(const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
 
 } // namespace nntile::tensor

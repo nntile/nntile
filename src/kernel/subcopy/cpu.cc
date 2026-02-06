@@ -107,18 +107,6 @@ void cpu(Index ndim, const Index *src_start, const Index *src_stride,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index ndim, const Index *src_start, const Index *src_stride,
-        const Index *copy_shape, const fp32_t *src, const Index *dst_start,
-        const Index *dst_stride, fp32_t *dst, int64_t *tmp_index)
-    noexcept;
-
-template
-void cpu<fp64_t>(Index ndim, const Index *src_start, const Index *src_stride,
-        const Index *copy_shape, const fp64_t *src, const Index *dst_start,
-        const Index *dst_stride, fp64_t *dst, int64_t *tmp_index)
-    noexcept;
-
-template
 void cpu<int64_t>(Index ndim, const Index *src_start, const Index *src_stride,
         const Index *copy_shape, const nntile::int64_t *src, const Index *dst_start,
         const Index *dst_stride, nntile::int64_t *dst, int64_t *tmp_index)
@@ -131,9 +119,45 @@ void cpu<bool_t>(Index ndim, const Index *src_start, const Index *src_stride,
     noexcept;
 
 template
+void cpu<fp32_t>(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const fp32_t *src, const Index *dst_start,
+        const Index *dst_stride, fp32_t *dst, int64_t *tmp_index)
+    noexcept;
+
+template
+void cpu<fp32_fast_tf32_t>(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const fp32_fast_tf32_t *src, const Index *dst_start,
+        const Index *dst_stride, fp32_fast_tf32_t *dst, int64_t *tmp_index)
+    noexcept;
+
+template
+void cpu<fp32_fast_fp16_t>(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const fp32_fast_fp16_t *src, const Index *dst_start,
+        const Index *dst_stride, fp32_fast_fp16_t *dst, int64_t *tmp_index)
+    noexcept;
+
+template
+void cpu<fp32_fast_bf16_t>(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const fp32_fast_bf16_t *src, const Index *dst_start,
+        const Index *dst_stride, fp32_fast_bf16_t *dst, int64_t *tmp_index)
+    noexcept;
+
+template
+void cpu<fp64_t>(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const fp64_t *src, const Index *dst_start,
+        const Index *dst_stride, fp64_t *dst, int64_t *tmp_index)
+    noexcept;
+
+template
 void cpu<bf16_t>(Index ndim, const Index *src_start, const Index *src_stride,
         const Index *copy_shape, const bf16_t *src, const Index *dst_start,
         const Index *dst_stride, bf16_t *dst, int64_t *tmp_index)
+    noexcept;
+
+template
+void cpu<fp16_t>(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const fp16_t *src, const Index *dst_start,
+        const Index *dst_stride, fp16_t *dst, int64_t *tmp_index)
     noexcept;
 
 } // namespace nntile::kernel::subcopy

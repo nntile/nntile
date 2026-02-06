@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/sumprod_fiber.hh"
 #include "nntile/starpu/sumprod_fiber.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -100,13 +101,13 @@ void sumprod_fiber_async(Scalar alpha, const Tensor<T> &src1,
             // Insert task
             if(init_first)
             {
-                starpu::sumprod_fiber::submit<T>(m, n, k, alpha,
+                starpu::sumprod_fiber.submit<std::tuple<T>>(m, n, k, alpha,
                         src1_tile_handle, src2_tile_handle, beta,
                         dst_tile_handle);
             }
             else
             {
-                starpu::sumprod_fiber::submit<T>(m, n, k, alpha,
+                starpu::sumprod_fiber.submit<std::tuple<T>>(m, n, k, alpha,
                         src1_tile_handle, src2_tile_handle, one,
                         dst_tile_handle, redux);
             }
@@ -159,6 +160,11 @@ void sumprod_fiber_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src1,
         const Tensor<bf16_t> &src2, Scalar beta, const Tensor<bf16_t> &dst,
         Index axis, int redux);
 
+template
+void sumprod_fiber_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src1,
+        const Tensor<fp16_t> &src2, Scalar beta, const Tensor<fp16_t> &dst,
+        Index axis, int redux);
+
 // Explicit instantiation
 template
 void sumprod_fiber<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src1,
@@ -188,6 +194,11 @@ void sumprod_fiber<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src1,
 template
 void sumprod_fiber<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src1,
         const Tensor<bf16_t> &src2, Scalar beta, const Tensor<bf16_t> &dst,
+        Index axis, int redux);
+
+template
+void sumprod_fiber<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src1,
+        const Tensor<fp16_t> &src2, Scalar beta, const Tensor<fp16_t> &dst,
         Index axis, int redux);
 
 } // namespace nntile::tensor

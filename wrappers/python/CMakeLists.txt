@@ -17,7 +17,7 @@ add_subdirectory("../../external/pybind11" "pybind11")
 # If a single source file will become huge, it will be split into several files
 set(EXT_SRC
     "nntile/nntile_core.cc"
-    )
+)
 
 # Set up python extension module nntile_core and its properties
 pybind11_add_module(nntile_core ${EXT_SRC})
@@ -59,18 +59,19 @@ set(TESTS_NOT_IMPLEMENTED
     "nntile_core/test_tensor_gelutanh_backward.py"
     "nntile_core/test_tensor_relu_backward.py"
     "nntile_core/test_tensor_logsumexp.py"
-    "nntile_core/test_tensor_norm_slice.py"
+    "nntile_core/test_tensor_norm_slice_inplace.py"
     "nntile_core/test_tensor_pow.py"
-    "nntile_core/test_tensor_prod_fiber.py"
-    "nntile_core/test_tensor_prod_slice.py"
+    "nntile_core/test_tensor_multiply_fiber_inplace.py"
+    "nntile_core/test_tensor_multiply_slice.py"
     "nntile_core/test_tensor_sumprod_fiber.py"
     "nntile_core/test_tensor_sumprod_slice.py"
     "nntile_core/test_tensor_subtract_indexed_column.py"
     "nntile_core/test_tensor_total_sum_accum.py"
     "nntile_core/test_tensor_add_slice_inplace.py"
-    "nntile_core/test_tensor_hypot.py"
-    "nntile_core/test_tensor_prod_fiber3.py"
-    "nntile_core/test_tensor_scal.py"
+    "nntile_core/test_tensor_hypot_inplace.py"
+    "nntile_core/test_tensor_multiply_fiber.py"
+    "nntile_core/test_tensor_scale.py"
+    "nntile_core/test_tensor_scale_inplace.py"
     "layer/test_add.py"
     "layer/test_add_slice.py"
     "layer/test_gpt2mlp.py"

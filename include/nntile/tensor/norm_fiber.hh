@@ -21,12 +21,14 @@ namespace nntile::tensor
 
 // Tensor-wise norm_fiber
 template<typename T>
-void norm_fiber_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
-        const Tensor<T> &dst, Index axis, Index batch_ndim, int redux=0);
+void norm_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
+        const Tensor<T> &src2, const Tensor<T> &dst,
+        Index axis, Index batch_ndim, int redux=0);
 
 // Tensor-wise norm_fiber
 template<typename T>
-void norm_fiber(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
+void norm_fiber(Scalar alpha, const Tensor<T> &src1, Scalar beta,
+        const Tensor<T> &src2, const Tensor<T> &dst,
         Index axis, Index batch_ndim, int redux=0);
 
 } // namespace nntile::tensor

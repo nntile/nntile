@@ -67,7 +67,7 @@ void add_slice_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta, cons
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::add_slice_inplace::submit<T>(m, n, k, alpha, src, beta, dst);
+    starpu::add_slice_inplace.submit<std::tuple<T>>(m, n, k, alpha, src, beta, dst);
 }
 
 template<typename T>
@@ -114,6 +114,10 @@ template
 void add_slice_inplace_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis);
 
+template
+void add_slice_inplace_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
+        const Tile<fp16_t> &dst, Index axis);
+
 // Explicit instantiation of template
 template
 void add_slice_inplace<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
@@ -138,5 +142,9 @@ void add_slice_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar bet
 template
 void add_slice_inplace<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis);
+
+template
+void add_slice_inplace<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
+        const Tile<fp16_t> &dst, Index axis);
 
 } // namespace nntile::tile

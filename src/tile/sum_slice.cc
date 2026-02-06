@@ -62,7 +62,7 @@ void sum_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta,
     n = src.matrix_shape[axis+1][1];
     k = src.shape[axis];
     // Insert task
-    starpu::sum_slice::submit<T>(m, n, k, alpha, src, beta, dst);
+    starpu::sum_slice.submit<std::tuple<T>>(m, n, k, alpha, src, beta, dst);
 }
 
 //! Tile-wise sum_slice
@@ -82,6 +82,10 @@ void sum_slice_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
 template
 void sum_slice_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis);
+
+template
+void sum_slice_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
+        const Tile<fp16_t> &dst, Index axis);
 
 template
 void sum_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
@@ -123,5 +127,9 @@ void sum_slice<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
 template
 void sum_slice<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis);
+
+template
+void sum_slice<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
+        const Tile<fp16_t> &dst, Index axis);
 
 } // namespace nntile::tile

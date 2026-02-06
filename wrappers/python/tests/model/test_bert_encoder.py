@@ -32,7 +32,14 @@ dtype2nntile = {
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
 
+}
+
+dtype2np = {
+        'fp32': np.float32,
+        'bf16': np.float32,
+        'fp16': np.float32,
 }
 
 dtype2tol = {
@@ -41,6 +48,7 @@ dtype2tol = {
         'fp32_fast_bf16': {'rtol': 1.6e-2},
         'fp32_fast_fp16': {'rtol': 9e-4},
         'bf16': {'rtol': 5e-2},
+        'fp16': {'rtol': 5e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
@@ -129,8 +137,8 @@ def generate_inputs(dtype: str, params: BertLayerTestParams,
 
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
-    x_value = x_type(x_traits, x_distr, 0)
-    x_grad = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
+    x_grad = x_type(x_traits, x_distr)
     X = TensorMoments(x_value, x_grad, grad_required=True)
 
     x_random = rng.standard_normal(x_shape, dtype=np.float32)
@@ -138,8 +146,8 @@ def generate_inputs(dtype: str, params: BertLayerTestParams,
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_(True)
-    nntile_layer, _ = BertEncoderNNTile.from_torch(
-            torch_layer, X, nntile_config, 0)
+    nntile_layer = BertEncoderNNTile.from_torch(
+            torch_layer, X, nntile_config)
     nntile_layer.clear_gradients()
     y_grad_random = rng.standard_normal((params.n_emb,
                                          params.n_seq,
@@ -169,7 +177,7 @@ def generate_inputs(dtype: str, params: BertLayerTestParams,
 ])
 class TestBertLayer:
 
-    def test_torch_coercion(self, starpu_simple, torch_rng, dtype: str,
+    def test_torch_coercion(self, context, torch_rng, dtype: str,
                             params: BertLayerTestParams,
                             num_hidden_layers: int):
         torch_layer, nntile_layer, *_ = generate_inputs(dtype, params,
@@ -183,7 +191,7 @@ class TestBertLayer:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng, dtype: str,
+    def test_forward(self, context, torch_rng, dtype: str,
                      params: BertLayerTestParams, num_hidden_layers: int):
         torch_layer, nntile_layer, x, _ = generate_inputs(dtype, params,
                                                           num_hidden_layers)
@@ -195,7 +203,7 @@ class TestBertLayer:
         assert torch.norm(y - y_nntile) <= \
             rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng, dtype: str,
+    def test_backward(self, context, torch_rng, dtype: str,
                               params: BertLayerTestParams,
                               num_hidden_layers: int):
         torch_layer, nntile_layer, x, y_grad = generate_inputs(dtype,
@@ -241,3 +249,53 @@ class TestBertLayer:
                 layer_other.attention.self.value.bias.grad])
             assert torch.norm(bias_grad_torch - bias_grad_nntile) <= \
                 rtol * torch.norm(bias_grad_torch)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_bert_encoder_forward_async(
+    context_cuda, benchmark_model, dtype: str
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(dtype, params, num_hidden_layers=1)
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_layer.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_bert_encoder_forward_backward_async(
+    context_cuda, benchmark_model, dtype: str
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(dtype, params, num_hidden_layers=1)
+
+    rng = np.random.default_rng(42)
+    np_grad = np.array(
+        rng.standard_normal(nntile_layer.activations[-1].value.shape),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
+
+    def bench_fn():
+        nntile_layer.clear_gradients()
+        nntile_layer.forward_async()
+        nntile_layer.activations[-1].grad.from_array(np_grad)
+        nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_layer.unregister()

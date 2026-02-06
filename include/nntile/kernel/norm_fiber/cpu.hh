@@ -21,7 +21,7 @@ namespace nntile::kernel::norm_fiber
 
 // Euclidean norms over slices into a fiber of a product of buffers on CPU
 template<typename T>
-void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src, Scalar beta_, T *dst)
+void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1, Scalar beta_, const T *src2, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::norm_fiber

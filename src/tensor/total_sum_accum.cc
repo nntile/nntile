@@ -15,6 +15,7 @@
 #include "nntile/tensor/total_sum_accum.hh"
 #include "nntile/starpu/total_sum_accum.hh"
 #include "nntile/starpu/clear.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -83,7 +84,7 @@ void total_sum_accum_async(Scalar alpha, const Tensor<T> &logsumexp,
         if(mpi_rank == val_tile_rank)
         {
             // Insert task
-            starpu::total_sum_accum::submit<T>(alpha, src.shape[0],
+            starpu::total_sum_accum.submit<std::tuple<T>>(alpha, src.shape[0],
                     logsumexp_tile_traits.nelems, ignore_index, logsumexp_tile_handle,
                     src_tile_handle, labels_tile_handle, val_tile_handle);
         }
@@ -141,6 +142,11 @@ void total_sum_accum_async<bf16_t>(Scalar alpha,
         const Tensor<int64_t> &class_labels, const Tensor<fp32_t> &val,
         Index ignore_index);
 
+template
+void total_sum_accum_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &logsumexp,
+        const Tensor<fp16_t> &src, const Tensor<int64_t> &class_labels,
+        const Tensor<fp32_t> &val, Index ignore_index);
+
 // Explicit instantiation
 template
 void total_sum_accum<fp32_t>(Scalar alpha, const Tensor<fp32_t> &logsumexp,
@@ -176,6 +182,11 @@ void total_sum_accum<fp64_t>(Scalar alpha, const Tensor<fp64_t> &logsumexp,
 template
 void total_sum_accum<bf16_t>(Scalar alpha, const Tensor<bf16_t> &logsumexp,
         const Tensor<bf16_t> &src, const Tensor<int64_t> &class_labels,
+        const Tensor<fp32_t> &val, Index ignore_index);
+
+template
+void total_sum_accum<fp16_t>(Scalar alpha, const Tensor<fp16_t> &logsumexp,
+        const Tensor<fp16_t> &src, const Tensor<int64_t> &class_labels,
         const Tensor<fp32_t> &val, Index ignore_index);
 
 } // namespace nntile::tensor

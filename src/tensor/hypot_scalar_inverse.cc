@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/hypot_scalar_inverse.hh"
 #include "nntile/starpu/hypot_scalar_inverse.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -32,7 +33,7 @@ void hypot_scalar_inverse_async(Scalar eps, Scalar alpha, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = dst.get_tile_traits(i);
-            starpu::hypot_scalar_inverse::submit<T>(traits.nelems, eps, alpha,
+            starpu::hypot_scalar_inverse.submit<std::tuple<T>>(traits.nelems, eps, alpha,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -73,6 +74,10 @@ template
 void hypot_scalar_inverse_async<fp64_t>(Scalar eps, Scalar alpha,
         const Tensor<fp64_t> &dst);
 
+template
+void hypot_scalar_inverse_async<fp16_t>(Scalar eps, Scalar alpha,
+        const Tensor<fp16_t> &dst);
+
 // Explicit instantiation of template
 template
 void hypot_scalar_inverse<fp32_t>(Scalar eps, Scalar alpha,
@@ -98,4 +103,7 @@ template
 void hypot_scalar_inverse<bf16_t>(Scalar eps, Scalar alpha,
         const Tensor<bf16_t> &dst);
 
+template
+void hypot_scalar_inverse<fp16_t>(Scalar eps, Scalar alpha,
+        const Tensor<fp16_t> &dst);
 } // namespace nntile::tensor

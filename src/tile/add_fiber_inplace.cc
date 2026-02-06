@@ -71,7 +71,7 @@ void add_fiber_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta, cons
     n = dst.matrix_shape[axis+1][1] / batch;
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::add_fiber_inplace::submit<T>(m, n, k, batch, alpha, src, beta, dst);
+    starpu::add_fiber_inplace.submit<std::tuple<T>>(m, n, k, batch, alpha, src, beta, dst);
 }
 
 template<typename T>
@@ -118,6 +118,10 @@ template
 void add_fiber_inplace_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis, Index batch_ndim);
 
+template
+void add_fiber_inplace_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
+        const Tile<fp16_t> &dst, Index axis, Index batch_ndim);
+
 // Explicit instantiation of template
 template
 void add_fiber_inplace<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
@@ -142,5 +146,9 @@ void add_fiber_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar bet
 template
 void add_fiber_inplace<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis, Index batch_ndim);
+
+template
+void add_fiber_inplace<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
+        const Tile<fp16_t> &dst, Index axis, Index batch_ndim);
 
 } // namespace nntile::tile

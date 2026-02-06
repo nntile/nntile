@@ -30,9 +30,16 @@ from nntile.tensor import to_numpy
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
+}
+
+dtype2np = {
+        'fp32': np.float32,
+        'bf16': np.float32,
+        'fp16': np.float32,
 }
 
 dtype2tol = {
@@ -134,11 +141,11 @@ def generate_inputs(params: BertTestParams,
     )
     gen = np.random.default_rng(42)
 
-    nntile_model, _ = BertModelNNTile.from_torch(
+    nntile_model = BertModelNNTile.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
-            params.seq_len, params.seq_len_tile, nntile_config, 0)
+            params.seq_len, params.seq_len_tile, nntile_config)
     nntile_model.clear_gradients()
-    x_random = gen.integers(params.seq_len,
+    x_random = gen.integers(params.vocab_size,
                             size=nntile_model.activations[0].value.shape,
                             dtype=np.int64)
 
@@ -172,7 +179,7 @@ def generate_inputs(params: BertTestParams,
     pytest.param(5, id='five layers'),
 ])
 class TestBertModel:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: BertTestParams,
                       dtype: str, num_hidden_layers: int):
 
@@ -188,7 +195,7 @@ class TestBertModel:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: BertTestParams,
                      dtype: str, num_hidden_layers: int):
         torch_model, nntile_model, x, _ = generate_inputs(params,
@@ -202,7 +209,7 @@ class TestBertModel:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
 
-    def test_backward(self, starpu_simple, torch_rng,
+    def test_backward(self, context, torch_rng,
                       params: BertTestParams,
                       dtype: str, num_hidden_layers: int):
         torch_model, nntile_model, x, y_grad = generate_inputs(params,
@@ -246,3 +253,57 @@ class TestBertModel:
                 layer_other.attention.self.value.bias.grad])
             assert torch.norm(bias_grad_torch - bias_grad_nntile) <= \
                 rtol * torch.norm(bias_grad_torch)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_bert_forward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    params = single_tile
+    num_hidden_layers = 1
+    _, nntile_model, _, _ = generate_inputs(params, dtype, num_hidden_layers)
+
+    def bench_fn():
+        nntile_model.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_model.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_bert_forward_backward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    params = single_tile
+    num_hidden_layers = 1
+    _, nntile_model, _, _ = generate_inputs(params, dtype, num_hidden_layers)
+    nntile_model.clear_gradients()
+
+    rng = np.random.default_rng(42)
+    np_grad = np.array(
+        rng.standard_normal(nntile_model.activations[-1].value.shape),
+        dtype=dtype2np[dtype],
+        order="F",
+    )
+
+    def bench_fn():
+        # reset gradients each iteration to avoid accumulation/state issues
+        nntile_model.clear_gradients()
+        nntile_model.forward_async()
+        nntile_model.activations[-1].grad.from_array(np_grad)
+        nntile_model.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_model.unregister()

@@ -18,44 +18,77 @@
 namespace nntile::tile
 {
 
-//! Asynchronous tile-wise ReLU operation
-/*! @param[inout] A: Tile for the element-wise ReLU operation
- * */
 template<typename T>
-void relu_async(const Tile<T> &A)
+void relu_async(const Tile<T> &src, const Tile<T> &dst)
 {
-    // Submit task without any arguments checked
-    starpu::relu::submit<T>(A.nelems, A);
+    // Check shapes
+    if(src.shape != dst.shape)
+    {
+        throw std::runtime_error("src.shape != dst.shape");
+    }
+    // Submit forward relu
+    starpu::relu.submit<std::tuple<T>>(src.nelems, src, dst);
 }
 
-//! Blocking version of tile-wise ReLU operation
-/*! @param[inout] A: Tile for the element-wise ReLU operation
- * */
 template<typename T>
-void relu(const Tile<T> &A)
+void relu(const Tile<T> &src, const Tile<T> &dst)
 {
-    relu_async<T>(A);
+    relu_async<T>(src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void relu_async<fp32_t>(const Tile<fp32_t> &A);
+void relu_async<fp32_t>(const Tile<fp32_t> &src,
+        const Tile<fp32_t> &dst);
 
 template
-void relu_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &A);
+void relu_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+        const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void relu_async<fp64_t>(const Tile<fp64_t> &A);
+void relu_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+        const Tile<fp32_fast_fp16_t> &dst);
+
+template
+void relu_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+        const Tile<fp32_fast_bf16_t> &dst);
+
+template
+void relu_async<fp64_t>(const Tile<fp64_t> &src,
+        const Tile<fp64_t> &dst);
+
+template
+void relu_async<bf16_t>(const Tile<bf16_t> &src,
+        const Tile<bf16_t> &dst);
+
+template
+void relu_async<fp16_t>(const Tile<fp16_t> &src,
+        const Tile<fp16_t> &dst);
 
 // Explicit instantiation
 template
-void relu<fp32_t>(const Tile<fp32_t> &A);
+void relu<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void relu<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &A);
+void relu<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+        const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void relu<fp64_t>(const Tile<fp64_t> &A);
+void relu<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+        const Tile<fp32_fast_fp16_t> &dst);
+
+template
+void relu<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+        const Tile<fp32_fast_bf16_t> &dst);
+
+template
+void relu<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
+
+template
+void relu<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+
+template
+void relu<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 } // namespace nntile::tile

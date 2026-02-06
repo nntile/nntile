@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/norm_slice/cpu.cc
- * Euclidean norms of fibers into a slice of a buffer on CPU
+ * Euclidean norms of fibers into a slice of a buffer on CPU (out-of-place version)
  *
  * @version 1.1.0
  * */
@@ -20,47 +20,48 @@ namespace nntile::kernel::norm_slice
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_, T *dst)
+void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1, Scalar beta_,
+        const T *src2, T *dst)
     noexcept
-//! Euclidean norms over fibers along middle axis into a slice of a tensor
-/*! For a provided m-by-k-by-n input array src compute norms of fibers
+//! Euclidean norms over fibers along middle axis into a slice of a tensor (out-of-place version)
+/*! For a provided m-by-k-by-n input array src1 compute norms of fibers
  * along second axis with k elements, resulting in m-by-n output array-slice
  * dst.
  * Mnemonically, the following operations are performed:
- *      dst[i,j] = hypot(beta*dst[i,j], alpha*norm(src[i,:,j]))
+ *      dst[i,j] = hypot(beta*src2[i,j], alpha*norm(src1[i,:,j]))
  *
- * @param[in] m: Size of the first mode of src and dst arrays
- * @param[in] n: Size of the last mode of src and dst arrays
- * @param[in] k: Size of the middle mode of src array
- * @param[in] alpha_: Scaling factor for src
- * @param[in] src_: Input contiguous m-by-k-by-n array
- * @param[in] beta_: Scaling factor for dst
- * @param[inout] dst_: Input and output contiguous m-by-n array, that
- *      accumulates norms along middle axis.
+ * @param[in] m: Size of the first mode of src1, src2 and dst arrays
+ * @param[in] n: Size of the last mode of src1, src2 and dst arrays
+ * @param[in] k: Size of the middle mode of src1 array
+ * @param[in] alpha_: Scaling factor for src1
+ * @param[in] src1_: Input contiguous m-by-k-by-n array
+ * @param[in] beta_: Scaling factor for src2
+ * @param[in] src2_: Input contiguous m-by-n array
+ * @param[out] dst_: Output contiguous m-by-n array, that contains norms
+ *      along middle axis combined with src2 values.
  * */
 {
     using Y = typename T::repr_t;
-    Y alpha{alpha_}, beta{beta_};
+    Y alpha = static_cast<Y>(alpha_), beta = static_cast<Y>(beta_);
     const Index mk = m * k;
-    constexpr Y zero{0.0}, one{1.0};
+    constexpr Y zero = 0.0, one = 1.0;
     alpha = std::fabs(alpha);
-    // Cycle over column of the output buffer dst
+    // Cycle over column of the output buffer result
     for(Index i2 = 0; i2 < n; ++i2)
     {
-        // Cycle over row of the output buffer dst
+        // Cycle over row of the output buffer result
         for(Index i1 = 0; i1 < m; ++i1)
         {
-            // Pointer to a corresponding fiber of the source array src
-            const T *src_fiber = src + i2*mk + i1;
+            // Pointer to a corresponding fiber of the source array src1
+            const T *src1_fiber = src1 + i2*mk + i1;
             // Init norm of the fiber
-            Y norm_max{zero}, norm_ssq{zero}, c{zero}, y, t;
-            // Output value
-            T &result = dst[i2*m+i1];
+            Y norm_max = zero, norm_ssq = zero, c = zero, y, t;
             // Cycle over fiber elements and accumulate the norm
             for(Index i0 = 0; i0 < k; ++i0)
             {
                 // Read value from source
-                Y val = std::fabs(Y{src_fiber[i0*m]});
+                Y src1_val = static_cast<Y>(src1_fiber[i0*m]);
+                Y val = std::fabs(src1_val);
                 // Update norm only if new value is non-zero
                 if(val > 0)
                 {
@@ -88,35 +89,38 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_, T
             }
             // Get the scaled norm
             norm_max *= alpha;
-            //T norm = norm_max * std::sqrt(norm_ssq);
-            // Update output value
+            // Compute the result using hypot function
             if(beta == zero)
             {
-                //result = norm;
-                result = static_cast<T>(norm_max * std::sqrt(norm_ssq));
+                // dst = norm_max * sqrt(norm_ssq)
+                dst[i2*m+i1] = norm_max * std::sqrt(norm_ssq);
             }
             else if(norm_max > 0)
             {
-                //result = std::hypot(beta*result, norm);
-                Y tmp_res = std::fabs(beta * Y{result});
-                if(norm_max >= tmp_res)
+                // result = hypot(beta * src2[i2*m+i1], norm)
+                Y src2_val = static_cast<Y>(src2[i2*m+i1]);
+                Y tmp_src2 = std::fabs(beta * src2_val);
+                if(norm_max >= tmp_src2)
                 {
-                    Y tmp1 = tmp_res / norm_max;
-                    result = static_cast<T>(norm_max * std::sqrt((tmp1*tmp1-c)+norm_ssq));
+                    Y tmp1 = tmp_src2 / norm_max;
+                    Y tmp2 = std::sqrt((tmp1*tmp1-c)+norm_ssq);
+                    dst[i2*m+i1] = norm_max * tmp2;
                 }
                 else
                 {
-                    Y tmp1 = norm_max / tmp_res;
+                    Y tmp1 = norm_max / tmp_src2;
                     Y tmp2 = tmp1 * tmp1;
                     c *= tmp2;
                     norm_ssq *= tmp2;
-                    result = static_cast<T>(tmp_res * std::sqrt((one-c)+norm_ssq));
+                    Y tmp3 = std::sqrt((one-c)+norm_ssq);
+                    dst[i2*m+i1] = tmp_src2 * tmp3;
                 }
             }
             // norm_max==0
             else
             {
-                result = static_cast<T>(std::fabs(beta * Y{result}));
+                Y src2_val = static_cast<Y>(src2[i2*m+i1]);
+                dst[i2*m+i1] = std::fabs(beta * src2_val);
             }
         }
     }
@@ -124,18 +128,23 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_, T
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src,
-        Scalar beta, fp32_t *norm_dst)
+void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src1,
+        Scalar beta, const fp32_t *src2, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src,
-        Scalar beta, fp64_t *norm_dst)
+void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src1,
+        Scalar beta, const fp64_t *src2, fp64_t *dst)
     noexcept;
 
 template
-void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src,
-        Scalar beta, bf16_t *norm_dst)
+void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src1,
+        Scalar beta, const bf16_t *src2, bf16_t *dst)
+    noexcept;
+
+template
+void cpu<fp16_t>(Index m, Index n, Index k, Scalar alpha, const fp16_t *src1,
+        Scalar beta, const fp16_t *src2, fp16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::norm_slice

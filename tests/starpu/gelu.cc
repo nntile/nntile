@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/context.hh"
 #include "nntile/starpu/gelu.hh"
 #include "nntile/kernel/gelu.hh"
 #include "../testing.hh"
@@ -30,29 +31,31 @@ void validate_cpu(Index nelems)
 {
     using Y = typename T::repr_t;
     // Init all the data
-    std::vector<T> data(nelems);
+    std::vector<T> src(nelems), dst(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = Y(i+1);
+        src[i] = Y(i+1);
+        dst[i] = Y(-i-1);
     }
     // Create copies of destination
-    std::vector<T> data2(data);
+    std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::gelu::cpu<" << T::type_repr << ">\n";
-    kernel::gelu::cpu<T>(nelems, &data[0]);
+    std::cout << "Run kernel::gelu::cpu<" << T::short_name << ">\n";
+    kernel::gelu::cpu<T>(nelems, &src[0], &dst[0]);
     // Check by actually submitting a task
-    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
-    gelu::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::gelu::submit<" << T::type_repr << "> restricted to CPU\n";
-    gelu::submit<T>(nelems, data2_handle);
+    VariableHandle src_handle(&src[0], sizeof(T)*nelems),
+        dst2_handle(&dst2[0], sizeof(T)*nelems);
+    gelu.restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::gelu::submit<" << T::short_name << "> restricted to CPU\n";
+    gelu.submit<std::tuple<T>>(nelems, src_handle, dst2_handle);
     starpu_task_wait_for_all();
-    data2_handle.unregister();
+    dst2_handle.unregister();
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(Y(data[i]) == Y(data2[i]));
+        TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::gelu::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::gelu::submit<" << T::short_name << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -71,56 +74,67 @@ void validate_cuda(Index nelems)
     cuda_err = cudaStreamCreate(&stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Init all the data
-    std::vector<T> data(nelems);
+    std::vector<T> src(nelems), dst(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = Y(i+1);
+        src[i] = Y(i+1);
+        dst[i] = Y(-i-1);
     }
     // Create copies of destination
-    std::vector<T> data2(data);
+    std::vector<T> dst2(dst);
     // Launch low-level kernel
-    T *dev_data;
-    cuda_err = cudaMalloc(&dev_data, sizeof(T)*nelems);
+    T *dev_src, *dev_dst;
+    cuda_err = cudaMalloc(&dev_src, sizeof(T)*nelems);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_data, &data[0], sizeof(T)*nelems,
-            cudaMemcpyHostToDevice);
+    cuda_err = cudaMalloc(&dev_dst, sizeof(T)*nelems);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::gelu::cuda<" << T::type_repr << ">\n";
-    kernel::gelu::cuda<T>(stream, nelems, dev_data);
+    cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*nelems,
+        cudaMemcpyHostToDevice);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*nelems,
+        cudaMemcpyHostToDevice);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    std::cout << "Run kernel::gelu::cuda<" << T::short_name << ">\n";
+    kernel::gelu::cuda<T>(stream, nelems, dev_src, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaStreamDestroy(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result back to CPU
-    cuda_err = cudaMemcpy(&data[0], dev_data, sizeof(T)*nelems,
+    cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*nelems,
             cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Deallocate CUDA memory
-    cuda_err = cudaFree(dev_data);
+    cuda_err = cudaFree(dev_src);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaFree(dev_dst);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
-    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
-    gelu::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::gelu::submit<" << T::type_repr << "> restricted to CUDA\n";
-    gelu::submit<T>(nelems, data2_handle);
+    VariableHandle src_handle(&src[0], sizeof(T)*nelems),
+        dst2_handle(&dst2[0], sizeof(T)*nelems);
+    gelu.restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::gelu::submit<" << T::short_name << "> restricted to CUDA\n";
+    gelu.submit<std::tuple<T>>(nelems, src_handle, dst2_handle);
     starpu_task_wait_for_all();
-    data2_handle.unregister();
+    dst2_handle.unregister();
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(Y(data[i]) == Y(data2[i]));
+        TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::gelu::submit<" << T::type_repr << "> restricted to CUDA\n";
+    std::cout << "OK: starpu::gelu::submit<" << T::short_name << "> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 1, 0);
-    // Init codelet
-    gelu::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpu=1, ncuda=1, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
     // Launch all tests
     validate_cpu<fp32_t>(1);
     validate_cpu<fp32_t>(10000);
@@ -132,5 +146,6 @@ int main(int argc, char **argv)
     validate_cuda<fp64_t>(1);
     validate_cuda<fp64_t>(10000);
 #endif // NNTILE_USE_CUDA
+
     return 0;
 }

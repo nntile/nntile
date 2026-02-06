@@ -24,11 +24,10 @@ from .gpt2_config import GPT2ConfigNNTile
 
 
 class GPT2MLP(BaseModel):
-    next_tag: int
 
     # Construct model with all the provided data
     def __init__(self, x: TensorMoments,
-                 config: GPT2ConfigNNTile, next_tag: int):
+                 config: GPT2ConfigNNTile):
         # Init activations and list of layers
         activations = [x]
         layers = []
@@ -40,53 +39,50 @@ class GPT2MLP(BaseModel):
         redux = config.redux
         gemm_ndim = 1
         # Initial linear layer that converts input to internal shape
-        new_layer, next_tag = Linear.generate_simple(
+        new_layer = Linear.generate_simple(
             x,
             "R",
             notrans,
             gemm_ndim,
             [self.intermediate_size],
             [intermediate_size_tile],
-            next_tag,
             redux=redux,
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Act.generate_simple(
-            activations[-1], activation_function, next_tag
+        new_layer = Act.generate_simple(
+            activations[-1], activation_function
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Linear.generate_simple(
+        new_layer = Linear.generate_simple(
             activations[-1],
             "R",
             notrans,
             gemm_ndim,
             [self.hidden_size],
             [hidden_size_tile],
-            next_tag,
             redux=redux,
         )
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
-        self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(
-        torch_mlp, x: TensorMoments, config: GPT2ConfigNNTile, next_tag: int
+        torch_mlp, x: TensorMoments, config: GPT2ConfigNNTile
     ):
         """
         torch_mlp is PyTorch MLP where no biases in linear layers
         """
-        gpt2mlp_nntile = GPT2MLP(x, config, next_tag)
+        gpt2mlp_nntile = GPT2MLP(x, config)
         torch_params = list(torch_mlp.parameters())
         for i, p in enumerate(gpt2mlp_nntile.parameters):
             p.value.from_array(torch_params[i].cpu().detach().numpy().T)
-        return gpt2mlp_nntile, gpt2mlp_nntile.next_tag
+        return gpt2mlp_nntile
 
     def to_torch(self):
         config_torch = GPT2ConfigTorch()

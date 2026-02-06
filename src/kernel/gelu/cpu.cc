@@ -20,15 +20,15 @@ namespace nntile::kernel::gelu
 {
 
 template<typename T>
-void cpu(Index nelems, T *data)
+void cpu(Index nelems, const T *src, T *dst)
     noexcept
-//! Inplace GeLU operation performed on CPU
-/*! Uses very slow std::erfc() function, so consider using approximated version
- * nntile::kernel::cpu::gelutanh(). Does the following per-element operation:
+//! GeLU operation performed on CPU
+/*! Uses std::erfc() function, which implements the following:
  * GeLU(z) = 0.5 z erfc(-z/sqrt(2))
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply GeLU
+ * @params[in] src: Input buffer to apply GeLU
+ * @params[out] dst: Output buffer to apply GeLU
  * */
 {
     using Y = typename T::repr_t;
@@ -36,23 +36,27 @@ void cpu(Index nelems, T *data)
     const Y f1 = mone / std::sqrt(Y{2.0});
     for(Index i = 0; i < nelems; ++i)
     {
-        Y z(data[i]);
+        Y z(src[i]);
         Y y = std::erfc(f1 * z);
-        data[i] = static_cast<T>((pt5 * z) * y);
+        dst[i] = static_cast<T>((pt5 * z) * y);
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nelems, fp32_t *data)
+void cpu<fp32_t>(Index nelems, const fp32_t *src, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index nelems, fp64_t *data)
+void cpu<fp64_t>(Index nelems, const fp64_t *src, fp64_t *dst)
     noexcept;
 
 template
-void cpu<bf16_t>(Index nelems, bf16_t *data)
+void cpu<bf16_t>(Index nelems, const bf16_t *src, bf16_t *dst)
+    noexcept;
+
+template
+void cpu<fp16_t>(Index nelems, const fp16_t *src, fp16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::gelu

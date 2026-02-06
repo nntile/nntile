@@ -15,6 +15,7 @@
 #include "nntile/tensor/sum_slice.hh"
 #include "nntile/starpu/sum_slice.hh"
 #include "nntile/starpu/clear.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -101,7 +102,7 @@ void sum_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
                 n = src_tile_traits.matrix_shape[axis+1][1];
                 k = src_tile_traits.shape[axis];
                 // Insert task
-                starpu::sum_slice::submit<T>(m, n, k, alpha, src_tile_handle,
+                starpu::sum_slice.submit<std::tuple<T>>(m, n, k, alpha, src_tile_handle,
                         beta, dst_tile_handle, redux);
             }
         }
@@ -125,7 +126,7 @@ void sum_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
                 k = src_tile_traits.shape[axis];
                 // Insert task
                 constexpr Scalar one = 1.0;
-                starpu::sum_slice::submit<T>(m, n, k, alpha, src_tile_handle,
+                starpu::sum_slice.submit<std::tuple<T>>(m, n, k, alpha, src_tile_handle,
                         one, dst_tile_handle, redux);
             }
         }
@@ -169,6 +170,10 @@ template
 void sum_slice_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis, int redux);
 
+template
+void sum_slice_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, Scalar beta,
+        const Tensor<fp16_t> &dst, Index axis, int redux);
+
 // Explicit instantiation
 template
 void sum_slice<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
@@ -193,5 +198,9 @@ void sum_slice<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
 template
 void sum_slice<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis, int redux);
+
+template
+void sum_slice<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src, Scalar beta,
+        const Tensor<fp16_t> &dst, Index axis, int redux);
 
 } // namespace nntile::tensor

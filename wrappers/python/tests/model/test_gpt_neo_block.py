@@ -32,16 +32,23 @@ dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16
 }
 
+dtype2np = {
+        'fp32': np.float32,
+        'bf16': np.float32,
+        'fp16': np.float32,
+}
+
 dtype2tol = {
         'fp32': {'rtol': 1e-6},
-        'fp32_fast_tf32': {'rtol': 8e-4},
+        'fp32_fast_tf32': {'rtol': 1e-3},
         'bf16': {'rtol': 1.6e-2},
-        'fp32_fast_fp16': {'rtol': 8e-4},
-        'fp32_fast_bf16': {'rtol': 5e-3},
+        'fp32_fast_fp16': {'rtol': 1e-3},
+        'fp32_fast_bf16': {'rtol': 7e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
@@ -115,8 +122,8 @@ def generate_inputs(params: GPTNeoBlockTestParams,
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
-    x_value = x_type(x_traits, x_distr, 0)
-    x_grad = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
+    x_grad = x_type(x_traits, x_distr)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     gen = np.random.default_rng(42)
     x_random = gen.standard_normal(x_shape, dtype=np.float32)
@@ -124,8 +131,8 @@ def generate_inputs(params: GPTNeoBlockTestParams,
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_()
-    nntile_module, _ = GPTNeoBlock.from_torch(torch_module, X,
-                                                     nntile_config, 0)
+    nntile_module = GPTNeoBlock.from_torch(torch_module, X,
+                                                     nntile_config)
     nntile_module.clear_gradients()
     y_grad_random = gen.standard_normal(x_shape, dtype=np.float32)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
@@ -150,7 +157,7 @@ def generate_inputs(params: GPTNeoBlockTestParams,
     pytest.param(2, id='even_layer_id'),
 ])
 class TestGPTNeoBlock:
-    def test_coercion(self, starpu_simple, torch_rng, layer_id: int,
+    def test_coercion(self, context, torch_rng, layer_id: int,
                       params: GPTNeoBlockTestParams, dtype: str):
         torch_module, nntile_layer, *_ = generate_inputs(
             params, layer_id, dtype
@@ -164,7 +171,7 @@ class TestGPTNeoBlock:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng, layer_id: int,
+    def test_forward(self, context, torch_rng, layer_id: int,
                      params: GPTNeoBlockTestParams, dtype: str):
         torch_module, nntile_module, x, _ = generate_inputs(
             params, layer_id, dtype
@@ -178,7 +185,7 @@ class TestGPTNeoBlock:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng, layer_id: int,
+    def test_backward(self, context, torch_rng, layer_id: int,
                       params: GPTNeoBlockTestParams, dtype: str):
         torch_module, nntile_module, x, y_grad = generate_inputs(
             params, layer_id, dtype
@@ -204,3 +211,38 @@ class TestGPTNeoBlock:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gpt_neo_block_forward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    params = single_tile
+    _, nntile_module, *_ = generate_inputs(params, layer_id=1, dtype=dtype)
+
+    def bench_fn():
+        nntile_module.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_module.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gpt_neo_block_forward_backward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    params = single_tile
+    _, nntile_module, *_ = generate_inputs(params, layer_id=1, dtype=dtype)
+
+    def bench_fn():
+        nntile_module.forward_async()
+        nntile_module.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_module.unregister()

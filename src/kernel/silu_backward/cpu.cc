@@ -63,8 +63,7 @@ void cpu<bf16_t>(Index nelems, const bf16_t *x, const bf16_t *dy, bf16_t *dx)
     noexcept;
 
 template
-void cpu<fp32_fast_tf32_t>(Index nelems, const fp32_fast_tf32_t *x, const fp32_fast_tf32_t *dy,
-                           fp32_fast_tf32_t *dx)
+void cpu<fp16_t>(Index nelems, const fp16_t *x, const fp16_t *dy, fp16_t *dx)
     noexcept;
 
 } // namespace nntile::kernel::silu_backward

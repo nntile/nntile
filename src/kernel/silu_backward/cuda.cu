@@ -63,11 +63,6 @@ void cuda<fp32_t>(cudaStream_t stream, Index nelems, const fp32_t *x,
     noexcept;
 
 template
-void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index nelems, const fp32_fast_tf32_t *x,
-        const fp32_fast_tf32_t *dy, fp32_fast_tf32_t *dx)
-    noexcept;
-
-template
 void cuda<fp64_t>(cudaStream_t stream, Index nelems, const fp64_t *x,
         const fp64_t *dy, fp64_t *dx)
     noexcept;
@@ -75,6 +70,11 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, const fp64_t *x,
 template
 void cuda<bf16_t>(cudaStream_t stream, Index nelems, const bf16_t *x,
         const bf16_t *dy, bf16_t *dx)
+    noexcept;
+
+template
+void cuda<fp16_t>(cudaStream_t stream, Index nelems, const fp16_t *x,
+        const fp16_t *dy, fp16_t *dx)
     noexcept;
 
 } // namespace nntile::kernel::silu_backward

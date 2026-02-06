@@ -21,10 +21,21 @@ namespace nntile::kernel::add_inplace
 template<typename T>
 void cpu(Index nelems, Scalar alpha, const T* src, Scalar beta, T* dst)
     noexcept
-//! Add of two buffers on CPU
+//! Add two buffers inplace with optional scaling inplace on CPU
 /*! Performs the following operation:
  *      dst[i] = alpha*src[i] + beta*dst[i],
- * where alpha and beta are non-zero scalars.
+ *
+ * This function reads both src and dst even if alpha or beta is zero.
+ * If alpha is zero and src[i] is NaN, then dst[i] will be NaN.
+ * If beta is zero and dst[i] is NaN, then dst[i] will be NaN.
+ * If such behaviour is not desired, then in a case of alpha being zero,
+ * use nntile::kernel::scale_inplace instead, and in a case of beta being zero,
+ * use nntile::kernel::scale instead.
+ * If both alpha and beta are zero, then use nntile::kernel::clear instead.
+ *
+ * @see nntile::kernel::scale_inplace
+ * @see nntile::kernel::scale
+ * @see nntile::kernel::clear
  *
  * @param[in] nelems: Size of the src and dst tensors
  * @param[in] alpha: Scalar multiplier for the src tensor
@@ -55,6 +66,11 @@ void cpu<fp32_t>(Index nelems, Scalar alpha, const fp32_t* src, Scalar beta,
 template
 void cpu<bf16_t>(Index nelems, Scalar alpha, const bf16_t* src, Scalar beta,
         bf16_t* dst)
+    noexcept;
+
+template
+void cpu<fp16_t>(Index nelems, Scalar alpha, const fp16_t* src, Scalar beta,
+        fp16_t* dst)
     noexcept;
 
 } // namespace nntile::kernel::add_inplace

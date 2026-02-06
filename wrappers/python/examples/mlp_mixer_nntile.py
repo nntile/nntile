@@ -77,10 +77,13 @@ if batch_size % minibatch_size != 0:
     raise ValueError("Batch must consist of integer number of minibatches")
 
 # Set up StarPU configuration and init it
-config = nntile.starpu.Config(-1, -1, 1)
-# Init all NNTile-StarPU codelets
-nntile.starpu.init()
-next_tag = 0
+context = nntile.Context(
+    ncpu=-1,
+    ncuda=-1,
+    ooc=0,
+    logger=0,
+    verbose=0
+)
 
 # Prepare data for NNTile training
 batch_input = []
@@ -110,7 +113,6 @@ if args.dataset == "mnist":
         batch_size,
         minibatch_size,
         patch_size,
-        next_tag,
     )
     test_data_tensor, test_labels_tensor = mnist_data_loader_to_tensor(
         test_set.data,
@@ -142,7 +144,6 @@ elif args.dataset == "cifar10":
         batch_size,
         minibatch_size,
         patch_size,
-        next_tag,
     )
     test_data_tensor, test_labels_tensor = cifar_data_loader_to_tensor(
         test_set.data,
@@ -173,16 +174,15 @@ torch_mixer_model.evaluate(
     test_data_tensor, test_labels_tensor, device_for_pytorch
 )
 
-nntile_mixer_model, next_tag = MlpMixer.from_torch(
-    torch_mixer_model, minibatch_size, n_classes, next_tag
+nntile_mixer_model = MlpMixer.from_torch(
+    torch_mixer_model, minibatch_size, n_classes
 )
-loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-    nntile_mixer_model.activations[-1], next_tag
+loss = nntile.loss.CrossEntropy.generate_simple(
+    nntile_mixer_model.activations[-1]
 )
 optimizer = nntile.optimizer.Adam(
-    nntile_mixer_model.get_parameters(), args.lr, next_tag
+    nntile_mixer_model.get_parameters(), args.lr
 )
-next_tag = optimizer.get_next_tag()
 
 # Check accuracy of output and gradients of parmeters if required
 if args.check:
@@ -202,8 +202,7 @@ if args.check:
     X_shape = [channel_size, minibatch_size, num_clr_channels * patch_size**2]
     Y_shape = [minibatch_size]
     data_train_traits = nntile.tensor.TensorTraits(X_shape, X_shape)
-    test_tensor = nntile.tensor.Tensor_fp32(data_train_traits, [0], next_tag)
-    next_tag = test_tensor.next_tag
+    test_tensor = nntile.tensor.Tensor_fp32(data_train_traits, [0])
     test_tensor.from_array(patched_test_sample.numpy())
     nntile.tensor.copy_async(
         test_tensor, nntile_mixer_model.activations[0].value
@@ -211,10 +210,7 @@ if args.check:
     test_tensor.unregister()
 
     label_train_traits = nntile.tensor.TensorTraits(Y_shape, Y_shape)
-    label_train_tensor = nntile.tensor.Tensor_int64(
-        label_train_traits, [0], next_tag
-    )
-    next_tag = label_train_tensor.next_tag
+    label_train_tensor = nntile.tensor.Tensor_int64(label_train_traits, [0])
     label_train_tensor.from_array(test_labels.numpy())
     nntile.tensor.copy_async(label_train_tensor, loss.y)
     label_train_tensor.unregister()

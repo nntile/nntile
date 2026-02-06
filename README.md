@@ -59,12 +59,12 @@ This work was supported by FASIE (fasie.ru).
 and all prerequisites. Ready image can be acquired from the GitHub container
 registry:
 ```shell
-docker pull ghcr.io/nntile/nntile:1.1.0-starpu1.4.7-cuda12.4.0-ubuntu22.04
+docker pull ghcr.io/nntile/nntile:f90a496-starpu1.4.8-cuda12.6.3-cudnn-ubuntu22.04
 ```
 Sandbox image with prerequisites but without precompiled NNTile is also
 accessible:
 ```shell
-docker pull ghcr.io/nntile/nntile_sandbox:starpu1.4.7-cuda12.4.0-ubuntu22.04
+docker pull ghcr.io/nntile/nntile_sandbox:starpu-1.4.8-cuda12.6.3-cudnn-ubuntu22.04
 ```
 
 Alternatively, the docker image can be built on your own system with the following
@@ -73,21 +73,21 @@ command:
 docker build . \
     -t nntile:latest \
     --build-arg MAKE_JOBS=4 \
-    --build-arg BASE_IMAGE=nvidia/cuda:12.4.0-devel-ubuntu22.04 \
-    --build-arg CUDA_ARCHS="80;86;89;90"
+    --build-arg BASE_IMAGE=nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04 \
+    --build-arg CUDA_ARCHS="70;75;80;86;89;90"
 ```
 
 During image building `StarPU` is compiled with `make`. This process can be
 adjusted with degree of parallelism with `MAKE_JOBS` option (default no
 parallelism). Due to Nvidia pruning their old docker images, it could be
-possible that a default `nvidia/cuda:12.4.0-devel-ubuntu-22.04` is not
+possible that a default `nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04` is not
 available. In such a case, input name of an appropriate available image.
 Argument `CUDA_ARCHS` defines target CUDA architectures to be supported by
 **NNTile**.
 
 ## Minimal requirements
 
-NNTile does supports CUDA devices only of compute capability 8.0 or higher
+NNTile supports CUDA devices only of compute capability 8.0 or higher
 
 ## Jupyter notebook examples
 
@@ -108,7 +108,7 @@ does it with a help of its special script
 [prepare.py](https://github.com/karpathy/nanogpt/data/openwebtext/prepare.py)
 for the OpenWebText.
 
-To try the example, launch a docker container based on the `ghcr.io/nntile/nntile:1.1.0-starpu1.4.7-cuda12.4.0-ubuntu22.04` docker image. Once inside the sandbo environment (docker container), try the following command:
+To try the example, launch a docker container based on the `ghcr.io/nntile/nntile:f90a496-starpu1.4.8-cuda12.6.3-cudnn-ubuntu22.04` docker image. Once inside the sandbox environment (docker container), try the following command:
 ```shell
 CUDA_VISIBLE_DEVICES=0 STARPU_NCPU=2 python /workspace/nntile/wrappers/python/examples/gpt2_custom_training.py --config-path=/workspace/nntile/wrappers/python/examples/gpt2_default_config.json --tokenizer=gpt2 --tokenizer-path=data --batch=1024 --minibatch=4 --minibatch-tile=4 --seq-tile=1024 --embd-tile=768 --inner-tile=3072 --head-tile=12 --restrict=cuda --flashattention --nforward=10 --nforward-warmup=10 --nbackward=10 --nbackward-warmup=10 --dataset=WikiText-103 --dataset-path=data --dataset-select=40000 --optimizer=fusedadamw --optimizer-eps=1e-8 --weight-decay=0.1 --loss-reduction=mean --lr=3e-4 --start-lr=0 --full-lr-iter=10 --nepochs=1 --nepochs-warmup=1
 ```

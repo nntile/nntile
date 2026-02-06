@@ -14,72 +14,91 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
-#include <nntile/starpu/config.hh>
+// Compile-time definitions
 #include <nntile/defs.h>
 
-namespace nntile::starpu::rope_backward
+//! StarPU headers
+#include <starpu.h>
+
+// NNTile headers
+#include <nntile/starpu/codelet.hh>
+#include <nntile/starpu/handle.hh>
+
+namespace nntile::starpu
 {
 
-//! Structure for arguments
-struct args_t
-{
-    Index m;
-    Index n;
-};
-
-// StarPU wrapper for kernel::rope::cpu<T>
+//! Generic wrapper class for rope_backward operation is not defined
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
-    noexcept;
+class RopeBackward;
+
+//! Specialization of wrapper class for rope_backward operation via std::tuple
+template<typename T>
+class RopeBackward<std::tuple<T>>
+{
+public:
+    //! Codelet for the current operation
+    CodeletTyped<T> codelet;
+
+    //! Constructor
+    RopeBackward();
+
+    //! Structure for operation arguments
+    struct args_t
+    {
+        Index m;
+        Index n;
+    };
+
+    //! Footprint function for the current operation
+    static uint32_t footprint(struct starpu_task *task);
+
+    //! Wrapper for a generic CPU implementation
+    static void cpu(void *buffers[], void *cl_args)
+        noexcept;
+
+    //! Array of all wrappers for CPU implementations
+    static constexpr func_array cpu_funcs = {
+        cpu
+    };
 
 #ifdef NNTILE_USE_CUDA
-// StarPU wrapper for kernel::rope::cuda<T>
-template<typename T>
-void cuda(void *buffers[], void *cl_args)
-    noexcept;
+    //! Wrapper for a generic CUDA implementation
+    static void cuda(void *buffers[], void *cl_args)
+        noexcept;
+
+    //! Array of all wrappers for CUDA implementations
+    static constexpr func_array cuda_funcs = {
+        cuda
+    };
+#else // NNTILE_USE_CUDA
+    //! Array of all wrappers for CUDA implementations
+    static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
+    //! Submit rope_backward task
+    void submit(
+        Index m,
+        Index n,
+        Handle sin,
+        Handle cos,
+        Handle dy,
+        Handle dx
+    );
+};
 
-template<typename T>
-constexpr Codelet *codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
+//! Pack of rope_backward operations for different types
+using rope_backward_pack_t = OperationPack<
+    RopeBackward,
+    std::tuple<nntile::fp64_t>,
+    std::tuple<nntile::fp32_t>,
+    std::tuple<nntile::fp32_fast_tf32_t>,
+    std::tuple<nntile::fp32_fast_fp16_t>,
+    std::tuple<nntile::fp32_fast_bf16_t>,
+    std::tuple<nntile::fp16_t>,
+    std::tuple<nntile::bf16_t>
+>;
 
-template<>
-constexpr Codelet *codelet<fp32_t>()
-{
-    return &codelet_fp32;
-}
+//! Pack of rope_backward operations for different types
+extern rope_backward_pack_t rope_backward;
 
-template<>
-constexpr Codelet *codelet<fp64_t>()
-{
-    return &codelet_fp64;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_fast_tf32_t>()
-{
-    return &codelet_fp32_fast_tf32;
-}
-
-template<>
-constexpr Codelet *codelet<bf16_t>()
-{
-    return &codelet_bf16;
-}
-
-void init();
-
-void restrict_where(uint32_t where);
-
-void restore_where();
-
-template<typename T>
-void submit(Index m, Index n, Handle sin, Handle cos, Handle dy, Handle dx);
-
-} // namespace nntile::starpu::rope_backward
+} // namespace nntile::starpu

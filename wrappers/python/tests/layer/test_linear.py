@@ -26,31 +26,37 @@ Tensor = {
     np.float64: nntile.tensor.Tensor_fp64,
 }
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
+dtype2nntile = {
+    'fp16': nntile.tensor.Tensor_fp16,
+    'bf16': nntile.tensor.Tensor_bf16,
+    'fp32': nntile.tensor.Tensor_fp32,
+}
+
+dtype2np = {
+    'fp16': np.float32,
+    'bf16': np.float32,
+    'fp32': np.float32,
+}
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
 @pytest.mark.parametrize('side', ['L', 'R'])
-def test_linear(side: str, dtype: np.dtype):
+def test_linear(context, side: str, dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [4, 5, 6]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
-    next_tag = 0
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
+    A = Tensor[dtype](A_traits, mpi_distr)
+    A_grad = Tensor[dtype](A_traits, mpi_distr)
     # Set initial values of tensors
     rng = np.random.default_rng(42)
     rand_A = rng.standard_normal(A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
-    layer, next_tag = Linear.generate_simple(
-        A_moments, side, nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag,
+    layer = Linear.generate_simple(
+        A_moments, side, nntile.tensor.notrans, 2, [7, 8], [7, 8],
         bias=False)
     rand_W = rng.standard_normal(layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
@@ -98,26 +104,23 @@ def test_linear(side: str, dtype: np.dtype):
 
 
 @pytest.mark.skip(reason='not implemented')
-def test_linear_fp32_fast_fp16():
+def test_linear_fp32_fast_fp16(context):
     dtype = np.float32
     # Describe single-tile tensor, located at node 0
     A_shape = [4, 5, 6]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
-    next_tag = 0
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
+    A = Tensor[dtype](A_traits, mpi_distr)
+    A_grad = Tensor[dtype](A_traits, mpi_distr)
     # Set initial values of tensors
     rng = np.random.default_rng(42)
     rand_A = rng.standard_normal(A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
-    layer, next_tag = Linear.generate_simple(
-        A_moments, 'L', nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag,
+    layer = Linear.generate_simple(
+        A_moments, 'L', nntile.tensor.notrans, 2, [7, 8], [7, 8],
         fp32_fast_fp16=True, bias=False)
     rand_W = rng.standard_normal(layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
@@ -155,7 +158,7 @@ def test_linear_fp32_fast_fp16():
     ('R', [5, 7, 2], [10, 5, 7], [10], 2),
     ('R', [7, 3, 10], [5, 7], [5], 1),
 ])
-def test_linear_with_torch(side: str, x_shape, w_shape, b_shape,
+def test_linear_with_torch(context, side: str, x_shape, w_shape, b_shape,
                            n_contracted_dim):
     """Compare :py:class:`nntile.layer.Linear` and :py:class:`torch.nn.Linear`.
 
@@ -186,25 +189,22 @@ def test_linear_with_torch(side: str, x_shape, w_shape, b_shape,
 
     A_traits = nntile.tensor.TensorTraits(x_torch.shape, x_torch.shape)
     mpi_distr = [0]
-    next_tag = 0
     # Tensor objects
-    A = Tensor[np.float32](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    A_grad = Tensor[np.float32](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
+    A = Tensor[np.float32](A_traits, mpi_distr)
+    A_grad = Tensor[np.float32](A_traits, mpi_distr)
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
     match side:
         case 'L':
-            layer, next_tag = Linear.generate_simple(
+            layer = Linear.generate_simple(
                 A_moments, 'L', nntile.tensor.notrans, n_contracted_dim,
                 [*w_shape[n_contracted_dim:]], [*w_shape[n_contracted_dim:]],
-                next_tag, bias=True)
+                bias=True)
         case 'R':
-            layer, next_tag = Linear.generate_simple(
+            layer = Linear.generate_simple(
                 A_moments, 'R', nntile.tensor.notrans, n_contracted_dim,
                 [*w_shape[:-n_contracted_dim]], [*w_shape[:-n_contracted_dim]],
-                next_tag, bias=True)
+                bias=True)
 
     np_W = np.array(w_torch.detach().numpy(), dtype=np.float32, order='F')
     layer.w.value.from_array(np_W)
@@ -256,7 +256,7 @@ def test_linear_with_torch(side: str, x_shape, w_shape, b_shape,
     ([64, 100], [100, 10]),
     ([64, 128, 100], [100, 20]),
 ])
-def test_linear_with_torch_init(x_shape, w_shape):
+def test_linear_with_torch_init(context, x_shape, w_shape):
     """Similar to `test_linear_with_torch` but weights are initialized with
     :py:class:`torch.nn.Linear`.
     """
@@ -268,17 +268,14 @@ def test_linear_with_torch_init(x_shape, w_shape):
 
     A_traits = nntile.tensor.TensorTraits(x_torch.shape, x_torch.shape)
     mpi_distr = [0]
-    next_tag = 0
     # Tensor objects
-    A = Tensor[np.float32](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    A_grad = Tensor[np.float32](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
+    A = Tensor[np.float32](A_traits, mpi_distr)
+    A_grad = Tensor[np.float32](A_traits, mpi_distr)
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
-    layer, next_tag = Linear.generate_simple(
+    layer = Linear.generate_simple(
         A_moments, 'L', nntile.tensor.notrans, 1, [w_shape[1]], [w_shape[1]],
-        next_tag, bias=True)
+        bias=True)
 
     np_W = linear_layer.weight.detach().numpy().astype(np.float32, 'F')
     layer.w.value.from_array(np_W.T)
@@ -334,7 +331,7 @@ def test_linear_with_torch_init(x_shape, w_shape):
         ([64, 128, 100], [100, 20]),
     ],
 )
-def test_dynamic(numpy_rng, x_shape, w_shape):
+def test_dynamic(context, numpy_rng, x_shape, w_shape):
     """Similar to `test_linear_with_torch` but weights are initialized with
     :py:class:`torch.nn.Linear`.
     """
@@ -343,9 +340,8 @@ def test_dynamic(numpy_rng, x_shape, w_shape):
     x_nntile_tm_for_build = nntile.tensor.TensorMoments(
         nntc.zeros(x_shape[::-1], dtype=nntile.tensor.Tensor_fp32), None, False
     )
-    next_tag = 0
-    layer, next_tag = Linear.from_torch(
-        linear_layer, x_nntile_tm_for_build, w_shape[1], False, next_tag
+    layer = Linear.from_torch(
+        linear_layer, x_nntile_tm_for_build, w_shape[1], False
     )
 
     # generate input
@@ -394,7 +390,7 @@ def test_dynamic(numpy_rng, x_shape, w_shape):
     ('R', [5, 7, 2], [10, 5, 7], [10], 2),
     ('R', [7, 3, 10], [5, 7], [5], 1),
 ])
-def test_linear_flops(side: str, x_shape, w_shape, b_shape,
+def test_linear_flops(context, side: str, x_shape, w_shape, b_shape,
                            n_contracted_dim):
     """Compare flops counting in :py:class:`nntile.layer.Linear`
     and analytical formulas
@@ -402,25 +398,22 @@ def test_linear_flops(side: str, x_shape, w_shape, b_shape,
 
     A_traits = nntile.tensor.TensorTraits(x_shape, x_shape)
     mpi_distr = [0]
-    next_tag = 0
     # Tensor objects
-    A = Tensor[np.float32](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    A_grad = Tensor[np.float32](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
+    A = Tensor[np.float32](A_traits, mpi_distr)
+    A_grad = Tensor[np.float32](A_traits, mpi_distr)
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
     match side:
         case 'L':
-            layer, next_tag = Linear.generate_simple(
+            layer = Linear.generate_simple(
                 A_moments, 'L', nntile.tensor.notrans, n_contracted_dim,
                 [*w_shape[n_contracted_dim:]], [*w_shape[n_contracted_dim:]],
-                next_tag, bias=True)
+                bias=True)
         case 'R':
-            layer, next_tag = Linear.generate_simple(
+            layer = Linear.generate_simple(
                 A_moments, 'R', nntile.tensor.notrans, n_contracted_dim,
                 [*w_shape[:-n_contracted_dim]], [*w_shape[:-n_contracted_dim]],
-                next_tag, bias=True)
+                bias=True)
     match side:
         case 'L':
             analytical_fwd_flops = (2 * np.prod(x_shape) *
@@ -436,3 +429,99 @@ def test_linear_flops(side: str, x_shape, w_shape, b_shape,
 
     A_moments.unregister()
     layer.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('side,x_shape,w_shape',
+                        [
+                            ('L', [128, 128], [128, 128]),
+                            # ('L', [512, 512], [512, 512]),
+                         ]
+                        )
+@pytest.mark.parametrize('dtype', ['fp32'])
+def test_bench_linear_forward_async(
+        context_cuda, benchmark_operation, x_shape, w_shape,
+        side: str, dtype: str,
+):
+    A_shape = x_shape
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    mpi_distr = [0]
+    # Tensor objects
+    tensor_type = dtype2nntile[dtype]
+    A = tensor_type(A_traits, mpi_distr)
+    A_grad = tensor_type(A_traits, mpi_distr)
+    # Set initial values of tensors
+    rng = np.random.default_rng(42)
+    rand_A = rng.standard_normal(A_shape)
+    np_dtype = dtype2np[dtype]
+    np_A = np.array(rand_A, dtype=np_dtype, order='F')
+    A.from_array(np_A)
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
+    # Define linear layer
+    layer = Linear.generate_simple(
+        A_moments, side, nntile.tensor.notrans, 2, w_shape, w_shape,
+        bias=False)
+    rand_W = rng.standard_normal(layer.w.value.shape)
+    np_W = np.array(rand_W, dtype=np_dtype, order='F')
+    layer.w.value.from_array(np_W)
+    # nntile.tensor.clear_async(layer.w.grad)
+
+    def bench_fn():
+        layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('side,x_shape,w_shape',
+                        [('L', [128, 128], [128, 128])]
+                        )
+@pytest.mark.parametrize('dtype', ['fp32'])
+def test_bench_linear_forward_backward_async(
+        context_cuda, benchmark_operation, x_shape, w_shape,
+        side: str, dtype: str,
+):
+    A_shape = x_shape
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    mpi_distr = [0]
+    # Tensor objects
+    tensor_type = dtype2nntile[dtype]
+    A = tensor_type(A_traits, mpi_distr)
+    A_grad = tensor_type(A_traits, mpi_distr)
+    # Set initial values of tensors
+    rng = np.random.default_rng(42)
+    rand_A = rng.standard_normal(A_shape)
+    np_dtype = dtype2np[dtype]
+    np_A = np.array(rand_A, dtype=np_dtype, order='F')
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
+    # Define linear layer
+    layer = Linear.generate_simple(
+        A_moments, side, nntile.tensor.notrans, 2, w_shape, w_shape,
+        bias=False)
+    rand_W = rng.standard_normal(layer.w.value.shape)
+    np_W = np.array(rand_W, dtype=np_dtype, order='F')
+    layer.w.value.from_array(np_W)
+    nntile.tensor.clear_async(layer.w.grad)
+
+    # Check result of forward pass layer.y.value
+    A.from_array(np_A)
+    nntile.tensor.clear_async(A_grad)
+    layer.forward_async()
+
+    match side:
+        case 'L':
+            np_Y = np.tensordot(np_A, np_W, 2)
+        case 'R':
+            np_Y = np.tensordot(np_W, np_A, 2)
+
+    layer.y.grad.from_array(np_Y)
+
+    def bench_fn():
+        layer.forward_async()
+        layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

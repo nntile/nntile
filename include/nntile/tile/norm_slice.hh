@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tile/norm_slice.hh
- * Euclidean norms of fibers into a slice of a Tile<T>
+ * Euclidean norms of fibers into a slice of a Tile<T> (out-of-place version)
  *
  * @version 1.1.0
  * */
@@ -20,11 +20,11 @@ namespace nntile::tile
 {
 
 template<typename T>
-void norm_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        Index axis);
+void norm_slice_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
+        const Tile<T> &dst, Index axis);
 
 template<typename T>
-void norm_slice(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        Index axis);
+void norm_slice(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
+        const Tile<T> &dst, Index axis);
 
 } // namespace nntile::tile

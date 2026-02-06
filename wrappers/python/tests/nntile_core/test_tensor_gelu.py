@@ -20,9 +20,6 @@ from scipy.special import erf
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
-
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
@@ -45,23 +42,27 @@ def gelu_numpy(z, approximate=True):
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-def test_gelu(dtype, approximate=False):
+def test_gelu(context, dtype, approximate=False):
     # Describe single-tile tensor, located at node 0
     shape = [2, 2]
-    mpi_distr = [0]
-    next_tag = 0
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)
-    # Set initial values of tensors
+    A = Tensor[dtype](traits, [0])
+    B = Tensor[dtype](traits, [0])
+    # Generate input data
     rand = np.random.default_rng(42).standard_normal(shape)
     src_A = np.array(rand, dtype=dtype, order='F')
-    dst_A = np.zeros_like(src_A)
+    dst_B = np.zeros_like(src_A)
     A.from_array(src_A)
-    gelu[dtype](A)
-    A.to_array(dst_A)
+    B.from_array(dst_B)
+    # Apply gelu
+    gelu[dtype](A, B)
+    B.to_array(dst_B)
     nntile.starpu.wait_for_all()
+    # Cleanup
     A.unregister()
-    # Get result in numpy
-    src_A = gelu_numpy(src_A, approximate=approximate)
-    assert np.allclose(src_A, dst_A)
+    B.unregister()
+    # Compute reference result
+    src_A_ref = gelu_numpy(src_A, approximate=approximate)
+    # Compare
+    assert np.allclose(src_A_ref, dst_B)

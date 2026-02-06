@@ -76,4 +76,9 @@ void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha,
         bf16_t *dst)
     noexcept;
 
+template
+void cuda<fp16_t>(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha,
+        fp16_t *dst)
+    noexcept;
+
 } // namespace nntile::kernel::hypot_scalar_inverse

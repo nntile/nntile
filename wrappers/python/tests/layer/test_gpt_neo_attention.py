@@ -16,6 +16,8 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
+from gen_utils import (
+    generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding)
 from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoAttention as GPTNeoAttentionTorch, GPTNeoConfig as GPTNeoConfigTorch)
 
@@ -27,10 +29,17 @@ from nntile.utils.constructors import to_numpy
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
+        'fp16': nntile.tensor.Tensor_fp16,
         'bf16': nntile.tensor.Tensor_bf16,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
+}
+
+dtype2np = {
+    'fp16': np.float32,
+    'bf16': np.float32,
+    'fp32': np.float32,
 }
 
 dtype2tol = {
@@ -132,8 +141,8 @@ def generate_inputs(dtype: str, params: GPTNeoAttentionTestParams):
 
     x_q_traits = TensorTraits(x_shape, x_basetile)
     x_q_distr = [0] * x_q_traits.grid.nelems
-    x_value = x_type(x_q_traits, x_q_distr, 0)
-    x_grad = x_type(x_q_traits, x_q_distr, 0)
+    x_value = x_type(x_q_traits, x_q_distr)
+    x_grad = x_type(x_q_traits, x_q_distr)
     X = TensorMoments(x_value, x_grad, grad_required=True)
 
     x_random = rng.standard_normal(x_shape)
@@ -141,9 +150,10 @@ def generate_inputs(dtype: str, params: GPTNeoAttentionTestParams):
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_()
-    nntile_layer, _ = nntile.layer.GPTNeoAttention.from_torch(
-            torch_layer, X, X, X, nntile_config, 0
+    nntile_layer = nntile.layer.GPTNeoAttention.from_torch(
+            torch_layer, X, X, X, nntile_config
     )
+    nntile_layer.clear_gradients()
 
     y_grad_random = rng.standard_normal(nntile_layer.y.grad.shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
@@ -166,7 +176,7 @@ def generate_inputs(dtype: str, params: GPTNeoAttentionTestParams):
 ])
 class TestGPTNeoAttention:
 
-    def test_torch_coercion(self, starpu_simple, torch_rng, dtype: str,
+    def test_torch_coercion(self, context, torch_rng, dtype: str,
                             params: GPTNeoAttentionTestParams):
         torch_layer, nntile_layer, *_ = generate_inputs(dtype, params)
         torch_layer_other = nntile_layer.to_torch()
@@ -182,7 +192,7 @@ class TestGPTNeoAttention:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng, dtype: str,
+    def test_forward(self, context, torch_rng, dtype: str,
                      params: GPTNeoAttentionTestParams):
         torch_layer, nntile_layer, x, _ = generate_inputs(dtype, params)
         y, _ = torch_layer(x)
@@ -197,7 +207,7 @@ class TestGPTNeoAttention:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng, dtype: str,
+    def test_backward(self, context, torch_rng, dtype: str,
                               params: GPTNeoAttentionTestParams):
         torch_layer, nntile_layer, x, y_grad = generate_inputs(dtype, params)
         y, _ = torch_layer(x)
@@ -223,3 +233,158 @@ class TestGPTNeoAttention:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+
+@pytest.mark.parametrize(
+    "n_head,n_head_tile,n_emb,n_emb_tile,seq_size", [(2, 1, 6, 2, 10)]
+)
+def test_dynamic(
+    context, numpy_rng, n_head, n_head_tile, n_emb, n_emb_tile, seq_size
+):
+    input_shape = (n_emb, seq_size, 1)
+    inp_np = np.asfortranarray(numpy_rng.random(input_shape))
+
+    inp = nntile.utils.constructors.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
+    inp2 = nntile.utils.constructors.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
+    inp3 = nntile.utils.constructors.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
+
+    inp_tm = nntile.tensor.TensorMoments(
+        inp,
+        grad=nntile.utils.constructors.zeros(inp.shape, dtype=type(inp)),
+        grad_required=False
+    )
+    inp_tm2 = nntile.tensor.TensorMoments(
+        inp2,
+        grad=nntile.utils.constructors.zeros(inp2.shape, dtype=type(inp)),
+        grad_required=False
+    )
+    inp_tm3 = nntile.tensor.TensorMoments(
+        inp3,
+        grad=nntile.utils.constructors.zeros(inp3.shape, dtype=type(inp)),
+        grad_required=False
+    )
+
+    attn = nntile.layer.GPTNeoAttention.generate_simple(
+        inp_tm,
+        inp_tm2,
+        inp_tm3,
+        n_head,
+        n_head_tile,
+        layer_id=0,
+        attention_type="global"
+    )
+    attn.init_randn_async()
+
+    attn.forward_async()
+    out_dynamic_expected_np = nntile.utils.constructors.to_numpy(
+        attn.y.value)
+
+    out_dynamic_actual, _ = attn.forward_dynamic(inp_tm)
+    out_dynamic_actual_np = nntile.utils.constructors.to_numpy(
+        out_dynamic_actual.value)
+
+    np.testing.assert_allclose(
+        out_dynamic_actual_np,
+        out_dynamic_expected_np,
+        err_msg="Dynamic does not match static",
+    )
+
+
+@pytest.mark.parametrize("n_head,n_head_tile", [(1, 1)])
+def test_kvcache(context, numpy_rng, n_head, n_head_tile):
+    prefill_size = 4
+    max_tokens = 8
+
+    inp_np = np.asfortranarray(numpy_rng.random((3, 8, 1)))
+    inp_np[:, prefill_size:, :] = 0
+
+    inp = nntile.utils.constructors.from_array(inp_np)
+    inp2 = nntile.utils.constructors.from_array(inp_np)
+    inp3 = nntile.utils.constructors.from_array(inp_np)
+
+    inp_tm = nntile.tensor.TensorMoments(
+        inp,
+        grad=nntile.utils.constructors.zeros(inp.shape, dtype=type(inp)),
+        grad_required=False
+    )
+    inp_tm2 = nntile.tensor.TensorMoments(
+        inp2,
+        grad=nntile.utils.constructors.zeros(inp2.shape, dtype=type(inp)),
+        grad_required=False
+    )
+    inp_tm3 = nntile.tensor.TensorMoments(
+        inp3,
+        grad=nntile.utils.constructors.zeros(inp3.shape, dtype=type(inp)),
+        grad_required=False
+    )
+
+    attn = nntile.layer.GPTNeoAttention.generate_simple(
+        inp_tm,
+        inp_tm2,
+        inp_tm3,
+        n_head,
+        n_head_tile,
+        layer_id=0,
+        attention_type="global"
+    )
+    attn.init_randn_async()
+
+    # slice to prefill size
+    inp_prefill = nntile.utils.constructors.from_array(
+        inp_np[:, :prefill_size, :])
+    outs_dyn = generate_greedy_logits_dynamic_kvcache(
+        attn, inp_prefill, prefill_size, max_tokens
+    )
+    outs_dyn_np = nntile.utils.constructors.to_numpy(outs_dyn)
+
+    inp_prefill = nntile.utils.constructors.from_array(
+        inp_np[:, :prefill_size, :])
+    outs_stat = generate_greedy_logits_padding(
+        attn, inp_prefill, prefill_size, max_tokens
+    )
+    outs_stat_np = nntile.utils.constructors.to_numpy(outs_stat)
+
+    np.testing.assert_allclose(
+        outs_stat_np,
+        outs_dyn_np,
+        err_msg="test_kvcache: Dynamic does not match static",
+    )
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
+def test_bench_gpt_neo_attention_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(dtype, params)
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['bf16', 'fp16', 'fp32'])
+def test_bench_gpt_neo_attention_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(dtype, params)
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

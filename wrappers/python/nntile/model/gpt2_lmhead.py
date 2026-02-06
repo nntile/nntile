@@ -11,12 +11,16 @@
 #
 # @version 1.1.0
 
+from typing import Optional
+
 from transformers import GPT2Config as GPT2ConfigTorch
 from transformers.models.gpt2.modeling_gpt2 import (
     GPT2LMHeadModel as GPT2Model_torch)
 
 import nntile
+from nntile.layer.cache_utils import KVCacheStorage
 from nntile.model.generation.llm import LLMGenerationMixin
+from nntile.tensor import TensorMoments
 
 from ..layer import Linear
 from .base_model import BaseModel
@@ -25,7 +29,6 @@ from .gpt2_model import GPT2Model as GPT2_nntile
 
 
 class GPT2LMHead(BaseModel, LLMGenerationMixin):
-    next_tag: int
     gpt2_model_: GPT2_nntile
     lin_: Linear
 
@@ -38,11 +41,12 @@ class GPT2LMHead(BaseModel, LLMGenerationMixin):
         self.config = config
         self.eos_token_id = self.config.eos_token_id
 
-        if self.dtype not in ["fp32", "tf32",
+        if self.dtype not in ["fp32", "fp16", "tf32",
                               "bf16", "fp32_fast_fp16",
+                              "fp32_fast_tf32",
                               "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
-                            "fp32_fast_bf16 are"
+            raise TypeError("Only fp32, fp16, tf32, bf16, fp32_fast_tf32, "
+                            "fp32_fast_fp16 and fp32_fast_bf16 are "
                             "supported for weight type")
         activations = []
         activations.extend(gpt2_model_.activations)
@@ -75,36 +79,48 @@ class GPT2LMHead(BaseModel, LLMGenerationMixin):
         self.forward_async()
         return self.get_output()
 
+    def forward_dynamic(
+            self, x: TensorMoments,
+            use_cache: bool = False,
+            kv_caches: Optional[KVCacheStorage] = None
+        ):
+        if kv_caches is None and use_cache:
+            kv_caches = KVCacheStorage()
+
+        gpt2_logits, kv_caches = self.gpt2_model_.forward_dynamic(
+            x, use_cache=use_cache, kv_caches=kv_caches
+        )
+        out_logits = self.lin_.forward_dynamic(gpt2_logits)
+        return out_logits, kv_caches
+
     @staticmethod
     def from_torch(torch_gpt2_lmhead,
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
-                   config: GPT2ConfigNNTile,
-                   next_tag: int):
-
-        if config.dtype not in ["fp32", "tf32",
+                   config: GPT2ConfigNNTile):
+        if config.dtype not in ["fp32", "fp16", "tf32",
                               "bf16", "fp32_fast_fp16",
+                              "fp32_fast_tf32",
                               "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
-                            "fp32_fast_bf16 are"
+            raise TypeError("Only fp32, fp16, tf32, bf16, fp32_fast_tf32, "
+                            "fp32_fast_fp16 and fp32_fast_bf16 are "
                             "supported for weight type")
 
-        nntile_gpt2, next_tag = GPT2_nntile.from_torch(
+        nntile_gpt2 = GPT2_nntile.from_torch(
                    torch_gpt2_lmhead.transformer,
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
-                   config,
-                   next_tag)
-        lin_head, next_tag = Linear.from_torch(torch_gpt2_lmhead.lm_head,
+                   config)
+        lin_head = Linear.from_torch(torch_gpt2_lmhead.lm_head,
                                                nntile_gpt2.activations[-1],
                                                config.vocab_size,
-                                               config.redux, next_tag)
+                                               config.redux)
 
         nntile_gpt2_lmhead = GPT2LMHead(nntile_gpt2,
                                                lin_head,
                                                config)
 
-        return nntile_gpt2_lmhead, next_tag
+        return nntile_gpt2_lmhead
 
     def to_torch(self):
         config_torch = GPT2ConfigTorch(
@@ -157,7 +173,6 @@ class GPT2LMHead(BaseModel, LLMGenerationMixin):
         batch_size: int,
         batch_size_tile: int,
         seq_len_tile: int,
-        next_tag: int,
         cache_dir: str | None = None,
     ):
         # TODO: where should be global repo with all this logic.
@@ -168,7 +183,6 @@ class GPT2LMHead(BaseModel, LLMGenerationMixin):
             batch_size,
             batch_size_tile,
             seq_len_tile,
-            next_tag,
             cache_dir=cache_dir,
         )
 
@@ -203,7 +217,6 @@ def create_gpt2_model_from_torch_pretrained(
     batch_size: int,
     batch_size_tile: int,
     seq_len_tile: int,
-    next_tag: int,
     cache_dir: str | None = None,
 ):
     import torch.nn as nn
@@ -236,14 +249,13 @@ def create_gpt2_model_from_torch_pretrained(
     )
     config.n_inner = inner_dim
 
-    nntile_model, next_tag = GPT2LMHead.from_torch(
+    nntile_model = GPT2LMHead.from_torch(
         model_torch,
         batch_size,
         batch_size_tile,
         config.n_positions,
         seq_len_tile,
         nntile_model_config,
-        next_tag,
     )
 
-    return nntile_model, next_tag
+    return nntile_model

@@ -67,7 +67,7 @@ void maxsumexp_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
     n = src.matrix_shape[axis+1][1];
     k = src.shape[axis];
     // Insert task
-    starpu::maxsumexp::submit<T>(m, n, k, src, dst);
+    starpu::maxsumexp.submit<std::tuple<T>>(m, n, k, src, dst);
 }
 
 //! Tile-wise max and sum of exponents along single given axis
@@ -103,6 +103,10 @@ template
 void maxsumexp_async<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst,
         Index axis);
 
+template
+void maxsumexp_async<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst,
+        Index axis);
+
 // Explicit instantiation
 template
 void maxsumexp<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst,
@@ -126,6 +130,10 @@ void maxsumexp<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst,
 
 template
 void maxsumexp<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst,
+        Index axis);
+
+template
+void maxsumexp<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst,
         Index axis);
 
 } // namespace nntile::tile

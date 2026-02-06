@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/gelu.hh
- * GeLU low-level kernels
+ * GeLU operation on buffers
  *
  * @version 1.1.0
  * */

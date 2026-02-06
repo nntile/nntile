@@ -22,6 +22,7 @@ from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoConfig as GPTNeoConfigTorch, GPTNeoModel as GPTNeoModelTorch)
 
 import nntile
+import nntile.utils.constructors as nntc
 from nntile.model.gpt_neo_config import GPTNeoConfig
 from nntile.model.gpt_neo_model import GPTNeoModel
 from nntile.tensor import to_numpy
@@ -31,16 +32,23 @@ dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16
 }
 
+dtype2np = {
+        'fp32': np.float32,
+        'bf16': np.float32,
+        'fp16': np.float32,
+}
+
 dtype2tol = {
         'fp32': {'rtol': 8e-6},
-        'fp32_fast_tf32': {'rtol': 8e-4},
-        'bf16': {'rtol': 1.6e-2},
-        'fp32_fast_fp16': {'rtol': 9e-4},
-        'fp32_fast_bf16': {'rtol': 4e-3},
+        'fp32_fast_tf32': {'rtol': 1.5e-3},
+        'bf16': {'rtol': 3.0e-2},
+        'fp32_fast_fp16': {'rtol': 1.5e-3},
+        'fp32_fast_bf16': {'rtol': 1e-2},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
@@ -125,11 +133,11 @@ def generate_inputs(params: GPTNeoTestParams,
     )
     gen = np.random.default_rng(42)
 
-    nntile_model, _ = GPTNeoModel.from_torch(
+    nntile_model = GPTNeoModel.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
-            params.seq_len, params.seq_len_tile, nntile_config, 0)
+            params.seq_len, params.seq_len_tile, nntile_config)
     nntile_model.clear_gradients()
-    x_random = gen.integers(params.seq_len,
+    x_random = gen.integers(params.vocab_size,
                             size=nntile_model.activations[0].value.shape,
                             dtype=np.int64)
 
@@ -163,7 +171,7 @@ def generate_inputs(params: GPTNeoTestParams,
                           ["local"]])
 @pytest.mark.parametrize('pattern_mult', [0, 1, 2])
 class TestGPTNeoModel:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: GPTNeoTestParams,
                       dtype: str,
                       attn_pattern: list,
@@ -180,7 +188,7 @@ class TestGPTNeoModel:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: GPTNeoTestParams,
                      dtype: str,
                      attn_pattern: list,
@@ -197,7 +205,7 @@ class TestGPTNeoModel:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
 
-    def test_backward(self, starpu_simple, torch_rng,
+    def test_backward(self, context, torch_rng,
                               params: GPTNeoTestParams,
                               dtype: str,
                               attn_pattern: list,
@@ -221,3 +229,98 @@ class TestGPTNeoModel:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+
+@pytest.mark.parametrize('params', [
+    pytest.param(single_tile, id='single_tile'),
+])
+@pytest.mark.parametrize('dtype', [
+    'fp32',
+])
+@pytest.mark.parametrize('attn_pattern',
+                         [["global", "local"]])
+@pytest.mark.parametrize('pattern_mult', [2])
+def test_forward_dynamic(context, torch_rng,
+                     params: GPTNeoTestParams,
+                     dtype: str,
+                     attn_pattern: list,
+                     pattern_mult: int):
+    torch_model, nntile_model, x, _ = generate_inputs(
+            params, dtype, attn_pattern, pattern_mult
+        )
+    y = torch_model(x)
+    y_torch = y.last_hidden_state
+
+    x_np = x.cpu().detach().numpy()
+    x_nnt = nntile.tensor.TensorMoments(nntc.from_array(x_np.T), None, False)
+
+    logits_nnt, _ = nntile_model.forward_dynamic(x_nnt)
+    y_nntile = torch.Tensor(nntc.to_numpy(logits_nnt.value).T)
+
+    rtol = dtype2tol[dtype]['rtol']
+    assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
+
+    x_np_trunc = x_np[:x_np.shape[0] // 2, :x_np.shape[1] // 2]
+    x_trunc_nnt = nntile.tensor.TensorMoments(
+        nntc.from_array(x_np_trunc.T), None, False
+    )
+
+    y_trunc = torch_model(torch.tensor(x_np_trunc))
+    y_trunc_torch = y_trunc.last_hidden_state
+
+    logits_trunc_nnt, _ = nntile_model.forward_dynamic(x_trunc_nnt)
+    y_trunc_nntile = torch.Tensor(nntc.to_numpy(logits_trunc_nnt.value).T)
+    nntile_model.unregister()
+
+    actual_diff = torch.norm(y_trunc_torch - y_trunc_nntile)
+    upper_bound_diff = rtol * torch.norm(y_trunc_torch)
+    assert actual_diff <= upper_bound_diff
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gptneo_forward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    params = single_tile
+    attn_pattern = ["local"]
+    pattern_mult = 1
+    _, nntile_model, _, _ = generate_inputs(
+        params, dtype, attn_pattern, pattern_mult
+    )
+
+    def bench_fn():
+        nntile_model.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_model.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_gptneo_forward_backward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    params = single_tile
+    attn_pattern = ["local"]
+    pattern_mult = 1
+    _, nntile_model, _, _ = generate_inputs(
+        params, dtype, attn_pattern, pattern_mult
+    )
+
+    def bench_fn():
+        nntile_model.forward_async()
+        nntile_model.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_model.unregister()

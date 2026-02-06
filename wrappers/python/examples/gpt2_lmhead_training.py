@@ -62,8 +62,8 @@ parser.add_argument("--n-head-tile", type=int, default=-1)
 
 parser.add_argument(
     "--dtype", choices=["fp32", "fp64", "tf32",
-                               "bf16", "fp32_fast_fp16",
-                               "fp32_fast_bf16"], default="fp32")
+                        "bf16", "fp32_fast_fp16",
+                        "fp32_fast_bf16", "fp16"], default="fp32")
 parser.add_argument("--restrict", choices=["cpu", "cuda", None],
         default=None)
 parser.add_argument("--flash-attention", action="store_true")
@@ -81,10 +81,35 @@ parser.add_argument("--logger-server-addr", type=str,
                     default="localhost")
 parser.add_argument("--logger-server-port", type=int, default=5001)
 
+parser.add_argument("--ooc", action="store_true")
+parser.add_argument("--ooc-path", type=str, default="/tmp/nntile_ooc")
+parser.add_argument("--ooc-size", type=int, default=1073741824)
+
+parser.add_argument("--force-offload-disk-portion-parameters", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-disk-portion-gradients", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-disk-portion-activations", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-disk-portion-temporaries", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-disk-portion-optimizer", type=float,
+                    default=0.0)
+
+parser.add_argument("--force-offload-ram-portion-parameters", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-ram-portion-gradients", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-ram-portion-activations", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-ram-portion-temporaries", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-ram-portion-optimizer", type=float,
+                    default=0.0)
+
 # Parse arguments
 args = parser.parse_args()
 print(args)
-
 if args.seq_len_tile == -1:
     args.seq_len_tile = args.seq_len
 if args.minibatch_size == -1:
@@ -100,6 +125,27 @@ assert args.batch_size % args.minibatch_size == 0
 num_minibatch = args.batch_size // args.minibatch_size
 assert args.minibatch_size % args.minibatch_size_tile == 0
 assert args.nepochs > 0
+assert args.force_offload_disk_portion_parameters >= 0.0
+assert args.force_offload_disk_portion_parameters <= 1.0
+assert args.force_offload_disk_portion_gradients >= 0.0
+assert args.force_offload_disk_portion_gradients <= 1.0
+assert args.force_offload_disk_portion_activations >= 0.0
+assert args.force_offload_disk_portion_activations <= 1.0
+assert args.force_offload_disk_portion_temporaries >= 0.0
+assert args.force_offload_disk_portion_temporaries <= 1.0
+assert args.force_offload_disk_portion_optimizer >= 0.0
+assert args.force_offload_disk_portion_optimizer <= 1.0
+
+assert args.force_offload_ram_portion_parameters >= 0.0
+assert args.force_offload_ram_portion_parameters <= 1.0
+assert args.force_offload_ram_portion_gradients >= 0.0
+assert args.force_offload_ram_portion_gradients <= 1.0
+assert args.force_offload_ram_portion_activations >= 0.0
+assert args.force_offload_ram_portion_activations <= 1.0
+assert args.force_offload_ram_portion_temporaries >= 0.0
+assert args.force_offload_ram_portion_temporaries <= 1.0
+assert args.force_offload_ram_portion_optimizer >= 0.0
+assert args.force_offload_ram_portion_optimizer <= 1.0
 
 # Load named pretrained PyTorch model
 if args.pretrained == "remote":
@@ -141,20 +187,22 @@ model_torch.config.n_inner = inner_dim
 
 # Initialize NNTile and StarPU
 time0 = time.time()
-# Set up StarPU+MPI and init codelets
-nntile_config = nntile.starpu.Config(-1, -1, 1, args.logger,
-        args.logger_server_addr, args.logger_server_port)
+context = nntile.Context(
+    ncpu=-1,
+    ncuda=-1,
+    ooc=0,
+    logger=args.logger,
+    logger_addr=args.logger_server_addr,
+    logger_port=args.logger_server_port)
 nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
-nntile.starpu.init()
 # Restrict computations to CUDA if possible
 if args.restrict == "cuda":
-    nntile.starpu.restrict_cuda()
+    context.restrict_cuda()
 elif args.restrict == "cpu":
-    nntile.starpu.restrict_cpu()
+    context.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
-next_tag = 0
 
 time0 = time.time()
 if args.n_head_tile == -1:
@@ -182,18 +230,30 @@ gpt2_config_nntile = GPT2ConfigNNTile(
 
 print(gpt2_config_nntile)
 
-gpt2lmhead_nntile, next_tag = GPT2LMHead.from_torch(model_torch,
+gpt2lmhead_nntile = GPT2LMHead.from_torch(model_torch,
                                                 args.minibatch_size,
                                                 args.minibatch_size_tile,
                                                 args.seq_len,
                                                 args.seq_len_tile,
-                                                gpt2_config_nntile,
-                                                next_tag)
+                                                gpt2_config_nntile)
 time1 = time.time() - time0
 print("Converting PyTorch model to NNTile",
         "requires {} seconds".format(time1))
 del model_torch
 
+# Set forced offloading to disk for parameters, gradients and activations
+gpt2lmhead_nntile.force_offload_disk_parameters(args.force_offload_disk_portion_parameters)
+gpt2lmhead_nntile.force_offload_disk_gradients(args.force_offload_disk_portion_gradients)
+gpt2lmhead_nntile.force_offload_disk_activations(args.force_offload_disk_portion_activations)
+gpt2lmhead_nntile.force_offload_disk_temporaries(args.force_offload_disk_portion_temporaries)
+
+# Set forced offloading to RAM for parameters, gradients and activations
+gpt2lmhead_nntile.force_offload_ram_parameters(args.force_offload_ram_portion_parameters)
+gpt2lmhead_nntile.force_offload_ram_gradients(args.force_offload_ram_portion_gradients)
+gpt2lmhead_nntile.force_offload_ram_activations(args.force_offload_ram_portion_activations)
+gpt2lmhead_nntile.force_offload_ram_temporaries(args.force_offload_ram_portion_temporaries)
+
+# Get train tokens
 splitted_datasetfile = args.dataset_file.split("/")
 if splitted_datasetfile[-1] == "train.bin":
     train_data = np.memmap(Path(args.dataset_path) /
@@ -225,17 +285,14 @@ batch_output = []
 x_traits = nntile.tensor.TensorTraits(
         [args.seq_len, args.minibatch_size],
         [args.seq_len_tile, args.minibatch_size_tile])
-x_distr = [0] * x_traits.grid.nelems
 for i in range(num_train_batches):
     minibatch_input = []
     minibatch_output = []
     for j in range(num_minibatch):
-        x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = x.next_tag
+        x = nntile.tensor.Tensor_int64(x_traits)
         x.from_array(np.asfortranarray(train_tokens[i, j, :, :-1].T))
         minibatch_input.append(x)
-        y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = y.next_tag
+        y = nntile.tensor.Tensor_int64(x_traits)
         y.from_array(np.asfortranarray(train_tokens[i, j, :, 1:].T))
         minibatch_output.append(y)
     batch_input.append(minibatch_input)
@@ -245,17 +302,22 @@ print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
 # Set up learning rate and optimizer for training
 if args.optimizer == "adam":
     optimizer = nntile.optimizer.Adam(gpt2lmhead_nntile.get_parameters(),
-            args.lr, next_tag)
+            args.lr)
 elif args.optimizer == "adamw":
     optimizer = nntile.optimizer.AdamW(gpt2lmhead_nntile.get_parameters(),
-            args.lr, next_tag)
+            args.lr)
 elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(gpt2lmhead_nntile.get_parameters(),
-            args.lr, next_tag)
-next_tag = optimizer.get_next_tag()
+            args.lr)
+
+# Set OOC force for optimizer
+optimizer.force_offload_disk(args.force_offload_disk_portion_optimizer)
+# Set RAM force for optimizer
+optimizer.force_offload_ram(args.force_offload_ram_portion_optimizer)
+
 # Define Cross Entropy loss function
-loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-        gpt2lmhead_nntile.activations[-1], next_tag,
+loss = nntile.loss.CrossEntropy.generate_simple(
+        gpt2lmhead_nntile.activations[-1],
         scale=1.0 / (args.batch_size * args.seq_len))
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_input, batch_output,
@@ -263,10 +325,12 @@ pipeline = nntile.pipeline.Pipeline(batch_input, batch_output,
 # Print pipeline memory info
 pipeline.print_meminfo()
 # nntile.starpu.pause()
+nntile.starpu.profiling_init()
 nntile.starpu.profiling_enable()
 pipeline.train_async()
 # nntile.starpu.resume()
 nntile.starpu.wait_for_all()
+nntile.starpu.profiling_bus_display_summary()
 nntile.starpu.profiling_disable()
 time1 = time.time() - time0
 print("NNTile training time: {} seconds".format(time1))
@@ -283,13 +347,9 @@ loss_np = np.zeros((1), dtype=np.float32)
 loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
 model_torch = gpt2lmhead_nntile.to_torch()
-torch.save({
-            'model_state_dict': model_torch.state_dict(),
-            }, args.save_checkpoint_path)
-del model_torch
-loss.unregister()
-optimizer.unregister()
-for batch in batch_input + batch_output:
-    for x in batch:
-        x.unregister()
-gpt2lmhead_nntile.unregister()
+torch.save(
+    {
+        "model_state_dict": model_torch.state_dict(),
+    },
+    args.save_checkpoint_path,
+)

@@ -23,19 +23,8 @@ template<typename T>
 static __global__
 void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src,
         Scalar beta_, T *dst)
-//! Per-element addition of a tensor and a broadcasted fiber on CPU
-/*! Performs the following operations:
- *      dst[i,l,j,b] = beta*dst[i,l,j,b] + alpha*src[l,b]
- *
- * @param[in] m: Size of the first mode of dst tensor
- * @param[in] n: Size of the last mode of dst tensor
- * @param[in] k: Size of the middle mode of dst tensor and the only mode of src
- *      tensors
- * @param[in] batch: Size of the batch dimension
- * @param[in] alpha_: Scalar factor for src
- * @param[in] src: Input contiguous vector with k elements
- * @param[in] beta_: Scaling factor for dst
- * @param[inout] dst: Input and output contiguous m-by-k-by-n array
+//! Generic implementation of the add_fiber_inplace operation on CUDA
+/*! @copydoc nntile::kernel::add_fiber_inplace::cuda
  * */
 {
     Index i2 = threadIdx.x + blockIdx.x*blockDim.x,
@@ -64,9 +53,21 @@ template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
         Scalar alpha, const T *src, Scalar beta, T *dst)
     noexcept
-//! Per-element addition of a tensor and a broadcasted fiber on CPU
+//! Add a broadcasted fiber into a tensor inplace with optional scaling on CUDA
 /*! Performs the following operations:
  *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[l]
+ *
+ * This function reads both src and dst even if alpha or beta is zero.
+ * If alpha is zero and src[l,b] is NaN, then dst[i,l,j,b] will be NaN.
+ * If beta is zero and dst[i,l,j,b] is NaN, then dst[i,l,j,b] will be NaN.
+ * If such behaviour is not desired, then in a case of alpha being zero,
+ * use nntile::kernel::scale_inplace, and in a case of beta being zero,
+ * use nntile::kernel::scale_fiber instead.
+ * If both alpha and beta are zero, then use nntile::kernel::clear instead.
+ *
+ * @see nntile::kernel::scale_inplace
+ * @see nntile::kernel::scale_fiber
+ * @see nntile::kernel::clear
  *
  * @param[in] m: Size of the first mode of dst tensor
  * @param[in] n: Size of the last mode of dst tensor
@@ -102,6 +103,11 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
 template
 void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
         Scalar alpha, const bf16_t *src, Scalar beta, bf16_t *dst)
+    noexcept;
+
+template
+void cuda<fp16_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
+        Scalar alpha, const fp16_t *src, Scalar beta, fp16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_fiber_inplace

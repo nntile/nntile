@@ -82,21 +82,6 @@ void cuda<fp32_t>(cudaStream_t stream, Index nrows, Index ncols,
     noexcept;
 
 template
-void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index nrows, Index ncols,
-        const bool_t *mask, Scalar val, fp32_fast_tf32_t *data)
-    noexcept;
-
-template
-void cuda<fp32_fast_fp16_t>(cudaStream_t stream, Index nrows, Index ncols,
-        const bool_t *mask, Scalar val, fp32_fast_fp16_t *data)
-    noexcept;
-
-template
-void cuda<fp32_fast_bf16_t>(cudaStream_t stream, Index nrows, Index ncols,
-        const bool_t *mask, Scalar val, fp32_fast_bf16_t *data)
-    noexcept;
-
-template
 void cuda<fp64_t>(cudaStream_t stream, Index nrows, Index ncols,
         const bool_t *mask, Scalar val, fp64_t *data)
     noexcept;
@@ -104,6 +89,11 @@ void cuda<fp64_t>(cudaStream_t stream, Index nrows, Index ncols,
 template
 void cuda<bf16_t>(cudaStream_t stream, Index nrows, Index ncols,
         const bool_t *mask, Scalar val, bf16_t *data)
+    noexcept;
+
+template
+void cuda<fp16_t>(cudaStream_t stream, Index nrows, Index ncols,
+        const bool_t *mask, Scalar val, fp16_t *data)
     noexcept;
 
 } // namespace nntile::kernel::mask_scalar

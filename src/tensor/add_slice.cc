@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/add_slice.hh"
 #include "nntile/starpu/add_slice.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -132,7 +133,7 @@ void add_slice_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
                 n = dst_tile_traits.matrix_shape[axis+1][1];
                 k = dst_tile_traits.shape[axis];
                 // Insert corresponding task
-                starpu::add_slice::submit<T>(m, n, k, alpha, src1_tile_handle,
+                starpu::add_slice.submit<std::tuple<T>>(m, n, k, alpha, src1_tile_handle,
                         beta, src2_tile_handle, dst_tile_handle);
             }
             // Flush cache for the output tile on every node
@@ -183,6 +184,10 @@ void add_slice_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src1, Scalar be
         const Tensor<bf16_t> &src2, const Tensor<bf16_t> &dst, Index axis);
 
 template
+void add_slice_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src1, Scalar beta,
+        const Tensor<fp16_t> &src2, const Tensor<fp16_t> &dst, Index axis);
+
+template
 void add_slice_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src1, Scalar beta,
         const Tensor<fp32_fast_fp16_t> &src2, const Tensor<fp32_fast_fp16_t> &dst, Index axis);
 
@@ -214,5 +219,9 @@ void add_slice<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &s
 template
 void add_slice<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src1, Scalar beta,
         const Tensor<bf16_t> &src2, const Tensor<bf16_t> &dst, Index axis);
+
+template
+void add_slice<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src1, Scalar beta,
+        const Tensor<fp16_t> &src2, const Tensor<fp16_t> &dst, Index axis);
 
 } // namespace nntile::tensor

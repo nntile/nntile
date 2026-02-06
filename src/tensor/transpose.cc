@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/transpose.hh"
 #include "nntile/starpu/transpose.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -65,7 +66,7 @@ void transpose_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
             if(mpi_rank == dst_tile_rank)
             {
                 auto traits = src.get_tile_traits(i+j*grid_m);
-                starpu::transpose::submit<T>(traits.matrix_shape[ndim][0],
+                starpu::transpose.submit<std::tuple<T>>(traits.matrix_shape[ndim][0],
                         traits.matrix_shape[ndim][1], alpha, src_tile_handle,
                         dst_tile_handle);
             }
@@ -109,6 +110,10 @@ template
 void transpose_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst, Index ndim);
 
+template
+void transpose_async<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst, Index ndim);
+
 // Explicit instantiation of template
 template
 void transpose<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
@@ -133,5 +138,9 @@ void transpose<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
 template
 void transpose<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst, Index ndim);
+
+template
+void transpose<fp16_t>(Scalar alpha, const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst, Index ndim);
 
 } // namespace nntile::tensor

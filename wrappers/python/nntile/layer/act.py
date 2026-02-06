@@ -16,20 +16,19 @@ from typing import Callable
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, copy_async, gelu_async,
-    gelu_backward_async, gelutanh_async, gelutanh_backward_async,
-    gelutanh_inplace_async, relu_backward_async, relu_forward_async,
-    silu_backward_async, silu_forward_async)
+    Tensor, TensorMoments, TensorTraits, gelu_async, gelu_backward_async,
+    gelutanh_async, gelutanh_backward_async, relu_async, relu_backward_async,
+    silu_async, silu_backward_async)
 
 
 class Act(BaseLayer):
     x: TensorMoments
     y: TensorMoments
     activations = {
-        "relu": (relu_forward_async, relu_backward_async),
+        "relu": (relu_async, relu_backward_async),
         "gelu": (gelu_async, gelu_backward_async),
-        "gelutanh": (gelutanh_inplace_async, gelutanh_backward_async),
-        "silu": (silu_forward_async, silu_backward_async),
+        "gelutanh": (gelutanh_async, gelutanh_backward_async),
+        "silu": (silu_async, silu_backward_async),
     }
     funcname: str
     func: Callable[[Tensor], None]
@@ -50,31 +49,21 @@ class Act(BaseLayer):
 
     # Simple generator for the normalization layer
     @staticmethod
-    def generate_simple(x: TensorMoments, funcname: str, next_tag: int):
+    def generate_simple(x: TensorMoments, funcname: str):
         # Get traits of X
         x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
-        y_value = type(x.value)(x_traits, x.value.distribution, next_tag)
-        next_tag = y_value.next_tag
-        y_grad = type(x.value)(x_traits, x.value.distribution, next_tag)
-        next_tag = y_grad.next_tag
+        y_value = type(x.value)(x_traits, x.value.distribution)
+        y_grad = type(x.value)(x_traits, x.value.distribution)
         y = TensorMoments(y_value, y_grad, True)
         # Create activation layer with all the provided tensors
         layer = Act(x, y, funcname)
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer
 
     # Forward propagation of the activation layer
     def forward_async(self):
-        if self.funcname == "relu":
-            relu_forward_async(self.x.value, self.y.value)
-        if self.funcname == "silu":
-            silu_forward_async(self.x.value, self.y.value)
-        if self.funcname == "gelutanh":
-            gelutanh_async(self.x.value, self.y.value)
-        if self.funcname == "gelu":
-            copy_async(self.x.value, self.y.value)
-            gelu_async(self.y.value)
+        self.func(self.x.value, self.y.value)
         self.x.value.wont_use()
         self.y.value.wont_use()
 
@@ -84,15 +73,7 @@ class Act(BaseLayer):
             dtype=type(x.value),
             basetile_shape=x.value.basetile_shape,
         )
-        if self.funcname == "relu":
-            relu_forward_async(x.value, y)
-        if self.funcname == "silu":
-            silu_forward_async(x.value, y)
-        if self.funcname == "gelutanh":
-            gelutanh_async(x.value, y)
-        if self.funcname == "gelu":
-            copy_async(x.value, y)
-            gelu_async(y)
+        self.func(x.value, y)
 
         return TensorMoments(y, None, False)
 

@@ -18,8 +18,9 @@
 #include <array>
 #include <unistd.h>
 #include "nntile/starpu/clear.hh"
-#include "nntile/starpu/scal_inplace.hh"
+#include "nntile/starpu/scale_inplace.hh"
 #include "nntile/starpu/conv2d_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -169,12 +170,12 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
             // Clear if beta is zero
             if(beta == 0.0)
             {
-                starpu::clear::submit(Y_tile_handle);
+                starpu::clear.submit(Y_tile_handle);
             }
             // Scale inplace if beta is neither zero nor one
             else if(beta != 1.0)
             {
-                starpu::scal_inplace::submit<T>(Y_tile_traits.nelems, beta,
+                starpu::scale_inplace.submit<std::tuple<T>>(Y_tile_traits.nelems, beta,
                         Y_tile_handle);
             }
             // Do nothing if beta is one
@@ -200,7 +201,7 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
                     - stride[0]*Y_start_m;
                 Index offset_n = X_j*X.basetile_shape[1] + padding[1]
                     - stride[1]*Y_start_n;
-                starpu::conv2d_inplace::submit<T>(X_tile_traits.shape[0],
+                starpu::conv2d_inplace.submit<std::tuple<T>>(X_tile_traits.shape[0],
                         X_tile_traits.shape[1], X_tile_traits.shape[2],
                         X_tile_traits.shape[3], C.shape[0], C.shape[1],
                         dilation[0], dilation[1], Y_tile_traits.shape[2],
@@ -254,6 +255,20 @@ void conv2d_inplace_async<fp32_fast_tf32_t>(Scalar alpha,
         std::array<Index, 2> dilation);
 
 template
+void conv2d_inplace_async<fp32_fast_fp16_t>(Scalar alpha,
+        const Tensor<fp32_fast_fp16_t> &X, const Tensor<fp32_fast_fp16_t> &C,
+        Scalar beta, const Tensor<fp32_fast_fp16_t> &Y,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
+
+template
+void conv2d_inplace_async<fp32_fast_bf16_t>(Scalar alpha,
+        const Tensor<fp32_fast_bf16_t> &X, const Tensor<fp32_fast_bf16_t> &C,
+        Scalar beta, const Tensor<fp32_fast_bf16_t> &Y,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
+
+template
 void conv2d_inplace_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &X,
         const Tensor<fp64_t> &C, Scalar beta, const Tensor<fp64_t> &Y,
         std::array<Index, 2> padding, std::array<Index, 2> stride,
@@ -276,6 +291,20 @@ template
 void conv2d_inplace<fp32_fast_tf32_t>(Scalar alpha,
         const Tensor<fp32_fast_tf32_t> &X, const Tensor<fp32_fast_tf32_t> &C,
         Scalar beta, const Tensor<fp32_fast_tf32_t> &Y,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
+
+template
+void conv2d_inplace<fp32_fast_fp16_t>(Scalar alpha,
+        const Tensor<fp32_fast_fp16_t> &X, const Tensor<fp32_fast_fp16_t> &C,
+        Scalar beta, const Tensor<fp32_fast_fp16_t> &Y,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
+
+template
+void conv2d_inplace<fp32_fast_bf16_t>(Scalar alpha,
+        const Tensor<fp32_fast_bf16_t> &X, const Tensor<fp32_fast_bf16_t> &C,
+        Scalar beta, const Tensor<fp32_fast_bf16_t> &Y,
         std::array<Index, 2> padding, std::array<Index, 2> stride,
         std::array<Index, 2> dilation);
 

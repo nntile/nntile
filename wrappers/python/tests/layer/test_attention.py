@@ -29,9 +29,21 @@ Tensor = {
     np.float64: nntile.tensor.Tensor_fp64,
 }
 
+dtype2nntile = {
+    'fp16': nntile.tensor.Tensor_fp16,
+    'bf16': nntile.tensor.Tensor_bf16,
+    'fp32': nntile.tensor.Tensor_fp32,
+}
+
+dtype2np = {
+    'fp16': np.float32,
+    'bf16': np.float32,
+    'fp32': np.float32,
+}
+
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
-def test_attention(starpu_simple, dtype: np.dtype):
+def test_attention(context, dtype: np.dtype):
     n_emb = 128
     n_emb_k = 112
     n_emb_v = 96
@@ -47,20 +59,13 @@ def test_attention(starpu_simple, dtype: np.dtype):
     X_K_traits = nntile.tensor.TensorTraits(X_K_shape, X_K_shape)
     X_V_traits = nntile.tensor.TensorTraits(X_V_shape, X_V_shape)
     mpi_distr = [0]
-    next_tag = 0
     # Tensor objects
-    X_Q_value = Tensor[dtype](X_Q_traits, mpi_distr, next_tag)
-    next_tag = X_Q_value.next_tag
-    X_Q_grad = Tensor[dtype](X_Q_traits, mpi_distr, next_tag)
-    next_tag = X_Q_grad.next_tag
-    X_K_value = Tensor[dtype](X_K_traits, mpi_distr, next_tag)
-    next_tag = X_K_value.next_tag
-    X_K_grad = Tensor[dtype](X_K_traits, mpi_distr, next_tag)
-    next_tag = X_K_grad.next_tag
-    X_V_value = Tensor[dtype](X_V_traits, mpi_distr, next_tag)
-    next_tag = X_V_value.next_tag
-    X_V_grad = Tensor[dtype](X_V_traits, mpi_distr, next_tag)
-    next_tag = X_V_grad.next_tag
+    X_Q_value = Tensor[dtype](X_Q_traits, mpi_distr)
+    X_Q_grad = Tensor[dtype](X_Q_traits, mpi_distr)
+    X_K_value = Tensor[dtype](X_K_traits, mpi_distr)
+    X_K_grad = Tensor[dtype](X_K_traits, mpi_distr)
+    X_V_value = Tensor[dtype](X_V_traits, mpi_distr)
+    X_V_grad = Tensor[dtype](X_V_traits, mpi_distr)
     # Set initial value for input
     rng = np.random.default_rng(42)
     rand_X_Q = rng.standard_normal(X_Q_shape)
@@ -79,8 +84,8 @@ def test_attention(starpu_simple, dtype: np.dtype):
     nntile.tensor.clear_async(X_V_grad)
     X_V = nntile.tensor.TensorMoments(X_V_value, X_V_grad, True)
     # Define attention layer
-    layer, next_tag = Attention.generate_simple(
-        X_Q, X_K, X_V, n_head, n_head_tile, next_tag, True
+    layer = Attention.generate_simple(
+        X_Q, X_K, X_V, n_head, n_head_tile, True
     )
     # Define numpy arrays and nntile tensors
     rand_W_Q = rng.standard_normal(layer.w_q.value.shape)
@@ -262,7 +267,7 @@ def test_attention(starpu_simple, dtype: np.dtype):
     "n_head,n_head_tile,n_emb,n_emb_tile,seq_size", [(2, 1, 6, 2, 10)]
 )
 def test_dynamic(
-    starpu_simple, numpy_rng, n_head, n_head_tile, n_emb, n_emb_tile, seq_size
+    context, numpy_rng, n_head, n_head_tile, n_emb, n_emb_tile, seq_size
 ):
     input_shape = (n_emb, seq_size, 1)
     inp_np = np.asfortranarray(numpy_rng.random(input_shape))
@@ -287,8 +292,8 @@ def test_dynamic(
         inp3, grad=nntc.zeros(inp3.shape, dtype=type(inp)), grad_required=False
     )
 
-    attn, _ = Attention.generate_simple(
-        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, 0, bias=False
+    attn = Attention.generate_simple(
+        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, bias=False
     )
     attn.init_randn_async()
 
@@ -306,7 +311,7 @@ def test_dynamic(
 
 
 @pytest.mark.parametrize("n_head,n_head_tile", [(1, 1)])
-def test_kvcache(starpu_simple, numpy_rng, n_head, n_head_tile):
+def test_kvcache(context, numpy_rng, n_head, n_head_tile):
     prefill_size = 4
     max_tokens = 8
 
@@ -327,8 +332,8 @@ def test_kvcache(starpu_simple, numpy_rng, n_head, n_head_tile):
         inp3, grad=nntc.zeros(inp3.shape, dtype=type(inp)), grad_required=False
     )
 
-    attn, _ = Attention.generate_simple(
-        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, 0, bias=False
+    attn = Attention.generate_simple(
+        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, bias=False
     )
     attn.init_randn_async()
 
@@ -350,3 +355,160 @@ def test_kvcache(starpu_simple, numpy_rng, n_head, n_head_tile):
         outs_dyn_np,
         err_msg="test_kvcache: Dynamic does not match static",
     )
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
+def test_bench_attention_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    n_emb = 64
+    n_emb_k = 64
+    n_emb_v = 64
+    n_seq = 64
+    n_batch = 8
+    n_head = 8
+    n_head_tile = 4
+
+    # Describe single-tile tensors, located at node 0
+    X_Q_shape = [n_emb, n_seq, n_batch]
+    X_K_shape = [n_emb_k, n_seq, n_batch]
+    X_V_shape = [n_emb_v, n_seq, n_batch]
+
+    X_Q_traits = nntile.tensor.TensorTraits(X_Q_shape, X_Q_shape)
+    X_K_traits = nntile.tensor.TensorTraits(X_K_shape, X_K_shape)
+    X_V_traits = nntile.tensor.TensorTraits(X_V_shape, X_V_shape)
+    mpi_distr = [0]
+
+    # Tensor objects
+    tensor_type = dtype2nntile[dtype]
+    X_Q_value = tensor_type(X_Q_traits, mpi_distr)
+    X_Q_grad = tensor_type(X_Q_traits, mpi_distr)
+    X_K_value = tensor_type(X_K_traits, mpi_distr)
+    X_K_grad = tensor_type(X_K_traits, mpi_distr)
+    X_V_value = tensor_type(X_V_traits, mpi_distr)
+    X_V_grad = tensor_type(X_V_traits, mpi_distr)
+
+    # Set initial values for inputs
+    rng = np.random.default_rng(42)
+    np_dtype = dtype2np[dtype]
+    X_Q_value.from_array(
+        np.array(
+            rng.standard_normal(X_Q_shape),
+            dtype=np_dtype,
+            order="F",
+        )
+    )
+    nntile.tensor.clear_async(X_Q_grad)
+    X_K_value.from_array(
+        np.array(
+            rng.standard_normal(X_K_shape),
+            dtype=np_dtype,
+            order="F",
+        )
+    )
+    nntile.tensor.clear_async(X_K_grad)
+    X_V_value.from_array(
+        np.array(
+            rng.standard_normal(X_V_shape),
+            dtype=np_dtype,
+            order="F",
+        )
+    )
+    nntile.tensor.clear_async(X_V_grad)
+
+    X_Q = nntile.tensor.TensorMoments(X_Q_value, X_Q_grad, True)
+    X_K = nntile.tensor.TensorMoments(X_K_value, X_K_grad, True)
+    X_V = nntile.tensor.TensorMoments(X_V_value, X_V_grad, True)
+
+    # Define attention layer and initialize parameters
+    layer = Attention.generate_simple(X_Q, X_K, X_V, n_head, n_head_tile, True)
+    layer.init_randn_async()
+
+    def bench_fn():
+        layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize("dtype", ['fp32', 'fp16', 'bf16'])
+def test_bench_attention_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not implemented")
+
+    n_emb = 64
+    n_emb_k = 64
+    n_emb_v = 64
+    n_seq = 64
+    n_batch = 8
+    n_head = 8
+    n_head_tile = 4
+
+    X_Q_shape = [n_emb, n_seq, n_batch]
+    X_K_shape = [n_emb_k, n_seq, n_batch]
+    X_V_shape = [n_emb_v, n_seq, n_batch]
+
+    X_Q_traits = nntile.tensor.TensorTraits(X_Q_shape, X_Q_shape)
+    X_K_traits = nntile.tensor.TensorTraits(X_K_shape, X_K_shape)
+    X_V_traits = nntile.tensor.TensorTraits(X_V_shape, X_V_shape)
+    mpi_distr = [0]
+
+    tensor_type = dtype2nntile[dtype]
+    X_Q_value = tensor_type(X_Q_traits, mpi_distr)
+    X_Q_grad = tensor_type(X_Q_traits, mpi_distr)
+    X_K_value = tensor_type(X_K_traits, mpi_distr)
+    X_K_grad = tensor_type(X_K_traits, mpi_distr)
+    X_V_value = tensor_type(X_V_traits, mpi_distr)
+    X_V_grad = tensor_type(X_V_traits, mpi_distr)
+
+    rng = np.random.default_rng(42)
+    np_dtype = dtype2np[dtype]
+    X_Q_value.from_array(
+        np.array(
+            rng.standard_normal(X_Q_shape),
+            dtype=np_dtype,
+            order="F",
+        )
+    )
+    nntile.tensor.clear_async(X_Q_grad)
+    X_K_value.from_array(
+        np.array(
+            rng.standard_normal(X_K_shape),
+            dtype=np_dtype,
+            order="F",
+        )
+    )
+    nntile.tensor.clear_async(X_K_grad)
+    X_V_value.from_array(
+        np.array(
+            rng.standard_normal(X_V_shape),
+            dtype=np_dtype,
+            order="F",
+        )
+    )
+    nntile.tensor.clear_async(X_V_grad)
+
+    X_Q = nntile.tensor.TensorMoments(X_Q_value, X_Q_grad, True)
+    X_K = nntile.tensor.TensorMoments(X_K_value, X_K_grad, True)
+    X_V = nntile.tensor.TensorMoments(X_V_value, X_V_grad, True)
+
+    layer = Attention.generate_simple(X_Q, X_K, X_V, n_head, n_head_tile, True)
+    layer.init_randn_async()
+
+    layer.clear_gradients()
+
+    def bench_fn():
+        layer.forward_async()
+        layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

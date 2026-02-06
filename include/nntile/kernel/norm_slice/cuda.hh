@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/norm_slice/cuda.hh
- * Euclidean norms of fibers into a slice of a buffer on CUDA
+ * Euclidean norms of fibers into a slice of a buffer on CUDA (out-of-place version)
  *
  * @version 1.1.0
  * */
@@ -22,7 +22,7 @@ namespace nntile::kernel::norm_slice
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
-        const T *src, Scalar beta, T *dst)
+        const T *src1, Scalar beta, const T *src2, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::norm_slice

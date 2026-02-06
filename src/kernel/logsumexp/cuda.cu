@@ -66,4 +66,9 @@ void cuda<bf16_t>(cudaStream_t stream, Index nelems, const bf16_t *maxsumexp,
         bf16_t *logsumexp)
     noexcept;
 
+template
+void cuda<fp16_t>(cudaStream_t stream, Index nelems, const fp16_t *maxsumexp,
+        fp16_t *logsumexp)
+    noexcept;
+
 } // namespace nntile::kernel::logsumexp

@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/gemm.hh"
 #include "nntile/starpu/gemm.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -421,7 +422,7 @@ void gemm_async(Scalar alpha, const TransOp &transA, const Tensor<T> &A,
                             tile_k = A_first_tile_traits.matrix_shape[ndim][0];
                             break;
                     }
-                    starpu::gemm::submit<T>(transA, transB, tile_m,
+                    starpu::gemm.submit<std::tuple<T>>(transA, transB, tile_m,
                             tile_n,
                             tile_k, tile_batch, alpha, A_first_tile_handle,
                             B_first_tile_handle, beta, C_tile_handle, redux);
@@ -457,7 +458,7 @@ void gemm_async(Scalar alpha, const TransOp &transA, const Tensor<T> &A,
                                 tile_k = A_tile_traits.matrix_shape[ndim][0];
                                 break;
                         }
-                        starpu::gemm::submit<T>(transA, transB, tile_m,
+                        starpu::gemm.submit<std::tuple<T>>(transA, transB, tile_m,
                                 tile_n,
                                 tile_k, tile_batch, alpha, A_tile_handle,
                                 B_tile_handle, one, C_tile_handle, redux);
@@ -525,11 +526,11 @@ void gemm_async<fp64_t>(Scalar alpha, const TransOp &transA,
         const TransOp &transB, const Tensor<fp64_t> &B, Scalar beta,
         const Tensor<fp64_t> &C, Index ndim, Index batch_ndim, int redux);
 
-//template
-//void gemm_async<fp16_t>(Scalar alpha, const TransOp &transA,
-//        const Tensor<fp16_t> &A,
-//        const TransOp &transB, const Tensor<fp16_t> &B, Scalar beta,
-//        const Tensor<fp16_t> &C, Index ndim, Index batch_ndim, int redux);
+template
+void gemm_async<fp16_t>(Scalar alpha, const TransOp &transA,
+        const Tensor<fp16_t> &A,
+        const TransOp &transB, const Tensor<fp16_t> &B, Scalar beta,
+        const Tensor<fp16_t> &C, Index ndim, Index batch_ndim, int redux);
 
 // Explicit instantiation
 template
@@ -568,10 +569,10 @@ void gemm<bf16_t>(Scalar alpha, const TransOp &transA,
         const TransOp &transB, const Tensor<bf16_t> &B, Scalar beta,
         const Tensor<bf16_t> &C, Index ndim, Index batch_ndim, int redux);
 
-//template
-//void gemm<fp16_t>(Scalar alpha, const TransOp &transA,
-//        const Tensor<fp16_t> &A,
-//        const TransOp &transB, const Tensor<fp16_t> &B, Scalar beta,
-//        const Tensor<fp16_t> &C, Index ndim, Index batch_ndim, int redux);
+template
+void gemm<fp16_t>(Scalar alpha, const TransOp &transA,
+        const Tensor<fp16_t> &A,
+        const TransOp &transB, const Tensor<fp16_t> &B, Scalar beta,
+        const Tensor<fp16_t> &C, Index ndim, Index batch_ndim, int redux);
 
 } // namespace nntile::tensor

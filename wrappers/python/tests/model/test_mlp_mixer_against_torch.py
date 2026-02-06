@@ -23,9 +23,6 @@ import nntile
 from nntile.model.mlp_mixer import MlpMixer as MlpMixerTile
 from nntile.torch_models.mlp_mixer import MlpMixer
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
-
 
 def image_patching(image, patch_size):
     c, h, w = image.shape
@@ -68,7 +65,7 @@ def data_loader_to_tensor(data_set, label_set, trns, batch_size, minibatch_size,
 
 
 @pytest.mark.slow
-def test_mlp_mixer():
+def test_mlp_mixer(context):
     patch_size = 16
     batch_size = 6
     minibatch_size = 3
@@ -79,7 +76,6 @@ def test_mlp_mixer():
     num_clr_channels = 3
 
     lr = 1e-4
-    next_tag = 0
     tol = 1e-4
 
     num_batch_to_go = 2
@@ -126,8 +122,8 @@ def test_mlp_mixer():
     patched_test_sample = test_data_tensor[1, 1, :, :, :]
     true_labels = train_labels[1, 1, :]
 
-    nntile_mixer_model, next_tag = MlpMixerTile.from_torch(torch_mixer_model, minibatch_size, num_classes, next_tag)
-    crit_nntile, next_tag = nntile.loss.CrossEntropy.generate_simple(nntile_mixer_model.activations[-1], next_tag)
+    nntile_mixer_model = MlpMixerTile.from_torch(torch_mixer_model, minibatch_size, num_classes)
+    crit_nntile = nntile.loss.CrossEntropy.generate_simple(nntile_mixer_model.activations[-1])
 
     torch_mixer_model.zero_grad()
     torch_output = torch_mixer_model(patched_test_sample)
@@ -137,14 +133,12 @@ def test_mlp_mixer():
     loss_local.backward()
 
     data_train_traits = nntile.tensor.TensorTraits(X_shape, X_shape)
-    test_tensor = nntile.tensor.Tensor_fp32(data_train_traits, [0], next_tag)
-    next_tag = test_tensor.next_tag
+    test_tensor = nntile.tensor.Tensor_fp32(data_train_traits, [0])
     test_tensor.from_array(patched_test_sample.numpy())
     nntile.tensor.copy_async(test_tensor, nntile_mixer_model.activations[0].value)
 
     label_train_traits = nntile.tensor.TensorTraits(Y_shape, Y_shape)
-    label_train_tensor = nntile.tensor.Tensor_int64(label_train_traits, [0], next_tag)
-    next_tag = label_train_tensor.next_tag
+    label_train_tensor = nntile.tensor.Tensor_int64(label_train_traits, [0])
     label_train_tensor.from_array(true_labels.numpy())
     nntile.tensor.copy_async(label_train_tensor, crit_nntile.y)
 

@@ -18,77 +18,93 @@ set(TESTS
     "add_fiber"
     "add_slice_inplace"
     "add_slice"
-    "addcdiv"
-    "axpy"
     "clear"
     "copy"
     "copy_intersection"
-    "dgelu"
-    "dgelutanh"
-    "drelu"
     "fill"
     "gelu"
+    "gelu_inplace"
     "gelu_backward"
     "gelutanh"
     "gelutanh_inplace"
     "gelutanh_backward"
     "gemm"
     "logsumexp"
-    "maximum"
+    "mask_scalar"
     "maxsumexp"
-    "norm_slice"
-    "normalize"
-    "nrm2"
+    "norm"
+    "norm_fiber"
+    "norm_fiber_inplace"
+    "norm_slice_inplace"
     "pow"
-    "prod_inplace"
-    "prod_fiber"
-    "prod_fiber3"
-    "prod_slice"
+    "multiply_inplace"
+    "multiply_fiber_inplace"
+    "multiply_fiber"
+    "multiply_slice"
     "randn"
-    "relu"
+    "relu_inplace"
     "relu_backward"
-    "scal_inplace"
+    "relu"
+    "rope"
+    "scale_inplace"
+    "sgd_step"
+    "silu_backward"
+    "silu"
+    "silu_inplace"
     "softmax"
     "softmax_inplace"
     "sqrt"
     "sqrt_inplace"
     "subtract_indexed_column"
+    "subtract_indexed_outputs"
     "sum_fiber"
     "sum_slice"
-    "sumnorm"
+    "sum"
     "sumprod_fiber"
     "sumprod_slice"
     "tile"
     "total_sum_accum"
     "traits"
-    "scal"
+    "scale"
+    "scale_fiber"
+    "hypot_inplace"
     "hypot"
-    )
+)
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
     "add"
     "add_fiber_inplace"
     "add_fiber"
+    "gelu"
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"
     "logsumexp"
+    "mask_scalar"
     "pow"
-    "prod_fiber"
-    "prod_slice"
+    "multiply_fiber_inplace"
+    "multiply_slice"
     "relu_backward"
+    "relu"
+    "rope"
+    "sgd_step"
+    "silu_backward"
+    "silu"
+    "silu_inplace"
     "subtract_indexed_column"
+    "subtract_indexed_outputs"
     "sum_fiber"
     "sumprod_fiber"
     "total_sum_accum"
     "sqrt"
-    "scal"
+    "scale"
+    "scale_fiber"
     "softmax"
-    "hypot"
+    "hypot_inplace"
     "add_slice"
-    "prod_fiber3"
-    )
+    "multiply_fiber"
+)
 
 # Add target for local coverage
 if(BUILD_COVERAGE)
@@ -111,5 +127,35 @@ foreach(test IN LISTS TESTS)
         COV_NAME coverage_tile_${test}
         COV_GLOBAL coverage_tile coverage
         LABELS ${labels}
-        )
+    )
+endforeach()
+
+set(TESTS_CATCH2
+)
+
+# CUDA-only tests (only added when CUDA is available)
+if(NNTILE_USE_CUDA)
+    list(APPEND TESTS_CATCH2
+        "flash_sdpa_fwd_cudnn"
+        "flash_sdpa_bwd_cudnn"
+    )
+endif()
+
+foreach(test IN LISTS TESTS_CATCH2)
+    set(labels)
+    if(test IN_LIST TESTS_NOT_IMPLEMENTED)
+        set(labels "NotImplemented")
+    endif()
+    add_test_set(TARGET_NAME tests_tile_${test}
+        EXEC_NAME test_${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES
+            nntile
+            $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
+            Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_tile_${test}
+        COV_GLOBAL coverage_tile coverage
+        LABELS ${labels}
+    )
 endforeach()

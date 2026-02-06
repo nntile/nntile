@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/mask_scalar.hh"
 #include "nntile/starpu/mask_scalar.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
@@ -61,7 +62,7 @@ void mask_scalar_async(const Tensor<bool_t> &mask, Scalar val, const Tensor<T> &
         if(mpi_rank == A_tile_rank)
         {
             auto tile_traits = A.get_tile_traits(i);
-            starpu::mask_scalar::submit<T>(
+            starpu::mask_scalar.submit<std::tuple<T>>(
                     tile_traits.matrix_shape[A.ndim-batch_ndim][0], \
                     tile_traits.matrix_shape[A.ndim-batch_ndim][1], \
                     mask_tile_handle, val, A_tile_handle);
@@ -108,6 +109,10 @@ template
 void mask_scalar_async<bf16_t>(const Tensor<bool_t> &mask, Scalar val,
         const Tensor<bf16_t> &A, Index batch_ndim);
 
+template
+void mask_scalar_async<fp16_t>(const Tensor<bool_t> &mask, Scalar val,
+        const Tensor<fp16_t> &A, Index batch_ndim);
+
 // Explicit instantiation
 template
 void mask_scalar<fp32_t>(const Tensor<bool_t> &mask, Scalar val,
@@ -132,5 +137,9 @@ void mask_scalar<fp64_t>(const Tensor<bool_t> &mask, Scalar val,
 template
 void mask_scalar<bf16_t>(const Tensor<bool_t> &mask, Scalar val,
         const Tensor<bf16_t> &A, Index batch_ndim);
+
+template
+void mask_scalar<fp16_t>(const Tensor<bool_t> &mask, Scalar val,
+        const Tensor<fp16_t> &A, Index batch_ndim);
 
 } // namespace nntile::tensor

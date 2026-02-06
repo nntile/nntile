@@ -21,18 +21,17 @@ from .batch_norm import BatchNorm2d
 from .bert_selfattention import BertSelfAttention
 from .conv2d import Conv2d
 from .embedding import Embedding
-from .flash_attention import FlashAttention
-from .gpt2_attention import GPT2Attention
 from .gpt_neo_attention import GPTNeoAttention
+from .gpt_neox_attention import GPTNeoXAttention
 from .layer_norm import LayerNorm
 from .linear import Linear
-from .llama_attention import LlamaAttention
 from .mixer import GAP, Mixer, MixerMlp
-from .prod import Prod
+from .multiply import Multiply
 from .rms_norm import RMSNorm
+from .sdpa import Sdpa
 
 __all__ = ('Act', 'Add', 'AddSlice', 'Attention', 'AttentionSingleHead',
-        'BaseLayer', 'BatchNorm2d', 'Conv2d', 'Embedding', 'FlashAttention',
-        'GAP', 'LayerNorm', 'Linear', 'LlamaAttention', 'GPT2Attention',
-        'GPTNeoAttention', 'BertSelfAttention',
-        'Mixer', 'MixerMlp', 'RMSNorm', 'Prod')
+        'BaseLayer', 'BatchNorm2d', 'Conv2d', 'Embedding',
+        'GAP', 'LayerNorm', 'Linear',
+        'GPTNeoAttention', 'GPTNeoXAttention', 'BertSelfAttention',
+        'Mixer', 'MixerMlp', 'RMSNorm', 'Multiply', 'Sdpa')

@@ -32,7 +32,14 @@ dtype2nntile = {
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
 
+}
+
+dtype2np = {
+        'fp32': np.float32,
+        'bf16': np.float32,
+        'fp16': np.float32,
 }
 
 dtype2tol = {
@@ -114,8 +121,8 @@ def generate_inputs(dtype: str, params: BertSelfAttentionTestParams):
 
     x_q_traits = TensorTraits(x_shape, x_basetile)
     x_q_distr = [0] * x_q_traits.grid.nelems
-    x_value = x_type(x_q_traits, x_q_distr, 0)
-    x_grad = x_type(x_q_traits, x_q_distr, 0)
+    x_value = x_type(x_q_traits, x_q_distr)
+    x_grad = x_type(x_q_traits, x_q_distr)
     X = TensorMoments(x_value, x_grad, grad_required=True)
 
     x_random = rng.standard_normal(x_shape)
@@ -123,9 +130,10 @@ def generate_inputs(dtype: str, params: BertSelfAttentionTestParams):
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_()
-    nntile_layer, _ = nntile.layer.BertSelfAttention.from_torch(
-            torch_layer, X, X, X, nntile_config, 0
+    nntile_layer = nntile.layer.BertSelfAttention.from_torch(
+            torch_layer, X, X, X, nntile_config
     )
+    nntile_layer.clear_gradients()
 
     y_grad_random = rng.standard_normal(nntile_layer.y.grad.shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
@@ -147,7 +155,7 @@ def generate_inputs(dtype: str, params: BertSelfAttentionTestParams):
 ])
 class TestBertSelfAttention:
 
-    def test_torch_coercion(self, starpu_simple, torch_rng, dtype: str,
+    def test_torch_coercion(self, context, torch_rng, dtype: str,
                             params: BertSelfAttentionTestParams):
         torch_layer, nntile_layer, *_ = generate_inputs(dtype, params)
         torch_layer_other = nntile_layer.to_torch()
@@ -163,7 +171,7 @@ class TestBertSelfAttention:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng, dtype: str,
+    def test_forward(self, context, torch_rng, dtype: str,
                      params: BertSelfAttentionTestParams):
         torch_layer, nntile_layer, x, _ = generate_inputs(dtype, params)
         y = torch_layer(x)[0]
@@ -180,7 +188,7 @@ class TestBertSelfAttention:
         assert torch.norm(y.reshape(new_shape).transpose(2, 3) - y_nntile) <= \
             rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng, dtype: str,
+    def test_backward(self, context, torch_rng, dtype: str,
                               params: BertSelfAttentionTestParams):
         torch_layer, nntile_layer, x, y_grad = generate_inputs(dtype, params)
         y = torch_layer(x)[0]
@@ -219,3 +227,45 @@ class TestBertSelfAttention:
                                         torch_layer_other.value.bias.grad])
         assert torch.norm(bias_grad_torch - bias_grad_nntile) <= \
             rtol * torch.norm(bias_grad_torch)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_bert_selfattention_forward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(dtype, params)
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_bert_selfattention_forward_backward_async(
+        context_cuda, benchmark_operation, dtype: str,
+):
+    params = single_tile
+    _, nntile_layer, *_ = generate_inputs(dtype, params)
+
+    nntile_layer.clear_gradients()
+    rng = np.random.default_rng(42)
+    grad_np = np.array(
+        rng.standard_normal(nntile_layer.y.value.shape),
+        dtype=dtype2np[dtype],
+        order='F',
+    )
+
+    def bench_fn():
+        nntile_layer.forward_async()
+        nntile_layer.y.grad.from_array(grad_np)
+        nntile_layer.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_operation(bench_fn)

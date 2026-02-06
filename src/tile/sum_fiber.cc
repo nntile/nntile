@@ -62,7 +62,7 @@ void sum_fiber_async(Scalar alpha, const Tile<T> &src, Scalar beta,
     n = src.matrix_shape[axis+1][1] / batch;
     k = src.shape[axis];
     // Insert task
-    starpu::sum_fiber::submit<T>(m, n, k, batch, alpha, src, beta, dst);
+    starpu::sum_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src, beta, dst);
 }
 
 template<typename T>
@@ -100,6 +100,10 @@ template
 void sum_fiber_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis, Index batch_ndim);
 
+template
+void sum_fiber_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
+        const Tile<fp16_t> &dst, Index axis, Index batch_ndim);
+
 // Explicit instantiation
 template
 void sum_fiber<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
@@ -127,5 +131,9 @@ void sum_fiber<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
 template
 void sum_fiber<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis, Index batch_ndim);
+
+template
+void sum_fiber<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
+        const Tile<fp16_t> &dst, Index axis, Index batch_ndim);
 
 } // namespace nntile::tile

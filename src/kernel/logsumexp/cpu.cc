@@ -47,4 +47,8 @@ template
 void cpu<bf16_t>(Index nelems, const bf16_t *maxsumexp, bf16_t *logsumexp)
     noexcept;
 
+template
+void cpu<fp16_t>(Index nelems, const fp16_t *maxsumexp, fp16_t *logsumexp)
+    noexcept;
+
 } // namespace nntile::kernel::logsumexp

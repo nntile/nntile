@@ -31,9 +31,16 @@ from nntile.tensor import TensorMoments, TensorTraits, to_numpy
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
         'bf16': nntile.tensor.Tensor_bf16,
+        'fp16': nntile.tensor.Tensor_fp16,
         'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
         'fp32_fast_fp16': nntile.tensor.Tensor_fp32_fast_fp16,
         'fp32_fast_bf16': nntile.tensor.Tensor_fp32_fast_bf16,
+}
+
+dtype2np = {
+        'fp32': np.float32,
+        'bf16': np.float32,
+        'fp16': np.float32,
 }
 
 dtype2tol = {
@@ -140,14 +147,14 @@ def generate_inputs(params: RobertaTestParams,
 
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
-    x_value = tensor_type(x_traits, x_distr, 0)
-    x_grad = tensor_type(x_traits, x_distr, 0)
+    x_value = tensor_type(x_traits, x_distr)
+    x_grad = tensor_type(x_traits, x_distr)
     X = TensorMoments(x_value, x_grad, True)
 
-    nntile_model, _ = RobertaLMHead.from_torch(
+    nntile_model = RobertaLMHead.from_torch(
             torch_model,
             X,
-            nntile_config, 0)
+            nntile_config)
     nntile_model.clear_gradients()
     x_random = gen.standard_normal((params.hidden_size,
                                     params.seq_len,
@@ -181,7 +188,7 @@ def generate_inputs(params: RobertaTestParams,
     pytest.param('fp32_fast_bf16', marks=nocuda),
 ])
 class TestRobertaLMHead:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, context, torch_rng,
                       params: RobertaTestParams,
                       dtype: str):
 
@@ -195,7 +202,7 @@ class TestRobertaLMHead:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
+    def test_forward(self, context, torch_rng,
                      params: RobertaTestParams,
                      dtype: str):
         torch_model, nntile_model, x, _ = \
@@ -209,7 +216,7 @@ class TestRobertaLMHead:
         assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
         nntile_model.unregister()
 
-    def test_backward(self, starpu_simple, torch_rng,
+    def test_backward(self, context, torch_rng,
                       params: RobertaTestParams,
                       dtype: str):
         torch_model, nntile_model, x, y_grad = \
@@ -234,3 +241,44 @@ class TestRobertaLMHead:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
         assert torch.norm(x_grad_nntile - x.grad) <= rtol * torch.norm(x.grad)
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_roberta_lm_head_forward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not supported")
+
+    params = single_tile
+    _, nntile_model, *_ = generate_inputs(params, dtype)
+
+    def bench_fn():
+        nntile_model.forward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_model.unregister()
+
+
+@pytest.mark.benchmark
+@pytest.mark.parametrize('dtype', ['fp32', 'fp16', 'bf16'])
+def test_bench_roberta_lm_head_forward_backward_async(
+        context_cuda, benchmark_model, dtype: str,
+):
+    if dtype == 'fp16':
+        pytest.xfail("not supported")
+
+    params = single_tile
+    _, nntile_model, *_ = generate_inputs(params, dtype)
+
+    def bench_fn():
+        nntile_model.forward_async()
+        nntile_model.backward_async()
+        nntile.starpu.wait_for_all()
+
+    nntile.starpu.wait_for_all()
+    benchmark_model(bench_fn)
+    nntile_model.unregister()

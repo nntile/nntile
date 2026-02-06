@@ -11,15 +11,17 @@
 #
 # @version 1.1.0
 
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from transformers import GPT2Config as GPT2ConfigTorch
 from transformers.models.gpt2.modeling_gpt2 import GPT2Model as GPT2Model_torch
 
+from nntile.layer.cache_utils import KVCacheStorage
 from nntile.tensor import (
-    Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_bf16, Tensor_fp32_fast_fp16,
-    Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments, TensorTraits)
+    Tensor_bf16, Tensor_fp16, Tensor_fp32, Tensor_fp32_fast_bf16,
+    Tensor_fp32_fast_fp16, Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments,
+    TensorTraits)
 
 from ..layer import AddSlice, Embedding, LayerNorm
 from .base_model import BaseModel
@@ -28,7 +30,6 @@ from .gpt2_config import GPT2ConfigNNTile
 
 
 class GPT2Model(BaseModel):
-    next_tag: int
     wte_layer: Embedding
     wpe_layer: Embedding
     add_slice_layer: AddSlice
@@ -49,11 +50,12 @@ class GPT2Model(BaseModel):
 
         self.config = config
 
-        if self.dtype not in ["fp32", "tf32",
+        if self.dtype not in ["fp32", "fp16", "tf32",
                               "bf16", "fp32_fast_fp16",
+                              "fp32_fast_tf32",
                               "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
-                            "fp32_fast_bf16 are"
+            raise TypeError("Only fp32, fp16, tf32, bf16, fp32_fast_tf32, "
+                            "fp32_fast_fp16 and fp32_fast_bf16 are "
                             "supported for weight type")
         activations = [input_ids, positional_ids]
         activations += wte_layer_.activations_output
@@ -76,25 +78,81 @@ class GPT2Model(BaseModel):
 
         super().__init__(activations, layers, config)
 
+    def forward_dynamic(
+            self,
+            x: TensorMoments,
+            use_cache: bool = False,
+            kv_caches: Optional[KVCacheStorage] = None
+        ) -> tuple[TensorMoments, Optional[KVCacheStorage]]:
+        if kv_caches is None and use_cache:
+            kv_caches = KVCacheStorage()
+
+        cache_list = None
+        if kv_caches is not None:
+            if not kv_caches.is_initialized():
+                kv_caches.init(len(self.gpt2_blocks), self.seq_len, 1)
+            cache_list = kv_caches.get_cache()
+
+        # Generate positional ids for the input sequence
+        # For incremental decoding, positions should continue from cache size
+        position_offset = 0
+        if kv_caches is not None and kv_caches.is_initialized():
+            # Get position offset from the first layer's cache
+            cache_list = kv_caches.get_cache()
+            if cache_list and len(cache_list) > 0:
+                position_offset = len(cache_list[0])
+
+        pos_ids_shape = [x.value.shape[0]]
+        pos_ids_traits = TensorTraits(
+            pos_ids_shape, [x.value.basetile_shape[0]]
+        )
+        pos_ids_distr = [0] * pos_ids_traits.grid.nelems
+        pos_ids_value = Tensor_int64(pos_ids_traits, pos_ids_distr)
+        pos_ids_value.from_array(
+            np.array(
+                np.arange(position_offset, position_offset + x.value.shape[0]),
+                order="F",
+                dtype=np.int64
+            )
+        )
+        pos_ids = TensorMoments(pos_ids_value, None, False)
+
+        # Apply embeddings
+        wte_out = self.wte_layer.forward_dynamic(x)
+        wpe_out = self.wpe_layer.forward_dynamic(pos_ids)
+        add_out = self.add_slice_layer.forward_dynamic(wte_out, wpe_out)
+
+        # Pass through GPT2 blocks
+        block_out = add_out
+        for lid, block_layer in enumerate(self.gpt2_blocks):
+            block_out, updated_cache = block_layer.forward_dynamic(
+                block_out,
+                kv_cache=cache_list[lid] if cache_list else None
+            )
+            if cache_list:
+                cache_list[lid] = updated_cache
+
+        # Apply final layer norm
+        normalized_out = self.final_lnorm.forward_dynamic(block_out)
+        return normalized_out, kv_caches
+
     @staticmethod
     def from_torch(torch_gpt2: GPT2Model_torch,
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
-                   config: GPT2ConfigNNTile,
-                   next_tag: int):
-
-        if config.dtype not in ["fp32", "tf32",
+                   config: GPT2ConfigNNTile):
+        if config.dtype not in ["fp32", "fp16", "tf32",
                               "bf16", "fp32_fast_fp16",
+                              "fp32_fast_tf32",
                               "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
-                            "fp32_fast_bf16 are"
+            raise TypeError("Only fp32, fp16, tf32, bf16, fp32_fast_tf32, "
+                            "fp32_fast_fp16 and fp32_fast_bf16 are "
                             "supported for weight type")
         positional_ids_traits = TensorTraits([seq_len], [seq_len_tile])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
         positional_ids_value = Tensor_int64(
-            positional_ids_traits, positional_ids_distr, next_tag
+            positional_ids_traits, positional_ids_distr
         )
-        next_tag = positional_ids_value.next_tag
         positional_ids_value.from_array(
             np.array(np.arange(seq_len), order="F", dtype=np.int64)
         )
@@ -104,36 +162,36 @@ class GPT2Model(BaseModel):
         x_basetile = [seq_len_tile, batch_size_tile]
         x_traits = TensorTraits(x_shape, x_basetile)
         x_distr = [0] * x_traits.grid.nelems
-        x_value = Tensor_int64(x_traits, x_distr, 0)
+        x_value = Tensor_int64(x_traits, x_distr)
 
         dtype2tensor_type = {"fp32": Tensor_fp32,
                              "tf32": Tensor_fp32_fast_tf32,
+                             "fp32_fast_tf32": Tensor_fp32_fast_tf32,
                              "bf16": Tensor_bf16,
                              "fp32_fast_fp16": Tensor_fp32_fast_fp16,
-                             "fp32_fast_bf16": Tensor_fp32_fast_bf16
+                             "fp32_fast_bf16": Tensor_fp32_fast_bf16,
+                             "fp16": Tensor_fp16
                             }
 
         tensor_type = dtype2tensor_type[config.dtype]
 
-        wte_layer, next_tag = Embedding.generate_simple(
+        wte_layer = Embedding.generate_simple(
                                 x_value,
                                 tensor_type,
                                 0,
                                 config.vocab_size,
                                 config.hidden_size,
                                 config.hidden_size_tile,
-                                config.hidden_size_tile,
-                                next_tag)
+                                config.hidden_size_tile)
 
-        wpe_layer, next_tag = Embedding.generate_simple(
+        wpe_layer = Embedding.generate_simple(
                                 positional_ids.value,
                                 tensor_type,
                                 0,
                                 config.max_position_embeddings,
                                 config.hidden_size,
                                 config.hidden_size_tile,
-                                config.hidden_size_tile,
-                                next_tag)
+                                config.hidden_size_tile)
 
         wte_layer.w.value.from_array(
             torch_gpt2.wte.weight.cpu().detach().numpy().T
@@ -141,25 +199,25 @@ class GPT2Model(BaseModel):
         wpe_layer.w.value.from_array(
             torch_gpt2.wpe.weight.cpu().detach().numpy().T
         )
-        add_slice_layer, next_tag = AddSlice.generate_simple(
+        add_slice_layer = AddSlice.generate_simple(
             wte_layer.activations_output[0], wpe_layer.activations_output[0],
-            2, next_tag, redux=config.redux
+            2, redux=config.redux
         )
 
         U = add_slice_layer.activations_output[0]
         gpt2block_list = []
 
         for gpt2_block_torch in torch_gpt2.h:
-            gpt2block_nntile, next_tag = GPT2Block.from_torch(
-                gpt2_block_torch, U, config, next_tag
+            gpt2block_nntile = GPT2Block.from_torch(
+                gpt2_block_torch, U, config
             )
             U = gpt2block_nntile.activations[-1]
             gpt2block_list.append(gpt2block_nntile)
 
-        lnorm_final, next_tag = LayerNorm.from_torch(
+        lnorm_final = LayerNorm.from_torch(
                                     torch_gpt2.ln_f,
                                     U,
-                                    next_tag, config.redux)
+                                    config.redux)
         X = TensorMoments(x_value, None, False)
         gpt2_nntile = GPT2Model(X,
                             positional_ids,
@@ -170,7 +228,7 @@ class GPT2Model(BaseModel):
                             lnorm_final,
                             config)
 
-        return gpt2_nntile, next_tag
+        return gpt2_nntile
 
     def to_torch(self):
         config_torch = GPT2ConfigTorch(

@@ -14,79 +14,127 @@
 
 #include "nntile/tensor/gelu.hh"
 #include "nntile/starpu/gelu.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
 {
 
 //! Asynchronous tensor-wise GeLU operation
 //
-// @param[inout] A: Tensor for the element-wise GeLU operation
+// @param[in] src: Input tensor for the element-wise GeLU operation
+// @param[out] dst: Output tensor for the element-wise GeLU operation
 template<typename T>
-void gelu_async(const Tensor<T> &A)
+void gelu_async(const Tensor<T> &src, const Tensor<T> &dst)
 {
-    int mpi_rank = starpu_mpi_world_rank();
-    for(Index i = 0; i < A.grid.nelems; ++i)
+    // Check dimensions
+    if(dst.ndim != src.ndim)
     {
-        auto tile_handle = A.get_tile_handle(i);
-        int tile_rank = tile_handle.mpi_get_rank();
-        // Execute only on node-owner
-        if(mpi_rank == tile_rank)
+        throw std::runtime_error("dst.ndim != src.ndim");
+    }
+    // Check shapes of tensors
+    for(Index i = 0; i < dst.ndim; ++i)
+    {
+        if(dst.shape[i] != src.shape[i])
         {
-            auto tile_traits = A.get_tile_traits(i);
-            starpu::gelu::submit<T>(tile_traits.nelems, tile_handle);
+            throw std::runtime_error("dst.shape[i] != src.shape[i]");
+        }
+        if(dst.basetile_shape[i] != src.basetile_shape[i])
+        {
+            throw std::runtime_error("dst.basetile_shape[i] != "
+                    "src.basetile_shape[i]");
+        }
+    }
+    // Apply per-tile gelu asynchronously as needed
+    int mpi_rank = starpu_mpi_world_rank();
+    for(Index i = 0; i < src.grid.nelems; ++i)
+    {
+        // Get handle for corresponding tiles of src and dst
+        auto src_tile_handle = src.get_tile_handle(i);
+        auto dst_tile_handle = dst.get_tile_handle(i);
+        // MPI rank of the destination tile
+        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
+        // Transfer data
+        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
+        // Execute only on destination node
+        if(mpi_rank == dst_tile_rank)
+        {
+            auto tile_traits = src.get_tile_traits(i);
+            starpu::gelu.submit<std::tuple<T>>(tile_traits.nelems, src_tile_handle,
+                    dst_tile_handle);
         }
         // Flush cache for the output tile on every node
-        tile_handle.mpi_flush();
+        dst_tile_handle.mpi_flush();
     }
 }
 
 //! Blocking version of tensor-wise GeLU operation
 //
-// @param[inout] A: Tensor for the element-wise GeLU operation
+// @param[in] src: Input tensor for the element-wise GeLU operation
+// @param[out] dst: Output tensor for the element-wise GeLU operation
 template<typename T>
-void gelu(const Tensor<T> &A)
+void gelu(const Tensor<T> &src, const Tensor<T> &dst)
 {
-    gelu_async<T>(A);
+    gelu_async<T>(src, dst);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void gelu_async<fp32_t>(const Tensor<fp32_t> &A);
+void gelu_async<fp32_t>(const Tensor<fp32_t> &src,
+        const Tensor<fp32_t> &dst);
 
 template
-void gelu_async<fp64_t>(const Tensor<fp64_t> &A);
+void gelu_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+        const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void gelu_async<bf16_t>(const Tensor<bf16_t> &A);
+void gelu_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+                                const Tensor<fp32_fast_fp16_t> &dst);
 
 template
-void gelu_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
+void gelu_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+                                const Tensor<fp32_fast_bf16_t> &dst);
 
 template
-void gelu_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
+void gelu_async<fp64_t>(const Tensor<fp64_t> &src,
+        const Tensor<fp64_t> &dst);
 
 template
-void gelu_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
+void gelu_async<bf16_t>(const Tensor<bf16_t> &src,
+        const Tensor<bf16_t> &dst);
+
+template
+void gelu_async<fp16_t>(const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst);
 
 // Explicit instantiation
 template
-void gelu<fp32_t>(const Tensor<fp32_t> &A);
+void gelu<fp32_t>(const Tensor<fp32_t> &src,
+        const Tensor<fp32_t> &dst);
 
 template
-void gelu<fp64_t>(const Tensor<fp64_t> &A);
+void gelu<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+        const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void gelu<bf16_t>(const Tensor<bf16_t> &A);
+void gelu<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+        const Tensor<fp32_fast_fp16_t> &dst);
 
 template
-void gelu<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A);
+void gelu<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+        const Tensor<fp32_fast_bf16_t> &dst);
 
 template
-void gelu<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A);
+void gelu<fp64_t>(const Tensor<fp64_t> &src,
+        const Tensor<fp64_t> &dst);
 
 template
-void gelu<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A);
+void gelu<bf16_t>(const Tensor<bf16_t> &src,
+        const Tensor<bf16_t> &dst);
+
+template
+void gelu<fp16_t>(const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst);
 
 } // namespace nntile::tensor

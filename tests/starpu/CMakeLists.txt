@@ -13,77 +13,142 @@
 
 # All unit tests without arguments to test executable
 set(TESTS
+    "accumulate"
+    "accumulate_hypot"
+    "accumulate_maxsumexp"
+    "adam_step"
+    "adamw_step"
+    "sgd_step"
     "add"
-    "add_fiber_inplace"
     "add_fiber"
-    "add_slice_inplace"
+    "add_fiber_inplace"
+    "add_inplace"
     "add_slice"
-    "addcdiv"
+    "add_slice_inplace"
     "clear"
-    "dgelu"
-    "dgelutanh"
-    "drelu"
+    "codelet"
+    "conv2d_bwd_input_inplace"
+    "conv2d_bwd_weight_inplace"
+    "conv2d_inplace"
+    "copy"
+    "embedding"
+    "embedding_backward"
     "fill"
     "gelu"
+    "gelu_inplace"
     "gelu_backward"
     "gelutanh"
-    "gelutanh_inplace"
     "gelutanh_backward"
+    "gelutanh_inplace"
+    "gemm"
+    "handle"
+    "hypot_inplace"
     "hypot"
+    "hypot_scalar_inverse"
+    "log_scalar"
     "logsumexp"
-    "maximum"
+    "mask_scalar"
     "maxsumexp"
-    "norm_slice"
-    "normalize"
+    "norm"
+    "norm_fiber"
+    "norm_fiber_inplace"
+    "norm_slice_inplace"
     "pow"
-    "prod_inplace"
-    "prod_fiber"
-    "prod_fiber3"
-    "prod_slice"
+    "multiply"
+    "multiply_fiber_inplace"
+    "multiply_fiber"
+    "multiply_inplace"
+    "multiply_slice"
     "randn"
-    "relu"
+    "relu_inplace"
     "relu_backward"
+    "relu"
+    "rope"
+    "rope_backward"
+    "scale"
+    "scale_inplace"
+    "scale_fiber"
+    "scale_slice"
+    "silu_backward"
+    "silu"
+    "silu_inplace"
     "softmax"
     "softmax_inplace"
     "sqrt"
     "sqrt_inplace"
     "subcopy"
     "subtract_indexed_column"
+    "subtract_indexed_outputs"
+    "sum"
     "sum_fiber"
     "sum_slice"
-    "sumnorm"
     "sumprod_fiber"
     "sumprod_slice"
     "total_sum_accum"
-    "mask_scalar"
-    "scal"
     "transpose"
     )
 
+# CUDA-only tests (only added when CUDA is available)
+if(NNTILE_USE_CUDA)
+    list(APPEND TESTS
+        "flash_sdpa_fwd_cudnn"
+        "flash_sdpa_bwd_cudnn"
+    )
+endif()
+
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
+    "accumulate"
+    "accumulate_hypot"
+    "accumulate_maxsumexp"
+    "adam_step"
+    "adamw_step"
+    "sgd_step"
     "add"
-    "add_fiber_inplace"
     "add_fiber"
+    "add_fiber_inplace"
+    "add_inplace"
+    "add_slice"
+    "codelet"
+    "conv2d_bwd_input_inplace"
+    "conv2d_bwd_weight_inplace"
+    "conv2d_inplace"
+    "copy"
+    "embedding"
+    "embedding_backward"
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"
+    "handle"
+    "hypot_inplace"
+    "hypot"
+    "hypot_scalar_inverse"
+    "log_scalar"
     "logsumexp"
     "pow"
-    "prod_fiber"
-    "prod_slice"
+    "multiply"
+    "multiply_fiber_inplace"
+    "multiply_fiber"
+    "multiply_slice"
     "relu_backward"
+    "relu"
+    "rope"
+    "rope_backward"
+    "scale"
+    "scale_inplace"
+    "scale_fiber"
+    "scale_slice"
+    "silu_backward"
+    "silu"
+    "silu_inplace"
+    "softmax"
+    "sqrt"
     "subtract_indexed_column"
+    "subtract_indexed_outputs"
     "sum_fiber"
     "sumprod_fiber"
     "total_sum_accum"
-    "sqrt"
-    "scal"
-    "softmax"
-    "hypot"
-    "add_slice"
-    "prod_fiber3"
-    )
+)
 
 # Add target for local coverage
 if(BUILD_COVERAGE)
@@ -119,62 +184,24 @@ foreach(test IN LISTS TESTS)
         )
 endforeach()
 
-# Add include path for generated axpy.cc
-set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/axpy.cc" PROPERTIES
-    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
+set(TESTS_CATCH2
+)
 
-# Explicitly add axpy test since it was generated from axpy.cc.in
-add_test_set(TARGET_NAME tests_starpu_axpy
-    EXEC_NAME test_axpy
-    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/axpy.cc"
-    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CBLAS}>:BLAS::BLAS>
-    "$<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cublas;CUDA::cudart>"
-    COV_ENABLE ${BUILD_COVERAGE}
-    COV_NAME coverage_starpu_axpy
-    COV_GLOBAL coverage_starpu
+foreach(test IN LISTS TESTS_CATCH2)
+    set(labels)
+    if(test IN_LIST TESTS_NOT_IMPLEMENTED)
+        set(labels "NotImplemented")
+    endif()
+    add_test_set(TARGET_NAME tests_starpu_${test}
+        EXEC_NAME test_${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES
+            nntile
+            $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
+            Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_starpu_${test}
+        COV_GLOBAL coverage_starpu coverage
+        LABELS ${labels}
     )
-
-# Add include path for generated nrm2.cc
-set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/nrm2.cc" PROPERTIES
-    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
-
-# Explicitly add axpy test since it was generated from nrm2.cc.in
-add_test_set(TARGET_NAME tests_starpu_nrm2
-    EXEC_NAME test_nrm2
-    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/nrm2.cc"
-    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CBLAS}>:BLAS::BLAS>
-    "$<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cublas;CUDA::cudart>"
-    COV_ENABLE ${BUILD_COVERAGE}
-    COV_NAME coverage_starpu_nrm2
-    COV_GLOBAL coverage_starpu
-    )
-
-# Add include path for generated gemm.cc
-set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/gemm.cc" PROPERTIES
-    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
-
-# Explicitly add gemm test since it was generated from gemm.cc.in
-add_test_set(TARGET_NAME tests_starpu_gemm
-    EXEC_NAME test_gemm
-    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/gemm.cc"
-    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CBLAS}>:BLAS::BLAS>
-    "$<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cublas;CUDA::cudart>"
-    COV_ENABLE ${BUILD_COVERAGE}
-    COV_NAME coverage_starpu_gemm
-    COV_GLOBAL coverage_starpu
-    )
-
-# Add include path for generated scal_inplace.cc
-set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/scal_inplace.cc"
-    PROPERTIES INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
-
-# Explicitly add axpy test since it was generated from scal_inplace.cc.in
-add_test_set(TARGET_NAME tests_starpu_scal_inplace
-    EXEC_NAME test_scal_inplace
-    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/scal_inplace.cc"
-    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CBLAS}>:BLAS::BLAS>
-    "$<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cublas;CUDA::cudart>"
-    COV_ENABLE ${BUILD_COVERAGE}
-    COV_NAME coverage_starpu_scal_inplace
-    COV_GLOBAL coverage_starpu
-    )
+endforeach()

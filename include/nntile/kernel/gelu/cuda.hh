@@ -20,8 +20,9 @@
 namespace nntile::kernel::gelu
 {
 
+// GeLU operation on a buffer on CUDA
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T *data)
+void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::gelu

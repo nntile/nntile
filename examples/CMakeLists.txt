@@ -56,22 +56,7 @@ function(add_example)
     message(STATUS "Adding example ${_args_TARGET_NAME}")
 endfunction()
 
-#add_example(TARGET_NAME examples_forward
-#    EXEC_NAME "forward"
-#    SOURCES "forward.cc"
-#    LINK_LIBRARIES nntile)
-
-#add_example(TARGET_NAME examples_mixer
-#    EXEC_NAME "mixer"
-#    SOURCES "mixer.cc"
-#    LINK_LIBRARIES nntile)
-
-#add_example(TARGET_NAME examples_mlp_mnist
-#    EXEC_NAME "mlp_mnist"
-#    SOURCES "mlp_mnist.cc"
-#    LINK_LIBRARIES nntile)
-
-#add_example(TARGET_NAME examples_deeplinear_mnist
-#    EXEC_NAME "deeplinear_mnist"
-#    SOURCES "deeplinear_mnist.cc"
+#add_example(TARGET_NAME examples_example
+#    EXEC_NAME "example"
+#    SOURCES "example.cc"
 #    LINK_LIBRARIES nntile)

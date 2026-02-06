@@ -15,5 +15,5 @@ import pytest
 
 
 @pytest.mark.xfail(reason='not implemented')
-def test_add_fiber_inplace_async():
+def test_add_fiber_inplace_async(context):
     pass

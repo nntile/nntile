@@ -17,7 +17,7 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, add_fiber_inplace_async,
     add_slice_inplace_async, clear_async, gemm_async, mask_scalar_async,
-    maxsumexp_async, notrans, prod_inplace_async, softmax_inplace_async,
+    maxsumexp_async, multiply_inplace_async, notrans, softmax_inplace_async,
     sum_fiber_async, sumprod_slice_async, trans)
 
 
@@ -146,7 +146,6 @@ class AttentionSingleHead(BaseLayer):
         x_q: TensorMoments,
         x_k: TensorMoments,
         x_v: TensorMoments,
-        next_tag: int,
         bias=False,
         mask=None,
         redux: bool = False,
@@ -223,123 +222,93 @@ class AttentionSingleHead(BaseLayer):
             in_proj_bias_qkv_distr = [0] * in_proj_bias_qkv_traits.grid.nelems
         # Define all the lists
         # w_q
-        w_q_value = type(x_q.value)(w_q_traits, w_q_distr, next_tag)
-        next_tag = w_q_value.next_tag
-        w_q_grad = type(x_q.value)(w_q_traits, w_q_distr, next_tag)
-        next_tag = w_q_grad.next_tag
+        w_q_value = type(x_q.value)(w_q_traits, w_q_distr)
+        w_q_grad = type(x_q.value)(w_q_traits, w_q_distr)
         w_q = TensorMoments(w_q_value, w_q_grad, True)
         if bias:
             in_proj_bias_q_value = type(x_q.value)(
-                in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, next_tag
+                in_proj_bias_qkv_traits, in_proj_bias_qkv_distr
             )
-            next_tag = in_proj_bias_q_value.next_tag
             in_proj_bias_q_grad = type(x_q.value)(
-                in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, next_tag
+                in_proj_bias_qkv_traits, in_proj_bias_qkv_distr
             )
-            next_tag = in_proj_bias_q_grad.next_tag
             bias_inproj_q = TensorMoments(
                 in_proj_bias_q_value, in_proj_bias_q_grad, True
             )
         else:
             bias_inproj_q = None
         # w_k
-        w_k_value = type(x_q.value)(w_k_traits, w_k_distr, next_tag)
-        next_tag = w_k_value.next_tag
-        w_k_grad = type(x_q.value)(w_k_traits, w_k_distr, next_tag)
-        next_tag = w_k_grad.next_tag
+        w_k_value = type(x_q.value)(w_k_traits, w_k_distr)
+        w_k_grad = type(x_q.value)(w_k_traits, w_k_distr)
         w_k = TensorMoments(w_k_value, w_k_grad, True)
         if bias:
             in_proj_bias_k_value = type(x_q.value)(
-                in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, next_tag
+                in_proj_bias_qkv_traits, in_proj_bias_qkv_distr
             )
-            next_tag = in_proj_bias_k_value.next_tag
             in_proj_bias_k_grad = type(x_q.value)(
-                in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, next_tag
+                in_proj_bias_qkv_traits, in_proj_bias_qkv_distr
             )
-            next_tag = in_proj_bias_k_grad.next_tag
             bias_inproj_k = TensorMoments(
                 in_proj_bias_k_value, in_proj_bias_k_grad, True
             )
         else:
             bias_inproj_k = None
         # w_v
-        w_v_value = type(x_q.value)(w_v_traits, w_v_distr, next_tag)
-        next_tag = w_v_value.next_tag
-        w_v_grad = type(x_q.value)(w_v_traits, w_v_distr, next_tag)
-        next_tag = w_v_grad.next_tag
+        w_v_value = type(x_q.value)(w_v_traits, w_v_distr)
+        w_v_grad = type(x_q.value)(w_v_traits, w_v_distr)
         w_v = TensorMoments(w_v_value, w_v_grad, True)
         if bias:
             in_proj_bias_v_value = type(x_q.value)(
-                in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, next_tag
+                in_proj_bias_qkv_traits, in_proj_bias_qkv_distr
             )
-            next_tag = in_proj_bias_v_value.next_tag
             in_proj_bias_v_grad = type(x_q.value)(
-                in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, next_tag
+                in_proj_bias_qkv_traits, in_proj_bias_qkv_distr
             )
-            next_tag = in_proj_bias_v_grad.next_tag
             bias_inproj_v = TensorMoments(
                 in_proj_bias_v_value, in_proj_bias_v_grad, True
             )
         else:
             bias_inproj_v = None
         # w
-        w_value = type(x_q.value)(w_traits, w_distr, next_tag)
-        next_tag = w_value.next_tag
-        w_grad = type(x_q.value)(w_traits, w_distr, next_tag)
-        next_tag = w_grad.next_tag
+        w_value = type(x_q.value)(w_traits, w_distr)
+        w_grad = type(x_q.value)(w_traits, w_distr)
         w = TensorMoments(w_value, w_grad, True)
         # q
-        q_value = type(x_q.value)(q_traits, q_distr, next_tag)
-        next_tag = q_value.next_tag
-        q_grad = type(x_q.value)(q_traits, q_distr, next_tag)
-        next_tag = q_grad.next_tag
+        q_value = type(x_q.value)(q_traits, q_distr)
+        q_grad = type(x_q.value)(q_traits, q_distr)
         q = TensorMoments(q_value, q_grad, True)
         # k
-        k_value = type(x_q.value)(k_traits, k_distr, next_tag)
-        next_tag = k_value.next_tag
-        k_grad = type(x_q.value)(k_traits, k_distr, next_tag)
-        next_tag = k_grad.next_tag
+        k_value = type(x_q.value)(k_traits, k_distr)
+        k_grad = type(x_q.value)(k_traits, k_distr)
         k = TensorMoments(k_value, k_grad, True)
         # v
-        v_value = type(x_q.value)(v_traits, v_distr, next_tag)
-        next_tag = v_value.next_tag
-        v_grad = type(x_q.value)(v_traits, v_distr, next_tag)
-        next_tag = v_grad.next_tag
+        v_value = type(x_q.value)(v_traits, v_distr)
+        v_grad = type(x_q.value)(v_traits, v_distr)
         v = TensorMoments(v_value, v_grad, True)
         # a
-        a_value = type(x_q.value)(a_traits, a_distr, next_tag)
-        next_tag = a_value.next_tag
-        a_grad = type(x_q.value)(a_traits, a_distr, next_tag)
-        next_tag = a_grad.next_tag
+        a_value = type(x_q.value)(a_traits, a_distr)
+        a_grad = type(x_q.value)(a_traits, a_distr)
         a = TensorMoments(a_value, a_grad, True)
         # a_maxsumexp
-        a_maxsumexp = type(x_q.value)(
-            a_maxsumexp_traits, a_maxsumexp_distr, next_tag
-        )
-        next_tag = a_maxsumexp.next_tag
+        a_maxsumexp = type(x_q.value)(a_maxsumexp_traits, a_maxsumexp_distr)
         # a_sumprod_slice
         a_sumprod_slice = type(x_q.value)(
-            a_sumprod_slice_traits, a_sumprod_slice_distr, next_tag
+            a_sumprod_slice_traits, a_sumprod_slice_distr
         )
-        next_tag = a_sumprod_slice.next_tag
         # b
-        b_value = type(x_q.value)(b_traits, b_distr, next_tag)
-        next_tag = b_value.next_tag
-        b_grad = type(x_q.value)(b_traits, b_distr, next_tag)
-        next_tag = b_grad.next_tag
+        b_value = type(x_q.value)(b_traits, b_distr)
+        b_grad = type(x_q.value)(b_traits, b_distr)
         b = TensorMoments(b_value, b_grad, True)
         # Allocate tensors for bias for q, k, v and output projection
         if bias:
             out_proj_bias_traits = TensorTraits([n_emb], [n_emb_tile])
             out_proj_bias_distr = [0] * out_proj_bias_traits.grid.nelems
             out_proj_bias_value = type(x_q.value)(
-                out_proj_bias_traits, out_proj_bias_distr, next_tag
+                out_proj_bias_traits, out_proj_bias_distr
             )
-            next_tag = out_proj_bias_value.next_tag
             out_proj_bias_grad = type(x_q.value)(
-                out_proj_bias_traits, out_proj_bias_distr, next_tag
+                out_proj_bias_traits, out_proj_bias_distr
             )
-            next_tag = out_proj_bias_grad.next_tag
             out_proj_bias = TensorMoments(
                 out_proj_bias_value, out_proj_bias_grad, True
             )
@@ -347,10 +316,8 @@ class AttentionSingleHead(BaseLayer):
             out_proj_bias = None
         # Allocate tensor for output y
         y_traits = TensorTraits(x_q.value.shape, x_q.value.basetile_shape)
-        y_value = type(x_q.value)(y_traits, x_q.value.distribution, next_tag)
-        next_tag = y_value.next_tag
-        y_grad = type(x_q.value)(y_traits, x_q.value.distribution, next_tag)
-        next_tag = y_grad.next_tag
+        y_value = type(x_q.value)(y_traits, x_q.value.distribution)
+        y_grad = type(x_q.value)(y_traits, x_q.value.distribution)
         y = TensorMoments(y_value, y_grad, True)
         # Create attention layer with all the provided data
         layer = AttentionSingleHead(
@@ -376,8 +343,8 @@ class AttentionSingleHead(BaseLayer):
             mask,
             redux=redux,
         )
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer
 
     # Forward propagation of the attention layer
     def forward_async(self):
@@ -642,7 +609,7 @@ class AttentionSingleHead(BaseLayer):
             # A_sumprod_slice can be deleted
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A
-            prod_inplace_async(self.a.value, self.a.grad)
+            multiply_inplace_async(1.0, self.a.value, self.a.grad)
         # A can be deleted
         self.a.value.invalidate_submit()
         # Backward for mask if needed

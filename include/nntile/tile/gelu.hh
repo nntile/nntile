@@ -20,9 +20,9 @@ namespace nntile::tile
 {
 
 template<typename T>
-void gelu_async(const Tile<T> &A);
+void gelu_async(const Tile<T> &src, const Tile<T> &dst);
 
 template<typename T>
-void gelu(const Tile<T> &A);
+void gelu(const Tile<T> &src, const Tile<T> &dst);
 
 } // namespace nntile::tile

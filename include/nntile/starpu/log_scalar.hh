@@ -14,63 +14,75 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
-#include <nntile/starpu/config.hh>
+// Compile-time definitions
+#include <nntile/defs.h>
+
+// Standard headers
 #include <string>
+#include <tuple>
 
-namespace nntile::starpu::log_scalar
+// NNTile headers
+#include <nntile/starpu/codelet.hh>
+#include <nntile/starpu/handle.hh>
+
+namespace nntile::starpu
 {
 
-struct args_t
+//! Generic wrapper class for log_scalar operation is not defined
+template<typename T>
+class LogScalar;
+
+//! Specialization of wrapper class for log_scalar operation via std::tuple
+template<typename T>
+class LogScalar<std::tuple<T>>
 {
-    std::string name;
+public:
+    //! Codelet for the current operation
+    CodeletTyped<T> codelet;
+
+    //! Constructor
+    LogScalar();
+
+    //! Structure for operation arguments
+    struct args_t
+    {
+        std::string name;
+    };
+
+    //! Footprint function for the current operation
+    static uint32_t footprint(struct starpu_task *task);
+
+    //! Wrapper for a generic CPU implementation
+    static void cpu(void *buffers[], void *cl_args)
+        noexcept;
+
+    //! Array of all wrappers for CPU implementations
+    static constexpr func_array cpu_funcs = {
+        cpu
+    };
+
+    //! No CUDA implementations
+    static constexpr func_array cuda_funcs = {};
+
+    //! Submit log_scalar task
+    void submit(
+        const std::string &name,
+        Handle value
+    );
 };
 
-template<typename T>
-void cpu(void *buffers[], void *cl_args)
-    noexcept;
+//! Pack of log_scalar operations for different types
+using log_scalar_pack_t = OperationPack<
+    LogScalar,
+    std::tuple<nntile::fp64_t>,
+    std::tuple<nntile::fp32_t>,
+    std::tuple<nntile::fp32_fast_tf32_t>,
+    std::tuple<nntile::fp32_fast_fp16_t>,
+    std::tuple<nntile::fp32_fast_bf16_t>,
+    std::tuple<nntile::bf16_t>
+>;
 
-extern Codelet codelet_fp32, codelet_fp64, codelet_bf16,
-    codelet_fp32_fast_tf32;
+//! Pack of log_scalar operations for different types
+extern log_scalar_pack_t log_scalar;
 
-template<typename T>
-constexpr Codelet *codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_t>()
-{
-    return &codelet_fp32;
-}
-
-template<>
-constexpr Codelet *codelet<bf16_t>()
-{
-    return &codelet_bf16;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_fast_tf32_t>()
-{
-    return &codelet_fp32_fast_tf32;
-}
-
-template<>
-constexpr Codelet *codelet<fp64_t>()
-{
-    return &codelet_fp64;
-}
-
-void init();
-
-void restrict_where(uint32_t where);
-
-void restore_where();
-
-template<typename T>
-void submit(const std::string &name, Handle value);
-
-} // namespace nntile::starpu::log_scalar
+} // namespace nntile::starpu

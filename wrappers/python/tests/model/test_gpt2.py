@@ -213,7 +213,7 @@ def test_gpt2(device, num_samples, batch_size, minibatch_size,
     # further processing.
     config = GPT2Config.from_json_file(data_dir / 'gpt2_test_config.json')
 
-    n_head_tile = config.n_head
+    n_head_tile = config.num_heads
     assert config.n_positions % seq_len_tile == 0
     config.attn_pdrop = 0
     config.embd_pdrop = 0
@@ -230,8 +230,14 @@ def test_gpt2(device, num_samples, batch_size, minibatch_size,
     # Initialize NNTile and StarPU
     time0 = time.time()
     # Set up StarPU+MPI and init codelets
-    _nntile_config = nntile.starpu.Config(-1, -1, 1)
-    nntile.starpu.init()
+    nntile.nntile_init(
+        ncpus=1,
+        ncuda=0,
+        cublas=0,
+        ooc=0,
+        logger=0,
+        verbose=0,
+    )
     # Restrict computations to CUDA if possible
     if device == "cuda":
         nntile.starpu.restrict_cuda()
@@ -239,7 +245,6 @@ def test_gpt2(device, num_samples, batch_size, minibatch_size,
         nntile.starpu.restrict_cpu()
     time1 = time.time() - time0
     print("StarPU + NNTile + MPI init in {} seconds".format(time1))
-    next_tag = 0
     nntile_flashattention = False
     nntile_use_redux = False
     n_embd_tile = 384
@@ -249,21 +254,20 @@ def test_gpt2(device, num_samples, batch_size, minibatch_size,
         config.n_inner, n_inner_tile, config.layer_norm_epsilon,
         config.num_hidden_layers, config.n_head, n_head_tile,
         "gelutanh", nntile_flashattention, nntile_use_redux)
-    nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch,
+    nntile_model = GPT2Model_nntile.from_torch(model_torch,
             minibatch_size, minibatch_size_tile, config.n_positions,
-            seq_len_tile, nntile_model_config, next_tag)
-    loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-            nntile_model.activations[-1], next_tag)
+            seq_len_tile, nntile_model_config)
+    loss = nntile.loss.CrossEntropy. \
+        generate_simple(nntile_model.activations[-1])
 
     if optimizer == "adam":
         nntile_optimizer = nntile.optimizer \
-            .FusedAdam(nntile_model.get_parameters(), lr, next_tag)
+            .FusedAdam(nntile_model.get_parameters(), lr)
         torch_optimizer = Adam(model_torch.parameters(), lr)
     elif optimizer == "sgd":
         nntile_optimizer = nntile.optimizer.SGD(nntile_model.get_parameters(),
-                                                lr, next_tag)
+                                                lr)
         torch_optimizer = SGD(model_torch.parameters(), lr)
-    next_tag = nntile_optimizer.get_next_tag()
 
     # Create random dataset for train sumulation
     num_train_batches = num_samples // batch_size
@@ -279,8 +283,8 @@ def test_gpt2(device, num_samples, batch_size, minibatch_size,
     # epoch.
     torch_loss_func = nn.CrossEntropyLoss(reduction="sum")
     # Define Cross Entropy loss function
-    nntile_loss_func, next_tag = nntile.loss.CrossEntropy.generate_simple(
-            nntile_model.activations[-1], next_tag)
+    nntile_loss_func = nntile.loss.CrossEntropy.generate_simple(
+            nntile_model.activations[-1])
     torch_loss_hist = []
 
     for i in range(nepochs):
@@ -312,13 +316,11 @@ def test_gpt2(device, num_samples, batch_size, minibatch_size,
         minibatch_input = []
         minibatch_output = []
         for j in range(num_minibatch):
-            x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-            next_tag = x.next_tag
+            x = nntile.tensor.Tensor_int64(x_traits, x_distr)
             x_buf = random_dataset[i, j, :, :-1].cpu().T
             x.from_array(np.asfortranarray(x_buf))
             minibatch_input.append(x)
-            y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-            next_tag = y.next_tag
+            y = nntile.tensor.Tensor_int64(x_traits, x_distr)
             y_buf = random_dataset[i, j, :, 1:].cpu().T
             y.from_array(np.asfortranarray(y_buf))
             minibatch_output.append(y)

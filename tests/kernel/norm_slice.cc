@@ -12,134 +12,501 @@
  * @version 1.1.0
  * */
 
+// Corresponding header
 #include "nntile/kernel/norm_slice.hh"
-#include "../testing.hh"
+
+// Standard libraries
 #include <vector>
 #include <stdexcept>
 #include <limits>
-#include <cmath>
 #include <iostream>
+#include <cmath>
+#include <random>
+#include <string>
 
+// Third-party libraries
+#include <catch2/catch_all.hpp>
+
+// Other NNTile headers
+// CUDA_CHECK definition
+#include <nntile/kernel/cuda.hh>
+
+// Use namespaces for shorter code
+using namespace Catch;
+using namespace Catch::Matchers;
+
+// Use tested NNTile namespaces
 using namespace nntile;
+using namespace nntile::kernel;
 using namespace nntile::kernel::norm_slice;
 
-#ifdef NNTILE_USE_CUDA
-template<typename T>
-void run_cuda(Index m, Index n, Index k, Scalar alpha,
-        const std::vector<T> &src, Scalar beta, std::vector<T> &dst)
-{
-    // Copy to device
-    T *dev_src, *dev_dst;
-    cudaError_t cuda_err = cudaMalloc(&dev_src, sizeof(T)*m*n*k);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_dst, sizeof(T)*m*n);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*m*n*k,
-            cudaMemcpyHostToDevice);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*m*n,
-            cudaMemcpyHostToDevice);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    // Init stream
-    cudaStream_t stream;
-    cuda_err = cudaStreamCreate(&stream);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    // Launch low-level kernel
-    cuda<T>(stream, m, n, k, alpha, dev_src, beta, dev_dst);
-    cuda_err = cudaStreamSynchronize(stream);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    // Copy result and deallocate device memory
-    cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*m*n,
-            cudaMemcpyDeviceToHost);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaFree(dev_src);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaFree(dev_dst);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaStreamDestroy(stream);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-}
-#endif // NNTILE_USE_CUDA
+// Type to acquire reference values
+using ref_t = double;
 
-// Templated validation
+// Struct to hold test data and reference results
 template<typename T>
-void validate(Index m, Index n, Index k, Scalar alpha, Scalar beta)
+struct TestData
 {
     using Y = typename T::repr_t;
-    const Y eps = T::epsilon();
-    // Init test input
-    std::vector<T> src(m*n*k), dst(m*n);
-    for(Index i0 = 0; i0 < m; ++i0)
-    {
-        for(Index i1 = 0; i1 < n; ++i1)
-        {
-            for(Index i2 = 0; i2 < k; ++i2)
-            {
-                src[(i1*k+i2)*m+i0] = std::sqrt(Y(i0+i1+i2) / Y{10});
-            }
-            dst[i1*m+i0] = Y{1.0};
-        }
-    }
-    std::vector<T> dst_copy(dst);
-    // Check low-level kernel
-    std::cout << "Run kernel::norm_slice::cpu<" << T::type_repr << ">\n";
-    cpu<T>(m, n, k, alpha, &src[0], beta, &dst[0]);
-    for(Index i0 = 0; i0 < m; ++i0)
-    {
-        for(Index i1 = 0; i1 < n; ++i1)
-        {
-            Index a = i0 + i1;
-            Y ref = k * (2*a+k-1) / 2 / Y{10};
-            ref = std::sqrt(ref);
-            ref = std::hypot(alpha*ref, beta);
-            Y val{dst[i1*m+i0]};
-            if(ref == Y{0})
-            {
-                TEST_ASSERT(std::abs(val) <= 10*eps);
-            }
-            else
-            {
-                TEST_ASSERT(std::abs(val/ref-Y{1}) <= 10*eps);
-            }
+    Index m, n, k; // Dimensions
+    Scalar alpha, beta; // Scaling factors
 
-        }
-    }
-    std::cout << "OK: kernel::norm_slice::cpu<" << T::type_repr << ">\n";
-#ifdef NNTILE_USE_CUDA
-    // Check low-level CUDA kernel
-    std::vector<T> dst_cuda(dst_copy);
-    std::cout << "Run kernel::norm_slice::cuda<" << T::type_repr << ">\n";
-    run_cuda<T>(m, n, k, alpha, src, beta, dst_cuda);
-    for(Index i0 = 0; i0 < m; ++i0)
-    {
-        for(Index i1 = 0; i1 < n; ++i1)
-        {
-            Index i = (i1*m+i0);
-            if(Y(dst[i]) == Y{0})
-            {
-                TEST_ASSERT(Y(dst_cuda[i]) == Y{0});
-            }
-            else
-            {
-                TEST_ASSERT(std::abs(Y(dst_cuda[i])/Y(dst[i])-Y{1})
-                        <= 10*eps);
-            }
+    Y eps_check;
 
+    std::vector<T> src1_init;
+    std::vector<T> src2_init;
+    std::vector<T> dst_init;
+
+    std::vector<T> dst_ref;
+};
+
+// Reference implementation of the norm_slice operation
+template<typename T>
+void reference_norm_slice(TestData<T>& data)
+{
+    using Y = typename T::repr_t;
+    if (data.m == 0 || data.n == 0 || data.k == 0)
+    {
+        return;
+    }
+
+    const ref_t alpha_r = data.alpha;
+    const ref_t beta_r = data.beta;
+
+    for(Index i2 = 0; i2 < data.n; ++i2)
+    {
+        for(Index i1 = 0; i1 < data.m; ++i1)
+        {
+            // Compute norm over k elements for this position from src1
+            ref_t norm_sq = 0.0;
+            for(Index i0 = 0; i0 < data.k; ++i0)
+            {
+                Index src1_idx = (i2 * data.k + i0) * data.m + i1;
+                ref_t val = static_cast<Y>(data.src1_init[src1_idx]);
+                norm_sq += val * val;
+            }
+            ref_t norm_val = std::sqrt(norm_sq) * alpha_r;
+
+            // Get src2 value for this position
+            ref_t src2_val = static_cast<Y>(data.src2_init[i2 * data.m + i1]);
+
+            // Compute result: sqrt(alpha^2 * norm^2 + beta^2 * src2^2)
+            ref_t result = std::hypot(beta_r * src2_val, norm_val);
+            data.dst_ref[i2 * data.m + i1] = static_cast<Y>(result);
         }
     }
-    std::cout << "OK: kernel::norm_slice::cuda<" << T::type_repr << ">\n";
-#endif // NNTILE_USE_CUDA
 }
 
-int main(int argc, char **argv)
+// Enum for data generation strategies
+enum class DataGen
 {
-    validate<fp32_t>(1, 9, 10, 1.0, 1.0);
-    validate<fp32_t>(8, 9, 1, 1.0, -1.0);
-    validate<fp32_t>(8, 1, 10, -1.0, 1.0);
-    validate<fp32_t>(4, 7, 8, 0.0, 2.0);
-    validate<fp64_t>(1, 9, 10, 2.0, 0.0);
-    validate<fp64_t>(8, 9, 1, 1.0, 1.0);
-    validate<fp64_t>(8, 1, 10, -1.0, -1.0);
-    validate<fp64_t>(4, 7, 8, 2.5, 1.25);
-    return 0;
+    PRESET,
+    RANDOM
+};
+
+// Generates data with preset, deterministic values
+template<typename T>
+void generate_data(TestData<T>& data, DataGen strategy)
+{
+    using Y = typename T::repr_t;
+
+    data.src1_init.resize(data.m * data.n * data.k);
+    data.src2_init.resize(data.m * data.n);
+    data.dst_init.resize(data.m * data.n);
+    data.dst_ref.resize(data.m * data.n);
+
+    switch(strategy)
+    {
+        // Non-random input generation
+        case DataGen::PRESET:
+            for(Index i0 = 0; i0 < data.k; ++i0)
+            {
+                for(Index i1 = 0; i1 < data.n; ++i1)
+                {
+                    for(Index i2 = 0; i2 < data.m; ++i2)
+                    {
+                        Index src1_idx = (i1 * data.k + i0) * data.m + i2;
+                        Y src1_val = 1.0 + i0 + i1 * data.k +
+                            i2 * data.k * data.n;
+                        data.src1_init[src1_idx] = src1_val;
+                    }
+                }
+            }
+            // Initialize src2_init with some values for beta testing
+            for(Index i = 0; i < data.m * data.n; ++i)
+            {
+                data.src2_init[i] = static_cast<Y>(-1.0);
+            }
+            // Initialize dst_init with some values (not used in computation but kept for consistency)
+            for(Index i = 0; i < data.m * data.n; ++i)
+            {
+                data.dst_init[i] = static_cast<Y>(-21.0);
+            }
+            break;
+        // Specific random initialization
+        case DataGen::RANDOM:
+            std::mt19937 gen(42);
+            std::uniform_real_distribution<Y> dist(-2.0, 2.0);
+            for(Index i = 0; i < data.src1_init.size(); ++i)
+            {
+                data.src1_init[i] = dist(gen);
+            }
+            for(Index i = 0; i < data.src2_init.size(); ++i)
+            {
+                data.src2_init[i] = dist(gen);
+            }
+            for(Index i = 0; i < data.dst_init.size(); ++i)
+            {
+                data.dst_init[i] = dist(gen);
+            }
+            break;
+    }
+}
+
+// Get test input data (reference computation is done separately)
+template<typename T>
+TestData<T> get_test_input_data(
+    Index m,
+    Index n,
+    Index k,
+    Scalar alpha,
+    Scalar beta,
+    DataGen strategy
+)
+{
+    TestData<T> data;
+    data.m = m;
+    data.n = n;
+    data.k = k;
+    data.alpha = alpha;
+    data.beta = beta;
+    // Set accuracy threshold for each precision
+    if (std::is_same_v<T, bf16_t>)
+    {
+        data.eps_check = 1e-1;
+    }
+    else if (std::is_same_v<T, fp16_t>)
+    {
+        data.eps_check = 1e-2;
+    }
+    else if (std::is_same_v<T, fp32_t>)
+    {
+        data.eps_check = 3.1e-3;
+    }
+    else if (std::is_same_v<T, fp64_t>)
+    {
+        data.eps_check = 1e-7;
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type");
+    }
+    // Generate data by a provided strategy
+    generate_data(data, strategy);
+
+    return data;
+}
+
+// Helper function to verify results
+template<typename T>
+void verify_results(
+    const TestData<T>& data,
+    const std::vector<T>& src1,
+    const std::vector<T>& src2,
+    const std::vector<T>& dst
+)
+{
+    using Y = typename T::repr_t;
+
+    // Check that src1 was not changed during kernel execution
+    for(Index i = 0; i < data.src1_init.size(); ++i)
+    {
+        REQUIRE(src1[i].value == data.src1_init[i].value);
+    }
+
+    // Check that src2 was not changed during kernel execution
+    for(Index i = 0; i < data.src2_init.size(); ++i)
+    {
+        REQUIRE(src2[i].value == data.src2_init[i].value);
+    }
+
+    // Check that dst (output) matches reference
+    for(Index i = 0; i < data.dst_ref.size(); ++i)
+    {
+        Y ref = static_cast<Y>(data.dst_ref[i]);
+        REQUIRE_THAT(
+            static_cast<Y>(dst[i]),
+            WithinRel(ref, data.eps_check)
+        );
+    }
+}
+
+// Helper function to run CPU test and verify results
+template<typename T, bool run_bench>
+void run_cpu_test(TestData<T>& data)
+{
+    std::vector<T> dst_cpu(data.dst_init);
+    std::vector<T> src1_cpu(data.src1_init);
+    std::vector<T> src2_cpu(data.src2_init);
+
+    if constexpr (run_bench)
+    {
+        BENCHMARK(
+            "[kernel][norm_slice][cpu][m=" +
+            std::to_string(data.m) +
+            "][n=" + std::to_string(data.n) +
+            "][k=" + std::to_string(data.k) +
+            "]"
+        )
+        {
+            cpu<T>(
+                data.m,
+                data.n,
+                data.k,
+                data.alpha,
+                &src1_cpu[0],
+                data.beta,
+                &src2_cpu[0],
+                &dst_cpu[0]
+            );
+        };
+    }
+    else
+    {
+        cpu<T>(
+            data.m,
+            data.n,
+            data.k,
+            data.alpha,
+            &src1_cpu[0],
+            data.beta,
+            &src2_cpu[0],
+            &dst_cpu[0]
+        );
+        verify_results(data, src1_cpu, src2_cpu, dst_cpu);
+    }
+}
+
+#ifdef NNTILE_USE_CUDA
+
+// Helper function to run CUDA test and verify results
+template<typename T, bool run_bench>
+void run_cuda_test(TestData<T>& data)
+{
+    T *dev_src1, *dev_src2, *dev_dst;
+    CUDA_CHECK(
+        cudaMalloc(
+            &dev_src1,
+            sizeof(T) * data.src1_init.size()
+        ),
+        "cudaMalloc dev_src1"
+    );
+    CUDA_CHECK(
+        cudaMalloc(
+            &dev_src2,
+            sizeof(T) * data.m * data.n
+        ),
+        "cudaMalloc dev_src2"
+    );
+    CUDA_CHECK(
+        cudaMalloc(
+            &dev_dst,
+            sizeof(T) * data.m * data.n
+        ),
+        "cudaMalloc dev_dst"
+    );
+
+    std::vector<T> dst_cuda(data.dst_init);
+    std::vector<T> src1_cuda(data.src1_init);
+    std::vector<T> src2_cuda(data.src2_init);
+
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_src1,
+            &src1_cuda[0],
+            sizeof(T) * data.src1_init.size(),
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_src1"
+    );
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_src2,
+            &src2_cuda[0],
+            sizeof(T) * data.m * data.n,
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_src2"
+    );
+    CUDA_CHECK(
+        cudaMemcpy(
+            dev_dst,
+            &dst_cuda[0],
+            sizeof(T) * data.dst_init.size(),
+            cudaMemcpyHostToDevice
+        ),
+        "cudaMemcpy dev_dst"
+    );
+
+    cudaStream_t stream;
+    CUDA_CHECK(cudaStreamCreate(&stream), "cudaStreamCreate");
+
+    if constexpr (run_bench)
+    {
+        BENCHMARK(
+            "[kernel][norm_slice][cuda][m=" +
+            std::to_string(data.m) +
+            "][n=" + std::to_string(data.n) +
+            "][k=" + std::to_string(data.k) +
+            "]"
+        )
+        {
+            cuda<T>(
+                stream,
+                data.m,
+                data.n,
+                data.k,
+                data.alpha,
+                dev_src1,
+                data.beta,
+                dev_src2,
+                dev_dst
+            );
+            cudaStreamSynchronize(stream);
+        };
+    }
+    else
+    {
+        cuda<T>(
+            stream,
+            data.m,
+            data.n,
+            data.k,
+            data.alpha,
+            dev_src1,
+            data.beta,
+            dev_src2,
+            dev_dst
+        );
+        CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
+
+        CUDA_CHECK(
+            cudaMemcpy(
+                &dst_cuda[0],
+                dev_dst,
+                sizeof(T) * data.m * data.n,
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy dst_cuda"
+        );
+        CUDA_CHECK(
+            cudaMemcpy(
+                &src1_cuda[0],
+                dev_src1,
+                sizeof(T) * data.src1_init.size(),
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy src1_cuda"
+        );
+        CUDA_CHECK(
+            cudaMemcpy(
+                &src2_cuda[0],
+                dev_src2,
+                sizeof(T) * data.m * data.n,
+                cudaMemcpyDeviceToHost
+            ),
+            "cudaMemcpy src2_cuda"
+        );
+
+        verify_results(data, src1_cuda, src2_cuda, dst_cuda);
+    }
+
+    CUDA_CHECK(cudaFree(dev_src1), "cudaFree dev_src1");
+    CUDA_CHECK(cudaFree(dev_src2), "cudaFree dev_src2");
+    CUDA_CHECK(cudaFree(dev_dst), "cudaFree dev_dst");
+    CUDA_CHECK(cudaStreamDestroy(stream), "cudaStreamDestroy");
+}
+#endif
+
+// Catch2-based tests
+TEMPLATE_TEST_CASE(
+    "Norm Slice Kernel Verification",
+    "[norm_slice]",
+    fp64_t,
+    fp32_t,
+    fp16_t,
+    bf16_t
+)
+{
+    using T = TestType;
+    const Index m = GENERATE(5, 32);
+    const Index n = GENERATE(5, 32);
+    const Index k = GENERATE(5, 16);
+    const Scalar alpha = GENERATE(0.5, 1.0, 2.0);
+    const Scalar beta = GENERATE(0.0, 0.5, 1.0);
+    const DataGen strategy = GENERATE(DataGen::PRESET, DataGen::RANDOM);
+
+    auto data = get_test_input_data<T>(
+        m,
+        n,
+        k,
+        alpha,
+        beta,
+        strategy
+    );
+
+    // Compute reference outputs for verification
+    reference_norm_slice(data);
+
+    SECTION("cpu")
+    {
+        run_cpu_test<T, false>(data);
+    }
+
+#ifdef NNTILE_USE_CUDA
+    SECTION("cuda")
+    {
+        run_cuda_test<T, false>(data);
+    }
+#endif
+}
+
+// Catch2-based benchmarks
+TEMPLATE_TEST_CASE(
+    "Norm Slice Kernel Benchmark",
+    "[norm_slice][!benchmark]",
+    fp64_t,
+    fp32_t,
+    fp16_t,
+    bf16_t
+)
+{
+    using T = TestType;
+    const Index m = GENERATE(512, 1024);
+    const Index n = GENERATE(512, 1024);
+    const Index k = GENERATE(128, 256);
+    const Scalar alpha = GENERATE(1.0);
+    const Scalar beta = GENERATE(1.0);
+    const DataGen strategy = GENERATE(DataGen::PRESET);
+
+    auto data = get_test_input_data<T>(
+        m,
+        n,
+        k,
+        alpha,
+        beta,
+        strategy
+    );
+
+    SECTION("cpu")
+    {
+        run_cpu_test<T, true>(data);
+    }
+
+#ifdef NNTILE_USE_CUDA
+    SECTION("cuda")
+    {
+        run_cuda_test<T, true>(data);
+    }
+#endif
 }
