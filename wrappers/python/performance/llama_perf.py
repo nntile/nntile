@@ -147,7 +147,6 @@ if args.intermediate_size != -1:
 
 if args.num_layers != -1:
     llama_torch_config.num_hidden_layers = args.num_layers
-# print(llama_torch_config)
 
 if args.use_nntile:
     # Initialize NNTile and StarPU
@@ -571,14 +570,6 @@ elif args.use_torch and not args.torch_compile:
 elif args.use_torch and args.torch_compile:
     backend = "torch-compile"
 
-# filename = "hsizetile_{}_intermsizetile_{}".format(args.hidden_size_tile,
-#                                              args.intermediate_size_tile)
-
-# filename = "hsizetile_{}_seqlentile_{}_intermtile_{}".format(
-#                                             args.hidden_size_tile,
-#                                             args.seq_len_tile,
-#                                             args.intermediate_size_tile)
-
 filename = ""
 if args.hidden_size_tile != -1:
     filename = filename + "hsizetile_" + str(args.hidden_size_tile)
@@ -591,8 +582,5 @@ if args.n_head_tile != -1:
 if args.intermediate_size_tile != -1:
     filename = filename + "_intermtile_" + str(args.intermediate_size_tile)
 
-# np.savez(args.results_folder + "/" + filename, timings=timings,
-#          hidden_size=llama_torch_config.hidden_size)
-# filename = backend + "_hidden-size_" + str(llama_torch_config.hidden_size)
 np.savez(args.results_folder + "/" + filename, timings=timings,
          args=args)

@@ -1,3 +1,16 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/performance/pytorch_tp/pytorch_tp.py
+# PyTorch tensor parallel multi-GPU performance test
+#
+# @version 1.1.0
+
 import argparse
 import time
 
@@ -23,13 +36,19 @@ parser.add_argument("--module",
                     default="mlp")
 args = parser.parse_args()
 
+# Initialize tensor parallel mesh
 tp_mesh = init_device_mesh("cuda", (args.num_gpus,))
+
+# Large model configuration for Llama 405B scale
 hidden_size = 16384
 intermediate_size = 53248
 seqlen = 4096
 
+# Configure tensor parallelism based on module type
+# Configure tensor parallelism based on module type
 if args.module == "mlp":
-
+    # Tensor parallel plan for MLP: split gate/up projections across GPUs,
+    # gather down projection outputs
     layer_tp_plan = {
         # by default ColwiseParallel input layouts is replicated
         # and RowwiseParallel output layouts is replicated
@@ -136,7 +155,7 @@ else:
 input_tensor = torch.randn((1, seqlen, hidden_size), requires_grad=True,
     device="cuda")
 
-# Warmup
+# Warmup iterations
 for iter_idx in range(10):
     if args.module == "mlp":
         output = tp_model(input_tensor)
@@ -144,12 +163,10 @@ for iter_idx in range(10):
         output = tp_model(input_tensor, position_embeddings=pos_embs,
                                 position_ids=pos_ids_torch,
                                 attention_mask=mask_torch)[0]
-    # with loss_parallel():
-        # assuming pred and labels are of the shape [batch, seq, vocab]
     loss = torch.sum(output)
     loss.backward()
 
-# Measurement
+# Performance measurement
 torch.cuda.synchronize()
 torch_dist.barrier()
 st_time = time.time()
@@ -160,8 +177,6 @@ for iter_idx in range(100):
         output = tp_model(input_tensor, position_embeddings=pos_embs,
                                 position_ids=pos_ids_torch,
                                 attention_mask=mask_torch)[0]
-    # with loss_parallel():
-        # assuming pred and labels are of the shape [batch, seq, vocab]
     loss = torch.sum(output)
     loss.backward()
     tp_model.zero_grad()

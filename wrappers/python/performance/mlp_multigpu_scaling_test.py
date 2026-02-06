@@ -1,3 +1,16 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/performance/mlp_multigpu_scaling_test.py
+# Multi-GPU scaling test for MLP layer
+#
+# @version 1.1.0
+
 import argparse
 import os
 
@@ -17,9 +30,6 @@ parser.add_argument("--device",
 args = parser.parse_args()
 print(args)
 
-# seq_len_list = [1024 * i for i in range(4, 5)]#[1024, 2048, 3072, 4096]
-# hidden_size_list = [1024 * i for i in range(10, 17, 2)]
-# intermediate_size_list = [4 * h_size for h_size in hidden_size_list]
 backend = args.backend
 if args.device == "cpu":
     device = "cpu"
@@ -63,11 +73,6 @@ hidden_size = 16384
 intermediate_size = 53248
 
 hidden_size_tiles = [hidden_size // (2 ** i) for i in range(0, 5)]
-# intermediate_size_tiles = [
-#   intermediate_size // (2 ** i) for i in range(4, 5)
-# ]
-# intermediate_size_tiles = [intermediate_size // 32, intermediate_size // 13,
-#                            intermediate_size // 26]
 intermediate_size_tiles = [intermediate_size // 52]
 
 for j, hsize_tile in enumerate(hidden_size_tiles):

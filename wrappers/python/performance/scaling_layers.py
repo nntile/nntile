@@ -18,7 +18,6 @@ import numpy as np
 
 import nntile
 from nntile.layer import Linear as Linear_nntile
-# from nntile.model.llama_causal import LlamaForCausalLM as Llama_nntile
 from nntile.tensor import TensorMoments, TensorTraits, notrans
 
 # Create argument parser

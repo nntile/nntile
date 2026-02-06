@@ -1,3 +1,16 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/performance/run_scaling_tests.py
+# Script for running scaling performance tests
+#
+# @version 1.1.0
+
 import argparse
 import os
 
@@ -23,9 +36,13 @@ parser.add_argument("--device",
 args = parser.parse_args()
 print(args)
 
-hidden_size_list = [512 * i for i in range(31, 33)]
-seq_len_list = [4096]  # [1024, 2048, 3072, 4096]
-head_dims = [64, 128, 256]
+# Define parameter ranges for scaling tests
+# Hidden sizes from 512 to 16384
+hidden_size_list = [512 * i for i in range(1, 33)]
+seq_len_list = [1024]  # Sequence lengths to test
+head_dims = [64, 128, 256]  # Attention head dimensions
+
+# Configure device settings
 backend = args.backend
 if args.device == "cpu":
     device = "cpu"
@@ -34,6 +51,7 @@ else:
     device, num_cuda = args.device.split(":")
     num_cuda = int(num_cuda)
 
+# Performance test parameters
 n_iters = 100
 submodule = args.submodule
 mode = args.mode
@@ -49,8 +67,6 @@ cmd_string = cmd_string + " --restrict=" + device + " --mode=" + mode + \
 cmd_string = cmd_string + " --num-warmup-calls=" + str(num_warmup_calls) + \
     " --submodule=" + submodule
 cmd_string = cmd_string + " --kv-heads-ratio=" + str(kv_heads_ratio)
-# cmd_string = cmd_string + " --results-folder=.results/" + submodule + "_" + \
-#    mode
 if backend == "torch":
     cmd_string = cmd_string + " --use-torch"
 elif backend == "nntile":

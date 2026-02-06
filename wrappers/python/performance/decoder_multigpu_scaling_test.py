@@ -1,3 +1,16 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/performance/decoder_multigpu_scaling_test.py
+# Multi-GPU scaling test for decoder layer
+#
+# @version 1.1.0
+
 import argparse
 import os
 
@@ -17,9 +30,6 @@ parser.add_argument("--device",
 args = parser.parse_args()
 print(args)
 
-# seq_len_list = [1024 * i for i in range(4, 5)]#[1024, 2048, 3072, 4096]
-# hidden_size_list = [1024 * i for i in range(10, 17, 2)]
-# intermediate_size_list = [4 * h_size for h_size in hidden_size_list]
 backend = args.backend
 if args.device == "cpu":
     device = "cpu"
@@ -42,20 +52,16 @@ if num_cuda == 1:
     hidden_size_tiles = [hidden_size // ht for ht in [1, 2, 4]]
     seqlen_tiles = [seqlen // stile for stile in [1, 2]]
     intermsize_tiles = [intermediatesize // itile for itile in [1, 2, 4]]
-    # intermsize_tiles = [intermediatesize // itile for itile in [4]]
     nhead_tiles = [128 // nh_tile for nh_tile in [1, 2, 4]]
 elif num_cuda == 4:
     hidden_size_tiles = [hidden_size // ht for ht in [2, 4, 8]]
     seqlen_tiles = [seqlen // stile for stile in [2, 4, 8]]
     intermsize_tiles = [intermediatesize // itile for itile in [1, 2, 4, 8]]
-    # intermsize_tiles = [intermediatesize // itile for itile in [8]]
     nhead_tiles = [128 // nh_tile for nh_tile in [1, 2, 4, 8]]
 elif num_cuda == 2:
     hidden_size_tiles = [hidden_size // ht for ht in [2, 4, 8]]
     seqlen_tiles = [seqlen // stile for stile in [1, 2, 4]]
-    # seqlen_tiles = [seqlen // stile for stile in [2]]
     intermsize_tiles = [intermediatesize // itile for itile in [1, 2, 4, 8]]
-    # intermsize_tiles = [intermediatesize // itile for itile in [2]]
     nhead_tiles = [128 // nh_tile for nh_tile in [1, 2, 4, 8]]
 
 config_path = "./llama_405b_config.json"

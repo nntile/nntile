@@ -1,3 +1,16 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/performance/multigpu_scaling_test.py
+# General multi-GPU scaling test script
+#
+# @version 1.1.0
+
 import argparse
 import os
 
@@ -21,7 +34,6 @@ parser.add_argument("--submodule",
 args = parser.parse_args()
 print(args)
 
-# seq_len_list = [1024 * i for i in range(4, 5)]#[1024, 2048, 3072, 4096]
 hidden_size_list = [1024 * i for i in range(10, 17, 2)]
 intermediate_size_list = [4 * h_size for h_size in hidden_size_list]
 backend = args.backend

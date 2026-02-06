@@ -1,3 +1,16 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/performance/run_scaling_test_fixednumheads.py
+# Scaling test with fixed number of attention heads
+#
+# @version 1.1.0
+
 import argparse
 import os
 
@@ -49,8 +62,6 @@ cmd_string = cmd_string + " --restrict=" + device + " --mode=" + mode + \
     " --n-iters=" + str(n_iters)
 cmd_string = cmd_string + " --num-warmup-calls=" + str(num_warmup_calls) + \
     " --submodule=" + submodule
-# cmd_string = cmd_string + " --results-folder=.results/" + submodule + "_" + \
-#   mode
 if backend == "torch":
     cmd_string = cmd_string + " --use-torch"
 elif backend == "nntile":
