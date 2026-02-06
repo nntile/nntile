@@ -12,18 +12,18 @@
 # @version 1.1.0
 
 import argparse
-import json
 import time
 
 import numpy as np
+
 import nntile
 from nntile.layer import Linear as Linear_nntile
 # from nntile.model.llama_causal import LlamaForCausalLM as Llama_nntile
 from nntile.tensor import TensorMoments, TensorTraits, notrans
 
 # Create argument parser
-parser = argparse.ArgumentParser(prog="Test performance script for layers in NNTile",
-        description="")
+parser = argparse.ArgumentParser(prog="Test performance script for layers "
+    "in NNTile", description="")
 parser.add_argument("--layer", choices=["linear"],
                     default="linear")
 

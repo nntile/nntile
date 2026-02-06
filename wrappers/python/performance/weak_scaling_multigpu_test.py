@@ -1,5 +1,5 @@
-import os
 import argparse
+import os
 
 parser = argparse.ArgumentParser()
 
@@ -36,12 +36,12 @@ mode = args.mode
 num_warmup_calls = 10
 
 num_layers = num_cuda
-minibatch_size = 1 # num_cuda
+minibatch_size = 1  # num_cuda
 
-hidden_size = 16384 #24576
+hidden_size = 16384  # 24576
 seqlen = 4096
 # seqlen = 2048
-intermediatesize = 53248 #79872
+intermediatesize = 53248  # 79872
 if num_cuda == 1:
     hidden_size_tiles = [hidden_size // ht for ht in [1, 2, 4]]
     # hidden_size_tiles = [hidden_size // ht for ht in [2]]
@@ -70,10 +70,14 @@ model_name = config_path.split("/")[1][:-5]
 
 # STARPU_MAX_MEMORY_USE=1
 cmd_string = "STARPU_ENABLE_STATS=1 STARPU_PROFILING=1 STARPU_SCHED=dmdasd "
-cmd_string = cmd_string + "CUDA_VISIBLE_DEVICES={} STARPU_WORKERS_NOBIND=1 STARPU_SILENT=1 STARPU_NCPU=1 STARPU_NCUDA={}".format(cuda_device, num_cuda)
+cmd_string = cmd_string + "CUDA_VISIBLE_DEVICES={} STARPU_WORKERS_NOBIND=1 " \
+    "STARPU_SILENT=1 STARPU_NCPU=1 STARPU_NCUDA={}" \
+    .format(cuda_device, num_cuda)
 cmd_string = cmd_string + " python3 llama_perf.py --config-path=" + config_path
-cmd_string = cmd_string + " --restrict=" + device + " --mode=" + mode + " --n-iters=" + str(n_iters)
-cmd_string = cmd_string + " --num-warmup-calls=" + str(num_warmup_calls) + " --submodule=llama"
+cmd_string = cmd_string + " --restrict=" + device + " --mode=" + mode + \
+    " --n-iters=" + str(n_iters)
+cmd_string = cmd_string + " --num-warmup-calls=" + str(num_warmup_calls) + \
+    " --submodule=llama"
 if backend == "torch":
     cmd_string = cmd_string + " --use-torch"
 elif backend == "nntile":
@@ -86,13 +90,19 @@ current_cmd = current_cmd + " --num-layers={}".format(num_layers)
 # current_cmd = current_cmd + " --batch-size={}".format(batch_size)
 current_cmd = current_cmd + " --minibatch-size={}".format(minibatch_size)
 current_cmd = current_cmd + " --minibatch-size-tile={}".format(1)
-current_cmd = current_cmd + " --results-folder=.results/weak_scaling/gpu" + str(num_cuda) + "/" + model_name + "/num-layers_{}_minibatch-size_{}_hsize_{}".format(num_layers, minibatch_size, hidden_size) + "/seqlen_{}".format(seqlen)
+current_cmd = current_cmd + " --results-folder=.results/weak_scaling/gpu" + \
+    str(num_cuda) + "/" + model_name + \
+    "/num-layers_{}_minibatch-size_{}_hsize_{}" \
+    .format(num_layers, minibatch_size, hidden_size) + \
+    "/seqlen_{}".format(seqlen)
 
 for hsize_tile in hidden_size_tiles:
-    current_cmd_h  = current_cmd + " --hidden-size-tile=" + str(hsize_tile)
+    current_cmd_h = current_cmd + " --hidden-size-tile=" + str(hsize_tile)
     for slen_tile in seqlen_tiles:
-        current_cmd_h_seqlen = current_cmd_h + " --seq-len-tile=" + str(slen_tile)
+        current_cmd_h_seqlen = current_cmd_h + " --seq-len-tile=" + \
+            str(slen_tile)
         for intermtile in intermsize_tiles:
-            current_cmd_h_seqlen_interm = current_cmd_h_seqlen + " --intermediate-size-tile=" + str(intermtile)
+            current_cmd_h_seqlen_interm = current_cmd_h_seqlen + \
+                " --intermediate-size-tile=" + str(intermtile)
             print(current_cmd_h_seqlen_interm)
             os.system(current_cmd_h_seqlen_interm)

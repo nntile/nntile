@@ -13,23 +13,20 @@
 
 import argparse
 import json
-import time
-import os
 import pathlib
+import time
 
 import numpy as np
 import torch
-from transformers import LlamaConfig
-from transformers import LlamaForCausalLM
-from transformers import LlamaModel
+from transformers import LlamaConfig, LlamaForCausalLM, LlamaModel
 from transformers.models.llama.modeling_llama import (
     LlamaAttention, LlamaDecoderLayer, LlamaMLP, LlamaRotaryEmbedding)
 
 import nntile
 from nntile.layer.llama_attention import (
     LlamaAttention as LlamaAttention_nntile)
-from nntile.model.llama_causal import LlamaForCausalLM as LlamaCausal_nntile
 from nntile.model.llama import Llama as Llama_nntile
+from nntile.model.llama_causal import LlamaForCausalLM as LlamaCausal_nntile
 from nntile.model.llama_config import LlamaConfigNNTile
 from nntile.model.llama_decoder import LlamaDecoder as LlamaDecoder_nntile
 from nntile.model.llama_mlp import LlamaMLP as LlamaMLP_nntile
@@ -113,7 +110,7 @@ assert args.minibatch_size > 0
 assert args.minibatch_size_tile > 0
 assert args.minibatch_size % args.minibatch_size_tile == 0
 
-if not os.path.isdir(args.results_folder):
+if pathlib.Path.is_dir(args.results_folder):
     path2res_filder = pathlib.Path(args.results_folder)
     pathlib.Path.mkdir(path2res_filder, parents=True)
 
@@ -135,13 +132,15 @@ llama_torch_config._attn_implementation = args.attn_implementation
 if args.hidden_size != -1:
     llama_torch_config.hidden_size = args.hidden_size
     assert args.hidden_size % llama_torch_config.num_attention_heads == 0
-    llama_torch_config.head_dim = args.hidden_size // llama_torch_config.num_attention_heads
+    llama_torch_config.head_dim = args.hidden_size // \
+        llama_torch_config.num_attention_heads
 
 if args.hidden_size != -1 and args.head_dim != -1:
     llama_torch_config.head_dim = args.head_dim
     llama_torch_config.num_attention_heads = args.hidden_size // args.head_dim
     assert llama_torch_config.num_attention_heads % args.kv_heads_ratio == 0
-    llama_torch_config.num_key_value_heads = llama_torch_config.num_attention_heads // args.kv_heads_ratio
+    llama_torch_config.num_key_value_heads = \
+        llama_torch_config.num_attention_heads // args.kv_heads_ratio
 
 if args.intermediate_size != -1:
     llama_torch_config.intermediate_size = args.intermediate_size
@@ -251,7 +250,8 @@ elif args.submodule == "decoder":
         mask_torch = mask_torch[None, None, :, :].expand(args.minibatch_size,
                                                 1, -1, -1).to(torch_device)
         pos_ids_torch = torch.tensor(pos_ids).to(torch_device)
-        rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config).to(torch_device)
+        rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config)\
+            .to(torch_device)
         pos_embs = rotary_emb(torch_layer_.self_attn.v_proj.weight,
                                     pos_ids_torch)
     gen = np.random.default_rng(42)
@@ -299,8 +299,10 @@ elif args.submodule == "attention":
                 * torch.finfo(torch.float32).min
         mask_torch = mask_torch[None, None, :, :].expand(args.minibatch_size,
                                                 1, -1, -1).to(torch_device)
-        pos_ids_torch = torch.tensor(pos_ids, dtype=torch.long).to(torch_device)
-        rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config).to(torch_device)
+        pos_ids_torch = torch.tensor(pos_ids, dtype=torch.long) \
+            .to(torch_device)
+        rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config)\
+            .to(torch_device)
         pos_embs = rotary_emb(torch_layer_.v_proj.weight,
                                     pos_ids_torch)
 
@@ -346,7 +348,8 @@ elif args.submodule == "causal-llama":
         # mask_torch = mask_torch[None, None, :, :].expand(args.minibatch_size,
         #                                         1, -1, -1).to(torch_device)
         pos_ids_torch = torch.tensor(pos_ids).to(torch_device)
-        # rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config).to(torch_device)
+        # rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config) \
+        #   .to(torch_device)
         # pos_embs = rotary_emb(torch_layer_.self_attn.v_proj.weight,
         #                             pos_ids_torch)
 
@@ -390,12 +393,15 @@ elif args.submodule == "llama":
         # mask_torch = mask_torch[None, None, :, :].expand(args.minibatch_size,
         #                                         1, -1, -1).to(torch_device)
         pos_ids_torch = torch.tensor(pos_ids).to(torch_device)
-        # rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config).to(torch_device)
+        # rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config) \
+        #   .to(torch_device)
         # pos_embs = rotary_emb(torch_layer_.self_attn.v_proj.weight,
         #                             pos_ids_torch)
 
     x_shape = [args.seq_len, args.minibatch_size]
-    x_random = gen.integers(llama_torch_config.vocab_size, size=x_shape, dtype=np.int64)
+    x_random = gen.integers(
+        llama_torch_config.vocab_size, size=x_shape, dtype=np.int64
+    )
     x_torch = torch.tensor(np.array(x_random, order="F").T,
                            requires_grad=False)
     if args.use_nntile:
@@ -511,7 +517,6 @@ if args.use_nntile:
         if args.use_nntile:
             nntile.starpu.restrict_cpu()
 
-
     if args.mode == "fwd-bwd":
         nntile_module.clear_gradients()
         if args.submodule in ("mlp", "decoder", "causal-llama", "llama"):
@@ -561,13 +566,13 @@ if args.use_nntile:
                     np.mean(np.array(timings))))
 if args.use_nntile:
     backend = "nntile"
-elif args.use_torch and args.torch_compile == False:
+elif args.use_torch and not args.torch_compile:
     backend = "torch"
 elif args.use_torch and args.torch_compile:
     backend = "torch-compile"
 
 # filename = "hsizetile_{}_intermsizetile_{}".format(args.hidden_size_tile,
-#                                                     args.intermediate_size_tile)
+#                                              args.intermediate_size_tile)
 
 # filename = "hsizetile_{}_seqlentile_{}_intermtile_{}".format(
 #                                             args.hidden_size_tile,

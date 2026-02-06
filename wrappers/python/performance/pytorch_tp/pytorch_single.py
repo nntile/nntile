@@ -1,13 +1,8 @@
-import torch.nn as nn
-import torch.nn.functional as F
-import torch
 import time
 
-from transformers.models.llama.modeling_llama import LlamaConfig, LlamaMLP
+import torch
 from transformers.models.llama.modeling_llama import (
-    LlamaAttention as LlamaAttention_torch,
-    LlamaRotaryEmbedding)
-from transformers.models.llama.modeling_llama import LlamaDecoderLayer
+    LlamaConfig, LlamaDecoderLayer)
 
 hidden_size = 1024
 intermediate_size = 4 * hidden_size
@@ -37,7 +32,8 @@ torch_layer = LlamaDecoderLayer(torch_layer_config,
 #     mask_torch = mask_torch[None, None, :, :].expand(args.minibatch_size,
 #                                             1, -1, -1).to(torch_device)
 #     pos_ids_torch = torch.tensor(pos_ids).to(torch_device)
-#     rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config).to(torch_device)
+#     rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config) \
+#       .to(torch_device)
 #     pos_embs = rotary_emb(torch_layer_.self_attn.v_proj.weight,
 #                                 pos_ids_torch)
 print(torch_layer)

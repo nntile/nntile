@@ -1,17 +1,15 @@
-from torch.distributed.device_mesh import init_device_mesh
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, parallelize_module
-import torch
-import time
-import torch.distributed as torch_dist
-from torch.distributed.tensor.parallel import loss_parallel
-from transformers.models.llama.modeling_llama import LlamaConfig, LlamaMLP
-from transformers.models.llama.modeling_llama import LlamaAttention as LlamaAttention_torch
-from transformers.models.llama.modeling_llama import LlamaRotaryEmbedding
-from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 import argparse
+import time
+
 import numpy as np
+import torch
+import torch.distributed as torch_dist
+from torch.distributed.device_mesh import init_device_mesh
+from torch.distributed.tensor.parallel import (
+    ColwiseParallel, RowwiseParallel, parallelize_module)
+from transformers.models.llama.modeling_llama import (
+    LlamaAttention as LlamaAttention_torch, LlamaConfig, LlamaDecoderLayer,
+    LlamaMLP, LlamaRotaryEmbedding)
 
 parser = argparse.ArgumentParser()
 
@@ -135,17 +133,18 @@ if args.num_gpus > 1:
 else:
     tp_model = torch_layer
 
-input_tensor = torch.randn((1, seqlen, hidden_size), requires_grad=True, device="cuda")
+input_tensor = torch.randn((1, seqlen, hidden_size), requires_grad=True,
+    device="cuda")
 
 # Warmup
 for iter_idx in range(10):
     if args.module == "mlp":
         output = tp_model(input_tensor)
     elif args.module in ("attention", "decoder"):
-        output = tp_model(input_tensor,position_embeddings=pos_embs,
+        output = tp_model(input_tensor, position_embeddings=pos_embs,
                                 position_ids=pos_ids_torch,
                                 attention_mask=mask_torch)[0]
-    #with loss_parallel():
+    # with loss_parallel():
         # assuming pred and labels are of the shape [batch, seq, vocab]
     loss = torch.sum(output)
     loss.backward()
@@ -158,10 +157,10 @@ for iter_idx in range(100):
     if args.module == "mlp":
         output = tp_model(input_tensor)
     elif args.module in ("attention", "decoder"):
-        output = tp_model(input_tensor,position_embeddings=pos_embs,
+        output = tp_model(input_tensor, position_embeddings=pos_embs,
                                 position_ids=pos_ids_torch,
                                 attention_mask=mask_torch)[0]
-    #with loss_parallel():
+    # with loss_parallel():
         # assuming pred and labels are of the shape [batch, seq, vocab]
     loss = torch.sum(output)
     loss.backward()
