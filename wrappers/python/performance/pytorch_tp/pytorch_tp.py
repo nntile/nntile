@@ -45,7 +45,6 @@ intermediate_size = 53248
 seqlen = 4096
 
 # Configure tensor parallelism based on module type
-# Configure tensor parallelism based on module type
 if args.module == "mlp":
     # Tensor parallel plan for MLP: split gate/up projections across GPUs,
     # gather down projection outputs
