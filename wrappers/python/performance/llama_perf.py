@@ -13,7 +13,6 @@
 
 import argparse
 import json
-import os
 import pathlib
 import time
 
@@ -24,9 +23,9 @@ from transformers.models.llama.modeling_llama import (
     LlamaAttention, LlamaDecoderLayer, LlamaMLP, LlamaRotaryEmbedding)
 
 import nntile
+from nntile.model.llama import Llama as Llama_nntile
 from nntile.model.llama_attention import (
     LlamaAttention as LlamaAttention_nntile)
-from nntile.model.llama import Llama as Llama_nntile
 from nntile.model.llama_causal import LlamaForCausalLM as LlamaCausal_nntile
 from nntile.model.llama_config import LlamaConfigNNTile
 from nntile.model.llama_decoder import LlamaDecoder as LlamaDecoder_nntile
@@ -111,9 +110,9 @@ assert args.minibatch_size > 0
 assert args.minibatch_size_tile > 0
 assert args.minibatch_size % args.minibatch_size_tile == 0
 
-if not os.path.isdir(args.results_folder):
-    path2res_filder = pathlib.Path(args.results_folder)
-    pathlib.Path.mkdir(path2res_filder, parents=True)
+if not pathlib.Path(args.results_folder).is_dir():
+    path2res_folder = pathlib.Path(args.results_folder)
+    pathlib.Path.mkdir(path2res_folder, parents=True)
 
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
