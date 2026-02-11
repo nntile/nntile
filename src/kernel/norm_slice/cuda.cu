@@ -99,7 +99,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_,
     }
 }
 
-template<typename T, int BLOCK_ROW, int LOOP>
+template<typename T, Index BLOCK_ROW, Index LOOP>
 static __global__
 void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
         Scalar beta_, const T *src2, T *dst)
@@ -123,7 +123,7 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
     Index src_l_block_end = (k/BLOCK_ROW) * BLOCK_ROW;
     using Y = typename T::repr_t;
     const Y alpha = static_cast<Y>(alpha_), beta = static_cast<Y>(beta_);
-    constexpr int BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
+    constexpr Index BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
     volatile __shared__ Y dst_block[BLOCK_ROW_STEP];
     Y dst_val = 0.0;
     // Pointer to a corresponding fiber of the input arrays
@@ -131,7 +131,7 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
             src_l += BLOCK_ROW)
     {
         const T *src1_fiber = src1 + src_l + blockIdx.x*k;
-        for(int c = 0; c < BLOCK_ROW; c += BLOCK_ROW_STEP)
+        for(Index c = 0; c < BLOCK_ROW; c += BLOCK_ROW_STEP)
         {
             Y src1_val = static_cast<Y>(src1_fiber[c]);
             dst_val = ::hypot(dst_val, src1_val);
@@ -149,7 +149,7 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
     dst_block[threadIdx.x] = ::fabs(alpha) * dst_val;
     __syncthreads();
     // Inter-warp reduction
-    for(int c = BLOCK_ROW_STEP>>1; c > 32; c >>= 1)
+    for(Index c = BLOCK_ROW_STEP>>1; c > 32; c >>= 1)
     {
         if(threadIdx.x < c)
         {

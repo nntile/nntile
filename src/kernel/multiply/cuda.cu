@@ -18,23 +18,23 @@
 namespace nntile::kernel::multiply
 {
 
-template<typename T, int BLOCK, int LOOP>
+template<typename T, Index BLOCK, Index LOOP>
 static __global__
 void cuda_kernel(Index nelems, Scalar alpha, const T *src1, const T *src2, T *dst)
 {
-    int i = threadIdx.x + blockIdx.x*BLOCK;
+    Index i = threadIdx.x + blockIdx.x*BLOCK;
     using Y = typename T::repr_t;
     __shared__ T src1_block[BLOCK];
     __shared__ T src2_block[BLOCK];
-    constexpr int BLOCK_STEP = BLOCK / LOOP;
+    constexpr Index BLOCK_STEP = BLOCK / LOOP;
     if((blockIdx.x+1)*BLOCK <= nelems)
     {
-        for(int j = 0; j < BLOCK; j += BLOCK_STEP)
+        for(Index j = 0; j < BLOCK; j += BLOCK_STEP)
         {
             src1_block[threadIdx.x+j] = src1[i+j];
             src2_block[threadIdx.x+j] = src2[i+j];
         }
-        for(int j = 0; j < BLOCK; j += BLOCK_STEP)
+        for(Index j = 0; j < BLOCK; j += BLOCK_STEP)
         {
             dst[i+j] = static_cast<T>(
                     alpha * static_cast<Y>(src1_block[threadIdx.x+j]) *
@@ -43,12 +43,12 @@ void cuda_kernel(Index nelems, Scalar alpha, const T *src1, const T *src2, T *ds
     }
     else
     {
-        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
+        for(Index j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
         {
             src1_block[threadIdx.x+j] = src1[i+j];
             src2_block[threadIdx.x+j] = src2[i+j];
         }
-        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
+        for(Index j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
         {
             dst[i+j] = static_cast<T>(
                     alpha * static_cast<Y>(src1_block[threadIdx.x+j]) *

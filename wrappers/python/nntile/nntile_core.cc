@@ -58,6 +58,9 @@ void def_mod_starpu(py::module_ &m)
     m.def("profiling_init", [](){
             starpu_profiling_init();
             });
+    m.def("profiling_bus_display_summary", [](){
+            starpu_profiling_bus_helper_display_summary();
+                });
     m.def("profiling_enable", [](){
             starpu_profiling_status_set(STARPU_PROFILING_ENABLE);
             starpu_fxt_start_profiling();});

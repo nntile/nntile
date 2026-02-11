@@ -26,16 +26,16 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_,
 /*! @copydoc nntile::kernel::add_inplace::cuda
  * */
 {
-    int i = threadIdx.x + blockIdx.x*BLOCK;
+    Index i = threadIdx.x + blockIdx.x*BLOCK;
     using Y = typename T::repr_t;
     Y dst_block[LOOP];
     Y src_block[LOOP];
     Y alpha = Y{alpha_};
     Y beta = Y{beta_};
-    constexpr int BLOCK_STEP = BLOCK / LOOP;
+    constexpr Index BLOCK_STEP = BLOCK / LOOP;
     if((blockIdx.x+1)*BLOCK <= nelems)
     {
-        for(int j = 0; j < LOOP; ++j)
+        for(Index j = 0; j < LOOP; ++j)
         {
             dst_block[j] = static_cast<Y>(dst[i+j*BLOCK_STEP]);
             src_block[j] = static_cast<Y>(src[i+j*BLOCK_STEP]);
@@ -45,8 +45,8 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_,
     }
     else
     {
-        int j_max = (nelems-i+BLOCK_STEP-1) / BLOCK_STEP;
-        for(int j = 0; j < j_max; ++j)
+        Index j_max = (nelems-i+BLOCK_STEP-1) / BLOCK_STEP;
+        for(Index j = 0; j < j_max; ++j)
         {
             dst_block[j] = static_cast<Y>(dst[i+j*BLOCK_STEP]);
             Y val1 = static_cast<Y>(src[i+j*BLOCK_STEP]);

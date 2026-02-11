@@ -13,19 +13,20 @@
 
 import argparse
 import json
+import pathlib
 import time
 
 import numpy as np
 import torch
-from transformers import LlamaConfig
-# from transformers import LlamaForCausalLM
+from transformers import LlamaConfig, LlamaForCausalLM, LlamaModel
 from transformers.models.llama.modeling_llama import (
-    LlamaAttention, LlamaDecoderLayer, LlamaMLP)
+    LlamaAttention, LlamaDecoderLayer, LlamaMLP, LlamaRotaryEmbedding)
 
 import nntile
-from nntile.layer.llama_attention import (
+from nntile.model.llama import Llama as Llama_nntile
+from nntile.model.llama_attention import (
     LlamaAttention as LlamaAttention_nntile)
-# from nntile.model.llama_causal import LlamaForCausalLM as Llama_nntile
+from nntile.model.llama_causal import LlamaForCausalLM as LlamaCausal_nntile
 from nntile.model.llama_config import LlamaConfigNNTile
 from nntile.model.llama_decoder import LlamaDecoder as LlamaDecoder_nntile
 from nntile.model.llama_mlp import LlamaMLP as LlamaMLP_nntile
@@ -42,7 +43,8 @@ parser = argparse.ArgumentParser(prog="Test performance script for LLaMa",
 
 parser.add_argument("--config-path", type=str, default="")
 parser.add_argument("--submodule", choices=["mlp", "decoder",
-                                            "attention", "causal_llama"],
+                                            "attention", "causal-llama",
+                                            "llama"],
                     default="mlp")
 
 parser.add_argument("--attn-implementation",
@@ -52,18 +54,21 @@ parser.add_argument("--attn-implementation",
 parser.add_argument("--use-torch", action="store_true")
 parser.add_argument("--use-nntile", action="store_true")
 
-parser.add_argument("--n-fwd", type=int, default=0)
-parser.add_argument("--n-fwd-bwd", type=int, default=0)
-
+parser.add_argument("--n-iters", type=int, default=0)
+parser.add_argument("--mode", choices=["fwd", "fwd-bwd"], default="fwd")
 
 parser.add_argument("--seq-len", type=int, default=1024)
 parser.add_argument("--seq-len-tile", type=int, default=-1)
 parser.add_argument("--minibatch-size", type=int, default=1)
 parser.add_argument("--minibatch-size-tile", type=int, default=-1)
 
+parser.add_argument("--hidden-size", type=int, default=-1)
 parser.add_argument("--hidden-size-tile", type=int, default=-1)
+parser.add_argument("--intermediate-size", type=int, default=-1)
 parser.add_argument("--intermediate-size-tile", type=int, default=-1)
 parser.add_argument("--n-head-tile", type=int, default=-1)
+parser.add_argument("--head-dim", type=int, default=-1)
+parser.add_argument("--kv-heads-ratio", type=int, default=1)
 
 parser.add_argument("--dtype", choices=["fp32", "fp32_fast_tf32", "bf16",
                                         "fp32_fast_fp16", "fp32_fast_bf16"],
@@ -77,6 +82,9 @@ parser.add_argument("--logger", action="store_true")
 parser.add_argument("--logger-server-addr", type=str,
                     default="localhost")
 parser.add_argument("--logger-server-port", type=int, default=5001)
+parser.add_argument("--results-folder", type=str, default=".results")
+parser.add_argument("--num-layers", type=int, default=-1)
+
 
 # Parse arguments
 args = parser.parse_args()
@@ -101,8 +109,10 @@ assert args.seq_len_tile > 0
 assert args.minibatch_size > 0
 assert args.minibatch_size_tile > 0
 assert args.minibatch_size % args.minibatch_size_tile == 0
-assert (args.n_fwd == 0 and args.n_fwd_bwd > 0) or \
-       (args.n_fwd > 0 and args.n_fwd_bwd == 0)
+
+if not pathlib.Path(args.results_folder).is_dir():
+    path2res_folder = pathlib.Path(args.results_folder)
+    pathlib.Path.mkdir(path2res_folder, parents=True)
 
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
@@ -119,32 +129,44 @@ f.close()
 llama_torch_config = LlamaConfig(**conf_dict)
 llama_torch_config._attn_implementation = args.attn_implementation
 
+if args.hidden_size != -1:
+    llama_torch_config.hidden_size = args.hidden_size
+    assert args.hidden_size % llama_torch_config.num_attention_heads == 0
+    llama_torch_config.head_dim = args.hidden_size // \
+        llama_torch_config.num_attention_heads
+
+if args.hidden_size != -1 and args.head_dim != -1:
+    llama_torch_config.head_dim = args.head_dim
+    llama_torch_config.num_attention_heads = args.hidden_size // args.head_dim
+    assert llama_torch_config.num_attention_heads % args.kv_heads_ratio == 0
+    llama_torch_config.num_key_value_heads = \
+        llama_torch_config.num_attention_heads // args.kv_heads_ratio
+
+if args.intermediate_size != -1:
+    llama_torch_config.intermediate_size = args.intermediate_size
+
+if args.num_layers != -1:
+    llama_torch_config.num_hidden_layers = args.num_layers
+
 if args.use_nntile:
     # Initialize NNTile and StarPU
     time0 = time.time()
-    nntile.nntile_init(
-        ncpus=-1,
-        ncuda=-1,
-        cublas=1,
-        ooc=0,
-        logger=args.logger,
-        logger_server_addr=args.logger_server_addr,
-        logger_server_port=args.logger_server_port)
+    context = nntile.Context(ncpu=-1, ncuda=-1, ooc=0, logger=0, verbose=0)
     nntile.starpu.profiling_init()
     nntile.starpu.profiling_disable()
     time1 = time.time() - time0
     print("StarPU + NNTile + MPI init in {} seconds".format(time1))
 # Restrict computations to CUDA if possible
 if args.restrict == "cuda":
-    if args.use_nntile:
-        nntile.starpu.restrict_cuda()
     if args.use_torch:
         torch_device = "cuda"
+    # if args.use_nntile:
+    #     nntile.starpu.restrict_cuda()
 elif args.restrict == "cpu":
-    if args.use_nntile:
-        nntile.starpu.restrict_cpu()
     if args.use_torch:
         torch_device = "cpu"
+    # if args.use_nntile:
+    #     nntile.starpu.restrict_cpu()
 
 time0 = time.time()
 if args.n_head_tile == -1:
@@ -169,7 +191,7 @@ if args.use_nntile:
         intermediate_size_tile=args.intermediate_size_tile,
         n_head_tile=args.n_head_tile,
         dtype=args.dtype,
-        flash_attention=args.flash_attention
+        flash_attention=False
     )
 
     print(llama_config_nntile)
@@ -180,9 +202,10 @@ if args.submodule == "mlp":
     x_shape = [llama_torch_config.hidden_size,
                 args.seq_len, args.minibatch_size]
     input_data = gen.standard_normal(x_shape, dtype=np.float32)
-    x_torch = torch.Tensor(np.array(input_data,
+    x_torch = torch.tensor(np.array(input_data,
                                     dtype=np.float32,
-                                    order="F").T)
+                                    order="F").T,
+                                    requires_grad=True)
     if args.use_nntile:
         x_nntile = np.array(input_data, dtype=np.float32, order="F")
         x_type = dtype2nntile[args.dtype]
@@ -219,6 +242,10 @@ elif args.submodule == "decoder":
         mask_torch = mask_torch[None, None, :, :].expand(args.minibatch_size,
                                                 1, -1, -1).to(torch_device)
         pos_ids_torch = torch.tensor(pos_ids).to(torch_device)
+        rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config)\
+            .to(torch_device)
+        pos_embs = rotary_emb(torch_layer_.self_attn.v_proj.weight,
+                                    pos_ids_torch)
     gen = np.random.default_rng(42)
     x_shape = [llama_torch_config.hidden_size,
                 args.seq_len, args.minibatch_size]
@@ -259,11 +286,18 @@ elif args.submodule == "attention":
                             size=(args.minibatch_size, args.seq_len),
                             dtype=np.int64)
     if args.use_torch:
+        torch_layer_ = torch_layer_.to(torch_device)
         mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
                 * torch.finfo(torch.float32).min
         mask_torch = mask_torch[None, None, :, :].expand(args.minibatch_size,
                                                 1, -1, -1).to(torch_device)
-        pos_ids_torch = torch.tensor(pos_ids).to(torch_device)
+        pos_ids_torch = torch.tensor(pos_ids, dtype=torch.long) \
+            .to(torch_device)
+        rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config)\
+            .to(torch_device)
+        pos_embs = rotary_emb(torch_layer_.v_proj.weight,
+                                    pos_ids_torch)
+
     x_shape = [llama_torch_config.hidden_size,
                 args.seq_len, args.minibatch_size]
     x_random = gen.standard_normal(x_shape, dtype=np.float32)
@@ -292,18 +326,107 @@ elif args.submodule == "attention":
         print("Converting PyTorch model to NNTile requires ",
             "{} seconds".format(time1))
         del torch_layer_
-elif args.submodule == "causal_llama":
-    raise ValueError("Causal LLaMa is not supported yet!")
+elif args.submodule == "causal-llama":
+    torch_layer_ = LlamaForCausalLM(llama_torch_config)
+    mask = np.array(np.triu(np.ones((args.seq_len, args.seq_len))),
+                        dtype=bool, order="F")
+    gen = np.random.default_rng(42)
+    pos_ids = gen.integers(args.seq_len,
+                            size=(args.minibatch_size, args.seq_len),
+                            dtype=np.int64)
+    if args.use_torch:
+        # mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
+        #         * torch.finfo(torch.float32).min
+        # mask_torch = mask_torch[None, None, :, :].expand(args.minibatch_size,
+        #                                         1, -1, -1).to(torch_device)
+        pos_ids_torch = torch.tensor(pos_ids).to(torch_device)
+        # rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config) \
+        #   .to(torch_device)
+        # pos_embs = rotary_emb(torch_layer_.self_attn.v_proj.weight,
+        #                             pos_ids_torch)
+
+    x_shape = [args.seq_len, args.minibatch_size]
+    x_random = gen.integers(args.seq_len, size=x_shape, dtype=np.int64)
+    x_torch = torch.tensor(np.array(x_random, order="F").T,
+                           requires_grad=False)
+    if args.use_nntile:
+
+        x_basetile = [
+                    args.seq_len_tile,
+                    args.minibatch_size_tile]
+        x_traits = TensorTraits(x_shape, x_basetile)
+        x_distr = [0] * x_traits.grid.nelems
+        x_type = dtype2nntile[args.dtype]
+        x_nntile = np.array(x_random, dtype=np.int64, order="F")
+        time0 = time.time()
+        nntile_module, _ = LlamaCausal_nntile.from_torch(torch_layer_,
+                                                   args.minibatch_size,
+                                                   args.minibatch_size_tile,
+                                                   args.seq_len,
+                                                   args.seq_len_tile,
+                                                   pos_ids, mask,
+                                                   llama_config_nntile, 0)
+        nntile_module.activations[0].value.from_array(x_nntile)
+        time1 = time.time() - time0
+        print("Converting PyTorch model to NNTile requires ",
+            "{} seconds".format(time1))
+        del torch_layer_
+elif args.submodule == "llama":
+    torch_layer_ = LlamaModel(llama_torch_config)
+    mask = np.array(np.triu(np.ones((args.seq_len, args.seq_len))),
+                        dtype=bool, order="F")
+    gen = np.random.default_rng(42)
+    pos_ids = gen.integers(args.seq_len,
+                            size=(args.minibatch_size, args.seq_len),
+                            dtype=np.int64)
+    if args.use_torch:
+        # mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
+        #         * torch.finfo(torch.float32).min
+        # mask_torch = mask_torch[None, None, :, :].expand(args.minibatch_size,
+        #                                         1, -1, -1).to(torch_device)
+        pos_ids_torch = torch.tensor(pos_ids).to(torch_device)
+        # rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config) \
+        #   .to(torch_device)
+        # pos_embs = rotary_emb(torch_layer_.self_attn.v_proj.weight,
+        #                             pos_ids_torch)
+
+    x_shape = [args.seq_len, args.minibatch_size]
+    x_random = gen.integers(
+        llama_torch_config.vocab_size, size=x_shape, dtype=np.int64
+    )
+    x_torch = torch.tensor(np.array(x_random, order="F").T,
+                           requires_grad=False)
+    if args.use_nntile:
+
+        x_basetile = [
+                    args.seq_len_tile,
+                    args.minibatch_size_tile]
+        x_traits = TensorTraits(x_shape, x_basetile)
+        x_distr = [0] * x_traits.grid.nelems
+        x_type = dtype2nntile[args.dtype]
+        x_nntile = np.array(x_random, dtype=np.int64, order="F")
+        time0 = time.time()
+        nntile_module, _ = Llama_nntile.from_torch(torch_layer_,
+                                                   args.minibatch_size,
+                                                   args.minibatch_size_tile,
+                                                   args.seq_len,
+                                                   args.seq_len_tile,
+                                                   pos_ids, mask,
+                                                   llama_config_nntile, 0)
+        nntile_module.activations[0].value.from_array(x_nntile)
+        time1 = time.time() - time0
+        print("Converting PyTorch model to NNTile requires ",
+            "{} seconds".format(time1))
+        del torch_layer_
+
+    # raise ValueError("Causal LLaMa is not supported yet!")
 
 if args.use_torch and args.torch_compile:
     torch_layer = torch.compile(torch_layer_)
 elif args.use_torch:
     torch_layer = torch_layer_
 
-if args.n_fwd > 0:
-    n_runs = args.n_fwd
-elif args.n_fwd_bwd > 0:
-    n_runs = args.n_fwd_bwd
+timings = []
 
 if args.use_torch:
     if args.dtype == "bf16":
@@ -312,6 +435,7 @@ if args.use_torch:
         if args.submodule in ("decoder", "attention"):
             pos_ids_torch = pos_ids_torch.bfloat16()
             mask_torch = mask_torch.bfloat16()
+            pos_embs = pos_embs.bfloat16()
     if args.dtype == "fp32_fast_bf16":
         torch.set_float32_matmul_precision('medium')
     if args.dtype == "fp32_fast_tf32":
@@ -327,93 +451,122 @@ if args.use_torch:
             output = torch_layer(x_torch)
         elif args.submodule == "decoder":
             output = torch_layer(x_torch,
+                                position_embeddings=pos_embs,
                                 position_ids=pos_ids_torch,
                                 attention_mask=mask_torch)[0]
         elif args.submodule == "attention":
-            output = torch_layer(x_torch,
+            output = torch_layer(x_torch, position_embeddings=pos_embs,
                             position_ids=pos_ids_torch,
                             attention_mask=mask_torch)[0]
-        if args.n_fwd_bwd > 0:
+        elif args.submodule in ("causal-llama", "llama"):
+            output = torch_layer(x_torch,
+                                position_ids=pos_ids_torch).logits
+        if args.mode == "fwd-bwd":
             loss = torch.sum(output)
             loss.backward()
 
     if torch_device == "cuda":
         torch.cuda.synchronize()
-
-    start_torch_time = time.time()
-    for n_fwd_idx in range(n_runs):
+    for n_fwd_idx in range(args.n_iters):
+        start_torch_time = time.time()
         if args.submodule == "mlp":
             output = torch_layer(x_torch)
         elif args.submodule == "decoder":
             output = torch_layer(x_torch,
-                            position_ids=pos_ids_torch,
-                            attention_mask=mask_torch)[0]
+                                 position_embeddings=pos_embs,
+                                 position_ids=pos_ids_torch,
+                                 attention_mask=mask_torch)[0]
         elif args.submodule == "attention":
-            output = torch_layer(x_torch,
+            output = torch_layer(x_torch, position_embeddings=pos_embs,
                             position_ids=pos_ids_torch,
                             attention_mask=mask_torch)[0]
-        if args.n_fwd_bwd > 0:
+        elif args.submodule in ("causal-llama", "llama"):
+            output = torch_layer(x_torch,
+                                 position_ids=pos_ids_torch,
+                                 return_dict=True).logits
+        if args.mode == "fwd-bwd":
             loss = torch.sum(output)
             loss.backward()
-    if torch_device == "cuda":
-        torch.cuda.synchronize()
-    fin_torch_time = time.time()
-    if args.n_fwd_bwd > 0:
+            torch_layer.zero_grad()
+
+        if torch_device == "cuda":
+            torch.cuda.synchronize()
+        timings.append(time.time() - start_torch_time)
+    if args.mode == "fwd-bwd":
         print("PyTorch timing averaged over {} runs fwd + bwd = {}".format(
-                                n_runs,
-                                (fin_torch_time - start_torch_time) /
-                                n_runs))
-    elif args.n_fwd > 0:
+                                args.n_iters, np.mean(np.array(timings))))
+    elif args.mode == "fwd":
         print("PyTorch timing averaged over {} runs of only fwd = {}".format(
-                                n_runs,
-                                (fin_torch_time - start_torch_time) /
-                                n_runs))
+                                args.n_iters, np.mean(np.array(timings))))
+
 
 if args.use_nntile:
 
+    if args.restrict == "cuda":
+        if args.use_nntile:
+            context.restrict_cuda()
+    elif args.restrict == "cpu":
+        if args.use_nntile:
+            context.restrict_cpu()
+
+    if args.mode == "fwd-bwd":
+        nntile_module.clear_gradients()
+        nntile_module.activations[-1].grad.from_array(
+                    np.ones(nntile_module.activations[-1].value.shape,
+                    np.float32, 'F'))
+
     for n_wup in range(args.num_warmup_calls):
         nntile_module.forward_async()
-        if args.n_fwd_bwd > 0:
-            nntile_module.clear_gradients()
-            if args.submodule in ("mlp", "decoder"):
-                nntile_module.activations[-1].grad.from_array(
-                    np.ones(nntile_module.activations[-1].value.shape,
-                    np.float32, 'F'))
-            elif args.submodule == "attention":
-                nntile_module.y.grad.from_array(
-                    np.ones(nntile_module.y.value.shape,
-                    np.float32, 'F'))
+        if args.mode == "fwd-bwd":
             nntile_module.backward_async()
         nntile.starpu.wait_for_all()
 
-    start_nntile_time = time.time()
+    nntile.starpu.profiling_init()
     nntile.starpu.profiling_enable()
-    for run_idx in range(n_runs):
+    nntile.starpu.profiling_bus_display_summary()
+
+    for run_idx in range(args.n_iters):
+        start_nntile_time = time.time()
         nntile_module.forward_async()
-        if args.n_fwd_bwd > 0:
-            nntile_module.clear_gradients()
-            if args.submodule in ("mlp", "decoder"):
-                nntile_module.activations[-1].grad.from_array(
-                    np.ones(nntile_module.activations[-1].value.shape,
-                    np.float32, 'F'))
-            elif args.submodule == "attention":
-                nntile_module.y.grad.from_array(
-                    np.ones(nntile_module.y.value.shape,
-                    np.float32, 'F'))
+        if args.mode == "fwd-bwd":
             nntile_module.backward_async()
         nntile.starpu.wait_for_all()
+        timings.append(time.time() - start_nntile_time)
+
     nntile.starpu.profiling_disable()
-    fin_nntile_time = time.time()
+    # nntile.starpu.profiling_bus_display_summary()
+    if args.submodule != "attention":
+        print("Flops forward = {}".format(nntile_module.get_flops_forward()))
+        print("Flops backward = {}".format(nntile_module.get_flops_backward()))
 
     nntile_module.unregister()
-    if args.submodule == "attention":
-        nntile_module.x.unregister()
-        nntile_module.y.unregister()
-    if args.n_fwd_bwd > 0:
+
+    if args.mode == "fwd-bwd":
         print("NNTile timing averaged over {} runs of fwd + bwd = {}".format(
-                    n_runs,
-                    (fin_nntile_time - start_nntile_time) / n_runs))
-    elif args.n_fwd > 0:
+                    args.n_iters,
+                    np.mean(np.array(timings))))
+    elif args.mode == "fwd":
         print("NNTile timing averaged over {} runs of fwd = {}".format(
-                    n_runs,
-                    (fin_nntile_time - start_nntile_time) / n_runs))
+                    args.n_iters,
+                    np.mean(np.array(timings))))
+if args.use_nntile:
+    backend = "nntile"
+elif args.use_torch and not args.torch_compile:
+    backend = "torch"
+elif args.use_torch and args.torch_compile:
+    backend = "torch-compile"
+
+filename = ""
+if args.hidden_size_tile != -1:
+    filename = filename + "hsizetile_" + str(args.hidden_size_tile)
+if args.seq_len_tile != -1:
+    filename = filename + "_seqlentile_" + str(args.seq_len_tile)
+
+if args.n_head_tile != -1:
+    filename = filename + "_nheadtile_" + str(args.n_head_tile)
+
+if args.intermediate_size_tile != -1:
+    filename = filename + "_intermtile_" + str(args.intermediate_size_tile)
+
+np.savez(args.results_folder + "/" + filename, timings=timings,
+         args=args)

@@ -18,7 +18,7 @@
 namespace nntile::kernel::add
 {
 
-template<typename T, int BLOCK, int LOOP>
+template<typename T, int BLOCK, Index LOOP>
 static __global__
 void cuda_kernel(
     Index nelems,
@@ -32,16 +32,16 @@ void cuda_kernel(
 /* @copydoc nntile::kernel::add::cuda
  * */
 {
-    int i = threadIdx.x + blockIdx.x*BLOCK;
+    Index i = threadIdx.x + blockIdx.x*BLOCK;
     using Y = typename T::repr_t;
     Y dst_block[LOOP];
     Y src_block[LOOP];
     const Y alpha_ = alpha;
     const Y beta_ = beta;
-    constexpr int BLOCK_STEP = BLOCK / LOOP;
+    constexpr Index BLOCK_STEP = BLOCK / LOOP;
     if((blockIdx.x+1)*BLOCK <= nelems)
     {
-        for(int j = 0; j < LOOP; ++j)
+        for(Index j = 0; j < LOOP; ++j)
         {
             src_block[j] = static_cast<Y>(src1[i+j*BLOCK_STEP]);
             dst_block[j] = static_cast<Y>(src2[i+j*BLOCK_STEP]);
@@ -51,8 +51,8 @@ void cuda_kernel(
     }
     else
     {
-        int j_max = (nelems-i+BLOCK_STEP-1) / BLOCK_STEP;
-        for(int j = 0; j < j_max; ++j)
+        Index j_max = (nelems-i+BLOCK_STEP-1) / BLOCK_STEP;
+        for(Index j = 0; j < j_max; ++j)
         {
             src_block[j] = static_cast<Y>(src1[i+j*BLOCK_STEP]);
             dst_block[j] = static_cast<Y>(src2[i+j*BLOCK_STEP]);

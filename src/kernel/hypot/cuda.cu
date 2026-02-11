@@ -25,7 +25,7 @@ void cuda_kernel(Index nelems, Scalar alpha, const T* src1, Scalar beta, const T
 /*! @copydoc nntile::kernel::hypot::cuda
  * */
 {
-    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    Index i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
     const Y alpha_{alpha};
     const Y beta_{beta};
