@@ -13,6 +13,7 @@
 
 import argparse
 import json
+import os
 import pathlib
 import time
 
@@ -23,7 +24,7 @@ from transformers.models.llama.modeling_llama import (
     LlamaAttention, LlamaDecoderLayer, LlamaMLP, LlamaRotaryEmbedding)
 
 import nntile
-from nntile.layer.llama_attention import (
+from nntile.model.llama_attention import (
     LlamaAttention as LlamaAttention_nntile)
 from nntile.model.llama import Llama as Llama_nntile
 from nntile.model.llama_causal import LlamaForCausalLM as LlamaCausal_nntile
@@ -110,7 +111,7 @@ assert args.minibatch_size > 0
 assert args.minibatch_size_tile > 0
 assert args.minibatch_size % args.minibatch_size_tile == 0
 
-if pathlib.Path.is_dir(args.results_folder):
+if not os.path.isdir(args.results_folder):
     path2res_filder = pathlib.Path(args.results_folder)
     pathlib.Path.mkdir(path2res_filder, parents=True)
 
@@ -151,14 +152,7 @@ if args.num_layers != -1:
 if args.use_nntile:
     # Initialize NNTile and StarPU
     time0 = time.time()
-    nntile.nntile_init(
-        ncpus=-1,
-        ncuda=-1,
-        cublas=1,
-        ooc=0,
-        logger=args.logger,
-        logger_server_addr=args.logger_server_addr,
-        logger_server_port=args.logger_server_port)
+    context = nntile.Context(ncpu=-1, ncuda=-1, ooc=0, logger=0, verbose=0)
     nntile.starpu.profiling_init()
     nntile.starpu.profiling_disable()
     time1 = time.time() - time0
@@ -198,7 +192,7 @@ if args.use_nntile:
         intermediate_size_tile=args.intermediate_size_tile,
         n_head_tile=args.n_head_tile,
         dtype=args.dtype,
-        flash_attention=args.flash_attention
+        flash_attention=False
     )
 
     print(llama_config_nntile)
@@ -511,21 +505,16 @@ if args.use_nntile:
 
     if args.restrict == "cuda":
         if args.use_nntile:
-            nntile.starpu.restrict_cuda()
+            context.restrict_cuda()
     elif args.restrict == "cpu":
         if args.use_nntile:
-            nntile.starpu.restrict_cpu()
+            context.restrict_cpu()
 
     if args.mode == "fwd-bwd":
         nntile_module.clear_gradients()
-        if args.submodule in ("mlp", "decoder", "causal-llama", "llama"):
-            nntile_module.activations[-1].grad.from_array(
-                        np.ones(nntile_module.activations[-1].value.shape,
-                        np.float32, 'F'))
-        elif args.submodule == "attention":
-            nntile_module.y.grad.from_array(
-                        np.ones(nntile_module.y.value.shape,
-                        np.float32, 'F'))
+        nntile_module.activations[-1].grad.from_array(
+                    np.ones(nntile_module.activations[-1].value.shape,
+                    np.float32, 'F'))
 
     for n_wup in range(args.num_warmup_calls):
         nntile_module.forward_async()
@@ -552,9 +541,7 @@ if args.use_nntile:
         print("Flops backward = {}".format(nntile_module.get_flops_backward()))
 
     nntile_module.unregister()
-    if args.submodule == "attention":
-        nntile_module.x.unregister()
-        nntile_module.y.unregister()
+
     if args.mode == "fwd-bwd":
         print("NNTile timing averaged over {} runs of fwd + bwd = {}".format(
                     args.n_iters,

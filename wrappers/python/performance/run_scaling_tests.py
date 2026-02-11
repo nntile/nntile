@@ -39,8 +39,8 @@ print(args)
 # Define parameter ranges for scaling tests
 # Hidden sizes from 512 to 16384
 hidden_size_list = [512 * i for i in range(1, 33)]
-seq_len_list = [1024]  # Sequence lengths to test
-head_dims = [64, 128, 256]  # Attention head dimensions
+seq_len_list = [4096]  # Sequence lengths to test
+head_dims = [256]  # Attention head dimensions
 
 # Configure device settings
 backend = args.backend
@@ -75,16 +75,9 @@ elif backend == "torch-compile":
     cmd_string = cmd_string + " --use-torch --torch-compile"
 for seq_len in seq_len_list:
     current_cmd = cmd_string + " --seq-len=" + str(seq_len)
-    # current_cmd = current_cmd + " --results-folder=.results/fixed_headdim" \
-    #   "_kvheadratio{}/".format(kv_heads_ratio) + submodule + "_" + mode
-    # current_cmd = current_cmd + " --results-folder=.results/" + submodule + \
-    #   "_" + mode + "_" + "kvheadsratio_{}_session2".format(kv_heads_ratio)
     current_cmd = current_cmd + " --results-folder=.results/" + submodule + \
         "_" + mode
     current_cmd = current_cmd + "/seq-len_" + str(seq_len)
-    # for h_d in head_dims:
-    #     current_cmd_hd = current_cmd + "/head-dim_" + str(h_d) + \
-    #       " --head-dim=" + str(h_d)
     for h_size in hidden_size_list:
         current_cmd_h = current_cmd + " --hidden-size=" + str(h_size)
         print(current_cmd_h)
