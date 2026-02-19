@@ -17,7 +17,7 @@
 #include <stdexcept>
 
 #include "nntile/base_types.hh"
-#include "nntile/tensor/adam_step.hh"
+#include "nntile/tensor/adamw_step.hh"
 
 namespace nntile::graph
 {
@@ -35,11 +35,9 @@ void run_adamw_step(CompiledGraph& graph, const AdamStepAttrs& attrs,
     auto& second_moment = graph.get_tensor<T>(second_moment_name);
     auto& p = graph.get_tensor<T>(p_name);
 
-    // For AdamW, we use the same function as Adam but the weight decay handling is different
-    // The tensor operation handles this internally
-    nntile::tensor::adam_step<T>(attrs.num_iter, attrs.beta_1, attrs.beta_2,
-                                attrs.eps, attrs.lr, attrs.weight_decay,
-                                grad, first_moment, second_moment, p);
+    nntile::tensor::adamw_step<T>(attrs.num_iter, attrs.beta_1, attrs.beta_2,
+                                 attrs.eps, attrs.lr, attrs.weight_decay,
+                                 grad, first_moment, second_moment, p);
 }
 
 } // namespace

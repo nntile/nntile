@@ -44,7 +44,7 @@ void scale_slice(
             "scale_slice: tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= x.ndim())
+    if(axis < 0 || axis >= y.ndim())
     {
         throw std::invalid_argument(
             "scale_slice: axis out of bounds");

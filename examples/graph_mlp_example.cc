@@ -42,8 +42,9 @@ int main(int argc, char** argv) {
         graph, "mlp", 8, 16, 4, nntile::graph::DataType::FP32);
 
     // Create input tensor (requires_grad to compute input gradients)
+    // NNTile uses (features, batch) ordering.
     auto& input_tensor = graph.tensor(
-        {4, 8},
+        {8, 4},
         "external_input",
         nntile::graph::DataType::FP32,
         true);
@@ -68,7 +69,7 @@ int main(int argc, char** argv) {
         graph.logical_graph());
 
     // Generate random input data
-    std::vector<float> input_data(4 * 8);
+    std::vector<float> input_data(8 * 4);
     std::random_device rd;
     std::mt19937 gen(rd());
     std::normal_distribution<float> dist(0.0f, 1.0f);
@@ -124,12 +125,15 @@ int main(int argc, char** argv) {
         mlp.fc1().grad_name("weight"));
     auto grad_w2 = compiled_graph.get_output<float>(
         mlp.fc2().grad_name("weight"));
-    auto grad_input = compiled_graph.get_output<float>(
-        input_tensor.grad()->name());
-
     std::cout << "Weight1 grad size: " << grad_w1.size() << std::endl;
     std::cout << "Weight2 grad size: " << grad_w2.size() << std::endl;
-    std::cout << "Input grad size: " << grad_input.size() << std::endl;
+    if (input_tensor.has_grad()) {
+        auto grad_input = compiled_graph.get_output<float>(
+            input_tensor.grad()->name());
+        std::cout << "Input grad size: " << grad_input.size() << std::endl;
+    } else {
+        std::cout << "Input grad not available." << std::endl;
+    }
 
     std::cout << "\nMLP module successfully created and graphs built!" << std::endl;
 

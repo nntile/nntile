@@ -46,6 +46,8 @@
 #include <nntile/graph/logical/hypot_inplace.hh>
 #include <nntile/graph/logical/hypot_scalar_inverse.hh>
 #include <nntile/graph/logical/fill.hh>
+#include <nntile/graph/logical/embedding.hh>
+#include <nntile/graph/logical/embedding_backward.hh>
 #include <nntile/graph/logical/copy.hh>
 #include <nntile/graph/logical/transpose.hh>
 // #include <nntile/graph/logical/scatter.hh>

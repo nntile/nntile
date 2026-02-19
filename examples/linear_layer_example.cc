@@ -42,8 +42,9 @@ int main(int argc, char** argv) {
         graph, "linear1", 8, 4, nntile::graph::DataType::FP32);
 
     // Create input tensor (requires_grad to compute input gradients)
+    // NNTile uses (features, batch) ordering.
     auto& input_tensor = graph.tensor(
-        {4, 8},
+        {8, 4},
         "external_input",
         nntile::graph::DataType::FP32,
         true);
@@ -68,7 +69,7 @@ int main(int argc, char** argv) {
         graph.logical_graph());
 
     // Generate random input data
-    std::vector<float> input_data(4 * 8);
+    std::vector<float> input_data(8 * 4);
     std::random_device rd;
     std::mt19937 gen(rd());
     std::normal_distribution<float> dist(0.0f, 1.0f);
@@ -104,7 +105,7 @@ int main(int argc, char** argv) {
         end - start).count();
 
     std::cout << "Graph execution time: " << duration << " microseconds" << std::endl;
-    std::cout << "Input shape: [4, 8]" << std::endl;
+    std::cout << "Input shape: [8, 4]" << std::endl;
     std::cout << "Output shape: [4, 4]" << std::endl;
 
     // Get output data from the output tensor

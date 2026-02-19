@@ -26,8 +26,8 @@ namespace
 {
 
 template<typename T>
-void run_gather(CompiledGraph& graph, const ClearAttrs& attrs,
-                const std::string& x_name, const std::string& y_name)
+void run_gather(CompiledGraph& graph, const std::string& x_name,
+                const std::string& y_name)
 {
     auto& x = graph.get_tensor<T>(x_name);
     auto& y = graph.get_tensor<T>(y_name);
@@ -39,7 +39,6 @@ void run_gather(CompiledGraph& graph, const ClearAttrs& attrs,
 
 void execute_gather(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const ClearAttrs& attrs = std::get<ClearAttrs>(op_info.attrs);
     const std::string& x_name = op_info.input_names[0];
     const std::string& y_name = op_info.output_names[0];
     DataType dtype = graph.get_dtype(x_name);
@@ -47,25 +46,25 @@ void execute_gather(CompiledGraph& graph, const OpExecutionInfo& op_info)
     switch(dtype)
     {
         case DataType::FP32:
-            run_gather<nntile::fp32_t>(graph, attrs, x_name, y_name);
+            run_gather<nntile::fp32_t>(graph, x_name, y_name);
             break;
         case DataType::FP32_FAST_TF32:
-            run_gather<nntile::fp32_fast_tf32_t>(graph, attrs, x_name, y_name);
+            run_gather<nntile::fp32_fast_tf32_t>(graph, x_name, y_name);
             break;
         case DataType::FP32_FAST_FP16:
-            run_gather<nntile::fp32_fast_fp16_t>(graph, attrs, x_name, y_name);
+            run_gather<nntile::fp32_fast_fp16_t>(graph, x_name, y_name);
             break;
         case DataType::FP32_FAST_BF16:
-            run_gather<nntile::fp32_fast_bf16_t>(graph, attrs, x_name, y_name);
+            run_gather<nntile::fp32_fast_bf16_t>(graph, x_name, y_name);
             break;
         case DataType::FP64:
-            run_gather<nntile::fp64_t>(graph, attrs, x_name, y_name);
+            run_gather<nntile::fp64_t>(graph, x_name, y_name);
             break;
         case DataType::FP16:
-            run_gather<nntile::fp16_t>(graph, attrs, x_name, y_name);
+            run_gather<nntile::fp16_t>(graph, x_name, y_name);
             break;
         case DataType::BF16:
-            run_gather<nntile::bf16_t>(graph, attrs, x_name, y_name);
+            run_gather<nntile::bf16_t>(graph, x_name, y_name);
             break;
         case DataType::INT64:
         case DataType::INT32:

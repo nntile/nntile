@@ -45,16 +45,22 @@ void scale_fiber(
             "scale_fiber: tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= x.ndim())
+    if(batch_ndim < 0 || batch_ndim >= y.ndim())
+    {
+        throw std::invalid_argument(
+            "scale_fiber: invalid batch_ndim");
+    }
+
+    if(axis < 0 || axis >= y.ndim() - batch_ndim)
     {
         throw std::invalid_argument(
             "scale_fiber: axis out of bounds");
     }
 
-    if(batch_ndim < 0 || axis + batch_ndim > x.ndim())
+    if(x.ndim() != batch_ndim + 1)
     {
         throw std::invalid_argument(
-            "scale_fiber: invalid batch_ndim");
+            "scale_fiber: scaling tensor must have batch_ndim+1 dimensions");
     }
 
     OpAttrs attrs = ReductionAttrs{alpha, 0.0, axis, batch_ndim, 0};  // beta=0, redux=0
