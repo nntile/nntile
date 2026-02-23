@@ -6,7 +6,7 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file Dockerfile.new
+# @file Dockerfile
 # Instructions for Docker to build an image for testing with NNTile and Torch
 # using conda/miniconda for all dependencies
 #
