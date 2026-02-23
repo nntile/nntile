@@ -13,17 +13,18 @@
  * */
 
 #include "nntile/logger/logger_thread.hh"
+#include "nntile/logger/tcp_client.hh"
+#include <nlohmann/json.hpp>
 #include <iostream>
-#include <sstream>
 #include <thread>
 #include <atomic>
 #include <map>
 #include <vector>
 #include <mutex>
+#include <chrono>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <starpu.h>
-#include "nntile/logger/websocket_client.hh"
 
 namespace nntile::logger
 {
@@ -37,12 +38,37 @@ std::mutex scalars_mutex;
 //! Scalar map
 std::map<std::string, std::vector<float>> scalars;
 
+//! Reconnection parameters
+constexpr int RECONNECT_BASE_DELAY_MS = 1000;
+constexpr int RECONNECT_MAX_DELAY_MS = 60000;
+constexpr int RECONNECT_MAX_ATTEMPTS = 10;
+
+//! Attempt reconnection with exponential backoff
+bool try_reconnect(const char *server_addr, int server_port)
+{
+    for (int attempt = 0; attempt < RECONNECT_MAX_ATTEMPTS && logger_running;
+         ++attempt)
+    {
+        int delay_ms = std::min(
+            RECONNECT_BASE_DELAY_MS * (1 << attempt),
+            RECONNECT_MAX_DELAY_MS);
+        std::cerr << "Logger: reconnecting in " << delay_ms << " ms (attempt "
+                  << (attempt + 1) << "/" << RECONNECT_MAX_ATTEMPTS << ")"
+                  << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+
+        if (tcp_connect(server_addr, server_port))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 //! Main routine for the logger thread
-void logger_main()
+void logger_main(const char *server_addr, int server_port)
 {
     // At first get worker count, bus count and check if starpu is initialized
-    int workerid;
-    int busid;
     int worker_cnt = starpu_worker_get_count();
     int bus_cnt = starpu_bus_get_count();
     int is_initialized = starpu_is_initialized();
@@ -51,143 +77,113 @@ void logger_main()
     std::cout << "BUS COUNT: " << bus_cnt << std::endl;
     std::cout << "MEMNODES COUNT: " << memnodes_cnt << std::endl;
     std::cout << "IS initialized : " << is_initialized << std::endl;
-    // Infinite loop until NNTile exits this thread
+
     while (logger_running)
     {
-        std::stringstream ss;
-        ss << "{";
-        ss << "\"workers\":[";
-        bool first_worker = true;
-        // Loop through all workers to get their activities
-        for (workerid = 0; workerid < worker_cnt; workerid++)
+        if (!tcp_is_connected())
         {
-            // Profiling info is read from StarPU
+            if (!try_reconnect(server_addr, server_port))
+            {
+                std::cerr << "Logger: max reconnection attempts reached, "
+                             "stopping logger thread"
+                          << std::endl;
+                break;
+            }
+        }
+
+        nlohmann::json j;
+        j["workers"] = nlohmann::json::array();
+        j["buses"] = nlohmann::json::array();
+        j["memory_nodes"] = nlohmann::json::array();
+
+        // Loop through all workers to get their activities
+        for (int workerid = 0; workerid < worker_cnt; workerid++)
+        {
             struct starpu_profiling_worker_info info;
             int ret = starpu_profiling_worker_get_info(workerid, &info);
             if (ret != 0)
                 continue;
-            if (!first_worker)
-                ss << ",";
-            first_worker = false;
-            // Get name of the worker
-            // TODO: move this out of infinite loop
+
             char name[64];
             starpu_worker_get_name(workerid, name, sizeof(name));
-            // Read how long the worker is running
-            double total_time = starpu_timing_timespec_to_us(&info.total_time)
-                * 1e-6;
-            // Read how many FLOPs are performed by the worker
-            double flops = 0.0;
-            if (info.flops)
-                flops = info.flops;
-            // Create JSON object for the worker
-            ss << "{";
-            ss << "\"name\":\"" << name << "\",";
-            ss << "\"total_time\":" << total_time << ",";
-            ss << "\"flops\":" << flops;
-            ss << "}";
+            double total_time =
+                starpu_timing_timespec_to_us(&info.total_time) * 1e-6;
+            double flops = info.flops ? info.flops : 0.0;
+
+            j["workers"].push_back({{"name", name},
+                                   {"total_time", total_time},
+                                   {"flops", flops}});
         }
-        ss << "],";
 
         // Loop through buses (virtual links from one device to another)
-        ss << "\"buses\":[";
-        bool first_bus = true;
-        for (busid = 0; busid < bus_cnt; busid++)
+        for (int busid = 0; busid < bus_cnt; busid++)
         {
             int src, dst;
             char src_name[128], dst_name[128];
-            // Profiling info is read from StarPU
             struct starpu_profiling_bus_info info;
             int ret = starpu_bus_get_profiling_info(busid, &info);
             if (ret != 0)
                 continue;
-            if (!first_bus)
-                ss << ",";
-            first_bus = false;
-            // Read the profiling information for the bus
-            double total_bus_time = starpu_timing_timespec_to_us(&info.total_time)
-                * 1e-6;
+
+            double total_bus_time =
+                starpu_timing_timespec_to_us(&info.total_time) * 1e-6;
             uint64_t transferred_bytes = info.transferred_bytes;
             src = starpu_bus_get_src(busid);
-		    dst = starpu_bus_get_dst(busid);
+            dst = starpu_bus_get_dst(busid);
             starpu_memory_node_get_name(src, src_name, sizeof(src_name));
-		    starpu_memory_node_get_name(dst, dst_name, sizeof(dst_name));
-            // Create JSON object for the bus
-            ss << "{";
-            ss << "\"total_bus_time\":" << total_bus_time << ",";
-            ss << "\"transferred_bytes\":" << transferred_bytes << ",";
-            ss << "\"src_name\":\"" << src_name << "\",";
-            ss << "\"dst_name\":\"" << dst_name << "\"";
-            ss << "}";
+            starpu_memory_node_get_name(dst, dst_name, sizeof(dst_name));
+
+            j["buses"].push_back(
+                {{"total_bus_time", total_bus_time},
+                 {"transferred_bytes", transferred_bytes},
+                 {"src_name", src_name},
+                 {"dst_name", dst_name}});
         }
-        ss << "],";
 
         // Get memory usage information for each memory node
-        ss << "\"memory_nodes\":[";
-        bool first_memory_node = true;
-        for (unsigned memory_node = 0; memory_node < memnodes_cnt; memory_node++)
+        for (unsigned memory_node = 0; memory_node < memnodes_cnt;
+             memory_node++)
         {
-            if (!first_memory_node)
-                ss << ",";
-            first_memory_node = false;
             char memory_node_name[128];
-            // Read the profiling information for the memory node
-            starpu_memory_node_get_name(memory_node, memory_node_name, sizeof(memory_node_name));
+            starpu_memory_node_get_name(memory_node, memory_node_name,
+                                        sizeof(memory_node_name));
             size_t node = starpu_memory_get_used(memory_node);
-            ss << "{";
-            ss << "\"name\":\"" << memory_node_name << "\",";
-            ss << "\"size\":" << node;
-            ss << "}";
+            j["memory_nodes"].push_back(
+                {{"name", memory_node_name}, {"size", node}});
         }
-        ss << "]";
 
         // Read logged scalar values
-        std::unique_lock<std::mutex> lock(scalars_mutex);
-        if (!scalars.empty())
         {
-            ss << ",\"scalars\":[";
-            bool first_scalar = true;
-            for (auto &[name, values] : scalars)
+            std::lock_guard<std::mutex> lock(scalars_mutex);
+            if (!scalars.empty())
             {
-                if (!values.empty())
+                j["scalars"] = nlohmann::json::array();
+                for (auto &[name, values] : scalars)
                 {
-                    if (!first_scalar)
-                        ss << ",";
-                    first_scalar = false;
-
-                    ss << "{";
-                    ss << "\"name\":\"" << name << "\",";
-                    ss << "\"values\":[";
-
-                    bool first_value = true;
-                    for (float value : values)
+                    if (!values.empty())
                     {
-                        if (!first_value)
-                            ss << ",";
-                        first_value = false;
-                        ss << value;
+                        j["scalars"].push_back(
+                            {{"name", name}, {"values", values}});
+                        values.clear();
                     }
-
-                    ss << "]}";
-
-                    values.clear();
                 }
+                scalars.clear();
             }
-            ss << "]";
         }
-        ss << "}";
-        //Clear scalar map
-        scalars.clear();
-        //Unlock mutex
-        lock.unlock();
-        // Serialize JSON object to string
-        std::string message = ss.str() + "\n";
-        // Send the message
-        if (send(client_socket, message.c_str(), message.length(), 0) != (ssize_t)message.length())
+
+        std::string message = j.dump() + "\n";
+
+        ssize_t sent =
+            send(client_socket, message.c_str(), message.length(), 0);
+        if (sent != static_cast<ssize_t>(message.length()))
         {
-            perror("send");
+            if (sent < 0)
+            {
+                perror("Logger send");
+            }
+            tcp_disconnect();
         }
-        // Wait for 0.5 seconds until next time we read activities
+
         usleep(500000);
     }
 }
@@ -195,11 +191,15 @@ void logger_main()
 //! Initialization of the logger thread
 void logger_init(const char *server_addr, int server_port)
 {
-    // Connect to websocket
-    websocket_connect(server_addr, server_port);
-    // Start main logger thread function
+    if (!tcp_connect(server_addr, server_port))
+    {
+        std::cout << "Logger: server unavailable, logging disabled"
+                  << std::endl;
+        return;
+    }
+
     logger_running = true;
-    logger_thread = std::thread(logger_main);
+    logger_thread = std::thread(logger_main, server_addr, server_port);
 }
 
 //! Finalize logger thread
@@ -211,17 +211,13 @@ void logger_shutdown()
     {
         logger_thread.join();
     }
-    websocket_disconnect();
+    tcp_disconnect();
 }
 
 //! Log scalar to scalar map
 void log_scalar(const std::string &name, float value)
 {
     std::lock_guard<std::mutex> lock(scalars_mutex);
-    if (scalars.find(name) == scalars.end())
-    {
-        scalars[name] = std::vector<float>();
-    }
     scalars[name].push_back(value);
 }
 

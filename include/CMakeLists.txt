@@ -441,7 +441,7 @@ set(OPTIMIZER_HDR
 
 set(LOGGER_HDR
     "nntile/logger/logger_thread.hh"
-    "nntile/logger/websocket_client.hh"
+    "nntile/logger/tcp_client.hh"
     )
 
 set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR}
