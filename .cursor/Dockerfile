@@ -193,18 +193,3 @@ ENV PYTHONPATH=/workspace/nntile/build/wrappers/python
 
 # Open Jupyter Lab and Tensorboard ports
 EXPOSE 8888 6006
-
-# Target "nntile" contains compiled NNTile with set up PYTHONPATH
-FROM sandbox AS nntile
-
-# Copy all sources
-ADD . /workspace/nntile
-
-# Configure the NNTile (CPU-only build)
-RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
-    -DUSE_CUDA=OFF \
-    -GNinja
-
-# Finally, build the NNTile inplace without installation
-RUN cmake --build build -j ${MAKE_JOBS}
