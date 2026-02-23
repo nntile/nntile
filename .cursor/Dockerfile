@@ -1,3 +1,4 @@
+# CPU-only development image for NNTile (no CUDA/GPU support)
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -6,32 +7,29 @@ RUN --mount=type=cache,target=/var/cache/apt \
     rm -rfv /etc/apt/apt.conf.d/docker* && \
     apt update && \
     apt install -y --no-install-recommends \
-        autoconf automake binutils build-essential cmake \
-        cmake-curses-gui curl git g++ lcov libhwloc-dev \
-        libopenblas-dev libtool-bin ninja-build pkg-config python3 \
-        python3-dev python-is-python3 python3-pip && \
+        autoconf automake binutils build-essential ca-certificates \
+        clang cmake cmake-curses-gui curl fxt-tools git g++ lcov \
+        libfxt-dev libhwloc-dev libopenblas-dev libopenmpi-dev \
+        libopenmpi3 libtool-bin lsb-release ninja-build openmpi-bin \
+        pkg-config python3 python3-dev python-is-python3 python3-pip \
+        python3-venv && \
     find /var/lib/apt/lists -type f -print -delete
 
 WORKDIR /workspace
 
 RUN chown -R ubuntu:ubuntu /workspace
 
-# Compile and install StarPU of a given version (or a hash of commit) using
-# parallel build
-ARG MAKE_JOBS=1
+# Compile and install StarPU (CPU-only, no CUDA)
+ARG MAKE_JOBS=4
 
-# Use starpu-1.4.8 tag
 ARG STARPU_VERSION=1.4.8
 
-ENV STARPU_LABEL=starpu-${STARPU_VERSION}
-
-ENV STARPU_URL=https://gitlab.inria.fr/starpu/starpu/-/archive
-
-ENV STARPU_URL=${STARPU_URL}/${STARPU_LABEL}/starpu-${STARPU_LABEL}.tar.gz
-
 RUN set -xe && \
-    curl -SL ${STARPU_URL} | tar -xzC /workspace && \
-    cd /workspace/starpu-${STARPU_LABEL} && \
+    export STARPU_LABEL=starpu-${STARPU_VERSION} && \
+    mkdir -p /usr/src && \
+    curl -SL https://gitlab.inria.fr/starpu/starpu/-/archive/${STARPU_LABEL}/starpu-${STARPU_LABEL}.tar.gz \
+        | tar -xzC /usr/src && \
+    cd /usr/src/starpu-${STARPU_LABEL} && \
     ./autogen.sh && \
     ./configure \
         --disable-build-doc \
@@ -43,19 +41,23 @@ RUN set -xe && \
         --disable-starpufft \
         --disable-starpupy \
         --enable-blas-lib=none \
-        --enable-maxbuffers=4 && \
-    make -j $MAKE_JOBS && \
+        --enable-maxcudadev=0 \
+        --enable-maxbuffers=16 \
+        --with-fxt \
+        --prefix=/usr && \
+    make -j ${MAKE_JOBS} && \
     make install && \
-    rm -rf /workspace/starpu-${STARPU_LABEL} && \
-    echo '/usr/local/lib' > /etc/ld.so.conf.d/starpu.conf && \
+    rm -rf /usr/src/starpu-${STARPU_LABEL} && \
     ldconfig
 
-ENV STARPU_SILENT=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
+ENV STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
+ENV OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 
+# Python dependencies (CPU-only PyTorch)
 RUN pip3 install --break-system-packages \
-    numpy scipy fastapi uvicorn pydantic isort mypy \
+    numpy scipy fastapi uvicorn pydantic isort mypy pre-commit \
     ruff sentencepiece datasets pytest pytest-cov pytest-dirty \
-    tokenizers "transformers<=4.52" markupsafe
+    tokenizers "transformers<=4.52" "markupsafe<3"
 
 RUN pip3 install --break-system-packages \
     torch torchvision --index-url https://download.pytorch.org/whl/cpu
