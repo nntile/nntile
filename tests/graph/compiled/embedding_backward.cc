@@ -14,6 +14,8 @@
 
 #include "compiled_test_utils.hh"
 
+#include <cstdint>
+
 #include "nntile/tensor/embedding_backward.hh"
 #include "nntile/graph/logical/embedding_backward.hh"
 
@@ -45,9 +47,9 @@ TEST_CASE_METHOD(
         nntile::tensor::Tensor<T> embed_tensor(embed_traits);
 
         // Generate the same index data as bind_inputs does for INT64
-        std::vector<long long> index_data(6);
+        std::vector<std::int64_t> index_data(6);
         for(size_t i = 0; i < 6; ++i) {
-            index_data[i] = static_cast<long long>(i % 4); // Keep within vocab_size=4
+            index_data[i] = static_cast<std::int64_t>(i % 4); // Keep within vocab_size=4
         }
 
         write_tensor(index_tensor, index_data);
