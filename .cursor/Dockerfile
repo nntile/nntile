@@ -14,9 +14,7 @@
 # @version 1.1.0
 
 # Set base OS (CPU-only, no CUDA base image)
-ARG BASE_OS=22.04
-
-ARG BASE_IMAGE=ubuntu:${BASE_OS}
+ARG BASE_IMAGE=ubuntu:22.04
 
 # Read the base image. Target "sandbox" contains all the NNTile prerequisites
 # and is meant for the NNTile development
