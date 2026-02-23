@@ -208,6 +208,10 @@ EXPOSE 8888 6006
 # Target "nntile" contains compiled NNTile with set up PYTHONPATH
 FROM sandbox AS nntile
 
+# Re-declare ARGs used in this stage (ARGs do not persist across build stages)
+ARG MAKE_JOBS=1
+ARG CUDA_ARCHS=70;75;80;86;89;90;100;120
+
 # Copy all sources
 ADD . /workspace/nntile
 
