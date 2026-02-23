@@ -6,7 +6,7 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file Dockerfile
+# @file .cursor/Dockerfile
 # CPU-only variant for Cursor development environment (no CUDA/GPU support).
 # Instructions for Docker to build an image for testing with NNTile and Torch
 # using conda/miniconda for all dependencies.
