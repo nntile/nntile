@@ -165,7 +165,7 @@ RUN --mount=type=cache,target=/tmp \
     set -xe && \
     cd /tmp && \
     export NAME=starpu-${STARPU_VERSION} && \
-    export URL=https://github.com/starpu-runtime/starpu/archive/refs/tags/ && \
+    export URL=https://github.com/starpu-runtime/starpu/archive/refs/tags && \
     export URL=${URL}/${NAME}.tar.gz && \
     wget -q ${URL} -O ${NAME}.tar.gz && \
     mkdir -p ${NAME} && \
