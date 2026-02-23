@@ -69,8 +69,9 @@ void Gelu::build_backward()
 
     if(graph_.requires_grad(*input_tensor_))
     {
+        // Use input tensor's own name for its gradient (input is not a parameter)
         graph::NNGraph::TensorNode& grad_input = graph_.get_or_create_grad(
-            *input_tensor_, grad_name("input"));
+            *input_tensor_, input_tensor_->name() + "_grad");
 
         graph_.add_op(
             graph::OpType::GELU_BACKWARD,

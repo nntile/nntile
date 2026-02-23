@@ -219,7 +219,10 @@ public:
     //! Generate full tensor name: "module_name_local_name"
     std::string tensor_name(const std::string& local_name) const;
 
-    //! Generate gradient tensor name: "module_name_local_name_grad"
+    //! Generate gradient tensor name for a registered parameter:
+    //! "module_name_local_name_grad". Use only for module parameters (e.g.
+    //! "weight", "bias"), not for external input tensors. For input gradients,
+    //! use input_tensor->name() + "_grad".
     std::string grad_name(const std::string& local_name) const;
 
     // -----------------------------------------------------------------

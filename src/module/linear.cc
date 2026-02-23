@@ -277,8 +277,9 @@ void Linear::build_backward()
     if(graph_.requires_grad(*input_tensor_))
     {
         bool first_input_grad = graph_.is_first_grad(*input_tensor_);
+        // Use input tensor's own name for its gradient (input is not a parameter)
         graph::NNGraph::TensorNode& grad_input = graph_.get_or_create_grad(
-            *input_tensor_, grad_name("input"));
+            *input_tensor_, input_tensor_->name() + "_grad");
 
         Scalar beta_input = first_input_grad ? 0.0 : 1.0;
 

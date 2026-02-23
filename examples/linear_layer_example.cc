@@ -114,11 +114,11 @@ int main(int argc, char** argv) {
     }
     std::cout << "..." << std::endl;
 
-    // Get gradients
+    // Get gradients (weight is a parameter; input gradient uses tensor's name)
     auto grad_weight = compiled_graph.get_output<float>(
         linear.grad_name("weight"));
     auto grad_input = compiled_graph.get_output<float>(
-        linear.grad_name("input"));
+        input_tensor.name() + "_grad");
 
     std::cout << "Weight grad size: " << grad_weight.size() << std::endl;
     std::cout << "Input grad size: " << grad_input.size() << std::endl;
