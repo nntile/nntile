@@ -80,17 +80,15 @@ int main(int argc, char** argv) {
     // Bind input data to the external input tensor
     compiled_graph.bind_data("external_input", input_data);
 
-    // Initialize weights
+    // Initialize weights (reuse gen from input data generation)
     std::vector<float> w1_data(8 * 16);
     std::vector<float> w2_data(16 * 4);
-    std::random_device rd2;
-    std::mt19937 gen2(rd2());
     std::normal_distribution<float> dist2(0.0f, 0.1f);
     for (auto& val : w1_data) {
-        val = dist2(gen2);
+        val = dist2(gen);
     }
     for (auto& val : w2_data) {
-        val = dist2(gen2);
+        val = dist2(gen);
     }
 
     compiled_graph.bind_data(mlp.fc1().weight_tensor()->name(), w1_data);

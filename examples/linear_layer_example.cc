@@ -82,13 +82,11 @@ int main(int argc, char** argv) {
     // Bind input data to the external input tensor
     compiled_graph.bind_data("external_input", input_data);
 
-    // Initialize weight data
+    // Initialize weight data (reuse gen from input data generation)
     std::vector<float> weight_data(linear.input_dim() * linear.output_dim());
-    std::random_device rd2;
-    std::mt19937 gen2(rd2());
     std::normal_distribution<float> dist2(0.0f, 0.1f);
     for (auto& val : weight_data) {
-        val = dist2(gen2);
+        val = dist2(gen);
     }
     compiled_graph.bind_data(linear.weight_tensor()->name(), weight_data);
 
