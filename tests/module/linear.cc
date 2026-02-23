@@ -109,6 +109,18 @@ TEST_CASE("Linear BuildForwardValidatesInputDim", "[module]")
         std::invalid_argument);
 }
 
+TEST_CASE("Linear BuildForwardRejectsScalarTensor", "[module]")
+{
+    NNGraph g("linear");
+
+    auto& scalar = g.tensor({}, "scalar", DataType::FP32);
+    Linear linear(g, "linear", 3, 4, false);
+
+    REQUIRE_THROWS_AS(
+        linear.build_forward(scalar),
+        std::invalid_argument);
+}
+
 TEST_CASE("Linear BuildBackwardCreatesGradients", "[module]")
 {
     NNGraph g("linear");

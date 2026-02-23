@@ -153,6 +153,15 @@ Linear::Linear(graph::NNGraph& graph,
 //! Build forward operation and return output tensor
 graph::NNGraph::TensorNode& Linear::build_forward(graph::NNGraph::TensorNode& input)
 {
+    // Verify input tensor has at least one dimension (avoid undefined behavior
+    // when calling .back() on empty shape for 0-dimensional scalar tensors)
+    if(input.ndim() < 1)
+    {
+        throw std::invalid_argument(
+            "Linear::build_forward: input tensor must have at least one "
+            "dimension, got 0-dimensional (scalar) tensor");
+    }
+
     // Verify input tensor has correct feature dimension
     if(input.shape().back() != input_dim_)
     {
