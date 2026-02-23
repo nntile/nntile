@@ -22,6 +22,12 @@ ARG BASE_OS=ubuntu22.04
 # Everything else is installed via Conda into "nntile" environment
 ARG BASE_IMAGE=nvidia/cuda:${CUDA_VERSION}-base-${BASE_OS}
 
+# Parallel build (inherited in sandbox and nntile stages)
+ARG MAKE_JOBS=1
+
+# Target CUDA architectures (inherited in sandbox and nntile stages)
+ARG CUDA_ARCHS=70;75;80;86;89;90;100;120
+
 # Read the base image. Target "sandbox" contains all the NNTile prerequisites
 # and is meant for the NNTile development
 FROM ${BASE_IMAGE} AS sandbox
@@ -30,8 +36,9 @@ FROM ${BASE_IMAGE} AS sandbox
 LABEL org.opencontainers.image.source="https://github.com/nntile/nntile"
 LABEL Maintainer="Aleksandr Mikhalev <al.mikhalev@skoltech.ru>"
 
-# Parallel build
-ARG MAKE_JOBS=1
+# Inherit global ARGs
+ARG MAKE_JOBS
+ARG CUDA_ARCHS
 
 # FXT tool version
 ARG FXT_VERSION=0.3.15
@@ -44,9 +51,6 @@ ARG PYTHON_VERSION=3.12
 
 # Desired Pytorch version
 ARG PYTORCH_VERSION=2.9.1
-
-# Target CUDA architectures
-ARG CUDA_ARCHS=70;75;80;86;89;90;100;120
 
 # No interactions with a user during docker build
 # ARG is not exposed into a container environment
@@ -208,9 +212,9 @@ EXPOSE 8888 6006
 # Target "nntile" contains compiled NNTile with set up PYTHONPATH
 FROM sandbox AS nntile
 
-# Re-declare ARGs used in this stage (ARGs do not persist across build stages)
-ARG MAKE_JOBS=1
-ARG CUDA_ARCHS=70;75;80;86;89;90;100;120
+# Inherit global ARGs
+ARG MAKE_JOBS
+ARG CUDA_ARCHS
 
 # Copy all sources
 ADD . /workspace/nntile
