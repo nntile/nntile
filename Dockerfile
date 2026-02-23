@@ -169,7 +169,7 @@ RUN --mount=type=cache,target=/tmp \
     export URL=${URL}/${NAME}.tar.gz && \
     wget -q ${URL} -O ${NAME}.tar.gz && \
     mkdir -p ${NAME} && \
-    tar -xzf ${NAME}.tar.gz -C ${NAME} --strip-components=1 && \ 
+    tar -xzf ${NAME}.tar.gz -C ${NAME} --strip-components=1 && \
     cd ${NAME} && \
     ./autogen.sh && \
     ./configure \
