@@ -92,6 +92,11 @@ public:
         bool requires_grad = true
     );
 
+    //! Create NNGraph wrapper for an existing LogicalGraph tensor.
+    //! The tensor must belong to this graph's logical graph.
+    TensorNode& tensor(LogicalGraph::TensorNode& data,
+                      bool requires_grad = false);
+
     // -----------------------------------------------------------------
     // Operation Builder API (forward or gradient ops)
     // -----------------------------------------------------------------

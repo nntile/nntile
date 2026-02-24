@@ -40,12 +40,7 @@ graph::NNGraph::TensorNode& Gelu::build_forward(
         input.dtype(),
         output_requires_grad);
 
-    graph_.add_op(
-        graph::OpType::GELU,
-        graph::OpAttrs{graph::GeluAttrs{}},
-        {&input},
-        {output_tensor_}
-    );
+    graph::gelu(input, *output_tensor_);
 
     forward_built_ = true;
     return *output_tensor_;
@@ -73,12 +68,7 @@ void Gelu::build_backward()
         graph::NNGraph::TensorNode& grad_input = graph_.get_or_create_grad(
             *input_tensor_, input_tensor_->name() + "_grad");
 
-        graph_.add_op(
-            graph::OpType::GELU_BACKWARD,
-            graph::OpAttrs{graph::GeluBackwardAttrs{}},
-            {input_tensor_, grad_output, &grad_input},
-            {&grad_input}
-        );
+        graph::gelu_backward(*input_tensor_, *grad_output, grad_input);
     }
 }
 

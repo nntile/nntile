@@ -98,12 +98,6 @@ void Mlp::build_backward()
     // Backward through GELU
     gelu_.build_backward();
 
-    // Propagate requires_grad to fc1's input if MLP's input requires grad
-    if(graph_.requires_grad(*input_tensor_))
-    {
-        graph_.set_requires_grad(*fc1_.input_tensor(), true);
-    }
-
     // Backward through fc1
     fc1_.build_backward();
 }

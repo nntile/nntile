@@ -53,4 +53,13 @@ LogicalGraph::TensorNode& gelu(
     return output;
 }
 
+//! GeLU activation into pre-created output: y = gelu(x)
+void gelu(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y)
+{
+    OpAttrs attrs = GeluAttrs{};
+    x.graph().add_op(OpType::GELU, attrs, {&x}, {&y});
+}
+
 } // namespace nntile::graph

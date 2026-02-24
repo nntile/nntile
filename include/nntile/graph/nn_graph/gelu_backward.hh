@@ -6,24 +6,29 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph.hh
- * Convenience header for NNTile graph system.
+ * @file include/nntile/graph/nn_graph/gelu_backward.hh
+ * NNGraph GELU backward operation overload.
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-// Include related NNTile headers - core classes
-#include <nntile/graph/logical_graph.hh>
+// Include other NNTile headers
+#include <nntile/graph/logical/gelu_backward.hh>
 #include <nntile/graph/nn_graph.hh>
-#include <nntile/graph/compiled_graph.hh>
 
-// Include logical graph operations
-#include <nntile/graph/logical_graph_ops.hh>
+namespace nntile::graph
+{
 
-// Include NNGraph operation overloads
-#include <nntile/graph/nn_graph_ops.hh>
+//! GeLU backward: dx += gelu_backward(x, dy)
+//! Overload for NNGraph::TensorNode
+inline void gelu_backward(
+    NNGraph::TensorNode& x,
+    NNGraph::TensorNode& dy,
+    NNGraph::TensorNode& dx)
+{
+    gelu_backward(x.data(), dy.data(), dx.data());
+}
 
-// Include compiled graph operations
-#include <nntile/graph/compiled_graph_ops.hh>
+} // namespace nntile::graph

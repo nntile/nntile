@@ -25,6 +25,77 @@
 namespace nntile::graph
 {
 
+//! Compute output shape for gemm: C = alpha * op(A) @ op(B)
+std::vector<Index> gemm_output_shape(
+    const std::vector<Index>& a_shape,
+    const std::vector<Index>& b_shape,
+    bool trans_a,
+    bool trans_b,
+    Index ndim,
+    Index batch_ndim)
+{
+    Index a_ndim = static_cast<Index>(a_shape.size());
+    Index b_ndim = static_cast<Index>(b_shape.size());
+
+    std::vector<Index> output_shape = a_shape;
+
+    // Handle transpose for A
+    if(trans_a)
+    {
+        for(Index i = 0; i < ndim/2; ++i)
+        {
+            std::swap(output_shape[i], output_shape[ndim-1-i]);
+        }
+    }
+
+    // Remove contraction dimensions from A
+    if(trans_a)
+    {
+        output_shape.erase(output_shape.begin(), output_shape.begin() + ndim);
+    }
+    else
+    {
+        output_shape.erase(output_shape.begin() + (a_ndim - batch_ndim - ndim),
+                          output_shape.begin() + (a_ndim - batch_ndim));
+    }
+
+    std::vector<Index> b_shape_copy = b_shape;
+    if(trans_b)
+    {
+        for(Index i = 0; i < ndim/2; ++i)
+        {
+            std::swap(b_shape_copy[i], b_shape_copy[ndim-1-i]);
+        }
+    }
+
+    // Add dimensions from B (excluding contraction dimensions)
+    if(trans_b)
+    {
+        output_shape.insert(output_shape.end(),
+                           b_shape_copy.begin(),
+                           b_shape_copy.begin() + (b_ndim - batch_ndim - ndim));
+    }
+    else
+    {
+        output_shape.insert(output_shape.end(),
+                           b_shape_copy.begin() + ndim,
+                           b_shape_copy.begin() + (b_ndim - batch_ndim));
+    }
+
+    // Add batch dimensions
+    if(batch_ndim > 0)
+    {
+        for(Index i = 0; i < batch_ndim; ++i)
+        {
+            Index batch_dim_a = a_ndim - batch_ndim + i;
+            Index batch_dim_b = b_ndim - batch_ndim + i;
+            output_shape.push_back(a_shape[batch_dim_a]);
+        }
+    }
+
+    return output_shape;
+}
+
 //! Tensor contraction creating new output: C = alpha * op(A) @ op(B)
 LogicalGraph::TensorNode& gemm(
     LogicalGraph::TensorNode& a,
@@ -50,60 +121,9 @@ LogicalGraph::TensorNode& gemm(
             "gemm: input tensors must have the same dtype");
     }
 
-    // Compute output specification
-    std::vector<Index> output_shape = a.shape();
-
-    // Handle transpose for A
-    if(trans_a)
-    {
-        // Swap first ndim dimensions for transpose
-        for(Index i = 0; i < ndim/2; ++i)
-        {
-            std::swap(output_shape[i], output_shape[ndim-1-i]);
-        }
-    }
-
-    // Remove contraction dimensions from A
-    // For trans_a: contraction dims are first ndim; for !trans_a: last ndim
-    if(trans_a)
-    {
-        output_shape.erase(output_shape.begin(), output_shape.begin() + ndim);
-    }
-    else
-    {
-        output_shape.erase(output_shape.begin() + (a.ndim() - batch_ndim - ndim),
-                          output_shape.begin() + (a.ndim() - batch_ndim));
-    }
-
-    std::vector<Index> b_shape = b.shape();
-    if(trans_b)
-    {
-        // Swap first ndim dimensions for transpose
-        for(Index i = 0; i < ndim/2; ++i)
-        {
-            std::swap(b_shape[i], b_shape[ndim-1-i]);
-        }
-    }
-
-    // Add dimensions from B (excluding contraction dimensions)
-    // For trans_b: keep first (B.ndim - batch_ndim - ndim) dims; for !trans_b: skip first ndim
-    if(trans_b)
-    {
-        output_shape.insert(output_shape.end(),
-                           b_shape.begin(),
-                           b_shape.begin() + (b.ndim() - batch_ndim - ndim));
-    }
-    else
-    {
-        output_shape.insert(output_shape.end(),
-                           b_shape.begin() + ndim,
-                           b_shape.begin() + (b.ndim() - batch_ndim));
-    }
-
-    // Add batch dimensions
+    // Validate batch dimensions match
     if(batch_ndim > 0)
     {
-        Index total_ndim = a.ndim() + b.ndim() - 2*ndim;
         for(Index i = 0; i < batch_ndim; ++i)
         {
             Index batch_dim_a = a.ndim() - batch_ndim + i;
@@ -113,9 +133,11 @@ LogicalGraph::TensorNode& gemm(
                 throw std::invalid_argument(
                     "gemm: batch dimensions must match");
             }
-            output_shape.push_back(a.shape()[batch_dim_a]);
         }
     }
+
+    std::vector<Index> output_shape = gemm_output_shape(
+        a.shape(), b.shape(), trans_a, trans_b, ndim, batch_ndim);
 
     // Create output tensor
     LogicalGraph::TensorNode& output = a.graph().tensor(

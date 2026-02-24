@@ -557,6 +557,7 @@ set(MODULE_SRC
     "module/gelu.cc"
     "module/mlp.cc"
     "module/linear.cc"
+    "module/sdpa.cc"
 )
 
 # Set the list of all sources

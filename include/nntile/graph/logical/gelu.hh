@@ -32,4 +32,12 @@ LogicalGraph::TensorNode& gelu(
     const std::string& output_name
 );
 
+//! GeLU activation into pre-created output: y = gelu(x)
+//! @param x Input tensor
+//! @param y Output tensor (must already exist, same shape as x)
+void gelu(
+    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode& y
+);
+
 } // namespace nntile::graph

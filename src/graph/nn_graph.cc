@@ -95,6 +95,21 @@ NNGraph::TensorNode& NNGraph::tensor(
     return *node_ptr;
 }
 
+NNGraph::TensorNode& NNGraph::tensor(LogicalGraph::TensorNode& data,
+                                     bool requires_grad)
+{
+    if(&data.graph() != &logical_)
+    {
+        throw std::invalid_argument(
+            "NNGraph::tensor: tensor must belong to this graph's logical graph");
+    }
+    auto node = std::make_unique<TensorNode>(&data, requires_grad);
+    TensorNode* node_ptr = node.get();
+    tensors_.push_back(std::move(node));
+    tensor_by_name_[data.name()] = node_ptr;
+    return *node_ptr;
+}
+
 void NNGraph::add_op(
     OpType type,
     OpAttrs attrs,
@@ -127,6 +142,24 @@ void NNGraph::add_op(
     }
 
     logical_.add_op(type, std::move(attrs), input_nodes, output_nodes, name);
+
+    // Propagate grad_required from inputs to outputs (PyTorch-style)
+    bool any_input_requires_grad = false;
+    for(const auto* in : inputs)
+    {
+        if(in && in->requires_grad())
+        {
+            any_input_requires_grad = true;
+            break;
+        }
+    }
+    for(auto* out : outputs)
+    {
+        if(out)
+        {
+            out->set_requires_grad(any_input_requires_grad);
+        }
+    }
 }
 
 NNGraph::TensorNode* NNGraph::get_tensor(const std::string& name)

@@ -424,6 +424,12 @@ set(GRAPH_HDR
     "nntile/graph/logical_graph.hh"
     "nntile/graph/logical_graph_ops.hh"
     "nntile/graph/nn_graph.hh"
+    "nntile/graph/nn_graph_ops.hh"
+    "nntile/graph/nn_graph/add_fiber_inplace.hh"
+    "nntile/graph/nn_graph/gemm.hh"
+    "nntile/graph/nn_graph/gelu.hh"
+    "nntile/graph/nn_graph/gelu_backward.hh"
+    "nntile/graph/nn_graph/sum_fiber.hh"
     "nntile/graph/compiled/adam_step.hh"
     "nntile/graph/compiled/adamw_step.hh"
     "nntile/graph/compiled/add.hh"
@@ -573,6 +579,15 @@ set(GRAPH_HDR
     "nntile/graph/logical/validation.hh"
     )
 
+set(MODULE_HDR
+    "nntile/module.hh"
+    "nntile/module/module.hh"
+    "nntile/module/gelu.hh"
+    "nntile/module/linear.hh"
+    "nntile/module/mlp.hh"
+    "nntile/module/sdpa.hh"
+    )
+
 set(OPTIMIZER_HDR
     #"nntile/optimizer.hh"
     #"nntile/optimizer/base.hh"
@@ -586,6 +601,6 @@ set(LOGGER_HDR
     )
 
 set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR}
-    ${TENSOR_HDR} ${GRAPH_HDR} ${LOGGER_HDR})
+    ${TENSOR_HDR} ${GRAPH_HDR} ${MODULE_HDR} ${LOGGER_HDR})
 
 target_sources(nntile PUBLIC ${HDR})

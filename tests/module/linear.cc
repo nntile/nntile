@@ -94,7 +94,7 @@ TEST_CASE("Linear BuildForwardWithBias", "[module]")
     REQUIRE(output.name() == "linear_output");
     REQUIRE(g.num_ops() == 2);
     REQUIRE(g.ops()[0]->type() == OpType::GEMM);
-    REQUIRE(g.ops()[1]->type() == OpType::ADD_FIBER);
+    REQUIRE(g.ops()[1]->type() == OpType::ADD_FIBER_INPLACE);
 }
 
 TEST_CASE("Linear BuildForwardValidatesInputDim", "[module]")

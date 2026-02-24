@@ -49,6 +49,7 @@ public:
             tensor_name("output"),
             input.dtype(),
             graph_.requires_grad(input));
+        forward_built_ = true;
         return *output_tensor_;
     }
 

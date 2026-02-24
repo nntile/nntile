@@ -16,12 +16,29 @@
 
 // Include standard headers
 #include <string>
+#include <vector>
 
 // Include other NNTile headers
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+//! Compute output shape for gemm: C = alpha * op(A) @ op(B)
+//! @param a_shape Shape of first input tensor
+//! @param b_shape Shape of second input tensor
+//! @param trans_a Swap first ndim dimensions in A
+//! @param trans_b Swap first ndim dimensions in B
+//! @param ndim Number of contraction dimensions (default: 1)
+//! @param batch_ndim Number of trailing batch dimensions (default: 0)
+//! @return Output shape for the gemm result
+std::vector<Index> gemm_output_shape(
+    const std::vector<Index>& a_shape,
+    const std::vector<Index>& b_shape,
+    bool trans_a = false,
+    bool trans_b = false,
+    Index ndim = 1,
+    Index batch_ndim = 0);
 
 //! Tensor contraction creating new output: C = alpha * op(A) @ op(B)
 //! @param a First input tensor

@@ -21,6 +21,37 @@
 namespace nntile::module
 {
 
+namespace
+{
+
+// GEMM scaling: use full weight of matrix product
+constexpr Scalar GEMM_ALPHA = 1.0;
+// GEMM: overwrite output (don't accumulate into existing)
+constexpr Scalar GEMM_BETA_OVERWRITE = 0.0;
+// GEMM: accumulate into output
+constexpr Scalar GEMM_BETA_ACCUMULATE = 1.0;
+// Matrix multiply: one contraction dimension (K)
+constexpr Index GEMM_NDIM_MATRIX = 1;
+// No batch dimensions
+constexpr Index NO_BATCH_DIM = 0;
+// Operand transpose flags
+constexpr bool NO_TRANSPOSE = false;
+constexpr bool TRANSPOSE = true;
+
+// Add fiber: use full weight of fiber, add to existing tensor
+constexpr Scalar ADD_FIBER_ALPHA = 1.0;
+constexpr Scalar ADD_FIBER_BETA = 1.0;
+
+// Sum fiber: sum along first axis, no batch dims, no redux
+constexpr Index SUM_FIBER_AXIS_FIRST = 0;
+constexpr Index SUM_FIBER_BATCH_NDIM = 0;
+constexpr int SUM_FIBER_REDUX_NONE = 0;
+constexpr Scalar SUM_FIBER_ALPHA = 1.0;
+constexpr Scalar SUM_FIBER_BETA_OVERWRITE = 0.0;
+constexpr Scalar SUM_FIBER_BETA_ACCUMULATE = 1.0;
+
+} // anonymous namespace
+
 //! Constructor: creates new weight tensor, no bias
 Linear::Linear(graph::NNGraph& graph,
                const std::string& name,
@@ -192,23 +223,28 @@ graph::NNGraph::TensorNode& Linear::build_forward(graph::NNGraph::TensorNode& in
         output_requires_grad);
 
     // Linear transformation: output = input @ weight
-    // Uses ndim=1, batch_ndim=0 for arbitrary dimensional tensors
-    graph_.add_op(
-        graph::OpType::GEMM,
-        graph::OpAttrs{graph::GemmAttrs{false, false, 1.0, 0.0, 1, 0}},
-        {&input, weight_tensor_},
-        {output_tensor_}
-    );
+    graph::gemm(
+        input,
+        *weight_tensor_,
+        *output_tensor_,
+        GEMM_ALPHA,
+        GEMM_BETA_OVERWRITE,
+        NO_TRANSPOSE,
+        NO_TRANSPOSE,
+        GEMM_NDIM_MATRIX,
+        NO_BATCH_DIM);
 
-    // Add bias if present: output += bias (broadcast along last dim)
+    // Add bias if present: output += bias (broadcast along feature axis)
     if(bias_tensor_ != nullptr)
     {
-        graph_.add_op(
-            graph::OpType::ADD_FIBER,
-            graph::OpAttrs{graph::AddFiberAttrs{output_tensor_->ndim() - 1, 0, 1.0, 1.0}},
-            {output_tensor_, bias_tensor_},
-            {output_tensor_}  // In-place addition
-        );
+        const Index feature_axis = output_tensor_->ndim() - 1;
+        graph::add_fiber_inplace(
+            ADD_FIBER_ALPHA,
+            *bias_tensor_,
+            ADD_FIBER_BETA,
+            *output_tensor_,
+            feature_axis,
+            NO_BATCH_DIM);
     }
 
     forward_built_ = true;
@@ -243,15 +279,20 @@ void Linear::build_backward()
         graph::NNGraph::TensorNode& grad_weight = graph_.get_or_create_grad(
             *weight_tensor_, grad_name("weight"));
 
-        Scalar beta_weight = first_weight_grad ? 0.0 : 1.0;
+        Scalar beta_weight =
+            first_weight_grad ? GEMM_BETA_OVERWRITE : GEMM_BETA_ACCUMULATE;
 
         // grad_weight += input^T @ grad_output
-        graph_.add_op(
-            graph::OpType::GEMM,
-            graph::OpAttrs{graph::GemmAttrs{true, false, 1.0, beta_weight, 1, 0}},
-            {input_tensor_, grad_output},
-            {&grad_weight}
-        );
+        graph::gemm(
+            *input_tensor_,
+            *grad_output,
+            grad_weight,
+            GEMM_ALPHA,
+            beta_weight,
+            TRANSPOSE,
+            NO_TRANSPOSE,
+            GEMM_NDIM_MATRIX,
+            NO_BATCH_DIM);
     }
 
     // Compute bias gradient if bias is present
@@ -262,15 +303,18 @@ void Linear::build_backward()
         graph::NNGraph::TensorNode& grad_bias = graph_.get_or_create_grad(
             *bias_tensor_, grad_name("bias"));
 
-        Scalar beta_bias = first_bias_grad ? 0.0 : 1.0;
+        Scalar beta_bias =
+            first_bias_grad ? SUM_FIBER_BETA_OVERWRITE : SUM_FIBER_BETA_ACCUMULATE;
 
-        // grad_bias += sum(grad_output, axis=0...-1)
-        graph_.add_op(
-            graph::OpType::SUM_FIBER,
-            graph::OpAttrs{graph::SumFiberAttrs{1.0, beta_bias}},
-            {grad_output},
-            {&grad_bias}
-        );
+        // grad_bias += sum(grad_output) along all batch dimensions
+        graph::sum_fiber(
+            *grad_output,
+            grad_bias,
+            SUM_FIBER_AXIS_FIRST,
+            SUM_FIBER_BATCH_NDIM,
+            SUM_FIBER_REDUX_NONE,
+            SUM_FIBER_ALPHA,
+            beta_bias);
     }
 
     // Compute input gradient only if required
@@ -281,15 +325,20 @@ void Linear::build_backward()
         graph::NNGraph::TensorNode& grad_input = graph_.get_or_create_grad(
             *input_tensor_, input_tensor_->name() + "_grad");
 
-        Scalar beta_input = first_input_grad ? 0.0 : 1.0;
+        Scalar beta_input =
+            first_input_grad ? GEMM_BETA_OVERWRITE : GEMM_BETA_ACCUMULATE;
 
         // grad_input += grad_output @ weight^T
-        graph_.add_op(
-            graph::OpType::GEMM,
-            graph::OpAttrs{graph::GemmAttrs{false, true, 1.0, beta_input, 1, 0}},
-            {grad_output, weight_tensor_},
-            {&grad_input}
-        );
+        graph::gemm(
+            *grad_output,
+            *weight_tensor_,
+            grad_input,
+            GEMM_ALPHA,
+            beta_input,
+            NO_TRANSPOSE,
+            TRANSPOSE,
+            GEMM_NDIM_MATRIX,
+            NO_BATCH_DIM);
     }
 }
 
