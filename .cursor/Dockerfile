@@ -198,6 +198,3 @@ WORKDIR /workspace
 
 # Define Python path for the development (repo cloned into workspace)
 ENV PYTHONPATH=/workspace/nntile/build/wrappers/python
-
-# Open Jupyter Lab and Tensorboard ports
-EXPOSE 8888 6006
