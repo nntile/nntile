@@ -394,7 +394,7 @@ set(TENSOR_OPERATION_SRC
 # Logger-related sources
 set(LOGGER_SRC
     "logger/logger_thread.cc"
-    "logger/websocket_client.cc"
+    "logger/tcp_client.cc"
 )
 
 # Set the list of all sources

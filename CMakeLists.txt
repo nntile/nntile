@@ -64,6 +64,9 @@ find_package(PkgConfig REQUIRED)
 # Add external sources/headers
 add_subdirectory("external")
 
+# nlohmann/json for logger JSON serialization
+target_link_libraries(nntile PUBLIC nlohmann_json::nlohmann_json)
+
 # Get the StarPU as the first dependency. StarPU defines if we are in
 # simulation by SimGrid mode or not.
 pkg_check_modules(StarPU REQUIRED starpu-1.4)

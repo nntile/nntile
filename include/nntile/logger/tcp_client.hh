@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/logger/websocket_client.hh
- * Simple web socket client
+ * @file include/nntile/logger/tcp_client.hh
+ * TCP client for logger connection
  *
  * @version 1.1.0
  * */
@@ -21,8 +21,14 @@ namespace nntile::logger
 
 extern int client_socket;
 
-void websocket_connect(const char *server_addr, int server_port);
+//! Connect to the logger server
+//! @return true if connection succeeded, false otherwise (logger remains optional)
+bool tcp_connect(const char *server_addr, int server_port);
 
-void websocket_disconnect();
+//! Disconnect from the logger server
+void tcp_disconnect();
+
+//! Check if connected
+bool tcp_is_connected();
 
 } // namespace nntile::logger
