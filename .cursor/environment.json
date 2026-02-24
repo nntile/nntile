@@ -2,6 +2,6 @@
   "terminals": [],
   "build": {
     "context": ".",
-    "dockerfile": "Dockerfile"
+    "dockerfile": ".cursor/Dockerfile"
   }
 }
