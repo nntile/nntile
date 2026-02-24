@@ -1,7 +1,4 @@
 {
-  "terminals": [],
-  "build": {
-    "context": ".",
-    "dockerfile": ".cursor/Dockerfile"
-  }
+  "snapshot": "snapshot-20260224-aadd4d40-08b0-47f1-9123-678ecb258223",
+  "terminals": []
 }
