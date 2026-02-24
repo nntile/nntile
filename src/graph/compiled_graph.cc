@@ -621,7 +621,9 @@ void CompiledGraph::invalidate_tensor(const std::string& name)
             get_tensor<nntile::bool_t>(name).invalidate_submit();
             break;
         default:
-            break;
+            throw std::runtime_error(
+                "invalidate_tensor: unsupported data type " +
+                dtype_to_string(dtype) + " for tensor '" + name + "'");
     }
 }
 
@@ -633,6 +635,13 @@ void CompiledGraph::invalidate_unused_inputs(size_t op_idx)
     {
         // Never invalidate graph inputs or outputs
         if(tensor_is_input_.count(input_name) || tensor_is_output_.count(input_name))
+        {
+            continue;
+        }
+        // Never invalidate if this tensor is also an output of this op
+        // (in-place ops: input and output are the same tensor)
+        if(std::find(op_info.output_names.begin(), op_info.output_names.end(),
+                     input_name) != op_info.output_names.end())
         {
             continue;
         }
