@@ -313,6 +313,18 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
         case OpType::TRANSPOSE:
             execute_transpose(*this, op_info);
             break;
+
+        // Convolution operations
+        case OpType::CONV2D_INPLACE:
+            execute_conv2d_inplace(*this, op_info);
+            break;
+        case OpType::CONV2D_BWD_INPUT_INPLACE:
+            execute_conv2d_bwd_input_inplace(*this, op_info);
+            break;
+        case OpType::CONV2D_BWD_WEIGHT_INPLACE:
+            execute_conv2d_bwd_weight_inplace(*this, op_info);
+            break;
+
         case OpType::GELU:
             execute_gelu(*this, op_info);
             break;
@@ -327,6 +339,15 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
             break;
         case OpType::COPY:
             execute_copy(*this, op_info);
+            break;
+        case OpType::COPY_INTERSECTION:
+            execute_copy_intersection(*this, op_info);
+            break;
+        case OpType::GATHER:
+            execute_gather(*this, op_info);
+            break;
+        case OpType::SCATTER:
+            execute_scatter(*this, op_info);
             break;
 
         // Element-wise unary operations
@@ -378,6 +399,12 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
         case OpType::POW_INPLACE:
             execute_pow_inplace(*this, op_info);
             break;
+        case OpType::LOG_SCALAR:
+            execute_log_scalar(*this, op_info);
+            break;
+        case OpType::RANDN:
+            execute_randn(*this, op_info);
+            break;
 
         // Binary operations
         case OpType::ADD:
@@ -419,6 +446,12 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
         case OpType::HYPOT_INPLACE:
             execute_hypot_inplace(*this, op_info);
             break;
+        case OpType::HYPOT_SCALAR_INVERSE:
+            execute_hypot_scalar_inverse(*this, op_info);
+            break;
+        case OpType::SUBTRACT_INDEXED_OUTPUTS:
+            execute_subtract_indexed_outputs(*this, op_info);
+            break;
 
         // Reduction operations
         case OpType::SUM:
@@ -426,6 +459,36 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
             break;
         case OpType::SUM_FIBER:
             execute_sum_fiber(*this, op_info);
+            break;
+        case OpType::SUM_SLICE:
+            execute_sum_slice(*this, op_info);
+            break;
+        case OpType::NORM:
+            execute_norm(*this, op_info);
+            break;
+        case OpType::NORM_FIBER:
+            execute_norm_fiber(*this, op_info);
+            break;
+        case OpType::NORM_FIBER_INPLACE:
+            execute_norm_fiber_inplace(*this, op_info);
+            break;
+        case OpType::NORM_SLICE:
+            execute_norm_slice(*this, op_info);
+            break;
+        case OpType::NORM_SLICE_INPLACE:
+            execute_norm_slice_inplace(*this, op_info);
+            break;
+        case OpType::LOGSUMEXP:
+            execute_logsumexp(*this, op_info);
+            break;
+        case OpType::MAXSUMEXP:
+            execute_maxsumexp(*this, op_info);
+            break;
+        case OpType::SUMPROD_FIBER:
+            execute_sumprod_fiber(*this, op_info);
+            break;
+        case OpType::SUMPROD_SLICE:
+            execute_sumprod_slice(*this, op_info);
             break;
 
         // Scale operations
@@ -440,6 +503,9 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
             break;
         case OpType::SCALE_SLICE:
             execute_scale_slice(*this, op_info);
+            break;
+        case OpType::MASK_SCALAR:
+            execute_mask_scalar(*this, op_info);
             break;
 
         // Embedding operations
@@ -477,6 +543,9 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
         // Flash attention operations
         case OpType::FLASH_SDPA_FWD_CUDNN:
             execute_flash_sdpa_fwd_cudnn(*this, op_info);
+            break;
+        case OpType::FLASH_SDPA_BWD_CUDNN:
+            execute_flash_sdpa_bwd_cudnn(*this, op_info);
             break;
 
         default:

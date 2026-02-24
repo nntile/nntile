@@ -6,15 +6,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/graph/compiled/multiply_fiber.cc
- * Test for compiled graph multiply_fiber operation.
+ * @file tests/graph/compiled/sumprod_fiber.cc
+ * Test for compiled graph sumprod_fiber operation.
  *
  * @version 1.1.0
  * */
 
 #include "compiled_test_utils.hh"
 
-#include "nntile/tensor/multiply_fiber.hh"
+#include "nntile/tensor/sumprod_fiber.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -22,34 +22,36 @@ using namespace nntile::graph::test;
 
 TEST_CASE_METHOD(
     GraphTestFixture,
-    "CompiledGraph MultiplyFiber vs Tensor",
+    "CompiledGraph SumProdFiber vs Tensor",
     "[graph][verification]")
 {
+    // sumprod_fiber: dst shape is [shape[axis]], reduces over other dims
+    // src [4,6] axis 0 -> dst [4]; axis 1 -> dst [6]
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({4, 6}, "x", DataType::FP32);
+        auto& x1 = g.tensor({4, 6}, "x1", DataType::FP32);
+        auto& x2 = g.tensor({4, 6}, "x2", DataType::FP32);
         auto& y = g.tensor({4}, "y", DataType::FP32);
-        multiply_fiber(2.0f, y, x, "z", 0, 0);  // fiber=y (1D), tensor=x
+        sumprod_fiber(x1, x2, y, 0, 0, 1.0f, 0.0f);
     };
 
     auto run_tensor_direct = [](std::map<std::string, std::vector<float>>& inputs,
-                               std::map<std::string, std::vector<float>>& outputs,
-                               const nntile::Context&) {
+                                std::map<std::string, std::vector<float>>& outputs,
+                                const nntile::Context&) {
         using T = nntile::fp32_t;
         nntile::tensor::TensorTraits x_traits({4, 6}, {4, 6});
-        nntile::tensor::Tensor<T> x(x_traits);
+        nntile::tensor::Tensor<T> x1(x_traits);
+        nntile::tensor::Tensor<T> x2(x_traits);
         nntile::tensor::TensorTraits y_traits({4}, {4});
         nntile::tensor::Tensor<T> y(y_traits);
-        nntile::tensor::TensorTraits z_traits({4, 6}, {4, 6});
-        nntile::tensor::Tensor<T> z(z_traits);
 
-        write_tensor(x, inputs["x"]);
-        write_tensor(y, inputs["y"]);
-        nntile::tensor::multiply_fiber<T>(2.0f, y, x, z, 0);  // fiber=y, tensor=x
-        outputs["z"] = read_tensor(z);
+        write_tensor(x1, inputs["x1"]);
+        write_tensor(x2, inputs["x2"]);
+        nntile::tensor::sumprod_fiber<T>(1.0f, x1, x2, 0.0f, y, 0, 0);
+        outputs["y"] = read_tensor(y);
     };
 
     verify_graph_vs_tensor<nntile::fp32_t>(
         build_graph, run_tensor_direct,
-        {"x", "y"}, {"z"}, context
+        {"x1", "x2"}, {"y"}, context
     );
 }

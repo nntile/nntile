@@ -14,6 +14,8 @@
 
 #include "compiled_test_utils.hh"
 
+#include <starpu.h>
+
 #include "nntile/tensor/flash_sdpa_fwd_cudnn.hh"
 #include "nntile/graph/logical_graph_ops.hh"
 
@@ -136,6 +138,11 @@ TEST_CASE_METHOD(
     "CompiledGraph FlashSDPACUDNN vs Tensor",
     "[graph][verification]")
 {
+    // Skip when CUDA workers are not available
+    if(starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0) < 0)
+    {
+        SKIP("flash_sdpa_fwd_cudnn requires CUDA but no CUDA workers are available");
+    }
     // Only test FP16 and BF16 as per cuDNN limitations
     run_test<fp16_t>(context);
     run_test<bf16_t>(context);

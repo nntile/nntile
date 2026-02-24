@@ -20,15 +20,24 @@ using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::graph::test;
 
-TEST_CASE(
+TEST_CASE_METHOD(
+    GraphTestFixture,
     "CompiledGraph Randn",
     "[graph][verification]")
 {
-    // For random operations, we just check that the operation can be added to a graph
-    nntile::graph::LogicalGraph g("test");
-    auto& x = g.tensor({4, 6}, "x", nntile::DataType::FP32);
-    nntile::graph::randn(x, {0, 0}, {4, 6}, 0, 0.0f, 1.0f);
-    // Just check that the operation was added to the graph
-    REQUIRE(x.has_producer());
-    REQUIRE(x.producer()->type() == nntile::graph::OpType::RANDN);
+    // Test that randn compiles and executes (random output, just verify no crash)
+    auto build_graph = [](LogicalGraph& g) {
+        auto& x = g.tensor({4, 6}, "x", DataType::FP32);
+        randn(x, {0, 0}, {4, 6}, 0, 0.0f, 1.0f);
+    };
+
+    LogicalGraph g("test");
+    build_graph(g);
+    auto compiled = CompiledGraph::compile(g);
+    compiled.bind_data("x", make_pattern<float>(24, 0.1f));
+    compiled.execute();
+    compiled.wait();
+
+    auto output = compiled.get_output<float>("x");
+    REQUIRE(output.size() == 24u);
 }

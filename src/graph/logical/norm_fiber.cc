@@ -25,23 +25,30 @@
 namespace nntile::graph
 {
 
-//! Norm along fibers: y = alpha * norm_fiber(x) + beta * y
+//! Norm along fibers (out-of-place): dst = alpha * norm_fiber(x) + beta * src2
 void norm_fiber(
     LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode& src2,
+    LogicalGraph::TensorNode& dst,
     Index axis,
     Index batch_ndim,
     int redux,
     Scalar alpha,
     Scalar beta)
 {
-    if(&x.graph() != &y.graph())
+    if(&x.graph() != &src2.graph() || &x.graph() != &dst.graph())
     {
         throw std::invalid_argument(
             "norm_fiber: tensors must belong to the same graph");
     }
 
-    if(x.dtype() != y.dtype())
+    if(&src2 == &dst)
+    {
+        throw std::invalid_argument(
+            "norm_fiber: use norm_fiber_inplace when src2 and dst are the same");
+    }
+
+    if(x.dtype() != src2.dtype() || x.dtype() != dst.dtype())
     {
         throw std::invalid_argument(
             "norm_fiber: input and output tensors must have the same dtype");
@@ -63,8 +70,8 @@ void norm_fiber(
     x.graph().add_op(
         OpType::NORM_FIBER,
         attrs,
-        {&x, &y},
-        {&y}
+        {&x, &src2},
+        {&dst}
     );
 }
 

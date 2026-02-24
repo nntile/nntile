@@ -27,8 +27,8 @@ TEST_CASE_METHOD(
 {
     auto build_graph = [](LogicalGraph& g) {
         auto& x = g.tensor({4, 6}, "x", DataType::FP32);
-        auto& y = g.tensor({6}, "y", DataType::FP32);
-        norm_fiber_inplace(x, y, 0, 0);
+        auto& y = g.tensor({4}, "y", DataType::FP32);
+        norm_fiber_inplace(x, y, 0, 0, 0, 2.0f, 3.0f);
     };
 
     auto run_tensor_direct = [](std::map<std::string, std::vector<float>>& inputs,
@@ -37,7 +37,7 @@ TEST_CASE_METHOD(
         using T = nntile::fp32_t;
         nntile::tensor::TensorTraits x_traits({4, 6}, {4, 6});
         nntile::tensor::Tensor<T> x(x_traits);
-        nntile::tensor::TensorTraits y_traits({6}, {6});
+        nntile::tensor::TensorTraits y_traits({4}, {4});
         nntile::tensor::Tensor<T> y(y_traits);
 
         write_tensor(x, inputs["x"]);

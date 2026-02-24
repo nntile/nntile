@@ -46,11 +46,9 @@ TEST_CASE_METHOD(
         nntile::tensor::TensorTraits embed_traits({4, 2, 3}, {4, 2, 3});
         nntile::tensor::Tensor<T> embed_tensor(embed_traits);
 
-        // Generate the same index data as bind_inputs does for INT64
-        std::vector<std::int64_t> index_data(6);
-        for(size_t i = 0; i < 6; ++i) {
-            index_data[i] = static_cast<std::int64_t>(i % 4); // Keep within vocab_size=4
-        }
+        // Generate the same index data as bind_inputs (from overrides)
+        // vocab shape [4,3] -> vocab_size=3, indices must be in [0, 2]
+        std::vector<std::int64_t> index_data = {0, 1, 2, 0, 1, 2};
 
         write_tensor(index_tensor, index_data);
         write_tensor(vocab_tensor, inputs["vocab"]);
@@ -60,8 +58,12 @@ TEST_CASE_METHOD(
         outputs["vocab"] = read_tensor(vocab_tensor);
     };
 
+    InputOverrides overrides;
+    // vocab [4,3] -> vocab_size=3, indices must be in [0, 2]
+    overrides.int64_inputs["index"] = {0, 1, 2, 0, 1, 2};
+
     verify_graph_vs_tensor<nntile::fp32_t>(
         build_graph, run_tensor_direct,
-        {"index", "vocab", "embed"}, {"vocab"}, context
+        {"index", "vocab", "embed"}, {"vocab"}, context, {}, overrides
     );
 }

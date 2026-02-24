@@ -63,9 +63,17 @@ LogicalGraph::TensorNode& gemm(
         }
     }
 
-    // Remove contraction dimensions from A and B, add result dimensions
-    output_shape.erase(output_shape.begin() + (trans_a ? ndim - ndim : 0),
-                      output_shape.begin() + (trans_a ? ndim : ndim));
+    // Remove contraction dimensions from A
+    // For trans_a: contraction dims are first ndim; for !trans_a: last ndim
+    if(trans_a)
+    {
+        output_shape.erase(output_shape.begin(), output_shape.begin() + ndim);
+    }
+    else
+    {
+        output_shape.erase(output_shape.begin() + (a.ndim() - batch_ndim - ndim),
+                          output_shape.begin() + (a.ndim() - batch_ndim));
+    }
 
     std::vector<Index> b_shape = b.shape();
     if(trans_b)
@@ -78,9 +86,19 @@ LogicalGraph::TensorNode& gemm(
     }
 
     // Add dimensions from B (excluding contraction dimensions)
-    output_shape.insert(output_shape.begin(),
-                       b_shape.begin() + (trans_b ? 0 : ndim),
-                       b_shape.begin() + (trans_b ? ndim - ndim : ndim));
+    // For trans_b: keep first (B.ndim - batch_ndim - ndim) dims; for !trans_b: skip first ndim
+    if(trans_b)
+    {
+        output_shape.insert(output_shape.end(),
+                           b_shape.begin(),
+                           b_shape.begin() + (b.ndim() - batch_ndim - ndim));
+    }
+    else
+    {
+        output_shape.insert(output_shape.end(),
+                           b_shape.begin() + ndim,
+                           b_shape.begin() + (b.ndim() - batch_ndim));
+    }
 
     // Add batch dimensions
     if(batch_ndim > 0)
@@ -172,9 +190,16 @@ void gemm(
         }
     }
 
-    // Remove contraction dimensions from A and B, add result dimensions
-    expected_shape.erase(expected_shape.begin() + (trans_a ? ndim - ndim : 0),
-                        expected_shape.begin() + (trans_a ? ndim : ndim));
+    // Remove contraction dimensions from A
+    if(trans_a)
+    {
+        expected_shape.erase(expected_shape.begin(), expected_shape.begin() + ndim);
+    }
+    else
+    {
+        expected_shape.erase(expected_shape.begin() + (a.ndim() - batch_ndim - ndim),
+                            expected_shape.begin() + (a.ndim() - batch_ndim));
+    }
 
     std::vector<Index> b_shape = b.shape();
     if(trans_b)
@@ -187,9 +212,18 @@ void gemm(
     }
 
     // Add dimensions from B (excluding contraction dimensions)
-    expected_shape.insert(expected_shape.begin(),
-                         b_shape.begin() + (trans_b ? 0 : ndim),
-                         b_shape.begin() + (trans_b ? ndim - ndim : ndim));
+    if(trans_b)
+    {
+        expected_shape.insert(expected_shape.end(),
+                             b_shape.begin(),
+                             b_shape.begin() + (b.ndim() - batch_ndim - ndim));
+    }
+    else
+    {
+        expected_shape.insert(expected_shape.end(),
+                             b_shape.begin() + ndim,
+                             b_shape.begin() + (b.ndim() - batch_ndim));
+    }
 
     // Add batch dimensions
     if(batch_ndim > 0)

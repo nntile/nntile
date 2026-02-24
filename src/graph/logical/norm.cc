@@ -38,10 +38,10 @@ void norm(
             "norm: tensors must belong to the same graph");
     }
 
-    if(y.ndim() != 1 || y.shape()[0] != 1)
+    if(y.ndim() != 0)
     {
         throw std::invalid_argument(
-            "norm: output tensor must be scalar (shape [1])");
+            "norm: output tensor must be scalar (shape [])");
     }
 
     if(x.dtype() != y.dtype())

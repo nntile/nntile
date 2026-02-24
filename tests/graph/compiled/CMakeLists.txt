@@ -36,6 +36,9 @@ set(TESTS_COMPILED_CATCH2
     "hypot"
     "hypot_inplace"
     "hypot_scalar_inverse"
+    "log_scalar"
+    "logsumexp"
+    "maxsumexp"
     "mask_scalar"
     "multiply"
     "multiply_fiber"
@@ -71,8 +74,12 @@ set(TESTS_COMPILED_CATCH2
     "sum"
     "sum_fiber"
     "sum_slice"
+    "sumprod_fiber"
+    "sumprod_slice"
+    "subtract_indexed_outputs"
     "total_sum_accum"
     "transpose"
+    "randn"
 )
 
 foreach(test IN LISTS TESTS_COMPILED_CATCH2)

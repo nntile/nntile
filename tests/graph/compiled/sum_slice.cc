@@ -27,7 +27,7 @@ TEST_CASE_METHOD(
 {
     auto build_graph = [](LogicalGraph& g) {
         auto& x = g.tensor({4, 6}, "x", DataType::FP32);
-        auto& y = g.tensor({4, 1}, "y", DataType::FP32);
+        auto& y = g.tensor({4}, "y", DataType::FP32);
         sum_slice(x, y, 1, 0, 1.0f, 0.0f);
     };
 
@@ -37,7 +37,7 @@ TEST_CASE_METHOD(
         using T = nntile::fp32_t;
         nntile::tensor::TensorTraits x_traits({4, 6}, {4, 6});
         nntile::tensor::Tensor<T> x(x_traits);
-        nntile::tensor::TensorTraits y_traits({4, 1}, {4, 1});
+        nntile::tensor::TensorTraits y_traits({4}, {4});
         nntile::tensor::Tensor<T> y(y_traits);
 
         write_tensor(x, inputs["x"]);

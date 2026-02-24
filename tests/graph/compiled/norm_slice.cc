@@ -27,8 +27,9 @@ TEST_CASE_METHOD(
 {
     auto build_graph = [](LogicalGraph& g) {
         auto& x = g.tensor({4, 6}, "x", DataType::FP32);
-        auto& y = g.tensor({4}, "y", DataType::FP32);
-        norm_slice(x, y, 1, 0, 2.0f, 3.0f);
+        auto& src2 = g.tensor({4}, "src2", DataType::FP32);
+        auto& dst = g.tensor({4}, "dst", DataType::FP32);
+        norm_slice(x, src2, dst, 1, 0, 2.0f, 3.0f);
     };
 
     auto run_tensor_direct = [](std::map<std::string, std::vector<float>>& inputs,
@@ -37,17 +38,19 @@ TEST_CASE_METHOD(
         using T = nntile::fp32_t;
         nntile::tensor::TensorTraits x_traits({4, 6}, {4, 6});
         nntile::tensor::Tensor<T> x(x_traits);
-        nntile::tensor::TensorTraits y_traits({4}, {4});
-        nntile::tensor::Tensor<T> y(y_traits);
+        nntile::tensor::TensorTraits src2_traits({4}, {4});
+        nntile::tensor::Tensor<T> src2(src2_traits);
+        nntile::tensor::TensorTraits dst_traits({4}, {4});
+        nntile::tensor::Tensor<T> dst(dst_traits);
 
         write_tensor(x, inputs["x"]);
-        write_tensor(y, inputs["y"]);
-        nntile::tensor::norm_slice<T>(2.0f, x, 3.0f, y, y, 1, 0);
-        outputs["y"] = read_tensor(y);
+        write_tensor(src2, inputs["src2"]);
+        nntile::tensor::norm_slice<T>(2.0f, x, 3.0f, src2, dst, 1, 0);
+        outputs["dst"] = read_tensor(dst);
     };
 
     verify_graph_vs_tensor<nntile::fp32_t>(
         build_graph, run_tensor_direct,
-        {"x", "y"}, {"y"}, context
+        {"x", "src2"}, {"dst"}, context
     );
 }

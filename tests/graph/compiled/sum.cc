@@ -27,7 +27,7 @@ TEST_CASE_METHOD(
 {
     auto build_graph = [](LogicalGraph& g) {
         auto& x = g.tensor({4, 6}, "x", DataType::FP32);
-        auto& y = g.tensor({1}, "y", DataType::FP32);
+        auto& y = g.tensor(std::vector<Index>{}, "y", DataType::FP32);
         sum(x, y, 2.0f, 0.5f);
     };
 
@@ -37,7 +37,7 @@ TEST_CASE_METHOD(
         using T = nntile::fp32_t;
         nntile::tensor::TensorTraits x_traits({4, 6}, {4, 6});
         nntile::tensor::Tensor<T> x(x_traits);
-        nntile::tensor::TensorTraits y_traits({1}, {1});
+        nntile::tensor::TensorTraits y_traits(std::vector<Index>{}, std::vector<Index>{});
         nntile::tensor::Tensor<T> y(y_traits);
 
         write_tensor(x, inputs["x"]);
@@ -47,7 +47,7 @@ TEST_CASE_METHOD(
     };
 
     std::map<std::string, std::vector<float>> custom_inputs;
-    custom_inputs["y"] = {0.25f};
+    custom_inputs["y"] = {0.25f};  // Single scalar value for 0D tensor
 
     verify_graph_vs_tensor<nntile::fp32_t>(
         build_graph, run_tensor_direct,

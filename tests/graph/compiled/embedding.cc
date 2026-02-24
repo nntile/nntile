@@ -58,8 +58,11 @@ TEST_CASE_METHOD(
         outputs["embed"] = read_tensor(embed_tensor);
     };
 
+    InputOverrides overrides;
+    overrides.int64_inputs["index"] = {0, 1, 2, 3, 0, 1};  // Valid indices 0-3 for vocab rows
+
     verify_graph_vs_tensor<nntile::fp32_t>(
         build_graph, run_tensor_direct,
-        {"index", "vocab"}, {"embed"}, context
+        {"index", "vocab"}, {"embed"}, context, {}, overrides
     );
 }

@@ -96,6 +96,7 @@ inline std::vector<typename WrapperT::repr_t> read_tensor(
 struct InputOverrides
 {
     std::map<std::string, std::vector<float>> float_inputs;
+    std::map<std::string, std::vector<double>> double_inputs;
     std::map<std::string, std::vector<long long>> int64_inputs;
     std::map<std::string, std::vector<nntile::bool_t>> bool_inputs;
 };
@@ -114,14 +115,19 @@ inline void bind_inputs(CompiledGraph& compiled,
         if(dtype == DataType::BOOL)
         {
             auto it = overrides.bool_inputs.find(name);
-            std::vector<nntile::bool_t> data = (it != overrides.bool_inputs.end())
-                ? it->second
-                : std::vector<nntile::bool_t>(size);
-            if(it == overrides.bool_inputs.end())
+            std::vector<char> data(size);
+            if(it != overrides.bool_inputs.end())
             {
                 for(size_t i = 0; i < size; ++i)
                 {
-                    data[i] = nntile::bool_t((i % 2) == 0);
+                    data[i] = static_cast<char>(it->second[i].value ? 1 : 0);
+                }
+            }
+            else
+            {
+                for(size_t i = 0; i < size; ++i)
+                {
+                    data[i] = static_cast<char>((i % 2) == 0);
                 }
             }
             compiled.bind_data(name, data);
@@ -139,6 +145,14 @@ inline void bind_inputs(CompiledGraph& compiled,
                     data[i] = static_cast<long long>(i);
                 }
             }
+            compiled.bind_data(name, data);
+        }
+        else if(dtype == DataType::FP64)
+        {
+            auto it = overrides.double_inputs.find(name);
+            std::vector<double> data = (it != overrides.double_inputs.end())
+                ? it->second
+                : make_pattern<double>(size, 0.1);
             compiled.bind_data(name, data);
         }
         else
@@ -174,7 +188,8 @@ inline void verify_graph_vs_tensor(
     const std::vector<std::string>& input_names,
     const std::vector<std::string>& output_names,
     const nntile::Context& context,
-    const std::map<std::string, std::vector<typename WrapperT::repr_t>>& custom_inputs = {})
+    const std::map<std::string, std::vector<typename WrapperT::repr_t>>& custom_inputs = {},
+    const InputOverrides& input_overrides = {})
 {
     using ValueT = typename WrapperT::repr_t;
 
@@ -186,20 +201,83 @@ inline void verify_graph_vs_tensor(
     std::map<std::string, std::vector<ValueT>> input_data;
     std::map<std::string, std::vector<ValueT>> graph_outputs;
 
-    for(const auto& name : input_names)
+    InputOverrides merged = input_overrides;
+    for(const auto& [name, data] : custom_inputs)
     {
-        const auto& tensor = g.get_tensor(name);
-        const auto size = tensor_nelems(tensor->shape());
-        auto it = custom_inputs.find(name);
-        if(it != custom_inputs.end())
+        if constexpr (std::is_same_v<ValueT, double>)
         {
-            input_data[name] = it->second;
+            merged.double_inputs[name] = data;
         }
         else
         {
-            input_data[name] = make_pattern<ValueT>(size, static_cast<ValueT>(0.1));
+            merged.float_inputs[name] = data;
         }
-        compiled.bind_data(name, input_data[name]);
+    }
+
+    bind_inputs(compiled, g, input_names, merged);
+
+    for(const auto& name : input_names)
+    {
+        const auto& tensor = g.get_tensor(name);
+        const auto dtype = tensor->dtype();
+        if(dtype == DataType::INT64)
+        {
+            auto it = merged.int64_inputs.find(name);
+            if(it != merged.int64_inputs.end())
+            {
+                input_data[name].resize(it->second.size());
+                for(size_t i = 0; i < it->second.size(); ++i)
+                {
+                    input_data[name][i] = static_cast<ValueT>(it->second[i]);
+                }
+            }
+            else
+            {
+                input_data[name] = make_pattern<ValueT>(tensor_nelems(tensor->shape()),
+                    static_cast<ValueT>(0.1));
+            }
+        }
+        else if(dtype == DataType::BOOL)
+        {
+            auto it = merged.bool_inputs.find(name);
+            if(it != merged.bool_inputs.end())
+            {
+                input_data[name].resize(it->second.size());
+                for(size_t i = 0; i < it->second.size(); ++i)
+                {
+                    input_data[name][i] = static_cast<ValueT>(it->second[i].value ? 1 : 0);
+                }
+            }
+            else
+            {
+                input_data[name] = make_pattern<ValueT>(tensor_nelems(tensor->shape()),
+                    static_cast<ValueT>(0.1));
+            }
+        }
+        else if(dtype == DataType::FP64)
+        {
+            auto it = merged.double_inputs.find(name);
+            std::vector<double> double_data = (it != merged.double_inputs.end())
+                ? it->second
+                : make_pattern<double>(tensor_nelems(tensor->shape()), 0.1);
+            input_data[name].resize(double_data.size());
+            for(size_t i = 0; i < double_data.size(); ++i)
+            {
+                input_data[name][i] = static_cast<ValueT>(double_data[i]);
+            }
+        }
+        else
+        {
+            auto it = merged.float_inputs.find(name);
+            std::vector<float> float_data = (it != merged.float_inputs.end())
+                ? it->second
+                : make_pattern<float>(tensor_nelems(tensor->shape()), 0.1f);
+            input_data[name].resize(float_data.size());
+            for(size_t i = 0; i < float_data.size(); ++i)
+            {
+                input_data[name][i] = static_cast<ValueT>(float_data[i]);
+            }
+        }
     }
 
     compiled.execute();

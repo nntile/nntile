@@ -34,7 +34,7 @@ void run_embedding_backward(CompiledGraph& graph, const EmbeddingAttrs& attrs,
     auto& embed = graph.get_tensor<T>(embed_name);
     auto& vocab = graph.get_tensor<T>(vocab_name);
 
-    nntile::tensor::embedding_backward<T>(index, vocab, embed, attrs.axis);
+    nntile::tensor::embedding_backward<T>(index, embed, vocab, attrs.axis);
 }
 
 } // namespace

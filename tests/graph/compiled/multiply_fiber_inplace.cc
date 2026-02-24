@@ -26,7 +26,7 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({4, 1}, "x", DataType::FP32);
+        auto& x = g.tensor({4}, "x", DataType::FP32);
         auto& y = g.tensor({4, 6}, "y", DataType::FP32);
         multiply_fiber_inplace(2.0f, x, y, 0, 0);
     };
@@ -35,7 +35,7 @@ TEST_CASE_METHOD(
                                std::map<std::string, std::vector<float>>& outputs,
                                const nntile::Context&) {
         using T = nntile::fp32_t;
-        nntile::tensor::TensorTraits x_traits({4, 1}, {4, 1});
+        nntile::tensor::TensorTraits x_traits({4}, {4});
         nntile::tensor::Tensor<T> x(x_traits);
         nntile::tensor::TensorTraits y_traits({4, 6}, {4, 6});
         nntile::tensor::Tensor<T> y(y_traits);

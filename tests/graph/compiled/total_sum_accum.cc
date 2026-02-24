@@ -25,11 +25,12 @@ TEST_CASE_METHOD(
     "CompiledGraph TotalSumAccum vs Tensor",
     "[graph][verification]")
 {
+    // Tensor API: src [num_classes, batch], logsumexp [batch], labels [batch]
     auto build_graph = [](LogicalGraph& g) {
-        auto& logsumexp = g.tensor({4}, "logsumexp", DataType::FP32);
+        auto& logsumexp = g.tensor({6}, "logsumexp", DataType::FP32);
         auto& src = g.tensor({4, 6}, "src", DataType::FP32);
-        auto& class_labels = g.tensor({4}, "class_labels", DataType::INT64);
-        auto& val = g.tensor({1}, "val", DataType::FP32);
+        auto& class_labels = g.tensor({6}, "class_labels", DataType::INT64);
+        auto& val = g.tensor(std::vector<Index>{}, "val", DataType::FP32);
         total_sum_accum(logsumexp, src, class_labels, val, 1.0f, -1);
     };
 
@@ -37,22 +38,20 @@ TEST_CASE_METHOD(
                                std::map<std::string, std::vector<float>>& outputs,
                                const nntile::Context&) {
         using T = nntile::fp32_t;
-        nntile::tensor::TensorTraits logsumexp_traits({4}, {4});
+        nntile::tensor::TensorTraits logsumexp_traits({6}, {6});
         nntile::tensor::Tensor<T> logsumexp(logsumexp_traits);
         nntile::tensor::TensorTraits src_traits({4, 6}, {4, 6});
         nntile::tensor::Tensor<T> src(src_traits);
-        nntile::tensor::TensorTraits class_labels_traits({4}, {4});
+        nntile::tensor::TensorTraits class_labels_traits({6}, {6});
         nntile::tensor::Tensor<nntile::int64_t> class_labels(class_labels_traits);
-        nntile::tensor::TensorTraits val_traits({1}, {1});
+        nntile::tensor::TensorTraits val_traits(std::vector<Index>{}, std::vector<Index>{});
         nntile::tensor::Tensor<nntile::fp32_t> val(val_traits);
 
         write_tensor(logsumexp, float_inputs["logsumexp"]);
         write_tensor(src, float_inputs["src"]);
-        // For class_labels, we need to handle it specially since it's int64
-        std::vector<std::int64_t> class_labels_data(4);
-        // Use some test data - let's assume we have overrides for this
-        for(size_t i = 0; i < 4; ++i) {
-            class_labels_data[i] = static_cast<std::int64_t>(i % 6); // 0-5 range
+        std::vector<std::int64_t> class_labels_data(6);
+        for(size_t i = 0; i < 6; ++i) {
+            class_labels_data[i] = static_cast<std::int64_t>(i % 4);
         }
         write_tensor(class_labels, class_labels_data);
 
@@ -61,15 +60,17 @@ TEST_CASE_METHOD(
         outputs["val"] = read_tensor(val);
     };
 
-    // Custom inputs for this test
     std::map<std::string, std::vector<float>> custom_inputs = {
-        {"logsumexp", {1.0f, 2.0f, 3.0f, 4.0f}},
+        {"logsumexp", {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f}},
         {"src", make_pattern<float>(24, 0.1f)},
         {"val", {0.0f}}
     };
 
+    InputOverrides overrides;
+    overrides.int64_inputs["class_labels"] = {0, 1, 2, 3, 0, 1};
+
     verify_graph_vs_tensor<nntile::fp32_t>(
         build_graph, run_tensor_direct,
-        {"logsumexp", "src", "val"}, {"val"}, context, custom_inputs
+        {"logsumexp", "src", "class_labels", "val"}, {"val"}, context, custom_inputs, overrides
     );
 }

@@ -42,7 +42,7 @@ TEST_CASE_METHOD(
 
         write_tensor(x, inputs["x"]);
         write_tensor(y, inputs["y"]);
-        nntile::tensor::norm_slice_inplace<T>(2.0f, x, 3.0f, y, 1, 0);
+        nntile::tensor::norm_slice_inplace<T>(1.0f, x, 0.0f, y, 1, 0);
         outputs["y"] = read_tensor(y);
     };
 

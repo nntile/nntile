@@ -20,16 +20,24 @@ using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::graph::test;
 
-TEST_CASE(
+TEST_CASE_METHOD(
+    GraphTestFixture,
     "CompiledGraph LogScalar",
     "[graph][verification]")
 {
-    // Test that log_scalar operation compiles
-    nntile::graph::LogicalGraph g("test");
-    auto& x = g.tensor({1}, "x", nntile::DataType::FP32);
-    nntile::graph::log_scalar(x, "test_value");
+    // Test that log_scalar compiles and executes (logs only, no output to verify)
+    // log_scalar requires a scalar (0D) tensor
+    auto build_graph = [](LogicalGraph& g) {
+        auto& x = g.tensor(std::vector<Index>{}, "x", DataType::FP32);
+        log_scalar(x, "test_value");
+    };
 
-    // Just check that the operation was added to the graph
-    REQUIRE(x.has_producer());
-    REQUIRE(x.producer()->type() == nntile::graph::OpType::LOG_SCALAR);
+    LogicalGraph g("test");
+    build_graph(g);
+    auto compiled = CompiledGraph::compile(g);
+    compiled.bind_data("x", std::vector<float>{1.5f});
+    compiled.execute();
+    compiled.wait();
+
+    REQUIRE(g.tensors().size() >= 1);
 }
