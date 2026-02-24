@@ -53,11 +53,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt install -y --no-install-recommends \
         ca-certificates \
         curl \
-        wget
+        wget \
+        sudo
 
 # Create ubuntu user for non-root operation (Cursor cloud agent best practice)
 # Use explicit UID 1000 for cache mount ownership (uid=1000,gid=1000 on mounts)
 RUN useradd -m -s /bin/bash -u 1000 ubuntu
+
+# Add sudo to ubuntu user
+RUN echo "ubuntu ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 # Create /workspace and chown to ubuntu (Cursor prefers /workspace as working directory)
 RUN mkdir -p /workspace && chown ubuntu:ubuntu /workspace
