@@ -1,7 +1,5 @@
 {
   "terminals": [],
-  "build": {
-    "context": ".",
-    "dockerfile": "Dockerfile"
-  }
+  "build": {"context": ".", "dockerfile": "Dockerfile"},
+  "start": "source /home/ubuntu/miniforge3/etc/profile.d/conda.sh && conda activate nntile"
 }

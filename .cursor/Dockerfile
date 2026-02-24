@@ -138,10 +138,7 @@ RUN --mount=type=cache,target=/home/ubuntu/miniforge3/pkgs,uid=1000,gid=1000 \
 # Make RUN commands use the new environment:
 SHELL ["conda", "run", "-n", "nntile", "/bin/bash", "-c"]
 
-# Make containers use "nntile" environment by default
-ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "nntile"]
-
-# Launch bash in the "nntile" environment by default
+# Launch bash by default
 CMD ["/bin/bash"]
 
 # Build and install FXT from source into conda environment
