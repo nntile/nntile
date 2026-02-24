@@ -316,6 +316,8 @@ void CompiledGraph::execute()
     for(size_t i = 0; i < execution_order_.size(); ++i)
     {
         execute_op(execution_order_[i]);
+        // invalidate_submit() is async; StarPU's dependency graph ensures
+        // invalidation runs only after all tasks that read the tensor complete
         invalidate_unused_inputs(i);
     }
 }
