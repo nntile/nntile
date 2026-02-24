@@ -121,3 +121,22 @@ TEST_CASE("NNGraph ToMermaidDelegatesToLogicalGraph", "[graph]")
     REQUIRE(nn_mermaid.find("graph TD") != std::string::npos);
     REQUIRE(nn_mermaid.find("classDef") != std::string::npos);
 }
+
+TEST_CASE("NNGraph MarkInputOutput", "[graph]")
+{
+    NNGraph g("test");
+
+    auto& x = g.tensor({2, 3}, "x", DataType::FP32);
+    auto& w = g.tensor({3, 4}, "w", DataType::FP32);
+    auto& y = g.tensor({2, 4}, "y", DataType::FP32);
+
+    g.add_op(OpType::GEMM, GemmAttrs{}, {&x, &w}, {&y});
+
+    x.mark_input(true);
+    y.mark_output(true);
+
+    REQUIRE(x.is_input());
+    REQUIRE(y.is_output());
+    REQUIRE(x.data().is_input());
+    REQUIRE(y.data().is_output());
+}

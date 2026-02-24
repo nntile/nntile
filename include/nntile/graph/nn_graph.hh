@@ -64,6 +64,14 @@ public:
         const std::vector<Index>& shape() const { return data_->shape(); }
         Index ndim() const { return data_->ndim(); }
 
+        // Input/output marking (forwarded to data tensor)
+        // Mark as graph input (provided via bind_data) - never invalidated
+        bool is_input() const { return data_->is_input(); }
+        void mark_input(bool is_input = true) { data_->mark_input(is_input); }
+        // Mark as graph output (retrieved via get_output) - never invalidated
+        bool is_output() const { return data_->is_output(); }
+        void mark_output(bool is_output = true) { data_->mark_output(is_output); }
+
         // String representation
         std::string to_string() const;
 

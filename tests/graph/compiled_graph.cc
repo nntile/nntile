@@ -335,3 +335,37 @@ TEST_CASE_METHOD(
         compiled.get_tensor<nntile::fp32_t>("missing"),
         std::runtime_error);
 }
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph MarkInputOutput",
+    "[graph]")
+{
+    LogicalGraph g("test");
+
+    auto& x = g.tensor({2, 4}, "x", DataType::FP32);
+    auto& w = g.tensor({4, 4}, "w", DataType::FP32);
+    auto& h = gemm(x, w, "h");
+    auto& y = gelu(h, "y");
+
+    x.mark_input(true);
+    y.mark_output(true);
+
+    REQUIRE(x.is_input());
+    REQUIRE(y.is_output());
+    REQUIRE(!h.is_input());
+    REQUIRE(!h.is_output());
+
+    auto compiled = CompiledGraph::compile(g);
+
+    std::vector<float> x_data(8, 1.0f);
+    std::vector<float> w_data(16, 0.1f);
+    compiled.bind_data("x", x_data);
+    compiled.bind_data("w", w_data);
+
+    compiled.execute();
+    compiled.wait();
+
+    auto y_data = compiled.get_output<float>("y");
+    REQUIRE(y_data.size() == 8);
+}

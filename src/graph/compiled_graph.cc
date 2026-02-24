@@ -173,6 +173,31 @@ CompiledGraph CompiledGraph::compile(const LogicalGraph& logical)
         cg.execution_order_.push_back(op_info);
     }
 
+    // Capture input/output marking from logical graph
+    cg.tensor_is_input_.clear();
+    cg.tensor_is_output_.clear();
+    for(const auto& node : logical.tensors())
+    {
+        if(node->is_input())
+        {
+            cg.tensor_is_input_.insert(node->name());
+        }
+        if(node->is_output())
+        {
+            cg.tensor_is_output_.insert(node->name());
+        }
+    }
+
+    // Build tensor_last_use_: for each tensor, index of last op that uses it as input
+    cg.tensor_last_use_.clear();
+    for(size_t i = 0; i < cg.execution_order_.size(); ++i)
+    {
+        for(const auto& input_name : cg.execution_order_[i].input_names)
+        {
+            cg.tensor_last_use_[input_name] = i;
+        }
+    }
+
     return cg;
 }
 
@@ -288,9 +313,10 @@ void CompiledGraph::allocate_tensors(const LogicalGraph& logical)
 //! Execute the graph
 void CompiledGraph::execute()
 {
-    for(const auto& op_info : execution_order_)
+    for(size_t i = 0; i < execution_order_.size(); ++i)
     {
-        execute_op(op_info);
+        execute_op(execution_order_[i]);
+        invalidate_unused_inputs(i);
     }
 }
 
@@ -552,6 +578,69 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
             throw std::runtime_error(
                 "Unsupported operation type in execute_op: " +
                 std::to_string(static_cast<int>(op_info.type)));
+    }
+}
+
+//! Call invalidate_submit on a tensor (type-erased dispatch)
+void CompiledGraph::invalidate_tensor(const std::string& name)
+{
+    auto dtype_it = tensor_dtypes_.find(name);
+    if(dtype_it == tensor_dtypes_.end())
+    {
+        return;
+    }
+    DataType dtype = dtype_it->second;
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            get_tensor<nntile::fp32_t>(name).invalidate_submit();
+            break;
+        case DataType::FP32_FAST_TF32:
+            get_tensor<nntile::fp32_fast_tf32_t>(name).invalidate_submit();
+            break;
+        case DataType::FP32_FAST_FP16:
+            get_tensor<nntile::fp32_fast_fp16_t>(name).invalidate_submit();
+            break;
+        case DataType::FP32_FAST_BF16:
+            get_tensor<nntile::fp32_fast_bf16_t>(name).invalidate_submit();
+            break;
+        case DataType::FP64:
+            get_tensor<nntile::fp64_t>(name).invalidate_submit();
+            break;
+        case DataType::FP16:
+            get_tensor<nntile::fp16_t>(name).invalidate_submit();
+            break;
+        case DataType::BF16:
+            get_tensor<nntile::bf16_t>(name).invalidate_submit();
+            break;
+        case DataType::INT64:
+            get_tensor<nntile::int64_t>(name).invalidate_submit();
+            break;
+        case DataType::BOOL:
+            get_tensor<nntile::bool_t>(name).invalidate_submit();
+            break;
+        default:
+            break;
+    }
+}
+
+//! After executing op at index op_idx, invalidate inputs no longer needed
+void CompiledGraph::invalidate_unused_inputs(size_t op_idx)
+{
+    const auto& op_info = execution_order_.at(op_idx);
+    for(const auto& input_name : op_info.input_names)
+    {
+        // Never invalidate graph inputs or outputs
+        if(tensor_is_input_.count(input_name) || tensor_is_output_.count(input_name))
+        {
+            continue;
+        }
+        auto it = tensor_last_use_.find(input_name);
+        if(it != tensor_last_use_.end() && it->second == op_idx)
+        {
+            invalidate_tensor(input_name);
+        }
     }
 }
 

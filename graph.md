@@ -33,6 +33,20 @@ src/graph/
 - `tensor(shape, name, dtype)` creates an input tensor (no producer).
 - `add_op(...)` is the public builder API used by free-function operations.
 
+### Input/output marking
+
+Tensors can be marked as graph input and/or output via `mark_input()` and
+`mark_output()` on `LogicalGraph::TensorNode` (and `NNGraph::TensorNode`).
+
+- **Input tensors** (`mark_input(true)`): Provided via `bind_data()`; never
+  invalidated during execution.
+- **Output tensors** (`mark_output(true)`): Retrieved via `get_output()`; never
+  invalidated during execution.
+
+When a compiled graph executes, intermediate tensors that are no longer used by
+remaining operations are automatically invalidated via `invalidate_submit()` to
+free memory. Input and output tensors are never invalidated.
+
 ### Data types
 
 `DataType` is defined in `logical_graph.hh` and includes:
@@ -169,6 +183,7 @@ GEMM shape rules (see `compute_gemm_output_shape` in
 
 - `NNGraph::TensorNode` points to a logical tensor and tracks `grad` and
   `requires_grad`.
+- `mark_input()` / `mark_output()` delegate to the underlying logical tensor.
 - `get_or_create_grad()` creates a gradient tensor in the underlying
   `LogicalGraph` and clears it via `clear()`.
 
@@ -184,7 +199,9 @@ Logical operations still operate on `LogicalGraph::TensorNode`. When using
   shape).
 - Execution order is the order of `logical.ops()`; build ops in topological
   order.
-- `execute()` runs operations in order.
+- `execute()` runs operations in order. After each op, tensors that are no
+  longer used by remaining ops (and are not marked input/output) are
+  invalidated via `invalidate_submit()` to free memory.
 - `wait()` calls `starpu_task_wait_for_all()`.
 
 ### Data binding and output
