@@ -729,9 +729,11 @@ void CompiledGraph::invalidate_unused_inputs(size_t op_idx)
     std::unordered_set<std::string> seen;
     for(const auto& input_name : op_info.input_names)
     {
+        // Ops may list the same tensor multiple times (e.g. multiply(x, x)).
+        // Double invalidate_submit on the same tensor is harmless.
         if(!seen.insert(input_name).second)
         {
-            continue;  // Skip duplicates (e.g. multiply(x, x))
+            continue;
         }
         // Never invalidate graph inputs or outputs
         if(tensor_is_input_.count(input_name) || tensor_is_output_.count(input_name))
