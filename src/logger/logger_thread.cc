@@ -44,7 +44,7 @@ constexpr int RECONNECT_MAX_DELAY_MS = 60000;
 constexpr int RECONNECT_MAX_ATTEMPTS = 10;
 
 //! Attempt reconnection with exponential backoff
-bool try_reconnect(const char *server_addr, int server_port)
+bool try_reconnect(const std::string &server_addr, int server_port)
 {
     for (int attempt = 0; attempt < RECONNECT_MAX_ATTEMPTS && logger_running;
          ++attempt)
@@ -57,7 +57,7 @@ bool try_reconnect(const char *server_addr, int server_port)
                   << std::endl;
         std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
 
-        if (tcp_connect(server_addr, server_port))
+        if (tcp_connect(server_addr.c_str(), server_port))
         {
             return true;
         }
@@ -66,7 +66,7 @@ bool try_reconnect(const char *server_addr, int server_port)
 }
 
 //! Main routine for the logger thread
-void logger_main(const char *server_addr, int server_port)
+void logger_main(std::string server_addr, int server_port)
 {
     // At first get worker count, bus count and check if starpu is initialized
     int worker_cnt = starpu_worker_get_count();
@@ -199,7 +199,10 @@ void logger_init(const char *server_addr, int server_port)
     }
 
     logger_running = true;
-    logger_thread = std::thread(logger_main, server_addr, server_port);
+    logger_thread = std::thread(
+        logger_main,
+        std::string(server_addr),
+        server_port);
 }
 
 //! Finalize logger thread

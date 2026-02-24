@@ -26,6 +26,46 @@ from pathlib import Path
 from tensorboardX import SummaryWriter
 
 BYTES_TO_GB = 1 / (1024 * 1024 * 1024)
+WRITER_FLUSH_SECS = 5
+
+
+def _parse_int_env(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        print(
+            f"Invalid {name}={value!r}, using {default}",
+            file=sys.stderr,
+        )
+        return default
+
+
+def _parse_bool_env(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return bool(int(value))
+    except ValueError:
+        default_value = int(default)
+        print(
+            f"Invalid {name}={value!r}, using {default_value}",
+            file=sys.stderr,
+        )
+        return default
+
+
+def _validate_tls_file(path: Path, label: str) -> bool:
+    if not path.is_file():
+        print(f"{label} not found: {path}", file=sys.stderr)
+        return False
+    if not os.access(path, os.R_OK):
+        print(f"{label} not readable: {path}", file=sys.stderr)
+        return False
+    return True
 
 
 class LoggerState:
@@ -45,7 +85,10 @@ class LoggerState:
             current_time = datetime.datetime.now().strftime("%Y-%m-%d---%H%M")
             current_log_dir = log_dir / node_name / current_time
             current_log_dir.mkdir(parents=True, exist_ok=True)
-            self.writers[node_name] = SummaryWriter(str(current_log_dir))
+            self.writers[node_name] = SummaryWriter(
+                str(current_log_dir),
+                flush_secs=WRITER_FLUSH_SECS,
+            )
         return self.writers[node_name]
 
     def increase_step(self, node: str, counter_dict: dict) -> int:
@@ -65,7 +108,10 @@ class LoggerState:
             current_time = datetime.datetime.now().strftime("%Y-%m-%d---%H%M")
             current_log_dir = log_dir / key / current_time
             current_log_dir.mkdir(parents=True, exist_ok=True)
-            self.writers[key] = SummaryWriter(str(current_log_dir))
+            self.writers[key] = SummaryWriter(
+                str(current_log_dir),
+                flush_secs=WRITER_FLUSH_SECS,
+            )
 
     def close_all(self):
         """Close all writers gracefully."""
@@ -102,7 +148,7 @@ class LoggerServer:
         self._server = None
         self._tensorboard_process = None
         self._tls_server = None
-        self._shutdown_event = asyncio.Event()
+        self._shutdown_event = None
 
     def _write_data(
         self, writer: SummaryWriter, tag: str, value: float, step: int
@@ -200,7 +246,13 @@ class LoggerServer:
                 data = await reader.readline()
                 if not data:
                     break
-                message = data.decode().strip()
+                try:
+                    message = data.decode().strip()
+                except UnicodeDecodeError as exc:
+                    print(f"Decode error from {addr}: {exc}")
+                    continue
+                if not message:
+                    continue
                 try:
                     parsed_data = json.loads(message)
                     workers_data = parsed_data.get("workers")
@@ -237,18 +289,21 @@ class LoggerServer:
         await self._shutdown_event.wait()
         if self._server:
             self._server.close()
+            await self._server.wait_closed()
         if self._tls_server:
             self._tls_server.close()
+            await self._tls_server.wait_closed()
 
     async def _wait_for_tensorboard(self, timeout: float = 30.0) -> bool:
         """Wait until TensorBoard is listening on its port."""
         start = asyncio.get_event_loop().time()
         while (asyncio.get_event_loop().time() - start) < timeout:
             try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(1.0)
-                result = sock.connect_ex(("127.0.0.1", self.tensorboard_port))
-                sock.close()
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.settimeout(1.0)
+                    result = sock.connect_ex(
+                        ("127.0.0.1", self.tensorboard_port)
+                    )
                 if result == 0:
                     print("TensorBoard is ready")
                     return True
@@ -269,6 +324,7 @@ class LoggerServer:
             str(self.log_dir),
             "--port",
             str(self.tensorboard_port),
+            "--reload_multifile=true",
             "--bind_all",
         ]
         self._tensorboard_process = await asyncio.create_subprocess_exec(
@@ -286,12 +342,15 @@ class LoggerServer:
         """Run TLS proxy for TensorBoard if cert/key are configured."""
         if not self.tls_cert_file or not self.tls_key_file:
             return
-        tls_port = int(os.environ.get("TLS_PORT", "6443"))
+        cert_path = Path(self.tls_cert_file)
+        key_path = Path(self.tls_key_file)
+        if not _validate_tls_file(cert_path, "TLS_CERT_FILE"):
+            return
+        if not _validate_tls_file(key_path, "TLS_KEY_FILE"):
+            return
+        tls_port = _parse_int_env("TLS_PORT", 6443)
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        ssl_context.load_cert_chain(
-            self.tls_cert_file,
-            self.tls_key_file,
-        )
+        ssl_context.load_cert_chain(str(cert_path), str(key_path))
 
         async def tls_handler(
             reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -338,6 +397,8 @@ class LoggerServer:
             shutil.rmtree(self.log_dir)
             self.log_dir.mkdir(parents=True, exist_ok=True)
 
+        self._shutdown_event = asyncio.Event()
+
         def shutdown_handler(*_):
             print("Shutdown signal received")
             self._shutdown_event.set()
@@ -355,9 +416,15 @@ class LoggerServer:
         addr = self._server.sockets[0].getsockname()
         print(f"Logger server listening on {addr}")
 
-        await self._start_tensorboard()
-        if self.tls_cert_file and self.tls_key_file:
-            await self._run_tls_proxy()
+        try:
+            await self._start_tensorboard()
+            if self.tls_cert_file and self.tls_key_file:
+                await self._run_tls_proxy()
+        except Exception as exc:
+            print(f"Startup error: {exc}", file=sys.stderr)
+            self._shutdown_event.set()
+            await self._shutdown()
+            raise
 
         async def serve():
             async with self._server:
@@ -376,33 +443,36 @@ class LoggerServer:
         except asyncio.CancelledError:
             pass
         finally:
-            self._shutdown()
             self._shutdown_event.set()
+            await self._shutdown()
 
-    def _shutdown(self):
+    async def _shutdown(self):
         """Clean shutdown of all resources."""
         print("Shutting down logger server...")
         if self._server:
             self._server.close()
+            await self._server.wait_closed()
         self.state.close_all()
         proc = self._tensorboard_process
         if proc and proc.returncode is None:
             proc.terminate()
             try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
+                await asyncio.wait_for(proc.wait(), timeout=5)
+            except asyncio.TimeoutError:
                 proc.kill()
+                await proc.wait()
         if self._tls_server:
             self._tls_server.close()
+            await self._tls_server.wait_closed()
         print("Logger server stopped")
 
 
 async def main():
     log_dir = os.environ.get("LOG_DIR", "logs")
-    split_hours = int(os.environ.get("SPLIT_HOURS", 24))
-    clear_logs = bool(int(os.environ.get("CLEAR_LOGS", 1)))
-    server_port = int(os.environ.get("SERVER_PORT", 5001))
-    tensorboard_port = int(os.environ.get("TENSORBOARD_PORT", 6006))
+    split_hours = _parse_int_env("SPLIT_HOURS", 24)
+    clear_logs = _parse_bool_env("CLEAR_LOGS", True)
+    server_port = _parse_int_env("SERVER_PORT", 5001)
+    tensorboard_port = _parse_int_env("TENSORBOARD_PORT", 6006)
     tls_cert = os.environ.get("TLS_CERT_FILE")
     tls_key = os.environ.get("TLS_KEY_FILE")
 
