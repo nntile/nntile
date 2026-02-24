@@ -59,6 +59,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # Use explicit UID 1000 for cache mount ownership (uid=1000,gid=1000 on mounts)
 RUN useradd -m -s /bin/bash -u 1000 ubuntu
 
+# Create /workspace and chown to ubuntu (Cursor prefers /workspace as working directory)
+RUN mkdir -p /workspace && chown ubuntu:ubuntu /workspace
+
 # Switch to ubuntu user for all subsequent operations
 USER ubuntu
 
@@ -139,9 +142,9 @@ CMD ["/bin/bash"]
 
 # Build and install FXT from source into conda environment
 # fxt is required by StarPU but not available in conda-forge
-RUN --mount=type=cache,target=/home/ubuntu/.cache/build,uid=1000,gid=1000 \
+RUN --mount=type=cache,target=/workspace/.cache/build,uid=1000,gid=1000 \
     set -xe && \
-    cd /home/ubuntu/.cache/build && \
+    cd /workspace/.cache/build && \
     export NAME=fxt-${FXT_VERSION} && \
     export URL=https://download-mirror.savannah.gnu.org/releases/fkt && \
     export URL=${URL}/${NAME}.tar.gz && \
@@ -156,9 +159,9 @@ RUN --mount=type=cache,target=/home/ubuntu/.cache/build,uid=1000,gid=1000 \
 
 # Build and install StarPU from source into conda environment (CPU-only)
 # StarPU is not available in conda-forge
-RUN --mount=type=cache,target=/home/ubuntu/.cache/build,uid=1000,gid=1000 \
+RUN --mount=type=cache,target=/workspace/.cache/build,uid=1000,gid=1000 \
     set -xe && \
-    cd /home/ubuntu/.cache/build && \
+    cd /workspace/.cache/build && \
     export NAME=starpu-${STARPU_VERSION} && \
     export URL=https://github.com/starpu-runtime/starpu/archive/refs/tags/ && \
     export URL=${URL}/${NAME}.tar.gz && \
@@ -190,11 +193,11 @@ ENV STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 # Disable OpenMP parallelism of OpenBLAS and MKL
 ENV OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 
-# Set default working directory (Cursor cloud agent best practice: home directory)
-WORKDIR /home/ubuntu
+# Set default working directory (Cursor prefers /workspace)
+WORKDIR /workspace
 
-# Define Python path for the development (repo cloned into home)
-ENV PYTHONPATH=/home/ubuntu/nntile/build/wrappers/python
+# Define Python path for the development (repo cloned into workspace)
+ENV PYTHONPATH=/workspace/nntile/build/wrappers/python
 
 # Open Jupyter Lab and Tensorboard ports
 EXPOSE 8888 6006
