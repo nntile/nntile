@@ -18,7 +18,10 @@
 // Include standard headers
 #include <algorithm>
 #include <memory>
+#include <set>
 #include <stdexcept>
+#include <unordered_map>
+#include <unordered_set>
 
 // Include third-party headers
 #include <starpu.h>  // For STARPU_W, STARPU_R
@@ -188,6 +191,10 @@ CompiledGraph CompiledGraph::compile(const LogicalGraph& logical)
         }
     }
 
+    // Dead operation elimination: remove ops whose outputs are never consumed
+    // and not marked as graph output (dangling tensors)
+    cg.eliminate_dead_ops();
+
     // Build tensor_last_use_: for each tensor, index of last op that uses it as input
     cg.tensor_last_use_.clear();
     for(size_t i = 0; i < cg.execution_order_.size(); ++i)
@@ -308,6 +315,92 @@ void CompiledGraph::allocate_tensors(const LogicalGraph& logical)
                     "Unsupported data type for tensor allocation");
         }
     }
+}
+
+//! Remove ops whose outputs are never consumed (dead code elimination)
+void CompiledGraph::eliminate_dead_ops()
+{
+    const size_t n = execution_order_.size();
+    if(n == 0)
+    {
+        return;
+    }
+
+    // tensor -> op index that produces it
+    std::unordered_map<std::string, size_t> producer;
+    // tensors that are consumed (used as input) by some op
+    std::unordered_set<std::string> consumed;
+
+    for(size_t i = 0; i < n; ++i)
+    {
+        const auto& op = execution_order_[i];
+        for(const auto& out : op.output_names)
+        {
+            producer[out] = i;
+        }
+        for(const auto& in : op.input_names)
+        {
+            consumed.insert(in);
+        }
+    }
+
+    // Backward reachability: start from graph outputs, mark live tensors and ops
+    std::unordered_set<std::string> live_tensors(tensor_is_output_.begin(),
+                                                 tensor_is_output_.end());
+    // If no outputs marked, treat sink tensors (not consumed by any op) as live
+    // so we don't eliminate ops that produce the graph's final results
+    if(live_tensors.empty())
+    {
+        for(const auto& p : producer)
+        {
+            if(consumed.count(p.first) == 0)
+            {
+                live_tensors.insert(p.first);
+            }
+        }
+    }
+    // If still no live tensors, skip elimination (conservative)
+    if(live_tensors.empty())
+    {
+        return;
+    }
+    std::set<size_t> live_ops;
+    bool changed = true;
+    while(changed)
+    {
+        changed = false;
+        for(const auto& t : live_tensors)
+        {
+            auto it = producer.find(t);
+            if(it != producer.end())
+            {
+                size_t op_idx = it->second;
+                if(live_ops.insert(op_idx).second)
+                {
+                    changed = true;
+                    for(const auto& in : execution_order_[op_idx].input_names)
+                    {
+                        if(live_tensors.insert(in).second)
+                        {
+                            changed = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Filter execution_order to only live ops (preserve topological order)
+    std::vector<OpExecutionInfo> filtered;
+    filtered.reserve(live_ops.size());
+    for(size_t i = 0; i < n; ++i)
+    {
+        if(live_ops.count(i))
+        {
+            filtered.push_back(std::move(execution_order_[i]));
+        }
+    }
+    execution_order_ = std::move(filtered);
 }
 
 //! Execute the graph
@@ -633,8 +726,13 @@ void CompiledGraph::invalidate_tensor(const std::string& name)
 void CompiledGraph::invalidate_unused_inputs(size_t op_idx)
 {
     const auto& op_info = execution_order_.at(op_idx);
+    std::unordered_set<std::string> seen;
     for(const auto& input_name : op_info.input_names)
     {
+        if(!seen.insert(input_name).second)
+        {
+            continue;  // Skip duplicates (e.g. multiply(x, x))
+        }
         // Never invalidate graph inputs or outputs
         if(tensor_is_input_.count(input_name) || tensor_is_output_.count(input_name))
         {

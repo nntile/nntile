@@ -194,7 +194,8 @@ Logical operations still operate on `LogicalGraph::TensorNode`. When using
 
 `CompiledGraph` (in `compiled_graph.hh/.cc`) executes a `LogicalGraph`.
 
-- `compile(logical)` validates operation data types and allocates NNTile tensors.
+- `compile(logical)` validates operation data types, allocates NNTile tensors, and
+  eliminates dead ops (ops whose outputs are never consumed and not marked output).
 - Each logical tensor is allocated as a single tile (tile shape equals full
   shape).
 - Execution order is the order of `logical.ops()`; build ops in topological

@@ -369,3 +369,32 @@ TEST_CASE_METHOD(
     auto y_data = compiled.get_output<float>("y");
     REQUIRE(y_data.size() == 8);
 }
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph DeadOpElimination",
+    "[graph]")
+{
+    LogicalGraph g("test");
+
+    // x -> gelu -> y (live), x -> sqrt -> dead (dangling, never consumed)
+    auto& x = g.tensor({4}, "x", DataType::FP32);
+    auto& y = gelu(x, "y");
+    sqrt(x, "dead");  // Produces "dead" tensor, never used
+
+    auto compiled = CompiledGraph::compile(g);
+
+    std::vector<float> x_data = {-1.0f, 0.0f, 1.0f, 2.0f};
+    compiled.bind_data("x", x_data);
+
+    compiled.execute();
+    compiled.wait();
+
+    // Should get correct result from gelu path; dead op was eliminated
+    auto y_data = compiled.get_output<float>("y");
+    REQUIRE(y_data.size() == 4);
+    REQUIRE(y_data[0] == Catch::Approx(-0.159f).epsilon(0.01));
+    REQUIRE(y_data[1] == Catch::Approx(0.0f).epsilon(0.01));
+    REQUIRE(y_data[2] == Catch::Approx(0.841f).epsilon(0.01));
+    REQUIRE(y_data[3] == Catch::Approx(1.955f).epsilon(0.01));
+}

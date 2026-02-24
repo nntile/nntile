@@ -112,6 +112,9 @@ private:
     //! Allocate NNTile tensors for all graph tensors
     void allocate_tensors(const LogicalGraph& logical);
 
+    //! Remove ops whose outputs are never consumed (dead code elimination)
+    void eliminate_dead_ops();
+
     //! Execute a single operation
     void execute_op(const OpExecutionInfo& op_info);
 
