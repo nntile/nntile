@@ -43,9 +43,6 @@ ARG PYTORCH_VERSION=2.9.1
 # ARG is not exposed into a container environment
 ARG DEBIAN_FRONTEND=noninteractive
 
-# Override the default shell to ensure bash is used
-SHELL ["/bin/bash", "--login", "-c"]
-
 # Install only minimal system packages needed for conda installation
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
