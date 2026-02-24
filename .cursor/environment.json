@@ -1,5 +1,4 @@
 {
-  "snapshot": "snapshot-20260224-3e201fab-0d27-44e2-867e-a4ba8a45dd76",
-  "start": "source /home/ubuntu/miniforge3/etc/profile.d/conda.sh && conda activate nntile",
+  "snapshot": "snapshot-20260224-aadd4d40-08b0-47f1-9123-678ecb258223",
   "terminals": []
 }
