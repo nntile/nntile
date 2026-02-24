@@ -23,7 +23,7 @@ ARG BASE_OS=ubuntu22.04
 ARG BASE_IMAGE=nvidia/cuda:${CUDA_VERSION}-base-${BASE_OS}
 
 # Parallel build (inherited in sandbox and nntile stages)
-ARG MAKE_JOBS=1
+ARG MAKE_JOBS=4
 
 # Target CUDA architectures (inherited in sandbox and nntile stages)
 ARG CUDA_ARCHS=70;75;80;86;89;90;100;120

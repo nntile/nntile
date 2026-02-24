@@ -25,7 +25,7 @@ LABEL org.opencontainers.image.source="https://github.com/nntile/nntile"
 LABEL Maintainer="Aleksandr Mikhalev <al.mikhalev@skoltech.ru>"
 
 # Parallel build
-ARG MAKE_JOBS=1
+ARG MAKE_JOBS=4
 
 # FXT tool version
 ARG FXT_VERSION=0.3.15
@@ -55,17 +55,24 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         curl \
         wget
 
-# Set Conda-related environment variables
-ENV CONDA_DIR=/opt/conda
+# Create ubuntu user for non-root operation (Cursor cloud agent best practice)
+# Use explicit UID 1000 for cache mount ownership (uid=1000,gid=1000 on mounts)
+RUN useradd -m -s /bin/bash -u 1000 ubuntu
+
+# Switch to ubuntu user for all subsequent operations
+USER ubuntu
+
+# Set Conda-related environment variables (install in ubuntu's home directory)
+ENV CONDA_DIR=/home/ubuntu/miniforge3
 ENV PATH=${CONDA_DIR}/bin:${PATH}
 
-# Install Miniforge
-RUN --mount=type=cache,target=/tmp \
+# Install Miniforge into ubuntu's home directory (uid/gid required: cache mounts default to root)
+RUN --mount=type=cache,target=/home/ubuntu/.cache,uid=1000,gid=1000 \
     set -xe && \
     export URL="https://github.com/conda-forge/miniforge/releases/latest" && \
     export URL="${URL}/download/Miniforge3-$(uname)-$(uname -m).sh" && \
-    wget ${URL} -O /tmp/miniforge.sh && \
-    bash /tmp/miniforge.sh -b -p ${CONDA_DIR} && \
+    wget ${URL} -O /home/ubuntu/.cache/miniforge.sh && \
+    bash /home/ubuntu/.cache/miniforge.sh -b -p ${CONDA_DIR} && \
     conda init && \
     source "${CONDA_DIR}/etc/profile.d/conda.sh" && \
     source "${CONDA_DIR}/etc/profile.d/mamba.sh" && \
@@ -73,7 +80,7 @@ RUN --mount=type=cache,target=/tmp \
 
 # Create an environment "nntile" with custom Python and Pytorch versions (CPU-only)
 # Also install compilers and libraries, required for the NNTile
-RUN --mount=type=cache,target=/opt/conda/pkgs \
+RUN --mount=type=cache,target=/home/ubuntu/miniforge3/pkgs,uid=1000,gid=1000 \
     set -xe && \
     conda create -n nntile \
         python=${PYTHON_VERSION} \
@@ -132,9 +139,9 @@ CMD ["/bin/bash"]
 
 # Build and install FXT from source into conda environment
 # fxt is required by StarPU but not available in conda-forge
-RUN --mount=type=cache,target=/tmp \
+RUN --mount=type=cache,target=/home/ubuntu/.cache/build,uid=1000,gid=1000 \
     set -xe && \
-    cd /tmp && \
+    cd /home/ubuntu/.cache/build && \
     export NAME=fxt-${FXT_VERSION} && \
     export URL=https://download-mirror.savannah.gnu.org/releases/fkt && \
     export URL=${URL}/${NAME}.tar.gz && \
@@ -145,14 +152,13 @@ RUN --mount=type=cache,target=/tmp \
     ./configure \
         --prefix=${CONDA_PREFIX} && \
     make -j ${MAKE_JOBS} && \
-    make install && \
-    ldconfig
+    make install
 
 # Build and install StarPU from source into conda environment (CPU-only)
 # StarPU is not available in conda-forge
-RUN --mount=type=cache,target=/tmp \
+RUN --mount=type=cache,target=/home/ubuntu/.cache/build,uid=1000,gid=1000 \
     set -xe && \
-    cd /tmp && \
+    cd /home/ubuntu/.cache/build && \
     export NAME=starpu-${STARPU_VERSION} && \
     export URL=https://github.com/starpu-runtime/starpu/archive/refs/tags/ && \
     export URL=${URL}/${NAME}.tar.gz && \
@@ -176,8 +182,7 @@ RUN --mount=type=cache,target=/tmp \
         --with-fxt \
         --prefix=${CONDA_PREFIX} && \
     make -j ${MAKE_JOBS} && \
-    make install && \
-    ldconfig
+    make install
 
 # Set StarPU-specific environment variables
 ENV STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
@@ -185,11 +190,11 @@ ENV STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
 # Disable OpenMP parallelism of OpenBLAS and MKL
 ENV OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 
-# Set default working directory for the NNTile development
-WORKDIR /workspace/nntile
+# Set default working directory (Cursor cloud agent best practice: home directory)
+WORKDIR /home/ubuntu
 
-# Define Python path for the development
-ENV PYTHONPATH=/workspace/nntile/build/wrappers/python
+# Define Python path for the development (repo cloned into home)
+ENV PYTHONPATH=/home/ubuntu/nntile/build/wrappers/python
 
 # Open Jupyter Lab and Tensorboard ports
 EXPOSE 8888 6006

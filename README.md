@@ -55,35 +55,60 @@ This work was supported by FASIE (fasie.ru).
 
 ## Assembly
 
-**NNTile** comes with a `Dockerfile` to construct docker image with NNTile
-and all prerequisites. Ready image can be acquired from the GitHub container
-registry:
+**NNTile** comes with a `Dockerfile` to construct a Docker image with NNTile
+and all prerequisites. The image uses Miniforge (Conda) for dependencies and
+provides two build stages:
+
+| Stage | Description |
+|-------|-------------|
+| `sandbox` | Prerequisites only (FXT, StarPU, Python, PyTorch, etc.). Use for NNTile development when building from local sources. |
+| `nntile` | Full image with NNTile compiled from the repository. Default target. |
+
+### Building the image
+
+Build the full image (sandbox + NNTile compiled):
+
 ```shell
-docker pull ghcr.io/nntile/nntile:f90a496-starpu1.4.8-cuda12.6.3-cudnn-ubuntu22.04
-```
-Sandbox image with prerequisites but without precompiled NNTile is also
-accessible:
-```shell
-docker pull ghcr.io/nntile/nntile_sandbox:starpu-1.4.8-cuda12.6.3-cudnn-ubuntu22.04
+docker build . -t nntile:latest
 ```
 
-Alternatively, the docker image can be built on your own system with the following
-command:
+Build only the sandbox (prerequisites, no NNTile):
+
 ```shell
-docker build . \
-    -t nntile:latest \
-    --build-arg MAKE_JOBS=4 \
-    --build-arg BASE_IMAGE=nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04 \
-    --build-arg CUDA_ARCHS="70;75;80;86;89;90"
+docker build . -t nntile:sandbox --target sandbox
 ```
 
-During image building `StarPU` is compiled with `make`. This process can be
-adjusted with degree of parallelism with `MAKE_JOBS` option (default no
-parallelism). Due to Nvidia pruning their old docker images, it could be
-possible that a default `nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04` is not
-available. In such a case, input name of an appropriate available image.
-Argument `CUDA_ARCHS` defines target CUDA architectures to be supported by
-**NNTile**.
+**Build arguments** (all optional):
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `CUDA_VERSION` | 12.9.1 | CUDA version for the base image |
+| `BASE_OS` | ubuntu22.04 | Base OS for the CUDA image |
+| `BASE_IMAGE` | `nvidia/cuda:${CUDA_VERSION}-base-${BASE_OS}` | Override the full base image |
+| `MAKE_JOBS` | 4 | Parallelism for compiling FXT, StarPU, and NNTile |
+| `CUDA_ARCHS` | 70;75;80;86;89;90;100;120 | Target CUDA architectures (semicolon-separated) |
+| `PYTHON_VERSION` | 3.12 | Python version in the conda environment |
+| `PYTORCH_VERSION` | 2.9.1 | PyTorch version |
+
+Example with custom options:
+
+```shell
+docker build . -t nntile:latest \
+    --build-arg MAKE_JOBS=8 \
+    --build-arg CUDA_ARCHS="70;75;80;86;89;90" \
+    --build-arg CUDA_VERSION=12.6.1
+```
+
+### Running the container
+
+Start an interactive shell (default):
+
+```shell
+docker run -it --gpus all nntile:latest
+```
+
+The container uses the `nntile` conda environment by default. Working directory
+is `/workspace/nntile` and `PYTHONPATH` is set for the Python wrappers.
 
 ## Minimal requirements
 
@@ -91,11 +116,20 @@ NNTile supports CUDA devices only of compute capability 8.0 or higher
 
 ## Jupyter notebook examples
 
-Several examples (GPT2, LLaMa) can be found in `notebooks` directory. With a present
-docker image one can launch Jupyter server with a help of the following command:
+Several examples (GPT2, LLaMa) can be found in `notebooks` directory. With a built
+Docker image, launch Jupyter Lab with:
+
 ```shell
-docker run -it --gpus all -p 8888:8888 nntile /bin/bash -c "jupyter notebook --notebook-dir=/workspace/nntile --ip='*' --port=8888 --no-browser --allow-root"
+docker run -it --gpus all -p 8888:8888 nntile:latest jupyter lab --notebook-dir=/workspace/nntile --ip='*' --port=8888 --no-browser --allow-root
 ```
+
+For the classic Jupyter Notebook interface:
+
+```shell
+docker run -it --gpus all -p 8888:8888 nntile:latest jupyter notebook --notebook-dir=/workspace/nntile --ip='*' --port=8888 --no-browser --allow-root
+```
+
+TensorBoard is available on port 6006. Expose it with `-p 6006:6006` when running the container.
 
 ## Minimal working GPT example
 
@@ -108,7 +142,7 @@ does it with a help of its special script
 [prepare.py](https://github.com/karpathy/nanogpt/data/openwebtext/prepare.py)
 for the OpenWebText.
 
-To try the example, launch a docker container based on the `ghcr.io/nntile/nntile:f90a496-starpu1.4.8-cuda12.6.3-cudnn-ubuntu22.04` docker image. Once inside the sandbox environment (docker container), try the following command:
+To try the example, build the Docker image (see [Assembly](#assembly) above) and run a container. Once inside the container, run:
 ```shell
 CUDA_VISIBLE_DEVICES=0 STARPU_NCPU=2 python /workspace/nntile/wrappers/python/examples/gpt2_custom_training.py --config-path=/workspace/nntile/wrappers/python/examples/gpt2_default_config.json --tokenizer=gpt2 --tokenizer-path=data --batch=1024 --minibatch=4 --minibatch-tile=4 --seq-tile=1024 --embd-tile=768 --inner-tile=3072 --head-tile=12 --restrict=cuda --flashattention --nforward=10 --nforward-warmup=10 --nbackward=10 --nbackward-warmup=10 --dataset=WikiText-103 --dataset-path=data --dataset-select=40000 --optimizer=fusedadamw --optimizer-eps=1e-8 --weight-decay=0.1 --loss-reduction=mean --lr=3e-4 --start-lr=0 --full-lr-iter=10 --nepochs=1 --nepochs-warmup=1
 ```
