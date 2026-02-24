@@ -75,7 +75,7 @@ docker build . -t nntile:latest
 Build only the sandbox (prerequisites, no NNTile):
 
 ```shell
-docker build . -t nntile:sandbox --target sandbox
+docker build . -t nntile_sandbox:latest --target sandbox
 ```
 
 **Build arguments** (all optional):
