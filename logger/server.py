@@ -104,7 +104,9 @@ class LoggerServer:
         self._tls_server = None
         self._shutdown_event = asyncio.Event()
 
-    def _write_data(self, writer: SummaryWriter, tag: str, value: float, step: int):
+    def _write_data(
+        self, writer: SummaryWriter, tag: str, value: float, step: int
+    ):
         """Write scalar to TensorBoard."""
         writer.add_scalar(tag, value, step)
 
@@ -116,15 +118,20 @@ class LoggerServer:
             flops = float(worker.get("flops", 0))
             writer = self.state.get_or_create_writer(log_dir, name)
             step = self.state.increase_step(name, self.state.node_counter)
-            self._write_data(writer, "Perf/GFlops/s", flops / total_time / 1e9, step)
+            gflops = flops / total_time / 1e9
+            self._write_data(writer, "Perf/GFlops/s", gflops, step)
 
-    def _handle_memory_nodes_message(self, memory_nodes_data: list, log_dir: Path):
+    def _handle_memory_nodes_message(
+        self, memory_nodes_data: list, log_dir: Path
+    ):
         memory_nodes_data = memory_nodes_data or []
         for worker in memory_nodes_data:
             name = worker.get("name")
             size = float(worker.get("size", 0))
             writer = self.state.get_or_create_writer(log_dir, name)
-            step = self.state.increase_step(name, self.state.memory_nodes_counter)
+            step = self.state.increase_step(
+                name, self.state.memory_nodes_counter
+            )
             self._write_data(
                 writer, "MemoryUsage by GB", size * BYTES_TO_GB, step
             )
@@ -165,9 +172,10 @@ class LoggerServer:
             self._write_data(writer, "Perf/Data_recv_GB/s", speed, step)
 
     def _handle_scalars(self, scalars_data: list, log_dir: Path):
-        """Handle user scalars. Uses scalar name as tag for TensorBoard hierarchy.
-        Example: 'Train loss' -> tag 'Train loss', visible under Scalars in TB.
-        For hierarchical organization use slashes: 'Training/loss', 'Validation/acc'
+        """Handle user scalars. Uses scalar name as tag for TensorBoard.
+
+        Example: 'Train loss' -> tag 'Train loss', visible under Scalars.
+        For hierarchy use slashes: 'Training/loss', 'Validation/acc'
         """
         scalars_data = scalars_data or []
         for scalar in scalars_data:
@@ -175,10 +183,16 @@ class LoggerServer:
             values = scalar.get("values") or []
             writer = self.state.get_or_create_writer(log_dir, name)
             for value in values:
-                step = self.state.increase_step(name, self.state.scalars_counter)
+                step = self.state.increase_step(
+                    name, self.state.scalars_counter
+                )
                 self._write_data(writer, name, float(value), step)
 
-    async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    async def _handle_client(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+    ):
         addr = writer.get_extra_info("peername")
         print(f"Connect from {addr}")
         try:
@@ -241,7 +255,10 @@ class LoggerServer:
             except (socket.error, OSError):
                 pass
             await asyncio.sleep(0.5)
-        print("Warning: TensorBoard did not become ready in time", file=sys.stderr)
+        print(
+            "Warning: TensorBoard did not become ready in time",
+            file=sys.stderr,
+        )
         return False
 
     async def _start_tensorboard(self):
@@ -283,6 +300,7 @@ class LoggerServer:
                 backend_reader, backend_writer = await asyncio.open_connection(
                     "127.0.0.1", self.tensorboard_port
                 )
+
                 async def forward(src, dst):
                     try:
                         while True:
@@ -367,12 +385,13 @@ class LoggerServer:
         if self._server:
             self._server.close()
         self.state.close_all()
-        if self._tensorboard_process and self._tensorboard_process.returncode is None:
-            self._tensorboard_process.terminate()
+        proc = self._tensorboard_process
+        if proc and proc.returncode is None:
+            proc.terminate()
             try:
-                self._tensorboard_process.wait(timeout=5)
+                proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                self._tensorboard_process.kill()
+                proc.kill()
         if self._tls_server:
             self._tls_server.close()
         print("Logger server stopped")
