@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/sum.hh"
-#include "nntile/starpu/sum.hh"
+#include "nntile/tile/sum.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -34,39 +34,21 @@ void sum_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> 
     }
 
     // Do actual calculations
-    int mpi_rank = starpu_mpi_world_rank();
-    int ret;
     constexpr Scalar one = 1.0;
+    auto dst_tile_handle = dst.get_tile_handle(0);
+    auto dst_tile = dst.get_tile(0);
     // go over all tiles
     for(Index i = 0; i < src.grid.nelems; ++i)
     {
-        auto src_tile_handle = src.get_tile_handle(i);
-        int src_tile_rank = src_tile_handle.mpi_get_rank();
-        // Get destination tile (only one tile for scalar result)
-        auto dst_tile_handle = dst.get_tile_handle(0);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-
-        // Transfer data to destination node
-        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        // Execute on destination node
-        if(mpi_rank == dst_tile_rank)
+        auto src_tile = src.get_tile(i);
+        bool init_first = (i == 0);
+        if(init_first)
         {
-            auto src_tile_traits = src.get_tile_traits(i);
-            Index nelems = src_tile_traits.nelems;
-            bool init_first = (i == 0);
-            // Insert corresponding task
-            if(init_first)
-            {
-                // The first time we need to initialize with src sum
-                starpu::sum.submit<std::tuple<T>>(nelems, alpha,
-                    src_tile_handle, beta, dst_tile_handle);
-            }
-            else
-            {
-                // The rest of the times we accumulate with beta=1
-                starpu::sum.submit<std::tuple<T>>(
-                    nelems, alpha, src_tile_handle, one, dst_tile_handle);
-            }
+            tile::sum_async<T>(alpha, src_tile, beta, dst_tile);
+        }
+        else
+        {
+            tile::sum_async<T>(alpha, src_tile, one, dst_tile);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();

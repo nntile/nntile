@@ -14,6 +14,7 @@
 
 #include "nntile/tile/norm.hh"
 #include "nntile/starpu/norm.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -30,8 +31,14 @@ void norm_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &ds
     {
         throw std::runtime_error("src.nelems == 0");
     }
-    // Insert task
-    starpu::norm.submit<std::tuple<T>>(src.nelems, alpha, src, beta, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert task
+        starpu::norm.submit<std::tuple<T>>(src.nelems, alpha, src, beta, dst);
+    }
 }
 
 template<typename T>

@@ -14,6 +14,7 @@
 
 #include "nntile/tile/norm_fiber_inplace.hh"
 #include "nntile/starpu/norm_fiber_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -61,8 +62,15 @@ void norm_fiber_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta,
     m = src.stride[axis];
     n = src.matrix_shape[axis+1][1] / batch;
     k = src.shape[axis];
-    // Insert task
-    starpu::norm_fiber_inplace.submit<std::tuple<T>>(m, n, k, batch, alpha, src, beta, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert task
+        starpu::norm_fiber_inplace.submit<std::tuple<T>>(m, n, k, batch,
+                alpha, src, beta, dst, redux);
+    }
 }
 
 template<typename T>
