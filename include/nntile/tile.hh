@@ -29,6 +29,9 @@
 #include <nntile/tile/clear.hh>
 #include <nntile/tile/copy.hh>
 #include <nntile/tile/copy_intersection.hh>
+#include <nntile/tile/conv2d_inplace.hh>
+#include <nntile/tile/conv2d_bwd_input_inplace.hh>
+#include <nntile/tile/conv2d_bwd_weight_inplace.hh>
 #include <nntile/tile/embedding.hh>
 #include <nntile/tile/embedding_backward.hh>
 #include <nntile/tile/gelu.hh>
