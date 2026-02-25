@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/scale_inplace.hh"
-#include "nntile/starpu/scale_inplace.hh"
+#include "nntile/tile/scale_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -24,18 +24,11 @@ template<typename T>
 void scale_inplace_async(Scalar alpha, const Tensor<T> &data)
 {
     // Do actual calculations
-    int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < data.grid.nelems; ++i)
     {
         auto data_tile_handle = data.get_tile_handle(i);
-        auto data_tile_traits = data.get_tile_traits(i);
-        int data_tile_rank = data_tile_handle.mpi_get_rank();
-        // Execute on source tile
-        if(mpi_rank == data_tile_rank)
-        {
-            starpu::scale_inplace.submit<std::tuple<T>>(data_tile_traits.nelems, alpha,
-                    data_tile_handle);
-        }
+        auto data_tile = data.get_tile(i);
+        tile::scale_inplace_async<T>(alpha, data_tile);
         // Flush cache for the output tile on every node
         data_tile_handle.mpi_flush();
     }

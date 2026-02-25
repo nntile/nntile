@@ -14,6 +14,7 @@
 
 #include "nntile/tile/scale.hh"
 #include "nntile/starpu/scale.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -35,8 +36,14 @@ void scale_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
             throw std::runtime_error("dst.shape[i] != src.shape[i]");
         }
     }
-    // Insert corresponding task
-    starpu::scale.submit<std::tuple<T>>(src.nelems, alpha, src, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert corresponding task
+        starpu::scale.submit<std::tuple<T>>(src.nelems, alpha, src, dst);
+    }
 }
 
 //! Tile-wise scale operation

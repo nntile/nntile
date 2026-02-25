@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/scale_fiber.hh"
-#include "nntile/starpu/scale_fiber.hh"
+#include "nntile/tile/scale_fiber.hh"
 #include "nntile/tensor/clear.hh"
 #include "nntile/starpu/config.hh"
 
@@ -77,13 +77,11 @@ void scale_fiber_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
         return;
     }
     // Apply per-tile scale_fiber asynchronously as needed
-    int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         auto dst_tile_index = dst.grid.linear_to_index(i);
-        auto dst_tile_traits = dst.get_tile_traits(i);
         auto dst_tile_handle = dst.get_tile_handle(i);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
+        auto dst_tile = dst.get_tile(i);
         // Get corresponding src tile
         std::vector<Index> src_tile_index(src.ndim);
         src_tile_index[0] = dst_tile_index[axis];
@@ -91,24 +89,9 @@ void scale_fiber_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
         {
             src_tile_index[j+1] = dst_tile_index[dst.ndim-batch_ndim+j];
         }
-        auto src_tile_handle = src.get_tile_handle(src_tile_index);
-        auto src_tile_traits = src.get_tile_traits(src_tile_index);
-        int src_tile_rank = src_tile_handle.mpi_get_rank();
-        // Transfer data
-        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        // Execute on destination node
-        if(mpi_rank == dst_tile_rank)
-        {
-            // Reshape inputs: src_tile -> (k,batch), dst_tile -> (m,k,n,batch)
-            Index m, n, k, batch;
-            batch = src_tile_traits.matrix_shape[1][1];
-            m = dst_tile_traits.stride[axis];
-            n = dst_tile_traits.matrix_shape[axis+1][1] / batch;
-            k = dst_tile_traits.shape[axis];
-            // Insert corresponding task
-            starpu::scale_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha,
-                    src_tile_handle, dst_tile_handle);
-        }
+        auto src_tile = src.get_tile(src_tile_index);
+        tile::scale_fiber_async<T>(alpha, src_tile, dst_tile, axis,
+                batch_ndim);
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
     }

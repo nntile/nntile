@@ -14,6 +14,7 @@
 
 #include "nntile/tile/scale_inplace.hh"
 #include "nntile/starpu/scale_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -22,8 +23,13 @@ namespace nntile::tile
 template<typename T>
 void scale_inplace_async(Scalar alpha, const Tile<T> &data)
 {
-    // Insert task
-    starpu::scale_inplace.submit<std::tuple<T>>(data.nelems, alpha, data);
+    int mpi_rank = starpu_mpi_world_rank();
+    int data_rank = data.mpi_get_rank();
+    if(mpi_rank == data_rank)
+    {
+        // Insert task
+        starpu::scale_inplace.submit<std::tuple<T>>(data.nelems, alpha, data);
+    }
 }
 
 //! Tile-wise scale_inplace operation
