@@ -14,6 +14,7 @@
 
 #include "nntile/tile/silu_backward.hh"
 #include "nntile/starpu/silu_backward.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -34,8 +35,15 @@ void silu_backward_async(const Tile<T> &x, const Tile<T> &dy,
     {
         throw std::runtime_error("x.shape != dx.shape");
     }
-    // Submit task without any arguments checked
-    starpu::silu_backward.submit<std::tuple<T>>(x.nelems, x, dy, dx);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dx_rank = dx.mpi_get_rank();
+    x.mpi_transfer(dx_rank, mpi_rank);
+    dy.mpi_transfer(dx_rank, mpi_rank);
+    if(mpi_rank == dx_rank)
+    {
+        // Submit task without any arguments checked
+        starpu::silu_backward.submit<std::tuple<T>>(x.nelems, x, dy, dx);
+    }
 }
 
 //! Blocking version of tile-wise backward SiLU operation
@@ -65,6 +73,18 @@ template
 void silu_backward_async<bf16_t>(const Tile<bf16_t> &x, const Tile<bf16_t> &dy,
         const Tile<bf16_t> &dx);
 
+template
+void silu_backward_async<fp16_t>(const Tile<fp16_t> &x, const Tile<fp16_t> &dy,
+        const Tile<fp16_t> &dx);
+
+template
+void silu_backward_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &x,
+        const Tile<fp32_fast_fp16_t> &dy, const Tile<fp32_fast_fp16_t> &dx);
+
+template
+void silu_backward_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &x,
+        const Tile<fp32_fast_bf16_t> &dy, const Tile<fp32_fast_bf16_t> &dx);
+
 // Explicit instantiation
 template
 void silu_backward<fp32_t>(const Tile<fp32_t> &x, const Tile<fp32_t> &dy,
@@ -81,5 +101,17 @@ void silu_backward<fp64_t>(const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
 template
 void silu_backward<bf16_t>(const Tile<bf16_t> &x, const Tile<bf16_t> &dy,
         const Tile<bf16_t> &dx);
+
+template
+void silu_backward<fp16_t>(const Tile<fp16_t> &x, const Tile<fp16_t> &dy,
+        const Tile<fp16_t> &dx);
+
+template
+void silu_backward<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &x,
+        const Tile<fp32_fast_fp16_t> &dy, const Tile<fp32_fast_fp16_t> &dx);
+
+template
+void silu_backward<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &x,
+        const Tile<fp32_fast_bf16_t> &dy, const Tile<fp32_fast_bf16_t> &dx);
 
 } // namespace nntile::tile
