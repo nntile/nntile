@@ -15,9 +15,9 @@
 
 #include "nntile/tensor/conv2d_bwd_weight_inplace.hh"
 #include <algorithm>
-#include "nntile/starpu/clear.hh"
-#include "nntile/starpu/scale_inplace.hh"
-#include "nntile/starpu/conv2d_bwd_weight_inplace.hh"
+#include "nntile/tile/clear.hh"
+#include "nntile/tile/scale_inplace.hh"
+#include "nntile/tile/conv2d_bwd_weight_inplace.hh"
 #include <unistd.h>
 #include "nntile/starpu/config.hh"
 
@@ -121,7 +121,7 @@ void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
 
     // There is only single dC tile, so a loop over tiles of dC is omitted
     auto dC_tile_traits = dC.get_tile_traits(0);
-    auto dC_tile_handle = dC.get_tile_handle(0);
+    auto dC_tile = dC.get_tile(0);
     Scalar dC_tile_beta = beta;
     bool initialized = false;
     // Loop through X tiles
@@ -129,7 +129,7 @@ void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
     {
         auto X_tile_index = X.grid.linear_to_index(i);
         auto X_tile_traits = X.get_tile_traits(i);
-        auto X_tile_handle = X.get_tile_handle(i);
+        auto X_tile = X.get_tile(i);
         // Get start and end coordinates of dst tile within X tensor
         Index X_start_m = X_tile_index[0] * X.basetile_shape[0];
         Index X_end_m = X_start_m + X_tile_traits.shape[0];
@@ -175,20 +175,20 @@ void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
             {
                 dY_tile_index[1] = dY_j;
                 auto dY_tile_traits = dY.get_tile_traits(dY_tile_index);
-                auto dY_tile_handle = dY.get_tile_handle(dY_tile_index);
+                auto dY_tile = dY.get_tile(dY_tile_index);
                 Index offset_m = X_start_m + padding[0]
                     - stride[0]*dY_i*dY.basetile_shape[0];
                 Index offset_n = X_start_n + padding[1]
                     - stride[1]*dY_j*dY.basetile_shape[1];
-                starpu::conv2d_bwd_weight_inplace.submit<std::tuple<T>>(
+                tile::conv2d_bwd_weight_inplace_async<T>(
                         X_tile_traits.shape[0], X_tile_traits.shape[1],
                         X_tile_traits.shape[2], X_tile_traits.shape[3],
                         dY_tile_traits.shape[0], dY_tile_traits.shape[1],
                         stride[0], stride[1], dY_tile_traits.shape[2],
-                        offset_m, offset_n, alpha, X_tile_handle,
-                        dY_tile_handle, dC_tile_traits.shape[0],
+                        offset_m, offset_n, alpha, X_tile,
+                        dY_tile, dC_tile_traits.shape[0],
                         dC_tile_traits.shape[1], dilation[0], dilation[1],
-                        dC_tile_beta, dC_tile_handle);
+                        dC_tile_beta, dC_tile);
                 dC_tile_beta = 1.0;
                 initialized = true;
             }
@@ -199,12 +199,12 @@ void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
         // Clear if beta is 0
         if(beta == 0.0)
         {
-            starpu::clear.submit(dC_tile_handle);
+            tile::clear_async<T>(dC_tile);
         }
         // Scale inplace if beta is not 1.0 or 0.0
         if(beta != 1.0)
         {
-            starpu::scale_inplace.submit<std::tuple<T>>(dC.nelems, beta, dC_tile_handle);
+            tile::scale_inplace_async<T>(beta, dC_tile);
         }
         // Do nothing if beta is 1.0
     }

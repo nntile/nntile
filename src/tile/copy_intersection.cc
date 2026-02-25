@@ -13,7 +13,9 @@
  * */
 
 #include "nntile/tile/copy_intersection.hh"
+#include "nntile/starpu/copy.hh"
 #include "nntile/starpu/subcopy.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -56,24 +58,25 @@ void copy_intersection_async(const Tile<T> &src,
         throw std::runtime_error("scratch.shape[0] < 2*src.ndim");
     }
     Index ndim = src.ndim;
-    int ret;
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
     // Treat special case of ndim=0
     if(ndim == 0)
     {
-        ret = starpu_data_cpy(dst.get(), src.get(), 1, nullptr, nullptr);
-        if(ret != 0)
+        src.mpi_transfer(dst_rank, mpi_rank);
+        if(mpi_rank == dst_rank)
         {
-            throw std::runtime_error("Error in starpu_data_cpy");
+            starpu::copy.submit(src, dst);
         }
         return;
     }
     // Treat easy case of full copy
     if(src_offset == dst_offset and src.shape == dst.shape)
     {
-        ret = starpu_data_cpy(dst.get(), src.get(), 1, nullptr, nullptr);
-        if(ret != 0)
+        src.mpi_transfer(dst_rank, mpi_rank);
+        if(mpi_rank == dst_rank)
         {
-            throw std::runtime_error("Error in starpu_data_cpy");
+            starpu::copy.submit(src, dst);
         }
         return;
     }
@@ -113,8 +116,13 @@ void copy_intersection_async(const Tile<T> &src,
         }
     }
     // Insert task
-    starpu::subcopy.submit<std::tuple<T>>(src.ndim, src_start, src.stride, dst_start,
-            dst.stride, copy_shape, src, dst, scratch, dst_tile_mode);
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        starpu::subcopy.submit<std::tuple<T>>(src.ndim, src_start, src.stride,
+                dst_start, dst.stride, copy_shape, src, dst, scratch,
+                dst_tile_mode);
+    }
 }
 
 //! Blocking version of tile-wise copy operation
@@ -158,6 +166,31 @@ void copy_intersection_async<int64_t>(const Tile<int64_t> &src,
         const std::vector<Index> &src_offset, const Tile<int64_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
+template
+void copy_intersection_async<bf16_t>(const Tile<bf16_t> &src,
+        const std::vector<Index> &src_offset, const Tile<bf16_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
+
+template
+void copy_intersection_async<fp16_t>(const Tile<fp16_t> &src,
+        const std::vector<Index> &src_offset, const Tile<fp16_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
+
+template
+void copy_intersection_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+        const std::vector<Index> &src_offset, const Tile<fp32_fast_tf32_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
+
+template
+void copy_intersection_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+        const std::vector<Index> &src_offset, const Tile<fp32_fast_fp16_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
+
+template
+void copy_intersection_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+        const std::vector<Index> &src_offset, const Tile<fp32_fast_bf16_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
+
 // Explicit instantiation
 template
 void copy_intersection<bool_t>(const Tile<bool_t> &src,
@@ -177,6 +210,31 @@ void copy_intersection<fp64_t>(const Tile<fp64_t> &src,
 template
 void copy_intersection<int64_t>(const Tile<int64_t> &src,
         const std::vector<Index> &src_offset, const Tile<int64_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
+
+template
+void copy_intersection<bf16_t>(const Tile<bf16_t> &src,
+        const std::vector<Index> &src_offset, const Tile<bf16_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
+
+template
+void copy_intersection<fp16_t>(const Tile<fp16_t> &src,
+        const std::vector<Index> &src_offset, const Tile<fp16_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
+
+template
+void copy_intersection<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+        const std::vector<Index> &src_offset, const Tile<fp32_fast_tf32_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
+
+template
+void copy_intersection<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+        const std::vector<Index> &src_offset, const Tile<fp32_fast_fp16_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
+
+template
+void copy_intersection<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+        const std::vector<Index> &src_offset, const Tile<fp32_fast_bf16_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 } // namespace nntile::tile

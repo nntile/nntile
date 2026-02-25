@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/norm_slice.hh"
-#include "nntile/starpu/norm_slice.hh"
+#include "nntile/tile/norm_slice.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -91,13 +91,11 @@ void norm_slice_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
         }
     }
     // Do actual calculations
-    int mpi_rank = starpu_mpi_world_rank();
-    int ret;
-    constexpr Scalar one = 1.0;
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         auto dst_tile_handle = dst.get_tile_handle(i);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
+        auto dst_tile = dst.get_tile(i);
+        auto src2_tile = src2.get_tile(i);
         // Obtain indices of applicable source tiles
         auto dst_tile_index = dst.grid.linear_to_index(i);
         std::vector<Index> src1_tile_index(src1.ndim);
@@ -111,40 +109,14 @@ void norm_slice_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
             src1_tile_index[j] = dst_tile_index[k];
             ++k;
         }
-        auto dst_tile_traits = dst.get_tile_traits(i);
         // Launch kernel for each appropriate source tile
         for(Index j = 0; j < src1.grid.shape[axis]; ++j)
         {
             src1_tile_index[axis] = j;
             Index src1_tile_offset = src1.grid.index_to_linear(src1_tile_index);
-            auto src1_tile_handle = src1.get_tile_handle(src1_tile_offset);
-            auto src2_tile_handle = src2.get_tile_handle(i);
-            int src1_tile_rank = src1_tile_handle.mpi_get_rank();
-            // Transfer data
-            src1_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-            src2_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-            // Execute on destination node
-            if(mpi_rank == dst_tile_rank)
-            {
-                // Get sizes
-                auto src1_tile_traits = src1.get_tile_traits(src1_tile_offset);
-                Index m, n, k;
-                m = src1_tile_traits.stride[axis];
-                n = src1_tile_traits.matrix_shape[axis+1][1];
-                k = src1_tile_traits.shape[axis];
-                // Insert initial task
-                if(j == 0)
-                {
-                    starpu::norm_slice.submit<std::tuple<T>>(m, n, k, alpha,
-                            src1_tile_handle, beta, src2_tile_handle, dst_tile_handle, redux);
-                }
-                // Insert all consequent tasks
-                else
-                {
-                    starpu::norm_slice.submit<std::tuple<T>>(m, n, k, alpha,
-                            src1_tile_handle, beta, src2_tile_handle, dst_tile_handle, redux);
-                }
-            }
+            auto src1_tile = src1.get_tile(src1_tile_offset);
+            tile::norm_slice_async<T>(alpha, src1_tile, beta, src2_tile,
+                    dst_tile, axis, redux);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();

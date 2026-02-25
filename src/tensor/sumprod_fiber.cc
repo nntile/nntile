@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/sumprod_fiber.hh"
-#include "nntile/starpu/sumprod_fiber.hh"
+#include "nntile/tile/sumprod_fiber.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -59,58 +59,35 @@ void sumprod_fiber_async(Scalar alpha, const Tensor<T> &src1,
                 "dst.basetile_shape[0]");
     }
     // Do actual calculations
-    int mpi_rank = starpu_mpi_world_rank();
-    int ret;
-    Index ndim = src1.ndim;
     constexpr Scalar one = 1.0;
     for(Index i = 0; i < src1.grid.nelems; ++i)
     {
         // Get source tiles
-        auto src1_tile_handle = src1.get_tile_handle(i);
-        auto src2_tile_handle = src2.get_tile_handle(i);
-        auto src_tile_traits = src1.get_tile_traits(i);
-        int src1_tile_rank = src1_tile_handle.mpi_get_rank();
-        int src2_tile_rank = src2_tile_handle.mpi_get_rank();
+        auto src1_tile = src1.get_tile(i);
+        auto src2_tile = src2.get_tile(i);
         auto src_tile_index = src1.grid.linear_to_index(i);
         // Get destination tile
         Index j = src_tile_index[axis];
-        auto dst_tile_handle = dst.get_tile_handle(j);
-        auto dst_tile_traits = dst.get_tile_traits(j);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-        // Transfer data
-        src1_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        src2_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        // Execute on destination node
-        if(mpi_rank == dst_tile_rank)
+        auto dst_tile = dst.get_tile(j);
+        // Check if it is the first task for the output tile
+        bool init_first = true;
+        for(Index j = 0; j < src1.ndim; ++j)
         {
-            // Get sizes
-            Index m, n, k;
-            m = src_tile_traits.stride[axis];
-            n = src_tile_traits.matrix_shape[axis+1][1];
-            k = src_tile_traits.shape[axis];
-            // Check if it is the first task for the output tile
-            bool init_first = true;
-            for(Index j = 0; j < src1.ndim; ++j)
+            if(j != axis and src_tile_index[j] != 0)
             {
-                if(j != axis and src_tile_index[j] != 0)
-                {
-                    init_first = false;
-                    break;
-                }
+                init_first = false;
+                break;
             }
-            // Insert task
-            if(init_first)
-            {
-                starpu::sumprod_fiber.submit<std::tuple<T>>(m, n, k, alpha,
-                        src1_tile_handle, src2_tile_handle, beta,
-                        dst_tile_handle);
-            }
-            else
-            {
-                starpu::sumprod_fiber.submit<std::tuple<T>>(m, n, k, alpha,
-                        src1_tile_handle, src2_tile_handle, one,
-                        dst_tile_handle, redux);
-            }
+        }
+        if(init_first)
+        {
+            tile::sumprod_fiber_async<T>(alpha, src1_tile, src2_tile, beta,
+                    dst_tile, axis);
+        }
+        else
+        {
+            tile::sumprod_fiber_async<T>(alpha, src1_tile, src2_tile, one,
+                    dst_tile, axis, redux);
         }
     }
     // Flush cache for the output tiles on every node

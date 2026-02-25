@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/gelu_inplace.hh"
-#include "nntile/starpu/gelu_inplace.hh"
+#include "nntile/tile/gelu_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -25,17 +25,11 @@ namespace nntile::tensor
 template<typename T>
 void gelu_inplace_async(const Tensor<T> &A)
 {
-    int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < A.grid.nelems; ++i)
     {
         auto tile_handle = A.get_tile_handle(i);
-        int tile_rank = tile_handle.mpi_get_rank();
-        // Execute only on node-owner
-        if(mpi_rank == tile_rank)
-        {
-            auto tile_traits = A.get_tile_traits(i);
-            starpu::gelu_inplace.submit<std::tuple<T>>(tile_traits.nelems, tile_handle);
-        }
+        auto tile = A.get_tile(i);
+        tile::gelu_inplace_async<T>(tile);
         // Flush cache for the output tile on every node
         tile_handle.mpi_flush();
     }

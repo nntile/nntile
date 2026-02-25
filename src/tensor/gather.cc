@@ -13,8 +13,9 @@
  * */
 
 #include "nntile/tensor/gather.hh"
-#include "nntile/starpu/subcopy.hh"
-#include "nntile/starpu/copy.hh"
+#include <algorithm>
+#include "nntile/tile/copy_intersection.hh"
+#include "nntile/tile/clear.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -40,78 +41,24 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
     {
         throw std::runtime_error("src.shape != dst.shape");
     }
-    // Treat special case of a source destination tile
-    int mpi_rank = starpu_mpi_world_rank();
-    auto dst_tile_handle = dst.get_tile_handle(0);
-    auto dst_tile_traits = dst.get_tile_traits(0);
-    int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-    int ret;
-    if(src.grid.nelems == 1)
-    {
-        auto src_tile_handle = src.get_tile_handle(0);
-        // Transfer source tile to dest node
-        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        // Execute on destination node
-        if(mpi_rank == dst_tile_rank)
-        {
-            starpu::copy.submit(src_tile_handle, dst_tile_handle);
-        }
-        // Flush cache for the output tile on every node
-        dst_tile_handle.mpi_flush();
-        return;
-    }
-    // Do the slow complex copy
-    // Temporary buffer for indexing, that is allocated per-worker when needed
     Index ndim = src.ndim;
-    starpu::VariableHandle scratch(2*ndim*sizeof(int64_t));
-    // We define starting coordinates and shapes for all complex copies of
-    // tiles
-    std::vector<Index> src_tile_start(ndim), dst_tile_start(ndim);
-    std::vector<Index> src_tile_index(ndim);
-    // Init with the first source tile
-    auto src_first_tile_handle = src.get_tile_handle(0);
-    // Transfer first source tile to dest node
-    src_first_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-    // Execute on dest tile
-    if(mpi_rank == dst_tile_rank)
+    tile::Tile<int64_t> scratch_tile({std::max<Index>(1, 2*ndim)});
+    std::vector<Index> dst_offset(ndim, 0);
+    auto dst_tile = dst.get_tile(0);
+    auto dst_tile_handle = dst.get_tile_handle(0);
+    tile::clear_async<T>(dst_tile);
+    for(Index i = 0; i < src.grid.nelems; ++i)
     {
-        auto src_first_tile_traits = src.get_tile_traits(0);
-        starpu::subcopy.submit<std::tuple<T>>(ndim, src_tile_start,
-                src_first_tile_traits.stride, dst_tile_start,
-                dst_tile_traits.stride, src_first_tile_traits.shape,
-                src_first_tile_handle, dst_tile_handle, scratch, STARPU_W);
-    }
-    // Cycle through all other source tiles
-    for(Index i = 1; i < src.grid.nelems; ++i)
-    {
-        // Get next tile index and corresponding offset
-        ++src_tile_index[0];
-        Index k = 0;
-        while(src_tile_index[k] == src.grid.shape[k])
+        auto src_tile = src.get_tile(i);
+        auto src_tile_index = src.grid.linear_to_index(i);
+        std::vector<Index> src_offset(ndim);
+        for(Index k = 0; k < ndim; ++k)
         {
-            src_tile_index[k] = 0;
-            ++k;
-            ++src_tile_index[k];
+            src_offset[k] = src_tile_index[k] * src.basetile_shape[k];
         }
-        auto src_tile_handle = src.get_tile_handle(i);
-        // Transfer source tile to dest node
-        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        // Execute on dest tile
-        if(mpi_rank == dst_tile_rank)
-        {
-            auto src_tile_traits = src.get_tile_traits(i);
-            for(Index k = 0; k < ndim; ++k)
-            {
-                dst_tile_start[k] = src_tile_index[k] * src.basetile_shape[k];
-            }
-            starpu::subcopy.submit<std::tuple<T>>(ndim, src_tile_start,
-                    src_tile_traits.stride, dst_tile_start,
-                    dst_tile_traits.stride, src_tile_traits.shape,
-                    src_tile_handle, dst_tile_handle, scratch, STARPU_RW);
-        }
+        tile::copy_intersection_async<T>(src_tile, src_offset, dst_tile,
+                dst_offset, scratch_tile);
     }
-    // Unregister scratch buffer in an async manner
-    scratch.unregister_submit();
     // Flush cache for the output tile on every node
     dst_tile_handle.mpi_flush();
 }

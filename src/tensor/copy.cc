@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/copy.hh"
-#include "nntile/starpu/copy.hh"
+#include "nntile/tile/copy.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -42,16 +42,10 @@ void copy_async(const Tensor<T> &src, const Tensor<T> &dst)
     int ret;
     for(Index i = 0; i < src.grid.nelems; ++i)
     {
-        auto src_tile_handle = src.get_tile_handle(i);
         auto dst_tile_handle = dst.get_tile_handle(i);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-        // Transfer source tile to dest node
-        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        // Execute on destination node
-        if(mpi_rank == dst_tile_rank)
-        {
-            starpu::copy.submit(src_tile_handle, dst_tile_handle);
-        }
+        auto src_tile = src.get_tile(i);
+        auto dst_tile = dst.get_tile(i);
+        tile::copy_async<T>(src_tile, dst_tile);
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
     }

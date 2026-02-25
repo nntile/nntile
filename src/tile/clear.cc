@@ -14,6 +14,7 @@
 
 #include "nntile/tile/clear.hh"
 #include "nntile/starpu/clear.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -22,7 +23,12 @@ namespace nntile::tile
 template<typename T>
 void clear_async(const Tile<T> &tile)
 {
-    starpu::clear.submit(tile);
+    int mpi_rank = starpu_mpi_world_rank();
+    int tile_rank = tile.mpi_get_rank();
+    if(mpi_rank == tile_rank)
+    {
+        starpu::clear.submit(tile);
+    }
 }
 
 //! Asynchronously clear a tile
@@ -55,6 +61,12 @@ void clear_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &tile);
 template
 void clear_async<fp64_t>(const Tile<fp64_t> &tile);
 
+template
+void clear_async<int64_t>(const Tile<int64_t> &tile);
+
+template
+void clear_async<bool_t>(const Tile<bool_t> &tile);
+
 // Explicit instantiation
 template
 void clear<fp32_t>(const Tile<fp32_t> &tile);
@@ -76,5 +88,11 @@ void clear<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &tile);
 
 template
 void clear<fp64_t>(const Tile<fp64_t> &tile);
+
+template
+void clear<int64_t>(const Tile<int64_t> &tile);
+
+template
+void clear<bool_t>(const Tile<bool_t> &tile);
 
 } // namespace nntile::tile

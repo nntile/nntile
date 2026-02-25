@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/transpose.hh"
-#include "nntile/starpu/transpose.hh"
+#include "nntile/tile/transpose.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -58,18 +58,9 @@ void transpose_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
             // Get handle for corresponding tiles of src and dst
             auto src_tile_handle = src.get_tile_handle(i+j*grid_m);
             auto dst_tile_handle = dst.get_tile_handle(i*grid_n+j);
-            // MPI rank of the destination tile
-            int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-            // Transfer data
-            src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-            // Execute only on destination node
-            if(mpi_rank == dst_tile_rank)
-            {
-                auto traits = src.get_tile_traits(i+j*grid_m);
-                starpu::transpose.submit<std::tuple<T>>(traits.matrix_shape[ndim][0],
-                        traits.matrix_shape[ndim][1], alpha, src_tile_handle,
-                        dst_tile_handle);
-            }
+            auto src_tile = src.get_tile(i+j*grid_m);
+            auto dst_tile = dst.get_tile(i*grid_n+j);
+            tile::transpose_async<T>(alpha, src_tile, dst_tile, ndim);
             // Flush cache for the output tile on every node
             dst_tile_handle.mpi_flush();
         }

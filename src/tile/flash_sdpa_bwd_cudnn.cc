@@ -14,6 +14,7 @@
 
 #include "nntile/tile/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/starpu/flash_sdpa_bwd_cudnn.hh"
+#include "nntile/starpu/config.hh"
 #include "nntile/starpu/handle.hh"
 
 namespace nntile::tile
@@ -104,6 +105,21 @@ void flash_sdpa_bwd_cudnn_async(
     Index seq = K.shape[1];
     Index head = K.shape[0];
     Index batch = K.shape[2] * K.shape[3] * K.shape[4];
+    int mpi_rank = starpu_mpi_world_rank();
+    int dq_rank = dQ.mpi_get_rank();
+    K.mpi_transfer(dq_rank, mpi_rank);
+    Q.mpi_transfer(dq_rank, mpi_rank);
+    V.mpi_transfer(dq_rank, mpi_rank);
+    A.mpi_transfer(dq_rank, mpi_rank);
+    dA.mpi_transfer(dq_rank, mpi_rank);
+    mask.mpi_transfer(dq_rank, mpi_rank);
+    logsumexp.mpi_transfer(dq_rank, mpi_rank);
+    dK.mpi_transfer(dq_rank, mpi_rank);
+    dV.mpi_transfer(dq_rank, mpi_rank);
+    if(mpi_rank != dq_rank)
+    {
+        return;
+    }
 
     starpu::VariableHandle scratch_dK(sizeof(T) * dK.nelems);
     starpu::VariableHandle scratch_dQ(sizeof(T) * dQ.nelems);

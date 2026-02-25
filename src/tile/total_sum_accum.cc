@@ -14,6 +14,7 @@
 
 #include "nntile/tile/total_sum_accum.hh"
 #include "nntile/starpu/total_sum_accum.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -49,9 +50,17 @@ void total_sum_accum_async(Scalar alpha, const Tile<T> &logsumexp,
             throw std::runtime_error("labels.shape[i] != src.shape[i+1]");
         }
     }
-    // Insert task
-    starpu::total_sum_accum.submit<std::tuple<T>>(alpha, src.shape[0], logsumexp.nelems, ignore_index,
-            logsumexp, src, labels, val);
+    int mpi_rank = starpu_mpi_world_rank();
+    int val_rank = val.mpi_get_rank();
+    logsumexp.mpi_transfer(val_rank, mpi_rank);
+    src.mpi_transfer(val_rank, mpi_rank);
+    labels.mpi_transfer(val_rank, mpi_rank);
+    if(mpi_rank == val_rank)
+    {
+        // Insert task
+        starpu::total_sum_accum.submit<std::tuple<T>>(alpha, src.shape[0],
+                logsumexp.nelems, ignore_index, logsumexp, src, labels, val);
+    }
 }
 
 //! Tile-wise max and sum of exponents along single given axis

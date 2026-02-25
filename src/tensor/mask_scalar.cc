@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/mask_scalar.hh"
-#include "nntile/starpu/mask_scalar.hh"
+#include "nntile/tile/mask_scalar.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -44,29 +44,18 @@ void mask_scalar_async(const Tensor<bool_t> &mask, Scalar val, const Tensor<T> &
         }
     }
     // Run the code
-    int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < A.grid.nelems; ++i)
     {
         auto A_tile_handle = A.get_tile_handle(i);
         auto A_tile_index = A.grid.linear_to_index(i);
-        int A_tile_rank = A_tile_handle.mpi_get_rank();
+        auto A_tile = A.get_tile(i);
         std::vector<Index> mask_tile_index(mask.ndim);
         for(Index j = 0; j < mask.ndim; ++j)
         {
             mask_tile_index[j] = A_tile_index[j];
         }
-        auto mask_tile_handle = mask.get_tile_handle(mask_tile_index);
-        int mask_tile_rank = mask_tile_handle.mpi_get_rank();
-        mask_tile_handle.mpi_transfer(A_tile_rank, mpi_rank);
-        // Execute only on node-owner
-        if(mpi_rank == A_tile_rank)
-        {
-            auto tile_traits = A.get_tile_traits(i);
-            starpu::mask_scalar.submit<std::tuple<T>>(
-                    tile_traits.matrix_shape[A.ndim-batch_ndim][0], \
-                    tile_traits.matrix_shape[A.ndim-batch_ndim][1], \
-                    mask_tile_handle, val, A_tile_handle);
-        }
+        auto mask_tile = mask.get_tile(mask_tile_index);
+        tile::mask_scalar_async<T>(mask_tile, val, A_tile, batch_ndim);
         // Flush cache for the output tile on every node
         A_tile_handle.mpi_flush();
     }

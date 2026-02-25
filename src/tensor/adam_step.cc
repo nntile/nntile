@@ -16,7 +16,7 @@
 #include "nntile/tensor/adam_step.hh"
 
 // Other NNTile headers
-#include "nntile/starpu/adam_step.hh"
+#include "nntile/tile/adam_step.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -43,33 +43,16 @@ void adam_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, S
         throw std::runtime_error("Parameter shape is not equal to second_moment shape");
     }
 
-    int mpi_size = starpu_mpi_world_size();
-    int mpi_rank = starpu_mpi_world_rank();
-
     for(Index i = 0; i < p.grid.nelems; ++i)
     {
-        // Get handle for corresponding tiles of src and dst
         auto p_tile_handle = p.get_tile_handle(i);
-        auto grad_tile_handle = grad.get_tile_handle(i);
-        auto first_moment_tile_handle = first_moment.get_tile_handle(i);
-        auto second_moment_tile_handle = second_moment.get_tile_handle(i);
-        // MPI rank of the destination tile
-        int p_tile_rank = p_tile_handle.mpi_get_rank();
-        int grad_tile_rank = grad_tile_handle.mpi_get_rank();
-        int first_moment_tile_rank = first_moment_tile_handle.mpi_get_rank();
-        int second_moment_tile_rank = second_moment_tile_handle.mpi_get_rank();
-        // Transfer data
-        grad_tile_handle.mpi_transfer(p_tile_rank, mpi_rank);
-        first_moment_tile_handle.mpi_transfer(p_tile_rank, mpi_rank);
-        second_moment_tile_handle.mpi_transfer(p_tile_rank, mpi_rank);
-        // Execute only on destination node
-        if(mpi_rank == p_tile_rank)
-        {
-            auto traits = p.get_tile_traits(i);
-            starpu::adam_step.submit<std::tuple<T>>(num_iter, traits.nelems, beta_1, beta_2, eps, lr, weight_decay,
-                                         grad_tile_handle, first_moment_tile_handle,
-                                         second_moment_tile_handle, p_tile_handle);
-        }
+        auto grad_tile = grad.get_tile(i);
+        auto first_moment_tile = first_moment.get_tile(i);
+        auto second_moment_tile = second_moment.get_tile(i);
+        auto p_tile = p.get_tile(i);
+        tile::adam_step_async<T>(num_iter, beta_1, beta_2, eps, lr,
+                weight_decay, grad_tile, first_moment_tile, second_moment_tile,
+                p_tile);
         // Flush cache for the output tile on every node
         p_tile_handle.mpi_flush();
     }

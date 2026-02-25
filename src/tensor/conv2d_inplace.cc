@@ -17,9 +17,9 @@
 #include <algorithm>
 #include <array>
 #include <unistd.h>
-#include "nntile/starpu/clear.hh"
-#include "nntile/starpu/scale_inplace.hh"
-#include "nntile/starpu/conv2d_inplace.hh"
+#include "nntile/tile/clear.hh"
+#include "nntile/tile/scale_inplace.hh"
+#include "nntile/tile/conv2d_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -130,11 +130,12 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
     }
 
     // Loop through output tiles
+    auto C_tile = C.get_tile(0);
     for(Index i = 0; i < Y.grid.nelems; ++i)
     {
         auto Y_tile_index = Y.grid.linear_to_index(i);
         auto Y_tile_traits = Y.get_tile_traits(i);
-        auto Y_tile_handle = Y.get_tile_handle(i);
+        auto Y_tile = Y.get_tile(i);
         // Get start and end coordinates of dst tile within Y tensor
         Index Y_start_m = Y_tile_index[0] * Y.basetile_shape[0];
         Index Y_end_m = Y_start_m + Y_tile_traits.shape[0];
@@ -170,13 +171,12 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
             // Clear if beta is zero
             if(beta == 0.0)
             {
-                starpu::clear.submit(Y_tile_handle);
+                tile::clear_async<T>(Y_tile);
             }
             // Scale inplace if beta is neither zero nor one
             else if(beta != 1.0)
             {
-                starpu::scale_inplace.submit<std::tuple<T>>(Y_tile_traits.nelems, beta,
-                        Y_tile_handle);
+                tile::scale_inplace_async<T>(beta, Y_tile);
             }
             // Do nothing if beta is one
             // Cycle to the next Y tile
@@ -196,19 +196,18 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
             {
                 X_tile_index[1] = X_j;
                 auto X_tile_traits = X.get_tile_traits(X_tile_index);
-                auto X_tile_handle = X.get_tile_handle(X_tile_index);
+                auto X_tile = X.get_tile(X_tile_index);
                 Index offset_m = X_i*X.basetile_shape[0] + padding[0]
                     - stride[0]*Y_start_m;
                 Index offset_n = X_j*X.basetile_shape[1] + padding[1]
                     - stride[1]*Y_start_n;
-                starpu::conv2d_inplace.submit<std::tuple<T>>(X_tile_traits.shape[0],
+                tile::conv2d_inplace_async<T>(X_tile_traits.shape[0],
                         X_tile_traits.shape[1], X_tile_traits.shape[2],
                         X_tile_traits.shape[3], C.shape[0], C.shape[1],
                         dilation[0], dilation[1], Y_tile_traits.shape[2],
-                        offset_m, offset_n, alpha, X_tile_handle,
-                        C.get_tile_handle(0), Y_tile_traits.shape[0],
-                        Y_tile_traits.shape[1], stride[0], stride[1],
-                        Y_tile_beta, Y_tile_handle);
+                        offset_m, offset_n, alpha, X_tile, C_tile,
+                        Y_tile_traits.shape[0], Y_tile_traits.shape[1],
+                        stride[0], stride[1], Y_tile_beta, Y_tile);
                 Y_tile_beta = 1.0;
             }
         }

@@ -14,6 +14,7 @@
 
 #include "nntile/tile/flash_sdpa_fwd_cudnn.hh"
 #include "nntile/starpu/flash_sdpa_fwd_cudnn.hh"
+#include "nntile/starpu/config.hh"
 #include "nntile/starpu/handle.hh"
 #include "nntile/constants.hh"
 
@@ -170,6 +171,17 @@ void flash_sdpa_fwd_cudnn_async(const Tile<T> &K, const Tile<T> &Q,
     Index head = K.shape[0];
     // Combine batch dimensions: n_batch * kv_group_size * n_head_kv -> batch
     Index batch = K.shape[2] * K.shape[3] * K.shape[4];
+    int mpi_rank = starpu_mpi_world_rank();
+    int a_rank = A.mpi_get_rank();
+    K.mpi_transfer(a_rank, mpi_rank);
+    Q.mpi_transfer(a_rank, mpi_rank);
+    mask.mpi_transfer(a_rank, mpi_rank);
+    logsumexp.mpi_transfer(a_rank, mpi_rank);
+    V.mpi_transfer(a_rank, mpi_rank);
+    if(mpi_rank != a_rank)
+    {
+        return;
+    }
 
     starpu::VariableHandle scratch_logsumexp(sizeof(fp32_t) * logsumexp.nelems);
     starpu::VariableHandle scratch_A(sizeof(T) * A.nelems);

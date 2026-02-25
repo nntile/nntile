@@ -13,8 +13,8 @@
  * */
 
 #include "nntile/tensor/scatter.hh"
-#include "nntile/starpu/subcopy.hh"
-#include "nntile/starpu/copy.hh"
+#include <algorithm>
+#include "nntile/tile/copy_intersection.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -40,80 +40,24 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
     {
         throw std::runtime_error("src.shape != dst.shape");
     }
-    // Treat special case of a single destination tile
-    int mpi_rank = starpu_mpi_world_rank();
-    auto src_tile_handle = src.get_tile_handle(0);
-    auto src_tile_traits = src.get_tile_traits(0);
-    int src_tile_rank = src_tile_handle.mpi_get_rank();
-    int ret;
-    if(dst.grid.nelems == 1)
-    {
-        auto dst_tile_handle = dst.get_tile_handle(0);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-        // Transfer source tile to dest node
-        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        // Execute on destination node
-        if(mpi_rank == dst_tile_rank)
-        {
-            starpu::copy.submit(src_tile_handle, dst_tile_handle);
-        }
-        // Flush cache for the output tile on every node
-        dst_tile_handle.mpi_flush();
-        return;
-    }
-    // Do the slow complex copy
-    // Temporary buffer for indexing, that is allocated per-worker when needed
     Index ndim = src.ndim;
-    starpu::VariableHandle scratch(2*ndim*sizeof(int64_t));
-    // We define starting coordinates and shapes for all complex copies of
-    // tiles
-    std::vector<Index> src_tile_start(ndim), dst_tile_start(ndim);
-    // Cycle through all destination tiles
-    std::vector<Index> dst_tile_index(ndim);
+    tile::Tile<int64_t> scratch_tile({std::max<Index>(1, 2*ndim)});
+    auto src_tile = src.get_tile(0);
+    std::vector<Index> src_offset(ndim, 0);
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         auto dst_tile_handle = dst.get_tile_handle(i);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-        // Flush cache for the output tile on every node
+        auto dst_tile = dst.get_tile(i);
+        auto dst_tile_index = dst.grid.linear_to_index(i);
+        std::vector<Index> dst_offset(ndim);
+        for(Index k = 0; k < ndim; ++k)
+        {
+            dst_offset[k] = dst_tile_index[k] * dst.basetile_shape[k];
+        }
+        tile::copy_intersection_async<T>(src_tile, src_offset, dst_tile,
+                dst_offset, scratch_tile);
         dst_tile_handle.mpi_flush();
-        // Execute on source node and then send result
-        if(mpi_rank == src_tile_rank)
-        {
-            auto dst_tile_traits = dst.get_tile_traits(i);
-            for(Index k = 0; k < ndim; ++k)
-            {
-                src_tile_start[k] = dst_tile_index[k] * dst.basetile_shape[k];
-            }
-            // Perform complex copy into local dst_tile_handle
-            starpu::subcopy.submit<std::tuple<T>>(ndim, src_tile_start,
-                    src_tile_traits.stride, dst_tile_start,
-                    dst_tile_traits.stride, dst_tile_traits.shape,
-                    src_tile_handle, dst_tile_handle, scratch, STARPU_W);
-            // Perform MPI copy only if destination node is different
-            auto tile_tag = dst_tile_handle.mpi_get_tag();
-        }
-        // Init receive of source tile for owner of destination tile
-        else if(mpi_rank == dst_tile_rank)
-        {
-            auto tile_tag = dst_tile_handle.mpi_get_tag();
-        }
-        // Get out if it was the last tile
-        if(i == dst.grid.nelems-1)
-        {
-            break;
-        }
-        // Get next tile
-        ++dst_tile_index[0];
-        Index k = 0;
-        while(dst_tile_index[k] == dst.grid.shape[k])
-        {
-            dst_tile_index[k] = 0;
-            ++k;
-            ++dst_tile_index[k];
-        }
     }
-    // Unregister scratch buffer in an async manner
-    scratch.unregister_submit();
 }
 
 //! Blocking version of tensor-wise scatter operation

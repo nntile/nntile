@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/embedding_backward.hh"
-#include "nntile/starpu/embedding_backward.hh"
+#include "nntile/tile/embedding_backward.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -67,13 +67,11 @@ void embedding_backward_async(const Tensor<int64_t> &index,
                 "vocab.basetile_shape[0] != 0");
     }
     // Actual calculations
-    int mpi_rank = starpu_mpi_world_rank();
     // Cycle over embedding tiles
     for(Index i = 0; i < embed.grid.nelems; ++i)
     {
-        auto embed_tile_handle = embed.get_tile_handle(i);
+        auto embed_tile = embed.get_tile(i);
         auto embed_tile_traits = embed.get_tile_traits(i);
-        int embed_tile_rank = embed_tile_handle.mpi_get_rank();
         auto embed_tile_index = embed.grid.linear_to_index(i);
         // Get corresponding index tile
         std::vector<Index> index_tile_index(index.ndim);
@@ -85,8 +83,7 @@ void embedding_backward_async(const Tensor<int64_t> &index,
         {
             index_tile_index[j] = embed_tile_index[j+1];
         }
-        auto index_tile_handle = index.get_tile_handle(index_tile_index);
-        int index_tile_rank = index_tile_handle.mpi_get_rank();
+        auto index_tile = index.get_tile(index_tile_index);
         // Number of vocab tiles per single embed tile
         Index vocab_per_embed = (embed_tile_traits.shape[axis]-1)
             / vocab.basetile_shape[0] + 1;
@@ -96,7 +93,7 @@ void embedding_backward_async(const Tensor<int64_t> &index,
         Index vocab_end = vocab_start + vocab_per_embed;
         for(Index j = vocab_start; j < vocab_end; ++j)
         {
-            auto vocab_tile_handle = vocab.get_tile_handle(j);
+            auto vocab_tile = vocab.get_tile(j);
             auto vocab_tile_traits = vocab.get_tile_traits(j);
             Index m, n, k, k_start, k_size;
             m = embed_tile_traits.stride[axis];
@@ -104,9 +101,8 @@ void embedding_backward_async(const Tensor<int64_t> &index,
             k = embed_tile_traits.shape[axis];
             k_start = (j-vocab_start) * vocab.basetile_shape[0];
             k_size = vocab_tile_traits.shape[0];
-            starpu::embedding_backward.submit<std::tuple<T>>(m, n, k, k_start, k_size,
-                    index_tile_handle, embed_tile_handle, vocab_tile_handle,
-                    redux);
+            tile::embedding_backward_async<T>(m, n, k, k_start, k_size,
+                    index_tile, embed_tile, vocab_tile, redux);
         }
     }
     // Flush cache for the output tile on every node

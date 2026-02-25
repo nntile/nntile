@@ -14,6 +14,7 @@
 
 #include "nntile/tile/softmax_inplace.hh"
 #include "nntile/starpu/softmax_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -66,8 +67,15 @@ void softmax_inplace_async(const Tile<T> &maxsumexp, Scalar alpha,
     m = dst.stride[axis];
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
-    // Insert task
-    starpu::softmax_inplace.submit<std::tuple<T>>(m, n, k, maxsumexp, alpha, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    maxsumexp.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert task
+        starpu::softmax_inplace.submit<std::tuple<T>>(m, n, k, maxsumexp,
+                alpha, dst);
+    }
 }
 
 //! Tile-wise average and deviation from sum and scaled sum of squares
@@ -104,6 +112,10 @@ template
 void softmax_inplace_async<bf16_t>(const Tile<bf16_t> &maxsumexp, Scalar alpha,
         const Tile<bf16_t> &dst, Index axis);
 
+template
+void softmax_inplace_async<fp16_t>(const Tile<fp16_t> &maxsumexp, Scalar alpha,
+        const Tile<fp16_t> &dst, Index axis);
+
 // Explicit instantiation
 template
 void softmax_inplace<fp32_t>(const Tile<fp32_t> &maxsumexp, Scalar alpha,
@@ -128,5 +140,9 @@ void softmax_inplace<fp64_t>(const Tile<fp64_t> &maxsumexp, Scalar alpha,
 template
 void softmax_inplace<bf16_t>(const Tile<bf16_t> &maxsumexp, Scalar alpha,
         const Tile<bf16_t> &dst, Index axis);
+
+template
+void softmax_inplace<fp16_t>(const Tile<fp16_t> &maxsumexp, Scalar alpha,
+        const Tile<fp16_t> &dst, Index axis);
 
 } // namespace nntile::tile

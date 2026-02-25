@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/maxsumexp.hh"
-#include "nntile/starpu/maxsumexp.hh"
+#include "nntile/tile/maxsumexp.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -77,14 +77,11 @@ void maxsumexp_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis,
         }
     }
     // Do actual calculations
-    int mpi_rank = starpu_mpi_world_rank();
-    int ret;
-    Index ndim = src.ndim;
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         // Destination tile on dest node must be already prepared (cleared)
         auto dst_tile_handle = dst.get_tile_handle(i);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
+        auto dst_tile = dst.get_tile(i);
         // Obtain indices of applicable source tiles
         auto dst_tile_index = dst.grid.linear_to_index(i);
         std::vector<Index> src_tile_index(src.ndim);
@@ -98,28 +95,12 @@ void maxsumexp_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis,
             src_tile_index[j] = dst_tile_index[j];
         }
         // Launch kernel for each appropriate source tile
-        auto dst_tile_traits = dst.get_tile_traits(i);
         for(Index j = 0; j < src.grid.shape[axis]; ++j)
         {
             src_tile_index[axis] = j;
             Index src_tile_offset = src.grid.index_to_linear(src_tile_index);
-            auto src_tile_handle = src.get_tile_handle(src_tile_offset);
-            int src_tile_rank = src_tile_handle.mpi_get_rank();
-            // Transfer data
-            src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-            // Execute on destination node
-            if(mpi_rank == dst_tile_rank)
-            {
-                // Get sizes
-                auto src_tile_traits = src.get_tile_traits(src_tile_offset);
-                Index m, n, k;
-                m = src_tile_traits.stride[axis];
-                n = src_tile_traits.matrix_shape[axis+1][1];
-                k = src_tile_traits.shape[axis];
-                // Insert task
-                starpu::maxsumexp.submit<std::tuple<T>>(m, n, k, src_tile_handle,
-                        dst_tile_handle, redux);
-            }
+            auto src_tile = src.get_tile(src_tile_offset);
+            tile::maxsumexp_async<T>(src_tile, dst_tile, axis, redux);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();

@@ -14,6 +14,7 @@
 
 #include "nntile/tile/add_fiber.hh"
 #include "nntile/starpu/add_fiber.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -74,8 +75,16 @@ void add_fiber_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<
     m = dst.stride[axis];
     n = dst.matrix_shape[axis+1][1] / batch;
     k = dst.shape[axis];
-    // Insert corresponding task
-    starpu::add_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src1, beta, src2, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src1.mpi_transfer(dst_rank, mpi_rank);
+    src2.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert corresponding task
+        starpu::add_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src1,
+                beta, src2, dst);
+    }
 }
 
 template<typename T>
@@ -109,6 +118,16 @@ void add_fiber_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t
         Index axis, Index batch_ndim);
 
 template
+void add_fiber_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src1,
+        Scalar beta, const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst,
+        Index axis, Index batch_ndim);
+
+template
+void add_fiber_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src1,
+        Scalar beta, const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst,
+        Index axis, Index batch_ndim);
+
+template
 void add_fiber_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1,
         Scalar beta, const Tile<fp64_t> &src2, const Tile<fp64_t> &dst,
         Index axis, Index batch_ndim);
@@ -127,6 +146,16 @@ void add_fiber<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1,
 template
 void add_fiber<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
         Scalar beta, const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst,
+        Index axis, Index batch_ndim);
+
+template
+void add_fiber<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src1,
+        Scalar beta, const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst,
+        Index axis, Index batch_ndim);
+
+template
+void add_fiber<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src1,
+        Scalar beta, const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst,
         Index axis, Index batch_ndim);
 
 template

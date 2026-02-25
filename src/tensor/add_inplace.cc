@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/add_inplace.hh"
-#include "nntile/starpu/add_inplace.hh"
+#include "nntile/tile/add_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -48,23 +48,12 @@ void add_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
         return;
     }
     // Apply per-tile add asynchronously as needed
-    int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < src.grid.nelems; ++i)
     {
-        // Get handle for corresponding tiles of src and dst
-        auto src_tile_handle = src.get_tile_handle(i);
         auto dst_tile_handle = dst.get_tile_handle(i);
-        // MPI rank of the destination tile
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-        // Transfer data
-        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        // Execute only on destination node
-        if(mpi_rank == dst_tile_rank)
-        {
-            auto traits = src.get_tile_traits(i);
-            starpu::add_inplace.submit<std::tuple<T>>(traits.nelems, alpha,
-                    src_tile_handle, beta, dst_tile_handle);
-        }
+        auto src_tile = src.get_tile(i);
+        auto dst_tile = dst.get_tile(i);
+        tile::add_inplace_async<T>(alpha, src_tile, beta, dst_tile);
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
     }

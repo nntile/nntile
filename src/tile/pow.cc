@@ -14,6 +14,7 @@
 
 #include "nntile/tile/pow.hh"
 #include "nntile/starpu/pow.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -24,8 +25,13 @@ namespace nntile::tile
 template<typename T>
 void pow_async(Scalar alpha, Scalar exp, const Tile<T> &A)
 {
-    // Submit task without any arguments checked
-    starpu::pow.submit<std::tuple<T>>(A.nelems, alpha, exp, A);
+    int mpi_rank = starpu_mpi_world_rank();
+    int a_rank = A.mpi_get_rank();
+    if(mpi_rank == a_rank)
+    {
+        // Submit task without any arguments checked
+        starpu::pow.submit<std::tuple<T>>(A.nelems, alpha, exp, A);
+    }
 }
 
 //! Blocking version of tile-wise power operation
@@ -45,11 +51,41 @@ void pow_async<fp32_t>(Scalar alpha, Scalar exp, const Tile<fp32_t> &A);
 template
 void pow_async<fp64_t>(Scalar alpha, Scalar exp, const Tile<fp64_t> &A);
 
+template
+void pow_async<bf16_t>(Scalar alpha, Scalar exp, const Tile<bf16_t> &A);
+
+template
+void pow_async<fp32_fast_tf32_t>(Scalar alpha, Scalar exp,
+        const Tile<fp32_fast_tf32_t> &A);
+
+template
+void pow_async<fp32_fast_fp16_t>(Scalar alpha, Scalar exp,
+        const Tile<fp32_fast_fp16_t> &A);
+
+template
+void pow_async<fp32_fast_bf16_t>(Scalar alpha, Scalar exp,
+        const Tile<fp32_fast_bf16_t> &A);
+
 // Explicit instantiation
 template
 void pow<fp32_t>(Scalar alpha, Scalar exp, const Tile<fp32_t> &A);
 
 template
 void pow<fp64_t>(Scalar alpha, Scalar exp, const Tile<fp64_t> &A);
+
+template
+void pow<bf16_t>(Scalar alpha, Scalar exp, const Tile<bf16_t> &A);
+
+template
+void pow<fp32_fast_tf32_t>(Scalar alpha, Scalar exp,
+        const Tile<fp32_fast_tf32_t> &A);
+
+template
+void pow<fp32_fast_fp16_t>(Scalar alpha, Scalar exp,
+        const Tile<fp32_fast_fp16_t> &A);
+
+template
+void pow<fp32_fast_bf16_t>(Scalar alpha, Scalar exp,
+        const Tile<fp32_fast_bf16_t> &A);
 
 } // namespace nntile::tile

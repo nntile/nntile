@@ -14,6 +14,7 @@
 
 #include "nntile/tile/hypot.hh"
 #include "nntile/starpu/hypot.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -35,8 +36,16 @@ void hypot_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &
             throw std::runtime_error("dst.shape[i] != src1.shape[i] or dst.shape[i] != src2.shape[i]");
         }
     }
-    // Insert corresponding task
-    starpu::hypot.submit<std::tuple<T>>(src1.nelems, alpha, src1, beta, src2, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src1.mpi_transfer(dst_rank, mpi_rank);
+    src2.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert corresponding task
+        starpu::hypot.submit<std::tuple<T>>(src1.nelems, alpha, src1, beta,
+                src2, dst);
+    }
 }
 
 //! Tile-wise hypot operation

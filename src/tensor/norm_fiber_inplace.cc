@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/norm_fiber_inplace.hh"
-#include "nntile/starpu/norm_fiber_inplace.hh"
+#include "nntile/tile/norm_fiber_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -67,15 +67,10 @@ void norm_fiber_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
         }
     }
     // Do actual calculations
-    int mpi_rank = starpu_mpi_world_rank();
-    int ret;
-    Index ndim = src.ndim;
     constexpr Scalar one = 1.0;
     for(Index i = 0; i < src.grid.nelems; ++i)
     {
-        auto src_tile_handle = src.get_tile_handle(i);
-        auto src_tile_traits = src.get_tile_traits(i);
-        int src_tile_rank = src_tile_handle.mpi_get_rank();
+        auto src_tile = src.get_tile(i);
         auto src_tile_index = src.grid.linear_to_index(i);
         // Get corresponding dst tile
         std::vector<Index> dst_tile_index(dst.ndim);
@@ -84,41 +79,26 @@ void norm_fiber_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
         {
             dst_tile_index[j+1] = src_tile_index[src.ndim-batch_ndim+j];
         }
-        auto dst_tile_handle = dst.get_tile_handle(dst_tile_index);
-        auto dst_tile_traits = dst.get_tile_traits(dst_tile_index);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-        // Transfer data
-        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        // Execute on destination node
-        if(mpi_rank == dst_tile_rank)
+        auto dst_tile = dst.get_tile(dst_tile_index);
+        // Check if it is the first task for the output tile
+        bool init_first = true;
+        for(Index j = 0; j < src.ndim-batch_ndim; ++j)
         {
-            // Get sizes
-            Index m, n, k, batch;
-            batch = dst_tile_traits.matrix_shape[1][1];
-            m = src_tile_traits.stride[axis];
-            n = src_tile_traits.matrix_shape[axis+1][1] / batch;
-            k = src_tile_traits.shape[axis];
-            // Check if it is the first task for the output tile
-            bool init_first = true;
-            for(Index j = 0; j < src.ndim-batch_ndim; ++j)
+            if(j != axis and src_tile_index[j] != 0)
             {
-                if(j != axis and src_tile_index[j] != 0)
-                {
-                    init_first = false;
-                    break;
-                }
+                init_first = false;
+                break;
             }
-            // Insert task
-            if(init_first)
-            {
-                starpu::norm_fiber_inplace.submit<std::tuple<T>>(m, n, k, batch, alpha,
-                        src_tile_handle, beta, dst_tile_handle);
-            }
-            else
-            {
-                starpu::norm_fiber_inplace.submit<std::tuple<T>>(m, n, k, batch, alpha,
-                        src_tile_handle, one, dst_tile_handle, redux);
-            }
+        }
+        if(init_first)
+        {
+            tile::norm_fiber_inplace_async<T>(alpha, src_tile, beta, dst_tile,
+                    axis, batch_ndim, redux);
+        }
+        else
+        {
+            tile::norm_fiber_inplace_async<T>(alpha, src_tile, one, dst_tile,
+                    axis, batch_ndim, redux);
         }
     }
     // Flush cache for the output tiles on every node

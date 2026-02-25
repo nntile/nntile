@@ -14,6 +14,7 @@
 
 #include "nntile/tile/adam_step.hh"
 #include "nntile/starpu/adam_step.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -47,9 +48,18 @@ void adam_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, S
     {
         throw std::runtime_error("Shapes of first_moment and parameters are not equal");
     }
-    // Submit task
-    starpu::adam_step.submit<std::tuple<T>>(num_iter, p.nelems, beta_1, beta_2, eps, lr, weight_decay,
-                                 grad, first_moment, second_moment, p);
+    int mpi_rank = starpu_mpi_world_rank();
+    int p_rank = p.mpi_get_rank();
+    grad.mpi_transfer(p_rank, mpi_rank);
+    first_moment.mpi_transfer(p_rank, mpi_rank);
+    second_moment.mpi_transfer(p_rank, mpi_rank);
+    if(mpi_rank == p_rank)
+    {
+        // Submit task
+        starpu::adam_step.submit<std::tuple<T>>(num_iter, p.nelems, beta_1,
+                beta_2, eps, lr, weight_decay, grad, first_moment,
+                second_moment, p);
+    }
 }
 
 //! Blocking version of tile-wise fused Adam step

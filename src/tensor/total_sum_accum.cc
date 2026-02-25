@@ -13,8 +13,7 @@
  * */
 
 #include "nntile/tensor/total_sum_accum.hh"
-#include "nntile/starpu/total_sum_accum.hh"
-#include "nntile/starpu/clear.hh"
+#include "nntile/tile/total_sum_accum.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -66,28 +65,15 @@ void total_sum_accum_async(Scalar alpha, const Tensor<T> &logsumexp,
         throw std::runtime_error("src.basetile_shape[0] != src.shape[0]");
     }
     // Do actual calculations
-    int mpi_rank = starpu_mpi_world_rank();
     auto val_tile_handle = val.get_tile_handle(0);
-    int val_tile_rank = val_tile_handle.mpi_get_rank();
+    auto val_tile = val.get_tile(0);
     for(Index i = 0; i < labels.grid.nelems; ++i)
     {
-        // Clean up destination tile on dest node
-        auto logsumexp_tile_handle = logsumexp.get_tile_handle(i);
-        auto logsumexp_tile_traits = logsumexp.get_tile_traits(i);
-        auto labels_tile_handle = labels.get_tile_handle(i);
-        auto src_tile_handle = src.get_tile_handle(i);
-        // Transfer data to exec_rank=val_tile_rank
-        src_tile_handle.mpi_transfer(val_tile_rank, mpi_rank);
-        logsumexp_tile_handle.mpi_transfer(val_tile_rank, mpi_rank);
-        labels_tile_handle.mpi_transfer(val_tile_rank, mpi_rank);
-        // Execute on destination node
-        if(mpi_rank == val_tile_rank)
-        {
-            // Insert task
-            starpu::total_sum_accum.submit<std::tuple<T>>(alpha, src.shape[0],
-                    logsumexp_tile_traits.nelems, ignore_index, logsumexp_tile_handle,
-                    src_tile_handle, labels_tile_handle, val_tile_handle);
-        }
+        auto logsumexp_tile = logsumexp.get_tile(i);
+        auto src_tile = src.get_tile(i);
+        auto labels_tile = labels.get_tile(i);
+        tile::total_sum_accum_async<T>(alpha, logsumexp_tile, src_tile,
+                labels_tile, val_tile, ignore_index);
     }
     val_tile_handle.mpi_flush();
 }

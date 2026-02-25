@@ -13,9 +13,8 @@
  * */
 
 #include "nntile/tensor/rope_backward.hh"
-#include "nntile/starpu/rope_backward.hh"
+#include "nntile/tile/rope_backward.hh"
 #include "nntile/starpu/config.hh"
-#include <iostream>
 
 namespace nntile::tensor
 {
@@ -100,8 +99,6 @@ void rope_backward_async(const Tensor<T> &sin, const Tensor<T> &cos,
     }
 
     // Apply per-tile rope asynchronously
-    int mpi_rank = starpu_mpi_world_rank();
-    int ret;
     for(Index i = 0; i < dy.grid.nelems; ++i)
     {
         // Index of current source and destination tiles
@@ -112,23 +109,13 @@ void rope_backward_async(const Tensor<T> &sin, const Tensor<T> &cos,
                 dydx_tile_index.cbegin()+sin.ndim);
         Index j = sin.grid.index_to_linear(sincos_tile_index);
 
-        // Get all tile handles
-        auto dy_tile_handle = dy.get_tile_handle(i);
         auto dx_tile_handle = dx.get_tile_handle(i);
-        auto sin_tile_handle = sin.get_tile_handle(j);
-        auto cos_tile_handle = cos.get_tile_handle(j);
-
-        // Get tile traits
-        auto dydx_tile_traits = dy.get_tile_traits(i);
-        auto sincos_tile_traits = sin.get_tile_traits(j);
-
-        // Sizes of underlying StarPU submit call
-        Index m{sincos_tile_traits.nelems},
-              n{dydx_tile_traits.matrix_shape[sin.ndim][1]};
-
-        // Insert corresponding task
-        starpu::rope_backward.submit<std::tuple<T>>(m, n, sin_tile_handle, cos_tile_handle,
-                dy_tile_handle, dx_tile_handle);
+        auto sin_tile = sin.get_tile(j);
+        auto cos_tile = cos.get_tile(j);
+        auto dy_tile = dy.get_tile(i);
+        auto dx_tile = dx.get_tile(i);
+        tile::rope_backward_async<T>(sin_tile, cos_tile, dy_tile, dx_tile);
+        dx_tile_handle.mpi_flush();
     }
 }
 

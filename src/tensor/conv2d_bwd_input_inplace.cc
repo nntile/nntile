@@ -17,9 +17,9 @@
 #include <algorithm>
 #include <array>
 #include <unistd.h>
-#include "nntile/starpu/clear.hh"
-#include "nntile/starpu/scale_inplace.hh"
-#include "nntile/starpu/conv2d_bwd_input_inplace.hh"
+#include "nntile/tile/clear.hh"
+#include "nntile/tile/scale_inplace.hh"
+#include "nntile/tile/conv2d_bwd_input_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -121,11 +121,12 @@ void conv2d_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &dY,
     }
 
     // Loop through output tiles
+    auto C_tile = C.get_tile(0);
     for(Index i = 0; i < dX.grid.nelems; ++i)
     {
         auto dX_tile_index = dX.grid.linear_to_index(i);
         auto dX_tile_traits = dX.get_tile_traits(i);
-        auto dX_tile_handle = dX.get_tile_handle(i);
+        auto dX_tile = dX.get_tile(i);
         // Get start and end coordinates of dst tile within dX tensor
         Index dX_start_m = dX_tile_index[0] * dX.basetile_shape[0];
         Index dX_end_m = dX_start_m + dX_tile_traits.shape[0];
@@ -157,13 +158,12 @@ void conv2d_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &dY,
             // Clear if beta is zero
             if(beta == 0.0)
             {
-                starpu::clear.submit(dX_tile_handle);
+                tile::clear_async<T>(dX_tile);
             }
             // Scale inplace if beta is neither zero nor one
             else if(beta != 1.0)
             {
-                starpu::scale_inplace.submit<std::tuple<T>>(dX_tile_traits.nelems, beta,
-                        dX_tile_handle);
+                tile::scale_inplace_async<T>(beta, dX_tile);
             }
             // Do nothing if beta is one
             // Cycle to the next dX tile
@@ -183,19 +183,19 @@ void conv2d_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &dY,
             {
                 dY_tile_index[1] = dY_j;
                 auto dY_tile_traits = dY.get_tile_traits(dY_tile_index);
-                auto dY_tile_handle = dY.get_tile_handle(dY_tile_index);
+                auto dY_tile = dY.get_tile(dY_tile_index);
                 Index offset_m = dX_start_m + padding[0]
                     - stride[0]*dY_i*dY.basetile_shape[0];
                 Index offset_n = dX_start_n + padding[1]
                     - stride[1]*dY_j*dY.basetile_shape[1];
-                starpu::conv2d_bwd_input_inplace.submit<std::tuple<T>>(
+                tile::conv2d_bwd_input_inplace_async<T>(
                         dY_tile_traits.shape[0], dY_tile_traits.shape[1],
                         stride[0], stride[1], dY_tile_traits.shape[2],
                         dY_tile_traits.shape[3], C.shape[0], C.shape[1],
                         dilation[0], dilation[1], dX_tile_traits.shape[2],
-                        offset_m, offset_n, alpha, dY_tile_handle,
-                        C.get_tile_handle(0), dX_tile_traits.shape[0],
-                        dX_tile_traits.shape[1], dX_tile_beta, dX_tile_handle);
+                        offset_m, offset_n, alpha, dY_tile, C_tile,
+                        dX_tile_traits.shape[0], dX_tile_traits.shape[1],
+                        dX_tile_beta, dX_tile);
                 dX_tile_beta = 1.0;
             }
         }

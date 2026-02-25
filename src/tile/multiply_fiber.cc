@@ -14,6 +14,7 @@
 
 #include "nntile/tile/multiply_fiber.hh"
 #include "nntile/starpu/multiply_fiber.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -63,8 +64,16 @@ void multiply_fiber_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2
     m = dst.stride[axis];
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
-    // Insert corresponding task
-    starpu::multiply_fiber.submit<std::tuple<T>>(m, n, k, alpha, src1, src2, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src1.mpi_transfer(dst_rank, mpi_rank);
+    src2.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert corresponding task
+        starpu::multiply_fiber.submit<std::tuple<T>>(m, n, k, alpha, src1,
+                src2, dst);
+    }
 }
 
 template<typename T>
