@@ -42,23 +42,37 @@ int main(int argc, char** argv) {
         graph, "mlp", 8, 16, 4, nntile::graph::DataType::FP32);
 
     // Create input tensor (requires_grad to compute input gradients)
-    // NNTile uses (features, batch) ordering.
+    // Shape is [batch, features] (last dim = features): 4 batches, 8 features
     auto& input_tensor = graph.tensor(
-        {8, 4},
+        {4, 8},
         "external_input",
         nntile::graph::DataType::FP32,
         true);
+    input_tensor.mark_input(true);  // bind_data() requires input marking
 
     // Build forward operation and get output tensor
     auto& output_tensor = mlp.build_forward(input_tensor);
+    output_tensor.mark_output(true);  // get_output() requires output marking
 
     // Attach an external gradient to the output (e.g., loss gradient)
     auto& grad_output_tensor = graph.get_or_create_grad(
         output_tensor,
         "external_grad_output");
+    grad_output_tensor.mark_input(true);  // bind_data() requires input marking
+
+    // Mark parameter tensors for bind_data (weights)
+    mlp.fc1().weight_tensor()->mark_input(true);
+    mlp.fc2().weight_tensor()->mark_input(true);
 
     // Build backward operations
     mlp.build_backward();
+
+    // Mark gradient tensors for get_output (created during build_backward)
+    mlp.fc1().weight_tensor()->grad()->mark_output(true);
+    mlp.fc2().weight_tensor()->grad()->mark_output(true);
+    if (input_tensor.has_grad()) {
+        input_tensor.grad()->mark_output(true);
+    }
 
     // Print graph structure for debugging
     std::cout << "Graph structure:" << std::endl;
@@ -68,8 +82,8 @@ int main(int argc, char** argv) {
     auto compiled_graph = nntile::graph::CompiledGraph::compile(
         graph.logical_graph());
 
-    // Generate random input data
-    std::vector<float> input_data(8 * 4);
+    // Generate random input data (4 batches x 8 features)
+    std::vector<float> input_data(4 * 8);
     std::random_device rd;
     std::mt19937 gen(rd());
     std::normal_distribution<float> dist(0.0f, 1.0f);
@@ -94,7 +108,7 @@ int main(int argc, char** argv) {
     compiled_graph.bind_data(mlp.fc1().weight_tensor()->name(), w1_data);
     compiled_graph.bind_data(mlp.fc2().weight_tensor()->name(), w2_data);
 
-    // Initialize gradient data (for backward pass)
+    // Initialize gradient data (for backward pass): 4 batches x 4 output features
     std::vector<float> grad_output_data(4 * 4, 1.0f);
     compiled_graph.bind_data(grad_output_tensor.name(), grad_output_data);
 
