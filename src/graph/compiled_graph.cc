@@ -328,6 +328,8 @@ void CompiledGraph::eliminate_dead_ops()
 
     // tensor -> set of op indices that produce it (in-place ops overwrite same tensor)
     std::unordered_map<std::string, std::unordered_set<size_t>> producer;
+    // tensor -> set of op indices that consume it as input
+    std::unordered_map<std::string, std::unordered_set<size_t>> consumer;
     // tensors that are consumed (used as input) by some op
     std::unordered_set<std::string> consumed;
 
@@ -341,15 +343,22 @@ void CompiledGraph::eliminate_dead_ops()
         for(const auto& in : op.input_names)
         {
             consumed.insert(in);
+            consumer[in].insert(i);
         }
     }
 
     // Backward reachability: start from graph outputs, mark live tensors and ops
     std::unordered_set<std::string> live_tensors(tensor_is_output_.begin(),
                                                  tensor_is_output_.end());
+    // Include graph inputs so side-effectful ops (e.g. log_scalar) that only
+    // consume inputs are reachable via the consumer map
+    for(const auto& name : tensor_is_input_)
+    {
+        live_tensors.insert(name);
+    }
     // If no outputs marked, treat sink tensors (not consumed by any op) as live
     // so we don't eliminate ops that produce the graph's final results
-    if(live_tensors.empty())
+    if(tensor_is_output_.empty())
     {
         for(const auto& p : producer)
         {
@@ -373,12 +382,34 @@ void CompiledGraph::eliminate_dead_ops()
         std::unordered_set<std::string> live_tensors_copy(live_tensors);
         for(const auto& t : live_tensors_copy)
         {
-            auto it = producer.find(t);
-            if(it != producer.end())
+            // Backward: ops that produce this tensor
+            auto prod_it = producer.find(t);
+            if(prod_it != producer.end())
             {
-                for(size_t op_idx : it->second)
+                for(size_t op_idx : prod_it->second)
                 {
                     if(live_ops.insert(op_idx).second)
+                    {
+                        changed = true;
+                        for(const auto& in : execution_order_[op_idx].input_names)
+                        {
+                            if(live_tensors.insert(in).second)
+                            {
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            }
+            // Forward: ops with no outputs (side-effectful, e.g. log_scalar) that
+            // consume this tensor; they never appear in producer
+            auto cons_it = consumer.find(t);
+            if(cons_it != consumer.end())
+            {
+                for(size_t op_idx : cons_it->second)
+                {
+                    if(execution_order_[op_idx].output_names.empty() &&
+                       live_ops.insert(op_idx).second)
                     {
                         changed = true;
                         for(const auto& in : execution_order_[op_idx].input_names)
