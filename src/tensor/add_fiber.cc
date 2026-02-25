@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/add_fiber.hh"
-#include "nntile/starpu/add_fiber.hh"
+#include "nntile/tile/add_fiber.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -85,14 +85,11 @@ void add_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
         }
     }
     // Apply per-tile add_fiber asynchronously as needed
-    int mpi_rank = starpu_mpi_world_rank();
-    int ret;
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         auto dst_tile_index = dst.grid.linear_to_index(i);
-        auto dst_tile_traits = dst.get_tile_traits(i);
         auto dst_tile_handle = dst.get_tile_handle(i);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
+        auto dst_tile = dst.get_tile(i);
         // Get corresponding src1, src2 tile
         std::vector<Index> src1_tile_index(src1.ndim);
         std::vector<Index> src2_tile_index(dst_tile_index);
@@ -101,30 +98,10 @@ void add_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
         {
             src1_tile_index[j+1] = dst_tile_index[dst.ndim-batch_ndim+j];
         }
-        auto src1_tile_handle = src1.get_tile_handle(src1_tile_index);
-        auto src1_tile_traits = src1.get_tile_traits(src1_tile_index);
-
-        auto src2_tile_handle = src2.get_tile_handle(src2_tile_index);
-        auto src2_tile_traits = src2.get_tile_traits(src2_tile_index);
-
-        int src1_tile_rank = src1_tile_handle.mpi_get_rank();
-        int src2_tile_rank = src2_tile_handle.mpi_get_rank();
-        // Transfer data
-        src1_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        src2_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        // Execute on destination node
-        if(mpi_rank == dst_tile_rank)
-        {
-            // Reshape inputs: src_tile -> (k,batch), dst_tile -> (m,k,n,batch)
-            Index m, n, k, batch;
-            batch = src1_tile_traits.matrix_shape[1][1];
-            m = dst_tile_traits.stride[axis];
-            n = dst_tile_traits.matrix_shape[axis+1][1] / batch;
-            k = dst_tile_traits.shape[axis];
-            // Insert corresponding task
-            starpu::add_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha,
-                    src1_tile_handle, beta, src2_tile_handle, dst_tile_handle);
-        }
+        auto src1_tile = src1.get_tile(src1_tile_index);
+        auto src2_tile = src2.get_tile(src2_tile_index);
+        tile::add_fiber_async<T>(alpha, src1_tile, beta, src2_tile, dst_tile,
+                axis, batch_ndim);
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
     }
