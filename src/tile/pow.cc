@@ -14,6 +14,7 @@
 
 #include "nntile/tile/pow.hh"
 #include "nntile/starpu/pow.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -24,8 +25,13 @@ namespace nntile::tile
 template<typename T>
 void pow_async(Scalar alpha, Scalar exp, const Tile<T> &A)
 {
-    // Submit task without any arguments checked
-    starpu::pow.submit<std::tuple<T>>(A.nelems, alpha, exp, A);
+    int mpi_rank = starpu_mpi_world_rank();
+    int a_rank = A.mpi_get_rank();
+    if(mpi_rank == a_rank)
+    {
+        // Submit task without any arguments checked
+        starpu::pow.submit<std::tuple<T>>(A.nelems, alpha, exp, A);
+    }
 }
 
 //! Blocking version of tile-wise power operation

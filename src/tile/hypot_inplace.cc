@@ -14,6 +14,7 @@
 
 #include "nntile/tile/hypot_inplace.hh"
 #include "nntile/starpu/hypot_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -40,8 +41,15 @@ void hypot_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Ti
     {
         return;
     }
-    // Insert corresponding task
-    starpu::hypot_inplace.submit<std::tuple<T>>(src.nelems, alpha, src, beta, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert corresponding task
+        starpu::hypot_inplace.submit<std::tuple<T>>(src.nelems, alpha, src,
+                beta, dst);
+    }
 }
 
 //! Tile-wise hypot_inplace operation

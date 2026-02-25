@@ -14,6 +14,7 @@
 
 #include "nntile/tile/sqrt_inplace.hh"
 #include "nntile/starpu/sqrt_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -24,8 +25,13 @@ namespace nntile::tile
 template<typename T>
 void sqrt_inplace_async(const Tile<T> &A)
 {
-    // Submit task without any arguments checked
-    starpu::sqrt_inplace.submit<std::tuple<T>>(A.nelems, A);
+    int mpi_rank = starpu_mpi_world_rank();
+    int a_rank = A.mpi_get_rank();
+    if(mpi_rank == a_rank)
+    {
+        // Submit task without any arguments checked
+        starpu::sqrt_inplace.submit<std::tuple<T>>(A.nelems, A);
+    }
 }
 
 //! Blocking version of tile-wise sqrt operation
