@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/sumprod_slice.hh"
-#include "nntile/starpu/sumprod_slice.hh"
+#include "nntile/tile/sumprod_slice.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -74,14 +74,11 @@ void sumprod_slice_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &s
         }
     }
     // Do actual calculations
-    int mpi_rank = starpu_mpi_world_rank();
-    int ret;
-    Index ndim = src1.ndim;
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         // Get destination tile
         auto dst_tile_handle = dst.get_tile_handle(i);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
+        auto dst_tile = dst.get_tile(i);
         // Obtain indices of applicable source tiles
         auto dst_tile_index = dst.grid.linear_to_index(i);
         std::vector<Index> src_tile_index(src1.ndim);
@@ -96,53 +93,19 @@ void sumprod_slice_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &s
         }
         // Initialize with provided beta only single time
         Index src_tile_offset = src1.grid.index_to_linear(src_tile_index);
-        auto src1_tile_handle = src1.get_tile_handle(src_tile_offset);
-        int src1_tile_rank = src1_tile_handle.mpi_get_rank();
-        auto src2_tile_handle = src2.get_tile_handle(src_tile_offset);
-        int src2_tile_rank = src2_tile_handle.mpi_get_rank();
-        // Transfer data
-        src1_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        src2_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        // Execute on destination node
-        auto dst_tile_traits = dst.get_tile_traits(i);
-        if(mpi_rank == dst_tile_rank)
-        {
-            // Get sizes
-            auto src_tile_traits = src1.get_tile_traits(src_tile_offset);
-            Index m, n, k;
-            m = src_tile_traits.stride[axis];
-            n = src_tile_traits.matrix_shape[axis+1][1];
-            k = src_tile_traits.shape[axis];
-            // Insert task
-            starpu::sumprod_slice.submit<std::tuple<T>>(m, n, k, alpha, src1_tile_handle,
-                    src2_tile_handle, beta, dst_tile_handle, redux);
-        }
+        auto src1_tile = src1.get_tile(src_tile_offset);
+        auto src2_tile = src2.get_tile(src_tile_offset);
+        tile::sumprod_slice_async<T>(alpha, src1_tile, src2_tile, beta,
+                dst_tile, axis, redux);
         // Launch kernel for all other appropriate source tiles with beta=1
         for(Index j = 1; j < src1.grid.shape[axis]; ++j)
         {
             src_tile_index[axis] = j;
             Index src_tile_offset = src1.grid.index_to_linear(src_tile_index);
-            auto src1_tile_handle = src1.get_tile_handle(src_tile_offset);
-            int src1_tile_rank = src1_tile_handle.mpi_get_rank();
-            auto src2_tile_handle = src2.get_tile_handle(src_tile_offset);
-            int src2_tile_rank = src2_tile_handle.mpi_get_rank();
-            // Transfer data
-            src1_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-            src2_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-            // Execute on destination node
-            if(mpi_rank == dst_tile_rank)
-            {
-                // Get sizes
-                auto src_tile_traits = src1.get_tile_traits(src_tile_offset);
-                Index m, n, k;
-                m = src_tile_traits.stride[axis];
-                n = src_tile_traits.matrix_shape[axis+1][1];
-                k = src_tile_traits.shape[axis];
-                // Insert task
-                starpu::sumprod_slice.submit<std::tuple<T>>(m, n, k, alpha,
-                        src1_tile_handle, src2_tile_handle, 1.0,
-                        dst_tile_handle, redux);
-            }
+            auto src1_tile = src1.get_tile(src_tile_offset);
+            auto src2_tile = src2.get_tile(src_tile_offset);
+            tile::sumprod_slice_async<T>(alpha, src1_tile, src2_tile, 1.0,
+                    dst_tile, axis, redux);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();

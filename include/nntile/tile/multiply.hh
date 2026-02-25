@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/sum_fiber.hh
- * Sum over fibers into a slice of a Tile<T>
+ * @file include/nntile/tile/multiply.hh
+ * Per-element product of two Tile<T>
  *
  * @version 1.1.0
  * */
@@ -19,14 +19,14 @@
 namespace nntile::tile
 {
 
-// Tile-wise sum_fiber
+// Asynchronous tile-wise multiply operation
 template<typename T>
-void sum_fiber_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        Index axis, Index batch_ndim, int redux=0);
+void multiply_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
+        const Tile<T> &dst);
 
-// Tile-wise sum_fiber
+// Blocking version of tile-wise multiply operation
 template<typename T>
-void sum_fiber(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        Index axis, Index batch_ndim, int redux=0);
+void multiply(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
+        const Tile<T> &dst);
 
 } // namespace nntile::tile

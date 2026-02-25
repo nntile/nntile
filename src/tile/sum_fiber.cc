@@ -14,13 +14,14 @@
 
 #include "nntile/tile/sum_fiber.hh"
 #include "nntile/starpu/sum_fiber.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
 
 template<typename T>
 void sum_fiber_async(Scalar alpha, const Tile<T> &src, Scalar beta,
-        const Tile<T> &dst, Index axis, Index batch_ndim)
+        const Tile<T> &dst, Index axis, Index batch_ndim, int redux)
 {
     // Check dimensions
     if(dst.ndim != batch_ndim+1)
@@ -62,78 +63,88 @@ void sum_fiber_async(Scalar alpha, const Tile<T> &src, Scalar beta,
     n = src.matrix_shape[axis+1][1] / batch;
     k = src.shape[axis];
     // Insert task
-    starpu::sum_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src, beta, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        starpu::sum_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src,
+                beta, dst, redux);
+    }
 }
 
 template<typename T>
 void sum_fiber(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        Index axis, Index batch_ndim)
+        Index axis, Index batch_ndim, int redux)
 {
-    sum_fiber_async<T>(alpha, src, beta, dst, axis, batch_ndim);
+    sum_fiber_async<T>(alpha, src, beta, dst, axis, batch_ndim, redux);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
 void sum_fiber_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
-        Scalar beta, const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
+        Scalar beta, const Tile<fp32_t> &dst, Index axis, Index batch_ndim,
+        int redux);
 
 template
 void sum_fiber_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
-        Scalar beta, const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim);
+        Scalar beta, const Tile<fp32_fast_tf32_t> &dst, Index axis,
+        Index batch_ndim, int redux);
 
 template
 void sum_fiber_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
                                  Scalar beta, const Tile<fp32_fast_fp16_t> &dst,
-                                 Index axis, Index batch_ndim);
+                                 Index axis, Index batch_ndim, int redux);
 
 template
 void sum_fiber_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
                                  Scalar beta, const Tile<fp32_fast_bf16_t> &dst,
-                                 Index axis, Index batch_ndim);
+                                 Index axis, Index batch_ndim, int redux);
 
 template
 void sum_fiber_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
-        Scalar beta, const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
+        Scalar beta, const Tile<fp64_t> &dst, Index axis, Index batch_ndim,
+        int redux);
 
 template
 void sum_fiber_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
-        const Tile<bf16_t> &dst, Index axis, Index batch_ndim);
+        const Tile<bf16_t> &dst, Index axis, Index batch_ndim, int redux);
 
 template
 void sum_fiber_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
-        const Tile<fp16_t> &dst, Index axis, Index batch_ndim);
+        const Tile<fp16_t> &dst, Index axis, Index batch_ndim, int redux);
 
 // Explicit instantiation
 template
 void sum_fiber<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
-        const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
+        const Tile<fp32_t> &dst, Index axis, Index batch_ndim, int redux);
 
 template
 void sum_fiber<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
                                  Scalar beta, const Tile<fp32_fast_tf32_t> &dst,
-                                 Index axis, Index batch_ndim);
+                                 Index axis, Index batch_ndim, int redux);
 
 template
 void sum_fiber<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
                                  Scalar beta, const Tile<fp32_fast_fp16_t> &dst,
-                                 Index axis, Index batch_ndim);
+                                 Index axis, Index batch_ndim, int redux);
 
 template
 void sum_fiber<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
                                  Scalar beta, const Tile<fp32_fast_bf16_t> &dst,
-                                 Index axis, Index batch_ndim);
+                                 Index axis, Index batch_ndim, int redux);
 
 template
 void sum_fiber<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
-        const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
+        const Tile<fp64_t> &dst, Index axis, Index batch_ndim, int redux);
 
 template
 void sum_fiber<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
-        const Tile<bf16_t> &dst, Index axis, Index batch_ndim);
+        const Tile<bf16_t> &dst, Index axis, Index batch_ndim, int redux);
 
 template
 void sum_fiber<fp16_t>(Scalar alpha, const Tile<fp16_t> &src, Scalar beta,
-        const Tile<fp16_t> &dst, Index axis, Index batch_ndim);
+        const Tile<fp16_t> &dst, Index axis, Index batch_ndim, int redux);
 
 } // namespace nntile::tile

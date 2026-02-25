@@ -304,6 +304,8 @@ set(TILE_HDR
     "nntile/tile/gelu_inplace.hh"
     "nntile/tile/gelutanh.hh"
     "nntile/tile/gelutanh_inplace.hh"
+    "nntile/tile/multiply.hh"
+    "nntile/tile/add_inplace.hh"
     "nntile/tile/multiply_inplace.hh"
     "nntile/tile/randn.hh"
     "nntile/tile/relu_inplace.hh"
@@ -342,6 +344,10 @@ set(TILE_HDR
     "nntile/tile/adamw_step.hh"
     "nntile/tile/sgd_step.hh"
     "nntile/tile/rope.hh"
+    "nntile/tile/rope_backward.hh"
+    "nntile/tile/transpose.hh"
+    "nntile/tile/hypot_scalar_inverse.hh"
+    "nntile/tile/log_scalar.hh"
     )
 
 set(TENSOR_HDR

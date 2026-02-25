@@ -34,6 +34,8 @@
 #include <nntile/tile/gelutanh.hh>
 #include <nntile/tile/gelutanh_inplace.hh>
 #include <nntile/tile/gemm.hh>
+#include <nntile/tile/multiply.hh>
+#include <nntile/tile/add_inplace.hh>
 #include <nntile/tile/multiply_inplace.hh>
 #include <nntile/tile/randn.hh>
 #include <nntile/tile/relu_inplace.hh>
@@ -70,11 +72,15 @@
 #include <nntile/tile/silu.hh>
 #include <nntile/tile/silu_backward.hh>
 #include <nntile/tile/rope.hh>
+#include <nntile/tile/rope_backward.hh>
 #include <nntile/tile/norm_fiber.hh>
 #include <nntile/tile/norm_fiber_inplace.hh>
 #include <nntile/tile/flash_sdpa_fwd_cudnn.hh>
 #include <nntile/tile/flash_sdpa_bwd_cudnn.hh>
 #include <nntile/tile/norm.hh>
+#include <nntile/tile/transpose.hh>
+#include <nntile/tile/hypot_scalar_inverse.hh>
+#include <nntile/tile/log_scalar.hh>
 
 //! @namespace nntile::tile
 /*! This namespace holds high-level routines for Tile<T>

@@ -14,13 +14,14 @@
 
 #include "nntile/tile/norm_slice.hh"
 #include "nntile/starpu/norm_slice.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
 
 template<typename T>
 void norm_slice_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
-        const Tile<T> &dst, Index axis)
+        const Tile<T> &dst, Index axis, int redux)
 {
     // Check dimensions
     if(src1.ndim-1 != src2.ndim)
@@ -75,73 +76,95 @@ void norm_slice_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile
     n = src1.matrix_shape[axis+1][1];
     k = src1.shape[axis];
     // Insert task
-    starpu::norm_slice.submit<std::tuple<T>>(m, n, k, alpha, src1, beta, src2, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src1.mpi_transfer(dst_rank, mpi_rank);
+    src2.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        starpu::norm_slice.submit<std::tuple<T>>(m, n, k, alpha, src1, beta,
+                src2, dst, redux);
+    }
 }
 
 template<typename T>
 void norm_slice(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
-        const Tile<T> &dst, Index axis)
+        const Tile<T> &dst, Index axis, int redux)
 {
-    norm_slice_async<T>(alpha, src1, beta, src2, dst, axis);
+    norm_slice_async<T>(alpha, src1, beta, src2, dst, axis, redux);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
 void norm_slice_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1, Scalar beta,
-        const Tile<fp32_t> &src2, const Tile<fp32_t> &dst, Index axis);
+        const Tile<fp32_t> &src2, const Tile<fp32_t> &dst, Index axis,
+        int redux);
 
 template
 void norm_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1, Scalar beta,
-        const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst, Index axis);
+        const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst,
+        Index axis, int redux);
 
 template
 void norm_slice_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src1, Scalar beta,
-        const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst, Index axis);
+        const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst,
+        Index axis, int redux);
 
 template
 void norm_slice_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src1, Scalar beta,
-        const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst, Index axis);
+        const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst,
+        Index axis, int redux);
 
 template
 void norm_slice_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1, Scalar beta,
-        const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis);
+        const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis,
+        int redux);
 
 template
 void norm_slice_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1, Scalar beta,
-        const Tile<bf16_t> &src2, const Tile<bf16_t> &dst, Index axis);
+        const Tile<bf16_t> &src2, const Tile<bf16_t> &dst, Index axis,
+        int redux);
 
 template
 void norm_slice_async<fp16_t>(Scalar alpha, const Tile<fp16_t> &src1, Scalar beta,
-        const Tile<fp16_t> &src2, const Tile<fp16_t> &dst, Index axis);
+        const Tile<fp16_t> &src2, const Tile<fp16_t> &dst, Index axis,
+        int redux);
 
 // Explicit instantiation
 template
 void norm_slice<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1, Scalar beta,
-        const Tile<fp32_t> &src2, const Tile<fp32_t> &dst, Index axis);
+        const Tile<fp32_t> &src2, const Tile<fp32_t> &dst, Index axis,
+        int redux);
 
 template
 void norm_slice<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1, Scalar beta,
-        const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst, Index axis);
+        const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst,
+        Index axis, int redux);
 
 template
 void norm_slice<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src1, Scalar beta,
-        const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst, Index axis);
+        const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst,
+        Index axis, int redux);
 
 template
 void norm_slice<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src1, Scalar beta,
-        const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst, Index axis);
+        const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst,
+        Index axis, int redux);
 
 template
 void norm_slice<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1, Scalar beta,
-        const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis);
+        const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis,
+        int redux);
 
 template
 void norm_slice<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1, Scalar beta,
-        const Tile<bf16_t> &src2, const Tile<bf16_t> &dst, Index axis);
+        const Tile<bf16_t> &src2, const Tile<bf16_t> &dst, Index axis,
+        int redux);
 
 template
 void norm_slice<fp16_t>(Scalar alpha, const Tile<fp16_t> &src1, Scalar beta,
-        const Tile<fp16_t> &src2, const Tile<fp16_t> &dst, Index axis);
+        const Tile<fp16_t> &src2, const Tile<fp16_t> &dst, Index axis,
+        int redux);
 
 } // namespace nntile::tile

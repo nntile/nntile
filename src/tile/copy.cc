@@ -13,7 +13,8 @@
  * */
 
 #include "nntile/tile/copy.hh"
-#include <starpu.h>
+#include "nntile/starpu/copy.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -32,12 +33,12 @@ void copy_async(const Tile<T> &src, const Tile<T> &dst)
     {
         throw std::runtime_error("src.shape != dst.shape");
     }
-    Index ndim = src.ndim;
-    // Submit copy procedure
-    int ret = starpu_data_cpy(dst.get(), src.get(), 1, nullptr, nullptr);
-    if(ret != 0)
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
     {
-        throw std::runtime_error("Error in starpu_data_cpy");
+        starpu::copy.submit(src, dst);
     }
 }
 
