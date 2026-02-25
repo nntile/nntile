@@ -14,6 +14,7 @@
 
 #include "nntile/tile/fill.hh"
 #include "nntile/starpu/fill.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -24,8 +25,13 @@ namespace nntile::tile
 template<typename T>
 void fill_async(Scalar val, const Tile<T> &A)
 {
-    // Submit task without any arguments checked
-    starpu::fill.submit<std::tuple<T>>(A.nelems, val, A);
+    int mpi_rank = starpu_mpi_world_rank();
+    int a_rank = A.mpi_get_rank();
+    if(mpi_rank == a_rank)
+    {
+        // Submit task without any arguments checked
+        starpu::fill.submit<std::tuple<T>>(A.nelems, val, A);
+    }
 }
 
 //! Blocking version of tile-wise flll operation

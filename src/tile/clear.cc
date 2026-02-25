@@ -14,6 +14,7 @@
 
 #include "nntile/tile/clear.hh"
 #include "nntile/starpu/clear.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -22,7 +23,12 @@ namespace nntile::tile
 template<typename T>
 void clear_async(const Tile<T> &tile)
 {
-    starpu::clear.submit(tile);
+    int mpi_rank = starpu_mpi_world_rank();
+    int tile_rank = tile.mpi_get_rank();
+    if(mpi_rank == tile_rank)
+    {
+        starpu::clear.submit(tile);
+    }
 }
 
 //! Asynchronously clear a tile

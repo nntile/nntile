@@ -14,6 +14,7 @@
 
 #include "nntile/tile/randn.hh"
 #include "nntile/starpu/randn.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -62,20 +63,25 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &start,
     }
     // Temporary index
     starpu::VariableHandle tmp_index(sizeof(nntile::int64_t)*2*ndim);
-    // Insert task
-    starpu::randn.submit<std::tuple<T>>(
-        ndim,
-        dst.nelems,
-        seed,
-        mean,
-        stddev,
-        start,
-        dst.shape,
-        dst.stride,
-        underlying_shape,
-        dst,
-        tmp_index
-    );
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    if(mpi_rank == dst_rank)
+    {
+        // Insert task
+        starpu::randn.submit<std::tuple<T>>(
+            ndim,
+            dst.nelems,
+            seed,
+            mean,
+            stddev,
+            start,
+            dst.shape,
+            dst.stride,
+            underlying_shape,
+            dst,
+            tmp_index
+        );
+    }
     // Unregister temporary index in an async way
     tmp_index.unregister_submit();
 }
