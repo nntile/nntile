@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/softmax_inplace.hh"
-#include "nntile/starpu/softmax_inplace.hh"
+#include "nntile/tile/softmax_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -76,18 +76,14 @@ void softmax_inplace_async(const Tensor<T> &maxsumexp, Scalar alpha,
         }
     }
     // Prepare
-    int mpi_rank = starpu_mpi_world_rank();
-    int mpi_size = starpu_mpi_world_size();
-    int ret;
     // Apply per-tile softmax_inplace asynchronously as needed
     for(Index i = 0; i < maxsumexp.grid.nelems; ++i)
     {
         // Index of current source tile
         auto maxsumexp_tile_index = maxsumexp.grid.linear_to_index(i);
-        // Source tile traits
-        auto maxsumexp_tile_traits = maxsumexp.get_tile_traits(i);
         // Source tile handle
         auto maxsumexp_tile_handle = maxsumexp.get_tile_handle(i);
+        auto maxsumexp_tile = maxsumexp.get_tile(i);
         // Set fixed indices of current destination tile
         std::vector<Index> dst_tile_index(dst.ndim);
         for(Index j = 0; j < axis; ++j)
@@ -107,42 +103,9 @@ void softmax_inplace_async(const Tensor<T> &maxsumexp, Scalar alpha,
             Index dst_tile_offset = dst.grid.index_to_linear(dst_tile_index);
             // Get destination tile handle
             auto dst_tile_handle = dst.get_tile_handle(dst_tile_offset);
-            // MPI rank of the destination tile
-            int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-            // Transfer data
-            maxsumexp_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-            // Execute on destination node
-            if(mpi_rank == dst_tile_rank)
-            {
-                // Get destination tile traits
-                auto dst_tile_traits = dst.get_tile_traits(dst_tile_offset);
-                // Reshape inputs for simplicity:
-                //      maxsumexp -> (2,m,n), dst -> (m,k,n)
-                Index m, n, k;
-                if(axis == 0)
-                {
-                    m = 1;
-                    // 2 elements per single n
-                    n = maxsumexp_tile_traits.nelems / 2;
-                    k = dst_tile_traits.shape[0];
-                }
-                else if(axis == dst.ndim-1)
-                {
-                    // 2 elements per single m
-                    m = maxsumexp_tile_traits.nelems / 2;
-                    n = 1;
-                    k = dst_tile_traits.shape[axis];
-                }
-                else
-                {
-                    m = dst_tile_traits.stride[axis];
-                    n = dst_tile_traits.matrix_shape[axis+1][1];
-                    k = dst_tile_traits.shape[axis];
-                }
-                // Insert corresponding task
-                starpu::softmax_inplace.submit<std::tuple<T>>(m, n, k,
-                        maxsumexp_tile_handle, alpha, dst_tile_handle);
-            }
+            auto dst_tile = dst.get_tile(dst_tile_offset);
+            tile::softmax_inplace_async<T>(maxsumexp_tile, alpha, dst_tile,
+                    axis);
             // Flush cache for the output tile on every node
             dst_tile_handle.mpi_flush();
         }

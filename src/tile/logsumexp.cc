@@ -14,6 +14,7 @@
 
 #include "nntile/tile/logsumexp.hh"
 #include "nntile/starpu/logsumexp.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -44,8 +45,14 @@ void logsumexp_async(const Tile<T> &src, const Tile<T> &dst)
             throw std::runtime_error("src.shape[i+1] != dst.shape[i]");
         }
     }
-    // Insert task
-    starpu::logsumexp.submit<std::tuple<T>>(dst.nelems, src, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert task
+        starpu::logsumexp.submit<std::tuple<T>>(dst.nelems, src, dst);
+    }
 }
 
 //! Tile-wise logsumexp

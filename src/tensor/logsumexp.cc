@@ -13,8 +13,7 @@
  * */
 
 #include "nntile/tensor/logsumexp.hh"
-#include "nntile/starpu/logsumexp.hh"
-#include "nntile/starpu/clear.hh"
+#include "nntile/tile/logsumexp.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -56,24 +55,12 @@ void logsumexp_async(const Tensor<T> &src, const Tensor<T> &dst)
         }
     }
     // Do actual calculations
-    int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
-        // Clean up destination tile on dest node
         auto dst_tile_handle = dst.get_tile_handle(i);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-        auto dst_tile_traits = dst.get_tile_traits(i);
-
-        auto src_tile_handle = src.get_tile_handle(i);
-        // Transfer data
-        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        // Execute on destination node
-        if (mpi_rank == dst_tile_rank)
-        {
-            // Insert task
-            starpu::logsumexp.submit<std::tuple<T>>(dst_tile_traits.nelems, src_tile_handle,
-                    dst_tile_handle);
-        }
+        auto src_tile = src.get_tile(i);
+        auto dst_tile = dst.get_tile(i);
+        tile::logsumexp_async<T>(src_tile, dst_tile);
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
     }

@@ -14,6 +14,7 @@
 
 #include "nntile/tile/softmax.hh"
 #include "nntile/starpu/softmax.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -74,8 +75,16 @@ void softmax_async(const Tile<T> &maxsumexp, const Tile<T> &src, Scalar alpha,
     m = dst.stride[axis];
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
-    // Insert task
-    starpu::softmax.submit<std::tuple<T>>(m, n, k, maxsumexp, src, alpha, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    maxsumexp.mpi_transfer(dst_rank, mpi_rank);
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert task
+        starpu::softmax.submit<std::tuple<T>>(m, n, k, maxsumexp, src, alpha,
+                dst);
+    }
 }
 
 //! Tile-wise average and deviation from sum and scaled sum of squares
