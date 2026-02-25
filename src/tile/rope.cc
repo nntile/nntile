@@ -76,7 +76,7 @@ void rope_async(const Tile<T> &sin, const Tile<T> &cos, const Tile<T> &src,
     }
 
     // Reshape inputs for simplicity: sin,cos -> (m), src,dst -> (2,m,n)
-    Index m{sin.nelems}, n={src.matrix_shape[sin.ndim-1][1]};
+    Index m{sin.nelems}, n={src.matrix_shape[sin.ndim][1]};
     int mpi_rank = starpu_mpi_world_rank();
     int dst_rank = dst.mpi_get_rank();
     sin.mpi_transfer(dst_rank, mpi_rank);
