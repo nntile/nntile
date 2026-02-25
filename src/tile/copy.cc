@@ -68,6 +68,24 @@ void copy_async<int64_t>(const Tile<int64_t> &src, const Tile<int64_t> &dst);
 template
 void copy_async<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
+template
+void copy_async<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
+
+template
+void copy_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+        const Tile<fp32_fast_tf32_t> &dst);
+
+template
+void copy_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+        const Tile<fp32_fast_fp16_t> &dst);
+
+template
+void copy_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+        const Tile<fp32_fast_bf16_t> &dst);
+
+template
+void copy_async<bool_t>(const Tile<bool_t> &src, const Tile<bool_t> &dst);
+
 // Explicit instantiation
 template
 void copy<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
@@ -80,5 +98,23 @@ void copy<int64_t>(const Tile<int64_t> &src, const Tile<int64_t> &dst);
 
 template
 void copy<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+
+template
+void copy<fp16_t>(const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
+
+template
+void copy<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+        const Tile<fp32_fast_tf32_t> &dst);
+
+template
+void copy<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+        const Tile<fp32_fast_fp16_t> &dst);
+
+template
+void copy<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+        const Tile<fp32_fast_bf16_t> &dst);
+
+template
+void copy<bool_t>(const Tile<bool_t> &src, const Tile<bool_t> &dst);
 
 } // namespace nntile::tile

@@ -52,6 +52,9 @@ template
 void fill_async<bf16_t>(Scalar val, const Tile<bf16_t> &A);
 
 template
+void fill_async<fp16_t>(Scalar val, const Tile<fp16_t> &A);
+
+template
 void fill_async<fp32_fast_tf32_t>(Scalar val, const Tile<fp32_fast_tf32_t> &A);
 
 template
@@ -69,6 +72,9 @@ void fill<fp32_t>(Scalar val, const Tile<fp32_t> &A);
 
 template
 void fill<bf16_t>(Scalar val, const Tile<bf16_t> &A);
+
+template
+void fill<fp16_t>(Scalar val, const Tile<fp16_t> &A);
 
 template
 void fill<fp32_fast_tf32_t>(Scalar val, const Tile<fp32_fast_tf32_t> &A);

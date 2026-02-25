@@ -61,6 +61,12 @@ void clear_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &tile);
 template
 void clear_async<fp64_t>(const Tile<fp64_t> &tile);
 
+template
+void clear_async<int64_t>(const Tile<int64_t> &tile);
+
+template
+void clear_async<bool_t>(const Tile<bool_t> &tile);
+
 // Explicit instantiation
 template
 void clear<fp32_t>(const Tile<fp32_t> &tile);
@@ -82,5 +88,11 @@ void clear<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &tile);
 
 template
 void clear<fp64_t>(const Tile<fp64_t> &tile);
+
+template
+void clear<int64_t>(const Tile<int64_t> &tile);
+
+template
+void clear<bool_t>(const Tile<bool_t> &tile);
 
 } // namespace nntile::tile

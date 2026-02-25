@@ -51,6 +51,9 @@ template
 void scale_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &data);
 
 template
+void scale_inplace_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &data);
+
+template
 void scale_inplace_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &data);
 
 template
@@ -68,6 +71,9 @@ void scale_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> 
 
 template
 void scale_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &data);
+
+template
+void scale_inplace<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &data);
 
 template
 void scale_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &data);

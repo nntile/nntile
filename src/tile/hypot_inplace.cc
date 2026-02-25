@@ -70,6 +70,14 @@ void hypot_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
+void hypot_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
+        const Tile<fp32_fast_fp16_t> &dst);
+
+template
+void hypot_inplace_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tile<fp32_fast_bf16_t> &dst);
+
+template
 void hypot_inplace_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst);
 
@@ -85,6 +93,14 @@ void hypot_inplace<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
 template
 void hypot_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst);
+
+template
+void hypot_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
+        const Tile<fp32_fast_fp16_t> &dst);
+
+template
+void hypot_inplace<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tile<fp32_fast_bf16_t> &dst);
 
 template
 void hypot_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,

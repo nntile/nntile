@@ -51,11 +51,35 @@ void sqrt_inplace_async<fp32_t>(const Tile<fp32_t> &A);
 template
 void sqrt_inplace_async<fp64_t>(const Tile<fp64_t> &A);
 
+template
+void sqrt_inplace_async<bf16_t>(const Tile<bf16_t> &A);
+
+template
+void sqrt_inplace_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &A);
+
+template
+void sqrt_inplace_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &A);
+
+template
+void sqrt_inplace_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &A);
+
 // Explicit instantiation
 template
 void sqrt_inplace<fp32_t>(const Tile<fp32_t> &A);
 
 template
 void sqrt_inplace<fp64_t>(const Tile<fp64_t> &A);
+
+template
+void sqrt_inplace<bf16_t>(const Tile<bf16_t> &A);
+
+template
+void sqrt_inplace<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &A);
+
+template
+void sqrt_inplace<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &A);
+
+template
+void sqrt_inplace<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &A);
 
 } // namespace nntile::tile
