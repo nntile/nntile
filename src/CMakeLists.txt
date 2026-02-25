@@ -263,6 +263,8 @@ set(TILE_OPERATION_SRC
     "tile/clear.cc"
     "tile/copy.cc"
     "tile/copy_intersection.cc"
+    "tile/embedding.cc"
+    "tile/embedding_backward.cc"
     "tile/fill.cc"
     "tile/flash_sdpa_fwd_cudnn.cc"
     "tile/flash_sdpa_bwd_cudnn.cc"

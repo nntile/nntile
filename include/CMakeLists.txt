@@ -299,6 +299,8 @@ set(TILE_HDR
     "nntile/tile/clear.hh"
     "nntile/tile/copy.hh"
     "nntile/tile/copy_intersection.hh"
+    "nntile/tile/embedding.hh"
+    "nntile/tile/embedding_backward.hh"
     "nntile/tile/gemm.hh"
     "nntile/tile/gelu.hh"
     "nntile/tile/gelu_inplace.hh"
