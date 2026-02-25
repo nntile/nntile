@@ -33,6 +33,8 @@ TEST_CASE_METHOD(
 
     LogicalGraph g("test");
     build_graph(g);
+    g.get_tensor("x")->mark_input(true);
+    g.get_tensor("x")->mark_output(true);
     auto compiled = CompiledGraph::compile(g);
     compiled.bind_data("x", make_pattern<float>(24, 0.1f));
     compiled.execute();

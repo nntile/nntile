@@ -772,6 +772,7 @@ nntile::tensor::Tensor<T>& CompiledGraph::get_tensor(const std::string& name)
 }
 
 //! Bind data to a tensor (copies data)
+//! Only tensors marked as input or output (or both) may be bound.
 template<typename T>
 void CompiledGraph::bind_data(const std::string& name, const T* data,
                               size_t count)
@@ -780,6 +781,13 @@ void CompiledGraph::bind_data(const std::string& name, const T* data,
     if(it == tensors_.end())
     {
         throw std::runtime_error("Tensor not found: " + name);
+    }
+    if(!tensor_is_input_.count(name) && !tensor_is_output_.count(name))
+    {
+        throw std::runtime_error(
+            "bind_data: tensor '" + name +
+            "' must be marked as input or output (or both); "
+            "call mark_input(true) or mark_output(true) on the tensor node");
     }
 
     DataType dtype = tensor_dtypes_[name];

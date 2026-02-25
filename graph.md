@@ -43,6 +43,9 @@ Tensors can be marked as graph input and/or output via `mark_input()` and
 - **Output tensors** (`mark_output(true)`): Retrieved via `get_output()`; never
   invalidated during execution.
 
+`bind_data()` may only be called for tensors marked as input or output (or
+both). This ensures that user-bound data is never invalidated unexpectedly.
+
 When a compiled graph executes, intermediate tensors that are no longer used by
 remaining operations are automatically invalidated via `invalidate_submit()` to
 free memory. Input and output tensors are never invalidated.

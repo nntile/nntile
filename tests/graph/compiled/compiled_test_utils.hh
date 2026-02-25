@@ -101,6 +101,20 @@ struct InputOverrides
     std::map<std::string, std::vector<nntile::bool_t>> bool_inputs;
 };
 
+inline void mark_inputs_outputs(LogicalGraph& g,
+                                const std::vector<std::string>& input_names,
+                                const std::vector<std::string>& output_names)
+{
+    for(const auto& name : input_names)
+    {
+        g.get_tensor(name)->mark_input(true);
+    }
+    for(const auto& name : output_names)
+    {
+        g.get_tensor(name)->mark_output(true);
+    }
+}
+
 inline void bind_inputs(CompiledGraph& compiled,
                         const LogicalGraph& g,
                         const std::vector<std::string>& input_names,
@@ -169,10 +183,12 @@ inline void bind_inputs(CompiledGraph& compiled,
 inline void run_compiled_graph(
     const std::function<void(LogicalGraph&)>& build_graph,
     const std::vector<std::string>& input_names,
+    const std::vector<std::string>& output_names = {},
     const InputOverrides& overrides = {})
 {
     LogicalGraph g("test");
     build_graph(g);
+    mark_inputs_outputs(g, input_names, output_names);
     auto compiled = CompiledGraph::compile(g);
     bind_inputs(compiled, g, input_names, overrides);
     compiled.execute();
@@ -195,6 +211,7 @@ inline void verify_graph_vs_tensor(
 
     LogicalGraph g("test");
     build_graph(g);
+    mark_inputs_outputs(g, input_names, output_names);
 
     auto compiled = CompiledGraph::compile(g);
 

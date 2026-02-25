@@ -44,6 +44,8 @@ TEST_CASE_METHOD(
 
     auto& a = g.tensor({2, 3}, "a", DataType::FP32);
     auto& b = g.tensor({3, 4}, "b", DataType::FP32);
+    a.mark_input(true);
+    b.mark_input(true);
     auto& c = gemm(a, b, "c");
     c.mark_output(true);
 
@@ -86,6 +88,7 @@ TEST_CASE_METHOD(
     LogicalGraph g("test");
 
     auto& x = g.tensor({4}, "x", DataType::FP32);
+    x.mark_input(true);
     auto& y = gelu(x, "y");
     y.mark_output(true);
 
@@ -117,6 +120,9 @@ TEST_CASE_METHOD(
     auto& x = g.tensor({2, 4}, "x", DataType::FP32);
     auto& w1 = g.tensor({4, 8}, "w1", DataType::FP32);
     auto& w2 = g.tensor({8, 4}, "w2", DataType::FP32);
+    x.mark_input(true);
+    w1.mark_input(true);
+    w2.mark_input(true);
 
     auto& h = gemm(x, w1, "h");
     auto& a = gelu(h, "a");
@@ -157,6 +163,8 @@ TEST_CASE_METHOD(
 
     auto& a = g.tensor({2, 2}, "a", DataType::FP32);
     auto& b = g.tensor({2, 2}, "b", DataType::FP32);
+    a.mark_input(true);
+    b.mark_input(true);
     auto& c = gemm(a, b, "c");
 
     auto compiled = CompiledGraph::compile(g);
@@ -323,6 +331,39 @@ TEST_CASE_METHOD(
 
 TEST_CASE_METHOD(
     GraphTestFixture,
+    "CompiledGraph BindDataRequiresMarkedTensor",
+    "[graph]")
+{
+    LogicalGraph g("test");
+
+    auto& x = g.tensor({2}, "x", DataType::FP32);
+    auto& y = gelu(x, "y");
+    // x and y not marked as input/output
+    auto compiled = CompiledGraph::compile(g);
+
+    REQUIRE_THROWS_AS(
+        compiled.bind_data("x", std::vector<float>{1.0f, 2.0f}),
+        std::runtime_error);
+    REQUIRE_THROWS_AS(
+        compiled.bind_data("y", std::vector<float>{1.0f, 2.0f}),
+        std::runtime_error);
+
+    // With marking, bind_data succeeds
+    LogicalGraph g2("test2");
+    auto& x2 = g2.tensor({2}, "x", DataType::FP32);
+    auto& y2 = gelu(x2, "y");
+    x2.mark_input(true);
+    y2.mark_output(true);
+    auto compiled2 = CompiledGraph::compile(g2);
+    compiled2.bind_data("x", std::vector<float>{1.0f, 2.0f});
+    compiled2.execute();
+    compiled2.wait();
+    auto out = compiled2.get_output<float>("y");
+    REQUIRE(out.size() == 2);
+}
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
     "CompiledGraph MissingTensorLookups",
     "[graph]")
 {
@@ -351,10 +392,10 @@ TEST_CASE_METHOD(
 
     auto& x = g.tensor({2, 4}, "x", DataType::FP32);
     auto& w = g.tensor({4, 4}, "w", DataType::FP32);
+    x.mark_input(true);
+    w.mark_input(true);
     auto& h = gemm(x, w, "h");
     auto& y = gelu(h, "y");
-
-    x.mark_input(true);
     y.mark_output(true);
 
     REQUIRE(x.is_input());
@@ -385,6 +426,7 @@ TEST_CASE_METHOD(
 
     // x -> gelu -> y (live), x -> sqrt -> dead (dangling, never consumed)
     auto& x = g.tensor({4}, "x", DataType::FP32);
+    x.mark_input(true);
     auto& y = gelu(x, "y");
     y.mark_output(true);
     sqrt(x, "dead");  // Produces "dead" tensor, never used
@@ -417,6 +459,8 @@ TEST_CASE_METHOD(
 
     auto& x = g.tensor({2, 4}, "x", DataType::FP32);
     auto& w = g.tensor({4, 4}, "w", DataType::FP32);
+    x.mark_input(true);
+    w.mark_input(true);
     auto& h = gemm(x, w, "h");
     gelu_inplace(h);
     h.mark_output(true);
