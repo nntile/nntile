@@ -34,6 +34,7 @@ TEST_CASE_METHOD(
 
     LogicalGraph g("test");
     build_graph(g);
+    g.get_tensor("x")->mark_input(true);
     auto compiled = CompiledGraph::compile(g);
     compiled.bind_data("x", std::vector<float>{1.5f});
     compiled.execute();

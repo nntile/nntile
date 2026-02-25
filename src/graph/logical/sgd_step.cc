@@ -60,7 +60,7 @@ void sgd_step(
         OpType::SGD_STEP,
         attrs,
         {&grad, &velocity, &p},
-        {&p}
+        {&velocity, &p}
     );
 }
 

@@ -44,7 +44,10 @@ TEST_CASE_METHOD(
 
     auto& a = g.tensor({2, 3}, "a", DataType::FP32);
     auto& b = g.tensor({3, 4}, "b", DataType::FP32);
+    a.mark_input(true);
+    b.mark_input(true);
     auto& c = gemm(a, b, "c");
+    c.mark_output(true);
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -85,7 +88,9 @@ TEST_CASE_METHOD(
     LogicalGraph g("test");
 
     auto& x = g.tensor({4}, "x", DataType::FP32);
+    x.mark_input(true);
     auto& y = gelu(x, "y");
+    y.mark_output(true);
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -115,10 +120,14 @@ TEST_CASE_METHOD(
     auto& x = g.tensor({2, 4}, "x", DataType::FP32);
     auto& w1 = g.tensor({4, 8}, "w1", DataType::FP32);
     auto& w2 = g.tensor({8, 4}, "w2", DataType::FP32);
+    x.mark_input(true);
+    w1.mark_input(true);
+    w2.mark_input(true);
 
     auto& h = gemm(x, w1, "h");
     auto& a = gelu(h, "a");
     auto& y = gemm(a, w2, "y");
+    y.mark_output(true);
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -154,6 +163,8 @@ TEST_CASE_METHOD(
 
     auto& a = g.tensor({2, 2}, "a", DataType::FP32);
     auto& b = g.tensor({2, 2}, "b", DataType::FP32);
+    a.mark_input(true);
+    b.mark_input(true);
     auto& c = gemm(a, b, "c");
 
     auto compiled = CompiledGraph::compile(g);
@@ -244,7 +255,8 @@ TEST_CASE_METHOD(
         bool expect_bool = false)
     {
         LogicalGraph g("test");
-        g.tensor({static_cast<nntile::Index>(data.size())}, "x", dtype);
+        auto& x = g.tensor({static_cast<nntile::Index>(data.size())}, "x", dtype);
+        x.mark_output(true);
         auto compiled = CompiledGraph::compile(g);
 
         compiled.bind_data("x", data);
@@ -283,7 +295,8 @@ TEST_CASE_METHOD(
 {
     LogicalGraph g("test");
 
-    g.tensor({2}, "x", DataType::FP64);
+    auto& x = g.tensor({2}, "x", DataType::FP64);
+    x.mark_output(true);
     auto compiled = CompiledGraph::compile(g);
 
     std::vector<double> data = {1.5, -2.25};
@@ -302,7 +315,8 @@ TEST_CASE_METHOD(
 {
     LogicalGraph g("test");
 
-    g.tensor({3}, "x", DataType::INT64);
+    auto& x = g.tensor({3}, "x", DataType::INT64);
+    x.mark_output(true);
     auto compiled = CompiledGraph::compile(g);
 
     std::vector<long long> data = {1, -2, 3};
@@ -313,6 +327,39 @@ TEST_CASE_METHOD(
     REQUIRE(out[0] == Catch::Approx(1.0f));
     REQUIRE(out[1] == Catch::Approx(-2.0f));
     REQUIRE(out[2] == Catch::Approx(3.0f));
+}
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph BindDataRequiresMarkedTensor",
+    "[graph]")
+{
+    LogicalGraph g("test");
+
+    auto& x = g.tensor({2}, "x", DataType::FP32);
+    auto& y = gelu(x, "y");
+    // x and y not marked as input/output
+    auto compiled = CompiledGraph::compile(g);
+
+    REQUIRE_THROWS_AS(
+        compiled.bind_data("x", std::vector<float>{1.0f, 2.0f}),
+        std::runtime_error);
+    REQUIRE_THROWS_AS(
+        compiled.bind_data("y", std::vector<float>{1.0f, 2.0f}),
+        std::runtime_error);
+
+    // With marking, bind_data succeeds
+    LogicalGraph g2("test2");
+    auto& x2 = g2.tensor({2}, "x", DataType::FP32);
+    auto& y2 = gelu(x2, "y");
+    x2.mark_input(true);
+    y2.mark_output(true);
+    auto compiled2 = CompiledGraph::compile(g2);
+    compiled2.bind_data("x", std::vector<float>{1.0f, 2.0f});
+    compiled2.execute();
+    compiled2.wait();
+    auto out = compiled2.get_output<float>("y");
+    REQUIRE(out.size() == 2);
 }
 
 TEST_CASE_METHOD(
@@ -334,4 +381,106 @@ TEST_CASE_METHOD(
     REQUIRE_THROWS_AS(
         compiled.get_tensor<nntile::fp32_t>("missing"),
         std::runtime_error);
+}
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph MarkInputOutput",
+    "[graph]")
+{
+    LogicalGraph g("test");
+
+    auto& x = g.tensor({2, 4}, "x", DataType::FP32);
+    auto& w = g.tensor({4, 4}, "w", DataType::FP32);
+    x.mark_input(true);
+    w.mark_input(true);
+    auto& h = gemm(x, w, "h");
+    auto& y = gelu(h, "y");
+    y.mark_output(true);
+
+    REQUIRE(x.is_input());
+    REQUIRE(y.is_output());
+    REQUIRE(!h.is_input());
+    REQUIRE(!h.is_output());
+
+    auto compiled = CompiledGraph::compile(g);
+
+    std::vector<float> x_data(8, 1.0f);
+    std::vector<float> w_data(16, 0.1f);
+    compiled.bind_data("x", x_data);
+    compiled.bind_data("w", w_data);
+
+    compiled.execute();
+    compiled.wait();
+
+    auto y_data = compiled.get_output<float>("y");
+    REQUIRE(y_data.size() == 8);
+}
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph DeadOpElimination",
+    "[graph]")
+{
+    LogicalGraph g("test");
+
+    // x -> gelu -> y (live), x -> sqrt -> dead (dangling, never consumed)
+    auto& x = g.tensor({4}, "x", DataType::FP32);
+    x.mark_input(true);
+    auto& y = gelu(x, "y");
+    y.mark_output(true);
+    sqrt(x, "dead");  // Produces "dead" tensor, never used
+
+    auto compiled = CompiledGraph::compile(g);
+
+    std::vector<float> x_data = {-1.0f, 0.0f, 1.0f, 2.0f};
+    compiled.bind_data("x", x_data);
+
+    compiled.execute();
+    compiled.wait();
+
+    // Should get correct result from gelu path; dead op was eliminated
+    auto y_data = compiled.get_output<float>("y");
+    REQUIRE(y_data.size() == 4);
+    REQUIRE(y_data[0] == Catch::Approx(-0.159f).epsilon(0.01));
+    REQUIRE(y_data[1] == Catch::Approx(0.0f).epsilon(0.01));
+    REQUIRE(y_data[2] == Catch::Approx(0.841f).epsilon(0.01));
+    REQUIRE(y_data[3] == Catch::Approx(1.955f).epsilon(0.01));
+}
+
+TEST_CASE_METHOD(
+    GraphTestFixture,
+    "CompiledGraph InPlaceChain",
+    "[graph]")
+{
+    // gemm -> gelu_inplace on same tensor "h": DCE must keep BOTH ops
+    // (producer map tracks all writers; single overwrite would drop gemm)
+    LogicalGraph g("test");
+
+    auto& x = g.tensor({2, 4}, "x", DataType::FP32);
+    auto& w = g.tensor({4, 4}, "w", DataType::FP32);
+    x.mark_input(true);
+    w.mark_input(true);
+    auto& h = gemm(x, w, "h");
+    gelu_inplace(h);
+    h.mark_output(true);
+
+    auto compiled = CompiledGraph::compile(g);
+
+    std::vector<float> x_data(8, 1.0f);
+    std::vector<float> w_data(16, 0.1f);
+    compiled.bind_data("x", x_data);
+    compiled.bind_data("w", w_data);
+
+    compiled.execute();
+    compiled.wait();
+
+    auto h_data = compiled.get_output<float>("h");
+    REQUIRE(h_data.size() == 8);
+    // GeLU(gemm(x,w)): values should be non-zero and in valid GeLU range
+    for(float v : h_data)
+    {
+        REQUIRE(v > -1.0f);
+        REQUIRE(v < 10.0f);
+    }
 }

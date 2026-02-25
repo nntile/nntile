@@ -17,6 +17,7 @@
 // Include standard headers
 #include <map>
 #include <memory>
+#include <set>
 #include <vector>
 
 // Include third-party headers
@@ -48,6 +49,14 @@ private:
 
     // Execution order (topologically sorted ops with extracted info)
     std::vector<OpExecutionInfo> execution_order_;
+
+    // Input/output marking from logical graph (never invalidate these)
+    std::set<std::string> tensor_is_input_;
+    std::set<std::string> tensor_is_output_;
+
+    // For each tensor: index of last op in execution_order that uses it as input
+    // Used to emit invalidate_submit when tensor is no longer needed
+    std::map<std::string, size_t> tensor_last_use_;
 
 public:
     //! Compile a logical graph
@@ -103,8 +112,17 @@ private:
     //! Allocate NNTile tensors for all graph tensors
     void allocate_tensors(const LogicalGraph& logical);
 
+    //! Remove ops whose outputs are never consumed (dead code elimination)
+    void eliminate_dead_ops();
+
     //! Execute a single operation
     void execute_op(const OpExecutionInfo& op_info);
+
+    //! Call invalidate_submit on a tensor (type-erased dispatch)
+    void invalidate_tensor(const std::string& name);
+
+    //! After executing op at index op_idx, invalidate inputs no longer needed
+    void invalidate_unused_inputs(size_t op_idx);
 };
 
 } // namespace nntile::graph

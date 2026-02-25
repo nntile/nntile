@@ -18,7 +18,10 @@
 // Include standard headers
 #include <algorithm>
 #include <memory>
+#include <set>
 #include <stdexcept>
+#include <unordered_map>
+#include <unordered_set>
 
 // Include third-party headers
 #include <starpu.h>  // For STARPU_W, STARPU_R
@@ -173,6 +176,35 @@ CompiledGraph CompiledGraph::compile(const LogicalGraph& logical)
         cg.execution_order_.push_back(op_info);
     }
 
+    // Capture input/output marking from logical graph
+    cg.tensor_is_input_.clear();
+    cg.tensor_is_output_.clear();
+    for(const auto& node : logical.tensors())
+    {
+        if(node->is_input())
+        {
+            cg.tensor_is_input_.insert(node->name());
+        }
+        if(node->is_output())
+        {
+            cg.tensor_is_output_.insert(node->name());
+        }
+    }
+
+    // Dead operation elimination: remove ops whose outputs are never consumed
+    // and not marked as graph output (dangling tensors)
+    cg.eliminate_dead_ops();
+
+    // Build tensor_last_use_: for each tensor, index of last op that uses it as input
+    cg.tensor_last_use_.clear();
+    for(size_t i = 0; i < cg.execution_order_.size(); ++i)
+    {
+        for(const auto& input_name : cg.execution_order_[i].input_names)
+        {
+            cg.tensor_last_use_[input_name] = i;
+        }
+    }
+
     return cg;
 }
 
@@ -285,12 +317,136 @@ void CompiledGraph::allocate_tensors(const LogicalGraph& logical)
     }
 }
 
+//! Remove ops whose outputs are never consumed (dead code elimination)
+void CompiledGraph::eliminate_dead_ops()
+{
+    const size_t n = execution_order_.size();
+    if(n == 0)
+    {
+        return;
+    }
+
+    // tensor -> set of op indices that produce it (in-place ops overwrite same tensor)
+    std::unordered_map<std::string, std::unordered_set<size_t>> producer;
+    // tensor -> set of op indices that consume it as input
+    std::unordered_map<std::string, std::unordered_set<size_t>> consumer;
+    // tensors that are consumed (used as input) by some op
+    std::unordered_set<std::string> consumed;
+
+    for(size_t i = 0; i < n; ++i)
+    {
+        const auto& op = execution_order_[i];
+        for(const auto& out : op.output_names)
+        {
+            producer[out].insert(i);
+        }
+        for(const auto& in : op.input_names)
+        {
+            consumed.insert(in);
+            consumer[in].insert(i);
+        }
+    }
+
+    // Backward reachability: start from graph outputs, mark live tensors and ops
+    std::unordered_set<std::string> live_tensors(tensor_is_output_.begin(),
+                                                 tensor_is_output_.end());
+    // Include graph inputs so side-effectful ops (e.g. log_scalar) that only
+    // consume inputs are reachable via the consumer map
+    for(const auto& name : tensor_is_input_)
+    {
+        live_tensors.insert(name);
+    }
+    // If no outputs marked, treat sink tensors (not consumed by any op) as live
+    // so we don't eliminate ops that produce the graph's final results
+    if(tensor_is_output_.empty())
+    {
+        for(const auto& p : producer)
+        {
+            if(consumed.count(p.first) == 0)
+            {
+                live_tensors.insert(p.first);
+            }
+        }
+    }
+    // If still no live tensors, skip elimination (conservative)
+    if(live_tensors.empty())
+    {
+        return;
+    }
+    std::set<size_t> live_ops;
+    bool changed = true;
+    while(changed)
+    {
+        changed = false;
+        // Iterate over a copy to avoid UB from modifying live_tensors during iteration
+        std::unordered_set<std::string> live_tensors_copy(live_tensors);
+        for(const auto& t : live_tensors_copy)
+        {
+            // Backward: ops that produce this tensor
+            auto prod_it = producer.find(t);
+            if(prod_it != producer.end())
+            {
+                for(size_t op_idx : prod_it->second)
+                {
+                    if(live_ops.insert(op_idx).second)
+                    {
+                        changed = true;
+                        for(const auto& in : execution_order_[op_idx].input_names)
+                        {
+                            if(live_tensors.insert(in).second)
+                            {
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            }
+            // Forward: ops with no outputs (side-effectful, e.g. log_scalar) that
+            // consume this tensor; they never appear in producer
+            auto cons_it = consumer.find(t);
+            if(cons_it != consumer.end())
+            {
+                for(size_t op_idx : cons_it->second)
+                {
+                    if(execution_order_[op_idx].output_names.empty() &&
+                       live_ops.insert(op_idx).second)
+                    {
+                        changed = true;
+                        for(const auto& in : execution_order_[op_idx].input_names)
+                        {
+                            if(live_tensors.insert(in).second)
+                            {
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Filter execution_order to only live ops (preserve topological order)
+    std::vector<OpExecutionInfo> filtered;
+    filtered.reserve(live_ops.size());
+    for(size_t i = 0; i < n; ++i)
+    {
+        if(live_ops.count(i))
+        {
+            filtered.push_back(std::move(execution_order_[i]));
+        }
+    }
+    execution_order_ = std::move(filtered);
+}
+
 //! Execute the graph
 void CompiledGraph::execute()
 {
-    for(const auto& op_info : execution_order_)
+    for(size_t i = 0; i < execution_order_.size(); ++i)
     {
-        execute_op(op_info);
+        execute_op(execution_order_[i]);
+        // invalidate_submit() is async; StarPU's dependency graph ensures
+        // invalidation runs only after all tasks that read the tensor complete
+        invalidate_unused_inputs(i);
     }
 }
 
@@ -555,6 +711,85 @@ void CompiledGraph::execute_op(const OpExecutionInfo& op_info)
     }
 }
 
+//! Call invalidate_submit on a tensor (type-erased dispatch)
+void CompiledGraph::invalidate_tensor(const std::string& name)
+{
+    auto dtype_it = tensor_dtypes_.find(name);
+    if(dtype_it == tensor_dtypes_.end())
+    {
+        return;
+    }
+    DataType dtype = dtype_it->second;
+
+    switch(dtype)
+    {
+        case DataType::FP32:
+            get_tensor<nntile::fp32_t>(name).invalidate_submit();
+            break;
+        case DataType::FP32_FAST_TF32:
+            get_tensor<nntile::fp32_fast_tf32_t>(name).invalidate_submit();
+            break;
+        case DataType::FP32_FAST_FP16:
+            get_tensor<nntile::fp32_fast_fp16_t>(name).invalidate_submit();
+            break;
+        case DataType::FP32_FAST_BF16:
+            get_tensor<nntile::fp32_fast_bf16_t>(name).invalidate_submit();
+            break;
+        case DataType::FP64:
+            get_tensor<nntile::fp64_t>(name).invalidate_submit();
+            break;
+        case DataType::FP16:
+            get_tensor<nntile::fp16_t>(name).invalidate_submit();
+            break;
+        case DataType::BF16:
+            get_tensor<nntile::bf16_t>(name).invalidate_submit();
+            break;
+        case DataType::INT64:
+            get_tensor<nntile::int64_t>(name).invalidate_submit();
+            break;
+        case DataType::BOOL:
+            get_tensor<nntile::bool_t>(name).invalidate_submit();
+            break;
+        default:
+            throw std::runtime_error(
+                "invalidate_tensor: unsupported data type " +
+                dtype_to_string(dtype) + " for tensor '" + name + "'");
+    }
+}
+
+//! After executing op at index op_idx, invalidate inputs no longer needed
+void CompiledGraph::invalidate_unused_inputs(size_t op_idx)
+{
+    const auto& op_info = execution_order_.at(op_idx);
+    std::unordered_set<std::string> seen;
+    for(const auto& input_name : op_info.input_names)
+    {
+        // Ops may list the same tensor multiple times (e.g. multiply(x, x)).
+        // Double invalidate_submit on the same tensor is harmless.
+        if(!seen.insert(input_name).second)
+        {
+            continue;
+        }
+        // Never invalidate graph inputs or outputs
+        if(tensor_is_input_.count(input_name) || tensor_is_output_.count(input_name))
+        {
+            continue;
+        }
+        // Never invalidate if this tensor is also an output of this op
+        // (in-place ops: input and output are the same tensor)
+        if(std::find(op_info.output_names.begin(), op_info.output_names.end(),
+                     input_name) != op_info.output_names.end())
+        {
+            continue;
+        }
+        auto it = tensor_last_use_.find(input_name);
+        if(it != tensor_last_use_.end() && it->second == op_idx)
+        {
+            invalidate_tensor(input_name);
+        }
+    }
+}
+
 //! Get typed tensor pointer
 template<typename T>
 nntile::tensor::Tensor<T>& CompiledGraph::get_tensor(const std::string& name)
@@ -568,6 +803,7 @@ nntile::tensor::Tensor<T>& CompiledGraph::get_tensor(const std::string& name)
 }
 
 //! Bind data to a tensor (copies data)
+//! Only tensors marked as input or output (or both) may be bound.
 template<typename T>
 void CompiledGraph::bind_data(const std::string& name, const T* data,
                               size_t count)
@@ -576,6 +812,13 @@ void CompiledGraph::bind_data(const std::string& name, const T* data,
     if(it == tensors_.end())
     {
         throw std::runtime_error("Tensor not found: " + name);
+    }
+    if(!tensor_is_input_.count(name) && !tensor_is_output_.count(name))
+    {
+        throw std::runtime_error(
+            "bind_data: tensor '" + name +
+            "' must be marked as input or output (or both); "
+            "call mark_input(true) or mark_output(true) on the tensor node");
     }
 
     DataType dtype = tensor_dtypes_[name];
