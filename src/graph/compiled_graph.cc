@@ -326,8 +326,8 @@ void CompiledGraph::eliminate_dead_ops()
         return;
     }
 
-    // tensor -> op index that produces it
-    std::unordered_map<std::string, size_t> producer;
+    // tensor -> set of op indices that produce it (in-place ops overwrite same tensor)
+    std::unordered_map<std::string, std::unordered_set<size_t>> producer;
     // tensors that are consumed (used as input) by some op
     std::unordered_set<std::string> consumed;
 
@@ -336,7 +336,7 @@ void CompiledGraph::eliminate_dead_ops()
         const auto& op = execution_order_[i];
         for(const auto& out : op.output_names)
         {
-            producer[out] = i;
+            producer[out].insert(i);
         }
         for(const auto& in : op.input_names)
         {
@@ -369,20 +369,24 @@ void CompiledGraph::eliminate_dead_ops()
     while(changed)
     {
         changed = false;
-        for(const auto& t : live_tensors)
+        // Iterate over a copy to avoid UB from modifying live_tensors during iteration
+        std::unordered_set<std::string> live_tensors_copy(live_tensors);
+        for(const auto& t : live_tensors_copy)
         {
             auto it = producer.find(t);
             if(it != producer.end())
             {
-                size_t op_idx = it->second;
-                if(live_ops.insert(op_idx).second)
+                for(size_t op_idx : it->second)
                 {
-                    changed = true;
-                    for(const auto& in : execution_order_[op_idx].input_names)
+                    if(live_ops.insert(op_idx).second)
                     {
-                        if(live_tensors.insert(in).second)
+                        changed = true;
+                        for(const auto& in : execution_order_[op_idx].input_names)
                         {
-                            changed = true;
+                            if(live_tensors.insert(in).second)
+                            {
+                                changed = true;
+                            }
                         }
                     }
                 }
