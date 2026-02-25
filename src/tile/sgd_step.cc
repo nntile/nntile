@@ -14,6 +14,7 @@
 
 #include "nntile/tile/sgd_step.hh"
 #include "nntile/starpu/sgd_step.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -42,9 +43,16 @@ void sgd_step_async(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_de
     {
         throw std::runtime_error("Shapes of velocity and parameters are not equal");
     }
-    // Submit task
-    starpu::sgd_step.submit<std::tuple<T>>(num_iter, p.nelems, momentum, lr, weight_decay, dampening, nesterov,
-                                 grad, velocity, p);
+    int mpi_rank = starpu_mpi_world_rank();
+    int p_rank = p.mpi_get_rank();
+    grad.mpi_transfer(p_rank, mpi_rank);
+    velocity.mpi_transfer(p_rank, mpi_rank);
+    if(mpi_rank == p_rank)
+    {
+        // Submit task
+        starpu::sgd_step.submit<std::tuple<T>>(num_iter, p.nelems, momentum,
+                lr, weight_decay, dampening, nesterov, grad, velocity, p);
+    }
 }
 
 //! Blocking version of tile-wise fused SGD with momentum step

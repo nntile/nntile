@@ -14,6 +14,7 @@
 
 #include "nntile/tile/rope.hh"
 #include "nntile/starpu/rope.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -76,8 +77,16 @@ void rope_async(const Tile<T> &sin, const Tile<T> &cos, const Tile<T> &src,
 
     // Reshape inputs for simplicity: sin,cos -> (m), src,dst -> (2,m,n)
     Index m{sin.nelems}, n={src.matrix_shape[sin.ndim-1][1]};
-    // Insert corresponding task
-    starpu::rope.submit<std::tuple<T>>(m, n, sin, cos, src, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    sin.mpi_transfer(dst_rank, mpi_rank);
+    cos.mpi_transfer(dst_rank, mpi_rank);
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert corresponding task
+        starpu::rope.submit<std::tuple<T>>(m, n, sin, cos, src, dst);
+    }
 }
 
 template<typename T>
@@ -112,8 +121,24 @@ void rope_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &sin,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
+void rope_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &sin,
+        const Tile<fp32_fast_fp16_t> &cos,
+        const Tile<fp32_fast_fp16_t> &src,
+        const Tile<fp32_fast_fp16_t> &dst);
+
+template
+void rope_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &sin,
+        const Tile<fp32_fast_bf16_t> &cos,
+        const Tile<fp32_fast_bf16_t> &src,
+        const Tile<fp32_fast_bf16_t> &dst);
+
+template
 void rope_async<bf16_t>(const Tile<bf16_t> &sin, const Tile<bf16_t> &cos,
         const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+
+template
+void rope_async<fp16_t>(const Tile<fp16_t> &sin, const Tile<fp16_t> &cos,
+        const Tile<fp16_t> &src, const Tile<fp16_t> &dst);
 
 // Explicit instantiation of template
 template
@@ -129,6 +154,18 @@ void rope<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &sin,
         const Tile<fp32_fast_tf32_t> &cos,
         const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
+
+template
+void rope<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &sin,
+        const Tile<fp32_fast_fp16_t> &cos,
+        const Tile<fp32_fast_fp16_t> &src,
+        const Tile<fp32_fast_fp16_t> &dst);
+
+template
+void rope<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &sin,
+        const Tile<fp32_fast_bf16_t> &cos,
+        const Tile<fp32_fast_bf16_t> &src,
+        const Tile<fp32_fast_bf16_t> &dst);
 
 template
 void rope<fp16_t>(const Tile<fp16_t> &sin, const Tile<fp16_t> &cos,
