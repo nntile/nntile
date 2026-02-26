@@ -42,8 +42,7 @@ constexpr bool TRANSPOSE = true;
 constexpr Scalar ADD_FIBER_ALPHA = 1.0;
 constexpr Scalar ADD_FIBER_BETA = 1.0;
 
-// Sum fiber: sum along first axis, no batch dims, no redux
-constexpr Index SUM_FIBER_AXIS_FIRST = 0;
+// Sum fiber: no batch dims, no redux
 constexpr Index SUM_FIBER_BATCH_NDIM = 0;
 constexpr int SUM_FIBER_REDUX_NONE = 0;
 constexpr Scalar SUM_FIBER_ALPHA = 1.0;
@@ -305,10 +304,11 @@ void Linear::build_backward()
             first_bias_grad ? SUM_FIBER_BETA_OVERWRITE : SUM_FIBER_BETA_ACCUMULATE;
 
         // grad_bias += sum(grad_output) along all batch dimensions
+        const Index feature_axis = grad_output->ndim() - 1;
         graph::sum_fiber(
             *grad_output,
             grad_bias,
-            SUM_FIBER_AXIS_FIRST,
+            feature_axis,
             SUM_FIBER_BATCH_NDIM,
             SUM_FIBER_REDUX_NONE,
             SUM_FIBER_ALPHA,

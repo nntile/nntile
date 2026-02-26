@@ -24,18 +24,18 @@ namespace nntile::graph
 {
 
 //! Hypot operation: z = hypot(alpha * x, beta * y)
+//! @param alpha Scaling factor for x
 //! @param x First input tensor
+//! @param beta Scaling factor for y
 //! @param y Second input tensor
 //! @param output_name Name for the output tensor
-//! @param alpha Scaling factor for x (default: 1.0)
-//! @param beta Scaling factor for y (default: 1.0)
 //! @return Reference to the output tensor
 LogicalGraph::TensorNode& hypot(
+    Scalar alpha,
     LogicalGraph::TensorNode& x,
+    Scalar beta,
     LogicalGraph::TensorNode& y,
-    const std::string& output_name,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0
+    const std::string& output_name
 );
 
 } // namespace nntile::graph

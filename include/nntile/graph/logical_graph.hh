@@ -262,6 +262,11 @@ struct ClearAttrs
     // No attributes for clear
 };
 
+struct NoAttrs
+{
+    // No attributes for operations without parameters
+};
+
 // Element-wise binary operations (alpha, beta scaling)
 struct BinaryOpAttrs
 {
@@ -351,6 +356,16 @@ struct AdamStepAttrs
     Scalar weight_decay = 0.0;
 };
 
+struct AdamWAttrs
+{
+    Index num_iter = 0;
+    Scalar beta_1 = 0.9;
+    Scalar beta_2 = 0.999;
+    Scalar eps = 1e-8;
+    Scalar lr = 0.001;
+    Scalar weight_decay = 0.0;
+};
+
 // Random number generation (start, underlying_shape, seed, mean, stddev)
 struct RandnAttrs
 {
@@ -411,10 +426,10 @@ struct CopyIntersectionAttrs
 using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
                              GelutanhAttrs, GelutanhBackwardAttrs, ReluAttrs, ReluBackwardAttrs, SiluAttrs, SiluBackwardAttrs,
                              AddFiberAttrs, AddSliceAttrs, MultiplyFiberAttrs, MultiplySliceAttrs, SumFiberAttrs, ClearAttrs,
-                             BinaryOpAttrs, ReductionAttrs, TotalSumAttrs,
+                             NoAttrs, BinaryOpAttrs, ReductionAttrs, TotalSumAttrs,
                              LogSumExpAttrs, ScaleAttrs, Conv2dAttrs,
                              EmbeddingAttrs, MaskScalarAttrs, TotalSumAccumAttrs,
-                             SgdStepAttrs, AdamStepAttrs, RandnAttrs,
+                             SgdStepAttrs, AdamStepAttrs, AdamWAttrs, RandnAttrs,
                              PowAttrs, LogScalarAttrs, FillAttrs, TransposeAttrs,
                              HypotScalarInverseAttrs, SubtractIndexedOutputsAttrs,
                              CopyIntersectionAttrs>;

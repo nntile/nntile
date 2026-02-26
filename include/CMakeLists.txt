@@ -576,7 +576,6 @@ set(GRAPH_HDR
     "nntile/graph/logical/sumprod_slice.hh"
     "nntile/graph/logical/total_sum_accum.hh"
     "nntile/graph/logical/transpose.hh"
-    "nntile/graph/logical/validation.hh"
     )
 
 set(MODULE_HDR

@@ -27,10 +27,10 @@ namespace nntile::graph
 
 //! Hypot in-place: y = hypot(alpha * x, beta * y)
 void hypot_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
     Scalar alpha,
-    Scalar beta)
+    LogicalGraph::TensorNode& x,
+    Scalar beta,
+    LogicalGraph::TensorNode& y)
 {
     // Validate inputs belong to the same graph
     if(&x.graph() != &y.graph())

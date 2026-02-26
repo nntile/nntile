@@ -23,10 +23,10 @@
 namespace nntile::graph
 {
 
-//! Log sum exp along axis: y = log(sum(exp(x)))
-//! @param x Input tensor
+//! Log sum exp from maxsumexp output: y = max + log(sumexp)
+//! @param x Input tensor from maxsumexp (shape [2, ...], x[0]=max, x[1]=sumexp)
 //! @param y Output tensor
-//! @param axis Axis along which to compute logsumexp
+//! @param axis Axis that was reduced by maxsumexp
 void logsumexp(
     LogicalGraph::TensorNode& x,
     LogicalGraph::TensorNode& y,

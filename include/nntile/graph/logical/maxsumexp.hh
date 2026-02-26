@@ -23,9 +23,11 @@
 namespace nntile::graph
 {
 
-//! Max and sum of exponents along axis: y = max + log(sum(exp(x - max)))
+//! Max and sum of exponents along axis:
+//! y[0, ...] = max(x)
+//! y[1, ...] = sum(exp(x - y[0, ...]))
 //! @param x Input tensor
-//! @param y Output tensor
+//! @param y Output tensor in maxsumexp format (leading dim 2: [max, sumexp])
 //! @param axis Axis along which to compute maxsumexp
 //! @param redux Whether to use reduction (default: 0)
 void maxsumexp(

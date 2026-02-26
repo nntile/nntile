@@ -24,15 +24,15 @@ namespace nntile::graph
 {
 
 //! Hypot in-place: y = hypot(alpha * x, beta * y)
+//! @param alpha Scaling factor for x
 //! @param x First input tensor
+//! @param beta Scaling factor for y
 //! @param y Second input/output tensor (modified in-place)
-//! @param alpha Scaling factor for x (default: 1.0)
-//! @param beta Scaling factor for y (default: 1.0)
 void hypot_inplace(
+    Scalar alpha,
     LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0
+    Scalar beta,
+    LogicalGraph::TensorNode& y
 );
 
 } // namespace nntile::graph

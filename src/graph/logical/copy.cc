@@ -36,7 +36,7 @@ LogicalGraph::TensorNode& copy(
         output_name,
         x.dtype());
 
-    OpAttrs attrs = ClearAttrs{};  // No attributes needed
+    OpAttrs attrs = NoAttrs{};  // No attributes needed
     x.graph().add_op(
         OpType::COPY,
         attrs,

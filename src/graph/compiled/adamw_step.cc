@@ -26,7 +26,7 @@ namespace
 {
 
 template<typename T>
-void run_adamw_step(CompiledGraph& graph, const AdamStepAttrs& attrs,
+void run_adamw_step(CompiledGraph& graph, const AdamWAttrs& attrs,
                     const std::string& grad_name, const std::string& first_moment_name,
                     const std::string& second_moment_name, const std::string& p_name)
 {
@@ -44,7 +44,7 @@ void run_adamw_step(CompiledGraph& graph, const AdamStepAttrs& attrs,
 
 void execute_adamw_step(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const AdamStepAttrs& attrs = std::get<AdamStepAttrs>(op_info.attrs);
+    const AdamWAttrs& attrs = std::get<AdamWAttrs>(op_info.attrs);
     const std::string& grad_name = op_info.input_names[0];
     const std::string& first_moment_name = op_info.input_names[1];
     const std::string& second_moment_name = op_info.input_names[2];

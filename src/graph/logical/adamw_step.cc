@@ -56,7 +56,7 @@ void adamw_step(
             "adamw_step: all tensors must have the same shape");
     }
 
-    OpAttrs attrs = AdamStepAttrs{num_iter, beta_1, beta_2, eps, lr, weight_decay};
+    OpAttrs attrs = AdamWAttrs{num_iter, beta_1, beta_2, eps, lr, weight_decay};
     grad.graph().add_op(
         OpType::ADAMW_STEP,
         attrs,

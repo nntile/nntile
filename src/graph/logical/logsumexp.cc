@@ -25,7 +25,7 @@
 namespace nntile::graph
 {
 
-//! Log sum exp along axis: y = log(sum(exp(x)))
+//! Log sum exp from maxsumexp output: y = max + log(sumexp)
 void logsumexp(
     LogicalGraph::TensorNode& x,
     LogicalGraph::TensorNode& y,

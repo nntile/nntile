@@ -25,7 +25,9 @@
 namespace nntile::graph
 {
 
-//! Max and sum of exponents along axis: y = max + log(sum(exp(x - max)))
+//! Max and sum of exponents along axis:
+//! y[0, ...] = max(x)
+//! y[1, ...] = sum(exp(x - y[0, ...]))
 void maxsumexp(
     LogicalGraph::TensorNode& x,
     LogicalGraph::TensorNode& y,
