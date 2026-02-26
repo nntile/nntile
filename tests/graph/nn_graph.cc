@@ -140,3 +140,59 @@ TEST_CASE("NNGraph MarkInputOutput", "[graph]")
     REQUIRE(x.data().is_input());
     REQUIRE(y.data().is_output());
 }
+
+TEST_CASE("NNGraph Autograd Add Backward", "[graph]")
+{
+    // Example: z = add(alpha, x, beta, y) with z.backward()
+    // Mimics PyTorch: z = alpha*x + beta*y, then z.backward()
+    // Expected: grad_x = alpha, grad_y = beta (when grad_z = 1)
+    NNGraph g("autograd_add");
+
+    auto& x = g.tensor({2, 3}, "x", DataType::FP32);
+    auto& y = g.tensor({2, 3}, "y", DataType::FP32);
+
+    nntile::Scalar alpha = 2.0;
+    nntile::Scalar beta = 3.0;
+
+    auto& z = add(g, alpha, x, beta, y, "z");
+
+    // Check grad_fn: z was produced by ADD op
+    REQUIRE(z.grad_fn() != nullptr);
+    REQUIRE(z.grad_fn()->type() == OpType::ADD);
+    REQUIRE_FALSE(z.is_leaf());
+
+    // x and y are leaves (inputs, no producer)
+    REQUIRE(x.is_leaf());
+    REQUIRE(y.is_leaf());
+    REQUIRE(x.grad_fn() == nullptr);
+    REQUIRE(y.grad_fn() == nullptr);
+
+    // Build backward graph (PyTorch-style)
+    z.backward();
+
+    // After backward: x and y should have grad tensors
+    REQUIRE(x.has_grad());
+    REQUIRE(y.has_grad());
+
+    // The backward graph adds: grad_x += alpha*grad_z, grad_y += beta*grad_z
+    // With grad_z filled with 1.0: grad_x = alpha, grad_y = beta
+    // Verify the graph structure - we have ADD, FILL, CLEAR, ADD_INPLACE ops
+    const auto& ops = g.logical_graph().ops();
+    REQUIRE(ops.size() >= 4);
+
+    // Check that ADD_INPLACE ops exist for gradient accumulation
+    size_t add_inplace_count = 0;
+    for(const auto& op : ops)
+    {
+        if(op->type() == OpType::ADD_INPLACE)
+        {
+            ++add_inplace_count;
+        }
+    }
+    REQUIRE(add_inplace_count == 2);
+
+    // Verify grad tensor names exist
+    REQUIRE(g.get_tensor("x_grad") != nullptr);
+    REQUIRE(g.get_tensor("y_grad") != nullptr);
+    REQUIRE(g.get_tensor("z_grad") != nullptr);
+}

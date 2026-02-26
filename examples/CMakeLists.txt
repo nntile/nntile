@@ -56,6 +56,11 @@ function(add_example)
     message(STATUS "Adding example ${_args_TARGET_NAME}")
 endfunction()
 
+add_example(TARGET_NAME examples_autograd_add
+    EXEC_NAME "autograd_add_example"
+    SOURCES "autograd_add_example.cc"
+    LINK_LIBRARIES nntile)
+
 add_example(TARGET_NAME examples_graph_mlp
     EXEC_NAME "graph_mlp_example"
     SOURCES "graph_mlp_example.cc"
