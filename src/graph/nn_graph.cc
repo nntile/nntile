@@ -16,6 +16,8 @@
 #include "nntile/graph/nn_graph.hh"
 
 // Include standard headers
+#include <deque>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
@@ -30,7 +32,24 @@ NNGraph::TensorNode::TensorNode(
     LogicalGraph::TensorNode* data,
     bool requires_grad
 )
-    : data_(data)
+    : graph_(nullptr)
+    , data_(data)
+    , requires_grad_(requires_grad)
+{
+    if(data_ == nullptr)
+    {
+        throw std::invalid_argument(
+            "NNGraph::TensorNode: data tensor is nullptr");
+    }
+}
+
+NNGraph::TensorNode::TensorNode(
+    NNGraph* graph,
+    LogicalGraph::TensorNode* data,
+    bool requires_grad
+)
+    : graph_(graph)
+    , data_(data)
     , requires_grad_(requires_grad)
 {
     if(data_ == nullptr)
@@ -66,6 +85,92 @@ std::string NNGraph::TensorNode::to_string() const
     return ss.str();
 }
 
+void NNGraph::TensorNode::backward()
+{
+    if(graph_ == nullptr)
+    {
+        throw std::invalid_argument(
+            "NNGraph::TensorNode::backward: tensor has no graph reference");
+    }
+
+    // Build reverse topological order (output -> inputs)
+    std::deque<TensorNode*> rev_topo;
+    std::set<TensorNode*> visited;
+    std::deque<TensorNode*> stack = {this};
+
+    while(!stack.empty())
+    {
+        TensorNode* t = stack.back();
+        stack.pop_back();
+        if(visited.count(t))
+        {
+            continue;
+        }
+        visited.insert(t);
+        rev_topo.push_back(t);
+
+        LogicalGraph::OpNode* op = t->grad_fn();
+        if(op != nullptr)
+        {
+            for(LogicalGraph::TensorNode* in : op->inputs())
+            {
+                TensorNode* nn_in = graph_->get_tensor(in->name());
+                if(nn_in != nullptr && nn_in->requires_grad() &&
+                   visited.count(nn_in) == 0)
+                {
+                    stack.push_back(nn_in);
+                }
+            }
+        }
+    }
+
+    // Initialize grad for root with ones
+    TensorNode& root_grad = graph_->get_or_create_grad(*this, name() + "_grad");
+    fill(Scalar(1.0), root_grad.data());
+
+    // Propagate gradients in reverse topological order
+    for(TensorNode* t : rev_topo)
+    {
+        LogicalGraph::OpNode* op = t->grad_fn();
+        if(op == nullptr)
+        {
+            continue;
+        }
+
+        TensorNode* grad_out = t->grad();
+        if(grad_out == nullptr)
+        {
+            continue;
+        }
+
+        if(op->type() == OpType::ADD)
+        {
+            const auto& attrs = std::get<BinaryOpAttrs>(op->attrs());
+            Scalar alpha = attrs.alpha;
+            Scalar beta = attrs.beta;
+            if(op->inputs().size() >= 2)
+            {
+                TensorNode* x_nn = graph_->get_tensor(op->input(0)->name());
+                TensorNode* y_nn = graph_->get_tensor(op->input(1)->name());
+                if(x_nn != nullptr && x_nn->requires_grad())
+                {
+                    TensorNode& grad_x = graph_->get_or_create_grad(
+                        *x_nn, x_nn->name() + "_grad");
+                    add_inplace(alpha, grad_out->data(), Scalar(1.0),
+                                grad_x.data());
+                }
+                if(y_nn != nullptr && y_nn->requires_grad())
+                {
+                    TensorNode& grad_y = graph_->get_or_create_grad(
+                        *y_nn, y_nn->name() + "_grad");
+                    add_inplace(beta, grad_out->data(), Scalar(1.0),
+                                grad_y.data());
+                }
+            }
+        }
+    }
+}
+
 NNGraph::NNGraph(const std::string& name)
     : name_(name)
     , logical_(name)
@@ -86,7 +191,7 @@ NNGraph::TensorNode& NNGraph::tensor(
     }
 
     LogicalGraph::TensorNode& data = logical_.tensor(std::move(shape), name, dtype);
-    auto node = std::make_unique<TensorNode>(&data, requires_grad);
+    auto node = std::make_unique<TensorNode>(this, &data, requires_grad);
     TensorNode* node_ptr = node.get();
 
     tensors_.push_back(std::move(node));
@@ -103,7 +208,7 @@ NNGraph::TensorNode& NNGraph::tensor(LogicalGraph::TensorNode& data,
         throw std::invalid_argument(
             "NNGraph::tensor: tensor must belong to this graph's logical graph");
     }
-    auto node = std::make_unique<TensorNode>(&data, requires_grad);
+    auto node = std::make_unique<TensorNode>(this, &data, requires_grad);
     TensorNode* node_ptr = node.get();
     tensors_.push_back(std::move(node));
     tensor_by_name_[data.name()] = node_ptr;
@@ -208,7 +313,7 @@ NNGraph::TensorNode& NNGraph::get_or_create_grad(
         tensor.shape(),
         grad_name,
         tensor.dtype());
-    auto grad_node = std::make_unique<TensorNode>(&grad_tensor, false);
+    auto grad_node = std::make_unique<TensorNode>(this, &grad_tensor, false);
     TensorNode* grad_ptr = grad_node.get();
     tensors_.push_back(std::move(grad_node));
     tensor_by_name_[grad_name] = grad_ptr;

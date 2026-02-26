@@ -31,11 +31,14 @@ class NNGraph
 {
 public:
     //! A tensor node in NNGraph, holding data and gradient tensor node.
+    //! Mimics PyTorch tensor with autograd: grad_fn points to the op that
+    //! produced this tensor; backward() builds the gradient graph.
     class TensorNode
     {
         friend class NNGraph;
 
     private:
+        NNGraph* graph_ = nullptr;
         LogicalGraph::TensorNode* data_ = nullptr;
         // Gradient is itself an NNGraph::TensorNode for convenience
         TensorNode* grad_ = nullptr;
@@ -43,6 +46,8 @@ public:
 
     public:
         TensorNode(LogicalGraph::TensorNode* data, bool requires_grad = true);
+        TensorNode(NNGraph* graph, LogicalGraph::TensorNode* data,
+                  bool requires_grad = true);
 
         // Accessors for underlying logical nodes
         LogicalGraph::TensorNode& data() { return *data_; }
@@ -57,6 +62,18 @@ public:
         // Gradient requirement
         bool requires_grad() const { return requires_grad_; }
         void set_requires_grad(bool requires) { requires_grad_ = requires; }
+
+        // Autograd: producer op (grad_fn) - nullptr for leaf/input tensors
+        LogicalGraph::OpNode* grad_fn() const
+        {
+            return data_ ? data_->producer() : nullptr;
+        }
+        bool is_leaf() const { return grad_fn() == nullptr; }
+
+        // Autograd: build backward graph from this tensor (PyTorch-style).
+        //! Initializes grad with ones if not set, then propagates through
+        //! the computation graph.
+        void backward();
 
         // Convenience accessors (forwarded to data tensor)
         const std::string& name() const { return data_->name(); }
@@ -77,6 +94,7 @@ public:
 
     private:
         void set_grad(TensorNode* grad) { grad_ = grad; }
+        void set_graph(NNGraph* graph) { graph_ = graph; }
     };
 
 private:
