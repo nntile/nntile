@@ -23,19 +23,19 @@
 namespace nntile::graph
 {
 
-//! Norm along slices (out-of-place): dst = alpha * norm_slice(x) + beta * src2
-//! Use norm_slice_inplace when src2 and dst should be the same tensor.
+//! Norm along slices (out-of-place): z = alpha * norm_slice(x) + beta * y
+//! Use norm_slice_inplace when y and z should be the same tensor.
 //! @param x Input tensor
-//! @param src2 Accumulation input (must be different from dst)
-//! @param dst Output tensor (must be different from src2)
+//! @param y Accumulation input (must be different from z)
+//! @param z Output tensor (must be different from y)
 //! @param axis Axis along which to compute norm
 //! @param redux Whether to use reduction (default: 0)
 //! @param alpha Scaling factor for norm (default: 1.0)
-//! @param beta Scaling factor for src2 (default: 0.0)
+//! @param beta Scaling factor for y (default: 0.0)
 void norm_slice(
     LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& src2,
-    LogicalGraph::TensorNode& dst,
+    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode& z,
     Index axis,
     int redux = 0,
     Scalar alpha = 1.0,

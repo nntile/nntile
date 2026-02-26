@@ -25,29 +25,29 @@
 namespace nntile::graph
 {
 
-//! Norm along slices (out-of-place): dst = alpha * norm_slice(x) + beta * src2
+//! Norm along slices (out-of-place): z = alpha * norm_slice(x) + beta * y
 void norm_slice(
     LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& src2,
-    LogicalGraph::TensorNode& dst,
+    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode& z,
     Index axis,
     int redux,
     Scalar alpha,
     Scalar beta)
 {
-    if(&x.graph() != &src2.graph() || &x.graph() != &dst.graph())
+    if(&x.graph() != &y.graph() || &x.graph() != &z.graph())
     {
         throw std::invalid_argument(
             "norm_slice: tensors must belong to the same graph");
     }
 
-    if(&src2 == &dst)
+    if(&y == &z)
     {
         throw std::invalid_argument(
-            "norm_slice: use norm_slice_inplace when src2 and dst are the same");
+            "norm_slice: use norm_slice_inplace when y and z are the same");
     }
 
-    if(x.dtype() != src2.dtype() || x.dtype() != dst.dtype())
+    if(x.dtype() != y.dtype() || x.dtype() != z.dtype())
     {
         throw std::invalid_argument(
             "norm_slice: input and output tensors must have the same dtype");
@@ -63,8 +63,8 @@ void norm_slice(
     x.graph().add_op(
         OpType::NORM_SLICE,
         attrs,
-        {&x, &src2},
-        {&dst}
+        {&x, &y},
+        {&z}
     );
 }
 
