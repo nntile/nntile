@@ -23,7 +23,7 @@
 namespace nntile::graph
 {
 
-//! Embedding backward: vocab += embedding_backward(index, embed, vocab)
+//! Embedding backward: vocab += embedding_backward(index, embed)
 //! @param index Index tensor (int64_t)
 //! @param embed Embedding tensor (forward pass output)
 //! @param vocab Vocabulary tensor (modified in-place)

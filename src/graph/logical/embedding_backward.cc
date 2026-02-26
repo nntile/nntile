@@ -25,7 +25,7 @@
 namespace nntile::graph
 {
 
-//! Embedding backward: vocab += embedding_backward(index, embed, vocab)
+//! Embedding backward: vocab += embedding_backward(index, embed)
 void embedding_backward(
     LogicalGraph::TensorNode& index,
     LogicalGraph::TensorNode& embed,
