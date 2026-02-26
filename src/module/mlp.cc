@@ -68,15 +68,13 @@ graph::NNGraph::TensorNode& Mlp::build_forward(graph::NNGraph::TensorNode& input
     // fc2: activation -> output
     output_tensor_ = &fc2_.build_forward(*activation_tensor_);
 
-    forward_built_ = true;
     return *output_tensor_;
 }
 
 //! Build backward operations using gradient tracking
 void Mlp::build_backward()
 {
-    // Check that forward has been built
-    if(!forward_built_)
+    if(!output_tensor_)
     {
         throw std::runtime_error(
             "Mlp::build_backward: forward not built - "

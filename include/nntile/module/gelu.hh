@@ -28,6 +28,10 @@ namespace nntile::module
 //! Computes: output = gelu(input)
 class Gelu : public Module
 {
+private:
+    graph::NNGraph::TensorNode* input_tensor_ = nullptr;
+    graph::NNGraph::TensorNode* output_tensor_ = nullptr;
+
 public:
     //! Constructor
     //! @param graph The neural network graph this module belongs to
@@ -38,16 +42,13 @@ public:
     //! @param input Input tensor node
     //! @return Reference to the created output tensor
     graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input) override;
+        graph::NNGraph::TensorNode& input);
 
     //! Build backward operations using grad fields on NNGraph::TensorNode
     //!
-    //! This method:
-    //! 1. Looks up gradient of output tensor from output_tensor()->grad()
+    //! 1. Reads output gradient from the output tensor's grad
     //! 2. Computes gradient of input tensor if requires_grad is set
-    //!
-    //! @throws std::runtime_error if build_forward was not called first
-    void build_backward() override;
+    void build_backward();
 
     //! Get string representation
     std::string repr() const override;

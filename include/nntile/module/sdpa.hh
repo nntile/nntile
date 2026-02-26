@@ -45,7 +45,7 @@ private:
     Scalar mask_val_;
     int redux_;
 
-    // Input tensors from last build_forward_sdpa
+    // Input tensors from last build_forward
     graph::NNGraph::TensorNode* q_tensor_ = nullptr;
     graph::NNGraph::TensorNode* k_tensor_ = nullptr;
     graph::NNGraph::TensorNode* v_tensor_ = nullptr;
@@ -58,6 +58,8 @@ private:
 
     // Flash buffer (created when flash_attention=true)
     graph::NNGraph::TensorNode* flash_logsumexp_tensor_ = nullptr;
+
+    graph::NNGraph::TensorNode* output_tensor_ = nullptr;
 
 public:
     //! Constructor: vanilla SDPA (creates attn, attn_maxsumexp, attn_sumprod_slice)
@@ -94,17 +96,13 @@ public:
         int redux = 0
     );
 
-    //! build_forward(input) is not supported - use build_forward_sdpa
-    graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input) override;
-
     //! Build forward operations for SDPA
     //! @param q Query tensor [head_size, q_seq, batch...]
     //! @param k Key tensor [head_size, k_seq, batch...]
     //! @param v Value tensor [head_size, k_seq, batch...]
     //! @param mask Optional boolean mask [k_seq, q_seq] (nullptr = no mask)
     //! @return Output tensor [head_size, q_seq, batch...]
-    graph::NNGraph::TensorNode& build_forward_sdpa(
+    graph::NNGraph::TensorNode& build_forward(
         graph::NNGraph::TensorNode& q,
         graph::NNGraph::TensorNode& k,
         graph::NNGraph::TensorNode& v,
@@ -112,7 +110,7 @@ public:
     );
 
     //! Build backward operations
-    void build_backward() override;
+    void build_backward();
 
     //! Get string representation
     std::string repr() const override;

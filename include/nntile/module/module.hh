@@ -29,17 +29,15 @@ namespace nntile::module
 //! Base class for all neural network modules
 //!
 //! Similar to PyTorch's nn.Module, provides:
-//! 1. Forward/backward graph building interface
-//! 2. Parameter registration and iteration
-//! 3. Submodule composition
-//! 4. Named access to parameters and submodules
+//! 1. Parameter registration and iteration
+//! 2. Submodule composition
+//! 3. Named access to parameters and submodules
 //!
 //! Subclasses should:
 //! 1. Create parameters/buffers in constructor (using the graph reference)
 //! 2. Call register_parameter() for learnable tensors
 //! 3. Call register_buffer() for non-learnable state tensors
 //! 4. Call register_module() for child modules
-//! 5. Override build_forward() and build_backward()
 class Module
 {
 protected:
@@ -59,15 +57,6 @@ protected:
     //! Child modules
     std::vector<std::pair<std::string, Module*>> submodules_;
 
-    //! Input tensor from last build_forward call
-    graph::NNGraph::TensorNode* input_tensor_ = nullptr;
-
-    //! Output tensor from last build_forward call
-    graph::NNGraph::TensorNode* output_tensor_ = nullptr;
-
-    //! Track if forward has been built
-    bool forward_built_ = false;
-
 public:
     //! Constructor
     //! @param graph The neural network graph this module belongs to
@@ -84,33 +73,6 @@ public:
     // Disable move (due to graph reference)
     Module(Module&&) = delete;
     Module& operator=(Module&&) = delete;
-
-    // -----------------------------------------------------------------
-    // Graph Building Interface (to be overridden by subclasses)
-    // -----------------------------------------------------------------
-
-    //! Build forward operations into the graph
-    //!
-    //! This method should:
-    //! 1. Store input tensor reference
-    //! 2. Create output tensor
-    //! 3. Add forward operations to the graph
-    //!
-    //! After this call, input_tensor() returns the input for use with
-    //! requires_grad propagation if needed.
-    //!
-    //! @param input The input tensor
-    //! @return Reference to output tensor
-    virtual graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input) = 0;
-
-    //! Build backward operations using grad fields on NNGraph::TensorNode
-    //!
-    //! This method should:
-    //! 1. Read output gradients from output_tensor()->grad()
-    //! 2. Compute parameter gradients (accumulating if shared)
-    //! 3. Compute input gradient if requires_grad(input) is true
-    virtual void build_backward() = 0;
 
     // -----------------------------------------------------------------
     // Graph Access
@@ -198,16 +160,6 @@ public:
 
     //! Get all modules recursively (including self, depth-first)
     std::vector<Module*> modules() const;
-
-    // -----------------------------------------------------------------
-    // Tensor Accessors
-    // -----------------------------------------------------------------
-
-    //! Get input tensor from last build_forward call
-    graph::NNGraph::TensorNode* input_tensor() const { return input_tensor_; }
-
-    //! Get output tensor from last build_forward call
-    graph::NNGraph::TensorNode* output_tensor() const { return output_tensor_; }
 
     // -----------------------------------------------------------------
     // Name Access

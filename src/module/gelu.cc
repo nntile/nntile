@@ -42,13 +42,12 @@ graph::NNGraph::TensorNode& Gelu::build_forward(
 
     graph::gelu(input, *output_tensor_);
 
-    forward_built_ = true;
     return *output_tensor_;
 }
 
 void Gelu::build_backward()
 {
-    if(!forward_built_ || !input_tensor_ || !output_tensor_)
+    if(!input_tensor_ || !output_tensor_)
     {
         throw std::runtime_error(
             "Gelu::build_backward: forward not built - call build_forward first");

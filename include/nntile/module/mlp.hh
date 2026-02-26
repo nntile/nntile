@@ -58,6 +58,9 @@ private:
     graph::NNGraph::TensorNode* hidden_tensor_ = nullptr;      // After fc1
     graph::NNGraph::TensorNode* activation_tensor_ = nullptr;  // After GELU
 
+    graph::NNGraph::TensorNode* input_tensor_ = nullptr;
+    graph::NNGraph::TensorNode* output_tensor_ = nullptr;
+
 public:
     //! Constructor: creates MLP with specified dimensions
     //! @param graph The neural network graph this module belongs to
@@ -89,10 +92,10 @@ public:
     //! @param input Input tensor node
     //! @return Reference to output tensor
     graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input) override;
+        graph::NNGraph::TensorNode& input);
 
     //! Build backward operations using grad fields on NNGraph::TensorNode
-    void build_backward() override;
+    void build_backward();
 
     //! Get string representation with dimensions
     std::string repr() const override;

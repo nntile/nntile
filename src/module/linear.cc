@@ -247,15 +247,13 @@ graph::NNGraph::TensorNode& Linear::build_forward(graph::NNGraph::TensorNode& in
             NO_BATCH_DIM);
     }
 
-    forward_built_ = true;
     return *output_tensor_;
 }
 
 //! Build backward operations using gradient tracking
 void Linear::build_backward()
 {
-    // Check that build_forward was called
-    if(!forward_built_ || !input_tensor_ || !output_tensor_)
+    if(!input_tensor_ || !output_tensor_)
     {
         throw std::runtime_error(
             "Linear::build_backward: forward not built - "

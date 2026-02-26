@@ -40,6 +40,9 @@ private:
     graph::NNGraph::TensorNode* weight_tensor_ = nullptr;
     graph::NNGraph::TensorNode* bias_tensor_ = nullptr;
 
+    graph::NNGraph::TensorNode* input_tensor_ = nullptr;
+    graph::NNGraph::TensorNode* output_tensor_ = nullptr;
+
     // Dimensions and data type
     Index input_dim_;
     Index output_dim_;
@@ -102,18 +105,15 @@ public:
     //! @param input Input tensor node
     //! @return Reference to the created output tensor
     graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input) override;
+        graph::NNGraph::TensorNode& input);
 
     //! Build backward operations using grad fields on NNGraph::TensorNode
     //!
-    //! This method:
-    //! 1. Looks up gradient of output tensor from output_tensor()->grad()
+    //! 1. Reads output gradient from the output tensor's grad
     //! 2. Computes gradient of weight tensor (accumulates if shared)
     //! 3. Computes gradient of bias tensor if present (accumulates if shared)
     //! 4. Computes gradient of input tensor if requires_grad is set
-    //!
-    //! @throws std::runtime_error if build_forward was not called first
-    void build_backward() override;
+    void build_backward();
 
     //! Get string representation with dimensions
     std::string repr() const override;

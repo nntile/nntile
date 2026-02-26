@@ -64,16 +64,6 @@ TEST_CASE("Sdpa ConstructorValidations", "[module]")
         std::invalid_argument);
 }
 
-TEST_CASE("Sdpa BuildForwardThrows", "[module]")
-{
-    NNGraph g("sdpa");
-
-    Sdpa sdpa(g, "sdpa", 64, 2, DataType::FP32);
-    auto& input = g.tensor({64, 8, 2, 4}, "input", DataType::FP32);
-
-    REQUIRE_THROWS_AS(sdpa.build_forward(input), std::runtime_error);
-}
-
 TEST_CASE("Sdpa Vanilla BuildForward", "[module]")
 {
     NNGraph g("sdpa");
@@ -84,7 +74,7 @@ TEST_CASE("Sdpa Vanilla BuildForward", "[module]")
     auto& v = g.tensor({64, 8, 2, 4}, "v", DataType::FP32);
 
     Sdpa sdpa(g, "sdpa", 64, 2, DataType::FP32);
-    auto& output = sdpa.build_forward_sdpa(q, k, v, nullptr);
+    auto& output = sdpa.build_forward(q, k, v, nullptr);
 
     REQUIRE(output.shape() == std::vector<Index>({64, 8, 2, 4}));
     REQUIRE(output.name() == "sdpa_output");
@@ -122,7 +112,7 @@ TEST_CASE("Sdpa Vanilla BuildForwardWithMask", "[module]")
     auto& mask = g.tensor({8, 8}, "mask", DataType::BOOL);
 
     Sdpa sdpa(g, "sdpa", 64, 2, DataType::FP32);
-    auto& output = sdpa.build_forward_sdpa(q, k, v, &mask);
+    auto& output = sdpa.build_forward(q, k, v, &mask);
 
     REQUIRE(output.shape() == std::vector<Index>({64, 8, 2, 4}));
 
@@ -146,7 +136,7 @@ TEST_CASE("Sdpa Vanilla BuildBackward", "[module]")
     auto& v = g.tensor({64, 8, 2, 4}, "v", DataType::FP32);
 
     Sdpa sdpa(g, "sdpa", 64, 2, DataType::FP32);
-    auto& output = sdpa.build_forward_sdpa(q, k, v, nullptr);
+    auto& output = sdpa.build_forward(q, k, v, nullptr);
 
     g.get_or_create_grad(output, "output_grad");
     sdpa.build_backward();
@@ -177,7 +167,7 @@ TEST_CASE("Sdpa Vanilla BuildForwardValidatesShape", "[module]")
 
     Sdpa sdpa(g, "sdpa", 64, 2, DataType::FP32);
     REQUIRE_THROWS_AS(
-        sdpa.build_forward_sdpa(q, k, v, nullptr),
+        sdpa.build_forward(q, k, v, nullptr),
         std::invalid_argument);
 }
 
@@ -190,7 +180,7 @@ TEST_CASE("Sdpa Flash BuildForward", "[module]")
     auto& v = g.tensor({64, 8, 2, 4}, "v", DataType::FP16);
 
     Sdpa sdpa(g, "sdpa", 64, 2, true, DataType::FP16);
-    auto& output = sdpa.build_forward_sdpa(q, k, v, nullptr);
+    auto& output = sdpa.build_forward(q, k, v, nullptr);
 
     REQUIRE(output.shape() == std::vector<Index>({64, 8, 2, 4}));
 
@@ -215,6 +205,6 @@ TEST_CASE("Sdpa Flash BuildForwardValidatesDtype", "[module]")
 
     Sdpa sdpa(g, "sdpa", 64, 2, true, DataType::FP16);
     REQUIRE_THROWS_AS(
-        sdpa.build_forward_sdpa(q, k, v, nullptr),
+        sdpa.build_forward(q, k, v, nullptr),
         std::invalid_argument);
 }

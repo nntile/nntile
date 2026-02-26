@@ -82,13 +82,6 @@ Sdpa::Sdpa(
 }
 
 graph::NNGraph::TensorNode& Sdpa::build_forward(
-    graph::NNGraph::TensorNode& /*input*/)
-{
-    throw std::runtime_error(
-        "Sdpa::build_forward: use build_forward_sdpa(q, k, v, mask) for SDPA");
-}
-
-graph::NNGraph::TensorNode& Sdpa::build_forward_sdpa(
     graph::NNGraph::TensorNode& q,
     graph::NNGraph::TensorNode& k,
     graph::NNGraph::TensorNode& v,
@@ -101,17 +94,17 @@ graph::NNGraph::TensorNode& Sdpa::build_forward_sdpa(
     if(q_shape.size() != k_shape.size() || q_shape.size() != v_shape.size())
     {
         throw std::invalid_argument(
-            "Sdpa::build_forward_sdpa: Q, K, V must have same ndim");
+            "Sdpa::build_forward: Q, K, V must have same ndim");
     }
     if(q_shape[0] != head_size_)
     {
         throw std::invalid_argument(
-            "Sdpa::build_forward_sdpa: Q head_size mismatch");
+            "Sdpa::build_forward: Q head_size mismatch");
     }
     if(k_shape[0] != head_size_ || v_shape[0] != head_size_)
     {
         throw std::invalid_argument(
-            "Sdpa::build_forward_sdpa: K and V head_size must match Q");
+            "Sdpa::build_forward: K and V head_size must match Q");
     }
 
     Index q_seq = q_shape[1];
@@ -131,7 +124,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward_sdpa(
         if(q.dtype() != graph::DataType::FP16 && q.dtype() != graph::DataType::BF16)
         {
             throw std::invalid_argument(
-                "Sdpa::build_forward_sdpa: Flash SDPA requires FP16 or BF16");
+                "Sdpa::build_forward: Flash SDPA requires FP16 or BF16");
         }
 
         // Create flash_logsumexp [q_seq, batch...] fp32
@@ -281,18 +274,16 @@ graph::NNGraph::TensorNode& Sdpa::build_forward_sdpa(
             {output_tensor_});
     }
 
-    input_tensor_ = &q;  // Primary input for gradient flow
-    forward_built_ = true;
     return *output_tensor_;
 }
 
 void Sdpa::build_backward()
 {
-    if(!forward_built_ || !output_tensor_)
+    if(!output_tensor_)
     {
         throw std::runtime_error(
             "Sdpa::build_backward: forward not built - "
-            "call build_forward_sdpa first");
+            "call build_forward first");
     }
 
     graph::NNGraph::TensorNode* grad_output = output_tensor_->grad();

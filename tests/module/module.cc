@@ -34,13 +34,17 @@ namespace
 
 class DummyModule final : public Module
 {
+private:
+    NNGraph::TensorNode* input_tensor_ = nullptr;
+    NNGraph::TensorNode* output_tensor_ = nullptr;
+
 public:
     DummyModule(NNGraph& graph, const std::string& name)
         : Module(graph, name)
     {
     }
 
-    NNGraph::TensorNode& build_forward(NNGraph::TensorNode& input) override
+    NNGraph::TensorNode& build_forward(NNGraph::TensorNode& input)
     {
         input_tensor_ = &input;
         std::vector<Index> output_shape = input.shape();
@@ -49,11 +53,10 @@ public:
             tensor_name("output"),
             input.dtype(),
             graph_.requires_grad(input));
-        forward_built_ = true;
         return *output_tensor_;
     }
 
-    void build_backward() override
+    void build_backward()
     {
         if(!input_tensor_ || !output_tensor_)
         {
