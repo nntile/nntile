@@ -126,14 +126,15 @@ int main(int argc, char** argv) {
     }
     std::cout << "..." << std::endl;
 
-    // Get gradients (weight is a parameter; input gradient uses tensor's name)
+    // Get gradients (weight is a parameter; input gradient is optional)
     auto grad_weight = compiled_graph.get_output<float>(
         linear.grad_name("weight"));
-    auto grad_input = compiled_graph.get_output<float>(
-        input_tensor.name() + "_grad");
-
     std::cout << "Weight grad size: " << grad_weight.size() << std::endl;
-    std::cout << "Input grad size: " << grad_input.size() << std::endl;
+    if (input_tensor.has_grad()) {
+        auto grad_input = compiled_graph.get_output<float>(
+            input_tensor.grad()->name());
+        std::cout << "Input grad size: " << grad_input.size() << std::endl;
+    }
 
     std::cout << "\nLinear module successfully created and graphs built!" << std::endl;
 
