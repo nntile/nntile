@@ -254,7 +254,6 @@ void gemm(
     // Add batch dimensions
     if(batch_ndim > 0)
     {
-        Index total_ndim = a.ndim() + b.ndim() - 2*ndim;
         for(Index i = 0; i < batch_ndim; ++i)
         {
             Index batch_dim_a = a.ndim() - batch_ndim + i;
