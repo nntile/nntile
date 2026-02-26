@@ -30,9 +30,9 @@ int main()
     auto& y = g.tensor({2, 3}, "y", DataType::FP32);
     auto& u = g.tensor({2, 3}, "u", DataType::FP32);
 
-    // Chain: w = x + y,  z = w + u
-    auto& w = add(g, nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "w");
-    auto& z = add(g, nntile::Scalar(1.0), w, nntile::Scalar(1.0), u, "z");
+    // Chain: w = x + y,  z = w + u (graph deduced from x, y, u)
+    auto& w = add(nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "w");
+    auto& z = add(nntile::Scalar(1.0), w, nntile::Scalar(1.0), u, "z");
 
     std::cout << "=== Forward chain ===" << std::endl;
     std::cout << "  w = x + y" << std::endl;

@@ -154,7 +154,7 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph]")
     nntile::Scalar alpha = 2.0;
     nntile::Scalar beta = 3.0;
 
-    auto& z = add(g, alpha, x, beta, y, "z");
+    auto& z = add(alpha, x, beta, y, "z");
 
     // Check grad_fn: z was produced by ADD op
     REQUIRE(z.grad_fn() != nullptr);
@@ -209,8 +209,8 @@ TEST_CASE("NNGraph Autograd Add Chain", "[graph]")
     auto& y = g.tensor({2, 2}, "y", DataType::FP32);
     auto& u = g.tensor({2, 2}, "u", DataType::FP32);
 
-    auto& w = add(g, nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "w");
-    auto& z = add(g, nntile::Scalar(1.0), w, nntile::Scalar(1.0), u, "z");
+    auto& w = add(nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "w");
+    auto& z = add(nntile::Scalar(1.0), w, nntile::Scalar(1.0), u, "z");
 
     REQUIRE(w.requires_grad());
     REQUIRE(w.grad_fn() != nullptr);
@@ -231,7 +231,7 @@ TEST_CASE("NNGraph BackwardRequiresGrad", "[graph]")
     NNGraph g("backward_requires_grad");
     auto& x = g.tensor({2}, "x", DataType::FP32);
     auto& y = g.tensor({2}, "y", DataType::FP32);
-    auto& z = add(g, nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "z");
+    auto& z = add(nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "z");
 
     REQUIRE_THROWS_AS(z.backward(), std::invalid_argument);
 

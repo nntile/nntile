@@ -70,10 +70,13 @@ public:
         }
         bool is_leaf() const { return grad_fn() == nullptr; }
 
-        // Autograd: build backward graph from this tensor (PyTorch-style).
-        //! Initializes grad with ones if not set, then propagates through
-        //! the computation graph.
+        // Autograd: propagate upstream gradient through the computation graph.
+        //! Grad must be set beforehand (get_or_create_grad + fill/bind).
+        //! Does NOT fill grad with ones - user must provide upstream gradient.
         void backward();
+
+        // Graph access (for operations that deduce graph from tensor)
+        NNGraph& graph();
 
         // Convenience accessors (forwarded to data tensor)
         const std::string& name() const { return data_->name(); }

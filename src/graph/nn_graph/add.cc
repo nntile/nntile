@@ -22,22 +22,17 @@ namespace nntile::graph
 {
 
 NNGraph::TensorNode& add(
-    NNGraph& graph,
     Scalar alpha,
     NNGraph::TensorNode& x,
     Scalar beta,
     NNGraph::TensorNode& y,
     const std::string& output_name)
 {
-    if(&x.data().graph() != &graph.logical_graph())
-    {
-        throw std::invalid_argument(
-            "add: x must belong to the given graph");
-    }
+    NNGraph& graph = x.graph();
     if(&y.data().graph() != &graph.logical_graph())
     {
         throw std::invalid_argument(
-            "add: y must belong to the given graph");
+            "add: x and y must belong to the same graph");
     }
 
     LogicalGraph::TensorNode& z_data = add(

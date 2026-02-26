@@ -85,6 +85,16 @@ std::string NNGraph::TensorNode::to_string() const
     return ss.str();
 }
 
+NNGraph& NNGraph::TensorNode::graph()
+{
+    if(graph_ == nullptr)
+    {
+        throw std::invalid_argument(
+            "NNGraph::TensorNode::graph: tensor has no graph reference");
+    }
+    return *graph_;
+}
+
 void NNGraph::TensorNode::backward()
 {
     if(graph_ == nullptr)
@@ -124,9 +134,13 @@ void NNGraph::TensorNode::backward()
         }
     }
 
-    // Initialize grad for root with ones
-    TensorNode& root_grad = graph_->get_or_create_grad(*this, name() + "_grad");
-    fill(Scalar(1.0), root_grad.data());
+    // Require grad to be defined (PyTorch-style: user sets upstream gradient)
+    if(grad_ == nullptr)
+    {
+        throw std::invalid_argument(
+            "NNGraph::TensorNode::backward: grad must be set before backward(). "
+            "Use get_or_create_grad() and fill/bind the gradient.");
+    }
 
     // Propagate gradients in reverse topological order
     for(TensorNode* t : rev_topo)

@@ -25,7 +25,7 @@ namespace nntile::graph
 {
 
 //! Add operation: z = alpha * x + beta * y (out-of-place, autograd-compatible)
-//! @param graph The NNGraph
+//! Graph is deduced from x and y (must belong to the same NNGraph).
 //! @param alpha Scaling factor for x
 //! @param x First input tensor
 //! @param beta Scaling factor for y
@@ -33,7 +33,6 @@ namespace nntile::graph
 //! @param output_name Name for the output tensor
 //! @return Reference to the output tensor (has grad_fn for backward)
 NNGraph::TensorNode& add(
-    NNGraph& graph,
     Scalar alpha,
     NNGraph::TensorNode& x,
     Scalar beta,
