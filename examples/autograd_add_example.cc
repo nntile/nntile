@@ -7,11 +7,10 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file examples/autograd_add_example.cc
- * Example: Torch-like autograd for z = add(alpha, x, beta, y) with z.backward().
+ * Example: Torch-like autograd with chain of add operations.
  *
- * Demonstrates out-of-place add operation and backward gradient propagation
- * mimicking PyTorch's autograd. The TensorNode stores grad_fn (producer op)
- * and backward() builds the gradient graph.
+ * Forward:  w = x + y,  z = w + u.
+ * Backward: each tensor (x, y, u, w) gets its gradient.
  *
  * @version 1.1.0
  * */
@@ -24,37 +23,40 @@ int main()
 {
     using namespace nntile::graph;
 
-    // Create graph
     NNGraph g("autograd_add_example");
 
-    // Create input tensors (leaves)
+    // Leaves: x, y, u
     auto& x = g.tensor({2, 3}, "x", DataType::FP32);
     auto& y = g.tensor({2, 3}, "y", DataType::FP32);
+    auto& u = g.tensor({2, 3}, "u", DataType::FP32);
 
-    // z = alpha * x + beta * y (out-of-place)
-    nntile::Scalar alpha = 2.0;
-    nntile::Scalar beta = 3.0;
-    auto& z = add(g, alpha, x, beta, y, "z");
+    // Chain: w = x + y,  z = w + u
+    auto& w = add(g, nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "w");
+    auto& z = add(g, nntile::Scalar(1.0), w, nntile::Scalar(1.0), u, "z");
 
-    std::cout << "=== Forward: z = add(alpha, x, beta, y) ===" << std::endl;
-    std::cout << "  alpha=" << alpha << ", beta=" << beta << std::endl;
-    std::cout << "  z.grad_fn() = " << (z.grad_fn() ? "ADD" : "null")
-              << " (producer op)" << std::endl;
-    std::cout << "  x.is_leaf()=" << x.is_leaf()
-              << ", y.is_leaf()=" << y.is_leaf() << std::endl;
+    std::cout << "=== Forward chain ===" << std::endl;
+    std::cout << "  w = x + y" << std::endl;
+    std::cout << "  z = w + u  (= x + y + u)" << std::endl;
+    std::cout << "  Leaves: x, y, u (is_leaf=true)" << std::endl;
+    std::cout << "  Intermediate: w (grad_fn=ADD)" << std::endl;
+    std::cout << "  Output: z (grad_fn=ADD)" << std::endl;
 
-    // PyTorch-style backward: builds gradient graph
+    // Set grad_z = 1, then backward
+    auto& z_grad = g.get_or_create_grad(z, "z_grad");
+    fill(nntile::Scalar(1.0), z_grad.data());
     z.backward();
 
     std::cout << "\n=== After z.backward() ===" << std::endl;
     std::cout << "  x.has_grad()=" << x.has_grad()
-              << ", y.has_grad()=" << y.has_grad() << std::endl;
-    std::cout << "  grad_x = alpha * grad_z, grad_y = beta * grad_z"
-              << " (with grad_z=1)" << std::endl;
+              << ", y.has_grad()=" << y.has_grad()
+              << ", u.has_grad()=" << u.has_grad()
+              << ", w.has_grad()=" << w.has_grad() << std::endl;
+    std::cout << "  Each tensor gets grad: grad_x, grad_y, grad_u, grad_w"
+              << std::endl;
 
     std::cout << "\n=== Graph structure ===" << std::endl;
     std::cout << g.to_string() << std::endl;
 
-    std::cout << "Autograd add example completed successfully." << std::endl;
+    std::cout << "Autograd add chain example completed successfully." << std::endl;
     return 0;
 }

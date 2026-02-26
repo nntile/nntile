@@ -42,7 +42,8 @@ NNGraph::TensorNode& add(
 
     LogicalGraph::TensorNode& z_data = add(
         alpha, x.data(), beta, y.data(), output_name);
-    return graph.tensor(z_data);
+    bool out_requires_grad = x.requires_grad() || y.requires_grad();
+    return graph.tensor(z_data, out_requires_grad);
 }
 
 } // namespace nntile::graph

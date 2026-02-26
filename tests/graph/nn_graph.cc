@@ -167,6 +167,10 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph]")
     REQUIRE(x.grad_fn() == nullptr);
     REQUIRE(y.grad_fn() == nullptr);
 
+    // Set upstream gradient before backward (required)
+    auto& z_grad = g.get_or_create_grad(z, "z_grad");
+    fill(nntile::Scalar(1.0), z_grad.data());
+
     // Build backward graph (PyTorch-style)
     z.backward();
 
@@ -195,4 +199,44 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph]")
     REQUIRE(g.get_tensor("x_grad") != nullptr);
     REQUIRE(g.get_tensor("y_grad") != nullptr);
     REQUIRE(g.get_tensor("z_grad") != nullptr);
+}
+
+TEST_CASE("NNGraph Autograd Add Chain", "[graph]")
+{
+    // Chain: w = x + y, z = w + u. Each tensor gets its gradient.
+    NNGraph g("add_chain");
+    auto& x = g.tensor({2, 2}, "x", DataType::FP32);
+    auto& y = g.tensor({2, 2}, "y", DataType::FP32);
+    auto& u = g.tensor({2, 2}, "u", DataType::FP32);
+
+    auto& w = add(g, nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "w");
+    auto& z = add(g, nntile::Scalar(1.0), w, nntile::Scalar(1.0), u, "z");
+
+    REQUIRE(w.requires_grad());
+    REQUIRE(w.grad_fn() != nullptr);
+
+    auto& z_grad = g.get_or_create_grad(z, "z_grad");
+    fill(nntile::Scalar(1.0), z_grad.data());
+    z.backward();
+
+    REQUIRE(x.has_grad());
+    REQUIRE(y.has_grad());
+    REQUIRE(u.has_grad());
+    REQUIRE(w.has_grad());
+}
+
+TEST_CASE("NNGraph BackwardRequiresGrad", "[graph]")
+{
+    // backward() must be called only when grad is already set
+    NNGraph g("backward_requires_grad");
+    auto& x = g.tensor({2}, "x", DataType::FP32);
+    auto& y = g.tensor({2}, "y", DataType::FP32);
+    auto& z = add(g, nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "z");
+
+    REQUIRE_THROWS_AS(z.backward(), std::invalid_argument);
+
+    // After setting grad, backward succeeds
+    auto& z_grad = g.get_or_create_grad(z, "z_grad");
+    fill(nntile::Scalar(1.0), z_grad.data());
+    REQUIRE_NOTHROW(z.backward());
 }
