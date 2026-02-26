@@ -425,6 +425,7 @@ set(GRAPH_HDR
     "nntile/graph/logical_graph_ops.hh"
     "nntile/graph/nn_graph.hh"
     "nntile/graph/nn_graph_ops.hh"
+    "nntile/graph/nn_graph_backward.hh"
     "nntile/graph/nn_graph/add.hh"
     "nntile/graph/nn_graph/add_fiber_inplace.hh"
     "nntile/graph/nn_graph/gemm.hh"

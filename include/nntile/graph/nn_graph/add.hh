@@ -9,35 +9,49 @@
  * @file include/nntile/graph/nn_graph/add.hh
  * NNGraph add operation - out-of-place z = alpha*x + beta*y.
  *
+ * Add functor: build_forward() and build_backward() keep forward-backward
+ * logic together; backward is registered for TensorNode::backward() dispatch.
+ *
  * @version 1.1.0
  * */
 
 #pragma once
 
-// Include standard headers
 #include <string>
 
-// Include other NNTile headers
 #include <nntile/graph/logical/add.hh>
 #include <nntile/graph/nn_graph.hh>
 
 namespace nntile::graph
 {
 
-//! Add operation: z = alpha * x + beta * y (out-of-place, autograd-compatible)
-//! Graph is deduced from x and y (must belong to the same NNGraph).
-//! @param alpha Scaling factor for x
-//! @param x First input tensor
-//! @param beta Scaling factor for y
-//! @param y Second input tensor
-//! @param output_name Name for the output tensor
-//! @return Reference to the output tensor (has grad_fn for backward)
-NNGraph::TensorNode& add(
+//! Add functor: forward and backward in one place
+struct Add
+{
+    //! Forward: z = alpha * x + beta * y
+    static NNGraph::TensorNode& build_forward(
+        Scalar alpha,
+        NNGraph::TensorNode& x,
+        Scalar beta,
+        NNGraph::TensorNode& y,
+        const std::string& output_name);
+
+    //! Backward: grad_x += alpha*grad_z, grad_y += beta*grad_z
+    static void build_backward(
+        NNGraph& graph,
+        LogicalGraph::OpNode* op,
+        NNGraph::TensorNode* grad_out);
+};
+
+//! Convenience free function
+inline NNGraph::TensorNode& add(
     Scalar alpha,
     NNGraph::TensorNode& x,
     Scalar beta,
     NNGraph::TensorNode& y,
-    const std::string& output_name
-);
+    const std::string& output_name)
+{
+    return Add::build_forward(alpha, x, beta, y, output_name);
+}
 
 } // namespace nntile::graph

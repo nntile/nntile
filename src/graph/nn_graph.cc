@@ -24,6 +24,7 @@
 
 // Include other NNTile headers
 #include "nntile/graph/logical_graph_ops.hh"
+#include "nntile/graph/nn_graph_backward.hh"
 
 namespace nntile::graph
 {
@@ -142,7 +143,7 @@ void NNGraph::TensorNode::backward()
             "Use get_or_create_grad() and fill/bind the gradient.");
     }
 
-    // Propagate gradients in reverse topological order
+    // Propagate gradients: dispatch to op's registered build_backward
     for(TensorNode* t : rev_topo)
     {
         LogicalGraph::OpNode* op = t->grad_fn();
@@ -157,30 +158,10 @@ void NNGraph::TensorNode::backward()
             continue;
         }
 
-        if(op->type() == OpType::ADD)
+        BackwardFn fn = get_backward(op->type());
+        if(fn)
         {
-            const auto& attrs = std::get<BinaryOpAttrs>(op->attrs());
-            Scalar alpha = attrs.alpha;
-            Scalar beta = attrs.beta;
-            if(op->inputs().size() >= 2)
-            {
-                TensorNode* x_nn = graph_->get_tensor(op->input(0)->name());
-                TensorNode* y_nn = graph_->get_tensor(op->input(1)->name());
-                if(x_nn != nullptr && x_nn->requires_grad())
-                {
-                    TensorNode& grad_x = graph_->get_or_create_grad(
-                        *x_nn, x_nn->name() + "_grad");
-                    add_inplace(alpha, grad_out->data(), Scalar(1.0),
-                                grad_x.data());
-                }
-                if(y_nn != nullptr && y_nn->requires_grad())
-                {
-                    TensorNode& grad_y = graph_->get_or_create_grad(
-                        *y_nn, y_nn->name() + "_grad");
-                    add_inplace(beta, grad_out->data(), Scalar(1.0),
-                                grad_y.data());
-                }
-            }
+            fn(*graph_, op, grad_out);
         }
     }
 }
