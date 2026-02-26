@@ -62,9 +62,11 @@ std::vector<Index> gemm_output_shape(
     std::vector<Index> b_shape_copy = b_shape;
     if(trans_b)
     {
+    Index k_start = b_ndim - batch_ndim - ndim;
         for(Index i = 0; i < ndim/2; ++i)
         {
-            std::swap(b_shape_copy[i], b_shape_copy[ndim-1-i]);
+        std::swap(b_shape_copy[k_start + i],
+                  b_shape_copy[k_start + ndim - 1 - i]);
         }
     }
 
@@ -226,10 +228,12 @@ void gemm(
     std::vector<Index> b_shape = b.shape();
     if(trans_b)
     {
-        // Swap first ndim dimensions for transpose
+    // Swap K dimensions (last ndim) for transpose
+    Index k_start = b.ndim() - batch_ndim - ndim;
         for(Index i = 0; i < ndim/2; ++i)
         {
-            std::swap(b_shape[i], b_shape[ndim-1-i]);
+        std::swap(b_shape[k_start + i],
+                  b_shape[k_start + ndim - 1 - i]);
         }
     }
 
