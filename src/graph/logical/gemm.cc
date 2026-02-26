@@ -37,63 +37,29 @@ std::vector<Index> gemm_output_shape(
     Index a_ndim = static_cast<Index>(a_shape.size());
     Index b_ndim = static_cast<Index>(b_shape.size());
 
-    std::vector<Index> output_shape = a_shape;
+    std::vector<Index> output_shape;
+    output_shape.reserve(a_ndim + b_ndim - 2 * ndim);
 
-    // Handle transpose for A
-    if(trans_a)
-    {
-        for(Index i = 0; i < ndim/2; ++i)
-        {
-            std::swap(output_shape[i], output_shape[ndim-1-i]);
-        }
-    }
+    Index a_batch_start = a_ndim - batch_ndim;
+    Index b_batch_start = b_ndim - batch_ndim;
 
-    // Remove contraction dimensions from A
-    if(trans_a)
-    {
-        output_shape.erase(output_shape.begin(), output_shape.begin() + ndim);
-    }
-    else
-    {
-        output_shape.erase(output_shape.begin() + (a_ndim - batch_ndim - ndim),
-                          output_shape.begin() + (a_ndim - batch_ndim));
-    }
+    Index a_m_begin = trans_a ? ndim : 0;
+    Index a_m_end = trans_a ? a_batch_start : a_batch_start - ndim;
+    Index b_n_begin = trans_b ? 0 : ndim;
+    Index b_n_end = trans_b ? b_batch_start - ndim : b_batch_start;
 
-    std::vector<Index> b_shape_copy = b_shape;
-    if(trans_b)
-    {
-    Index k_start = b_ndim - batch_ndim - ndim;
-        for(Index i = 0; i < ndim/2; ++i)
-        {
-        std::swap(b_shape_copy[k_start + i],
-                  b_shape_copy[k_start + ndim - 1 - i]);
-        }
-    }
-
-    // Add dimensions from B (excluding contraction dimensions)
-    if(trans_b)
-    {
-        output_shape.insert(output_shape.end(),
-                           b_shape_copy.begin(),
-                           b_shape_copy.begin() + (b_ndim - batch_ndim - ndim));
-    }
-    else
-    {
-        output_shape.insert(output_shape.end(),
-                           b_shape_copy.begin() + ndim,
-                           b_shape_copy.begin() + (b_ndim - batch_ndim));
-    }
+    // Add M dimensions from A and N dimensions from B
+    output_shape.insert(output_shape.end(),
+                        a_shape.begin() + a_m_begin,
+                        a_shape.begin() + a_m_end);
+    output_shape.insert(output_shape.end(),
+                        b_shape.begin() + b_n_begin,
+                        b_shape.begin() + b_n_end);
 
     // Add batch dimensions
-    if(batch_ndim > 0)
-    {
-        for(Index i = 0; i < batch_ndim; ++i)
-        {
-            Index batch_dim_a = a_ndim - batch_ndim + i;
-            Index batch_dim_b = b_ndim - batch_ndim + i;
-            output_shape.push_back(a_shape[batch_dim_a]);
-        }
-    }
+    output_shape.insert(output_shape.end(),
+                        a_shape.begin() + a_batch_start,
+                        a_shape.end());
 
     return output_shape;
 }
@@ -201,57 +167,7 @@ void gemm(
             "gemm: tensor c must have the same dtype as a and b");
     }
 
-    // Compute expected output shape
-    std::vector<Index> expected_shape = a.shape();
-
-    // Handle transpose for A
-    if(trans_a)
-    {
-        // Swap first ndim dimensions for transpose
-        for(Index i = 0; i < ndim/2; ++i)
-        {
-            std::swap(expected_shape[i], expected_shape[ndim-1-i]);
-        }
-    }
-
-    // Remove contraction dimensions from A
-    if(trans_a)
-    {
-        expected_shape.erase(expected_shape.begin(), expected_shape.begin() + ndim);
-    }
-    else
-    {
-        expected_shape.erase(expected_shape.begin() + (a.ndim() - batch_ndim - ndim),
-                            expected_shape.begin() + (a.ndim() - batch_ndim));
-    }
-
-    std::vector<Index> b_shape = b.shape();
-    if(trans_b)
-    {
-    // Swap K dimensions (last ndim) for transpose
-    Index k_start = b.ndim() - batch_ndim - ndim;
-        for(Index i = 0; i < ndim/2; ++i)
-        {
-        std::swap(b_shape[k_start + i],
-                  b_shape[k_start + ndim - 1 - i]);
-        }
-    }
-
-    // Add dimensions from B (excluding contraction dimensions)
-    if(trans_b)
-    {
-        expected_shape.insert(expected_shape.end(),
-                             b_shape.begin(),
-                             b_shape.begin() + (b.ndim() - batch_ndim - ndim));
-    }
-    else
-    {
-        expected_shape.insert(expected_shape.end(),
-                             b_shape.begin() + ndim,
-                             b_shape.begin() + (b.ndim() - batch_ndim));
-    }
-
-    // Add batch dimensions
+    // Validate batch dimensions match
     if(batch_ndim > 0)
     {
         for(Index i = 0; i < batch_ndim; ++i)
@@ -263,9 +179,12 @@ void gemm(
                 throw std::invalid_argument(
                     "gemm: batch dimensions must match");
             }
-            expected_shape.push_back(a.shape()[batch_dim_a]);
         }
     }
+
+    // Compute expected output shape
+    std::vector<Index> expected_shape = gemm_output_shape(
+        a.shape(), b.shape(), trans_a, trans_b, ndim, batch_ndim);
 
     if(c.shape() != expected_shape)
     {
