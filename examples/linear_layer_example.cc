@@ -12,13 +12,13 @@
  * @version 1.1.0
  * */
 
-#include <nntile/context.hh>
-#include <nntile/module/linear.hh>
 #include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <random>
 #include <vector>
+
+#include <nntile.hh>
 
 int main(int argc, char** argv) {
     // Initialize NNTile context (this initializes StarPU)
