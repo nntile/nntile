@@ -17,6 +17,7 @@ set(TESTS_CATCH2
     "module"
     "linear"
     "mlp"
+    "mse_loss"
     "sdpa"
 )
 

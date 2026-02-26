@@ -558,6 +558,7 @@ set(MODULE_SRC
     "module/gelu.cc"
     "module/mlp.cc"
     "module/linear.cc"
+    "module/mse_loss.cc"
     "module/sdpa.cc"
 )
 
