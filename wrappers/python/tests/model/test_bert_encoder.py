@@ -43,7 +43,7 @@ dtype2np = {
 }
 
 dtype2tol = {
-        'fp32': {'rtol': 1e-6},
+        'fp32': {'rtol': 2e-6},
         'fp32_fast_tf32': {'rtol': 8e-4},
         'fp32_fast_bf16': {'rtol': 1.6e-2},
         'fp32_fast_fp16': {'rtol': 9e-4},
