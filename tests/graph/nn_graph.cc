@@ -154,11 +154,11 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph]")
     nntile::Scalar alpha = 2.0;
     nntile::Scalar beta = 3.0;
 
-    auto& z = add(alpha, *x, beta, *y, "z");
+    auto* z = add(alpha, x, beta, y, "z");
 
     // z was produced by Add (NNGraph op)
-    REQUIRE(z.has_producer());
-    REQUIRE_FALSE(z.is_leaf());
+    REQUIRE(z->has_producer());
+    REQUIRE_FALSE(z->is_leaf());
 
     // x and y are leaves (inputs, no producer)
     REQUIRE(x->is_leaf());
@@ -167,11 +167,11 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph]")
     REQUIRE_FALSE(y->has_producer());
 
     // Set upstream gradient before backward (required)
-    auto* z_grad = g.get_or_create_grad(&z, "z_grad");
+    auto* z_grad = g.get_or_create_grad(z, "z_grad");
     fill(nntile::Scalar(1.0), z_grad->data());
 
     // Build backward graph (PyTorch-style)
-    z.backward();
+    z->backward();
 
     // After backward: x and y should have grad tensors
     REQUIRE(x->has_grad());
@@ -208,20 +208,20 @@ TEST_CASE("NNGraph Autograd Add Chain", "[graph]")
     auto* y = g.tensor({2, 2}, "y", DataType::FP32);
     auto* u = g.tensor({2, 2}, "u", DataType::FP32);
 
-    auto& w = add(nntile::Scalar(1.0), *x, nntile::Scalar(1.0), *y, "w");
-    auto& z = add(nntile::Scalar(1.0), w, nntile::Scalar(1.0), *u, "z");
+    auto* w = add(nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "w");
+    auto* z = add(nntile::Scalar(1.0), w, nntile::Scalar(1.0), u, "z");
 
-    REQUIRE(w.requires_grad());
-    REQUIRE(w.has_producer());
+    REQUIRE(w->requires_grad());
+    REQUIRE(w->has_producer());
 
-    auto* z_grad = g.get_or_create_grad(&z, "z_grad");
+    auto* z_grad = g.get_or_create_grad(z, "z_grad");
     fill(nntile::Scalar(1.0), z_grad->data());
-    z.backward();
+    z->backward();
 
     REQUIRE(x->has_grad());
     REQUIRE(y->has_grad());
     REQUIRE(u->has_grad());
-    REQUIRE(w.has_grad());
+    REQUIRE(w->has_grad());
 }
 
 TEST_CASE("NNGraph BackwardRequiresGrad", "[graph]")
@@ -230,12 +230,12 @@ TEST_CASE("NNGraph BackwardRequiresGrad", "[graph]")
     NNGraph g("backward_requires_grad");
     auto* x = g.tensor({2}, "x", DataType::FP32);
     auto* y = g.tensor({2}, "y", DataType::FP32);
-    auto& z = add(nntile::Scalar(1.0), *x, nntile::Scalar(1.0), *y, "z");
+    auto* z = add(nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "z");
 
-    REQUIRE_THROWS_AS(z.backward(), std::invalid_argument);
+    REQUIRE_THROWS_AS(z->backward(), std::invalid_argument);
 
     // After setting grad, backward succeeds
-    auto* z_grad = g.get_or_create_grad(&z, "z_grad");
+    auto* z_grad = g.get_or_create_grad(z, "z_grad");
     fill(nntile::Scalar(1.0), z_grad->data());
-    REQUIRE_NOTHROW(z.backward());
+    REQUIRE_NOTHROW(z->backward());
 }

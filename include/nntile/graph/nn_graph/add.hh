@@ -29,11 +29,11 @@ namespace nntile::graph
 struct Add
 {
     //! Forward: z = alpha * x + beta * y
-    static NNGraph::TensorNode& build_forward(
+    static NNGraph::TensorNode* build_forward(
         Scalar alpha,
-        NNGraph::TensorNode& x,
+        NNGraph::TensorNode* x,
         Scalar beta,
-        NNGraph::TensorNode& y,
+        NNGraph::TensorNode* y,
         const std::string& output_name);
 
     //! Backward: grad_x += alpha*grad_z, grad_y += beta*grad_z
@@ -42,11 +42,11 @@ struct Add
 };
 
 //! Convenience free function
-inline NNGraph::TensorNode& add(
+inline NNGraph::TensorNode* add(
     Scalar alpha,
-    NNGraph::TensorNode& x,
+    NNGraph::TensorNode* x,
     Scalar beta,
-    NNGraph::TensorNode& y,
+    NNGraph::TensorNode* y,
     const std::string& output_name)
 {
     return Add::build_forward(alpha, x, beta, y, output_name);

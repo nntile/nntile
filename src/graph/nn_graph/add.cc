@@ -15,30 +15,36 @@
 #include "nntile/graph/nn_graph/add.hh"
 #include "nntile/graph/logical_graph_ops.hh"
 
+#include <stdexcept>
+
 namespace nntile::graph
 {
 
-NNGraph::TensorNode& Add::build_forward(
+NNGraph::TensorNode* Add::build_forward(
     Scalar alpha,
-    NNGraph::TensorNode& x,
+    NNGraph::TensorNode* x,
     Scalar beta,
-    NNGraph::TensorNode& y,
+    NNGraph::TensorNode* y,
     const std::string& output_name)
 {
-    NNGraph& graph = x.graph();
+    if(x == nullptr || y == nullptr)
+    {
+        throw std::invalid_argument("Add::build_forward: x and y must be non-null");
+    }
+    NNGraph& graph = x->graph();
     LogicalGraph::TensorNode& z_data =
-        add(alpha, x.data(), beta, y.data(), output_name);
-    bool out_requires_grad = x.requires_grad() || y.requires_grad();
+        add(alpha, x->data(), beta, y->data(), output_name);
+    bool out_requires_grad = x->requires_grad() || y->requires_grad();
     NNGraph::TensorNode* z = graph.tensor(z_data, out_requires_grad);
 
     OpAttrs attrs = BinaryOpAttrs{alpha, beta};
     NNGraph::OpNode* op_nn = graph.create_op(
-        {&x, &y},
+        {x, y},
         {z},
         std::move(attrs),
         [](const NNGraph::OpNode* op) { Add::build_backward(op); });
     z->set_producer(op_nn);
-    return *z;
+    return z;
 }
 
 void Add::build_backward(const NNGraph::OpNode* op)
