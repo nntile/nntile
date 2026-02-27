@@ -71,9 +71,9 @@ void Gemm::build_backward(const NNGraph::OpNode* op)
     //                                   trans_grad_C=false, trans_B=true))
     if(a_nn != nullptr && a_nn->requires_grad())
     {
+        bool first = graph.is_first_grad(a_nn);
         NNGraph::TensorNode* grad_a =
             graph.get_or_create_grad(a_nn, a_nn->name() + "_grad");
-        bool first = graph.is_first_grad(a_nn);
         gemm(grad_out->data(), b_nn->data(), grad_a->data(), alpha,
              first ? 0.0 : 1.0, false, true, ndim, batch_ndim);
     }
@@ -81,9 +81,9 @@ void Gemm::build_backward(const NNGraph::OpNode* op)
     // grad_B = alpha * A^T @ grad_C
     if(b_nn != nullptr && b_nn->requires_grad())
     {
+        bool first = graph.is_first_grad(b_nn);
         NNGraph::TensorNode* grad_b =
             graph.get_or_create_grad(b_nn, b_nn->name() + "_grad");
-        bool first = graph.is_first_grad(b_nn);
         gemm(a_nn->data(), grad_out->data(), grad_b->data(), alpha,
              first ? 0.0 : 1.0, true, false, ndim, batch_ndim);
     }

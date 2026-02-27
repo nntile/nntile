@@ -52,9 +52,10 @@ void Gelu::build_backward(const NNGraph::OpNode* op)
         NNGraph::TensorNode* x_nn = inputs[0];
         if(x_nn != nullptr && x_nn->requires_grad())
         {
+            bool first = graph.is_first_grad(x_nn);
             NNGraph::TensorNode* grad_x =
                 graph.get_or_create_grad(x_nn, x_nn->name() + "_grad");
-            if(graph.is_first_grad(x_nn))
+            if(first)
             {
                 clear(grad_x->data());
             }

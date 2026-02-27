@@ -70,9 +70,9 @@ void AddFiber::build_backward(const NNGraph::OpNode* op)
     // grad_fiber += alpha * sum_fiber(grad_out)
     if(fiber_nn != nullptr && fiber_nn->requires_grad())
     {
+        bool first = graph.is_first_grad(fiber_nn);
         NNGraph::TensorNode* grad_fiber =
             graph.get_or_create_grad(fiber_nn, fiber_nn->name() + "_grad");
-        bool first = graph.is_first_grad(fiber_nn);
         sum_fiber(grad_out->data(), grad_fiber->data(), axis, batch_ndim, 0,
                   alpha, first ? 0.0 : 1.0);
     }
