@@ -10,8 +10,7 @@
  * Example: Torch-like autograd with diamond-shaped add operations.
  *
  * Forward:  w = x + y,  v = w + y,  z = v + w (diamond: w feeds into v and z).
- * Backward: each tensor (x, y, w, v) gets its gradient; w.grad accumulates
- * from both v and z.
+ * With x and y having requires_grad=false, backward() adds no ADD_INPLACE ops.
  *
  * @version 1.1.0
  * */
@@ -26,23 +25,18 @@ int main()
 
     NNGraph g("autograd_add_example");
 
-    // Leaves: x, y
-    auto* x = g.tensor({2, 3}, "x", DataType::FP32);
-    auto* y = g.tensor({2, 3}, "y", DataType::FP32);
+    // Leaves: x, y (no gradients needed)
+    auto* x = g.tensor({2, 3}, "x", DataType::FP32, false);
+    auto* y = g.tensor({2, 3}, "y", DataType::FP32, false);
 
     // Diamond: w = x + y,  v = w + y,  z = v + w
-    // w feeds into both v and z; backward must process v and z before w
     auto* w = add(nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "w");
     auto* v = add(nntile::Scalar(1.0), w, nntile::Scalar(1.0), y, "v");
     auto* z = add(nntile::Scalar(1.0), v, nntile::Scalar(1.0), w, "z");
 
     std::cout << "=== Forward (diamond) ===" << std::endl;
-    std::cout << "  w = x + y" << std::endl;
-    std::cout << "  v = w + y" << std::endl;
-    std::cout << "  z = v + w  (w feeds into both v and z)" << std::endl;
-    std::cout << "  Leaves: x, y (is_leaf=true)" << std::endl;
-    std::cout << "  Intermediate: w, v (has_producer)" << std::endl;
-    std::cout << "  Output: z (has_producer)" << std::endl;
+    std::cout << "  w = x + y,  v = w + y,  z = v + w" << std::endl;
+    std::cout << "  Leaves: x, y (requires_grad=false)" << std::endl;
 
     // Set grad_z = 1, then backward
     auto* z_grad = g.get_or_create_grad(z, "z_grad");
@@ -52,10 +46,19 @@ int main()
     std::cout << "\n=== After z.backward() ===" << std::endl;
     std::cout << "  x.has_grad()=" << x->has_grad()
               << ", y.has_grad()=" << y->has_grad()
-              << ", w.has_grad()=" << w->has_grad()
-              << ", v.has_grad()=" << v->has_grad() << std::endl;
-    std::cout << "  Each tensor gets grad; w.grad accumulates from v and z"
-              << std::endl;
+              << " (no grads: requires_grad was false)" << std::endl;
+
+    // Verify no ADD_INPLACE ops were added (no inputs required grad)
+    size_t add_inplace_count = 0;
+    for(const auto& op : g.logical_graph().ops())
+    {
+        if(op->type() == OpType::ADD_INPLACE)
+        {
+            ++add_inplace_count;
+        }
+    }
+    std::cout << "  ADD_INPLACE count=" << add_inplace_count
+              << " (expected 0: no gradient accumulation)" << std::endl;
 
     std::cout << "\n=== Graph structure ===" << std::endl;
     std::cout << g.to_string() << std::endl;
