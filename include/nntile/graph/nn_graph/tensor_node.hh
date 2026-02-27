@@ -27,47 +27,6 @@
 namespace nntile::graph
 {
 
-//! NNGraph-level operation node (AutoGradFunction). Represents one NNGraph op
-//! that may use multiple LogicalGraph ops in forward/backward.
-class NNGraph::OpNode
-{
-    friend class NNGraph;
-    friend class TensorNode;
-
-public:
-    using BackwardFn =
-        std::function<void(NNGraph& graph, const OpNode* op, TensorNode* grad_out)>;
-
-private:
-    std::vector<TensorNode*> inputs_;
-    TensorNode* output_ = nullptr;
-    OpAttrs attrs_;
-    BackwardFn backward_fn_;
-
-public:
-    OpNode(std::vector<TensorNode*> inputs,
-           TensorNode* output,
-           OpAttrs attrs,
-           BackwardFn backward_fn)
-        : inputs_(std::move(inputs))
-        , output_(output)
-        , attrs_(std::move(attrs))
-        , backward_fn_(std::move(backward_fn))
-    {
-    }
-
-    const std::vector<TensorNode*>& inputs() const { return inputs_; }
-    TensorNode* output() const { return output_; }
-    const OpAttrs& attrs() const { return attrs_; }
-    void run_backward(NNGraph& graph, TensorNode* grad_out) const
-    {
-        if(backward_fn_)
-        {
-            backward_fn_(graph, this, grad_out);
-        }
-    }
-};
-
 //! Tensor node in NNGraph. Full definition of nested class NNGraph::TensorNode.
 class NNGraph::TensorNode
 {

@@ -32,7 +32,7 @@ public:
     //! Tensor node - full definition in tensor_node.hh
     class TensorNode;
 
-    //! Op node (AutoGradFunction) - full definition in tensor_node.hh
+    //! Op node (AutoGradFunction) - full definition in op_node.hh
     class OpNode;
 
     //! Destructor defined in .cc (needs complete TensorNode for unique_ptr)

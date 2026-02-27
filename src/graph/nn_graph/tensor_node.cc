@@ -10,6 +10,7 @@
  * */
 
 #include "nntile/graph/nn_graph/tensor_node.hh"
+#include "nntile/graph/nn_graph/op_node.hh"
 
 #include <deque>
 #include <set>
