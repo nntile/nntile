@@ -38,24 +38,26 @@ public:
 
 private:
     std::vector<TensorNode*> inputs_;
-    TensorNode* output_ = nullptr;
+    std::vector<TensorNode*> outputs_;
     OpAttrs attrs_;
     BackwardFn backward_fn_;
 
 public:
     OpNode(std::vector<TensorNode*> inputs,
-           TensorNode* output,
+           std::vector<TensorNode*> outputs,
            OpAttrs attrs,
            BackwardFn backward_fn)
         : inputs_(std::move(inputs))
-        , output_(output)
+        , outputs_(std::move(outputs))
         , attrs_(std::move(attrs))
         , backward_fn_(std::move(backward_fn))
     {
     }
 
     const std::vector<TensorNode*>& inputs() const { return inputs_; }
-    TensorNode* output() const { return output_; }
+    const std::vector<TensorNode*>& outputs() const { return outputs_; }
+    //! Convenience for single-output ops. Undefined if outputs().size() != 1.
+    TensorNode* output() const { return outputs_.empty() ? nullptr : outputs_[0]; }
     const OpAttrs& attrs() const { return attrs_; }
     void run_backward() const
     {

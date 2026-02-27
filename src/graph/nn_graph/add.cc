@@ -34,7 +34,7 @@ NNGraph::TensorNode& Add::build_forward(
     OpAttrs attrs = BinaryOpAttrs{alpha, beta};
     NNGraph::OpNode* op_nn = graph.create_op(
         {&x, &y},
-        z,
+        {z},
         std::move(attrs),
         [](const NNGraph::OpNode* op) { Add::build_backward(op); });
     z->set_producer(op_nn);

@@ -116,7 +116,7 @@ public:
     //! Returns the OpNode* to pass to TensorNode::set_producer.
     OpNode* create_op(
         std::vector<TensorNode*> inputs,
-        TensorNode* output,
+        std::vector<TensorNode*> outputs,
         OpAttrs attrs,
         std::function<void(const OpNode*)> backward_fn);
 

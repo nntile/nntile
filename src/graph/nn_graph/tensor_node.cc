@@ -14,6 +14,7 @@
 
 #include <deque>
 #include <set>
+#include <unordered_set>
 #include <sstream>
 #include <stdexcept>
 
@@ -135,20 +136,31 @@ void NNGraph::TensorNode::backward()
             "Use get_or_create_grad() and fill/bind the gradient.");
     }
 
-    // Call each tensor's producer->backward (adds gradient LogicalGraph ops)
+    // Call each OpNode's backward once (multi-output ops share one producer)
+    std::unordered_set<const OpNode*> op_done;
     for(TensorNode* t : rev_topo)
     {
-        if(t->producer() == nullptr)
+        const OpNode* op = t->producer();
+        if(op == nullptr || op_done.count(op))
         {
             continue;
         }
-
-        if(t->grad() == nullptr)
+        // Run backward when any output has grad (backward_fn uses op->outputs())
+        bool any_has_grad = false;
+        for(TensorNode* out : op->outputs())
+        {
+            if(out != nullptr && out->grad() != nullptr)
+            {
+                any_has_grad = true;
+                break;
+            }
+        }
+        if(!any_has_grad)
         {
             continue;
         }
-
-        t->producer()->run_backward();
+        op_done.insert(op);
+        op->run_backward();
     }
 }
 
