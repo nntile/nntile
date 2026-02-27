@@ -67,25 +67,50 @@ void Gemm::build_backward(const NNGraph::OpNode* op)
     NNGraph::TensorNode* a_nn = inputs[0];
     NNGraph::TensorNode* b_nn = inputs[1];
 
-    // grad_A = alpha * grad_C @ B^T  (gemm(grad_C, B, grad_A, alpha, beta,
-    //                                   trans_grad_C=false, trans_B=true))
+    // grad_A: depends on trans_a, trans_b from forward
+    // trans_a=F,trans_b=F: grad_A = alpha*grad_C@B^T  -> gemm(grad_C,B, false,true)
+    // trans_a=F,trans_b=T: grad_A = alpha*grad_C@B    -> gemm(grad_C,B, false,false)
+    // trans_a=T,trans_b=F: grad_A = alpha*B@grad_C^T  -> gemm(B,grad_C, false,true)
+    // trans_a=T,trans_b=T: grad_A = alpha*B^T@grad_C^T -> gemm(B,grad_C, true,false)
     if(a_nn != nullptr && a_nn->requires_grad())
     {
         bool first = graph.is_first_grad(a_nn);
         NNGraph::TensorNode* grad_a =
             graph.get_or_create_grad(a_nn, a_nn->name() + "_grad");
-        gemm(grad_out->data(), b_nn->data(), grad_a->data(), alpha,
-             first ? 0.0 : 1.0, false, true, ndim, batch_ndim);
+        Scalar beta = first ? 0.0 : 1.0;
+        if(!trans_a)
+        {
+            gemm(grad_out->data(), b_nn->data(), grad_a->data(), alpha, beta,
+                 false, !trans_b, ndim, batch_ndim);
+        }
+        else
+        {
+            gemm(b_nn->data(), grad_out->data(), grad_a->data(), alpha, beta,
+                 trans_b, false, ndim, batch_ndim);
+        }
     }
 
-    // grad_B = alpha * A^T @ grad_C
+    // grad_B: depends on trans_a, trans_b from forward
+    // trans_a=F,trans_b=F: grad_B = alpha*A^T@grad_C   -> gemm(A,grad_C, true,false)
+    // trans_a=F,trans_b=T: grad_B = alpha*grad_C^T@A    -> gemm(grad_C,A, true,false)
+    // trans_a=T,trans_b=F: grad_B = alpha*A@grad_C     -> gemm(A,grad_C, false,false)
+    // trans_a=T,trans_b=T: grad_B = alpha*grad_C^T@A^T -> gemm(grad_C,A, true,true)
     if(b_nn != nullptr && b_nn->requires_grad())
     {
         bool first = graph.is_first_grad(b_nn);
         NNGraph::TensorNode* grad_b =
             graph.get_or_create_grad(b_nn, b_nn->name() + "_grad");
-        gemm(a_nn->data(), grad_out->data(), grad_b->data(), alpha,
-             first ? 0.0 : 1.0, true, false, ndim, batch_ndim);
+        Scalar beta = first ? 0.0 : 1.0;
+        if(!trans_b)
+        {
+            gemm(a_nn->data(), grad_out->data(), grad_b->data(), alpha, beta,
+                 !trans_a, false, ndim, batch_ndim);
+        }
+        else
+        {
+            gemm(grad_out->data(), a_nn->data(), grad_b->data(), alpha, beta,
+                 true, trans_a, ndim, batch_ndim);
+        }
     }
 }
 
