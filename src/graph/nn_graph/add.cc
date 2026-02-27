@@ -34,8 +34,8 @@ NNGraph::TensorNode& Add::build_forward(
     // NNGraph-level producer (this op may span multiple LogicalGraph ops)
     LogicalGraph::OpNode* op = z_data.producer();
     z.set_producer(
-        [op](NNGraph& g, NNGraph::TensorNode* grad) {
-            Add::build_backward(g, op, grad);
+        [op](NNGraph::TensorNode* grad) {
+            Add::build_backward(grad->graph(), op, grad);
         },
         {&x, &y});
     return z;

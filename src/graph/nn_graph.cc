@@ -96,11 +96,12 @@ NNGraph& NNGraph::TensorNode::graph()
 }
 
 void NNGraph::TensorNode::set_producer(
-    ProducerBackwardFn fn,
+    std::function<void(TensorNode* grad_out)> fn,
     std::vector<TensorNode*> inputs)
 {
-    producer_backward_ = std::move(fn);
-    producer_inputs_ = std::move(inputs);
+    producer_ = std::make_unique<Producer>();
+    producer_->inputs = std::move(inputs);
+    producer_->backward = std::move(fn);
 }
 
 void NNGraph::TensorNode::backward()
@@ -111,7 +112,7 @@ void NNGraph::TensorNode::backward()
             "NNGraph::TensorNode::backward: tensor has no graph reference");
     }
 
-    // Build reverse topological order using NNGraph producer_inputs
+    // Build reverse topological order using producer->inputs
     std::deque<TensorNode*> rev_topo;
     std::set<TensorNode*> visited;
     std::deque<TensorNode*> stack = {this};
@@ -127,11 +128,14 @@ void NNGraph::TensorNode::backward()
         visited.insert(t);
         rev_topo.push_back(t);
 
-        for(TensorNode* in : t->producer_inputs())
+        if(t->producer() != nullptr)
         {
-            if(in != nullptr && in->requires_grad() && visited.count(in) == 0)
+            for(TensorNode* in : t->producer()->inputs)
             {
-                stack.push_back(in);
+                if(in != nullptr && in->requires_grad() && visited.count(in) == 0)
+                {
+                    stack.push_back(in);
+                }
             }
         }
     }
@@ -143,10 +147,10 @@ void NNGraph::TensorNode::backward()
             "Use get_or_create_grad() and fill/bind the gradient.");
     }
 
-    // Call each tensor's producer_backward (adds gradient LogicalGraph ops)
+    // Call each tensor's producer->backward (adds gradient LogicalGraph ops)
     for(TensorNode* t : rev_topo)
     {
-        if(!t->producer_backward_)
+        if(t->producer() == nullptr || !t->producer()->backward)
         {
             continue;
         }
@@ -157,7 +161,7 @@ void NNGraph::TensorNode::backward()
             continue;
         }
 
-        t->producer_backward_(*graph_, grad_out);
+        t->producer()->backward(grad_out);
     }
 }
 
