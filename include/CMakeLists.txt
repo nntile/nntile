@@ -432,7 +432,6 @@ set(GRAPH_HDR
     "nntile/graph/nn_graph/add_fiber.hh"
     "nntile/graph/nn_graph/gemm.hh"
     "nntile/graph/nn_graph/gelu.hh"
-    "nntile/graph/nn_graph/gelu_backward.hh"
     "nntile/graph/nn_graph/sum_fiber.hh"
     "nntile/graph/compiled/adam_step.hh"
     "nntile/graph/compiled/adamw_step.hh"

@@ -22,5 +22,4 @@
 #include <nntile/graph/nn_graph/add_fiber.hh>
 #include <nntile/graph/nn_graph/gemm.hh>
 #include <nntile/graph/nn_graph/gelu.hh>
-#include <nntile/graph/nn_graph/gelu_backward.hh>
 #include <nntile/graph/nn_graph/sum_fiber.hh>  // autograd SumFiber
