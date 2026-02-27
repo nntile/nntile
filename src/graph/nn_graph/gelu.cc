@@ -10,6 +10,7 @@
  * */
 
 #include "nntile/graph/nn_graph/gelu.hh"
+#include "nntile/graph/grad_mode.hh"
 #include "nntile/graph/logical/clear.hh"
 #include "nntile/graph/logical/gelu.hh"
 #include "nntile/graph/logical/gelu_backward.hh"
@@ -32,13 +33,16 @@ NNGraph::TensorNode* Gelu::build_forward(
     bool out_requires_grad = x->requires_grad();
     NNGraph::TensorNode* y = graph.tensor(y_data, out_requires_grad);
 
-    OpAttrs attrs = GeluAttrs{};
-    NNGraph::OpNode* op_nn = graph.create_op(
-        {x},
-        {y},
-        std::move(attrs),
-        [](const NNGraph::OpNode* op) { Gelu::build_backward(op); });
-    y->set_producer(op_nn);
+    if(GradMode::is_enabled())
+    {
+        OpAttrs attrs = GeluAttrs{};
+        NNGraph::OpNode* op_nn = graph.create_op(
+            {x},
+            {y},
+            std::move(attrs),
+            [](const NNGraph::OpNode* op) { Gelu::build_backward(op); });
+        y->set_producer(op_nn);
+    }
     return y;
 }
 

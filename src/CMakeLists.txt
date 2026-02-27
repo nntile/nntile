@@ -399,6 +399,7 @@ set(LOGGER_SRC
 
 # Graph-related sources
 set(GRAPH_SRC
+    "graph/grad_mode.cc"
     "graph/logical_graph.cc"
     "graph/logical_graph_ops.cc"
     "graph/logical/gelu.cc"
@@ -563,6 +564,7 @@ set(MODULE_SRC
     "module/gelu.cc"
     "module/mlp.cc"
     "module/linear.cc"
+    "module/linear_manual.cc"
     "module/mse_loss.cc"
     "module/sdpa.cc"
 )

@@ -421,6 +421,7 @@ set(GRAPH_HDR
     "nntile/graph.hh"
     "nntile/graph/compiled_graph.hh"
     "nntile/graph/compiled_graph_ops.hh"
+    "nntile/graph/grad_mode.hh"
     "nntile/graph/logical_graph.hh"
     "nntile/graph/logical_graph_ops.hh"
     "nntile/graph/nn_graph.hh"

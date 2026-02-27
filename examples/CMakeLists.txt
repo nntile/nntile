@@ -70,3 +70,8 @@ add_example(TARGET_NAME examples_linear_layer
     EXEC_NAME "linear_layer_example"
     SOURCES "linear_layer_example.cc"
     LINK_LIBRARIES nntile)
+
+add_example(TARGET_NAME examples_linear_manual
+    EXEC_NAME "linear_manual_example"
+    SOURCES "linear_manual_example.cc"
+    LINK_LIBRARIES nntile)

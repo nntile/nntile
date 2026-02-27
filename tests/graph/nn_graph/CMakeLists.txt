@@ -11,6 +11,7 @@
 set(TESTS_NN_GRAPH_CATCH2
     "add"
     "add_fiber"
+    "grad_mode"
     "gelu"
     "gemm"
     "sum_fiber"

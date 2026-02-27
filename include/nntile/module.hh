@@ -17,6 +17,7 @@
 // Include related NNTile headers
 #include <nntile/module/module.hh>
 #include <nntile/module/linear.hh>
+#include <nntile/module/linear_manual.hh>
 #include <nntile/module/gelu.hh>
 #include <nntile/module/mlp.hh>
 #include <nntile/module/mse_loss.hh>

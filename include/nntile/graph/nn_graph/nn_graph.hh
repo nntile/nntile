@@ -120,6 +120,14 @@ public:
         OpAttrs attrs,
         std::function<void(const OpNode*)> backward_fn);
 
+    //! Wrap output with a module-level op (custom backward overrides autograd).
+    //! Use when forward was run in GradMode::Guard - output has no producer.
+    //! Attaches backward_fn as the sole producer so output.backward() invokes it.
+    void wrap_with_module_op(
+        std::vector<TensorNode*> inputs,
+        TensorNode* output,
+        std::function<void(const OpNode*)> backward_fn);
+
     // -----------------------------------------------------------------
     // String representation
     // -----------------------------------------------------------------

@@ -207,6 +207,24 @@ NNGraph::OpNode* NNGraph::create_op(
     return ptr;
 }
 
+void NNGraph::wrap_with_module_op(
+    std::vector<TensorNode*> inputs,
+    TensorNode* output,
+    std::function<void(const OpNode*)> backward_fn)
+{
+    if(output == nullptr)
+    {
+        throw std::invalid_argument(
+            "NNGraph::wrap_with_module_op: output is nullptr");
+    }
+    OpNode* op = create_op(
+        std::move(inputs),
+        {output},
+        NoAttrs{},
+        std::move(backward_fn));
+    output->set_producer(op);
+}
+
 std::string NNGraph::to_string() const
 {
     std::stringstream ss;
