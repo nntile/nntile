@@ -24,7 +24,6 @@
 
 // Include other NNTile headers
 #include "nntile/graph/logical_graph_ops.hh"
-#include "nntile/graph/nn_graph_backward.hh"
 
 namespace nntile::graph
 {
@@ -96,6 +95,14 @@ NNGraph& NNGraph::TensorNode::graph()
     return *graph_;
 }
 
+void NNGraph::TensorNode::set_producer(
+    ProducerBackwardFn fn,
+    std::vector<TensorNode*> inputs)
+{
+    producer_backward_ = std::move(fn);
+    producer_inputs_ = std::move(inputs);
+}
+
 void NNGraph::TensorNode::backward()
 {
     if(graph_ == nullptr)
@@ -104,7 +111,7 @@ void NNGraph::TensorNode::backward()
             "NNGraph::TensorNode::backward: tensor has no graph reference");
     }
 
-    // Build reverse topological order (output -> inputs)
+    // Build reverse topological order using NNGraph producer_inputs
     std::deque<TensorNode*> rev_topo;
     std::set<TensorNode*> visited;
     std::deque<TensorNode*> stack = {this};
@@ -120,22 +127,15 @@ void NNGraph::TensorNode::backward()
         visited.insert(t);
         rev_topo.push_back(t);
 
-        LogicalGraph::OpNode* op = t->grad_fn();
-        if(op != nullptr)
+        for(TensorNode* in : t->producer_inputs())
         {
-            for(LogicalGraph::TensorNode* in : op->inputs())
+            if(in != nullptr && in->requires_grad() && visited.count(in) == 0)
             {
-                TensorNode* nn_in = graph_->get_tensor(in->name());
-                if(nn_in != nullptr && nn_in->requires_grad() &&
-                   visited.count(nn_in) == 0)
-                {
-                    stack.push_back(nn_in);
-                }
+                stack.push_back(in);
             }
         }
     }
 
-    // Require grad to be defined (PyTorch-style: user sets upstream gradient)
     if(grad_ == nullptr)
     {
         throw std::invalid_argument(
@@ -143,11 +143,10 @@ void NNGraph::TensorNode::backward()
             "Use get_or_create_grad() and fill/bind the gradient.");
     }
 
-    // Propagate gradients: dispatch to op's registered build_backward
+    // Call each tensor's producer_backward (adds gradient LogicalGraph ops)
     for(TensorNode* t : rev_topo)
     {
-        LogicalGraph::OpNode* op = t->grad_fn();
-        if(op == nullptr)
+        if(!t->producer_backward_)
         {
             continue;
         }
@@ -158,11 +157,7 @@ void NNGraph::TensorNode::backward()
             continue;
         }
 
-        BackwardFn fn = get_backward(op->type());
-        if(fn)
-        {
-            fn(*graph_, op, grad_out);
-        }
+        t->producer_backward_(*graph_, grad_out);
     }
 }
 

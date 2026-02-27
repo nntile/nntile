@@ -15,6 +15,7 @@
 #pragma once
 
 // Include standard headers
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -31,18 +32,25 @@ class NNGraph
 {
 public:
     //! A tensor node in NNGraph, holding data and gradient tensor node.
-    //! Mimics PyTorch tensor with autograd: grad_fn points to the op that
-    //! produced this tensor; backward() builds the gradient graph.
+    //! Mimics PyTorch tensor with autograd: producer_backward from the
+    //! NNGraph op that created this tensor (may span multiple LogicalGraph ops).
     class TensorNode
     {
         friend class NNGraph;
 
+    public:
+        //! Producer backward: NNGraph op adds gradient LogicalGraph ops (may be multiple)
+        using ProducerBackwardFn =
+            std::function<void(NNGraph&, TensorNode* grad_out)>;
+
     private:
         NNGraph* graph_ = nullptr;
         LogicalGraph::TensorNode* data_ = nullptr;
-        // Gradient is itself an NNGraph::TensorNode for convenience
         TensorNode* grad_ = nullptr;
         bool requires_grad_ = true;
+        // NNGraph-level producer (op may span multiple LogicalGraph ops)
+        ProducerBackwardFn producer_backward_;
+        std::vector<TensorNode*> producer_inputs_;
 
     public:
         TensorNode(LogicalGraph::TensorNode* data, bool requires_grad = true);
@@ -63,12 +71,12 @@ public:
         bool requires_grad() const { return requires_grad_; }
         void set_requires_grad(bool requires) { requires_grad_ = requires; }
 
-        // Autograd: producer op (grad_fn) - nullptr for leaf/input tensors
-        LogicalGraph::OpNode* grad_fn() const
-        {
-            return data_ ? data_->producer() : nullptr;
-        }
-        bool is_leaf() const { return grad_fn() == nullptr; }
+        // Autograd: NNGraph-level producer (not LogicalGraph)
+        bool is_leaf() const { return !producer_backward_; }
+        bool has_producer() const { return static_cast<bool>(producer_backward_); }
+
+        // Set by NNGraph op that created this tensor (may use multiple LogicalGraph ops)
+        void set_producer(ProducerBackwardFn fn, std::vector<TensorNode*> inputs);
 
         // Autograd: propagate upstream gradient through the computation graph.
         //! Grad must be set beforehand (get_or_create_grad + fill/bind).
@@ -98,6 +106,10 @@ public:
     private:
         void set_grad(TensorNode* grad) { grad_ = grad; }
         void set_graph(NNGraph* graph) { graph_ = graph; }
+        const std::vector<TensorNode*>& producer_inputs() const
+        {
+            return producer_inputs_;
+        }
     };
 
 private:

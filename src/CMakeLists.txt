@@ -475,7 +475,6 @@ set(GRAPH_SRC
     "graph/logical/multiply_slice.cc"
     "graph/logical/sqrt_inplace.cc"
     "graph/nn_graph.cc"
-    "graph/nn_graph_backward.cc"
     "graph/nn_graph/add.cc"
     "graph/compiled_graph.cc"
     "graph/compiled/add.cc"

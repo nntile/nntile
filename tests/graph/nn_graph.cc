@@ -156,16 +156,15 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph]")
 
     auto& z = add(alpha, x, beta, y, "z");
 
-    // Check grad_fn: z was produced by ADD op
-    REQUIRE(z.grad_fn() != nullptr);
-    REQUIRE(z.grad_fn()->type() == OpType::ADD);
+    // z was produced by Add (NNGraph op)
+    REQUIRE(z.has_producer());
     REQUIRE_FALSE(z.is_leaf());
 
     // x and y are leaves (inputs, no producer)
     REQUIRE(x.is_leaf());
     REQUIRE(y.is_leaf());
-    REQUIRE(x.grad_fn() == nullptr);
-    REQUIRE(y.grad_fn() == nullptr);
+    REQUIRE_FALSE(x.has_producer());
+    REQUIRE_FALSE(y.has_producer());
 
     // Set upstream gradient before backward (required)
     auto& z_grad = g.get_or_create_grad(z, "z_grad");
@@ -213,7 +212,7 @@ TEST_CASE("NNGraph Autograd Add Chain", "[graph]")
     auto& z = add(nntile::Scalar(1.0), w, nntile::Scalar(1.0), u, "z");
 
     REQUIRE(w.requires_grad());
-    REQUIRE(w.grad_fn() != nullptr);
+    REQUIRE(w.has_producer());
 
     auto& z_grad = g.get_or_create_grad(z, "z_grad");
     fill(nntile::Scalar(1.0), z_grad.data());

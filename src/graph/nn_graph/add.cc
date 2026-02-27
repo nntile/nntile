@@ -13,7 +13,6 @@
  * */
 
 #include "nntile/graph/nn_graph/add.hh"
-#include "nntile/graph/nn_graph_backward.hh"
 #include "nntile/graph/logical_graph_ops.hh"
 
 namespace nntile::graph
@@ -30,7 +29,16 @@ NNGraph::TensorNode& Add::build_forward(
     LogicalGraph::TensorNode& z_data =
         add(alpha, x.data(), beta, y.data(), output_name);
     bool out_requires_grad = x.requires_grad() || y.requires_grad();
-    return graph.tensor(z_data, out_requires_grad);
+    NNGraph::TensorNode& z = graph.tensor(z_data, out_requires_grad);
+
+    // NNGraph-level producer (this op may span multiple LogicalGraph ops)
+    LogicalGraph::OpNode* op = z_data.producer();
+    z.set_producer(
+        [op](NNGraph& g, NNGraph::TensorNode* grad) {
+            Add::build_backward(g, op, grad);
+        },
+        {&x, &y});
+    return z;
 }
 
 void Add::build_backward(
@@ -59,16 +67,5 @@ void Add::build_backward(
         }
     }
 }
-
-namespace
-{
-struct RegisterAddBackward
-{
-    RegisterAddBackward()
-    {
-        register_backward(OpType::ADD, Add::build_backward);
-    }
-} register_add_backward;
-} // namespace
 
 } // namespace nntile::graph

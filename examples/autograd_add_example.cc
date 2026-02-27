@@ -38,8 +38,8 @@ int main()
     std::cout << "  w = x + y" << std::endl;
     std::cout << "  z = w + u  (= x + y + u)" << std::endl;
     std::cout << "  Leaves: x, y, u (is_leaf=true)" << std::endl;
-    std::cout << "  Intermediate: w (grad_fn=ADD)" << std::endl;
-    std::cout << "  Output: z (grad_fn=ADD)" << std::endl;
+    std::cout << "  Intermediate: w (has_producer)" << std::endl;
+    std::cout << "  Output: z (has_producer)" << std::endl;
 
     // Set grad_z = 1, then backward
     auto& z_grad = g.get_or_create_grad(z, "z_grad");
