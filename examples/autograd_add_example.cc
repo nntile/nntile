@@ -25,6 +25,14 @@ int main(int argc, char** argv)
 {
     using namespace nntile::graph;
 
+    if(argc > 1 && (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help"))
+    {
+        std::cout << "Usage: autograd_add_example [x_requires_grad] [y_requires_grad]\n"
+                     "  Diamond graph: w=x+y, v=w+y, z=v+w. Run z.backward().\n"
+                     "  Each arg: 0 or 1 (default 0 if omitted).\n";
+        return 0;
+    }
+
     bool x_requires_grad = (argc > 1 && std::string(argv[1]) != "0");
     bool y_requires_grad = (argc > 2 && std::string(argv[2]) != "0");
 
