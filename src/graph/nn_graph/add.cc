@@ -36,23 +36,20 @@ NNGraph::TensorNode& Add::build_forward(
         {&x, &y},
         z,
         std::move(attrs),
-        [](NNGraph& g, const NNGraph::OpNode* op, NNGraph::TensorNode* grad_out) {
-            Add::build_backward(g, op, grad_out);
-        });
+        [](const NNGraph::OpNode* op) { Add::build_backward(op); });
     z->set_producer(op_nn);
     return *z;
 }
 
-void Add::build_backward(
-    NNGraph& graph,
-    const NNGraph::OpNode* op,
-    NNGraph::TensorNode* grad_out)
+void Add::build_backward(const NNGraph::OpNode* op)
 {
+    NNGraph& graph = op->output()->graph();
+    NNGraph::TensorNode* grad_out = op->output()->grad();
     const auto& attrs = std::get<BinaryOpAttrs>(op->attrs());
     Scalar alpha = attrs.alpha;
     Scalar beta = attrs.beta;
     const auto& inputs = op->inputs();
-    if(inputs.size() >= 2)
+    if(inputs.size() >= 2 && grad_out != nullptr)
     {
         NNGraph::TensorNode* x_nn = inputs[0];
         NNGraph::TensorNode* y_nn = inputs[1];

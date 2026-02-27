@@ -37,10 +37,8 @@ struct Add
         const std::string& output_name);
 
     //! Backward: grad_x += alpha*grad_z, grad_y += beta*grad_z
-    static void build_backward(
-        NNGraph& graph,
-        const NNGraph::OpNode* op,
-        NNGraph::TensorNode* grad_out);
+    //! Graph, inputs, output, and gradients deduced from op.
+    static void build_backward(const NNGraph::OpNode* op);
 };
 
 //! Convenience free function

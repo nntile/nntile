@@ -143,13 +143,12 @@ void NNGraph::TensorNode::backward()
             continue;
         }
 
-        TensorNode* grad_out = t->grad();
-        if(grad_out == nullptr)
+        if(t->grad() == nullptr)
         {
             continue;
         }
 
-        t->producer()->run_backward(*graph_, grad_out);
+        t->producer()->run_backward();
     }
 }
 

@@ -118,7 +118,7 @@ public:
         std::vector<TensorNode*> inputs,
         TensorNode* output,
         OpAttrs attrs,
-        std::function<void(NNGraph&, const OpNode*, TensorNode*)> backward_fn);
+        std::function<void(const OpNode*)> backward_fn);
 
     // -----------------------------------------------------------------
     // String representation

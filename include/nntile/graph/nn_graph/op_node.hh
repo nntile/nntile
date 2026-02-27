@@ -34,8 +34,7 @@ class NNGraph::OpNode
     friend class TensorNode;
 
 public:
-    using BackwardFn =
-        std::function<void(NNGraph& graph, const OpNode* op, TensorNode* grad_out)>;
+    using BackwardFn = std::function<void(const OpNode* op)>;
 
 private:
     std::vector<TensorNode*> inputs_;
@@ -58,11 +57,11 @@ public:
     const std::vector<TensorNode*>& inputs() const { return inputs_; }
     TensorNode* output() const { return output_; }
     const OpAttrs& attrs() const { return attrs_; }
-    void run_backward(NNGraph& graph, TensorNode* grad_out) const
+    void run_backward() const
     {
         if(backward_fn_)
         {
-            backward_fn_(graph, this, grad_out);
+            backward_fn_(this);
         }
     }
 };
