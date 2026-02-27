@@ -429,7 +429,7 @@ set(GRAPH_HDR
     "nntile/graph/nn_graph/tensor_node.hh"
     "nntile/graph/nn_graph_ops.hh"
     "nntile/graph/nn_graph/add.hh"
-    "nntile/graph/nn_graph/add_fiber_inplace.hh"
+    "nntile/graph/nn_graph/add_fiber.hh"
     "nntile/graph/nn_graph/gemm.hh"
     "nntile/graph/nn_graph/gelu.hh"
     "nntile/graph/nn_graph/gelu_backward.hh"

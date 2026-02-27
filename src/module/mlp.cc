@@ -71,7 +71,7 @@ graph::NNGraph::TensorNode& Mlp::build_forward(graph::NNGraph::TensorNode& input
     return *output_tensor_;
 }
 
-//! Build backward operations using gradient tracking
+//! Build backward operations via autograd (output.backward())
 void Mlp::build_backward()
 {
     if(!output_tensor_)
@@ -81,23 +81,7 @@ void Mlp::build_backward()
             "call build_forward first");
     }
 
-    // Backward through fc2
-    fc2_.build_backward();
-
-    // Get gradient of activation tensor (output of GELU, input of fc2)
-    graph::NNGraph::TensorNode* grad_activation =
-        activation_tensor_->grad();
-    if(!grad_activation)
-    {
-        throw std::runtime_error(
-            "Mlp::build_backward: no gradient for activation tensor");
-    }
-
-    // Backward through GELU
-    gelu_.build_backward();
-
-    // Backward through fc1
-    fc1_.build_backward();
+    output_tensor_->backward();
 }
 
 //! Get string representation with dimensions

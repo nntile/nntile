@@ -101,19 +101,12 @@ public:
         graph::NNGraph::TensorNode& bias_tensor
     );
 
-    //! Build forward operation and return output tensor
+    //! Build forward operation and return output tensor.
+    //! Uses autograd Gemm and AddFiber; backward via tensor.backward().
     //! @param input Input tensor node
     //! @return Reference to the created output tensor
     graph::NNGraph::TensorNode& build_forward(
         graph::NNGraph::TensorNode& input);
-
-    //! Build backward operations using grad fields on NNGraph::TensorNode
-    //!
-    //! 1. Reads output gradient from the output tensor's grad
-    //! 2. Computes gradient of weight tensor (accumulates if shared)
-    //! 3. Computes gradient of bias tensor if present (accumulates if shared)
-    //! 4. Computes gradient of input tensor if requires_grad is set
-    void build_backward();
 
     //! Get string representation with dimensions
     std::string repr() const override;

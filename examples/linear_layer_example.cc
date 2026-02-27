@@ -63,10 +63,10 @@ int main(int argc, char** argv) {
     // Mark parameter tensors for bind_data (weight)
     linear.weight_tensor()->mark_input(true);
 
-    // Build backward operations
-    linear.build_backward();
+    // Build backward via autograd (output.backward())
+    output_tensor.backward();
 
-    // Mark gradient tensors for get_output (created during build_backward)
+    // Mark gradient tensors for get_output (created during backward)
     linear.weight_tensor()->grad()->mark_output(true);
     if (input_tensor->has_grad()) {
         input_tensor->grad()->mark_output(true);

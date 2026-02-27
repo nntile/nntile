@@ -32,25 +32,25 @@ TEST_CASE("Gelu BuildForward", "[module]")
     NNGraph g("gelu");
 
     auto* input = g.tensor({2, 3, 4}, "input", DataType::FP32);
-    Gelu gelu(g, "gelu");
+    module::Gelu gelu_mod(g, "gelu");
 
-    auto& output = gelu.build_forward(*input);
+    auto& output = gelu_mod.build_forward(*input);
     REQUIRE(output.shape() == input->shape());
     REQUIRE(output.name() == "gelu_output");
     REQUIRE(g.num_ops() == 1);
     REQUIRE(g.ops()[0]->type() == OpType::GELU);
 }
 
-TEST_CASE("Gelu BuildBackwardCreatesInputGrad", "[module]")
+TEST_CASE("Gelu BackwardCreatesInputGrad", "[module]")
 {
     NNGraph g("gelu");
 
-    auto* input = g.tensor({2, 3}, "input", DataType::FP32);
-    Gelu gelu(g, "gelu");
+    auto* input = g.tensor({2, 3}, "input", DataType::FP32, true);
+    module::Gelu gelu_mod(g, "gelu");
 
-    auto& output = gelu.build_forward(*input);
+    auto& output = gelu_mod.build_forward(*input);
     g.get_or_create_grad(&output, "output_grad");
-    gelu.build_backward();
+    output.backward();
 
     REQUIRE(input->grad() != nullptr);
     REQUIRE(input->grad()->shape() == input->shape());
@@ -64,12 +64,4 @@ TEST_CASE("Gelu BuildBackwardCreatesInputGrad", "[module]")
         }
     }
     REQUIRE(gelu_backward_count == 1);
-}
-
-TEST_CASE("Gelu BuildBackwardRequiresForward", "[module]")
-{
-    NNGraph g("gelu");
-
-    Gelu gelu(g, "gelu");
-    REQUIRE_THROWS_AS(gelu.build_backward(), std::runtime_error);
 }

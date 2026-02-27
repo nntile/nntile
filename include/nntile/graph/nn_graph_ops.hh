@@ -19,8 +19,8 @@
 
 // Include NNGraph operation overloads (one file per op, like logical/)
 #include <nntile/graph/nn_graph/add.hh>
-#include <nntile/graph/nn_graph/add_fiber_inplace.hh>
+#include <nntile/graph/nn_graph/add_fiber.hh>
 #include <nntile/graph/nn_graph/gemm.hh>
 #include <nntile/graph/nn_graph/gelu.hh>
 #include <nntile/graph/nn_graph/gelu_backward.hh>
-#include <nntile/graph/nn_graph/sum_fiber.hh>
+#include <nntile/graph/nn_graph/sum_fiber.hh>  // autograd SumFiber

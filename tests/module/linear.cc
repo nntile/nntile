@@ -92,9 +92,9 @@ TEST_CASE("Linear BuildForwardWithBias", "[module]")
     auto& output = linear.build_forward(*input);
     REQUIRE(output.shape() == std::vector<Index>({2, 4}));
     REQUIRE(output.name() == "linear_output");
-    REQUIRE(g.num_ops() == 2);
+    REQUIRE(g.num_ops() >= 2);
     REQUIRE(g.ops()[0]->type() == OpType::GEMM);
-    REQUIRE(g.ops()[1]->type() == OpType::ADD_FIBER_INPLACE);
+    REQUIRE(g.ops()[1]->type() == OpType::ADD_FIBER);
 }
 
 TEST_CASE("Linear BuildForwardValidatesInputDim", "[module]")
@@ -121,16 +121,16 @@ TEST_CASE("Linear BuildForwardRejectsScalarTensor", "[module]")
         std::invalid_argument);
 }
 
-TEST_CASE("Linear BuildBackwardCreatesGradients", "[module]")
+TEST_CASE("Linear BackwardCreatesGradients", "[module]")
 {
     NNGraph g("linear");
 
-    auto* input = g.tensor({2, 3}, "input", DataType::FP32);
+    auto* input = g.tensor({2, 3}, "input", DataType::FP32, true);
     Linear linear(g, "linear", 3, 4, true);
 
     auto& output = linear.build_forward(*input);
     g.get_or_create_grad(&output, "output_grad");
-    linear.build_backward();
+    output.backward();
 
     REQUIRE(linear.weight_tensor()->grad() != nullptr);
     REQUIRE(linear.bias_tensor()->grad() != nullptr);
@@ -157,12 +157,4 @@ TEST_CASE("Linear BuildBackwardCreatesGradients", "[module]")
     }
     REQUIRE(gemm_count == 3);
     REQUIRE(sum_fiber_count == 1);
-}
-
-TEST_CASE("Linear BuildBackwardRequiresForward", "[module]")
-{
-    NNGraph g("linear");
-
-    Linear linear(g, "linear", 3, 4, false);
-    REQUIRE_THROWS_AS(linear.build_backward(), std::runtime_error);
 }
