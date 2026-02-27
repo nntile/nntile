@@ -52,7 +52,7 @@ void Module::register_buffer(const std::string& local_name,
         throw std::invalid_argument(
             "Module::register_buffer: tensor is nullptr");
     }
-    graph_.set_requires_grad(*tensor, false);
+    graph_.set_requires_grad(tensor, false);
     buffers_.emplace_back(local_name, tensor);
 }
 

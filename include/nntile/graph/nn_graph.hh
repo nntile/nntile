@@ -15,3 +15,4 @@
 #pragma once
 
 #include <nntile/graph/nn_graph/nn_graph.hh>
+#include <nntile/graph/nn_graph/tensor_node.hh>

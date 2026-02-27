@@ -21,13 +21,12 @@
 #include <string>
 #include <vector>
 
-#include <nntile/graph/logical_graph.hh>
+#include <nntile/graph/nn_graph/nn_graph.hh>
 
 namespace nntile::graph
 {
 
 //! Tensor node in NNGraph. Full definition of nested class NNGraph::TensorNode.
-//! Include only via nn_graph/nn_graph.hh (after NNGraph with forward decl).
 class NNGraph::TensorNode
 {
     friend class NNGraph;

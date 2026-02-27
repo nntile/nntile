@@ -29,16 +29,16 @@ NNGraph::TensorNode& Add::build_forward(
     LogicalGraph::TensorNode& z_data =
         add(alpha, x.data(), beta, y.data(), output_name);
     bool out_requires_grad = x.requires_grad() || y.requires_grad();
-    NNGraph::TensorNode& z = graph.tensor(z_data, out_requires_grad);
+    NNGraph::TensorNode* z = graph.tensor(z_data, out_requires_grad);
 
     // NNGraph-level producer (this op may span multiple LogicalGraph ops)
     LogicalGraph::OpNode* op = z_data.producer();
-    z.set_producer(
+    z->set_producer(
         [op](NNGraph::TensorNode* grad) {
             Add::build_backward(grad->graph(), op, grad);
         },
         {&x, &y});
-    return z;
+    return *z;
 }
 
 void Add::build_backward(
@@ -55,15 +55,15 @@ void Add::build_backward(
         NNGraph::TensorNode* y_nn = graph.get_tensor(op->input(1)->name());
         if(x_nn != nullptr && x_nn->requires_grad())
         {
-            NNGraph::TensorNode& grad_x =
-                graph.get_or_create_grad(*x_nn, x_nn->name() + "_grad");
-            add_inplace(alpha, grad_out->data(), Scalar(1.0), grad_x.data());
+            NNGraph::TensorNode* grad_x =
+                graph.get_or_create_grad(x_nn, x_nn->name() + "_grad");
+            add_inplace(alpha, grad_out->data(), Scalar(1.0), grad_x->data());
         }
         if(y_nn != nullptr && y_nn->requires_grad())
         {
-            NNGraph::TensorNode& grad_y =
-                graph.get_or_create_grad(*y_nn, y_nn->name() + "_grad");
-            add_inplace(beta, grad_out->data(), Scalar(1.0), grad_y.data());
+            NNGraph::TensorNode* grad_y =
+                graph.get_or_create_grad(y_nn, y_nn->name() + "_grad");
+            add_inplace(beta, grad_out->data(), Scalar(1.0), grad_y->data());
         }
     }
 }

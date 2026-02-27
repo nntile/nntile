@@ -115,8 +115,8 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
     v_tensor_ = &v;
     mask_tensor_ = mask;
 
-    bool output_requires_grad = graph_.requires_grad(q) ||
-        graph_.requires_grad(k) || graph_.requires_grad(v);
+    bool output_requires_grad = graph_.requires_grad(&q) ||
+        graph_.requires_grad(&k) || graph_.requires_grad(&v);
 
     if(flash_attention_)
     {
@@ -129,7 +129,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
 
         // Create flash_logsumexp [q_seq, batch...] fp32
         std::vector<Index> logsumexp_shape(q_shape.begin() + 1, q_shape.end());
-        flash_logsumexp_tensor_ = &graph_.tensor(
+        flash_logsumexp_tensor_ = graph_.tensor(
             logsumexp_shape,
             tensor_name("flash_logsumexp"),
             graph::DataType::FP32,
@@ -138,7 +138,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
 
         // Create output y [head_size, q_seq, batch...]
         std::vector<Index> y_shape = q_shape;
-        output_tensor_ = &graph_.tensor(
+        output_tensor_ = graph_.tensor(
             y_shape,
             tensor_name("output"),
             q.dtype(),
@@ -150,7 +150,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
         if(mask_to_use == nullptr)
         {
             std::vector<Index> mask_shape = {k_seq, q_seq};
-            default_mask = &graph_.tensor(
+            default_mask = graph_.tensor(
                 mask_shape,
                 tensor_name("default_mask"),
                 q.dtype(),
@@ -193,7 +193,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
         std::vector<Index> attn_shape = {k_seq, q_seq};
         attn_shape.insert(attn_shape.end(), batch_shape.begin(), batch_shape.end());
 
-        attn_tensor_ = &graph_.tensor(
+        attn_tensor_ = graph_.tensor(
             attn_shape,
             tensor_name("attn"),
             q.dtype(),
@@ -202,7 +202,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
         std::vector<Index> attn_max_shape = {2, q_seq};
         attn_max_shape.insert(
             attn_max_shape.end(), batch_shape.begin(), batch_shape.end());
-        attn_maxsumexp_tensor_ = &graph_.tensor(
+        attn_maxsumexp_tensor_ = graph_.tensor(
             attn_max_shape,
             tensor_name("attn_maxsumexp"),
             q.dtype(),
@@ -212,7 +212,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
         std::vector<Index> attn_sum_shape = {q_seq};
         attn_sum_shape.insert(
             attn_sum_shape.end(), batch_shape.begin(), batch_shape.end());
-        attn_sumprod_slice_tensor_ = &graph_.tensor(
+        attn_sumprod_slice_tensor_ = graph_.tensor(
             attn_sum_shape,
             tensor_name("attn_sumprod_slice"),
             q.dtype(),
@@ -221,7 +221,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
 
         // Create output y
         std::vector<Index> y_shape = q_shape;
-        output_tensor_ = &graph_.tensor(
+        output_tensor_ = graph_.tensor(
             y_shape,
             tensor_name("output"),
             q.dtype(),
@@ -307,45 +307,45 @@ void Sdpa::build_backward()
                 "Sdpa::build_backward: Flash mask not found");
         }
 
-        graph::NNGraph::TensorNode& grad_q =
-            graph_.get_or_create_grad(*q_tensor_, q_tensor_->name() + "_grad");
-        graph::NNGraph::TensorNode& grad_k =
-            graph_.get_or_create_grad(*k_tensor_, k_tensor_->name() + "_grad");
-        graph::NNGraph::TensorNode& grad_v =
-            graph_.get_or_create_grad(*v_tensor_, v_tensor_->name() + "_grad");
+        graph::NNGraph::TensorNode* grad_q =
+            graph_.get_or_create_grad(q_tensor_, q_tensor_->name() + "_grad");
+        graph::NNGraph::TensorNode* grad_k =
+            graph_.get_or_create_grad(k_tensor_, k_tensor_->name() + "_grad");
+        graph::NNGraph::TensorNode* grad_v =
+            graph_.get_or_create_grad(v_tensor_, v_tensor_->name() + "_grad");
 
         graph_.add_op(
             graph::OpType::FLASH_SDPA_BWD_CUDNN,
             graph::OpAttrs{graph::ClearAttrs{}},
             {k_tensor_, q_tensor_, v_tensor_, output_tensor_, grad_output,
-             mask_to_use, flash_logsumexp_tensor_, &grad_k, &grad_q, &grad_v},
-            {&grad_k, &grad_q, &grad_v});
+             mask_to_use, flash_logsumexp_tensor_, grad_k, grad_q, grad_v},
+            {grad_k, grad_q, grad_v});
     }
     else
     {
         // Vanilla backward
-        graph::NNGraph::TensorNode& grad_attn =
-            graph_.get_or_create_grad(*attn_tensor_, tensor_name("attn") + "_grad");
+        graph::NNGraph::TensorNode* grad_attn =
+            graph_.get_or_create_grad(attn_tensor_, tensor_name("attn") + "_grad");
 
         // attn.grad = V^T @ y.grad
         graph_.add_op(
             graph::OpType::GEMM,
             graph::OpAttrs{graph::GemmAttrs{true, false, 1.0, 0.0, 1, batch_ndim_}},
             {v_tensor_, grad_output},
-            {&grad_attn});
+            {grad_attn});
 
         // v.grad += y.grad @ attn^T
-        if(graph_.requires_grad(*v_tensor_))
+        if(graph_.requires_grad(v_tensor_))
         {
-            bool first = graph_.is_first_grad(*v_tensor_);
-            graph::NNGraph::TensorNode& grad_v =
-                graph_.get_or_create_grad(*v_tensor_, v_tensor_->name() + "_grad");
+            bool first = graph_.is_first_grad(v_tensor_);
+            graph::NNGraph::TensorNode* grad_v =
+                graph_.get_or_create_grad(v_tensor_, v_tensor_->name() + "_grad");
             Scalar beta = first ? 0.0 : 1.0;
             graph_.add_op(
                 graph::OpType::GEMM,
                 graph::OpAttrs{graph::GemmAttrs{false, true, 1.0, beta, 1, batch_ndim_}},
                 {grad_output, attn_tensor_},
-                {&grad_v});
+                {grad_v});
         }
 
         // Softmax backward: sumprod_slice(y, y.grad -> attn_sumprod_slice)
@@ -358,50 +358,50 @@ void Sdpa::build_backward()
         graph_.add_op(
             graph::OpType::ADD_SLICE_INPLACE,
             graph::OpAttrs{graph::AddSliceAttrs{0, -1.0, 1.0}},
-            {attn_sumprod_slice_tensor_, &grad_attn},
-            {&grad_attn});
+            {attn_sumprod_slice_tensor_, grad_attn},
+            {grad_attn});
 
         graph_.add_op(
             graph::OpType::MULTIPLY_INPLACE,
             graph::OpAttrs{graph::BinaryOpAttrs{1.0, 0.0}},
-            {attn_tensor_, &grad_attn},
-            {&grad_attn});
+            {attn_tensor_, grad_attn},
+            {grad_attn});
 
         if(mask_tensor_ != nullptr)
         {
             graph_.add_op(
                 graph::OpType::MASK_SCALAR,
                 graph::OpAttrs{graph::MaskScalarAttrs{0.0, batch_ndim_}},
-                {mask_tensor_, &grad_attn},
-                {&grad_attn});
+                {mask_tensor_, grad_attn},
+                {grad_attn});
         }
 
         // k.grad += scale * Q @ attn.grad^T
-        if(graph_.requires_grad(*k_tensor_))
+        if(graph_.requires_grad(k_tensor_))
         {
-            bool first = graph_.is_first_grad(*k_tensor_);
-            graph::NNGraph::TensorNode& grad_k =
-                graph_.get_or_create_grad(*k_tensor_, k_tensor_->name() + "_grad");
+            bool first = graph_.is_first_grad(k_tensor_);
+            graph::NNGraph::TensorNode* grad_k =
+                graph_.get_or_create_grad(k_tensor_, k_tensor_->name() + "_grad");
             Scalar beta = first ? 0.0 : 1.0;
             graph_.add_op(
                 graph::OpType::GEMM,
                 graph::OpAttrs{graph::GemmAttrs{false, true, scale_, beta, 1, batch_ndim_}},
-                {q_tensor_, &grad_attn},
-                {&grad_k});
+                {q_tensor_, grad_attn},
+                {grad_k});
         }
 
         // q.grad += scale * K @ attn.grad
-        if(graph_.requires_grad(*q_tensor_))
+        if(graph_.requires_grad(q_tensor_))
         {
-            bool first = graph_.is_first_grad(*q_tensor_);
-            graph::NNGraph::TensorNode& grad_q =
-                graph_.get_or_create_grad(*q_tensor_, q_tensor_->name() + "_grad");
+            bool first = graph_.is_first_grad(q_tensor_);
+            graph::NNGraph::TensorNode* grad_q =
+                graph_.get_or_create_grad(q_tensor_, q_tensor_->name() + "_grad");
             Scalar beta = first ? 0.0 : 1.0;
             graph_.add_op(
                 graph::OpType::GEMM,
                 graph::OpAttrs{graph::GemmAttrs{false, false, scale_, beta, 1, batch_ndim_}},
-                {k_tensor_, &grad_attn},
-                {&grad_q});
+                {k_tensor_, grad_attn},
+                {grad_q});
         }
     }
 }

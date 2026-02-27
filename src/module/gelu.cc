@@ -32,9 +32,9 @@ graph::NNGraph::TensorNode& Gelu::build_forward(
     input_tensor_ = &input;
 
     std::vector<Index> output_shape = input.shape();
-    bool output_requires_grad = graph_.requires_grad(input);
+    bool output_requires_grad = graph_.requires_grad(&input);
 
-    output_tensor_ = &graph_.tensor(
+    output_tensor_ = graph_.tensor(
         output_shape,
         tensor_name("output"),
         input.dtype(),
@@ -61,13 +61,13 @@ void Gelu::build_backward()
             output_tensor_->name() + "'");
     }
 
-    if(graph_.requires_grad(*input_tensor_))
+    if(graph_.requires_grad(input_tensor_))
     {
         // Use input tensor's own name for its gradient (input is not a parameter)
-        graph::NNGraph::TensorNode& grad_input = graph_.get_or_create_grad(
-            *input_tensor_, input_tensor_->name() + "_grad");
+        graph::NNGraph::TensorNode* grad_input = graph_.get_or_create_grad(
+            input_tensor_, input_tensor_->name() + "_grad");
 
-        graph::gelu_backward(*input_tensor_, *grad_output, grad_input);
+        graph::gelu_backward(*input_tensor_, *grad_output, *grad_input);
     }
 }
 

@@ -28,7 +28,7 @@ namespace nntile::graph
 class NNGraph
 {
 public:
-    //! Tensor node - full definition in tensor_node.hh (included below)
+    //! Tensor node - full definition in tensor_node.hh
     class TensorNode;
 
     //! Destructor defined in .cc (needs complete TensorNode for unique_ptr)
@@ -47,17 +47,15 @@ public:
     // Tensor Creation
     // -----------------------------------------------------------------
 
-    //! Create an input tensor (not produced by any operation)
-    TensorNode& tensor(
+    TensorNode* tensor(
         std::vector<Index> shape,
         const std::string& name,
         DataType dtype = DataType::FP32,
         bool requires_grad = true
     );
 
-    //! Create NNGraph wrapper for an existing LogicalGraph tensor.
-    TensorNode& tensor(LogicalGraph::TensorNode& data,
-                      bool requires_grad = false);
+    TensorNode* tensor(LogicalGraph::TensorNode& data,
+                       bool requires_grad = false);
 
     // -----------------------------------------------------------------
     // Operation Builder API
@@ -100,13 +98,13 @@ public:
     // Gradient helpers
     // -----------------------------------------------------------------
 
-    bool requires_grad(const TensorNode& tensor) const;
-    void set_requires_grad(TensorNode& tensor, bool requires = true);
+    bool requires_grad(const TensorNode* tensor) const;
+    void set_requires_grad(TensorNode* tensor, bool requires = true);
 
-    bool is_first_grad(const TensorNode& tensor) const;
+    bool is_first_grad(const TensorNode* tensor) const;
 
-    TensorNode& get_or_create_grad(
-        TensorNode& tensor,
+    TensorNode* get_or_create_grad(
+        TensorNode* tensor,
         const std::string& grad_name);
 
     // -----------------------------------------------------------------
@@ -117,18 +115,5 @@ public:
 
     std::string to_mermaid() const { return logical_.to_mermaid(); }
 };
-
-} // namespace nntile::graph
-
-// Include full TensorNode definition (after NNGraph declaration)
-#include <nntile/graph/nn_graph/tensor_node.hh>
-
-namespace nntile::graph
-{
-
-inline bool NNGraph::is_first_grad(const TensorNode& tensor) const
-{
-    return tensor.grad() == nullptr;
-}
 
 } // namespace nntile::graph

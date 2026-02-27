@@ -10,6 +10,7 @@
  * */
 
 #include "nntile/graph/nn_graph/nn_graph.hh"
+#include "nntile/graph/nn_graph/tensor_node.hh"
 
 #include <sstream>
 #include <stdexcept>
@@ -28,7 +29,7 @@ NNGraph::NNGraph(const std::string& name)
 {
 }
 
-NNGraph::TensorNode& NNGraph::tensor(
+NNGraph::TensorNode* NNGraph::tensor(
     std::vector<Index> shape,
     const std::string& name,
     DataType dtype,
@@ -48,10 +49,10 @@ NNGraph::TensorNode& NNGraph::tensor(
     tensors_.push_back(std::move(node));
     tensor_by_name_[name] = node_ptr;
 
-    return *node_ptr;
+    return node_ptr;
 }
 
-NNGraph::TensorNode& NNGraph::tensor(LogicalGraph::TensorNode& data,
+NNGraph::TensorNode* NNGraph::tensor(LogicalGraph::TensorNode& data,
                                      bool requires_grad)
 {
     if(&data.graph() != &logical_)
@@ -63,7 +64,7 @@ NNGraph::TensorNode& NNGraph::tensor(LogicalGraph::TensorNode& data,
     TensorNode* node_ptr = node.get();
     tensors_.push_back(std::move(node));
     tensor_by_name_[data.name()] = node_ptr;
-    return *node_ptr;
+    return node_ptr;
 }
 
 void NNGraph::add_op(
@@ -141,29 +142,43 @@ std::vector<std::string> NNGraph::tensor_names() const
     return names;
 }
 
-bool NNGraph::requires_grad(const TensorNode& tensor) const
+bool NNGraph::requires_grad(const TensorNode* tensor) const
 {
-    return tensor.requires_grad() || tensor.grad() != nullptr;
+    return tensor != nullptr &&
+           (tensor->requires_grad() || tensor->grad() != nullptr);
 }
 
-void NNGraph::set_requires_grad(TensorNode& tensor, bool requires)
+void NNGraph::set_requires_grad(TensorNode* tensor, bool requires)
 {
-    tensor.set_requires_grad(requires);
+    if(tensor != nullptr)
+    {
+        tensor->set_requires_grad(requires);
+    }
 }
 
-NNGraph::TensorNode& NNGraph::get_or_create_grad(
-    TensorNode& tensor,
+bool NNGraph::is_first_grad(const TensorNode* tensor) const
+{
+    return tensor != nullptr && tensor->grad() == nullptr;
+}
+
+NNGraph::TensorNode* NNGraph::get_or_create_grad(
+    TensorNode* tensor,
     const std::string& grad_name)
 {
-    if(tensor.grad() != nullptr)
+    if(tensor == nullptr)
     {
-        return *tensor.grad();
+        throw std::invalid_argument(
+            "NNGraph::get_or_create_grad: tensor is nullptr");
+    }
+    if(tensor->grad() != nullptr)
+    {
+        return tensor->grad();
     }
 
     LogicalGraph::TensorNode& grad_tensor = logical_.tensor(
-        tensor.shape(),
+        tensor->shape(),
         grad_name,
-        tensor.dtype());
+        tensor->dtype());
     auto grad_node = std::make_unique<TensorNode>(this, &grad_tensor, false);
     TensorNode* grad_ptr = grad_node.get();
     tensors_.push_back(std::move(grad_node));
@@ -172,9 +187,9 @@ NNGraph::TensorNode& NNGraph::get_or_create_grad(
     // Clear freshly registered gradient tensor
     clear(grad_tensor);
 
-    tensor.set_grad(grad_ptr);
-    tensor.set_requires_grad(true);
-    return *grad_ptr;
+    tensor->set_grad(grad_ptr);
+    tensor->set_requires_grad(true);
+    return grad_ptr;
 }
 
 std::string NNGraph::to_string() const

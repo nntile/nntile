@@ -31,11 +31,11 @@ TEST_CASE("Gelu BuildForward", "[module]")
 {
     NNGraph g("gelu");
 
-    auto& input = g.tensor({2, 3, 4}, "input", DataType::FP32);
+    auto* input = g.tensor({2, 3, 4}, "input", DataType::FP32);
     Gelu gelu(g, "gelu");
 
-    auto& output = gelu.build_forward(input);
-    REQUIRE(output.shape() == input.shape());
+    auto& output = gelu.build_forward(*input);
+    REQUIRE(output.shape() == input->shape());
     REQUIRE(output.name() == "gelu_output");
     REQUIRE(g.num_ops() == 1);
     REQUIRE(g.ops()[0]->type() == OpType::GELU);
@@ -45,15 +45,15 @@ TEST_CASE("Gelu BuildBackwardCreatesInputGrad", "[module]")
 {
     NNGraph g("gelu");
 
-    auto& input = g.tensor({2, 3}, "input", DataType::FP32);
+    auto* input = g.tensor({2, 3}, "input", DataType::FP32);
     Gelu gelu(g, "gelu");
 
-    auto& output = gelu.build_forward(input);
-    g.get_or_create_grad(output, "output_grad");
+    auto& output = gelu.build_forward(*input);
+    g.get_or_create_grad(&output, "output_grad");
     gelu.build_backward();
 
-    REQUIRE(input.grad() != nullptr);
-    REQUIRE(input.grad()->shape() == input.shape());
+    REQUIRE(input->grad() != nullptr);
+    REQUIRE(input->grad()->shape() == input->shape());
 
     size_t gelu_backward_count = 0;
     for(const auto& op : g.ops())

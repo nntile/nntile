@@ -37,7 +37,7 @@ inline NNGraph::TensorNode& gemm(
     LogicalGraph::TensorNode& c_data = gemm(
         a.data(), b.data(), output_name, alpha, trans_a, trans_b, ndim,
         batch_ndim);
-    return graph.tensor(c_data);
+    return *graph.tensor(c_data);
 }
 
 //! Tensor contraction with accumulation: C = alpha * op(A) @ op(B) + beta * C
