@@ -224,6 +224,29 @@ TEST_CASE("NNGraph Autograd Add Chain", "[graph]")
     REQUIRE(w->has_grad());
 }
 
+TEST_CASE("NNGraph Autograd Add Diamond", "[graph]")
+{
+    // Diamond: w = x + y, v = w + y, z = v + w.
+    // w feeds into both v and z; backward must process v and z before w
+    // so w.grad accumulates both contributions.
+    NNGraph g("add_diamond");
+    auto* x = g.tensor({2, 2}, "x", DataType::FP32);
+    auto* y = g.tensor({2, 2}, "y", DataType::FP32);
+
+    auto* w = add(nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "w");
+    auto* v = add(nntile::Scalar(1.0), w, nntile::Scalar(1.0), y, "v");
+    auto* z = add(nntile::Scalar(1.0), v, nntile::Scalar(1.0), w, "z");
+
+    auto* z_grad = g.get_or_create_grad(z, "z_grad");
+    fill(nntile::Scalar(1.0), z_grad->data());
+    z->backward();
+
+    REQUIRE(x->has_grad());
+    REQUIRE(y->has_grad());
+    REQUIRE(w->has_grad());
+    REQUIRE(v->has_grad());
+}
+
 TEST_CASE("NNGraph BackwardRequiresGrad", "[graph]")
 {
     // backward() must be called only when grad is already set

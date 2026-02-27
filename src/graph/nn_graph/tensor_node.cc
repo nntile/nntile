@@ -17,6 +17,7 @@
 #include <unordered_set>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
 
 namespace nntile::graph
 {
@@ -101,33 +102,50 @@ void NNGraph::TensorNode::backward()
             "NNGraph::TensorNode::backward: tensor has no graph reference");
     }
 
-    // Build reverse topological order using producer->inputs
-    std::deque<TensorNode*> rev_topo;
-    std::set<TensorNode*> visited;
-    std::deque<TensorNode*> stack = {this};
+    // Build reverse topological order: DFS post-order from output toward inputs.
+    // Post-order ensures we process a node only after all its consumers (in
+    // forward) have contributed to its grad. Handles diamond patterns.
+    std::vector<TensorNode*> post_order;
+    post_order.reserve(64);
+    std::unordered_set<TensorNode*> visited;
+    std::unordered_set<TensorNode*> done;
+    std::vector<TensorNode*> stack = {this};
 
     while(!stack.empty())
     {
         TensorNode* t = stack.back();
         stack.pop_back();
-        if(visited.count(t))
+        if(done.count(t))
         {
             continue;
         }
+        if(visited.count(t))
+        {
+            post_order.push_back(t);
+            done.insert(t);
+            continue;
+        }
         visited.insert(t);
-        rev_topo.push_back(t);
-
+        stack.push_back(t);  // Re-push to add after children
         if(t->producer() != nullptr)
         {
             for(TensorNode* in : t->producer()->inputs())
             {
-                if(in != nullptr && in->requires_grad() && visited.count(in) == 0)
+                if(in != nullptr && in->requires_grad() && !done.count(in))
                 {
                     stack.push_back(in);
                 }
             }
         }
+        else
+        {
+            post_order.push_back(t);
+            done.insert(t);
+        }
     }
+
+    // Reverse for backward: process output first, then toward inputs
+    std::deque<TensorNode*> rev_topo(post_order.rbegin(), post_order.rend());
 
     if(grad_ == nullptr)
     {
