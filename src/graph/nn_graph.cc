@@ -192,6 +192,19 @@ NNGraph::TensorNode* NNGraph::get_or_create_grad(
     return grad_ptr;
 }
 
+NNGraph::OpNode* NNGraph::create_op(
+    std::vector<TensorNode*> inputs,
+    TensorNode* output,
+    OpAttrs attrs,
+    std::function<void(NNGraph&, const OpNode*, TensorNode*)> backward_fn)
+{
+    auto op = std::make_unique<OpNode>(
+        std::move(inputs), output, std::move(attrs), std::move(backward_fn));
+    OpNode* ptr = op.get();
+    op_nodes_.push_back(std::move(op));
+    return ptr;
+}
+
 std::string NNGraph::to_string() const
 {
     std::stringstream ss;

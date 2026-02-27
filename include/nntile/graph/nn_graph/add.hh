@@ -39,7 +39,7 @@ struct Add
     //! Backward: grad_x += alpha*grad_z, grad_y += beta*grad_z
     static void build_backward(
         NNGraph& graph,
-        LogicalGraph::OpNode* op,
+        const NNGraph::OpNode* op,
         NNGraph::TensorNode* grad_out);
 };
 

@@ -86,13 +86,9 @@ NNGraph& NNGraph::TensorNode::graph()
     return *graph_;
 }
 
-void NNGraph::TensorNode::set_producer(
-    std::function<void(TensorNode* grad_out)> fn,
-    std::vector<TensorNode*> inputs)
+void NNGraph::TensorNode::set_producer(OpNode* op)
 {
-    producer_ = std::make_unique<Producer>();
-    producer_->inputs = std::move(inputs);
-    producer_->backward = std::move(fn);
+    producer_ = op;
 }
 
 void NNGraph::TensorNode::backward()
@@ -121,7 +117,7 @@ void NNGraph::TensorNode::backward()
 
         if(t->producer() != nullptr)
         {
-            for(TensorNode* in : t->producer()->inputs)
+            for(TensorNode* in : t->producer()->inputs())
             {
                 if(in != nullptr && in->requires_grad() && visited.count(in) == 0)
                 {
@@ -141,7 +137,7 @@ void NNGraph::TensorNode::backward()
     // Call each tensor's producer->backward (adds gradient LogicalGraph ops)
     for(TensorNode* t : rev_topo)
     {
-        if(t->producer() == nullptr || !t->producer()->backward)
+        if(t->producer() == nullptr)
         {
             continue;
         }
@@ -152,7 +148,7 @@ void NNGraph::TensorNode::backward()
             continue;
         }
 
-        t->producer()->backward(grad_out);
+        t->producer()->run_backward(*graph_, grad_out);
     }
 }
 

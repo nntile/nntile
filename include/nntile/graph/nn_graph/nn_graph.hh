@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -31,6 +32,9 @@ public:
     //! Tensor node - full definition in tensor_node.hh
     class TensorNode;
 
+    //! Op node (AutoGradFunction) - full definition in tensor_node.hh
+    class OpNode;
+
     //! Destructor defined in .cc (needs complete TensorNode for unique_ptr)
     ~NNGraph();
 
@@ -38,6 +42,7 @@ private:
     std::string name_;
     LogicalGraph logical_;
     std::vector<std::unique_ptr<TensorNode>> tensors_;
+    std::vector<std::unique_ptr<OpNode>> op_nodes_;
     std::map<std::string, TensorNode*> tensor_by_name_;
 
 public:
@@ -106,6 +111,14 @@ public:
     TensorNode* get_or_create_grad(
         TensorNode* tensor,
         const std::string& grad_name);
+
+    //! Create and register an NNGraph-level op (AutoGradFunction).
+    //! Returns the OpNode* to pass to TensorNode::set_producer.
+    OpNode* create_op(
+        std::vector<TensorNode*> inputs,
+        TensorNode* output,
+        OpAttrs attrs,
+        std::function<void(NNGraph&, const OpNode*, TensorNode*)> backward_fn);
 
     // -----------------------------------------------------------------
     // String representation

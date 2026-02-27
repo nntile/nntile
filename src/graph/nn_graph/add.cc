@@ -31,28 +31,31 @@ NNGraph::TensorNode& Add::build_forward(
     bool out_requires_grad = x.requires_grad() || y.requires_grad();
     NNGraph::TensorNode* z = graph.tensor(z_data, out_requires_grad);
 
-    // NNGraph-level producer (this op may span multiple LogicalGraph ops)
-    LogicalGraph::OpNode* op = z_data.producer();
-    z->set_producer(
-        [op](NNGraph::TensorNode* grad) {
-            Add::build_backward(grad->graph(), op, grad);
-        },
-        {&x, &y});
+    OpAttrs attrs = BinaryOpAttrs{alpha, beta};
+    NNGraph::OpNode* op_nn = graph.create_op(
+        {&x, &y},
+        z,
+        std::move(attrs),
+        [](NNGraph& g, const NNGraph::OpNode* op, NNGraph::TensorNode* grad_out) {
+            Add::build_backward(g, op, grad_out);
+        });
+    z->set_producer(op_nn);
     return *z;
 }
 
 void Add::build_backward(
     NNGraph& graph,
-    LogicalGraph::OpNode* op,
+    const NNGraph::OpNode* op,
     NNGraph::TensorNode* grad_out)
 {
     const auto& attrs = std::get<BinaryOpAttrs>(op->attrs());
     Scalar alpha = attrs.alpha;
     Scalar beta = attrs.beta;
-    if(op->inputs().size() >= 2)
+    const auto& inputs = op->inputs();
+    if(inputs.size() >= 2)
     {
-        NNGraph::TensorNode* x_nn = graph.get_tensor(op->input(0)->name());
-        NNGraph::TensorNode* y_nn = graph.get_tensor(op->input(1)->name());
+        NNGraph::TensorNode* x_nn = inputs[0];
+        NNGraph::TensorNode* y_nn = inputs[1];
         if(x_nn != nullptr && x_nn->requires_grad())
         {
             NNGraph::TensorNode* grad_x =
