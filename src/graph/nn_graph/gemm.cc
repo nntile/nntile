@@ -75,7 +75,7 @@ void Gemm::build_backward(const NNGraph::OpNode* op)
     // trans_a=F,trans_b=F: grad_A = alpha*grad_C@B^T  -> gemm(grad_C,B, false,true)
     // trans_a=F,trans_b=T: grad_A = alpha*grad_C@B    -> gemm(grad_C,B, false,false)
     // trans_a=T,trans_b=F: grad_A = alpha*B@grad_C^T  -> gemm(B,grad_C, false,true)
-    // trans_a=T,trans_b=T: grad_A = alpha*B^T@grad_C^T -> gemm(B,grad_C, true,false)
+    // trans_a=T,trans_b=T: grad_A = alpha*B^T@grad_C^T -> gemm(B,grad_C, true,true)
     if(a_nn != nullptr && a_nn->requires_grad())
     {
         bool first = graph.is_first_grad(a_nn);
@@ -90,7 +90,7 @@ void Gemm::build_backward(const NNGraph::OpNode* op)
         else
         {
             gemm(b_nn->data(), grad_out->data(), grad_a->data(), alpha, beta,
-                 trans_b, false, ndim, batch_ndim);
+                 trans_b, true, ndim, batch_ndim);
         }
     }
 
