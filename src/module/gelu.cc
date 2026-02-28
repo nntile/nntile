@@ -14,8 +14,6 @@
 
 // Include corresponding header
 #include "nntile/module/gelu.hh"
-#include "nntile/graph/logical/clear.hh"
-#include "nntile/graph/logical/gelu_backward.hh"
 
 // Include standard headers
 #include <stdexcept>
@@ -40,33 +38,6 @@ graph::NNGraph::TensorNode& Gelu::forward_impl(
     input_tensor_ = &input;
     output_tensor_ = graph::gelu(&input, tensor_name("output"));
     return *output_tensor_;
-}
-
-std::vector<graph::NNGraph::TensorNode*> Gelu::backward_inputs() const
-{
-    return {input_tensor_};
-}
-
-void Gelu::build_backward(const graph::NNGraph::OpNode* op)
-{
-    graph::NNGraph::TensorNode* grad_out = op->output()->grad();
-    const auto& inputs = op->inputs();
-    if(inputs.empty() || grad_out == nullptr)
-    {
-        return;
-    }
-    graph::NNGraph::TensorNode* x_nn = inputs[0];
-    if(x_nn != nullptr && graph_.requires_grad(x_nn))
-    {
-        bool first = graph_.is_first_grad(x_nn);
-        graph::NNGraph::TensorNode* grad_x =
-            graph_.get_or_create_grad(x_nn, x_nn->name() + "_grad");
-        if(first)
-        {
-            graph::clear(grad_x->data());
-        }
-        graph::gelu_backward(x_nn->data(), grad_out->data(), grad_x->data());
-    }
 }
 
 std::string Gelu::repr() const

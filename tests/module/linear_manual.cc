@@ -17,7 +17,7 @@
 using namespace nntile;
 using namespace nntile::graph;
 
-TEST_CASE("LinearManual custom backward overrides autograd")
+TEST_CASE("LinearManual custom backward: single module OpNode")
 {
     NNGraph graph("test");
     module::LinearManual linear(
@@ -28,9 +28,9 @@ TEST_CASE("LinearManual custom backward overrides autograd")
     // build_forward runs in GradMode::Guard, then wrap_with_module_op
     auto& output = linear.build_forward(*input);
 
-    // Output has exactly one producer (module op), not gemm/add_fiber chain
+    // With build_backward: single module OpNode (not gemm/add_fiber functors)
     REQUIRE(output.has_producer());
-    REQUIRE(output.producer()->inputs().size() >= 2);
+    REQUIRE(output.producer()->inputs().size() >= 2);  // input, weight, [bias]
 
     // Backward invokes LinearManual::build_backward
     graph.get_or_create_grad(&output, "output_grad");

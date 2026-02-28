@@ -14,8 +14,6 @@
 
 // Include corresponding header
 #include "nntile/module/linear.hh"
-#include "nntile/graph/logical/gemm.hh"
-#include "nntile/graph/logical/sum_fiber.hh"
 
 // Include standard headers
 #include <stdexcept>
@@ -26,30 +24,12 @@ namespace nntile::module
 namespace
 {
 
-// GEMM scaling: use full weight of matrix product
 constexpr Scalar GEMM_ALPHA = 1.0;
-// GEMM: overwrite output (don't accumulate into existing)
-constexpr Scalar GEMM_BETA_OVERWRITE = 0.0;
-// GEMM: accumulate into output
-constexpr Scalar GEMM_BETA_ACCUMULATE = 1.0;
-// Matrix multiply: one contraction dimension (K)
 constexpr Index GEMM_NDIM_MATRIX = 1;
-// No batch dimensions
 constexpr Index NO_BATCH_DIM = 0;
-// Operand transpose flags
 constexpr bool NO_TRANSPOSE = false;
-constexpr bool TRANSPOSE = true;
-
-// Add fiber: use full weight of fiber, add to existing tensor
 constexpr Scalar ADD_FIBER_ALPHA = 1.0;
 constexpr Scalar ADD_FIBER_BETA = 1.0;
-
-// Sum fiber: no batch dims, no redux
-constexpr Index SUM_FIBER_BATCH_NDIM = 0;
-constexpr int SUM_FIBER_REDUX_NONE = 0;
-constexpr Scalar SUM_FIBER_ALPHA = 1.0;
-constexpr Scalar SUM_FIBER_BETA_OVERWRITE = 0.0;
-constexpr Scalar SUM_FIBER_BETA_ACCUMULATE = 1.0;
 
 } // anonymous namespace
 
@@ -238,89 +218,6 @@ graph::NNGraph::TensorNode& Linear::forward_impl(
     }
 
     return *output_tensor_;
-}
-
-std::vector<graph::NNGraph::TensorNode*> Linear::backward_inputs() const
-{
-    std::vector<graph::NNGraph::TensorNode*> inputs = {input_tensor_,
-                                                       weight_tensor_};
-    if(bias_tensor_ != nullptr)
-    {
-        inputs.push_back(bias_tensor_);
-    }
-    return inputs;
-}
-
-void Linear::build_backward(const graph::NNGraph::OpNode* op)
-{
-    graph::NNGraph::TensorNode* grad_output = op->output()->grad();
-    if(grad_output == nullptr)
-    {
-        return;
-    }
-
-    const auto& inputs = op->inputs();
-    if(inputs.size() < 2)
-    {
-        return;
-    }
-    graph::NNGraph::TensorNode* input_nn = inputs[0];
-    graph::NNGraph::TensorNode* weight_nn = inputs[1];
-    graph::NNGraph::TensorNode* bias_nn =
-        inputs.size() >= 3 ? inputs[2] : nullptr;
-
-    if(weight_nn != nullptr && graph_.requires_grad(weight_nn))
-    {
-        bool first = graph_.is_first_grad(weight_nn);
-        graph::NNGraph::TensorNode* grad_weight =
-            graph_.get_or_create_grad(weight_nn, grad_name("weight"));
-        Scalar beta = first ? GEMM_BETA_OVERWRITE : GEMM_BETA_ACCUMULATE;
-        graph::gemm(
-            input_nn->data(),
-            grad_output->data(),
-            grad_weight->data(),
-            GEMM_ALPHA,
-            beta,
-            TRANSPOSE,
-            NO_TRANSPOSE,
-            GEMM_NDIM_MATRIX,
-            NO_BATCH_DIM);
-    }
-
-    if(bias_nn != nullptr && graph_.requires_grad(bias_nn))
-    {
-        bool first = graph_.is_first_grad(bias_nn);
-        graph::NNGraph::TensorNode* grad_bias =
-            graph_.get_or_create_grad(bias_nn, grad_name("bias"));
-        Scalar beta = first ? SUM_FIBER_BETA_OVERWRITE : SUM_FIBER_BETA_ACCUMULATE;
-        const Index feature_axis = grad_output->ndim() - 1;
-        graph::sum_fiber(
-            grad_output->data(),
-            grad_bias->data(),
-            feature_axis,
-            SUM_FIBER_BATCH_NDIM,
-            SUM_FIBER_REDUX_NONE,
-            SUM_FIBER_ALPHA,
-            beta);
-    }
-
-    if(input_nn != nullptr && graph_.requires_grad(input_nn))
-    {
-        bool first = graph_.is_first_grad(input_nn);
-        graph::NNGraph::TensorNode* grad_input =
-            graph_.get_or_create_grad(input_nn, input_nn->name() + "_grad");
-        Scalar beta = first ? GEMM_BETA_OVERWRITE : GEMM_BETA_ACCUMULATE;
-        graph::gemm(
-            grad_output->data(),
-            weight_nn->data(),
-            grad_input->data(),
-            GEMM_ALPHA,
-            beta,
-            NO_TRANSPOSE,
-            TRANSPOSE,
-            GEMM_NDIM_MATRIX,
-            NO_BATCH_DIM);
-    }
 }
 
 //! Get string representation with dimensions

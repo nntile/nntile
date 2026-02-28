@@ -1,37 +1,23 @@
-# Module as OpNode (PyTorch-like Pattern)
+# Module vs Functor OpNodes (PyTorch-like Pattern)
 
-## How PyTorch Does It
+## Two Modes
 
-PyTorch supports backward at two levels:
+1. **Module provides only build_forward() (no build_backward())**:
+   - Gradients come from each functor used in build_forward (gemm, add_fiber, gelu, etc.)
+   - Each functor appears as an `NNGraph::OpNode`
+   - TensorNode's producer is set to these small OpNodes
+   - Example: Linear, Gelu – use autograd functors; output's producer is the last functor (add_fiber or gelu)
 
-1. **Small functions** (add, matmul, etc.): each creates a node in the autograd graph with its backward.
-2. **Modules**: when using `torch.autograd.Function`, a module appears as a single node – its forward is wrapped in a Function whose `backward()` is the custom gradient.
-
-## NNTile Implementation
-
-We mimic both levels:
-
-1. **Small functions** (add, gemm, add_fiber, gelu, sum_fiber): each creates an `NNGraph::OpNode` when `GradMode` is enabled.
-2. **Modules** (Linear, Gelu): each appears as **one** `NNGraph::OpNode` via `Module::forward()`.
+2. **Module provides build_backward()**:
+   - Only one module-wise OpNode appears in the NNGraph
+   - Forward runs in `GradMode::Guard` (inner functors don't set producer)
+   - Output is wrapped with `wrap_with_module_op`; module is the producer
+   - Example: LinearManual – custom backward, single OpNode for the whole module
 
 ### Module Forward API
 
-- `Module::forward(input)` – main entry point. When `has_custom_backward()` is true:
-  1. Runs `forward_impl` inside `GradMode::Guard` (inner autograd ops don't set producer)
-  2. Wraps output with `wrap_with_module_op` (single OpNode for the whole module)
+- `Module::forward(input)` – when `has_custom_backward()` is false: calls `forward_impl` (GradMode enabled, functors set producer)
+- When `has_custom_backward()` is true: `GradMode::Guard`, `forward_impl`, `wrap_with_module_op`
 - `forward_impl(input)` – override to implement forward
-- `build_backward(op)` – override for custom gradient
-- `backward_inputs()` – override to provide inputs for the module OpNode
-
-### Modules as OpNodes
-
-Linear and Gelu use `has_custom_backward() = true`. When you call `linear.build_forward(input)` (or `linear.forward(input)`), the output has exactly **one** producer – the Linear module's OpNode. Same for Gelu. Mlp chains them: `fc1.forward() -> gelu.forward() -> fc2.forward()`, so the graph has three OpNodes (one per submodule).
-
-### Example
-
-```cpp
-Linear linear(graph, "linear", 8, 4, true);
-auto& output = linear.build_forward(input);  // or linear.forward(input)
-// output.has_producer() == true – one OpNode for the whole Linear
-output.backward();  // invokes Linear::build_backward
-```
+- `build_backward(op)` – override only when module provides custom backward
+- `backward_inputs()` – override for `wrap_with_module_op` (when has_custom_backward)
