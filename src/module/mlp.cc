@@ -56,16 +56,16 @@ Mlp::Mlp(graph::NNGraph& graph,
 graph::NNGraph::TensorNode& Mlp::build_forward(
     graph::NNGraph::TensorNode& input)
 {
-    return forward(input);
+    return (*this)(input);
 }
 
-graph::NNGraph::TensorNode& Mlp::forward_impl(
+graph::NNGraph::TensorNode& Mlp::operator()(
     graph::NNGraph::TensorNode& input)
 {
     input_tensor_ = &input;
-    hidden_tensor_ = &fc1_.forward(input);
-    activation_tensor_ = &gelu_.forward(*hidden_tensor_);
-    output_tensor_ = &fc2_.forward(*activation_tensor_);
+    hidden_tensor_ = &fc1_(input);
+    activation_tensor_ = &gelu_(*hidden_tensor_);
+    output_tensor_ = &fc2_(*activation_tensor_);
     return *output_tensor_;
 }
 

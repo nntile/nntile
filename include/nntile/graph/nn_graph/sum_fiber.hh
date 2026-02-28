@@ -25,9 +25,23 @@
 namespace nntile::graph
 {
 
-//! SumFiber functor: forward and backward in one place
+//! SumFiber functor: callable, forward and backward in one place
 struct SumFiber
 {
+    //! Callable: y = alpha * sum_fiber(x) + beta * y
+    NNGraph::TensorNode* operator()(
+        NNGraph::TensorNode* x,
+        const std::string& output_name,
+        Index axis = 0,
+        Index batch_ndim = 0,
+        int redux = 0,
+        Scalar alpha = 1.0,
+        Scalar beta = 0.0) const
+    {
+        return build_forward(x, output_name, axis, batch_ndim, redux,
+                            alpha, beta);
+    }
+
     //! Forward: y = alpha * sum_fiber(x) + beta * y (creates y)
     static NNGraph::TensorNode* build_forward(
         NNGraph::TensorNode* x,

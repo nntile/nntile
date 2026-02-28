@@ -260,40 +260,20 @@ std::string Module::grad_name(const std::string& local_name) const
 }
 
 // -----------------------------------------------------------------
-// Forward Pass
+// Forward Helper
 // -----------------------------------------------------------------
 
-graph::NNGraph::TensorNode& Module::forward(graph::NNGraph::TensorNode& input)
+graph::NNGraph::TensorNode& Module::wrap_forward(
+    graph::NNGraph::TensorNode& input,
+    std::function<graph::NNGraph::TensorNode&(graph::NNGraph::TensorNode&)>
+        forward_fn,
+    std::function<std::vector<graph::NNGraph::TensorNode*>()> inputs_fn,
+    std::function<void(const graph::NNGraph::OpNode*)> backward_fn)
 {
-    if(has_custom_backward())
-    {
-        graph::GradMode::Guard g;
-        graph::NNGraph::TensorNode& out = forward_impl(input);
-        std::vector<graph::NNGraph::TensorNode*> inputs = backward_inputs();
-        graph_.wrap_with_module_op(
-            std::move(inputs),
-            &out,
-            [this](const graph::NNGraph::OpNode* op) { build_backward(op); });
-        return out;
-    }
-    return forward_impl(input);
-}
-
-void Module::build_backward(const graph::NNGraph::OpNode* /*op*/)
-{
-}
-
-std::vector<graph::NNGraph::TensorNode*> Module::backward_inputs() const
-{
-    return {};
-}
-
-graph::NNGraph::TensorNode& Module::forward_impl(
-    graph::NNGraph::TensorNode& /*input*/)
-{
-    throw std::runtime_error(
-        "Module::forward_impl: module does not support single-input forward - "
-        "use build_forward with module-specific signature");
+    graph::GradMode::Guard g;
+    graph::NNGraph::TensorNode& out = forward_fn(input);
+    graph_.wrap_with_module_op(inputs_fn(), &out, std::move(backward_fn));
+    return out;
 }
 
 // -----------------------------------------------------------------

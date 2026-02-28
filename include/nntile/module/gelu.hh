@@ -38,13 +38,13 @@ public:
     //! @param name Module name (used to generate unique tensor names)
     Gelu(graph::NNGraph& graph, const std::string& name);
 
-    //! Build forward. Uses autograd gelu functor; appears as OpNode.
-    //! Backward via output.backward().
-    graph::NNGraph::TensorNode& build_forward(
+    //! Callable: gelu(input)
+    graph::NNGraph::TensorNode& operator()(
         graph::NNGraph::TensorNode& input);
 
-    graph::NNGraph::TensorNode& forward_impl(
-        graph::NNGraph::TensorNode& input) override;
+    //! Build forward (calls operator())
+    graph::NNGraph::TensorNode& build_forward(
+        graph::NNGraph::TensorNode& input);
 
     //! Get string representation
     std::string repr() const override;

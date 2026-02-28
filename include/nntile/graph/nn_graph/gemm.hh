@@ -25,9 +25,24 @@
 namespace nntile::graph
 {
 
-//! Gemm functor: forward and backward in one place
+//! Gemm functor: callable, forward and backward in one place
 struct Gemm
 {
+    //! Callable: C = alpha * op(A) @ op(B)
+    NNGraph::TensorNode* operator()(
+        NNGraph::TensorNode* a,
+        NNGraph::TensorNode* b,
+        const std::string& output_name,
+        Scalar alpha = 1.0,
+        bool trans_a = false,
+        bool trans_b = false,
+        Index ndim = 1,
+        Index batch_ndim = 0) const
+    {
+        return build_forward(a, b, output_name, alpha, trans_a, trans_b,
+                            ndim, batch_ndim);
+    }
+
     //! Forward: C = alpha * op(A) @ op(B), creates new output
     static NNGraph::TensorNode* build_forward(
         NNGraph::TensorNode* a,

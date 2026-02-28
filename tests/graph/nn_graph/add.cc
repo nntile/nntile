@@ -16,6 +16,17 @@
 using namespace nntile;
 using namespace nntile::graph;
 
+TEST_CASE("NNGraph Autograd Add Callable", "[graph][nn_graph]")
+{
+    NNGraph g("add_callable");
+    auto* x = g.tensor({2, 3}, "x", DataType::FP32);
+    auto* y = g.tensor({2, 3}, "y", DataType::FP32);
+    Add add_fn;
+    auto* z = add_fn(1.0, x, 1.0, y, "z");
+    REQUIRE(z != nullptr);
+    REQUIRE(z->has_producer());
+}
+
 TEST_CASE("NNGraph Autograd Add Backward", "[graph][nn_graph]")
 {
     NNGraph g("autograd_add");

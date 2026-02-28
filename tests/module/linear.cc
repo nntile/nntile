@@ -82,6 +82,15 @@ TEST_CASE("Linear ConstructorValidations", "[module]")
         std::invalid_argument);
 }
 
+TEST_CASE("Linear Callable", "[module]")
+{
+    NNGraph g("linear_callable");
+    auto* input = g.tensor({2, 3}, "input", DataType::FP32);
+    Linear linear(g, "linear", 3, 4, true);
+    auto& output = linear(*input);
+    REQUIRE(output.shape() == std::vector<Index>({2, 4}));
+}
+
 TEST_CASE("Linear BuildForwardWithBias", "[module]")
 {
     NNGraph g("linear");

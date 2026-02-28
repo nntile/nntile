@@ -25,9 +25,20 @@
 namespace nntile::graph
 {
 
-//! Add functor: forward and backward in one place
+//! Add functor: callable, forward and backward in one place
 struct Add
 {
+    //! Callable: z = alpha * x + beta * y
+    NNGraph::TensorNode* operator()(
+        Scalar alpha,
+        NNGraph::TensorNode* x,
+        Scalar beta,
+        NNGraph::TensorNode* y,
+        const std::string& output_name) const
+    {
+        return build_forward(alpha, x, beta, y, output_name);
+    }
+
     //! Forward: z = alpha * x + beta * y
     static NNGraph::TensorNode* build_forward(
         Scalar alpha,
@@ -37,7 +48,6 @@ struct Add
         const std::string& output_name);
 
     //! Backward: grad_x += alpha*grad_z, grad_y += beta*grad_z
-    //! Graph, inputs, output, and gradients deduced from op.
     static void build_backward(const NNGraph::OpNode* op);
 };
 

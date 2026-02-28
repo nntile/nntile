@@ -88,13 +88,13 @@ public:
         Index intermediate_dim,
         graph::DataType dtype = graph::DataType::FP32);
 
-    //! Build forward operations (alias for forward)
-    graph::NNGraph::TensorNode& build_forward(
+    //! Callable: mlp(input)
+    graph::NNGraph::TensorNode& operator()(
         graph::NNGraph::TensorNode& input);
 
-    //! Forward: chains fc1 -> gelu -> fc2. Each submodule appears as OpNode.
-    graph::NNGraph::TensorNode& forward_impl(
-        graph::NNGraph::TensorNode& input) override;
+    //! Build forward (calls operator())
+    graph::NNGraph::TensorNode& build_forward(
+        graph::NNGraph::TensorNode& input);
 
     //! Get string representation with dimensions
     std::string repr() const override;

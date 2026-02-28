@@ -50,16 +50,15 @@ public:
         bool with_bias = false,
         graph::DataType dtype = graph::DataType::FP32);
 
-    //! Build forward (alias for forward). Uses Module forward API.
+    //! Callable: linear_manual(input) - single module OpNode
+    graph::NNGraph::TensorNode& operator()(
+        graph::NNGraph::TensorNode& input);
+
+    //! Build forward (calls operator())
     graph::NNGraph::TensorNode& build_forward(
         graph::NNGraph::TensorNode& input);
 
-    // Module forward API
-    bool has_custom_backward() const override { return true; }
-    void build_backward(const graph::NNGraph::OpNode* op) override;
-    graph::NNGraph::TensorNode& forward_impl(
-        graph::NNGraph::TensorNode& input) override;
-    std::vector<graph::NNGraph::TensorNode*> backward_inputs() const override;
+    void build_backward(const graph::NNGraph::OpNode* op);
 
     std::string repr() const override;
 
