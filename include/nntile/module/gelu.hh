@@ -38,12 +38,16 @@ public:
     //! @param name Module name (used to generate unique tensor names)
     Gelu(graph::NNGraph& graph, const std::string& name);
 
-    //! Build forward operation and return output tensor.
-    //! Uses autograd Gelu; backward via tensor.backward().
-    //! @param input Input tensor node
-    //! @return Reference to the created output tensor
+    //! Build forward (alias for forward). Each Gelu appears as one OpNode.
     graph::NNGraph::TensorNode& build_forward(
         graph::NNGraph::TensorNode& input);
+
+    // Module forward API
+    bool has_custom_backward() const override { return true; }
+    void build_backward(const graph::NNGraph::OpNode* op) override;
+    graph::NNGraph::TensorNode& forward_impl(
+        graph::NNGraph::TensorNode& input) override;
+    std::vector<graph::NNGraph::TensorNode*> backward_inputs() const override;
 
     //! Get string representation
     std::string repr() const override;

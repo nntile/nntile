@@ -178,6 +178,27 @@ public:
     std::string grad_name(const std::string& local_name) const;
 
     // -----------------------------------------------------------------
+    // Forward Pass (PyTorch-like: module as OpNode)
+    // -----------------------------------------------------------------
+
+    //! Forward pass - main entry point. When has_custom_backward(), runs
+    //! forward_impl in GradMode and wraps output as single OpNode.
+    graph::NNGraph::TensorNode& forward(graph::NNGraph::TensorNode& input);
+
+    //! Override to true when module provides custom backward (appears as OpNode)
+    virtual bool has_custom_backward() const { return false; }
+
+    //! Override to implement custom backward. Called when output.backward().
+    virtual void build_backward(const graph::NNGraph::OpNode* op);
+
+    //! Override to implement forward. Called by forward(). Default throws.
+    virtual graph::NNGraph::TensorNode& forward_impl(
+        graph::NNGraph::TensorNode& input);
+
+    //! Override to provide inputs for wrap_with_module_op (when has_custom_backward)
+    virtual std::vector<graph::NNGraph::TensorNode*> backward_inputs() const;
+
+    // -----------------------------------------------------------------
     // String Representation
     // -----------------------------------------------------------------
 

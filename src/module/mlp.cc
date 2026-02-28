@@ -53,35 +53,20 @@ Mlp::Mlp(graph::NNGraph& graph,
 {
 }
 
-//! Build forward operations
-graph::NNGraph::TensorNode& Mlp::build_forward(graph::NNGraph::TensorNode& input)
+graph::NNGraph::TensorNode& Mlp::build_forward(
+    graph::NNGraph::TensorNode& input)
 {
-    // Store input reference
-    input_tensor_ = &input;
-
-    // fc1: input -> hidden
-    hidden_tensor_ = &fc1_.build_forward(input);
-
-    // GELU activation: hidden -> activation
-    activation_tensor_ = &gelu_.build_forward(*hidden_tensor_);
-
-    // fc2: activation -> output
-    output_tensor_ = &fc2_.build_forward(*activation_tensor_);
-
-    return *output_tensor_;
+    return forward(input);
 }
 
-//! Build backward operations via autograd (output.backward())
-void Mlp::build_backward()
+graph::NNGraph::TensorNode& Mlp::forward_impl(
+    graph::NNGraph::TensorNode& input)
 {
-    if(!output_tensor_)
-    {
-        throw std::runtime_error(
-            "Mlp::build_backward: forward not built - "
-            "call build_forward first");
-    }
-
-    output_tensor_->backward();
+    input_tensor_ = &input;
+    hidden_tensor_ = &fc1_.forward(input);
+    activation_tensor_ = &gelu_.forward(*hidden_tensor_);
+    output_tensor_ = &fc2_.forward(*activation_tensor_);
+    return *output_tensor_;
 }
 
 //! Get string representation with dimensions

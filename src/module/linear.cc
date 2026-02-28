@@ -14,6 +14,8 @@
 
 // Include corresponding header
 #include "nntile/module/linear.hh"
+#include "nntile/graph/logical/gemm.hh"
+#include "nntile/graph/logical/sum_fiber.hh"
 
 // Include standard headers
 #include <stdexcept>
@@ -180,31 +182,31 @@ Linear::Linear(graph::NNGraph& graph,
     register_parameter("bias", bias_tensor_);
 }
 
-//! Build forward operation and return output tensor
-graph::NNGraph::TensorNode& Linear::build_forward(graph::NNGraph::TensorNode& input)
+graph::NNGraph::TensorNode& Linear::build_forward(
+    graph::NNGraph::TensorNode& input)
 {
-    // Verify input tensor has at least one dimension (avoid undefined behavior
-    // when calling .back() on empty shape for 0-dimensional scalar tensors)
+    return forward(input);
+}
+
+graph::NNGraph::TensorNode& Linear::forward_impl(
+    graph::NNGraph::TensorNode& input)
+{
     if(input.ndim() < 1)
     {
         throw std::invalid_argument(
-            "Linear::build_forward: input tensor must have at least one "
+            "Linear::forward_impl: input tensor must have at least one "
             "dimension, got 0-dimensional (scalar) tensor");
     }
-
-    // Verify input tensor has correct feature dimension
     if(input.shape().back() != input_dim_)
     {
         throw std::invalid_argument(
-            "Linear::build_forward: input tensor feature dimension mismatch. "
+            "Linear::forward_impl: input tensor feature dimension mismatch. "
             "Expected " + std::to_string(input_dim_) + ", got " +
             std::to_string(input.shape().back()));
     }
 
-    // Store reference to input tensor
     input_tensor_ = &input;
 
-    // Linear transformation (autograd Gemm)
     const std::string gemm_name = bias_tensor_ != nullptr
         ? tensor_name("gemm_output")
         : tensor_name("output");
@@ -218,7 +220,6 @@ graph::NNGraph::TensorNode& Linear::build_forward(graph::NNGraph::TensorNode& in
         GEMM_NDIM_MATRIX,
         NO_BATCH_DIM);
 
-    // Add bias if present (autograd AddFiber)
     if(bias_tensor_ != nullptr)
     {
         const Index feature_axis = gemm_out->ndim() - 1;
@@ -237,6 +238,89 @@ graph::NNGraph::TensorNode& Linear::build_forward(graph::NNGraph::TensorNode& in
     }
 
     return *output_tensor_;
+}
+
+std::vector<graph::NNGraph::TensorNode*> Linear::backward_inputs() const
+{
+    std::vector<graph::NNGraph::TensorNode*> inputs = {input_tensor_,
+                                                       weight_tensor_};
+    if(bias_tensor_ != nullptr)
+    {
+        inputs.push_back(bias_tensor_);
+    }
+    return inputs;
+}
+
+void Linear::build_backward(const graph::NNGraph::OpNode* op)
+{
+    graph::NNGraph::TensorNode* grad_output = op->output()->grad();
+    if(grad_output == nullptr)
+    {
+        return;
+    }
+
+    const auto& inputs = op->inputs();
+    if(inputs.size() < 2)
+    {
+        return;
+    }
+    graph::NNGraph::TensorNode* input_nn = inputs[0];
+    graph::NNGraph::TensorNode* weight_nn = inputs[1];
+    graph::NNGraph::TensorNode* bias_nn =
+        inputs.size() >= 3 ? inputs[2] : nullptr;
+
+    if(weight_nn != nullptr && graph_.requires_grad(weight_nn))
+    {
+        bool first = graph_.is_first_grad(weight_nn);
+        graph::NNGraph::TensorNode* grad_weight =
+            graph_.get_or_create_grad(weight_nn, grad_name("weight"));
+        Scalar beta = first ? GEMM_BETA_OVERWRITE : GEMM_BETA_ACCUMULATE;
+        graph::gemm(
+            input_nn->data(),
+            grad_output->data(),
+            grad_weight->data(),
+            GEMM_ALPHA,
+            beta,
+            TRANSPOSE,
+            NO_TRANSPOSE,
+            GEMM_NDIM_MATRIX,
+            NO_BATCH_DIM);
+    }
+
+    if(bias_nn != nullptr && graph_.requires_grad(bias_nn))
+    {
+        bool first = graph_.is_first_grad(bias_nn);
+        graph::NNGraph::TensorNode* grad_bias =
+            graph_.get_or_create_grad(bias_nn, grad_name("bias"));
+        Scalar beta = first ? SUM_FIBER_BETA_OVERWRITE : SUM_FIBER_BETA_ACCUMULATE;
+        const Index feature_axis = grad_output->ndim() - 1;
+        graph::sum_fiber(
+            grad_output->data(),
+            grad_bias->data(),
+            feature_axis,
+            SUM_FIBER_BATCH_NDIM,
+            SUM_FIBER_REDUX_NONE,
+            SUM_FIBER_ALPHA,
+            beta);
+    }
+
+    if(input_nn != nullptr && graph_.requires_grad(input_nn))
+    {
+        bool first = graph_.is_first_grad(input_nn);
+        graph::NNGraph::TensorNode* grad_input =
+            graph_.get_or_create_grad(input_nn, input_nn->name() + "_grad");
+        Scalar beta = first ? GEMM_BETA_OVERWRITE : GEMM_BETA_ACCUMULATE;
+        graph::gemm(
+            grad_output->data(),
+            weight_nn->data(),
+            grad_input->data(),
+            GEMM_ALPHA,
+            beta,
+            NO_TRANSPOSE,
+            TRANSPOSE,
+            GEMM_NDIM_MATRIX,
+            NO_BATCH_DIM);
+    }
 }
 
 //! Get string representation with dimensions

@@ -10,10 +10,8 @@
  * */
 
 #include "nntile/module/linear_manual.hh"
-#include "nntile/graph/grad_mode.hh"
 #include "nntile/graph/logical/gemm.hh"
 #include "nntile/graph/logical/sum_fiber.hh"
-#include "nntile/graph/logical/add_fiber_inplace.hh"
 
 #include <stdexcept>
 
@@ -70,66 +68,67 @@ LinearManual::LinearManual(
 graph::NNGraph::TensorNode& LinearManual::build_forward(
     graph::NNGraph::TensorNode& input)
 {
+    return forward(input);
+}
+
+graph::NNGraph::TensorNode& LinearManual::forward_impl(
+    graph::NNGraph::TensorNode& input)
+{
     if(input.ndim() < 1)
     {
         throw std::invalid_argument(
-            "LinearManual::build_forward: input must have at least one dimension");
+            "LinearManual::forward_impl: input must have at least one dimension");
     }
     if(input.shape().back() != input_dim_)
     {
         throw std::invalid_argument(
-            "LinearManual::build_forward: input feature dim mismatch");
+            "LinearManual::forward_impl: input feature dim mismatch");
     }
 
     input_tensor_ = &input;
 
-    // Run forward in no_grad - autograd ops add to logical graph but don't
-    // set producer. Output will have no producer until we wrap it.
-    {
-        graph::GradMode::Guard g;
-        const std::string gemm_name = bias_tensor_ != nullptr
-            ? tensor_name("gemm_output")
-            : tensor_name("output");
-        graph::NNGraph::TensorNode* gemm_out = graph::gemm(
-            &input,
-            weight_tensor_,
-            gemm_name,
-            GEMM_ALPHA,
-            NO_TRANSPOSE,
-            NO_TRANSPOSE,
-            GEMM_NDIM_MATRIX,
-            NO_BATCH_DIM);
+    const std::string gemm_name = bias_tensor_ != nullptr
+        ? tensor_name("gemm_output")
+        : tensor_name("output");
+    graph::NNGraph::TensorNode* gemm_out = graph::gemm(
+        &input,
+        weight_tensor_,
+        gemm_name,
+        GEMM_ALPHA,
+        NO_TRANSPOSE,
+        NO_TRANSPOSE,
+        GEMM_NDIM_MATRIX,
+        NO_BATCH_DIM);
 
-        if(bias_tensor_ != nullptr)
-        {
-            const Index feature_axis = gemm_out->ndim() - 1;
-            output_tensor_ = graph::add_fiber(
-                ADD_FIBER_ALPHA,
-                bias_tensor_,
-                ADD_FIBER_BETA,
-                gemm_out,
-                tensor_name("output"),
-                feature_axis,
-                NO_BATCH_DIM);
-        }
-        else
-        {
-            output_tensor_ = gemm_out;
-        }
+    if(bias_tensor_ != nullptr)
+    {
+        const Index feature_axis = gemm_out->ndim() - 1;
+        output_tensor_ = graph::add_fiber(
+            ADD_FIBER_ALPHA,
+            bias_tensor_,
+            ADD_FIBER_BETA,
+            gemm_out,
+            tensor_name("output"),
+            feature_axis,
+            NO_BATCH_DIM);
+    }
+    else
+    {
+        output_tensor_ = gemm_out;
     }
 
-    // Wrap output with module op - our build_backward overrides autograd
-    std::vector<graph::NNGraph::TensorNode*> inputs = {&input, weight_tensor_};
+    return *output_tensor_;
+}
+
+std::vector<graph::NNGraph::TensorNode*> LinearManual::backward_inputs() const
+{
+    std::vector<graph::NNGraph::TensorNode*> inputs = {input_tensor_,
+                                                       weight_tensor_};
     if(bias_tensor_ != nullptr)
     {
         inputs.push_back(bias_tensor_);
     }
-    graph_.wrap_with_module_op(
-        std::move(inputs),
-        output_tensor_,
-        [this](const graph::NNGraph::OpNode* op) { build_backward(op); });
-
-    return *output_tensor_;
+    return inputs;
 }
 
 void LinearManual::build_backward(const graph::NNGraph::OpNode* op)

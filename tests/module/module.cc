@@ -44,7 +44,7 @@ public:
     {
     }
 
-    NNGraph::TensorNode& build_forward(NNGraph::TensorNode& input)
+    NNGraph::TensorNode& forward_impl(NNGraph::TensorNode& input) override
     {
         input_tensor_ = &input;
         std::vector<Index> output_shape = input.shape();
@@ -56,17 +56,22 @@ public:
         return *output_tensor_;
     }
 
-    void build_backward()
+    NNGraph::TensorNode& build_forward(NNGraph::TensorNode& input)
+    {
+        return forward(input);
+    }
+
+    void check_backward_prereqs()
     {
         if(!input_tensor_ || !output_tensor_)
         {
             throw std::runtime_error(
-                "DummyModule::build_backward: forward not built");
+                "DummyModule::check_backward_prereqs: forward not built");
         }
         if(output_tensor_->grad() == nullptr)
         {
             throw std::runtime_error(
-                "DummyModule::build_backward: missing output grad");
+                "DummyModule::check_backward_prereqs: missing output grad");
         }
     }
 };

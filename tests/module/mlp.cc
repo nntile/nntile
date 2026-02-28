@@ -69,7 +69,7 @@ TEST_CASE("Mlp ForwardBuildsOutput", "[module]")
     REQUIRE(gelu_count == 1);
 }
 
-TEST_CASE("Mlp BuildBackwardCreatesGradients", "[module]")
+TEST_CASE("Mlp BackwardCreatesGradients", "[module]")
 {
     NNGraph g("mlp");
 
@@ -78,7 +78,8 @@ TEST_CASE("Mlp BuildBackwardCreatesGradients", "[module]")
 
     auto& output = mlp.build_forward(*input);
     g.get_or_create_grad(&output, "output_grad");
-    mlp.build_backward();
+    fill(Scalar(1.0), output.grad()->data());
+    output.backward();
 
     REQUIRE(mlp.fc1().weight_tensor()->grad() != nullptr);
     REQUIRE(mlp.fc2().weight_tensor()->grad() != nullptr);
@@ -93,12 +94,4 @@ TEST_CASE("Mlp BuildBackwardCreatesGradients", "[module]")
         }
     }
     REQUIRE(gelu_backward_count == 1);
-}
-
-TEST_CASE("Mlp BuildBackwardRequiresForward", "[module]")
-{
-    NNGraph g("mlp");
-
-    Mlp mlp(g, "mlp", 3, 4, 5);
-    REQUIRE_THROWS_AS(mlp.build_backward(), std::runtime_error);
 }

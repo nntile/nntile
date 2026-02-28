@@ -14,6 +14,7 @@
 
 // Include corresponding header
 #include "nntile/module/module.hh"
+#include "nntile/graph/grad_mode.hh"
 
 // Include standard headers
 #include <iostream>
@@ -256,6 +257,43 @@ std::string Module::tensor_name(const std::string& local_name) const
 std::string Module::grad_name(const std::string& local_name) const
 {
     return name_ + "_" + local_name + "_grad";
+}
+
+// -----------------------------------------------------------------
+// Forward Pass
+// -----------------------------------------------------------------
+
+graph::NNGraph::TensorNode& Module::forward(graph::NNGraph::TensorNode& input)
+{
+    if(has_custom_backward())
+    {
+        graph::GradMode::Guard g;
+        graph::NNGraph::TensorNode& out = forward_impl(input);
+        std::vector<graph::NNGraph::TensorNode*> inputs = backward_inputs();
+        graph_.wrap_with_module_op(
+            std::move(inputs),
+            &out,
+            [this](const graph::NNGraph::OpNode* op) { build_backward(op); });
+        return out;
+    }
+    return forward_impl(input);
+}
+
+void Module::build_backward(const graph::NNGraph::OpNode* /*op*/)
+{
+}
+
+std::vector<graph::NNGraph::TensorNode*> Module::backward_inputs() const
+{
+    return {};
+}
+
+graph::NNGraph::TensorNode& Module::forward_impl(
+    graph::NNGraph::TensorNode& /*input*/)
+{
+    throw std::runtime_error(
+        "Module::forward_impl: module does not support single-input forward - "
+        "use build_forward with module-specific signature");
 }
 
 // -----------------------------------------------------------------

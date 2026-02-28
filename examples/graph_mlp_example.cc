@@ -64,10 +64,10 @@ int main(int argc, char** argv) {
     mlp.fc1().weight_tensor()->mark_input(true);
     mlp.fc2().weight_tensor()->mark_input(true);
 
-    // Build backward operations
-    mlp.build_backward();
+    // Build backward via autograd (output.backward())
+    output_tensor.backward();
 
-    // Mark gradient tensors for get_output (created during build_backward)
+    // Mark gradient tensors for get_output (created during backward)
     mlp.fc1().weight_tensor()->grad()->mark_output(true);
     mlp.fc2().weight_tensor()->grad()->mark_output(true);
     if (input_tensor->has_grad()) {

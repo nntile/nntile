@@ -88,14 +88,13 @@ public:
         Index intermediate_dim,
         graph::DataType dtype = graph::DataType::FP32);
 
-    //! Build forward operations
-    //! @param input Input tensor node
-    //! @return Reference to output tensor
+    //! Build forward operations (alias for forward)
     graph::NNGraph::TensorNode& build_forward(
         graph::NNGraph::TensorNode& input);
 
-    //! Build backward operations using grad fields on NNGraph::TensorNode
-    void build_backward();
+    //! Forward: chains fc1 -> gelu -> fc2. Each submodule appears as OpNode.
+    graph::NNGraph::TensorNode& forward_impl(
+        graph::NNGraph::TensorNode& input) override;
 
     //! Get string representation with dimensions
     std::string repr() const override;

@@ -95,6 +95,10 @@ TEST_CASE("Linear BuildForwardWithBias", "[module]")
     REQUIRE(g.num_ops() >= 2);
     REQUIRE(g.ops()[0]->type() == OpType::GEMM);
     REQUIRE(g.ops()[1]->type() == OpType::ADD_FIBER);
+
+    // Linear appears as one OpNode (module-level backward)
+    REQUIRE(output.has_producer());
+    REQUIRE(output.producer()->inputs().size() >= 2);
 }
 
 TEST_CASE("Linear BuildForwardValidatesInputDim", "[module]")
