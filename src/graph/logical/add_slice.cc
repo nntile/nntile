@@ -82,7 +82,7 @@ LogicalGraph::TensorNode& add_slice(
         output_name,
         slice.dtype());
 
-    OpAttrs attrs = AddSliceAttrs{axis, alpha, beta};
+    auto attrs = std::make_shared<AddSliceAttrs>(AddSliceAttrs{axis, alpha, beta});
     slice.graph().add_op(
         OpType::ADD_SLICE,
         attrs,

@@ -56,7 +56,7 @@ void adam_step(
             "adam_step: all tensors must have the same shape");
     }
 
-    OpAttrs attrs = AdamStepAttrs{num_iter, beta_1, beta_2, eps, lr, weight_decay};
+    auto attrs = std::make_shared<AdamStepAttrs>(AdamStepAttrs{num_iter, beta_1, beta_2, eps, lr, weight_decay});
     grad.graph().add_op(
         OpType::ADAM_STEP,
         attrs,

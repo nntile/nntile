@@ -18,10 +18,21 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+//! Reduction operations (alpha, beta, axis, batch_ndim, redux)
+struct ReductionAttrs
+{
+    Scalar alpha = 1.0;
+    Scalar beta = 0.0;
+    Index axis = 0;
+    Index batch_ndim = 0;
+    int redux = 0;
+};
 
 //! Sum along fibers: y = alpha * sum_fiber(x) + beta * y
 //! @param x Input tensor

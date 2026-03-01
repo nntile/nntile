@@ -38,10 +38,9 @@ LogicalGraph::TensorNode& gather(
         output_name,
         x.dtype());
 
-    OpAttrs attrs = ClearAttrs{};  // No attributes needed
     x.graph().add_op(
         OpType::GATHER,
-        attrs,
+        nullptr,
         {&x},
         {&output}
     );

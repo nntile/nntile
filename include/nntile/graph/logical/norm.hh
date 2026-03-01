@@ -18,10 +18,17 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+struct TotalSumAttrs
+{
+    Scalar alpha = 1.0;
+    Scalar beta = 0.0;
+};
 
 //! Euclidean norm: y = alpha * norm(x) + beta * y
 //! @param x Input tensor

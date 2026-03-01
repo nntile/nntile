@@ -59,7 +59,7 @@ void sumprod_fiber(
             "sumprod_fiber: axis out of bounds");
     }
 
-    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, 0, redux};  // batch_ndim = 0 for fiber
+    auto attrs = std::make_shared<ReductionAttrs>(ReductionAttrs{alpha, beta, axis, 0, redux});
     x1.graph().add_op(
         OpType::SUMPROD_FIBER,
         attrs,

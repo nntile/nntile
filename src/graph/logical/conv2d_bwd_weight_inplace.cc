@@ -49,7 +49,7 @@ void conv2d_bwd_weight_inplace(
             "conv2d_bwd_weight_inplace: all tensors must have the same dtype");
     }
 
-    OpAttrs attrs = Conv2dAttrs{alpha, beta, padding, stride, dilation};
+    auto attrs = std::make_shared<Conv2dAttrs>(Conv2dAttrs{alpha, beta, padding, stride, dilation});
     x.graph().add_op(
         OpType::CONV2D_BWD_WEIGHT_INPLACE,
         attrs,

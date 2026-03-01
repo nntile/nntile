@@ -60,7 +60,7 @@ LogicalGraph::TensorNode& hypot(
         output_name,
         x.dtype());
 
-    OpAttrs attrs = BinaryOpAttrs{alpha, beta};
+    auto attrs = std::make_shared<BinaryOpAttrs>(BinaryOpAttrs{alpha, beta});
     x.graph().add_op(
         OpType::HYPOT,
         attrs,

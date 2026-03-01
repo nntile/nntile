@@ -18,10 +18,17 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+struct TotalSumAccumAttrs
+{
+    Scalar alpha = 1.0;
+    Index ignore_index = -1;
+};
 
 //! Total sum accumulation: val = alpha * sum(logsumexp * src) + beta * val
 //! @param logsumexp Log-sum-exp tensor

@@ -238,7 +238,7 @@ TEST_CASE_METHOD(
     auto& bias = g.tensor({2}, "bias", DataType::FP32);
     auto& y = g.tensor({2, 2}, "y", DataType::FP32);
 
-    g.add_op(OpType::ADD_FIBER, AddFiberAttrs{}, {&x, &bias}, {&y});
+    g.add_op(OpType::ADD_FIBER, std::make_shared<AddFiberAttrs>(AddFiberAttrs{}), {&x, &bias}, {&y});
 
     auto compiled = CompiledGraph::compile(g);
     REQUIRE_THROWS_AS(compiled.execute(), std::runtime_error);

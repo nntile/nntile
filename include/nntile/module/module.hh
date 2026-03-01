@@ -15,6 +15,7 @@
 #pragma once
 
 // Include standard headers
+#include <functional>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -26,19 +27,8 @@
 namespace nntile::module
 {
 
-//! Base class for all neural network modules
-//!
-//! Similar to PyTorch's nn.Module, provides:
-//! 1. Parameter registration and iteration
-//! 2. Submodule composition
-//! 3. Named access to parameters and submodules
-//!
-//! Subclasses should:
-//! 1. Create parameters/buffers in constructor (using the graph reference)
-//! 2. Call register_parameter() for learnable tensors
-//! 3. Call register_buffer() for non-learnable state tensors
-//! 4. Call register_module() for child modules
-class Module
+//! Base class for all neural network modules (registration, parameters, etc.)
+class ModuleBase
 {
 protected:
     //! Reference to the graph this module belongs to
@@ -55,24 +45,24 @@ protected:
     std::vector<std::pair<std::string, graph::NNGraph::TensorNode*>> buffers_;
 
     //! Child modules
-    std::vector<std::pair<std::string, Module*>> submodules_;
+    std::vector<std::pair<std::string, ModuleBase*>> submodules_;
 
 public:
     //! Constructor
     //! @param graph The neural network graph this module belongs to
     //! @param name Module name (used for generating unique tensor names)
-    Module(graph::NNGraph& graph, const std::string& name);
+    ModuleBase(graph::NNGraph& graph, const std::string& name);
 
     //! Virtual destructor for proper cleanup of derived classes
-    virtual ~Module() = default;
+    virtual ~ModuleBase() = default;
 
     // Disable copy (modules hold references to graph elements)
-    Module(const Module&) = delete;
-    Module& operator=(const Module&) = delete;
+    ModuleBase(const ModuleBase&) = delete;
+    ModuleBase& operator=(const ModuleBase&) = delete;
 
     // Disable move (due to graph reference)
-    Module(Module&&) = delete;
-    Module& operator=(Module&&) = delete;
+    ModuleBase(ModuleBase&&) = delete;
+    ModuleBase& operator=(ModuleBase&&) = delete;
 
     // -----------------------------------------------------------------
     // Graph Access
@@ -101,7 +91,7 @@ public:
     //! Register a child module
     //! @param local_name Local name for the submodule
     //! @param module Pointer to the child module (not owned)
-    void register_module(const std::string& local_name, Module* module);
+    void register_module(const std::string& local_name, ModuleBase* module);
 
     // -----------------------------------------------------------------
     // Parameter Access (for optimizers)
@@ -153,13 +143,13 @@ public:
     // -----------------------------------------------------------------
 
     //! Get child modules (direct children only)
-    std::vector<Module*> children() const;
+    std::vector<ModuleBase*> children() const;
 
     //! Get named children
-    const std::vector<std::pair<std::string, Module*>>& named_children() const;
+    const std::vector<std::pair<std::string, ModuleBase*>>& named_children() const;
 
     //! Get all modules recursively (including self, depth-first)
-    std::vector<Module*> modules() const;
+    std::vector<ModuleBase*> modules() const;
 
     // -----------------------------------------------------------------
     // Name Access
@@ -200,7 +190,7 @@ protected:
             const;
 
     //! Helper to collect modules recursively
-    void collect_modules_recursive(std::vector<Module*>& result) const;
+    void collect_modules_recursive(std::vector<ModuleBase*>& result) const;
 
     //! Helper for to_string with indentation
     void to_string_recursive(std::ostringstream& ss,

@@ -36,10 +36,9 @@ LogicalGraph::TensorNode& relu(
         output_name,
         x.dtype());
 
-    OpAttrs attrs = GeluAttrs{};  // Reuse for now
     x.graph().add_op(
         OpType::RELU,
-        attrs,
+        nullptr,
         {&x},
         {&output}
     );

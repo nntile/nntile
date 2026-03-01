@@ -74,7 +74,7 @@ void add_slice_inplace(
         }
     }
 
-    OpAttrs attrs = AddSliceAttrs{axis, alpha, beta};
+    auto attrs = std::make_shared<AddSliceAttrs>(AddSliceAttrs{axis, alpha, beta});
     slice.graph().add_op(
         OpType::ADD_SLICE_INPLACE,
         attrs,

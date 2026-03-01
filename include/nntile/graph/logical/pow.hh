@@ -18,10 +18,17 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+struct PowAttrs
+{
+    Scalar alpha = 1.0;
+    Scalar exponent = 1.0;
+};
 
 //! Power operation: y = alpha * (x ^ exp)
 //! @param x Input tensor

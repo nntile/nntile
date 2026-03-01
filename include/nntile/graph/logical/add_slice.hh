@@ -18,10 +18,19 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+//! Add along slices: output = alpha * slice + beta * tensor
+struct AddSliceAttrs
+{
+    Index axis = 0;
+    Scalar alpha = 1.0;
+    Scalar beta = 1.0;
+};
 
 //! Add along slices: output = alpha * slice + beta * tensor
 //! @param alpha Scaling factor for slice

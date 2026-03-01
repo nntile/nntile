@@ -399,6 +399,8 @@ set(LOGGER_SRC
 
 # Graph-related sources
 set(GRAPH_SRC
+    "graph/autograd_function.cc"
+    "graph/grad_mode.cc"
     "graph/logical_graph.cc"
     "graph/logical_graph_ops.cc"
     "graph/logical/gelu.cc"
@@ -475,6 +477,12 @@ set(GRAPH_SRC
     "graph/logical/multiply_slice.cc"
     "graph/logical/sqrt_inplace.cc"
     "graph/nn_graph.cc"
+    "graph/nn_graph/tensor_node.cc"
+    "graph/nn_graph/add.cc"
+    "graph/nn_graph/add_fiber.cc"
+    "graph/nn_graph/gemm.cc"
+    "graph/nn_graph/gelu.cc"
+    "graph/nn_graph/sum_fiber.cc"
     "graph/compiled_graph.cc"
     "graph/compiled/add.cc"
     "graph/compiled/add_fiber.cc"
@@ -557,6 +565,7 @@ set(MODULE_SRC
     "module/gelu.cc"
     "module/mlp.cc"
     "module/linear.cc"
+    "module/mse_loss.cc"
     "module/sdpa.cc"
 )
 

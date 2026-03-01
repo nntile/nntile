@@ -39,13 +39,9 @@ LogicalGraph::TensorNode& gelutanh(
         output_name,
         x.dtype());
 
-    // Create operation attributes
-    OpAttrs attrs = GelutanhAttrs{};
-
-    // Add operation to graph using public builder API
     x.graph().add_op(
         OpType::GELUTANH,
-        attrs,
+        nullptr,
         {&x},
         {&output}
     );

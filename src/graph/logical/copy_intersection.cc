@@ -45,7 +45,7 @@ void copy_intersection(
             "copy_intersection: tensors must have the same dtype");
     }
 
-    OpAttrs attrs = CopyIntersectionAttrs{src_offset, dst_offset};
+    auto attrs = std::make_shared<CopyIntersectionAttrs>(CopyIntersectionAttrs{src_offset, dst_offset});
     src.graph().add_op(
         OpType::COPY_INTERSECTION,
         attrs,

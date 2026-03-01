@@ -32,7 +32,7 @@ using namespace nntile::module;
 namespace
 {
 
-class DummyModule final : public Module
+class DummyModule final : public ModuleBase
 {
 private:
     NNGraph::TensorNode* input_tensor_ = nullptr;
@@ -40,7 +40,7 @@ private:
 
 public:
     DummyModule(NNGraph& graph, const std::string& name)
-        : Module(graph, name)
+        : ModuleBase(graph, name)
     {
     }
 
@@ -48,25 +48,30 @@ public:
     {
         input_tensor_ = &input;
         std::vector<Index> output_shape = input.shape();
-        output_tensor_ = &graph_.tensor(
+        output_tensor_ = graph_.tensor(
             output_shape,
             tensor_name("output"),
             input.dtype(),
-            graph_.requires_grad(input));
+            graph_.requires_grad(&input));
         return *output_tensor_;
     }
 
-    void build_backward()
+    NNGraph::TensorNode& operator()(NNGraph::TensorNode& input)
+    {
+        return build_forward(input);
+    }
+
+    void check_backward_prereqs()
     {
         if(!input_tensor_ || !output_tensor_)
         {
             throw std::runtime_error(
-                "DummyModule::build_backward: forward not built");
+                "DummyModule::check_backward_prereqs: forward not built");
         }
         if(output_tensor_->grad() == nullptr)
         {
             throw std::runtime_error(
-                "DummyModule::build_backward: missing output grad");
+                "DummyModule::check_backward_prereqs: missing output grad");
         }
     }
 };
@@ -78,23 +83,23 @@ TEST_CASE("Module RegisterParameterAndBuffer", "[module]")
     NNGraph g("module");
     DummyModule module(g, "mod");
 
-    auto& param = g.tensor({2, 3}, "param", DataType::FP32, true);
-    auto& buffer = g.tensor({4}, "buffer", DataType::FP32, true);
+    auto* param = g.tensor({2, 3}, "param", DataType::FP32, true);
+    auto* buffer = g.tensor({4}, "buffer", DataType::FP32, true);
 
-    module.register_parameter("weight", &param);
-    module.register_buffer("running", &buffer);
+    module.register_parameter("weight", param);
+    module.register_buffer("running", buffer);
 
     REQUIRE(module.parameters().size() == 1);
     REQUIRE(module.named_parameters().size() == 1);
-    REQUIRE(module.parameters()[0] == &param);
+    REQUIRE(module.parameters()[0] == param);
     REQUIRE(module.named_parameters()[0].first == "weight");
-    REQUIRE(module.named_parameters()[0].second == &param);
+    REQUIRE(module.named_parameters()[0].second == param);
 
     REQUIRE(module.buffers().size() == 1);
     REQUIRE(module.named_buffers().size() == 1);
-    REQUIRE(module.buffers()[0] == &buffer);
+    REQUIRE(module.buffers()[0] == buffer);
     REQUIRE(module.named_buffers()[0].first == "running");
-    REQUIRE(module.named_buffers()[0].second == &buffer);
+    REQUIRE(module.named_buffers()[0].second == buffer);
 
     REQUIRE_FALSE(g.requires_grad(buffer));
     REQUIRE(module.tensor_name("x") == "mod_x");
@@ -125,16 +130,16 @@ TEST_CASE("Module RecursiveParametersAndModules", "[module]")
 
     parent.register_module("child", &child);
 
-    auto& parent_param = g.tensor({2, 2}, "parent_param", DataType::FP32);
-    auto& child_param = g.tensor({3, 4}, "child_param", DataType::FP32);
-    parent.register_parameter("p", &parent_param);
-    child.register_parameter("w", &child_param);
+    auto* parent_param = g.tensor({2, 2}, "parent_param", DataType::FP32);
+    auto* child_param = g.tensor({3, 4}, "child_param", DataType::FP32);
+    parent.register_parameter("p", parent_param);
+    child.register_parameter("w", child_param);
 
     auto params = parent.parameters_recursive();
     REQUIRE(params.size() == 2);
-    REQUIRE(std::find(params.begin(), params.end(), &parent_param) !=
+    REQUIRE(std::find(params.begin(), params.end(), parent_param) !=
         params.end());
-    REQUIRE(std::find(params.begin(), params.end(), &child_param) !=
+    REQUIRE(std::find(params.begin(), params.end(), child_param) !=
         params.end());
 
     auto named_params = parent.named_parameters_recursive();
@@ -143,14 +148,14 @@ TEST_CASE("Module RecursiveParametersAndModules", "[module]")
         named_params.begin(), named_params.end(),
         [&](const auto& entry)
         {
-            return entry.first == "parent.p" && entry.second == &parent_param;
+            return entry.first == "parent.p" && entry.second == parent_param;
         }));
     REQUIRE(std::any_of(
         named_params.begin(), named_params.end(),
         [&](const auto& entry)
         {
             return entry.first == "parent.child.w" &&
-                entry.second == &child_param;
+                entry.second == child_param;
         }));
 
     auto children = parent.children();

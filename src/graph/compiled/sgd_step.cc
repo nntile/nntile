@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/sgd_step.hh"
+#include "nntile/graph/logical/sgd_step.hh"
 
 #include <stdexcept>
 
@@ -44,7 +45,7 @@ void run_sgd_step(CompiledGraph& graph, const SgdStepAttrs& attrs,
 
 void execute_sgd_step(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const SgdStepAttrs& attrs = std::get<SgdStepAttrs>(op_info.attrs);
+    const SgdStepAttrs& attrs = *std::static_pointer_cast<SgdStepAttrs>(op_info.attrs);
     const std::string& grad_name = op_info.input_names[0];
     const std::string& velocity_name = op_info.input_names[1];
     const std::string& p_name = op_info.input_names[2];

@@ -44,10 +44,9 @@ void rope(
             "rope: all tensors must have the same dtype");
     }
 
-    OpAttrs attrs = ClearAttrs{};  // No additional attributes needed
     sin_tensor.graph().add_op(
         OpType::ROPE,
-        attrs,
+        nullptr,
         {&sin_tensor, &cos_tensor, &src},
         {&dst}
     );

@@ -58,7 +58,7 @@ void total_sum_accum(
             "total_sum_accum: val must be FP32");
     }
 
-    OpAttrs attrs = TotalSumAccumAttrs{alpha, ignore_index};
+    auto attrs = std::make_shared<TotalSumAccumAttrs>(TotalSumAccumAttrs{alpha, ignore_index});
     logsumexp.graph().add_op(
         OpType::TOTAL_SUM_ACCUM,
         attrs,

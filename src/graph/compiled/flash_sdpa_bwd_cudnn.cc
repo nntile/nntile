@@ -12,7 +12,7 @@ namespace
 {
 
 template<typename T>
-void run_flash_sdpa_bwd_cudnn(CompiledGraph& graph, const ClearAttrs& attrs,
+void run_flash_sdpa_bwd_cudnn(CompiledGraph& graph,
                               const std::string& K_name, const std::string& Q_name,
                               const std::string& V_name, const std::string& A_name,
                               const std::string& dA_name, const std::string& mask_name,
@@ -37,7 +37,6 @@ void run_flash_sdpa_bwd_cudnn(CompiledGraph& graph, const ClearAttrs& attrs,
 
 void execute_flash_sdpa_bwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const ClearAttrs& attrs = std::get<ClearAttrs>(op_info.attrs);
     const std::string& K_name = op_info.input_names[0];
     const std::string& Q_name = op_info.input_names[1];
     const std::string& V_name = op_info.input_names[2];
@@ -68,10 +67,10 @@ void execute_flash_sdpa_bwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& o
             throw std::runtime_error("FP64 data type not supported for flash_sdpa_bwd_cudnn operation");
             break;
         case DataType::FP16:
-            run_flash_sdpa_bwd_cudnn<nntile::fp16_t>(graph, attrs, K_name, Q_name, V_name, A_name, dA_name, mask_name, logsumexp_name, dK_name, dQ_name, dV_name);
+            run_flash_sdpa_bwd_cudnn<nntile::fp16_t>(graph, K_name, Q_name, V_name, A_name, dA_name, mask_name, logsumexp_name, dK_name, dQ_name, dV_name);
             break;
         case DataType::BF16:
-            run_flash_sdpa_bwd_cudnn<nntile::bf16_t>(graph, attrs, K_name, Q_name, V_name, A_name, dA_name, mask_name, logsumexp_name, dK_name, dQ_name, dV_name);
+            run_flash_sdpa_bwd_cudnn<nntile::bf16_t>(graph, K_name, Q_name, V_name, A_name, dA_name, mask_name, logsumexp_name, dK_name, dQ_name, dV_name);
             break;
         case DataType::INT64:
         case DataType::INT32:

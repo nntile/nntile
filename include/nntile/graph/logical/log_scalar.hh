@@ -23,6 +23,11 @@
 namespace nntile::graph
 {
 
+struct LogScalarAttrs
+{
+    std::string name;
+};
+
 //! Log scalar operation: log value with given name
 //! @param x Input tensor
 //! @param name Name for logging

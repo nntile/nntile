@@ -52,7 +52,7 @@ void maxsumexp(
             "maxsumexp: axis out of bounds");
     }
 
-    OpAttrs attrs = LogSumExpAttrs{1.0, 0.0, axis};  // alpha=1, beta=0, axis
+    auto attrs = std::make_shared<LogSumExpAttrs>(LogSumExpAttrs{1.0, 0.0, axis});
     x.graph().add_op(
         OpType::MAXSUMEXP,
         attrs,

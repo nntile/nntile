@@ -15,10 +15,21 @@
 #pragma once
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+struct AdamWAttrs
+{
+    Index num_iter = 0;
+    Scalar beta_1 = 0.9;
+    Scalar beta_2 = 0.999;
+    Scalar eps = 1e-8;
+    Scalar lr = 0.001;
+    Scalar weight_decay = 0.0;
+};
 
 //! AdamW optimizer step
 //! @param num_iter Current iteration number

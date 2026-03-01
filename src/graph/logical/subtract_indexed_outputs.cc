@@ -44,7 +44,7 @@ void subtract_indexed_outputs(
             "subtract_indexed_outputs: labels tensor must have int64 dtype");
     }
 
-    OpAttrs attrs = SubtractIndexedOutputsAttrs{val, ignore_index};
+    auto attrs = std::make_shared<SubtractIndexedOutputsAttrs>(SubtractIndexedOutputsAttrs{val, ignore_index});
     labels.graph().add_op(
         OpType::SUBTRACT_INDEXED_OUTPUTS,
         attrs,

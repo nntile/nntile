@@ -18,10 +18,17 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+struct SubtractIndexedOutputsAttrs
+{
+    Scalar val = 0.0;
+    Index ignore_index = -1;
+};
 
 //! Subtract indexed outputs operation: subtract val from elements indexed by labels
 //! @param labels Index tensor (int64_t) indicating which elements to modify

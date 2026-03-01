@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/scale_inplace.hh"
+#include "nntile/graph/logical/scale.hh"
 
 #include <stdexcept>
 
@@ -40,7 +41,7 @@ void run_scale_inplace(CompiledGraph& graph, const ScaleAttrs& attrs,
 
 void execute_scale_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const ScaleAttrs& attrs = std::get<ScaleAttrs>(op_info.attrs);
+    const ScaleAttrs& attrs = *std::static_pointer_cast<ScaleAttrs>(op_info.attrs);
     const std::string& x_name = op_info.input_names[0];
     DataType dtype = graph.get_dtype(x_name);
 

@@ -28,10 +28,9 @@ namespace nntile::graph
 //! SiLU in-place: x = silu(x)
 void silu_inplace(LogicalGraph::TensorNode& x)
 {
-    OpAttrs attrs = SiluAttrs{};
     x.graph().add_op(
         OpType::SILU_INPLACE,
-        attrs,
+        nullptr,
         {&x},
         {&x}
     );

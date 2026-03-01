@@ -21,7 +21,6 @@
 #include <map>
 #include <memory>
 #include <string>
-#include <variant>
 #include <vector>
 
 // Include third-party headers
@@ -164,276 +163,6 @@ enum class OpType {
 //! Convert OpType to string
 std::string op_type_to_string(OpType type);
 
-//! Operation attributes (parameters that aren't tensors)
-struct GemmAttrs
-{
-    bool trans_a = false;
-    bool trans_b = false;
-    // For GEMM: C = alpha * A @ B + beta * C
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
-    Index ndim = 1;  // Number of dimensions used in gemm contraction
-    Index batch_ndim = 0;  // Number of last dimensions used for batching
-};
-
-struct GeluAttrs
-{
-    // No attributes for basic gelu
-};
-
-struct GeluBackwardAttrs
-{
-    // No attributes for basic gelu_backward
-};
-
-struct GelutanhAttrs
-{
-    // No attributes for basic gelutanh
-};
-
-struct GelutanhBackwardAttrs
-{
-    // No attributes for basic gelutanh_backward
-};
-
-struct ReluAttrs
-{
-    // No attributes for basic relu
-};
-
-struct ReluBackwardAttrs
-{
-    // No attributes for basic relu_backward
-};
-
-struct SiluAttrs
-{
-    // No attributes for basic silu
-};
-
-struct SiluBackwardAttrs
-{
-    // No attributes for basic silu_backward
-};
-
-struct AddFiberAttrs
-{
-    // Add along fibers: output = alpha * fiber + beta * tensor
-    Index axis = 0;         // Axis along which to broadcast the fiber
-    Index batch_ndim = 0;   // Number of trailing batch dimensions
-    Scalar alpha = 1.0;     // Scaling factor for fiber
-    Scalar beta = 1.0;      // Scaling factor for tensor
-};
-
-struct AddSliceAttrs
-{
-    // Add along slices: output = alpha * slice + beta * tensor
-    Index axis = 0;         // Axis along which to broadcast the slice
-    Scalar alpha = 1.0;     // Scaling factor for slice
-    Scalar beta = 1.0;      // Scaling factor for tensor
-};
-
-struct MultiplyFiberAttrs
-{
-    // Multiply along fibers: output = alpha * fiber * tensor
-    Index axis = 0;         // Axis along which to broadcast the fiber
-    Index batch_ndim = 0;   // Number of trailing batch dimensions
-    Scalar alpha = 1.0;     // Scaling factor for fiber * tensor product
-};
-
-struct MultiplySliceAttrs
-{
-    // Multiply along slices: output = alpha * tensor * slice (broadcasted)
-    Index axis = 0;         // Axis along which to broadcast the slice
-    Scalar alpha = 1.0;     // Scaling factor for tensor * slice product
-    Scalar beta = 0.0;      // Not used (for compatibility)
-};
-
-struct SumFiberAttrs
-{
-    // Sum along all dimensions except the last one
-    // output[i] = sum(input[..., i]) for all batch dimensions
-    Scalar alpha = 1.0;  // Scaling factor
-    Scalar beta = 0.0;   // For accumulation: output = alpha * sum + beta * output
-};
-
-struct ClearAttrs
-{
-    // No attributes for clear
-};
-
-struct NoAttrs
-{
-    // No attributes for operations without parameters
-};
-
-// Element-wise binary operations (alpha, beta scaling)
-struct BinaryOpAttrs
-{
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
-};
-
-// Reduction operations (alpha, beta, axis, batch_ndim, redux)
-struct ReductionAttrs
-{
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
-    Index axis = 0;
-    Index batch_ndim = 0;
-    int redux = 0;
-};
-
-// Total sum operation (alpha, beta)
-struct TotalSumAttrs
-{
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
-};
-
-// Logsumexp/maxsumexp operations (alpha, beta, axis)
-struct LogSumExpAttrs
-{
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
-    Index axis = 0;
-};
-
-// Scale operations (alpha scaling)
-struct ScaleAttrs
-{
-    Scalar alpha = 1.0;
-};
-
-// Convolution operations (padding, stride, dilation)
-struct Conv2dAttrs
-{
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
-    std::array<Index, 2> padding = {0, 0};
-    std::array<Index, 2> stride = {1, 1};
-    std::array<Index, 2> dilation = {1, 1};
-};
-
-// Embedding operations (axis)
-struct EmbeddingAttrs
-{
-    Index axis = 0;
-};
-
-// Mask scalar operation (val, batch_ndim)
-struct MaskScalarAttrs
-{
-    Scalar val = 0.0;
-    Index batch_ndim = 0;
-};
-
-// Total sum accumulation (alpha, ignore_index)
-struct TotalSumAccumAttrs
-{
-    Scalar alpha = 1.0;
-    Index ignore_index = -1;
-};
-
-// Optimizer operations (various parameters)
-struct SgdStepAttrs
-{
-    Index num_iter = 0;
-    Scalar momentum = 0.0;
-    Scalar lr = 0.01;
-    Scalar weight_decay = 0.0;
-    Scalar dampening = 0.0;
-    bool nesterov = false;
-};
-
-struct AdamStepAttrs
-{
-    Index num_iter = 0;
-    Scalar beta_1 = 0.9;
-    Scalar beta_2 = 0.999;
-    Scalar eps = 1e-8;
-    Scalar lr = 0.001;
-    Scalar weight_decay = 0.0;
-};
-
-struct AdamWAttrs
-{
-    Index num_iter = 0;
-    Scalar beta_1 = 0.9;
-    Scalar beta_2 = 0.999;
-    Scalar eps = 1e-8;
-    Scalar lr = 0.001;
-    Scalar weight_decay = 0.0;
-};
-
-// Random number generation (start, underlying_shape, seed, mean, stddev)
-struct RandnAttrs
-{
-    std::vector<Index> start;
-    std::vector<Index> underlying_shape;
-    unsigned long long seed = 0;
-    Scalar mean = 0.0;
-    Scalar stddev = 1.0;
-};
-
-// Power operation (alpha, exponent)
-struct PowAttrs
-{
-    Scalar alpha = 1.0;
-    Scalar exponent = 1.0;
-};
-
-// Log scalar operation (base)
-struct LogScalarAttrs
-{
-    std::string name;  // Name for logging
-};
-
-// Fill operation (value)
-struct FillAttrs
-{
-    Scalar val = 0.0;
-};
-
-// Transpose operation (alpha, ndim)
-struct TransposeAttrs
-{
-    Scalar alpha = 1.0;
-    Index ndim = 0;
-};
-
-// Hypot scalar inverse operation (eps, alpha)
-struct HypotScalarInverseAttrs
-{
-    Scalar eps = 0.0;
-    Scalar alpha = 1.0;
-};
-
-// Subtract indexed outputs operation (val, ignore_index)
-struct SubtractIndexedOutputsAttrs
-{
-    Scalar val = 0.0;
-    Index ignore_index = -1;
-};
-
-// Copy intersection operation (src_offset, dst_offset)
-struct CopyIntersectionAttrs
-{
-    std::vector<Index> src_offset;
-    std::vector<Index> dst_offset;
-};
-
-using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
-                             GelutanhAttrs, GelutanhBackwardAttrs, ReluAttrs, ReluBackwardAttrs, SiluAttrs, SiluBackwardAttrs,
-                             AddFiberAttrs, AddSliceAttrs, MultiplyFiberAttrs, MultiplySliceAttrs, SumFiberAttrs, ClearAttrs,
-                             NoAttrs, BinaryOpAttrs, ReductionAttrs, TotalSumAttrs,
-                             LogSumExpAttrs, ScaleAttrs, Conv2dAttrs,
-                             EmbeddingAttrs, MaskScalarAttrs, TotalSumAccumAttrs,
-                             SgdStepAttrs, AdamStepAttrs, AdamWAttrs, RandnAttrs,
-                             PowAttrs, LogScalarAttrs, FillAttrs, TransposeAttrs,
-                             HypotScalarInverseAttrs, SubtractIndexedOutputsAttrs,
-                             CopyIntersectionAttrs>;
-
 //! Logical graph - defines computation without physical details
 class LogicalGraph
 {
@@ -519,7 +248,7 @@ public:
         NodeId id_;
         LogicalGraph* graph_;
         OpType type_;
-        OpAttrs attrs_;
+        std::shared_ptr<void> attrs_;
         std::string name_;
 
         // Graph edges
@@ -531,7 +260,7 @@ public:
             NodeId id,
             LogicalGraph* graph,
             OpType type,
-            OpAttrs attrs,
+            std::shared_ptr<void> attrs,
             const std::vector<TensorNode*>& inputs,
             const std::vector<TensorNode*>& outputs,
             const std::string& name = ""
@@ -541,7 +270,8 @@ public:
         NodeId id() const { return id_; }
         const std::string& name() const { return name_; }
         OpType type() const { return type_; }
-        const OpAttrs& attrs() const { return attrs_; }
+        //! Opaque attrs; cast in op impl: std::static_pointer_cast<MyAttrs>(op->attrs())
+        const std::shared_ptr<void>& attrs() const { return attrs_; }
 
         // Graph access
         LogicalGraph& graph() { return *graph_; }
@@ -605,12 +335,12 @@ public:
     //! Add an operation to the graph with specified output tensors
     //! This is the public builder API for operation implementations.
     //! @param type The operation type
-    //! @param attrs The operation attributes
+    //! @param attrs Opaque (std::shared_ptr<void>); only op impl knows the type
     //! @param inputs Vector of input tensor pointers (must belong to this graph)
     //! @param outputs Vector of output tensor pointers (must belong to this graph)
     void add_op(
         OpType type,
-        OpAttrs attrs,
+        std::shared_ptr<void> attrs,
         const std::vector<TensorNode*>& inputs,
         const std::vector<TensorNode*>& outputs,
         const std::string& name = ""

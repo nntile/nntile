@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/multiply_fiber.hh"
+#include "nntile/graph/logical/multiply_fiber.hh"
 
 #include <stdexcept>
 
@@ -42,7 +43,7 @@ void run_multiply_fiber(CompiledGraph& graph, const MultiplyFiberAttrs& attrs,
 //! Execute multiply_fiber operation
 void execute_multiply_fiber(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const MultiplyFiberAttrs& attrs = std::get<MultiplyFiberAttrs>(op_info.attrs);
+    const MultiplyFiberAttrs& attrs = *std::static_pointer_cast<MultiplyFiberAttrs>(op_info.attrs);
     const std::string& fiber_name = op_info.input_names[0];
     const std::string& tensor_name = op_info.input_names[1];
     const std::string& output_name = op_info.output_names[0];

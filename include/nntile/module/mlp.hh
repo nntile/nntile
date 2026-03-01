@@ -36,7 +36,7 @@ namespace nntile::module
 //!   - fc2: intermediate_dim -> output_dim
 //!
 //! This module demonstrates composing multiple submodules.
-class Mlp : public Module
+class Mlp : public ModuleBase
 {
 private:
     //! First linear layer: input -> intermediate
@@ -88,14 +88,14 @@ public:
         Index intermediate_dim,
         graph::DataType dtype = graph::DataType::FP32);
 
-    //! Build forward operations
-    //! @param input Input tensor node
-    //! @return Reference to output tensor
     graph::NNGraph::TensorNode& build_forward(
         graph::NNGraph::TensorNode& input);
 
-    //! Build backward operations using grad fields on NNGraph::TensorNode
-    void build_backward();
+    //! Forward: calls build_forward
+    graph::NNGraph::TensorNode& operator()(graph::NNGraph::TensorNode& input)
+    {
+        return build_forward(input);
+    }
 
     //! Get string representation with dimensions
     std::string repr() const override;

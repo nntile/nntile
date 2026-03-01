@@ -18,10 +18,16 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+struct EmbeddingAttrs
+{
+    Index axis = 0;
+};
 
 //! Embedding lookup: y = embedding(x, vocab)
 //! @param index Index tensor (int64_t)

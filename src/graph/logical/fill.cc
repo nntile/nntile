@@ -30,7 +30,7 @@ void fill(
     Scalar val,
     LogicalGraph::TensorNode& x)
 {
-    OpAttrs attrs = FillAttrs{val};
+    auto attrs = std::make_shared<FillAttrs>(FillAttrs{val});
     x.graph().add_op(
         OpType::FILL,
         attrs,

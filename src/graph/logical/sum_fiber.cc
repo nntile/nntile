@@ -59,7 +59,7 @@ void sum_fiber(
             "sum_fiber: invalid batch_ndim");
     }
 
-    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, batch_ndim, redux};
+    auto attrs = std::make_shared<ReductionAttrs>(ReductionAttrs{alpha, beta, axis, batch_ndim, redux});
     x.graph().add_op(
         OpType::SUM_FIBER,
         attrs,

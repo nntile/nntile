@@ -56,7 +56,7 @@ void embedding_backward(
             "embedding_backward: axis out of bounds");
     }
 
-    OpAttrs attrs = EmbeddingAttrs{axis};
+    auto attrs = std::make_shared<EmbeddingAttrs>(EmbeddingAttrs{axis});
     index.graph().add_op(
         OpType::EMBEDDING_BACKWARD,
         attrs,

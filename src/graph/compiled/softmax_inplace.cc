@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/softmax_inplace.hh"
+#include "nntile/graph/logical/softmax_inplace.hh"
 
 #include <stdexcept>
 
@@ -42,7 +43,7 @@ void run_softmax_inplace(CompiledGraph& graph, const LogSumExpAttrs& attrs,
 //! Execute softmax_inplace operation
 void execute_softmax_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const LogSumExpAttrs& attrs = std::get<LogSumExpAttrs>(op_info.attrs);
+    const LogSumExpAttrs& attrs = *std::static_pointer_cast<LogSumExpAttrs>(op_info.attrs);
     const std::string& maxsumexp_name = op_info.input_names[0];
     const std::string& y_name = op_info.output_names[0];
     DataType dtype = graph.get_dtype(y_name);

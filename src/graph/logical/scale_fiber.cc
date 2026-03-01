@@ -63,7 +63,7 @@ void scale_fiber(
             "scale_fiber: scaling tensor must have batch_ndim+1 dimensions");
     }
 
-    OpAttrs attrs = ReductionAttrs{alpha, 0.0, axis, batch_ndim, 0};  // beta=0, redux=0
+    auto attrs = std::make_shared<ReductionAttrs>(ReductionAttrs{alpha, 0.0, axis, batch_ndim, 0});
     x.graph().add_op(
         OpType::SCALE_FIBER,
         attrs,

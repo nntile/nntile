@@ -18,6 +18,7 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/graph/logical/pow.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph

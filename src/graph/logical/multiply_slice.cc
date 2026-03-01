@@ -76,7 +76,7 @@ void multiply_slice(
         }
     }
 
-    OpAttrs attrs = MultiplySliceAttrs{axis, alpha, 0.0};  // beta is not used in this operation
+    auto attrs = std::make_shared<MultiplySliceAttrs>(MultiplySliceAttrs{axis, alpha, 0.0});
     slice.graph().add_op(
         OpType::MULTIPLY_SLICE,
         attrs,

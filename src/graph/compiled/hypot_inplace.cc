@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/hypot_inplace.hh"
+#include "nntile/graph/logical/add.hh"
 
 #include <stdexcept>
 
@@ -42,7 +43,7 @@ void run_hypot_inplace(CompiledGraph& graph, const BinaryOpAttrs& attrs,
 
 void execute_hypot_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const BinaryOpAttrs& attrs = std::get<BinaryOpAttrs>(op_info.attrs);
+    const BinaryOpAttrs& attrs = *std::static_pointer_cast<BinaryOpAttrs>(op_info.attrs);
     const std::string& x_name = op_info.input_names[0];
     const std::string& y_name = op_info.input_names[1];
     DataType dtype = graph.get_dtype(x_name);

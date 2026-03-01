@@ -19,10 +19,19 @@
 #include <vector>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
+
+#include <vector>
 
 namespace nntile::graph
 {
+
+struct CopyIntersectionAttrs
+{
+    std::vector<Index> src_offset;
+    std::vector<Index> dst_offset;
+};
 
 //! Copy intersection operation: copy overlapping regions between tensors
 //! @param src Source tensor

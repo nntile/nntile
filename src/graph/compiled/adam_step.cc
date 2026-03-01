@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/adam_step.hh"
+#include "nntile/graph/logical/adam_step.hh"
 
 #include <stdexcept>
 
@@ -44,7 +45,7 @@ void run_adam_step(CompiledGraph& graph, const AdamStepAttrs& attrs,
 
 void execute_adam_step(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const AdamStepAttrs& attrs = std::get<AdamStepAttrs>(op_info.attrs);
+    const AdamStepAttrs& attrs = *std::static_pointer_cast<AdamStepAttrs>(op_info.attrs);
     const std::string& grad_name = op_info.input_names[0];
     const std::string& first_moment_name = op_info.input_names[1];
     const std::string& second_moment_name = op_info.input_names[2];

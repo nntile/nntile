@@ -50,7 +50,7 @@ void scale_slice(
             "scale_slice: axis out of bounds");
     }
 
-    OpAttrs attrs = ReductionAttrs{alpha, 0.0, axis, 0, 0};  // batch_ndim=0, redux=0
+    auto attrs = std::make_shared<ReductionAttrs>(ReductionAttrs{alpha, 0.0, axis, 0, 0});
     x.graph().add_op(
         OpType::SCALE_SLICE,
         attrs,

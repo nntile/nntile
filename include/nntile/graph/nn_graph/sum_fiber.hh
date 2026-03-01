@@ -7,32 +7,52 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/nn_graph/sum_fiber.hh
- * NNGraph sum_fiber operation overload.
+ * NNGraph sum_fiber autograd operation.
+ *
+ * Forward: y = alpha * sum_fiber(x) + beta * y
+ * Backward: grad_x += alpha * add_fiber_inplace(grad_y) (broadcast grad_y back)
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-// Include other NNTile headers
+#include <string>
+
+#include <nntile/graph/autograd_function.hh>
 #include <nntile/graph/logical/sum_fiber.hh>
 #include <nntile/graph/nn_graph.hh>
 
 namespace nntile::graph
 {
 
-//! Sum along fibers: y = alpha * sum_fiber(x) + beta * y
-//! Overload for NNGraph::TensorNode
-inline void sum_fiber(
-    NNGraph::TensorNode& x,
-    NNGraph::TensorNode& y,
+//! SumFiber: build_forward does logical op + bookkeeping; build_backward for grad.
+struct SumFiber
+{
+    static NNGraph::TensorNode* build_forward(
+        NNGraph::TensorNode* x,
+        const std::string& output_name,
+        Index axis = 0,
+        Index batch_ndim = 0,
+        int redux = 0,
+        Scalar alpha = 1.0,
+        Scalar beta = 0.0);
+
+    static void build_backward(const NNGraph::OpNode* op);
+};
+
+//! Convenience free function
+inline NNGraph::TensorNode* sum_fiber(
+    NNGraph::TensorNode* x,
+    const std::string& output_name,
     Index axis = 0,
     Index batch_ndim = 0,
     int redux = 0,
     Scalar alpha = 1.0,
     Scalar beta = 0.0)
 {
-    sum_fiber(x.data(), y.data(), axis, batch_ndim, redux, alpha, beta);
+    return SumFiber::build_forward(x, output_name, axis, batch_ndim, redux,
+                                   alpha, beta);
 }
 
 } // namespace nntile::graph

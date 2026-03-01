@@ -82,7 +82,7 @@ void add_fiber_inplace(
         }
     }
 
-    OpAttrs attrs = AddFiberAttrs{axis, batch_ndim, alpha, beta};
+    auto attrs = std::make_shared<AddFiberAttrs>(AddFiberAttrs{axis, batch_ndim, alpha, beta});
     fiber.graph().add_op(
         OpType::ADD_FIBER_INPLACE,
         attrs,

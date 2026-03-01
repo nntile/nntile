@@ -22,7 +22,7 @@ namespace nntile::module
 {
 
 Gelu::Gelu(graph::NNGraph& graph, const std::string& name)
-    : Module(graph, name)
+    : ModuleBase(graph, name)
 {
 }
 
@@ -30,45 +30,8 @@ graph::NNGraph::TensorNode& Gelu::build_forward(
     graph::NNGraph::TensorNode& input)
 {
     input_tensor_ = &input;
-
-    std::vector<Index> output_shape = input.shape();
-    bool output_requires_grad = graph_.requires_grad(input);
-
-    output_tensor_ = &graph_.tensor(
-        output_shape,
-        tensor_name("output"),
-        input.dtype(),
-        output_requires_grad);
-
-    graph::gelu(input, *output_tensor_);
-
+    output_tensor_ = graph::gelu(&input, tensor_name("output"));
     return *output_tensor_;
-}
-
-void Gelu::build_backward()
-{
-    if(!input_tensor_ || !output_tensor_)
-    {
-        throw std::runtime_error(
-            "Gelu::build_backward: forward not built - call build_forward first");
-    }
-
-    graph::NNGraph::TensorNode* grad_output = output_tensor_->grad();
-    if(!grad_output)
-    {
-        throw std::runtime_error(
-            "Gelu::build_backward: no gradient registered for output tensor '" +
-            output_tensor_->name() + "'");
-    }
-
-    if(graph_.requires_grad(*input_tensor_))
-    {
-        // Use input tensor's own name for its gradient (input is not a parameter)
-        graph::NNGraph::TensorNode& grad_input = graph_.get_or_create_grad(
-            *input_tensor_, input_tensor_->name() + "_grad");
-
-        graph::gelu_backward(*input_tensor_, *grad_output, grad_input);
-    }
 }
 
 std::string Gelu::repr() const

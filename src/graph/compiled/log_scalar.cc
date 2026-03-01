@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/log_scalar.hh"
+#include "nntile/graph/logical/log_scalar.hh"
 
 #include <stdexcept>
 
@@ -40,7 +41,7 @@ void run_log_scalar(CompiledGraph& graph, const LogScalarAttrs& attrs,
 
 void execute_log_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const LogScalarAttrs& attrs = std::get<LogScalarAttrs>(op_info.attrs);
+    const LogScalarAttrs& attrs = *std::static_pointer_cast<LogScalarAttrs>(op_info.attrs);
     const std::string& x_name = op_info.input_names[0];
     DataType dtype = graph.get_dtype(x_name);
 

@@ -31,7 +31,7 @@ void hypot_scalar_inverse(
     Scalar eps,
     Scalar alpha)
 {
-    OpAttrs attrs = HypotScalarInverseAttrs{eps, alpha};
+    auto attrs = std::make_shared<HypotScalarInverseAttrs>(HypotScalarInverseAttrs{eps, alpha});
     x.graph().add_op(
         OpType::HYPOT_SCALAR_INVERSE,
         attrs,

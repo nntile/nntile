@@ -28,7 +28,7 @@ Mlp::Mlp(graph::NNGraph& graph,
          Index intermediate_dim,
          Index output_dim,
          graph::DataType dtype)
-    : Module(graph, name)
+    : ModuleBase(graph, name)
     , fc1_(graph, name + "_fc1", input_dim, intermediate_dim, dtype)
     , gelu_(graph, name + "_gelu")
     , fc2_(graph, name + "_fc2", intermediate_dim, output_dim, dtype)
@@ -53,51 +53,14 @@ Mlp::Mlp(graph::NNGraph& graph,
 {
 }
 
-//! Build forward operations
-graph::NNGraph::TensorNode& Mlp::build_forward(graph::NNGraph::TensorNode& input)
+graph::NNGraph::TensorNode& Mlp::build_forward(
+    graph::NNGraph::TensorNode& input)
 {
-    // Store input reference
     input_tensor_ = &input;
-
-    // fc1: input -> hidden
-    hidden_tensor_ = &fc1_.build_forward(input);
-
-    // GELU activation: hidden -> activation
-    activation_tensor_ = &gelu_.build_forward(*hidden_tensor_);
-
-    // fc2: activation -> output
-    output_tensor_ = &fc2_.build_forward(*activation_tensor_);
-
+    hidden_tensor_ = &fc1_(input);
+    activation_tensor_ = &gelu_(*hidden_tensor_);
+    output_tensor_ = &fc2_(*activation_tensor_);
     return *output_tensor_;
-}
-
-//! Build backward operations using gradient tracking
-void Mlp::build_backward()
-{
-    if(!output_tensor_)
-    {
-        throw std::runtime_error(
-            "Mlp::build_backward: forward not built - "
-            "call build_forward first");
-    }
-
-    // Backward through fc2
-    fc2_.build_backward();
-
-    // Get gradient of activation tensor (output of GELU, input of fc2)
-    graph::NNGraph::TensorNode* grad_activation =
-        activation_tensor_->grad();
-    if(!grad_activation)
-    {
-        throw std::runtime_error(
-            "Mlp::build_backward: no gradient for activation tensor");
-    }
-
-    // Backward through GELU
-    gelu_.build_backward();
-
-    // Backward through fc1
-    fc1_.build_backward();
 }
 
 //! Get string representation with dimensions

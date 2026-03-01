@@ -49,7 +49,7 @@ LogicalGraph::TensorNode& transpose(
         output_name,
         x.dtype());
 
-    OpAttrs attrs = TransposeAttrs{alpha, ndim};
+    auto attrs = std::make_shared<TransposeAttrs>(TransposeAttrs{alpha, ndim});
     x.graph().add_op(
         OpType::TRANSPOSE,
         attrs,

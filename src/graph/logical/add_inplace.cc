@@ -53,7 +53,7 @@ void add_inplace(
             "add_inplace: input tensors must have the same shape");
     }
 
-    OpAttrs attrs = BinaryOpAttrs{alpha, beta};
+    auto attrs = std::make_shared<BinaryOpAttrs>(BinaryOpAttrs{alpha, beta});
     x.graph().add_op(
         OpType::ADD_INPLACE,
         attrs,

@@ -31,14 +31,10 @@ void silu_backward(
     LogicalGraph::TensorNode& dy,
     LogicalGraph::TensorNode& dx)
 {
-    // Create operation attributes
-    OpAttrs attrs = SiluBackwardAttrs{};
-
-    // Add operation to graph using public builder API
     // Note: dx is both input and output (accumulates gradients)
     x.graph().add_op(
         OpType::SILU_BACKWARD,
-        attrs,
+        nullptr,
         {&x, &dy, &dx},
         {&dx}
     );

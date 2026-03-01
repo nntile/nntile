@@ -50,7 +50,7 @@ void sum(
             "sum: input and output tensors must have the same dtype");
     }
 
-    OpAttrs attrs = TotalSumAttrs{alpha, beta};
+    auto attrs = std::make_shared<TotalSumAttrs>(TotalSumAttrs{alpha, beta});
     x.graph().add_op(
         OpType::SUM,
         attrs,

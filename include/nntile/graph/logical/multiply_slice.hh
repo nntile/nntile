@@ -18,10 +18,18 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+struct MultiplySliceAttrs
+{
+    Index axis = 0;
+    Scalar alpha = 1.0;
+    Scalar beta = 0.0;
+};
 
 //! Multiply slice operation: tensor = alpha * tensor * slice (broadcasted along axis)
 //! @param alpha Scaling factor

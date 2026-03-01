@@ -55,7 +55,7 @@ void sgd_step(
             "sgd_step: all tensors must have the same shape");
     }
 
-    OpAttrs attrs = SgdStepAttrs{num_iter, momentum, lr, weight_decay, dampening, nesterov};
+    auto attrs = std::make_shared<SgdStepAttrs>(SgdStepAttrs{num_iter, momentum, lr, weight_decay, dampening, nesterov});
     grad.graph().add_op(
         OpType::SGD_STEP,
         attrs,

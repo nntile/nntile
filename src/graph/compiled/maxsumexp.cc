@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/maxsumexp.hh"
+#include "nntile/graph/logical/maxsumexp.hh"
 
 #include <stdexcept>
 
@@ -39,7 +40,7 @@ void run_maxsumexp(CompiledGraph& graph, const LogSumExpAttrs& attrs,
 
 void execute_maxsumexp(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const LogSumExpAttrs& attrs = std::get<LogSumExpAttrs>(op_info.attrs);
+    const LogSumExpAttrs& attrs = *std::static_pointer_cast<LogSumExpAttrs>(op_info.attrs);
     const std::string& x_name = op_info.input_names[0];
     const std::string& y_name = op_info.output_names[0];
     DataType dtype = graph.get_dtype(x_name);

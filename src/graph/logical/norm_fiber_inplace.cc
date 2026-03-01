@@ -59,7 +59,7 @@ void norm_fiber_inplace(
             "norm_fiber_inplace: invalid batch_ndim");
     }
 
-    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, batch_ndim, redux};
+    auto attrs = std::make_shared<ReductionAttrs>(ReductionAttrs{alpha, beta, axis, batch_ndim, redux});
     x.graph().add_op(
         OpType::NORM_FIBER_INPLACE,
         attrs,

@@ -28,10 +28,9 @@ namespace nntile::graph
 //! GeLUTanh in-place: x = gelutanh(x)
 void gelutanh_inplace(LogicalGraph::TensorNode& x)
 {
-    OpAttrs attrs = GelutanhAttrs{};
     x.graph().add_op(
         OpType::GELUTANH_INPLACE,
-        attrs,
+        nullptr,
         {&x},
         {&x}
     );

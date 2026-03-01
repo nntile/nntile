@@ -7,27 +7,41 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/nn_graph/gelu.hh
- * NNGraph GELU operation overload.
+ * NNGraph GELU autograd operation.
+ *
+ * Forward: y = gelu(x)
+ * Backward: grad_x += gelu_backward(x, grad_y)
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-// Include other NNTile headers
+#include <string>
+
+#include <nntile/graph/autograd_function.hh>
 #include <nntile/graph/logical/gelu.hh>
 #include <nntile/graph/nn_graph.hh>
 
 namespace nntile::graph
 {
 
-//! GeLU activation into pre-created output: y = gelu(x)
-//! Overload for NNGraph::TensorNode
-inline void gelu(
-    NNGraph::TensorNode& x,
-    NNGraph::TensorNode& y)
+//! Gelu: build_forward does logical op + bookkeeping; build_backward for grad.
+struct Gelu
 {
-    gelu(x.data(), y.data());
+    static NNGraph::TensorNode* build_forward(
+        NNGraph::TensorNode* x,
+        const std::string& output_name);
+
+    static void build_backward(const NNGraph::OpNode* op);
+};
+
+//! Convenience free function
+inline NNGraph::TensorNode* gelu(
+    NNGraph::TensorNode* x,
+    const std::string& output_name)
+{
+    return Gelu::build_forward(x, output_name);
 }
 
 } // namespace nntile::graph

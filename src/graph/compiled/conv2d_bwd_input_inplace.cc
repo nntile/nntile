@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/conv2d_bwd_input_inplace.hh"
+#include "nntile/graph/logical/conv2d_inplace.hh"
 
 #include <stdexcept>
 
@@ -45,7 +46,7 @@ void run_conv2d_bwd_input_inplace(CompiledGraph& graph, const Conv2dAttrs& attrs
 
 void execute_conv2d_bwd_input_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const Conv2dAttrs& attrs = std::get<Conv2dAttrs>(op_info.attrs);
+    const Conv2dAttrs& attrs = *std::static_pointer_cast<Conv2dAttrs>(op_info.attrs);
     const std::string& dy_name = op_info.input_names[0];
     const std::string& c_name = op_info.input_names[1];
     const std::string& dx_name = op_info.output_names[0];

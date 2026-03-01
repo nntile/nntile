@@ -33,7 +33,7 @@ namespace nntile::graph
 struct OpExecutionInfo
 {
     OpType type;
-    OpAttrs attrs;
+    std::shared_ptr<void> attrs;
     std::vector<std::string> input_names;
     std::vector<std::string> output_names;
 };

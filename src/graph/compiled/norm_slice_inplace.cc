@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/norm_slice_inplace.hh"
+#include "nntile/graph/logical/norm_slice_inplace.hh"
 
 #include <stdexcept>
 
@@ -42,7 +43,7 @@ void run_norm_slice_inplace(CompiledGraph& graph, const ReductionAttrs& attrs,
 
 void execute_norm_slice_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const ReductionAttrs& attrs = std::get<ReductionAttrs>(op_info.attrs);
+    const ReductionAttrs& attrs = *std::static_pointer_cast<ReductionAttrs>(op_info.attrs);
     const std::string& x_name = op_info.input_names[0];
     const std::string& y_name = op_info.output_names[0];
     DataType dtype = graph.get_dtype(x_name);
