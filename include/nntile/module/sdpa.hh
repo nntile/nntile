@@ -35,7 +35,7 @@ namespace nntile::module
 //! - K: [head_size, k_seq, batch...]
 //! - V: [head_size, k_seq, batch...]
 //! - Y: [head_size, q_seq, batch...]
-class Sdpa : public ModuleBase
+class Sdpa : public Module<Sdpa>
 {
 private:
     bool flash_attention_;
@@ -62,6 +62,8 @@ private:
     graph::NNGraph::TensorNode* output_tensor_ = nullptr;
 
 public:
+    static constexpr bool has_custom_backward = false;
+
     //! Constructor: vanilla SDPA (creates attn, attn_maxsumexp, attn_sumprod_slice)
     //! @param graph The neural network graph
     //! @param name Module name

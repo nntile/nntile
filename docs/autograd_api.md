@@ -62,25 +62,20 @@ ForwardResult MyOp::build_forward(...) {
 }
 ```
 
-### Modules (CRTP, like AutogradFunction)
+### Modules (CRTP, no fixed API)
 
 ```cpp
-// ModuleBase: registration, parameters, submodules (non-template)
-// Module<Derived>: operator() with CRTP
-
 template<typename Derived>
 class Module : public ModuleBase {
-    TensorNode& operator()(TensorNode& input);  // if constexpr(has_custom_backward)...
+    template<typename... Args>
+    decltype(auto) operator()(Args&&... args);  // forwards to build_forward(Args...)
 };
-
-// Derived sets static constexpr bool has_custom_backward
-// - false (Linear, Gelu, Mlp): implement build_forward only
-// - true (LinearManual): implement build_forward, backward_inputs(), build_backward()
 ```
 
-- **No custom backward**: `static constexpr bool has_custom_backward = false`, implement `build_forward`.
-- **Custom backward**: `static constexpr bool has_custom_backward = true`, implement `build_forward`, `backward_inputs()`, `build_backward()`.
-- **Different API** (Sdpa): inherit from `ModuleBase` only, no operator().
+- **build_forward** can have any signature: `(TensorNode&)`, `(Q&, K&, V&, mask*)`, etc.
+- **operator()** forwards whatever args to `build_forward` – no fixed API.
+- **No custom backward**: implement `build_forward` only.
+- **Custom backward**: implement `build_forward`, `backward_inputs()`, `build_backward(op)`.
 
 ### Usage Examples
 

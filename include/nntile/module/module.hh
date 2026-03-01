@@ -197,26 +197,28 @@ protected:
                              const std::string& indent) const;
 };
 
-//! CRTP base for single-input modules. operator() does bookkeeping like
-//! AutogradFunction. Derived sets has_custom_backward; implements build_forward
-//! (and build_backward, backward_inputs when has_custom_backward).
+//! CRTP base for modules. operator() forwards to build_forward (any signature).
+//! No fixed API: build_forward can take/return whatever the user needs.
+//! When has_custom_backward: operator() does GradMode::Guard, build_forward,
+//! wrap_with_module_op. Derived implements backward_inputs(), build_backward(op).
 template<typename Derived>
 class Module : public ModuleBase
 {
 public:
     using ModuleBase::ModuleBase;
 
-    graph::NNGraph::TensorNode& operator()(
-        graph::NNGraph::TensorNode& input)
+    template<typename... Args>
+    decltype(auto) operator()(Args&&... args)
     {
         if constexpr(Derived::has_custom_backward)
         {
             graph::GradMode::Guard g;
-            graph::NNGraph::TensorNode& out =
-                static_cast<Derived*>(this)->build_forward(input);
+            auto out = static_cast<Derived*>(this)->build_forward(
+                std::forward<Args>(args)...);
+            graph::NNGraph::TensorNode* out_ptr = out_ptr_from_result(out);
             graph_.wrap_with_module_op(
                 static_cast<Derived*>(this)->backward_inputs(),
-                &out,
+                out_ptr,
                 [this](const graph::NNGraph::OpNode* op)
                 {
                     static_cast<Derived*>(this)->build_backward(op);
@@ -225,8 +227,21 @@ public:
         }
         else
         {
-            return static_cast<Derived*>(this)->build_forward(input);
+            return static_cast<Derived*>(this)->build_forward(
+                std::forward<Args>(args)...);
         }
+    }
+
+private:
+    static graph::NNGraph::TensorNode* out_ptr_from_result(
+        graph::NNGraph::TensorNode& r)
+    {
+        return &r;
+    }
+    static graph::NNGraph::TensorNode* out_ptr_from_result(
+        graph::NNGraph::TensorNode* p)
+    {
+        return p;
     }
 };
 
