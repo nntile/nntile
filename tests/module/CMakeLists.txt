@@ -16,7 +16,6 @@ set(TESTS_CATCH2
     "gelu"
     "module"
     "linear"
-    "linear_manual"
     "mlp"
     "mse_loss"
     "sdpa"

@@ -122,20 +122,6 @@ public:
         std::function<void(const OpNode*)> backward_fn,
         std::vector<TensorNode*> buffers = {});
 
-    //! Wrap output(s) with a module-level op (custom backward overrides autograd).
-    //! Use when forward was run in GradMode::Guard - outputs have no producer.
-    //! Attaches backward_fn so output.backward() invokes it.
-    void wrap_with_module_op(
-        std::vector<TensorNode*> inputs,
-        std::vector<TensorNode*> outputs,
-        std::function<void(const OpNode*)> backward_fn);
-
-    //! Single-output overload
-    void wrap_with_module_op(
-        std::vector<TensorNode*> inputs,
-        TensorNode* output,
-        std::function<void(const OpNode*)> backward_fn);
-
     // -----------------------------------------------------------------
     // String representation
     // -----------------------------------------------------------------

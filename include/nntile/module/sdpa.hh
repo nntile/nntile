@@ -119,9 +119,6 @@ public:
         return build_forward(q, k, v, mask);
     }
 
-    //! Build backward operations
-    void build_backward();
-
     //! Get string representation
     std::string repr() const override;
 

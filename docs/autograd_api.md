@@ -52,13 +52,12 @@ TensorNode* Add::build_forward(...) {
 // Multi-output: return std::vector<TensorNode*>, pass to register_op
 ```
 
-### Modules (no CRTP, user does bookkeeping)
+### Modules (no CRTP, no backward)
 
 All modules inherit `ModuleBase` only. No template.
 
-- **No custom backward**: implement `build_forward`, define `operator()` that calls it.
-- **Custom backward**: implement `build_forward`, `backward_inputs()`, `build_backward(op)`.
-  Define `operator()` that does: `GradMode::Guard`, `build_forward`, `wrap_with_module_op`.
+- Implement `build_forward`, define `operator()` that calls it.
+- **No backward support** – modules use autograd functors; backward is via TensorNode::backward().
 
 ### Usage Examples
 

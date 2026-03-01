@@ -10,7 +10,6 @@
  * MSE loss module: squared Frobenius norm of input.
  *
  * Forward: loss = norm(x)^2 = ||x||_F^2
- * Backward: grad_x = 2*x (no need to set grad on scalar loss)
  *
  * @version 1.1.0
  * */
@@ -48,9 +47,6 @@ public:
     {
         return build_forward(input);
     }
-
-    //! Build backward: grad_x = 2*x (scalar loss grad is 1.0)
-    void build_backward();
 
     std::string repr() const override;
 };

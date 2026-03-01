@@ -127,36 +127,6 @@ TEST_CASE("Sdpa Vanilla BuildForwardWithMask", "[module]")
     REQUIRE(mask_count == 1);
 }
 
-TEST_CASE("Sdpa Vanilla BuildBackward", "[module]")
-{
-    NNGraph g("sdpa");
-
-    auto* q = g.tensor({64, 8, 2, 4}, "q", DataType::FP32);
-    auto* k = g.tensor({64, 8, 2, 4}, "k", DataType::FP32);
-    auto* v = g.tensor({64, 8, 2, 4}, "v", DataType::FP32);
-
-    Sdpa sdpa(g, "sdpa", 64, 2, DataType::FP32);
-    auto& output = sdpa.build_forward(*q, *k, *v, nullptr);
-
-    g.get_or_create_grad(&output, "output_grad");
-    sdpa.build_backward();
-
-    REQUIRE(q->grad() != nullptr);
-    REQUIRE(k->grad() != nullptr);
-    REQUIRE(v->grad() != nullptr);
-    REQUIRE(q->grad()->shape() == q->shape());
-    REQUIRE(k->grad()->shape() == k->shape());
-    REQUIRE(v->grad()->shape() == v->shape());
-}
-
-TEST_CASE("Sdpa Vanilla BuildBackwardRequiresForward", "[module]")
-{
-    NNGraph g("sdpa");
-
-    Sdpa sdpa(g, "sdpa", 64, 2, DataType::FP32);
-    REQUIRE_THROWS_AS(sdpa.build_backward(), std::runtime_error);
-}
-
 TEST_CASE("Sdpa Vanilla BuildForwardValidatesShape", "[module]")
 {
     NNGraph g("sdpa");

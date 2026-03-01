@@ -14,7 +14,6 @@
 
 // Include corresponding header
 #include "nntile/module/module.hh"
-#include "nntile/graph/grad_mode.hh"
 
 // Include standard headers
 #include <iostream>

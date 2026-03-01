@@ -19,11 +19,6 @@
 namespace nntile::module
 {
 
-namespace
-{
-constexpr Scalar MSE_GRAD_SCALE = 2.0;
-}
-
 MseLoss::MseLoss(graph::NNGraph& graph,
                  const std::string& name,
                  graph::DataType dtype)
@@ -49,29 +44,6 @@ graph::NNGraph::TensorNode& MseLoss::build_forward(
 
     loss_tensor_ = graph_.tensor(loss_data);
     return *loss_tensor_;
-}
-
-void MseLoss::build_backward()
-{
-    if(!input_tensor_ || !loss_tensor_)
-    {
-        throw std::runtime_error(
-            "MseLoss::build_backward: forward not built");
-    }
-
-    // Scalar loss: grad = 1.0 (no need for user to set)
-    graph::NNGraph::TensorNode* grad_loss =
-        graph_.get_or_create_grad(loss_tensor_, tensor_name("loss_grad"));
-    graph::fill(Scalar(1.0), grad_loss->data());
-
-    // grad_x = 2*x
-    if(graph_.requires_grad(input_tensor_))
-    {
-        graph::NNGraph::TensorNode* grad_x = graph_.get_or_create_grad(
-            input_tensor_, input_tensor_->name() + "_grad");
-        graph::add_inplace(MSE_GRAD_SCALE, input_tensor_->data(),
-                           Scalar(1.0), grad_x->data());
-    }
 }
 
 std::string MseLoss::repr() const
