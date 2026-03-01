@@ -8,16 +8,19 @@ Base class handles OpNode creation, producer wiring, and requires_grad:
 
 ```cpp
 struct AutogradFunction {
-    // Register OpNode and set producer when GradMode enabled
+    // Multi-output: always creates OpNode; sets producer and backward_fn only
+    // when GradMode enabled and any output requires grad.
+    static void register_op(graph, inputs, outputs, attrs, backward_fn);
+    // Single-output overload
     static void register_op(graph, inputs, output, attrs, backward_fn);
-    // Output requires_grad = any input requires grad
     static bool any_input_requires_grad(inputs);
+    static bool any_output_requires_grad(outputs);
 };
 ```
 
-Derived functors (Add, Gemm, etc.) inherit from AutogradFunction. Their
-`build_forward` does the logical op, creates the output tensor, then calls
-`register_op()`. The base handles GradMode check, create_op, set_producer.
+- **Always creates OpNode** (via create_op)
+- **Producer and backward_fn** only when GradMode enabled AND any output requires grad
+- **Multi-output** supported via `std::vector<TensorNode*> outputs`
 
 ### Autograd Functors (Add, Gemm, AddFiber, Gelu, SumFiber)
 

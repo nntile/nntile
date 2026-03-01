@@ -28,12 +28,20 @@ namespace nntile::graph
 
 //! Base for autograd functors. Centralizes OpNode creation and producer wiring.
 //!
-//! Usage: Derived::build_forward does forward, then calls register_op().
-//! When GradMode is enabled, creates OpNode and sets producer on output.
+//! Always creates OpNode. Sets producer and backward_fn only when GradMode
+//! enabled and at least one output requires grad.
 struct AutogradFunction
 {
-    //! Register OpNode and set producer on output when GradMode enabled.
-    //! Call after creating output tensor in build_forward.
+    //! Register OpNode (always created). Set producer and backward_fn only when
+    //! GradMode enabled and any output requires grad.
+    static void register_op(
+        NNGraph& graph,
+        const std::vector<NNGraph::TensorNode*>& inputs,
+        const std::vector<NNGraph::TensorNode*>& outputs,
+        OpAttrs attrs,
+        std::function<void(const NNGraph::OpNode*)> backward_fn);
+
+    //! Single-output overload
     static void register_op(
         NNGraph& graph,
         const std::vector<NNGraph::TensorNode*>& inputs,
@@ -44,6 +52,10 @@ struct AutogradFunction
     //! Compute output requires_grad: true if any input requires grad.
     static bool any_input_requires_grad(
         const std::vector<NNGraph::TensorNode*>& inputs);
+
+    //! True if any output requires grad.
+    static bool any_output_requires_grad(
+        const std::vector<NNGraph::TensorNode*>& outputs);
 };
 
 } // namespace nntile::graph
