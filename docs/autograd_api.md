@@ -24,7 +24,10 @@ struct AutogradFunction : AutogradFunctionBase {
 //   static ForwardResult build_forward(...);  // logical ops only
 //   static void build_backward(const OpNode* op);
 ```
-- **Always creates OpNode** (via create_op)
+- **Creates OpNode only when** GradMode enabled AND any input requires grad.
+  When GradMode disabled (e.g. inside module forward with custom backward),
+  no OpNode is created for small ops – only the module's wrap_with_module_op
+  creates one OpNode for the whole forward.
 - **Producer and backward_fn** only when GradMode enabled AND any input requires grad
   (gradients propagate to inputs, not outputs)
 - **Multi-output** supported via `std::vector<TensorNode*> outputs`
@@ -33,7 +36,7 @@ struct AutogradFunction : AutogradFunctionBase {
 
 ```cpp
 struct Add : AutogradFunction<Add> {
-    static TensorNode* build_forward(...);
+    static ForwardResult build_forward(...);
     static void build_backward(const OpNode* op);
 };
 ```
