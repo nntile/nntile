@@ -72,7 +72,8 @@ class Module : public ModuleBase {
 };
 ```
 
-- **build_forward** can have any signature: `(TensorNode&)`, `(Q&, K&, V&, mask*)`, etc.
+- **build_forward** can have any signature and return: `TensorNode&`, `TensorNode*`,
+  `std::vector<TensorNode*>` (single or multiple outputs).
 - **operator()** forwards whatever args to `build_forward` – no fixed API.
 - **No custom backward**: implement `build_forward` only.
 - **Custom backward**: implement `build_forward`, `backward_inputs()`, `build_backward(op)`.

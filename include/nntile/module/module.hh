@@ -215,10 +215,11 @@ public:
             graph::GradMode::Guard g;
             auto out = static_cast<Derived*>(this)->build_forward(
                 std::forward<Args>(args)...);
-            graph::NNGraph::TensorNode* out_ptr = out_ptr_from_result(out);
+            std::vector<graph::NNGraph::TensorNode*> outputs =
+                outputs_from_result(out);
             graph_.wrap_with_module_op(
                 static_cast<Derived*>(this)->backward_inputs(),
-                out_ptr,
+                std::move(outputs),
                 [this](const graph::NNGraph::OpNode* op)
                 {
                     static_cast<Derived*>(this)->build_backward(op);
@@ -233,15 +234,21 @@ public:
     }
 
 private:
-    static graph::NNGraph::TensorNode* out_ptr_from_result(
+    static std::vector<graph::NNGraph::TensorNode*> outputs_from_result(
         graph::NNGraph::TensorNode& r)
     {
-        return &r;
+        return {&r};
     }
-    static graph::NNGraph::TensorNode* out_ptr_from_result(
+    static std::vector<graph::NNGraph::TensorNode*> outputs_from_result(
         graph::NNGraph::TensorNode* p)
     {
-        return p;
+        return p != nullptr ? std::vector<graph::NNGraph::TensorNode*>{p}
+                            : std::vector<graph::NNGraph::TensorNode*>{};
+    }
+    static std::vector<graph::NNGraph::TensorNode*> outputs_from_result(
+        const std::vector<graph::NNGraph::TensorNode*>& v)
+    {
+        return v;
     }
 };
 
