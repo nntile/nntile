@@ -25,8 +25,8 @@ TEST_CASE("LinearManual custom backward: single module OpNode")
 
     auto* input = graph.tensor({2, 4}, "input", DataType::FP32, true);
 
-    // build_forward runs in GradMode::Guard, then wrap_with_module_op
-    auto& output = linear.build_forward(*input);
+    // operator() runs build_forward in GradMode::Guard, then wrap_with_module_op
+    auto& output = linear(*input);
 
     // With build_backward: single module OpNode (not gemm/add_fiber functors)
     REQUIRE(output.has_producer());

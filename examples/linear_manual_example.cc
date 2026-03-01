@@ -36,9 +36,9 @@ int main()
     auto* input = graph.tensor(
         {4, 8}, "input", nntile::graph::DataType::FP32, true);
 
-    // build_forward runs gemm/add_fiber in GradMode::Guard (no producer),
+    // operator() runs build_forward in GradMode::Guard (no producer),
     // then wrap_with_module_op attaches our custom backward
-    auto& output = linear.build_forward(*input);
+    auto& output = linear(*input);
 
     // Set grad and run backward - invokes LinearManual::build_backward
     graph.get_or_create_grad(&output, "output_grad");
