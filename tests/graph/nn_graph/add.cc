@@ -22,7 +22,8 @@ TEST_CASE("NNGraph Autograd Add Callable", "[graph][nn_graph]")
     auto* x = g.tensor({2, 3}, "x", DataType::FP32);
     auto* y = g.tensor({2, 3}, "y", DataType::FP32);
     Add add_fn;
-    auto* z = add_fn(1.0, x, 1.0, y, "z");
+    auto outs = add_fn(1.0, x, 1.0, y, "z");
+    auto* z = outs.empty() ? nullptr : outs[0];
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
 }

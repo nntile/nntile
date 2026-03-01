@@ -36,7 +36,7 @@ ForwardResult AddFiber::build_forward(
     LogicalGraph::TensorNode& out_data = add_fiber(
         alpha, fiber->data(), beta, tensor->data(), output_name, axis,
         batch_ndim);
-    return {out_data, {fiber, tensor},
+    return {{&out_data}, {fiber, tensor},
             AddFiberAttrs{axis, batch_ndim, alpha, beta}};
 }
 

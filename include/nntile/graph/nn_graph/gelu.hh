@@ -38,12 +38,13 @@ struct Gelu : AutogradFunction<Gelu>
     static void build_backward(const NNGraph::OpNode* op);
 };
 
-//! Convenience free function
+//! Convenience free function (single output)
 inline NNGraph::TensorNode* gelu(
     NNGraph::TensorNode* x,
     const std::string& output_name)
 {
-    return Gelu()(x, output_name);
+    std::vector<NNGraph::TensorNode*> outs = Gelu()(x, output_name);
+    return outs.empty() ? nullptr : outs[0];
 }
 
 } // namespace nntile::graph

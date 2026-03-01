@@ -43,7 +43,7 @@ struct AddFiber : AutogradFunction<AddFiber>
     static void build_backward(const NNGraph::OpNode* op);
 };
 
-//! Convenience free function
+//! Convenience free function (single output)
 inline NNGraph::TensorNode* add_fiber(
     Scalar alpha,
     NNGraph::TensorNode* fiber,
@@ -53,7 +53,9 @@ inline NNGraph::TensorNode* add_fiber(
     Index axis = 0,
     Index batch_ndim = 0)
 {
-    return AddFiber()(alpha, fiber, beta, tensor, output_name, axis, batch_ndim);
+    std::vector<NNGraph::TensorNode*> outs =
+        AddFiber()(alpha, fiber, beta, tensor, output_name, axis, batch_ndim);
+    return outs.empty() ? nullptr : outs[0];
 }
 
 } // namespace nntile::graph

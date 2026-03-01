@@ -44,7 +44,7 @@ struct Gemm : AutogradFunction<Gemm>
     static void build_backward(const NNGraph::OpNode* op);
 };
 
-//! Convenience free function
+//! Convenience free function (single output)
 inline NNGraph::TensorNode* gemm(
     NNGraph::TensorNode* a,
     NNGraph::TensorNode* b,
@@ -55,7 +55,9 @@ inline NNGraph::TensorNode* gemm(
     Index ndim = 1,
     Index batch_ndim = 0)
 {
-    return Gemm()(a, b, output_name, alpha, trans_a, trans_b, ndim, batch_ndim);
+    std::vector<NNGraph::TensorNode*> outs =
+        Gemm()(a, b, output_name, alpha, trans_a, trans_b, ndim, batch_ndim);
+    return outs.empty() ? nullptr : outs[0];
 }
 
 } // namespace nntile::graph

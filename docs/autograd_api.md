@@ -8,7 +8,7 @@ Base class handles OpNode creation, producer wiring, and requires_grad:
 
 ```cpp
 struct ForwardResult {
-    LogicalGraph::TensorNode& out;
+    std::vector<LogicalGraph::TensorNode*> outputs;
     std::vector<TensorNode*> inputs;
     OpAttrs attrs;
 };
@@ -46,10 +46,16 @@ struct Add : AutogradFunction<Add> {
 **build_forward** – logical ops only (bookkeeping in operator()):
 
 ```cpp
-ForwardResult Add::build_forward(Scalar alpha, TensorNode* x, Scalar beta,
-                                 TensorNode* y, const std::string& output_name) {
+ForwardResult Add::build_forward(...) {
     LogicalGraph::TensorNode& z_data = add(alpha, x->data(), beta, y->data(), output_name);
-    return {z_data, {x, y}, BinaryOpAttrs{alpha, beta}};
+    return {{&z_data}, {x, y}, BinaryOpAttrs{alpha, beta}};
+}
+
+// Multi-output example:
+ForwardResult MyOp::build_forward(...) {
+    auto& out1 = logical_op1(...);
+    auto& out2 = logical_op2(...);
+    return {{&out1, &out2}, {x}, MyAttrs{}};
 }
 ```
 

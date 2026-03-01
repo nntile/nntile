@@ -43,7 +43,7 @@ struct SumFiber : AutogradFunction<SumFiber>
     static void build_backward(const NNGraph::OpNode* op);
 };
 
-//! Convenience free function
+//! Convenience free function (single output)
 inline NNGraph::TensorNode* sum_fiber(
     NNGraph::TensorNode* x,
     const std::string& output_name,
@@ -53,7 +53,9 @@ inline NNGraph::TensorNode* sum_fiber(
     Scalar alpha = 1.0,
     Scalar beta = 0.0)
 {
-    return SumFiber()(x, output_name, axis, batch_ndim, redux, alpha, beta);
+    std::vector<NNGraph::TensorNode*> outs =
+        SumFiber()(x, output_name, axis, batch_ndim, redux, alpha, beta);
+    return outs.empty() ? nullptr : outs[0];
 }
 
 } // namespace nntile::graph

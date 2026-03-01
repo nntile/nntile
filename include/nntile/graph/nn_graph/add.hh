@@ -41,7 +41,7 @@ struct Add : AutogradFunction<Add>
     static void build_backward(const NNGraph::OpNode* op);
 };
 
-//! Convenience free function
+//! Convenience free function (single output)
 inline NNGraph::TensorNode* add(
     Scalar alpha,
     NNGraph::TensorNode* x,
@@ -49,7 +49,8 @@ inline NNGraph::TensorNode* add(
     NNGraph::TensorNode* y,
     const std::string& output_name)
 {
-    return Add()(alpha, x, beta, y, output_name);
+    std::vector<NNGraph::TensorNode*> outs = Add()(alpha, x, beta, y, output_name);
+    return outs.empty() ? nullptr : outs[0];
 }
 
 } // namespace nntile::graph
