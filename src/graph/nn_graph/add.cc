@@ -33,7 +33,7 @@ ForwardResult Add::build_forward(
     }
     LogicalGraph::TensorNode& z_data =
         add(alpha, x->data(), beta, y->data(), output_name);
-    return {{&z_data}, {x, y}, BinaryOpAttrs{alpha, beta}};
+    return {{&z_data}, {x, y}, BinaryOpAttrs{alpha, beta}, {}};
 }
 
 void Add::build_backward(const NNGraph::OpNode* op)

@@ -28,7 +28,7 @@ ForwardResult Gelu::build_forward(
         throw std::invalid_argument("Gelu::build_forward: x must be non-null");
     }
     LogicalGraph::TensorNode& y_data = gelu(x->data(), output_name);
-    return {{&y_data}, {x}, GeluAttrs{}};
+    return {{&y_data}, {x}, GeluAttrs{}, {}};
 }
 
 void Gelu::build_backward(const NNGraph::OpNode* op)

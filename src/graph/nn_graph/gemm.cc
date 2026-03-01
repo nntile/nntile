@@ -35,7 +35,7 @@ ForwardResult Gemm::build_forward(
     LogicalGraph::TensorNode& c_data = gemm(
         a->data(), b->data(), output_name, alpha, trans_a, trans_b, ndim,
         batch_ndim);
-    return {{&c_data}, {a, b}, GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim}};
+    return {{&c_data}, {a, b}, GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim}, {}};
 }
 
 void Gemm::build_backward(const NNGraph::OpNode* op)

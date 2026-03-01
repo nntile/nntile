@@ -61,7 +61,7 @@ ForwardResult SumFiber::build_forward(
         logical.tensor(y_shape, output_name, x->dtype());
     clear(y_data);
     sum_fiber(x->data(), y_data, axis, batch_ndim, redux, alpha, beta);
-    return {{&y_data}, {x}, ReductionAttrs{alpha, beta, axis, batch_ndim, redux}};
+    return {{&y_data}, {x}, ReductionAttrs{alpha, beta, axis, batch_ndim, redux}, {}};
 }
 
 void SumFiber::build_backward(const NNGraph::OpNode* op)

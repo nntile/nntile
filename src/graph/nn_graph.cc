@@ -197,11 +197,12 @@ NNGraph::OpNode* NNGraph::create_op(
     std::vector<TensorNode*> inputs,
     std::vector<TensorNode*> outputs,
     OpAttrs attrs,
-    std::function<void(const OpNode*)> backward_fn)
+    std::function<void(const OpNode*)> backward_fn,
+    std::vector<TensorNode*> buffers)
 {
     auto op = std::make_unique<OpNode>(
         std::move(inputs), std::move(outputs), std::move(attrs),
-        std::move(backward_fn));
+        std::move(backward_fn), std::move(buffers));
     OpNode* ptr = op.get();
     op_nodes_.push_back(std::move(op));
     return ptr;

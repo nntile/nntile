@@ -19,7 +19,8 @@ void AutogradFunctionBase::register_op(
     const std::vector<NNGraph::TensorNode*>& inputs,
     const std::vector<NNGraph::TensorNode*>& outputs,
     OpAttrs attrs,
-    std::function<void(const NNGraph::OpNode*)> backward_fn)
+    std::function<void(const NNGraph::OpNode*)> backward_fn,
+    const std::vector<NNGraph::TensorNode*>& buffers)
 {
     const bool need_backward =
         GradMode::is_enabled() && any_input_requires_grad(inputs);
@@ -33,7 +34,8 @@ void AutogradFunctionBase::register_op(
         std::vector<NNGraph::TensorNode*>(inputs),
         std::vector<NNGraph::TensorNode*>(outputs),
         std::move(attrs),
-        std::move(backward_fn));
+        std::move(backward_fn),
+        std::vector<NNGraph::TensorNode*>(buffers));
 
     for(NNGraph::TensorNode* out : outputs)
     {
@@ -49,11 +51,12 @@ void AutogradFunctionBase::register_op(
     const std::vector<NNGraph::TensorNode*>& inputs,
     NNGraph::TensorNode* output,
     OpAttrs attrs,
-    std::function<void(const NNGraph::OpNode*)> backward_fn)
+    std::function<void(const NNGraph::OpNode*)> backward_fn,
+    const std::vector<NNGraph::TensorNode*>& buffers)
 {
     register_op(graph, inputs, output ? std::vector<NNGraph::TensorNode*>{output}
                                       : std::vector<NNGraph::TensorNode*>{},
-                std::move(attrs), std::move(backward_fn));
+                std::move(attrs), std::move(backward_fn), buffers);
 }
 
 bool AutogradFunctionBase::any_input_requires_grad(

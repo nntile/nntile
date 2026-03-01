@@ -30,11 +30,14 @@ namespace nntile::graph
 {
 
 //! Result of build_forward: logical outputs + inputs + attrs for operator() bookkeeping.
+//! buffers: temporary tensors computed in forward, saved for reuse in backward
+//! (like PyTorch ctx.save_for_backward). Hidden from outputs, internal-only.
 struct ForwardResult
 {
     std::vector<LogicalGraph::TensorNode*> outputs;
     std::vector<NNGraph::TensorNode*> inputs;
     OpAttrs attrs;
+    std::vector<NNGraph::TensorNode*> buffers;
 };
 
 //! Shared helpers for autograd functors (register_op, any_input_requires_grad).
@@ -45,14 +48,16 @@ struct AutogradFunctionBase
         const std::vector<NNGraph::TensorNode*>& inputs,
         const std::vector<NNGraph::TensorNode*>& outputs,
         OpAttrs attrs,
-        std::function<void(const NNGraph::OpNode*)> backward_fn);
+        std::function<void(const NNGraph::OpNode*)> backward_fn,
+        const std::vector<NNGraph::TensorNode*>& buffers = {});
 
     static void register_op(
         NNGraph& graph,
         const std::vector<NNGraph::TensorNode*>& inputs,
         NNGraph::TensorNode* output,
         OpAttrs attrs,
-        std::function<void(const NNGraph::OpNode*)> backward_fn);
+        std::function<void(const NNGraph::OpNode*)> backward_fn,
+        const std::vector<NNGraph::TensorNode*>& buffers = {});
 
     static bool any_input_requires_grad(
         const std::vector<NNGraph::TensorNode*>& inputs);
@@ -91,7 +96,8 @@ struct AutogradFunction : AutogradFunctionBase
         register_op(graph, result.inputs, nn_outputs, std::move(result.attrs),
                     [](const NNGraph::OpNode* op) {
                         Derived::build_backward(op);
-                    });
+                    },
+                    result.buffers);
         return nn_outputs;
     }
 };

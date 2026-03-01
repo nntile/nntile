@@ -37,7 +37,7 @@ ForwardResult AddFiber::build_forward(
         alpha, fiber->data(), beta, tensor->data(), output_name, axis,
         batch_ndim);
     return {{&out_data}, {fiber, tensor},
-            AddFiberAttrs{axis, batch_ndim, alpha, beta}};
+            AddFiberAttrs{axis, batch_ndim, alpha, beta}, {}};
 }
 
 void AddFiber::build_backward(const NNGraph::OpNode* op)

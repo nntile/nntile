@@ -11,6 +11,7 @@ struct ForwardResult {
     std::vector<LogicalGraph::TensorNode*> outputs;
     std::vector<TensorNode*> inputs;
     OpAttrs attrs;
+    std::vector<TensorNode*> buffers;  // like ctx.save_for_backward, internal-only
 };
 
 template<typename Derived>

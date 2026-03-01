@@ -113,12 +113,13 @@ public:
         const std::string& grad_name);
 
     //! Create and register an NNGraph-level op (AutoGradFunction).
-    //! Returns the OpNode* to pass to TensorNode::set_producer.
+    //! buffers: tensors saved from forward for reuse in backward (internal-only).
     OpNode* create_op(
         std::vector<TensorNode*> inputs,
         std::vector<TensorNode*> outputs,
         OpAttrs attrs,
-        std::function<void(const OpNode*)> backward_fn);
+        std::function<void(const OpNode*)> backward_fn,
+        std::vector<TensorNode*> buffers = {});
 
     //! Wrap output(s) with a module-level op (custom backward overrides autograd).
     //! Use when forward was run in GradMode::Guard - outputs have no producer.

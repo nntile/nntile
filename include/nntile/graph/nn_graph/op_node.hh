@@ -41,21 +41,25 @@ private:
     std::vector<TensorNode*> outputs_;
     OpAttrs attrs_;
     BackwardFn backward_fn_;
+    std::vector<TensorNode*> buffers_;
 
 public:
     OpNode(std::vector<TensorNode*> inputs,
            std::vector<TensorNode*> outputs,
            OpAttrs attrs,
-           BackwardFn backward_fn)
+           BackwardFn backward_fn,
+           std::vector<TensorNode*> buffers = {})
         : inputs_(std::move(inputs))
         , outputs_(std::move(outputs))
         , attrs_(std::move(attrs))
         , backward_fn_(std::move(backward_fn))
+        , buffers_(std::move(buffers))
     {
     }
 
     const std::vector<TensorNode*>& inputs() const { return inputs_; }
     const std::vector<TensorNode*>& outputs() const { return outputs_; }
+    const std::vector<TensorNode*>& buffers() const { return buffers_; }
     //! Convenience for single-output ops. Undefined if outputs().size() != 1.
     TensorNode* output() const { return outputs_.empty() ? nullptr : outputs_[0]; }
     const OpAttrs& attrs() const { return attrs_; }
