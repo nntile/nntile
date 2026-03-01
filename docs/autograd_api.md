@@ -2,22 +2,36 @@
 
 ## General API for Autograd Functions
 
-Autograd functors and modules are **callable** via `operator()`. No override chain.
+### AutogradFunction Base Class (PyTorch-like)
+
+Base class handles OpNode creation, producer wiring, and requires_grad:
+
+```cpp
+struct AutogradFunction {
+    // Register OpNode and set producer when GradMode enabled
+    static void register_op(graph, inputs, output, attrs, backward_fn);
+    // Output requires_grad = any input requires grad
+    static bool any_input_requires_grad(inputs);
+};
+```
+
+Derived functors (Add, Gemm, etc.) inherit from AutogradFunction. Their
+`build_forward` does the logical op, creates the output tensor, then calls
+`register_op()`. The base handles GradMode check, create_op, set_producer.
 
 ### Autograd Functors (Add, Gemm, AddFiber, Gelu, SumFiber)
 
 ```cpp
-struct Add {
-    TensorNode* operator()(Scalar alpha, TensorNode* x, Scalar beta,
-                          TensorNode* y, const std::string& output_name) const;
+struct Add : AutogradFunction {
+    TensorNode* operator()(...) const;
     static TensorNode* build_forward(...);
     static void build_backward(const OpNode* op);
 };
 ```
 
-- **Callable**: `Add()(alpha, x, beta, y, "z")` or free function `add(alpha, x, beta, y, "z")`
+- **Callable**: `Add()(alpha, x, beta, y, "z")` or free function `add(...)`
 - **Backward**: static `build_backward(op)` invoked by `output.backward()`
-- **OpNode**: created when GradMode enabled; producer set on output
+- **OpNode**: base's `register_op()` creates OpNode and sets producer when GradMode enabled
 
 ### Modules
 

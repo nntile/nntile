@@ -19,6 +19,7 @@
 
 #include <string>
 
+#include <nntile/graph/autograd_function.hh>
 #include <nntile/graph/logical/add_fiber.hh>
 #include <nntile/graph/nn_graph.hh>
 
@@ -26,7 +27,7 @@ namespace nntile::graph
 {
 
 //! AddFiber functor: callable, forward and backward in one place
-struct AddFiber
+struct AddFiber : AutogradFunction
 {
     //! Callable: output = alpha * fiber + beta * tensor
     NNGraph::TensorNode* operator()(

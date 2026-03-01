@@ -10,7 +10,6 @@
  * */
 
 #include "nntile/graph/nn_graph/gemm.hh"
-#include "nntile/graph/grad_mode.hh"
 #include "nntile/graph/logical/gemm.hh"
 
 #include <stdexcept>
@@ -37,19 +36,12 @@ NNGraph::TensorNode* Gemm::build_forward(
     LogicalGraph::TensorNode& c_data = gemm(
         a->data(), b->data(), output_name, alpha, trans_a, trans_b, ndim,
         batch_ndim);
-    bool out_requires_grad = a->requires_grad() || b->requires_grad();
+    bool out_requires_grad = any_input_requires_grad({a, b});
     NNGraph::TensorNode* c = graph.tensor(c_data, out_requires_grad);
 
-    if(GradMode::is_enabled())
-    {
-        OpAttrs attrs = GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim};
-        NNGraph::OpNode* op_nn = graph.create_op(
-            {a, b},
-            {c},
-            std::move(attrs),
-            [](const NNGraph::OpNode* op) { Gemm::build_backward(op); });
-        c->set_producer(op_nn);
-    }
+    register_op(graph, {a, b}, c,
+                GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim},
+                [](const NNGraph::OpNode* op) { Gemm::build_backward(op); });
     return c;
 }
 

@@ -19,6 +19,7 @@
 
 #include <string>
 
+#include <nntile/graph/autograd_function.hh>
 #include <nntile/graph/logical/gelu.hh>
 #include <nntile/graph/nn_graph.hh>
 
@@ -26,7 +27,7 @@ namespace nntile::graph
 {
 
 //! Gelu functor: callable, forward and backward in one place
-struct Gelu
+struct Gelu : AutogradFunction
 {
     //! Callable: y = gelu(x)
     NNGraph::TensorNode* operator()(

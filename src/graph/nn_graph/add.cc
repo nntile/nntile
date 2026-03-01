@@ -13,7 +13,6 @@
  * */
 
 #include "nntile/graph/nn_graph/add.hh"
-#include "nntile/graph/grad_mode.hh"
 #include "nntile/graph/logical_graph_ops.hh"
 
 #include <stdexcept>
@@ -35,19 +34,11 @@ NNGraph::TensorNode* Add::build_forward(
     NNGraph& graph = x->graph();
     LogicalGraph::TensorNode& z_data =
         add(alpha, x->data(), beta, y->data(), output_name);
-    bool out_requires_grad = x->requires_grad() || y->requires_grad();
+    bool out_requires_grad = any_input_requires_grad({x, y});
     NNGraph::TensorNode* z = graph.tensor(z_data, out_requires_grad);
 
-    if(GradMode::is_enabled())
-    {
-        OpAttrs attrs = BinaryOpAttrs{alpha, beta};
-        NNGraph::OpNode* op_nn = graph.create_op(
-            {x, y},
-            {z},
-            std::move(attrs),
-            [](const NNGraph::OpNode* op) { Add::build_backward(op); });
-        z->set_producer(op_nn);
-    }
+    register_op(graph, {x, y}, z, BinaryOpAttrs{alpha, beta},
+                [](const NNGraph::OpNode* op) { Add::build_backward(op); });
     return z;
 }
 

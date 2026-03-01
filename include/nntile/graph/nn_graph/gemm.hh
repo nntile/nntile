@@ -19,6 +19,7 @@
 
 #include <string>
 
+#include <nntile/graph/autograd_function.hh>
 #include <nntile/graph/logical/gemm.hh>
 #include <nntile/graph/nn_graph.hh>
 
@@ -26,7 +27,7 @@ namespace nntile::graph
 {
 
 //! Gemm functor: callable, forward and backward in one place
-struct Gemm
+struct Gemm : AutogradFunction
 {
     //! Callable: C = alpha * op(A) @ op(B)
     NNGraph::TensorNode* operator()(

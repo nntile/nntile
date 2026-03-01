@@ -15,6 +15,7 @@
 #pragma once
 
 // Include related NNTile headers - core classes
+#include <nntile/graph/autograd_function.hh>
 #include <nntile/graph/grad_mode.hh>
 #include <nntile/graph/logical_graph.hh>
 #include <nntile/graph/nn_graph.hh>

@@ -10,7 +10,6 @@
  * */
 
 #include "nntile/graph/nn_graph/sum_fiber.hh"
-#include "nntile/graph/grad_mode.hh"
 #include "nntile/graph/logical/add_fiber_inplace.hh"
 #include "nntile/graph/logical/clear.hh"
 #include "nntile/graph/logical/sum_fiber.hh"
@@ -66,19 +65,12 @@ NNGraph::TensorNode* SumFiber::build_forward(
 
     sum_fiber(x->data(), y_data, axis, batch_ndim, redux, alpha, beta);
 
-    bool out_requires_grad = x->requires_grad();
+    bool out_requires_grad = any_input_requires_grad({x});
     NNGraph::TensorNode* y = graph.tensor(y_data, out_requires_grad);
 
-    if(GradMode::is_enabled())
-    {
-        OpAttrs attrs = ReductionAttrs{alpha, beta, axis, batch_ndim, redux};
-        NNGraph::OpNode* op_nn = graph.create_op(
-            {x},
-            {y},
-            std::move(attrs),
-            [](const NNGraph::OpNode* op) { SumFiber::build_backward(op); });
-        y->set_producer(op_nn);
-    }
+    register_op(graph, {x}, y,
+                ReductionAttrs{alpha, beta, axis, batch_ndim, redux},
+                [](const NNGraph::OpNode* op) { SumFiber::build_backward(op); });
     return y;
 }
 

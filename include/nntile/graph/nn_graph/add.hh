@@ -19,6 +19,7 @@
 
 #include <string>
 
+#include <nntile/graph/autograd_function.hh>
 #include <nntile/graph/logical/add.hh>
 #include <nntile/graph/nn_graph.hh>
 
@@ -26,7 +27,7 @@ namespace nntile::graph
 {
 
 //! Add functor: callable, forward and backward in one place
-struct Add
+struct Add : AutogradFunction
 {
     //! Callable: z = alpha * x + beta * y
     NNGraph::TensorNode* operator()(
