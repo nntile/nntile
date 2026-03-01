@@ -18,9 +18,11 @@
 #pragma once
 
 #include <functional>
+#include <utility>
 #include <vector>
 
 #include <nntile/graph/grad_mode.hh>
+#include <nntile/graph/logical_graph.hh>
 #include <nntile/graph/nn_graph.hh>
 
 namespace nntile::graph
@@ -29,11 +31,36 @@ namespace nntile::graph
 //! Base for autograd functors. Centralizes OpNode creation and producer wiring.
 //!
 //! Always creates OpNode. Sets producer and backward_fn only when GradMode
-//! enabled and at least one output requires grad.
+//! enabled and any input requires grad.
 struct AutogradFunction
 {
+    //! Convenience wrapper: run forward_fn, wrap output, register_op.
+    //! User focuses on the logical op; this handles requires_grad and registration.
+    //!
+    //! @param graph NNGraph
+    //! @param inputs Input tensor nodes
+    //! @param attrs Op attrs for backward
+    //! @param forward_fn Callable () -> LogicalGraph::TensorNode& (the logical op)
+    //! @param backward_fn Callable (OpNode*) -> void
+    //! @return NNGraph::TensorNode* wrapping the logical output
+    template<typename FwdFn, typename BwdFn>
+    static NNGraph::TensorNode* run(
+        NNGraph& graph,
+        const std::vector<NNGraph::TensorNode*>& inputs,
+        OpAttrs attrs,
+        FwdFn&& forward_fn,
+        BwdFn&& backward_fn)
+    {
+        LogicalGraph::TensorNode& out_data = forward_fn();
+        bool out_requires_grad = any_input_requires_grad(inputs);
+        NNGraph::TensorNode* output = graph.tensor(out_data, out_requires_grad);
+        register_op(graph, inputs, output, std::move(attrs),
+                    std::forward<BwdFn>(backward_fn));
+        return output;
+    }
+
     //! Register OpNode (always created). Set producer and backward_fn only when
-    //! GradMode enabled and any output requires grad.
+    //! GradMode enabled and any input requires grad.
     static void register_op(
         NNGraph& graph,
         const std::vector<NNGraph::TensorNode*>& inputs,

@@ -8,16 +8,20 @@ Base class handles OpNode creation, producer wiring, and requires_grad:
 
 ```cpp
 struct AutogradFunction {
-    // Multi-output: always creates OpNode; sets producer and backward_fn only
-    // when GradMode enabled and any output requires grad.
+    // Convenience: run forward_fn, wrap output, register_op. User focuses on
+    // the logical op; this handles requires_grad and registration.
+    template<typename FwdFn, typename BwdFn>
+    static TensorNode* run(graph, inputs, attrs, forward_fn, backward_fn);
+
     static void register_op(graph, inputs, outputs, attrs, backward_fn);
-    // Single-output overload
     static void register_op(graph, inputs, output, attrs, backward_fn);
     static bool any_input_requires_grad(inputs);
-    static bool any_output_requires_grad(outputs);
 };
 ```
 
+- **run()**: wrapper for single-output ops. `forward_fn` is `() -> LogicalGraph::TensorNode&`
+  (the logical op); `backward_fn` is `(OpNode*) -> void`. Handles `any_input_requires_grad`,
+  `graph.tensor()`, and `register_op`.
 - **Always creates OpNode** (via create_op)
 - **Producer and backward_fn** only when GradMode enabled AND any input requires grad
   (gradients propagate to inputs, not outputs)
@@ -36,6 +40,21 @@ struct Add : AutogradFunction {
 - **Callable**: `Add()(alpha, x, beta, y, "z")` or free function `add(...)`
 - **Backward**: static `build_backward(op)` invoked by `output.backward()`
 - **OpNode**: base's `register_op()` creates OpNode and sets producer when GradMode enabled
+
+**build_forward with run()** – user focuses on the logical op only:
+
+```cpp
+TensorNode* Add::build_forward(Scalar alpha, TensorNode* x, Scalar beta, TensorNode* y,
+                              const std::string& output_name) {
+    if (!x || !y) throw ...;
+    NNGraph& graph = x->graph();
+    return run(graph, {x, y}, BinaryOpAttrs{alpha, beta},
+               [&]() -> LogicalGraph::TensorNode& {
+                   return add(alpha, x->data(), beta, y->data(), output_name);
+               },
+               [](const OpNode* op) { Add::build_backward(op); });
+}
+```
 
 ### Modules
 
