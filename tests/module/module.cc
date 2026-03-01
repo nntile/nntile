@@ -32,7 +32,7 @@ using namespace nntile::module;
 namespace
 {
 
-class DummyModule final : public Module
+class DummyModule final : public Module<DummyModule>
 {
 private:
     NNGraph::TensorNode* input_tensor_ = nullptr;
@@ -40,11 +40,13 @@ private:
 
 public:
     DummyModule(NNGraph& graph, const std::string& name)
-        : Module(graph, name)
+        : Module<DummyModule>(graph, name)
     {
     }
 
-    NNGraph::TensorNode& build_forward(NNGraph::TensorNode& input) override
+    static constexpr bool has_custom_backward = false;
+
+    NNGraph::TensorNode& build_forward(NNGraph::TensorNode& input)
     {
         input_tensor_ = &input;
         std::vector<Index> output_shape = input.shape();

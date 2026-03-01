@@ -27,19 +27,8 @@
 namespace nntile::module
 {
 
-//! Base class for all neural network modules
-//!
-//! Similar to PyTorch's nn.Module, provides:
-//! 1. Parameter registration and iteration
-//! 2. Submodule composition
-//! 3. Named access to parameters and submodules
-//!
-//! Subclasses should:
-//! 1. Create parameters/buffers in constructor (using the graph reference)
-//! 2. Call register_parameter() for learnable tensors
-//! 3. Call register_buffer() for non-learnable state tensors
-//! 4. Call register_module() for child modules
-class Module
+//! Base class for all neural network modules (registration, parameters, etc.)
+class ModuleBase
 {
 protected:
     //! Reference to the graph this module belongs to
@@ -56,24 +45,24 @@ protected:
     std::vector<std::pair<std::string, graph::NNGraph::TensorNode*>> buffers_;
 
     //! Child modules
-    std::vector<std::pair<std::string, Module*>> submodules_;
+    std::vector<std::pair<std::string, ModuleBase*>> submodules_;
 
 public:
     //! Constructor
     //! @param graph The neural network graph this module belongs to
     //! @param name Module name (used for generating unique tensor names)
-    Module(graph::NNGraph& graph, const std::string& name);
+    ModuleBase(graph::NNGraph& graph, const std::string& name);
 
     //! Virtual destructor for proper cleanup of derived classes
-    virtual ~Module() = default;
+    virtual ~ModuleBase() = default;
 
     // Disable copy (modules hold references to graph elements)
-    Module(const Module&) = delete;
-    Module& operator=(const Module&) = delete;
+    ModuleBase(const ModuleBase&) = delete;
+    ModuleBase& operator=(const ModuleBase&) = delete;
 
     // Disable move (due to graph reference)
-    Module(Module&&) = delete;
-    Module& operator=(Module&&) = delete;
+    ModuleBase(ModuleBase&&) = delete;
+    ModuleBase& operator=(ModuleBase&&) = delete;
 
     // -----------------------------------------------------------------
     // Graph Access
@@ -102,7 +91,7 @@ public:
     //! Register a child module
     //! @param local_name Local name for the submodule
     //! @param module Pointer to the child module (not owned)
-    void register_module(const std::string& local_name, Module* module);
+    void register_module(const std::string& local_name, ModuleBase* module);
 
     // -----------------------------------------------------------------
     // Parameter Access (for optimizers)
@@ -154,13 +143,13 @@ public:
     // -----------------------------------------------------------------
 
     //! Get child modules (direct children only)
-    std::vector<Module*> children() const;
+    std::vector<ModuleBase*> children() const;
 
     //! Get named children
-    const std::vector<std::pair<std::string, Module*>>& named_children() const;
+    const std::vector<std::pair<std::string, ModuleBase*>>& named_children() const;
 
     //! Get all modules recursively (including self, depth-first)
-    std::vector<Module*> modules() const;
+    std::vector<ModuleBase*> modules() const;
 
     // -----------------------------------------------------------------
     // Name Access
@@ -177,32 +166,6 @@ public:
     //! "weight", "bias"), not for external input tensors. For input gradients,
     //! use input_tensor->name() + "_grad".
     std::string grad_name(const std::string& local_name) const;
-
-    // -----------------------------------------------------------------
-    // Forward API (single-input modules)
-    // -----------------------------------------------------------------
-
-    //! True if module has custom build_backward (uses wrap_with_module_op).
-    virtual bool has_custom_backward() const { return false; }
-
-    //! Inputs for backward (modules with custom backward must override).
-    virtual std::vector<graph::NNGraph::TensorNode*> backward_inputs() const
-    {
-        return {};
-    }
-
-    //! Forward pass. Override in subclasses. Default throws.
-    virtual graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input);
-
-    //! Backward pass. Override only in modules with has_custom_backward().
-    virtual void build_backward(const graph::NNGraph::OpNode* op) {}
-
-    //! Callable: if no custom backward, calls build_forward; otherwise
-    //! disables graph recording, calls build_forward, re-enables, wraps as
-    //! single OpNode with build_backward.
-    graph::NNGraph::TensorNode& operator()(
-        graph::NNGraph::TensorNode& input);
 
     // -----------------------------------------------------------------
     // String Representation
@@ -227,11 +190,44 @@ protected:
             const;
 
     //! Helper to collect modules recursively
-    void collect_modules_recursive(std::vector<Module*>& result) const;
+    void collect_modules_recursive(std::vector<ModuleBase*>& result) const;
 
     //! Helper for to_string with indentation
     void to_string_recursive(std::ostringstream& ss,
                              const std::string& indent) const;
+};
+
+//! CRTP base for single-input modules. operator() does bookkeeping like
+//! AutogradFunction. Derived sets has_custom_backward; implements build_forward
+//! (and build_backward, backward_inputs when has_custom_backward).
+template<typename Derived>
+class Module : public ModuleBase
+{
+public:
+    using ModuleBase::ModuleBase;
+
+    graph::NNGraph::TensorNode& operator()(
+        graph::NNGraph::TensorNode& input)
+    {
+        if constexpr(Derived::has_custom_backward)
+        {
+            graph::GradMode::Guard g;
+            graph::NNGraph::TensorNode& out =
+                static_cast<Derived*>(this)->build_forward(input);
+            graph_.wrap_with_module_op(
+                static_cast<Derived*>(this)->backward_inputs(),
+                &out,
+                [this](const graph::NNGraph::OpNode* op)
+                {
+                    static_cast<Derived*>(this)->build_backward(op);
+                });
+            return out;
+        }
+        else
+        {
+            return static_cast<Derived*>(this)->build_forward(input);
+        }
+    }
 };
 
 } // namespace nntile::module

@@ -62,22 +62,25 @@ ForwardResult MyOp::build_forward(...) {
 }
 ```
 
-### Modules
+### Modules (CRTP, like AutogradFunction)
 
 ```cpp
-// Base Module::operator() checks has_custom_backward():
-// - If false: just calls build_forward(input) and returns
-// - If true: GradMode::Guard, build_forward, wrap_with_module_op(backward_inputs, output, build_backward)
+// ModuleBase: registration, parameters, submodules (non-template)
+// Module<Derived>: operator() with CRTP
 
-virtual bool has_custom_backward() const { return false; }
-virtual std::vector<TensorNode*> backward_inputs() const { return {}; }
-virtual TensorNode& build_forward(TensorNode& input);
-virtual void build_backward(const OpNode* op) {}
-TensorNode& operator()(TensorNode& input);  // in base
+template<typename Derived>
+class Module : public ModuleBase {
+    TensorNode& operator()(TensorNode& input);  // if constexpr(has_custom_backward)...
+};
+
+// Derived sets static constexpr bool has_custom_backward
+// - false (Linear, Gelu, Mlp): implement build_forward only
+// - true (LinearManual): implement build_forward, backward_inputs(), build_backward()
 ```
 
-- **No custom backward** (Linear, Gelu, Mlp): implement only `build_forward`. operator() just calls it.
-- **Custom backward** (LinearManual): override `has_custom_backward()=true`, `backward_inputs()`, `build_backward()`. operator() does GradMode::Guard, build_forward, wrap_with_module_op.
+- **No custom backward**: `static constexpr bool has_custom_backward = false`, implement `build_forward`.
+- **Custom backward**: `static constexpr bool has_custom_backward = true`, implement `build_forward`, `backward_inputs()`, `build_backward()`.
+- **Different API** (Sdpa): inherit from `ModuleBase` only, no operator().
 
 ### Usage Examples
 

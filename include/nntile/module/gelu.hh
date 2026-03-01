@@ -26,7 +26,7 @@ namespace nntile::module
 
 //! GeLU activation module using graph API
 //! Computes: output = gelu(input)
-class Gelu : public Module
+class Gelu : public Module<Gelu>
 {
 private:
     graph::NNGraph::TensorNode* input_tensor_ = nullptr;
@@ -38,9 +38,10 @@ public:
     //! @param name Module name (used to generate unique tensor names)
     Gelu(graph::NNGraph& graph, const std::string& name);
 
-    //! Build forward (gelu). operator() in base does bookkeeping.
+    static constexpr bool has_custom_backward = false;
+
     graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input) override;
+        graph::NNGraph::TensorNode& input);
 
     //! Get string representation
     std::string repr() const override;

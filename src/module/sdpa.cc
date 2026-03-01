@@ -30,7 +30,7 @@ Sdpa::Sdpa(
     Index batch_ndim,
     graph::DataType dtype,
     int redux)
-    : Module(graph, name)
+    : ModuleBase(graph, name)
     , flash_attention_(false)
     , head_size_(head_size)
     , batch_ndim_(batch_ndim)
@@ -55,7 +55,7 @@ Sdpa::Sdpa(
     bool flash_attention,
     graph::DataType dtype,
     int redux)
-    : Module(graph, name)
+    : ModuleBase(graph, name)
     , flash_attention_(true)
     , head_size_(head_size)
     , batch_ndim_(batch_ndim)
