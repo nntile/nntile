@@ -26,11 +26,11 @@
 namespace nntile::graph
 {
 
-//! AddFiber functor: operator() forwards to build_forward
+//! AddFiber functor: operator() does bookkeeping; build_forward does logical op only.
 struct AddFiber : AutogradFunction<AddFiber>
 {
-    //! Forward: output = alpha * fiber + beta * tensor (creates new output)
-    static NNGraph::TensorNode* build_forward(
+    //! Forward: logical op only
+    static ForwardResult build_forward(
         Scalar alpha,
         NNGraph::TensorNode* fiber,
         Scalar beta,
@@ -53,8 +53,7 @@ inline NNGraph::TensorNode* add_fiber(
     Index axis = 0,
     Index batch_ndim = 0)
 {
-    return AddFiber::build_forward(alpha, fiber, beta, tensor, output_name,
-                                  axis, batch_ndim);
+    return AddFiber()(alpha, fiber, beta, tensor, output_name, axis, batch_ndim);
 }
 
 } // namespace nntile::graph

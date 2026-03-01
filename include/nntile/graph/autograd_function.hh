@@ -18,14 +18,24 @@
 #pragma once
 
 #include <functional>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
 #include <nntile/graph/grad_mode.hh>
+#include <nntile/graph/logical_graph.hh>
 #include <nntile/graph/nn_graph.hh>
 
 namespace nntile::graph
 {
+
+//! Result of build_forward: logical output + inputs + attrs for operator() bookkeeping.
+struct ForwardResult
+{
+    LogicalGraph::TensorNode& out;
+    std::vector<NNGraph::TensorNode*> inputs;
+    OpAttrs attrs;
+};
 
 //! Shared helpers for autograd functors (register_op, any_input_requires_grad).
 struct AutogradFunctionBase
@@ -48,15 +58,29 @@ struct AutogradFunctionBase
         const std::vector<NNGraph::TensorNode*>& inputs);
 };
 
-//! Base for autograd functors. operator() forwards to Derived::build_forward.
-//! User implements only build_forward() and build_backward().
+//! Base for autograd functors. operator() does all bookkeeping; build_forward does
+//! only logical ops and returns ForwardResult.
 template<typename Derived>
 struct AutogradFunction : AutogradFunctionBase
 {
     template<typename... Args>
-    auto operator()(Args&&... args) const
+    NNGraph::TensorNode* operator()(Args&&... args) const
     {
-        return Derived::build_forward(std::forward<Args>(args)...);
+        ForwardResult result = Derived::build_forward(std::forward<Args>(args)...);
+        if(result.inputs.empty())
+        {
+            throw std::invalid_argument(
+                "AutogradFunction::operator(): build_forward must return non-empty inputs");
+        }
+        NNGraph& graph = result.inputs[0]->graph();
+        bool out_requires_grad = any_input_requires_grad(result.inputs);
+        NNGraph::TensorNode* output =
+            graph.tensor(result.out, out_requires_grad);
+        register_op(graph, result.inputs, output, std::move(result.attrs),
+                    [](const NNGraph::OpNode* op) {
+                        Derived::build_backward(op);
+                    });
+        return output;
     }
 };
 

@@ -26,11 +26,11 @@
 namespace nntile::graph
 {
 
-//! Add functor: operator() forwards to build_forward
+//! Add functor: operator() does bookkeeping; build_forward does logical op only.
 struct Add : AutogradFunction<Add>
 {
-    //! Forward: z = alpha * x + beta * y
-    static NNGraph::TensorNode* build_forward(
+    //! Forward: logical op only, returns result for operator() bookkeeping
+    static ForwardResult build_forward(
         Scalar alpha,
         NNGraph::TensorNode* x,
         Scalar beta,
@@ -49,7 +49,7 @@ inline NNGraph::TensorNode* add(
     NNGraph::TensorNode* y,
     const std::string& output_name)
 {
-    return Add::build_forward(alpha, x, beta, y, output_name);
+    return Add()(alpha, x, beta, y, output_name);
 }
 
 } // namespace nntile::graph

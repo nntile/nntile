@@ -7,17 +7,22 @@
 Base class handles OpNode creation, producer wiring, and requires_grad:
 
 ```cpp
-struct AutogradFunctionBase {
-    static void register_op(graph, inputs, outputs, attrs, backward_fn);
-    static void register_op(graph, inputs, output, attrs, backward_fn);
-    static bool any_input_requires_grad(inputs);
+struct ForwardResult {
+    LogicalGraph::TensorNode& out;
+    std::vector<TensorNode*> inputs;
+    OpAttrs attrs;
 };
 
 template<typename Derived>
 struct AutogradFunction : AutogradFunctionBase {
+    // operator() does ALL bookkeeping: any_input_requires_grad, graph.tensor, register_op
     template<typename... Args>
-    auto operator()(Args&&... args) const;  // forwards to Derived::build_forward
+    TensorNode* operator()(Args&&... args) const;
 };
+
+// User implements only:
+//   static ForwardResult build_forward(...);  // logical ops only
+//   static void build_backward(const OpNode* op);
 ```
 - **Always creates OpNode** (via create_op)
 - **Producer and backward_fn** only when GradMode enabled AND any input requires grad
@@ -33,20 +38,18 @@ struct Add : AutogradFunction<Add> {
 };
 ```
 
-- **operator()**: base forwards to `build_forward`. User implements only `build_forward()` and `build_backward()`.
+- **operator()**: base does all bookkeeping (requires_grad, graph.tensor, register_op).
+- **build_forward**: user does only logical ops, returns `ForwardResult{out, inputs, attrs}`.
+- **build_backward**: user does backward logical ops.
 - **Callable**: `Add()(alpha, x, beta, y, "z")` or free function `add(...)`
-- **OpNode**: base's `register_op()` creates OpNode and sets producer when GradMode enabled
 
-**build_forward** – direct pattern (no wrappers):
+**build_forward** – logical ops only (bookkeeping in operator()):
 
 ```cpp
-TensorNode* Add::build_forward(...) {
+ForwardResult Add::build_forward(Scalar alpha, TensorNode* x, Scalar beta,
+                                 TensorNode* y, const std::string& output_name) {
     LogicalGraph::TensorNode& z_data = add(alpha, x->data(), beta, y->data(), output_name);
-    bool out_requires_grad = any_input_requires_grad({x, y});
-    TensorNode* z = graph.tensor(z_data, out_requires_grad);
-    register_op(graph, {x, y}, z, BinaryOpAttrs{alpha, beta},
-                [](const OpNode* op) { Add::build_backward(op); });
-    return z;
+    return {z_data, {x, y}, BinaryOpAttrs{alpha, beta}};
 }
 ```
 
