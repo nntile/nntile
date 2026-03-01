@@ -18,10 +18,18 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+//! Element-wise binary operations (alpha, beta scaling)
+struct BinaryOpAttrs
+{
+    Scalar alpha = 1.0;
+    Scalar beta = 0.0;
+};
 
 //! Add operation: z = alpha * x + beta * y
 //! @param alpha Scaling factor for x

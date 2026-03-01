@@ -19,10 +19,22 @@
 #include <vector>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
+
+#include <vector>
 
 namespace nntile::graph
 {
+
+struct RandnAttrs
+{
+    std::vector<Index> start;
+    std::vector<Index> underlying_shape;
+    unsigned long long seed = 0;
+    Scalar mean = 0.0;
+    Scalar stddev = 1.0;
+};
 
 //! Random normal generation: x = randn(start, underlying_shape, seed, mean, stddev)
 //! @param x Output tensor (modified in-place)

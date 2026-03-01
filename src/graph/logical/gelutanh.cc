@@ -39,13 +39,9 @@ LogicalGraph::TensorNode& gelutanh(
         output_name,
         x.dtype());
 
-    // Create operation attributes
-    auto attrs = std::make_shared<GelutanhAttrs>(GelutanhAttrs{});
-
-    // Add operation to graph using public builder API
     x.graph().add_op(
         OpType::GELUTANH,
-        attrs,
+        nullptr,
         {&x},
         {&output}
     );

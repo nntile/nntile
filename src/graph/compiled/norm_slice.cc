@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/norm_slice.hh"
+#include "nntile/graph/logical/norm_slice.hh"
 
 #include <stdexcept>
 

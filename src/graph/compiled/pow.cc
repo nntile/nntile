@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/pow.hh"
+#include "nntile/graph/logical/pow.hh"
 
 #include <stdexcept>
 

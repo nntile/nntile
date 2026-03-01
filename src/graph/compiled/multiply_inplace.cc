@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/multiply_inplace.hh"
+#include "nntile/graph/logical/add.hh"
 
 #include <stdexcept>
 

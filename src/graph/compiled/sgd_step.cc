@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/sgd_step.hh"
+#include "nntile/graph/logical/sgd_step.hh"
 
 #include <stdexcept>
 

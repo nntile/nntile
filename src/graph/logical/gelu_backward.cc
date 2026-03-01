@@ -31,14 +31,10 @@ void gelu_backward(
     LogicalGraph::TensorNode& dy,
     LogicalGraph::TensorNode& dx)
 {
-    // Create operation attributes
-    auto attrs = std::make_shared<GeluBackwardAttrs>(GeluBackwardAttrs{});
-
-    // Add operation to graph using public builder API
     // Note: dx is both input and output (accumulates gradients)
     x.graph().add_op(
         OpType::GELU_BACKWARD,
-        attrs,
+        nullptr,
         {&x, &dy, &dx},
         {&dx}
     );

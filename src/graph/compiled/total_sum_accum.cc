@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/total_sum_accum.hh"
+#include "nntile/graph/logical/total_sum_accum.hh"
 
 #include <stdexcept>
 

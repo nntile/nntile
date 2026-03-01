@@ -44,10 +44,9 @@ void rope_backward(
             "rope_backward: all tensors must have the same dtype");
     }
 
-    auto attrs = std::make_shared<ClearAttrs>(ClearAttrs{});
     sin_tensor.graph().add_op(
         OpType::ROPE_BACKWARD,
-        attrs,
+        nullptr,
         {&sin_tensor, &cos_tensor, &dy, &dx},
         {&dx}
     );

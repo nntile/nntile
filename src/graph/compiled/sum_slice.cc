@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/sum_slice.hh"
+#include "nntile/graph/logical/sum_slice.hh"
 
 #include <stdexcept>
 

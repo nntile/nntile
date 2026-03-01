@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/transpose.hh"
+#include "nntile/graph/logical/transpose.hh"
 
 #include <stdexcept>
 

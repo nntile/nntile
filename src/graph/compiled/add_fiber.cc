@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/add_fiber.hh"
+#include "nntile/graph/logical/add_fiber.hh"
 
 #include <stdexcept>
 

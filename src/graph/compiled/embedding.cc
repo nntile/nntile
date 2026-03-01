@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/embedding.hh"
+#include "nntile/graph/logical/embedding.hh"
 
 #include <stdexcept>
 

@@ -36,10 +36,9 @@ LogicalGraph::TensorNode& sqrt(
         output_name,
         x.dtype());
 
-    auto attrs = std::make_shared<GeluAttrs>(GeluAttrs{});
     x.graph().add_op(
         OpType::SQRT,
-        attrs,
+        nullptr,
         {&x},
         {&output}
     );

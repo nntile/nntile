@@ -159,7 +159,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
             mask_to_use = default_mask;
             graph_.add_op(
                 graph::OpType::CLEAR,
-                std::make_shared<graph::ClearAttrs>(graph::ClearAttrs{}),
+                nullptr,
                 {},
                 {default_mask});
         }
@@ -172,14 +172,14 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
             {flash_logsumexp_tensor_});
         graph_.add_op(
             graph::OpType::CLEAR,
-            std::make_shared<graph::ClearAttrs>(graph::ClearAttrs{}),
+            nullptr,
             {},
             {output_tensor_});
 
         // Flash SDPA forward: K, Q, mask, logsumexp, V -> A (output)
         graph_.add_op(
             graph::OpType::FLASH_SDPA_FWD_CUDNN,
-            std::make_shared<graph::ClearAttrs>(graph::ClearAttrs{}),
+            nullptr,
             {k_tensor_, &q, mask_to_use, flash_logsumexp_tensor_, v_tensor_},
             {output_tensor_});
     }
@@ -238,7 +238,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
         // Clear attn_maxsumexp
         graph_.add_op(
             graph::OpType::CLEAR,
-            std::make_shared<graph::ClearAttrs>(graph::ClearAttrs{}),
+            nullptr,
             {},
             {attn_maxsumexp_tensor_});
 

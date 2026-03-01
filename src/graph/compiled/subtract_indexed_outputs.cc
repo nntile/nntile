@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/subtract_indexed_outputs.hh"
+#include "nntile/graph/logical/subtract_indexed_outputs.hh"
 
 #include <stdexcept>
 

@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/norm_fiber_inplace.hh"
+#include "nntile/graph/logical/norm_fiber_inplace.hh"
 
 #include <stdexcept>
 

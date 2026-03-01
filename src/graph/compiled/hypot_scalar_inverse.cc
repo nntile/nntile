@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/hypot_scalar_inverse.hh"
+#include "nntile/graph/logical/hypot_scalar_inverse.hh"
 
 #include <stdexcept>
 

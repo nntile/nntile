@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/scale_slice.hh"
+#include "nntile/graph/logical/scale_slice.hh"
 
 #include <stdexcept>
 

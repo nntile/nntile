@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/multiply_fiber.hh"
+#include "nntile/graph/logical/multiply_fiber.hh"
 
 #include <stdexcept>
 

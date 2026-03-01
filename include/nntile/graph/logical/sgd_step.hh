@@ -18,10 +18,21 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+struct SgdStepAttrs
+{
+    Index num_iter = 0;
+    Scalar momentum = 0.0;
+    Scalar lr = 0.01;
+    Scalar weight_decay = 0.0;
+    Scalar dampening = 0.0;
+    bool nesterov = false;
+};
 
 //! SGD optimizer step: p = sgd_step(grad, velocity, p)
 //! @param num_iter Current iteration number

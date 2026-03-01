@@ -38,10 +38,9 @@ LogicalGraph::TensorNode& gather(
         output_name,
         x.dtype());
 
-    auto attrs = std::make_shared<ClearAttrs>(ClearAttrs{});
     x.graph().add_op(
         OpType::GATHER,
-        attrs,
+        nullptr,
         {&x},
         {&output}
     );

@@ -192,7 +192,7 @@ TEST_CASE("LogicalGraph AddOpValidations", "[graph]")
         g1.add_op(OpType::GEMM, std::make_shared<GemmAttrs>(GemmAttrs{}), {&a, &foreign}, {&c}),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        g1.add_op(OpType::CLEAR, std::make_shared<ClearAttrs>(ClearAttrs{}), {}, {&foreign_out}),
+        g1.add_op(OpType::CLEAR, nullptr, {}, {&foreign_out}),
         std::invalid_argument);
 
     g1.add_op(OpType::GEMM, std::make_shared<GemmAttrs>(GemmAttrs{}), {&a, &b}, {&c}, "gemm_op");

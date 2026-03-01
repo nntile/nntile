@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/gemm.hh"
+#include "nntile/graph/logical/gemm.hh"
 
 #include <stdexcept>
 

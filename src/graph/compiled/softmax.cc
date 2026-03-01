@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/softmax.hh"
+#include "nntile/graph/logical/softmax.hh"
 
 #include <stdexcept>
 

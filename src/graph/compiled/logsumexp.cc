@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/logsumexp.hh"
+#include "nntile/graph/logical/logsumexp.hh"
 
 #include <stdexcept>
 

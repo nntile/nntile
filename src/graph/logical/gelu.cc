@@ -39,13 +39,10 @@ LogicalGraph::TensorNode& gelu(
         output_name,
         x.dtype());
 
-    // Create operation attributes
-    auto attrs = std::make_shared<GeluAttrs>(GeluAttrs{});
-
-    // Add operation to graph using public builder API
+    // Add operation to graph using public builder API (no attrs)
     x.graph().add_op(
         OpType::GELU,
-        attrs,
+        nullptr,
         {&x},
         {&output}
     );
@@ -58,8 +55,7 @@ void gelu(
     LogicalGraph::TensorNode& x,
     LogicalGraph::TensorNode& y)
 {
-    auto attrs = std::make_shared<GeluAttrs>(GeluAttrs{});
-    x.graph().add_op(OpType::GELU, attrs, {&x}, {&y});
+    x.graph().add_op(OpType::GELU, nullptr, {&x}, {&y});
 }
 
 } // namespace nntile::graph

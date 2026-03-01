@@ -19,10 +19,20 @@
 #include <array>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+struct Conv2dAttrs
+{
+    Scalar alpha = 1.0;
+    Scalar beta = 0.0;
+    std::array<Index, 2> padding = {0, 0};
+    std::array<Index, 2> stride = {1, 1};
+    std::array<Index, 2> dilation = {1, 1};
+};
 
 //! 2D Convolution forward: Y = alpha * conv2d(X, C) + beta * Y
 //! @param x Input tensor (WHCN format)

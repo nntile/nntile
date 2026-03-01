@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/copy_intersection.hh"
+#include "nntile/graph/logical/copy_intersection.hh"
 
 #include <stdexcept>
 

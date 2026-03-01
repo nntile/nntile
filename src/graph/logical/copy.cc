@@ -36,10 +36,9 @@ LogicalGraph::TensorNode& copy(
         output_name,
         x.dtype());
 
-    auto attrs = std::make_shared<NoAttrs>(NoAttrs{});
     x.graph().add_op(
         OpType::COPY,
-        attrs,
+        nullptr,
         {&x},
         {&output}
     );

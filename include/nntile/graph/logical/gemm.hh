@@ -19,10 +19,22 @@
 #include <vector>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+//! GEMM: C = alpha * A @ B + beta * C
+struct GemmAttrs
+{
+    bool trans_a = false;
+    bool trans_b = false;
+    Scalar alpha = 1.0;
+    Scalar beta = 0.0;
+    Index ndim = 1;
+    Index batch_ndim = 0;
+};
 
 //! Compute output shape for gemm: C = alpha * op(A) @ op(B)
 //! @param a_shape Shape of first input tensor

@@ -57,10 +57,10 @@ TEST_CASE("NNGraph AddOpNullInputsOutputs", "[graph]")
         g.add_op(OpType::GEMM, std::make_shared<GemmAttrs>(GemmAttrs{}), {x, nullptr}, {y}),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        g.add_op(OpType::GELU, std::make_shared<GeluAttrs>(GeluAttrs{}), {x}, {nullptr}),
+        g.add_op(OpType::GELU, nullptr, {x}, {nullptr}),
         std::invalid_argument);
 
-    g.add_op(OpType::GELU, std::make_shared<GeluAttrs>(GeluAttrs{}), {x}, {y});
+    g.add_op(OpType::GELU, nullptr, {x}, {y});
     REQUIRE(g.num_ops() == 1);
     REQUIRE(g.logical_graph().ops().front()->type() == OpType::GELU);
 }

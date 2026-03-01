@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/scale_inplace.hh"
+#include "nntile/graph/logical/scale.hh"
 
 #include <stdexcept>
 

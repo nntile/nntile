@@ -18,10 +18,16 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+struct FillAttrs
+{
+    Scalar val = 0.0;
+};
 
 //! Fill operation: x = val
 //! @param val Value to fill tensor with

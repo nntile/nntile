@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/maxsumexp.hh"
+#include "nntile/graph/logical/maxsumexp.hh"
 
 #include <stdexcept>
 

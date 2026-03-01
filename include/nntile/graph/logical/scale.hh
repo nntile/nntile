@@ -18,10 +18,16 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+struct ScaleAttrs
+{
+    Scalar alpha = 1.0;
+};
 
 //! Scale operation: y = alpha * x
 //! @param x Input tensor

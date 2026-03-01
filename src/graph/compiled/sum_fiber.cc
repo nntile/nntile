@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/sum_fiber.hh"
+#include "nntile/graph/logical/sum_fiber.hh"
 
 #include <stdexcept>
 

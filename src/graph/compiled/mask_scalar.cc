@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/mask_scalar.hh"
+#include "nntile/graph/logical/mask_scalar.hh"
 
 #include <stdexcept>
 

@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/sumprod_fiber.hh"
+#include "nntile/graph/logical/sumprod_fiber.hh"
 
 #include <stdexcept>
 

@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/randn.hh"
+#include "nntile/graph/logical/randn.hh"
 
 #include <stdexcept>
 

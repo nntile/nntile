@@ -18,10 +18,17 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+struct HypotScalarInverseAttrs
+{
+    Scalar eps = 0.0;
+    Scalar alpha = 1.0;
+};
 
 //! Hypot scalar inverse operation: y = 1.0 / hypot(eps, alpha * y)
 //! @param x Input/output tensor (modified in-place)

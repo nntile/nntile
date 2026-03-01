@@ -28,10 +28,9 @@ namespace nntile::graph
 //! Square root in-place: x = sqrt(x)
 void sqrt_inplace(LogicalGraph::TensorNode& x)
 {
-    auto attrs = std::make_shared<ClearAttrs>(ClearAttrs{});  // No additional attributes needed
     x.graph().add_op(
         OpType::SQRT_INPLACE,
-        attrs,
+        nullptr,
         {&x},
         {&x}
     );

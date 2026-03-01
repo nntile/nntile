@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/log_scalar.hh"
+#include "nntile/graph/logical/log_scalar.hh"
 
 #include <stdexcept>
 

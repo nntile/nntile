@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/sumprod_slice.hh"
+#include "nntile/graph/logical/sumprod_slice.hh"
 
 #include <stdexcept>
 

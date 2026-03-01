@@ -31,14 +31,10 @@ void gelutanh_backward(
     LogicalGraph::TensorNode& dy,
     LogicalGraph::TensorNode& dx)
 {
-    // Create operation attributes
-    auto attrs = std::make_shared<GelutanhBackwardAttrs>(GelutanhBackwardAttrs{});
-
-    // Add operation to graph using public builder API
     // Note: dx is both input and output (accumulates gradients)
     x.graph().add_op(
         OpType::GELUTANH_BACKWARD,
-        attrs,
+        nullptr,
         {&x, &dy, &dx},
         {&dx}
     );

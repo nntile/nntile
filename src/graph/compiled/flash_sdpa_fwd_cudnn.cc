@@ -15,7 +15,7 @@ namespace
 
 // Advanced operations (CUDA-only for flash attention)
 template<typename T>
-void run_flash_sdpa_fwd_cudnn(CompiledGraph& graph, const ClearAttrs& attrs,
+void run_flash_sdpa_fwd_cudnn(CompiledGraph& graph,
                               const std::string& K_name, const std::string& Q_name,
                               const std::string& mask_name, const std::string& logsumexp_name,
                               const std::string& V_name, const std::string& A_name)
@@ -40,7 +40,6 @@ void execute_flash_sdpa_fwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& o
         throw std::runtime_error("flash_sdpa_fwd_cudnn operation requires CUDA but no CUDA workers are available");
     }
 
-    const ClearAttrs& attrs = *std::static_pointer_cast<ClearAttrs>(op_info.attrs);
     const std::string& K_name = op_info.input_names[0];
     const std::string& Q_name = op_info.input_names[1];
     const std::string& mask_name = op_info.input_names[2];
@@ -67,10 +66,10 @@ void execute_flash_sdpa_fwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& o
             throw std::runtime_error("FP64 data type not supported for flash_sdpa_fwd_cudnn operation");
             break;
         case DataType::FP16:
-            run_flash_sdpa_fwd_cudnn<nntile::fp16_t>(graph, attrs, K_name, Q_name, mask_name, logsumexp_name, V_name, A_name);
+            run_flash_sdpa_fwd_cudnn<nntile::fp16_t>(graph, K_name, Q_name, mask_name, logsumexp_name, V_name, A_name);
             break;
         case DataType::BF16:
-            run_flash_sdpa_fwd_cudnn<nntile::bf16_t>(graph, attrs, K_name, Q_name, mask_name, logsumexp_name, V_name, A_name);
+            run_flash_sdpa_fwd_cudnn<nntile::bf16_t>(graph, K_name, Q_name, mask_name, logsumexp_name, V_name, A_name);
             break;
         case DataType::INT64:
         case DataType::INT32:

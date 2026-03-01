@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/scale_fiber.hh"
+#include "nntile/graph/logical/scale_fiber.hh"
 
 #include <stdexcept>
 

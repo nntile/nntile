@@ -38,10 +38,9 @@ LogicalGraph::TensorNode& scatter(
         output_name,
         x.dtype());
 
-    auto attrs = std::make_shared<ClearAttrs>(ClearAttrs{});
     x.graph().add_op(
         OpType::SCATTER,
-        attrs,
+        nullptr,
         {&x},
         {&output}
     );

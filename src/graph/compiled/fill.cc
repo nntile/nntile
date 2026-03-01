@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/fill.hh"
+#include "nntile/graph/logical/fill.hh"
 
 #include <stdexcept>
 

@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/adamw_step.hh"
+#include "nntile/graph/logical/adamw_step.hh"
 
 #include <stdexcept>
 

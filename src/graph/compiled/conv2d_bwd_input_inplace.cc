@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/conv2d_bwd_input_inplace.hh"
+#include "nntile/graph/logical/conv2d_inplace.hh"
 
 #include <stdexcept>
 

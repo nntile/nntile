@@ -53,10 +53,9 @@ void flash_sdpa_fwd_cudnn(
             "flash_sdpa_fwd_cudnn: logsumexp must have fp32 dtype");
     }
 
-    auto attrs = std::make_shared<ClearAttrs>(ClearAttrs{});
     K.graph().add_op(
         OpType::FLASH_SDPA_FWD_CUDNN,
-        attrs,
+        nullptr,
         {&K, &Q, &mask, &logsumexp, &V},
         {&A}
     );

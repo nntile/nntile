@@ -18,10 +18,17 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+struct TransposeAttrs
+{
+    Scalar alpha = 1.0;
+    Index ndim = 0;
+};
 
 //! Transpose operation: y = alpha * transpose(x)
 //! @param x Input tensor

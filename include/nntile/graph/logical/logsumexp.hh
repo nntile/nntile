@@ -18,10 +18,19 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+//! Logsumexp/maxsumexp operations (alpha, beta, axis)
+struct LogSumExpAttrs
+{
+    Scalar alpha = 1.0;
+    Scalar beta = 0.0;
+    Index axis = 0;
+};
 
 //! Log sum exp from maxsumexp output: y = max + log(sumexp)
 //! @param x Input tensor from maxsumexp (shape [2, ...], x[0]=max, x[1]=sumexp)

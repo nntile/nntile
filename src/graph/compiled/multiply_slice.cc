@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/compiled/multiply_slice.hh"
+#include "nntile/graph/logical/multiply_slice.hh"
 
 #include <stdexcept>
 

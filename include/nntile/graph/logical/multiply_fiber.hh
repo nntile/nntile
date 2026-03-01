@@ -18,10 +18,18 @@
 #include <string>
 
 // Include other NNTile headers
+#include <nntile/base_types.hh>
 #include <nntile/graph/logical_graph.hh>
 
 namespace nntile::graph
 {
+
+struct MultiplyFiberAttrs
+{
+    Index axis = 0;
+    Index batch_ndim = 0;
+    Scalar alpha = 1.0;
+};
 
 //! Multiply along fibers: output = alpha * fiber * tensor
 //! @param alpha Scaling factor for fiber * tensor product
