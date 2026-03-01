@@ -34,12 +34,8 @@ namespace nntile::graph
 //! enabled and any input requires grad.
 struct AutogradFunction
 {
-    //! Convenience wrapper: run forward_fn, wrap output, register_op.
-    //! User focuses on the logical op; this handles requires_grad and registration.
+    //! Convenience wrapper (single output): run forward_fn, wrap output, register_op.
     //!
-    //! @param graph NNGraph
-    //! @param inputs Input tensor nodes
-    //! @param attrs Op attrs for backward
     //! @param forward_fn Callable () -> LogicalGraph::TensorNode& (the logical op)
     //! @param backward_fn Callable (OpNode*) -> void
     //! @return NNGraph::TensorNode* wrapping the logical output
@@ -57,6 +53,36 @@ struct AutogradFunction
         register_op(graph, inputs, output, std::move(attrs),
                     std::forward<BwdFn>(backward_fn));
         return output;
+    }
+
+    //! Convenience wrapper (multi-output): run forward_fn, wrap outputs, register_op.
+    //!
+    //! @param forward_fn Callable () -> std::vector<LogicalGraph::TensorNode*>
+    //!                   (pointers to logical outputs, e.g. {&out1, &out2})
+    //! @param backward_fn Callable (OpNode*) -> void
+    //! @return std::vector<NNGraph::TensorNode*> wrapping the logical outputs
+    template<typename FwdFn, typename BwdFn>
+    static std::vector<NNGraph::TensorNode*> run_multi(
+        NNGraph& graph,
+        const std::vector<NNGraph::TensorNode*>& inputs,
+        OpAttrs attrs,
+        FwdFn&& forward_fn,
+        BwdFn&& backward_fn)
+    {
+        std::vector<LogicalGraph::TensorNode*> out_data_vec = forward_fn();
+        bool out_requires_grad = any_input_requires_grad(inputs);
+        std::vector<NNGraph::TensorNode*> outputs;
+        outputs.reserve(out_data_vec.size());
+        for(LogicalGraph::TensorNode* p : out_data_vec)
+        {
+            if(p != nullptr)
+            {
+                outputs.push_back(graph.tensor(*p, out_requires_grad));
+            }
+        }
+        register_op(graph, inputs, outputs, std::move(attrs),
+                    std::forward<BwdFn>(backward_fn));
+        return outputs;
     }
 
     //! Register OpNode (always created). Set producer and backward_fn only when

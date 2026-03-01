@@ -8,10 +8,13 @@ Base class handles OpNode creation, producer wiring, and requires_grad:
 
 ```cpp
 struct AutogradFunction {
-    // Convenience: run forward_fn, wrap output, register_op. User focuses on
-    // the logical op; this handles requires_grad and registration.
+    // Single-output: forward_fn () -> LogicalGraph::TensorNode&
     template<typename FwdFn, typename BwdFn>
     static TensorNode* run(graph, inputs, attrs, forward_fn, backward_fn);
+
+    // Multi-output: forward_fn () -> std::vector<LogicalGraph::TensorNode*>
+    template<typename FwdFn, typename BwdFn>
+    static std::vector<TensorNode*> run_multi(graph, inputs, attrs, forward_fn, backward_fn);
 
     static void register_op(graph, inputs, outputs, attrs, backward_fn);
     static void register_op(graph, inputs, output, attrs, backward_fn);
@@ -19,9 +22,9 @@ struct AutogradFunction {
 };
 ```
 
-- **run()**: wrapper for single-output ops. `forward_fn` is `() -> LogicalGraph::TensorNode&`
-  (the logical op); `backward_fn` is `(OpNode*) -> void`. Handles `any_input_requires_grad`,
-  `graph.tensor()`, and `register_op`.
+- **run()**: single-output. `forward_fn` returns `LogicalGraph::TensorNode&`.
+- **run_multi()**: multi-output. `forward_fn` returns `std::vector<LogicalGraph::TensorNode*>`
+  (e.g. `{&out1, &out2}`). Handles `any_input_requires_grad`, `graph.tensor()`, and `register_op`.
 - **Always creates OpNode** (via create_op)
 - **Producer and backward_fn** only when GradMode enabled AND any input requires grad
   (gradients propagate to inputs, not outputs)
@@ -41,18 +44,29 @@ struct Add : AutogradFunction {
 - **Backward**: static `build_backward(op)` invoked by `output.backward()`
 - **OpNode**: base's `register_op()` creates OpNode and sets producer when GradMode enabled
 
-**build_forward with run()** – user focuses on the logical op only:
+**build_forward with run()** (single output):
 
 ```cpp
-TensorNode* Add::build_forward(Scalar alpha, TensorNode* x, Scalar beta, TensorNode* y,
-                              const std::string& output_name) {
-    if (!x || !y) throw ...;
-    NNGraph& graph = x->graph();
+TensorNode* Add::build_forward(...) {
     return run(graph, {x, y}, BinaryOpAttrs{alpha, beta},
                [&]() -> LogicalGraph::TensorNode& {
                    return add(alpha, x->data(), beta, y->data(), output_name);
                },
                [](const OpNode* op) { Add::build_backward(op); });
+}
+```
+
+**build_forward with run_multi()** (multiple outputs):
+
+```cpp
+std::vector<TensorNode*> MyOp::build_forward(...) {
+    return run_multi(graph, {x}, MyAttrs{},
+                    [&]() -> std::vector<LogicalGraph::TensorNode*> {
+                        auto& out1 = logical_op1(...);
+                        auto& out2 = logical_op2(...);
+                        return {&out1, &out2};
+                    },
+                    [](const OpNode* op) { MyOp::build_backward(op); });
 }
 ```
 
