@@ -26,11 +26,10 @@
 namespace nntile::graph
 {
 
-//! SumFiber functor: operator() does bookkeeping; build_forward does logical op only.
-struct SumFiber : AutogradFunction<SumFiber>
+//! SumFiber: build_forward does logical op + bookkeeping; build_backward for grad.
+struct SumFiber
 {
-    //! Forward: logical op only
-    static ForwardResult build_forward(
+    static NNGraph::TensorNode* build_forward(
         NNGraph::TensorNode* x,
         const std::string& output_name,
         Index axis = 0,
@@ -39,11 +38,10 @@ struct SumFiber : AutogradFunction<SumFiber>
         Scalar alpha = 1.0,
         Scalar beta = 0.0);
 
-    //! Backward: grad_x += alpha * add_fiber_inplace(grad_y)
     static void build_backward(const NNGraph::OpNode* op);
 };
 
-//! Convenience free function (single output)
+//! Convenience free function
 inline NNGraph::TensorNode* sum_fiber(
     NNGraph::TensorNode* x,
     const std::string& output_name,
@@ -53,9 +51,8 @@ inline NNGraph::TensorNode* sum_fiber(
     Scalar alpha = 1.0,
     Scalar beta = 0.0)
 {
-    std::vector<NNGraph::TensorNode*> outs =
-        SumFiber()(x, output_name, axis, batch_ndim, redux, alpha, beta);
-    return outs.empty() ? nullptr : outs[0];
+    return SumFiber::build_forward(x, output_name, axis, batch_ndim, redux,
+                                   alpha, beta);
 }
 
 } // namespace nntile::graph

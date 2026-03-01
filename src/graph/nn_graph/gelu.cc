@@ -19,7 +19,7 @@
 namespace nntile::graph
 {
 
-ForwardResult Gelu::build_forward(
+NNGraph::TensorNode* Gelu::build_forward(
     NNGraph::TensorNode* x,
     const std::string& output_name)
 {
@@ -27,8 +27,13 @@ ForwardResult Gelu::build_forward(
     {
         throw std::invalid_argument("Gelu::build_forward: x must be non-null");
     }
+    NNGraph& graph = x->graph();
     LogicalGraph::TensorNode& y_data = gelu(x->data(), output_name);
-    return {{&y_data}, {x}, GeluAttrs{}, {}};
+    bool out_requires_grad = any_input_requires_grad({x});
+    NNGraph::TensorNode* y = graph.tensor(y_data, out_requires_grad);
+    register_op(graph, {x}, y, GeluAttrs{},
+                [](const NNGraph::OpNode* op) { Gelu::build_backward(op); }, {});
+    return y;
 }
 
 void Gelu::build_backward(const NNGraph::OpNode* op)

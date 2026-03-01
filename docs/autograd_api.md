@@ -1,66 +1,54 @@
-# Autograd API: Callable Functors and Modules
+# Autograd API: Simple Helpers, No CRTP
 
 ## General API for Autograd Functions
 
-### AutogradFunction Base Class (PyTorch-like)
+### Helpers (register_op, any_input_requires_grad)
 
-Base class handles OpNode creation, producer wiring, and requires_grad:
+No CRTP. User performs all bookkeeping in build_forward:
 
 ```cpp
-struct ForwardResult {
-    std::vector<LogicalGraph::TensorNode*> outputs;
-    std::vector<TensorNode*> inputs;
-    OpAttrs attrs;
-    std::vector<TensorNode*> buffers;  // like ctx.save_for_backward, internal-only
-};
+void register_op(
+    NNGraph& graph,
+    const std::vector<TensorNode*>& inputs,
+    const std::vector<TensorNode*>& outputs,  // or single TensorNode*
+    OpAttrs attrs,
+    std::function<void(const OpNode*)> backward_fn,
+    const std::vector<TensorNode*>& buffers = {});  // like ctx.save_for_backward
 
-template<typename Derived>
-struct AutogradFunction : AutogradFunctionBase {
-    // operator() does ALL bookkeeping: any_input_requires_grad, graph.tensor, register_op
-    template<typename... Args>
-    TensorNode* operator()(Args&&... args) const;
-};
-
-// User implements only:
-//   static ForwardResult build_forward(...);  // logical ops only
-//   static void build_backward(const OpNode* op);
+bool any_input_requires_grad(const std::vector<TensorNode*>& inputs);
 ```
+
 - **Creates OpNode only when** GradMode enabled AND any input requires grad.
-  When GradMode disabled (e.g. inside module forward with custom backward),
-  no OpNode is created for small ops – only the module's wrap_with_module_op
-  creates one OpNode for the whole forward.
-- **Producer and backward_fn** only when GradMode enabled AND any input requires grad
-  (gradients propagate to inputs, not outputs)
-- **Multi-output** supported via `std::vector<TensorNode*> outputs`
+- **Multi-input, multi-output** visible via ordinary API of register_op.
 
 ### Autograd Functors (Add, Gemm, AddFiber, Gelu, SumFiber)
 
 ```cpp
-struct Add : AutogradFunction<Add> {
-    static ForwardResult build_forward(...);
+struct Add {
+    static TensorNode* build_forward(Scalar alpha, TensorNode* x, Scalar beta,
+                                    TensorNode* y, const std::string& output_name);
     static void build_backward(const OpNode* op);
 };
 ```
 
-- **operator()**: base does all bookkeeping (requires_grad, graph.tensor, register_op).
-- **build_forward**: user does only logical ops, returns `ForwardResult{out, inputs, attrs}`.
+- **build_forward**: user does logical op + bookkeeping (graph.tensor, register_op).
 - **build_backward**: user does backward logical ops.
-- **Callable**: `Add()(alpha, x, beta, y, "z")` or free function `add(...)`
+- **Free function**: `add(alpha, x, beta, y, "z")` calls `Add::build_forward(...)`.
 
-**build_forward** – logical ops only (bookkeeping in operator()):
+**build_forward** – full bookkeeping:
 
 ```cpp
-ForwardResult Add::build_forward(...) {
+TensorNode* Add::build_forward(...) {
+    NNGraph& graph = x->graph();
     LogicalGraph::TensorNode& z_data = add(alpha, x->data(), beta, y->data(), output_name);
-    return {{&z_data}, {x, y}, BinaryOpAttrs{alpha, beta}};
+    bool out_requires_grad = any_input_requires_grad({x, y});
+    TensorNode* z = graph.tensor(z_data, out_requires_grad);
+    register_op(graph, {x, y}, z, BinaryOpAttrs{alpha, beta},
+                [](const OpNode* op) { Add::build_backward(op); }, {});
+    return z;
 }
 
-// Multi-output example:
-ForwardResult MyOp::build_forward(...) {
-    auto& out1 = logical_op1(...);
-    auto& out2 = logical_op2(...);
-    return {{&out1, &out2}, {x}, MyAttrs{}};
-}
+// Multi-output: return std::vector<TensorNode*>, pass to register_op
 ```
 
 ### Modules (CRTP, no fixed API)
@@ -75,18 +63,17 @@ class Module : public ModuleBase {
 
 - **build_forward** can have any signature and return: `TensorNode&`, `TensorNode*`,
   `std::vector<TensorNode*>` (single or multiple outputs).
-- **operator()** forwards whatever args to `build_forward` – no fixed API.
 - **No custom backward**: implement `build_forward` only.
 - **Custom backward**: implement `build_forward`, `backward_inputs()`, `build_backward(op)`.
 
 ### Usage Examples
 
 ```cpp
-// Functors (callable or free function)
-graph::Add add_fn;
-auto* z = add_fn(1.0, x, 1.0, y, "z");  // or add(1.0, x, 1.0, y, "z")
+// Autograd functors (free function or build_forward)
+auto* z = add(1.0, x, 1.0, y, "z");
+auto* z2 = Add::build_forward(1.0, x, 1.0, y, "z");
 
 // Modules
 Linear linear(graph, "linear", 8, 4, true);
-auto& out = linear(input);  // or linear.build_forward(input)
+auto& out = linear(input);
 ```

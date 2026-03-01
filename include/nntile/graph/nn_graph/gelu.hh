@@ -26,25 +26,22 @@
 namespace nntile::graph
 {
 
-//! Gelu functor: operator() does bookkeeping; build_forward does logical op only.
-struct Gelu : AutogradFunction<Gelu>
+//! Gelu: build_forward does logical op + bookkeeping; build_backward for grad.
+struct Gelu
 {
-    //! Forward: logical op only
-    static ForwardResult build_forward(
+    static NNGraph::TensorNode* build_forward(
         NNGraph::TensorNode* x,
         const std::string& output_name);
 
-    //! Backward: grad_x += gelu_backward(x, grad_y)
     static void build_backward(const NNGraph::OpNode* op);
 };
 
-//! Convenience free function (single output)
+//! Convenience free function
 inline NNGraph::TensorNode* gelu(
     NNGraph::TensorNode* x,
     const std::string& output_name)
 {
-    std::vector<NNGraph::TensorNode*> outs = Gelu()(x, output_name);
-    return outs.empty() ? nullptr : outs[0];
+    return Gelu::build_forward(x, output_name);
 }
 
 } // namespace nntile::graph

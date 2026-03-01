@@ -10,11 +10,12 @@
  * */
 
 #include "nntile/graph/autograd_function.hh"
+#include "nntile/graph/grad_mode.hh"
 
 namespace nntile::graph
 {
 
-void AutogradFunctionBase::register_op(
+void register_op(
     NNGraph& graph,
     const std::vector<NNGraph::TensorNode*>& inputs,
     const std::vector<NNGraph::TensorNode*>& outputs,
@@ -46,7 +47,7 @@ void AutogradFunctionBase::register_op(
     }
 }
 
-void AutogradFunctionBase::register_op(
+void register_op(
     NNGraph& graph,
     const std::vector<NNGraph::TensorNode*>& inputs,
     NNGraph::TensorNode* output,
@@ -59,7 +60,7 @@ void AutogradFunctionBase::register_op(
                 std::move(attrs), std::move(backward_fn), buffers);
 }
 
-bool AutogradFunctionBase::any_input_requires_grad(
+bool any_input_requires_grad(
     const std::vector<NNGraph::TensorNode*>& inputs)
 {
     for(const auto* in : inputs)

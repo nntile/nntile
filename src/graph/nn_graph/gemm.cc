@@ -17,7 +17,7 @@
 namespace nntile::graph
 {
 
-ForwardResult Gemm::build_forward(
+NNGraph::TensorNode* Gemm::build_forward(
     NNGraph::TensorNode* a,
     NNGraph::TensorNode* b,
     const std::string& output_name,
@@ -32,10 +32,15 @@ ForwardResult Gemm::build_forward(
         throw std::invalid_argument(
             "Gemm::build_forward: a and b must be non-null");
     }
+    NNGraph& graph = a->graph();
     LogicalGraph::TensorNode& c_data = gemm(
         a->data(), b->data(), output_name, alpha, trans_a, trans_b, ndim,
         batch_ndim);
-    return {{&c_data}, {a, b}, GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim}, {}};
+    bool out_requires_grad = any_input_requires_grad({a, b});
+    NNGraph::TensorNode* c = graph.tensor(c_data, out_requires_grad);
+    register_op(graph, {a, b}, c, GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim},
+                [](const NNGraph::OpNode* op) { Gemm::build_backward(op); }, {});
+    return c;
 }
 
 void Gemm::build_backward(const NNGraph::OpNode* op)

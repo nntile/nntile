@@ -26,11 +26,10 @@
 namespace nntile::graph
 {
 
-//! Gemm functor: operator() does bookkeeping; build_forward does logical op only.
-struct Gemm : AutogradFunction<Gemm>
+//! Gemm: build_forward does logical op + bookkeeping; build_backward for grad.
+struct Gemm
 {
-    //! Forward: logical op only
-    static ForwardResult build_forward(
+    static NNGraph::TensorNode* build_forward(
         NNGraph::TensorNode* a,
         NNGraph::TensorNode* b,
         const std::string& output_name,
@@ -40,11 +39,10 @@ struct Gemm : AutogradFunction<Gemm>
         Index ndim = 1,
         Index batch_ndim = 0);
 
-    //! Backward: grad_A = alpha * grad_C @ B^T, grad_B = alpha * A^T @ grad_C
     static void build_backward(const NNGraph::OpNode* op);
 };
 
-//! Convenience free function (single output)
+//! Convenience free function
 inline NNGraph::TensorNode* gemm(
     NNGraph::TensorNode* a,
     NNGraph::TensorNode* b,
@@ -55,9 +53,8 @@ inline NNGraph::TensorNode* gemm(
     Index ndim = 1,
     Index batch_ndim = 0)
 {
-    std::vector<NNGraph::TensorNode*> outs =
-        Gemm()(a, b, output_name, alpha, trans_a, trans_b, ndim, batch_ndim);
-    return outs.empty() ? nullptr : outs[0];
+    return Gemm::build_forward(a, b, output_name, alpha, trans_a, trans_b,
+                               ndim, batch_ndim);
 }
 
 } // namespace nntile::graph

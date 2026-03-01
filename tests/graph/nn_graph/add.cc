@@ -16,14 +16,12 @@
 using namespace nntile;
 using namespace nntile::graph;
 
-TEST_CASE("NNGraph Autograd Add Callable", "[graph][nn_graph]")
+TEST_CASE("NNGraph Autograd Add build_forward", "[graph][nn_graph]")
 {
-    NNGraph g("add_callable");
+    NNGraph g("add_build_forward");
     auto* x = g.tensor({2, 3}, "x", DataType::FP32);
     auto* y = g.tensor({2, 3}, "y", DataType::FP32);
-    Add add_fn;
-    auto outs = add_fn(1.0, x, 1.0, y, "z");
-    auto* z = outs.empty() ? nullptr : outs[0];
+    auto* z = Add::build_forward(1.0, x, 1.0, y, "z");
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
 }

@@ -7,10 +7,9 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/autograd_function.hh
- * Base class for autograd functions - PyTorch-like.
+ * Helpers for autograd: register_op, any_input_requires_grad.
  *
- * Handles OpNode creation, producer wiring, and requires_grad when GradMode
- * is enabled. Derived classes implement forward logic and build_backward.
+ * No CRTP. User performs all bookkeeping in build_forward.
  *
  * @version 1.1.0
  * */
@@ -18,88 +17,32 @@
 #pragma once
 
 #include <functional>
-#include <stdexcept>
-#include <utility>
 #include <vector>
 
-#include <nntile/graph/grad_mode.hh>
-#include <nntile/graph/logical_graph.hh>
 #include <nntile/graph/nn_graph.hh>
 
 namespace nntile::graph
 {
 
-//! Result of build_forward: logical outputs + inputs + attrs for operator() bookkeeping.
-//! buffers: temporary tensors computed in forward, saved for reuse in backward
-//! (like PyTorch ctx.save_for_backward). Hidden from outputs, internal-only.
-struct ForwardResult
-{
-    std::vector<LogicalGraph::TensorNode*> outputs;
-    std::vector<NNGraph::TensorNode*> inputs;
-    OpAttrs attrs;
-    std::vector<NNGraph::TensorNode*> buffers;
-};
+//! Register OpNode. Creates only when GradMode enabled and any input requires grad.
+void register_op(
+    NNGraph& graph,
+    const std::vector<NNGraph::TensorNode*>& inputs,
+    const std::vector<NNGraph::TensorNode*>& outputs,
+    OpAttrs attrs,
+    std::function<void(const NNGraph::OpNode*)> backward_fn,
+    const std::vector<NNGraph::TensorNode*>& buffers = {});
 
-//! Shared helpers for autograd functors (register_op, any_input_requires_grad).
-struct AutogradFunctionBase
-{
-    static void register_op(
-        NNGraph& graph,
-        const std::vector<NNGraph::TensorNode*>& inputs,
-        const std::vector<NNGraph::TensorNode*>& outputs,
-        OpAttrs attrs,
-        std::function<void(const NNGraph::OpNode*)> backward_fn,
-        const std::vector<NNGraph::TensorNode*>& buffers = {});
+void register_op(
+    NNGraph& graph,
+    const std::vector<NNGraph::TensorNode*>& inputs,
+    NNGraph::TensorNode* output,
+    OpAttrs attrs,
+    std::function<void(const NNGraph::OpNode*)> backward_fn,
+    const std::vector<NNGraph::TensorNode*>& buffers = {});
 
-    static void register_op(
-        NNGraph& graph,
-        const std::vector<NNGraph::TensorNode*>& inputs,
-        NNGraph::TensorNode* output,
-        OpAttrs attrs,
-        std::function<void(const NNGraph::OpNode*)> backward_fn,
-        const std::vector<NNGraph::TensorNode*>& buffers = {});
-
-    static bool any_input_requires_grad(
-        const std::vector<NNGraph::TensorNode*>& inputs);
-};
-
-//! Base for autograd functors. operator() does all bookkeeping; build_forward does
-//! only logical ops and returns ForwardResult.
-template<typename Derived>
-struct AutogradFunction : AutogradFunctionBase
-{
-    template<typename... Args>
-    std::vector<NNGraph::TensorNode*> operator()(Args&&... args) const
-    {
-        ForwardResult result = Derived::build_forward(std::forward<Args>(args)...);
-        if(result.inputs.empty())
-        {
-            throw std::invalid_argument(
-                "AutogradFunction::operator(): build_forward must return non-empty inputs");
-        }
-        if(result.outputs.empty())
-        {
-            throw std::invalid_argument(
-                "AutogradFunction::operator(): build_forward must return non-empty outputs");
-        }
-        NNGraph& graph = result.inputs[0]->graph();
-        bool out_requires_grad = any_input_requires_grad(result.inputs);
-        std::vector<NNGraph::TensorNode*> nn_outputs;
-        nn_outputs.reserve(result.outputs.size());
-        for(LogicalGraph::TensorNode* p : result.outputs)
-        {
-            if(p != nullptr)
-            {
-                nn_outputs.push_back(graph.tensor(*p, out_requires_grad));
-            }
-        }
-        register_op(graph, result.inputs, nn_outputs, std::move(result.attrs),
-                    [](const NNGraph::OpNode* op) {
-                        Derived::build_backward(op);
-                    },
-                    result.buffers);
-        return nn_outputs;
-    }
-};
+//! True if any input requires grad.
+bool any_input_requires_grad(
+    const std::vector<NNGraph::TensorNode*>& inputs);
 
 } // namespace nntile::graph
