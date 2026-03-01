@@ -33,7 +33,7 @@ void scale_inplace(
     Scalar alpha)
 {
     // Create operation attributes
-    OpAttrs attrs = ScaleAttrs{alpha};
+    auto attrs = std::make_shared<ScaleAttrs>(ScaleAttrs{alpha});
 
     // Add operation to graph
     x.graph().add_op(

@@ -71,7 +71,7 @@ void multiply_fiber_inplace(
             "multiply_fiber_inplace: fiber size must match tensor dimension at specified axis");
     }
 
-    OpAttrs attrs = MultiplyFiberAttrs{axis, batch_ndim, alpha};
+    auto attrs = std::make_shared<MultiplyFiberAttrs>(MultiplyFiberAttrs{axis, batch_ndim, alpha});
     fiber.graph().add_op(
         OpType::MULTIPLY_FIBER_INPLACE,
         attrs,

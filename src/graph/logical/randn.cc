@@ -35,7 +35,7 @@ void randn(
     Scalar mean,
     Scalar stddev)
 {
-    OpAttrs attrs = RandnAttrs{start, underlying_shape, seed, mean, stddev};
+    auto attrs = std::make_shared<RandnAttrs>(RandnAttrs{start, underlying_shape, seed, mean, stddev});
     x.graph().add_op(
         OpType::RANDN,
         attrs,

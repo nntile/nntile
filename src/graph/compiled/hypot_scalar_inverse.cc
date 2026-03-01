@@ -39,7 +39,7 @@ void run_hypot_scalar_inverse(CompiledGraph& graph, const HypotScalarInverseAttr
 
 void execute_hypot_scalar_inverse(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const HypotScalarInverseAttrs& attrs = std::get<HypotScalarInverseAttrs>(op_info.attrs);
+    const HypotScalarInverseAttrs& attrs = *std::static_pointer_cast<HypotScalarInverseAttrs>(op_info.attrs);
     const std::string& x_name = op_info.input_names[0];
     DataType dtype = graph.get_dtype(x_name);
 

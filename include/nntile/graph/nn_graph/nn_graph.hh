@@ -68,7 +68,7 @@ public:
 
     void add_op(
         OpType type,
-        OpAttrs attrs,
+        std::shared_ptr<void> attrs,
         const std::vector<TensorNode*>& inputs,
         const std::vector<TensorNode*>& outputs,
         const std::string& name = ""

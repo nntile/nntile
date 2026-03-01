@@ -36,7 +36,7 @@ LogicalGraph::TensorNode& relu(
         output_name,
         x.dtype());
 
-    OpAttrs attrs = GeluAttrs{};  // Reuse for now
+    auto attrs = std::make_shared<GeluAttrs>(GeluAttrs{});
     x.graph().add_op(
         OpType::RELU,
         attrs,

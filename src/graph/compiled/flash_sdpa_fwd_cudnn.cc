@@ -40,7 +40,7 @@ void execute_flash_sdpa_fwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& o
         throw std::runtime_error("flash_sdpa_fwd_cudnn operation requires CUDA but no CUDA workers are available");
     }
 
-    const ClearAttrs& attrs = std::get<ClearAttrs>(op_info.attrs);
+    const ClearAttrs& attrs = *std::static_pointer_cast<ClearAttrs>(op_info.attrs);
     const std::string& K_name = op_info.input_names[0];
     const std::string& Q_name = op_info.input_names[1];
     const std::string& mask_name = op_info.input_names[2];

@@ -42,7 +42,7 @@ void run_norm(CompiledGraph& graph, const TotalSumAttrs& attrs,
 
 void execute_norm(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const TotalSumAttrs& attrs = std::get<TotalSumAttrs>(op_info.attrs);
+    const TotalSumAttrs& attrs = *std::static_pointer_cast<TotalSumAttrs>(op_info.attrs);
     const std::string& x_name = op_info.input_names[0];
     const std::string& y_name = op_info.input_names[1];
     DataType dtype = graph.get_dtype(x_name);

@@ -32,7 +32,7 @@ void silu_backward(
     LogicalGraph::TensorNode& dx)
 {
     // Create operation attributes
-    OpAttrs attrs = SiluBackwardAttrs{};
+    auto attrs = std::make_shared<SiluBackwardAttrs>(SiluBackwardAttrs{});
 
     // Add operation to graph using public builder API
     // Note: dx is both input and output (accumulates gradients)

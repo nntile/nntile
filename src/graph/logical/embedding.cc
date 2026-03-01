@@ -61,7 +61,7 @@ LogicalGraph::TensorNode& embedding(
         vocab.dtype());
 
     // Create operation attributes
-    OpAttrs attrs = EmbeddingAttrs{axis};
+    auto attrs = std::make_shared<EmbeddingAttrs>(EmbeddingAttrs{axis});
 
     // Add operation to graph
     index.graph().add_op(

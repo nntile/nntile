@@ -354,7 +354,7 @@ LogicalGraph::OpNode::OpNode(
     NodeId id,
     LogicalGraph* graph,
     OpType type,
-    OpAttrs attrs,
+    std::shared_ptr<void> attrs,
     const std::vector<TensorNode*>& inputs,
     const std::vector<TensorNode*>& outputs,
     const std::string& name
@@ -460,7 +460,7 @@ LogicalGraph::TensorNode& LogicalGraph::tensor(
 //! Add an operation to the graph with specified output tensors
 void LogicalGraph::add_op(
     OpType type,
-    OpAttrs attrs,
+    std::shared_ptr<void> attrs,
     const std::vector<TensorNode*>& inputs,
     const std::vector<TensorNode*>& outputs,
     const std::string& name)

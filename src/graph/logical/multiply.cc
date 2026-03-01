@@ -58,7 +58,7 @@ LogicalGraph::TensorNode& multiply(
         output_name,
         x.dtype());
 
-    OpAttrs attrs = BinaryOpAttrs{1.0, 1.0};  // alpha=1, beta=1 for multiply
+    auto attrs = std::make_shared<BinaryOpAttrs>(BinaryOpAttrs{1.0, 1.0});
     x.graph().add_op(
         OpType::MULTIPLY,
         attrs,

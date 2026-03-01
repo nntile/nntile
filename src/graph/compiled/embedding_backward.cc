@@ -41,7 +41,7 @@ void run_embedding_backward(CompiledGraph& graph, const EmbeddingAttrs& attrs,
 
 void execute_embedding_backward(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const EmbeddingAttrs& attrs = std::get<EmbeddingAttrs>(op_info.attrs);
+    const EmbeddingAttrs& attrs = *std::static_pointer_cast<EmbeddingAttrs>(op_info.attrs);
     const std::string& index_name = op_info.input_names[0];
     const std::string& embed_name = op_info.input_names[1];
     const std::string& vocab_name = op_info.input_names[2];

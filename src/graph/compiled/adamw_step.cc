@@ -44,7 +44,7 @@ void run_adamw_step(CompiledGraph& graph, const AdamWAttrs& attrs,
 
 void execute_adamw_step(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const AdamWAttrs& attrs = std::get<AdamWAttrs>(op_info.attrs);
+    const AdamWAttrs& attrs = *std::static_pointer_cast<AdamWAttrs>(op_info.attrs);
     const std::string& grad_name = op_info.input_names[0];
     const std::string& first_moment_name = op_info.input_names[1];
     const std::string& second_moment_name = op_info.input_names[2];

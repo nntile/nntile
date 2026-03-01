@@ -40,7 +40,7 @@ void run_multiply_fiber_inplace(CompiledGraph& graph, const MultiplyFiberAttrs& 
 //! Execute multiply_fiber_inplace operation
 void execute_multiply_fiber_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const MultiplyFiberAttrs& attrs = std::get<MultiplyFiberAttrs>(op_info.attrs);
+    const MultiplyFiberAttrs& attrs = *std::static_pointer_cast<MultiplyFiberAttrs>(op_info.attrs);
     const std::string& fiber_name = op_info.input_names[0];
     const std::string& tensor_name = op_info.output_names[0];
     DataType dtype = graph.get_dtype(fiber_name);

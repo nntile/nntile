@@ -62,7 +62,7 @@ void run_gemm(CompiledGraph& graph, const GemmAttrs& attrs,
 //! Execute gemm operation
 void execute_gemm(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const auto& attrs = std::get<GemmAttrs>(op_info.attrs);
+    const auto& attrs = *std::static_pointer_cast<GemmAttrs>(op_info.attrs);
 
     const std::string& a_name = op_info.input_names[0];
     const std::string& b_name = op_info.input_names[1];

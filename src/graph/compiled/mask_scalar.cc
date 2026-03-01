@@ -41,7 +41,7 @@ void run_mask_scalar(CompiledGraph& graph, const MaskScalarAttrs& attrs,
 
 void execute_mask_scalar(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const MaskScalarAttrs& attrs = std::get<MaskScalarAttrs>(op_info.attrs);
+    const MaskScalarAttrs& attrs = *std::static_pointer_cast<MaskScalarAttrs>(op_info.attrs);
     const std::string& mask_name = op_info.input_names[0];
     const std::string& x_name = op_info.input_names[1];
     DataType dtype = graph.get_dtype(x_name);

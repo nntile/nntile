@@ -41,7 +41,7 @@ void run_pow_inplace(CompiledGraph& graph, const PowAttrs& attrs,
 
 void execute_pow_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const PowAttrs& attrs = std::get<PowAttrs>(op_info.attrs);
+    const PowAttrs& attrs = *std::static_pointer_cast<PowAttrs>(op_info.attrs);
     const std::string& x_name = op_info.input_names[0];
     DataType dtype = graph.get_dtype(x_name);
 

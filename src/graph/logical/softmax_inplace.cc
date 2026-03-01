@@ -55,7 +55,7 @@ void softmax_inplace(
             "softmax_inplace: axis out of bounds");
     }
 
-    OpAttrs attrs = LogSumExpAttrs{alpha, 1.0, axis};
+    auto attrs = std::make_shared<LogSumExpAttrs>(LogSumExpAttrs{alpha, 1.0, axis});
     y.graph().add_op(
         OpType::SOFTMAX_INPLACE,
         attrs,

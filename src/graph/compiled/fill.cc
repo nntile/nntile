@@ -39,7 +39,7 @@ void run_fill(CompiledGraph& graph, const FillAttrs& attrs,
 
 void execute_fill(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const FillAttrs& attrs = std::get<FillAttrs>(op_info.attrs);
+    const FillAttrs& attrs = *std::static_pointer_cast<FillAttrs>(op_info.attrs);
     const std::string& x_name = op_info.output_names[0];
     DataType dtype = graph.get_dtype(x_name);
 

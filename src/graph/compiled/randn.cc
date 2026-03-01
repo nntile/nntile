@@ -39,7 +39,7 @@ void run_randn(CompiledGraph& graph, const RandnAttrs& attrs,
 
 void execute_randn(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const RandnAttrs& attrs = std::get<RandnAttrs>(op_info.attrs);
+    const RandnAttrs& attrs = *std::static_pointer_cast<RandnAttrs>(op_info.attrs);
     const std::string& x_name = op_info.output_names[0];
     DataType dtype = graph.get_dtype(x_name);
 

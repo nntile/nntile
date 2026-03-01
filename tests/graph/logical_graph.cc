@@ -189,13 +189,13 @@ TEST_CASE("LogicalGraph AddOpValidations", "[graph]")
     auto& foreign_out = g2.tensor({2, 2}, "foreign_out", DataType::FP32);
 
     REQUIRE_THROWS_AS(
-        g1.add_op(OpType::GEMM, GemmAttrs{}, {&a, &foreign}, {&c}),
+        g1.add_op(OpType::GEMM, std::make_shared<GemmAttrs>(GemmAttrs{}), {&a, &foreign}, {&c}),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        g1.add_op(OpType::CLEAR, ClearAttrs{}, {}, {&foreign_out}),
+        g1.add_op(OpType::CLEAR, std::make_shared<ClearAttrs>(ClearAttrs{}), {}, {&foreign_out}),
         std::invalid_argument);
 
-    g1.add_op(OpType::GEMM, GemmAttrs{}, {&a, &b}, {&c}, "gemm_op");
+    g1.add_op(OpType::GEMM, std::make_shared<GemmAttrs>(GemmAttrs{}), {&a, &b}, {&c}, "gemm_op");
     REQUIRE(g1.num_ops() == 1);
     REQUIRE(c.has_producer());
     REQUIRE(c.producer()->type() == OpType::GEMM);

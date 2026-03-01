@@ -159,7 +159,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
             mask_to_use = default_mask;
             graph_.add_op(
                 graph::OpType::CLEAR,
-                graph::OpAttrs{graph::ClearAttrs{}},
+                std::make_shared<graph::ClearAttrs>(graph::ClearAttrs{}),
                 {},
                 {default_mask});
         }
@@ -167,19 +167,19 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
         // Fill logsumexp with -inf, clear y
         graph_.add_op(
             graph::OpType::FILL,
-            graph::OpAttrs{graph::FillAttrs{mask_val_}},
+            std::make_shared<graph::FillAttrs>(graph::FillAttrs{mask_val_}),
             {},
             {flash_logsumexp_tensor_});
         graph_.add_op(
             graph::OpType::CLEAR,
-            graph::OpAttrs{graph::ClearAttrs{}},
+            std::make_shared<graph::ClearAttrs>(graph::ClearAttrs{}),
             {},
             {output_tensor_});
 
         // Flash SDPA forward: K, Q, mask, logsumexp, V -> A (output)
         graph_.add_op(
             graph::OpType::FLASH_SDPA_FWD_CUDNN,
-            graph::OpAttrs{graph::ClearAttrs{}},
+            std::make_shared<graph::ClearAttrs>(graph::ClearAttrs{}),
             {k_tensor_, &q, mask_to_use, flash_logsumexp_tensor_, v_tensor_},
             {output_tensor_});
     }
@@ -230,15 +230,15 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
         // attn = scale * K^T @ Q (ndim=1, batch_ndim)
         graph_.add_op(
             graph::OpType::GEMM,
-            graph::OpAttrs{graph::GemmAttrs{
-                true, false, scale_, 0.0, 1, batch_ndim_}},
+            std::make_shared<graph::GemmAttrs>(graph::GemmAttrs{
+                true, false, scale_, 0.0, 1, batch_ndim_}),
             {k_tensor_, &q},
             {attn_tensor_});
 
         // Clear attn_maxsumexp
         graph_.add_op(
             graph::OpType::CLEAR,
-            graph::OpAttrs{graph::ClearAttrs{}},
+            std::make_shared<graph::ClearAttrs>(graph::ClearAttrs{}),
             {},
             {attn_maxsumexp_tensor_});
 
@@ -247,7 +247,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
         {
             graph_.add_op(
                 graph::OpType::MASK_SCALAR,
-                graph::OpAttrs{graph::MaskScalarAttrs{mask_val_, batch_ndim_}},
+                std::make_shared<graph::MaskScalarAttrs>(graph::MaskScalarAttrs{mask_val_, batch_ndim_}),
                 {mask_tensor_, attn_tensor_},
                 {attn_tensor_});
         }
@@ -255,21 +255,21 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
         // maxsumexp along axis 0
         graph_.add_op(
             graph::OpType::MAXSUMEXP,
-            graph::OpAttrs{graph::LogSumExpAttrs{1.0, 0.0, 0}},
+            std::make_shared<graph::LogSumExpAttrs>(graph::LogSumExpAttrs{1.0, 0.0, 0}),
             {attn_tensor_},
             {attn_maxsumexp_tensor_});
 
         // softmax_inplace
         graph_.add_op(
             graph::OpType::SOFTMAX_INPLACE,
-            graph::OpAttrs{graph::LogSumExpAttrs{1.0, 1.0, 0}},
+            std::make_shared<graph::LogSumExpAttrs>(graph::LogSumExpAttrs{1.0, 1.0, 0}),
             {attn_maxsumexp_tensor_, attn_tensor_},
             {attn_tensor_});
 
         // y = V @ attn
         graph_.add_op(
             graph::OpType::GEMM,
-            graph::OpAttrs{graph::GemmAttrs{false, false, 1.0, 0.0, 1, batch_ndim_}},
+            std::make_shared<graph::GemmAttrs>(graph::GemmAttrs{false, false, 1.0, 0.0, 1, batch_ndim_}),
             {v_tensor_, attn_tensor_},
             {output_tensor_});
     }

@@ -43,7 +43,7 @@ void run_add_fiber_inplace(CompiledGraph& graph, const AddFiberAttrs& attrs,
 //! Execute add_fiber_inplace operation
 void execute_add_fiber_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const AddFiberAttrs& attrs = std::get<AddFiberAttrs>(op_info.attrs);
+    const AddFiberAttrs& attrs = *std::static_pointer_cast<AddFiberAttrs>(op_info.attrs);
     const std::string& fiber_name = op_info.input_names[0];
     const std::string& tensor_name = op_info.output_names[0];
     DataType dtype = graph.get_dtype(fiber_name);

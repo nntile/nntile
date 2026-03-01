@@ -44,7 +44,7 @@ void mask_scalar(
             "mask_scalar: mask tensor must have bool dtype");
     }
 
-    OpAttrs attrs = MaskScalarAttrs{val, batch_ndim};
+    auto attrs = std::make_shared<MaskScalarAttrs>(MaskScalarAttrs{val, batch_ndim});
     mask.graph().add_op(
         OpType::MASK_SCALAR,
         attrs,

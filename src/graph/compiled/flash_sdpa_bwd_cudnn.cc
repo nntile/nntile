@@ -37,7 +37,7 @@ void run_flash_sdpa_bwd_cudnn(CompiledGraph& graph, const ClearAttrs& attrs,
 
 void execute_flash_sdpa_bwd_cudnn(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const ClearAttrs& attrs = std::get<ClearAttrs>(op_info.attrs);
+    const ClearAttrs& attrs = *std::static_pointer_cast<ClearAttrs>(op_info.attrs);
     const std::string& K_name = op_info.input_names[0];
     const std::string& Q_name = op_info.input_names[1];
     const std::string& V_name = op_info.input_names[2];

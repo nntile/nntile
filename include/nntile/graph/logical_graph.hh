@@ -21,7 +21,6 @@
 #include <map>
 #include <memory>
 #include <string>
-#include <variant>
 #include <vector>
 
 // Include third-party headers
@@ -423,17 +422,6 @@ struct CopyIntersectionAttrs
     std::vector<Index> dst_offset;
 };
 
-using OpAttrs = std::variant<GemmAttrs, GeluAttrs, GeluBackwardAttrs,
-                             GelutanhAttrs, GelutanhBackwardAttrs, ReluAttrs, ReluBackwardAttrs, SiluAttrs, SiluBackwardAttrs,
-                             AddFiberAttrs, AddSliceAttrs, MultiplyFiberAttrs, MultiplySliceAttrs, SumFiberAttrs, ClearAttrs,
-                             NoAttrs, BinaryOpAttrs, ReductionAttrs, TotalSumAttrs,
-                             LogSumExpAttrs, ScaleAttrs, Conv2dAttrs,
-                             EmbeddingAttrs, MaskScalarAttrs, TotalSumAccumAttrs,
-                             SgdStepAttrs, AdamStepAttrs, AdamWAttrs, RandnAttrs,
-                             PowAttrs, LogScalarAttrs, FillAttrs, TransposeAttrs,
-                             HypotScalarInverseAttrs, SubtractIndexedOutputsAttrs,
-                             CopyIntersectionAttrs>;
-
 //! Logical graph - defines computation without physical details
 class LogicalGraph
 {
@@ -519,7 +507,7 @@ public:
         NodeId id_;
         LogicalGraph* graph_;
         OpType type_;
-        OpAttrs attrs_;
+        std::shared_ptr<void> attrs_;
         std::string name_;
 
         // Graph edges
@@ -531,7 +519,7 @@ public:
             NodeId id,
             LogicalGraph* graph,
             OpType type,
-            OpAttrs attrs,
+            std::shared_ptr<void> attrs,
             const std::vector<TensorNode*>& inputs,
             const std::vector<TensorNode*>& outputs,
             const std::string& name = ""
@@ -541,7 +529,8 @@ public:
         NodeId id() const { return id_; }
         const std::string& name() const { return name_; }
         OpType type() const { return type_; }
-        const OpAttrs& attrs() const { return attrs_; }
+        //! Opaque attrs; cast in op impl: std::static_pointer_cast<MyAttrs>(op->attrs())
+        const std::shared_ptr<void>& attrs() const { return attrs_; }
 
         // Graph access
         LogicalGraph& graph() { return *graph_; }
@@ -605,12 +594,12 @@ public:
     //! Add an operation to the graph with specified output tensors
     //! This is the public builder API for operation implementations.
     //! @param type The operation type
-    //! @param attrs The operation attributes
+    //! @param attrs Opaque (std::shared_ptr<void>); only op impl knows the type
     //! @param inputs Vector of input tensor pointers (must belong to this graph)
     //! @param outputs Vector of output tensor pointers (must belong to this graph)
     void add_op(
         OpType type,
-        OpAttrs attrs,
+        std::shared_ptr<void> attrs,
         const std::vector<TensorNode*>& inputs,
         const std::vector<TensorNode*>& outputs,
         const std::string& name = ""

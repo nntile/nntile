@@ -114,7 +114,7 @@ LogicalGraph::TensorNode& gemm(
         a.dtype());
 
     // Create operation attributes (beta = 0 for new output)
-    OpAttrs attrs = GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim};
+    auto attrs = std::make_shared<GemmAttrs>(GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim});
 
     // Add operation to graph using public builder API
     a.graph().add_op(
@@ -193,7 +193,7 @@ void gemm(
     }
 
     // Create operation attributes
-    OpAttrs attrs = GemmAttrs{trans_a, trans_b, alpha, beta, ndim, batch_ndim};
+    auto attrs = std::make_shared<GemmAttrs>(GemmAttrs{trans_a, trans_b, alpha, beta, ndim, batch_ndim});
 
     // Add operation to graph
     a.graph().add_op(

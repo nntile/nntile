@@ -44,7 +44,7 @@ void run_norm_slice(CompiledGraph& graph, const ReductionAttrs& attrs,
 
 void execute_norm_slice(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const ReductionAttrs& attrs = std::get<ReductionAttrs>(op_info.attrs);
+    const ReductionAttrs& attrs = *std::static_pointer_cast<ReductionAttrs>(op_info.attrs);
     const std::string& x_name = op_info.input_names[0];
     const std::string& src2_name = op_info.input_names[1];
     const std::string& dst_name = op_info.output_names[0];

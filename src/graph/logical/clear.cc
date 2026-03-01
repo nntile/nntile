@@ -28,7 +28,7 @@ namespace nntile::graph
 //! Clear tensor: x = 0
 void clear(LogicalGraph::TensorNode& x)
 {
-    OpAttrs attrs = ClearAttrs{};
+    auto attrs = std::make_shared<ClearAttrs>(ClearAttrs{});
 
     // In-place operation: inputs and outputs are the same tensor
     x.graph().add_op(

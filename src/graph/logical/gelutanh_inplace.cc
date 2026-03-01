@@ -28,7 +28,7 @@ namespace nntile::graph
 //! GeLUTanh in-place: x = gelutanh(x)
 void gelutanh_inplace(LogicalGraph::TensorNode& x)
 {
-    OpAttrs attrs = GelutanhAttrs{};
+    auto attrs = std::make_shared<GelutanhAttrs>(GelutanhAttrs{});
     x.graph().add_op(
         OpType::GELUTANH_INPLACE,
         attrs,

@@ -42,7 +42,7 @@ void run_multiply_slice(CompiledGraph& graph, const MultiplySliceAttrs& attrs,
 //! Execute multiply_slice operation
 void execute_multiply_slice(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const MultiplySliceAttrs& attrs = std::get<MultiplySliceAttrs>(op_info.attrs);
+    const MultiplySliceAttrs& attrs = *std::static_pointer_cast<MultiplySliceAttrs>(op_info.attrs);
     const std::string& slice_name = op_info.input_names[0];
     const std::string& tensor_name = op_info.output_names[0];
     DataType dtype = graph.get_dtype(slice_name);

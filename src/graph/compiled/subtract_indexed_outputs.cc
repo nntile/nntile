@@ -39,7 +39,7 @@ void run_subtract_indexed_outputs(CompiledGraph& graph, const SubtractIndexedOut
 
 void execute_subtract_indexed_outputs(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const SubtractIndexedOutputsAttrs& attrs = std::get<SubtractIndexedOutputsAttrs>(op_info.attrs);
+    const SubtractIndexedOutputsAttrs& attrs = *std::static_pointer_cast<SubtractIndexedOutputsAttrs>(op_info.attrs);
     const std::string& labels_name = op_info.input_names[0];
     const std::string& x_name = op_info.input_names[1];
     DataType dtype = graph.get_dtype(x_name);

@@ -38,7 +38,7 @@ LogicalGraph::TensorNode& pow(
         output_name,
         x.dtype());
 
-    OpAttrs attrs = PowAttrs{alpha, exp};
+    auto attrs = std::make_shared<PowAttrs>(PowAttrs{alpha, exp});
     x.graph().add_op(
         OpType::POW,
         attrs,

@@ -70,7 +70,7 @@ NNGraph::TensorNode* NNGraph::tensor(LogicalGraph::TensorNode& data,
 
 void NNGraph::add_op(
     OpType type,
-    OpAttrs attrs,
+    std::shared_ptr<void> attrs,
     const std::vector<TensorNode*>& inputs,
     const std::vector<TensorNode*>& outputs,
     const std::string& name)
@@ -99,7 +99,7 @@ void NNGraph::add_op(
         output_nodes.push_back(output->data_ptr());
     }
 
-    logical_.add_op(type, std::move(attrs), input_nodes, output_nodes, name);
+    logical_.add_op(type, attrs, input_nodes, output_nodes, name);
 
     // Propagate grad_required from inputs to outputs (PyTorch-style)
     bool any_input_requires_grad = false;

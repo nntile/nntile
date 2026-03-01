@@ -51,7 +51,7 @@ void multiply_inplace(
             "multiply_inplace: input tensors must have the same shape");
     }
 
-    OpAttrs attrs = BinaryOpAttrs{1.0, 1.0};
+    auto attrs = std::make_shared<BinaryOpAttrs>(BinaryOpAttrs{1.0, 1.0});
     x.graph().add_op(
         OpType::MULTIPLY_INPLACE,
         attrs,

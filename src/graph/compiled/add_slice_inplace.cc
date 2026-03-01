@@ -43,7 +43,7 @@ void run_add_slice_inplace(CompiledGraph& graph, const AddSliceAttrs& attrs,
 //! Execute add_slice_inplace operation
 void execute_add_slice_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const AddSliceAttrs& attrs = std::get<AddSliceAttrs>(op_info.attrs);
+    const AddSliceAttrs& attrs = *std::static_pointer_cast<AddSliceAttrs>(op_info.attrs);
     const std::string& slice_name = op_info.input_names[0];
     const std::string& tensor_name = op_info.output_names[0];
     DataType dtype = graph.get_dtype(slice_name);

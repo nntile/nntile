@@ -54,13 +54,13 @@ TEST_CASE("NNGraph AddOpNullInputsOutputs", "[graph]")
     auto* y = g.tensor({2, 2}, "y", DataType::FP32);
 
     REQUIRE_THROWS_AS(
-        g.add_op(OpType::GEMM, GemmAttrs{}, {x, nullptr}, {y}),
+        g.add_op(OpType::GEMM, std::make_shared<GemmAttrs>(GemmAttrs{}), {x, nullptr}, {y}),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        g.add_op(OpType::GELU, GeluAttrs{}, {x}, {nullptr}),
+        g.add_op(OpType::GELU, std::make_shared<GeluAttrs>(GeluAttrs{}), {x}, {nullptr}),
         std::invalid_argument);
 
-    g.add_op(OpType::GELU, GeluAttrs{}, {x}, {y});
+    g.add_op(OpType::GELU, std::make_shared<GeluAttrs>(GeluAttrs{}), {x}, {y});
     REQUIRE(g.num_ops() == 1);
     REQUIRE(g.logical_graph().ops().front()->type() == OpType::GELU);
 }
@@ -109,7 +109,7 @@ TEST_CASE("NNGraph ToMermaidDelegatesToLogicalGraph", "[graph]")
     auto* y = nng.tensor({2, 4}, "output", DataType::FP32);
 
     // Add a simple operation
-    nng.add_op(OpType::GEMM, GemmAttrs{}, {x, w}, {y}, "matmul");
+    nng.add_op(OpType::GEMM, std::make_shared<GemmAttrs>(GemmAttrs{}), {x, w}, {y}, "matmul");
 
     // Test that NNGraph to_mermaid delegates to logical graph
     auto nn_mermaid = nng.to_mermaid();
@@ -130,7 +130,7 @@ TEST_CASE("NNGraph MarkInputOutput", "[graph]")
     auto* w = g.tensor({3, 4}, "w", DataType::FP32);
     auto* y = g.tensor({2, 4}, "y", DataType::FP32);
 
-    g.add_op(OpType::GEMM, GemmAttrs{}, {x, w}, {y});
+    g.add_op(OpType::GEMM, std::make_shared<GemmAttrs>(GemmAttrs{}), {x, w}, {y});
 
     x->mark_input(true);
     y->mark_output(true);

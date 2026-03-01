@@ -52,7 +52,7 @@ void norm_slice_inplace(
             "norm_slice_inplace: axis out of bounds");
     }
 
-    OpAttrs attrs = ReductionAttrs{alpha, beta, axis, 0, redux};  // batch_ndim = 0 for slice
+    auto attrs = std::make_shared<ReductionAttrs>(ReductionAttrs{alpha, beta, axis, 0, redux});
     x.graph().add_op(
         OpType::NORM_SLICE_INPLACE,
         attrs,

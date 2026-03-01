@@ -31,7 +31,7 @@ void log_scalar(
     LogicalGraph::TensorNode& x,
     const std::string& name)
 {
-    OpAttrs attrs = LogScalarAttrs{name};
+    auto attrs = std::make_shared<LogScalarAttrs>(LogScalarAttrs{name});
     x.graph().add_op(
         OpType::LOG_SCALAR,
         attrs,

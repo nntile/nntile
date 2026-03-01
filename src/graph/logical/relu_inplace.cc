@@ -28,7 +28,7 @@ namespace nntile::graph
 //! ReLU in-place: x = relu(x)
 void relu_inplace(LogicalGraph::TensorNode& x)
 {
-    OpAttrs attrs = GeluAttrs{};
+    auto attrs = std::make_shared<GeluAttrs>(GeluAttrs{});
     x.graph().add_op(
         OpType::RELU_INPLACE,
         attrs,

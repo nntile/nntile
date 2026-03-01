@@ -62,7 +62,7 @@ LogicalGraph::TensorNode& softmax(
         output_name,
         x.dtype());
 
-    OpAttrs attrs = LogSumExpAttrs{alpha, 1.0, axis};
+    auto attrs = std::make_shared<LogSumExpAttrs>(LogSumExpAttrs{alpha, 1.0, axis});
     x.graph().add_op(
         OpType::SOFTMAX,
         attrs,

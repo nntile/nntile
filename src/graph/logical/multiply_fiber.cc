@@ -79,7 +79,7 @@ LogicalGraph::TensorNode& multiply_fiber(
         output_name,
         fiber.dtype());
 
-    OpAttrs attrs = MultiplyFiberAttrs{axis, batch_ndim, alpha};
+    auto attrs = std::make_shared<MultiplyFiberAttrs>(MultiplyFiberAttrs{axis, batch_ndim, alpha});
     fiber.graph().add_op(
         OpType::MULTIPLY_FIBER,
         attrs,

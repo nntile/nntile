@@ -31,7 +31,7 @@ void pow_inplace(
     Scalar alpha,
     Scalar exp)
 {
-    OpAttrs attrs = PowAttrs{alpha, exp};
+    auto attrs = std::make_shared<PowAttrs>(PowAttrs{alpha, exp});
     x.graph().add_op(
         OpType::POW_INPLACE,
         attrs,

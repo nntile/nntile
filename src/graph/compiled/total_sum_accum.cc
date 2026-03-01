@@ -45,7 +45,7 @@ void run_total_sum_accum(CompiledGraph& graph, const TotalSumAccumAttrs& attrs,
 //! Execute total_sum_accum operation
 void execute_total_sum_accum(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const TotalSumAccumAttrs& attrs = std::get<TotalSumAccumAttrs>(op_info.attrs);
+    const TotalSumAccumAttrs& attrs = *std::static_pointer_cast<TotalSumAccumAttrs>(op_info.attrs);
     const std::string& logsumexp_name = op_info.input_names[0];
     const std::string& src_name = op_info.input_names[1];
     const std::string& class_labels_name = op_info.input_names[2];

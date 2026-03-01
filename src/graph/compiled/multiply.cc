@@ -43,7 +43,7 @@ void run_multiply(CompiledGraph& graph, const BinaryOpAttrs& attrs,
 
 void execute_multiply(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const BinaryOpAttrs& attrs = std::get<BinaryOpAttrs>(op_info.attrs);
+    const BinaryOpAttrs& attrs = *std::static_pointer_cast<BinaryOpAttrs>(op_info.attrs);
     const std::string& x_name = op_info.input_names[0];
     const std::string& y_name = op_info.input_names[1];
     const std::string& z_name = op_info.output_names[0];

@@ -45,7 +45,7 @@ void run_conv2d_bwd_weight_inplace(CompiledGraph& graph, const Conv2dAttrs& attr
 
 void execute_conv2d_bwd_weight_inplace(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const Conv2dAttrs& attrs = std::get<Conv2dAttrs>(op_info.attrs);
+    const Conv2dAttrs& attrs = *std::static_pointer_cast<Conv2dAttrs>(op_info.attrs);
     const std::string& x_name = op_info.input_names[0];
     const std::string& dy_name = op_info.input_names[1];
     const std::string& dc_name = op_info.output_names[0];

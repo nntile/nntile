@@ -39,7 +39,7 @@ void run_copy_intersection(CompiledGraph& graph, const CopyIntersectionAttrs& at
 
 void execute_copy_intersection(CompiledGraph& graph, const OpExecutionInfo& op_info)
 {
-    const CopyIntersectionAttrs& attrs = std::get<CopyIntersectionAttrs>(op_info.attrs);
+    const CopyIntersectionAttrs& attrs = *std::static_pointer_cast<CopyIntersectionAttrs>(op_info.attrs);
     const std::string& src_name = op_info.input_names[0];
     const std::string& dst_name = op_info.output_names[0];
     DataType dtype = graph.get_dtype(src_name);
