@@ -101,13 +101,9 @@ public:
         graph::NNGraph::TensorNode& bias_tensor
     );
 
-    //! Callable: linear(input)
-    graph::NNGraph::TensorNode& operator()(
-        graph::NNGraph::TensorNode& input);
-
-    //! Build forward (calls operator())
+    //! Build forward (gemm + add_fiber). operator() in base does bookkeeping.
     graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input);
+        graph::NNGraph::TensorNode& input) override;
 
     //! Get string representation with dimensions
     std::string repr() const override;

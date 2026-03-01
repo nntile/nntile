@@ -44,7 +44,7 @@ public:
     {
     }
 
-    NNGraph::TensorNode& operator()(NNGraph::TensorNode& input)
+    NNGraph::TensorNode& build_forward(NNGraph::TensorNode& input) override
     {
         input_tensor_ = &input;
         std::vector<Index> output_shape = input.shape();
@@ -54,11 +54,6 @@ public:
             input.dtype(),
             graph_.requires_grad(&input));
         return *output_tensor_;
-    }
-
-    NNGraph::TensorNode& build_forward(NNGraph::TensorNode& input)
-    {
-        return (*this)(input);
     }
 
     void check_backward_prereqs()

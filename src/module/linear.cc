@@ -165,12 +165,6 @@ Linear::Linear(graph::NNGraph& graph,
 graph::NNGraph::TensorNode& Linear::build_forward(
     graph::NNGraph::TensorNode& input)
 {
-    return (*this)(input);
-}
-
-graph::NNGraph::TensorNode& Linear::operator()(
-    graph::NNGraph::TensorNode& input)
-{
     if(input.ndim() < 1)
     {
         throw std::invalid_argument(

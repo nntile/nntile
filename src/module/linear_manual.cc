@@ -68,57 +68,46 @@ LinearManual::LinearManual(
 graph::NNGraph::TensorNode& LinearManual::build_forward(
     graph::NNGraph::TensorNode& input)
 {
-    return (*this)(input);
+    if(input.ndim() < 1)
+    {
+        throw std::invalid_argument(
+            "LinearManual: input must have at least one dimension");
+    }
+    if(input.shape().back() != input_dim_)
+    {
+        throw std::invalid_argument(
+            "LinearManual: input feature dim mismatch");
+    }
+    input_tensor_ = &input;
+    const std::string gemm_name = bias_tensor_ != nullptr
+        ? tensor_name("gemm_output")
+        : tensor_name("output");
+    graph::NNGraph::TensorNode* gemm_out = graph::gemm(
+        &input, weight_tensor_, gemm_name, GEMM_ALPHA,
+        NO_TRANSPOSE, NO_TRANSPOSE, GEMM_NDIM_MATRIX, NO_BATCH_DIM);
+    if(bias_tensor_ != nullptr)
+    {
+        const Index feature_axis = gemm_out->ndim() - 1;
+        output_tensor_ = graph::add_fiber(
+            ADD_FIBER_ALPHA, bias_tensor_, ADD_FIBER_BETA, gemm_out,
+            tensor_name("output"), feature_axis, NO_BATCH_DIM);
+    }
+    else
+    {
+        output_tensor_ = gemm_out;
+    }
+    return *output_tensor_;
 }
 
-graph::NNGraph::TensorNode& LinearManual::operator()(
-    graph::NNGraph::TensorNode& input)
+std::vector<graph::NNGraph::TensorNode*> LinearManual::backward_inputs() const
 {
-    auto forward_fn = [this](graph::NNGraph::TensorNode& inp)
-        -> graph::NNGraph::TensorNode&
+    std::vector<graph::NNGraph::TensorNode*> in = {input_tensor_,
+                                                   weight_tensor_};
+    if(bias_tensor_ != nullptr)
     {
-        if(inp.ndim() < 1)
-        {
-            throw std::invalid_argument(
-                "LinearManual: input must have at least one dimension");
-        }
-        if(inp.shape().back() != input_dim_)
-        {
-            throw std::invalid_argument(
-                "LinearManual: input feature dim mismatch");
-        }
-        input_tensor_ = &inp;
-        const std::string gemm_name = bias_tensor_ != nullptr
-            ? tensor_name("gemm_output")
-            : tensor_name("output");
-        graph::NNGraph::TensorNode* gemm_out = graph::gemm(
-            &inp, weight_tensor_, gemm_name, GEMM_ALPHA,
-            NO_TRANSPOSE, NO_TRANSPOSE, GEMM_NDIM_MATRIX, NO_BATCH_DIM);
-        if(bias_tensor_ != nullptr)
-        {
-            const Index feature_axis = gemm_out->ndim() - 1;
-            output_tensor_ = graph::add_fiber(
-                ADD_FIBER_ALPHA, bias_tensor_, ADD_FIBER_BETA, gemm_out,
-                tensor_name("output"), feature_axis, NO_BATCH_DIM);
-        }
-        else
-        {
-            output_tensor_ = gemm_out;
-        }
-        return *output_tensor_;
-    };
-    auto inputs_fn = [this]()
-    {
-        std::vector<graph::NNGraph::TensorNode*> in = {input_tensor_,
-                                                       weight_tensor_};
-        if(bias_tensor_ != nullptr)
-        {
-            in.push_back(bias_tensor_);
-        }
-        return in;
-    };
-    return wrap_forward(input, forward_fn, inputs_fn,
-        [this](const graph::NNGraph::OpNode* op) { build_backward(op); });
+        in.push_back(bias_tensor_);
+    }
+    return in;
 }
 
 void LinearManual::build_backward(const graph::NNGraph::OpNode* op)

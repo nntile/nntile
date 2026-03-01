@@ -29,12 +29,6 @@ Gelu::Gelu(graph::NNGraph& graph, const std::string& name)
 graph::NNGraph::TensorNode& Gelu::build_forward(
     graph::NNGraph::TensorNode& input)
 {
-    return (*this)(input);
-}
-
-graph::NNGraph::TensorNode& Gelu::operator()(
-    graph::NNGraph::TensorNode& input)
-{
     input_tensor_ = &input;
     output_tensor_ = graph::gelu(&input, tensor_name("output"));
     return *output_tensor_;

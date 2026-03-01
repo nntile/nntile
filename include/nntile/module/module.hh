@@ -179,17 +179,30 @@ public:
     std::string grad_name(const std::string& local_name) const;
 
     // -----------------------------------------------------------------
-    // Forward Helper (no override)
+    // Forward API (single-input modules)
     // -----------------------------------------------------------------
 
-    //! Helper for modules with build_backward: run forward in GradMode,
-    //! wrap output as single OpNode. No override needed.
-    graph::NNGraph::TensorNode& wrap_forward(
-        graph::NNGraph::TensorNode& input,
-        std::function<graph::NNGraph::TensorNode&(graph::NNGraph::TensorNode&)>
-            forward_fn,
-        std::function<std::vector<graph::NNGraph::TensorNode*>()> inputs_fn,
-        std::function<void(const graph::NNGraph::OpNode*)> backward_fn);
+    //! True if module has custom build_backward (uses wrap_with_module_op).
+    virtual bool has_custom_backward() const { return false; }
+
+    //! Inputs for backward (modules with custom backward must override).
+    virtual std::vector<graph::NNGraph::TensorNode*> backward_inputs() const
+    {
+        return {};
+    }
+
+    //! Forward pass. Override in subclasses. Default throws.
+    virtual graph::NNGraph::TensorNode& build_forward(
+        graph::NNGraph::TensorNode& input);
+
+    //! Backward pass. Override only in modules with has_custom_backward().
+    virtual void build_backward(const graph::NNGraph::OpNode* op) {}
+
+    //! Callable: if no custom backward, calls build_forward; otherwise
+    //! disables graph recording, calls build_forward, re-enables, wraps as
+    //! single OpNode with build_backward.
+    graph::NNGraph::TensorNode& operator()(
+        graph::NNGraph::TensorNode& input);
 
     // -----------------------------------------------------------------
     // String Representation

@@ -88,13 +88,9 @@ public:
         Index intermediate_dim,
         graph::DataType dtype = graph::DataType::FP32);
 
-    //! Callable: mlp(input)
-    graph::NNGraph::TensorNode& operator()(
-        graph::NNGraph::TensorNode& input);
-
-    //! Build forward (calls operator())
+    //! Build forward (fc1 -> gelu -> fc2). operator() in base does bookkeeping.
     graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input);
+        graph::NNGraph::TensorNode& input) override;
 
     //! Get string representation with dimensions
     std::string repr() const override;

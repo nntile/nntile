@@ -38,13 +38,9 @@ public:
     //! @param name Module name (used to generate unique tensor names)
     Gelu(graph::NNGraph& graph, const std::string& name);
 
-    //! Callable: gelu(input)
-    graph::NNGraph::TensorNode& operator()(
-        graph::NNGraph::TensorNode& input);
-
-    //! Build forward (calls operator())
+    //! Build forward (gelu). operator() in base does bookkeeping.
     graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input);
+        graph::NNGraph::TensorNode& input) override;
 
     //! Get string representation
     std::string repr() const override;

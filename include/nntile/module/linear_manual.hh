@@ -50,15 +50,15 @@ public:
         bool with_bias = false,
         graph::DataType dtype = graph::DataType::FP32);
 
-    //! Callable: linear_manual(input) - single module OpNode
-    graph::NNGraph::TensorNode& operator()(
-        graph::NNGraph::TensorNode& input);
-
-    //! Build forward (calls operator())
+    //! Build forward (gemm + add_fiber). operator() in base does bookkeeping.
     graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input);
+        graph::NNGraph::TensorNode& input) override;
 
-    void build_backward(const graph::NNGraph::OpNode* op);
+    bool has_custom_backward() const override { return true; }
+
+    std::vector<graph::NNGraph::TensorNode*> backward_inputs() const override;
+
+    void build_backward(const graph::NNGraph::OpNode* op) override;
 
     std::string repr() const override;
 

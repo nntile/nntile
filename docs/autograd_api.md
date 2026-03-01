@@ -65,29 +65,19 @@ ForwardResult MyOp::build_forward(...) {
 ### Modules
 
 ```cpp
-// No build_backward: uses functors, each appears as OpNode
-TensorNode& operator()(TensorNode& input);
+// Base Module::operator() checks has_custom_backward():
+// - If false: just calls build_forward(input) and returns
+// - If true: GradMode::Guard, build_forward, wrap_with_module_op(backward_inputs, output, build_backward)
 
-// With build_backward: single module OpNode (uses wrap_forward)
-TensorNode& operator()(TensorNode& input);
+virtual bool has_custom_backward() const { return false; }
+virtual std::vector<TensorNode*> backward_inputs() const { return {}; }
+virtual TensorNode& build_forward(TensorNode& input);
+virtual void build_backward(const OpNode* op) {}
+TensorNode& operator()(TensorNode& input);  // in base
 ```
 
-- **Callable**: `linear(input)` or `mlp(input)` instead of `build_forward(input)`
-- **No override**: each module implements `operator()` directly with its signature
-- **Custom backward**: call `wrap_forward(input, forward_fn, inputs_fn, backward_fn)` helper
-
-### Module Helper (no override)
-
-```cpp
-// Protected helper for modules with build_backward
-TensorNode& wrap_forward(
-    TensorNode& input,
-    std::function<TensorNode&(TensorNode&)> forward_fn,
-    std::function<std::vector<TensorNode*>()> inputs_fn,
-    std::function<void(const OpNode*)> backward_fn);
-```
-
-Modules with custom backward use this; no need to override `forward_impl` or `has_custom_backward`.
+- **No custom backward** (Linear, Gelu, Mlp): implement only `build_forward`. operator() just calls it.
+- **Custom backward** (LinearManual): override `has_custom_backward()=true`, `backward_inputs()`, `build_backward()`. operator() does GradMode::Guard, build_forward, wrap_with_module_op.
 
 ### Usage Examples
 
