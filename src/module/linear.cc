@@ -38,7 +38,7 @@ Linear::Linear(graph::NNGraph& graph,
                const std::string& name,
                Index input_dim, Index output_dim,
                graph::DataType dtype)
-    : Module(graph, name)
+    : ModuleBase(graph, name)
     , input_dim_(input_dim)
     , output_dim_(output_dim)
     , dtype_(dtype)
@@ -58,7 +58,7 @@ Linear::Linear(graph::NNGraph& graph,
                Index input_dim, Index output_dim,
                bool with_bias,
                graph::DataType dtype)
-    : Module(graph, name)
+    : ModuleBase(graph, name)
     , input_dim_(input_dim)
     , output_dim_(output_dim)
     , dtype_(dtype)
@@ -87,7 +87,7 @@ Linear::Linear(graph::NNGraph& graph,
 Linear::Linear(graph::NNGraph& graph,
                const std::string& name,
                graph::NNGraph::TensorNode& weight_tensor)
-    : Module(graph, name)
+    : ModuleBase(graph, name)
     , weight_tensor_(&weight_tensor)
     , input_dim_(0)
     , output_dim_(0)
@@ -115,7 +115,7 @@ Linear::Linear(graph::NNGraph& graph,
                const std::string& name,
                graph::NNGraph::TensorNode& weight_tensor,
                graph::NNGraph::TensorNode& bias_tensor)
-    : Module(graph, name)
+    : ModuleBase(graph, name)
     , weight_tensor_(&weight_tensor)
     , bias_tensor_(&bias_tensor)
     , input_dim_(0)

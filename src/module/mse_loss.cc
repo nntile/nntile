@@ -27,7 +27,7 @@ constexpr Scalar MSE_GRAD_SCALE = 2.0;
 MseLoss::MseLoss(graph::NNGraph& graph,
                  const std::string& name,
                  graph::DataType dtype)
-    : Module(graph, name)
+    : ModuleBase(graph, name)
     , dtype_(dtype)
 {
 }

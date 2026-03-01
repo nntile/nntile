@@ -28,7 +28,7 @@ Mlp::Mlp(graph::NNGraph& graph,
          Index intermediate_dim,
          Index output_dim,
          graph::DataType dtype)
-    : Module(graph, name)
+    : ModuleBase(graph, name)
     , fc1_(graph, name + "_fc1", input_dim, intermediate_dim, dtype)
     , gelu_(graph, name + "_gelu")
     , fc2_(graph, name + "_fc2", intermediate_dim, output_dim, dtype)

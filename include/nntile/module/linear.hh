@@ -33,7 +33,7 @@ namespace nntile::module
 //! Supports flexible construction modes:
 //! 1. Create new weight/bias tensors (specify dimensions)
 //! 2. Use existing weight/bias tensors (for weight/bias sharing)
-class Linear : public Module<Linear>
+class Linear : public ModuleBase
 {
 private:
     // References to parameter tensors (also registered via register_parameter)
@@ -101,10 +101,14 @@ public:
         graph::NNGraph::TensorNode& bias_tensor
     );
 
-    static constexpr bool has_custom_backward = false;
-
     graph::NNGraph::TensorNode& build_forward(
         graph::NNGraph::TensorNode& input);
+
+    //! Forward: calls build_forward (user does bookkeeping via autograd ops)
+    graph::NNGraph::TensorNode& operator()(graph::NNGraph::TensorNode& input)
+    {
+        return build_forward(input);
+    }
 
     //! Get string representation with dimensions
     std::string repr() const override;

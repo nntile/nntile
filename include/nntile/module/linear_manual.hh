@@ -30,7 +30,7 @@ namespace nntile::module
 //! Linear module with custom backward (overrides autograd of gemm/add_fiber).
 //! Uses GradMode::Guard during forward so inner ops don't register producer;
 //! then wrap_with_module_op attaches build_backward as the sole backward.
-class LinearManual : public Module<LinearManual>
+class LinearManual : public ModuleBase
 {
 private:
     graph::NNGraph::TensorNode* weight_tensor_ = nullptr;
@@ -50,14 +50,15 @@ public:
         bool with_bias = false,
         graph::DataType dtype = graph::DataType::FP32);
 
-    static constexpr bool has_custom_backward = true;
-
     graph::NNGraph::TensorNode& build_forward(
         graph::NNGraph::TensorNode& input);
 
     std::vector<graph::NNGraph::TensorNode*> backward_inputs() const;
 
     void build_backward(const graph::NNGraph::OpNode* op);
+
+    //! Forward: GradMode::Guard + build_forward + wrap_with_module_op
+    graph::NNGraph::TensorNode& operator()(graph::NNGraph::TensorNode& input);
 
     std::string repr() const override;
 

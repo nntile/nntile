@@ -35,7 +35,7 @@ namespace nntile::module
 //! - K: [head_size, k_seq, batch...]
 //! - V: [head_size, k_seq, batch...]
 //! - Y: [head_size, q_seq, batch...]
-class Sdpa : public Module<Sdpa>
+class Sdpa : public ModuleBase
 {
 private:
     bool flash_attention_;
@@ -62,8 +62,6 @@ private:
     graph::NNGraph::TensorNode* output_tensor_ = nullptr;
 
 public:
-    static constexpr bool has_custom_backward = false;
-
     //! Constructor: vanilla SDPA (creates attn, attn_maxsumexp, attn_sumprod_slice)
     //! @param graph The neural network graph
     //! @param name Module name
@@ -110,6 +108,16 @@ public:
         graph::NNGraph::TensorNode& v,
         graph::NNGraph::TensorNode* mask = nullptr
     );
+
+    //! Forward: calls build_forward
+    graph::NNGraph::TensorNode& operator()(
+        graph::NNGraph::TensorNode& q,
+        graph::NNGraph::TensorNode& k,
+        graph::NNGraph::TensorNode& v,
+        graph::NNGraph::TensorNode* mask = nullptr)
+    {
+        return build_forward(q, k, v, mask);
+    }
 
     //! Build backward operations
     void build_backward();

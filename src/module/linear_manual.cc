@@ -10,6 +10,7 @@
  * */
 
 #include "nntile/module/linear_manual.hh"
+#include "nntile/graph/grad_mode.hh"
 #include "nntile/graph/logical/gemm.hh"
 #include "nntile/graph/logical/sum_fiber.hh"
 
@@ -43,7 +44,7 @@ LinearManual::LinearManual(
     Index output_dim,
     bool with_bias,
     graph::DataType dtype)
-    : Module(graph, name)
+    : ModuleBase(graph, name)
     , input_dim_(input_dim)
     , output_dim_(output_dim)
     , dtype_(dtype)
@@ -97,6 +98,18 @@ graph::NNGraph::TensorNode& LinearManual::build_forward(
         output_tensor_ = gemm_out;
     }
     return *output_tensor_;
+}
+
+graph::NNGraph::TensorNode& LinearManual::operator()(
+    graph::NNGraph::TensorNode& input)
+{
+    graph::GradMode::Guard g;
+    graph::NNGraph::TensorNode& out = build_forward(input);
+    graph_.wrap_with_module_op(
+        backward_inputs(),
+        {&out},
+        [this](const graph::NNGraph::OpNode* op) { build_backward(op); });
+    return out;
 }
 
 std::vector<graph::NNGraph::TensorNode*> LinearManual::backward_inputs() const

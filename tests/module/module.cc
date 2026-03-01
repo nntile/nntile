@@ -32,7 +32,7 @@ using namespace nntile::module;
 namespace
 {
 
-class DummyModule final : public Module<DummyModule>
+class DummyModule final : public ModuleBase
 {
 private:
     NNGraph::TensorNode* input_tensor_ = nullptr;
@@ -40,11 +40,9 @@ private:
 
 public:
     DummyModule(NNGraph& graph, const std::string& name)
-        : Module<DummyModule>(graph, name)
+        : ModuleBase(graph, name)
     {
     }
-
-    static constexpr bool has_custom_backward = false;
 
     NNGraph::TensorNode& build_forward(NNGraph::TensorNode& input)
     {
@@ -56,6 +54,11 @@ public:
             input.dtype(),
             graph_.requires_grad(&input));
         return *output_tensor_;
+    }
+
+    NNGraph::TensorNode& operator()(NNGraph::TensorNode& input)
+    {
+        return build_forward(input);
     }
 
     void check_backward_prereqs()

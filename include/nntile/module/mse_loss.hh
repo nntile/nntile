@@ -26,7 +26,7 @@ namespace nntile::module
 
 //! MSE loss: squared Frobenius norm of input tensor.
 //! loss = norm(x)^2, gradient = 2*x
-class MseLoss : public Module<MseLoss>
+class MseLoss : public ModuleBase
 {
 private:
     graph::NNGraph::TensorNode* input_tensor_ = nullptr;
@@ -39,11 +39,15 @@ public:
             const std::string& name,
             graph::DataType dtype = graph::DataType::FP32);
 
-    static constexpr bool has_custom_backward = false;
-
     //! Build forward: loss = norm(x)^2 (scalar)
     graph::NNGraph::TensorNode& build_forward(
         graph::NNGraph::TensorNode& input);
+
+    //! Forward: calls build_forward
+    graph::NNGraph::TensorNode& operator()(graph::NNGraph::TensorNode& input)
+    {
+        return build_forward(input);
+    }
 
     //! Build backward: grad_x = 2*x (scalar loss grad is 1.0)
     void build_backward();

@@ -51,20 +51,13 @@ TensorNode* Add::build_forward(...) {
 // Multi-output: return std::vector<TensorNode*>, pass to register_op
 ```
 
-### Modules (CRTP, no fixed API)
+### Modules (no CRTP, user does bookkeeping)
 
-```cpp
-template<typename Derived>
-class Module : public ModuleBase {
-    template<typename... Args>
-    decltype(auto) operator()(Args&&... args);  // forwards to build_forward(Args...)
-};
-```
+All modules inherit `ModuleBase` only. No template.
 
-- **build_forward** can have any signature and return: `TensorNode&`, `TensorNode*`,
-  `std::vector<TensorNode*>` (single or multiple outputs).
-- **No custom backward**: implement `build_forward` only.
+- **No custom backward**: implement `build_forward`, define `operator()` that calls it.
 - **Custom backward**: implement `build_forward`, `backward_inputs()`, `build_backward(op)`.
+  Define `operator()` that does: `GradMode::Guard`, `build_forward`, `wrap_with_module_op`.
 
 ### Usage Examples
 
