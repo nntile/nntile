@@ -17,9 +17,9 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <vector>
 
-#include <nntile/graph/logical_graph.hh>
 #include <nntile/graph/nn_graph/nn_graph.hh>
 #include <nntile/graph/nn_graph/tensor_node.hh>
 
@@ -28,6 +28,7 @@ namespace nntile::graph
 
 //! NNGraph-level operation node (AutoGradFunction). Represents one NNGraph op
 //! that may use multiple LogicalGraph ops in forward/backward.
+//! Attrs are opaque (std::shared_ptr<void>); only forward/backward know the type.
 class NNGraph::OpNode
 {
     friend class NNGraph;
@@ -39,14 +40,14 @@ public:
 private:
     std::vector<TensorNode*> inputs_;
     std::vector<TensorNode*> outputs_;
-    OpAttrs attrs_;
+    std::shared_ptr<void> attrs_;
     BackwardFn backward_fn_;
     std::vector<TensorNode*> buffers_;
 
 public:
     OpNode(std::vector<TensorNode*> inputs,
            std::vector<TensorNode*> outputs,
-           OpAttrs attrs,
+           std::shared_ptr<void> attrs,
            BackwardFn backward_fn,
            std::vector<TensorNode*> buffers = {})
         : inputs_(std::move(inputs))
@@ -62,7 +63,8 @@ public:
     const std::vector<TensorNode*>& buffers() const { return buffers_; }
     //! Convenience for single-output ops. Undefined if outputs().size() != 1.
     TensorNode* output() const { return outputs_.empty() ? nullptr : outputs_[0]; }
-    const OpAttrs& attrs() const { return attrs_; }
+    //! Opaque attrs; cast in build_backward: std::static_pointer_cast<MyAttrs>(op->attrs())
+    const std::shared_ptr<void>& attrs() const { return attrs_; }
     void run_backward() const
     {
         if(backward_fn_)

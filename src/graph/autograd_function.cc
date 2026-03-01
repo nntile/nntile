@@ -19,7 +19,7 @@ void register_op(
     NNGraph& graph,
     const std::vector<NNGraph::TensorNode*>& inputs,
     const std::vector<NNGraph::TensorNode*>& outputs,
-    OpAttrs attrs,
+    std::shared_ptr<void> attrs,
     std::function<void(const NNGraph::OpNode*)> backward_fn,
     const std::vector<NNGraph::TensorNode*>& buffers)
 {
@@ -34,7 +34,7 @@ void register_op(
     NNGraph::OpNode* op_nn = graph.create_op(
         std::vector<NNGraph::TensorNode*>(inputs),
         std::vector<NNGraph::TensorNode*>(outputs),
-        std::move(attrs),
+        attrs,
         std::move(backward_fn),
         std::vector<NNGraph::TensorNode*>(buffers));
 
@@ -51,13 +51,13 @@ void register_op(
     NNGraph& graph,
     const std::vector<NNGraph::TensorNode*>& inputs,
     NNGraph::TensorNode* output,
-    OpAttrs attrs,
+    std::shared_ptr<void> attrs,
     std::function<void(const NNGraph::OpNode*)> backward_fn,
     const std::vector<NNGraph::TensorNode*>& buffers)
 {
     register_op(graph, inputs, output ? std::vector<NNGraph::TensorNode*>{output}
                                       : std::vector<NNGraph::TensorNode*>{},
-                std::move(attrs), std::move(backward_fn), buffers);
+                attrs, std::move(backward_fn), buffers);
 }
 
 bool any_input_requires_grad(

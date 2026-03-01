@@ -40,7 +40,7 @@ NNGraph::TensorNode* AddFiber::build_forward(
     bool out_requires_grad = any_input_requires_grad({fiber, tensor});
     NNGraph::TensorNode* out = graph.tensor(out_data, out_requires_grad);
     register_op(graph, {fiber, tensor}, out,
-                AddFiberAttrs{axis, batch_ndim, alpha, beta},
+                std::make_shared<AddFiberAttrs>(AddFiberAttrs{axis, batch_ndim, alpha, beta}),
                 [](const NNGraph::OpNode* op) { AddFiber::build_backward(op); },
                 {});
     return out;
@@ -50,7 +50,7 @@ void AddFiber::build_backward(const NNGraph::OpNode* op)
 {
     NNGraph& graph = op->output()->graph();
     NNGraph::TensorNode* grad_out = op->output()->grad();
-    const auto& attrs = std::get<AddFiberAttrs>(op->attrs());
+    const auto& attrs = *std::static_pointer_cast<AddFiberAttrs>(op->attrs());
     Scalar alpha = attrs.alpha;
     Scalar beta = attrs.beta;
     Index axis = attrs.axis;

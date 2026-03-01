@@ -113,11 +113,12 @@ public:
         const std::string& grad_name);
 
     //! Create and register an NNGraph-level op (AutoGradFunction).
+    //! attrs: opaque (std::shared_ptr<void>); only forward/backward know the type.
     //! buffers: tensors saved from forward for reuse in backward (internal-only).
     OpNode* create_op(
         std::vector<TensorNode*> inputs,
         std::vector<TensorNode*> outputs,
-        OpAttrs attrs,
+        std::shared_ptr<void> attrs,
         std::function<void(const OpNode*)> backward_fn,
         std::vector<TensorNode*> buffers = {});
 

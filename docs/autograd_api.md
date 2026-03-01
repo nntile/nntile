@@ -11,7 +11,7 @@ void register_op(
     NNGraph& graph,
     const std::vector<TensorNode*>& inputs,
     const std::vector<TensorNode*>& outputs,  // or single TensorNode*
-    OpAttrs attrs,
+    std::shared_ptr<void> attrs,  // opaque; only forward/backward know the type
     std::function<void(const OpNode*)> backward_fn,
     const std::vector<TensorNode*>& buffers = {});  // like ctx.save_for_backward
 
@@ -19,6 +19,7 @@ bool any_input_requires_grad(const std::vector<TensorNode*>& inputs);
 ```
 
 - **Creates OpNode only when** GradMode enabled AND any input requires grad.
+- **attrs**: opaque (`std::shared_ptr<void>`); decoupled from LogicalGraph. In `build_backward`: `std::static_pointer_cast<MyAttrs>(op->attrs())`.
 - **Multi-input, multi-output** visible via ordinary API of register_op.
 
 ### Autograd Functors (Add, Gemm, AddFiber, Gelu, SumFiber)
@@ -43,7 +44,7 @@ TensorNode* Add::build_forward(...) {
     LogicalGraph::TensorNode& z_data = add(alpha, x->data(), beta, y->data(), output_name);
     bool out_requires_grad = any_input_requires_grad({x, y});
     TensorNode* z = graph.tensor(z_data, out_requires_grad);
-    register_op(graph, {x, y}, z, BinaryOpAttrs{alpha, beta},
+    register_op(graph, {x, y}, z, std::make_shared<BinaryOpAttrs>(BinaryOpAttrs{alpha, beta}),
                 [](const OpNode* op) { Add::build_backward(op); }, {});
     return z;
 }

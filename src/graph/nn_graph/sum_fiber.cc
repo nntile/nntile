@@ -64,7 +64,8 @@ NNGraph::TensorNode* SumFiber::build_forward(
     sum_fiber(x->data(), y_data, axis, batch_ndim, redux, alpha, beta);
     bool out_requires_grad = any_input_requires_grad({x});
     NNGraph::TensorNode* y = graph.tensor(y_data, out_requires_grad);
-    register_op(graph, {x}, y, ReductionAttrs{alpha, beta, axis, batch_ndim, redux},
+    register_op(graph, {x}, y,
+                std::make_shared<ReductionAttrs>(ReductionAttrs{alpha, beta, axis, batch_ndim, redux}),
                 [](const NNGraph::OpNode* op) { SumFiber::build_backward(op); },
                 {});
     return y;
@@ -74,7 +75,7 @@ void SumFiber::build_backward(const NNGraph::OpNode* op)
 {
     NNGraph& graph = op->output()->graph();
     NNGraph::TensorNode* grad_out = op->output()->grad();
-    const auto& attrs = std::get<ReductionAttrs>(op->attrs());
+    const auto& attrs = *std::static_pointer_cast<ReductionAttrs>(op->attrs());
     Scalar alpha = attrs.alpha;
     Index axis = attrs.axis;
     Index batch_ndim = attrs.batch_ndim;

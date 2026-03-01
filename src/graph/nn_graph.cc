@@ -196,7 +196,7 @@ NNGraph::TensorNode* NNGraph::get_or_create_grad(
 NNGraph::OpNode* NNGraph::create_op(
     std::vector<TensorNode*> inputs,
     std::vector<TensorNode*> outputs,
-    OpAttrs attrs,
+    std::shared_ptr<void> attrs,
     std::function<void(const OpNode*)> backward_fn,
     std::vector<TensorNode*> buffers)
 {
@@ -216,7 +216,7 @@ void NNGraph::wrap_with_module_op(
     OpNode* op = create_op(
         std::move(inputs),
         std::move(outputs),
-        NoAttrs{},
+        nullptr,
         std::move(backward_fn));
     for(TensorNode* out : op->outputs())
     {

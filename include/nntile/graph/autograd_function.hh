@@ -17,6 +17,7 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <vector>
 
 #include <nntile/graph/nn_graph.hh>
@@ -25,11 +26,12 @@ namespace nntile::graph
 {
 
 //! Register OpNode. Creates only when GradMode enabled and any input requires grad.
+//! attrs: opaque (std::shared_ptr<void>); only forward/backward know the type.
 void register_op(
     NNGraph& graph,
     const std::vector<NNGraph::TensorNode*>& inputs,
     const std::vector<NNGraph::TensorNode*>& outputs,
-    OpAttrs attrs,
+    std::shared_ptr<void> attrs,
     std::function<void(const NNGraph::OpNode*)> backward_fn,
     const std::vector<NNGraph::TensorNode*>& buffers = {});
 
@@ -37,7 +39,7 @@ void register_op(
     NNGraph& graph,
     const std::vector<NNGraph::TensorNode*>& inputs,
     NNGraph::TensorNode* output,
-    OpAttrs attrs,
+    std::shared_ptr<void> attrs,
     std::function<void(const NNGraph::OpNode*)> backward_fn,
     const std::vector<NNGraph::TensorNode*>& buffers = {});
 

@@ -36,7 +36,7 @@ NNGraph::TensorNode* Add::build_forward(
         add(alpha, x->data(), beta, y->data(), output_name);
     bool out_requires_grad = any_input_requires_grad({x, y});
     NNGraph::TensorNode* z = graph.tensor(z_data, out_requires_grad);
-    register_op(graph, {x, y}, z, BinaryOpAttrs{alpha, beta},
+    register_op(graph, {x, y}, z, std::make_shared<BinaryOpAttrs>(BinaryOpAttrs{alpha, beta}),
                 [](const NNGraph::OpNode* op) { Add::build_backward(op); }, {});
     return z;
 }
@@ -45,7 +45,7 @@ void Add::build_backward(const NNGraph::OpNode* op)
 {
     NNGraph& graph = op->output()->graph();
     NNGraph::TensorNode* grad_out = op->output()->grad();
-    const auto& attrs = std::get<BinaryOpAttrs>(op->attrs());
+    const auto& attrs = *std::static_pointer_cast<BinaryOpAttrs>(op->attrs());
     Scalar alpha = attrs.alpha;
     Scalar beta = attrs.beta;
     const auto& inputs = op->inputs();

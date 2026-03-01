@@ -31,7 +31,7 @@ NNGraph::TensorNode* Gelu::build_forward(
     LogicalGraph::TensorNode& y_data = gelu(x->data(), output_name);
     bool out_requires_grad = any_input_requires_grad({x});
     NNGraph::TensorNode* y = graph.tensor(y_data, out_requires_grad);
-    register_op(graph, {x}, y, GeluAttrs{},
+    register_op(graph, {x}, y, std::make_shared<GeluAttrs>(),
                 [](const NNGraph::OpNode* op) { Gelu::build_backward(op); }, {});
     return y;
 }

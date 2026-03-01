@@ -38,7 +38,8 @@ NNGraph::TensorNode* Gemm::build_forward(
         batch_ndim);
     bool out_requires_grad = any_input_requires_grad({a, b});
     NNGraph::TensorNode* c = graph.tensor(c_data, out_requires_grad);
-    register_op(graph, {a, b}, c, GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim},
+    register_op(graph, {a, b}, c,
+                std::make_shared<GemmAttrs>(GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim}),
                 [](const NNGraph::OpNode* op) { Gemm::build_backward(op); }, {});
     return c;
 }
@@ -47,7 +48,7 @@ void Gemm::build_backward(const NNGraph::OpNode* op)
 {
     NNGraph& graph = op->output()->graph();
     NNGraph::TensorNode* grad_out = op->output()->grad();
-    const auto& attrs = std::get<GemmAttrs>(op->attrs());
+    const auto& attrs = *std::static_pointer_cast<GemmAttrs>(op->attrs());
     Scalar alpha = attrs.alpha;
     bool trans_a = attrs.trans_a;
     bool trans_b = attrs.trans_b;
