@@ -22,7 +22,7 @@ void AutogradFunction::register_op(
     std::function<void(const NNGraph::OpNode*)> backward_fn)
 {
     const bool need_backward =
-        GradMode::is_enabled() && any_output_requires_grad(outputs);
+        GradMode::is_enabled() && any_input_requires_grad(inputs);
 
     NNGraph::OpNode* op_nn = graph.create_op(
         std::vector<NNGraph::TensorNode*>(inputs),
@@ -61,19 +61,6 @@ bool AutogradFunction::any_input_requires_grad(
     for(const auto* in : inputs)
     {
         if(in != nullptr && in->requires_grad())
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool AutogradFunction::any_output_requires_grad(
-    const std::vector<NNGraph::TensorNode*>& outputs)
-{
-    for(const auto* out : outputs)
-    {
-        if(out != nullptr && out->requires_grad())
         {
             return true;
         }

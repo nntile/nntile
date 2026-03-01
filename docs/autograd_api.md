@@ -19,7 +19,8 @@ struct AutogradFunction {
 ```
 
 - **Always creates OpNode** (via create_op)
-- **Producer and backward_fn** only when GradMode enabled AND any output requires grad
+- **Producer and backward_fn** only when GradMode enabled AND any input requires grad
+  (gradients propagate to inputs, not outputs)
 - **Multi-output** supported via `std::vector<TensorNode*> outputs`
 
 ### Autograd Functors (Add, Gemm, AddFiber, Gelu, SumFiber)

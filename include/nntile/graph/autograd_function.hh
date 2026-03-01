@@ -53,9 +53,6 @@ struct AutogradFunction
     static bool any_input_requires_grad(
         const std::vector<NNGraph::TensorNode*>& inputs);
 
-    //! True if any output requires grad.
-    static bool any_output_requires_grad(
-        const std::vector<NNGraph::TensorNode*>& outputs);
 };
 
 } // namespace nntile::graph
