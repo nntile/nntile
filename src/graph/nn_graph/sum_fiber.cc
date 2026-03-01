@@ -57,19 +57,19 @@ NNGraph::TensorNode* SumFiber::build_forward(
     NNGraph& graph = x->graph();
     LogicalGraph& logical = graph.logical_graph();
 
-    return run(graph, {x},
-               ReductionAttrs{alpha, beta, axis, batch_ndim, redux},
-               [&]() -> LogicalGraph::TensorNode& {
-                   std::vector<Index> y_shape =
-                       sum_fiber_output_shape(x->shape(), axis, batch_ndim);
-                   LogicalGraph::TensorNode& y_data =
-                       logical.tensor(y_shape, output_name, x->dtype());
-                   clear(y_data);
-                   sum_fiber(x->data(), y_data, axis, batch_ndim, redux,
-                             alpha, beta);
-                   return y_data;
-               },
-               [](const NNGraph::OpNode* op) { SumFiber::build_backward(op); });
+    std::vector<Index> y_shape =
+        sum_fiber_output_shape(x->shape(), axis, batch_ndim);
+    LogicalGraph::TensorNode& y_data =
+        logical.tensor(y_shape, output_name, x->dtype());
+    clear(y_data);
+    sum_fiber(x->data(), y_data, axis, batch_ndim, redux, alpha, beta);
+
+    bool out_requires_grad = any_input_requires_grad({x});
+    NNGraph::TensorNode* y = graph.tensor(y_data, out_requires_grad);
+    register_op(graph, {x}, y,
+                ReductionAttrs{alpha, beta, axis, batch_ndim, redux},
+                [](const NNGraph::OpNode* op) { SumFiber::build_backward(op); });
+    return y;
 }
 
 void SumFiber::build_backward(const NNGraph::OpNode* op)

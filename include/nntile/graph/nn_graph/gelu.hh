@@ -26,17 +26,9 @@
 namespace nntile::graph
 {
 
-//! Gelu functor: callable, forward and backward in one place
-struct Gelu : AutogradFunction
+//! Gelu functor: operator() forwards to build_forward
+struct Gelu : AutogradFunction<Gelu>
 {
-    //! Callable: y = gelu(x)
-    NNGraph::TensorNode* operator()(
-        NNGraph::TensorNode* x,
-        const std::string& output_name) const
-    {
-        return build_forward(x, output_name);
-    }
-
     //! Forward: y = gelu(x)
     static NNGraph::TensorNode* build_forward(
         NNGraph::TensorNode* x,

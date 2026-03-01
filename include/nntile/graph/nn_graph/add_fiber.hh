@@ -26,23 +26,9 @@
 namespace nntile::graph
 {
 
-//! AddFiber functor: callable, forward and backward in one place
-struct AddFiber : AutogradFunction
+//! AddFiber functor: operator() forwards to build_forward
+struct AddFiber : AutogradFunction<AddFiber>
 {
-    //! Callable: output = alpha * fiber + beta * tensor
-    NNGraph::TensorNode* operator()(
-        Scalar alpha,
-        NNGraph::TensorNode* fiber,
-        Scalar beta,
-        NNGraph::TensorNode* tensor,
-        const std::string& output_name,
-        Index axis = 0,
-        Index batch_ndim = 0) const
-    {
-        return build_forward(alpha, fiber, beta, tensor, output_name,
-                            axis, batch_ndim);
-    }
-
     //! Forward: output = alpha * fiber + beta * tensor (creates new output)
     static NNGraph::TensorNode* build_forward(
         Scalar alpha,

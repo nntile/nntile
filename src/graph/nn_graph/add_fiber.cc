@@ -34,13 +34,15 @@ NNGraph::TensorNode* AddFiber::build_forward(
             "AddFiber::build_forward: fiber and tensor must be non-null");
     }
     NNGraph& graph = fiber->graph();
-    return run(graph, {fiber, tensor},
-               AddFiberAttrs{axis, batch_ndim, alpha, beta},
-               [&]() -> LogicalGraph::TensorNode& {
-                   return add_fiber(alpha, fiber->data(), beta, tensor->data(),
-                                   output_name, axis, batch_ndim);
-               },
-               [](const NNGraph::OpNode* op) { AddFiber::build_backward(op); });
+    LogicalGraph::TensorNode& out_data = add_fiber(
+        alpha, fiber->data(), beta, tensor->data(), output_name, axis,
+        batch_ndim);
+    bool out_requires_grad = any_input_requires_grad({fiber, tensor});
+    NNGraph::TensorNode* out = graph.tensor(out_data, out_requires_grad);
+    register_op(graph, {fiber, tensor}, out,
+                AddFiberAttrs{axis, batch_ndim, alpha, beta},
+                [](const NNGraph::OpNode* op) { AddFiber::build_backward(op); });
+    return out;
 }
 
 void AddFiber::build_backward(const NNGraph::OpNode* op)

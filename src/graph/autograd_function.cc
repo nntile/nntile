@@ -14,7 +14,7 @@
 namespace nntile::graph
 {
 
-void AutogradFunction::register_op(
+void AutogradFunctionBase::register_op(
     NNGraph& graph,
     const std::vector<NNGraph::TensorNode*>& inputs,
     const std::vector<NNGraph::TensorNode*>& outputs,
@@ -43,7 +43,7 @@ void AutogradFunction::register_op(
     }
 }
 
-void AutogradFunction::register_op(
+void AutogradFunctionBase::register_op(
     NNGraph& graph,
     const std::vector<NNGraph::TensorNode*>& inputs,
     NNGraph::TensorNode* output,
@@ -55,7 +55,7 @@ void AutogradFunction::register_op(
                 std::move(attrs), std::move(backward_fn));
 }
 
-bool AutogradFunction::any_input_requires_grad(
+bool AutogradFunctionBase::any_input_requires_grad(
     const std::vector<NNGraph::TensorNode*>& inputs)
 {
     for(const auto* in : inputs)

@@ -33,13 +33,15 @@ NNGraph::TensorNode* Gemm::build_forward(
             "Gemm::build_forward: a and b must be non-null");
     }
     NNGraph& graph = a->graph();
-    return run(graph, {a, b},
-               GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim},
-               [&]() -> LogicalGraph::TensorNode& {
-                   return gemm(a->data(), b->data(), output_name, alpha,
-                              trans_a, trans_b, ndim, batch_ndim);
-               },
-               [](const NNGraph::OpNode* op) { Gemm::build_backward(op); });
+    LogicalGraph::TensorNode& c_data = gemm(
+        a->data(), b->data(), output_name, alpha, trans_a, trans_b, ndim,
+        batch_ndim);
+    bool out_requires_grad = any_input_requires_grad({a, b});
+    NNGraph::TensorNode* c = graph.tensor(c_data, out_requires_grad);
+    register_op(graph, {a, b}, c,
+                GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim},
+                [](const NNGraph::OpNode* op) { Gemm::build_backward(op); });
+    return c;
 }
 
 void Gemm::build_backward(const NNGraph::OpNode* op)

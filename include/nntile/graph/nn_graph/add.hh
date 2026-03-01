@@ -26,20 +26,9 @@
 namespace nntile::graph
 {
 
-//! Add functor: callable, forward and backward in one place
-struct Add : AutogradFunction
+//! Add functor: operator() forwards to build_forward
+struct Add : AutogradFunction<Add>
 {
-    //! Callable: z = alpha * x + beta * y
-    NNGraph::TensorNode* operator()(
-        Scalar alpha,
-        NNGraph::TensorNode* x,
-        Scalar beta,
-        NNGraph::TensorNode* y,
-        const std::string& output_name) const
-    {
-        return build_forward(alpha, x, beta, y, output_name);
-    }
-
     //! Forward: z = alpha * x + beta * y
     static NNGraph::TensorNode* build_forward(
         Scalar alpha,

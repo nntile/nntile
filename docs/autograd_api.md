@@ -7,24 +7,18 @@
 Base class handles OpNode creation, producer wiring, and requires_grad:
 
 ```cpp
-struct AutogradFunction {
-    // Single-output: forward_fn () -> LogicalGraph::TensorNode&
-    template<typename FwdFn, typename BwdFn>
-    static TensorNode* run(graph, inputs, attrs, forward_fn, backward_fn);
-
-    // Multi-output: forward_fn () -> std::vector<LogicalGraph::TensorNode*>
-    template<typename FwdFn, typename BwdFn>
-    static std::vector<TensorNode*> run_multi(graph, inputs, attrs, forward_fn, backward_fn);
-
+struct AutogradFunctionBase {
     static void register_op(graph, inputs, outputs, attrs, backward_fn);
     static void register_op(graph, inputs, output, attrs, backward_fn);
     static bool any_input_requires_grad(inputs);
 };
-```
 
-- **run()**: single-output. `forward_fn` returns `LogicalGraph::TensorNode&`.
-- **run_multi()**: multi-output. `forward_fn` returns `std::vector<LogicalGraph::TensorNode*>`
-  (e.g. `{&out1, &out2}`). Handles `any_input_requires_grad`, `graph.tensor()`, and `register_op`.
+template<typename Derived>
+struct AutogradFunction : AutogradFunctionBase {
+    template<typename... Args>
+    auto operator()(Args&&... args) const;  // forwards to Derived::build_forward
+};
+```
 - **Always creates OpNode** (via create_op)
 - **Producer and backward_fn** only when GradMode enabled AND any input requires grad
   (gradients propagate to inputs, not outputs)
@@ -33,40 +27,26 @@ struct AutogradFunction {
 ### Autograd Functors (Add, Gemm, AddFiber, Gelu, SumFiber)
 
 ```cpp
-struct Add : AutogradFunction {
-    TensorNode* operator()(...) const;
+struct Add : AutogradFunction<Add> {
     static TensorNode* build_forward(...);
     static void build_backward(const OpNode* op);
 };
 ```
 
+- **operator()**: base forwards to `build_forward`. User implements only `build_forward()` and `build_backward()`.
 - **Callable**: `Add()(alpha, x, beta, y, "z")` or free function `add(...)`
-- **Backward**: static `build_backward(op)` invoked by `output.backward()`
 - **OpNode**: base's `register_op()` creates OpNode and sets producer when GradMode enabled
 
-**build_forward with run()** (single output):
+**build_forward** – direct pattern (no wrappers):
 
 ```cpp
 TensorNode* Add::build_forward(...) {
-    return run(graph, {x, y}, BinaryOpAttrs{alpha, beta},
-               [&]() -> LogicalGraph::TensorNode& {
-                   return add(alpha, x->data(), beta, y->data(), output_name);
-               },
-               [](const OpNode* op) { Add::build_backward(op); });
-}
-```
-
-**build_forward with run_multi()** (multiple outputs):
-
-```cpp
-std::vector<TensorNode*> MyOp::build_forward(...) {
-    return run_multi(graph, {x}, MyAttrs{},
-                    [&]() -> std::vector<LogicalGraph::TensorNode*> {
-                        auto& out1 = logical_op1(...);
-                        auto& out2 = logical_op2(...);
-                        return {&out1, &out2};
-                    },
-                    [](const OpNode* op) { MyOp::build_backward(op); });
+    LogicalGraph::TensorNode& z_data = add(alpha, x->data(), beta, y->data(), output_name);
+    bool out_requires_grad = any_input_requires_grad({x, y});
+    TensorNode* z = graph.tensor(z_data, out_requires_grad);
+    register_op(graph, {x, y}, z, BinaryOpAttrs{alpha, beta},
+                [](const OpNode* op) { Add::build_backward(op); });
+    return z;
 }
 ```
 
