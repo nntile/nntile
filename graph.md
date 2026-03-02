@@ -27,10 +27,10 @@ src/graph/
 
 `LogicalGraph` is a symbolic computation graph.
 
-- `LogicalGraph::TensorNode` holds `shape`, `dtype`, `name`, and edges
-  (producer/consumers).
+- `LogicalGraph::TensorNode` holds `shape`, `dtype`, `name`.
 - `LogicalGraph::OpNode` holds `OpType`, `OpAttrs`, input/output tensors.
-- `tensor(shape, name, dtype)` creates an input tensor (no producer).
+  Graph structure is defined by OpNode's inputs and outputs.
+- `tensor(shape, name, dtype)` creates an input tensor.
 - `add_op(...)` is the public builder API used by free-function operations.
 
 ### Input/output marking

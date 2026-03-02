@@ -191,12 +191,6 @@ public:
         bool is_input_ = false;
         bool is_output_ = false;
 
-        // Graph edges
-        // Op that creates this tensor (nullptr if input)
-        OpNode* producer_ = nullptr;
-        // Ops that use this tensor
-        std::vector<OpNode*> consumers_;
-
     public:
         TensorNode(
             NodeId id,
@@ -222,9 +216,6 @@ public:
         const LogicalGraph& graph() const { return *graph_; }
 
         // Graph structure
-        bool has_producer() const { return producer_ != nullptr; }
-        OpNode* producer() const { return producer_; }
-        const std::vector<OpNode*>& consumers() const { return consumers_; }
         bool is_input() const { return is_input_; }
         bool is_output() const { return is_output_; }
         void mark_input(bool is_input = true) { is_input_ = is_input; }
@@ -232,11 +223,6 @@ public:
 
         // String representation
         std::string to_string() const;
-
-    private:
-        // Only LogicalGraph/OpNode can modify edges
-        void set_producer(OpNode* op) { producer_ = op; }
-        void add_consumer(OpNode* op) { consumers_.push_back(op); }
     };
 
     //! An operation node in the logical graph (implementation)

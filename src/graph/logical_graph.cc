@@ -348,8 +348,6 @@ std::string LogicalGraph::TensorNode::to_string() const
     return result;
 }
 
-//! Remove a consumer from this tensor's consumer list
-//! An operation node in the logical graph
 LogicalGraph::OpNode::OpNode(
     NodeId id,
     LogicalGraph* graph,
@@ -410,14 +408,12 @@ std::string LogicalGraph::OpNode::to_string() const
 void LogicalGraph::OpNode::add_input(TensorNode* t)
 {
     inputs_.push_back(t);
-    t->add_consumer(this);
 }
 
 //! Only LogicalGraph can modify
 void LogicalGraph::OpNode::add_output(TensorNode* t)
 {
     outputs_.push_back(t);
-    t->set_producer(this);
 }
 
 LogicalGraph::LogicalGraph(const std::string& name)

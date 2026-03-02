@@ -37,7 +37,6 @@ TEST_CASE("LogicalGraph CreateTensor", "[graph]")
     REQUIRE(x.shape()[0] == 32);
     REQUIRE(x.shape()[1] == 768);
     REQUIRE(x.dtype() == DataType::FP32);
-    REQUIRE_FALSE(x.has_producer());
 }
 
 TEST_CASE("LogicalGraph Chain", "[graph]")
@@ -197,8 +196,9 @@ TEST_CASE("LogicalGraph AddOpValidations", "[graph]")
 
     g1.add_op(OpType::GEMM, std::make_shared<GemmAttrs>(GemmAttrs{}), {&a, &b}, {&c}, "gemm_op");
     REQUIRE(g1.num_ops() == 1);
-    REQUIRE(c.has_producer());
-    REQUIRE(c.producer()->type() == OpType::GEMM);
+    REQUIRE(g1.ops().front()->type() == OpType::GEMM);
+    REQUIRE(g1.ops().front()->outputs().size() == 1);
+    REQUIRE(g1.ops().front()->outputs()[0] == &c);
 }
 
 TEST_CASE("LogicalGraph ToStringContainsDetails", "[graph]")

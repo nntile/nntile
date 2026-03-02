@@ -31,6 +31,8 @@ TEST_CASE(
     auto& y = g.tensor({2, 6}, "y", DataType::FP32);
     maxsumexp(x, y, 0, 0);
 
-    REQUIRE(y.has_producer());
-    REQUIRE(y.producer()->type() == OpType::MAXSUMEXP);
+    REQUIRE(g.num_ops() == 1);
+    REQUIRE(g.ops().front()->type() == OpType::MAXSUMEXP);
+    REQUIRE(g.ops().front()->outputs().size() >= 1);
+    REQUIRE(g.ops().front()->outputs()[0] == &y);
 }
