@@ -33,9 +33,9 @@ namespace nntile::graph
 //! @param alpha Scaling factor for sum (default: 1.0)
 //! @param beta Scaling factor for existing y (default: 0.0)
 void sumprod_fiber(
-    LogicalGraph::TensorNode& x1,
-    LogicalGraph::TensorNode& x2,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x1,
+    LogicalGraph::TensorNode* x2,
+    LogicalGraph::TensorNode* y,
     Index axis,
     int redux = 0,
     Scalar alpha = 1.0,

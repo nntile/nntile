@@ -34,9 +34,9 @@ namespace nntile::graph
 //! @param alpha Scaling factor for norm (default: 1.0)
 //! @param beta Scaling factor for y (default: 0.0)
 void norm_slice(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    LogicalGraph::TensorNode& z,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
+    LogicalGraph::TensorNode* z,
     Index axis,
     int redux = 0,
     Scalar alpha = 1.0,

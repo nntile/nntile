@@ -35,9 +35,9 @@ struct TransposeAttrs
 //! @param output_name Name for the output tensor
 //! @param alpha Scaling factor (default: 1.0)
 //! @param ndim Number of dimensions to transpose (default: 0)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& transpose(
-    LogicalGraph::TensorNode& x,
+//! @return Pointer to the output tensor
+LogicalGraph::TensorNode* transpose(
+    LogicalGraph::TensorNode* x,
     const std::string& output_name,
     Scalar alpha = 1.0,
     Index ndim = 0

@@ -25,6 +25,6 @@ namespace nntile::graph
 
 //! GeLUTanh in-place: x = gelutanh(x)
 //! @param x Input/output tensor (modified in-place)
-void gelutanh_inplace(LogicalGraph::TensorNode& x);
+void gelutanh_inplace(LogicalGraph::TensorNode* x);
 
 } // namespace nntile::graph

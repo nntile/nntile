@@ -27,30 +27,10 @@
 
 // Include other NNTile headers
 #include <nntile/base_types.hh>
+#include <nntile/graph/dtype.hh>
 
 namespace nntile::graph
 {
-
-//! Data types supported
-enum class DataType
-{
-    FP32,
-    FP32_FAST_TF32,
-    FP32_FAST_FP16,
-    FP32_FAST_BF16,
-    FP64,
-    FP16,
-    BF16,
-    INT64,
-    INT32,
-    BOOL
-};
-
-//! Convert DataType to string
-std::string dtype_to_string(DataType dtype);
-
-//! Get size in bytes for DataType
-size_t dtype_size(DataType dtype);
 
 //! Operation types
 enum class OpType {
@@ -209,7 +189,7 @@ public:
         Index dim(int idx) const;
         Index nelems() const;
         size_t size_bytes() const;
-        bool is_compatible(const TensorNode& other) const;
+        bool is_compatible(const TensorNode* other) const;
 
         // Graph access
         LogicalGraph& graph() { return *graph_; }
@@ -309,7 +289,7 @@ public:
     // -----------------------------------------------------------------
 
     //! Create an input tensor (not produced by any operation)
-    TensorNode& tensor(
+    TensorNode* tensor(
         std::vector<Index> shape,
         const std::string& name,
         DataType dtype = DataType::FP32);

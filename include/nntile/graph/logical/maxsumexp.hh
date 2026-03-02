@@ -32,8 +32,8 @@ namespace nntile::graph
 //! @param axis Axis along which to compute maxsumexp
 //! @param redux Whether to use reduction (default: 0)
 void maxsumexp(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
     Index axis,
     int redux = 0
 );

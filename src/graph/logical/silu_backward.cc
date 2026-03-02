@@ -27,16 +27,21 @@ namespace nntile::graph
 
 //! SiLU backward: dx += silu_backward(x, dy)
 void silu_backward(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& dy,
-    LogicalGraph::TensorNode& dx)
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* dy,
+    LogicalGraph::TensorNode* dx)
 {
+    if(x == nullptr || dy == nullptr || dx == nullptr)
+    {
+        throw std::invalid_argument(
+            "silu_backward: input tensors must be non-null");
+    }
     // Note: dx is both input and output (accumulates gradients)
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::SILU_BACKWARD,
         nullptr,
-        {&x, &dy, &dx},
-        {&dx}
+        {x, dy, dx},
+        {dx}
     );
 }
 

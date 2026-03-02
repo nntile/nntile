@@ -26,35 +26,39 @@ namespace nntile::graph
 {
 
 //! Transpose operation: y = alpha * transpose(x)
-LogicalGraph::TensorNode& transpose(
-    LogicalGraph::TensorNode& x,
+LogicalGraph::TensorNode* transpose(
+    LogicalGraph::TensorNode* x,
     const std::string& output_name,
     Scalar alpha,
     Index ndim)
 {
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("transpose: input tensor must be non-null");
+    }
     // Check dimensions
-    if(ndim <= 0 || ndim >= x.ndim())
+    if(ndim <= 0 || ndim >= x->ndim())
     {
         throw std::runtime_error("ndim <= 0 or ndim >= x.ndim()");
     }
     // For transpose, we need to cyclically shift dimensions by ndim positions
-    std::vector<Index> output_shape(x.ndim());
-    for(Index i = 0; i < x.ndim(); ++i)
+    std::vector<Index> output_shape(x->ndim());
+    for(Index i = 0; i < x->ndim(); ++i)
     {
-        output_shape[i] = x.shape()[(i + ndim) % x.ndim()];
+        output_shape[i] = x->shape()[(i + ndim) % x->ndim()];
     }
 
-    LogicalGraph::TensorNode& output = x.graph().tensor(
+    LogicalGraph::TensorNode* output = x->graph().tensor(
         std::move(output_shape),
         output_name,
-        x.dtype());
+        x->dtype());
 
     auto attrs = std::make_shared<TransposeAttrs>(TransposeAttrs{alpha, ndim});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::TRANSPOSE,
         attrs,
-        {&x},
-        {&output}
+        {x},
+        {output}
     );
 
     return output;

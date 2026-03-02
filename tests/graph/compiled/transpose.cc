@@ -20,7 +20,7 @@ void check_transpose(Index ndim, const std::vector<Index>& input_shape,
     }
 
     auto build_graph = [&](LogicalGraph& g) {
-        auto& x = g.tensor(input_shape, "x", DataType::FP32);
+        auto x = g.tensor(input_shape, "x", DataType::FP32);
         transpose(x, "y", -1.0f, ndim);
     };
 

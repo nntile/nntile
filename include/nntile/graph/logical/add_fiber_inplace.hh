@@ -33,9 +33,9 @@ namespace nntile::graph
 //! @param batch_ndim Number of trailing batch dimensions (default: 0)
 void add_fiber_inplace(
     Scalar alpha,
-    LogicalGraph::TensorNode& fiber,
+    LogicalGraph::TensorNode* fiber,
     Scalar beta,
-    LogicalGraph::TensorNode& tensor,
+    LogicalGraph::TensorNode* tensor,
     Index axis,
     Index batch_ndim = 0
 );

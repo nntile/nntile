@@ -26,10 +26,10 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& grad = g.tensor({12}, "grad", DataType::FP32);
-        auto& first_moment = g.tensor({12}, "first_moment", DataType::FP32);
-        auto& second_moment = g.tensor({12}, "second_moment", DataType::FP32);
-        auto& p = g.tensor({12}, "p", DataType::FP32);
+        auto grad = g.tensor({12}, "grad", DataType::FP32);
+        auto first_moment = g.tensor({12}, "first_moment", DataType::FP32);
+        auto second_moment = g.tensor({12}, "second_moment", DataType::FP32);
+        auto p = g.tensor({12}, "p", DataType::FP32);
         adam_step(10, 0.9f, 0.999f, 1e-8f, 0.001f, 0.0f, grad, first_moment, second_moment, p);
     };
 

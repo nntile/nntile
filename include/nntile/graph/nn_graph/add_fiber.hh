@@ -26,9 +26,9 @@ namespace nntile::graph
 {
 
 //! AddFiber: build_forward does logical op + bookkeeping; build_backward for grad.
-struct AddFiber
+namespace AddFiber
 {
-    static NNGraph::TensorNode* build_forward(
+    NNGraph::TensorNode* build_forward(
         Scalar alpha,
         NNGraph::TensorNode* fiber,
         Scalar beta,
@@ -37,8 +37,8 @@ struct AddFiber
         Index axis = 0,
         Index batch_ndim = 0);
 
-    static void build_backward(const NNGraph::OpNode* op);
-};
+    void build_backward(const NNGraph::OpNode* op);
+}
 
 //! Convenience free function
 inline NNGraph::TensorNode* add_fiber(

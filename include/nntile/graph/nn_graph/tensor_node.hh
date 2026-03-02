@@ -45,10 +45,8 @@ public:
                bool requires_grad = true);
 
     // Accessors for underlying logical nodes
-    LogicalGraph::TensorNode& data() { return *data_; }
-    const LogicalGraph::TensorNode& data() const { return *data_; }
-    LogicalGraph::TensorNode* data_ptr() { return data_; }
-    const LogicalGraph::TensorNode* data_ptr() const { return data_; }
+    LogicalGraph::TensorNode* data() { return data_; }
+    const LogicalGraph::TensorNode* data() const { return data_; }
 
     TensorNode* grad() { return grad_; }
     const TensorNode* grad() const { return grad_; }

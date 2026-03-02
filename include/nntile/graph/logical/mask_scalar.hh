@@ -36,8 +36,8 @@ struct MaskScalarAttrs
 //! @param val Value to set where mask is true (default: 0.0)
 //! @param batch_ndim Number of batch dimensions (default: 0)
 void mask_scalar(
-    LogicalGraph::TensorNode& mask,
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* mask,
+    LogicalGraph::TensorNode* x,
     Scalar val = 0.0,
     Index batch_ndim = 0
 );

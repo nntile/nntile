@@ -27,29 +27,34 @@ namespace nntile::graph
 
 //! Subtract indexed outputs operation: subtract val from elements indexed by labels
 void subtract_indexed_outputs(
-    LogicalGraph::TensorNode& labels,
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* labels,
+    LogicalGraph::TensorNode* x,
     Scalar val,
     Index ignore_index)
 {
-    if(&labels.graph() != &x.graph())
+    if(labels == nullptr || x == nullptr)
+    {
+        throw std::invalid_argument(
+            "subtract_indexed_outputs: input tensors must be non-null");
+    }
+    if(&labels->graph() != &x->graph())
     {
         throw std::invalid_argument(
             "subtract_indexed_outputs: tensors must belong to the same graph");
     }
 
-    if(labels.dtype() != DataType::INT64)
+    if(labels->dtype() != DataType::INT64)
     {
         throw std::invalid_argument(
             "subtract_indexed_outputs: labels tensor must have int64 dtype");
     }
 
     auto attrs = std::make_shared<SubtractIndexedOutputsAttrs>(SubtractIndexedOutputsAttrs{val, ignore_index});
-    labels.graph().add_op(
+    labels->graph().add_op(
         OpType::SUBTRACT_INDEXED_OUTPUTS,
         attrs,
-        {&labels, &x},
-        {&x}
+        {labels, x},
+        {x}
     );
 }
 

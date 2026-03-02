@@ -33,35 +33,40 @@ void adam_step(
     Scalar eps,
     Scalar lr,
     Scalar weight_decay,
-    LogicalGraph::TensorNode& grad,
-    LogicalGraph::TensorNode& first_moment,
-    LogicalGraph::TensorNode& second_moment,
-    LogicalGraph::TensorNode& p)
+    LogicalGraph::TensorNode* grad,
+    LogicalGraph::TensorNode* first_moment,
+    LogicalGraph::TensorNode* second_moment,
+    LogicalGraph::TensorNode* p)
 {
-    if(&grad.graph() != &first_moment.graph() || &grad.graph() != &second_moment.graph() || &grad.graph() != &p.graph())
+    if(grad == nullptr || first_moment == nullptr || second_moment == nullptr || p == nullptr)
+    {
+        throw std::invalid_argument(
+            "adam_step: input tensors must be non-null");
+    }
+    if(&grad->graph() != &first_moment->graph() || &grad->graph() != &second_moment->graph() || &grad->graph() != &p->graph())
     {
         throw std::invalid_argument(
             "adam_step: tensors must belong to the same graph");
     }
 
-    if(grad.dtype() != first_moment.dtype() || grad.dtype() != second_moment.dtype() || grad.dtype() != p.dtype())
+    if(grad->dtype() != first_moment->dtype() || grad->dtype() != second_moment->dtype() || grad->dtype() != p->dtype())
     {
         throw std::invalid_argument(
             "adam_step: all tensors must have the same dtype");
     }
 
-    if(grad.shape() != first_moment.shape() || grad.shape() != second_moment.shape() || grad.shape() != p.shape())
+    if(grad->shape() != first_moment->shape() || grad->shape() != second_moment->shape() || grad->shape() != p->shape())
     {
         throw std::invalid_argument(
             "adam_step: all tensors must have the same shape");
     }
 
     auto attrs = std::make_shared<AdamStepAttrs>(AdamStepAttrs{num_iter, beta_1, beta_2, eps, lr, weight_decay});
-    grad.graph().add_op(
+    grad->graph().add_op(
         OpType::ADAM_STEP,
         attrs,
-        {&grad, &first_moment, &second_moment, &p},
-        {&first_moment, &second_moment, &p}
+        {grad, first_moment, second_moment, p},
+        {first_moment, second_moment, p}
     );
 }
 

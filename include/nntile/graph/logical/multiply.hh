@@ -28,10 +28,10 @@ namespace nntile::graph
 //! @param x First input tensor
 //! @param y Second input tensor
 //! @param output_name Name for the output tensor
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& multiply(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+//! @return Pointer to the output tensor
+LogicalGraph::TensorNode* multiply(
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
     const std::string& output_name
 );
 

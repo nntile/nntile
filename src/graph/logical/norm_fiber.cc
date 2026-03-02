@@ -27,51 +27,56 @@ namespace nntile::graph
 
 //! Norm along fibers (out-of-place): z = alpha * norm_fiber(x) + beta * y
 void norm_fiber(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    LogicalGraph::TensorNode& z,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
+    LogicalGraph::TensorNode* z,
     Index axis,
     Index batch_ndim,
     int redux,
     Scalar alpha,
     Scalar beta)
 {
-    if(&x.graph() != &y.graph() || &x.graph() != &z.graph())
+    if(x == nullptr || y == nullptr || z == nullptr)
+    {
+        throw std::invalid_argument(
+            "norm_fiber: input tensors must be non-null");
+    }
+    if(&x->graph() != &y->graph() || &x->graph() != &z->graph())
     {
         throw std::invalid_argument(
             "norm_fiber: tensors must belong to the same graph");
     }
 
-    if(&y == &z)
+    if(y == z)
     {
         throw std::invalid_argument(
             "norm_fiber: use norm_fiber_inplace when y and z are the same");
     }
 
-    if(x.dtype() != y.dtype() || x.dtype() != z.dtype())
+    if(x->dtype() != y->dtype() || x->dtype() != z->dtype())
     {
         throw std::invalid_argument(
             "norm_fiber: input and output tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= x.ndim())
+    if(axis < 0 || axis >= x->ndim())
     {
         throw std::invalid_argument(
             "norm_fiber: axis out of bounds");
     }
 
-    if(batch_ndim < 0 || axis + batch_ndim > x.ndim())
+    if(batch_ndim < 0 || axis + batch_ndim > x->ndim())
     {
         throw std::invalid_argument(
             "norm_fiber: invalid batch_ndim");
     }
 
     auto attrs = std::make_shared<ReductionAttrs>(ReductionAttrs{alpha, beta, axis, batch_ndim, redux});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::NORM_FIBER,
         attrs,
-        {&x, &y},
-        {&z}
+        {x, y},
+        {z}
     );
 }
 

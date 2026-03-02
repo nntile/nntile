@@ -26,9 +26,9 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({12}, "x", DataType::FP32);
-        auto& dy = g.tensor({12}, "dy", DataType::FP32);
-        auto& dx = g.tensor({12}, "dx", DataType::FP32);
+        auto x = g.tensor({12}, "x", DataType::FP32);
+        auto dy = g.tensor({12}, "dy", DataType::FP32);
+        auto dx = g.tensor({12}, "dx", DataType::FP32);
         gelutanh_backward(x, dy, dx);
     };
 

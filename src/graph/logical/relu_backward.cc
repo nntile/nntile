@@ -27,16 +27,21 @@ namespace nntile::graph
 
 //! ReLU backward: dx += relu_backward(x, dy)
 void relu_backward(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& dy,
-    LogicalGraph::TensorNode& dx)
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* dy,
+    LogicalGraph::TensorNode* dx)
 {
+    if(x == nullptr || dy == nullptr || dx == nullptr)
+    {
+        throw std::invalid_argument(
+            "relu_backward: input tensors must be non-null");
+    }
     // Note: dx is both input and output (accumulates gradients)
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::RELU_BACKWARD,
         nullptr,
-        {&x, &dy, &dx},
-        {&dx}
+        {x, dy, dx},
+        {dx}
     );
 }
 

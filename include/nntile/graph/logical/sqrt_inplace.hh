@@ -25,6 +25,6 @@ namespace nntile::graph
 
 //! Square root in-place: x = sqrt(x)
 //! @param x Input/output tensor (modified in-place)
-void sqrt_inplace(LogicalGraph::TensorNode& x);
+void sqrt_inplace(LogicalGraph::TensorNode* x);
 
 } // namespace nntile::graph

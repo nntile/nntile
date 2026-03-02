@@ -39,7 +39,7 @@ TEST_CASE("NNGraph TensorCreationAndLookup", "[graph]")
     REQUIRE_FALSE(x->requires_grad());
     REQUIRE(g.get_tensor("x") == x);
     REQUIRE(g.get_tensor("missing") == nullptr);
-    REQUIRE(x->data_ptr() == g.logical_graph().get_tensor("x"));
+    REQUIRE(x->data() == g.logical_graph().get_tensor("x"));
 
     auto names = g.tensor_names();
     REQUIRE(names.size() == 1);
@@ -137,8 +137,8 @@ TEST_CASE("NNGraph MarkInputOutput", "[graph]")
 
     REQUIRE(x->is_input());
     REQUIRE(y->is_output());
-    REQUIRE(x->data().is_input());
-    REQUIRE(y->data().is_output());
+    REQUIRE(x->data()->is_input());
+    REQUIRE(y->data()->is_output());
 }
 
 TEST_CASE("NNGraph Autograd Add Backward", "[graph]")

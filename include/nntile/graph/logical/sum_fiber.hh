@@ -43,8 +43,8 @@ struct ReductionAttrs
 //! @param alpha Scaling factor for sum (default: 1.0)
 //! @param beta Scaling factor for existing y (default: 0.0)
 void sum_fiber(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
     Index axis = 0,
     Index batch_ndim = 0,
     int redux = 0,

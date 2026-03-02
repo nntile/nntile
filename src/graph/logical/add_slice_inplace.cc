@@ -28,31 +28,36 @@ namespace nntile::graph
 //! Add along slices in-place: tensor = alpha * slice + beta * tensor
 void add_slice_inplace(
     Scalar alpha,
-    LogicalGraph::TensorNode& slice,
+    LogicalGraph::TensorNode* slice,
     Scalar beta,
-    LogicalGraph::TensorNode& tensor,
+    LogicalGraph::TensorNode* tensor,
     Index axis)
 {
-    if(&slice.graph() != &tensor.graph())
+    if(slice == nullptr || tensor == nullptr)
+    {
+        throw std::invalid_argument(
+            "add_slice_inplace: input tensors must be non-null");
+    }
+    if(&slice->graph() != &tensor->graph())
     {
         throw std::invalid_argument(
             "add_slice_inplace: tensors must belong to the same graph");
     }
 
-    if(slice.dtype() != tensor.dtype())
+    if(slice->dtype() != tensor->dtype())
     {
         throw std::invalid_argument(
             "add_slice_inplace: all tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= tensor.ndim())
+    if(axis < 0 || axis >= tensor->ndim())
     {
         throw std::invalid_argument(
             "add_slice_inplace: axis out of bounds");
     }
 
     // Check basic dimension compatibility
-    if(slice.ndim() + 1 != tensor.ndim())
+    if(slice->ndim() + 1 != tensor->ndim())
     {
         throw std::invalid_argument(
             "add_slice_inplace: slice must have one fewer dimension than tensor");
@@ -60,12 +65,12 @@ void add_slice_inplace(
 
     // Check that slice shape is compatible with tensor shape for broadcasting
     Index slice_dim = 0;
-    for(Index i = 0; i < tensor.ndim(); ++i)
+    for(Index i = 0; i < tensor->ndim(); ++i)
     {
         if(i != axis)
         {
-            if(slice_dim >= slice.ndim() ||
-               slice.shape()[slice_dim] != tensor.shape()[i])
+            if(slice_dim >= slice->ndim() ||
+               slice->shape()[slice_dim] != tensor->shape()[i])
             {
                 throw std::invalid_argument(
                     "add_slice_inplace: slice shape incompatible with tensor shape");
@@ -75,11 +80,11 @@ void add_slice_inplace(
     }
 
     auto attrs = std::make_shared<AddSliceAttrs>(AddSliceAttrs{axis, alpha, beta});
-    slice.graph().add_op(
+    slice->graph().add_op(
         OpType::ADD_SLICE_INPLACE,
         attrs,
-        {&slice, &tensor},
-        {&tensor}
+        {slice, tensor},
+        {tensor}
     );
 }
 

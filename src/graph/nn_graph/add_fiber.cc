@@ -34,7 +34,7 @@ NNGraph::TensorNode* AddFiber::build_forward(
             "AddFiber::build_forward: fiber and tensor must be non-null");
     }
     NNGraph& graph = fiber->graph();
-    LogicalGraph::TensorNode& out_data = add_fiber(
+    LogicalGraph::TensorNode* out_data = add_fiber(
         alpha, fiber->data(), beta, tensor->data(), output_name, axis,
         batch_ndim);
     bool out_requires_grad = any_input_requires_grad({fiber, tensor});

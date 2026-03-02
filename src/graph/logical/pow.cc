@@ -26,24 +26,28 @@ namespace nntile::graph
 {
 
 //! Power operation: y = alpha * (x ^ exp)
-LogicalGraph::TensorNode& pow(
-    LogicalGraph::TensorNode& x,
+LogicalGraph::TensorNode* pow(
+    LogicalGraph::TensorNode* x,
     const std::string& output_name,
     Scalar alpha,
     Scalar exp)
 {
-    std::vector<Index> output_shape = x.shape();
-    LogicalGraph::TensorNode& output = x.graph().tensor(
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("pow: input tensor must be non-null");
+    }
+    std::vector<Index> output_shape = x->shape();
+    LogicalGraph::TensorNode* output = x->graph().tensor(
         std::move(output_shape),
         output_name,
-        x.dtype());
+        x->dtype());
 
     auto attrs = std::make_shared<PowAttrs>(PowAttrs{alpha, exp});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::POW,
         attrs,
-        {&x},
-        {&output}
+        {x},
+        {output}
     );
 
     return output;

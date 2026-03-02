@@ -27,34 +27,39 @@ namespace nntile::graph
 
 //! Log sum exp from maxsumexp output: y = max + log(sumexp)
 void logsumexp(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
     Index axis)
 {
-    if(&x.graph() != &y.graph())
+    if(x == nullptr || y == nullptr)
+    {
+        throw std::invalid_argument(
+            "logsumexp: input tensors must be non-null");
+    }
+    if(&x->graph() != &y->graph())
     {
         throw std::invalid_argument(
             "logsumexp: tensors must belong to the same graph");
     }
 
-    if(x.dtype() != y.dtype())
+    if(x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "logsumexp: input and output tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= x.ndim())
+    if(axis < 0 || axis >= x->ndim())
     {
         throw std::invalid_argument(
             "logsumexp: axis out of bounds");
     }
 
     auto attrs = std::make_shared<LogSumExpAttrs>(LogSumExpAttrs{1.0, 0.0, axis});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::LOGSUMEXP,
         attrs,
-        {&x},
-        {&y}
+        {x},
+        {y}
     );
 }
 

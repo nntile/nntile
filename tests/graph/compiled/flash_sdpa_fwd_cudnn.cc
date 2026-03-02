@@ -56,12 +56,12 @@ void run_test(const nntile::Context& context)
     std::vector<Index> mask_shape = {n_seq, n_seq};
 
     auto build_graph = [&](LogicalGraph& g) {
-        auto& K = g.tensor(kv_tensor_shape, "K", dtype);
-        auto& Q = g.tensor(kv_tensor_shape, "Q", dtype);
-        auto& mask = g.tensor(mask_shape, "mask", dtype);
-        auto& logsumexp = g.tensor(logsumexp_shape, "logsumexp", DataType::FP32);
-        auto& V = g.tensor(kv_tensor_shape, "V", dtype);
-        auto& A = g.tensor(kv_tensor_shape, "A", dtype);
+        auto K = g.tensor(kv_tensor_shape, "K", dtype);
+        auto Q = g.tensor(kv_tensor_shape, "Q", dtype);
+        auto mask = g.tensor(mask_shape, "mask", dtype);
+        auto logsumexp = g.tensor(logsumexp_shape, "logsumexp", DataType::FP32);
+        auto V = g.tensor(kv_tensor_shape, "V", dtype);
+        auto A = g.tensor(kv_tensor_shape, "A", dtype);
 
         flash_sdpa_fwd_cudnn(K, Q, mask, logsumexp, V, A);
     };

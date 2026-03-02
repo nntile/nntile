@@ -25,6 +25,6 @@ namespace nntile::graph
 
 //! SiLU in-place: x = silu(x)
 //! @param x Input/output tensor (modified in-place)
-void silu_inplace(LogicalGraph::TensorNode& x);
+void silu_inplace(LogicalGraph::TensorNode* x);
 
 } // namespace nntile::graph

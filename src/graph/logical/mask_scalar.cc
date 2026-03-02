@@ -27,29 +27,34 @@ namespace nntile::graph
 
 //! Mask scalar operation: conditionally set values based on mask
 void mask_scalar(
-    LogicalGraph::TensorNode& mask,
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* mask,
+    LogicalGraph::TensorNode* x,
     Scalar val,
     Index batch_ndim)
 {
-    if(&mask.graph() != &x.graph())
+    if(mask == nullptr || x == nullptr)
+    {
+        throw std::invalid_argument(
+            "mask_scalar: input tensors must be non-null");
+    }
+    if(&mask->graph() != &x->graph())
     {
         throw std::invalid_argument(
             "mask_scalar: tensors must belong to the same graph");
     }
 
-    if(mask.dtype() != DataType::BOOL)
+    if(mask->dtype() != DataType::BOOL)
     {
         throw std::invalid_argument(
             "mask_scalar: mask tensor must have bool dtype");
     }
 
     auto attrs = std::make_shared<MaskScalarAttrs>(MaskScalarAttrs{val, batch_ndim});
-    mask.graph().add_op(
+    mask->graph().add_op(
         OpType::MASK_SCALAR,
         attrs,
-        {&mask, &x},
-        {&x}
+        {mask, x},
+        {x}
     );
 }
 

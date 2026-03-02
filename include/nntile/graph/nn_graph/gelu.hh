@@ -26,14 +26,14 @@ namespace nntile::graph
 {
 
 //! Gelu: build_forward does logical op + bookkeeping; build_backward for grad.
-struct Gelu
+namespace Gelu
 {
-    static NNGraph::TensorNode* build_forward(
+    NNGraph::TensorNode* build_forward(
         NNGraph::TensorNode* x,
         const std::string& output_name);
 
-    static void build_backward(const NNGraph::OpNode* op);
-};
+    void build_backward(const NNGraph::OpNode* op);
+}
 
 //! Convenience free function
 inline NNGraph::TensorNode* gelu(

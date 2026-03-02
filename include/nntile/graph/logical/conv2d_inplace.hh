@@ -44,9 +44,9 @@ struct Conv2dAttrs
 //! @param stride Stride for height and width [stride_h, stride_w]
 //! @param dilation Dilation for height and width [dilation_h, dilation_w]
 void conv2d_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& c,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* c,
+    LogicalGraph::TensorNode* y,
     Scalar alpha = 1.0,
     Scalar beta = 1.0,
     std::array<Index, 2> padding = {0, 0},

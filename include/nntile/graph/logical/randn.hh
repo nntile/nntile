@@ -44,7 +44,7 @@ struct RandnAttrs
 //! @param mean Mean of the normal distribution
 //! @param stddev Standard deviation of the normal distribution
 void randn(
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* x,
     const std::vector<Index>& start,
     const std::vector<Index>& underlying_shape,
     unsigned long long seed = 0,

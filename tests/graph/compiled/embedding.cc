@@ -29,8 +29,8 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& index = g.tensor({6}, "index", DataType::INT64);
-        auto& vocab = g.tensor({4, 6}, "vocab", DataType::FP32);
+        auto index = g.tensor({6}, "index", DataType::INT64);
+        auto vocab = g.tensor({4, 6}, "vocab", DataType::FP32);
         embedding(index, vocab, "embed");
     };
 

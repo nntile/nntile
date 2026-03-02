@@ -27,16 +27,21 @@ namespace nntile::graph
 
 //! Hypot scalar inverse operation: y = 1.0 / hypot(eps, alpha * y)
 void hypot_scalar_inverse(
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* x,
     Scalar eps,
     Scalar alpha)
 {
+    if(x == nullptr)
+    {
+        throw std::invalid_argument(
+            "hypot_scalar_inverse: input tensor must be non-null");
+    }
     auto attrs = std::make_shared<HypotScalarInverseAttrs>(HypotScalarInverseAttrs{eps, alpha});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::HYPOT_SCALAR_INVERSE,
         attrs,
-        {&x},
-        {&x}
+        {x},
+        {x}
     );
 }
 

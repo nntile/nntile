@@ -36,8 +36,8 @@ struct SubtractIndexedOutputsAttrs
 //! @param val Value to subtract
 //! @param ignore_index Index value to ignore (-1 by default)
 void subtract_indexed_outputs(
-    LogicalGraph::TensorNode& labels,
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* labels,
+    LogicalGraph::TensorNode* x,
     Scalar val = 0.0,
     Index ignore_index = -1
 );

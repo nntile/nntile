@@ -26,13 +26,17 @@ namespace nntile::graph
 {
 
 //! ReLU in-place: x = relu(x)
-void relu_inplace(LogicalGraph::TensorNode& x)
+void relu_inplace(LogicalGraph::TensorNode* x)
 {
-    x.graph().add_op(
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("relu_inplace: input tensor must be non-null");
+    }
+    x->graph().add_op(
         OpType::RELU_INPLACE,
         nullptr,
-        {&x},
-        {&x}
+        {x},
+        {x}
     );
 }
 

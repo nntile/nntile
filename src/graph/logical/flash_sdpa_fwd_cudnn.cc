@@ -27,37 +27,42 @@ namespace nntile::graph
 
 //! Flash attention forward pass (CUDA-only): A = flash_sdpa_fwd_cudnn(K, Q, mask, logsumexp, V)
 void flash_sdpa_fwd_cudnn(
-    LogicalGraph::TensorNode& K,
-    LogicalGraph::TensorNode& Q,
-    LogicalGraph::TensorNode& mask,
-    LogicalGraph::TensorNode& logsumexp,
-    LogicalGraph::TensorNode& V,
-    LogicalGraph::TensorNode& A)
+    LogicalGraph::TensorNode* K,
+    LogicalGraph::TensorNode* Q,
+    LogicalGraph::TensorNode* mask,
+    LogicalGraph::TensorNode* logsumexp,
+    LogicalGraph::TensorNode* V,
+    LogicalGraph::TensorNode* A)
 {
-    if(&K.graph() != &Q.graph() || &K.graph() != &mask.graph() ||
-       &K.graph() != &logsumexp.graph() || &K.graph() != &V.graph() || &K.graph() != &A.graph())
+    if(K == nullptr || Q == nullptr || mask == nullptr || logsumexp == nullptr || V == nullptr || A == nullptr)
+    {
+        throw std::invalid_argument(
+            "flash_sdpa_fwd_cudnn: input tensors must be non-null");
+    }
+    if(&K->graph() != &Q->graph() || &K->graph() != &mask->graph() ||
+       &K->graph() != &logsumexp->graph() || &K->graph() != &V->graph() || &K->graph() != &A->graph())
     {
         throw std::invalid_argument(
             "flash_sdpa_fwd_cudnn: tensors must belong to the same graph");
     }
 
-    if(K.dtype() != Q.dtype() || K.dtype() != V.dtype() || K.dtype() != A.dtype())
+    if(K->dtype() != Q->dtype() || K->dtype() != V->dtype() || K->dtype() != A->dtype())
     {
         throw std::invalid_argument(
             "flash_sdpa_fwd_cudnn: K, Q, V, A must have the same dtype");
     }
 
-    if(logsumexp.dtype() != DataType::FP32)
+    if(logsumexp->dtype() != DataType::FP32)
     {
         throw std::invalid_argument(
             "flash_sdpa_fwd_cudnn: logsumexp must have fp32 dtype");
     }
 
-    K.graph().add_op(
+    K->graph().add_op(
         OpType::FLASH_SDPA_FWD_CUDNN,
         nullptr,
-        {&K, &Q, &mask, &logsumexp, &V},
-        {&A}
+        {K, Q, mask, logsumexp, V},
+        {A}
     );
 }
 

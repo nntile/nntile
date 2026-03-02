@@ -35,16 +35,16 @@ namespace nntile::graph
 //! @param dQ Gradient tensor for Q (modified in-place)
 //! @param dV Gradient tensor for V (modified in-place)
 void flash_sdpa_bwd_cudnn(
-    LogicalGraph::TensorNode& K,
-    LogicalGraph::TensorNode& Q,
-    LogicalGraph::TensorNode& V,
-    LogicalGraph::TensorNode& A,
-    LogicalGraph::TensorNode& dA,
-    LogicalGraph::TensorNode& mask,
-    LogicalGraph::TensorNode& logsumexp,
-    LogicalGraph::TensorNode& dK,
-    LogicalGraph::TensorNode& dQ,
-    LogicalGraph::TensorNode& dV
+    LogicalGraph::TensorNode* K,
+    LogicalGraph::TensorNode* Q,
+    LogicalGraph::TensorNode* V,
+    LogicalGraph::TensorNode* A,
+    LogicalGraph::TensorNode* dA,
+    LogicalGraph::TensorNode* mask,
+    LogicalGraph::TensorNode* logsumexp,
+    LogicalGraph::TensorNode* dK,
+    LogicalGraph::TensorNode* dQ,
+    LogicalGraph::TensorNode* dV
 );
 
 } // namespace nntile::graph

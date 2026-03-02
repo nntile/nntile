@@ -32,7 +32,7 @@ struct LogScalarAttrs
 //! @param x Input tensor
 //! @param name Name for logging
 void log_scalar(
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* x,
     const std::string& name
 );
 

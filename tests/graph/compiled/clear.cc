@@ -24,9 +24,9 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     LogicalGraph g("test");
-    auto& x = g.tensor({4}, "x", DataType::BOOL);
-    x.mark_input(true);
-    x.mark_output(true);
+    auto x = g.tensor({4}, "x", DataType::BOOL);
+    x->mark_input(true);
+    x->mark_output(true);
     clear(x);
 
     auto compiled = CompiledGraph::compile(g);

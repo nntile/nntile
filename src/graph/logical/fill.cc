@@ -28,14 +28,18 @@ namespace nntile::graph
 //! Fill operation: x = val
 void fill(
     Scalar val,
-    LogicalGraph::TensorNode& x)
+    LogicalGraph::TensorNode* x)
 {
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("fill: input tensor must be non-null");
+    }
     auto attrs = std::make_shared<FillAttrs>(FillAttrs{val});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::FILL,
         attrs,
         {},
-        {&x}
+        {x}
     );
 }
 

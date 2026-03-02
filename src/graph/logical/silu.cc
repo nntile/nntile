@@ -26,21 +26,25 @@ namespace nntile::graph
 {
 
 //! SiLU activation: y = silu(x)
-LogicalGraph::TensorNode& silu(
-    LogicalGraph::TensorNode& x,
+LogicalGraph::TensorNode* silu(
+    LogicalGraph::TensorNode* x,
     const std::string& output_name)
 {
-    std::vector<Index> output_shape = x.shape();
-    LogicalGraph::TensorNode& output = x.graph().tensor(
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("silu: input tensor must be non-null");
+    }
+    std::vector<Index> output_shape = x->shape();
+    LogicalGraph::TensorNode* output = x->graph().tensor(
         std::move(output_shape),
         output_name,
-        x.dtype());
+        x->dtype());
 
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::SILU,
         nullptr,
-        {&x},
-        {&output}
+        {x},
+        {output}
     );
 
     return output;

@@ -26,11 +26,11 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     LogicalGraph g("test");
-    auto& mask = g.tensor({4, 6}, "mask", DataType::BOOL);
-    auto& x = g.tensor({4, 6}, "x", DataType::FP32);
-    mask.mark_input(true);
-    x.mark_input(true);
-    x.mark_output(true);
+    auto mask = g.tensor({4, 6}, "mask", DataType::BOOL);
+    auto x = g.tensor({4, 6}, "x", DataType::FP32);
+    mask->mark_input(true);
+    x->mark_input(true);
+    x->mark_output(true);
     mask_scalar(mask, x, 0.5f, 0);
 
     auto compiled = CompiledGraph::compile(g);

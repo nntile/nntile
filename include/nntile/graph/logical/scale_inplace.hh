@@ -28,7 +28,7 @@ namespace nntile::graph
 //! @param x Input/output tensor (modified in-place)
 //! @param alpha Scaling factor (default: 1.0)
 void scale_inplace(
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* x,
     Scalar alpha = 1.0
 );
 

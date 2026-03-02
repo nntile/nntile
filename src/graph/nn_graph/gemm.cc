@@ -33,7 +33,7 @@ NNGraph::TensorNode* Gemm::build_forward(
             "Gemm::build_forward: a and b must be non-null");
     }
     NNGraph& graph = a->graph();
-    LogicalGraph::TensorNode& c_data = gemm(
+    LogicalGraph::TensorNode* c_data = gemm(
         a->data(), b->data(), output_name, alpha, trans_a, trans_b, ndim,
         batch_ndim);
     bool out_requires_grad = any_input_requires_grad({a, b});

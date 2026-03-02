@@ -30,8 +30,8 @@ namespace nntile::graph
 //! @param alpha Scaling factor
 //! @param axis Axis along which to broadcast scaling
 void scale_slice(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
     Scalar alpha = 1.0,
     Index axis = 0
 );

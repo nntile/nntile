@@ -190,7 +190,7 @@ GEMM shape rules (see `compute_gemm_output_shape` in
 - `get_or_create_grad()` creates a gradient tensor in the underlying
   `LogicalGraph` and clears it via `clear()`.
 
-Logical operations still operate on `LogicalGraph::TensorNode`. When using
+Logical operations still operate on `LogicalGraph::TensorNode*`. When using
 `NNGraph`, pass `tensor.data()` to logical ops as needed.
 
 ## CompiledGraph

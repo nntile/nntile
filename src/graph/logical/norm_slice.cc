@@ -27,44 +27,49 @@ namespace nntile::graph
 
 //! Norm along slices (out-of-place): z = alpha * norm_slice(x) + beta * y
 void norm_slice(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    LogicalGraph::TensorNode& z,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
+    LogicalGraph::TensorNode* z,
     Index axis,
     int redux,
     Scalar alpha,
     Scalar beta)
 {
-    if(&x.graph() != &y.graph() || &x.graph() != &z.graph())
+    if(x == nullptr || y == nullptr || z == nullptr)
+    {
+        throw std::invalid_argument(
+            "norm_slice: input tensors must be non-null");
+    }
+    if(&x->graph() != &y->graph() || &x->graph() != &z->graph())
     {
         throw std::invalid_argument(
             "norm_slice: tensors must belong to the same graph");
     }
 
-    if(&y == &z)
+    if(y == z)
     {
         throw std::invalid_argument(
             "norm_slice: use norm_slice_inplace when y and z are the same");
     }
 
-    if(x.dtype() != y.dtype() || x.dtype() != z.dtype())
+    if(x->dtype() != y->dtype() || x->dtype() != z->dtype())
     {
         throw std::invalid_argument(
             "norm_slice: input and output tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= x.ndim())
+    if(axis < 0 || axis >= x->ndim())
     {
         throw std::invalid_argument(
             "norm_slice: axis out of bounds");
     }
 
     auto attrs = std::make_shared<ReductionAttrs>(ReductionAttrs{alpha, beta, axis, 0, redux});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::NORM_SLICE,
         attrs,
-        {&x, &y},
-        {&z}
+        {x, y},
+        {z}
     );
 }
 

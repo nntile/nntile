@@ -26,17 +26,17 @@ namespace nntile::graph
 {
 
 //! Add: build_forward does logical op + bookkeeping; build_backward for grad.
-struct Add
+namespace Add
 {
-    static NNGraph::TensorNode* build_forward(
+    NNGraph::TensorNode* build_forward(
         Scalar alpha,
         NNGraph::TensorNode* x,
         Scalar beta,
         NNGraph::TensorNode* y,
         const std::string& output_name);
 
-    static void build_backward(const NNGraph::OpNode* op);
-};
+    void build_backward(const NNGraph::OpNode* op);
+}
 
 //! Convenience free function
 inline NNGraph::TensorNode* add(

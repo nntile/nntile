@@ -27,28 +27,33 @@ namespace nntile::graph
 
 //! Rotary position embedding backward: dx = rope_backward(sin, cos, dy)
 void rope_backward(
-    LogicalGraph::TensorNode& sin_tensor,
-    LogicalGraph::TensorNode& cos_tensor,
-    LogicalGraph::TensorNode& dy,
-    LogicalGraph::TensorNode& dx)
+    LogicalGraph::TensorNode* sin_tensor,
+    LogicalGraph::TensorNode* cos_tensor,
+    LogicalGraph::TensorNode* dy,
+    LogicalGraph::TensorNode* dx)
 {
-    if(&sin_tensor.graph() != &cos_tensor.graph() || &sin_tensor.graph() != &dy.graph() || &sin_tensor.graph() != &dx.graph())
+    if(sin_tensor == nullptr || cos_tensor == nullptr || dy == nullptr || dx == nullptr)
+    {
+        throw std::invalid_argument(
+            "rope_backward: input tensors must be non-null");
+    }
+    if(&sin_tensor->graph() != &cos_tensor->graph() || &sin_tensor->graph() != &dy->graph() || &sin_tensor->graph() != &dx->graph())
     {
         throw std::invalid_argument(
             "rope_backward: tensors must belong to the same graph");
     }
 
-    if(sin_tensor.dtype() != cos_tensor.dtype() || sin_tensor.dtype() != dy.dtype() || sin_tensor.dtype() != dx.dtype())
+    if(sin_tensor->dtype() != cos_tensor->dtype() || sin_tensor->dtype() != dy->dtype() || sin_tensor->dtype() != dx->dtype())
     {
         throw std::invalid_argument(
             "rope_backward: all tensors must have the same dtype");
     }
 
-    sin_tensor.graph().add_op(
+    sin_tensor->graph().add_op(
         OpType::ROPE_BACKWARD,
         nullptr,
-        {&sin_tensor, &cos_tensor, &dy, &dx},
-        {&dx}
+        {sin_tensor, cos_tensor, dy, dx},
+        {dx}
     );
 }
 

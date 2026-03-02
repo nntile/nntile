@@ -26,9 +26,9 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& grad = g.tensor({12}, "grad", DataType::FP32);
-        auto& velocity = g.tensor({12}, "velocity", DataType::FP32);
-        auto& p = g.tensor({12}, "p", DataType::FP32);
+        auto grad = g.tensor({12}, "grad", DataType::FP32);
+        auto velocity = g.tensor({12}, "velocity", DataType::FP32);
+        auto p = g.tensor({12}, "p", DataType::FP32);
         sgd_step(10, 0.9f, 0.001f, 0.0f, 0.0f, false, grad, velocity, p);
     };
 

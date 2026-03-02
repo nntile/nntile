@@ -27,36 +27,41 @@ namespace nntile::graph
 
 //! Multiply in-place: y = x * y
 void multiply_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y)
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y)
 {
+    if(x == nullptr || y == nullptr)
+    {
+        throw std::invalid_argument(
+            "multiply_inplace: input tensors must be non-null");
+    }
     // Validate inputs belong to the same graph
-    if(&x.graph() != &y.graph())
+    if(&x->graph() != &y->graph())
     {
         throw std::invalid_argument(
             "multiply_inplace: input tensors must belong to the same graph");
     }
 
     // Validate input dtypes match
-    if(x.dtype() != y.dtype())
+    if(x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "multiply_inplace: input tensors must have the same dtype");
     }
 
     // Validate shapes match
-    if(x.shape() != y.shape())
+    if(x->shape() != y->shape())
     {
         throw std::invalid_argument(
             "multiply_inplace: input tensors must have the same shape");
     }
 
     auto attrs = std::make_shared<BinaryOpAttrs>(BinaryOpAttrs{1.0, 1.0});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::MULTIPLY_INPLACE,
         attrs,
-        {&x, &y},
-        {&y}
+        {x, y},
+        {y}
     );
 }
 

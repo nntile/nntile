@@ -26,8 +26,8 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({12}, "x", DataType::FP32);
-        auto& y = gelutanh(x, "y");
+        auto x = g.tensor({12}, "x", DataType::FP32);
+        auto y = gelutanh(x, "y");
     };
 
     auto run_tensor_direct = [](std::map<std::string, std::vector<float>>& inputs,

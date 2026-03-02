@@ -29,27 +29,31 @@ namespace nntile::graph
 //! @param x Input tensor
 //! @param output_name Name for the output tensor
 //! @param alpha Scaling factor (default: 1.0)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& scale(
-    LogicalGraph::TensorNode& x,
+//! @return Pointer to the output tensor
+LogicalGraph::TensorNode* scale(
+    LogicalGraph::TensorNode* x,
     const std::string& output_name,
     Scalar alpha)
 {
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("scale: input tensor must be non-null");
+    }
     // Create output tensor with same shape and dtype as input
-    LogicalGraph::TensorNode& output = x.graph().tensor(
-        x.shape(),
+    LogicalGraph::TensorNode* output = x->graph().tensor(
+        x->shape(),
         output_name,
-        x.dtype());
+        x->dtype());
 
     // Create operation attributes
     auto attrs = std::make_shared<ScaleAttrs>(ScaleAttrs{alpha});
 
     // Add operation to graph
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::SCALE,
         attrs,
-        {&x},
-        {&output}
+        {x},
+        {output}
     );
 
     return output;

@@ -30,8 +30,8 @@ namespace nntile::graph
 //! @param alpha Scaling factor for sum (default: 1.0)
 //! @param beta Scaling factor for existing y (default: 0.0)
 void sum(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
     Scalar alpha = 1.0,
     Scalar beta = 0.0
 );

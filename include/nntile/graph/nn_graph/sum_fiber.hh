@@ -26,9 +26,9 @@ namespace nntile::graph
 {
 
 //! SumFiber: build_forward does logical op + bookkeeping; build_backward for grad.
-struct SumFiber
+namespace SumFiber
 {
-    static NNGraph::TensorNode* build_forward(
+    NNGraph::TensorNode* build_forward(
         NNGraph::TensorNode* x,
         const std::string& output_name,
         Index axis = 0,
@@ -37,8 +37,8 @@ struct SumFiber
         Scalar alpha = 1.0,
         Scalar beta = 0.0);
 
-    static void build_backward(const NNGraph::OpNode* op);
-};
+    void build_backward(const NNGraph::OpNode* op);
+}
 
 //! Convenience free function
 inline NNGraph::TensorNode* sum_fiber(

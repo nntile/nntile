@@ -35,9 +35,9 @@ namespace nntile::graph
 //! @param alpha Scaling factor for norm (default: 1.0)
 //! @param beta Scaling factor for y (default: 0.0)
 void norm_fiber(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
-    LogicalGraph::TensorNode& z,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
+    LogicalGraph::TensorNode* z,
     Index axis,
     Index batch_ndim = 0,
     int redux = 0,

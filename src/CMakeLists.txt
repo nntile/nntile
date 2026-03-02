@@ -400,9 +400,11 @@ set(LOGGER_SRC
 # Graph-related sources
 set(GRAPH_SRC
     "graph/autograd_function.cc"
+    "graph/dtype.cc"
     "graph/grad_mode.cc"
     "graph/logical_graph.cc"
     "graph/logical_graph_ops.cc"
+    "graph/tensor/add.cc"
     "graph/logical/gelu.cc"
     "graph/logical/gelu_inplace.cc"
     "graph/logical/gelu_backward.cc"

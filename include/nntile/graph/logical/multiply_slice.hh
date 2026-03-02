@@ -38,8 +38,8 @@ struct MultiplySliceAttrs
 //! @param axis Axis in tensor along which slice is broadcasted
 void multiply_slice(
     Scalar alpha,
-    LogicalGraph::TensorNode& slice,
-    LogicalGraph::TensorNode& tensor,
+    LogicalGraph::TensorNode* slice,
+    LogicalGraph::TensorNode* tensor,
     Index axis
 );
 

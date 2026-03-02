@@ -26,7 +26,7 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({4, 6}, "x", DataType::FP32);
+        auto x = g.tensor({4, 6}, "x", DataType::FP32);
         pow(x, "y", 2.0f, 3.0f);
     };
 

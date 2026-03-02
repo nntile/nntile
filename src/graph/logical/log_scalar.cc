@@ -28,14 +28,18 @@ namespace nntile::graph
 
 //! Log scalar operation: log value with given name
 void log_scalar(
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* x,
     const std::string& name)
 {
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("log_scalar: input tensor must be non-null");
+    }
     auto attrs = std::make_shared<LogScalarAttrs>(LogScalarAttrs{name});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::LOG_SCALAR,
         attrs,
-        {&x},
+        {x},
         {}
     );
 }

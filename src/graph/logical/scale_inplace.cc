@@ -29,18 +29,22 @@ namespace nntile::graph
 //! @param x Input/output tensor (modified in-place)
 //! @param alpha Scaling factor (default: 1.0)
 void scale_inplace(
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* x,
     Scalar alpha)
 {
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("scale_inplace: input tensor must be non-null");
+    }
     // Create operation attributes
     auto attrs = std::make_shared<ScaleAttrs>(ScaleAttrs{alpha});
 
     // Add operation to graph
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::SCALE_INPLACE,
         attrs,
-        {&x},
-        {&x}
+        {x},
+        {x}
     );
 }
 

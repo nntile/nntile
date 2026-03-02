@@ -27,37 +27,42 @@ namespace nntile::graph
 
 //! Norm along slices (in-place): y = alpha * norm_slice(x) + beta * y
 void norm_slice_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
     Index axis,
     int redux,
     Scalar alpha,
     Scalar beta)
 {
-    if(&x.graph() != &y.graph())
+    if(x == nullptr || y == nullptr)
+    {
+        throw std::invalid_argument(
+            "norm_slice_inplace: input tensors must be non-null");
+    }
+    if(&x->graph() != &y->graph())
     {
         throw std::invalid_argument(
             "norm_slice_inplace: tensors must belong to the same graph");
     }
 
-    if(x.dtype() != y.dtype())
+    if(x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "norm_slice_inplace: input and output tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= x.ndim())
+    if(axis < 0 || axis >= x->ndim())
     {
         throw std::invalid_argument(
             "norm_slice_inplace: axis out of bounds");
     }
 
     auto attrs = std::make_shared<ReductionAttrs>(ReductionAttrs{alpha, beta, axis, 0, redux});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::NORM_SLICE_INPLACE,
         attrs,
-        {&x, &y},
-        {&y}
+        {x, y},
+        {y}
     );
 }
 

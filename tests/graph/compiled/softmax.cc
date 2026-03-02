@@ -27,8 +27,8 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& maxsumexp = g.tensor({2, 6}, "maxsumexp", DataType::FP32);
-        auto& x = g.tensor({4, 6}, "x", DataType::FP32);
+        auto maxsumexp = g.tensor({2, 6}, "maxsumexp", DataType::FP32);
+        auto x = g.tensor({4, 6}, "x", DataType::FP32);
         softmax(maxsumexp, x, "z", 1.0f, 0);
     };
 

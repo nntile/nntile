@@ -32,9 +32,9 @@ namespace nntile::graph
 //! @param axis Axis along which to perform slice-wise operation
 void add_slice_inplace(
     Scalar alpha,
-    LogicalGraph::TensorNode& slice,
+    LogicalGraph::TensorNode* slice,
     Scalar beta,
-    LogicalGraph::TensorNode& tensor,
+    LogicalGraph::TensorNode* tensor,
     Index axis
 );
 

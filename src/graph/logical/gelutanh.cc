@@ -26,24 +26,28 @@ namespace nntile::graph
 {
 
 //! GeLUTanh activation: y = gelutanh(x)
-LogicalGraph::TensorNode& gelutanh(
-    LogicalGraph::TensorNode& x,
+LogicalGraph::TensorNode* gelutanh(
+    LogicalGraph::TensorNode* x,
     const std::string& output_name)
 {
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("gelutanh: input tensor must be non-null");
+    }
     // Output shape = input shape
-    std::vector<Index> output_shape = x.shape();
+    std::vector<Index> output_shape = x->shape();
 
     // Create output tensor
-    LogicalGraph::TensorNode& output = x.graph().tensor(
+    LogicalGraph::TensorNode* output = x->graph().tensor(
         std::move(output_shape),
         output_name,
-        x.dtype());
+        x->dtype());
 
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::GELUTANH,
         nullptr,
-        {&x},
-        {&output}
+        {x},
+        {output}
     );
 
     return output;

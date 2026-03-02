@@ -26,23 +26,27 @@ namespace nntile::graph
 {
 
 //! Scatter operation: y = scatter(x)
-LogicalGraph::TensorNode& scatter(
-    LogicalGraph::TensorNode& x,
+LogicalGraph::TensorNode* scatter(
+    LogicalGraph::TensorNode* x,
     const std::string& output_name)
 {
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("scatter: input tensor must be non-null");
+    }
     // For now, assume scatter doesn't change shape
     // In practice, this would depend on the indices
-    std::vector<Index> output_shape = x.shape();
-    LogicalGraph::TensorNode& output = x.graph().tensor(
+    std::vector<Index> output_shape = x->shape();
+    LogicalGraph::TensorNode* output = x->graph().tensor(
         std::move(output_shape),
         output_name,
-        x.dtype());
+        x->dtype());
 
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::SCATTER,
         nullptr,
-        {&x},
-        {&output}
+        {x},
+        {output}
     );
 
     return output;

@@ -30,8 +30,8 @@ namespace nntile::graph
 //! @param alpha Scaling factor (default: 1.0)
 //! @param axis Axis along which to compute softmax (default: -1, last axis)
 void softmax_inplace(
-    LogicalGraph::TensorNode& maxsumexp,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* maxsumexp,
+    LogicalGraph::TensorNode* y,
     Scalar alpha = 1.0,
     Index axis = -1
 );

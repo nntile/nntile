@@ -35,9 +35,9 @@ namespace nntile::graph
 //! @param stride Stride for height and width [stride_h, stride_w]
 //! @param dilation Dilation for height and width [dilation_h, dilation_w]
 void conv2d_bwd_input_inplace(
-    LogicalGraph::TensorNode& dy,
-    LogicalGraph::TensorNode& c,
-    LogicalGraph::TensorNode& dx,
+    LogicalGraph::TensorNode* dy,
+    LogicalGraph::TensorNode* c,
+    LogicalGraph::TensorNode* dx,
     Scalar alpha = 1.0,
     Scalar beta = 1.0,
     std::array<Index, 2> padding = {0, 0},

@@ -51,9 +51,9 @@ void sgd_step(
     Scalar weight_decay,
     Scalar dampening,
     bool nesterov,
-    LogicalGraph::TensorNode& grad,
-    LogicalGraph::TensorNode& velocity,
-    LogicalGraph::TensorNode& p
+    LogicalGraph::TensorNode* grad,
+    LogicalGraph::TensorNode* velocity,
+    LogicalGraph::TensorNode* p
 );
 
 } // namespace nntile::graph

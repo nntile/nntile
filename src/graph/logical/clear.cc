@@ -26,14 +26,18 @@ namespace nntile::graph
 {
 
 //! Clear tensor: x = 0
-void clear(LogicalGraph::TensorNode& x)
+void clear(LogicalGraph::TensorNode* x)
 {
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("clear: tensor must be non-null");
+    }
     // In-place operation (no attrs): inputs and outputs are the same tensor
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::CLEAR,
         nullptr,
         {},
-        {&x}
+        {x}
     );
 }
 

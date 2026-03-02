@@ -26,8 +26,8 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({4, 6}, "x", DataType::FP32);
-        auto& y = g.tensor({4}, "y", DataType::FP32);
+        auto x = g.tensor({4, 6}, "x", DataType::FP32);
+        auto y = g.tensor({4}, "y", DataType::FP32);
         sum_slice(x, y, 1, 0, 1.0f, 0.0f);
     };
 

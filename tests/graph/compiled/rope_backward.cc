@@ -26,10 +26,10 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& sin_tensor = g.tensor({8}, "sin_tensor", DataType::FP32);
-        auto& cos_tensor = g.tensor({8}, "cos_tensor", DataType::FP32);
-        auto& dy = g.tensor({16, 4}, "dy", DataType::FP32);
-        auto& dx = g.tensor({16, 4}, "dx", DataType::FP32);
+        auto sin_tensor = g.tensor({8}, "sin_tensor", DataType::FP32);
+        auto cos_tensor = g.tensor({8}, "cos_tensor", DataType::FP32);
+        auto dy = g.tensor({16, 4}, "dy", DataType::FP32);
+        auto dx = g.tensor({16, 4}, "dx", DataType::FP32);
         rope_backward(sin_tensor, cos_tensor, dy, dx);
     };
 

@@ -28,33 +28,38 @@ namespace nntile::graph
 
 //! 2D Convolution forward: Y = alpha * conv2d(X, C) + beta * Y
 void conv2d_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& c,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* c,
+    LogicalGraph::TensorNode* y,
     Scalar alpha,
     Scalar beta,
     std::array<Index, 2> padding,
     std::array<Index, 2> stride,
     std::array<Index, 2> dilation)
 {
-    if(&x.graph() != &c.graph() || &x.graph() != &y.graph())
+    if(x == nullptr || c == nullptr || y == nullptr)
+    {
+        throw std::invalid_argument(
+            "conv2d_inplace: input tensors must be non-null");
+    }
+    if(&x->graph() != &c->graph() || &x->graph() != &y->graph())
     {
         throw std::invalid_argument(
             "conv2d_inplace: tensors must belong to the same graph");
     }
 
-    if(x.dtype() != c.dtype() || x.dtype() != y.dtype())
+    if(x->dtype() != c->dtype() || x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "conv2d_inplace: all tensors must have the same dtype");
     }
 
     auto attrs = std::make_shared<Conv2dAttrs>(Conv2dAttrs{alpha, beta, padding, stride, dilation});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::CONV2D_INPLACE,
         attrs,
-        {&x, &c, &y},
-        {&y}
+        {x, c, y},
+        {y}
     );
 }
 

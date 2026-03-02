@@ -26,9 +26,9 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({11, 12}, "x", DataType::FP32);
-        auto& dy = g.tensor({11, 12}, "dy", DataType::FP32);
-        auto& dx = g.tensor({11, 12}, "dx", DataType::FP32);
+        auto x = g.tensor({11, 12}, "x", DataType::FP32);
+        auto dy = g.tensor({11, 12}, "dy", DataType::FP32);
+        auto dx = g.tensor({11, 12}, "dx", DataType::FP32);
         gelu_backward(x, dy, dx);
     };
 

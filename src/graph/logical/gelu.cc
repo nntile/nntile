@@ -26,25 +26,29 @@ namespace nntile::graph
 {
 
 //! GeLU activation: y = gelu(x)
-LogicalGraph::TensorNode& gelu(
-    LogicalGraph::TensorNode& x,
+LogicalGraph::TensorNode* gelu(
+    LogicalGraph::TensorNode* x,
     const std::string& output_name)
 {
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("gelu: input tensor must be non-null");
+    }
     // Output shape = input shape
-    std::vector<Index> output_shape = x.shape();
+    std::vector<Index> output_shape = x->shape();
 
     // Create output tensor
-    LogicalGraph::TensorNode& output = x.graph().tensor(
+    LogicalGraph::TensorNode* output = x->graph().tensor(
         std::move(output_shape),
         output_name,
-        x.dtype());
+        x->dtype());
 
     // Add operation to graph using public builder API (no attrs)
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::GELU,
         nullptr,
-        {&x},
-        {&output}
+        {x},
+        {output}
     );
 
     return output;
@@ -52,10 +56,14 @@ LogicalGraph::TensorNode& gelu(
 
 //! GeLU activation into pre-created output: y = gelu(x)
 void gelu(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y)
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y)
 {
-    x.graph().add_op(OpType::GELU, nullptr, {&x}, {&y});
+    if(x == nullptr || y == nullptr)
+    {
+        throw std::invalid_argument("gelu: input tensors must be non-null");
+    }
+    x->graph().add_op(OpType::GELU, nullptr, {x}, {y});
 }
 
 } // namespace nntile::graph

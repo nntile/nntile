@@ -65,9 +65,9 @@ std::vector<Index> gemm_output_shape(
 }
 
 //! Tensor contraction creating new output: C = alpha * op(A) @ op(B)
-LogicalGraph::TensorNode& gemm(
-    LogicalGraph::TensorNode& a,
-    LogicalGraph::TensorNode& b,
+LogicalGraph::TensorNode* gemm(
+    LogicalGraph::TensorNode* a,
+    LogicalGraph::TensorNode* b,
     const std::string& output_name,
     Scalar alpha,
     bool trans_a,
@@ -75,15 +75,20 @@ LogicalGraph::TensorNode& gemm(
     Index ndim,
     Index batch_ndim)
 {
+    if(a == nullptr || b == nullptr)
+    {
+        throw std::invalid_argument(
+            "gemm: input tensors must be non-null");
+    }
     // Validate inputs belong to the same graph
-    if(&a.graph() != &b.graph())
+    if(&a->graph() != &b->graph())
     {
         throw std::invalid_argument(
             "gemm: input tensors must belong to the same graph");
     }
 
     // Validate input dtypes match
-    if(a.dtype() != b.dtype())
+    if(a->dtype() != b->dtype())
     {
         throw std::invalid_argument(
             "gemm: input tensors must have the same dtype");
@@ -94,9 +99,9 @@ LogicalGraph::TensorNode& gemm(
     {
         for(Index i = 0; i < batch_ndim; ++i)
         {
-            Index batch_dim_a = a.ndim() - batch_ndim + i;
-            Index batch_dim_b = b.ndim() - batch_ndim + i;
-            if(a.shape()[batch_dim_a] != b.shape()[batch_dim_b])
+            Index batch_dim_a = a->ndim() - batch_ndim + i;
+            Index batch_dim_b = b->ndim() - batch_ndim + i;
+            if(a->shape()[batch_dim_a] != b->shape()[batch_dim_b])
             {
                 throw std::invalid_argument(
                     "gemm: batch dimensions must match");
@@ -105,23 +110,23 @@ LogicalGraph::TensorNode& gemm(
     }
 
     std::vector<Index> output_shape = gemm_output_shape(
-        a.shape(), b.shape(), trans_a, trans_b, ndim, batch_ndim);
+        a->shape(), b->shape(), trans_a, trans_b, ndim, batch_ndim);
 
     // Create output tensor
-    LogicalGraph::TensorNode& output = a.graph().tensor(
+    LogicalGraph::TensorNode* output = a->graph().tensor(
         std::move(output_shape),
         output_name,
-        a.dtype());
+        a->dtype());
 
     // Create operation attributes (beta = 0 for new output)
     auto attrs = std::make_shared<GemmAttrs>(GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim});
 
     // Add operation to graph using public builder API
-    a.graph().add_op(
+    a->graph().add_op(
         OpType::GEMM,
         attrs,
-        {&a, &b},
-        {&output}
+        {a, b},
+        {output}
     );
 
     return output;
@@ -129,9 +134,9 @@ LogicalGraph::TensorNode& gemm(
 
 //! Tensor contraction with accumulation: C = alpha * op(A) @ op(B) + beta * C
 void gemm(
-    LogicalGraph::TensorNode& a,
-    LogicalGraph::TensorNode& b,
-    LogicalGraph::TensorNode& c,
+    LogicalGraph::TensorNode* a,
+    LogicalGraph::TensorNode* b,
+    LogicalGraph::TensorNode* c,
     Scalar alpha,
     Scalar beta,
     bool trans_a,
@@ -139,29 +144,34 @@ void gemm(
     Index ndim,
     Index batch_ndim)
 {
+    if(a == nullptr || b == nullptr || c == nullptr)
+    {
+        throw std::invalid_argument(
+            "gemm: input tensors must be non-null");
+    }
     // Validate inputs belong to the same graph
-    if(&a.graph() != &b.graph())
+    if(&a->graph() != &b->graph())
     {
         throw std::invalid_argument(
             "gemm: input tensors must belong to the same graph");
     }
 
     // Validate c belongs to the same graph
-    if(&c.graph() != &a.graph())
+    if(&c->graph() != &a->graph())
     {
         throw std::invalid_argument(
             "gemm: tensor c must belong to the same graph as a and b");
     }
 
     // Validate input dtypes match
-    if(a.dtype() != b.dtype())
+    if(a->dtype() != b->dtype())
     {
         throw std::invalid_argument(
             "gemm: input tensors must have the same dtype");
     }
 
     // Validate c dtype matches
-    if(c.dtype() != a.dtype())
+    if(c->dtype() != a->dtype())
     {
         throw std::invalid_argument(
             "gemm: tensor c must have the same dtype as a and b");
@@ -172,9 +182,9 @@ void gemm(
     {
         for(Index i = 0; i < batch_ndim; ++i)
         {
-            Index batch_dim_a = a.ndim() - batch_ndim + i;
-            Index batch_dim_b = b.ndim() - batch_ndim + i;
-            if(a.shape()[batch_dim_a] != b.shape()[batch_dim_b])
+            Index batch_dim_a = a->ndim() - batch_ndim + i;
+            Index batch_dim_b = b->ndim() - batch_ndim + i;
+            if(a->shape()[batch_dim_a] != b->shape()[batch_dim_b])
             {
                 throw std::invalid_argument(
                     "gemm: batch dimensions must match");
@@ -184,9 +194,9 @@ void gemm(
 
     // Compute expected output shape
     std::vector<Index> expected_shape = gemm_output_shape(
-        a.shape(), b.shape(), trans_a, trans_b, ndim, batch_ndim);
+        a->shape(), b->shape(), trans_a, trans_b, ndim, batch_ndim);
 
-    if(c.shape() != expected_shape)
+    if(c->shape() != expected_shape)
     {
         throw std::invalid_argument(
             "gemm: tensor c has incompatible shape for accumulation");
@@ -196,11 +206,11 @@ void gemm(
     auto attrs = std::make_shared<GemmAttrs>(GemmAttrs{trans_a, trans_b, alpha, beta, ndim, batch_ndim});
 
     // Add operation to graph
-    a.graph().add_op(
+    a->graph().add_op(
         OpType::GEMM,
         attrs,
-        {&a, &b, &c},
-        {&c}
+        {a, b, c},
+        {c}
     );
 }
 

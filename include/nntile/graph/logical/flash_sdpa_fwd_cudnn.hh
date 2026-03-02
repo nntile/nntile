@@ -31,12 +31,12 @@ namespace nntile::graph
 //! @param V Value tensor
 //! @param A Output attention tensor
 void flash_sdpa_fwd_cudnn(
-    LogicalGraph::TensorNode& K,
-    LogicalGraph::TensorNode& Q,
-    LogicalGraph::TensorNode& mask,
-    LogicalGraph::TensorNode& logsumexp,
-    LogicalGraph::TensorNode& V,
-    LogicalGraph::TensorNode& A
+    LogicalGraph::TensorNode* K,
+    LogicalGraph::TensorNode* Q,
+    LogicalGraph::TensorNode* mask,
+    LogicalGraph::TensorNode* logsumexp,
+    LogicalGraph::TensorNode* V,
+    LogicalGraph::TensorNode* A
 );
 
 } // namespace nntile::graph

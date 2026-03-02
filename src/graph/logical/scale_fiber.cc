@@ -27,48 +27,53 @@ namespace nntile::graph
 
 //! Scale along fibers: y = alpha * scale_fiber(x, y)
 void scale_fiber(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
     Scalar alpha,
     Index axis,
     Index batch_ndim)
 {
-    if(&x.graph() != &y.graph())
+    if(x == nullptr || y == nullptr)
+    {
+        throw std::invalid_argument(
+            "scale_fiber: input tensors must be non-null");
+    }
+    if(&x->graph() != &y->graph())
     {
         throw std::invalid_argument(
             "scale_fiber: tensors must belong to the same graph");
     }
 
-    if(x.dtype() != y.dtype())
+    if(x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "scale_fiber: tensors must have the same dtype");
     }
 
-    if(batch_ndim < 0 || batch_ndim >= y.ndim())
+    if(batch_ndim < 0 || batch_ndim >= y->ndim())
     {
         throw std::invalid_argument(
             "scale_fiber: invalid batch_ndim");
     }
 
-    if(axis < 0 || axis >= y.ndim() - batch_ndim)
+    if(axis < 0 || axis >= y->ndim() - batch_ndim)
     {
         throw std::invalid_argument(
             "scale_fiber: axis out of bounds");
     }
 
-    if(x.ndim() != batch_ndim + 1)
+    if(x->ndim() != batch_ndim + 1)
     {
         throw std::invalid_argument(
             "scale_fiber: scaling tensor must have batch_ndim+1 dimensions");
     }
 
     auto attrs = std::make_shared<ReductionAttrs>(ReductionAttrs{alpha, 0.0, axis, batch_ndim, 0});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::SCALE_FIBER,
         attrs,
-        {&x, &y},
-        {&y}
+        {x, y},
+        {y}
     );
 }
 

@@ -38,10 +38,10 @@ struct TotalSumAccumAttrs
 //! @param alpha Scaling factor (default: 1.0)
 //! @param ignore_index Index to ignore (default: -1)
 void total_sum_accum(
-    LogicalGraph::TensorNode& logsumexp,
-    LogicalGraph::TensorNode& src,
-    LogicalGraph::TensorNode& class_labels,
-    LogicalGraph::TensorNode& val,
+    LogicalGraph::TensorNode* logsumexp,
+    LogicalGraph::TensorNode* src,
+    LogicalGraph::TensorNode* class_labels,
+    LogicalGraph::TensorNode* val,
     Scalar alpha = 1.0,
     Index ignore_index = -1
 );

@@ -41,12 +41,12 @@ struct AddFiberAttrs
 //! @param output_name Name for the output tensor
 //! @param axis Axis along which to broadcast the fiber
 //! @param batch_ndim Number of trailing batch dimensions (default: 0)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& add_fiber(
+//! @return Pointer to the output tensor
+LogicalGraph::TensorNode* add_fiber(
     Scalar alpha,
-    LogicalGraph::TensorNode& fiber,
+    LogicalGraph::TensorNode* fiber,
     Scalar beta,
-    LogicalGraph::TensorNode& tensor,
+    LogicalGraph::TensorNode* tensor,
     const std::string& output_name,
     Index axis,
     Index batch_ndim = 0

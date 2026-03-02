@@ -26,9 +26,9 @@ namespace nntile::graph
 {
 
 //! Gemm: build_forward does logical op + bookkeeping; build_backward for grad.
-struct Gemm
+namespace Gemm
 {
-    static NNGraph::TensorNode* build_forward(
+    NNGraph::TensorNode* build_forward(
         NNGraph::TensorNode* a,
         NNGraph::TensorNode* b,
         const std::string& output_name,
@@ -38,8 +38,8 @@ struct Gemm
         Index ndim = 1,
         Index batch_ndim = 0);
 
-    static void build_backward(const NNGraph::OpNode* op);
-};
+    void build_backward(const NNGraph::OpNode* op);
+}
 
 //! Convenience free function
 inline NNGraph::TensorNode* gemm(

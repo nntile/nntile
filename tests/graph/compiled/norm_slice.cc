@@ -26,9 +26,9 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({4, 6}, "x", DataType::FP32);
-        auto& src2 = g.tensor({4}, "src2", DataType::FP32);
-        auto& dst = g.tensor({4}, "dst", DataType::FP32);
+        auto x = g.tensor({4, 6}, "x", DataType::FP32);
+        auto src2 = g.tensor({4}, "src2", DataType::FP32);
+        auto dst = g.tensor({4}, "dst", DataType::FP32);
         norm_slice(x, src2, dst, 1, 0, 2.0f, 3.0f);
     };
 

@@ -27,9 +27,9 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& a = g.tensor({2, 3}, "a", DataType::FP32);
-        auto& b = g.tensor({3, 4}, "b", DataType::FP32);
-        auto& c = g.tensor({2, 4}, "c", DataType::FP32);
+        auto a = g.tensor({2, 3}, "a", DataType::FP32);
+        auto b = g.tensor({3, 4}, "b", DataType::FP32);
+        auto c = g.tensor({2, 4}, "c", DataType::FP32);
         gemm(a, b, c, 2.0f, 0.5f);
     };
 

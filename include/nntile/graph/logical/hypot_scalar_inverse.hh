@@ -35,7 +35,7 @@ struct HypotScalarInverseAttrs
 //! @param eps Epsilon value for numerical stability
 //! @param alpha Scaling factor
 void hypot_scalar_inverse(
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* x,
     Scalar eps = 0.0,
     Scalar alpha = 1.0
 );

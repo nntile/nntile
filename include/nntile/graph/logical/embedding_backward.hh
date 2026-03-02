@@ -30,9 +30,9 @@ namespace nntile::graph
 //! @param vocab Vocabulary tensor (modified in-place)
 //! @param axis Axis along which to perform embedding (default: 0)
 void embedding_backward(
-    LogicalGraph::TensorNode& index,
-    LogicalGraph::TensorNode& embed,
-    LogicalGraph::TensorNode& vocab,
+    LogicalGraph::TensorNode* index,
+    LogicalGraph::TensorNode* embed,
+    LogicalGraph::TensorNode* vocab,
     Index axis = 0
 );
 

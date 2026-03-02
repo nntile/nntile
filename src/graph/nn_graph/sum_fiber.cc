@@ -58,7 +58,7 @@ NNGraph::TensorNode* SumFiber::build_forward(
     LogicalGraph& logical = graph.logical_graph();
     std::vector<Index> y_shape =
         sum_fiber_output_shape(x->shape(), axis, batch_ndim);
-    LogicalGraph::TensorNode& y_data =
+    LogicalGraph::TensorNode* y_data =
         logical.tensor(y_shape, output_name, x->dtype());
     clear(y_data);
     sum_fiber(x->data(), y_data, axis, batch_ndim, redux, alpha, beta);

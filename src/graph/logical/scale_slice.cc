@@ -27,35 +27,40 @@ namespace nntile::graph
 
 //! Scale along slices: y = alpha * scale_slice(x, y)
 void scale_slice(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
     Scalar alpha,
     Index axis)
 {
-    if(&x.graph() != &y.graph())
+    if(x == nullptr || y == nullptr)
+    {
+        throw std::invalid_argument(
+            "scale_slice: input tensors must be non-null");
+    }
+    if(&x->graph() != &y->graph())
     {
         throw std::invalid_argument(
             "scale_slice: tensors must belong to the same graph");
     }
 
-    if(x.dtype() != y.dtype())
+    if(x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "scale_slice: tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= y.ndim())
+    if(axis < 0 || axis >= y->ndim())
     {
         throw std::invalid_argument(
             "scale_slice: axis out of bounds");
     }
 
     auto attrs = std::make_shared<ReductionAttrs>(ReductionAttrs{alpha, 0.0, axis, 0, 0});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::SCALE_SLICE,
         attrs,
-        {&x, &y},
-        {&y}
+        {x, y},
+        {y}
     );
 }
 

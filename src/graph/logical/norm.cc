@@ -27,35 +27,40 @@ namespace nntile::graph
 
 //! Euclidean norm: y = alpha * norm(x) + beta * y
 void norm(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
     Scalar alpha,
     Scalar beta)
 {
-    if(&x.graph() != &y.graph())
+    if(x == nullptr || y == nullptr)
+    {
+        throw std::invalid_argument(
+            "norm: input tensors must be non-null");
+    }
+    if(&x->graph() != &y->graph())
     {
         throw std::invalid_argument(
             "norm: tensors must belong to the same graph");
     }
 
-    if(y.ndim() != 0)
+    if(y->ndim() != 0)
     {
         throw std::invalid_argument(
             "norm: output tensor must be scalar (shape [])");
     }
 
-    if(x.dtype() != y.dtype())
+    if(x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "norm: input and output tensors must have the same dtype");
     }
 
     auto attrs = std::make_shared<TotalSumAttrs>(TotalSumAttrs{alpha, beta});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::NORM,
         attrs,
-        {&x, &y},
-        {&y}
+        {x, y},
+        {y}
     );
 }
 

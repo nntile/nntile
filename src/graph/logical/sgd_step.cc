@@ -33,34 +33,39 @@ void sgd_step(
     Scalar weight_decay,
     Scalar dampening,
     bool nesterov,
-    LogicalGraph::TensorNode& grad,
-    LogicalGraph::TensorNode& velocity,
-    LogicalGraph::TensorNode& p)
+    LogicalGraph::TensorNode* grad,
+    LogicalGraph::TensorNode* velocity,
+    LogicalGraph::TensorNode* p)
 {
-    if(&grad.graph() != &velocity.graph() || &grad.graph() != &p.graph())
+    if(grad == nullptr || velocity == nullptr || p == nullptr)
+    {
+        throw std::invalid_argument(
+            "sgd_step: input tensors must be non-null");
+    }
+    if(&grad->graph() != &velocity->graph() || &grad->graph() != &p->graph())
     {
         throw std::invalid_argument(
             "sgd_step: tensors must belong to the same graph");
     }
 
-    if(grad.dtype() != velocity.dtype() || grad.dtype() != p.dtype())
+    if(grad->dtype() != velocity->dtype() || grad->dtype() != p->dtype())
     {
         throw std::invalid_argument(
             "sgd_step: all tensors must have the same dtype");
     }
 
-    if(grad.shape() != velocity.shape() || grad.shape() != p.shape())
+    if(grad->shape() != velocity->shape() || grad->shape() != p->shape())
     {
         throw std::invalid_argument(
             "sgd_step: all tensors must have the same shape");
     }
 
     auto attrs = std::make_shared<SgdStepAttrs>(SgdStepAttrs{num_iter, momentum, lr, weight_decay, dampening, nesterov});
-    grad.graph().add_op(
+    grad->graph().add_op(
         OpType::SGD_STEP,
         attrs,
-        {&grad, &velocity, &p},
-        {&velocity, &p}
+        {grad, velocity, p},
+        {velocity, p}
     );
 }
 

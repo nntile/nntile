@@ -18,9 +18,10 @@ set(TESTS_CATCH2
     "compiled_graph"
 )
 
-# Include compiled and nn_graph operation tests
+# Include compiled, nn_graph, and tensor operation tests
 add_subdirectory(compiled)
 add_subdirectory(nn_graph)
+add_subdirectory(tensor)
 
 # Setup a target for coverage of graph tests
 if(BUILD_COVERAGE)

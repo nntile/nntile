@@ -28,7 +28,7 @@ TEST_CASE_METHOD(
     // Test that log_scalar compiles and executes (logs only, no output to verify)
     // log_scalar requires a scalar (0D) tensor
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor(std::vector<Index>{}, "x", DataType::FP32);
+        auto x = g.tensor(std::vector<Index>{}, "x", DataType::FP32);
         log_scalar(x, "test_value");
     };
 

@@ -28,9 +28,9 @@ TEST_CASE_METHOD(
     // sumprod_fiber: dst shape is [shape[axis]], reduces over other dims
     // src [4,6] axis 0 -> dst [4]; axis 1 -> dst [6]
     auto build_graph = [](LogicalGraph& g) {
-        auto& x1 = g.tensor({4, 6}, "x1", DataType::FP32);
-        auto& x2 = g.tensor({4, 6}, "x2", DataType::FP32);
-        auto& y = g.tensor({4}, "y", DataType::FP32);
+        auto x1 = g.tensor({4, 6}, "x1", DataType::FP32);
+        auto x2 = g.tensor({4, 6}, "x2", DataType::FP32);
+        auto y = g.tensor({4}, "y", DataType::FP32);
         sumprod_fiber(x1, x2, y, 0, 0, 1.0f, 0.0f);
     };
 

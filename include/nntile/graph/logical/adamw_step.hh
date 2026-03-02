@@ -49,10 +49,10 @@ void adamw_step(
     Scalar eps,
     Scalar lr,
     Scalar weight_decay,
-    LogicalGraph::TensorNode& grad,
-    LogicalGraph::TensorNode& first_moment,
-    LogicalGraph::TensorNode& second_moment,
-    LogicalGraph::TensorNode& p
+    LogicalGraph::TensorNode* grad,
+    LogicalGraph::TensorNode* first_moment,
+    LogicalGraph::TensorNode* second_moment,
+    LogicalGraph::TensorNode* p
 );
 
 } // namespace nntile::graph

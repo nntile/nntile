@@ -27,12 +27,12 @@ TEST_CASE(
     // Test that maxsumexp op is registered in logical graph
     // (CompiledGraph::compile triggers StarPU handle issues for this op)
     LogicalGraph g("test");
-    auto& x = g.tensor({4, 6}, "x", DataType::FP32);
-    auto& y = g.tensor({2, 6}, "y", DataType::FP32);
+    auto x = g.tensor({4, 6}, "x", DataType::FP32);
+    auto y = g.tensor({2, 6}, "y", DataType::FP32);
     maxsumexp(x, y, 0, 0);
 
     REQUIRE(g.num_ops() == 1);
     REQUIRE(g.ops().front()->type() == OpType::MAXSUMEXP);
     REQUIRE(g.ops().front()->outputs().size() >= 1);
-    REQUIRE(g.ops().front()->outputs()[0] == &y);
+    REQUIRE(g.ops().front()->outputs()[0] == y);
 }

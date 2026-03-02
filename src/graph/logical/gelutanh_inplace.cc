@@ -26,13 +26,18 @@ namespace nntile::graph
 {
 
 //! GeLUTanh in-place: x = gelutanh(x)
-void gelutanh_inplace(LogicalGraph::TensorNode& x)
+void gelutanh_inplace(LogicalGraph::TensorNode* x)
 {
-    x.graph().add_op(
+    if(x == nullptr)
+    {
+        throw std::invalid_argument(
+            "gelutanh_inplace: input tensor must be non-null");
+    }
+    x->graph().add_op(
         OpType::GELUTANH_INPLACE,
         nullptr,
-        {&x},
-        {&x}
+        {x},
+        {x}
     );
 }
 

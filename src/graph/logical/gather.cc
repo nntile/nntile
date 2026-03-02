@@ -26,23 +26,27 @@ namespace nntile::graph
 {
 
 //! Gather operation: y = gather(x)
-LogicalGraph::TensorNode& gather(
-    LogicalGraph::TensorNode& x,
+LogicalGraph::TensorNode* gather(
+    LogicalGraph::TensorNode* x,
     const std::string& output_name)
 {
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("gather: input tensor must be non-null");
+    }
     // For now, assume gather doesn't change shape
     // In practice, this would depend on the indices
-    std::vector<Index> output_shape = x.shape();
-    LogicalGraph::TensorNode& output = x.graph().tensor(
+    std::vector<Index> output_shape = x->shape();
+    LogicalGraph::TensorNode* output = x->graph().tensor(
         std::move(output_shape),
         output_name,
-        x.dtype());
+        x->dtype());
 
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::GATHER,
         nullptr,
-        {&x},
-        {&output}
+        {x},
+        {output}
     );
 
     return output;

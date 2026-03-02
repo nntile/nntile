@@ -27,18 +27,23 @@ namespace nntile::graph
 
 //! Softmax in-place: y = softmax(maxsumexp, y, alpha)
 void softmax_inplace(
-    LogicalGraph::TensorNode& maxsumexp,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* maxsumexp,
+    LogicalGraph::TensorNode* y,
     Scalar alpha,
     Index axis)
 {
-    if(&maxsumexp.graph() != &y.graph())
+    if(maxsumexp == nullptr || y == nullptr)
+    {
+        throw std::invalid_argument(
+            "softmax_inplace: input tensors must be non-null");
+    }
+    if(&maxsumexp->graph() != &y->graph())
     {
         throw std::invalid_argument(
             "softmax_inplace: tensors must belong to the same graph");
     }
 
-    if(maxsumexp.dtype() != y.dtype())
+    if(maxsumexp->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "softmax_inplace: tensors must have the same dtype");
@@ -46,21 +51,21 @@ void softmax_inplace(
 
     if(axis < 0)
     {
-        axis += y.ndim();
+        axis += y->ndim();
     }
 
-    if(axis < 0 || axis >= y.ndim())
+    if(axis < 0 || axis >= y->ndim())
     {
         throw std::invalid_argument(
             "softmax_inplace: axis out of bounds");
     }
 
     auto attrs = std::make_shared<LogSumExpAttrs>(LogSumExpAttrs{alpha, 1.0, axis});
-    y.graph().add_op(
+    y->graph().add_op(
         OpType::SOFTMAX_INPLACE,
         attrs,
-        {&maxsumexp, &y},
-        {&y}
+        {maxsumexp, y},
+        {y}
     );
 }
 

@@ -43,7 +43,7 @@ void check_fill(const std::vector<Index>& shape, Scalar val,
                 const nntile::Context& context)
 {
     auto build_graph = [shape, val](LogicalGraph& g) {
-        auto& x = g.tensor(shape, "x", dtype_for<T>());
+        auto x = g.tensor(shape, "x", dtype_for<T>());
         fill(val, x);
     };
 

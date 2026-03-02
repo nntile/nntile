@@ -34,10 +34,10 @@ struct EmbeddingAttrs
 //! @param vocab Vocabulary tensor (float type)
 //! @param output_name Name for the output tensor
 //! @param axis Axis along which to perform embedding (default: 0)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& embedding(
-    LogicalGraph::TensorNode& index,
-    LogicalGraph::TensorNode& vocab,
+//! @return Pointer to the output tensor
+LogicalGraph::TensorNode* embedding(
+    LogicalGraph::TensorNode* index,
+    LogicalGraph::TensorNode* vocab,
     const std::string& output_name,
     Index axis = 0
 );

@@ -27,41 +27,46 @@ namespace nntile::graph
 
 //! Embedding backward: vocab += embedding_backward(index, embed)
 void embedding_backward(
-    LogicalGraph::TensorNode& index,
-    LogicalGraph::TensorNode& embed,
-    LogicalGraph::TensorNode& vocab,
+    LogicalGraph::TensorNode* index,
+    LogicalGraph::TensorNode* embed,
+    LogicalGraph::TensorNode* vocab,
     Index axis)
 {
-    if(&index.graph() != &vocab.graph() || &index.graph() != &embed.graph())
+    if(index == nullptr || embed == nullptr || vocab == nullptr)
+    {
+        throw std::invalid_argument(
+            "embedding_backward: input tensors must be non-null");
+    }
+    if(&index->graph() != &vocab->graph() || &index->graph() != &embed->graph())
     {
         throw std::invalid_argument(
             "embedding_backward: tensors must belong to the same graph");
     }
 
-    if(index.dtype() != DataType::INT64)
+    if(index->dtype() != DataType::INT64)
     {
         throw std::invalid_argument(
             "embedding_backward: index tensor must have int64 dtype");
     }
 
-    if(embed.dtype() != vocab.dtype())
+    if(embed->dtype() != vocab->dtype())
     {
         throw std::invalid_argument(
             "embedding_backward: embed and vocab must have the same dtype");
     }
 
-    if(axis < 0 || axis >= embed.ndim())
+    if(axis < 0 || axis >= embed->ndim())
     {
         throw std::invalid_argument(
             "embedding_backward: axis out of bounds");
     }
 
     auto attrs = std::make_shared<EmbeddingAttrs>(EmbeddingAttrs{axis});
-    index.graph().add_op(
+    index->graph().add_op(
         OpType::EMBEDDING_BACKWARD,
         attrs,
-        {&index, &embed, &vocab},
-        {&vocab}
+        {index, embed, vocab},
+        {vocab}
     );
 }
 

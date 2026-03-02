@@ -27,16 +27,20 @@ namespace nntile::graph
 
 //! Power in-place: x = alpha * (x ^ exp)
 void pow_inplace(
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* x,
     Scalar alpha,
     Scalar exp)
 {
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("pow_inplace: input tensor must be non-null");
+    }
     auto attrs = std::make_shared<PowAttrs>(PowAttrs{alpha, exp});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::POW_INPLACE,
         attrs,
-        {&x},
-        {&x}
+        {x},
+        {x}
     );
 }
 

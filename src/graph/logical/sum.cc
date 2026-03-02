@@ -27,35 +27,39 @@ namespace nntile::graph
 
 //! Total sum of all elements: y = alpha * sum(x) + beta * y
 void sum(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
     Scalar alpha,
     Scalar beta)
 {
-    if(&x.graph() != &y.graph())
+    if(x == nullptr || y == nullptr)
+    {
+        throw std::invalid_argument("sum: input tensors must be non-null");
+    }
+    if(&x->graph() != &y->graph())
     {
         throw std::invalid_argument(
             "sum: tensors must belong to the same graph");
     }
 
-    if(y.ndim() != 0)
+    if(y->ndim() != 0)
     {
         throw std::invalid_argument(
             "sum: output tensor must be scalar (shape [])");
     }
 
-    if(x.dtype() != y.dtype())
+    if(x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "sum: input and output tensors must have the same dtype");
     }
 
     auto attrs = std::make_shared<TotalSumAttrs>(TotalSumAttrs{alpha, beta});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::SUM,
         attrs,
-        {&x, &y},
-        {&y}
+        {x, y},
+        {y}
     );
 }
 

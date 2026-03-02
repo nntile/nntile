@@ -28,33 +28,38 @@ namespace nntile::graph
 
 //! 2D Convolution backward w.r.t. weights: dC = alpha * conv2d_bwd_weight(X, dY) + beta * dC
 void conv2d_bwd_weight_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& dy,
-    LogicalGraph::TensorNode& dc,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* dy,
+    LogicalGraph::TensorNode* dc,
     Scalar alpha,
     Scalar beta,
     std::array<Index, 2> padding,
     std::array<Index, 2> stride,
     std::array<Index, 2> dilation)
 {
-    if(&x.graph() != &dy.graph() || &x.graph() != &dc.graph())
+    if(x == nullptr || dy == nullptr || dc == nullptr)
+    {
+        throw std::invalid_argument(
+            "conv2d_bwd_weight_inplace: input tensors must be non-null");
+    }
+    if(&x->graph() != &dy->graph() || &x->graph() != &dc->graph())
     {
         throw std::invalid_argument(
             "conv2d_bwd_weight_inplace: tensors must belong to the same graph");
     }
 
-    if(x.dtype() != dy.dtype() || x.dtype() != dc.dtype())
+    if(x->dtype() != dy->dtype() || x->dtype() != dc->dtype())
     {
         throw std::invalid_argument(
             "conv2d_bwd_weight_inplace: all tensors must have the same dtype");
     }
 
     auto attrs = std::make_shared<Conv2dAttrs>(Conv2dAttrs{alpha, beta, padding, stride, dilation});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::CONV2D_BWD_WEIGHT_INPLACE,
         attrs,
-        {&x, &dy, &dc},
-        {&dc}
+        {x, dy, dc},
+        {dc}
     );
 }
 

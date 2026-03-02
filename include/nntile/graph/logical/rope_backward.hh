@@ -29,10 +29,10 @@ namespace nntile::graph
 //! @param dy Gradient of output
 //! @param dx Gradient of input (modified in-place)
 void rope_backward(
-    LogicalGraph::TensorNode& sin_tensor,
-    LogicalGraph::TensorNode& cos_tensor,
-    LogicalGraph::TensorNode& dy,
-    LogicalGraph::TensorNode& dx
+    LogicalGraph::TensorNode* sin_tensor,
+    LogicalGraph::TensorNode* cos_tensor,
+    LogicalGraph::TensorNode* dy,
+    LogicalGraph::TensorNode* dx
 );
 
 } // namespace nntile::graph

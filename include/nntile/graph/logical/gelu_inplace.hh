@@ -25,6 +25,6 @@ namespace nntile::graph
 
 //! GeLU in-place: x = gelu(x)
 //! @param x Input/output tensor (modified in-place)
-void gelu_inplace(LogicalGraph::TensorNode& x);
+void gelu_inplace(LogicalGraph::TensorNode* x);
 
 } // namespace nntile::graph

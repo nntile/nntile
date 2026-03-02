@@ -39,12 +39,12 @@ struct AddSliceAttrs
 //! @param tensor Input tensor
 //! @param output_name Name for the output tensor
 //! @param axis Axis along which to perform slice-wise operation
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& add_slice(
+//! @return Pointer to the output tensor
+LogicalGraph::TensorNode* add_slice(
     Scalar alpha,
-    LogicalGraph::TensorNode& slice,
+    LogicalGraph::TensorNode* slice,
     Scalar beta,
-    LogicalGraph::TensorNode& tensor,
+    LogicalGraph::TensorNode* tensor,
     const std::string& output_name,
     Index axis
 );

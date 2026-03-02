@@ -29,10 +29,10 @@ namespace nntile::graph
 //! @param src Input tensor
 //! @param dst Output tensor
 void rope(
-    LogicalGraph::TensorNode& sin_tensor,
-    LogicalGraph::TensorNode& cos_tensor,
-    LogicalGraph::TensorNode& src,
-    LogicalGraph::TensorNode& dst
+    LogicalGraph::TensorNode* sin_tensor,
+    LogicalGraph::TensorNode* cos_tensor,
+    LogicalGraph::TensorNode* src,
+    LogicalGraph::TensorNode* dst
 );
 
 } // namespace nntile::graph

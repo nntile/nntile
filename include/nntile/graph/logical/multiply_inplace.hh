@@ -28,8 +28,8 @@ namespace nntile::graph
 //! @param x First input tensor
 //! @param y Second input/output tensor (modified in-place)
 void multiply_inplace(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y
 );
 
 } // namespace nntile::graph

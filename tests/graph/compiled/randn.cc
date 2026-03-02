@@ -27,7 +27,7 @@ TEST_CASE_METHOD(
 {
     // Test that randn compiles and executes (random output, just verify no crash)
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({4, 6}, "x", DataType::FP32);
+        auto x = g.tensor({4, 6}, "x", DataType::FP32);
         randn(x, {0, 0}, {4, 6}, 0, 0.0f, 1.0f);
     };
 

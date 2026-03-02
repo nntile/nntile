@@ -32,7 +32,7 @@ NNGraph::TensorNode* Add::build_forward(
         throw std::invalid_argument("Add::build_forward: x and y must be non-null");
     }
     NNGraph& graph = x->graph();
-    LogicalGraph::TensorNode& z_data =
+    LogicalGraph::TensorNode* z_data =
         add(alpha, x->data(), beta, y->data(), output_name);
     bool out_requires_grad = any_input_requires_grad({x, y});
     NNGraph::TensorNode* z = graph.tensor(z_data, out_requires_grad);

@@ -26,49 +26,54 @@ namespace nntile::graph
 {
 
 //! Embedding lookup: y = embedding(x, vocab)
-LogicalGraph::TensorNode& embedding(
-    LogicalGraph::TensorNode& index,
-    LogicalGraph::TensorNode& vocab,
+LogicalGraph::TensorNode* embedding(
+    LogicalGraph::TensorNode* index,
+    LogicalGraph::TensorNode* vocab,
     const std::string& output_name,
     Index axis)
 {
-    if(&index.graph() != &vocab.graph())
+    if(index == nullptr || vocab == nullptr)
+    {
+        throw std::invalid_argument(
+            "embedding: input tensors must be non-null");
+    }
+    if(&index->graph() != &vocab->graph())
     {
         throw std::invalid_argument(
             "embedding: tensors must belong to the same graph");
     }
 
-    if(index.dtype() != DataType::INT64)
+    if(index->dtype() != DataType::INT64)
     {
         throw std::invalid_argument(
             "embedding: index tensor must have int64 dtype");
     }
 
-    if(axis < 0 || axis >= index.ndim())
+    if(axis < 0 || axis >= index->ndim())
     {
         throw std::invalid_argument(
             "embedding: axis out of bounds");
     }
 
     // Compute output shape: insert vocab dimension at axis
-    std::vector<Index> output_shape = index.shape();
-    output_shape.insert(output_shape.begin() + axis, vocab.shape()[0]);
+    std::vector<Index> output_shape = index->shape();
+    output_shape.insert(output_shape.begin() + axis, vocab->shape()[0]);
 
     // Create output tensor
-    LogicalGraph::TensorNode& output = index.graph().tensor(
+    LogicalGraph::TensorNode* output = index->graph().tensor(
         std::move(output_shape),
         output_name,
-        vocab.dtype());
+        vocab->dtype());
 
     // Create operation attributes
     auto attrs = std::make_shared<EmbeddingAttrs>(EmbeddingAttrs{axis});
 
     // Add operation to graph
-    index.graph().add_op(
+    index->graph().add_op(
         OpType::EMBEDDING,
         attrs,
-        {&index, &vocab},
-        {&output}
+        {index, vocab},
+        {output}
     );
 
     return output;

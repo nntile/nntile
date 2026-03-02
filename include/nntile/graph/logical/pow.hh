@@ -35,9 +35,9 @@ struct PowAttrs
 //! @param output_name Name for the output tensor
 //! @param alpha Scaling factor (default: 1.0)
 //! @param exp Exponent (default: 1.0)
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& pow(
-    LogicalGraph::TensorNode& x,
+//! @return Pointer to the output tensor
+LogicalGraph::TensorNode* pow(
+    LogicalGraph::TensorNode* x,
     const std::string& output_name,
     Scalar alpha = 1.0,
     Scalar exp = 1.0

@@ -37,8 +37,8 @@ struct LogSumExpAttrs
 //! @param y Output tensor
 //! @param axis Axis that was reduced by maxsumexp
 void logsumexp(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
     Index axis
 );
 

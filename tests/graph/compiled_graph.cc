@@ -42,12 +42,12 @@ TEST_CASE_METHOD(
 {
     LogicalGraph g("test");
 
-    auto& a = g.tensor({2, 3}, "a", DataType::FP32);
-    auto& b = g.tensor({3, 4}, "b", DataType::FP32);
-    a.mark_input(true);
-    b.mark_input(true);
-    auto& c = gemm(a, b, "c");
-    c.mark_output(true);
+    auto a = g.tensor({2, 3}, "a", DataType::FP32);
+    auto b = g.tensor({3, 4}, "b", DataType::FP32);
+    a->mark_input(true);
+    b->mark_input(true);
+    auto c = gemm(a, b, "c");
+    c->mark_output(true);
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -87,10 +87,10 @@ TEST_CASE_METHOD(
 {
     LogicalGraph g("test");
 
-    auto& x = g.tensor({4}, "x", DataType::FP32);
-    x.mark_input(true);
-    auto& y = gelu(x, "y");
-    y.mark_output(true);
+    auto x = g.tensor({4}, "x", DataType::FP32);
+    x->mark_input(true);
+    auto y = gelu(x, "y");
+    y->mark_output(true);
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -117,17 +117,17 @@ TEST_CASE_METHOD(
     LogicalGraph g("mlp");
 
     // x: [2, 4], w1: [4, 8], w2: [8, 4]
-    auto& x = g.tensor({2, 4}, "x", DataType::FP32);
-    auto& w1 = g.tensor({4, 8}, "w1", DataType::FP32);
-    auto& w2 = g.tensor({8, 4}, "w2", DataType::FP32);
-    x.mark_input(true);
-    w1.mark_input(true);
-    w2.mark_input(true);
+    auto x = g.tensor({2, 4}, "x", DataType::FP32);
+    auto w1 = g.tensor({4, 8}, "w1", DataType::FP32);
+    auto w2 = g.tensor({8, 4}, "w2", DataType::FP32);
+    x->mark_input(true);
+    w1->mark_input(true);
+    w2->mark_input(true);
 
-    auto& h = gemm(x, w1, "h");
-    auto& a = gelu(h, "a");
-    auto& y = gemm(a, w2, "y");
-    y.mark_output(true);
+    auto h = gemm(x, w1, "h");
+    auto a = gelu(h, "a");
+    auto y = gemm(a, w2, "y");
+    y->mark_output(true);
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -161,11 +161,11 @@ TEST_CASE_METHOD(
 {
     LogicalGraph g("test");
 
-    auto& a = g.tensor({2, 2}, "a", DataType::FP32);
-    auto& b = g.tensor({2, 2}, "b", DataType::FP32);
-    a.mark_input(true);
-    b.mark_input(true);
-    auto& c = gemm(a, b, "c");
+    auto a = g.tensor({2, 2}, "a", DataType::FP32);
+    auto b = g.tensor({2, 2}, "b", DataType::FP32);
+    a->mark_input(true);
+    b->mark_input(true);
+    auto c = gemm(a, b, "c");
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -181,8 +181,8 @@ TEST_CASE_METHOD(
 {
     LogicalGraph g("test");
 
-    auto& x = g.tensor({2}, "x", DataType::INT64);
-    auto& y = gelu(x, "y");
+    auto x = g.tensor({2}, "x", DataType::INT64);
+    auto y = gelu(x, "y");
 
     // Should throw during compilation for unsupported data type
     REQUIRE_THROWS_AS(CompiledGraph::compile(g), std::runtime_error);
@@ -207,7 +207,7 @@ TEST_CASE_METHOD(
 {
     LogicalGraph g("test");
 
-    auto& x = g.tensor({2}, "x", DataType::INT32);
+    auto x = g.tensor({2}, "x", DataType::INT32);
     clear(x);
 
     REQUIRE_THROWS_AS(CompiledGraph::compile(g), std::runtime_error);
@@ -220,8 +220,8 @@ TEST_CASE_METHOD(
 {
     LogicalGraph g("test");
 
-    auto& a = g.tensor({2, 2}, "a", DataType::INT64);
-    auto& b = g.tensor({2, 2}, "b", DataType::INT64);
+    auto a = g.tensor({2, 2}, "a", DataType::INT64);
+    auto b = g.tensor({2, 2}, "b", DataType::INT64);
     gemm(a, b, "c");
 
     REQUIRE_THROWS_AS(CompiledGraph::compile(g), std::runtime_error);
@@ -234,11 +234,11 @@ TEST_CASE_METHOD(
 {
     LogicalGraph g("test");
 
-    auto& x = g.tensor({2, 2}, "x", DataType::FP32);
-    auto& bias = g.tensor({2}, "bias", DataType::FP32);
-    auto& y = g.tensor({2, 2}, "y", DataType::FP32);
+    auto x = g.tensor({2, 2}, "x", DataType::FP32);
+    auto bias = g.tensor({2}, "bias", DataType::FP32);
+    auto y = g.tensor({2, 2}, "y", DataType::FP32);
 
-    g.add_op(OpType::ADD_FIBER, std::make_shared<AddFiberAttrs>(AddFiberAttrs{}), {&x, &bias}, {&y});
+    g.add_op(OpType::ADD_FIBER, std::make_shared<AddFiberAttrs>(AddFiberAttrs{}), {x, bias}, {y});
 
     auto compiled = CompiledGraph::compile(g);
     REQUIRE_THROWS_AS(compiled.execute(), std::runtime_error);
@@ -255,8 +255,8 @@ TEST_CASE_METHOD(
         bool expect_bool = false)
     {
         LogicalGraph g("test");
-        auto& x = g.tensor({static_cast<nntile::Index>(data.size())}, "x", dtype);
-        x.mark_output(true);
+        auto x = g.tensor({static_cast<nntile::Index>(data.size())}, "x", dtype);
+        x->mark_output(true);
         auto compiled = CompiledGraph::compile(g);
 
         compiled.bind_data("x", data);
@@ -295,8 +295,8 @@ TEST_CASE_METHOD(
 {
     LogicalGraph g("test");
 
-    auto& x = g.tensor({2}, "x", DataType::FP64);
-    x.mark_output(true);
+    auto x = g.tensor({2}, "x", DataType::FP64);
+    x->mark_output(true);
     auto compiled = CompiledGraph::compile(g);
 
     std::vector<double> data = {1.5, -2.25};
@@ -315,8 +315,8 @@ TEST_CASE_METHOD(
 {
     LogicalGraph g("test");
 
-    auto& x = g.tensor({3}, "x", DataType::INT64);
-    x.mark_output(true);
+    auto x = g.tensor({3}, "x", DataType::INT64);
+    x->mark_output(true);
     auto compiled = CompiledGraph::compile(g);
 
     std::vector<long long> data = {1, -2, 3};
@@ -336,8 +336,8 @@ TEST_CASE_METHOD(
 {
     LogicalGraph g("test");
 
-    auto& x = g.tensor({2}, "x", DataType::FP32);
-    auto& y = gelu(x, "y");
+    auto x = g.tensor({2}, "x", DataType::FP32);
+    auto y = gelu(x, "y");
     // x and y not marked as input/output
     auto compiled = CompiledGraph::compile(g);
 
@@ -350,10 +350,10 @@ TEST_CASE_METHOD(
 
     // With marking, bind_data succeeds
     LogicalGraph g2("test2");
-    auto& x2 = g2.tensor({2}, "x", DataType::FP32);
-    auto& y2 = gelu(x2, "y");
-    x2.mark_input(true);
-    y2.mark_output(true);
+    auto x2 = g2.tensor({2}, "x", DataType::FP32);
+    auto y2 = gelu(x2, "y");
+    x2->mark_input(true);
+    y2->mark_output(true);
     auto compiled2 = CompiledGraph::compile(g2);
     compiled2.bind_data("x", std::vector<float>{1.0f, 2.0f});
     compiled2.execute();
@@ -390,18 +390,18 @@ TEST_CASE_METHOD(
 {
     LogicalGraph g("test");
 
-    auto& x = g.tensor({2, 4}, "x", DataType::FP32);
-    auto& w = g.tensor({4, 4}, "w", DataType::FP32);
-    x.mark_input(true);
-    w.mark_input(true);
-    auto& h = gemm(x, w, "h");
-    auto& y = gelu(h, "y");
-    y.mark_output(true);
+    auto x = g.tensor({2, 4}, "x", DataType::FP32);
+    auto w = g.tensor({4, 4}, "w", DataType::FP32);
+    x->mark_input(true);
+    w->mark_input(true);
+    auto h = gemm(x, w, "h");
+    auto y = gelu(h, "y");
+    y->mark_output(true);
 
-    REQUIRE(x.is_input());
-    REQUIRE(y.is_output());
-    REQUIRE(!h.is_input());
-    REQUIRE(!h.is_output());
+    REQUIRE(x->is_input());
+    REQUIRE(y->is_output());
+    REQUIRE(!h->is_input());
+    REQUIRE(!h->is_output());
 
     auto compiled = CompiledGraph::compile(g);
 
@@ -425,10 +425,10 @@ TEST_CASE_METHOD(
     LogicalGraph g("test");
 
     // x -> gelu -> y (live), x -> sqrt -> dead (dangling, never consumed)
-    auto& x = g.tensor({4}, "x", DataType::FP32);
-    x.mark_input(true);
-    auto& y = gelu(x, "y");
-    y.mark_output(true);
+    auto x = g.tensor({4}, "x", DataType::FP32);
+    x->mark_input(true);
+    auto y = gelu(x, "y");
+    y->mark_output(true);
     sqrt(x, "dead");  // Produces "dead" tensor, never used
 
     auto compiled = CompiledGraph::compile(g);
@@ -457,13 +457,13 @@ TEST_CASE_METHOD(
     // (producer map tracks all writers; single overwrite would drop gemm)
     LogicalGraph g("test");
 
-    auto& x = g.tensor({2, 4}, "x", DataType::FP32);
-    auto& w = g.tensor({4, 4}, "w", DataType::FP32);
-    x.mark_input(true);
-    w.mark_input(true);
-    auto& h = gemm(x, w, "h");
+    auto x = g.tensor({2, 4}, "x", DataType::FP32);
+    auto w = g.tensor({4, 4}, "w", DataType::FP32);
+    x->mark_input(true);
+    w->mark_input(true);
+    auto h = gemm(x, w, "h");
     gelu_inplace(h);
-    h.mark_output(true);
+    h->mark_output(true);
 
     auto compiled = CompiledGraph::compile(g);
 

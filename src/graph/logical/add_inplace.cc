@@ -28,37 +28,42 @@ namespace nntile::graph
 //! Add in-place: y = alpha * x + beta * y
 void add_inplace(
     Scalar alpha,
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* x,
     Scalar beta,
-    LogicalGraph::TensorNode& y)
+    LogicalGraph::TensorNode* y)
 {
+    if(x == nullptr || y == nullptr)
+    {
+        throw std::invalid_argument(
+            "add_inplace: input tensors must be non-null");
+    }
     // Validate inputs belong to the same graph
-    if(&x.graph() != &y.graph())
+    if(&x->graph() != &y->graph())
     {
         throw std::invalid_argument(
             "add_inplace: input tensors must belong to the same graph");
     }
 
     // Validate input dtypes match
-    if(x.dtype() != y.dtype())
+    if(x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "add_inplace: input tensors must have the same dtype");
     }
 
     // Validate shapes match
-    if(x.shape() != y.shape())
+    if(x->shape() != y->shape())
     {
         throw std::invalid_argument(
             "add_inplace: input tensors must have the same shape");
     }
 
     auto attrs = std::make_shared<BinaryOpAttrs>(BinaryOpAttrs{alpha, beta});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::ADD_INPLACE,
         attrs,
-        {&x, &y},
-        {&y}
+        {x, y},
+        {y}
     );
 }
 

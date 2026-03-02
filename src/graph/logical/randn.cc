@@ -28,19 +28,23 @@ namespace nntile::graph
 
 //! Random normal generation: x = randn(start, underlying_shape, seed, mean, stddev)
 void randn(
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* x,
     const std::vector<Index>& start,
     const std::vector<Index>& underlying_shape,
     unsigned long long seed,
     Scalar mean,
     Scalar stddev)
 {
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("randn: output tensor must be non-null");
+    }
     auto attrs = std::make_shared<RandnAttrs>(RandnAttrs{start, underlying_shape, seed, mean, stddev});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::RANDN,
         attrs,
         {},
-        {&x}
+        {x}
     );
 }
 

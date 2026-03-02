@@ -39,9 +39,9 @@ struct CopyIntersectionAttrs
 //! @param dst Destination tensor (modified in-place)
 //! @param dst_offset Offset in destination tensor
 void copy_intersection(
-    LogicalGraph::TensorNode& src,
+    LogicalGraph::TensorNode* src,
     const std::vector<Index>& src_offset,
-    LogicalGraph::TensorNode& dst,
+    LogicalGraph::TensorNode* dst,
     const std::vector<Index>& dst_offset
 );
 

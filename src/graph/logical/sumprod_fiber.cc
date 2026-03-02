@@ -27,44 +27,49 @@ namespace nntile::graph
 
 //! Sum of products along fibers: y = alpha * sum_fiber(x1 * x2) + beta * y
 void sumprod_fiber(
-    LogicalGraph::TensorNode& x1,
-    LogicalGraph::TensorNode& x2,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x1,
+    LogicalGraph::TensorNode* x2,
+    LogicalGraph::TensorNode* y,
     Index axis,
     int redux,
     Scalar alpha,
     Scalar beta)
 {
-    if(&x1.graph() != &x2.graph() || &x1.graph() != &y.graph())
+    if(x1 == nullptr || x2 == nullptr || y == nullptr)
+    {
+        throw std::invalid_argument(
+            "sumprod_fiber: input tensors must be non-null");
+    }
+    if(&x1->graph() != &x2->graph() || &x1->graph() != &y->graph())
     {
         throw std::invalid_argument(
             "sumprod_fiber: tensors must belong to the same graph");
     }
 
-    if(x1.dtype() != x2.dtype() || x1.dtype() != y.dtype())
+    if(x1->dtype() != x2->dtype() || x1->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "sumprod_fiber: all tensors must have the same dtype");
     }
 
-    if(x1.shape() != x2.shape())
+    if(x1->shape() != x2->shape())
     {
         throw std::invalid_argument(
             "sumprod_fiber: x1 and x2 must have the same shape");
     }
 
-    if(axis < 0 || axis >= x1.ndim())
+    if(axis < 0 || axis >= x1->ndim())
     {
         throw std::invalid_argument(
             "sumprod_fiber: axis out of bounds");
     }
 
     auto attrs = std::make_shared<ReductionAttrs>(ReductionAttrs{alpha, beta, axis, 0, redux});
-    x1.graph().add_op(
+    x1->graph().add_op(
         OpType::SUMPROD_FIBER,
         attrs,
-        {&x1, &x2, &y},
-        {&y}
+        {x1, x2, y},
+        {y}
     );
 }
 

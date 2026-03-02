@@ -26,13 +26,17 @@ namespace nntile::graph
 {
 
 //! Square root in-place: x = sqrt(x)
-void sqrt_inplace(LogicalGraph::TensorNode& x)
+void sqrt_inplace(LogicalGraph::TensorNode* x)
 {
-    x.graph().add_op(
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("sqrt_inplace: input tensor must be non-null");
+    }
+    x->graph().add_op(
         OpType::SQRT_INPLACE,
         nullptr,
-        {&x},
-        {&x}
+        {x},
+        {x}
     );
 }
 

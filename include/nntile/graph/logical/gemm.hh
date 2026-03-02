@@ -61,10 +61,10 @@ std::vector<Index> gemm_output_shape(
 //! @param trans_b Swap K and N dimensions in B (default: false)
 //! @param ndim Number of contraction dimensions (K) (default: 1)
 //! @param batch_ndim Number of trailing batch dimensions (default: 0)
-//! @return Reference to the created output tensor
-LogicalGraph::TensorNode& gemm(
-    LogicalGraph::TensorNode& a,
-    LogicalGraph::TensorNode& b,
+//! @return Pointer to the created output tensor
+LogicalGraph::TensorNode* gemm(
+    LogicalGraph::TensorNode* a,
+    LogicalGraph::TensorNode* b,
     const std::string& output_name,
     Scalar alpha = 1.0,
     bool trans_a = false,
@@ -84,9 +84,9 @@ LogicalGraph::TensorNode& gemm(
 //! @param ndim Number of contraction dimensions (K) (default: 1)
 //! @param batch_ndim Number of trailing batch dimensions (default: 0)
 void gemm(
-    LogicalGraph::TensorNode& a,
-    LogicalGraph::TensorNode& b,
-    LogicalGraph::TensorNode& c,
+    LogicalGraph::TensorNode* a,
+    LogicalGraph::TensorNode* b,
+    LogicalGraph::TensorNode* c,
     Scalar alpha = 1.0,
     Scalar beta = 1.0,
     bool trans_a = false,

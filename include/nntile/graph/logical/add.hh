@@ -37,12 +37,12 @@ struct BinaryOpAttrs
 //! @param beta Scaling factor for y
 //! @param y Second input tensor
 //! @param output_name Name for the output tensor
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& add(
+//! @return Pointer to the output tensor
+LogicalGraph::TensorNode* add(
     Scalar alpha,
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* x,
     Scalar beta,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* y,
     const std::string& output_name
 );
 

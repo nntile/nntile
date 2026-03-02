@@ -27,37 +27,42 @@ namespace nntile::graph
 
 //! Sum along slices: y = alpha * sum_slice(x) + beta * y
 void sum_slice(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
     Index axis,
     int redux,
     Scalar alpha,
     Scalar beta)
 {
-    if(&x.graph() != &y.graph())
+    if(x == nullptr || y == nullptr)
+    {
+        throw std::invalid_argument(
+            "sum_slice: input tensors must be non-null");
+    }
+    if(&x->graph() != &y->graph())
     {
         throw std::invalid_argument(
             "sum_slice: tensors must belong to the same graph");
     }
 
-    if(x.dtype() != y.dtype())
+    if(x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "sum_slice: input and output tensors must have the same dtype");
     }
 
-    if(axis < 0 || axis >= x.ndim())
+    if(axis < 0 || axis >= x->ndim())
     {
         throw std::invalid_argument(
             "sum_slice: axis out of bounds");
     }
 
     auto attrs = std::make_shared<ReductionAttrs>(ReductionAttrs{alpha, beta, axis, 0, redux});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::SUM_SLICE,
         attrs,
-        {&x, &y},
-        {&y}
+        {x, y},
+        {y}
     );
 }
 

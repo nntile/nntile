@@ -25,6 +25,6 @@ namespace nntile::graph
 
 //! ReLU in-place: x = relu(x)
 //! @param x Input/output tensor (modified in-place)
-void relu_inplace(LogicalGraph::TensorNode& x);
+void relu_inplace(LogicalGraph::TensorNode* x);
 
 } // namespace nntile::graph

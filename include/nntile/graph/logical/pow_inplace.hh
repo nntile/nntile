@@ -29,7 +29,7 @@ namespace nntile::graph
 //! @param alpha Scaling factor (default: 1.0)
 //! @param exp Exponent (default: 1.0)
 void pow_inplace(
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* x,
     Scalar alpha = 1.0,
     Scalar exp = 1.0
 );

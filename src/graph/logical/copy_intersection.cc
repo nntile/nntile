@@ -28,29 +28,34 @@ namespace nntile::graph
 
 //! Copy intersection operation: copy overlapping regions between tensors
 void copy_intersection(
-    LogicalGraph::TensorNode& src,
+    LogicalGraph::TensorNode* src,
     const std::vector<Index>& src_offset,
-    LogicalGraph::TensorNode& dst,
+    LogicalGraph::TensorNode* dst,
     const std::vector<Index>& dst_offset)
 {
-    if(&src.graph() != &dst.graph())
+    if(src == nullptr || dst == nullptr)
+    {
+        throw std::invalid_argument(
+            "copy_intersection: input tensors must be non-null");
+    }
+    if(&src->graph() != &dst->graph())
     {
         throw std::invalid_argument(
             "copy_intersection: tensors must belong to the same graph");
     }
 
-    if(src.dtype() != dst.dtype())
+    if(src->dtype() != dst->dtype())
     {
         throw std::invalid_argument(
             "copy_intersection: tensors must have the same dtype");
     }
 
     auto attrs = std::make_shared<CopyIntersectionAttrs>(CopyIntersectionAttrs{src_offset, dst_offset});
-    src.graph().add_op(
+    src->graph().add_op(
         OpType::COPY_INTERSECTION,
         attrs,
-        {&src, &dst},
-        {&dst}
+        {src, dst},
+        {dst}
     );
 }
 

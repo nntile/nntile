@@ -26,9 +26,9 @@ namespace nntile::graph
 //! GeLU activation: y = gelu(x)
 //! @param x Input tensor
 //! @param output_name Name for the output tensor
-//! @return Reference to the output tensor
-LogicalGraph::TensorNode& gelu(
-    LogicalGraph::TensorNode& x,
+//! @return Pointer to the output tensor
+LogicalGraph::TensorNode* gelu(
+    LogicalGraph::TensorNode* x,
     const std::string& output_name
 );
 
@@ -36,8 +36,8 @@ LogicalGraph::TensorNode& gelu(
 //! @param x Input tensor
 //! @param y Output tensor (must already exist, same shape as x)
 void gelu(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y
 );
 
 } // namespace nntile::graph

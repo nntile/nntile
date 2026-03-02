@@ -26,13 +26,17 @@ namespace nntile::graph
 {
 
 //! GeLU in-place: x = gelu(x)
-void gelu_inplace(LogicalGraph::TensorNode& x)
+void gelu_inplace(LogicalGraph::TensorNode* x)
 {
-    x.graph().add_op(
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("gelu_inplace: input tensor must be non-null");
+    }
+    x->graph().add_op(
         OpType::GELU_INPLACE,
         nullptr,
-        {&x},
-        {&x}
+        {x},
+        {x}
     );
 }
 

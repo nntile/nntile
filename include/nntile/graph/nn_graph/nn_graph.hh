@@ -59,7 +59,7 @@ public:
         bool requires_grad = true
     );
 
-    TensorNode* tensor(LogicalGraph::TensorNode& data,
+    TensorNode* tensor(LogicalGraph::TensorNode* data,
                        bool requires_grad = false);
 
     // -----------------------------------------------------------------

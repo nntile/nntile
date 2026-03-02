@@ -26,20 +26,24 @@ namespace nntile::graph
 {
 
 //! Softmax operation: y = softmax(maxsumexp, x, alpha)
-LogicalGraph::TensorNode& softmax(
-    LogicalGraph::TensorNode& maxsumexp,
-    LogicalGraph::TensorNode& x,
+LogicalGraph::TensorNode* softmax(
+    LogicalGraph::TensorNode* maxsumexp,
+    LogicalGraph::TensorNode* x,
     const std::string& output_name,
     Scalar alpha,
     Index axis)
 {
-    if(&maxsumexp.graph() != &x.graph())
+    if(maxsumexp == nullptr || x == nullptr)
+    {
+        throw std::invalid_argument("softmax: input tensors must be non-null");
+    }
+    if(&maxsumexp->graph() != &x->graph())
     {
         throw std::invalid_argument(
             "softmax: tensors must belong to the same graph");
     }
 
-    if(maxsumexp.dtype() != x.dtype())
+    if(maxsumexp->dtype() != x->dtype())
     {
         throw std::invalid_argument(
             "softmax: tensors must have the same dtype");
@@ -47,27 +51,27 @@ LogicalGraph::TensorNode& softmax(
 
     if(axis < 0)
     {
-        axis += x.ndim();
+        axis += x->ndim();
     }
 
-    if(axis < 0 || axis >= x.ndim())
+    if(axis < 0 || axis >= x->ndim())
     {
         throw std::invalid_argument(
             "softmax: axis out of bounds");
     }
 
-    std::vector<Index> output_shape = x.shape();
-    LogicalGraph::TensorNode& output = x.graph().tensor(
+    std::vector<Index> output_shape = x->shape();
+    LogicalGraph::TensorNode* output = x->graph().tensor(
         std::move(output_shape),
         output_name,
-        x.dtype());
+        x->dtype());
 
     auto attrs = std::make_shared<LogSumExpAttrs>(LogSumExpAttrs{alpha, 1.0, axis});
-    x.graph().add_op(
+    x->graph().add_op(
         OpType::SOFTMAX,
         attrs,
-        {&maxsumexp, &x},
-        {&output}
+        {maxsumexp, x},
+        {output}
     );
 
     return output;

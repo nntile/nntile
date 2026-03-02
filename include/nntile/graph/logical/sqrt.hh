@@ -27,8 +27,8 @@ namespace nntile::graph
 //! @param x Input tensor
 //! @param output_name Name for the output tensor
 //! @return Reference to the output tensor
-LogicalGraph::TensorNode& sqrt(
-    LogicalGraph::TensorNode& x,
+LogicalGraph::TensorNode* sqrt(
+    LogicalGraph::TensorNode* x,
     const std::string& output_name
 );
 

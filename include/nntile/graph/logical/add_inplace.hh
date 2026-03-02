@@ -31,9 +31,9 @@ namespace nntile::graph
 //! @param y Second input/output tensor (modified in-place)
 void add_inplace(
     Scalar alpha,
-    LogicalGraph::TensorNode& x,
+    LogicalGraph::TensorNode* x,
     Scalar beta,
-    LogicalGraph::TensorNode& y
+    LogicalGraph::TensorNode* y
 );
 
 } // namespace nntile::graph

@@ -26,8 +26,8 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({4}, "x", DataType::FP32);
-        auto& y = g.tensor({4, 6}, "y", DataType::FP32);
+        auto x = g.tensor({4}, "x", DataType::FP32);
+        auto y = g.tensor({4, 6}, "y", DataType::FP32);
         add_fiber(2.0f, x, 3.0f, y, "z", 0, 0);
     };
 

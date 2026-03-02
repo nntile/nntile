@@ -31,8 +31,8 @@ namespace nntile::graph
 //! @param axis Axis along which to broadcast scaling
 //! @param batch_ndim Number of trailing batch dimensions
 void scale_fiber(
-    LogicalGraph::TensorNode& x,
-    LogicalGraph::TensorNode& y,
+    LogicalGraph::TensorNode* x,
+    LogicalGraph::TensorNode* y,
     Scalar alpha = 1.0,
     Index axis = 0,
     Index batch_ndim = 0

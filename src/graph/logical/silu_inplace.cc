@@ -26,13 +26,17 @@ namespace nntile::graph
 {
 
 //! SiLU in-place: x = silu(x)
-void silu_inplace(LogicalGraph::TensorNode& x)
+void silu_inplace(LogicalGraph::TensorNode* x)
 {
-    x.graph().add_op(
+    if(x == nullptr)
+    {
+        throw std::invalid_argument("silu_inplace: input tensor must be non-null");
+    }
+    x->graph().add_op(
         OpType::SILU_INPLACE,
         nullptr,
-        {&x},
-        {&x}
+        {x},
+        {x}
     );
 }
 

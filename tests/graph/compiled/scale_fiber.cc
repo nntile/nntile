@@ -26,8 +26,8 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({4}, "x", DataType::FP32);  // Scaling tensor
-        auto& y = g.tensor({4, 3}, "y", DataType::FP32);  // Input/output tensor
+        auto x = g.tensor({4}, "x", DataType::FP32);  // Scaling tensor
+        auto y = g.tensor({4, 3}, "y", DataType::FP32);  // Input/output tensor
         scale_fiber(x, y, 1.5f, 0, 0);
     };
 

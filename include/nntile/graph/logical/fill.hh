@@ -34,7 +34,7 @@ struct FillAttrs
 //! @param x Input/output tensor (modified in-place)
 void fill(
     Scalar val,
-    LogicalGraph::TensorNode& x
+    LogicalGraph::TensorNode* x
 );
 
 } // namespace nntile::graph

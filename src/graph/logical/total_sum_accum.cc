@@ -27,43 +27,48 @@ namespace nntile::graph
 
 //! Total sum accumulation: val = alpha * sum(logsumexp * src) + beta * val
 void total_sum_accum(
-    LogicalGraph::TensorNode& logsumexp,
-    LogicalGraph::TensorNode& src,
-    LogicalGraph::TensorNode& class_labels,
-    LogicalGraph::TensorNode& val,
+    LogicalGraph::TensorNode* logsumexp,
+    LogicalGraph::TensorNode* src,
+    LogicalGraph::TensorNode* class_labels,
+    LogicalGraph::TensorNode* val,
     Scalar alpha,
     Index ignore_index)
 {
-    if(&logsumexp.graph() != &src.graph() || &src.graph() != &class_labels.graph() || &class_labels.graph() != &val.graph())
+    if(logsumexp == nullptr || src == nullptr || class_labels == nullptr || val == nullptr)
+    {
+        throw std::invalid_argument(
+            "total_sum_accum: input tensors must be non-null");
+    }
+    if(&logsumexp->graph() != &src->graph() || &src->graph() != &class_labels->graph() || &class_labels->graph() != &val->graph())
     {
         throw std::invalid_argument(
             "total_sum_accum: all tensors must belong to the same graph");
     }
 
-    if(logsumexp.dtype() != src.dtype())
+    if(logsumexp->dtype() != src->dtype())
     {
         throw std::invalid_argument(
             "total_sum_accum: logsumexp and src must have the same dtype");
     }
 
-    if(class_labels.dtype() != DataType::INT64)
+    if(class_labels->dtype() != DataType::INT64)
     {
         throw std::invalid_argument(
             "total_sum_accum: class_labels must be INT64");
     }
 
-    if(val.dtype() != DataType::FP32)
+    if(val->dtype() != DataType::FP32)
     {
         throw std::invalid_argument(
             "total_sum_accum: val must be FP32");
     }
 
     auto attrs = std::make_shared<TotalSumAccumAttrs>(TotalSumAccumAttrs{alpha, ignore_index});
-    logsumexp.graph().add_op(
+    logsumexp->graph().add_op(
         OpType::TOTAL_SUM_ACCUM,
         attrs,
-        {&logsumexp, &src, &class_labels, &val},
-        {&val}
+        {logsumexp, src, class_labels, val},
+        {val}
     );
 }
 

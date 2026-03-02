@@ -28,8 +28,8 @@ TEST_CASE_METHOD(
     // logsumexp takes maxsumexp-format input [2, n] (max, sumexp) and produces [n]
     // Test with pre-computed maxsumexp input (like softmax test)
     auto build_graph = [](LogicalGraph& g) {
-        auto& maxsumexp_in = g.tensor({2, 6}, "maxsumexp_in", DataType::FP32);
-        auto& y = g.tensor({6}, "y", DataType::FP32);
+        auto maxsumexp_in = g.tensor({2, 6}, "maxsumexp_in", DataType::FP32);
+        auto y = g.tensor({6}, "y", DataType::FP32);
         logsumexp(maxsumexp_in, y, 0);
     };
 

@@ -26,7 +26,7 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& x = g.tensor({4, 6}, "x", DataType::FP32);
+        auto x = g.tensor({4, 6}, "x", DataType::FP32);
         hypot_scalar_inverse(x, 1e-6f, 1.0f);
     };
 

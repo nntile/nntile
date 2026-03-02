@@ -26,8 +26,8 @@ TEST_CASE_METHOD(
     "[graph][verification]")
 {
     auto build_graph = [](LogicalGraph& g) {
-        auto& labels = g.tensor({6}, "labels", DataType::INT64);
-        auto& x = g.tensor({4, 6}, "x", DataType::FP32);
+        auto labels = g.tensor({6}, "labels", DataType::INT64);
+        auto x = g.tensor({4, 6}, "x", DataType::FP32);
         subtract_indexed_outputs(labels, x, 1.0f, -1);
     };
 

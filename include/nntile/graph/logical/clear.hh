@@ -25,6 +25,6 @@ namespace nntile::graph
 
 //! Clear tensor: x = 0
 //! @param x Tensor to clear (modified in-place)
-void clear(LogicalGraph::TensorNode& x);
+void clear(LogicalGraph::TensorNode* x);
 
 } // namespace nntile::graph

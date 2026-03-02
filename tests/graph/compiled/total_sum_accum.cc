@@ -27,10 +27,10 @@ TEST_CASE_METHOD(
 {
     // Tensor API: src [num_classes, batch], logsumexp [batch], labels [batch]
     auto build_graph = [](LogicalGraph& g) {
-        auto& logsumexp = g.tensor({6}, "logsumexp", DataType::FP32);
-        auto& src = g.tensor({4, 6}, "src", DataType::FP32);
-        auto& class_labels = g.tensor({6}, "class_labels", DataType::INT64);
-        auto& val = g.tensor(std::vector<Index>{}, "val", DataType::FP32);
+        auto logsumexp = g.tensor({6}, "logsumexp", DataType::FP32);
+        auto src = g.tensor({4, 6}, "src", DataType::FP32);
+        auto class_labels = g.tensor({6}, "class_labels", DataType::INT64);
+        auto val = g.tensor(std::vector<Index>{}, "val", DataType::FP32);
         total_sum_accum(logsumexp, src, class_labels, val, 1.0f, -1);
     };
 
