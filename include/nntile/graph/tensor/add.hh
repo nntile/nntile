@@ -25,7 +25,7 @@ namespace nntile::graph
 {
 
 //! Add operation at tensor level: z = alpha * x + beta * y
-struct TensorAddOp : BaseOpNode<TensorGraph>
+struct TensorAddOp : BaseOpNode<TensorGraph, TensorGraphNode>
 {
     Scalar alpha = 1.0;
     Scalar beta = 0.0;
@@ -49,7 +49,7 @@ struct TensorAddOp : BaseOpNode<TensorGraph>
 
     void execute(ExecutionContext<TensorGraph::DataNode>& ctx) const override;
 
-    std::shared_ptr<BaseOpNode<TensorGraph>> clone() const override
+    std::shared_ptr<BaseOpNode<TensorGraph, TensorGraphNode>> clone() const override
     {
         return std::make_shared<TensorAddOp>(*this);
     }

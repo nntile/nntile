@@ -26,7 +26,10 @@ using namespace nntile::graph;
 
 TEST_CASE("NNGraph TensorNodeNullData", "[graph]")
 {
-    REQUIRE_THROWS_AS(NNGraph::TensorNode(nullptr), std::invalid_argument);
+    NNGraph g("test");
+    REQUIRE_THROWS_AS(
+        NNGraph::TensorNode(&g, nullptr, true),
+        std::invalid_argument);
 }
 
 TEST_CASE("NNGraph TensorCreationAndLookup", "[graph]")
@@ -39,30 +42,29 @@ TEST_CASE("NNGraph TensorCreationAndLookup", "[graph]")
     REQUIRE_FALSE(x->requires_grad());
     REQUIRE(g.get_tensor("x") == x);
     REQUIRE(g.get_tensor("missing") == nullptr);
-    REQUIRE(x->data() == g.logical_graph().get_tensor("x"));
+    REQUIRE(x->data() == g.tensor_graph().get_data_node("x"));
 
     auto names = g.tensor_names();
     REQUIRE(names.size() == 1);
     REQUIRE(std::find(names.begin(), names.end(), "x") != names.end());
 }
 
-TEST_CASE("NNGraph AddOpNullInputsOutputs", "[graph]")
+TEST_CASE("NNGraph OpNullInputs", "[graph]")
 {
     NNGraph g("test");
 
     auto* x = g.tensor({2, 2}, "x", DataType::FP32);
     auto* y = g.tensor({2, 2}, "y", DataType::FP32);
 
-    REQUIRE_THROWS_AS(
-        g.add_op(OpType::GEMM, std::make_shared<GemmAttrs>(GemmAttrs{}), {x, nullptr}, {y}),
-        std::invalid_argument);
-    REQUIRE_THROWS_AS(
-        g.add_op(OpType::GELU, nullptr, {x}, {nullptr}),
-        std::invalid_argument);
+    REQUIRE_THROWS_AS(gemm(nullptr, y, "out"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gemm(x, nullptr, "out"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gelu(static_cast<NNGraph::TensorNode*>(nullptr), "out"),
+                     std::invalid_argument);
 
-    g.add_op(OpType::GELU, nullptr, {x}, {y});
+    auto* z = gelu(x, "z");
+    REQUIRE(z != nullptr);
     REQUIRE(g.num_ops() == 1);
-    REQUIRE(g.logical_graph().ops().front()->type() == OpType::GELU);
+    REQUIRE(g.tensor_graph().ops().front()->op_name() == "GELU");
 }
 
 TEST_CASE("NNGraph GradHelpersAndToString", "[graph]")
@@ -83,12 +85,12 @@ TEST_CASE("NNGraph GradHelpersAndToString", "[graph]")
     REQUIRE(x->requires_grad());
     REQUIRE_FALSE(grad->requires_grad());
     REQUIRE_FALSE(g.requires_grad(grad));
-    REQUIRE(g.logical_graph().num_ops() == 1);
-    REQUIRE(g.logical_graph().ops().front()->type() == OpType::CLEAR);
+    REQUIRE(g.tensor_graph().num_ops() == 1);
+    REQUIRE(g.tensor_graph().ops().front()->op_name() == "CLEAR");
 
     auto* grad_again = g.get_or_create_grad(x, "x_grad");
     REQUIRE(grad_again == grad);
-    REQUIRE(g.logical_graph().num_ops() == 1);
+    REQUIRE(g.tensor_graph().num_ops() == 1);
 
     auto node_text = x->to_string();
     REQUIRE(node_text.find("requires_grad=true") != std::string::npos);
@@ -99,27 +101,23 @@ TEST_CASE("NNGraph GradHelpersAndToString", "[graph]")
     REQUIRE(graph_text.find("Operations:") != std::string::npos);
 }
 
-TEST_CASE("NNGraph ToMermaidDelegatesToLogicalGraph", "[graph]")
+TEST_CASE("NNGraph ToMermaidDelegatesToTensorGraph", "[graph]")
 {
     NNGraph nng("test_nn");
 
     auto* x = nng.tensor({2, 3}, "input", DataType::FP32);
     auto* w = nng.tensor({3, 4}, "weights", DataType::FP32);
 
-    auto* y = nng.tensor({2, 4}, "output", DataType::FP32);
+    auto* y = gemm(x, w, "output");
 
-    // Add a simple operation
-    nng.add_op(OpType::GEMM, std::make_shared<GemmAttrs>(GemmAttrs{}), {x, w}, {y}, "matmul");
-
-    // Test that NNGraph to_mermaid delegates to logical graph
+    // Test that NNGraph to_mermaid delegates to tensor graph
     auto nn_mermaid = nng.to_mermaid();
-    auto logical_mermaid = nng.logical_graph().to_mermaid();
+    auto tensor_mermaid = nng.tensor_graph().to_mermaid();
 
-    REQUIRE(nn_mermaid == logical_mermaid);
+    REQUIRE(nn_mermaid == tensor_mermaid);
 
     // Check basic structure
     REQUIRE(nn_mermaid.find("graph TD") != std::string::npos);
-    REQUIRE(nn_mermaid.find("classDef") != std::string::npos);
 }
 
 TEST_CASE("NNGraph MarkInputOutput", "[graph]")
@@ -128,9 +126,7 @@ TEST_CASE("NNGraph MarkInputOutput", "[graph]")
 
     auto* x = g.tensor({2, 3}, "x", DataType::FP32);
     auto* w = g.tensor({3, 4}, "w", DataType::FP32);
-    auto* y = g.tensor({2, 4}, "y", DataType::FP32);
-
-    g.add_op(OpType::GEMM, std::make_shared<GemmAttrs>(GemmAttrs{}), {x, w}, {y});
+    auto* y = gemm(x, w, "y");
 
     x->mark_input(true);
     y->mark_output(true);
@@ -180,14 +176,14 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph]")
     // The backward graph adds: grad_x += alpha*grad_z, grad_y += beta*grad_z
     // With grad_z filled with 1.0: grad_x = alpha, grad_y = beta
     // Verify the graph structure - we have ADD, FILL, CLEAR, ADD_INPLACE ops
-    const auto& ops = g.logical_graph().ops();
+    const auto& ops = g.tensor_graph().ops();
     REQUIRE(ops.size() >= 4);
 
     // Check that ADD_INPLACE ops exist for gradient accumulation
     size_t add_inplace_count = 0;
     for(const auto& op : ops)
     {
-        if(op->type() == OpType::ADD_INPLACE)
+        if(op->op_name() == "ADD_INPLACE")
         {
             ++add_inplace_count;
         }

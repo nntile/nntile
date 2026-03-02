@@ -2,7 +2,7 @@
 
 This guide describes how to add a new autograd (differentiable) operation to the NNGraph system. Autograd functions live in `include/nntile/graph/nn_graph/` and `src/graph/nn_graph/`.
 
-**Important:** Autograd functions shall only use `LogicalGraph::TensorNode` operations. All forward and backward logic must be expressed via the logical graph API (e.g., `add`, `add_inplace`, `gemm`, `gelu_backward`, etc.). You access the underlying logical tensor from an `NNGraph::TensorNode*` via `.data()` — logical ops take `LogicalGraph::TensorNode*` and return `LogicalGraph::TensorNode*` where applicable.
+**Important:** Autograd functions use `TensorGraph::DataNode` operations for forward and backward. All logic is expressed via the tensor graph API (e.g., `add`, `add_inplace`, `gemm`, `gelu_backward`, etc.). You access the underlying data node from an `NNGraph::TensorNode*` via `.data()` — tensor ops take `TensorGraph::DataNode*` and return `TensorGraph::DataNode*` where applicable.
 
 ---
 
@@ -10,15 +10,15 @@ This guide describes how to add a new autograd (differentiable) operation to the
 
 Each autograd function consists of:
 
-1. **Header** (`include/nntile/graph/nn_graph/<op>.hh`) — struct with `build_forward` and `build_backward`, plus a convenience free function
+1. **Header** (`include/nntile/graph/nn_graph/<op>.hh`) — struct with `build_forward` and `backward`, plus a convenience free function
 2. **Source** (`src/graph/nn_graph/<op>.cc`) — implementation of forward and backward
-3. **Logical ops** — existing or new operations in `include/nntile/graph/logical/` that operate on `LogicalGraph::TensorNode*`
+3. **Tensor ops** — existing or new operations in `include/nntile/graph/tensor/` that operate on `TensorGraph::DataNode*`
 
 ---
 
-## Step 1: Ensure Logical Ops Exist
+## Step 1: Ensure Tensor Ops Exist
 
-Your autograd function must be built from `LogicalGraph::TensorNode` operations only. Check `include/nntile/graph/logical/` for existing ops (e.g., `add`, `add_inplace`, `gemm`, `gelu`, `gelu_backward`, `sum_fiber`, `add_fiber`, `add_fiber_inplace`). If you need a new logical op, add it first in the logical graph layer.
+Your autograd function must be built from `TensorGraph::DataNode` operations only. Check `include/nntile/graph/tensor/` for existing ops (e.g., `add`, `add_inplace`, `gemm`, `gelu`, `gelu_backward`, `sum_fiber`, `add_fiber`, `add_fiber_inplace`). If you need a new tensor op, add it first in the tensor graph layer.
 
 ---
 
@@ -31,28 +31,30 @@ Create `include/nntile/graph/nn_graph/<op>.hh`:
 
 #include <string>
 
-#include <nntile/graph/logical/<op>.hh>   // logical forward/backward ops
+#include <nntile/graph/tensor/<op>.hh>
 #include <nntile/graph/nn_graph.hh>
 
 namespace nntile::graph
 {
 
-//! <Op>: build_forward does logical op + bookkeeping; build_backward for grad.
-namespace MyOp
+//! <Op>: holds params, implements backward(); build_forward creates node.
+struct NNMyOp : NNOpBase
 {
-    NNGraph::TensorNode* build_forward(
-        NNGraph::TensorNode* x,           // adjust params as needed
+    // Parameters needed for backward (e.g., alpha, beta)
+    Scalar alpha = 1.0;
+
+    void backward(const NNGraph::OpNode* op) override;
+
+    static NNGraph::TensorNode* build_forward(
+        NNGraph::TensorNode* x,
         const std::string& output_name);
+};
 
-    void build_backward(const NNGraph::OpNode* op);
-}
-
-//! Convenience free function
 inline NNGraph::TensorNode* my_op(
     NNGraph::TensorNode* x,
     const std::string& output_name)
 {
-    return MyOp::build_forward(x, output_name);
+    return NNMyOp::build_forward(x, output_name);
 }
 
 } // namespace nntile::graph
@@ -66,18 +68,18 @@ In `src/graph/nn_graph/<op>.cc`:
 
 1. **Validate inputs** — reject null pointers.
 2. **Get graph** — `NNGraph& graph = x->graph();`
-3. **Call logical op** — use `x->data()` to get `LogicalGraph::TensorNode*` and pass to the logical function:
+3. **Call tensor op** — use `x->data()` to get `TensorGraph::DataNode*` and pass to the tensor function:
    ```cpp
-   LogicalGraph::TensorNode* y_data = my_logical_op(x->data(), output_name);
+   TensorGraph::DataNode* y_data = my_tensor_op(x->data(), output_name);
    ```
 4. **Create tensor** — `NNGraph::TensorNode* y = graph.tensor(y_data, out_requires_grad);`
 5. **Compute `out_requires_grad`** — `bool out_requires_grad = any_input_requires_grad({x, ...});`
-6. **Register op** — `register_op(graph, {x, ...}, y, attrs, backward_fn, buffers);`
+6. **Register op** — `register_op(graph, {x, ...}, y, std::make_shared<NNMyOp>(...), {});`
 
 Example (from `add.cc`):
 
 ```cpp
-NNGraph::TensorNode* Add::build_forward(  // Add is a namespace
+NNGraph::TensorNode* NNAddOp::build_forward(
     Scalar alpha,
     NNGraph::TensorNode* x,
     Scalar beta,
@@ -85,44 +87,41 @@ NNGraph::TensorNode* Add::build_forward(  // Add is a namespace
     const std::string& output_name)
 {
     if (x == nullptr || y == nullptr)
-        throw std::invalid_argument("Add::build_forward: x and y must be non-null");
+        throw std::invalid_argument("NNAddOp::build_forward: x and y must be non-null");
     NNGraph& graph = x->graph();
-    LogicalGraph::TensorNode* z_data =
+    TensorGraph::DataNode* z_data =
         add(alpha, x->data(), beta, y->data(), output_name);
     bool out_requires_grad = any_input_requires_grad({x, y});
     NNGraph::TensorNode* z = graph.tensor(z_data, out_requires_grad);
-    register_op(graph, {x, y}, z, std::make_shared<BinaryOpAttrs>(BinaryOpAttrs{alpha, beta}),
-                [](const NNGraph::OpNode* op) { Add::build_backward(op); }, {});
+    register_op(graph, {x, y}, z,
+                std::make_shared<NNAddOp>(alpha, beta), {});
     return z;
 }
 ```
 
 ---
 
-## Step 4: Implement build_backward
+## Step 4: Implement backward
 
-In `build_backward`, you receive the `OpNode` and must propagate gradients to each input that `requires_grad()`.
+In `backward()`, you receive the `OpNode` and must propagate gradients to each input that `requires_grad()`.
 
-1. **Extract context** — `op->output()`, `op->output()->grad()`, `op->inputs()`, `op->attrs()`.
+1. **Extract context** — `op->output()`, `op->output()->grad()`, `op->inputs()`.
 2. **For each input that requires grad:**
    - `graph.get_or_create_grad(input, input->name() + "_grad")` to get/create the gradient tensor
-   - Call logical ops on `grad_out->data()` and `grad_x->data()` (and similar) to accumulate gradients
+   - Call tensor ops on `grad_out->data()` and `grad_x->data()` (and similar) to accumulate gradients
 
 **Accumulation rules:**
 
 - **First gradient** — use `graph.is_first_grad(input)` to decide whether to clear or accumulate. If first, use `beta=0` (or `clear`) so the result is overwritten; otherwise use `beta=1` to accumulate.
-- **In-place ops** — use logical in-place ops (e.g., `add_inplace`) to add into the gradient tensor.
+- **In-place ops** — use tensor in-place ops (e.g., `add_inplace`) to add into the gradient tensor.
 
 Example (from `add.cc`):
 
 ```cpp
-void Add::build_backward(const NNGraph::OpNode* op)
+void NNAddOp::backward(const NNGraph::OpNode* op)
 {
     NNGraph& graph = op->output()->graph();
     NNGraph::TensorNode* grad_out = op->output()->grad();
-    const auto& attrs = *std::static_pointer_cast<BinaryOpAttrs>(op->attrs());
-    Scalar alpha = attrs.alpha;
-    Scalar beta = attrs.beta;
     const auto& inputs = op->inputs();
     if (inputs.size() >= 2 && grad_out != nullptr) {
         NNGraph::TensorNode* x_nn = inputs[0];
@@ -156,26 +155,7 @@ if (x_nn != nullptr && x_nn->requires_grad()) {
 
 ---
 
-## Step 5: Attrs (if needed)
-
-If your op needs to store parameters for backward (e.g., `alpha`, `beta`, `axis`), define an attrs struct (often in the logical op header, e.g., `BinaryOpAttrs`, `GemmAttrs`, `ReductionAttrs`) and pass it to `register_op`:
-
-```cpp
-register_op(graph, inputs, output,
-            std::make_shared<MyOpAttrs>(MyOpAttrs{...}),
-            [](const NNGraph::OpNode* op) { MyOp::build_backward(op); },
-            {});
-```
-
-In `build_backward`, cast and use:
-
-```cpp
-const auto& attrs = *std::static_pointer_cast<MyOpAttrs>(op->attrs());
-```
-
----
-
-## Step 6: Register in nn_graph_ops.hh
+## Step 5: Register in nn_graph_ops.hh
 
 Add an include for your new op in `include/nntile/graph/nn_graph_ops.hh`:
 
@@ -185,20 +165,19 @@ Add an include for your new op in `include/nntile/graph/nn_graph_ops.hh`:
 
 ---
 
-## Step 7: Add to Build System
+## Step 6: Add to Build System
 
-Ensure your new `.cc` file is added to the build (e.g., in `CMakeLists.txt` or equivalent).
+Ensure your new `.cc` file is added to the build (e.g., in `src/CMakeLists.txt`).
 
 ---
 
 ## Summary Checklist
 
-- [ ] Logical ops exist and operate on `LogicalGraph::TensorNode*` only
-- [ ] Header: struct with `build_forward` and `build_backward`, plus free function
-- [ ] Forward: validate inputs, call logical op via `x->data()` (returns pointer), create tensor, `register_op`
-- [ ] Backward: use only logical ops on `grad_out->data()`, `grad_x->data()`, etc.
+- [ ] Tensor ops exist and operate on `TensorGraph::DataNode*` only
+- [ ] Header: struct with `build_forward` and `backward`, plus free function
+- [ ] Forward: validate inputs, call tensor op via `x->data()`, create tensor, `register_op`
+- [ ] Backward: use only tensor ops on `grad_out->data()`, `grad_x->data()`, etc.
 - [ ] Handle `is_first_grad` when accumulating gradients
-- [ ] Attrs struct and `register_op` if backward needs parameters
 - [ ] Include in `nn_graph_ops.hh`
 - [ ] Add to build system
 
@@ -206,10 +185,10 @@ Ensure your new `.cc` file is added to the build (e.g., in `CMakeLists.txt` or e
 
 ## Reference: Existing Autograd Functions
 
-| Op        | Header              | Logical ops used (forward / backward)                    |
+| Op        | Header              | Tensor ops used (forward / backward)                    |
 |-----------|---------------------|----------------------------------------------------------|
 | Add       | `add.hh`            | `add` / `add_inplace`                                    |
-| Gelu      | `gelu.hh`           | `gelu` / `clear`, `gelu_backward`                        |
+| Gelu      | `gelu.hh`           | `gelu` / `clear`, `gelu_backward`                       |
 | Gemm      | `gemm.hh`           | `gemm` / `gemm` (for grad_A, grad_B)                    |
 | AddFiber  | `add_fiber.hh`      | `add_fiber` / `sum_fiber`, `add_inplace`                 |
 | SumFiber  | `sum_fiber.hh`      | `clear`, `sum_fiber` / `add_fiber_inplace`               |

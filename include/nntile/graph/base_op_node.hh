@@ -27,13 +27,13 @@ namespace nntile::graph
 //! Base class for all graph operations. Also serves as the graph node.
 //! Each operation stores its parameters, inputs, outputs, graph reference, and id.
 //! Dispatch is via virtual execute(); no OpType enum.
-//! @tparam Graph The graph type (e.g. TensorGraph, TileGraph)
-template<typename Graph>
+//! @tparam Graph The graph type (e.g. TensorGraph)
+//! @tparam DataNode The data node type (e.g. TensorGraphNode)
+template<typename Graph, typename DataNode>
 class BaseOpNode
 {
 public:
     using NodeId = uint64_t;
-    using DataNode = BaseDataNode<Graph>;
 
     virtual ~BaseOpNode() = default;
 
@@ -58,7 +58,7 @@ public:
     virtual void execute(ExecutionContext<DataNode>& ctx) const = 0;
 
     //! Optional: clone for graph copying
-    virtual std::shared_ptr<BaseOpNode<Graph>> clone() const = 0;
+    virtual std::shared_ptr<BaseOpNode<Graph, DataNode>> clone() const = 0;
 
 protected:
     BaseOpNode() = default;

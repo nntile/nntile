@@ -3,6 +3,9 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
  * @file src/graph/nn_graph.cc
  * Implementation of NNGraph class.
  *
@@ -17,7 +20,7 @@
 #include <stdexcept>
 #include <utility>
 
-#include "nntile/graph/logical_graph_ops.hh"
+#include "nntile/graph/tensor/clear.hh"
 
 namespace nntile::graph
 {
@@ -26,7 +29,7 @@ NNGraph::~NNGraph() = default;
 
 NNGraph::NNGraph(const std::string& name)
     : name_(name)
-    , logical_(name)
+    , tensor_graph_(name)
 {
 }
 
@@ -43,7 +46,8 @@ NNGraph::TensorNode* NNGraph::tensor(
             "' already exists");
     }
 
-    LogicalGraph::TensorNode* data = logical_.tensor(std::move(shape), name, dtype);
+    TensorGraph::DataNode* data =
+        tensor_graph_.data(std::move(shape), name, dtype);
     auto node = std::make_unique<TensorNode>(this, data, requires_grad);
     TensorNode* node_ptr = node.get();
 
@@ -53,7 +57,7 @@ NNGraph::TensorNode* NNGraph::tensor(
     return node_ptr;
 }
 
-NNGraph::TensorNode* NNGraph::tensor(LogicalGraph::TensorNode* data,
+NNGraph::TensorNode* NNGraph::tensor(TensorGraph::DataNode* data,
                                      bool requires_grad)
 {
     if(data == nullptr)
@@ -61,68 +65,16 @@ NNGraph::TensorNode* NNGraph::tensor(LogicalGraph::TensorNode* data,
         throw std::invalid_argument(
             "NNGraph::tensor: data tensor must be non-null");
     }
-    if(&data->graph() != &logical_)
+    if(data->graph() != &tensor_graph_)
     {
         throw std::invalid_argument(
-            "NNGraph::tensor: tensor must belong to this graph's logical graph");
+            "NNGraph::tensor: tensor must belong to this graph's tensor graph");
     }
     auto node = std::make_unique<TensorNode>(this, data, requires_grad);
     TensorNode* node_ptr = node.get();
     tensors_.push_back(std::move(node));
     tensor_by_name_[data->name()] = node_ptr;
     return node_ptr;
-}
-
-void NNGraph::add_op(
-    OpType type,
-    std::shared_ptr<void> attrs,
-    const std::vector<TensorNode*>& inputs,
-    const std::vector<TensorNode*>& outputs,
-    const std::string& name)
-{
-    std::vector<LogicalGraph::TensorNode*> input_nodes;
-    std::vector<LogicalGraph::TensorNode*> output_nodes;
-    input_nodes.reserve(inputs.size());
-    output_nodes.reserve(outputs.size());
-
-    for(auto* input : inputs)
-    {
-        if(input == nullptr)
-        {
-            throw std::invalid_argument(
-                "NNGraph::add_op: input tensor is nullptr");
-        }
-        input_nodes.push_back(input->data());
-    }
-    for(auto* output : outputs)
-    {
-        if(output == nullptr)
-        {
-            throw std::invalid_argument(
-                "NNGraph::add_op: output tensor is nullptr");
-        }
-        output_nodes.push_back(output->data());
-    }
-
-    logical_.add_op(type, attrs, input_nodes, output_nodes, name);
-
-    // Propagate grad_required from inputs to outputs (PyTorch-style)
-    bool any_input_requires_grad = false;
-    for(const auto* in : inputs)
-    {
-        if(in && in->requires_grad())
-        {
-            any_input_requires_grad = true;
-            break;
-        }
-    }
-    for(auto* out : outputs)
-    {
-        if(out)
-        {
-            out->set_requires_grad(any_input_requires_grad);
-        }
-    }
 }
 
 NNGraph::TensorNode* NNGraph::get_tensor(const std::string& name)
@@ -181,36 +133,45 @@ NNGraph::TensorNode* NNGraph::get_or_create_grad(
         return tensor->grad();
     }
 
-    LogicalGraph::TensorNode* grad_tensor = logical_.tensor(
+    TensorGraph::DataNode* grad_data = tensor_graph_.data(
         tensor->shape(),
         grad_name,
         tensor->dtype());
-    auto grad_node = std::make_unique<TensorNode>(this, grad_tensor, false);
+    auto grad_node = std::make_unique<TensorNode>(this, grad_data, false);
     TensorNode* grad_ptr = grad_node.get();
     tensors_.push_back(std::move(grad_node));
     tensor_by_name_[grad_name] = grad_ptr;
 
     // Clear freshly registered gradient tensor
-    clear(grad_tensor);
+    clear(grad_data);
 
     tensor->set_grad(grad_ptr);
     tensor->set_requires_grad(true);
     return grad_ptr;
 }
 
-NNGraph::OpNode* NNGraph::create_op(
-    std::vector<TensorNode*> inputs,
-    std::vector<TensorNode*> outputs,
-    std::shared_ptr<void> attrs,
-    std::function<void(const OpNode*)> backward_fn,
-    std::vector<TensorNode*> buffers)
+NNGraph::OpNode* NNGraph::create_op(std::shared_ptr<NNBaseOpNode> op)
 {
-    auto op = std::make_unique<OpNode>(
-        std::move(inputs), std::move(outputs), std::move(attrs),
-        std::move(backward_fn), std::move(buffers));
-    OpNode* ptr = op.get();
-    op_nodes_.push_back(std::move(op));
+    auto op_node = std::make_unique<OpNode>(std::move(op));
+    OpNode* ptr = op_node.get();
+    op_nodes_.push_back(std::move(op_node));
     return ptr;
+}
+
+void NNGraph::clear_op_nodes()
+{
+    op_nodes_.clear();
+}
+
+void NNGraph::clear_producers_on_tensors()
+{
+    for(auto& t : tensors_)
+    {
+        if(t->has_producer())
+        {
+            t->set_producer(nullptr);
+        }
+    }
 }
 
 std::string NNGraph::to_string() const
@@ -226,9 +187,9 @@ std::string NNGraph::to_string() const
     }
 
     ss << "Operations:\n";
-    for(const auto& op : logical_.ops())
+    for(const auto& op : tensor_graph_.ops())
     {
-        ss << "  " << op->to_string() << "\n";
+        ss << "  " << op->op_name() << "(id=" << op->id() << ")\n";
     }
 
     return ss.str();

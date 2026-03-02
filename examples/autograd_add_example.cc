@@ -62,9 +62,9 @@ int main(int argc, char** argv)
               << ", y.has_grad()=" << y->has_grad() << std::endl;
 
     size_t add_inplace_count = 0;
-    for(const auto& op : g.logical_graph().ops())
+    for(const auto& op : g.tensor_graph().ops())
     {
-        if(op->type() == OpType::ADD_INPLACE)
+        if(op->op_name() == "ADD_INPLACE")
         {
             ++add_inplace_count;
         }

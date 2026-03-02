@@ -18,7 +18,7 @@
 #include <memory>
 #include <stdexcept>
 
-#include <nntile/graph/logical_graph.hh>
+#include <nntile/graph/dtype.hh>
 #include <nntile/tensor/tensor.hh>
 
 namespace nntile::graph

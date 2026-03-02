@@ -38,7 +38,7 @@ TEST_CASE("Gelu BuildForward", "[module]")
     REQUIRE(output.shape() == input->shape());
     REQUIRE(output.name() == "gelu_output");
     REQUIRE(g.num_ops() == 1);
-    REQUIRE(g.ops()[0]->type() == OpType::GELU);
+    REQUIRE(g.ops()[0]->op_name() == "GELU");
 }
 
 TEST_CASE("Gelu BackwardCreatesInputGrad", "[module]")
@@ -58,7 +58,7 @@ TEST_CASE("Gelu BackwardCreatesInputGrad", "[module]")
     size_t gelu_backward_count = 0;
     for(const auto& op : g.ops())
     {
-        if(op->type() == OpType::GELU_BACKWARD)
+        if(op->op_name() == "GELU_BACKWARD")
         {
             ++gelu_backward_count;
         }

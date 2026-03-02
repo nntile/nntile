@@ -13,14 +13,52 @@
  * */
 
 #include "nntile/graph/nn_graph/add.hh"
-#include "nntile/graph/logical_graph_ops.hh"
+#include "nntile/graph/nn_graph/tensor_node.hh"
 
 #include <stdexcept>
+
+#include "nntile/graph/tensor/add.hh"
+#include "nntile/graph/tensor/add_inplace.hh"
 
 namespace nntile::graph
 {
 
-NNGraph::TensorNode* Add::build_forward(
+void NNAddOp::add_forward_to_tensor_graph(NNGraph& graph)
+{
+    (void)graph;
+    if(x == nullptr || y == nullptr || z == nullptr)
+    {
+        throw std::invalid_argument(
+            "NNAddOp::add_forward_to_tensor_graph: x, y, z must be non-null");
+    }
+    auto tg_op = std::make_shared<TensorAddOp>(
+        x->data(), y->data(), z->data(), alpha, beta);
+    x->graph().tensor_graph().add_op(tg_op);
+}
+
+void NNAddOp::backward()
+{
+    NNGraph& graph = x->graph();
+    NNGraph::TensorNode* grad_out = z->grad();
+    if(grad_out == nullptr)
+    {
+        return;
+    }
+    if(x != nullptr && x->requires_grad())
+    {
+        NNGraph::TensorNode* grad_x =
+            graph.get_or_create_grad(x, x->name() + "_grad");
+        graph::add_inplace(alpha, grad_out->data(), Scalar(1.0), grad_x->data());
+    }
+    if(y != nullptr && y->requires_grad())
+    {
+        NNGraph::TensorNode* grad_y =
+            graph.get_or_create_grad(y, y->name() + "_grad");
+        graph::add_inplace(beta, grad_out->data(), Scalar(1.0), grad_y->data());
+    }
+}
+
+NNGraph::TensorNode* add(
     Scalar alpha,
     NNGraph::TensorNode* x,
     Scalar beta,
@@ -29,43 +67,17 @@ NNGraph::TensorNode* Add::build_forward(
 {
     if(x == nullptr || y == nullptr)
     {
-        throw std::invalid_argument("Add::build_forward: x and y must be non-null");
+        throw std::invalid_argument("add: x and y must be non-null");
     }
     NNGraph& graph = x->graph();
-    LogicalGraph::TensorNode* z_data =
-        add(alpha, x->data(), beta, y->data(), output_name);
     bool out_requires_grad = any_input_requires_grad({x, y});
-    NNGraph::TensorNode* z = graph.tensor(z_data, out_requires_grad);
-    register_op(graph, {x, y}, z, std::make_shared<BinaryOpAttrs>(BinaryOpAttrs{alpha, beta}),
-                [](const NNGraph::OpNode* op) { Add::build_backward(op); }, {});
-    return z;
-}
+    NNGraph::TensorNode* z = graph.tensor(
+        x->shape(), output_name, x->dtype(), out_requires_grad);
 
-void Add::build_backward(const NNGraph::OpNode* op)
-{
-    NNGraph& graph = op->output()->graph();
-    NNGraph::TensorNode* grad_out = op->output()->grad();
-    const auto& attrs = *std::static_pointer_cast<BinaryOpAttrs>(op->attrs());
-    Scalar alpha = attrs.alpha;
-    Scalar beta = attrs.beta;
-    const auto& inputs = op->inputs();
-    if(inputs.size() >= 2 && grad_out != nullptr)
-    {
-        NNGraph::TensorNode* x_nn = inputs[0];
-        NNGraph::TensorNode* y_nn = inputs[1];
-        if(x_nn != nullptr && x_nn->requires_grad())
-        {
-            NNGraph::TensorNode* grad_x =
-                graph.get_or_create_grad(x_nn, x_nn->name() + "_grad");
-            add_inplace(alpha, grad_out->data(), Scalar(1.0), grad_x->data());
-        }
-        if(y_nn != nullptr && y_nn->requires_grad())
-        {
-            NNGraph::TensorNode* grad_y =
-                graph.get_or_create_grad(y_nn, y_nn->name() + "_grad");
-            add_inplace(beta, grad_out->data(), Scalar(1.0), grad_y->data());
-        }
-    }
+    auto op = std::make_shared<NNAddOp>(x, y, z, alpha, beta);
+    op->add_forward_to_tensor_graph(graph);
+    register_op(graph, std::move(op));
+    return z;
 }
 
 } // namespace nntile::graph

@@ -9,34 +9,73 @@ the code in `include/nntile/graph/` and `src/graph/`.
 include/nntile/
 ├── graph.hh
 └── graph/
-    ├── logical_graph.hh
-    ├── logical_graph_ops.hh
-    ├── compiled_graph.hh
-    ├── compiled_graph_ops.hh
-    └── nn_graph.hh
+    ├── dtype.hh
+    ├── grad_mode.hh
+    ├── execution_context.hh
+    ├── base_data_node.hh
+    ├── base_op_node.hh
+    ├── base_graph.hh
+    ├── tensor_graph.hh
+    ├── tensor_graph_ops.hh
+    ├── nn_graph.hh
+    ├── nn_graph_ops.hh
+    ├── tensor/
+    │   ├── add.hh
+    │   ├── add_fiber.hh
+    │   ├── add_fiber_inplace.hh
+    │   ├── add_inplace.hh
+    │   ├── clear.hh
+    │   ├── fill.hh
+    │   ├── multiply.hh
+    │   ├── norm.hh
+    │   ├── gemm.hh
+    │   ├── gelu.hh
+    │   ├── gelu_backward.hh
+    │   └── sum_fiber.hh
+    └── nn_graph/
+        ├── nn_graph.hh
+        ├── op_node.hh
+        ├── tensor_node.hh
+        ├── add.hh
+        ├── add_fiber.hh
+        ├── gemm.hh
+        ├── gelu.hh
+        └── sum_fiber.hh
 
 src/graph/
-├── logical_graph.cc
-├── logical_graph_ops.cc
-├── compiled_graph.cc
-├── compiled_graph_ops.cc
-└── nn_graph.cc
+├── dtype.cc
+├── grad_mode.cc
+├── autograd_function.cc
+├── tensor_graph.cc
+├── nn_graph.cc
+├── tensor/
+│   ├── add.cc
+│   ├── add_fiber.cc
+│   ├── ...
+│   └── sum_fiber.cc
+└── nn_graph/
+    ├── tensor_node.cc
+    ├── add.cc
+    ├── add_fiber.cc
+    ├── gemm.cc
+    ├── gelu.cc
+    └── sum_fiber.cc
 ```
 
-## LogicalGraph
+## TensorGraph
 
-`LogicalGraph` is a symbolic computation graph.
+`TensorGraph` is a symbolic computation graph that operates on tensor data nodes.
 
-- `LogicalGraph::TensorNode` holds `shape`, `dtype`, `name`.
-- `LogicalGraph::OpNode` holds `OpType`, `OpAttrs`, input/output tensors.
-  Graph structure is defined by OpNode's inputs and outputs.
-- `tensor(shape, name, dtype)` creates an input tensor.
-- `add_op(...)` is the public builder API used by free-function operations.
+- `TensorGraph::DataNode` (BaseDataNode\<TensorGraph\>) holds `shape`, `dtype`, `name`.
+- `TensorGraph::OpNode` (BaseOpNode\<TensorGraph\>) holds `inputs`, `outputs`, and implements
+  `execute(ExecutionContext&)`.
+- `data(shape, name, dtype)` creates a data node.
+- `add_op(shared_ptr<BaseOpNode<Graph>>)` adds an operation to the graph.
 
 ### Input/output marking
 
-Tensors can be marked as graph input and/or output via `mark_input()` and
-`mark_output()` on `LogicalGraph::TensorNode` (and `NNGraph::TensorNode`).
+Data nodes can be marked as graph input and/or output via `mark_input()` and
+`mark_output()` on `TensorGraph::DataNode`.
 
 - **Input tensors** (`mark_input(true)`): Provided via `bind_data()`; never
   invalidated during execution.
@@ -46,135 +85,49 @@ Tensors can be marked as graph input and/or output via `mark_input()` and
 `bind_data()` may only be called for tensors marked as input or output (or
 both). This ensures that user-bound data is never invalidated unexpectedly.
 
-When a compiled graph executes, intermediate tensors that are no longer used by
+When a graph executes, intermediate tensors that are no longer used by
 remaining operations are automatically invalidated via `invalidate_submit()` to
 free memory. Input and output tensors are never invalidated.
 
 ### Data types
 
-`DataType` is defined in `logical_graph.hh` and includes:
+`DataType` is defined in `dtype.hh` and includes:
 
 - `FP32`, `FP32_FAST_TF32`, `FP32_FAST_FP16`, `FP32_FAST_BF16`
 - `FP64`, `FP16`, `BF16`
 - `INT64`, `INT32`, `BOOL`
 
-### Operation types
+### Tensor graph operations
 
-`OpType` currently includes:
-
-**Element-wise unary operations:**
-- `GELU`, `GELU_INPLACE`
-- `GELUTANH`, `GELUTANH_INPLACE`
-- `GELUTANH_BACKWARD`
-- `RELU`, `RELU_INPLACE`, `RELU_BACKWARD`
-- `SILU`, `SILU_INPLACE`, `SILU_BACKWARD`
-- `SQRT`, `SQRT_INPLACE`
-- `HYPOT`, `HYPOT_INPLACE`
-
-**Element-wise binary operations:**
-- `ADD`, `ADD_INPLACE`
-- `MULTIPLY`, `MULTIPLY_INPLACE`
-- `HYPOT_SCALAR_INVERSE`
-
-**Reduction operations:**
-- `SUM` (total sum)
-- `SUM_FIBER`, `SUM_SLICE`
-- `NORM_FIBER`, `NORM_FIBER_INPLACE`, `NORM_SLICE`, `NORM_SLICE_INPLACE`
-- `LOGSUMEXP`, `MAXSUMEXP`
-- `SUMPROD_FIBER`, `SUMPROD_SLICE`
-
-**Scale operations:**
-- `SCALE`, `SCALE_INPLACE`
-- `SCALE_FIBER`, `SCALE_SLICE`
-
-**Matrix operations:**
-- `GEMM`
-- `TRANSPOSE`
-
-**Convolution operations:**
-- `CONV2D_INPLACE`, `CONV2D_BWD_INPUT_INPLACE`, `CONV2D_BWD_WEIGHT_INPLACE`
-
-**Embedding operations:**
-- `EMBEDDING`, `EMBEDDING_BACKWARD`
-
-**Mixed-dtype operations:**
-- `MASK_SCALAR`
-- `TOTAL_SUM_ACCUM`
-
-**Optimizer operations:**
-- `SGD_STEP`, `ADAM_STEP`, `ADAMW_STEP`
-
-**Utility operations:**
-- `CLEAR`
-- `COPY`, `COPY_INTERSECTION`
-- `GATHER`, `SCATTER`
-- `FILL`
-- `POW`, `LOG_SCALAR`
-- `RANDN`
-
-**Flash attention (CUDA-only):**
-- `FLASH_SDPA_FWD_CUDNN`, `FLASH_SDPA_BWD_CUDNN`
-
-**Rotary position embedding:**
-- `ROPE`, `ROPE_BACKWARD`
-
-Only a subset of these operations are currently implemented as graph builders.
-See below for the implemented operations.
-
-## Logical graph operations
-
-Defined in `logical_graph_ops.hh/.cc` as free functions:
+Defined in `include/nntile/graph/tensor/` and `tensor_graph_ops.hh`:
 
 **Element-wise operations:**
-- `gelu(x, output_name)` - creates GeLU output tensor
-- `gelu_inplace(x)` - in-place GeLU
-- `gelutanh(x, output_name)` - creates GeLU tanh output tensor
-- `gelutanh_inplace(x)` - in-place GeLU tanh
-- `relu(x, output_name)` - creates ReLU output tensor
-- `relu_inplace(x)` - in-place ReLU
-- `silu(x, output_name)` - creates SiLU output tensor
-- `silu_inplace(x)` - in-place SiLU
-- `sqrt(x, output_name)` - creates sqrt output tensor
-- `sqrt_inplace(x)` - in-place sqrt
-- `*_backward(x, dy, dx)` - backward operations that accumulate gradients
-
-**Binary operations:**
-- `add(alpha, x, beta, y, output_name)` - creates z = alpha*x + beta*y
-- `add_inplace(alpha, x, beta, y)` - in-place y = alpha*x + beta*y
-- `multiply(x, y, output_name)` - creates z = x*y
-- `multiply_inplace(x, y)` - in-place y = x*y
+- `add(alpha, x, beta, y, output_name)` — creates z = alpha*x + beta*y
+- `add_inplace(alpha, x, beta, y)` — in-place y = alpha*x + beta*y
+- `multiply(x, y, output_name)` — creates z = x*y
+- `clear(x)` — in-place clear
 
 **Reduction operations:**
-- `sum(x, y, alpha=1.0, beta=0.0)` - total sum: y = alpha*sum(x) + beta*y
-- `sum_fiber(x, y, axis=0, batch_ndim=0, redux=0, alpha=1.0, beta=0.0)` - sum along fibers
-
-**Scale operations:**
-- `scale(x, output_name, alpha=1.0)` - creates y = alpha*x
-- `scale_inplace(x, alpha=1.0)` - in-place x = alpha*x
-
-**Embedding operations:**
-- `embedding(index, vocab, output_name, axis=0)` - embedding lookup
-- `embedding_backward(index, vocab, embed, axis=0)` - embedding backward
+- `sum_fiber(x, y, axis, batch_ndim, alpha, beta)` — sum along fibers
 
 **Matrix operations:**
-- `gemm(a, b, output_name, alpha, trans_a, trans_b, ndim, batch_ndim)` -
+- `gemm(a, b, output_name, alpha, trans_a, trans_b, ndim, batch_ndim)` —
   creates a new output tensor.
-- `gemm(a, b, c, alpha, beta, trans_a, trans_b, ndim, batch_ndim)` - in-place
+- `gemm(a, b, c, alpha, beta, trans_a, trans_b, ndim, batch_ndim)` — in-place
   accumulation into `c`.
 
-**Utility operations:**
-- `clear(x)` - in-place clear; output tensor is `x`, no inputs.
+**Activation operations:**
+- `gelu(x, output_name)` — creates GeLU output tensor
+- `gelu_backward(x, dy, dx)` — backward pass for GeLU
 
-GEMM shape rules (see `compute_gemm_output_shape` in
-`logical_graph_ops.cc`):
+**Utility operations:**
+- `fill(x, value)` — fill tensor with scalar value
+
+GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
 
 - Tensor layout is column-major; dimensions are listed from inner to outer.
-- A:
-  - `trans_a=false`: `[M..., K..., batch...]`
-  - `trans_a=true`: `[K..., M..., batch...]`
-- B:
-  - `trans_b=false`: `[K..., N..., batch...]`
-  - `trans_b=true`: `[N..., K..., batch...]`
+- A: `trans_a=false` → `[M..., K..., batch...]`
+- B: `trans_b=false` → `[K..., N..., batch...]`
 - Output: `[M..., N..., batch...]`
 - `ndim` is the number of contraction (K) dimensions.
 - `batch_ndim` is the number of trailing batch dimensions (must match between A
@@ -182,114 +135,73 @@ GEMM shape rules (see `compute_gemm_output_shape` in
 
 ## NNGraph
 
-`NNGraph` (in `nn_graph.hh/.cc`) wraps `LogicalGraph` and adds gradient tracking.
+`NNGraph` (in `nn_graph.hh/.cc`) wraps `TensorGraph` and adds gradient tracking.
 
-- `NNGraph::TensorNode` points to a logical tensor and tracks `grad` and
-  `requires_grad`.
-- `mark_input()` / `mark_output()` delegate to the underlying logical tensor.
+- `NNGraph::TensorNode` points to a `TensorGraph::DataNode` (via `.data()`) and
+  tracks `grad` and `requires_grad`.
+- `mark_input()` / `mark_output()` delegate to the underlying data node.
 - `get_or_create_grad()` creates a gradient tensor in the underlying
-  `LogicalGraph` and clears it via `clear()`.
+  `TensorGraph` and clears it via `clear()`.
 
-Logical operations still operate on `LogicalGraph::TensorNode*`. When using
-`NNGraph`, pass `tensor.data()` to logical ops as needed.
+Autograd operations use `TensorGraph` ops for forward. For `NNGraph::TensorNode* x`,
+pass `x->data()` to tensor ops to get `TensorGraph::DataNode*`.
 
-## CompiledGraph
+### NN*Op structs
 
-`CompiledGraph` (in `compiled_graph.hh/.cc`) executes a `LogicalGraph`.
+Each autograd operation is defined as a struct (e.g., `NNAddOp`, `NNGemmOp`)
+inheriting from `NNOpBase`:
 
-- `compile(logical)` validates operation data types, allocates NNTile tensors, and
-  eliminates dead ops (ops whose outputs are never consumed and not marked output).
-- Each logical tensor is allocated as a single tile (tile shape equals full
-  shape).
-- Execution order is the order of `logical.ops()`; build ops in topological
-  order.
-- `execute()` runs operations in order. After each op, tensors that are no
-  longer used by remaining ops (and are not marked input/output) are
-  invalidated via `invalidate_submit()` to free memory.
-- `wait()` calls `starpu_task_wait_for_all()`.
+- Holds parameters (alpha, beta, etc.) for backward
+- Implements `backward(const NNGraph::OpNode* op)`
+- Static `build_forward()` creates the output node and registers the op
 
-### Data binding and output
+### register_op and create_op
 
-- `bind_data(name, data, count)` and `bind_data(name, vector)` copy into the
-  single tile with StarPU `STARPU_W`.
-- `get_output<T>(name)` copies out with `STARPU_R`.
-- Explicit instantiations are provided for
-  `bind_data<float|double|long long>` and `get_output<float|double>`.
-
-### Compiled operations
-
-Implemented in `compiled_graph_ops.hh/.cc`:
-
-- `execute_clear`
-- `execute_gelu`
-- `execute_gelu_backward`
-- `execute_gemm`
-
-Each dispatches on `DataType` and calls the corresponding
-`nntile::tensor::*` operation.
+- `register_op(graph, inputs, output, op, buffers)` — registers an op when
+  GradMode is enabled and any input requires grad.
+- `create_op(graph, inputs, outputs, op, buffers)` — creates an OpNode and
+  registers it.
 
 ## Adding new graph operations
 
-This section mirrors the current extension flow for graph operations.
+### 1. Add a TensorGraph operation
 
-### 1. Add OpType and OpAttrs
+**Header** (`include/nntile/graph/tensor/<op>.hh`):
 
-In `include/nntile/graph/logical_graph.hh`:
+- Define `TensorXxxOp : BaseOpNode<TensorGraph>` with `execute()` and `clone()`.
+- Declare free functions for the builder API.
 
-- Add a new `OpType` entry.
-- Add an attribute struct (if needed) and register it in `OpAttrs`.
+**Source** (`src/graph/tensor/<op>.cc`):
 
-In `src/graph/logical_graph.cc`, update `op_type_to_string()` for the new type.
-If the operation has dtype restrictions, update
-`validate_operation_data_types()` in `src/graph/compiled_graph.cc`.
+- Implement the builder: validate inputs, create output via `graph->data()`,
+  build op, call `graph->add_op(op)`.
+- Implement `TensorXxxOp::execute()`: dispatch on DataType and call
+  `nntile::tensor::*` kernel.
 
-### 2. Add the logical operation
+Add to `tensor_graph_ops.hh` if needed.
 
-Declare the builder in `include/nntile/graph/logical_graph_ops.hh` and implement
-it in `src/graph/logical_graph_ops.cc`.
+### 2. Add an NNGraph (autograd) operation
 
-The logical operation should:
+**Header** (`include/nntile/graph/nn_graph/<op>.hh`):
 
-- Validate inputs (graph ownership, dtype compatibility, shape rules).
-- Compute output shape (if creating a new output).
-- Create output tensors with `graph.tensor(...)` (if needed).
-- Call `graph.add_op(...)` to wire inputs and outputs.
+- Define `NNXxxOp : NNOpBase` with `backward()` and static `build_forward()`.
+- Declare convenience free function.
 
-For in-place or accumulation operations, pass the output tensor in both inputs
-and outputs (see `gemm(..., c, ...)` or `gelu_backward(x, dy, dx)`).
+**Source** (`src/graph/nn_graph/<op>.cc`):
 
-### 3. Add the compiled operation
+- `build_forward`: call tensor op via `x->data()`, create tensor, `register_op`.
+- `backward`: use `grad_out->data()`, `grad_x->data()`, etc. with tensor ops.
 
-Declare the executor in `include/nntile/graph/compiled_graph_ops.hh` and
-implement it in `src/graph/compiled_graph_ops.cc`.
+Add to `nn_graph_ops.hh`.
 
-The compiled operation should:
+### 3. Build system
 
-- Read input/output names from `OpExecutionInfo`.
-- Extract attributes from `OpExecutionInfo::attrs`.
-- Dispatch on `DataType` and call the corresponding `nntile::tensor::*` kernel
-  using `CompiledGraph::get_tensor<T>()`.
-
-### 4. Register the executor
-
-Update `CompiledGraph::execute_op()` in `src/graph/compiled_graph.cc` to handle
-the new `OpType` and call the new executor.
-
-### 5. Tests
-
-Add tests alongside the existing graph tests:
-
-- Logical op tests: `tests/graph/logical_graph_ops.cc`
-- Compiled op tests: `tests/graph/compiled_graph_ops.cc`
-
-Compiled graph tests use `GraphTestFixture` for `nntile::Context` setup.
-
-### 6. Build system updates
-
-If you add new source or header files (instead of extending the existing ops
-files), update `src/CMakeLists.txt` and `include/CMakeLists.txt`.
+Update `src/CMakeLists.txt` and `include/CMakeLists.txt` if adding new files.
 
 ## Minimal example
+
+Using NNGraph with gradients (see `examples/graph_mlp_example.cc` and
+`examples/linear_layer_example.cc` for full examples):
 
 ```cpp
 #include <nntile/context.hh>
@@ -300,16 +212,18 @@ using namespace nntile::graph;
 nntile::Context context(
     1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
 
-LogicalGraph g("demo");
-auto& a = g.tensor({2, 3}, "a", DataType::FP32);
-auto& b = g.tensor({3, 4}, "b", DataType::FP32);
-auto& c = gemm(a, b, "c");
-auto& y = gelu(c, "y");
+NNGraph graph("demo");
+auto* x = graph.tensor({2, 3}, "x", DataType::FP32, true);
+auto* w = graph.tensor({3, 4}, "w", DataType::FP32, true);
+auto* y = gemm(x, w, "y");  // y = x @ w
 
-auto compiled = CompiledGraph::compile(g);
-compiled.bind_data("a", std::vector<float>{1, 2, 3, 4, 5, 6});
-compiled.bind_data("b", std::vector<float>{
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12});
+x->mark_input(true);
+y->mark_output(true);
+y->backward();  // build backward pass
+CompiledGraph compiled(graph.tensor_graph());
+compiled.compile();
+compiled.bind_data("x", input_data);
+compiled.bind_data("w", weight_data);
 compiled.execute();
 compiled.wait();
 auto out = compiled.get_output<float>("y");

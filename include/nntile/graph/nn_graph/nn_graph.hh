@@ -20,12 +20,15 @@
 #include <string>
 #include <vector>
 
-#include <nntile/graph/logical_graph.hh>
+#include <nntile/graph/tensor_graph.hh>
 
 namespace nntile::graph
 {
 
-//! Neural network graph - wraps logical graph and tracks gradients
+// Forward declarations
+class NNBaseOpNode;
+
+//! Neural network graph - wraps tensor graph and tracks gradients
 class NNGraph
 {
 public:
@@ -40,7 +43,7 @@ public:
 
 private:
     std::string name_;
-    LogicalGraph logical_;
+    TensorGraph tensor_graph_;
     std::vector<std::unique_ptr<TensorNode>> tensors_;
     std::vector<std::unique_ptr<OpNode>> op_nodes_;
     std::map<std::string, TensorNode*> tensor_by_name_;
@@ -59,20 +62,8 @@ public:
         bool requires_grad = true
     );
 
-    TensorNode* tensor(LogicalGraph::TensorNode* data,
+    TensorNode* tensor(TensorGraph::DataNode* data,
                        bool requires_grad = false);
-
-    // -----------------------------------------------------------------
-    // Operation Builder API
-    // -----------------------------------------------------------------
-
-    void add_op(
-        OpType type,
-        std::shared_ptr<void> attrs,
-        const std::vector<TensorNode*>& inputs,
-        const std::vector<TensorNode*>& outputs,
-        const std::string& name = ""
-    );
 
     // -----------------------------------------------------------------
     // Queries
@@ -80,7 +71,7 @@ public:
 
     const std::string& name() const { return name_; }
     size_t num_tensors() const { return tensors_.size(); }
-    size_t num_ops() const { return logical_.num_ops(); }
+    size_t num_ops() const { return tensor_graph_.num_ops(); }
 
     TensorNode* get_tensor(const std::string& name);
     const TensorNode* get_tensor(const std::string& name) const;
@@ -91,13 +82,19 @@ public:
     {
         return tensors_;
     }
-    const std::vector<std::unique_ptr<LogicalGraph::OpNode>>& ops() const
+    const std::vector<std::shared_ptr<TensorGraph::OpNode>>& ops() const
     {
-        return logical_.ops();
+        return tensor_graph_.ops();
     }
 
-    LogicalGraph& logical_graph() { return logical_; }
-    const LogicalGraph& logical_graph() const { return logical_; }
+    TensorGraph& tensor_graph() { return tensor_graph_; }
+    const TensorGraph& tensor_graph() const { return tensor_graph_; }
+
+    //! Clear op_nodes_ (used when retain_graph=false after backward)
+    void clear_op_nodes();
+
+    //! Set producer_=nullptr on all tensors that had producers
+    void clear_producers_on_tensors();
 
     // -----------------------------------------------------------------
     // Gradient helpers
@@ -113,14 +110,8 @@ public:
         const std::string& grad_name);
 
     //! Create and register an NNGraph-level op (AutoGradFunction).
-    //! attrs: opaque (std::shared_ptr<void>); only forward/backward know the type.
-    //! buffers: tensors saved from forward for reuse in backward (internal-only).
-    OpNode* create_op(
-        std::vector<TensorNode*> inputs,
-        std::vector<TensorNode*> outputs,
-        std::shared_ptr<void> attrs,
-        std::function<void(const OpNode*)> backward_fn,
-        std::vector<TensorNode*> buffers = {});
+    //! The op holds all params and tensors; OpNode wraps it.
+    OpNode* create_op(std::shared_ptr<NNBaseOpNode> op);
 
     // -----------------------------------------------------------------
     // String representation
@@ -128,30 +119,40 @@ public:
 
     std::string to_string() const;
 
-    std::string to_mermaid() const { return logical_.to_mermaid(); }
+    std::string to_mermaid() const { return tensor_graph_.to_mermaid(); }
+};
+
+//! Base for NNGraph ops - self-contained like TensorAddOp.
+//! Holds params, inputs, outputs, buffers. Implements backward() and
+//! add_forward_to_tensor_graph(). Free functions create the op and register it.
+class NNBaseOpNode
+{
+public:
+    virtual ~NNBaseOpNode() = default;
+
+    const std::vector<NNGraph::TensorNode*>& inputs() const { return inputs_; }
+    const std::vector<NNGraph::TensorNode*>& outputs() const { return outputs_; }
+    const std::vector<NNGraph::TensorNode*>& buffers() const { return buffers_; }
+
+    //! Add forward TensorGraph ops. Called before register_op.
+    virtual void add_forward_to_tensor_graph(NNGraph& graph) = 0;
+
+    //! Run backward pass. Uses own inputs/outputs/params.
+    virtual void backward() = 0;
+
+protected:
+    std::vector<NNGraph::TensorNode*> inputs_;
+    std::vector<NNGraph::TensorNode*> outputs_;
+    std::vector<NNGraph::TensorNode*> buffers_;
 };
 
 // -----------------------------------------------------------------
 // Operation registration (part of graph API)
 // -----------------------------------------------------------------
 
-//! Register OpNode. Creates only when GradMode enabled and any input requires grad.
-//! attrs: opaque (std::shared_ptr<void>); only forward/backward know the type.
-void register_op(
-    NNGraph& graph,
-    const std::vector<NNGraph::TensorNode*>& inputs,
-    const std::vector<NNGraph::TensorNode*>& outputs,
-    std::shared_ptr<void> attrs,
-    std::function<void(const NNGraph::OpNode*)> backward_fn,
-    const std::vector<NNGraph::TensorNode*>& buffers = {});
-
-void register_op(
-    NNGraph& graph,
-    const std::vector<NNGraph::TensorNode*>& inputs,
-    NNGraph::TensorNode* output,
-    std::shared_ptr<void> attrs,
-    std::function<void(const NNGraph::OpNode*)> backward_fn,
-    const std::vector<NNGraph::TensorNode*>& buffers = {});
+//! Register op for backward. Creates OpNode only when GradMode enabled
+//! and any input requires grad. Sets producer on outputs.
+void register_op(NNGraph& graph, std::shared_ptr<NNBaseOpNode> op);
 
 //! True if any input requires grad.
 bool any_input_requires_grad(

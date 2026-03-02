@@ -19,28 +19,32 @@
 
 #include <string>
 
-#include <nntile/graph/logical/gelu.hh>
+#include <nntile/graph/tensor/gelu.hh>
 #include <nntile/graph/nn_graph.hh>
 
 namespace nntile::graph
 {
 
-//! Gelu: build_forward does logical op + bookkeeping; build_backward for grad.
-namespace Gelu
+//! GELU op: y = gelu(x). Self-contained: holds tensors.
+struct NNGeluOp : NNBaseOpNode
 {
-    NNGraph::TensorNode* build_forward(
-        NNGraph::TensorNode* x,
-        const std::string& output_name);
+    NNGraph::TensorNode* x = nullptr;
+    NNGraph::TensorNode* y = nullptr;
 
-    void build_backward(const NNGraph::OpNode* op);
-}
+    NNGeluOp() = default;
+    NNGeluOp(NNGraph::TensorNode* x_, NNGraph::TensorNode* y_)
+        : x(x_), y(y_)
+    {
+        inputs_ = {x};
+        outputs_ = {y};
+    }
 
-//! Convenience free function
-inline NNGraph::TensorNode* gelu(
+    void add_forward_to_tensor_graph(NNGraph& graph) override;
+    void backward() override;
+};
+
+NNGraph::TensorNode* gelu(
     NNGraph::TensorNode* x,
-    const std::string& output_name)
-{
-    return Gelu::build_forward(x, output_name);
-}
+    const std::string& output_name);
 
 } // namespace nntile::graph

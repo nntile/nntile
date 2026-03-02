@@ -40,6 +40,7 @@ option(USE_CUDA_BF16 "Enable BF16 CUDA support" ON)
 option(USE_CUDA_FP8 "Enable FP8 CUDA support" ON)
 option(USE_CBLAS "Use CPU CBLAS" ON)
 option(BUILD_TESTS "Build tests" ON)
+option(BUILD_MODULES "Build module layer (Linear, Mlp, Gelu, SDPA, etc.)" OFF)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
@@ -170,6 +171,9 @@ endif()
 target_include_directories(nntile PRIVATE
     "${PROJECT_SOURCE_DIR}/external"
     )
+
+# Set NNTILE_BUILD_MODULES for defs.h (must be before configure_file)
+set(NNTILE_BUILD_MODULES ${BUILD_MODULES})
 
 # Configure list of definitions
 configure_file("${PROJECT_SOURCE_DIR}/include/nntile/defs.h.in"

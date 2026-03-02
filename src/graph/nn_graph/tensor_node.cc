@@ -23,30 +23,15 @@ namespace nntile::graph
 {
 
 NNGraph::TensorNode::TensorNode(
-    LogicalGraph::TensorNode* data,
-    bool requires_grad
-)
-    : graph_(nullptr)
-    , data_(data)
-    , requires_grad_(requires_grad)
-{
-    if(data_ == nullptr)
-    {
-        throw std::invalid_argument(
-            "NNGraph::TensorNode: data tensor is nullptr");
-    }
-}
-
-NNGraph::TensorNode::TensorNode(
     NNGraph* graph,
-    LogicalGraph::TensorNode* data,
+    TensorGraph::DataNode* data,
     bool requires_grad
 )
     : graph_(graph)
     , data_(data)
     , requires_grad_(requires_grad)
 {
-    if(data_ == nullptr)
+    if(data == nullptr)
     {
         throw std::invalid_argument(
             "NNGraph::TensorNode: data tensor is nullptr");
@@ -94,7 +79,7 @@ void NNGraph::TensorNode::set_producer(OpNode* op)
     producer_ = op;
 }
 
-void NNGraph::TensorNode::backward()
+void NNGraph::TensorNode::backward(bool retain_graph)
 {
     if(graph_ == nullptr)
     {
@@ -179,6 +164,12 @@ void NNGraph::TensorNode::backward()
         }
         op_done.insert(op);
         op->run_backward();
+    }
+
+    if(!retain_graph)
+    {
+        graph_->clear_producers_on_tensors();
+        graph_->clear_op_nodes();
     }
 }
 

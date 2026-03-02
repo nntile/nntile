@@ -61,6 +61,7 @@ add_example(TARGET_NAME examples_autograd_add
     SOURCES "autograd_add_example.cc"
     LINK_LIBRARIES nntile)
 
+if(NNTILE_BUILD_MODULES)
 add_example(TARGET_NAME examples_graph_mlp
     EXEC_NAME "graph_mlp_example"
     SOURCES "graph_mlp_example.cc"
@@ -70,4 +71,5 @@ add_example(TARGET_NAME examples_linear_layer
     EXEC_NAME "linear_layer_example"
     SOURCES "linear_layer_example.cc"
     LINK_LIBRARIES nntile)
+endif()
 

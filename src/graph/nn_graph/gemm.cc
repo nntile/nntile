@@ -3,6 +3,9 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
  * @file src/graph/nn_graph/gemm.cc
  * NNGraph GEMM autograd implementation.
  *
@@ -10,14 +13,74 @@
  * */
 
 #include "nntile/graph/nn_graph/gemm.hh"
-#include "nntile/graph/logical/gemm.hh"
+#include "nntile/graph/nn_graph/tensor_node.hh"
 
 #include <stdexcept>
+
+#include "nntile/graph/tensor/clear.hh"
+#include "nntile/graph/tensor/gemm.hh"
 
 namespace nntile::graph
 {
 
-NNGraph::TensorNode* Gemm::build_forward(
+void NNGemmOp::add_forward_to_tensor_graph(NNGraph& graph)
+{
+    (void)graph;
+    if(a == nullptr || b == nullptr || c == nullptr)
+    {
+        throw std::invalid_argument(
+            "NNGemmOp::add_forward_to_tensor_graph: a, b, c must be non-null");
+    }
+    graph::clear(c->data());
+    graph::gemm(a->data(), b->data(), c->data(),
+                alpha, 0.0, trans_a, trans_b, ndim, batch_ndim);
+}
+
+void NNGemmOp::backward()
+{
+    NNGraph& graph = a->graph();
+    NNGraph::TensorNode* grad_out = c->grad();
+    if(grad_out == nullptr)
+    {
+        return;
+    }
+    if(a != nullptr && a->requires_grad())
+    {
+        bool first = graph.is_first_grad(a);
+        NNGraph::TensorNode* grad_a =
+            graph.get_or_create_grad(a, a->name() + "_grad");
+        Scalar beta = first ? 0.0 : 1.0;
+        if(!trans_a)
+        {
+            graph::gemm(grad_out->data(), b->data(), grad_a->data(),
+                       alpha, beta, false, !trans_b, ndim, batch_ndim);
+        }
+        else
+        {
+            graph::gemm(b->data(), grad_out->data(), grad_a->data(),
+                       alpha, beta, trans_b, true, ndim, batch_ndim);
+        }
+    }
+    if(b != nullptr && b->requires_grad())
+    {
+        bool first = graph.is_first_grad(b);
+        NNGraph::TensorNode* grad_b =
+            graph.get_or_create_grad(b, b->name() + "_grad");
+        Scalar beta = first ? 0.0 : 1.0;
+        if(!trans_b)
+        {
+            graph::gemm(a->data(), grad_out->data(), grad_b->data(),
+                       alpha, beta, !trans_a, false, ndim, batch_ndim);
+        }
+        else
+        {
+            graph::gemm(grad_out->data(), a->data(), grad_b->data(),
+                       alpha, beta, true, trans_a, ndim, batch_ndim);
+        }
+    }
+}
+
+NNGraph::TensorNode* gemm(
     NNGraph::TensorNode* a,
     NNGraph::TensorNode* b,
     const std::string& output_name,
@@ -29,84 +92,20 @@ NNGraph::TensorNode* Gemm::build_forward(
 {
     if(a == nullptr || b == nullptr)
     {
-        throw std::invalid_argument(
-            "Gemm::build_forward: a and b must be non-null");
+        throw std::invalid_argument("gemm: a and b must be non-null");
     }
     NNGraph& graph = a->graph();
-    LogicalGraph::TensorNode* c_data = gemm(
-        a->data(), b->data(), output_name, alpha, trans_a, trans_b, ndim,
-        batch_ndim);
+    std::vector<Index> c_shape = gemm_output_shape(
+        a->shape(), b->shape(), trans_a, trans_b, ndim, batch_ndim);
     bool out_requires_grad = any_input_requires_grad({a, b});
-    NNGraph::TensorNode* c = graph.tensor(c_data, out_requires_grad);
-    register_op(graph, {a, b}, c,
-                std::make_shared<GemmAttrs>(GemmAttrs{trans_a, trans_b, alpha, 0.0, ndim, batch_ndim}),
-                [](const NNGraph::OpNode* op) { Gemm::build_backward(op); }, {});
+    NNGraph::TensorNode* c = graph.tensor(
+        std::move(c_shape), output_name, a->dtype(), out_requires_grad);
+
+    auto op = std::make_shared<NNGemmOp>(
+        a, b, c, alpha, trans_a, trans_b, ndim, batch_ndim);
+    op->add_forward_to_tensor_graph(graph);
+    register_op(graph, std::move(op));
     return c;
-}
-
-void Gemm::build_backward(const NNGraph::OpNode* op)
-{
-    NNGraph& graph = op->output()->graph();
-    NNGraph::TensorNode* grad_out = op->output()->grad();
-    const auto& attrs = *std::static_pointer_cast<GemmAttrs>(op->attrs());
-    Scalar alpha = attrs.alpha;
-    bool trans_a = attrs.trans_a;
-    bool trans_b = attrs.trans_b;
-    Index ndim = attrs.ndim;
-    Index batch_ndim = attrs.batch_ndim;
-    const auto& inputs = op->inputs();
-    if(inputs.size() < 2 || grad_out == nullptr)
-    {
-        return;
-    }
-    NNGraph::TensorNode* a_nn = inputs[0];
-    NNGraph::TensorNode* b_nn = inputs[1];
-
-    // grad_A: depends on trans_a, trans_b from forward
-    // trans_a=F,trans_b=F: grad_A = alpha*grad_C@B^T  -> gemm(grad_C,B, false,true)
-    // trans_a=F,trans_b=T: grad_A = alpha*grad_C@B    -> gemm(grad_C,B, false,false)
-    // trans_a=T,trans_b=F: grad_A = alpha*B@grad_C^T  -> gemm(B,grad_C, false,true)
-    // trans_a=T,trans_b=T: grad_A = alpha*B^T@grad_C^T -> gemm(B,grad_C, true,true)
-    if(a_nn != nullptr && a_nn->requires_grad())
-    {
-        bool first = graph.is_first_grad(a_nn);
-        NNGraph::TensorNode* grad_a =
-            graph.get_or_create_grad(a_nn, a_nn->name() + "_grad");
-        Scalar beta = first ? 0.0 : 1.0;
-        if(!trans_a)
-        {
-            gemm(grad_out->data(), b_nn->data(), grad_a->data(), alpha, beta,
-                 false, !trans_b, ndim, batch_ndim);
-        }
-        else
-        {
-            gemm(b_nn->data(), grad_out->data(), grad_a->data(), alpha, beta,
-                 trans_b, true, ndim, batch_ndim);
-        }
-    }
-
-    // grad_B: depends on trans_a, trans_b from forward
-    // trans_a=F,trans_b=F: grad_B = alpha*A^T@grad_C   -> gemm(A,grad_C, true,false)
-    // trans_a=F,trans_b=T: grad_B = alpha*grad_C^T@A    -> gemm(grad_C,A, true,false)
-    // trans_a=T,trans_b=F: grad_B = alpha*A@grad_C     -> gemm(A,grad_C, false,false)
-    // trans_a=T,trans_b=T: grad_B = alpha*grad_C^T@A^T -> gemm(grad_C,A, true,true)
-    if(b_nn != nullptr && b_nn->requires_grad())
-    {
-        bool first = graph.is_first_grad(b_nn);
-        NNGraph::TensorNode* grad_b =
-            graph.get_or_create_grad(b_nn, b_nn->name() + "_grad");
-        Scalar beta = first ? 0.0 : 1.0;
-        if(!trans_b)
-        {
-            gemm(a_nn->data(), grad_out->data(), grad_b->data(), alpha, beta,
-                 !trans_a, false, ndim, batch_ndim);
-        }
-        else
-        {
-            gemm(grad_out->data(), a_nn->data(), grad_b->data(), alpha, beta,
-                 true, trans_a, ndim, batch_ndim);
-        }
-    }
 }
 
 } // namespace nntile::graph

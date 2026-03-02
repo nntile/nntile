@@ -10,7 +10,7 @@
  * NNGraph sum_fiber autograd operation.
  *
  * Forward: y = alpha * sum_fiber(x) + beta * y
- * Backward: grad_x += alpha * add_fiber_inplace(grad_y) (broadcast grad_y back)
+ * Backward: grad_x += alpha * add_fiber_inplace(grad_y)
  *
  * @version 1.1.0
  * */
@@ -19,39 +19,46 @@
 
 #include <string>
 
-#include <nntile/graph/logical/sum_fiber.hh>
+#include <nntile/graph/tensor/sum_fiber.hh>
 #include <nntile/graph/nn_graph.hh>
 
 namespace nntile::graph
 {
 
-//! SumFiber: build_forward does logical op + bookkeeping; build_backward for grad.
-namespace SumFiber
+//! SumFiber op: y = alpha*sum_fiber(x) + beta*y. Self-contained.
+struct NNSumFiberOp : NNBaseOpNode
 {
-    NNGraph::TensorNode* build_forward(
-        NNGraph::TensorNode* x,
-        const std::string& output_name,
-        Index axis = 0,
-        Index batch_ndim = 0,
-        int redux = 0,
-        Scalar alpha = 1.0,
-        Scalar beta = 0.0);
+    Scalar alpha = 1.0;
+    Scalar beta = 0.0;
+    Index axis = 0;
+    Index batch_ndim = 0;
+    int redux = 0;
+    NNGraph::TensorNode* x = nullptr;
+    NNGraph::TensorNode* y = nullptr;
 
-    void build_backward(const NNGraph::OpNode* op);
-}
+    NNSumFiberOp() = default;
+    NNSumFiberOp(NNGraph::TensorNode* x_,
+                 NNGraph::TensorNode* y_,
+                 Index axis_, Index batch_ndim_,
+                 int redux_, Scalar alpha_, Scalar beta_)
+        : alpha(alpha_), beta(beta_), axis(axis_), batch_ndim(batch_ndim_)
+        , redux(redux_), x(x_), y(y_)
+    {
+        inputs_ = {x};
+        outputs_ = {y};
+    }
 
-//! Convenience free function
-inline NNGraph::TensorNode* sum_fiber(
+    void add_forward_to_tensor_graph(NNGraph& graph) override;
+    void backward() override;
+};
+
+NNGraph::TensorNode* sum_fiber(
     NNGraph::TensorNode* x,
     const std::string& output_name,
     Index axis = 0,
     Index batch_ndim = 0,
     int redux = 0,
     Scalar alpha = 1.0,
-    Scalar beta = 0.0)
-{
-    return SumFiber::build_forward(x, output_name, axis, batch_ndim, redux,
-                                   alpha, beta);
-}
+    Scalar beta = 0.0);
 
 } // namespace nntile::graph

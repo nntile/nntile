@@ -7,66 +7,48 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/compiled_graph.hh
- * CompiledGraph class for executing logical graphs.
+ * CompiledGraph - runtime execution of a TensorGraph.
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-// Include standard headers
 #include <map>
 #include <memory>
 #include <set>
+#include <stdexcept>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
-// Include third-party headers
+#include <starpu.h>
 
-// Include other NNTile headers
-#include <nntile/graph/logical_graph.hh>
+#include <nntile/base_types.hh>
+#include <nntile/graph/dtype.hh>
+#include <nntile/graph/execution_context.hh>
+#include <nntile/graph/tensor_graph.hh>
 #include <nntile/tensor/tensor.hh>
 
 namespace nntile::graph
 {
 
-//! Operation execution information (extracted during compilation)
-struct OpExecutionInfo
-{
-    OpType type;
-    std::shared_ptr<void> attrs;
-    std::vector<std::string> input_names;
-    std::vector<std::string> output_names;
-};
-
-//! Compiled graph - ready for execution
+//! Compiled graph - holds runtime state for executing a TensorGraph.
+//! Takes a reference to the symbolic graph; compile() allocates and builds
+//! execution order; execute() runs the ops.
 class CompiledGraph
 {
-private:
-    // Runtime tensors (NNTile tensors, one tile each)
-    // Type-erased tensor pointers
-    std::map<std::string, std::shared_ptr<void>> tensors_;
-    std::map<std::string, DataType> tensor_dtypes_;
-
-    // Execution order (topologically sorted ops with extracted info)
-    std::vector<OpExecutionInfo> execution_order_;
-
-    // Input/output marking from logical graph (never invalidate these)
-    std::set<std::string> tensor_is_input_;
-    std::set<std::string> tensor_is_output_;
-
-    // For each tensor: index of last op in execution_order that uses it as input
-    // Used to emit invalidate_submit when tensor is no longer needed
-    std::map<std::string, size_t> tensor_last_use_;
-
 public:
-    //! Compile a logical graph
-    static CompiledGraph compile(const LogicalGraph& logical);
+    using DataNode = TensorGraphNode;
+    using OpNode = BaseOpNode<TensorGraph, TensorGraphNode>;
 
-    // -----------------------------------------------------------------
-    // Data Binding
-    // -----------------------------------------------------------------
+    explicit CompiledGraph(const TensorGraph& graph);
 
-    //! Bind data to a tensor (copies data)
+    //! Compile the graph for execution. Allocates runtime data.
+    void compile();
+
+    //! Bind data to a data node (copies data)
     template<typename T>
     void bind_data(const std::string& name, const T* data, size_t count);
 
@@ -74,55 +56,361 @@ public:
     template<typename T>
     void bind_data(const std::string& name, const std::vector<T>& data);
 
-    // -----------------------------------------------------------------
-    // Execution
-    // -----------------------------------------------------------------
-
     //! Execute the graph
     void execute();
 
     //! Wait for all operations to complete
     void wait();
 
-    // -----------------------------------------------------------------
-    // Output Retrieval
-    // -----------------------------------------------------------------
-
     //! Get output data (copies data out)
     template<typename T>
     std::vector<T> get_output(const std::string& name);
 
-    // -----------------------------------------------------------------
-    // Internal Access (for operation implementations)
-    // -----------------------------------------------------------------
-
-    //! Get typed tensor pointer (used by operation implementations)
+    //! Get typed runtime data (for operation implementations)
     template<typename T>
-    nntile::tensor::Tensor<T>& get_tensor(const std::string& name);
+    nntile::tensor::Tensor<T>& get_data(const std::string& name);
 
-    //! Get data type of tensor
+    //! Get data type of a data node
     DataType get_dtype(const std::string& name) const
     {
-        return tensor_dtypes_.at(name);
+        return data_dtypes_.at(name);
     }
 
+    //! True if compile() has been called
+    bool is_compiled() const { return compiled_; }
+
 private:
-    CompiledGraph() = default;
-
-    //! Allocate NNTile tensors for all graph tensors
-    void allocate_tensors(const LogicalGraph& logical);
-
-    //! Remove ops whose outputs are never consumed (dead code elimination)
+    void allocate_impl();
     void eliminate_dead_ops();
-
-    //! Execute a single operation
-    void execute_op(const OpExecutionInfo& op_info);
-
-    //! Call invalidate_submit on a tensor (type-erased dispatch)
-    void invalidate_tensor(const std::string& name);
-
-    //! After executing op at index op_idx, invalidate inputs no longer needed
+    void invalidate_data(const std::string& name);
     void invalidate_unused_inputs(size_t op_idx);
+
+    const TensorGraph& graph_;
+    ExecutionContext<DataNode> ctx_;
+    std::map<std::string, std::shared_ptr<void>> runtime_data_;
+    std::map<std::string, DataType> data_dtypes_;
+    std::vector<std::shared_ptr<OpNode>> execution_order_;
+    std::set<std::string> data_is_input_;
+    std::set<std::string> data_is_output_;
+    std::map<std::string, size_t> data_last_use_;
+    bool compiled_ = false;
 };
+
+// -----------------------------------------------------------------------------
+// Template implementation
+// -----------------------------------------------------------------------------
+
+template<typename T>
+nntile::tensor::Tensor<T>& CompiledGraph::get_data(const std::string& name)
+{
+    auto it = runtime_data_.find(name);
+    if(it == runtime_data_.end())
+    {
+        throw std::runtime_error("Data not found: " + name);
+    }
+    return *static_cast<nntile::tensor::Tensor<T>*>(it->second.get());
+}
+
+template<typename T>
+void CompiledGraph::bind_data(const std::string& name, const T* data,
+                              size_t count)
+{
+    auto it = runtime_data_.find(name);
+    if(it == runtime_data_.end())
+    {
+        throw std::runtime_error("Data not found: " + name);
+    }
+    if(!data_is_input_.count(name) && !data_is_output_.count(name))
+    {
+        throw std::runtime_error(
+            "bind_data: data '" + name +
+            "' must be marked as input or output (or both); "
+            "call mark_input(true) or mark_output(true) on the data node");
+    }
+
+    DataType dtype = data_dtypes_[name];
+
+    if(dtype == DataType::FP32)
+    {
+        auto& tensor = get_data<nntile::fp32_t>(name);
+        if(count != static_cast<size_t>(tensor.nelems))
+        {
+            throw std::runtime_error("Data size mismatch for data " + name);
+        }
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        for(size_t i = 0; i < count; ++i)
+        {
+            tile_local[i] = nntile::fp32_t(static_cast<float>(data[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::FP32_FAST_TF32)
+    {
+        auto& tensor = get_data<nntile::fp32_fast_tf32_t>(name);
+        if(count != static_cast<size_t>(tensor.nelems))
+        {
+            throw std::runtime_error("Data size mismatch for data " + name);
+        }
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        for(size_t i = 0; i < count; ++i)
+        {
+            tile_local[i] =
+                nntile::fp32_fast_tf32_t(static_cast<float>(data[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::FP32_FAST_FP16)
+    {
+        auto& tensor = get_data<nntile::fp32_fast_fp16_t>(name);
+        if(count != static_cast<size_t>(tensor.nelems))
+        {
+            throw std::runtime_error("Data size mismatch for data " + name);
+        }
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        for(size_t i = 0; i < count; ++i)
+        {
+            tile_local[i] =
+                nntile::fp32_fast_fp16_t(static_cast<float>(data[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::FP32_FAST_BF16)
+    {
+        auto& tensor = get_data<nntile::fp32_fast_bf16_t>(name);
+        if(count != static_cast<size_t>(tensor.nelems))
+        {
+            throw std::runtime_error("Data size mismatch for data " + name);
+        }
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        for(size_t i = 0; i < count; ++i)
+        {
+            tile_local[i] =
+                nntile::fp32_fast_bf16_t(static_cast<float>(data[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::FP64)
+    {
+        auto& tensor = get_data<nntile::fp64_t>(name);
+        if(count != static_cast<size_t>(tensor.nelems))
+        {
+            throw std::runtime_error("Data size mismatch for data " + name);
+        }
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        for(size_t i = 0; i < count; ++i)
+        {
+            tile_local[i] = nntile::fp64_t(static_cast<double>(data[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::FP16)
+    {
+        auto& tensor = get_data<nntile::fp16_t>(name);
+        if(count != static_cast<size_t>(tensor.nelems))
+        {
+            throw std::runtime_error("Data size mismatch for data " + name);
+        }
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        for(size_t i = 0; i < count; ++i)
+        {
+            tile_local[i] = nntile::fp16_t(static_cast<float>(data[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::BF16)
+    {
+        auto& tensor = get_data<nntile::bf16_t>(name);
+        if(count != static_cast<size_t>(tensor.nelems))
+        {
+            throw std::runtime_error("Data size mismatch for data " + name);
+        }
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        for(size_t i = 0; i < count; ++i)
+        {
+            tile_local[i] = nntile::bf16_t(static_cast<float>(data[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::INT64)
+    {
+        auto& tensor = get_data<nntile::int64_t>(name);
+        if(count != static_cast<size_t>(tensor.nelems))
+        {
+            throw std::runtime_error("Data size mismatch for data " + name);
+        }
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        for(size_t i = 0; i < count; ++i)
+        {
+            tile_local[i] = nntile::int64_t(static_cast<long long>(data[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::BOOL)
+    {
+        auto& tensor = get_data<nntile::bool_t>(name);
+        if(count != static_cast<size_t>(tensor.nelems))
+        {
+            throw std::runtime_error("Data size mismatch for data " + name);
+        }
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        for(size_t i = 0; i < count; ++i)
+        {
+            tile_local[i] = nntile::bool_t(static_cast<bool>(data[i]));
+        }
+        tile_local.release();
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type for binding");
+    }
+}
+
+template<typename T>
+void CompiledGraph::bind_data(const std::string& name,
+                              const std::vector<T>& data)
+{
+    bind_data(name, data.data(), data.size());
+}
+
+template<typename T>
+std::vector<T> CompiledGraph::get_output(const std::string& name)
+{
+    auto data_it = runtime_data_.find(name);
+    if(data_it == runtime_data_.end())
+    {
+        throw std::runtime_error("Data not found: " + name);
+    }
+    auto dtype_it = data_dtypes_.find(name);
+    if(dtype_it == data_dtypes_.end())
+    {
+        throw std::runtime_error("Data dtype not found: " + name);
+    }
+    DataType dtype = dtype_it->second;
+    std::vector<T> result;
+
+    if(dtype == DataType::FP32)
+    {
+        auto& tensor = get_data<nntile::fp32_t>(name);
+        result.resize(tensor.nelems);
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
+            result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::FP32_FAST_TF32)
+    {
+        auto& tensor = get_data<nntile::fp32_fast_tf32_t>(name);
+        result.resize(tensor.nelems);
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
+            result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::FP32_FAST_FP16)
+    {
+        auto& tensor = get_data<nntile::fp32_fast_fp16_t>(name);
+        result.resize(tensor.nelems);
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
+            result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::FP32_FAST_BF16)
+    {
+        auto& tensor = get_data<nntile::fp32_fast_bf16_t>(name);
+        result.resize(tensor.nelems);
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
+            result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::FP64)
+    {
+        auto& tensor = get_data<nntile::fp64_t>(name);
+        result.resize(tensor.nelems);
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
+            result[i] = static_cast<T>(static_cast<double>(tile_local[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::FP16)
+    {
+        auto& tensor = get_data<nntile::fp16_t>(name);
+        result.resize(tensor.nelems);
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
+            result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::BF16)
+    {
+        auto& tensor = get_data<nntile::bf16_t>(name);
+        result.resize(tensor.nelems);
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
+            result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::INT64)
+    {
+        auto& tensor = get_data<nntile::int64_t>(name);
+        result.resize(tensor.nelems);
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
+            result[i] = static_cast<T>(static_cast<long long>(tile_local[i]));
+        }
+        tile_local.release();
+    }
+    else if(dtype == DataType::BOOL)
+    {
+        auto& tensor = get_data<nntile::bool_t>(name);
+        result.resize(tensor.nelems);
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
+            result[i] = static_cast<T>(static_cast<bool>(tile_local[i]));
+        }
+        tile_local.release();
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type for get_output");
+    }
+
+    return result;
+}
 
 } // namespace nntile::graph

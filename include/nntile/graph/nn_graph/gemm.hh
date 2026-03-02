@@ -10,7 +10,7 @@
  * NNGraph GEMM autograd operation.
  *
  * Forward: C = alpha * op(A) @ op(B)
- * Backward: grad_A = alpha * grad_C @ B^T, grad_B = alpha * A^T @ grad_C (2 gemms)
+ * Backward: grad_A = alpha * grad_C @ B^T, grad_B = alpha * A^T @ grad_C
  *
  * @version 1.1.0
  * */
@@ -19,30 +19,46 @@
 
 #include <string>
 
-#include <nntile/graph/logical/gemm.hh>
+#include <nntile/graph/tensor/gemm.hh>
 #include <nntile/graph/nn_graph.hh>
 
 namespace nntile::graph
 {
 
-//! Gemm: build_forward does logical op + bookkeeping; build_backward for grad.
-namespace Gemm
+//! GEMM op: C = alpha * op(A) @ op(B). Self-contained: holds params and tensors.
+struct NNGemmOp : NNBaseOpNode
 {
-    NNGraph::TensorNode* build_forward(
-        NNGraph::TensorNode* a,
-        NNGraph::TensorNode* b,
-        const std::string& output_name,
-        Scalar alpha = 1.0,
-        bool trans_a = false,
-        bool trans_b = false,
-        Index ndim = 1,
-        Index batch_ndim = 0);
+    Scalar alpha = 1.0;
+    bool trans_a = false;
+    bool trans_b = false;
+    Index ndim = 1;
+    Index batch_ndim = 0;
+    NNGraph::TensorNode* a = nullptr;
+    NNGraph::TensorNode* b = nullptr;
+    NNGraph::TensorNode* c = nullptr;
 
-    void build_backward(const NNGraph::OpNode* op);
-}
+    NNGemmOp() = default;
+    NNGemmOp(NNGraph::TensorNode* a_,
+            NNGraph::TensorNode* b_,
+            NNGraph::TensorNode* c_,
+            Scalar alpha_ = 1.0,
+            bool trans_a_ = false,
+            bool trans_b_ = false,
+            Index ndim_ = 1,
+            Index batch_ndim_ = 0)
+        : alpha(alpha_), trans_a(trans_a_), trans_b(trans_b_)
+        , ndim(ndim_), batch_ndim(batch_ndim_)
+        , a(a_), b(b_), c(c_)
+    {
+        inputs_ = {a, b};
+        outputs_ = {c};
+    }
 
-//! Convenience free function
-inline NNGraph::TensorNode* gemm(
+    void add_forward_to_tensor_graph(NNGraph& graph) override;
+    void backward() override;
+};
+
+NNGraph::TensorNode* gemm(
     NNGraph::TensorNode* a,
     NNGraph::TensorNode* b,
     const std::string& output_name,
@@ -50,10 +66,6 @@ inline NNGraph::TensorNode* gemm(
     bool trans_a = false,
     bool trans_b = false,
     Index ndim = 1,
-    Index batch_ndim = 0)
-{
-    return Gemm::build_forward(a, b, output_name, alpha, trans_a, trans_b,
-                               ndim, batch_ndim);
-}
+    Index batch_ndim = 0);
 
 } // namespace nntile::graph

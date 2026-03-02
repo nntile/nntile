@@ -56,11 +56,11 @@ TEST_CASE("Mlp ForwardBuildsOutput", "[module]")
     size_t gelu_count = 0;
     for(const auto& op : g.ops())
     {
-        if(op->type() == OpType::GEMM)
+        if(op->op_name() == "GEMM")
         {
             ++gemm_count;
         }
-        if(op->type() == OpType::GELU)
+        if(op->op_name() == "GELU")
         {
             ++gelu_count;
         }
@@ -88,7 +88,7 @@ TEST_CASE("Mlp BackwardCreatesGradients", "[module]")
     size_t gelu_backward_count = 0;
     for(const auto& op : g.ops())
     {
-        if(op->type() == OpType::GELU_BACKWARD)
+        if(op->op_name() == "GELU_BACKWARD")
         {
             ++gelu_backward_count;
         }

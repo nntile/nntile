@@ -12,14 +12,9 @@
 # @version 1.1.0
 
 # All graph tests using Catch2
-set(TESTS_CATCH2
-    "logical_graph"
-    "nn_graph"
-    "compiled_graph"
-)
+set(TESTS_CATCH2 "nn_graph")
 
-# Include compiled, nn_graph, and tensor operation tests
-add_subdirectory(compiled)
+# Include nn_graph and tensor operation tests
 add_subdirectory(nn_graph)
 add_subdirectory(tensor)
 

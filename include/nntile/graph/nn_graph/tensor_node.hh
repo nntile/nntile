@@ -21,32 +21,44 @@
 #include <string>
 #include <vector>
 
-#include <nntile/graph/logical_graph.hh>
+#include <nntile/base_types.hh>
+#include <nntile/graph/dtype.hh>
 #include <nntile/graph/nn_graph/nn_graph.hh>
+#include <nntile/graph/tensor_graph.hh>
 
 namespace nntile::graph
 {
 
-//! Tensor node in NNGraph. Full definition of nested class NNGraph::TensorNode.
+//! Tensor node in NNGraph. Holds data_ (TensorGraph::DataNode) for ops;
+//! adds grad_, requires_grad_, producer_. Shape/dtype/name delegate to data_.
 class NNGraph::TensorNode
 {
     friend class NNGraph;
 
 private:
     NNGraph* graph_ = nullptr;
-    LogicalGraph::TensorNode* data_ = nullptr;
+    TensorGraph::DataNode* data_ = nullptr;
     TensorNode* grad_ = nullptr;
     bool requires_grad_ = true;
     OpNode* producer_ = nullptr;
 
 public:
-    TensorNode(LogicalGraph::TensorNode* data, bool requires_grad = true);
-    TensorNode(NNGraph* graph, LogicalGraph::TensorNode* data,
-               bool requires_grad = true);
+    TensorNode(
+        NNGraph* graph,
+        TensorGraph::DataNode* data,
+        bool requires_grad = true);
 
-    // Accessors for underlying logical nodes
-    LogicalGraph::TensorNode* data() { return data_; }
-    const LogicalGraph::TensorNode* data() const { return data_; }
+    // Shape/dtype/name delegate to underlying data node
+    const std::vector<Index>& shape() const { return data_->shape(); }
+    Index ndim() const { return static_cast<Index>(data_->shape().size()); }
+    DataType dtype() const { return data_->dtype(); }
+    const std::string& name() const { return data_->name(); }
+
+    // Accessors for underlying data nodes
+
+    // Accessors for underlying data nodes
+    TensorGraph::DataNode* data() { return data_; }
+    const TensorGraph::DataNode* data() const { return data_; }
 
     TensorNode* grad() { return grad_; }
     const TensorNode* grad() const { return grad_; }
@@ -56,40 +68,41 @@ public:
     bool requires_grad() const { return requires_grad_; }
     void set_requires_grad(bool requires) { requires_grad_ = requires; }
 
-    // Autograd: NNGraph-level producer (not LogicalGraph)
+    // Autograd: NNGraph-level producer (not TensorGraph)
     bool is_leaf() const { return producer_ == nullptr; }
     bool has_producer() const { return producer_ != nullptr; }
     const OpNode* producer() const { return producer_; }
 
-    // Set by NNGraph op that created this tensor (may use multiple LogicalGraph ops)
+    // Set by NNGraph op that created this tensor (may use multiple TensorGraph ops)
     void set_producer(OpNode* op);
 
     // Autograd: propagate upstream gradient through the computation graph.
     //! Grad must be set beforehand (get_or_create_grad + fill/bind).
     //! Does NOT fill grad with ones - user must provide upstream gradient.
-    void backward();
+    //! When retain_graph is false (default), clears op_nodes_ and producer_
+    //! after backward so backward cannot be called again.
+    void backward(bool retain_graph = false);
 
     // Graph access (for operations that deduce graph from tensor)
     NNGraph& graph();
 
-    // Convenience accessors (forwarded to data tensor)
-    const std::string& name() const { return data_->name(); }
-    DataType dtype() const { return data_->dtype(); }
-    const std::vector<Index>& shape() const { return data_->shape(); }
-    Index ndim() const { return data_->ndim(); }
-
-    // Input/output marking (forwarded to data tensor)
-    bool is_input() const { return data_->is_input(); }
-    void mark_input(bool is_input = true) { data_->mark_input(is_input); }
-    bool is_output() const { return data_->is_output(); }
-    void mark_output(bool is_output = true) { data_->mark_output(is_output); }
+    // Input/output marking (forwarded to data tensor for TensorGraph ops)
+    bool is_input() const { return data_ ? data_->is_input() : false; }
+    void mark_input(bool v = true)
+    {
+        if(data_) data_->mark_input(v);
+    }
+    bool is_output() const { return data_ ? data_->is_output() : false; }
+    void mark_output(bool v = true)
+    {
+        if(data_) data_->mark_output(v);
+    }
 
     // String representation
     std::string to_string() const;
 
 private:
     void set_grad(TensorNode* grad) { grad_ = grad; }
-    void set_graph(NNGraph* graph) { graph_ = graph; }
 };
 
 } // namespace nntile::graph

@@ -15,19 +15,20 @@
 #pragma once
 
 #include <nntile/graph/base_graph.hh>
+#include <nntile/graph/tensor_graph_node.hh>
 
 namespace nntile::graph
 {
 
 //! Tensor graph - defines computation at tensor level
-class TensorGraph : public BaseGraph<TensorGraph>
+class TensorGraph : public BaseGraph<TensorGraph, TensorGraphNode>
 {
 public:
-    using DataNode = BaseDataNode<TensorGraph>;
-    using OpNode = BaseOpNode<TensorGraph>;
+    using DataNode = TensorGraphNode;
+    using OpNode = BaseOpNode<TensorGraph, TensorGraphNode>;
 
     explicit TensorGraph(const std::string& name = "")
-        : BaseGraph<TensorGraph>(name)
+        : BaseGraph<TensorGraph, TensorGraphNode>(name)
     {
     }
 

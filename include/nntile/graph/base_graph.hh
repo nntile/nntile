@@ -8,6 +8,7 @@
  *
  * @file include/nntile/graph/base_graph.hh
  * BaseGraph - base class for computation graphs (TensorGraph, TileGraph).
+ * Purely symbolic; use CompiledGraph for execution.
  *
  * @version 1.1.0
  * */
@@ -23,21 +24,21 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
-#include <nntile/graph/base_data_node.hh>
 #include <nntile/graph/base_op_node.hh>
 
 namespace nntile::graph
 {
 
-//! Base graph - defines computation at data/op level.
+//! Base graph - defines computation at data/op level (symbolic only).
+//! Use CompiledGraph to compile and execute a TensorGraph.
 //! @tparam Graph The derived graph type (CRTP)
-template<typename Graph>
+//! @tparam DataNode The data node type (e.g. TensorGraphNode)
+template<typename Graph, typename DataNode>
 class BaseGraph
 {
 public:
     using NodeId = uint64_t;
-    using DataNode = BaseDataNode<Graph>;
-    using OpNode = BaseOpNode<Graph>;
+    using OpNode = BaseOpNode<Graph, DataNode>;
 
     explicit BaseGraph(const std::string& name = "")
         : name_(name)
@@ -112,13 +113,13 @@ public:
     size_t num_data() const { return data_.size(); }
     size_t num_ops() const { return ops_.size(); }
 
-    DataNode* get_data(const std::string& name)
+    DataNode* get_data_node(const std::string& name)
     {
         auto it = data_by_name_.find(name);
         return it != data_by_name_.end() ? it->second : nullptr;
     }
 
-    const DataNode* get_data(const std::string& name) const
+    const DataNode* get_data_node(const std::string& name) const
     {
         auto it = data_by_name_.find(name);
         return it != data_by_name_.end() ? it->second : nullptr;

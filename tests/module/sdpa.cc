@@ -84,15 +84,15 @@ TEST_CASE("Sdpa Vanilla BuildForward", "[module]")
     size_t softmax_count = 0;
     for(const auto& op : g.ops())
     {
-        if(op->type() == OpType::GEMM)
+        if(op->op_name() == "GEMM")
         {
             ++gemm_count;
         }
-        if(op->type() == OpType::MAXSUMEXP)
+        if(op->op_name() == "MAXSUMEXP")
         {
             ++maxsumexp_count;
         }
-        if(op->type() == OpType::SOFTMAX_INPLACE)
+        if(op->op_name() == "SOFTMAX_INPLACE")
         {
             ++softmax_count;
         }
@@ -119,7 +119,7 @@ TEST_CASE("Sdpa Vanilla BuildForwardWithMask", "[module]")
     size_t mask_count = 0;
     for(const auto& op : g.ops())
     {
-        if(op->type() == OpType::MASK_SCALAR)
+        if(op->op_name() == "MASK_SCALAR")
         {
             ++mask_count;
         }
@@ -157,7 +157,7 @@ TEST_CASE("Sdpa Flash BuildForward", "[module]")
     size_t flash_count = 0;
     for(const auto& op : g.ops())
     {
-        if(op->type() == OpType::FLASH_SDPA_FWD_CUDNN)
+        if(op->op_name() == "FLASH_SDPA_FWD_CUDNN")
         {
             ++flash_count;
         }

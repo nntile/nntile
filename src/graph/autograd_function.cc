@@ -15,49 +15,25 @@
 namespace nntile::graph
 {
 
-void register_op(
-    NNGraph& graph,
-    const std::vector<NNGraph::TensorNode*>& inputs,
-    const std::vector<NNGraph::TensorNode*>& outputs,
-    std::shared_ptr<void> attrs,
-    std::function<void(const NNGraph::OpNode*)> backward_fn,
-    const std::vector<NNGraph::TensorNode*>& buffers)
+void register_op(NNGraph& graph, std::shared_ptr<NNBaseOpNode> op)
 {
     const bool need_backward =
-        GradMode::is_enabled() && any_input_requires_grad(inputs);
+        GradMode::is_enabled() && any_input_requires_grad(op->inputs());
 
     if(!need_backward)
     {
         return;
     }
 
-    NNGraph::OpNode* op_nn = graph.create_op(
-        std::vector<NNGraph::TensorNode*>(inputs),
-        std::vector<NNGraph::TensorNode*>(outputs),
-        attrs,
-        std::move(backward_fn),
-        std::vector<NNGraph::TensorNode*>(buffers));
+    NNGraph::OpNode* op_nn = graph.create_op(std::move(op));
 
-    for(NNGraph::TensorNode* out : outputs)
+    for(NNGraph::TensorNode* out : op_nn->outputs())
     {
         if(out != nullptr)
         {
             out->set_producer(op_nn);
         }
     }
-}
-
-void register_op(
-    NNGraph& graph,
-    const std::vector<NNGraph::TensorNode*>& inputs,
-    NNGraph::TensorNode* output,
-    std::shared_ptr<void> attrs,
-    std::function<void(const NNGraph::OpNode*)> backward_fn,
-    const std::vector<NNGraph::TensorNode*>& buffers)
-{
-    register_op(graph, inputs, output ? std::vector<NNGraph::TensorNode*>{output}
-                                      : std::vector<NNGraph::TensorNode*>{},
-                attrs, std::move(backward_fn), buffers);
 }
 
 bool any_input_requires_grad(

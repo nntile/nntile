@@ -102,8 +102,8 @@ TEST_CASE("Linear BuildForwardWithBias", "[module]")
     REQUIRE(output.shape() == std::vector<Index>({2, 4}));
     REQUIRE(output.name() == "linear_output");
     REQUIRE(g.num_ops() >= 2);
-    REQUIRE(g.ops()[0]->type() == OpType::GEMM);
-    REQUIRE(g.ops()[1]->type() == OpType::ADD_FIBER);
+    REQUIRE(g.ops()[0]->op_name() == "GEMM");
+    REQUIRE(g.ops()[1]->op_name() == "ADD_FIBER");
 
     // Output producer is AddFiber functor (autograd, no module-level backward)
     REQUIRE(output.has_producer());
@@ -158,11 +158,11 @@ TEST_CASE("Linear BackwardCreatesGradients", "[module]")
     size_t sum_fiber_count = 0;
     for(const auto& op : g.ops())
     {
-        if(op->type() == OpType::GEMM)
+        if(op->op_name() == "GEMM")
         {
             ++gemm_count;
         }
-        if(op->type() == OpType::SUM_FIBER)
+        if(op->op_name() == "SUM_FIBER")
         {
             ++sum_fiber_count;
         }

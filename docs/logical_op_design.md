@@ -12,12 +12,10 @@ thin derived classes that add type aliases and override `graph_type_name()`.
 
 ## Naming Conventions
 
-| LogicalGraph (existing) | TensorGraph (this design) |
-|-------------------------|---------------------------|
-| LogicalGraph::TensorNode | BaseDataNode\<TensorGraph\> (tensor/data node) |
-| LogicalGraph::OpNode (OpType-based) | BaseOpNode\<TensorGraph\> (operation + graph node) |
-
-Note: LogicalGraph remains for the OpType-based compiled path. TensorGraph is the new design for direct BaseOpNode execution.
+| Concept | TensorGraph |
+|---------|-------------|
+| Data node | BaseDataNode\<TensorGraph\> (tensor/data node) |
+| Op node | BaseOpNode\<TensorGraph\> (operation + graph node) |
 
 ## Graph Types
 
@@ -370,15 +368,15 @@ protected:
 
 ## 8. Summary
 
-| Aspect | LogicalGraph (existing) | TensorGraph (this design) |
-|--------|-------------------------|----------------------------|
-| Graph base | — | `BaseGraph<Graph>` (CRTP) |
-| Data node | LogicalGraph::TensorNode | `BaseDataNode<Graph>` |
-| Op node | LogicalGraph::OpNode (OpType) | `BaseOpNode<Graph>` |
-| ExecutionContext | — | `ExecutionContext<DataNode>` |
-| add_op | `(OpType, inputs, outputs, name)` | `(shared_ptr<BaseOpNode<Graph>>, name)` |
-| Inputs/outputs | In LogicalGraph::OpNode | In BaseOpNode |
-| Data ownership | — | Data: `unique_ptr`; ops: `shared_ptr` |
-| Tensor lookup | By name | By DataNode* (`ctx.get_tensor(node)`) |
-| Data type | `get_dtype(name)` | `ctx.get_dtype(node)` from `node->dtype()` |
-| Op storage | Wrapper with OpType | BaseOpNode directly; no separate wrapper |
+| Aspect | TensorGraph |
+|--------|-------------|
+| Graph base | `BaseGraph<Graph>` (CRTP) |
+| Data node | `BaseDataNode<Graph>` |
+| Op node | `BaseOpNode<Graph>` |
+| ExecutionContext | `ExecutionContext<DataNode>` |
+| add_op | `(shared_ptr<BaseOpNode<Graph>>, name)` |
+| Inputs/outputs | In BaseOpNode |
+| Data ownership | Data: `unique_ptr`; ops: `shared_ptr` |
+| Tensor lookup | By DataNode* (`ctx.get_tensor(node)`) |
+| Data type | `ctx.get_dtype(node)` from `node->dtype()` |
+| Op storage | BaseOpNode directly; no separate wrapper |

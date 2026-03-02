@@ -21,7 +21,7 @@ TEST_CASE("NNGraph Autograd Add build_forward", "[graph][nn_graph]")
     NNGraph g("add_build_forward");
     auto* x = g.tensor({2, 3}, "x", DataType::FP32);
     auto* y = g.tensor({2, 3}, "y", DataType::FP32);
-    auto* z = Add::build_forward(1.0, x, 1.0, y, "z");
+    auto* z = add(1.0, x, 1.0, y, "z");
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
 }
@@ -49,9 +49,9 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph][nn_graph]")
     REQUIRE(y->has_grad());
 
     size_t add_inplace_count = 0;
-    for(const auto& op : g.logical_graph().ops())
+    for(const auto& op : g.tensor_graph().ops())
     {
-        if(op->type() == OpType::ADD_INPLACE)
+        if(op->op_name() == "ADD_INPLACE")
             ++add_inplace_count;
     }
     REQUIRE(add_inplace_count == 2);

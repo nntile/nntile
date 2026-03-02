@@ -26,50 +26,30 @@
 namespace nntile::graph
 {
 
-//! NNGraph-level operation node (AutoGradFunction). Represents one NNGraph op
-//! that may use multiple LogicalGraph ops in forward/backward.
-//! Attrs are opaque (std::shared_ptr<void>); only forward/backward know the type.
+//! NNGraph-level operation node (AutoGradFunction). Wraps NNBaseOpNode.
+//! The op holds all params and tensors; OpNode delegates to it.
 class NNGraph::OpNode
 {
     friend class NNGraph;
     friend class TensorNode;
 
-public:
-    using BackwardFn = std::function<void(const OpNode* op)>;
-
 private:
-    std::vector<TensorNode*> inputs_;
-    std::vector<TensorNode*> outputs_;
-    std::shared_ptr<void> attrs_;
-    BackwardFn backward_fn_;
-    std::vector<TensorNode*> buffers_;
+    std::shared_ptr<NNBaseOpNode> op_;
 
 public:
-    OpNode(std::vector<TensorNode*> inputs,
-           std::vector<TensorNode*> outputs,
-           std::shared_ptr<void> attrs,
-           BackwardFn backward_fn,
-           std::vector<TensorNode*> buffers = {})
-        : inputs_(std::move(inputs))
-        , outputs_(std::move(outputs))
-        , attrs_(std::move(attrs))
-        , backward_fn_(std::move(backward_fn))
-        , buffers_(std::move(buffers))
-    {
-    }
+    explicit OpNode(std::shared_ptr<NNBaseOpNode> op) : op_(std::move(op)) {}
 
-    const std::vector<TensorNode*>& inputs() const { return inputs_; }
-    const std::vector<TensorNode*>& outputs() const { return outputs_; }
-    const std::vector<TensorNode*>& buffers() const { return buffers_; }
+    const std::vector<TensorNode*>& inputs() const { return op_->inputs(); }
+    const std::vector<TensorNode*>& outputs() const { return op_->outputs(); }
+    const std::vector<TensorNode*>& buffers() const { return op_->buffers(); }
     //! Convenience for single-output ops. Undefined if outputs().size() != 1.
-    TensorNode* output() const { return outputs_.empty() ? nullptr : outputs_[0]; }
-    //! Opaque attrs; cast in build_backward: std::static_pointer_cast<MyAttrs>(op->attrs())
-    const std::shared_ptr<void>& attrs() const { return attrs_; }
+    TensorNode* output() const { return outputs().empty() ? nullptr : outputs()[0]; }
+    const std::shared_ptr<NNBaseOpNode>& op() const { return op_; }
     void run_backward() const
     {
-        if(backward_fn_)
+        if(op_)
         {
-            backward_fn_(this);
+            op_->backward();
         }
     }
 };
