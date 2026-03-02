@@ -19,7 +19,6 @@
 
 #include <string>
 
-#include <nntile/graph/autograd_function.hh>
 #include <nntile/graph/logical/add_fiber.hh>
 #include <nntile/graph/nn_graph.hh>
 

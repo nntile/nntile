@@ -9,7 +9,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/graph/autograd_function.hh"
+#include "nntile/graph/nn_graph.hh"
 #include "nntile/graph/grad_mode.hh"
 
 namespace nntile::graph

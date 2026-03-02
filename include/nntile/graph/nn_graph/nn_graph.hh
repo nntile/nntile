@@ -131,4 +131,30 @@ public:
     std::string to_mermaid() const { return logical_.to_mermaid(); }
 };
 
+// -----------------------------------------------------------------
+// Operation registration (part of graph API)
+// -----------------------------------------------------------------
+
+//! Register OpNode. Creates only when GradMode enabled and any input requires grad.
+//! attrs: opaque (std::shared_ptr<void>); only forward/backward know the type.
+void register_op(
+    NNGraph& graph,
+    const std::vector<NNGraph::TensorNode*>& inputs,
+    const std::vector<NNGraph::TensorNode*>& outputs,
+    std::shared_ptr<void> attrs,
+    std::function<void(const NNGraph::OpNode*)> backward_fn,
+    const std::vector<NNGraph::TensorNode*>& buffers = {});
+
+void register_op(
+    NNGraph& graph,
+    const std::vector<NNGraph::TensorNode*>& inputs,
+    NNGraph::TensorNode* output,
+    std::shared_ptr<void> attrs,
+    std::function<void(const NNGraph::OpNode*)> backward_fn,
+    const std::vector<NNGraph::TensorNode*>& buffers = {});
+
+//! True if any input requires grad.
+bool any_input_requires_grad(
+    const std::vector<NNGraph::TensorNode*>& inputs);
+
 } // namespace nntile::graph
