@@ -96,6 +96,12 @@ private:
     void invalidate_data(const std::string& name);
     void invalidate_unused_inputs(size_t op_idx);
 
+    //! Template helpers for bind_data/get_output - dispatch on DataType
+    template<typename T, typename NntileT, typename CastT>
+    void bind_data_impl(const std::string& name, const T* data, size_t count);
+    template<typename T, typename NntileT, typename CastT>
+    void get_output_impl(const std::string& name, std::vector<T>& result);
+
     const TensorGraph& graph_;
     std::map<const TensorNode*, std::shared_ptr<void>> tensor_map_;
     std::map<std::string, std::shared_ptr<void>> runtime_data_;
@@ -165,148 +171,41 @@ void TensorGraph::Runtime::bind_data(const std::string& name, const T* data,
     }
     DataType dtype = dtype_it->second;
 
-    if(dtype == DataType::FP32)
+    switch(dtype)
     {
-        auto& tensor = get_data<nntile::fp32_t>(name);
-        if(count != static_cast<size_t>(tensor.nelems))
-        {
-            throw std::runtime_error("Data size mismatch for data " + name);
-        }
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_W);
-        for(size_t i = 0; i < count; ++i)
-        {
-            tile_local[i] = nntile::fp32_t(static_cast<float>(data[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::FP32_FAST_TF32)
-    {
-        auto& tensor = get_data<nntile::fp32_fast_tf32_t>(name);
-        if(count != static_cast<size_t>(tensor.nelems))
-        {
-            throw std::runtime_error("Data size mismatch for data " + name);
-        }
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_W);
-        for(size_t i = 0; i < count; ++i)
-        {
-            tile_local[i] =
-                nntile::fp32_fast_tf32_t(static_cast<float>(data[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::FP32_FAST_FP16)
-    {
-        auto& tensor = get_data<nntile::fp32_fast_fp16_t>(name);
-        if(count != static_cast<size_t>(tensor.nelems))
-        {
-            throw std::runtime_error("Data size mismatch for data " + name);
-        }
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_W);
-        for(size_t i = 0; i < count; ++i)
-        {
-            tile_local[i] =
-                nntile::fp32_fast_fp16_t(static_cast<float>(data[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::FP32_FAST_BF16)
-    {
-        auto& tensor = get_data<nntile::fp32_fast_bf16_t>(name);
-        if(count != static_cast<size_t>(tensor.nelems))
-        {
-            throw std::runtime_error("Data size mismatch for data " + name);
-        }
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_W);
-        for(size_t i = 0; i < count; ++i)
-        {
-            tile_local[i] =
-                nntile::fp32_fast_bf16_t(static_cast<float>(data[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::FP64)
-    {
-        auto& tensor = get_data<nntile::fp64_t>(name);
-        if(count != static_cast<size_t>(tensor.nelems))
-        {
-            throw std::runtime_error("Data size mismatch for data " + name);
-        }
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_W);
-        for(size_t i = 0; i < count; ++i)
-        {
-            tile_local[i] = nntile::fp64_t(static_cast<double>(data[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::FP16)
-    {
-        auto& tensor = get_data<nntile::fp16_t>(name);
-        if(count != static_cast<size_t>(tensor.nelems))
-        {
-            throw std::runtime_error("Data size mismatch for data " + name);
-        }
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_W);
-        for(size_t i = 0; i < count; ++i)
-        {
-            tile_local[i] = nntile::fp16_t(static_cast<float>(data[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::BF16)
-    {
-        auto& tensor = get_data<nntile::bf16_t>(name);
-        if(count != static_cast<size_t>(tensor.nelems))
-        {
-            throw std::runtime_error("Data size mismatch for data " + name);
-        }
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_W);
-        for(size_t i = 0; i < count; ++i)
-        {
-            tile_local[i] = nntile::bf16_t(static_cast<float>(data[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::INT64)
-    {
-        auto& tensor = get_data<nntile::int64_t>(name);
-        if(count != static_cast<size_t>(tensor.nelems))
-        {
-            throw std::runtime_error("Data size mismatch for data " + name);
-        }
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_W);
-        for(size_t i = 0; i < count; ++i)
-        {
-            tile_local[i] = nntile::int64_t(
-                static_cast<std::int64_t>(data[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::BOOL)
-    {
-        auto& tensor = get_data<nntile::bool_t>(name);
-        if(count != static_cast<size_t>(tensor.nelems))
-        {
-            throw std::runtime_error("Data size mismatch for data " + name);
-        }
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_W);
-        for(size_t i = 0; i < count; ++i)
-        {
-            tile_local[i] = nntile::bool_t(static_cast<bool>(data[i]));
-        }
-        tile_local.release();
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data type for binding");
+        case DataType::FP32:
+            bind_data_impl<T, nntile::fp32_t, float>(name, data, count);
+            break;
+        case DataType::FP32_FAST_TF32:
+            bind_data_impl<T, nntile::fp32_fast_tf32_t, float>(name, data,
+                                                               count);
+            break;
+        case DataType::FP32_FAST_FP16:
+            bind_data_impl<T, nntile::fp32_fast_fp16_t, float>(name, data,
+                                                                count);
+            break;
+        case DataType::FP32_FAST_BF16:
+            bind_data_impl<T, nntile::fp32_fast_bf16_t, float>(name, data,
+                                                               count);
+            break;
+        case DataType::FP64:
+            bind_data_impl<T, nntile::fp64_t, double>(name, data, count);
+            break;
+        case DataType::FP16:
+            bind_data_impl<T, nntile::fp16_t, float>(name, data, count);
+            break;
+        case DataType::BF16:
+            bind_data_impl<T, nntile::bf16_t, float>(name, data, count);
+            break;
+        case DataType::INT64:
+            bind_data_impl<T, nntile::int64_t, std::int64_t>(name, data,
+                                                            count);
+            break;
+        case DataType::BOOL:
+            bind_data_impl<T, nntile::bool_t, bool>(name, data, count);
+            break;
+        default:
+            throw std::runtime_error("Unsupported data type for binding");
     }
 }
 
@@ -315,6 +214,24 @@ void TensorGraph::Runtime::bind_data(const std::string& name,
                                     const std::vector<T>& data)
 {
     bind_data(name, data.data(), data.size());
+}
+
+template<typename T, typename NntileT, typename CastT>
+void TensorGraph::Runtime::bind_data_impl(const std::string& name,
+                                          const T* data, size_t count)
+{
+    auto& tensor = get_data<NntileT>(name);
+    if(count != static_cast<size_t>(tensor.nelems))
+    {
+        throw std::runtime_error("Data size mismatch for data " + name);
+    }
+    auto tile = tensor.get_tile(0);
+    auto tile_local = tile.acquire(STARPU_W);
+    for(size_t i = 0; i < count; ++i)
+    {
+        tile_local[i] = NntileT(static_cast<CastT>(data[i]));
+    }
+    tile_local.release();
 }
 
 template<typename T>
@@ -333,121 +250,55 @@ std::vector<T> TensorGraph::Runtime::get_output(const std::string& name)
     DataType dtype = dtype_it->second;
     std::vector<T> result;
 
-    if(dtype == DataType::FP32)
+    switch(dtype)
     {
-        auto& tensor = get_data<nntile::fp32_t>(name);
-        result.resize(tensor.nelems);
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_R);
-        for(Index i = 0; i < tensor.nelems; ++i)
-        {
-            result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::FP32_FAST_TF32)
-    {
-        auto& tensor = get_data<nntile::fp32_fast_tf32_t>(name);
-        result.resize(tensor.nelems);
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_R);
-        for(Index i = 0; i < tensor.nelems; ++i)
-        {
-            result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::FP32_FAST_FP16)
-    {
-        auto& tensor = get_data<nntile::fp32_fast_fp16_t>(name);
-        result.resize(tensor.nelems);
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_R);
-        for(Index i = 0; i < tensor.nelems; ++i)
-        {
-            result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::FP32_FAST_BF16)
-    {
-        auto& tensor = get_data<nntile::fp32_fast_bf16_t>(name);
-        result.resize(tensor.nelems);
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_R);
-        for(Index i = 0; i < tensor.nelems; ++i)
-        {
-            result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::FP64)
-    {
-        auto& tensor = get_data<nntile::fp64_t>(name);
-        result.resize(tensor.nelems);
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_R);
-        for(Index i = 0; i < tensor.nelems; ++i)
-        {
-            result[i] = static_cast<T>(static_cast<double>(tile_local[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::FP16)
-    {
-        auto& tensor = get_data<nntile::fp16_t>(name);
-        result.resize(tensor.nelems);
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_R);
-        for(Index i = 0; i < tensor.nelems; ++i)
-        {
-            result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::BF16)
-    {
-        auto& tensor = get_data<nntile::bf16_t>(name);
-        result.resize(tensor.nelems);
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_R);
-        for(Index i = 0; i < tensor.nelems; ++i)
-        {
-            result[i] = static_cast<T>(static_cast<float>(tile_local[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::INT64)
-    {
-        auto& tensor = get_data<nntile::int64_t>(name);
-        result.resize(tensor.nelems);
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_R);
-        for(Index i = 0; i < tensor.nelems; ++i)
-        {
-            result[i] = static_cast<T>(
-                static_cast<std::int64_t>(tile_local[i]));
-        }
-        tile_local.release();
-    }
-    else if(dtype == DataType::BOOL)
-    {
-        auto& tensor = get_data<nntile::bool_t>(name);
-        result.resize(tensor.nelems);
-        auto tile = tensor.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_R);
-        for(Index i = 0; i < tensor.nelems; ++i)
-        {
-            result[i] = static_cast<T>(static_cast<bool>(tile_local[i]));
-        }
-        tile_local.release();
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data type for get_output");
+        case DataType::FP32:
+            get_output_impl<T, nntile::fp32_t, float>(name, result);
+            break;
+        case DataType::FP32_FAST_TF32:
+            get_output_impl<T, nntile::fp32_fast_tf32_t, float>(name, result);
+            break;
+        case DataType::FP32_FAST_FP16:
+            get_output_impl<T, nntile::fp32_fast_fp16_t, float>(name, result);
+            break;
+        case DataType::FP32_FAST_BF16:
+            get_output_impl<T, nntile::fp32_fast_bf16_t, float>(name, result);
+            break;
+        case DataType::FP64:
+            get_output_impl<T, nntile::fp64_t, double>(name, result);
+            break;
+        case DataType::FP16:
+            get_output_impl<T, nntile::fp16_t, float>(name, result);
+            break;
+        case DataType::BF16:
+            get_output_impl<T, nntile::bf16_t, float>(name, result);
+            break;
+        case DataType::INT64:
+            get_output_impl<T, nntile::int64_t, std::int64_t>(name, result);
+            break;
+        case DataType::BOOL:
+            get_output_impl<T, nntile::bool_t, bool>(name, result);
+            break;
+        default:
+            throw std::runtime_error("Unsupported data type for get_output");
     }
 
     return result;
+}
+
+template<typename T, typename NntileT, typename CastT>
+void TensorGraph::Runtime::get_output_impl(const std::string& name,
+                                           std::vector<T>& result)
+{
+    auto& tensor = get_data<NntileT>(name);
+    result.resize(tensor.nelems);
+    auto tile = tensor.get_tile(0);
+    auto tile_local = tile.acquire(STARPU_R);
+    for(Index i = 0; i < tensor.nelems; ++i)
+    {
+        result[i] = static_cast<T>(static_cast<CastT>(tile_local[i]));
+    }
+    tile_local.release();
 }
 
 } // namespace nntile::graph
