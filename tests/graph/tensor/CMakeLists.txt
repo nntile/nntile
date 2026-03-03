@@ -11,7 +11,31 @@
 #
 # @version 1.1.0
 
-set(TESTS_TENSOR_CATCH2 "add" "scale" "multiply" "relu" "sqrt" "copy")
+set(TESTS_TENSOR_CATCH2
+    "add"
+    "add_fiber"
+    "add_fiber_inplace"
+    "add_inplace"
+    "clear"
+    "copy"
+    "fill"
+    "gelu"
+    "gelutanh"
+    "hypot"
+    "multiply"
+    "multiply_inplace"
+    "pow"
+    "relu"
+    "relu_inplace"
+    "scale"
+    "scale_fiber"
+    "scale_inplace"
+    "silu"
+    "sqrt"
+    "sqrt_inplace"
+    "sum_fiber"
+    "transpose"
+)
 
 foreach(test IN LISTS TESTS_TENSOR_CATCH2)
     add_test_set(TARGET_NAME tests_graph_tensor_${test}

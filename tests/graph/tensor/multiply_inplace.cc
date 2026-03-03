@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/graph/tensor/scale.cc
- * Test TensorGraph scale operation against nntile::tensor::scale.
+ * @file tests/graph/tensor/multiply_inplace.cc
+ * Test TensorGraph multiply_inplace operation against nntile::tensor::multiply_inplace.
  *
  * @version 1.1.0
  * */
@@ -18,9 +18,9 @@
 #include <numeric>
 
 #include "context_fixture.hh"
-#include "nntile/graph/tensor/scale.hh"
+#include "nntile/graph/tensor/multiply_inplace.hh"
 #include "nntile/graph/tensor.hh"
-#include "nntile/tensor/scale.hh"
+#include "nntile/tensor/multiply_inplace.hh"
 #include "nntile/tensor/tensor.hh"
 
 using namespace nntile;
@@ -29,12 +29,12 @@ using namespace nntile::graph;
 namespace
 {
 
-constexpr Scalar alpha = 2.5;
+constexpr Scalar alpha = 2.0;
 
 } // anonymous namespace
 
 template<typename T>
-void check_scale_vs_tensor_api(
+void check_multiply_inplace_vs_tensor_api(
     const std::vector<Index>& shape,
     Scalar alpha)
 {
@@ -43,25 +43,27 @@ void check_scale_vs_tensor_api(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
 
     // --- TensorGraph path ---
-    TensorGraph graph("scale_test");
+    TensorGraph graph("multiply_inplace_test");
     auto* src_node = graph.data(shape, "src", DataType::FP32);
+    auto* dst_node = graph.data(shape, "dst", DataType::FP32);
     src_node->mark_input(true);
-
-    auto* dst_node = scale(alpha, src_node, "dst");
+    dst_node->mark_input(true);
     dst_node->mark_output(true);
+
+    multiply_inplace(alpha, src_node, dst_node);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
 
-    // Generate input data once
-    std::vector<float> src_data(nelems);
+    std::vector<float> src_data(nelems), dst_data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
         src_data[i] = static_cast<float>(Y(i + 1));
+        dst_data[i] = static_cast<float>(Y(-i - 1));
     }
 
-    // --- TensorGraph path ---
     runtime.bind_data("src", src_data);
+    runtime.bind_data("dst", dst_data);
     runtime.execute();
     runtime.wait();
 
@@ -74,16 +76,20 @@ void check_scale_vs_tensor_api(
     tensor::Tensor<T> dst(traits, distr);
 
     {
-        auto tile = src.get_tile(0);
-        auto loc = tile.acquire(STARPU_W);
+        auto tile1 = src.get_tile(0);
+        auto tile2 = dst.get_tile(0);
+        auto loc1 = tile1.acquire(STARPU_W);
+        auto loc2 = tile2.acquire(STARPU_W);
         for(Index i = 0; i < nelems; ++i)
         {
-            loc[i] = static_cast<Y>(src_data[i]);
+            loc1[i] = static_cast<Y>(src_data[i]);
+            loc2[i] = static_cast<Y>(dst_data[i]);
         }
-        loc.release();
+        loc1.release();
+        loc2.release();
     }
 
-    tensor::scale<T>(alpha, src, dst);
+    tensor::multiply_inplace<T>(alpha, src, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -97,7 +103,6 @@ void check_scale_vs_tensor_api(
         loc.release();
     }
 
-    // --- Compare ---
     constexpr float tol = 1e-5f;
     REQUIRE(graph_result.size() == tensor_result.size());
     for(size_t i = 0; i < graph_result.size(); ++i)
@@ -106,7 +111,7 @@ void check_scale_vs_tensor_api(
     }
 }
 
-TEST_CASE("TensorGraph scale structure", "[graph][tensor]")
+TEST_CASE("TensorGraph multiply_inplace structure", "[graph][tensor]")
 {
     constexpr Index dim0 = 4;
     constexpr Index dim1 = 5;
@@ -114,30 +119,28 @@ TEST_CASE("TensorGraph scale structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto* src = graph.data({dim0, dim1}, "src");
+    auto* dst = graph.data({dim0, dim1}, "dst");
 
-    auto* dst = scale(alpha, src, "dst");
+    multiply_inplace(alpha, src, dst);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
-    REQUIRE(dst->shape()[0] == dim0);
-    REQUIRE(dst->shape()[1] == dim1);
 
     const auto& ops = graph.ops();
-    REQUIRE(ops[0]->op_name() == "SCALE");
-    REQUIRE(ops[0]->inputs().size() == 1);
+    REQUIRE(ops[0]->op_name() == "MULTIPLY_INPLACE");
+    REQUIRE(ops[0]->inputs().size() == 2);
     REQUIRE(ops[0]->outputs().size() == 1);
     REQUIRE(ops[0]->outputs()[0] == dst);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph scale matches tensor::scale", "[graph][tensor]")
+    "TensorGraph multiply_inplace matches tensor::multiply_inplace", "[graph][tensor]")
 {
     const auto [alpha, shape] = GENERATE(
+        std::tuple{1.0, std::vector<Index>{4, 5}},
         std::tuple{2.5, std::vector<Index>{4, 5}},
-        std::tuple{-1.0, std::vector<Index>{6}},
-        std::tuple{1.0, std::vector<Index>{2, 3}},
-        std::tuple{0.5, std::vector<Index>{1}});
+        std::tuple{0.5, std::vector<Index>{2, 3}},
+        std::tuple{3.0, std::vector<Index>{6}});
 
-    check_scale_vs_tensor_api<nntile::fp32_t>(
-        shape, alpha);
+    check_multiply_inplace_vs_tensor_api<nntile::fp32_t>(shape, alpha);
 }
