@@ -52,6 +52,11 @@ void multiply_fiber_inplace(
         throw std::invalid_argument(
             "multiply_fiber_inplace: input tensors must be non-null");
     }
+    if(src == dst)
+    {
+        throw std::invalid_argument(
+            "multiply_fiber_inplace: src and dst must be distinct tensors");
+    }
     if(src->graph() != dst->graph())
     {
         throw std::invalid_argument(
@@ -62,10 +67,20 @@ void multiply_fiber_inplace(
         throw std::invalid_argument(
             "multiply_fiber_inplace: input tensors must have the same dtype");
     }
-    if(src->shape() != dst->shape())
+    if(src->ndim() != 1)
     {
         throw std::invalid_argument(
-            "multiply_fiber_inplace: src and dst must have the same shape");
+            "multiply_fiber_inplace: src must be 1-dimensional (fiber)");
+    }
+    if(axis < 0 || axis >= dst->ndim())
+    {
+        throw std::invalid_argument(
+            "multiply_fiber_inplace: axis out of range");
+    }
+    if(src->dim(0) != dst->dim(axis))
+    {
+        throw std::invalid_argument(
+            "multiply_fiber_inplace: src.shape[0] must equal dst.shape[axis]");
     }
 
     auto op = std::make_shared<TensorMultiplyFiberInplaceOp>(

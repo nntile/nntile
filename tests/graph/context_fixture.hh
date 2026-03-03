@@ -41,5 +41,23 @@ struct ContextFixture
     }
 };
 
+//! Catch2 fixture for CUDA tests (n_cuda=1) - required for flash_* operations
+struct CudaContextFixture
+{
+    static constexpr int n_workers = 1;
+    static constexpr int n_cuda = 1;
+    static constexpr int ooc_enabled = 0;
+    static constexpr char const* ooc_path = "/tmp/nntile_ooc";
+    static constexpr std::size_t ooc_size = 16777216;
+    static constexpr int logger = 0;
+
+    Context context;
+
+    CudaContextFixture()
+        : context(n_workers, n_cuda, ooc_enabled, ooc_path, ooc_size, logger)
+    {
+    }
+};
+
 } // namespace test
 } // namespace nntile

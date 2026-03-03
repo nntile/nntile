@@ -51,6 +51,11 @@ void sum(
         throw std::invalid_argument(
             "sum: input tensors must be non-null");
     }
+    if(src == dst)
+    {
+        throw std::invalid_argument(
+            "sum: src and dst must be distinct tensors");
+    }
     if(src->graph() != dst->graph())
     {
         throw std::invalid_argument(

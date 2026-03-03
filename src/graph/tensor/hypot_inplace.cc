@@ -52,6 +52,11 @@ void hypot_inplace(
         throw std::invalid_argument(
             "hypot_inplace: input tensors must be non-null");
     }
+    if(src == dst)
+    {
+        throw std::invalid_argument(
+            "hypot_inplace: src and dst must be distinct tensors");
+    }
     if(src->graph() != dst->graph())
     {
         throw std::invalid_argument(

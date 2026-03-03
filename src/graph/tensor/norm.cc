@@ -48,6 +48,11 @@ void norm(TensorGraph::TensorNode* x, TensorGraph::TensorNode* y,
     {
         throw std::invalid_argument("norm: input tensors must be non-null");
     }
+    if(x == y)
+    {
+        throw std::invalid_argument(
+            "norm: x and y must be distinct tensors");
+    }
     if(x->graph() != y->graph())
     {
         throw std::invalid_argument(

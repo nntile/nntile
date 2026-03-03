@@ -20,6 +20,7 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/tensor/clear.hh"
 #include "nntile/tensor/maxsumexp.hh"
 
 namespace nntile::graph
@@ -37,6 +38,7 @@ void run_maxsumexp(
 {
     auto& src_t = runtime.get_tensor<T>(src);
     auto& dst_t = runtime.get_tensor<T>(dst);
+    nntile::tensor::clear<T>(dst_t);
     nntile::tensor::maxsumexp<T>(src_t, dst_t, axis, redux);
 }
 
@@ -54,9 +56,19 @@ TensorGraph::TensorNode* maxsumexp(
             "maxsumexp: input tensor must be non-null");
     }
 
-    // dst shape: insert 2 at axis for (max, sumexp) interleaved
-    std::vector<Index> output_shape = src->shape();
-    output_shape.insert(output_shape.begin() + axis, 2);
+    // dst shape: [2] + src.shape without axis (tensor API convention)
+    // dst.shape[0]=2, dst.shape[i+1]=src.shape[i] for i<axis,
+    // dst.shape[i]=src.shape[i] for i>axis
+    std::vector<Index> output_shape;
+    output_shape.reserve(src->ndim());
+    output_shape.push_back(2);
+    for(Index i = 0; i < src->ndim(); ++i)
+    {
+        if(i != axis)
+        {
+            output_shape.push_back(src->shape()[i]);
+        }
+    }
 
     TensorGraph::TensorNode* dst = src->graph()->data(
         std::move(output_shape),
