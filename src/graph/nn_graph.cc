@@ -68,6 +68,11 @@ NNGraph::TensorNode* NNGraph::tensor(TensorGraph::TensorNode* data,
         throw std::invalid_argument(
             "NNGraph::tensor: tensor must belong to this graph's tensor graph");
     }
+    if(tensor_by_name_.count(data->name()) > 0)
+    {
+        throw std::invalid_argument("NNGraph::tensor: tensor '" + data->name() +
+            "' already exists");
+    }
     auto node = std::make_unique<TensorNode>(this, data, requires_grad);
     TensorNode* node_ptr = node.get();
     tensors_.push_back(std::move(node));
