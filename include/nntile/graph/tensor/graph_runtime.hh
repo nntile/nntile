@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <set>
@@ -283,7 +284,8 @@ void TensorGraph::Runtime::bind_data(const std::string& name, const T* data,
         auto tile_local = tile.acquire(STARPU_W);
         for(size_t i = 0; i < count; ++i)
         {
-            tile_local[i] = nntile::int64_t(static_cast<long long>(data[i]));
+            tile_local[i] = nntile::int64_t(
+                static_cast<std::int64_t>(data[i]));
         }
         tile_local.release();
     }
@@ -423,7 +425,8 @@ std::vector<T> TensorGraph::Runtime::get_output(const std::string& name)
         auto tile_local = tile.acquire(STARPU_R);
         for(Index i = 0; i < tensor.nelems; ++i)
         {
-            result[i] = static_cast<T>(static_cast<long long>(tile_local[i]));
+            result[i] = static_cast<T>(
+                static_cast<std::int64_t>(tile_local[i]));
         }
         tile_local.release();
     }
