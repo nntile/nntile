@@ -24,11 +24,11 @@ TEST_CASE("GradMode disabled: Add does not set producer")
 
     NNGraph::TensorNode* z = nullptr;
     {
-        GradMode::Guard guard;
+        auto guard = g.no_grad();
         z = add(Scalar(1.0), x, Scalar(1.0), y, "z");
     }
 
-    // With GradMode disabled, add() did not set producer
+    // With grad disabled, add() did not set producer
     REQUIRE(z != nullptr);
     REQUIRE_FALSE(z->has_producer());
     REQUIRE(z->is_leaf());

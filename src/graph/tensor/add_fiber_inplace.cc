@@ -18,7 +18,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/execution_context.hh"
-#include "nntile/graph/tensor_graph.hh"
+#include "nntile/graph/tensor.hh"
 #include "nntile/tensor/add_fiber_inplace.hh"
 
 namespace nntile::graph
@@ -29,11 +29,11 @@ namespace
 
 template<typename T>
 void run_add_fiber_inplace(
-    ExecutionContext<TensorGraph::DataNode>& ctx,
+    ExecutionContext<TensorGraph::TensorNode>& ctx,
     Scalar alpha, Scalar beta,
     Index axis, Index batch_ndim,
-    TensorGraph::DataNode* fiber,
-    TensorGraph::DataNode* tensor)
+    TensorGraph::TensorNode* fiber,
+    TensorGraph::TensorNode* tensor)
 {
     auto& fiber_t = ctx.get_tensor<T>(fiber);
     auto& tensor_t = ctx.get_tensor<T>(tensor);
@@ -45,9 +45,9 @@ void run_add_fiber_inplace(
 
 void add_fiber_inplace(
     Scalar alpha,
-    TensorGraph::DataNode* fiber,
+    TensorGraph::TensorNode* fiber,
     Scalar beta,
-    TensorGraph::DataNode* tensor,
+    TensorGraph::TensorNode* tensor,
     Index axis,
     Index batch_ndim)
 {
@@ -73,7 +73,7 @@ void add_fiber_inplace(
 }
 
 void TensorAddFiberInplaceOp::execute(
-    ExecutionContext<TensorGraph::DataNode>& ctx) const
+    ExecutionContext<TensorGraph::TensorNode>& ctx) const
 {
     DataType dtype = ctx.get_dtype(fiber);
 
@@ -101,7 +101,6 @@ void TensorAddFiberInplaceOp::execute(
             break;
         case DataType::FP16:
         case DataType::INT64:
-        case DataType::INT32:
         case DataType::BOOL:
             throw std::runtime_error(
                 std::string(dtype_to_string(dtype)) +

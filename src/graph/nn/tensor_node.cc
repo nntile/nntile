@@ -9,8 +9,8 @@
  * @version 1.1.0
  * */
 
-#include "nntile/graph/nn/tensor_node.hh"
-#include "nntile/graph/nn/op_node.hh"
+#include "nntile/graph/nn/graph_tensor_node.hh"
+#include "nntile/graph/nn/graph_op_node.hh"
 
 #include <deque>
 #include <set>
@@ -24,7 +24,7 @@ namespace nntile::graph
 
 NNGraph::TensorNode::TensorNode(
     NNGraph* graph,
-    TensorGraph::DataNode* data,
+    TensorGraph::TensorNode* data,
     bool requires_grad
 )
     : graph_(graph)

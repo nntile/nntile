@@ -19,7 +19,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/execution_context.hh"
-#include "nntile/graph/tensor_graph.hh"
+#include "nntile/graph/tensor.hh"
 #include "nntile/tensor/add_fiber.hh"
 
 namespace nntile::graph
@@ -30,12 +30,12 @@ namespace
 
 template<typename T>
 void run_add_fiber(
-    ExecutionContext<TensorGraph::DataNode>& ctx,
+    ExecutionContext<TensorGraph::TensorNode>& ctx,
     Scalar alpha, Scalar beta,
     Index axis, Index batch_ndim,
-    TensorGraph::DataNode* fiber,
-    TensorGraph::DataNode* tensor,
-    TensorGraph::DataNode* output)
+    TensorGraph::TensorNode* fiber,
+    TensorGraph::TensorNode* tensor,
+    TensorGraph::TensorNode* output)
 {
     auto& fiber_t = ctx.get_tensor<T>(fiber);
     auto& tensor_t = ctx.get_tensor<T>(tensor);
@@ -46,11 +46,11 @@ void run_add_fiber(
 
 } // namespace
 
-TensorGraph::DataNode* add_fiber(
+TensorGraph::TensorNode* add_fiber(
     Scalar alpha,
-    TensorGraph::DataNode* fiber,
+    TensorGraph::TensorNode* fiber,
     Scalar beta,
-    TensorGraph::DataNode* tensor,
+    TensorGraph::TensorNode* tensor,
     const std::string& output_name,
     Index axis,
     Index batch_ndim)
@@ -73,7 +73,7 @@ TensorGraph::DataNode* add_fiber(
 
     // Output shape matches tensor (fiber is broadcast)
     std::vector<Index> output_shape = tensor->shape();
-    TensorGraph::DataNode* output = tensor->graph()->data(
+    TensorGraph::TensorNode* output = tensor->graph()->data(
         std::move(output_shape),
         output_name,
         tensor->dtype());
@@ -85,10 +85,10 @@ TensorGraph::DataNode* add_fiber(
 
 void add_fiber(
     Scalar alpha,
-    TensorGraph::DataNode* fiber,
+    TensorGraph::TensorNode* fiber,
     Scalar beta,
-    TensorGraph::DataNode* tensor,
-    TensorGraph::DataNode* output,
+    TensorGraph::TensorNode* tensor,
+    TensorGraph::TensorNode* output,
     Index axis,
     Index batch_ndim)
 {
@@ -119,7 +119,7 @@ void add_fiber(
 }
 
 void TensorAddFiberOp::execute(
-    ExecutionContext<TensorGraph::DataNode>& ctx) const
+    ExecutionContext<TensorGraph::TensorNode>& ctx) const
 {
     DataType dtype = ctx.get_dtype(fiber);
 
@@ -147,7 +147,6 @@ void TensorAddFiberOp::execute(
             break;
         case DataType::FP16:
         case DataType::INT64:
-        case DataType::INT32:
         case DataType::BOOL:
             throw std::runtime_error(
                 std::string(dtype_to_string(dtype)) +

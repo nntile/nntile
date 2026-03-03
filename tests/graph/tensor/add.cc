@@ -15,7 +15,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "nntile/graph/tensor/add.hh"
-#include "nntile/graph/tensor_graph.hh"
+#include "nntile/graph/tensor.hh"
 
 using namespace nntile::graph;
 

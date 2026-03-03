@@ -15,11 +15,6 @@
 #pragma once
 
 // Include related NNTile headers - core classes
-#include <nntile/graph/grad_mode.hh>
-#include <nntile/graph/nn_graph.hh>
-#include <nntile/graph/compiled_graph.hh>
-// Include tensor graph operations
-#include <nntile/graph/tensor_graph_ops.hh>
-
-// Include NNGraph operation overloads
-#include <nntile/graph/nn_graph_ops.hh>
+#include <nntile/graph/nn.hh>
+#include <nntile/graph/compiled.hh>
+#include <nntile/graph/tensor.hh>

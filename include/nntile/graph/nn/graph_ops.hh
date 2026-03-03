@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/nn_graph_ops.hh
+ * @file include/nntile/graph/nn/graph_ops.hh
  * NNGraph operations - free function overloads for NNGraph::TensorNode.
  *
  * Individual ops in nn/ (TensorGraph backend),

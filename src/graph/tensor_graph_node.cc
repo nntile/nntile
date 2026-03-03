@@ -9,8 +9,8 @@
  * @version 1.1.0
  * */
 
-#include "nntile/graph/tensor_graph_node.hh"
-#include "nntile/graph/tensor_graph.hh"
+#include "nntile/graph/tensor/graph_tensor_node.hh"
+#include "nntile/graph/tensor/graph.hh"
 
 namespace nntile::graph
 {

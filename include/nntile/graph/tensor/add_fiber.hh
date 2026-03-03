@@ -17,28 +17,27 @@
 #include <string>
 
 #include <nntile/base_types.hh>
-#include <nntile/graph/tensor_graph.hh>
-#include <nntile/graph/base_op_node.hh>
+#include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::graph
 {
 
 //! Add fiber operation at tensor level: output = alpha * fiber + beta * tensor
-struct TensorAddFiberOp : BaseOpNode<TensorGraph, TensorGraphNode>
+struct TensorAddFiberOp : TensorGraphOpNode
 {
     Index axis = 0;
     Index batch_ndim = 0;
     Scalar alpha = 1.0;
     Scalar beta = 1.0;
-    TensorGraph::DataNode* fiber = nullptr;
-    TensorGraph::DataNode* tensor = nullptr;
-    TensorGraph::DataNode* output = nullptr;
+    TensorGraph::TensorNode* fiber = nullptr;
+    TensorGraph::TensorNode* tensor = nullptr;
+    TensorGraph::TensorNode* output = nullptr;
 
     TensorAddFiberOp() = default;
     TensorAddFiberOp(
-        TensorGraph::DataNode* fiber_,
-        TensorGraph::DataNode* tensor_,
-        TensorGraph::DataNode* output_,
+        TensorGraph::TensorNode* fiber_,
+        TensorGraph::TensorNode* tensor_,
+        TensorGraph::TensorNode* output_,
         Scalar alpha_, Scalar beta_,
         Index axis_, Index batch_ndim_)
         : axis(axis_), batch_ndim(batch_ndim_)
@@ -51,20 +50,20 @@ struct TensorAddFiberOp : BaseOpNode<TensorGraph, TensorGraphNode>
 
     std::string op_name() const override { return "ADD_FIBER"; }
 
-    void execute(ExecutionContext<TensorGraph::DataNode>& ctx) const override;
+    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
 
-    std::shared_ptr<BaseOpNode<TensorGraph, TensorGraphNode>> clone() const override
+    std::shared_ptr<TensorGraphOpNode> clone() const override
     {
         return std::make_shared<TensorAddFiberOp>(*this);
     }
 };
 
 //! Add along fibers: output = alpha * fiber + beta * tensor (creates output)
-TensorGraph::DataNode* add_fiber(
+TensorGraph::TensorNode* add_fiber(
     Scalar alpha,
-    TensorGraph::DataNode* fiber,
+    TensorGraph::TensorNode* fiber,
     Scalar beta,
-    TensorGraph::DataNode* tensor,
+    TensorGraph::TensorNode* tensor,
     const std::string& output_name,
     Index axis,
     Index batch_ndim = 0);
@@ -72,10 +71,10 @@ TensorGraph::DataNode* add_fiber(
 //! Add along fibers: output = alpha * fiber + beta * tensor (uses existing output)
 void add_fiber(
     Scalar alpha,
-    TensorGraph::DataNode* fiber,
+    TensorGraph::TensorNode* fiber,
     Scalar beta,
-    TensorGraph::DataNode* tensor,
-    TensorGraph::DataNode* output,
+    TensorGraph::TensorNode* tensor,
+    TensorGraph::TensorNode* output,
     Index axis,
     Index batch_ndim = 0);
 

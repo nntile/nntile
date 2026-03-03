@@ -20,7 +20,7 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/execution_context.hh"
-#include "nntile/graph/tensor_graph.hh"
+#include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gelu.hh"
 
 namespace nntile::graph
@@ -31,9 +31,9 @@ namespace
 
 template<typename T>
 void run_gelu(
-    ExecutionContext<TensorGraph::DataNode>& ctx,
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* y)
+    ExecutionContext<TensorGraph::TensorNode>& ctx,
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* y)
 {
     auto& x_t = ctx.get_tensor<T>(x);
     auto& y_t = ctx.get_tensor<T>(y);
@@ -42,8 +42,8 @@ void run_gelu(
 
 } // namespace
 
-TensorGraph::DataNode* gelu(
-    TensorGraph::DataNode* x,
+TensorGraph::TensorNode* gelu(
+    TensorGraph::TensorNode* x,
     const std::string& output_name)
 {
     if(x == nullptr)
@@ -52,7 +52,7 @@ TensorGraph::DataNode* gelu(
     }
 
     std::vector<Index> output_shape = x->shape();
-    TensorGraph::DataNode* output = x->graph()->data(
+    TensorGraph::TensorNode* output = x->graph()->data(
         std::move(output_shape),
         output_name,
         x->dtype());
@@ -64,8 +64,8 @@ TensorGraph::DataNode* gelu(
 }
 
 void gelu(
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* y)
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* y)
 {
     if(x == nullptr || y == nullptr)
     {
@@ -92,7 +92,7 @@ void gelu(
 }
 
 void TensorGeluOp::execute(
-    ExecutionContext<TensorGraph::DataNode>& ctx) const
+    ExecutionContext<TensorGraph::TensorNode>& ctx) const
 {
     DataType dtype = ctx.get_dtype(x);
 
@@ -120,7 +120,6 @@ void TensorGeluOp::execute(
             run_gelu<nntile::bf16_t>(ctx, x, y);
             break;
         case DataType::INT64:
-        case DataType::INT32:
         case DataType::BOOL:
             throw std::runtime_error(
                 std::string(dtype_to_string(dtype)) +

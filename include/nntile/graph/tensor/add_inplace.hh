@@ -15,24 +15,23 @@
 #pragma once
 
 #include <nntile/base_types.hh>
-#include <nntile/graph/tensor_graph.hh>
-#include <nntile/graph/base_op_node.hh>
+#include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::graph
 {
 
 //! Add in-place operation at tensor level: y = alpha * x + beta * y
-struct TensorAddInplaceOp : BaseOpNode<TensorGraph, TensorGraphNode>
+struct TensorAddInplaceOp : TensorGraphOpNode
 {
     Scalar alpha = 1.0;
     Scalar beta = 0.0;
-    TensorGraph::DataNode* x = nullptr;
-    TensorGraph::DataNode* y = nullptr;
+    TensorGraph::TensorNode* x = nullptr;
+    TensorGraph::TensorNode* y = nullptr;
 
     TensorAddInplaceOp() = default;
     TensorAddInplaceOp(
-        TensorGraph::DataNode* x_,
-        TensorGraph::DataNode* y_,
+        TensorGraph::TensorNode* x_,
+        TensorGraph::TensorNode* y_,
         Scalar alpha_, Scalar beta_)
         : alpha(alpha_), beta(beta_), x(x_), y(y_)
     {
@@ -42,9 +41,9 @@ struct TensorAddInplaceOp : BaseOpNode<TensorGraph, TensorGraphNode>
 
     std::string op_name() const override { return "ADD_INPLACE"; }
 
-    void execute(ExecutionContext<TensorGraph::DataNode>& ctx) const override;
+    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
 
-    std::shared_ptr<BaseOpNode<TensorGraph, TensorGraphNode>> clone() const override
+    std::shared_ptr<TensorGraphOpNode> clone() const override
     {
         return std::make_shared<TensorAddInplaceOp>(*this);
     }
@@ -53,8 +52,8 @@ struct TensorAddInplaceOp : BaseOpNode<TensorGraph, TensorGraphNode>
 //! Add in-place: y = alpha * x + beta * y
 void add_inplace(
     Scalar alpha,
-    TensorGraph::DataNode* x,
+    TensorGraph::TensorNode* x,
     Scalar beta,
-    TensorGraph::DataNode* y);
+    TensorGraph::TensorNode* y);
 
 } // namespace nntile::graph

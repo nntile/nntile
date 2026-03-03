@@ -19,7 +19,7 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/execution_context.hh"
-#include "nntile/graph/tensor_graph.hh"
+#include "nntile/graph/tensor.hh"
 #include "nntile/tensor/fill.hh"
 
 namespace nntile::graph
@@ -30,9 +30,9 @@ namespace
 
 template<typename T>
 void run_fill(
-    ExecutionContext<TensorGraph::DataNode>& ctx,
+    ExecutionContext<TensorGraph::TensorNode>& ctx,
     Scalar val,
-    TensorGraph::DataNode* x)
+    TensorGraph::TensorNode* x)
 {
     auto& x_t = ctx.get_tensor<T>(x);
     nntile::tensor::fill<T>(val, x_t);
@@ -40,7 +40,7 @@ void run_fill(
 
 } // namespace
 
-void fill(Scalar val, TensorGraph::DataNode* x)
+void fill(Scalar val, TensorGraph::TensorNode* x)
 {
     if(x == nullptr)
     {
@@ -52,7 +52,7 @@ void fill(Scalar val, TensorGraph::DataNode* x)
 }
 
 void TensorFillOp::execute(
-    ExecutionContext<TensorGraph::DataNode>& ctx) const
+    ExecutionContext<TensorGraph::TensorNode>& ctx) const
 {
     DataType dtype = ctx.get_dtype(x);
 
@@ -83,9 +83,6 @@ void TensorFillOp::execute(
         case DataType::BOOL:
             throw std::runtime_error(
                 "INT64/BOOL data type not supported for fill operation");
-        case DataType::INT32:
-            throw std::runtime_error(
-                "INT32 data type not supported for fill operation");
         default:
             throw std::runtime_error("Unsupported data type for fill");
     }

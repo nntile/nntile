@@ -15,27 +15,26 @@
 #pragma once
 
 #include <nntile/base_types.hh>
-#include <nntile/graph/tensor_graph.hh>
-#include <nntile/graph/base_op_node.hh>
+#include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::graph
 {
 
 //! Sum fiber operation at tensor level: y = alpha * sum_fiber(x) + beta * y
-struct TensorSumFiberOp : BaseOpNode<TensorGraph, TensorGraphNode>
+struct TensorSumFiberOp : TensorGraphOpNode
 {
     Index axis = 0;
     Index batch_ndim = 0;
     int redux = 0;
     Scalar alpha = 1.0;
     Scalar beta = 0.0;
-    TensorGraph::DataNode* x = nullptr;
-    TensorGraph::DataNode* y = nullptr;
+    TensorGraph::TensorNode* x = nullptr;
+    TensorGraph::TensorNode* y = nullptr;
 
     TensorSumFiberOp() = default;
     TensorSumFiberOp(
-        TensorGraph::DataNode* x_,
-        TensorGraph::DataNode* y_,
+        TensorGraph::TensorNode* x_,
+        TensorGraph::TensorNode* y_,
         Index axis_, Index batch_ndim_,
         int redux_, Scalar alpha_, Scalar beta_)
         : axis(axis_), batch_ndim(batch_ndim_)
@@ -48,9 +47,9 @@ struct TensorSumFiberOp : BaseOpNode<TensorGraph, TensorGraphNode>
 
     std::string op_name() const override { return "SUM_FIBER"; }
 
-    void execute(ExecutionContext<TensorGraph::DataNode>& ctx) const override;
+    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
 
-    std::shared_ptr<BaseOpNode<TensorGraph, TensorGraphNode>> clone() const override
+    std::shared_ptr<TensorGraphOpNode> clone() const override
     {
         return std::make_shared<TensorSumFiberOp>(*this);
     }
@@ -65,8 +64,8 @@ struct TensorSumFiberOp : BaseOpNode<TensorGraph, TensorGraphNode>
 //! @param alpha Scaling factor for sum (default: 1.0)
 //! @param beta Scaling factor for existing y (default: 0.0)
 void sum_fiber(
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* y,
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* y,
     Index axis = 0,
     Index batch_ndim = 0,
     int redux = 0,

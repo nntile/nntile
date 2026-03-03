@@ -22,7 +22,7 @@
 // Include other NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/execution_context.hh>
-#include <nntile/graph/tensor_graph.hh>
+#include <nntile/graph/tensor.hh>
 #include <nntile/tensor/add.hh>
 
 namespace nntile::graph
@@ -33,12 +33,12 @@ namespace
 
 template<typename T>
 void run_add(
-    ExecutionContext<TensorGraph::DataNode>& ctx,
+    ExecutionContext<TensorGraph::TensorNode>& ctx,
     Scalar alpha,
     Scalar beta,
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* y,
-    TensorGraph::DataNode* z)
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* y,
+    TensorGraph::TensorNode* z)
 {
     auto& x_t = ctx.get_tensor<T>(x);
     auto& y_t = ctx.get_tensor<T>(y);
@@ -48,11 +48,11 @@ void run_add(
 
 } // namespace
 
-TensorGraph::DataNode* add(
+TensorGraph::TensorNode* add(
     Scalar alpha,
-    TensorGraph::DataNode* x,
+    TensorGraph::TensorNode* x,
     Scalar beta,
-    TensorGraph::DataNode* y,
+    TensorGraph::TensorNode* y,
     const std::string& output_name)
 {
     if(x == nullptr || y == nullptr)
@@ -76,7 +76,7 @@ TensorGraph::DataNode* add(
     }
 
     std::vector<Index> output_shape = x->shape();
-    TensorGraph::DataNode* output = x->graph()->data(
+    TensorGraph::TensorNode* output = x->graph()->data(
         std::move(output_shape),
         output_name,
         x->dtype());
@@ -88,10 +88,10 @@ TensorGraph::DataNode* add(
 
 void add(
     Scalar alpha,
-    TensorGraph::DataNode* x,
+    TensorGraph::TensorNode* x,
     Scalar beta,
-    TensorGraph::DataNode* y,
-    TensorGraph::DataNode* z)
+    TensorGraph::TensorNode* y,
+    TensorGraph::TensorNode* z)
 {
     if(x == nullptr || y == nullptr || z == nullptr)
     {
@@ -118,7 +118,7 @@ void add(
 }
 
 void TensorAddOp::execute(
-    ExecutionContext<TensorGraph::DataNode>& ctx) const
+    ExecutionContext<TensorGraph::TensorNode>& ctx) const
 {
     DataType dtype = ctx.get_dtype(x);
 
@@ -146,7 +146,6 @@ void TensorAddOp::execute(
             run_add<nntile::bf16_t>(ctx, alpha, beta, x, y, z);
             break;
         case DataType::INT64:
-        case DataType::INT32:
         case DataType::BOOL:
             throw std::runtime_error(
                 std::string(dtype_to_string(dtype)) +

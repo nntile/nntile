@@ -42,7 +42,7 @@ TEST_CASE("NNGraph TensorCreationAndLookup", "[graph]")
     REQUIRE_FALSE(x->requires_grad());
     REQUIRE(g.get_tensor("x") == x);
     REQUIRE(g.get_tensor("missing") == nullptr);
-    REQUIRE(x->data() == g.tensor_graph().get_data_node("x"));
+    REQUIRE(x->data() == g.tensor_graph().get_tensor_node("x"));
 
     auto names = g.tensor_names();
     REQUIRE(names.size() == 1);

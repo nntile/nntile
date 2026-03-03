@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/nn/nn_graph.hh
+ * @file include/nntile/graph/nn/graph.hh
  * NNGraph class for defining computation graphs with gradients.
  *
  * @version 1.1.0
@@ -20,7 +20,7 @@
 #include <string>
 #include <vector>
 
-#include <nntile/graph/tensor_graph.hh>
+#include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::graph
 {
@@ -29,10 +29,10 @@ namespace nntile::graph
 class NNGraph
 {
 public:
-    //! Tensor node - full definition in tensor_node.hh
+    //! Tensor node - full definition in graph_tensor_node.hh
     class TensorNode;
 
-    //! Op node (AutoGradFunction) - full definition in op_node.hh
+    //! Op node (AutoGradFunction) - full definition in graph_op_node.hh
     class OpNode;
 
     //! Destructor defined in .cc (needs complete TensorNode for unique_ptr)
@@ -59,7 +59,7 @@ public:
         bool requires_grad = true
     );
 
-    TensorNode* tensor(TensorGraph::DataNode* data,
+    TensorNode* tensor(TensorGraph::TensorNode* data,
                        bool requires_grad = false);
 
     // -----------------------------------------------------------------
@@ -110,19 +110,50 @@ public:
     OpNode* create_op(std::shared_ptr<OpNode> op);
 
     // -----------------------------------------------------------------
+    // Gradient recording mode (no_grad)
+    // -----------------------------------------------------------------
+
+    //! Check if gradient recording is enabled for this graph
+    bool is_grad_enabled() const { return grad_enabled_; }
+
+    //! Set gradient recording (for testing; prefer NoGradGuard)
+    void set_grad_enabled(bool enabled) { grad_enabled_ = enabled; }
+
+    //! RAII guard to temporarily disable gradient recording.
+    //! Use: { auto g = graph.no_grad(); ... } or NNGraph::NoGradGuard guard(graph);
+    class NoGradGuard
+    {
+    public:
+        explicit NoGradGuard(NNGraph& graph);
+        ~NoGradGuard();
+        NoGradGuard(const NoGradGuard&) = delete;
+        NoGradGuard& operator=(const NoGradGuard&) = delete;
+
+    private:
+        NNGraph& graph_;
+        bool prev_;
+    };
+
+    //! Create a guard that disables grad recording until scope exit
+    NoGradGuard no_grad() { return NoGradGuard(*this); }
+
+    // -----------------------------------------------------------------
     // String representation
     // -----------------------------------------------------------------
 
     std::string to_string() const;
 
     std::string to_mermaid() const { return tensor_graph_.to_mermaid(); }
+
+private:
+    bool grad_enabled_ = true;
 };
 
 // -----------------------------------------------------------------
 // Operation registration (part of graph API)
 // -----------------------------------------------------------------
 
-//! Register op for backward. Creates OpNode only when GradMode enabled
+//! Register op for backward. Creates OpNode only when graph grad mode enabled
 //! and any input requires grad. Sets producer on outputs.
 void register_op(NNGraph& graph, std::shared_ptr<NNGraph::OpNode> op);
 

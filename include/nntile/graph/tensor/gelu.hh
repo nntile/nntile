@@ -16,20 +16,19 @@
 
 #include <string>
 
-#include <nntile/graph/tensor_graph.hh>
-#include <nntile/graph/base_op_node.hh>
+#include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::graph
 {
 
 //! GeLU operation at tensor level: y = gelu(x)
-struct TensorGeluOp : BaseOpNode<TensorGraph, TensorGraphNode>
+struct TensorGeluOp : TensorGraphOpNode
 {
-    TensorGraph::DataNode* x = nullptr;
-    TensorGraph::DataNode* y = nullptr;
+    TensorGraph::TensorNode* x = nullptr;
+    TensorGraph::TensorNode* y = nullptr;
 
     TensorGeluOp() = default;
-    TensorGeluOp(TensorGraph::DataNode* x_, TensorGraph::DataNode* y_)
+    TensorGeluOp(TensorGraph::TensorNode* x_, TensorGraph::TensorNode* y_)
         : x(x_), y(y_)
     {
         inputs_ = {x};
@@ -38,9 +37,9 @@ struct TensorGeluOp : BaseOpNode<TensorGraph, TensorGraphNode>
 
     std::string op_name() const override { return "GELU"; }
 
-    void execute(ExecutionContext<TensorGraph::DataNode>& ctx) const override;
+    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
 
-    std::shared_ptr<BaseOpNode<TensorGraph, TensorGraphNode>> clone() const override
+    std::shared_ptr<TensorGraphOpNode> clone() const override
     {
         return std::make_shared<TensorGeluOp>(*this);
     }
@@ -50,15 +49,15 @@ struct TensorGeluOp : BaseOpNode<TensorGraph, TensorGraphNode>
 //! @param x Input tensor
 //! @param output_name Name for the output tensor
 //! @return Pointer to the output tensor
-TensorGraph::DataNode* gelu(
-    TensorGraph::DataNode* x,
+TensorGraph::TensorNode* gelu(
+    TensorGraph::TensorNode* x,
     const std::string& output_name);
 
 //! GeLU activation into pre-created output: y = gelu(x)
 //! @param x Input tensor
 //! @param y Output tensor (must already exist, same shape as x)
 void gelu(
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* y);
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* y);
 
 } // namespace nntile::graph

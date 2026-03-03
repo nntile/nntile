@@ -18,7 +18,7 @@
 
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/execution_context.hh"
-#include "nntile/graph/tensor_graph.hh"
+#include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gelu_backward.hh"
 
 namespace nntile::graph
@@ -29,10 +29,10 @@ namespace
 
 template<typename T>
 void run_gelu_backward(
-    ExecutionContext<TensorGraph::DataNode>& ctx,
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* dy,
-    TensorGraph::DataNode* dx)
+    ExecutionContext<TensorGraph::TensorNode>& ctx,
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* dy,
+    TensorGraph::TensorNode* dx)
 {
     auto& x_t = ctx.get_tensor<T>(x);
     auto& dy_t = ctx.get_tensor<T>(dy);
@@ -43,9 +43,9 @@ void run_gelu_backward(
 } // namespace
 
 void gelu_backward(
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* dy,
-    TensorGraph::DataNode* dx)
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* dy,
+    TensorGraph::TensorNode* dx)
 {
     if(x == nullptr || dy == nullptr || dx == nullptr)
     {
@@ -73,7 +73,7 @@ void gelu_backward(
 }
 
 void TensorGeluBackwardOp::execute(
-    ExecutionContext<TensorGraph::DataNode>& ctx) const
+    ExecutionContext<TensorGraph::TensorNode>& ctx) const
 {
     DataType dtype = ctx.get_dtype(x);
 
@@ -101,7 +101,6 @@ void TensorGeluBackwardOp::execute(
             run_gelu_backward<nntile::bf16_t>(ctx, x, dy, dx);
             break;
         case DataType::INT64:
-        case DataType::INT32:
         case DataType::BOOL:
             throw std::runtime_error(
                 std::string(dtype_to_string(dtype)) +

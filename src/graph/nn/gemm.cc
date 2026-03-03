@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/nn/gemm.hh"
-#include "nntile/graph/nn/tensor_node.hh"
+#include "nntile/graph/nn/graph_tensor_node.hh"
 
 #include <stdexcept>
 

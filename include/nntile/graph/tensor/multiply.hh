@@ -15,23 +15,22 @@
 #pragma once
 
 #include <nntile/base_types.hh>
-#include <nntile/graph/tensor_graph.hh>
-#include <nntile/graph/base_op_node.hh>
+#include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::graph
 {
 
 //! Multiply operation at tensor level
-struct TensorMultiplyOp : BaseOpNode<TensorGraph, TensorGraphNode>
+struct TensorMultiplyOp : TensorGraphOpNode
 {
     Scalar alpha = 1.0;
-    TensorGraph::DataNode* x = nullptr;
-    TensorGraph::DataNode* y = nullptr;
-    TensorGraph::DataNode* z = nullptr;
+    TensorGraph::TensorNode* x = nullptr;
+    TensorGraph::TensorNode* y = nullptr;
+    TensorGraph::TensorNode* z = nullptr;
 
     TensorMultiplyOp() = default;
-    TensorMultiplyOp(TensorGraph::DataNode* x_, TensorGraph::DataNode* y_,
-                    TensorGraph::DataNode* z_, Scalar alpha_ = 1.0)
+    TensorMultiplyOp(TensorGraph::TensorNode* x_, TensorGraph::TensorNode* y_,
+                    TensorGraph::TensorNode* z_, Scalar alpha_ = 1.0)
         : alpha(alpha_), x(x_), y(y_), z(z_)
     {
         inputs_ = {x, y};
@@ -40,9 +39,9 @@ struct TensorMultiplyOp : BaseOpNode<TensorGraph, TensorGraphNode>
 
     std::string op_name() const override { return "MULTIPLY"; }
 
-    void execute(ExecutionContext<TensorGraph::DataNode>& ctx) const override;
+    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
 
-    std::shared_ptr<BaseOpNode<TensorGraph, TensorGraphNode>> clone() const override
+    std::shared_ptr<TensorGraphOpNode> clone() const override
     {
         return std::make_shared<TensorMultiplyOp>(*this);
     }
@@ -50,9 +49,9 @@ struct TensorMultiplyOp : BaseOpNode<TensorGraph, TensorGraphNode>
 
 //! Multiply: z = x * y
 //! @return Pointer to the output tensor
-TensorGraph::DataNode* multiply(
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* y,
+TensorGraph::TensorNode* multiply(
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* y,
     const std::string& output_name);
 
 } // namespace nntile::graph

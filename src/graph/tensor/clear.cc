@@ -19,7 +19,7 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/execution_context.hh"
-#include "nntile/graph/tensor_graph.hh"
+#include "nntile/graph/tensor.hh"
 #include "nntile/tensor/clear.hh"
 
 namespace nntile::graph
@@ -30,8 +30,8 @@ namespace
 
 template<typename T>
 void run_clear(
-    ExecutionContext<TensorGraph::DataNode>& ctx,
-    TensorGraph::DataNode* x)
+    ExecutionContext<TensorGraph::TensorNode>& ctx,
+    TensorGraph::TensorNode* x)
 {
     auto& x_t = ctx.get_tensor<T>(x);
     nntile::tensor::clear<T>(x_t);
@@ -39,7 +39,7 @@ void run_clear(
 
 } // namespace
 
-void clear(TensorGraph::DataNode* x)
+void clear(TensorGraph::TensorNode* x)
 {
     if(x == nullptr)
     {
@@ -51,7 +51,7 @@ void clear(TensorGraph::DataNode* x)
 }
 
 void TensorClearOp::execute(
-    ExecutionContext<TensorGraph::DataNode>& ctx) const
+    ExecutionContext<TensorGraph::TensorNode>& ctx) const
 {
     DataType dtype = ctx.get_dtype(x);
 
@@ -84,9 +84,6 @@ void TensorClearOp::execute(
         case DataType::BOOL:
             run_clear<nntile::bool_t>(ctx, x);
             break;
-        case DataType::INT32:
-            throw std::runtime_error(
-                "INT32 data type not supported for clear operation");
         default:
             throw std::runtime_error("Unsupported data type for clear");
     }

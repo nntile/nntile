@@ -40,8 +40,6 @@ std::string dtype_to_string(DataType dtype)
             return "BF16";
         case DataType::INT64:
             return "INT64";
-        case DataType::INT32:
-            return "INT32";
         case DataType::BOOL:
             return "BOOL";
         default:
@@ -66,7 +64,6 @@ size_t dtype_size(DataType dtype)
         case DataType::FP32_FAST_TF32:
         case DataType::FP32_FAST_FP16:
         case DataType::FP32_FAST_BF16:
-        case DataType::INT32:
             return 4;
         // 8 bytes
         case DataType::FP64:

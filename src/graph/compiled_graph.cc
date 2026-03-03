@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/graph/compiled_graph.hh"
+#include "nntile/graph/compiled.hh"
 
 #include <stdexcept>
 
@@ -68,7 +68,7 @@ void CompiledGraph::compile()
 
     data_is_input_.clear();
     data_is_output_.clear();
-    for(const auto& node : graph_.data_nodes())
+    for(const auto& node : graph_.tensor_nodes())
     {
         if(node->is_input())
         {
@@ -96,7 +96,7 @@ void CompiledGraph::compile()
 
 void CompiledGraph::allocate_impl()
 {
-    for(const auto& node : graph_.data_nodes())
+    for(const auto& node : graph_.tensor_nodes())
     {
         DataType dtype = node->dtype();
         std::vector<Index> shape = node->shape();
@@ -135,9 +135,6 @@ void CompiledGraph::allocate_impl()
                 allocate_and_register<nntile::int64_t>(
                     node.get(), shape, runtime_data_, data_dtypes_, ctx_);
                 break;
-            case DataType::INT32:
-                throw std::runtime_error(
-                    "INT32 data type not yet supported");
             case DataType::BOOL:
                 allocate_and_register<nntile::bool_t>(
                     node.get(), shape, runtime_data_, data_dtypes_, ctx_);

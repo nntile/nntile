@@ -20,7 +20,7 @@
 #include "nntile/base_types.hh"
 #include "nntile/constants.hh"
 #include "nntile/graph/execution_context.hh"
-#include "nntile/graph/tensor_graph.hh"
+#include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gemm.hh"
 
 namespace nntile::graph
@@ -66,13 +66,13 @@ namespace
 
 template<typename T>
 void run_gemm(
-    ExecutionContext<TensorGraph::DataNode>& ctx,
+    ExecutionContext<TensorGraph::TensorNode>& ctx,
     Scalar alpha, Scalar beta,
     bool trans_a, bool trans_b,
     Index ndim, Index batch_ndim,
-    TensorGraph::DataNode* a,
-    TensorGraph::DataNode* b,
-    TensorGraph::DataNode* c)
+    TensorGraph::TensorNode* a,
+    TensorGraph::TensorNode* b,
+    TensorGraph::TensorNode* c)
 {
     auto& a_t = ctx.get_tensor<T>(a);
     auto& b_t = ctx.get_tensor<T>(b);
@@ -92,9 +92,9 @@ void run_gemm(
 
 } // namespace
 
-TensorGraph::DataNode* gemm(
-    TensorGraph::DataNode* a,
-    TensorGraph::DataNode* b,
+TensorGraph::TensorNode* gemm(
+    TensorGraph::TensorNode* a,
+    TensorGraph::TensorNode* b,
     const std::string& output_name,
     Scalar alpha,
     bool trans_a,
@@ -120,7 +120,7 @@ TensorGraph::DataNode* gemm(
     std::vector<Index> output_shape = gemm_output_shape(
         a->shape(), b->shape(), trans_a, trans_b, ndim, batch_ndim);
 
-    TensorGraph::DataNode* output = a->graph()->data(
+    TensorGraph::TensorNode* output = a->graph()->data(
         std::move(output_shape),
         output_name,
         a->dtype());
@@ -134,9 +134,9 @@ TensorGraph::DataNode* gemm(
 }
 
 void gemm(
-    TensorGraph::DataNode* a,
-    TensorGraph::DataNode* b,
-    TensorGraph::DataNode* c,
+    TensorGraph::TensorNode* a,
+    TensorGraph::TensorNode* b,
+    TensorGraph::TensorNode* c,
     Scalar alpha,
     Scalar beta,
     bool trans_a,
@@ -174,7 +174,7 @@ void gemm(
 }
 
 void TensorGemmOp::execute(
-    ExecutionContext<TensorGraph::DataNode>& ctx) const
+    ExecutionContext<TensorGraph::TensorNode>& ctx) const
 {
     DataType dtype = ctx.get_dtype(a);
 
@@ -216,7 +216,6 @@ void TensorGemmOp::execute(
                 a, b, c);
             break;
         case DataType::INT64:
-        case DataType::INT32:
         case DataType::BOOL:
             throw std::runtime_error(
                 std::string(dtype_to_string(dtype)) +

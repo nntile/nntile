@@ -18,7 +18,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/execution_context.hh"
-#include "nntile/graph/tensor_graph.hh"
+#include "nntile/graph/tensor.hh"
 #include "nntile/tensor/add_inplace.hh"
 
 namespace nntile::graph
@@ -29,10 +29,10 @@ namespace
 
 template<typename T>
 void run_add_inplace(
-    ExecutionContext<TensorGraph::DataNode>& ctx,
+    ExecutionContext<TensorGraph::TensorNode>& ctx,
     Scalar alpha, Scalar beta,
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* y)
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* y)
 {
     auto& x_t = ctx.get_tensor<T>(x);
     auto& y_t = ctx.get_tensor<T>(y);
@@ -43,9 +43,9 @@ void run_add_inplace(
 
 void add_inplace(
     Scalar alpha,
-    TensorGraph::DataNode* x,
+    TensorGraph::TensorNode* x,
     Scalar beta,
-    TensorGraph::DataNode* y)
+    TensorGraph::TensorNode* y)
 {
     if(x == nullptr || y == nullptr)
     {
@@ -73,7 +73,7 @@ void add_inplace(
 }
 
 void TensorAddInplaceOp::execute(
-    ExecutionContext<TensorGraph::DataNode>& ctx) const
+    ExecutionContext<TensorGraph::TensorNode>& ctx) const
 {
     DataType dtype = ctx.get_dtype(x);
 
@@ -101,7 +101,6 @@ void TensorAddInplaceOp::execute(
             run_add_inplace<nntile::bf16_t>(ctx, alpha, beta, x, y);
             break;
         case DataType::INT64:
-        case DataType::INT32:
         case DataType::BOOL:
             throw std::runtime_error(
                 std::string(dtype_to_string(dtype)) +

@@ -14,24 +14,23 @@
 
 #pragma once
 
-#include <nntile/graph/tensor_graph.hh>
-#include <nntile/graph/base_op_node.hh>
+#include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::graph
 {
 
 //! GeLU backward operation at tensor level: dx += gelu_backward(x, dy)
-struct TensorGeluBackwardOp : BaseOpNode<TensorGraph, TensorGraphNode>
+struct TensorGeluBackwardOp : TensorGraphOpNode
 {
-    TensorGraph::DataNode* x = nullptr;
-    TensorGraph::DataNode* dy = nullptr;
-    TensorGraph::DataNode* dx = nullptr;
+    TensorGraph::TensorNode* x = nullptr;
+    TensorGraph::TensorNode* dy = nullptr;
+    TensorGraph::TensorNode* dx = nullptr;
 
     TensorGeluBackwardOp() = default;
     TensorGeluBackwardOp(
-        TensorGraph::DataNode* x_,
-        TensorGraph::DataNode* dy_,
-        TensorGraph::DataNode* dx_)
+        TensorGraph::TensorNode* x_,
+        TensorGraph::TensorNode* dy_,
+        TensorGraph::TensorNode* dx_)
         : x(x_), dy(dy_), dx(dx_)
     {
         inputs_ = {x, dy, dx};
@@ -40,9 +39,9 @@ struct TensorGeluBackwardOp : BaseOpNode<TensorGraph, TensorGraphNode>
 
     std::string op_name() const override { return "GELU_BACKWARD"; }
 
-    void execute(ExecutionContext<TensorGraph::DataNode>& ctx) const override;
+    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
 
-    std::shared_ptr<BaseOpNode<TensorGraph, TensorGraphNode>> clone() const override
+    std::shared_ptr<TensorGraphOpNode> clone() const override
     {
         return std::make_shared<TensorGeluBackwardOp>(*this);
     }
@@ -53,8 +52,8 @@ struct TensorGeluBackwardOp : BaseOpNode<TensorGraph, TensorGraphNode>
 //! @param dy Gradient of output (upstream gradient)
 //! @param dx Gradient tensor to accumulate into (gradient of input)
 void gelu_backward(
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* dy,
-    TensorGraph::DataNode* dx);
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* dy,
+    TensorGraph::TensorNode* dx);
 
 } // namespace nntile::graph

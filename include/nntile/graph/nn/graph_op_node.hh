@@ -6,10 +6,10 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/nn/op_node.hh
+ * @file include/nntile/graph/nn/graph_op_node.hh
  * NNGraph::OpNode - operation node (AutoGradFunction) for autograd.
  *
- * Include this only via nn/nn_graph.hh (after NNGraph and TensorNode are declared).
+ * Include via nn.hh or nn/graph.hh (after NNGraph and TensorNode are declared).
  *
  * @version 1.1.0
  * */
@@ -19,8 +19,8 @@
 #include <memory>
 #include <vector>
 
-#include <nntile/graph/nn/nn_graph.hh>
-#include <nntile/graph/nn/tensor_node.hh>
+#include <nntile/graph/nn/graph.hh>
+#include <nntile/graph/nn/graph_tensor_node.hh>
 
 namespace nntile::graph
 {

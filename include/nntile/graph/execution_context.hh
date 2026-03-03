@@ -26,8 +26,9 @@ namespace nntile::graph
 
 //! Maps DataNodes to runtime data.
 //! Built during compilation; used by OpNode::execute().
-//! @tparam DataNode The data node type (e.g. TensorGraph::DataNode, TileGraph::DataNode)
-template<typename DataNode>
+//! @tparam DataNode The data node type (e.g. TensorGraphNode)
+//! @tparam TensorT The tensor type template (e.g. tensor::Tensor). Default: tensor::Tensor.
+template<typename DataNode, template<typename> class TensorT = tensor::Tensor>
 class ExecutionContext
 {
 public:
@@ -35,21 +36,21 @@ public:
     //! DataNode must have dtype() method (dtype is part of the node)
     template<typename T>
     void register_tensor(const DataNode* node,
-                         std::shared_ptr<tensor::Tensor<T>> tensor)
+                         std::shared_ptr<TensorT<T>> tensor)
     {
         tensor_map_[node] = tensor;
     }
 
     //! Get typed runtime tensor for a data node
     template<typename T>
-    tensor::Tensor<T>& get_tensor(const DataNode* node)
+    TensorT<T>& get_tensor(const DataNode* node)
     {
         auto it = tensor_map_.find(node);
         if(it == tensor_map_.end())
         {
             throw std::runtime_error("ExecutionContext::get_tensor: node not found");
         }
-        auto ptr = std::static_pointer_cast<tensor::Tensor<T>>(it->second);
+        auto ptr = std::static_pointer_cast<TensorT<T>>(it->second);
         if(!ptr)
         {
             throw std::runtime_error("ExecutionContext::get_tensor: wrong type");

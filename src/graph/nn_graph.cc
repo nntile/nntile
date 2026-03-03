@@ -12,9 +12,9 @@
  * @version 1.1.0
  * */
 
-#include "nntile/graph/nn/nn_graph.hh"
-#include "nntile/graph/nn/op_node.hh"
-#include "nntile/graph/nn/tensor_node.hh"
+#include "nntile/graph/nn/graph.hh"
+#include "nntile/graph/nn/graph_op_node.hh"
+#include "nntile/graph/nn/graph_tensor_node.hh"
 
 #include <sstream>
 #include <stdexcept>
@@ -46,7 +46,7 @@ NNGraph::TensorNode* NNGraph::tensor(
             "' already exists");
     }
 
-    TensorGraph::DataNode* data =
+    TensorGraph::TensorNode* data =
         tensor_graph_.data(std::move(shape), name, dtype);
     auto node = std::make_unique<TensorNode>(this, data, requires_grad);
     TensorNode* node_ptr = node.get();
@@ -57,7 +57,7 @@ NNGraph::TensorNode* NNGraph::tensor(
     return node_ptr;
 }
 
-NNGraph::TensorNode* NNGraph::tensor(TensorGraph::DataNode* data,
+NNGraph::TensorNode* NNGraph::tensor(TensorGraph::TensorNode* data,
                                      bool requires_grad)
 {
     if(data == nullptr)
@@ -133,7 +133,7 @@ NNGraph::TensorNode* NNGraph::get_or_create_grad(
         return tensor->grad();
     }
 
-    TensorGraph::DataNode* grad_data = tensor_graph_.data(
+    TensorGraph::TensorNode* grad_data = tensor_graph_.data(
         tensor->shape(),
         grad_name,
         tensor->dtype());
@@ -173,6 +173,18 @@ void NNGraph::clear_producers_on_tensors()
     }
 }
 
+NNGraph::NoGradGuard::NoGradGuard(NNGraph& graph)
+    : graph_(graph)
+    , prev_(graph.grad_enabled_)
+{
+    graph_.grad_enabled_ = false;
+}
+
+NNGraph::NoGradGuard::~NoGradGuard()
+{
+    graph_.grad_enabled_ = prev_;
+}
+
 std::string NNGraph::to_string() const
 {
     std::stringstream ss;
@@ -192,6 +204,44 @@ std::string NNGraph::to_string() const
     }
 
     return ss.str();
+}
+
+// -----------------------------------------------------------------
+// Operation registration (part of graph API)
+// -----------------------------------------------------------------
+
+void register_op(NNGraph& graph, std::shared_ptr<NNGraph::OpNode> op)
+{
+    const bool need_backward =
+        graph.is_grad_enabled() && any_input_requires_grad(op->inputs());
+
+    if(!need_backward)
+    {
+        return;
+    }
+
+    NNGraph::OpNode* op_nn = graph.create_op(std::move(op));
+
+    for(NNGraph::TensorNode* out : op_nn->outputs())
+    {
+        if(out != nullptr)
+        {
+            out->set_producer(op_nn);
+        }
+    }
+}
+
+bool any_input_requires_grad(
+    const std::vector<NNGraph::TensorNode*>& inputs)
+{
+    for(const auto* in : inputs)
+    {
+        if(in != nullptr && in->requires_grad())
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace nntile::graph

@@ -18,7 +18,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/execution_context.hh"
-#include "nntile/graph/tensor_graph.hh"
+#include "nntile/graph/tensor.hh"
 #include "nntile/tensor/sum_fiber.hh"
 
 namespace nntile::graph
@@ -29,11 +29,11 @@ namespace
 
 template<typename T>
 void run_sum_fiber(
-    ExecutionContext<TensorGraph::DataNode>& ctx,
+    ExecutionContext<TensorGraph::TensorNode>& ctx,
     Scalar alpha, Scalar beta,
     Index axis, Index batch_ndim, int redux,
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* y)
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* y)
 {
     auto& x_t = ctx.get_tensor<T>(x);
     auto& y_t = ctx.get_tensor<T>(y);
@@ -44,8 +44,8 @@ void run_sum_fiber(
 } // namespace
 
 void sum_fiber(
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* y,
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* y,
     Index axis,
     Index batch_ndim,
     int redux,
@@ -75,7 +75,7 @@ void sum_fiber(
 }
 
 void TensorSumFiberOp::execute(
-    ExecutionContext<TensorGraph::DataNode>& ctx) const
+    ExecutionContext<TensorGraph::TensorNode>& ctx) const
 {
     DataType dtype = ctx.get_dtype(x);
 
@@ -110,7 +110,6 @@ void TensorSumFiberOp::execute(
                 ctx, alpha, beta, axis, batch_ndim, redux, x, y);
             break;
         case DataType::INT64:
-        case DataType::INT32:
         case DataType::BOOL:
             throw std::runtime_error(
                 std::string(dtype_to_string(dtype)) +

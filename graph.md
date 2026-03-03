@@ -10,16 +10,17 @@ include/nntile/
 ├── graph.hh
 └── graph/
     ├── dtype.hh
-    ├── grad_mode.hh
     ├── execution_context.hh
-    ├── base_data_node.hh
-    ├── base_op_node.hh
-    ├── base_graph.hh
-    ├── tensor_graph.hh
-    ├── tensor_graph_ops.hh
-    ├── nn_graph.hh
-    ├── nn_graph_ops.hh
+    ├── tensor.hh
+    ├── nn.hh
+    ├── compiled.hh
+    ├── compiled/
+    │   └── graph.hh
     ├── tensor/
+    │   ├── graph.hh
+    │   ├── graph_op_node.hh
+    │   ├── graph_tensor_node.hh
+    │   ├── graph_ops.hh
     │   ├── add.hh
     │   ├── add_fiber.hh
     │   ├── add_fiber_inplace.hh
@@ -33,9 +34,10 @@ include/nntile/
     │   ├── gelu_backward.hh
     │   └── sum_fiber.hh
     └── nn/
-        ├── nn_graph.hh
-        ├── op_node.hh
-        ├── tensor_node.hh
+        ├── graph.hh
+        ├── graph_op_node.hh
+        ├── graph_tensor_node.hh
+        ├── graph_ops.hh
         ├── add.hh
         ├── add_fiber.hh
         ├── gemm.hh
@@ -44,9 +46,8 @@ include/nntile/
 
 src/graph/
 ├── dtype.cc
-├── grad_mode.cc
-├── autograd_function.cc
-├── tensor_graph.cc
+├── tensor_graph_node.cc
+├── compiled_graph.cc
 ├── nn_graph.cc
 ├── tensor/
 │   ├── add.cc
@@ -66,16 +67,16 @@ src/graph/
 
 `TensorGraph` is a symbolic computation graph that operates on tensor data nodes.
 
-- `TensorGraph::DataNode` (BaseDataNode\<TensorGraph\>) holds `shape`, `dtype`, `name`.
-- `TensorGraph::OpNode` (BaseOpNode\<TensorGraph\>) holds `inputs`, `outputs`, and implements
+- `TensorGraph::TensorNode` (TensorGraphNode) holds `shape`, `dtype`, `name`.
+- `TensorGraph::OpNode` (TensorGraphOpNode) holds `inputs`, `outputs`, and implements
   `execute(ExecutionContext&)`.
 - `data(shape, name, dtype)` creates a data node.
-- `add_op(shared_ptr<BaseOpNode<Graph>>)` adds an operation to the graph.
+- `add_op(shared_ptr<TensorGraphOpNode>)` adds an operation to the graph.
 
 ### Input/output marking
 
 Data nodes can be marked as graph input and/or output via `mark_input()` and
-`mark_output()` on `TensorGraph::DataNode`.
+`mark_output()` on `TensorGraph::TensorNode`.
 
 - **Input tensors** (`mark_input(true)`): Provided via `bind_data()`; never
   invalidated during execution.
@@ -95,11 +96,11 @@ free memory. Input and output tensors are never invalidated.
 
 - `FP32`, `FP32_FAST_TF32`, `FP32_FAST_FP16`, `FP32_FAST_BF16`
 - `FP64`, `FP16`, `BF16`
-- `INT64`, `INT32`, `BOOL`
+- `INT64`, `BOOL`
 
 ### Tensor graph operations
 
-Defined in `include/nntile/graph/tensor/` and `tensor_graph_ops.hh`:
+Defined in `include/nntile/graph/tensor/` and `graph_ops.hh`:
 
 **Element-wise operations:**
 - `add(alpha, x, beta, y, output_name)` — creates z = alpha*x + beta*y
@@ -135,7 +136,7 @@ GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
 
 ## NNGraph
 
-`NNGraph` (in `nn_graph.hh/.cc`) wraps `TensorGraph` and adds gradient tracking.
+`NNGraph` (in `nn/graph.hh` and `nn_graph.cc`) wraps `TensorGraph` and adds gradient tracking.
 
 - `NNGraph::TensorNode` points to a `TensorGraph::DataNode` (via `.data()`) and
   tracks `grad` and `requires_grad`.
@@ -144,7 +145,7 @@ GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
   `TensorGraph` and clears it via `clear()`.
 
 Autograd operations use `TensorGraph` ops for forward. For `NNGraph::TensorNode* x`,
-pass `x->data()` to tensor ops to get `TensorGraph::DataNode*`.
+pass `x->data()` to tensor ops to get `TensorGraph::TensorNode*`.
 
 ### NN*Op structs (PyTorch-style)
 
@@ -159,7 +160,7 @@ This mirrors PyTorch: outputs and temporaries appear in the forward pass, not at
 
 ### register_op
 
-- `register_op(graph, op)` — when GradMode is enabled and any input requires grad, stores the op and sets `producer` on each output. The op's `outputs_` must be populated by `forward()` before registration.
+- `register_op(graph, op)` — when `graph.is_grad_enabled()` and any input requires grad, stores the op and sets `producer` on each output. The op's `outputs_` must be populated by `forward()` before registration. Use `graph.no_grad()` for a scope where grad recording is disabled.
 
 ## Adding new graph operations
 
@@ -167,7 +168,7 @@ This mirrors PyTorch: outputs and temporaries appear in the forward pass, not at
 
 **Header** (`include/nntile/graph/tensor/<op>.hh`):
 
-- Define `TensorXxxOp : BaseOpNode<TensorGraph>` with `execute()` and `clone()`.
+- Define `TensorXxxOp : TensorGraphOpNode` with `execute()` and `clone()`.
 - Declare free functions for the builder API.
 
 **Source** (`src/graph/tensor/<op>.cc`):
@@ -177,7 +178,7 @@ This mirrors PyTorch: outputs and temporaries appear in the forward pass, not at
 - Implement `TensorXxxOp::execute()`: dispatch on DataType and call
   `nntile::tensor::*` kernel.
 
-Add to `tensor_graph_ops.hh` if needed.
+Add to `graph_ops.hh` if needed.
 
 ### 2. Add an NNGraph (autograd) operation
 
@@ -192,7 +193,7 @@ Add to `tensor_graph_ops.hh` if needed.
 - `backward()`: use `output()->grad()`, `grad_x->data()`, etc. with tensor ops.
 - Free function: `op = make_op(inputs); output = op->forward(output_name); register_op(graph, op); return output;`
 
-See `docs/autograd_add_function.md` for a full guide. Add to `nn_graph_ops.hh`.
+See `docs/autograd_add_function.md` for a full guide. Add to `nn/graph_ops.hh`.
 
 ### 3. Build system
 

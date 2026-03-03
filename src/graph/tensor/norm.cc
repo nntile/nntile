@@ -19,7 +19,7 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/execution_context.hh"
-#include "nntile/graph/tensor_graph.hh"
+#include "nntile/graph/tensor.hh"
 #include "nntile/tensor/norm.hh"
 
 namespace nntile::graph
@@ -30,10 +30,10 @@ namespace
 
 template<typename T>
 void run_norm(
-    ExecutionContext<TensorGraph::DataNode>& ctx,
+    ExecutionContext<TensorGraph::TensorNode>& ctx,
     Scalar alpha, Scalar beta,
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* y)
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* y)
 {
     auto& x_t = ctx.get_tensor<T>(x);
     auto& y_t = ctx.get_tensor<T>(y);
@@ -42,7 +42,7 @@ void run_norm(
 
 } // namespace
 
-void norm(TensorGraph::DataNode* x, TensorGraph::DataNode* y,
+void norm(TensorGraph::TensorNode* x, TensorGraph::TensorNode* y,
           Scalar alpha, Scalar beta)
 {
     if(x == nullptr || y == nullptr)
@@ -70,7 +70,7 @@ void norm(TensorGraph::DataNode* x, TensorGraph::DataNode* y,
 }
 
 void TensorNormOp::execute(
-    ExecutionContext<TensorGraph::DataNode>& ctx) const
+    ExecutionContext<TensorGraph::TensorNode>& ctx) const
 {
     DataType dtype = ctx.get_dtype(x);
 
@@ -101,9 +101,6 @@ void TensorNormOp::execute(
         case DataType::BOOL:
             throw std::runtime_error(
                 "INT64/BOOL data type not supported for norm operation");
-        case DataType::INT32:
-            throw std::runtime_error(
-                "INT32 data type not supported for norm operation");
         default:
             throw std::runtime_error("Unsupported data type for norm");
     }

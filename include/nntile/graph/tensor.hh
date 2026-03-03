@@ -6,27 +6,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/nn/fill.hh
- * NNGraph fill: x = val (forward-only, no backward).
+ * @file include/nntile/graph/tensor.hh
+ * Convenience header for TensorGraph. Includes graph definition and operations.
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/graph/nn/graph.hh>
-#include <nntile/graph/tensor/fill.hh>
-
-namespace nntile::graph
-{
-
-//! Fill NNGraph tensor: x = val. Adds TensorFillOp to tensor graph.
-inline void fill(Scalar val, NNGraph::TensorNode* x)
-{
-    if(x != nullptr)
-    {
-        graph::fill(val, x->data());
-    }
-}
-
-} // namespace nntile::graph
+#include <nntile/graph/tensor/graph.hh>
+#include <nntile/graph/tensor/graph_op_node.hh>
+#include <nntile/graph/tensor/graph_tensor_node.hh>
+#include <nntile/graph/tensor/graph_ops.hh>

@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/compiled_graph.hh
+ * @file include/nntile/graph/compiled/graph.hh
  * CompiledGraph - runtime execution of a TensorGraph.
  *
  * @version 1.1.0
@@ -28,7 +28,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/execution_context.hh>
-#include <nntile/graph/tensor_graph.hh>
+#include <nntile/graph/tensor/graph.hh>
 #include <nntile/tensor/tensor.hh>
 
 namespace nntile::graph
@@ -40,8 +40,8 @@ namespace nntile::graph
 class CompiledGraph
 {
 public:
-    using DataNode = TensorGraphNode;
-    using OpNode = BaseOpNode<TensorGraph, TensorGraphNode>;
+    using TensorNode = TensorGraphNode;
+    using OpNode = TensorGraphOpNode;
 
     explicit CompiledGraph(const TensorGraph& graph);
 
@@ -86,7 +86,7 @@ private:
     void invalidate_unused_inputs(size_t op_idx);
 
     const TensorGraph& graph_;
-    ExecutionContext<DataNode> ctx_;
+    ExecutionContext<TensorNode> ctx_;
     std::map<std::string, std::shared_ptr<void>> runtime_data_;
     std::map<std::string, DataType> data_dtypes_;
     std::vector<std::shared_ptr<OpNode>> execution_order_;

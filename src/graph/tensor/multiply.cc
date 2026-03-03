@@ -20,7 +20,7 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/execution_context.hh"
-#include "nntile/graph/tensor_graph.hh"
+#include "nntile/graph/tensor.hh"
 #include "nntile/tensor/multiply.hh"
 
 namespace nntile::graph
@@ -31,11 +31,11 @@ namespace
 
 template<typename T>
 void run_multiply(
-    ExecutionContext<TensorGraph::DataNode>& ctx,
+    ExecutionContext<TensorGraph::TensorNode>& ctx,
     Scalar alpha,
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* y,
-    TensorGraph::DataNode* z)
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* y,
+    TensorGraph::TensorNode* z)
 {
     auto& x_t = ctx.get_tensor<T>(x);
     auto& y_t = ctx.get_tensor<T>(y);
@@ -45,9 +45,9 @@ void run_multiply(
 
 } // namespace
 
-TensorGraph::DataNode* multiply(
-    TensorGraph::DataNode* x,
-    TensorGraph::DataNode* y,
+TensorGraph::TensorNode* multiply(
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* y,
     const std::string& output_name)
 {
     if(x == nullptr || y == nullptr)
@@ -72,7 +72,7 @@ TensorGraph::DataNode* multiply(
     }
 
     std::vector<Index> output_shape = x->shape();
-    TensorGraph::DataNode* output = x->graph()->data(
+    TensorGraph::TensorNode* output = x->graph()->data(
         std::move(output_shape),
         output_name,
         x->dtype());
@@ -84,7 +84,7 @@ TensorGraph::DataNode* multiply(
 }
 
 void TensorMultiplyOp::execute(
-    ExecutionContext<TensorGraph::DataNode>& ctx) const
+    ExecutionContext<TensorGraph::TensorNode>& ctx) const
 {
     DataType dtype = ctx.get_dtype(x);
 
@@ -115,9 +115,6 @@ void TensorMultiplyOp::execute(
         case DataType::BOOL:
             throw std::runtime_error(
                 "INT64/BOOL data type not supported for multiply operation");
-        case DataType::INT32:
-            throw std::runtime_error(
-                "INT32 data type not supported for multiply operation");
         default:
             throw std::runtime_error("Unsupported data type for multiply");
     }

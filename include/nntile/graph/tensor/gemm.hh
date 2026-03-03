@@ -18,8 +18,7 @@
 #include <vector>
 
 #include <nntile/base_types.hh>
-#include <nntile/graph/tensor_graph.hh>
-#include <nntile/graph/base_op_node.hh>
+#include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::graph
 {
@@ -41,7 +40,7 @@ std::vector<Index> gemm_output_shape(
     Index batch_ndim = 0);
 
 //! GEMM operation at tensor level: C = alpha * op(A) @ op(B) + beta * C
-struct TensorGemmOp : BaseOpNode<TensorGraph, TensorGraphNode>
+struct TensorGemmOp : TensorGraphOpNode
 {
     bool trans_a = false;
     bool trans_b = false;
@@ -49,15 +48,15 @@ struct TensorGemmOp : BaseOpNode<TensorGraph, TensorGraphNode>
     Scalar beta = 0.0;
     Index ndim = 1;
     Index batch_ndim = 0;
-    TensorGraph::DataNode* a = nullptr;
-    TensorGraph::DataNode* b = nullptr;
-    TensorGraph::DataNode* c = nullptr;
+    TensorGraph::TensorNode* a = nullptr;
+    TensorGraph::TensorNode* b = nullptr;
+    TensorGraph::TensorNode* c = nullptr;
 
     TensorGemmOp() = default;
     TensorGemmOp(
-        TensorGraph::DataNode* a_,
-        TensorGraph::DataNode* b_,
-        TensorGraph::DataNode* c_,
+        TensorGraph::TensorNode* a_,
+        TensorGraph::TensorNode* b_,
+        TensorGraph::TensorNode* c_,
         Scalar alpha_, Scalar beta_,
         bool trans_a_, bool trans_b_,
         Index ndim_, Index batch_ndim_)
@@ -72,9 +71,9 @@ struct TensorGemmOp : BaseOpNode<TensorGraph, TensorGraphNode>
 
     std::string op_name() const override { return "GEMM"; }
 
-    void execute(ExecutionContext<TensorGraph::DataNode>& ctx) const override;
+    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
 
-    std::shared_ptr<BaseOpNode<TensorGraph, TensorGraphNode>> clone() const override
+    std::shared_ptr<TensorGraphOpNode> clone() const override
     {
         return std::make_shared<TensorGemmOp>(*this);
     }
@@ -90,9 +89,9 @@ struct TensorGemmOp : BaseOpNode<TensorGraph, TensorGraphNode>
 //! @param ndim Number of contraction dimensions (default: 1)
 //! @param batch_ndim Number of trailing batch dimensions (default: 0)
 //! @return Pointer to the output tensor
-TensorGraph::DataNode* gemm(
-    TensorGraph::DataNode* a,
-    TensorGraph::DataNode* b,
+TensorGraph::TensorNode* gemm(
+    TensorGraph::TensorNode* a,
+    TensorGraph::TensorNode* b,
     const std::string& output_name,
     Scalar alpha = 1.0,
     bool trans_a = false,
@@ -111,9 +110,9 @@ TensorGraph::DataNode* gemm(
 //! @param ndim Number of contraction dimensions (default: 1)
 //! @param batch_ndim Number of trailing batch dimensions (default: 0)
 void gemm(
-    TensorGraph::DataNode* a,
-    TensorGraph::DataNode* b,
-    TensorGraph::DataNode* c,
+    TensorGraph::TensorNode* a,
+    TensorGraph::TensorNode* b,
+    TensorGraph::TensorNode* c,
     Scalar alpha = 1.0,
     Scalar beta = 1.0,
     bool trans_a = false,

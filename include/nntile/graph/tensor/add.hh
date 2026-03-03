@@ -18,26 +18,25 @@
 #include <vector>
 
 #include <nntile/base_types.hh>
-#include <nntile/graph/tensor_graph.hh>
-#include <nntile/graph/base_op_node.hh>
+#include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::graph
 {
 
 //! Add operation at tensor level: z = alpha * x + beta * y
-struct TensorAddOp : BaseOpNode<TensorGraph, TensorGraphNode>
+struct TensorAddOp : TensorGraphOpNode
 {
     Scalar alpha = 1.0;
     Scalar beta = 0.0;
-    TensorGraph::DataNode* x = nullptr;
-    TensorGraph::DataNode* y = nullptr;
-    TensorGraph::DataNode* z = nullptr;
+    TensorGraph::TensorNode* x = nullptr;
+    TensorGraph::TensorNode* y = nullptr;
+    TensorGraph::TensorNode* z = nullptr;
 
     TensorAddOp() = default;
     TensorAddOp(
-        TensorGraph::DataNode* x_,
-        TensorGraph::DataNode* y_,
-        TensorGraph::DataNode* z_,
+        TensorGraph::TensorNode* x_,
+        TensorGraph::TensorNode* y_,
+        TensorGraph::TensorNode* z_,
         Scalar alpha_, Scalar beta_)
         : alpha(alpha_), beta(beta_), x(x_), y(y_), z(z_)
     {
@@ -47,9 +46,9 @@ struct TensorAddOp : BaseOpNode<TensorGraph, TensorGraphNode>
 
     std::string op_name() const override { return "ADD"; }
 
-    void execute(ExecutionContext<TensorGraph::DataNode>& ctx) const override;
+    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
 
-    std::shared_ptr<BaseOpNode<TensorGraph, TensorGraphNode>> clone() const override
+    std::shared_ptr<TensorGraphOpNode> clone() const override
     {
         return std::make_shared<TensorAddOp>(*this);
     }
@@ -62,19 +61,19 @@ struct TensorAddOp : BaseOpNode<TensorGraph, TensorGraphNode>
 //! @param y Second input tensor
 //! @param output_name Name for the output tensor
 //! @return Pointer to the output tensor
-TensorGraph::DataNode* add(
+TensorGraph::TensorNode* add(
     Scalar alpha,
-    TensorGraph::DataNode* x,
+    TensorGraph::TensorNode* x,
     Scalar beta,
-    TensorGraph::DataNode* y,
+    TensorGraph::TensorNode* y,
     const std::string& output_name);
 
 //! Add operation: z = alpha * x + beta * y (uses existing output)
 void add(
     Scalar alpha,
-    TensorGraph::DataNode* x,
+    TensorGraph::TensorNode* x,
     Scalar beta,
-    TensorGraph::DataNode* y,
-    TensorGraph::DataNode* z);
+    TensorGraph::TensorNode* y,
+    TensorGraph::TensorNode* z);
 
 } // namespace nntile::graph

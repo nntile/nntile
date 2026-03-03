@@ -31,7 +31,6 @@ enum class DataType
     FP16,
     BF16,
     INT64,
-    INT32,
     BOOL
 };
 

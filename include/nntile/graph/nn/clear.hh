@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include <nntile/graph/nn/nn_graph.hh>
+#include <nntile/graph/nn/graph.hh>
 #include <nntile/graph/tensor/clear.hh>
 
 namespace nntile::graph

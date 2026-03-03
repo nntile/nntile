@@ -15,26 +15,25 @@
 #pragma once
 
 #include <nntile/base_types.hh>
-#include <nntile/graph/tensor_graph.hh>
-#include <nntile/graph/base_op_node.hh>
+#include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::graph
 {
 
 //! Add fiber in-place at tensor level: tensor = alpha * fiber + beta * tensor
-struct TensorAddFiberInplaceOp : BaseOpNode<TensorGraph, TensorGraphNode>
+struct TensorAddFiberInplaceOp : TensorGraphOpNode
 {
     Index axis = 0;
     Index batch_ndim = 0;
     Scalar alpha = 1.0;
     Scalar beta = 1.0;
-    TensorGraph::DataNode* fiber = nullptr;
-    TensorGraph::DataNode* tensor = nullptr;
+    TensorGraph::TensorNode* fiber = nullptr;
+    TensorGraph::TensorNode* tensor = nullptr;
 
     TensorAddFiberInplaceOp() = default;
     TensorAddFiberInplaceOp(
-        TensorGraph::DataNode* fiber_,
-        TensorGraph::DataNode* tensor_,
+        TensorGraph::TensorNode* fiber_,
+        TensorGraph::TensorNode* tensor_,
         Scalar alpha_, Scalar beta_,
         Index axis_, Index batch_ndim_)
         : axis(axis_), batch_ndim(batch_ndim_)
@@ -47,9 +46,9 @@ struct TensorAddFiberInplaceOp : BaseOpNode<TensorGraph, TensorGraphNode>
 
     std::string op_name() const override { return "ADD_FIBER_INPLACE"; }
 
-    void execute(ExecutionContext<TensorGraph::DataNode>& ctx) const override;
+    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
 
-    std::shared_ptr<BaseOpNode<TensorGraph, TensorGraphNode>> clone() const override
+    std::shared_ptr<TensorGraphOpNode> clone() const override
     {
         return std::make_shared<TensorAddFiberInplaceOp>(*this);
     }
@@ -58,9 +57,9 @@ struct TensorAddFiberInplaceOp : BaseOpNode<TensorGraph, TensorGraphNode>
 //! Add along fibers in-place: tensor = alpha * fiber + beta * tensor
 void add_fiber_inplace(
     Scalar alpha,
-    TensorGraph::DataNode* fiber,
+    TensorGraph::TensorNode* fiber,
     Scalar beta,
-    TensorGraph::DataNode* tensor,
+    TensorGraph::TensorNode* tensor,
     Index axis,
     Index batch_ndim = 0);
 

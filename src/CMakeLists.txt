@@ -399,9 +399,7 @@ set(LOGGER_SRC
 
 # Graph-related sources (core: always built)
 set(GRAPH_CORE_SRC
-    "graph/autograd_function.cc"
     "graph/dtype.cc"
-    "graph/grad_mode.cc"
     "graph/tensor/add.cc"
     "graph/tensor/add_fiber.cc"
     "graph/tensor/add_fiber_inplace.cc"

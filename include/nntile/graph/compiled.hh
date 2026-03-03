@@ -6,20 +6,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/tensor_graph_ops.hh
- * TensorGraph operations.
+ * @file include/nntile/graph/compiled.hh
+ * Convenience header for compiled graph. Includes compiled/graph.hh.
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/graph/tensor_graph.hh>
-#include <nntile/graph/tensor/clear.hh>
-#include <nntile/graph/tensor/fill.hh>
-#include <nntile/graph/tensor/multiply.hh>
-#include <nntile/graph/tensor/norm.hh>
-
-namespace nntile::graph
-{
-} // namespace nntile::graph
+#include <nntile/graph/compiled/graph.hh>

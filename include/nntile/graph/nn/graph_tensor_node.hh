@@ -6,10 +6,10 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/nn/tensor_node.hh
+ * @file include/nntile/graph/nn/graph_tensor_node.hh
  * NNGraph::TensorNode - tensor node with autograd.
  *
- * Include this only via nn/nn_graph.hh (after NNGraph is declared).
+ * Include via nn.hh or nn/graph.hh (after NNGraph is declared).
  *
  * @version 1.1.0
  * */
@@ -23,13 +23,13 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
-#include <nntile/graph/nn/nn_graph.hh>
-#include <nntile/graph/tensor_graph.hh>
+#include <nntile/graph/nn/graph.hh>
+#include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::graph
 {
 
-//! Tensor node in NNGraph. Holds data_ (TensorGraph::DataNode) for ops;
+//! Tensor node in NNGraph. Holds data_ (TensorGraph::TensorNode) for ops;
 //! adds grad_, requires_grad_, producer_. Shape/dtype/name delegate to data_.
 class NNGraph::TensorNode
 {
@@ -37,7 +37,7 @@ class NNGraph::TensorNode
 
 private:
     NNGraph* graph_ = nullptr;
-    TensorGraph::DataNode* data_ = nullptr;
+    TensorGraph::TensorNode* data_ = nullptr;
     TensorNode* grad_ = nullptr;
     bool requires_grad_ = true;
     OpNode* producer_ = nullptr;
@@ -45,7 +45,7 @@ private:
 public:
     TensorNode(
         NNGraph* graph,
-        TensorGraph::DataNode* data,
+        TensorGraph::TensorNode* data,
         bool requires_grad = true);
 
     // Shape/dtype/name delegate to underlying data node
@@ -55,8 +55,8 @@ public:
     const std::string& name() const { return data_->name(); }
 
     // Accessors for underlying data node
-    TensorGraph::DataNode* data() { return data_; }
-    const TensorGraph::DataNode* data() const { return data_; }
+    TensorGraph::TensorNode* data() { return data_; }
+    const TensorGraph::TensorNode* data() const { return data_; }
 
     TensorNode* grad() { return grad_; }
     const TensorNode* grad() const { return grad_; }

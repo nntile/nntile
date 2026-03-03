@@ -19,8 +19,7 @@
 
 #include <string>
 
-#include <nntile/graph/nn_graph.hh>
-#include <nntile/graph/nn/op_node.hh>
+#include <nntile/graph/nn/graph_op_node.hh>
 #include <nntile/graph/tensor/sum_fiber.hh>
 
 namespace nntile::graph

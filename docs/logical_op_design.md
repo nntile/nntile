@@ -5,10 +5,10 @@ structures inheriting from a base class `BaseOpNode<Graph>`, with virtual
 `execute()` for dispatch instead of `OpType` enum. Inputs and outputs are
 packed into each op; execution uses DataNode pointers and a mapping from
 DataNode to runtime data. The templated `Graph` indicates the graph type
-(TensorGraph, TileGraph); `DataNode` is `BaseDataNode<Graph>`.
+(e.g. TensorGraph); `DataNode` is `BaseDataNode<Graph>`.
 
-Graphs derive from `BaseGraph<Graph>` (CRTP). TensorGraph and TileGraph are
-thin derived classes that add type aliases and override `graph_type_name()`.
+Graphs derive from `BaseGraph<Graph>` (CRTP). TensorGraph is a thin derived
+class that adds type aliases and overrides `graph_type_name()`.
 
 ## Naming Conventions
 
@@ -22,7 +22,6 @@ thin derived classes that add type aliases and override `graph_type_name()`.
 | Graph | DataNode | OpNode | Operates on |
 |-------|----------|--------|-------------|
 | TensorGraph | BaseDataNode\<TensorGraph\> | BaseOpNode\<TensorGraph\> | Tensors |
-| TileGraph | BaseDataNode\<TileGraph\> | BaseOpNode\<TileGraph\> | Tiles (placeholder) |
 
 ## 1. BaseDataNode
 
@@ -93,7 +92,6 @@ enum class DataType
     FP16,
     BF16,
     INT64,
-    INT32,
     BOOL
 };
 
@@ -340,33 +338,7 @@ void TensorAddOp::execute(
 
 ---
 
-## 7. Placeholder: TileGraph
-
-```cpp
-// include/nntile/graph/tile_graph.hh (placeholder)
-
-class TileGraph : public BaseGraph<TileGraph>
-{
-public:
-    using DataNode = BaseDataNode<TileGraph>;
-    using OpNode = BaseOpNode<TileGraph>;
-
-    void assign_op_id(OpNode* op, NodeId id);
-
-protected:
-    const char* graph_type_name() const override
-    {
-        return "TileGraph";
-    }
-};
-```
-
-- `BaseOpNode<TileGraph>` — operations on tile nodes.
-- `ExecutionContext<TileGraph::DataNode>` — maps tile nodes to runtime tile data.
-
----
-
-## 8. Summary
+## 7. Summary
 
 | Aspect | TensorGraph |
 |--------|-------------|
