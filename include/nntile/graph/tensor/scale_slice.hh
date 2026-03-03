@@ -23,8 +23,8 @@ namespace nntile::graph
 //! Scale slice operation: dst = alpha * src (slice broadcast)
 struct TensorScaleSliceOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Index axis = 0;
+    Scalar alpha;
+    Index axis;
     TensorGraph::TensorNode* src = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
 

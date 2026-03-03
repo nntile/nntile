@@ -24,10 +24,10 @@ namespace nntile::graph
 //! Conv2D backward input: dX = alpha*conv_bwd(dY,kernel) + beta*dX
 struct TensorConv2dBwdInputInplaceOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
+    Scalar alpha;
     TensorGraph::TensorNode* dY = nullptr;
     TensorGraph::TensorNode* kernel = nullptr;
-    Scalar beta = 0.0;
+    Scalar beta;
     TensorGraph::TensorNode* dX = nullptr;
     std::array<Index, 2> padding = {0, 0};
     std::array<Index, 2> stride = {1, 1};

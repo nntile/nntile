@@ -23,8 +23,8 @@ namespace nntile::graph
 //! Softmax in-place: dst = softmax(maxsumexp, alpha, dst, axis)
 struct TensorSoftmaxInplaceOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Index axis = 0;
+    Scalar alpha;
+    Index axis;
     TensorGraph::TensorNode* maxsumexp = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
 
@@ -32,8 +32,8 @@ struct TensorSoftmaxInplaceOp : TensorGraph::OpNode
     TensorSoftmaxInplaceOp(
         TensorGraph::TensorNode* maxsumexp_,
         TensorGraph::TensorNode* dst_,
-        Scalar alpha_ = 1.0,
-        Index axis_ = 0)
+        Scalar alpha_,
+        Index axis_)
         : alpha(alpha_), axis(axis_)
         , maxsumexp(maxsumexp_), dst(dst_)
     {
@@ -54,7 +54,7 @@ struct TensorSoftmaxInplaceOp : TensorGraph::OpNode
 void softmax_inplace(
     TensorGraph::TensorNode* maxsumexp,
     TensorGraph::TensorNode* dst,
-    Scalar alpha = 1.0,
-    Index axis = 0);
+    Scalar alpha,
+    Index axis);
 
 } // namespace nntile::graph

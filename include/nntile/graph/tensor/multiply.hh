@@ -23,14 +23,14 @@ namespace nntile::graph
 //! Multiply operation at tensor level
 struct TensorMultiplyOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
+    Scalar alpha;
     TensorGraph::TensorNode* x = nullptr;
     TensorGraph::TensorNode* y = nullptr;
     TensorGraph::TensorNode* z = nullptr;
 
     TensorMultiplyOp() = default;
     TensorMultiplyOp(TensorGraph::TensorNode* x_, TensorGraph::TensorNode* y_,
-                    TensorGraph::TensorNode* z_, Scalar alpha_ = 1.0)
+                    TensorGraph::TensorNode* z_, Scalar alpha_)
         : alpha(alpha_), x(x_), y(y_), z(z_)
     {
         inputs_ = {x, y};
@@ -47,11 +47,16 @@ struct TensorMultiplyOp : TensorGraph::OpNode
     }
 };
 
-//! Multiply: z = x * y
+//! Multiply: z = alpha * x * y
+//! @param x First input tensor
+//! @param y Second input tensor
+//! @param output_name Name for the output tensor
+//! @param alpha Scalar multiplier (default: 1.0)
 //! @return Pointer to the output tensor
 TensorGraph::TensorNode* multiply(
     TensorGraph::TensorNode* x,
     TensorGraph::TensorNode* y,
-    const std::string& output_name);
+    const std::string& output_name,
+    Scalar alpha);
 
 } // namespace nntile::graph

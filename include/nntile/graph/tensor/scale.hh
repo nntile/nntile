@@ -23,14 +23,14 @@ namespace nntile::graph
 //! Scale operation at tensor level: dst = alpha * src
 struct TensorScaleOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
+    Scalar alpha;
     TensorGraph::TensorNode* src = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
 
     TensorScaleOp() = default;
     TensorScaleOp(TensorGraph::TensorNode* src_,
                  TensorGraph::TensorNode* dst_,
-                 Scalar alpha_ = 1.0)
+                 Scalar alpha_)
         : alpha(alpha_), src(src_), dst(dst_)
     {
         inputs_ = {src};

@@ -23,14 +23,14 @@ namespace nntile::graph
 //! Multiply in-place at tensor level: dst = alpha * src * dst
 struct TensorMultiplyInplaceOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
+    Scalar alpha;
     TensorGraph::TensorNode* src = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
 
     TensorMultiplyInplaceOp() = default;
     TensorMultiplyInplaceOp(TensorGraph::TensorNode* src_,
                             TensorGraph::TensorNode* dst_,
-                            Scalar alpha_ = 1.0)
+                            Scalar alpha_)
         : alpha(alpha_), src(src_), dst(dst_)
     {
         inputs_ = {src, dst};

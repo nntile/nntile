@@ -23,8 +23,8 @@ namespace nntile::graph
 //! Multiply fiber operation: dst = alpha * src1 * src2
 struct TensorMultiplyFiberOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Index axis = 0;
+    Scalar alpha;
+    Index axis;
     TensorGraph::TensorNode* src1 = nullptr;
     TensorGraph::TensorNode* src2 = nullptr;
     TensorGraph::TensorNode* dst = nullptr;

@@ -23,8 +23,8 @@ namespace nntile::graph
 //! Add in-place operation at tensor level: y = alpha * x + beta * y
 struct TensorAddInplaceOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode* x = nullptr;
     TensorGraph::TensorNode* y = nullptr;
 

@@ -23,10 +23,10 @@ namespace nntile::graph
 //! Norm slice in-place: dst = alpha*norm(src) + beta*dst
 struct TensorNormSliceInplaceOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Scalar beta = 1.0;
-    Index axis = 0;
-    int redux = 0;
+    Scalar alpha;
+    Scalar beta;
+    Index axis;
+    int redux;
     TensorGraph::TensorNode* src = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
 
@@ -35,7 +35,7 @@ struct TensorNormSliceInplaceOp : TensorGraph::OpNode
         Scalar alpha_, Scalar beta_,
         TensorGraph::TensorNode* src_,
         TensorGraph::TensorNode* dst_,
-        Index axis_, int redux_ = 0)
+        Index axis_, int redux_)
         : alpha(alpha_), beta(beta_)
         , axis(axis_), redux(redux_)
         , src(src_), dst(dst_)
@@ -60,6 +60,6 @@ void norm_slice_inplace(
     Scalar beta,
     TensorGraph::TensorNode* dst,
     Index axis,
-    int redux = 0);
+    int redux);
 
 } // namespace nntile::graph

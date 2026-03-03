@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/graph/tensor/scale.cc
- * Test TensorGraph scale operation against nntile::tensor::scale.
+ * @file tests/graph/tensor/copy.cc
+ * Test TensorGraph copy operation against nntile::tensor::copy.
  *
  * @version 1.1.0
  * */
@@ -18,40 +18,38 @@
 #include <numeric>
 
 #include "nntile/context.hh"
-#include "nntile/graph/tensor/scale.hh"
+#include "nntile/graph/tensor/copy.hh"
 #include "nntile/graph/tensor.hh"
-#include "nntile/tensor/scale.hh"
+#include "nntile/tensor/copy.hh"
 #include "nntile/tensor/tensor.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 
 template<typename T>
-void check_scale_vs_tensor_api(const std::vector<Index>& shape, Scalar alpha)
+void check_copy_vs_tensor_api(const std::vector<Index>& shape)
 {
     using Y = typename T::repr_t;
     const Index nelems =
         std::accumulate(shape.begin(), shape.end(), Index(1), std::multiplies<>());
 
     // --- TensorGraph path ---
-    TensorGraph graph("scale_test");
+    TensorGraph graph("copy_test");
     auto* src_node = graph.data(shape, "src", DataType::FP32);
     src_node->mark_input(true);
 
-    auto* dst_node = scale(alpha, src_node, "dst");
+    auto* dst_node = copy(src_node, "dst");
     dst_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
 
-    // Generate input data once
     std::vector<float> src_data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        src_data[i] = static_cast<float>(Y(i + 1));
+        src_data[i] = static_cast<float>(Y(i * 2 - 3));
     }
 
-    // --- TensorGraph path ---
     runtime.bind_data("src", src_data);
     runtime.execute();
     runtime.wait();
@@ -74,7 +72,7 @@ void check_scale_vs_tensor_api(const std::vector<Index>& shape, Scalar alpha)
         loc.release();
     }
 
-    tensor::scale<T>(alpha, src, dst);
+    tensor::copy<T>(src, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -97,13 +95,36 @@ void check_scale_vs_tensor_api(const std::vector<Index>& shape, Scalar alpha)
     }
 }
 
-TEST_CASE("TensorGraph scale matches tensor::scale", "[graph][tensor]")
+TEST_CASE("TensorGraph copy structure", "[graph][tensor]")
 {
-    const auto [alpha, shape] = GENERATE(
-        std::tuple{Scalar(2.5), std::vector<Index>{4, 5}},
-        std::tuple{Scalar(-1.0), std::vector<Index>{6}});
+    constexpr Index dim0 = 4;
+    constexpr Index dim1 = 5;
+
+    TensorGraph graph("test");
+
+    auto* src = graph.data({dim0, dim1}, "src");
+
+    auto* dst = copy(src, "dst");
+
+    REQUIRE(graph.num_data() == 2);
+    REQUIRE(graph.num_ops() == 1);
+    REQUIRE(dst->shape()[0] == dim0);
+    REQUIRE(dst->shape()[1] == dim1);
+
+    const auto& ops = graph.ops();
+    REQUIRE(ops[0]->op_name() == "COPY");
+    REQUIRE(ops[0]->inputs().size() == 1);
+    REQUIRE(ops[0]->outputs().size() == 1);
+    REQUIRE(ops[0]->outputs()[0] == dst);
+}
+
+TEST_CASE("TensorGraph copy matches tensor::copy", "[graph][tensor]")
+{
+    const std::vector<Index> shape = GENERATE(
+        std::vector<Index>{4, 5},
+        std::vector<Index>{6});
 
     Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0);
 
-    check_scale_vs_tensor_api<nntile::fp32_t>(shape, alpha);
+    check_copy_vs_tensor_api<nntile::fp32_t>(shape);
 }

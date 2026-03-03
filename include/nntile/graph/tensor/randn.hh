@@ -27,9 +27,9 @@ struct TensorRandnOp : TensorGraph::OpNode
 {
     std::vector<Index> start;
     std::vector<Index> underlying_shape;
-    unsigned long long seed = 0;
-    Scalar mean = 0.0;
-    Scalar stddev = 1.0;
+    unsigned long long seed;
+    Scalar mean;
+    Scalar stddev;
     TensorGraph::TensorNode* dst = nullptr;
 
     TensorRandnOp() = default;
@@ -38,8 +38,8 @@ struct TensorRandnOp : TensorGraph::OpNode
         const std::vector<Index>& start_,
         const std::vector<Index>& underlying_shape_,
         unsigned long long seed_,
-        Scalar mean_ = 0.0,
-        Scalar stddev_ = 1.0)
+        Scalar mean_,
+        Scalar stddev_)
         : start(start_), underlying_shape(underlying_shape_)
         , seed(seed_), mean(mean_), stddev(stddev_)
         , dst(dst_)
@@ -63,7 +63,7 @@ void randn(
     const std::vector<Index>& start,
     const std::vector<Index>& underlying_shape,
     unsigned long long seed,
-    Scalar mean = 0.0,
-    Scalar stddev = 1.0);
+    Scalar mean,
+    Scalar stddev);
 
 } // namespace nntile::graph

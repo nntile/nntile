@@ -23,8 +23,8 @@ namespace nntile::graph
 //! Hypot scalar inverse: dst = 1/hypot(alpha*dst, eps)
 struct TensorHypotScalarInverseOp : TensorGraph::OpNode
 {
-    Scalar eps = 0.0;
-    Scalar alpha = 1.0;
+    Scalar eps;
+    Scalar alpha;
     TensorGraph::TensorNode* dst = nullptr;
 
     TensorHypotScalarInverseOp() = default;

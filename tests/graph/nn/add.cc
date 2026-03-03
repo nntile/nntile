@@ -10,6 +10,7 @@
  * */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
 
 #include "nntile/graph.hh"
 
@@ -18,21 +19,26 @@ using namespace nntile::graph;
 
 TEST_CASE("NNGraph Autograd Add build_forward", "[graph][nn_graph]")
 {
+    const Scalar alpha = GENERATE(Scalar(1.0));
+    const Scalar beta = GENERATE(Scalar(1.0));
+
     NNGraph g("add_build_forward");
     auto* x = g.tensor({2, 3}, "x", DataType::FP32);
     auto* y = g.tensor({2, 3}, "y", DataType::FP32);
-    auto* z = add(1.0, x, 1.0, y, "z");
+    auto* z = add(alpha, x, beta, y, "z");
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
 }
 
 TEST_CASE("NNGraph Autograd Add Backward", "[graph][nn_graph]")
 {
+    const Scalar alpha = GENERATE(Scalar(2.0));
+    const Scalar beta = GENERATE(Scalar(3.0));
+    const Scalar grad_fill_val = GENERATE(Scalar(1.0));
+
     NNGraph g("autograd_add");
     auto* x = g.tensor({2, 3}, "x", DataType::FP32);
     auto* y = g.tensor({2, 3}, "y", DataType::FP32);
-    Scalar alpha = 2.0;
-    Scalar beta = 3.0;
 
     auto* z = add(alpha, x, beta, y, "z");
 
@@ -42,7 +48,7 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph][nn_graph]")
     REQUIRE(y->is_leaf());
 
     auto* z_grad = g.get_or_create_grad(z, "z_grad");
-    fill(Scalar(1.0), z_grad->data());
+    fill(grad_fill_val, z_grad->data());
     z->backward();
 
     REQUIRE(x->has_grad());
@@ -59,16 +65,20 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph][nn_graph]")
 
 TEST_CASE("NNGraph Autograd Add Chain", "[graph][nn_graph]")
 {
+    const Scalar add_alpha = GENERATE(Scalar(1.0));
+    const Scalar add_beta = GENERATE(Scalar(1.0));
+    const Scalar grad_fill_val = GENERATE(Scalar(1.0));
+
     NNGraph g("add_chain");
     auto* x = g.tensor({2, 2}, "x", DataType::FP32);
     auto* y = g.tensor({2, 2}, "y", DataType::FP32);
     auto* u = g.tensor({2, 2}, "u", DataType::FP32);
 
-    auto* w = add(Scalar(1.0), x, Scalar(1.0), y, "w");
-    auto* z = add(Scalar(1.0), w, Scalar(1.0), u, "z");
+    auto* w = add(add_alpha, x, add_beta, y, "w");
+    auto* z = add(add_alpha, w, add_beta, u, "z");
 
     auto* z_grad = g.get_or_create_grad(z, "z_grad");
-    fill(Scalar(1.0), z_grad->data());
+    fill(grad_fill_val, z_grad->data());
     z->backward();
 
     REQUIRE(x->has_grad());
@@ -79,16 +89,20 @@ TEST_CASE("NNGraph Autograd Add Chain", "[graph][nn_graph]")
 
 TEST_CASE("NNGraph Autograd Add Diamond", "[graph][nn_graph]")
 {
+    const Scalar add_alpha = GENERATE(Scalar(1.0));
+    const Scalar add_beta = GENERATE(Scalar(1.0));
+    const Scalar grad_fill_val = GENERATE(Scalar(1.0));
+
     NNGraph g("add_diamond");
     auto* x = g.tensor({2, 2}, "x", DataType::FP32);
     auto* y = g.tensor({2, 2}, "y", DataType::FP32);
 
-    auto* w = add(Scalar(1.0), x, Scalar(1.0), y, "w");
-    auto* v = add(Scalar(1.0), w, Scalar(1.0), y, "v");
-    auto* z = add(Scalar(1.0), v, Scalar(1.0), w, "z");
+    auto* w = add(add_alpha, x, add_beta, y, "w");
+    auto* v = add(add_alpha, w, add_beta, y, "v");
+    auto* z = add(add_alpha, v, add_beta, w, "z");
 
     auto* z_grad = g.get_or_create_grad(z, "z_grad");
-    fill(Scalar(1.0), z_grad->data());
+    fill(grad_fill_val, z_grad->data());
     z->backward();
 
     REQUIRE(x->has_grad());
@@ -99,17 +113,21 @@ TEST_CASE("NNGraph Autograd Add Diamond", "[graph][nn_graph]")
 
 TEST_CASE("NNGraph Autograd Add ForwardAndBackward", "[graph][nn_graph]")
 {
+    const Scalar add_alpha = GENERATE(Scalar(1.0));
+    const Scalar add_beta = GENERATE(Scalar(1.0));
+    const Scalar grad_fill_val = GENERATE(Scalar(1.0));
+
     NNGraph g("add");
     auto* x = g.tensor({2, 3}, "x", DataType::FP32, true);
     auto* y = g.tensor({2, 3}, "y", DataType::FP32, true);
-    auto* z = add(Scalar(1.0), x, Scalar(1.0), y, "z");
+    auto* z = add(add_alpha, x, add_beta, y, "z");
 
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
     REQUIRE(z->shape() == (std::vector<Index>{2, 3}));
 
     auto* z_grad = g.get_or_create_grad(z, "z_grad");
-    fill(Scalar(1.0), z_grad->data());
+    fill(grad_fill_val, z_grad->data());
     z->backward();
 
     REQUIRE(x->has_grad());

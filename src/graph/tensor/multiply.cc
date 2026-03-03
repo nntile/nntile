@@ -47,7 +47,8 @@ void run_multiply(
 TensorGraph::TensorNode* multiply(
     TensorGraph::TensorNode* x,
     TensorGraph::TensorNode* y,
-    const std::string& output_name)
+    const std::string& output_name,
+    Scalar alpha)
 {
     if(x == nullptr || y == nullptr)
     {
@@ -76,7 +77,7 @@ TensorGraph::TensorNode* multiply(
         output_name,
         x->dtype());
 
-    auto op = std::make_shared<TensorMultiplyOp>(x, y, output, 1.0);
+    auto op = std::make_shared<TensorMultiplyOp>(x, y, output, alpha);
     x->graph()->add_op(op);
 
     return output;

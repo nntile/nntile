@@ -26,8 +26,8 @@ namespace nntile::graph
 //! Add operation at tensor level: z = alpha * x + beta * y
 struct TensorAddOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode* x = nullptr;
     TensorGraph::TensorNode* y = nullptr;
     TensorGraph::TensorNode* z = nullptr;

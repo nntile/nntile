@@ -23,8 +23,8 @@ namespace nntile::graph
 //! Pow in-place: A = alpha * A^exp
 struct TensorPowOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Scalar exp = 1.0;
+    Scalar alpha;
+    Scalar exp;
     TensorGraph::TensorNode* A = nullptr;
 
     TensorPowOp() = default;

@@ -23,11 +23,11 @@ namespace nntile::graph
 //! Norm fiber in-place: dst = alpha*norm(src) + beta*dst
 struct TensorNormFiberInplaceOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Scalar beta = 1.0;
-    Index axis = 0;
-    Index batch_ndim = 0;
-    int redux = 0;
+    Scalar alpha;
+    Scalar beta;
+    Index axis;
+    Index batch_ndim;
+    int redux;
     TensorGraph::TensorNode* src = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
 
@@ -36,7 +36,7 @@ struct TensorNormFiberInplaceOp : TensorGraph::OpNode
         Scalar alpha_, Scalar beta_,
         TensorGraph::TensorNode* src_,
         TensorGraph::TensorNode* dst_,
-        Index axis_, Index batch_ndim_, int redux_ = 0)
+        Index axis_, Index batch_ndim_, int redux_)
         : alpha(alpha_), beta(beta_)
         , axis(axis_), batch_ndim(batch_ndim_), redux(redux_)
         , src(src_), dst(dst_)
@@ -61,7 +61,7 @@ void norm_fiber_inplace(
     Scalar beta,
     TensorGraph::TensorNode* dst,
     Index axis,
-    Index batch_ndim = 0,
-    int redux = 0);
+    Index batch_ndim,
+    int redux);
 
 } // namespace nntile::graph

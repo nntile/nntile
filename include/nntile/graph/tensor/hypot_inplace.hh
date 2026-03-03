@@ -23,8 +23,8 @@ namespace nntile::graph
 //! Hypot in-place: dst = hypot(alpha*src, beta*dst)
 struct TensorHypotInplaceOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Scalar beta = 1.0;
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode* src = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
 

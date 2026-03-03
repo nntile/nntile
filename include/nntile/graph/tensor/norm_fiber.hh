@@ -23,11 +23,11 @@ namespace nntile::graph
 //! Norm fiber operation: dst = alpha*norm(src1) + beta*src2
 struct TensorNormFiberOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
-    Index axis = 0;
-    Index batch_ndim = 0;
-    int redux = 0;
+    Scalar alpha;
+    Scalar beta;
+    Index axis;
+    Index batch_ndim;
+    int redux;
     TensorGraph::TensorNode* src1 = nullptr;
     TensorGraph::TensorNode* src2 = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
@@ -38,7 +38,7 @@ struct TensorNormFiberOp : TensorGraph::OpNode
         TensorGraph::TensorNode* src1_,
         TensorGraph::TensorNode* src2_,
         TensorGraph::TensorNode* dst_,
-        Index axis_, Index batch_ndim_, int redux_ = 0)
+        Index axis_, Index batch_ndim_, int redux_)
         : alpha(alpha_), beta(beta_)
         , axis(axis_), batch_ndim(batch_ndim_), redux(redux_)
         , src1(src1_), src2(src2_), dst(dst_)
@@ -64,8 +64,8 @@ TensorGraph::TensorNode* norm_fiber(
     TensorGraph::TensorNode* src2,
     const std::string& output_name,
     Index axis,
-    Index batch_ndim = 0,
-    int redux = 0);
+    Index batch_ndim,
+    int redux);
 
 void norm_fiber(
     Scalar alpha,
@@ -74,7 +74,7 @@ void norm_fiber(
     TensorGraph::TensorNode* src2,
     TensorGraph::TensorNode* dst,
     Index axis,
-    Index batch_ndim = 0,
-    int redux = 0);
+    Index batch_ndim,
+    int redux);
 
 } // namespace nntile::graph

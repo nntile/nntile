@@ -23,8 +23,8 @@ namespace nntile::graph
 //! Hypot operation: dst = hypot(alpha*src1, beta*src2)
 struct TensorHypotOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Scalar beta = 1.0;
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode* src1 = nullptr;
     TensorGraph::TensorNode* src2 = nullptr;
     TensorGraph::TensorNode* dst = nullptr;

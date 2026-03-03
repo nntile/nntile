@@ -23,10 +23,10 @@ namespace nntile::graph
 //! Sumprod fiber operation: dst = alpha * sumprod_fiber(src1, src2) + beta * dst
 struct TensorSumprodFiberOp : TensorGraph::OpNode
 {
-    Index axis = 0;
-    int redux = 0;
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
+    Index axis;
+    int redux;
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode* src1 = nullptr;
     TensorGraph::TensorNode* src2 = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
@@ -60,9 +60,9 @@ void sumprod_fiber(
     TensorGraph::TensorNode* src1,
     TensorGraph::TensorNode* src2,
     TensorGraph::TensorNode* dst,
-    Index axis = 0,
-    int redux = 0,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0);
+    Index axis,
+    int redux,
+    Scalar alpha,
+    Scalar beta);
 
 } // namespace nntile::graph

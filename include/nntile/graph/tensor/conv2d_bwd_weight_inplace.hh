@@ -24,10 +24,10 @@ namespace nntile::graph
 //! Conv2D backward weight: dC = alpha*conv_bwd(X,dY) + beta*dC
 struct TensorConv2dBwdWeightInplaceOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
+    Scalar alpha;
     TensorGraph::TensorNode* X = nullptr;
     TensorGraph::TensorNode* dY = nullptr;
-    Scalar beta = 0.0;
+    Scalar beta;
     TensorGraph::TensorNode* dC = nullptr;
     std::array<Index, 2> padding = {0, 0};
     std::array<Index, 2> stride = {1, 1};

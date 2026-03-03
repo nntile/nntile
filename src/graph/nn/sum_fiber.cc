@@ -26,6 +26,8 @@ namespace nntile::graph
 
 namespace
 {
+constexpr Scalar grad_overwrite = 0.0;
+constexpr Scalar grad_accumulate = 1.0;
 
 std::vector<Index> sum_fiber_output_shape(const std::vector<Index>& x_shape,
                                            Index axis,
@@ -73,9 +75,11 @@ void NNSumFiberOp::backward() const
     }
     if(x != nullptr && x->requires_grad())
     {
+        bool first = graph->is_first_grad(x);
         NNGraph::TensorNode* grad_x =
             graph->get_or_create_grad(x, x->name() + "_grad");
-        graph::add_fiber_inplace(alpha, grad_out->data(), Scalar(1.0),
+        Scalar grad_beta = first ? grad_overwrite : grad_accumulate;
+        graph::add_fiber_inplace(alpha, grad_out->data(), grad_beta,
                                 grad_x->data(), axis, batch_ndim);
     }
 }

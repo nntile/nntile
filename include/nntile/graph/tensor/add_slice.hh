@@ -25,9 +25,9 @@ namespace nntile::graph
 //! Add slice operation at tensor level: dst = alpha * src1 + beta * src2
 struct TensorAddSliceOp : TensorGraph::OpNode
 {
-    Index axis = 0;
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
+    Index axis;
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode* src1 = nullptr;
     TensorGraph::TensorNode* src2 = nullptr;
     TensorGraph::TensorNode* dst = nullptr;

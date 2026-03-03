@@ -17,7 +17,6 @@
 
 #include <stdexcept>
 
-#include "nntile/graph/tensor/clear.hh"
 #include "nntile/graph/tensor/gelu.hh"
 #include "nntile/graph/tensor/gelu_backward.hh"
 
@@ -50,13 +49,8 @@ void NNGeluOp::backward() const
     }
     if(x != nullptr && x->requires_grad())
     {
-        bool first = graph->is_first_grad(x);
         NNGraph::TensorNode* grad_x =
             graph->get_or_create_grad(x, x->name() + "_grad");
-        if(first)
-        {
-            graph::clear(grad_x->data());
-        }
         graph::gelu_backward(x->data(), grad_out->data(), grad_x->data());
     }
 }

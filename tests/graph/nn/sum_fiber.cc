@@ -10,6 +10,7 @@
  * */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
 
 #include "nntile/graph.hh"
 
@@ -18,16 +19,23 @@ using namespace nntile::graph;
 
 TEST_CASE("NNGraph Autograd SumFiber ForwardAndBackward", "[graph][nn_graph]")
 {
+    const Index axis = GENERATE(Index(1));
+    const Index batch_ndim = GENERATE(Index(0));
+    const int redux = GENERATE(0);
+    const Scalar alpha = GENERATE(Scalar(1.0));
+    const Scalar beta = GENERATE(Scalar(0.0));
+    const Scalar grad_fill_val = GENERATE(Scalar(1.0));
+
     NNGraph g("sum_fiber");
     auto* x = g.tensor({2, 4}, "x", DataType::FP32, true);
-    auto* y = sum_fiber(x, "y", 1, 0);
+    auto* y = sum_fiber(x, "y", axis, batch_ndim, redux, alpha, beta);
 
     REQUIRE(y != nullptr);
     REQUIRE(y->has_producer());
     REQUIRE(y->shape() == (std::vector<Index>{4}));
 
     auto* y_grad = g.get_or_create_grad(y, "y_grad");
-    fill(Scalar(1.0), y_grad->data());
+    fill(grad_fill_val, y_grad->data());
     y->backward();
 
     REQUIRE(x->has_grad());

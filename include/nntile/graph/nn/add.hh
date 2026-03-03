@@ -41,7 +41,7 @@ struct NNAddOp : NNGraph::OpNode
         inputs_ = {x, y};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name) override;
+    NNGraph::TensorNode* forward(const std::string& output_name);
     void backward() const override;
 };
 

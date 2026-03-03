@@ -25,7 +25,7 @@ struct TensorEmbeddingOp : TensorGraph::OpNode
     TensorGraph::TensorNode* index = nullptr;
     TensorGraph::TensorNode* vocab = nullptr;
     TensorGraph::TensorNode* embed = nullptr;
-    Index axis = 0;
+    Index axis;
 
     TensorEmbeddingOp() = default;
     TensorEmbeddingOp(TensorGraph::TensorNode* index_,

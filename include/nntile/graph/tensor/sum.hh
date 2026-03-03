@@ -23,8 +23,8 @@ namespace nntile::graph
 //! Sum operation at tensor level: dst = alpha * sum(src) + beta * dst
 struct TensorSumOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode* src = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
 
@@ -54,7 +54,7 @@ struct TensorSumOp : TensorGraph::OpNode
 void sum(
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0);
+    Scalar alpha,
+    Scalar beta);
 
 } // namespace nntile::graph

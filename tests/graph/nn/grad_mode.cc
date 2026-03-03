@@ -10,6 +10,7 @@
  * */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
 
 #include "nntile/graph.hh"
 
@@ -18,6 +19,9 @@ using namespace nntile::graph;
 
 TEST_CASE("GradMode disabled: Add does not set producer")
 {
+    const Scalar add_alpha = GENERATE(Scalar(1.0));
+    const Scalar add_beta = GENERATE(Scalar(1.0));
+
     NNGraph g("no_grad_add");
     auto* x = g.tensor({2, 3}, "x", DataType::FP32);
     auto* y = g.tensor({2, 3}, "y", DataType::FP32);
@@ -25,7 +29,7 @@ TEST_CASE("GradMode disabled: Add does not set producer")
     NNGraph::TensorNode* z = nullptr;
     {
         auto guard = g.no_grad();
-        z = add(Scalar(1.0), x, Scalar(1.0), y, "z");
+        z = add(add_alpha, x, add_beta, y, "z");
     }
 
     // With grad disabled, add() did not set producer
@@ -36,11 +40,14 @@ TEST_CASE("GradMode disabled: Add does not set producer")
 
 TEST_CASE("GradMode enabled: Add sets producer")
 {
+    const Scalar add_alpha = GENERATE(Scalar(1.0));
+    const Scalar add_beta = GENERATE(Scalar(1.0));
+
     NNGraph g("grad_add");
     auto* x = g.tensor({2, 3}, "x", DataType::FP32);
     auto* y = g.tensor({2, 3}, "y", DataType::FP32);
 
-    auto* z = add(Scalar(1.0), x, Scalar(1.0), y, "z");
+    auto* z = add(add_alpha, x, add_beta, y, "z");
 
     REQUIRE(z->has_producer());
     REQUIRE_FALSE(z->is_leaf());

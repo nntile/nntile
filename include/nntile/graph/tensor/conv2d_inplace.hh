@@ -24,10 +24,10 @@ namespace nntile::graph
 //! Conv2D forward: Y = alpha*conv(X,C) + beta*Y
 struct TensorConv2dInplaceOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
+    Scalar alpha;
     TensorGraph::TensorNode* X = nullptr;
     TensorGraph::TensorNode* C = nullptr;
-    Scalar beta = 0.0;
+    Scalar beta;
     TensorGraph::TensorNode* Y = nullptr;
     std::array<Index, 2> padding = {0, 0};
     std::array<Index, 2> stride = {1, 1};

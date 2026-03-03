@@ -23,7 +23,7 @@ namespace nntile::graph
 //! Fill operation at tensor level: x = val
 struct TensorFillOp : TensorGraph::OpNode
 {
-    Scalar val = 0.0;
+    Scalar val;
     TensorGraph::TensorNode* x = nullptr;
 
     TensorFillOp() = default;

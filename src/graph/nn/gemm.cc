@@ -17,11 +17,17 @@
 
 #include <stdexcept>
 
-#include "nntile/graph/tensor/clear.hh"
 #include "nntile/graph/tensor/gemm.hh"
 
 namespace nntile::graph
 {
+
+namespace
+{
+constexpr Scalar gemm_new_output_beta = 0.0;
+constexpr Scalar grad_overwrite = 0.0;
+constexpr Scalar grad_accumulate = 1.0;
+} // anonymous namespace
 
 NNGraph::TensorNode* NNGemmOp::forward(const std::string& output_name)
 {
@@ -37,9 +43,8 @@ NNGraph::TensorNode* NNGemmOp::forward(const std::string& output_name)
     NNGraph::TensorNode* c = graph->tensor(
         std::move(c_shape), output_name, a->dtype(), out_requires_grad);
     outputs_ = {c};
-    graph::clear(c->data());
     graph::gemm(a->data(), b->data(), c->data(),
-                alpha, 0.0, trans_a, trans_b, ndim, batch_ndim);
+                alpha, gemm_new_output_beta, trans_a, trans_b, ndim, batch_ndim);
     return c;
 }
 
@@ -56,7 +61,7 @@ void NNGemmOp::backward() const
         bool first = graph->is_first_grad(a);
         NNGraph::TensorNode* grad_a =
             graph->get_or_create_grad(a, a->name() + "_grad");
-        Scalar beta = first ? 0.0 : 1.0;
+        Scalar beta = first ? grad_overwrite : grad_accumulate;
         if(!trans_a)
         {
             graph::gemm(grad_out->data(), b->data(), grad_a->data(),
@@ -73,7 +78,7 @@ void NNGemmOp::backward() const
         bool first = graph->is_first_grad(b);
         NNGraph::TensorNode* grad_b =
             graph->get_or_create_grad(b, b->name() + "_grad");
-        Scalar beta = first ? 0.0 : 1.0;
+        Scalar beta = first ? grad_overwrite : grad_accumulate;
         if(!trans_b)
         {
             graph::gemm(a->data(), grad_out->data(), grad_b->data(),

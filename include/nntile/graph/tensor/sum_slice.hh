@@ -23,10 +23,10 @@ namespace nntile::graph
 //! Sum slice operation at tensor level: dst = alpha * sum_slice(src) + beta * dst
 struct TensorSumSliceOp : TensorGraph::OpNode
 {
-    Index axis = 0;
-    int redux = 0;
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
+    Index axis;
+    int redux;
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode* src = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
 
@@ -57,9 +57,9 @@ struct TensorSumSliceOp : TensorGraph::OpNode
 void sum_slice(
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst,
-    Index axis = 0,
-    int redux = 0,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0);
+    Index axis,
+    int redux,
+    Scalar alpha,
+    Scalar beta);
 
 } // namespace nntile::graph

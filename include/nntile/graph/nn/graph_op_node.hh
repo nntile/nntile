@@ -27,7 +27,7 @@ namespace nntile::graph
 
 //! NNGraph-level operation node (AutoGradFunction).
 //! Base class for autograd ops; holds params, inputs, outputs, buffers.
-//! Implements forward() and backward().
+//! Implements backward(). Forward is op-specific; free functions call it directly.
 class NNGraph::OpNode
 {
     friend class NNGraph;
@@ -45,11 +45,6 @@ public:
     {
         return outputs().empty() ? nullptr : outputs()[0];
     }
-
-    //! Add forward pass ops to TensorGraph. Creates outputs, adds ops, returns
-    //! primary output. Called before register_op. (PyTorch-style: outputs
-    //! appear in forward.)
-    virtual TensorNode* forward(const std::string& output_name) = 0;
 
     //! Run backward pass. Uses own inputs/outputs/params. Adds ops to TensorGraph.
     virtual void backward() const = 0;

@@ -23,6 +23,12 @@
 namespace nntile::graph
 {
 
+namespace
+{
+constexpr Scalar grad_overwrite = 0.0;
+constexpr Scalar grad_accumulate = 1.0;
+} // anonymous namespace
+
 NNGraph::TensorNode* NNAddOp::forward(const std::string& output_name)
 {
     if(x == nullptr || y == nullptr)
@@ -52,7 +58,7 @@ void NNAddOp::backward() const
         bool first = graph->is_first_grad(x);
         NNGraph::TensorNode* grad_x =
             graph->get_or_create_grad(x, x->name() + "_grad");
-        Scalar grad_beta = first ? 0.0 : 1.0;
+        Scalar grad_beta = first ? grad_overwrite : grad_accumulate;
         graph::add_inplace(alpha, grad_out->data(), grad_beta, grad_x->data());
     }
     if(y != nullptr && y->requires_grad())
@@ -60,7 +66,7 @@ void NNAddOp::backward() const
         bool first = graph->is_first_grad(y);
         NNGraph::TensorNode* grad_y =
             graph->get_or_create_grad(y, y->name() + "_grad");
-        Scalar grad_beta = first ? 0.0 : 1.0;
+        Scalar grad_beta = first ? grad_overwrite : grad_accumulate;
         graph::add_inplace(beta, grad_out->data(), grad_beta, grad_y->data());
     }
 }

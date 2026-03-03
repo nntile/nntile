@@ -23,8 +23,8 @@ namespace nntile::graph
 //! Norm operation at tensor level
 struct TensorNormOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode* x = nullptr;
     TensorGraph::TensorNode* y = nullptr;
 
@@ -49,6 +49,6 @@ struct TensorNormOp : TensorGraph::OpNode
 
 //! Euclidean norm: y = alpha * norm(x) + beta * y
 void norm(TensorGraph::TensorNode* x, TensorGraph::TensorNode* y,
-          Scalar alpha = 1.0, Scalar beta = 0.0);
+          Scalar alpha, Scalar beta);
 
 } // namespace nntile::graph

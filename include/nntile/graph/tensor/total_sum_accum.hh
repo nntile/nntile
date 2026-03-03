@@ -23,8 +23,8 @@ namespace nntile::graph
 //! Total sum accumulating: (alpha, logsumexp, src, class_labels, val, ignore_index)
 struct TensorTotalSumAccumOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Index ignore_index = -1;
+    Scalar alpha;
+    Index ignore_index;
     TensorGraph::TensorNode* logsumexp = nullptr;
     TensorGraph::TensorNode* src = nullptr;
     TensorGraph::TensorNode* class_labels = nullptr;
@@ -37,7 +37,7 @@ struct TensorTotalSumAccumOp : TensorGraph::OpNode
         TensorGraph::TensorNode* src_,
         TensorGraph::TensorNode* class_labels_,
         TensorGraph::TensorNode* val_,
-        Index ignore_index_ = -1)
+        Index ignore_index_)
         : alpha(alpha_), ignore_index(ignore_index_)
         , logsumexp(logsumexp_), src(src_)
         , class_labels(class_labels_), val(val_)

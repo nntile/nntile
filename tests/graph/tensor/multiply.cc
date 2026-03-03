@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/graph/tensor/add.cc
- * Test TensorGraph add operation against nntile::tensor::add.
+ * @file tests/graph/tensor/multiply.cc
+ * Test TensorGraph multiply operation against nntile::tensor::multiply.
  *
  * @version 1.1.0
  * */
@@ -18,46 +18,41 @@
 #include <numeric>
 
 #include "nntile/context.hh"
-#include "nntile/graph/tensor/add.hh"
+#include "nntile/graph/tensor/multiply.hh"
 #include "nntile/graph/tensor.hh"
-#include "nntile/tensor/add.hh"
-#include "nntile/tensor/fill.hh"
+#include "nntile/tensor/multiply.hh"
 #include "nntile/tensor/tensor.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 
-//! Run add via TensorGraph (compile + execute) and via tensor API, compare
 template<typename T>
-void check_add_vs_tensor_api(const std::vector<Index>& shape,
-                             Scalar alpha, Scalar beta)
+void check_multiply_vs_tensor_api(const std::vector<Index>& shape, Scalar alpha)
 {
     using Y = typename T::repr_t;
     const Index nelems =
         std::accumulate(shape.begin(), shape.end(), Index(1), std::multiplies<>());
 
     // --- TensorGraph path ---
-    TensorGraph graph("add_test");
+    TensorGraph graph("multiply_test");
     auto* x_node = graph.data(shape, "x", DataType::FP32);
     auto* y_node = graph.data(shape, "y", DataType::FP32);
     x_node->mark_input(true);
     y_node->mark_input(true);
 
-    auto* z_node = add(alpha, x_node, beta, y_node, "z");
+    auto* z_node = multiply(x_node, y_node, "z", alpha);
     z_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
 
-    // Generate input data once
     std::vector<float> x_data(nelems), y_data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        x_data[i] = static_cast<float>(Y(i));
+        x_data[i] = static_cast<float>(Y(i + 1));
         y_data[i] = static_cast<float>(Y(-i - 1));
     }
 
-    // --- TensorGraph path ---
     runtime.bind_data("x", x_data);
     runtime.bind_data("y", y_data);
     runtime.execute();
@@ -86,7 +81,7 @@ void check_add_vs_tensor_api(const std::vector<Index>& shape,
         loc2.release();
     }
 
-    tensor::add<T>(alpha, src1, beta, src2, dst);
+    tensor::multiply<T>(alpha, src1, src2, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -109,10 +104,9 @@ void check_add_vs_tensor_api(const std::vector<Index>& shape,
     }
 }
 
-TEST_CASE("TensorGraph add structure", "[graph][tensor]")
+TEST_CASE("TensorGraph multiply structure", "[graph][tensor]")
 {
     const Scalar alpha = GENERATE(Scalar(1.0));
-    const Scalar beta = GENERATE(Scalar(1.0));
     constexpr Index dim0 = 4;
     constexpr Index dim1 = 5;
 
@@ -121,7 +115,7 @@ TEST_CASE("TensorGraph add structure", "[graph][tensor]")
     auto* x = graph.data({dim0, dim1}, "x");
     auto* y = graph.data({dim0, dim1}, "y");
 
-    auto* z = add(alpha, x, beta, y, "z");
+    auto* z = multiply(x, y, "z", alpha);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -129,20 +123,20 @@ TEST_CASE("TensorGraph add structure", "[graph][tensor]")
     REQUIRE(z->shape()[1] == dim1);
 
     const auto& ops = graph.ops();
-    REQUIRE(ops[0]->op_name() == "ADD");
+    REQUIRE(ops[0]->op_name() == "MULTIPLY");
     REQUIRE(ops[0]->inputs().size() == 2);
     REQUIRE(ops[0]->outputs().size() == 1);
     REQUIRE(ops[0]->outputs()[0] == z);
 }
 
-TEST_CASE("TensorGraph add matches tensor::add", "[graph][tensor]")
+TEST_CASE("TensorGraph multiply matches tensor::multiply", "[graph][tensor]")
 {
-    const auto [alpha, beta, shape] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0), std::vector<Index>{4, 5}},
-        std::tuple{Scalar(2.0), Scalar(3.0), std::vector<Index>{4, 5}},
-        std::tuple{Scalar(0.5), Scalar(-1.0), std::vector<Index>{6}});
+    const auto [alpha, shape] = GENERATE(
+        std::tuple{Scalar(1.0), std::vector<Index>{4, 5}},
+        std::tuple{Scalar(2.5), std::vector<Index>{4, 5}},
+        std::tuple{Scalar(1.0), std::vector<Index>{6}});
 
     Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0);
 
-    check_add_vs_tensor_api<nntile::fp32_t>(shape, alpha, beta);
+    check_multiply_vs_tensor_api<nntile::fp32_t>(shape, alpha);
 }

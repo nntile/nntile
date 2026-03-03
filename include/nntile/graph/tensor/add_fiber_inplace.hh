@@ -23,10 +23,10 @@ namespace nntile::graph
 //! Add fiber in-place at tensor level: tensor = alpha * fiber + beta * tensor
 struct TensorAddFiberInplaceOp : TensorGraph::OpNode
 {
-    Index axis = 0;
-    Index batch_ndim = 0;
-    Scalar alpha = 1.0;
-    Scalar beta = 1.0;
+    Index axis;
+    Index batch_ndim;
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode* fiber = nullptr;
     TensorGraph::TensorNode* tensor = nullptr;
 
@@ -61,6 +61,6 @@ void add_fiber_inplace(
     Scalar beta,
     TensorGraph::TensorNode* tensor,
     Index axis,
-    Index batch_ndim = 0);
+    Index batch_ndim);
 
 } // namespace nntile::graph

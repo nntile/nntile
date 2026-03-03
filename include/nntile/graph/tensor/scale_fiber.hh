@@ -23,9 +23,9 @@ namespace nntile::graph
 //! Scale fiber operation: dst = alpha * src (fiber broadcast)
 struct TensorScaleFiberOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Index axis = 0;
-    Index batch_ndim = 0;
+    Scalar alpha;
+    Index axis;
+    Index batch_ndim;
     TensorGraph::TensorNode* src = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
 
@@ -35,7 +35,7 @@ struct TensorScaleFiberOp : TensorGraph::OpNode
         TensorGraph::TensorNode* src_,
         TensorGraph::TensorNode* dst_,
         Index axis_,
-        Index batch_ndim_ = 0)
+        Index batch_ndim_)
         : alpha(alpha_), axis(axis_), batch_ndim(batch_ndim_)
         , src(src_), dst(dst_)
     {
@@ -59,13 +59,13 @@ TensorGraph::TensorNode* scale_fiber(
     const std::string& output_name,
     const std::vector<Index>& dst_shape,
     Index axis,
-    Index batch_ndim = 0);
+    Index batch_ndim);
 
 void scale_fiber(
     Scalar alpha,
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst,
     Index axis,
-    Index batch_ndim = 0);
+    Index batch_ndim);
 
 } // namespace nntile::graph

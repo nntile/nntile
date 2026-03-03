@@ -25,15 +25,15 @@ struct TensorEmbeddingBackwardOp : TensorGraph::OpNode
     TensorGraph::TensorNode* index = nullptr;
     TensorGraph::TensorNode* embed = nullptr;
     TensorGraph::TensorNode* vocab = nullptr;
-    Index axis = 0;
-    int redux = 0;
+    Index axis;
+    int redux;
 
     TensorEmbeddingBackwardOp() = default;
     TensorEmbeddingBackwardOp(TensorGraph::TensorNode* index_,
                              TensorGraph::TensorNode* embed_,
                              TensorGraph::TensorNode* vocab_,
                              Index axis_,
-                             int redux_ = 0)
+                             int redux_)
         : index(index_), embed(embed_), vocab(vocab_), axis(axis_), redux(redux_)
     {
         inputs_ = {index, embed, vocab};
@@ -55,6 +55,6 @@ void embedding_backward(TensorGraph::TensorNode* index,
                         TensorGraph::TensorNode* embed,
                         TensorGraph::TensorNode* vocab,
                         Index axis,
-                        int redux = 0);
+                        int redux);
 
 } // namespace nntile::graph

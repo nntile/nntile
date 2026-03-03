@@ -23,7 +23,7 @@ namespace nntile::graph
 //! Scale in-place operation at tensor level: dst = alpha * dst
 struct TensorScaleInplaceOp : TensorGraph::OpNode
 {
-    Scalar alpha = 1.0;
+    Scalar alpha;
     TensorGraph::TensorNode* dst = nullptr;
 
     TensorScaleInplaceOp() = default;

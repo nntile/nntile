@@ -45,7 +45,7 @@ struct NNAddFiberOp : NNGraph::OpNode
         inputs_ = {fiber, tensor};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name) override;
+    NNGraph::TensorNode* forward(const std::string& output_name);
     void backward() const override;
 };
 
@@ -55,7 +55,7 @@ NNGraph::TensorNode* add_fiber(
     Scalar beta,
     NNGraph::TensorNode* tensor,
     const std::string& output_name,
-    Index axis = 0,
-    Index batch_ndim = 0);
+    Index axis,
+    Index batch_ndim);
 
 } // namespace nntile::graph

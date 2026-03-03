@@ -23,9 +23,9 @@ namespace nntile::graph
 //! Add slice in-place at tensor level: dst = alpha * src + beta * dst
 struct TensorAddSliceInplaceOp : TensorGraph::OpNode
 {
-    Index axis = 0;
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
+    Index axis;
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode* src = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
 

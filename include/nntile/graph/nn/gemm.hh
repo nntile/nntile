@@ -50,7 +50,7 @@ struct NNGemmOp : NNGraph::OpNode
         inputs_ = {a, b};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name) override;
+    NNGraph::TensorNode* forward(const std::string& output_name);
     void backward() const override;
 };
 
@@ -58,10 +58,10 @@ NNGraph::TensorNode* gemm(
     NNGraph::TensorNode* a,
     NNGraph::TensorNode* b,
     const std::string& output_name,
-    Scalar alpha = 1.0,
-    bool trans_a = false,
-    bool trans_b = false,
-    Index ndim = 1,
-    Index batch_ndim = 0);
+    Scalar alpha,
+    bool trans_a,
+    bool trans_b,
+    Index ndim,
+    Index batch_ndim);
 
 } // namespace nntile::graph

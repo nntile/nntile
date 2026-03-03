@@ -44,17 +44,17 @@ struct NNSumFiberOp : NNGraph::OpNode
         inputs_ = {x};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name) override;
+    NNGraph::TensorNode* forward(const std::string& output_name);
     void backward() const override;
 };
 
 NNGraph::TensorNode* sum_fiber(
     NNGraph::TensorNode* x,
     const std::string& output_name,
-    Index axis = 0,
-    Index batch_ndim = 0,
-    int redux = 0,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0);
+    Index axis,
+    Index batch_ndim,
+    int redux,
+    Scalar alpha,
+    Scalar beta);
 
 } // namespace nntile::graph

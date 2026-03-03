@@ -23,8 +23,8 @@ namespace nntile::graph
 //! MaxSumExp operation: dst = maxsumexp(src, axis)
 struct TensorMaxsumexpOp : TensorGraph::OpNode
 {
-    Index axis = 0;
-    int redux = 0;
+    Index axis;
+    int redux;
     TensorGraph::TensorNode* src = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
 
@@ -32,7 +32,7 @@ struct TensorMaxsumexpOp : TensorGraph::OpNode
     TensorMaxsumexpOp(
         TensorGraph::TensorNode* src_,
         TensorGraph::TensorNode* dst_,
-        Index axis_, int redux_ = 0)
+        Index axis_, int redux_)
         : axis(axis_), redux(redux_)
         , src(src_), dst(dst_)
     {
@@ -54,12 +54,12 @@ TensorGraph::TensorNode* maxsumexp(
     TensorGraph::TensorNode* src,
     const std::string& output_name,
     Index axis,
-    int redux = 0);
+    int redux);
 
 void maxsumexp(
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst,
     Index axis,
-    int redux = 0);
+    int redux);
 
 } // namespace nntile::graph

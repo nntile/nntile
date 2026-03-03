@@ -23,7 +23,7 @@ namespace nntile::graph
 //! Subtract indexed outputs: dst[labels[i]] -= val
 struct TensorSubtractIndexedOutputsOp : TensorGraph::OpNode
 {
-    Scalar val = 0.0;
+    Scalar val;
     TensorGraph::TensorNode* labels = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
     Index ignore_index = -1;

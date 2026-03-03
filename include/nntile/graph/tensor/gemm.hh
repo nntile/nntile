@@ -34,20 +34,20 @@ namespace nntile::graph
 std::vector<Index> gemm_output_shape(
     const std::vector<Index>& a_shape,
     const std::vector<Index>& b_shape,
-    bool trans_a = false,
-    bool trans_b = false,
-    Index ndim = 1,
-    Index batch_ndim = 0);
+    bool trans_a,
+    bool trans_b,
+    Index ndim,
+    Index batch_ndim);
 
 //! GEMM operation at tensor level: C = alpha * op(A) @ op(B) + beta * C
 struct TensorGemmOp : TensorGraph::OpNode
 {
-    bool trans_a = false;
-    bool trans_b = false;
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
-    Index ndim = 1;
-    Index batch_ndim = 0;
+    bool trans_a;
+    bool trans_b;
+    Scalar alpha;
+    Scalar beta;
+    Index ndim;
+    Index batch_ndim;
     TensorGraph::TensorNode* a = nullptr;
     TensorGraph::TensorNode* b = nullptr;
     TensorGraph::TensorNode* c = nullptr;
@@ -83,7 +83,7 @@ struct TensorGemmOp : TensorGraph::OpNode
 //! @param a First input tensor
 //! @param b Second input tensor
 //! @param output_name Name for the output tensor
-//! @param alpha Scalar multiplier (default: 1.0)
+//! @param alpha Scalar multiplier for A @ B (default: 1.0)
 //! @param trans_a Transpose A (default: false)
 //! @param trans_b Transpose B (default: false)
 //! @param ndim Number of contraction dimensions (default: 1)
@@ -93,11 +93,11 @@ TensorGraph::TensorNode* gemm(
     TensorGraph::TensorNode* a,
     TensorGraph::TensorNode* b,
     const std::string& output_name,
-    Scalar alpha = 1.0,
-    bool trans_a = false,
-    bool trans_b = false,
-    Index ndim = 1,
-    Index batch_ndim = 0);
+    Scalar alpha,
+    bool trans_a,
+    bool trans_b,
+    Index ndim,
+    Index batch_ndim);
 
 //! GEMM with accumulation: C = alpha * op(A) @ op(B) + beta * C
 //! @param a First input tensor
@@ -113,11 +113,11 @@ void gemm(
     TensorGraph::TensorNode* a,
     TensorGraph::TensorNode* b,
     TensorGraph::TensorNode* c,
-    Scalar alpha = 1.0,
-    Scalar beta = 1.0,
-    bool trans_a = false,
-    bool trans_b = false,
-    Index ndim = 1,
-    Index batch_ndim = 0);
+    Scalar alpha,
+    Scalar beta,
+    bool trans_a,
+    bool trans_b,
+    Index ndim,
+    Index batch_ndim);
 
 } // namespace nntile::graph

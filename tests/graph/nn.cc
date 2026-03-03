@@ -18,10 +18,12 @@
 
 // Include third-party headers
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
 
 // Include other NNTile headers
 #include "nntile/graph.hh"
 
+using namespace nntile;
 using namespace nntile::graph;
 
 TEST_CASE("NNGraph TensorNodeNullData", "[graph]")
@@ -51,13 +53,21 @@ TEST_CASE("NNGraph TensorCreationAndLookup", "[graph]")
 
 TEST_CASE("NNGraph OpNullInputs", "[graph]")
 {
+    const Scalar gemm_alpha = GENERATE(Scalar(1.0));
+    const bool trans_a = GENERATE(false);
+    const bool trans_b = GENERATE(false);
+    const Index ndim = GENERATE(Index(1));
+    const Index batch_ndim = GENERATE(Index(0));
+
     NNGraph g("test");
 
     auto* x = g.tensor({2, 2}, "x", DataType::FP32);
     auto* y = g.tensor({2, 2}, "y", DataType::FP32);
 
-    REQUIRE_THROWS_AS(gemm(nullptr, y, "out"), std::invalid_argument);
-    REQUIRE_THROWS_AS(gemm(x, nullptr, "out"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gemm(nullptr, y, "out", gemm_alpha, trans_a, trans_b, ndim, batch_ndim),
+                     std::invalid_argument);
+    REQUIRE_THROWS_AS(gemm(x, nullptr, "out", gemm_alpha, trans_a, trans_b, ndim, batch_ndim),
+                     std::invalid_argument);
     REQUIRE_THROWS_AS(gelu(static_cast<NNGraph::TensorNode*>(nullptr), "out"),
                      std::invalid_argument);
 
@@ -103,12 +113,18 @@ TEST_CASE("NNGraph GradHelpersAndToString", "[graph]")
 
 TEST_CASE("NNGraph ToMermaidDelegatesToTensorGraph", "[graph]")
 {
+    const Scalar gemm_alpha = GENERATE(Scalar(1.0));
+    const bool trans_a = GENERATE(false);
+    const bool trans_b = GENERATE(false);
+    const Index ndim = GENERATE(Index(1));
+    const Index batch_ndim = GENERATE(Index(0));
+
     NNGraph nng("test_nn");
 
     auto* x = nng.tensor({2, 3}, "input", DataType::FP32);
     auto* w = nng.tensor({3, 4}, "weights", DataType::FP32);
 
-    auto* y = gemm(x, w, "output");
+    auto* y = gemm(x, w, "output", gemm_alpha, trans_a, trans_b, ndim, batch_ndim);
 
     // Test that NNGraph to_mermaid delegates to tensor graph
     auto nn_mermaid = nng.to_mermaid();
@@ -122,11 +138,17 @@ TEST_CASE("NNGraph ToMermaidDelegatesToTensorGraph", "[graph]")
 
 TEST_CASE("NNGraph MarkInputOutput", "[graph]")
 {
+    const Scalar gemm_alpha = GENERATE(Scalar(1.0));
+    const bool trans_a = GENERATE(false);
+    const bool trans_b = GENERATE(false);
+    const Index ndim = GENERATE(Index(1));
+    const Index batch_ndim = GENERATE(Index(0));
+
     NNGraph g("test");
 
     auto* x = g.tensor({2, 3}, "x", DataType::FP32);
     auto* w = g.tensor({3, 4}, "w", DataType::FP32);
-    auto* y = gemm(x, w, "y");
+    auto* y = gemm(x, w, "y", gemm_alpha, trans_a, trans_b, ndim, batch_ndim);
 
     x->mark_input(true);
     y->mark_output(true);
@@ -142,13 +164,14 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph]")
     // Example: z = add(alpha, x, beta, y) with z.backward()
     // Mimics PyTorch: z = alpha*x + beta*y, then z.backward()
     // Expected: grad_x = alpha, grad_y = beta (when grad_z = 1)
+    const Scalar alpha = GENERATE(Scalar(2.0));
+    const Scalar beta = GENERATE(Scalar(3.0));
+    const Scalar grad_fill_val = GENERATE(Scalar(1.0));
+
     NNGraph g("autograd_add");
 
     auto* x = g.tensor({2, 3}, "x", DataType::FP32);
     auto* y = g.tensor({2, 3}, "y", DataType::FP32);
-
-    nntile::Scalar alpha = 2.0;
-    nntile::Scalar beta = 3.0;
 
     auto* z = add(alpha, x, beta, y, "z");
 
@@ -164,7 +187,7 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph]")
 
     // Set upstream gradient before backward (required)
     auto* z_grad = g.get_or_create_grad(z, "z_grad");
-    fill(nntile::Scalar(1.0), z_grad->data());
+    fill(grad_fill_val, z_grad->data());
 
     // Build backward graph (PyTorch-style)
     z->backward();
@@ -199,19 +222,23 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph]")
 TEST_CASE("NNGraph Autograd Add Chain", "[graph]")
 {
     // Chain: w = x + y, z = w + u. Each tensor gets its gradient.
+    const Scalar add_alpha = GENERATE(Scalar(1.0));
+    const Scalar add_beta = GENERATE(Scalar(1.0));
+    const Scalar grad_fill_val = GENERATE(Scalar(1.0));
+
     NNGraph g("add_chain");
     auto* x = g.tensor({2, 2}, "x", DataType::FP32);
     auto* y = g.tensor({2, 2}, "y", DataType::FP32);
     auto* u = g.tensor({2, 2}, "u", DataType::FP32);
 
-    auto* w = add(nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "w");
-    auto* z = add(nntile::Scalar(1.0), w, nntile::Scalar(1.0), u, "z");
+    auto* w = add(add_alpha, x, add_beta, y, "w");
+    auto* z = add(add_alpha, w, add_beta, u, "z");
 
     REQUIRE(w->requires_grad());
     REQUIRE(w->has_producer());
 
     auto* z_grad = g.get_or_create_grad(z, "z_grad");
-    fill(nntile::Scalar(1.0), z_grad->data());
+    fill(grad_fill_val, z_grad->data());
     z->backward();
 
     REQUIRE(x->has_grad());
@@ -225,16 +252,20 @@ TEST_CASE("NNGraph Autograd Add Diamond", "[graph]")
     // Diamond: w = x + y, v = w + y, z = v + w.
     // w feeds into both v and z; backward must process v and z before w
     // so w.grad accumulates both contributions.
+    const Scalar add_alpha = GENERATE(Scalar(1.0));
+    const Scalar add_beta = GENERATE(Scalar(1.0));
+    const Scalar grad_fill_val = GENERATE(Scalar(1.0));
+
     NNGraph g("add_diamond");
     auto* x = g.tensor({2, 2}, "x", DataType::FP32);
     auto* y = g.tensor({2, 2}, "y", DataType::FP32);
 
-    auto* w = add(nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "w");
-    auto* v = add(nntile::Scalar(1.0), w, nntile::Scalar(1.0), y, "v");
-    auto* z = add(nntile::Scalar(1.0), v, nntile::Scalar(1.0), w, "z");
+    auto* w = add(add_alpha, x, add_beta, y, "w");
+    auto* v = add(add_alpha, w, add_beta, y, "v");
+    auto* z = add(add_alpha, v, add_beta, w, "z");
 
     auto* z_grad = g.get_or_create_grad(z, "z_grad");
-    fill(nntile::Scalar(1.0), z_grad->data());
+    fill(grad_fill_val, z_grad->data());
     z->backward();
 
     REQUIRE(x->has_grad());
@@ -246,15 +277,19 @@ TEST_CASE("NNGraph Autograd Add Diamond", "[graph]")
 TEST_CASE("NNGraph BackwardRequiresGrad", "[graph]")
 {
     // backward() must be called only when grad is already set
+    const Scalar add_alpha = GENERATE(Scalar(1.0));
+    const Scalar add_beta = GENERATE(Scalar(1.0));
+    const Scalar grad_fill_val = GENERATE(Scalar(1.0));
+
     NNGraph g("backward_requires_grad");
     auto* x = g.tensor({2}, "x", DataType::FP32);
     auto* y = g.tensor({2}, "y", DataType::FP32);
-    auto* z = add(nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "z");
+    auto* z = add(add_alpha, x, add_beta, y, "z");
 
     REQUIRE_THROWS_AS(z->backward(), std::invalid_argument);
 
     // After setting grad, backward succeeds
     auto* z_grad = g.get_or_create_grad(z, "z_grad");
-    fill(nntile::Scalar(1.0), z_grad->data());
+    fill(grad_fill_val, z_grad->data());
     REQUIRE_NOTHROW(z->backward());
 }

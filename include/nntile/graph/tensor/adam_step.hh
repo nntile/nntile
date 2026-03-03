@@ -23,12 +23,12 @@ namespace nntile::graph
 //! Adam step: p = p - lr * m_hat / (sqrt(v_hat) + eps)
 struct TensorAdamStepOp : TensorGraph::OpNode
 {
-    Index num_iter = 0;
-    Scalar beta_1 = 0.9;
-    Scalar beta_2 = 0.999;
-    Scalar eps = 1e-8;
-    Scalar lr = 0.001;
-    Scalar weight_decay = 0.0;
+    Index num_iter;
+    Scalar beta_1;
+    Scalar beta_2;
+    Scalar eps;
+    Scalar lr;
+    Scalar weight_decay;
     TensorGraph::TensorNode* grad = nullptr;
     TensorGraph::TensorNode* first_moment = nullptr;
     TensorGraph::TensorNode* second_moment = nullptr;

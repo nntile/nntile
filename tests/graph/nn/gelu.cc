@@ -10,6 +10,7 @@
  * */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
 
 #include "nntile/graph.hh"
 
@@ -18,6 +19,8 @@ using namespace nntile::graph;
 
 TEST_CASE("NNGraph Autograd Gelu ForwardAndBackward", "[graph][nn_graph]")
 {
+    const Scalar grad_fill_val = GENERATE(Scalar(1.0));
+
     NNGraph g("gelu");
     auto* x = g.tensor({2, 3}, "x", DataType::FP32, true);
     auto* y = gelu(x, "y");
@@ -27,7 +30,7 @@ TEST_CASE("NNGraph Autograd Gelu ForwardAndBackward", "[graph][nn_graph]")
     REQUIRE(y->shape() == x->shape());
 
     auto* y_grad = g.get_or_create_grad(y, "y_grad");
-    fill(Scalar(1.0), y_grad->data());
+    fill(grad_fill_val, y_grad->data());
     y->backward();
 
     REQUIRE(x->has_grad());

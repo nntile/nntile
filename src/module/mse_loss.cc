@@ -40,7 +40,7 @@ graph::NNGraph::TensorNode& MseLoss::build_forward(
 
     // loss = y * y
     graph::TensorGraph::TensorNode* loss_data =
-        graph::multiply(norm_data, norm_data, tensor_name("loss"));
+        graph::multiply(norm_data, norm_data, tensor_name("loss"), 1.0);
 
     loss_tensor_ = graph_.tensor(loss_data);
     return *loss_tensor_;

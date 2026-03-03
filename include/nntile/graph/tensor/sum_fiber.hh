@@ -23,11 +23,11 @@ namespace nntile::graph
 //! Sum fiber operation at tensor level: y = alpha * sum_fiber(x) + beta * y
 struct TensorSumFiberOp : TensorGraph::OpNode
 {
-    Index axis = 0;
-    Index batch_ndim = 0;
-    int redux = 0;
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
+    Index axis;
+    Index batch_ndim;
+    int redux;
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode* x = nullptr;
     TensorGraph::TensorNode* y = nullptr;
 
@@ -66,10 +66,10 @@ struct TensorSumFiberOp : TensorGraph::OpNode
 void sum_fiber(
     TensorGraph::TensorNode* x,
     TensorGraph::TensorNode* y,
-    Index axis = 0,
-    Index batch_ndim = 0,
-    int redux = 0,
-    Scalar alpha = 1.0,
-    Scalar beta = 0.0);
+    Index axis,
+    Index batch_ndim,
+    int redux,
+    Scalar alpha,
+    Scalar beta);
 
 } // namespace nntile::graph

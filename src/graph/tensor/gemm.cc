@@ -62,6 +62,7 @@ std::vector<Index> gemm_output_shape(
 
 namespace
 {
+constexpr Scalar gemm_new_output_beta = 0.0;
 
 template<typename T>
 void run_gemm(
@@ -125,7 +126,7 @@ TensorGraph::TensorNode* gemm(
         a->dtype());
 
     auto op = std::make_shared<TensorGemmOp>(
-        a, b, output, alpha, 0.0, trans_a, trans_b, ndim, batch_ndim);
+        a, b, output, alpha, gemm_new_output_beta, trans_a, trans_b, ndim, batch_ndim);
 
     a->graph()->add_op(op);
 

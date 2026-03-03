@@ -23,11 +23,11 @@ namespace nntile::graph
 //! SGD step: p = p - lr*grad (with momentum, weight decay, etc.)
 struct TensorSgdStepOp : TensorGraph::OpNode
 {
-    Index num_iter = 0;
-    Scalar momentum = 0.0;
-    Scalar lr = 0.001;
-    Scalar weight_decay = 0.0;
-    Scalar dampening = 0.0;
+    Index num_iter;
+    Scalar momentum;
+    Scalar lr;
+    Scalar weight_decay;
+    Scalar dampening;
     bool nesterov = false;
     TensorGraph::TensorNode* grad = nullptr;
     TensorGraph::TensorNode* velocity = nullptr;

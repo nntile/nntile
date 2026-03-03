@@ -25,10 +25,10 @@ namespace nntile::graph
 //! Add fiber operation at tensor level: output = alpha * fiber + beta * tensor
 struct TensorAddFiberOp : TensorGraph::OpNode
 {
-    Index axis = 0;
-    Index batch_ndim = 0;
-    Scalar alpha = 1.0;
-    Scalar beta = 1.0;
+    Index axis;
+    Index batch_ndim;
+    Scalar alpha;
+    Scalar beta;
     TensorGraph::TensorNode* fiber = nullptr;
     TensorGraph::TensorNode* tensor = nullptr;
     TensorGraph::TensorNode* output = nullptr;
@@ -66,7 +66,7 @@ TensorGraph::TensorNode* add_fiber(
     TensorGraph::TensorNode* tensor,
     const std::string& output_name,
     Index axis,
-    Index batch_ndim = 0);
+    Index batch_ndim);
 
 //! Add along fibers: output = alpha * fiber + beta * tensor (uses existing output)
 void add_fiber(
@@ -76,6 +76,6 @@ void add_fiber(
     TensorGraph::TensorNode* tensor,
     TensorGraph::TensorNode* output,
     Index axis,
-    Index batch_ndim = 0);
+    Index batch_ndim);
 
 } // namespace nntile::graph

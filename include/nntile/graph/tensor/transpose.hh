@@ -25,15 +25,15 @@ namespace nntile::graph
 //! Transpose operation at tensor level: dst = alpha * transpose(src)
 struct TensorTransposeOp : TensorGraph::OpNode
 {
-    Index ndim = 0;
-    Scalar alpha = 1.0;
+    Index ndim;
+    Scalar alpha;
     TensorGraph::TensorNode* src = nullptr;
     TensorGraph::TensorNode* dst = nullptr;
 
     TensorTransposeOp() = default;
     TensorTransposeOp(TensorGraph::TensorNode* src_,
                       TensorGraph::TensorNode* dst_,
-                      Index ndim_, Scalar alpha_ = 1.0)
+                      Index ndim_, Scalar alpha_)
         : ndim(ndim_), alpha(alpha_), src(src_), dst(dst_)
     {
         inputs_ = {src};

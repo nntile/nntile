@@ -24,9 +24,9 @@ namespace nntile::graph
 struct TensorMaskScalarOp : TensorGraph::OpNode
 {
     TensorGraph::TensorNode* mask = nullptr;
-    Scalar val = 0.0;
+    Scalar val;
     TensorGraph::TensorNode* A = nullptr;
-    Index batch_ndim = 0;
+    Index batch_ndim;
 
     TensorMaskScalarOp() = default;
     TensorMaskScalarOp(TensorGraph::TensorNode* mask_,
