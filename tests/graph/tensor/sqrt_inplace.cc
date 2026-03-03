@@ -1,0 +1,129 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file tests/graph/tensor/sqrt_inplace.cc
+ * Test TensorGraph sqrt_inplace operation against nntile::tensor::sqrt_inplace.
+ *
+ * @version 1.1.0
+ * */
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
+
+#include <numeric>
+
+#include "context_fixture.hh"
+#include "nntile/graph/tensor/sqrt_inplace.hh"
+#include "nntile/graph/tensor.hh"
+#include "nntile/tensor/sqrt_inplace.hh"
+#include "nntile/tensor/tensor.hh"
+
+using namespace nntile;
+using namespace nntile::graph;
+
+template<typename T>
+void check_sqrt_inplace_vs_tensor_api(
+    const std::vector<Index>& shape)
+{
+    using Y = typename T::repr_t;
+    const Index nelems = std::accumulate(
+        shape.begin(), shape.end(), Index(1), std::multiplies<>());
+
+    // --- TensorGraph path ---
+    TensorGraph graph("sqrt_inplace_test");
+    auto* dst_node = graph.data(shape, "dst", DataType::FP32);
+    dst_node->mark_input(true);
+    dst_node->mark_output(true);
+
+    sqrt_inplace(dst_node);
+
+    TensorGraph::Runtime runtime(graph);
+    runtime.compile();
+
+    // Use positive values only (sqrt of negative gives NaN)
+    std::vector<float> dst_data(nelems);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        dst_data[i] = static_cast<float>(Y(i + 1));
+    }
+
+    runtime.bind_data("dst", dst_data);
+    runtime.execute();
+    runtime.wait();
+
+    std::vector<float> graph_result = runtime.get_output<float>("dst");
+
+    // --- Direct tensor API path (same input data) ---
+    tensor::TensorTraits traits(shape, shape);
+    std::vector<int> distr(traits.grid.nelems, 0);
+    tensor::Tensor<T> dst(traits, distr);
+
+    {
+        auto tile = dst.get_tile(0);
+        auto loc = tile.acquire(STARPU_W);
+        for(Index i = 0; i < nelems; ++i)
+        {
+            loc[i] = static_cast<Y>(dst_data[i]);
+        }
+        loc.release();
+    }
+
+    tensor::sqrt_inplace<T>(dst);
+    starpu_task_wait_for_all();
+
+    std::vector<float> tensor_result(nelems);
+    {
+        auto tile = dst.get_tile(0);
+        auto loc = tile.acquire(STARPU_R);
+        for(Index i = 0; i < nelems; ++i)
+        {
+            tensor_result[i] = static_cast<float>(loc[i]);
+        }
+        loc.release();
+    }
+
+    constexpr float tol = 1e-5f;
+    REQUIRE(graph_result.size() == tensor_result.size());
+    for(size_t i = 0; i < graph_result.size(); ++i)
+    {
+        REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tol);
+    }
+}
+
+TEST_CASE("TensorGraph sqrt_inplace structure", "[graph][tensor]")
+{
+    constexpr Index dim0 = 4;
+    constexpr Index dim1 = 5;
+
+    TensorGraph graph("test");
+
+    auto* dst = graph.data({dim0, dim1}, "dst");
+
+    sqrt_inplace(dst);
+
+    REQUIRE(graph.num_data() == 1);
+    REQUIRE(graph.num_ops() == 1);
+
+    const auto& ops = graph.ops();
+    REQUIRE(ops[0]->op_name() == "SQRT_INPLACE");
+    REQUIRE(ops[0]->inputs().size() == 1);
+    REQUIRE(ops[0]->outputs().size() == 1);
+    REQUIRE(ops[0]->outputs()[0] == dst);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph sqrt_inplace matches tensor::sqrt_inplace", "[graph][tensor]")
+{
+    const auto shape = GENERATE(
+        std::vector<Index>{4, 5},
+        std::vector<Index>{6},
+        std::vector<Index>{2, 3},
+        std::vector<Index>{1, 10});
+
+    check_sqrt_inplace_vs_tensor_api<nntile::fp32_t>(shape);
+}

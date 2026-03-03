@@ -54,7 +54,7 @@ For CMakeLists.txt files, use `#` instead of `/*!`:
 ## Naming Conventions
 
 - **Functions**: lowercase with underscores (e.g., `gemm_check`, `gemm_async`)
-- **Classes/Structs**: PascalCase (e.g., `Tensor`, `TensorTraits`, `LogicalGraph`)
+- **Classes/Structs**: PascalCase (e.g., `Tensor`, `TensorTraits`, `TensorGraph`)
 - **Enums**: PascalCase for enum name, UPPER_CASE for values (e.g., `enum class OpType { GEMM, GELU }`)
 - **Variables**: lowercase with underscores (e.g., `tensor_shape`, `batch_ndim`)
 - **Constants**: UPPER_CASE with underscores (e.g., `MAX_DIM`)

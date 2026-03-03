@@ -43,42 +43,42 @@ int main(int argc, char** argv) {
 
     // Create input tensor (requires_grad to compute input gradients)
     // Shape is [batch, features] (last dim = features): 4 batches, 8 features
-    auto& input_tensor = graph.tensor(
+    auto* input_tensor = graph.tensor(
         {4, 8},
         "external_input",
         nntile::graph::DataType::FP32,
         true);
-    input_tensor.mark_input(true);  // bind_data() requires input marking
+    input_tensor->mark_input(true);  // bind_data() requires input marking
 
     // Build forward operation and get output tensor
-    auto& output_tensor = linear.build_forward(input_tensor);
+    auto& output_tensor = linear.build_forward(*input_tensor);
     output_tensor.mark_output(true);  // get_output() requires output marking
 
     // Attach an external gradient to the output (e.g., loss gradient)
-    auto& grad_output_tensor = graph.get_or_create_grad(
-        output_tensor,
+    auto [grad_output_tensor, _] = graph.get_or_create_grad(
+        &output_tensor,
         "external_grad_output");
-    grad_output_tensor.mark_input(true);  // bind_data() requires input marking
+    nntile::graph::fill(nntile::Scalar(1.0f), grad_output_tensor);
 
     // Mark parameter tensors for bind_data (weight)
     linear.weight_tensor()->mark_input(true);
 
-    // Build backward operations
-    linear.build_backward();
+    // Build backward via autograd (output.backward())
+    output_tensor.backward();
 
-    // Mark gradient tensors for get_output (created during build_backward)
+    // Mark gradient tensors for get_output (created during backward)
     linear.weight_tensor()->grad()->mark_output(true);
-    if (input_tensor.has_grad()) {
-        input_tensor.grad()->mark_output(true);
+    if (input_tensor->has_grad()) {
+        input_tensor->grad()->mark_output(true);
     }
 
     // Print graph structure for debugging
     std::cout << "Graph structure:" << std::endl;
     std::cout << graph.to_string() << std::endl;
 
-    // Compile the graph
-    auto compiled_graph = nntile::graph::CompiledGraph::compile(
-        graph.logical_graph());
+    // Compile the graph for execution
+    nntile::graph::TensorGraph::Runtime runtime(graph.tensor_graph());
+    runtime.compile();
 
     // Generate random input data (4 batches x 8 features)
     std::vector<float> input_data(4 * 8);
@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
     std::cout << "=== Linear Layer Forward/Backward Pass ===" << std::endl;
 
     // Bind input data to the external input tensor
-    compiled_graph.bind_data("external_input", input_data);
+    runtime.bind_data("external_input", input_data);
 
     // Initialize weight data (reuse gen from input data generation)
     std::vector<float> weight_data(linear.input_dim() * linear.output_dim());
@@ -100,16 +100,12 @@ int main(int argc, char** argv) {
     for (auto& val : weight_data) {
         val = dist2(gen);
     }
-    compiled_graph.bind_data(linear.weight_tensor()->name(), weight_data);
-
-    // Initialize gradient data (for backward pass)
-    std::vector<float> grad_output_data(4 * 4, 1.0f);
-    compiled_graph.bind_data(grad_output_tensor.name(), grad_output_data);
+    runtime.bind_data(linear.weight_tensor()->name(), weight_data);
 
     // Execute the graph (contains both forward and backward operations)
     auto start = std::chrono::high_resolution_clock::now();
-    compiled_graph.execute();
-    compiled_graph.wait();
+    runtime.execute();
+    runtime.wait();
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
         end - start).count();
@@ -119,7 +115,7 @@ int main(int argc, char** argv) {
     std::cout << "Output shape: [4, 4] (batch, features)" << std::endl;
 
     // Get output data from the output tensor
-    auto output_data = compiled_graph.get_output<float>(output_tensor.name());
+    auto output_data = runtime.get_output<float>(output_tensor.name());
     std::cout << "Sample output values: ";
     for (size_t i = 0; i < std::min(size_t(8), output_data.size()); ++i) {
         std::cout << output_data[i] << " ";
@@ -127,12 +123,12 @@ int main(int argc, char** argv) {
     std::cout << "..." << std::endl;
 
     // Get gradients (weight is a parameter; input gradient is optional)
-    auto grad_weight = compiled_graph.get_output<float>(
+    auto grad_weight = runtime.get_output<float>(
         linear.grad_name("weight"));
     std::cout << "Weight grad size: " << grad_weight.size() << std::endl;
-    if (input_tensor.has_grad()) {
-        auto grad_input = compiled_graph.get_output<float>(
-            input_tensor.grad()->name());
+    if (input_tensor->has_grad()) {
+        auto grad_input = runtime.get_output<float>(
+            input_tensor->grad()->name());
         std::cout << "Input grad size: " << grad_input.size() << std::endl;
     }
 

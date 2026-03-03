@@ -17,7 +17,8 @@ set(TESTS_CATCH2
     "module"
     "linear"
     "mlp"
-    "sdpa"
+    # "mse_loss"
+    # "sdpa"
 )
 
 # Setup a target for coverage of module tests

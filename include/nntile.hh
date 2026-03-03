@@ -43,8 +43,10 @@
 // Logical and compiled graphs for computation
 #include <nntile/graph.hh>
 
+#ifdef NNTILE_BUILD_MODULES
 // Modules using graph API
 #include <nntile/module.hh>
+#endif
 
 // Logger thread to log activities
 #include <nntile/logger.hh>

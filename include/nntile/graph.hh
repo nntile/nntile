@@ -15,15 +15,5 @@
 #pragma once
 
 // Include related NNTile headers - core classes
-#include <nntile/graph/logical_graph.hh>
-#include <nntile/graph/nn_graph.hh>
-#include <nntile/graph/compiled_graph.hh>
-
-// Include logical graph operations
-#include <nntile/graph/logical_graph_ops.hh>
-
-// Include NNGraph operation overloads
-#include <nntile/graph/nn_graph_ops.hh>
-
-// Include compiled graph operations
-#include <nntile/graph/compiled_graph_ops.hh>
+#include <nntile/graph/nn.hh>
+#include <nntile/graph/tensor.hh>
