@@ -88,6 +88,11 @@ void sumprod_fiber(
         throw std::invalid_argument(
             "sumprod_fiber: dst.shape[0] must equal src1.shape[axis]");
     }
+    if(src1 == src2 || src1 == dst || src2 == dst)
+    {
+        throw std::invalid_argument(
+            "sumprod_fiber: src1, src2, and dst must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorSumprodFiberOp>(
         src1, src2, dst, axis, redux, alpha, beta);

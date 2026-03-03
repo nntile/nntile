@@ -120,6 +120,14 @@ TEST_CASE("TensorGraph sqrt structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == dst);
 }
 
+TEST_CASE("TensorGraph sqrt rejects duplicate tensors", "[graph][tensor]")
+{
+    TensorGraph graph("test");
+    auto* src = graph.data({4, 5}, "src");
+
+    REQUIRE_THROWS_AS(sqrt(src, src), std::invalid_argument);
+}
+
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph sqrt matches tensor::sqrt", "[graph][tensor]")
 {

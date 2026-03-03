@@ -68,6 +68,8 @@ void transpose(
 {
     if(src == nullptr || dst == nullptr)
         throw std::invalid_argument("transpose: tensors must be non-null");
+    if(src == dst)
+        throw std::invalid_argument("transpose: src and dst must be distinct tensors");
     if(src->graph() != dst->graph())
         throw std::invalid_argument("transpose: tensors must belong to same graph");
     if(src->dtype() != dst->dtype())

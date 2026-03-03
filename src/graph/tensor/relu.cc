@@ -85,6 +85,11 @@ void relu(
         throw std::invalid_argument(
             "relu: output must have the same shape as input");
     }
+    if(x == y)
+    {
+        throw std::invalid_argument(
+            "relu: x and y must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorReluOp>(x, y);
     x->graph()->add_op(op);

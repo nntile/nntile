@@ -65,6 +65,11 @@ void add_fiber_inplace(
         throw std::invalid_argument(
             "add_fiber_inplace: input tensors must have the same dtype");
     }
+    if(fiber == tensor)
+    {
+        throw std::invalid_argument(
+            "add_fiber_inplace: fiber and tensor must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorAddFiberInplaceOp>(
         fiber, tensor, alpha, beta, axis, batch_ndim);

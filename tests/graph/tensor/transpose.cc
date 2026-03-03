@@ -139,6 +139,16 @@ TEST_CASE("TensorGraph transpose structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == dst);
 }
 
+TEST_CASE("TensorGraph transpose rejects duplicate tensors", "[graph][tensor]")
+{
+    constexpr Index dim0 = 4;
+    constexpr Index dim1 = 5;
+    TensorGraph graph("test");
+    auto* src = graph.data({dim0, dim1}, "src");
+
+    REQUIRE_THROWS_AS(transpose(alpha, src, src, Index(1)), std::invalid_argument);
+}
+
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph transpose matches tensor::transpose", "[graph][tensor]")
 {

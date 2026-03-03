@@ -83,6 +83,11 @@ void silu(
         throw std::invalid_argument(
             "silu: output must have the same shape as input");
     }
+    if(src == dst)
+    {
+        throw std::invalid_argument(
+            "silu: src and dst must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorSiluOp>(src, dst);
     src->graph()->add_op(op);

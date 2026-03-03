@@ -78,6 +78,11 @@ void scale_fiber(
         throw std::invalid_argument(
             "scale_fiber: input tensors must be non-null");
     }
+    if(src == dst)
+    {
+        throw std::invalid_argument(
+            "scale_fiber: src and dst must be distinct tensors");
+    }
     if(src->graph() != dst->graph())
     {
         throw std::invalid_argument(

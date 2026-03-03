@@ -66,6 +66,11 @@ void gelu_backward(
         throw std::invalid_argument(
             "gelu_backward: all tensors must have the same shape");
     }
+    if(x == dy || x == dx || dy == dx)
+    {
+        throw std::invalid_argument(
+            "gelu_backward: x, dy, and dx must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorGeluBackwardOp>(x, dy, dx);
     x->graph()->add_op(op);

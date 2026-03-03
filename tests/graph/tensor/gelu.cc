@@ -119,6 +119,14 @@ TEST_CASE("TensorGraph gelu structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == dst);
 }
 
+TEST_CASE("TensorGraph gelu rejects duplicate tensors", "[graph][tensor]")
+{
+    TensorGraph graph("test");
+    auto* src = graph.data({4, 5}, "src");
+
+    REQUIRE_THROWS_AS(gelu(src, src), std::invalid_argument);
+}
+
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph gelu matches tensor::gelu", "[graph][tensor]")
 {

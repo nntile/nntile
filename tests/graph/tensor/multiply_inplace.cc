@@ -133,6 +133,14 @@ TEST_CASE("TensorGraph multiply_inplace structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == dst);
 }
 
+TEST_CASE("TensorGraph multiply_inplace rejects duplicate tensors", "[graph][tensor]")
+{
+    TensorGraph graph("test");
+    auto* src = graph.data({4, 5}, "src");
+
+    REQUIRE_THROWS_AS(multiply_inplace(alpha, src, src), std::invalid_argument);
+}
+
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph multiply_inplace matches tensor::multiply_inplace", "[graph][tensor]")
 {

@@ -138,6 +138,16 @@ TEST_CASE("TensorGraph hypot structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == dst);
 }
 
+TEST_CASE("TensorGraph hypot rejects duplicate tensors", "[graph][tensor]")
+{
+    TensorGraph graph("test");
+    auto* src1 = graph.data({4, 5}, "src1");
+
+    REQUIRE_THROWS_AS(
+        hypot(alpha, src1, beta, src1, "dst"),
+        std::invalid_argument);
+}
+
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph hypot matches tensor::hypot", "[graph][tensor]")
 {

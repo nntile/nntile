@@ -84,6 +84,11 @@ void gelutanh(
         throw std::invalid_argument(
             "gelutanh: output must have the same shape as input");
     }
+    if(src == dst)
+    {
+        throw std::invalid_argument(
+            "gelutanh: src and dst must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorGelutanhOp>(src, dst);
     src->graph()->add_op(op);

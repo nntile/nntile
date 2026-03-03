@@ -30,15 +30,15 @@ namespace
 {
 
 constexpr Scalar alpha = 1.0;
-constexpr Scalar exp = 2.0;
+constexpr Scalar exponent = 2.0;
 
 } // anonymous namespace
 
 template<typename T>
 void check_pow_vs_tensor_api(
     const std::vector<Index>& shape,
-    Scalar alpha,
-    Scalar exp)
+    Scalar alpha_val,
+    Scalar exponent_val)
 {
     using Y = typename T::repr_t;
     const Index nelems = std::accumulate(
@@ -50,7 +50,7 @@ void check_pow_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    pow(alpha, exp, dst_node);
+    pow(alpha_val, exponent_val, dst_node);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -83,7 +83,7 @@ void check_pow_vs_tensor_api(
         loc.release();
     }
 
-    tensor::pow<T>(alpha, exp, dst);
+    tensor::pow<T>(alpha_val, exponent_val, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -114,7 +114,7 @@ TEST_CASE("TensorGraph pow structure", "[graph][tensor]")
 
     auto* dst = graph.data({dim0, dim1}, "dst");
 
-    pow(alpha, exp, dst);
+    pow(alpha, exponent, dst);
 
     REQUIRE(graph.num_data() == 1);
     REQUIRE(graph.num_ops() == 1);
@@ -129,11 +129,11 @@ TEST_CASE("TensorGraph pow structure", "[graph][tensor]")
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph pow matches tensor::pow", "[graph][tensor]")
 {
-    const auto [alpha, exp, shape] = GENERATE(
+    const auto [alpha_val, exponent_val, shape] = GENERATE(
         std::tuple{1.0, 2.0, std::vector<Index>{4, 5}},
         std::tuple{2.0, 0.5, std::vector<Index>{6}},
         std::tuple{1.0, 3.0, std::vector<Index>{2, 3}},
         std::tuple{0.5, 2.0, std::vector<Index>{1, 10}});
 
-    check_pow_vs_tensor_api<nntile::fp32_t>(shape, alpha, exp);
+    check_pow_vs_tensor_api<nntile::fp32_t>(shape, alpha_val, exponent_val);
 }

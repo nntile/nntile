@@ -56,6 +56,11 @@ TensorGraph::TensorNode* hypot(
         throw std::invalid_argument(
             "hypot: input tensors must be non-null");
     }
+    if(src1 == src2)
+    {
+        throw std::invalid_argument(
+            "hypot: src1 and src2 must be distinct tensors");
+    }
     if(src1->graph() != src2->graph())
     {
         throw std::invalid_argument(
@@ -109,6 +114,11 @@ void hypot(
     {
         throw std::invalid_argument(
             "hypot: output shape must match input shape");
+    }
+    if(src1 == src2 || src1 == dst || src2 == dst)
+    {
+        throw std::invalid_argument(
+            "hypot: src1, src2, and dst must be distinct tensors");
     }
 
     auto op = std::make_shared<TensorHypotOp>(

@@ -111,6 +111,11 @@ void add_fiber(
         throw std::invalid_argument(
             "add_fiber: output shape must match tensor shape");
     }
+    if(fiber == tensor || fiber == output || tensor == output)
+    {
+        throw std::invalid_argument(
+            "add_fiber: fiber, tensor, and output must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorAddFiberOp>(
         fiber, tensor, output, alpha, beta, axis, batch_ndim);

@@ -62,6 +62,8 @@ void scale(Scalar alpha, TensorGraph::TensorNode* src,
         throw std::invalid_argument("scale: tensors must have same dtype");
     if(src->shape() != dst->shape())
         throw std::invalid_argument("scale: tensors must have same shape");
+    if(src == dst)
+        throw std::invalid_argument("scale: src and dst must be distinct tensors");
     auto op = std::make_shared<TensorScaleOp>(src, dst, alpha);
     src->graph()->add_op(op);
 }

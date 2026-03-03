@@ -66,13 +66,23 @@ TensorGraph::TensorNode* multiply_fiber(
         throw std::invalid_argument(
             "multiply_fiber: input tensors must have the same dtype");
     }
-    if(src1->shape() != src2->shape())
+    if(src1->ndim() != 1)
     {
         throw std::invalid_argument(
-            "multiply_fiber: input tensors must have the same shape");
+            "multiply_fiber: src1 must have ndim = 1");
+    }
+    if(axis < 0 || axis >= src2->ndim())
+    {
+        throw std::invalid_argument(
+            "multiply_fiber: axis out of range");
+    }
+    if(src1->shape()[0] != src2->shape()[axis])
+    {
+        throw std::invalid_argument(
+            "multiply_fiber: src1.shape[0] must match src2.shape[axis]");
     }
 
-    std::vector<Index> output_shape = src1->shape();
+    std::vector<Index> output_shape = src2->shape();
     TensorGraph::TensorNode* dst = src1->graph()->data(
         std::move(output_shape),
         output_name,
@@ -105,10 +115,35 @@ void multiply_fiber(
         throw std::invalid_argument(
             "multiply_fiber: input tensors must have the same dtype");
     }
-    if(src1->shape() != dst->shape())
+    if(src1->ndim() != 1)
     {
         throw std::invalid_argument(
-            "multiply_fiber: output shape must match input shape");
+            "multiply_fiber: src1 must have ndim = 1");
+    }
+    if(src2->ndim() != dst->ndim())
+    {
+        throw std::invalid_argument(
+            "multiply_fiber: src2.ndim must match dst.ndim");
+    }
+    if(axis < 0 || axis >= dst->ndim())
+    {
+        throw std::invalid_argument(
+            "multiply_fiber: axis out of range");
+    }
+    if(src1->shape()[0] != dst->shape()[axis])
+    {
+        throw std::invalid_argument(
+            "multiply_fiber: src1.shape[0] must match dst.shape[axis]");
+    }
+    if(src2->shape() != dst->shape())
+    {
+        throw std::invalid_argument(
+            "multiply_fiber: src2.shape must match dst.shape");
+    }
+    if(src1 == src2 || src1 == dst || src2 == dst)
+    {
+        throw std::invalid_argument(
+            "multiply_fiber: src1, src2, and dst must be distinct tensors");
     }
 
     auto op = std::make_shared<TensorMultiplyFiberOp>(

@@ -70,6 +70,11 @@ TensorGraph::TensorNode* multiply(
         throw std::invalid_argument(
             "multiply: input tensors must have the same shape");
     }
+    if(x == y)
+    {
+        throw std::invalid_argument(
+            "multiply: x and y must be distinct tensors");
+    }
 
     std::vector<Index> output_shape = x->shape();
     TensorGraph::TensorNode* output = x->graph()->data(

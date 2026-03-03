@@ -65,6 +65,11 @@ void multiply_inplace(
         throw std::invalid_argument(
             "multiply_inplace: input tensors must have the same shape");
     }
+    if(src == dst)
+    {
+        throw std::invalid_argument(
+            "multiply_inplace: src and dst must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorMultiplyInplaceOp>(src, dst, alpha);
     src->graph()->add_op(op);

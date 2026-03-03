@@ -66,6 +66,11 @@ void norm_slice_inplace(
         throw std::invalid_argument(
             "norm_slice_inplace: input tensors must have the same dtype");
     }
+    if(src == dst)
+    {
+        throw std::invalid_argument(
+            "norm_slice_inplace: src and dst must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorNormSliceInplaceOp>(
         alpha, beta, src, dst, axis, redux);

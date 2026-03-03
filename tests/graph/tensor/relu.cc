@@ -120,6 +120,14 @@ TEST_CASE("TensorGraph relu structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == dst);
 }
 
+TEST_CASE("TensorGraph relu rejects duplicate tensors", "[graph][tensor]")
+{
+    TensorGraph graph("test");
+    auto* t = graph.data({4, 5}, "t");
+
+    REQUIRE_THROWS_AS(relu(t, t), std::invalid_argument);
+}
+
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph relu matches tensor::relu", "[graph][tensor]")
 {

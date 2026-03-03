@@ -59,6 +59,8 @@ void copy(TensorGraph::TensorNode* src, TensorGraph::TensorNode* dst)
         throw std::invalid_argument("copy: tensors must have same dtype");
     if(src->shape() != dst->shape())
         throw std::invalid_argument("copy: tensors must have same shape");
+    if(src == dst)
+        throw std::invalid_argument("copy: src and dst must be distinct tensors");
     auto op = std::make_shared<TensorCopyOp>(src, dst);
     src->graph()->add_op(op);
 }

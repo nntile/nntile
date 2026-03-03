@@ -178,6 +178,17 @@ TEST_CASE("TensorGraph add_fiber structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == out);
 }
 
+TEST_CASE("TensorGraph add_fiber rejects duplicate tensors", "[graph][tensor]")
+{
+    TensorGraph graph("test");
+    auto* fiber = graph.data({dim_4}, "fiber");
+    auto* tensor = graph.data({dim_2, dim_4}, "tensor");
+
+    REQUIRE_THROWS_AS(
+        add_fiber(alpha_one, fiber, beta_one, tensor, tensor, axis_1, batch_ndim_none),
+        std::invalid_argument);
+}
+
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph add_fiber matches tensor::add_fiber", "[graph][tensor]")
 {

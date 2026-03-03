@@ -66,6 +66,11 @@ void sum_fiber(
         throw std::invalid_argument(
             "sum_fiber: input tensors must have the same dtype");
     }
+    if(x == y)
+    {
+        throw std::invalid_argument(
+            "sum_fiber: x and y must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorSumFiberOp>(
         x, y, axis, batch_ndim, redux, alpha, beta);

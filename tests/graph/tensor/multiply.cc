@@ -131,6 +131,14 @@ TEST_CASE("TensorGraph multiply structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == z);
 }
 
+TEST_CASE("TensorGraph multiply rejects duplicate tensors", "[graph][tensor]")
+{
+    TensorGraph graph("test");
+    auto* x = graph.data({4, 5}, "x");
+
+    REQUIRE_THROWS_AS(multiply(x, x, "z", 1.0), std::invalid_argument);
+}
+
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph multiply matches tensor::multiply", "[graph][tensor]")
 {

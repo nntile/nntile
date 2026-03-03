@@ -73,6 +73,11 @@ void add_slice_inplace(
         throw std::invalid_argument(
             "add_slice_inplace: axis out of range");
     }
+    if(src == dst)
+    {
+        throw std::invalid_argument(
+            "add_slice_inplace: src and dst must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorAddSliceInplaceOp>(
         src, dst, alpha, beta, axis);

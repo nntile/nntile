@@ -85,6 +85,11 @@ void sqrt(
         throw std::invalid_argument(
             "sqrt: output must have the same shape as input");
     }
+    if(src == dst)
+    {
+        throw std::invalid_argument(
+            "sqrt: src and dst must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorSqrtOp>(src, dst);
     src->graph()->add_op(op);

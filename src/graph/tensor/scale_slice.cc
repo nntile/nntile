@@ -46,15 +46,32 @@ TensorGraph::TensorNode* scale_slice(
     Scalar alpha,
     TensorGraph::TensorNode* src,
     const std::string& output_name,
-    Index axis)
+    Index axis,
+    Index axis_size)
 {
     if(src == nullptr)
     {
         throw std::invalid_argument(
             "scale_slice: input tensor must be non-null");
     }
+    if(axis < 0 || axis > static_cast<Index>(src->shape().size()))
+    {
+        throw std::invalid_argument(
+            "scale_slice: axis out of range");
+    }
 
-    std::vector<Index> output_shape = src->shape();
+    std::vector<Index> output_shape;
+    output_shape.reserve(src->shape().size() + 1);
+    for(Index i = 0; i < axis; ++i)
+    {
+        output_shape.push_back(src->shape()[i]);
+    }
+    output_shape.push_back(axis_size);
+    for(Index i = axis; i < static_cast<Index>(src->shape().size()); ++i)
+    {
+        output_shape.push_back(src->shape()[i]);
+    }
+
     TensorGraph::TensorNode* dst = src->graph()->data(
         std::move(output_shape),
         output_name,
@@ -76,6 +93,11 @@ void scale_slice(
         throw std::invalid_argument(
             "scale_slice: input tensors must be non-null");
     }
+    if(src == dst)
+    {
+        throw std::invalid_argument(
+            "scale_slice: src and dst must be distinct tensors");
+    }
     if(src->graph() != dst->graph())
     {
         throw std::invalid_argument(
@@ -86,10 +108,31 @@ void scale_slice(
         throw std::invalid_argument(
             "scale_slice: input tensors must have the same dtype");
     }
-    if(src->shape() != dst->shape())
+    if(dst->ndim() != src->ndim() + 1)
     {
         throw std::invalid_argument(
-            "scale_slice: output shape must match src shape");
+            "scale_slice: dst must have ndim = src.ndim + 1");
+    }
+    if(axis < 0 || axis >= dst->ndim())
+    {
+        throw std::invalid_argument(
+            "scale_slice: axis out of range");
+    }
+    for(Index i = 0; i < axis; ++i)
+    {
+        if(dst->shape()[i] != src->shape()[i])
+        {
+            throw std::invalid_argument(
+                "scale_slice: dst.shape[i] must match src.shape[i] for i < axis");
+        }
+    }
+    for(Index i = axis + 1; i < dst->ndim(); ++i)
+    {
+        if(dst->shape()[i] != src->shape()[i - 1])
+        {
+            throw std::invalid_argument(
+                "scale_slice: dst.shape[i] must match src.shape[i-1] for i > axis");
+        }
     }
 
     auto op = std::make_shared<TensorScaleSliceOp>(alpha, src, dst, axis);

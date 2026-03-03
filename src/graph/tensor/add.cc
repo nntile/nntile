@@ -111,6 +111,11 @@ void add(
         throw std::invalid_argument(
             "add: input tensors must have the same shape");
     }
+    if(x == y || x == z || y == z)
+    {
+        throw std::invalid_argument(
+            "add: x, y, and z must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorAddOp>(x, y, z, alpha, beta);
     x->graph()->add_op(op);

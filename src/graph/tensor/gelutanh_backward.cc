@@ -67,6 +67,11 @@ TensorGraph::TensorNode* gelutanh_backward(
         throw std::invalid_argument(
             "gelutanh_backward: input tensors must have the same shape");
     }
+    if(x == dy)
+    {
+        throw std::invalid_argument(
+            "gelutanh_backward: x and dy must be distinct tensors");
+    }
 
     std::vector<Index> output_shape = x->shape();
     TensorGraph::TensorNode* dx = x->graph()->data(
@@ -103,6 +108,11 @@ void gelutanh_backward(
     {
         throw std::invalid_argument(
             "gelutanh_backward: dx must have the same shape as x");
+    }
+    if(x == dy || x == dx || dy == dx)
+    {
+        throw std::invalid_argument(
+            "gelutanh_backward: x, dy, and dx must be distinct tensors");
     }
 
     auto op = std::make_shared<TensorGelutanhBackwardOp>(x, dy, dx);

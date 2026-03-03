@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <string>
+
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
@@ -55,7 +57,8 @@ TensorGraph::TensorNode* scale_slice(
     Scalar alpha,
     TensorGraph::TensorNode* src,
     const std::string& output_name,
-    Index axis);
+    Index axis,
+    Index axis_size);
 
 void scale_slice(
     Scalar alpha,

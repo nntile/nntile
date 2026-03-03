@@ -74,6 +74,11 @@ void sum_slice(
         throw std::invalid_argument(
             "sum_slice: axis out of range");
     }
+    if(src == dst)
+    {
+        throw std::invalid_argument(
+            "sum_slice: src and dst must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorSumSliceOp>(
         src, dst, axis, redux, alpha, beta);

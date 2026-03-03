@@ -85,6 +85,11 @@ void gelu(
         throw std::invalid_argument(
             "gelu: output must have the same shape as input");
     }
+    if(x == y)
+    {
+        throw std::invalid_argument(
+            "gelu: x and y must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorGeluOp>(x, y);
     x->graph()->add_op(op);

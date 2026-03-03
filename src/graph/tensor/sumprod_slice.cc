@@ -83,6 +83,11 @@ void sumprod_slice(
         throw std::invalid_argument(
             "sumprod_slice: axis out of range");
     }
+    if(src1 == src2 || src1 == dst || src2 == dst)
+    {
+        throw std::invalid_argument(
+            "sumprod_slice: src1, src2, and dst must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorSumprodSliceOp>(
         src1, src2, dst, axis, redux, alpha, beta);

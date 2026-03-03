@@ -113,6 +113,11 @@ void norm_fiber(
         throw std::invalid_argument(
             "norm_fiber: dst shape must match src2 shape");
     }
+    if(src1 == src2 || src1 == dst || src2 == dst)
+    {
+        throw std::invalid_argument(
+            "norm_fiber: src1, src2, and dst must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorNormFiberOp>(
         alpha, beta, src1, src2, dst, axis, batch_ndim, redux);

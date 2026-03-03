@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <string>
+
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
@@ -50,6 +52,13 @@ struct TensorMultiplySliceOp : TensorGraph::OpNode
         return std::make_shared<TensorMultiplySliceOp>(*this);
     }
 };
+
+TensorGraph::TensorNode* multiply_slice(
+    Scalar alpha,
+    TensorGraph::TensorNode* src,
+    const std::string& output_name,
+    Index axis,
+    Index axis_size);
 
 void multiply_slice(
     Scalar alpha,

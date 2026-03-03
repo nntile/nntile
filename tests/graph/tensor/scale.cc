@@ -129,6 +129,14 @@ TEST_CASE("TensorGraph scale structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == dst);
 }
 
+TEST_CASE("TensorGraph scale rejects duplicate tensors", "[graph][tensor]")
+{
+    TensorGraph graph("test");
+    auto* src = graph.data({4, 5}, "src");
+
+    REQUIRE_THROWS_AS(scale(alpha, src, src), std::invalid_argument);
+}
+
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph scale matches tensor::scale", "[graph][tensor]")
 {

@@ -118,6 +118,11 @@ void add_slice(
         throw std::invalid_argument(
             "add_slice: dst shape must match src2 shape");
     }
+    if(src1 == src2 || src1 == dst || src2 == dst)
+    {
+        throw std::invalid_argument(
+            "add_slice: src1, src2, and dst must be distinct tensors");
+    }
 
     auto op = std::make_shared<TensorAddSliceOp>(
         src1, src2, dst, alpha, beta, axis);
