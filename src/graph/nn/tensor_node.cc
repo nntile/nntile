@@ -86,6 +86,12 @@ void NNGraph::TensorNode::backward(bool retain_graph)
         throw std::invalid_argument(
             "NNGraph::TensorNode::backward: tensor has no graph reference");
     }
+    if(grad_ == nullptr)
+    {
+        throw std::invalid_argument(
+            "NNGraph::TensorNode::backward: grad must be set before backward(). "
+            "Use get_or_create_grad() and fill/bind the gradient.");
+    }
 
     // Build reverse topological order: DFS post-order from output toward inputs.
     // Post-order ensures we process a node only after all its consumers (in
@@ -131,13 +137,6 @@ void NNGraph::TensorNode::backward(bool retain_graph)
 
     // Reverse for backward: process output first, then toward inputs
     std::deque<TensorNode*> rev_topo(post_order.rbegin(), post_order.rend());
-
-    if(grad_ == nullptr)
-    {
-        throw std::invalid_argument(
-            "NNGraph::TensorNode::backward: grad must be set before backward(). "
-            "Use get_or_create_grad() and fill/bind the gradient.");
-    }
 
     // Call each OpNode's backward once (multi-output ops share one producer)
     std::unordered_set<const OpNode*> op_done;
