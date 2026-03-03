@@ -77,8 +77,13 @@ NNGraph::TensorNode* NNSoftmaxOp::forward(const std::string& output_name)
 
 void NNSoftmaxOp::backward() const
 {
-    NNGraph* graph = x->graph();
-    NNGraph::TensorNode* grad_out = output()->grad();
+    NNGraph::TensorNode* out = output();
+    if(out == nullptr)
+    {
+        return;
+    }
+    NNGraph* graph = out->graph();
+    NNGraph::TensorNode* grad_out = out->grad();
     if(grad_out == nullptr)
     {
         return;
@@ -88,7 +93,6 @@ void NNSoftmaxOp::backward() const
         return;
     }
 
-    NNGraph::TensorNode* y = output();
     if(buffers_.size() < 2)
     {
         throw std::runtime_error(
@@ -101,11 +105,11 @@ void NNSoftmaxOp::backward() const
         graph->get_or_create_grad(x, x->name() + "_grad");
 
     graph::sumprod_slice(
-        y->data(), grad_out->data(), sumprod_buf->data(),
+        out->data(), grad_out->data(), sumprod_buf->data(),
         axis, redux, 1.0, 0.0);
     graph::add_slice(-1.0, sumprod_buf->data(), 1.0, grad_out->data(),
                     grad_temp->data(), axis);
-    graph::multiply_inplace(1.0, y->data(), grad_temp->data());
+    graph::multiply_inplace(1.0, out->data(), grad_temp->data());
     graph::add_inplace(1.0, grad_temp->data(),
                       is_first ? grad_overwrite : grad_accumulate,
                       grad_x->data());

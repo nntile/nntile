@@ -50,8 +50,13 @@ NNGraph::TensorNode* NNGemmOp::forward(const std::string& output_name)
 
 void NNGemmOp::backward() const
 {
-    NNGraph* graph = a->graph();
-    NNGraph::TensorNode* grad_out = output()->grad();
+    NNGraph::TensorNode* out = output();
+    if(out == nullptr)
+    {
+        return;
+    }
+    NNGraph* graph = out->graph();
+    NNGraph::TensorNode* grad_out = out->grad();
     if(grad_out == nullptr)
     {
         return;
