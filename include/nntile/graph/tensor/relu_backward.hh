@@ -34,7 +34,7 @@ struct TensorReluBackwardOp : TensorGraph::OpNode
                          TensorGraph::TensorNode* dx_)
         : x(x_), dy(dy_), dx(dx_)
     {
-        inputs_ = {x, dy};
+        inputs_ = {x, dy, dx};
         outputs_ = {dx};
     }
 

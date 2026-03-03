@@ -35,7 +35,7 @@ struct TensorRopeBackwardOp : TensorGraph::OpNode
         TensorGraph::TensorNode* dx_)
         : sin(sin_), cos(cos_), dy(dy_), dx(dx_)
     {
-        inputs_ = {sin, cos, dy};
+        inputs_ = {sin, cos, dy, dx};
         outputs_ = {dx};
     }
 
