@@ -22,7 +22,7 @@ namespace nntile::graph
 {
 
 //! GeLU operation at tensor level: y = gelu(x)
-struct TensorGeluOp : TensorGraphOpNode
+struct TensorGeluOp : TensorGraph::OpNode
 {
     TensorGraph::TensorNode* x = nullptr;
     TensorGraph::TensorNode* y = nullptr;
@@ -37,9 +37,9 @@ struct TensorGeluOp : TensorGraphOpNode
 
     std::string op_name() const override { return "GELU"; }
 
-    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
+    void execute(TensorGraph::ExecutionContext& ctx) const override;
 
-    std::shared_ptr<TensorGraphOpNode> clone() const override
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorGeluOp>(*this);
     }

@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/nn/add.hh"
-#include "nntile/graph/nn/graph_tensor_node.hh"
+#include "nntile/graph/nn/graph_data_node.hh"
 
 #include <stdexcept>
 
@@ -30,9 +30,9 @@ NNGraph::TensorNode* NNAddOp::forward(const std::string& output_name)
         throw std::invalid_argument(
             "NNAddOp::forward: x, y must be non-null");
     }
-    NNGraph& graph = x->graph();
+    NNGraph* graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x, y});
-    NNGraph::TensorNode* z = graph.tensor(
+    NNGraph::TensorNode* z = graph->tensor(
         x->shape(), output_name, x->dtype(), out_requires_grad);
     outputs_ = {z};
     graph::add(alpha, x->data(), beta, y->data(), z->data());
@@ -41,7 +41,7 @@ NNGraph::TensorNode* NNAddOp::forward(const std::string& output_name)
 
 void NNAddOp::backward() const
 {
-    NNGraph& graph = x->graph();
+    NNGraph* graph = x->graph();
     NNGraph::TensorNode* grad_out = output()->grad();
     if(grad_out == nullptr)
     {
@@ -50,13 +50,13 @@ void NNAddOp::backward() const
     if(x != nullptr && x->requires_grad())
     {
         NNGraph::TensorNode* grad_x =
-            graph.get_or_create_grad(x, x->name() + "_grad");
+            graph->get_or_create_grad(x, x->name() + "_grad");
         graph::add_inplace(alpha, grad_out->data(), Scalar(1.0), grad_x->data());
     }
     if(y != nullptr && y->requires_grad())
     {
         NNGraph::TensorNode* grad_y =
-            graph.get_or_create_grad(y, y->name() + "_grad");
+            graph->get_or_create_grad(y, y->name() + "_grad");
         graph::add_inplace(beta, grad_out->data(), Scalar(1.0), grad_y->data());
     }
 }
@@ -72,10 +72,10 @@ NNGraph::TensorNode* add(
     {
         throw std::invalid_argument("add: x and y must be non-null");
     }
-    NNGraph& graph = x->graph();
+    NNGraph* graph = x->graph();
     auto op = std::make_shared<NNAddOp>(x, y, alpha, beta);
     NNGraph::TensorNode* z = op->forward(output_name);
-    register_op(graph, std::move(op));
+    register_op(*graph, std::move(op));
     return z;
 }
 

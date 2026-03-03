@@ -18,7 +18,6 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
-#include "nntile/graph/execution_context.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/clear.hh"
 
@@ -30,7 +29,7 @@ namespace
 
 template<typename T>
 void run_clear(
-    ExecutionContext<TensorGraph::TensorNode>& ctx,
+    TensorGraph::ExecutionContext& ctx,
     TensorGraph::TensorNode* x)
 {
     auto& x_t = ctx.get_tensor<T>(x);
@@ -51,7 +50,7 @@ void clear(TensorGraph::TensorNode* x)
 }
 
 void TensorClearOp::execute(
-    ExecutionContext<TensorGraph::TensorNode>& ctx) const
+    TensorGraph::ExecutionContext& ctx) const
 {
     DataType dtype = ctx.get_dtype(x);
 

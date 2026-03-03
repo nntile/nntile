@@ -21,7 +21,7 @@ namespace nntile::graph
 {
 
 //! Add fiber in-place at tensor level: tensor = alpha * fiber + beta * tensor
-struct TensorAddFiberInplaceOp : TensorGraphOpNode
+struct TensorAddFiberInplaceOp : TensorGraph::OpNode
 {
     Index axis = 0;
     Index batch_ndim = 0;
@@ -46,9 +46,9 @@ struct TensorAddFiberInplaceOp : TensorGraphOpNode
 
     std::string op_name() const override { return "ADD_FIBER_INPLACE"; }
 
-    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
+    void execute(TensorGraph::ExecutionContext& ctx) const override;
 
-    std::shared_ptr<TensorGraphOpNode> clone() const override
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorAddFiberInplaceOp>(*this);
     }

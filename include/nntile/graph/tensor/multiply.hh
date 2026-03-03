@@ -21,7 +21,7 @@ namespace nntile::graph
 {
 
 //! Multiply operation at tensor level
-struct TensorMultiplyOp : TensorGraphOpNode
+struct TensorMultiplyOp : TensorGraph::OpNode
 {
     Scalar alpha = 1.0;
     TensorGraph::TensorNode* x = nullptr;
@@ -39,9 +39,9 @@ struct TensorMultiplyOp : TensorGraphOpNode
 
     std::string op_name() const override { return "MULTIPLY"; }
 
-    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
+    void execute(TensorGraph::ExecutionContext& ctx) const override;
 
-    std::shared_ptr<TensorGraphOpNode> clone() const override
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorMultiplyOp>(*this);
     }

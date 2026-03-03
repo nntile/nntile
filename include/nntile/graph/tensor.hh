@@ -15,6 +15,4 @@
 #pragma once
 
 #include <nntile/graph/tensor/graph.hh>
-#include <nntile/graph/tensor/graph_op_node.hh>
-#include <nntile/graph/tensor/graph_tensor_node.hh>
 #include <nntile/graph/tensor/graph_ops.hh>

@@ -20,7 +20,7 @@ namespace nntile::graph
 {
 
 //! GeLU backward operation at tensor level: dx += gelu_backward(x, dy)
-struct TensorGeluBackwardOp : TensorGraphOpNode
+struct TensorGeluBackwardOp : TensorGraph::OpNode
 {
     TensorGraph::TensorNode* x = nullptr;
     TensorGraph::TensorNode* dy = nullptr;
@@ -39,9 +39,9 @@ struct TensorGeluBackwardOp : TensorGraphOpNode
 
     std::string op_name() const override { return "GELU_BACKWARD"; }
 
-    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
+    void execute(TensorGraph::ExecutionContext& ctx) const override;
 
-    std::shared_ptr<TensorGraphOpNode> clone() const override
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorGeluBackwardOp>(*this);
     }

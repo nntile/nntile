@@ -18,7 +18,6 @@
 #include <utility>
 
 #include "nntile/base_types.hh"
-#include "nntile/graph/execution_context.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/add_fiber.hh"
 
@@ -30,7 +29,7 @@ namespace
 
 template<typename T>
 void run_add_fiber(
-    ExecutionContext<TensorGraph::TensorNode>& ctx,
+    TensorGraph::ExecutionContext& ctx,
     Scalar alpha, Scalar beta,
     Index axis, Index batch_ndim,
     TensorGraph::TensorNode* fiber,
@@ -119,7 +118,7 @@ void add_fiber(
 }
 
 void TensorAddFiberOp::execute(
-    ExecutionContext<TensorGraph::TensorNode>& ctx) const
+    TensorGraph::ExecutionContext& ctx) const
 {
     DataType dtype = ctx.get_dtype(fiber);
 

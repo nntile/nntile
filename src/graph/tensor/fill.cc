@@ -18,7 +18,6 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
-#include "nntile/graph/execution_context.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/fill.hh"
 
@@ -30,7 +29,7 @@ namespace
 
 template<typename T>
 void run_fill(
-    ExecutionContext<TensorGraph::TensorNode>& ctx,
+    TensorGraph::ExecutionContext& ctx,
     Scalar val,
     TensorGraph::TensorNode* x)
 {
@@ -52,7 +51,7 @@ void fill(Scalar val, TensorGraph::TensorNode* x)
 }
 
 void TensorFillOp::execute(
-    ExecutionContext<TensorGraph::TensorNode>& ctx) const
+    TensorGraph::ExecutionContext& ctx) const
 {
     DataType dtype = ctx.get_dtype(x);
 

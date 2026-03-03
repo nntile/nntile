@@ -40,7 +40,7 @@ std::vector<Index> gemm_output_shape(
     Index batch_ndim = 0);
 
 //! GEMM operation at tensor level: C = alpha * op(A) @ op(B) + beta * C
-struct TensorGemmOp : TensorGraphOpNode
+struct TensorGemmOp : TensorGraph::OpNode
 {
     bool trans_a = false;
     bool trans_b = false;
@@ -71,9 +71,9 @@ struct TensorGemmOp : TensorGraphOpNode
 
     std::string op_name() const override { return "GEMM"; }
 
-    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
+    void execute(TensorGraph::ExecutionContext& ctx) const override;
 
-    std::shared_ptr<TensorGraphOpNode> clone() const override
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorGemmOp>(*this);
     }

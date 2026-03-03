@@ -17,7 +17,6 @@
 #include <stdexcept>
 
 #include "nntile/base_types.hh"
-#include "nntile/graph/execution_context.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/sum_fiber.hh"
 
@@ -29,7 +28,7 @@ namespace
 
 template<typename T>
 void run_sum_fiber(
-    ExecutionContext<TensorGraph::TensorNode>& ctx,
+    TensorGraph::ExecutionContext& ctx,
     Scalar alpha, Scalar beta,
     Index axis, Index batch_ndim, int redux,
     TensorGraph::TensorNode* x,
@@ -75,7 +74,7 @@ void sum_fiber(
 }
 
 void TensorSumFiberOp::execute(
-    ExecutionContext<TensorGraph::TensorNode>& ctx) const
+    TensorGraph::ExecutionContext& ctx) const
 {
     DataType dtype = ctx.get_dtype(x);
 

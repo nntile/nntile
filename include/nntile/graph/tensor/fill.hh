@@ -21,7 +21,7 @@ namespace nntile::graph
 {
 
 //! Fill operation at tensor level: x = val
-struct TensorFillOp : TensorGraphOpNode
+struct TensorFillOp : TensorGraph::OpNode
 {
     Scalar val = 0.0;
     TensorGraph::TensorNode* x = nullptr;
@@ -36,9 +36,9 @@ struct TensorFillOp : TensorGraphOpNode
 
     std::string op_name() const override { return "FILL"; }
 
-    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
+    void execute(TensorGraph::ExecutionContext& ctx) const override;
 
-    std::shared_ptr<TensorGraphOpNode> clone() const override
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorFillOp>(*this);
     }

@@ -31,9 +31,9 @@ NNGraph::TensorNode* NNAddFiberOp::forward(const std::string& output_name)
         throw std::invalid_argument(
             "NNAddFiberOp::forward: fiber, tensor must be non-null");
     }
-    NNGraph& graph = fiber->graph();
+    NNGraph* graph = fiber->graph();
     bool out_requires_grad = any_input_requires_grad({fiber, tensor});
-    NNGraph::TensorNode* output = graph.tensor(
+    NNGraph::TensorNode* output = graph->tensor(
         tensor->shape(), output_name, tensor->dtype(), out_requires_grad);
     outputs_ = {output};
     graph::add_fiber(alpha, fiber->data(), beta, tensor->data(),
@@ -43,7 +43,7 @@ NNGraph::TensorNode* NNAddFiberOp::forward(const std::string& output_name)
 
 void NNAddFiberOp::backward() const
 {
-    NNGraph& graph = fiber->graph();
+    NNGraph* graph = fiber->graph();
     NNGraph::TensorNode* grad_out = output()->grad();
     if(grad_out == nullptr)
     {
@@ -51,16 +51,16 @@ void NNAddFiberOp::backward() const
     }
     if(fiber != nullptr && fiber->requires_grad())
     {
-        bool first = graph.is_first_grad(fiber);
+        bool first = graph->is_first_grad(fiber);
         NNGraph::TensorNode* grad_fiber =
-            graph.get_or_create_grad(fiber, fiber->name() + "_grad");
+            graph->get_or_create_grad(fiber, fiber->name() + "_grad");
         graph::sum_fiber(grad_out->data(), grad_fiber->data(), axis,
                         batch_ndim, 0, alpha, first ? 0.0 : 1.0);
     }
     if(tensor != nullptr && tensor->requires_grad())
     {
         NNGraph::TensorNode* grad_tensor =
-            graph.get_or_create_grad(tensor, tensor->name() + "_grad");
+            graph->get_or_create_grad(tensor, tensor->name() + "_grad");
         graph::add_inplace(beta, grad_out->data(), Scalar(1.0),
                           grad_tensor->data());
     }
@@ -80,11 +80,11 @@ NNGraph::TensorNode* add_fiber(
         throw std::invalid_argument(
             "add_fiber: fiber and tensor must be non-null");
     }
-    NNGraph& graph = fiber->graph();
+    NNGraph* graph = fiber->graph();
     auto op = std::make_shared<NNAddFiberOp>(
         fiber, tensor, alpha, beta, axis, batch_ndim);
     NNGraph::TensorNode* output = op->forward(output_name);
-    register_op(graph, std::move(op));
+    register_op(*graph, std::move(op));
     return output;
 }
 

@@ -9,7 +9,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/graph/nn/graph_tensor_node.hh"
+#include "nntile/graph/nn/graph_data_node.hh"
 #include "nntile/graph/nn/graph_op_node.hh"
 
 #include <deque>
@@ -64,14 +64,14 @@ std::string NNGraph::TensorNode::to_string() const
     return ss.str();
 }
 
-NNGraph& NNGraph::TensorNode::graph()
+NNGraph* NNGraph::TensorNode::graph()
 {
     if(graph_ == nullptr)
     {
         throw std::invalid_argument(
             "NNGraph::TensorNode::graph: tensor has no graph reference");
     }
-    return *graph_;
+    return graph_;
 }
 
 void NNGraph::TensorNode::set_producer(OpNode* op)

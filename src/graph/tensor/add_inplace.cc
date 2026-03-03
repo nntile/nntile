@@ -17,7 +17,6 @@
 #include <stdexcept>
 
 #include "nntile/base_types.hh"
-#include "nntile/graph/execution_context.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/add_inplace.hh"
 
@@ -29,7 +28,7 @@ namespace
 
 template<typename T>
 void run_add_inplace(
-    ExecutionContext<TensorGraph::TensorNode>& ctx,
+    TensorGraph::ExecutionContext& ctx,
     Scalar alpha, Scalar beta,
     TensorGraph::TensorNode* x,
     TensorGraph::TensorNode* y)
@@ -73,7 +72,7 @@ void add_inplace(
 }
 
 void TensorAddInplaceOp::execute(
-    ExecutionContext<TensorGraph::TensorNode>& ctx) const
+    TensorGraph::ExecutionContext& ctx) const
 {
     DataType dtype = ctx.get_dtype(x);
 

@@ -51,11 +51,11 @@ NNGraph::TensorNode* NNSumFiberOp::forward(const std::string& output_name)
         throw std::invalid_argument(
             "NNSumFiberOp::forward: x must be non-null");
     }
-    NNGraph& graph = x->graph();
+    NNGraph* graph = x->graph();
     std::vector<Index> y_shape =
         sum_fiber_output_shape(x->shape(), axis, batch_ndim);
     bool out_requires_grad = any_input_requires_grad({x});
-    NNGraph::TensorNode* y = graph.tensor(
+    NNGraph::TensorNode* y = graph->tensor(
         std::move(y_shape), output_name, x->dtype(), out_requires_grad);
     outputs_ = {y};
     graph::clear(y->data());
@@ -65,7 +65,7 @@ NNGraph::TensorNode* NNSumFiberOp::forward(const std::string& output_name)
 
 void NNSumFiberOp::backward() const
 {
-    NNGraph& graph = x->graph();
+    NNGraph* graph = x->graph();
     NNGraph::TensorNode* grad_out = output()->grad();
     if(grad_out == nullptr)
     {
@@ -74,7 +74,7 @@ void NNSumFiberOp::backward() const
     if(x != nullptr && x->requires_grad())
     {
         NNGraph::TensorNode* grad_x =
-            graph.get_or_create_grad(x, x->name() + "_grad");
+            graph->get_or_create_grad(x, x->name() + "_grad");
         graph::add_fiber_inplace(alpha, grad_out->data(), Scalar(1.0),
                                 grad_x->data(), axis, batch_ndim);
     }
@@ -93,11 +93,11 @@ NNGraph::TensorNode* sum_fiber(
     {
         throw std::invalid_argument("sum_fiber: x must be non-null");
     }
-    NNGraph& graph = x->graph();
+    NNGraph* graph = x->graph();
     auto op = std::make_shared<NNSumFiberOp>(
         x, axis, batch_ndim, redux, alpha, beta);
     NNGraph::TensorNode* y = op->forward(output_name);
-    register_op(graph, std::move(op));
+    register_op(*graph, std::move(op));
     return y;
 }
 

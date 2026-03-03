@@ -17,7 +17,6 @@
 #include <stdexcept>
 
 #include "nntile/graph/dtype.hh"
-#include "nntile/graph/execution_context.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gelu_backward.hh"
 
@@ -29,7 +28,7 @@ namespace
 
 template<typename T>
 void run_gelu_backward(
-    ExecutionContext<TensorGraph::TensorNode>& ctx,
+    TensorGraph::ExecutionContext& ctx,
     TensorGraph::TensorNode* x,
     TensorGraph::TensorNode* dy,
     TensorGraph::TensorNode* dx)
@@ -73,7 +72,7 @@ void gelu_backward(
 }
 
 void TensorGeluBackwardOp::execute(
-    ExecutionContext<TensorGraph::TensorNode>& ctx) const
+    TensorGraph::ExecutionContext& ctx) const
 {
     DataType dtype = ctx.get_dtype(x);
 

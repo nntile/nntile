@@ -18,7 +18,6 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
-#include "nntile/graph/execution_context.hh"
 #include "nntile/tensor/tensor.hh"
 
 namespace nntile::graph
@@ -29,11 +28,11 @@ namespace
 
 template<typename T>
 void allocate_and_register(
-    const TensorGraphNode* node,
+    const TensorGraph::TensorNode* node,
     const std::vector<Index>& shape,
     std::map<std::string, std::shared_ptr<void>>& runtime_data,
     std::map<std::string, DataType>& data_dtypes,
-    ExecutionContext<TensorGraphNode>& ctx)
+    TensorGraph::ExecutionContext& ctx)
 {
     std::vector<Index> tile_shape = shape;
     auto t = std::make_shared<nntile::tensor::Tensor<T>>(

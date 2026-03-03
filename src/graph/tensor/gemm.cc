@@ -19,7 +19,6 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/constants.hh"
-#include "nntile/graph/execution_context.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gemm.hh"
 
@@ -66,7 +65,7 @@ namespace
 
 template<typename T>
 void run_gemm(
-    ExecutionContext<TensorGraph::TensorNode>& ctx,
+    TensorGraph::ExecutionContext& ctx,
     Scalar alpha, Scalar beta,
     bool trans_a, bool trans_b,
     Index ndim, Index batch_ndim,
@@ -174,7 +173,7 @@ void gemm(
 }
 
 void TensorGemmOp::execute(
-    ExecutionContext<TensorGraph::TensorNode>& ctx) const
+    TensorGraph::ExecutionContext& ctx) const
 {
     DataType dtype = ctx.get_dtype(a);
 

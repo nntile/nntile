@@ -20,7 +20,7 @@ namespace nntile::graph
 {
 
 //! Clear operation at tensor level: x = 0
-struct TensorClearOp : TensorGraphOpNode
+struct TensorClearOp : TensorGraph::OpNode
 {
     TensorGraph::TensorNode* x = nullptr;
 
@@ -34,9 +34,9 @@ struct TensorClearOp : TensorGraphOpNode
 
     std::string op_name() const override { return "CLEAR"; }
 
-    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
+    void execute(TensorGraph::ExecutionContext& ctx) const override;
 
-    std::shared_ptr<TensorGraphOpNode> clone() const override
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorClearOp>(*this);
     }

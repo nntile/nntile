@@ -10,7 +10,6 @@ include/nntile/
 ├── graph.hh
 └── graph/
     ├── dtype.hh
-    ├── execution_context.hh
     ├── tensor.hh
     ├── nn.hh
     ├── compiled.hh
@@ -18,6 +17,7 @@ include/nntile/
     │   └── graph.hh
     ├── tensor/
     │   ├── graph.hh
+    │   ├── graph_exec_ctx.hh
     │   ├── graph_op_node.hh
     │   ├── graph_tensor_node.hh
     │   ├── graph_ops.hh

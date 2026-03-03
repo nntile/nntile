@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/nn/gemm.hh"
-#include "nntile/graph/nn/graph_tensor_node.hh"
+#include "nntile/graph/nn/graph_data_node.hh"
 
 #include <stdexcept>
 
@@ -30,11 +30,11 @@ NNGraph::TensorNode* NNGemmOp::forward(const std::string& output_name)
         throw std::invalid_argument(
             "NNGemmOp::forward: a, b must be non-null");
     }
-    NNGraph& graph = a->graph();
+    NNGraph* graph = a->graph();
     std::vector<Index> c_shape = gemm_output_shape(
         a->shape(), b->shape(), trans_a, trans_b, ndim, batch_ndim);
     bool out_requires_grad = any_input_requires_grad({a, b});
-    NNGraph::TensorNode* c = graph.tensor(
+    NNGraph::TensorNode* c = graph->tensor(
         std::move(c_shape), output_name, a->dtype(), out_requires_grad);
     outputs_ = {c};
     graph::clear(c->data());
@@ -45,7 +45,7 @@ NNGraph::TensorNode* NNGemmOp::forward(const std::string& output_name)
 
 void NNGemmOp::backward() const
 {
-    NNGraph& graph = a->graph();
+    NNGraph* graph = a->graph();
     NNGraph::TensorNode* grad_out = output()->grad();
     if(grad_out == nullptr)
     {
@@ -53,9 +53,9 @@ void NNGemmOp::backward() const
     }
     if(a != nullptr && a->requires_grad())
     {
-        bool first = graph.is_first_grad(a);
+        bool first = graph->is_first_grad(a);
         NNGraph::TensorNode* grad_a =
-            graph.get_or_create_grad(a, a->name() + "_grad");
+            graph->get_or_create_grad(a, a->name() + "_grad");
         Scalar beta = first ? 0.0 : 1.0;
         if(!trans_a)
         {
@@ -70,9 +70,9 @@ void NNGemmOp::backward() const
     }
     if(b != nullptr && b->requires_grad())
     {
-        bool first = graph.is_first_grad(b);
+        bool first = graph->is_first_grad(b);
         NNGraph::TensorNode* grad_b =
-            graph.get_or_create_grad(b, b->name() + "_grad");
+            graph->get_or_create_grad(b, b->name() + "_grad");
         Scalar beta = first ? 0.0 : 1.0;
         if(!trans_b)
         {
@@ -101,11 +101,11 @@ NNGraph::TensorNode* gemm(
     {
         throw std::invalid_argument("gemm: a and b must be non-null");
     }
-    NNGraph& graph = a->graph();
+    NNGraph* graph = a->graph();
     auto op = std::make_shared<NNGemmOp>(
         a, b, alpha, trans_a, trans_b, ndim, batch_ndim);
     NNGraph::TensorNode* c = op->forward(output_name);
-    register_op(graph, std::move(op));
+    register_op(*graph, std::move(op));
     return c;
 }
 

@@ -6,10 +6,10 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/nn/graph_tensor_node.hh
+ * @file include/nntile/graph/nn/graph_data_node.hh
  * NNGraph::TensorNode - tensor node with autograd.
  *
- * Include via nn.hh or nn/graph.hh (after NNGraph is declared).
+ * Include via nn.hh or nn/graph.hh (after graph_decl.hh).
  *
  * @version 1.1.0
  * */
@@ -23,7 +23,7 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
-#include <nntile/graph/nn/graph.hh>
+#include <nntile/graph/nn/graph_decl.hh>
 #include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::graph
@@ -82,7 +82,7 @@ public:
     void backward(bool retain_graph = false);
 
     // Graph access (for operations that deduce graph from tensor)
-    NNGraph& graph();
+    NNGraph* graph();
 
     // Input/output marking (forwarded to data tensor for TensorGraph ops)
     bool is_input() const { return data_ ? data_->is_input() : false; }

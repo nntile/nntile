@@ -21,7 +21,7 @@ namespace nntile::graph
 {
 
 //! Norm operation at tensor level
-struct TensorNormOp : TensorGraphOpNode
+struct TensorNormOp : TensorGraph::OpNode
 {
     Scalar alpha = 1.0;
     Scalar beta = 0.0;
@@ -39,9 +39,9 @@ struct TensorNormOp : TensorGraphOpNode
 
     std::string op_name() const override { return "NORM"; }
 
-    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
+    void execute(TensorGraph::ExecutionContext& ctx) const override;
 
-    std::shared_ptr<TensorGraphOpNode> clone() const override
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorNormOp>(*this);
     }

@@ -27,7 +27,6 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
-#include <nntile/graph/execution_context.hh>
 #include <nntile/graph/tensor/graph.hh>
 #include <nntile/tensor/tensor.hh>
 
@@ -40,8 +39,8 @@ namespace nntile::graph
 class CompiledGraph
 {
 public:
-    using TensorNode = TensorGraphNode;
-    using OpNode = TensorGraphOpNode;
+    using TensorNode = TensorGraph::TensorNode;
+    using OpNode = TensorGraph::OpNode;
 
     explicit CompiledGraph(const TensorGraph& graph);
 
@@ -86,7 +85,7 @@ private:
     void invalidate_unused_inputs(size_t op_idx);
 
     const TensorGraph& graph_;
-    ExecutionContext<TensorNode> ctx_;
+    TensorGraph::ExecutionContext ctx_;
     std::map<std::string, std::shared_ptr<void>> runtime_data_;
     std::map<std::string, DataType> data_dtypes_;
     std::vector<std::shared_ptr<OpNode>> execution_order_;
@@ -128,7 +127,12 @@ void CompiledGraph::bind_data(const std::string& name, const T* data,
             "call mark_input(true) or mark_output(true) on the data node");
     }
 
-    DataType dtype = data_dtypes_[name];
+    auto dtype_it = data_dtypes_.find(name);
+    if(dtype_it == data_dtypes_.end())
+    {
+        throw std::runtime_error("bind_data: data dtype not found: " + name);
+    }
+    DataType dtype = dtype_it->second;
 
     if(dtype == DataType::FP32)
     {

@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/tensor/graph_tensor_node.hh
- * TensorGraphNode - data node for TensorGraph (shape, dtype, name).
+ * @file include/nntile/graph/tensor/graph_data_node.hh
+ * TensorGraph::TensorNode - data node for TensorGraph (shape, dtype, name).
  *
  * @version 1.1.0
  * */
@@ -28,15 +28,18 @@
 namespace nntile::graph
 {
 
+// Forward declaration
+class TensorGraph;
+
 //! Data node for TensorGraph - represents a tensor in the graph.
-class TensorGraphNode
+class TensorGraph::TensorNode
 {
 public:
     using NodeId = uint64_t;
 
-    TensorGraphNode(
+    TensorNode(
         NodeId id,
-        class TensorGraph* graph,
+        TensorGraph* graph,
         std::vector<Index> shape,
         DataType dtype,
         const std::string& name = "");
@@ -50,11 +53,11 @@ public:
     Index dim(int idx) const;
     Index nelems() const;
     size_t size_bytes() const;
-    bool is_compatible(const TensorGraphNode* other) const;
+    bool is_compatible(const TensorNode* other) const;
 
     // Graph access
-    class TensorGraph* graph();
-    const class TensorGraph* graph() const;
+    TensorGraph* graph();
+    const TensorGraph* graph() const;
 
     // Graph structure
     bool is_input() const { return is_input_; }
@@ -67,7 +70,7 @@ public:
 
 private:
     NodeId id_;
-    class TensorGraph* graph_;
+    TensorGraph* graph_;
     std::vector<Index> shape_;
     DataType dtype_;
     std::string name_;

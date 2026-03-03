@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/tensor/graph_op_node.hh
- * TensorGraphOpNode - base class for TensorGraph operations.
+ * TensorGraph::OpNode - base class for TensorGraph operations.
  *
  * @version 1.1.0
  * */
@@ -18,39 +18,45 @@
 #include <string>
 #include <vector>
 
-#include <nntile/graph/execution_context.hh>
-#include <nntile/graph/tensor/graph_tensor_node.hh>
+#include <nntile/graph/tensor/graph_data_node.hh>
+#include <nntile/graph/tensor/graph_exec_ctx.hh>
 
 namespace nntile::graph
 {
 
 //! Base class for TensorGraph operations. Each op stores inputs, outputs, id.
 //! Dispatch is via virtual execute(); no OpType enum.
-class TensorGraphOpNode
+class TensorGraph::OpNode
 {
 public:
     using NodeId = uint64_t;
 
-    virtual ~TensorGraphOpNode() = default;
+    virtual ~OpNode() = default;
 
     virtual std::string op_name() const = 0;
     const std::string& name() const { return name_; }
     void set_name(const std::string& n) { name_ = n; }
     NodeId id() const { return id_; }
 
-    const std::vector<TensorGraphNode*>& inputs() const { return inputs_; }
-    const std::vector<TensorGraphNode*>& outputs() const { return outputs_; }
+    const std::vector<TensorGraph::TensorNode*>& inputs() const
+    {
+        return inputs_;
+    }
+    const std::vector<TensorGraph::TensorNode*>& outputs() const
+    {
+        return outputs_;
+    }
 
-    virtual void execute(ExecutionContext<TensorGraphNode>& ctx) const = 0;
-    virtual std::shared_ptr<TensorGraphOpNode> clone() const = 0;
+    virtual void execute(TensorGraph::ExecutionContext& ctx) const = 0;
+    virtual std::shared_ptr<TensorGraph::OpNode> clone() const = 0;
 
 protected:
-    TensorGraphOpNode() = default;
+    OpNode() = default;
 
     NodeId id_ = -1;
     std::string name_;
-    std::vector<TensorGraphNode*> inputs_;
-    std::vector<TensorGraphNode*> outputs_;
+    std::vector<TensorGraph::TensorNode*> inputs_;
+    std::vector<TensorGraph::TensorNode*> outputs_;
 
     friend class TensorGraph;
 };

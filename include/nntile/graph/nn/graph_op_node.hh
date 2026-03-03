@@ -9,7 +9,7 @@
  * @file include/nntile/graph/nn/graph_op_node.hh
  * NNGraph::OpNode - operation node (AutoGradFunction) for autograd.
  *
- * Include via nn.hh or nn/graph.hh (after NNGraph and TensorNode are declared).
+ * Include via nn.hh or nn/graph.hh (after graph_decl.hh and graph_data_node.hh).
  *
  * @version 1.1.0
  * */
@@ -19,8 +19,8 @@
 #include <memory>
 #include <vector>
 
-#include <nntile/graph/nn/graph.hh>
-#include <nntile/graph/nn/graph_tensor_node.hh>
+#include <nntile/graph/nn/graph_decl.hh>
+#include <nntile/graph/nn/graph_data_node.hh>
 
 namespace nntile::graph
 {

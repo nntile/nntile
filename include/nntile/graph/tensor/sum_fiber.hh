@@ -21,7 +21,7 @@ namespace nntile::graph
 {
 
 //! Sum fiber operation at tensor level: y = alpha * sum_fiber(x) + beta * y
-struct TensorSumFiberOp : TensorGraphOpNode
+struct TensorSumFiberOp : TensorGraph::OpNode
 {
     Index axis = 0;
     Index batch_ndim = 0;
@@ -47,9 +47,9 @@ struct TensorSumFiberOp : TensorGraphOpNode
 
     std::string op_name() const override { return "SUM_FIBER"; }
 
-    void execute(ExecutionContext<TensorGraph::TensorNode>& ctx) const override;
+    void execute(TensorGraph::ExecutionContext& ctx) const override;
 
-    std::shared_ptr<TensorGraphOpNode> clone() const override
+    std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorSumFiberOp>(*this);
     }

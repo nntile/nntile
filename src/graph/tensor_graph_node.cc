@@ -4,18 +4,17 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file src/graph/tensor_graph_node.cc
- * TensorGraphNode implementation.
+ * TensorGraph::TensorNode implementation.
  *
  * @version 1.1.0
  * */
 
-#include "nntile/graph/tensor/graph_tensor_node.hh"
 #include "nntile/graph/tensor/graph.hh"
 
 namespace nntile::graph
 {
 
-TensorGraphNode::TensorGraphNode(
+TensorGraph::TensorNode::TensorNode(
     NodeId id,
     TensorGraph* graph,
     std::vector<Index> shape,
@@ -32,12 +31,12 @@ TensorGraphNode::TensorGraphNode(
         if(dim <= 0)
         {
             throw std::invalid_argument(
-                "TensorGraphNode: all dimensions must be positive");
+                "TensorGraph::TensorNode: all dimensions must be positive");
         }
     }
 }
 
-Index TensorGraphNode::dim(int idx) const
+Index TensorGraph::TensorNode::dim(int idx) const
 {
     if(idx < 0)
     {
@@ -45,40 +44,40 @@ Index TensorGraphNode::dim(int idx) const
     }
     if(idx < 0 || static_cast<size_t>(idx) >= shape_.size())
     {
-        throw std::out_of_range("TensorGraphNode::dim: index out of range");
+        throw std::out_of_range("TensorGraph::TensorNode::dim: index out of range");
     }
     return shape_[static_cast<size_t>(idx)];
 }
 
-Index TensorGraphNode::nelems() const
+Index TensorGraph::TensorNode::nelems() const
 {
     return std::accumulate(shape_.begin(), shape_.end(), Index(1),
         std::multiplies<Index>());
 }
 
-size_t TensorGraphNode::size_bytes() const
+size_t TensorGraph::TensorNode::size_bytes() const
 {
     return static_cast<size_t>(nelems()) * dtype_size(dtype_);
 }
 
-bool TensorGraphNode::is_compatible(const TensorGraphNode* other) const
+bool TensorGraph::TensorNode::is_compatible(const TensorNode* other) const
 {
     return other != nullptr && dtype_ == other->dtype_;
 }
 
-TensorGraph* TensorGraphNode::graph()
+TensorGraph* TensorGraph::TensorNode::graph()
 {
     return graph_;
 }
 
-const TensorGraph* TensorGraphNode::graph() const
+const TensorGraph* TensorGraph::TensorNode::graph() const
 {
     return graph_;
 }
 
-std::string TensorGraphNode::to_string() const
+std::string TensorGraph::TensorNode::to_string() const
 {
-    std::string result = "TensorGraphNode(id=" +
+    std::string result = "TensorGraph::TensorNode(id=" +
         std::to_string(id_) + ", name='" + name_ + "', shape=[";
     for(size_t i = 0; i < shape_.size(); ++i)
     {
