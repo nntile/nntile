@@ -419,12 +419,12 @@ set(GRAPH_CORE_SRC
 # NNGraph, TensorGraph, CompiledGraph
 set(GRAPH_NN_SRC
     "graph/nn_graph.cc"
-    "graph/nn_graph/tensor_node.cc"
-    "graph/nn_graph/add.cc"
-    "graph/nn_graph/add_fiber.cc"
-    "graph/nn_graph/gemm.cc"
-    "graph/nn_graph/gelu.cc"
-    "graph/nn_graph/sum_fiber.cc"
+    "graph/nn/tensor_node.cc"
+    "graph/nn/add.cc"
+    "graph/nn/add_fiber.cc"
+    "graph/nn/gemm.cc"
+    "graph/nn/gelu.cc"
+    "graph/nn/sum_fiber.cc"
     "graph/compiled_graph.cc"
     "graph/tensor_graph_node.cc"
 )

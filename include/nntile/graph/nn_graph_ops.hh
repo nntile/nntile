@@ -9,7 +9,7 @@
  * @file include/nntile/graph/nn_graph_ops.hh
  * NNGraph operations - free function overloads for NNGraph::TensorNode.
  *
- * Individual ops in nn_graph/ (TensorGraph backend),
+ * Individual ops in nn/ (TensorGraph backend),
  * this file includes them all.
  *
  * @version 1.1.0
@@ -18,10 +18,10 @@
 #pragma once
 
 // Include NNGraph operation overloads (one file per op)
-#include <nntile/graph/nn_graph/add.hh>
-#include <nntile/graph/nn_graph/add_fiber.hh>
-#include <nntile/graph/nn_graph/clear.hh>
-#include <nntile/graph/nn_graph/fill.hh>
-#include <nntile/graph/nn_graph/gemm.hh>
-#include <nntile/graph/nn_graph/gelu.hh>
-#include <nntile/graph/nn_graph/sum_fiber.hh>
+#include <nntile/graph/nn/add.hh>
+#include <nntile/graph/nn/add_fiber.hh>
+#include <nntile/graph/nn/clear.hh>
+#include <nntile/graph/nn/fill.hh>
+#include <nntile/graph/nn/gemm.hh>
+#include <nntile/graph/nn/gelu.hh>
+#include <nntile/graph/nn/sum_fiber.hh>

@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/nn_graph/nn_graph.hh
+ * @file include/nntile/graph/nn/nn_graph.hh
  * NNGraph class for defining computation graphs with gradients.
  *
  * @version 1.1.0
@@ -25,9 +25,6 @@
 namespace nntile::graph
 {
 
-// Forward declarations
-class NNBaseOpNode;
-
 //! Neural network graph - wraps tensor graph and tracks gradients
 class NNGraph
 {
@@ -45,7 +42,7 @@ private:
     std::string name_;
     TensorGraph tensor_graph_;
     std::vector<std::unique_ptr<TensorNode>> tensors_;
-    std::vector<std::unique_ptr<OpNode>> op_nodes_;
+    std::vector<std::shared_ptr<OpNode>> op_nodes_;
     std::map<std::string, TensorNode*> tensor_by_name_;
 
 public:
@@ -110,8 +107,7 @@ public:
         const std::string& grad_name);
 
     //! Create and register an NNGraph-level op (AutoGradFunction).
-    //! The op holds all params and tensors; OpNode wraps it.
-    OpNode* create_op(std::shared_ptr<NNBaseOpNode> op);
+    OpNode* create_op(std::shared_ptr<OpNode> op);
 
     // -----------------------------------------------------------------
     // String representation
@@ -122,37 +118,13 @@ public:
     std::string to_mermaid() const { return tensor_graph_.to_mermaid(); }
 };
 
-//! Base for NNGraph ops - self-contained like TensorAddOp.
-//! Holds params, inputs, outputs, buffers. Implements backward() and
-//! add_forward_to_tensor_graph(). Free functions create the op and register it.
-class NNBaseOpNode
-{
-public:
-    virtual ~NNBaseOpNode() = default;
-
-    const std::vector<NNGraph::TensorNode*>& inputs() const { return inputs_; }
-    const std::vector<NNGraph::TensorNode*>& outputs() const { return outputs_; }
-    const std::vector<NNGraph::TensorNode*>& buffers() const { return buffers_; }
-
-    //! Add forward TensorGraph ops. Called before register_op.
-    virtual void add_forward_to_tensor_graph(NNGraph& graph) = 0;
-
-    //! Run backward pass. Uses own inputs/outputs/params.
-    virtual void backward() = 0;
-
-protected:
-    std::vector<NNGraph::TensorNode*> inputs_;
-    std::vector<NNGraph::TensorNode*> outputs_;
-    std::vector<NNGraph::TensorNode*> buffers_;
-};
-
 // -----------------------------------------------------------------
 // Operation registration (part of graph API)
 // -----------------------------------------------------------------
 
 //! Register op for backward. Creates OpNode only when GradMode enabled
 //! and any input requires grad. Sets producer on outputs.
-void register_op(NNGraph& graph, std::shared_ptr<NNBaseOpNode> op);
+void register_op(NNGraph& graph, std::shared_ptr<NNGraph::OpNode> op);
 
 //! True if any input requires grad.
 bool any_input_requires_grad(

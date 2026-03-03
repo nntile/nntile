@@ -6,13 +6,13 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/graph/nn_graph/sum_fiber.cc
+ * @file src/graph/nn/sum_fiber.cc
  * NNGraph sum_fiber autograd implementation.
  *
  * @version 1.1.0
  * */
 
-#include "nntile/graph/nn_graph/sum_fiber.hh"
+#include "nntile/graph/nn/sum_fiber.hh"
 
 #include <stdexcept>
 #include <vector>
@@ -44,22 +44,29 @@ std::vector<Index> sum_fiber_output_shape(const std::vector<Index>& x_shape,
 
 } // anonymous namespace
 
-void NNSumFiberOp::add_forward_to_tensor_graph(NNGraph& graph)
+NNGraph::TensorNode* NNSumFiberOp::forward(const std::string& output_name)
 {
-    (void)graph;
-    if(x == nullptr || y == nullptr)
+    if(x == nullptr)
     {
         throw std::invalid_argument(
-            "NNSumFiberOp::add_forward_to_tensor_graph: x, y must be non-null");
+            "NNSumFiberOp::forward: x must be non-null");
     }
+    NNGraph& graph = x->graph();
+    std::vector<Index> y_shape =
+        sum_fiber_output_shape(x->shape(), axis, batch_ndim);
+    bool out_requires_grad = any_input_requires_grad({x});
+    NNGraph::TensorNode* y = graph.tensor(
+        std::move(y_shape), output_name, x->dtype(), out_requires_grad);
+    outputs_ = {y};
     graph::clear(y->data());
     graph::sum_fiber(x->data(), y->data(), axis, batch_ndim, redux, alpha, beta);
+    return y;
 }
 
-void NNSumFiberOp::backward()
+void NNSumFiberOp::backward() const
 {
     NNGraph& graph = x->graph();
-    NNGraph::TensorNode* grad_out = y->grad();
+    NNGraph::TensorNode* grad_out = output()->grad();
     if(grad_out == nullptr)
     {
         return;
@@ -87,15 +94,9 @@ NNGraph::TensorNode* sum_fiber(
         throw std::invalid_argument("sum_fiber: x must be non-null");
     }
     NNGraph& graph = x->graph();
-    std::vector<Index> y_shape =
-        sum_fiber_output_shape(x->shape(), axis, batch_ndim);
-    bool out_requires_grad = any_input_requires_grad({x});
-    NNGraph::TensorNode* y = graph.tensor(
-        std::move(y_shape), output_name, x->dtype(), out_requires_grad);
-
     auto op = std::make_shared<NNSumFiberOp>(
-        x, y, axis, batch_ndim, redux, alpha, beta);
-    op->add_forward_to_tensor_graph(graph);
+        x, axis, batch_ndim, redux, alpha, beta);
+    NNGraph::TensorNode* y = op->forward(output_name);
     register_op(graph, std::move(op));
     return y;
 }

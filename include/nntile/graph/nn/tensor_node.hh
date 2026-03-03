@@ -6,10 +6,10 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/nn_graph/tensor_node.hh
+ * @file include/nntile/graph/nn/tensor_node.hh
  * NNGraph::TensorNode - tensor node with autograd.
  *
- * Include this only via nn_graph/nn_graph.hh (after NNGraph is declared).
+ * Include this only via nn/nn_graph.hh (after NNGraph is declared).
  *
  * @version 1.1.0
  * */
@@ -23,7 +23,7 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
-#include <nntile/graph/nn_graph/nn_graph.hh>
+#include <nntile/graph/nn/nn_graph.hh>
 #include <nntile/graph/tensor_graph.hh>
 
 namespace nntile::graph
@@ -54,9 +54,7 @@ public:
     DataType dtype() const { return data_->dtype(); }
     const std::string& name() const { return data_->name(); }
 
-    // Accessors for underlying data nodes
-
-    // Accessors for underlying data nodes
+    // Accessors for underlying data node
     TensorGraph::DataNode* data() { return data_; }
     const TensorGraph::DataNode* data() const { return data_; }
 
@@ -76,7 +74,7 @@ public:
     // Set by NNGraph op that created this tensor (may use multiple TensorGraph ops)
     void set_producer(OpNode* op);
 
-    // Autograd: propagate upstream gradient through the computation graph.
+    //! Autograd: propagate upstream gradient through the computation graph.
     //! Grad must be set beforehand (get_or_create_grad + fill/bind).
     //! Does NOT fill grad with ones - user must provide upstream gradient.
     //! When retain_graph is false (default), clears op_nodes_ and producer_

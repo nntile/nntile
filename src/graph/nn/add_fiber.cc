@@ -6,13 +6,13 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/graph/nn_graph/add_fiber.cc
+ * @file src/graph/nn/add_fiber.cc
  * NNGraph add_fiber autograd implementation.
  *
  * @version 1.1.0
  * */
 
-#include "nntile/graph/nn_graph/add_fiber.hh"
+#include "nntile/graph/nn/add_fiber.hh"
 
 #include <stdexcept>
 
@@ -24,25 +24,27 @@
 namespace nntile::graph
 {
 
-void NNAddFiberOp::add_forward_to_tensor_graph(NNGraph& graph)
+NNGraph::TensorNode* NNAddFiberOp::forward(const std::string& output_name)
 {
-    (void)graph;
-    if(fiber == nullptr || tensor == nullptr || output == nullptr)
+    if(fiber == nullptr || tensor == nullptr)
     {
         throw std::invalid_argument(
-            "NNAddFiberOp::add_forward_to_tensor_graph: fiber, tensor, output "
-            "must be non-null");
+            "NNAddFiberOp::forward: fiber, tensor must be non-null");
     }
-    auto tg_op = std::make_shared<TensorAddFiberOp>(
-        fiber->data(), tensor->data(), output->data(),
-        alpha, beta, axis, batch_ndim);
-    fiber->graph().tensor_graph().add_op(tg_op);
+    NNGraph& graph = fiber->graph();
+    bool out_requires_grad = any_input_requires_grad({fiber, tensor});
+    NNGraph::TensorNode* output = graph.tensor(
+        tensor->shape(), output_name, tensor->dtype(), out_requires_grad);
+    outputs_ = {output};
+    graph::add_fiber(alpha, fiber->data(), beta, tensor->data(),
+                    output->data(), axis, batch_ndim);
+    return output;
 }
 
-void NNAddFiberOp::backward()
+void NNAddFiberOp::backward() const
 {
     NNGraph& graph = fiber->graph();
-    NNGraph::TensorNode* grad_out = output->grad();
+    NNGraph::TensorNode* grad_out = output()->grad();
     if(grad_out == nullptr)
     {
         return;
@@ -79,14 +81,9 @@ NNGraph::TensorNode* add_fiber(
             "add_fiber: fiber and tensor must be non-null");
     }
     NNGraph& graph = fiber->graph();
-    std::vector<Index> output_shape = tensor->shape();
-    bool out_requires_grad = any_input_requires_grad({fiber, tensor});
-    NNGraph::TensorNode* output = graph.tensor(
-        std::move(output_shape), output_name, tensor->dtype(), out_requires_grad);
-
     auto op = std::make_shared<NNAddFiberOp>(
-        fiber, tensor, output, alpha, beta, axis, batch_ndim);
-    op->add_forward_to_tensor_graph(graph);
+        fiber, tensor, alpha, beta, axis, batch_ndim);
+    NNGraph::TensorNode* output = op->forward(output_name);
     register_op(graph, std::move(op));
     return output;
 }

@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/nn_graph/add_fiber.hh
+ * @file include/nntile/graph/nn/add_fiber.hh
  * NNGraph add_fiber autograd operation.
  *
  * Forward: output = alpha * fiber + beta * tensor
@@ -19,14 +19,15 @@
 
 #include <string>
 
-#include <nntile/graph/tensor/add_fiber.hh>
 #include <nntile/graph/nn_graph.hh>
+#include <nntile/graph/nn/op_node.hh>
+#include <nntile/graph/tensor/add_fiber.hh>
 
 namespace nntile::graph
 {
 
-//! AddFiber op: output = alpha*fiber + beta*tensor. Self-contained.
-struct NNAddFiberOp : NNBaseOpNode
+//! AddFiber op: output = alpha*fiber + beta*tensor. PyTorch-style: outputs in forward().
+struct NNAddFiberOp : NNGraph::OpNode
 {
     Scalar alpha = 1.0;
     Scalar beta = 1.0;
@@ -34,23 +35,20 @@ struct NNAddFiberOp : NNBaseOpNode
     Index batch_ndim = 0;
     NNGraph::TensorNode* fiber = nullptr;
     NNGraph::TensorNode* tensor = nullptr;
-    NNGraph::TensorNode* output = nullptr;
 
     NNAddFiberOp() = default;
     NNAddFiberOp(NNGraph::TensorNode* fiber_,
                  NNGraph::TensorNode* tensor_,
-                 NNGraph::TensorNode* output_,
                  Scalar alpha_, Scalar beta_,
                  Index axis_, Index batch_ndim_)
         : alpha(alpha_), beta(beta_), axis(axis_), batch_ndim(batch_ndim_)
-        , fiber(fiber_), tensor(tensor_), output(output_)
+        , fiber(fiber_), tensor(tensor_)
     {
         inputs_ = {fiber, tensor};
-        outputs_ = {output};
     }
 
-    void add_forward_to_tensor_graph(NNGraph& graph) override;
-    void backward() override;
+    NNGraph::TensorNode* forward(const std::string& output_name) override;
+    void backward() const override;
 };
 
 NNGraph::TensorNode* add_fiber(

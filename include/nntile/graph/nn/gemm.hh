@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/nn_graph/gemm.hh
+ * @file include/nntile/graph/nn/gemm.hh
  * NNGraph GEMM autograd operation.
  *
  * Forward: C = alpha * op(A) @ op(B)
@@ -19,14 +19,15 @@
 
 #include <string>
 
-#include <nntile/graph/tensor/gemm.hh>
 #include <nntile/graph/nn_graph.hh>
+#include <nntile/graph/nn/op_node.hh>
+#include <nntile/graph/tensor/gemm.hh>
 
 namespace nntile::graph
 {
 
-//! GEMM op: C = alpha * op(A) @ op(B). Self-contained: holds params and tensors.
-struct NNGemmOp : NNBaseOpNode
+//! GEMM op: C = alpha * op(A) @ op(B). PyTorch-style: outputs created in forward().
+struct NNGemmOp : NNGraph::OpNode
 {
     Scalar alpha = 1.0;
     bool trans_a = false;
@@ -35,12 +36,10 @@ struct NNGemmOp : NNBaseOpNode
     Index batch_ndim = 0;
     NNGraph::TensorNode* a = nullptr;
     NNGraph::TensorNode* b = nullptr;
-    NNGraph::TensorNode* c = nullptr;
 
     NNGemmOp() = default;
     NNGemmOp(NNGraph::TensorNode* a_,
             NNGraph::TensorNode* b_,
-            NNGraph::TensorNode* c_,
             Scalar alpha_ = 1.0,
             bool trans_a_ = false,
             bool trans_b_ = false,
@@ -48,14 +47,13 @@ struct NNGemmOp : NNBaseOpNode
             Index batch_ndim_ = 0)
         : alpha(alpha_), trans_a(trans_a_), trans_b(trans_b_)
         , ndim(ndim_), batch_ndim(batch_ndim_)
-        , a(a_), b(b_), c(c_)
+        , a(a_), b(b_)
     {
         inputs_ = {a, b};
-        outputs_ = {c};
     }
 
-    void add_forward_to_tensor_graph(NNGraph& graph) override;
-    void backward() override;
+    NNGraph::TensorNode* forward(const std::string& output_name) override;
+    void backward() const override;
 };
 
 NNGraph::TensorNode* gemm(

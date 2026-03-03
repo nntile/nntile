@@ -3,7 +3,7 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
- * @file tests/graph/nn_graph/gemm.cc
+ * @file tests/graph/nn/gemm.cc
  * Tests for NNGraph gemm autograd operation.
  *
  * @version 1.1.0

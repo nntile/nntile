@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/nn_graph/add.hh
+ * @file include/nntile/graph/nn/add.hh
  * NNGraph add operation - out-of-place z = alpha*x + beta*y.
  *
  * NNAddOp holds params and tensors (like TensorAddOp). Free function add()
@@ -19,34 +19,32 @@
 
 #include <string>
 
-#include <nntile/graph/tensor/add.hh>
 #include <nntile/graph/nn_graph.hh>
+#include <nntile/graph/nn/op_node.hh>
+#include <nntile/graph/tensor/add.hh>
 
 namespace nntile::graph
 {
 
-//! Add op: z = alpha*x + beta*y. Self-contained: holds params and tensors.
-struct NNAddOp : NNBaseOpNode
+//! Add op: z = alpha*x + beta*y. PyTorch-style: outputs created in forward().
+struct NNAddOp : NNGraph::OpNode
 {
     Scalar alpha = 1.0;
     Scalar beta = 1.0;
     NNGraph::TensorNode* x = nullptr;
     NNGraph::TensorNode* y = nullptr;
-    NNGraph::TensorNode* z = nullptr;
 
     NNAddOp() = default;
     NNAddOp(NNGraph::TensorNode* x_,
             NNGraph::TensorNode* y_,
-            NNGraph::TensorNode* z_,
             Scalar alpha_, Scalar beta_)
-        : alpha(alpha_), beta(beta_), x(x_), y(y_), z(z_)
+        : alpha(alpha_), beta(beta_), x(x_), y(y_)
     {
         inputs_ = {x, y};
-        outputs_ = {z};
     }
 
-    void add_forward_to_tensor_graph(NNGraph& graph) override;
-    void backward() override;
+    NNGraph::TensorNode* forward(const std::string& output_name) override;
+    void backward() const override;
 };
 
 //! Add: z = alpha*x + beta*y. Creates op, adds to graph, registers for backward.

@@ -32,7 +32,7 @@ include/nntile/
     │   ├── gelu.hh
     │   ├── gelu_backward.hh
     │   └── sum_fiber.hh
-    └── nn_graph/
+    └── nn/
         ├── nn_graph.hh
         ├── op_node.hh
         ├── tensor_node.hh
@@ -53,7 +53,7 @@ src/graph/
 │   ├── add_fiber.cc
 │   ├── ...
 │   └── sum_fiber.cc
-└── nn_graph/
+└── nn/
     ├── tensor_node.cc
     ├── add.cc
     ├── add_fiber.cc
@@ -146,21 +146,20 @@ GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
 Autograd operations use `TensorGraph` ops for forward. For `NNGraph::TensorNode* x`,
 pass `x->data()` to tensor ops to get `TensorGraph::DataNode*`.
 
-### NN*Op structs
+### NN*Op structs (PyTorch-style)
 
 Each autograd operation is defined as a struct (e.g., `NNAddOp`, `NNGemmOp`)
-inheriting from `NNOpBase`:
+inheriting from `NNGraph::OpNode`:
 
-- Holds parameters (alpha, beta, etc.) for backward
-- Implements `backward(const NNGraph::OpNode* op)`
-- Static `build_forward()` creates the output node and registers the op
+- **Constructor**: Takes inputs only (no outputs). Outputs are created in `forward()`.
+- **forward(output_name)**: Creates output(s), sets `outputs_`, adds tensor graph ops, returns primary output.
+- **backward()**: Uses `output()->grad()` and propagates gradients to inputs via tensor ops.
 
-### register_op and create_op
+This mirrors PyTorch: outputs and temporaries appear in the forward pass, not at construction.
 
-- `register_op(graph, inputs, output, op, buffers)` — registers an op when
-  GradMode is enabled and any input requires grad.
-- `create_op(graph, inputs, outputs, op, buffers)` — creates an OpNode and
-  registers it.
+### register_op
+
+- `register_op(graph, op)` — when GradMode is enabled and any input requires grad, stores the op and sets `producer` on each output. The op's `outputs_` must be populated by `forward()` before registration.
 
 ## Adding new graph operations
 
@@ -182,17 +181,18 @@ Add to `tensor_graph_ops.hh` if needed.
 
 ### 2. Add an NNGraph (autograd) operation
 
-**Header** (`include/nntile/graph/nn_graph/<op>.hh`):
+**Header** (`include/nntile/graph/nn/<op>.hh`):
 
-- Define `NNXxxOp : NNOpBase` with `backward()` and static `build_forward()`.
+- Define `NNXxxOp : NNGraph::OpNode` with constructor (inputs only), `forward(output_name)` returning `TensorNode*`, and `backward()`.
 - Declare convenience free function.
 
-**Source** (`src/graph/nn_graph/<op>.cc`):
+**Source** (`src/graph/nn/<op>.cc`):
 
-- `build_forward`: call tensor op via `x->data()`, create tensor, `register_op`.
-- `backward`: use `grad_out->data()`, `grad_x->data()`, etc. with tensor ops.
+- `forward(output_name)`: create output via `graph.tensor()`, set `outputs_`, add tensor ops via `x->data()`, return output.
+- `backward()`: use `output()->grad()`, `grad_x->data()`, etc. with tensor ops.
+- Free function: `op = make_op(inputs); output = op->forward(output_name); register_op(graph, op); return output;`
 
-Add to `nn_graph_ops.hh`.
+See `docs/autograd_add_function.md` for a full guide. Add to `nn_graph_ops.hh`.
 
 ### 3. Build system
 

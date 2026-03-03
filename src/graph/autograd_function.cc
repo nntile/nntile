@@ -10,12 +10,13 @@
  * */
 
 #include "nntile/graph/nn_graph.hh"
+#include "nntile/graph/nn/op_node.hh"
 #include "nntile/graph/grad_mode.hh"
 
 namespace nntile::graph
 {
 
-void register_op(NNGraph& graph, std::shared_ptr<NNBaseOpNode> op)
+void register_op(NNGraph& graph, std::shared_ptr<NNGraph::OpNode> op)
 {
     const bool need_backward =
         GradMode::is_enabled() && any_input_requires_grad(op->inputs());

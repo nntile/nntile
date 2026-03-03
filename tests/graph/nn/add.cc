@@ -3,7 +3,7 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
- * @file tests/graph/nn_graph/add.cc
+ * @file tests/graph/nn/add.cc
  * Tests for NNGraph add autograd operation.
  *
  * @version 1.1.0

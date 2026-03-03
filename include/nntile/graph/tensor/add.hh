@@ -55,7 +55,7 @@ struct TensorAddOp : BaseOpNode<TensorGraph, TensorGraphNode>
     }
 };
 
-//! Add operation: z = alpha * x + beta * y
+//! Add operation: z = alpha * x + beta * y (creates output)
 //! @param alpha Scaling factor for x
 //! @param x First input tensor
 //! @param beta Scaling factor for y
@@ -68,5 +68,13 @@ TensorGraph::DataNode* add(
     Scalar beta,
     TensorGraph::DataNode* y,
     const std::string& output_name);
+
+//! Add operation: z = alpha * x + beta * y (uses existing output)
+void add(
+    Scalar alpha,
+    TensorGraph::DataNode* x,
+    Scalar beta,
+    TensorGraph::DataNode* y,
+    TensorGraph::DataNode* z);
 
 } // namespace nntile::graph

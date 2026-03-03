@@ -12,10 +12,10 @@
 # @version 1.1.0
 
 # All graph tests using Catch2
-set(TESTS_CATCH2 "nn_graph")
+set(TESTS_CATCH2 "nn")
 
-# Include nn_graph and tensor operation tests
-add_subdirectory(nn_graph)
+# Include nn and tensor operation tests
+add_subdirectory(nn)
 add_subdirectory(tensor)
 
 # Setup a target for coverage of graph tests

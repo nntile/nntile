@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/graph/nn_graph/gelu.cc
+ * @file src/graph/nn/gelu.cc
  * NNGraph GELU autograd implementation.
  *
  * @version 1.1.0
  * */
 
-#include "nntile/graph/nn_graph/gelu.hh"
-#include "nntile/graph/nn_graph/tensor_node.hh"
+#include "nntile/graph/nn/gelu.hh"
+#include "nntile/graph/nn/tensor_node.hh"
 
 #include <stdexcept>
 
@@ -24,21 +24,26 @@
 namespace nntile::graph
 {
 
-void NNGeluOp::add_forward_to_tensor_graph(NNGraph& graph)
+NNGraph::TensorNode* NNGeluOp::forward(const std::string& output_name)
 {
-    (void)graph;
-    if(x == nullptr || y == nullptr)
+    if(x == nullptr)
     {
         throw std::invalid_argument(
-            "NNGeluOp::add_forward_to_tensor_graph: x, y must be non-null");
+            "NNGeluOp::forward: x must be non-null");
     }
+    NNGraph& graph = x->graph();
+    bool out_requires_grad = any_input_requires_grad({x});
+    NNGraph::TensorNode* y = graph.tensor(
+        x->shape(), output_name, x->dtype(), out_requires_grad);
+    outputs_ = {y};
     graph::gelu(x->data(), y->data());
+    return y;
 }
 
-void NNGeluOp::backward()
+void NNGeluOp::backward() const
 {
     NNGraph& graph = x->graph();
-    NNGraph::TensorNode* grad_out = y->grad();
+    NNGraph::TensorNode* grad_out = output()->grad();
     if(grad_out == nullptr)
     {
         return;
@@ -65,12 +70,8 @@ NNGraph::TensorNode* gelu(
         throw std::invalid_argument("gelu: x must be non-null");
     }
     NNGraph& graph = x->graph();
-    bool out_requires_grad = any_input_requires_grad({x});
-    NNGraph::TensorNode* y = graph.tensor(
-        x->shape(), output_name, x->dtype(), out_requires_grad);
-
-    auto op = std::make_shared<NNGeluOp>(x, y);
-    op->add_forward_to_tensor_graph(graph);
+    auto op = std::make_shared<NNGeluOp>(x);
+    NNGraph::TensorNode* y = op->forward(output_name);
     register_op(graph, std::move(op));
     return y;
 }

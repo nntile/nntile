@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/graph/nn_graph/gemm.cc
+ * @file src/graph/nn/gemm.cc
  * NNGraph GEMM autograd implementation.
  *
  * @version 1.1.0
  * */
 
-#include "nntile/graph/nn_graph/gemm.hh"
-#include "nntile/graph/nn_graph/tensor_node.hh"
+#include "nntile/graph/nn/gemm.hh"
+#include "nntile/graph/nn/tensor_node.hh"
 
 #include <stdexcept>
 
@@ -23,23 +23,30 @@
 namespace nntile::graph
 {
 
-void NNGemmOp::add_forward_to_tensor_graph(NNGraph& graph)
+NNGraph::TensorNode* NNGemmOp::forward(const std::string& output_name)
 {
-    (void)graph;
-    if(a == nullptr || b == nullptr || c == nullptr)
+    if(a == nullptr || b == nullptr)
     {
         throw std::invalid_argument(
-            "NNGemmOp::add_forward_to_tensor_graph: a, b, c must be non-null");
+            "NNGemmOp::forward: a, b must be non-null");
     }
+    NNGraph& graph = a->graph();
+    std::vector<Index> c_shape = gemm_output_shape(
+        a->shape(), b->shape(), trans_a, trans_b, ndim, batch_ndim);
+    bool out_requires_grad = any_input_requires_grad({a, b});
+    NNGraph::TensorNode* c = graph.tensor(
+        std::move(c_shape), output_name, a->dtype(), out_requires_grad);
+    outputs_ = {c};
     graph::clear(c->data());
     graph::gemm(a->data(), b->data(), c->data(),
                 alpha, 0.0, trans_a, trans_b, ndim, batch_ndim);
+    return c;
 }
 
-void NNGemmOp::backward()
+void NNGemmOp::backward() const
 {
     NNGraph& graph = a->graph();
-    NNGraph::TensorNode* grad_out = c->grad();
+    NNGraph::TensorNode* grad_out = output()->grad();
     if(grad_out == nullptr)
     {
         return;
@@ -95,15 +102,9 @@ NNGraph::TensorNode* gemm(
         throw std::invalid_argument("gemm: a and b must be non-null");
     }
     NNGraph& graph = a->graph();
-    std::vector<Index> c_shape = gemm_output_shape(
-        a->shape(), b->shape(), trans_a, trans_b, ndim, batch_ndim);
-    bool out_requires_grad = any_input_requires_grad({a, b});
-    NNGraph::TensorNode* c = graph.tensor(
-        std::move(c_shape), output_name, a->dtype(), out_requires_grad);
-
     auto op = std::make_shared<NNGemmOp>(
-        a, b, c, alpha, trans_a, trans_b, ndim, batch_ndim);
-    op->add_forward_to_tensor_graph(graph);
+        a, b, alpha, trans_a, trans_b, ndim, batch_ndim);
+    NNGraph::TensorNode* c = op->forward(output_name);
     register_op(graph, std::move(op));
     return c;
 }

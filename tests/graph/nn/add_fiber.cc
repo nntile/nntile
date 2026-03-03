@@ -3,7 +3,7 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
- * @file tests/graph/nn_graph/add_fiber.cc
+ * @file tests/graph/nn/add_fiber.cc
  * Tests for NNGraph add_fiber autograd operation.
  *
  * @version 1.1.0

@@ -12,9 +12,9 @@
  * @version 1.1.0
  * */
 
-#include "nntile/graph/nn_graph/nn_graph.hh"
-#include "nntile/graph/nn_graph/op_node.hh"
-#include "nntile/graph/nn_graph/tensor_node.hh"
+#include "nntile/graph/nn/nn_graph.hh"
+#include "nntile/graph/nn/op_node.hh"
+#include "nntile/graph/nn/tensor_node.hh"
 
 #include <sstream>
 #include <stdexcept>
@@ -150,11 +150,10 @@ NNGraph::TensorNode* NNGraph::get_or_create_grad(
     return grad_ptr;
 }
 
-NNGraph::OpNode* NNGraph::create_op(std::shared_ptr<NNBaseOpNode> op)
+NNGraph::OpNode* NNGraph::create_op(std::shared_ptr<OpNode> op)
 {
-    auto op_node = std::make_unique<OpNode>(std::move(op));
-    OpNode* ptr = op_node.get();
-    op_nodes_.push_back(std::move(op_node));
+    OpNode* ptr = op.get();
+    op_nodes_.push_back(std::move(op));
     return ptr;
 }
 

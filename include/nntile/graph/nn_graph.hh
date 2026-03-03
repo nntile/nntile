@@ -7,13 +7,13 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/nn_graph.hh
- * Forwarding header for NNGraph. Includes nn_graph/nn_graph.hh.
+ * Forwarding header for NNGraph. Includes nn/nn_graph.hh.
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/graph/nn_graph/nn_graph.hh>
-#include <nntile/graph/nn_graph/op_node.hh>
-#include <nntile/graph/nn_graph/tensor_node.hh>
+#include <nntile/graph/nn/nn_graph.hh>
+#include <nntile/graph/nn/op_node.hh>
+#include <nntile/graph/nn/tensor_node.hh>

@@ -3,14 +3,14 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
- * @file src/graph/nn_graph/tensor_node.cc
+ * @file src/graph/nn/tensor_node.cc
  * NNGraph::TensorNode implementation.
  *
  * @version 1.1.0
  * */
 
-#include "nntile/graph/nn_graph/tensor_node.hh"
-#include "nntile/graph/nn_graph/op_node.hh"
+#include "nntile/graph/nn/tensor_node.hh"
+#include "nntile/graph/nn/op_node.hh"
 
 #include <deque>
 #include <set>
@@ -163,7 +163,7 @@ void NNGraph::TensorNode::backward(bool retain_graph)
             continue;
         }
         op_done.insert(op);
-        op->run_backward();
+        op->backward();
     }
 
     if(!retain_graph)

@@ -81,11 +81,40 @@ TensorGraph::DataNode* add(
         output_name,
         x->dtype());
 
-    auto op = std::make_shared<TensorAddOp>(x, y, output, alpha, beta);
-
-    x->graph()->add_op(op);
+    add(alpha, x, beta, y, output);
 
     return output;
+}
+
+void add(
+    Scalar alpha,
+    TensorGraph::DataNode* x,
+    Scalar beta,
+    TensorGraph::DataNode* y,
+    TensorGraph::DataNode* z)
+{
+    if(x == nullptr || y == nullptr || z == nullptr)
+    {
+        throw std::invalid_argument("add: input tensors must be non-null");
+    }
+    if(x->graph() != y->graph() || x->graph() != z->graph())
+    {
+        throw std::invalid_argument(
+            "add: input tensors must belong to the same graph");
+    }
+    if(x->dtype() != y->dtype() || x->dtype() != z->dtype())
+    {
+        throw std::invalid_argument(
+            "add: input tensors must have the same dtype");
+    }
+    if(x->shape() != y->shape() || x->shape() != z->shape())
+    {
+        throw std::invalid_argument(
+            "add: input tensors must have the same shape");
+    }
+
+    auto op = std::make_shared<TensorAddOp>(x, y, z, alpha, beta);
+    x->graph()->add_op(op);
 }
 
 void TensorAddOp::execute(

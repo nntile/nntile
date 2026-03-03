@@ -78,12 +78,44 @@ TensorGraph::DataNode* add_fiber(
         output_name,
         tensor->dtype());
 
-    auto op = std::make_shared<TensorAddFiberOp>(
-        fiber, tensor, output, alpha, beta, axis, batch_ndim);
-
-    tensor->graph()->add_op(op);
+    add_fiber(alpha, fiber, beta, tensor, output, axis, batch_ndim);
 
     return output;
+}
+
+void add_fiber(
+    Scalar alpha,
+    TensorGraph::DataNode* fiber,
+    Scalar beta,
+    TensorGraph::DataNode* tensor,
+    TensorGraph::DataNode* output,
+    Index axis,
+    Index batch_ndim)
+{
+    if(fiber == nullptr || tensor == nullptr || output == nullptr)
+    {
+        throw std::invalid_argument(
+            "add_fiber: input tensors must be non-null");
+    }
+    if(fiber->graph() != tensor->graph() || fiber->graph() != output->graph())
+    {
+        throw std::invalid_argument(
+            "add_fiber: input tensors must belong to the same graph");
+    }
+    if(fiber->dtype() != tensor->dtype() || fiber->dtype() != output->dtype())
+    {
+        throw std::invalid_argument(
+            "add_fiber: input tensors must have the same dtype");
+    }
+    if(tensor->shape() != output->shape())
+    {
+        throw std::invalid_argument(
+            "add_fiber: output shape must match tensor shape");
+    }
+
+    auto op = std::make_shared<TensorAddFiberOp>(
+        fiber, tensor, output, alpha, beta, axis, batch_ndim);
+    fiber->graph()->add_op(op);
 }
 
 void TensorAddFiberOp::execute(

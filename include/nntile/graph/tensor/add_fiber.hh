@@ -59,21 +59,23 @@ struct TensorAddFiberOp : BaseOpNode<TensorGraph, TensorGraphNode>
     }
 };
 
-//! Add along fibers: output = alpha * fiber + beta * tensor
-//! @param alpha Scaling factor for fiber
-//! @param fiber Input fiber tensor (1D)
-//! @param beta Scaling factor for tensor
-//! @param tensor Input tensor to add fiber to
-//! @param output_name Name for the output tensor
-//! @param axis Axis along which to broadcast the fiber
-//! @param batch_ndim Number of trailing batch dimensions (default: 0)
-//! @return Pointer to the output tensor
+//! Add along fibers: output = alpha * fiber + beta * tensor (creates output)
 TensorGraph::DataNode* add_fiber(
     Scalar alpha,
     TensorGraph::DataNode* fiber,
     Scalar beta,
     TensorGraph::DataNode* tensor,
     const std::string& output_name,
+    Index axis,
+    Index batch_ndim = 0);
+
+//! Add along fibers: output = alpha * fiber + beta * tensor (uses existing output)
+void add_fiber(
+    Scalar alpha,
+    TensorGraph::DataNode* fiber,
+    Scalar beta,
+    TensorGraph::DataNode* tensor,
+    TensorGraph::DataNode* output,
     Index axis,
     Index batch_ndim = 0);
 

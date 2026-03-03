@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/nn_graph/gelu.hh
+ * @file include/nntile/graph/nn/gelu.hh
  * NNGraph GELU autograd operation.
  *
  * Forward: y = gelu(x)
@@ -19,28 +19,27 @@
 
 #include <string>
 
-#include <nntile/graph/tensor/gelu.hh>
 #include <nntile/graph/nn_graph.hh>
+#include <nntile/graph/nn/op_node.hh>
+#include <nntile/graph/tensor/gelu.hh>
 
 namespace nntile::graph
 {
 
-//! GELU op: y = gelu(x). Self-contained: holds tensors.
-struct NNGeluOp : NNBaseOpNode
+//! GELU op: y = gelu(x). PyTorch-style: outputs created in forward().
+struct NNGeluOp : NNGraph::OpNode
 {
     NNGraph::TensorNode* x = nullptr;
-    NNGraph::TensorNode* y = nullptr;
 
     NNGeluOp() = default;
-    NNGeluOp(NNGraph::TensorNode* x_, NNGraph::TensorNode* y_)
-        : x(x_), y(y_)
+    explicit NNGeluOp(NNGraph::TensorNode* x_)
+        : x(x_)
     {
         inputs_ = {x};
-        outputs_ = {y};
     }
 
-    void add_forward_to_tensor_graph(NNGraph& graph) override;
-    void backward() override;
+    NNGraph::TensorNode* forward(const std::string& output_name) override;
+    void backward() const override;
 };
 
 NNGraph::TensorNode* gelu(

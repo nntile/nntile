@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/graph/nn_graph/add.cc
+ * @file src/graph/nn/add.cc
  * NNGraph add operation implementation.
  *
  * @version 1.1.0
  * */
 
-#include "nntile/graph/nn_graph/add.hh"
-#include "nntile/graph/nn_graph/tensor_node.hh"
+#include "nntile/graph/nn/add.hh"
+#include "nntile/graph/nn/tensor_node.hh"
 
 #include <stdexcept>
 
@@ -23,23 +23,26 @@
 namespace nntile::graph
 {
 
-void NNAddOp::add_forward_to_tensor_graph(NNGraph& graph)
+NNGraph::TensorNode* NNAddOp::forward(const std::string& output_name)
 {
-    (void)graph;
-    if(x == nullptr || y == nullptr || z == nullptr)
+    if(x == nullptr || y == nullptr)
     {
         throw std::invalid_argument(
-            "NNAddOp::add_forward_to_tensor_graph: x, y, z must be non-null");
+            "NNAddOp::forward: x, y must be non-null");
     }
-    auto tg_op = std::make_shared<TensorAddOp>(
-        x->data(), y->data(), z->data(), alpha, beta);
-    x->graph().tensor_graph().add_op(tg_op);
+    NNGraph& graph = x->graph();
+    bool out_requires_grad = any_input_requires_grad({x, y});
+    NNGraph::TensorNode* z = graph.tensor(
+        x->shape(), output_name, x->dtype(), out_requires_grad);
+    outputs_ = {z};
+    graph::add(alpha, x->data(), beta, y->data(), z->data());
+    return z;
 }
 
-void NNAddOp::backward()
+void NNAddOp::backward() const
 {
     NNGraph& graph = x->graph();
-    NNGraph::TensorNode* grad_out = z->grad();
+    NNGraph::TensorNode* grad_out = output()->grad();
     if(grad_out == nullptr)
     {
         return;
@@ -70,12 +73,8 @@ NNGraph::TensorNode* add(
         throw std::invalid_argument("add: x and y must be non-null");
     }
     NNGraph& graph = x->graph();
-    bool out_requires_grad = any_input_requires_grad({x, y});
-    NNGraph::TensorNode* z = graph.tensor(
-        x->shape(), output_name, x->dtype(), out_requires_grad);
-
-    auto op = std::make_shared<NNAddOp>(x, y, z, alpha, beta);
-    op->add_forward_to_tensor_graph(graph);
+    auto op = std::make_shared<NNAddOp>(x, y, alpha, beta);
+    NNGraph::TensorNode* z = op->forward(output_name);
     register_op(graph, std::move(op));
     return z;
 }

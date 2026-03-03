@@ -3,7 +3,7 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
- * @file tests/graph/nn_graph/grad_mode.cc
+ * @file tests/graph/nn/grad_mode.cc
  * Tests for GradMode (no_grad) - ops don't set producer when disabled.
  *
  * @version 1.1.0
