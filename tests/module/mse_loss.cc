@@ -28,4 +28,3 @@ TEST_CASE("MseLoss BuildForward", "[module]")
     REQUIRE(loss.shape().empty());
     REQUIRE(loss.name() == "mse_loss");
 }
-
