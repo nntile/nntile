@@ -68,13 +68,29 @@ void NNGemmOp::backward() const
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
         if(!trans_a)
         {
-            graph::gemm(grad_out->data(), b->data(), grad_a->data(),
-                       alpha, beta, false, !trans_b, ndim, batch_ndim);
+            graph::gemm(
+                grad_out->data(),
+                b->data(),
+                grad_a->data(),
+                alpha,
+                beta,
+                false,
+                !trans_b,
+                b->ndim() - batch_ndim - ndim,
+                batch_ndim);
         }
         else
         {
-            graph::gemm(b->data(), grad_out->data(), grad_a->data(),
-                       alpha, beta, trans_b, true, ndim, batch_ndim);
+            graph::gemm(
+                b->data(),
+                grad_out->data(),
+                grad_a->data(),
+                alpha,
+                beta,
+                trans_b,
+                true,
+                b->ndim() - batch_ndim - ndim,
+                batch_ndim);
         }
     }
     if(b != nullptr && b->requires_grad())
@@ -84,13 +100,29 @@ void NNGemmOp::backward() const
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
         if(!trans_b)
         {
-            graph::gemm(a->data(), grad_out->data(), grad_b->data(),
-                       alpha, beta, !trans_a, false, ndim, batch_ndim);
+            graph::gemm(
+                a->data(),
+                grad_out->data(),
+                grad_b->data(),
+                alpha,
+                beta,
+                !trans_a,
+                false,
+                a->ndim() - batch_ndim - ndim,
+                batch_ndim);
         }
         else
         {
-            graph::gemm(grad_out->data(), a->data(), grad_b->data(),
-                       alpha, beta, true, trans_a, ndim, batch_ndim);
+            graph::gemm(
+                grad_out->data(),
+                a->data(),
+                grad_b->data(),
+                alpha,
+                beta,
+                true,
+                trans_a,
+                a->ndim() - batch_ndim - ndim,
+                batch_ndim);
         }
     }
 }

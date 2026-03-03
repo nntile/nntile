@@ -83,6 +83,43 @@ inline std::vector<T> colmajor_to_rowmajor(const std::vector<T>& data,
     return result;
 }
 
+//! Permute data from row-major layout. perm[i] = source dim for output dim i.
+//! E.g. perm {2,0,1} on shape [M,N,B] yields [B,M,N] layout.
+template<typename T>
+inline std::vector<T> permute_rowmajor(const std::vector<T>& data,
+                                      const std::vector<Index>& shape,
+                                      const std::vector<Index>& perm)
+{
+    const Index ndim = static_cast<Index>(shape.size());
+    std::vector<Index> out_shape(ndim);
+    for(Index i = 0; i < ndim; ++i)
+        out_shape[i] = shape[perm[i]];
+    std::vector<Index> in_strides(ndim);
+    in_strides[ndim - 1] = 1;
+    for(Index i = ndim - 2; i >= 0; --i)
+        in_strides[i] = in_strides[i + 1] * shape[i + 1];
+    std::vector<Index> out_strides(ndim);
+    out_strides[ndim - 1] = 1;
+    for(Index i = ndim - 2; i >= 0; --i)
+        out_strides[i] = out_strides[i + 1] * out_shape[i + 1];
+    std::vector<T> result(data.size());
+    std::vector<Index> coord(ndim);
+    for(Index out_idx = 0; out_idx < static_cast<Index>(data.size()); ++out_idx)
+    {
+        Index idx = out_idx;
+        for(Index d = ndim - 1; d >= 0; --d)
+        {
+            coord[d] = idx % out_shape[d];
+            idx /= out_shape[d];
+        }
+        Index in_idx = 0;
+        for(Index d = 0; d < ndim; ++d)
+            in_idx += coord[d] * in_strides[perm[d]];
+        result[out_idx] = data[in_idx];
+    }
+    return result;
+}
+
 } // namespace nntile::test
 
 #endif // NNTILE_HAVE_TORCH
