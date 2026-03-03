@@ -32,6 +32,7 @@ set(TESTS_NN_PYTORCH
     "gemm"
     "relu"
     "silu"
+    "softmax"
     "sum_fiber"
 )  # Tests with PyTorch comparison (need NNTILE_HAVE_TORCH)
 
