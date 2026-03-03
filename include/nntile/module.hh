@@ -19,5 +19,5 @@
 #include <nntile/module/linear.hh>
 #include <nntile/module/gelu.hh>
 #include <nntile/module/mlp.hh>
-#include <nntile/module/mse_loss.hh>
-#include <nntile/module/sdpa.hh>
+// #include <nntile/module/mse_loss.hh>
+// #include <nntile/module/sdpa.hh>

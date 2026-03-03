@@ -18,6 +18,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <nntile/base_types.hh>
@@ -102,9 +103,11 @@ public:
     bool requires_grad(const TensorNode* tensor) const;
     void set_requires_grad(TensorNode* tensor, bool requires = true);
 
-    bool is_first_grad(const TensorNode* tensor) const;
-
-    TensorNode* get_or_create_grad(
+    //! Get or create gradient tensor. Does NOT add CLEAR.
+    //! Returns (grad_tensor, is_first_write): is_first_write is true when
+    //! the gradient was just created, so the caller should use overwrite
+    //! (beta=0); false means accumulate (beta=1).
+    std::pair<TensorNode*, bool> get_or_create_grad(
         TensorNode* tensor,
         const std::string& grad_name);
 

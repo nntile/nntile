@@ -11,11 +11,13 @@
 set(TESTS_NN_CATCH2
     "add"
     "add_fiber"
+    "embedding"
     "gelu"
     "gelutanh"
     "gemm"
     "grad_mode"
     "relu"
+    "rope"
     "silu"
     "softmax"
     "sum_fiber"

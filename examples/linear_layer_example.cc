@@ -55,10 +55,10 @@ int main(int argc, char** argv) {
     output_tensor.mark_output(true);  // get_output() requires output marking
 
     // Attach an external gradient to the output (e.g., loss gradient)
-    auto* grad_output_tensor = graph.get_or_create_grad(
+    auto [grad_output_tensor, _] = graph.get_or_create_grad(
         &output_tensor,
         "external_grad_output");
-    grad_output_tensor->mark_input(true);  // bind_data() requires input marking
+    nntile::graph::fill(nntile::Scalar(1.0f), grad_output_tensor);
 
     // Mark parameter tensors for bind_data (weight)
     linear.weight_tensor()->mark_input(true);
@@ -101,10 +101,6 @@ int main(int argc, char** argv) {
         val = dist2(gen);
     }
     runtime.bind_data(linear.weight_tensor()->name(), weight_data);
-
-    // Initialize gradient data (for backward pass)
-    std::vector<float> grad_output_data(4 * 4, 1.0f);
-    runtime.bind_data(grad_output_tensor->name(), grad_output_data);
 
     // Execute the graph (contains both forward and backward operations)
     auto start = std::chrono::high_resolution_clock::now();

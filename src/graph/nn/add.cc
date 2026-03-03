@@ -55,18 +55,16 @@ void NNAddOp::backward() const
     }
     if(x != nullptr && x->requires_grad())
     {
-        bool first = graph->is_first_grad(x);
-        NNGraph::TensorNode* grad_x =
+        auto [grad_x, is_first] =
             graph->get_or_create_grad(x, x->name() + "_grad");
-        Scalar grad_beta = first ? grad_overwrite : grad_accumulate;
+        Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
         graph::add_inplace(alpha, grad_out->data(), grad_beta, grad_x->data());
     }
     if(y != nullptr && y->requires_grad())
     {
-        bool first = graph->is_first_grad(y);
-        NNGraph::TensorNode* grad_y =
+        auto [grad_y, is_first] =
             graph->get_or_create_grad(y, y->name() + "_grad");
-        Scalar grad_beta = first ? grad_overwrite : grad_accumulate;
+        Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
         graph::add_inplace(beta, grad_out->data(), grad_beta, grad_y->data());
     }
 }

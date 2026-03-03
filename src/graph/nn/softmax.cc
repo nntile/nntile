@@ -97,8 +97,7 @@ void NNSoftmaxOp::backward() const
     NNGraph::TensorNode* sumprod_buf = buffers_[0];
     NNGraph::TensorNode* grad_temp = buffers_[1];
 
-    bool first = graph->is_first_grad(x);
-    NNGraph::TensorNode* grad_x =
+    auto [grad_x, is_first] =
         graph->get_or_create_grad(x, x->name() + "_grad");
 
     graph::sumprod_slice(
@@ -108,7 +107,8 @@ void NNSoftmaxOp::backward() const
                     grad_temp->data(), axis);
     graph::multiply_inplace(1.0, y->data(), grad_temp->data());
     graph::add_inplace(1.0, grad_temp->data(),
-                      first ? grad_overwrite : grad_accumulate, grad_x->data());
+                      is_first ? grad_overwrite : grad_accumulate,
+                      grad_x->data());
 }
 
 NNGraph::TensorNode* softmax(

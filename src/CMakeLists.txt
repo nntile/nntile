@@ -480,10 +480,12 @@ set(GRAPH_NN_SRC
     "graph/nn/tensor_node.cc"
     "graph/nn/add.cc"
     "graph/nn/add_fiber.cc"
+    "graph/nn/embedding.cc"
     "graph/nn/gemm.cc"
     "graph/nn/gelu.cc"
     "graph/nn/gelutanh.cc"
     "graph/nn/relu.cc"
+    "graph/nn/rope.cc"
     "graph/nn/silu.cc"
     "graph/nn/softmax.cc"
     "graph/nn/sum_fiber.cc"
@@ -493,18 +495,15 @@ set(GRAPH_NN_SRC
 
 set(GRAPH_SRC ${GRAPH_CORE_SRC} ${GRAPH_NN_SRC})
 
-# Module implementations (optional)
-set(MODULE_SRC)
-if(NNTILE_BUILD_MODULES)
-    set(MODULE_SRC
-        "module/module.cc"
-        "module/gelu.cc"
-        "module/mlp.cc"
-        "module/linear.cc"
-        "module/mse_loss.cc"
-        "module/sdpa.cc"
-    )
-endif()
+# Module implementations
+set(MODULE_SRC
+    "module/module.cc"
+    "module/gelu.cc"
+    "module/mlp.cc"
+    "module/linear.cc"
+    # "module/mse_loss.cc"
+    # "module/sdpa.cc"
+)
 
 # Set the list of all sources
 set(NNTILE_SRC

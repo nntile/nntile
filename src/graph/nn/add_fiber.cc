@@ -58,19 +58,17 @@ void NNAddFiberOp::backward() const
     }
     if(fiber != nullptr && fiber->requires_grad())
     {
-        bool first = graph->is_first_grad(fiber);
-        NNGraph::TensorNode* grad_fiber =
+        auto [grad_fiber, is_first] =
             graph->get_or_create_grad(fiber, fiber->name() + "_grad");
         graph::sum_fiber(grad_out->data(), grad_fiber->data(), axis,
                         batch_ndim, sum_fiber_redux, alpha,
-                        first ? grad_overwrite : grad_accumulate);
+                        is_first ? grad_overwrite : grad_accumulate);
     }
     if(tensor != nullptr && tensor->requires_grad())
     {
-        bool first = graph->is_first_grad(tensor);
-        NNGraph::TensorNode* grad_tensor =
+        auto [grad_tensor, is_first] =
             graph->get_or_create_grad(tensor, tensor->name() + "_grad");
-        Scalar grad_beta = first ? grad_overwrite : grad_accumulate;
+        Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
         graph::add_inplace(beta, grad_out->data(), grad_beta,
                           grad_tensor->data());
     }

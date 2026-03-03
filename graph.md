@@ -141,8 +141,10 @@ GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
 - `NNGraph::TensorNode` points to a `TensorGraph::DataNode` (via `.data()`) and
   tracks `grad` and `requires_grad`.
 - `mark_input()` / `mark_output()` delegate to the underlying data node.
-- `get_or_create_grad()` creates a gradient tensor in the underlying
-  `TensorGraph` and clears it via `clear()`.
+- `get_or_create_grad(tensor, grad_name)` returns `(grad_tensor, is_first_write)`.
+  It does NOT add a CLEAR op. Use `is_first_write` to choose overwrite (beta=0)
+  or accumulate (beta=1) in backward ops. Ops that use `+=` (e.g., gelu_backward)
+  must add `clear(grad->data())` when `is_first_write` before the backward op.
 
 Autograd operations use `TensorGraph` ops for forward. For `NNGraph::TensorNode* x`,
 pass `x->data()` to tensor ops to get `TensorGraph::TensorNode*`.

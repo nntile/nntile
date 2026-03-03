@@ -63,7 +63,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(x->is_leaf());
     REQUIRE(y->is_leaf());
 
-    auto* z_grad = g.get_or_create_grad(z, "z_grad");
+    auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     fill(grad_fill_val, z_grad->data());
     z->backward();
 
@@ -94,7 +94,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* w = add(add_alpha, x, add_beta, y, "w");
     auto* z = add(add_alpha, w, add_beta, u, "z");
 
-    auto* z_grad = g.get_or_create_grad(z, "z_grad");
+    auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     fill(grad_fill_val, z_grad->data());
     z->backward();
 
@@ -119,7 +119,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* v = add(add_alpha, w, add_beta, y, "v");
     auto* z = add(add_alpha, v, add_beta, w, "z");
 
-    auto* z_grad = g.get_or_create_grad(z, "z_grad");
+    auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     fill(grad_fill_val, z_grad->data());
     z->backward();
 
@@ -146,7 +146,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(z->has_producer());
     REQUIRE(z->shape() == (std::vector<Index>{2, 3}));
 
-    auto* z_grad = g.get_or_create_grad(z, "z_grad");
+    auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     fill(grad_fill_val, z_grad->data());
     z->backward();
 

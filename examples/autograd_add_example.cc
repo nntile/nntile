@@ -53,7 +53,7 @@ int main(int argc, char** argv)
               << ", y_requires_grad=" << y_requires_grad << std::endl;
 
     // Set grad_z = 1, then backward
-    auto* z_grad = g.get_or_create_grad(z, "z_grad");
+    auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     fill(nntile::Scalar(1.0), z_grad->data());
     z->backward();
 

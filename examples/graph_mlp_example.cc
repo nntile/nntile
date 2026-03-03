@@ -55,10 +55,10 @@ int main(int argc, char** argv) {
     output_tensor.mark_output(true);  // get_output() requires output marking
 
     // Attach an external gradient to the output (e.g., loss gradient)
-    auto* grad_output_tensor = graph.get_or_create_grad(
+    auto [grad_output_tensor, _] = graph.get_or_create_grad(
         &output_tensor,
         "external_grad_output");
-    grad_output_tensor->mark_input(true);  // bind_data() requires input marking
+    nntile::graph::fill(nntile::Scalar(1.0f), grad_output_tensor);
 
     // Mark parameter tensors for bind_data (weights)
     mlp.fc1().weight_tensor()->mark_input(true);
@@ -107,10 +107,6 @@ int main(int argc, char** argv) {
 
     runtime.bind_data(mlp.fc1().weight_tensor()->name(), w1_data);
     runtime.bind_data(mlp.fc2().weight_tensor()->name(), w2_data);
-
-    // Initialize gradient data (for backward pass): 4 batches x 4 output features
-    std::vector<float> grad_output_data(4 * 4, 1.0f);
-    runtime.bind_data(grad_output_tensor->name(), grad_output_data);
 
     std::cout << "=== MLP Forward/Backward Pass ===" << std::endl;
 

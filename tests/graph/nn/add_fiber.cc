@@ -67,7 +67,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* out = add_fiber(alpha, fiber, beta, tensor, "out",
                          axis, batch_ndim_none);
 
-    auto* out_grad = g.get_or_create_grad(out, "out_grad");
+    auto [out_grad, _] = g.get_or_create_grad(out, "out_grad");
     fill(grad_fill_val, out_grad->data());
     out->backward();
 
@@ -103,7 +103,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(out->has_producer());
     REQUIRE(out->shape() == tensor_shape);
 
-    auto* out_grad = g.get_or_create_grad(out, "out_grad");
+    auto [out_grad, _] = g.get_or_create_grad(out, "out_grad");
     fill(grad_fill_val, out_grad->data());
     out->backward();
 

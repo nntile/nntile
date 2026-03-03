@@ -20,8 +20,6 @@
 #include <stdexcept>
 #include <utility>
 
-#include "nntile/graph/tensor/clear.hh"
-
 namespace nntile::graph
 {
 
@@ -114,12 +112,7 @@ void NNGraph::set_requires_grad(TensorNode* tensor, bool requires)
     }
 }
 
-bool NNGraph::is_first_grad(const TensorNode* tensor) const
-{
-    return tensor != nullptr && tensor->grad() == nullptr;
-}
-
-NNGraph::TensorNode* NNGraph::get_or_create_grad(
+std::pair<NNGraph::TensorNode*, bool> NNGraph::get_or_create_grad(
     TensorNode* tensor,
     const std::string& grad_name)
 {
@@ -137,7 +130,7 @@ NNGraph::TensorNode* NNGraph::get_or_create_grad(
                 "' already has gradient '" + tensor->grad()->name() +
                 "' but caller requested '" + grad_name + "'");
         }
-        return tensor->grad();
+        return {tensor->grad(), false};
     }
 
     TensorGraph::TensorNode* grad_data = tensor_graph_.data(
@@ -149,12 +142,9 @@ NNGraph::TensorNode* NNGraph::get_or_create_grad(
     tensors_.push_back(std::move(grad_node));
     tensor_by_name_[grad_name] = grad_ptr;
 
-    // Clear freshly registered gradient tensor
-    clear(grad_data);
-
     tensor->set_grad(grad_ptr);
     tensor->set_requires_grad(true);
-    return grad_ptr;
+    return {grad_ptr, true};
 }
 
 NNGraph::OpNode* NNGraph::create_op(std::shared_ptr<OpNode> op)

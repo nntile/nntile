@@ -509,8 +509,10 @@ set(GRAPH_HDR
     "nntile/graph/nn/add_fiber.hh"
     "nntile/graph/nn/gemm.hh"
     "nntile/graph/nn/gelu.hh"
+    "nntile/graph/nn/embedding.hh"
     "nntile/graph/nn/gelutanh.hh"
     "nntile/graph/nn/relu.hh"
+    "nntile/graph/nn/rope.hh"
     "nntile/graph/nn/silu.hh"
     "nntile/graph/nn/softmax.hh"
     "nntile/graph/nn/sum_fiber.hh"
@@ -518,18 +520,15 @@ set(GRAPH_HDR
     "nntile/graph/nn/fill.hh"
     )
 
-set(MODULE_HDR)
-if(NNTILE_BUILD_MODULES)
-    set(MODULE_HDR
-        "nntile/module.hh"
-        "nntile/module/module.hh"
-        "nntile/module/gelu.hh"
-        "nntile/module/linear.hh"
-        "nntile/module/mlp.hh"
-        "nntile/module/mse_loss.hh"
-        "nntile/module/sdpa.hh"
-    )
-endif()
+set(MODULE_HDR
+    "nntile/module.hh"
+    "nntile/module/module.hh"
+    "nntile/module/gelu.hh"
+    "nntile/module/linear.hh"
+    "nntile/module/mlp.hh"
+    # "nntile/module/mse_loss.hh"
+    # "nntile/module/sdpa.hh"
+)
 
 set(OPTIMIZER_HDR
     #"nntile/optimizer.hh"

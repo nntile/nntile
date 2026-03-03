@@ -65,7 +65,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* c = gemm(a, b, "c", gemm_alpha_one, trans_a_default, trans_b_default,
                    ndim_one, batch_ndim_none);
 
-    auto* c_grad = g.get_or_create_grad(c, "c_grad");
+    auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
     fill(grad_fill_val, c_grad->data());
     c->backward();
 
@@ -93,7 +93,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(c->has_producer());
     REQUIRE(c->shape() == (std::vector<Index>{M, N}));
 
-    auto* c_grad = g.get_or_create_grad(c, "c_grad");
+    auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
     fill(grad_fill_val, c_grad->data());
     c->backward();
 
@@ -122,7 +122,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(c != nullptr);
         REQUIRE(c->shape() == (std::vector<Index>{2, 3}));
 
-        auto* c_grad = g.get_or_create_grad(c, "c_grad");
+        auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
         fill(grad_fill_val, c_grad->data());
 
         REQUIRE_NOTHROW(c->backward());
@@ -146,7 +146,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(c != nullptr);
         REQUIRE(c->shape() == (std::vector<Index>{2, 3}));
 
-        auto* c_grad = g.get_or_create_grad(c, "c_grad");
+        auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
         fill(grad_fill_val, c_grad->data());
 
         REQUIRE_NOTHROW(c->backward());

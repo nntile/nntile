@@ -94,18 +94,19 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     g.set_requires_grad(x, false);
     REQUIRE_FALSE(g.requires_grad(x));
 
-    auto* grad = g.get_or_create_grad(x, "x_grad");
+    auto [grad, is_first] = g.get_or_create_grad(x, "x_grad");
     REQUIRE(x->has_grad());
     REQUIRE(grad == x->grad());
     REQUIRE(x->requires_grad());
     REQUIRE_FALSE(grad->requires_grad());
     REQUIRE_FALSE(g.requires_grad(grad));
-    REQUIRE(g.tensor_graph().num_ops() == 1);
-    REQUIRE(g.tensor_graph().ops().front()->op_name() == "CLEAR");
+    REQUIRE(is_first);
+    REQUIRE(g.tensor_graph().num_ops() == 0);  // no CLEAR
 
-    auto* grad_again = g.get_or_create_grad(x, "x_grad");
+    auto [grad_again, is_first_again] = g.get_or_create_grad(x, "x_grad");
     REQUIRE(grad_again == grad);
-    REQUIRE(g.tensor_graph().num_ops() == 1);
+    REQUIRE_FALSE(is_first_again);
+    REQUIRE(g.tensor_graph().num_ops() == 0);
 
     REQUIRE_THROWS_AS(g.get_or_create_grad(x, "different_grad_name"),
         std::invalid_argument);
@@ -197,7 +198,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE_FALSE(y->has_producer());
 
     // Set upstream gradient before backward (required)
-    auto* z_grad = g.get_or_create_grad(z, "z_grad");
+    auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     fill(grad_fill_val, z_grad->data());
 
     // Build backward graph (PyTorch-style)
@@ -249,7 +250,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(w->requires_grad());
     REQUIRE(w->has_producer());
 
-    auto* z_grad = g.get_or_create_grad(z, "z_grad");
+    auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     fill(grad_fill_val, z_grad->data());
     z->backward();
 
@@ -277,7 +278,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* v = add(add_alpha, w, add_beta, y, "v");
     auto* z = add(add_alpha, v, add_beta, w, "z");
 
-    auto* z_grad = g.get_or_create_grad(z, "z_grad");
+    auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     fill(grad_fill_val, z_grad->data());
     z->backward();
 
@@ -303,7 +304,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE_THROWS_AS(z->backward(), std::invalid_argument);
 
     // After setting grad, backward succeeds
-    auto* z_grad = g.get_or_create_grad(z, "z_grad");
+    auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     fill(grad_fill_val, z_grad->data());
     REQUIRE_NOTHROW(z->backward());
 }

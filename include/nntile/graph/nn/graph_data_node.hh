@@ -76,6 +76,8 @@ public:
 
     //! Autograd: propagate upstream gradient through the computation graph.
     //! Grad must be set beforehand (get_or_create_grad + fill/bind).
+    //! get_or_create_grad does NOT add CLEAR; backward ops use beta for
+    //! overwrite vs accumulate based on the is_first flag.
     //! Does NOT fill grad with ones - user must provide upstream gradient.
     //! When retain_graph is false (default), clears op_nodes_ and producer_
     //! after backward so backward cannot be called again.

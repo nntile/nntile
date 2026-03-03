@@ -58,10 +58,9 @@ void NNGemmOp::backward() const
     }
     if(a != nullptr && a->requires_grad())
     {
-        bool first = graph->is_first_grad(a);
-        NNGraph::TensorNode* grad_a =
+        auto [grad_a, is_first] =
             graph->get_or_create_grad(a, a->name() + "_grad");
-        Scalar beta = first ? grad_overwrite : grad_accumulate;
+        Scalar beta = is_first ? grad_overwrite : grad_accumulate;
         if(!trans_a)
         {
             graph::gemm(grad_out->data(), b->data(), grad_a->data(),
@@ -75,10 +74,9 @@ void NNGemmOp::backward() const
     }
     if(b != nullptr && b->requires_grad())
     {
-        bool first = graph->is_first_grad(b);
-        NNGraph::TensorNode* grad_b =
+        auto [grad_b, is_first] =
             graph->get_or_create_grad(b, b->name() + "_grad");
-        Scalar beta = first ? grad_overwrite : grad_accumulate;
+        Scalar beta = is_first ? grad_overwrite : grad_accumulate;
         if(!trans_b)
         {
             graph::gemm(a->data(), grad_out->data(), grad_b->data(),

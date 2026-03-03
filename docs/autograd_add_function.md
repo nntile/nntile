@@ -128,7 +128,7 @@ In `backward()`, you receive gradients via `output()->grad()` and propagate to i
 
 **Accumulation rules:**
 
-- **First gradient** — use `graph.is_first_grad(input)` to decide whether to clear or accumulate. If first, use `beta=0` (or `clear`) so the result is overwritten; otherwise use `beta=1` to accumulate.
+- **First gradient** — `get_or_create_grad` returns `(grad_tensor, is_first_write)`. Use `is_first_write` to choose overwrite (beta=0) or accumulate (beta=1). For ops that use `+=` (e.g., gelu_backward), add `clear(grad->data())` when `is_first_write` before the backward op.
 - **In-place ops** — use tensor in-place ops (e.g., `add_inplace`) to add into the gradient tensor.
 
 Example (from `add.cc`):
@@ -136,36 +136,33 @@ Example (from `add.cc`):
 ```cpp
 void NNAddOp::backward() const
 {
-    NNGraph& graph = x->graph();
+    NNGraph* graph = x->graph();
     NNGraph::TensorNode* grad_out = output()->grad();
     if(grad_out == nullptr)
         return;
 
     if(x != nullptr && x->requires_grad()) {
-        bool first = graph.is_first_grad(x);
-        NNGraph::TensorNode* grad_x =
-            graph.get_or_create_grad(x, x->name() + "_grad");
-        Scalar grad_beta = first ? 0.0 : 1.0;
+        auto [grad_x, is_first] =
+            graph->get_or_create_grad(x, x->name() + "_grad");
+        Scalar grad_beta = is_first ? 0.0 : 1.0;
         graph::add_inplace(alpha, grad_out->data(), grad_beta, grad_x->data());
     }
     if(y != nullptr && y->requires_grad()) {
-        bool first = graph.is_first_grad(y);
-        NNGraph::TensorNode* grad_y =
-            graph.get_or_create_grad(y, y->name() + "_grad");
-        Scalar grad_beta = first ? 0.0 : 1.0;
+        auto [grad_y, is_first] =
+            graph->get_or_create_grad(y, y->name() + "_grad");
+        Scalar grad_beta = is_first ? 0.0 : 1.0;
         graph::add_inplace(beta, grad_out->data(), grad_beta, grad_y->data());
     }
 }
 ```
 
-Example with first-grad handling (from `gelu.cc`):
+Example with first-grad handling for ops that use `+=` (from `gelu.cc`):
 
 ```cpp
 if(x != nullptr && x->requires_grad()) {
-    bool first = graph.is_first_grad(x);
-    NNGraph::TensorNode* grad_x =
-        graph.get_or_create_grad(x, x->name() + "_grad");
-    if(first)
+    auto [grad_x, is_first] =
+        graph->get_or_create_grad(x, x->name() + "_grad");
+    if(is_first)
         graph::clear(grad_x->data());
     graph::gelu_backward(x->data(), grad_out->data(), grad_x->data());
 }
@@ -222,7 +219,7 @@ Ensure your new `.cc` file is added to the build (e.g., in `src/CMakeLists.txt`)
 - [ ] Header: struct with inputs only, `forward(output_name)` returns `TensorNode*`, `backward()` const
 - [ ] Forward: validate inputs, create output via `graph.tensor()`, set `outputs_`, add tensor ops, return output
 - [ ] Backward: use `output()->grad()`, propagate via tensor ops to `grad_x->data()`, etc.
-- [ ] Handle `is_first_grad` when accumulating gradients
+- [ ] Use `(grad, is_first)` from `get_or_create_grad` for overwrite vs accumulate
 - [ ] Free function: create op with inputs, call `op->forward(output_name)`, `register_op`, return output
 - [ ] Include in `nn/graph_ops.hh`
 - [ ] Add to build system

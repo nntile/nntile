@@ -49,8 +49,9 @@ void NNSiluOp::backward() const
     }
     if(x != nullptr && x->requires_grad())
     {
-        NNGraph::TensorNode* grad_x =
+        auto [grad_x, is_first] =
             graph->get_or_create_grad(x, x->name() + "_grad");
+        (void)is_first;  // silu_backward overwrites; no beta
         graph::silu_backward(x->data(), grad_out->data(), grad_x->data());
     }
 }
