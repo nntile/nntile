@@ -29,13 +29,13 @@ namespace
 
 template<typename T>
 void run_softmax_inplace(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar alpha, Index axis,
     TensorGraph::TensorNode* maxsumexp,
     TensorGraph::TensorNode* dst)
 {
-    auto& maxsumexp_t = ctx.get_tensor<T>(maxsumexp);
-    auto& dst_t = ctx.get_tensor<T>(dst);
+    auto& maxsumexp_t = runtime.get_tensor<T>(maxsumexp);
+    auto& dst_t = runtime.get_tensor<T>(dst);
     nntile::tensor::softmax_inplace<T>(maxsumexp_t, alpha, dst_t, axis);
 }
 
@@ -70,39 +70,39 @@ void softmax_inplace(
 }
 
 void TensorSoftmaxInplaceOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(maxsumexp);
+    DataType dtype = runtime.get_dtype(maxsumexp);
 
     switch(dtype)
     {
         case DataType::FP32:
             run_softmax_inplace<nntile::fp32_t>(
-                ctx, alpha, axis, maxsumexp, dst);
+                runtime, alpha, axis, maxsumexp, dst);
             break;
         case DataType::FP32_FAST_TF32:
             run_softmax_inplace<nntile::fp32_fast_tf32_t>(
-                ctx, alpha, axis, maxsumexp, dst);
+                runtime, alpha, axis, maxsumexp, dst);
             break;
         case DataType::FP32_FAST_FP16:
             run_softmax_inplace<nntile::fp32_fast_fp16_t>(
-                ctx, alpha, axis, maxsumexp, dst);
+                runtime, alpha, axis, maxsumexp, dst);
             break;
         case DataType::FP32_FAST_BF16:
             run_softmax_inplace<nntile::fp32_fast_bf16_t>(
-                ctx, alpha, axis, maxsumexp, dst);
+                runtime, alpha, axis, maxsumexp, dst);
             break;
         case DataType::FP64:
             run_softmax_inplace<nntile::fp64_t>(
-                ctx, alpha, axis, maxsumexp, dst);
+                runtime, alpha, axis, maxsumexp, dst);
             break;
         case DataType::FP16:
             run_softmax_inplace<nntile::fp16_t>(
-                ctx, alpha, axis, maxsumexp, dst);
+                runtime, alpha, axis, maxsumexp, dst);
             break;
         case DataType::BF16:
             run_softmax_inplace<nntile::bf16_t>(
-                ctx, alpha, axis, maxsumexp, dst);
+                runtime, alpha, axis, maxsumexp, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/compiled/graph.hh
- * CompiledGraph - runtime execution of a TensorGraph.
+ * @file include/nntile/graph/tensor/graph_runtime.hh
+ * TensorGraph::Runtime - runtime execution of a TensorGraph.
  *
  * @version 1.1.0
  * */
@@ -27,22 +27,23 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
-#include <nntile/graph/tensor/graph.hh>
+#include <nntile/graph/tensor/graph_decl.hh>
+#include <nntile/graph/tensor/graph_data_node.hh>
 #include <nntile/tensor/tensor.hh>
 
 namespace nntile::graph
 {
 
-//! Compiled graph - holds runtime state for executing a TensorGraph.
+//! Runtime - holds runtime state for executing a TensorGraph.
 //! Takes a reference to the symbolic graph; compile() allocates and builds
 //! execution order; execute() runs the ops.
-class CompiledGraph
+class TensorGraph::Runtime
 {
 public:
     using TensorNode = TensorGraph::TensorNode;
     using OpNode = TensorGraph::OpNode;
 
-    explicit CompiledGraph(const TensorGraph& graph);
+    explicit Runtime(const TensorGraph& graph);
 
     //! Compile the graph for execution. Allocates runtime data.
     void compile();
@@ -65,14 +66,24 @@ public:
     template<typename T>
     std::vector<T> get_output(const std::string& name);
 
-    //! Get typed runtime data (for operation implementations)
+    //! Get typed runtime data by name (for bind_data, get_output)
     template<typename T>
     nntile::tensor::Tensor<T>& get_data(const std::string& name);
 
-    //! Get data type of a data node
+    //! Get typed runtime tensor for a data node (used by OpNode::execute)
+    template<typename T>
+    nntile::tensor::Tensor<T>& get_tensor(const TensorNode* node);
+
+    //! Get data type of a data node by name
     DataType get_dtype(const std::string& name) const
     {
         return data_dtypes_.at(name);
+    }
+
+    //! Get data type of a data node
+    DataType get_dtype(const TensorNode* node) const
+    {
+        return node->dtype();
     }
 
     //! True if compile() has been called
@@ -85,7 +96,7 @@ private:
     void invalidate_unused_inputs(size_t op_idx);
 
     const TensorGraph& graph_;
-    TensorGraph::ExecutionContext ctx_;
+    std::map<const TensorNode*, std::shared_ptr<void>> tensor_map_;
     std::map<std::string, std::shared_ptr<void>> runtime_data_;
     std::map<std::string, DataType> data_dtypes_;
     std::vector<std::shared_ptr<OpNode>> execution_order_;
@@ -100,7 +111,7 @@ private:
 // -----------------------------------------------------------------------------
 
 template<typename T>
-nntile::tensor::Tensor<T>& CompiledGraph::get_data(const std::string& name)
+nntile::tensor::Tensor<T>& TensorGraph::Runtime::get_data(const std::string& name)
 {
     auto it = runtime_data_.find(name);
     if(it == runtime_data_.end())
@@ -111,8 +122,27 @@ nntile::tensor::Tensor<T>& CompiledGraph::get_data(const std::string& name)
 }
 
 template<typename T>
-void CompiledGraph::bind_data(const std::string& name, const T* data,
-                              size_t count)
+nntile::tensor::Tensor<T>& TensorGraph::Runtime::get_tensor(
+    const TensorNode* node)
+{
+    auto it = tensor_map_.find(node);
+    if(it == tensor_map_.end())
+    {
+        throw std::runtime_error(
+            "Runtime::get_tensor: node not found");
+    }
+    auto ptr = std::static_pointer_cast<nntile::tensor::Tensor<T>>(it->second);
+    if(!ptr)
+    {
+        throw std::runtime_error(
+            "Runtime::get_tensor: wrong type");
+    }
+    return *ptr;
+}
+
+template<typename T>
+void TensorGraph::Runtime::bind_data(const std::string& name, const T* data,
+                                    size_t count)
 {
     auto it = runtime_data_.find(name);
     if(it == runtime_data_.end())
@@ -279,14 +309,14 @@ void CompiledGraph::bind_data(const std::string& name, const T* data,
 }
 
 template<typename T>
-void CompiledGraph::bind_data(const std::string& name,
-                              const std::vector<T>& data)
+void TensorGraph::Runtime::bind_data(const std::string& name,
+                                    const std::vector<T>& data)
 {
     bind_data(name, data.data(), data.size());
 }
 
 template<typename T>
-std::vector<T> CompiledGraph::get_output(const std::string& name)
+std::vector<T> TensorGraph::Runtime::get_output(const std::string& name)
 {
     auto data_it = runtime_data_.find(name);
     if(data_it == runtime_data_.end())

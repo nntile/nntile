@@ -29,13 +29,13 @@ namespace
 
 template<typename T>
 void run_norm(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar alpha, Scalar beta,
     TensorGraph::TensorNode* x,
     TensorGraph::TensorNode* y)
 {
-    auto& x_t = ctx.get_tensor<T>(x);
-    auto& y_t = ctx.get_tensor<T>(y);
+    auto& x_t = runtime.get_tensor<T>(x);
+    auto& y_t = runtime.get_tensor<T>(y);
     nntile::tensor::norm<T>(alpha, x_t, beta, y_t);
 }
 
@@ -69,32 +69,32 @@ void norm(TensorGraph::TensorNode* x, TensorGraph::TensorNode* y,
 }
 
 void TensorNormOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(x);
+    DataType dtype = runtime.get_dtype(x);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_norm<nntile::fp32_t>(ctx, alpha, beta, x, y);
+            run_norm<nntile::fp32_t>(runtime, alpha, beta, x, y);
             break;
         case DataType::FP32_FAST_TF32:
-            run_norm<nntile::fp32_fast_tf32_t>(ctx, alpha, beta, x, y);
+            run_norm<nntile::fp32_fast_tf32_t>(runtime, alpha, beta, x, y);
             break;
         case DataType::FP32_FAST_FP16:
-            run_norm<nntile::fp32_fast_fp16_t>(ctx, alpha, beta, x, y);
+            run_norm<nntile::fp32_fast_fp16_t>(runtime, alpha, beta, x, y);
             break;
         case DataType::FP32_FAST_BF16:
-            run_norm<nntile::fp32_fast_bf16_t>(ctx, alpha, beta, x, y);
+            run_norm<nntile::fp32_fast_bf16_t>(runtime, alpha, beta, x, y);
             break;
         case DataType::FP64:
-            run_norm<nntile::fp64_t>(ctx, alpha, beta, x, y);
+            run_norm<nntile::fp64_t>(runtime, alpha, beta, x, y);
             break;
         case DataType::FP16:
-            run_norm<nntile::fp16_t>(ctx, alpha, beta, x, y);
+            run_norm<nntile::fp16_t>(runtime, alpha, beta, x, y);
             break;
         case DataType::BF16:
-            run_norm<nntile::bf16_t>(ctx, alpha, beta, x, y);
+            run_norm<nntile::bf16_t>(runtime, alpha, beta, x, y);
             break;
         case DataType::INT64:
         case DataType::BOOL:

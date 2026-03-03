@@ -59,9 +59,11 @@ void NNAddFiberOp::backward() const
     }
     if(tensor != nullptr && tensor->requires_grad())
     {
+        bool first = graph->is_first_grad(tensor);
         NNGraph::TensorNode* grad_tensor =
             graph->get_or_create_grad(tensor, tensor->name() + "_grad");
-        graph::add_inplace(beta, grad_out->data(), Scalar(1.0),
+        Scalar grad_beta = first ? 0.0 : 1.0;
+        graph::add_inplace(beta, grad_out->data(), grad_beta,
                           grad_tensor->data());
     }
 }

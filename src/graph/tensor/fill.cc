@@ -29,11 +29,11 @@ namespace
 
 template<typename T>
 void run_fill(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar val,
     TensorGraph::TensorNode* x)
 {
-    auto& x_t = ctx.get_tensor<T>(x);
+    auto& x_t = runtime.get_tensor<T>(x);
     nntile::tensor::fill<T>(val, x_t);
 }
 
@@ -51,32 +51,32 @@ void fill(Scalar val, TensorGraph::TensorNode* x)
 }
 
 void TensorFillOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(x);
+    DataType dtype = runtime.get_dtype(x);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_fill<nntile::fp32_t>(ctx, val, x);
+            run_fill<nntile::fp32_t>(runtime, val, x);
             break;
         case DataType::FP32_FAST_TF32:
-            run_fill<nntile::fp32_fast_tf32_t>(ctx, val, x);
+            run_fill<nntile::fp32_fast_tf32_t>(runtime, val, x);
             break;
         case DataType::FP32_FAST_FP16:
-            run_fill<nntile::fp32_fast_fp16_t>(ctx, val, x);
+            run_fill<nntile::fp32_fast_fp16_t>(runtime, val, x);
             break;
         case DataType::FP32_FAST_BF16:
-            run_fill<nntile::fp32_fast_bf16_t>(ctx, val, x);
+            run_fill<nntile::fp32_fast_bf16_t>(runtime, val, x);
             break;
         case DataType::FP64:
-            run_fill<nntile::fp64_t>(ctx, val, x);
+            run_fill<nntile::fp64_t>(runtime, val, x);
             break;
         case DataType::FP16:
-            run_fill<nntile::fp16_t>(ctx, val, x);
+            run_fill<nntile::fp16_t>(runtime, val, x);
             break;
         case DataType::BF16:
-            run_fill<nntile::bf16_t>(ctx, val, x);
+            run_fill<nntile::bf16_t>(runtime, val, x);
             break;
         case DataType::INT64:
         case DataType::BOOL:

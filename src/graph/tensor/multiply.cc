@@ -30,15 +30,15 @@ namespace
 
 template<typename T>
 void run_multiply(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar alpha,
     TensorGraph::TensorNode* x,
     TensorGraph::TensorNode* y,
     TensorGraph::TensorNode* z)
 {
-    auto& x_t = ctx.get_tensor<T>(x);
-    auto& y_t = ctx.get_tensor<T>(y);
-    auto& z_t = ctx.get_tensor<T>(z);
+    auto& x_t = runtime.get_tensor<T>(x);
+    auto& y_t = runtime.get_tensor<T>(y);
+    auto& z_t = runtime.get_tensor<T>(z);
     nntile::tensor::multiply<T>(alpha, x_t, y_t, z_t);
 }
 
@@ -83,32 +83,32 @@ TensorGraph::TensorNode* multiply(
 }
 
 void TensorMultiplyOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(x);
+    DataType dtype = runtime.get_dtype(x);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_multiply<nntile::fp32_t>(ctx, alpha, x, y, z);
+            run_multiply<nntile::fp32_t>(runtime, alpha, x, y, z);
             break;
         case DataType::FP32_FAST_TF32:
-            run_multiply<nntile::fp32_fast_tf32_t>(ctx, alpha, x, y, z);
+            run_multiply<nntile::fp32_fast_tf32_t>(runtime, alpha, x, y, z);
             break;
         case DataType::FP32_FAST_FP16:
-            run_multiply<nntile::fp32_fast_fp16_t>(ctx, alpha, x, y, z);
+            run_multiply<nntile::fp32_fast_fp16_t>(runtime, alpha, x, y, z);
             break;
         case DataType::FP32_FAST_BF16:
-            run_multiply<nntile::fp32_fast_bf16_t>(ctx, alpha, x, y, z);
+            run_multiply<nntile::fp32_fast_bf16_t>(runtime, alpha, x, y, z);
             break;
         case DataType::FP64:
-            run_multiply<nntile::fp64_t>(ctx, alpha, x, y, z);
+            run_multiply<nntile::fp64_t>(runtime, alpha, x, y, z);
             break;
         case DataType::FP16:
-            run_multiply<nntile::fp16_t>(ctx, alpha, x, y, z);
+            run_multiply<nntile::fp16_t>(runtime, alpha, x, y, z);
             break;
         case DataType::BF16:
-            run_multiply<nntile::bf16_t>(ctx, alpha, x, y, z);
+            run_multiply<nntile::bf16_t>(runtime, alpha, x, y, z);
             break;
         case DataType::INT64:
         case DataType::BOOL:

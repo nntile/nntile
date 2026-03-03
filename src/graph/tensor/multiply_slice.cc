@@ -29,13 +29,13 @@ namespace
 
 template<typename T>
 void run_multiply_slice(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar alpha, Index axis,
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst)
 {
-    auto& src_t = ctx.get_tensor<T>(src);
-    auto& dst_t = ctx.get_tensor<T>(dst);
+    auto& src_t = runtime.get_tensor<T>(src);
+    auto& dst_t = runtime.get_tensor<T>(dst);
     nntile::tensor::multiply_slice<T>(alpha, src_t, dst_t, axis);
 }
 
@@ -73,32 +73,32 @@ void multiply_slice(
 }
 
 void TensorMultiplySliceOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(src);
+    DataType dtype = runtime.get_dtype(src);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_multiply_slice<nntile::fp32_t>(ctx, alpha, axis, src, dst);
+            run_multiply_slice<nntile::fp32_t>(runtime, alpha, axis, src, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_multiply_slice<nntile::fp32_fast_tf32_t>(ctx, alpha, axis, src, dst);
+            run_multiply_slice<nntile::fp32_fast_tf32_t>(runtime, alpha, axis, src, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_multiply_slice<nntile::fp32_fast_fp16_t>(ctx, alpha, axis, src, dst);
+            run_multiply_slice<nntile::fp32_fast_fp16_t>(runtime, alpha, axis, src, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_multiply_slice<nntile::fp32_fast_bf16_t>(ctx, alpha, axis, src, dst);
+            run_multiply_slice<nntile::fp32_fast_bf16_t>(runtime, alpha, axis, src, dst);
             break;
         case DataType::FP64:
-            run_multiply_slice<nntile::fp64_t>(ctx, alpha, axis, src, dst);
+            run_multiply_slice<nntile::fp64_t>(runtime, alpha, axis, src, dst);
             break;
         case DataType::FP16:
-            run_multiply_slice<nntile::fp16_t>(ctx, alpha, axis, src, dst);
+            run_multiply_slice<nntile::fp16_t>(runtime, alpha, axis, src, dst);
             break;
         case DataType::BF16:
-            run_multiply_slice<nntile::bf16_t>(ctx, alpha, axis, src, dst);
+            run_multiply_slice<nntile::bf16_t>(runtime, alpha, axis, src, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

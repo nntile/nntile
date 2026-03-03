@@ -27,14 +27,14 @@ namespace
 {
 
 template<typename T>
-void run_mask_scalar(TensorGraph::ExecutionContext& ctx,
+void run_mask_scalar(TensorGraph::Runtime& runtime,
                      TensorGraph::TensorNode* mask,
                      Scalar val,
                      TensorGraph::TensorNode* A,
                      Index batch_ndim)
 {
-    auto& mask_t = ctx.get_tensor<nntile::bool_t>(mask);
-    auto& A_t = ctx.get_tensor<T>(A);
+    auto& mask_t = runtime.get_tensor<nntile::bool_t>(mask);
+    auto& A_t = runtime.get_tensor<T>(A);
     nntile::tensor::mask_scalar<T>(mask_t, val, A_t, batch_ndim);
 }
 
@@ -55,31 +55,31 @@ void mask_scalar(TensorGraph::TensorNode* mask,
     A->graph()->add_op(op);
 }
 
-void TensorMaskScalarOp::execute(TensorGraph::ExecutionContext& ctx) const
+void TensorMaskScalarOp::execute(TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(A);
+    DataType dtype = runtime.get_dtype(A);
     switch(dtype)
     {
         case DataType::FP32:
-            run_mask_scalar<nntile::fp32_t>(ctx, mask, val, A, batch_ndim);
+            run_mask_scalar<nntile::fp32_t>(runtime, mask, val, A, batch_ndim);
             break;
         case DataType::FP32_FAST_TF32:
-            run_mask_scalar<nntile::fp32_fast_tf32_t>(ctx, mask, val, A, batch_ndim);
+            run_mask_scalar<nntile::fp32_fast_tf32_t>(runtime, mask, val, A, batch_ndim);
             break;
         case DataType::FP32_FAST_FP16:
-            run_mask_scalar<nntile::fp32_fast_fp16_t>(ctx, mask, val, A, batch_ndim);
+            run_mask_scalar<nntile::fp32_fast_fp16_t>(runtime, mask, val, A, batch_ndim);
             break;
         case DataType::FP32_FAST_BF16:
-            run_mask_scalar<nntile::fp32_fast_bf16_t>(ctx, mask, val, A, batch_ndim);
+            run_mask_scalar<nntile::fp32_fast_bf16_t>(runtime, mask, val, A, batch_ndim);
             break;
         case DataType::FP64:
-            run_mask_scalar<nntile::fp64_t>(ctx, mask, val, A, batch_ndim);
+            run_mask_scalar<nntile::fp64_t>(runtime, mask, val, A, batch_ndim);
             break;
         case DataType::FP16:
-            run_mask_scalar<nntile::fp16_t>(ctx, mask, val, A, batch_ndim);
+            run_mask_scalar<nntile::fp16_t>(runtime, mask, val, A, batch_ndim);
             break;
         case DataType::BF16:
-            run_mask_scalar<nntile::bf16_t>(ctx, mask, val, A, batch_ndim);
+            run_mask_scalar<nntile::bf16_t>(runtime, mask, val, A, batch_ndim);
             break;
         case DataType::INT64:
         case DataType::BOOL:

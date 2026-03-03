@@ -28,14 +28,13 @@ namespace nntile::graph
 //! AddFiber op: output = alpha*fiber + beta*tensor. PyTorch-style: outputs in forward().
 struct NNAddFiberOp : NNGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Scalar beta = 1.0;
-    Index axis = 0;
-    Index batch_ndim = 0;
+    Scalar alpha;
+    Scalar beta;
+    Index axis;
+    Index batch_ndim;
     NNGraph::TensorNode* fiber = nullptr;
     NNGraph::TensorNode* tensor = nullptr;
 
-    NNAddFiberOp() = default;
     NNAddFiberOp(NNGraph::TensorNode* fiber_,
                  NNGraph::TensorNode* tensor_,
                  Scalar alpha_, Scalar beta_,

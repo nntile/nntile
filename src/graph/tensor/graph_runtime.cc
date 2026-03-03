@@ -6,18 +6,19 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/graph/compiled_graph.cc
- * CompiledGraph implementation.
+ * @file src/graph/tensor/graph_runtime.cc
+ * TensorGraph::Runtime implementation.
  *
  * @version 1.1.0
  * */
 
-#include "nntile/graph/compiled.hh"
+#include "nntile/graph/tensor/graph_runtime.hh"
 
 #include <stdexcept>
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
+#include "nntile/graph/tensor/graph_op_node.hh"
 #include "nntile/tensor/tensor.hh"
 
 namespace nntile::graph
@@ -32,24 +33,25 @@ void allocate_and_register(
     const std::vector<Index>& shape,
     std::map<std::string, std::shared_ptr<void>>& runtime_data,
     std::map<std::string, DataType>& data_dtypes,
-    TensorGraph::ExecutionContext& ctx)
+    std::map<const TensorGraph::TensorNode*, std::shared_ptr<void>>&
+        tensor_map)
 {
     std::vector<Index> tile_shape = shape;
     auto t = std::make_shared<nntile::tensor::Tensor<T>>(
         nntile::tensor::TensorTraits(shape, tile_shape));
     runtime_data[node->name()] = t;
     data_dtypes[node->name()] = node->dtype();
-    ctx.register_tensor(node, t);
+    tensor_map[node] = t;
 }
 
 } // namespace
 
-CompiledGraph::CompiledGraph(const TensorGraph& graph)
+TensorGraph::Runtime::Runtime(const TensorGraph& graph)
     : graph_(graph)
 {
 }
 
-void CompiledGraph::compile()
+void TensorGraph::Runtime::compile()
 {
     if(compiled_)
     {
@@ -93,7 +95,7 @@ void CompiledGraph::compile()
     compiled_ = true;
 }
 
-void CompiledGraph::allocate_impl()
+void TensorGraph::Runtime::allocate_impl()
 {
     for(const auto& node : graph_.tensor_nodes())
     {
@@ -104,39 +106,39 @@ void CompiledGraph::allocate_impl()
         {
             case DataType::FP32:
                 allocate_and_register<nntile::fp32_t>(
-                    node.get(), shape, runtime_data_, data_dtypes_, ctx_);
+                    node.get(), shape, runtime_data_, data_dtypes_, tensor_map_);
                 break;
             case DataType::FP32_FAST_TF32:
                 allocate_and_register<nntile::fp32_fast_tf32_t>(
-                    node.get(), shape, runtime_data_, data_dtypes_, ctx_);
+                    node.get(), shape, runtime_data_, data_dtypes_, tensor_map_);
                 break;
             case DataType::FP32_FAST_FP16:
                 allocate_and_register<nntile::fp32_fast_fp16_t>(
-                    node.get(), shape, runtime_data_, data_dtypes_, ctx_);
+                    node.get(), shape, runtime_data_, data_dtypes_, tensor_map_);
                 break;
             case DataType::FP32_FAST_BF16:
                 allocate_and_register<nntile::fp32_fast_bf16_t>(
-                    node.get(), shape, runtime_data_, data_dtypes_, ctx_);
+                    node.get(), shape, runtime_data_, data_dtypes_, tensor_map_);
                 break;
             case DataType::FP64:
                 allocate_and_register<nntile::fp64_t>(
-                    node.get(), shape, runtime_data_, data_dtypes_, ctx_);
+                    node.get(), shape, runtime_data_, data_dtypes_, tensor_map_);
                 break;
             case DataType::FP16:
                 allocate_and_register<nntile::fp16_t>(
-                    node.get(), shape, runtime_data_, data_dtypes_, ctx_);
+                    node.get(), shape, runtime_data_, data_dtypes_, tensor_map_);
                 break;
             case DataType::BF16:
                 allocate_and_register<nntile::bf16_t>(
-                    node.get(), shape, runtime_data_, data_dtypes_, ctx_);
+                    node.get(), shape, runtime_data_, data_dtypes_, tensor_map_);
                 break;
             case DataType::INT64:
                 allocate_and_register<nntile::int64_t>(
-                    node.get(), shape, runtime_data_, data_dtypes_, ctx_);
+                    node.get(), shape, runtime_data_, data_dtypes_, tensor_map_);
                 break;
             case DataType::BOOL:
                 allocate_and_register<nntile::bool_t>(
-                    node.get(), shape, runtime_data_, data_dtypes_, ctx_);
+                    node.get(), shape, runtime_data_, data_dtypes_, tensor_map_);
                 break;
             default:
                 throw std::runtime_error(
@@ -145,7 +147,7 @@ void CompiledGraph::allocate_impl()
     }
 }
 
-void CompiledGraph::eliminate_dead_ops()
+void TensorGraph::Runtime::eliminate_dead_ops()
 {
     const size_t n = execution_order_.size();
     if(n == 0)
@@ -252,26 +254,26 @@ void CompiledGraph::eliminate_dead_ops()
     execution_order_ = std::move(filtered);
 }
 
-void CompiledGraph::execute()
+void TensorGraph::Runtime::execute()
 {
     if(!compiled_)
     {
         throw std::runtime_error(
-            "CompiledGraph::execute: graph not compiled");
+            "TensorGraph::Runtime::execute: graph not compiled");
     }
     for(size_t i = 0; i < execution_order_.size(); ++i)
     {
-        execution_order_[i]->execute(ctx_);
+        execution_order_[i]->execute(*this);
         invalidate_unused_inputs(i);
     }
 }
 
-void CompiledGraph::wait()
+void TensorGraph::Runtime::wait()
 {
     starpu_task_wait_for_all();
 }
 
-void CompiledGraph::invalidate_data(const std::string& name)
+void TensorGraph::Runtime::invalidate_data(const std::string& name)
 {
     auto dtype_it = data_dtypes_.find(name);
     if(dtype_it == data_dtypes_.end())
@@ -316,7 +318,7 @@ void CompiledGraph::invalidate_data(const std::string& name)
     }
 }
 
-void CompiledGraph::invalidate_unused_inputs(size_t op_idx)
+void TensorGraph::Runtime::invalidate_unused_inputs(size_t op_idx)
 {
     const auto& op = execution_order_.at(op_idx);
     std::unordered_set<std::string> seen;

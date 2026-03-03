@@ -30,15 +30,15 @@ namespace
 
 template<typename T>
 void run_hypot(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar alpha, Scalar beta,
     TensorGraph::TensorNode* src1,
     TensorGraph::TensorNode* src2,
     TensorGraph::TensorNode* dst)
 {
-    auto& src1_t = ctx.get_tensor<T>(src1);
-    auto& src2_t = ctx.get_tensor<T>(src2);
-    auto& dst_t = ctx.get_tensor<T>(dst);
+    auto& src1_t = runtime.get_tensor<T>(src1);
+    auto& src2_t = runtime.get_tensor<T>(src2);
+    auto& dst_t = runtime.get_tensor<T>(dst);
     nntile::tensor::hypot<T>(alpha, src1_t, beta, src2_t, dst_t);
 }
 
@@ -117,32 +117,32 @@ void hypot(
 }
 
 void TensorHypotOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(src1);
+    DataType dtype = runtime.get_dtype(src1);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_hypot<nntile::fp32_t>(ctx, alpha, beta, src1, src2, dst);
+            run_hypot<nntile::fp32_t>(runtime, alpha, beta, src1, src2, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_hypot<nntile::fp32_fast_tf32_t>(ctx, alpha, beta, src1, src2, dst);
+            run_hypot<nntile::fp32_fast_tf32_t>(runtime, alpha, beta, src1, src2, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_hypot<nntile::fp32_fast_fp16_t>(ctx, alpha, beta, src1, src2, dst);
+            run_hypot<nntile::fp32_fast_fp16_t>(runtime, alpha, beta, src1, src2, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_hypot<nntile::fp32_fast_bf16_t>(ctx, alpha, beta, src1, src2, dst);
+            run_hypot<nntile::fp32_fast_bf16_t>(runtime, alpha, beta, src1, src2, dst);
             break;
         case DataType::FP64:
-            run_hypot<nntile::fp64_t>(ctx, alpha, beta, src1, src2, dst);
+            run_hypot<nntile::fp64_t>(runtime, alpha, beta, src1, src2, dst);
             break;
         case DataType::FP16:
-            run_hypot<nntile::fp16_t>(ctx, alpha, beta, src1, src2, dst);
+            run_hypot<nntile::fp16_t>(runtime, alpha, beta, src1, src2, dst);
             break;
         case DataType::BF16:
-            run_hypot<nntile::bf16_t>(ctx, alpha, beta, src1, src2, dst);
+            run_hypot<nntile::bf16_t>(runtime, alpha, beta, src1, src2, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

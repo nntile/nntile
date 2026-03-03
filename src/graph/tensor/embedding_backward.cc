@@ -26,16 +26,16 @@ namespace
 {
 
 template<typename T>
-void run_embedding_backward(TensorGraph::ExecutionContext& ctx,
+void run_embedding_backward(TensorGraph::Runtime& runtime,
                            TensorGraph::TensorNode* index,
                            TensorGraph::TensorNode* embed,
                            TensorGraph::TensorNode* vocab,
                            Index axis,
                            int redux)
 {
-    auto& index_t = ctx.get_tensor<nntile::int64_t>(index);
-    auto& embed_t = ctx.get_tensor<T>(embed);
-    auto& vocab_t = ctx.get_tensor<T>(vocab);
+    auto& index_t = runtime.get_tensor<nntile::int64_t>(index);
+    auto& embed_t = runtime.get_tensor<T>(embed);
+    auto& vocab_t = runtime.get_tensor<T>(vocab);
     nntile::tensor::embedding_backward<T>(index_t, embed_t, vocab_t, axis, redux);
 }
 
@@ -60,38 +60,38 @@ void embedding_backward(TensorGraph::TensorNode* index,
     vocab->graph()->add_op(op);
 }
 
-void TensorEmbeddingBackwardOp::execute(TensorGraph::ExecutionContext& ctx) const
+void TensorEmbeddingBackwardOp::execute(TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(embed);
+    DataType dtype = runtime.get_dtype(embed);
     switch(dtype)
     {
         case DataType::FP32:
             run_embedding_backward<nntile::fp32_t>(
-                ctx, index, embed, vocab, axis, redux);
+                runtime, index, embed, vocab, axis, redux);
             break;
         case DataType::FP32_FAST_TF32:
             run_embedding_backward<nntile::fp32_fast_tf32_t>(
-                ctx, index, embed, vocab, axis, redux);
+                runtime, index, embed, vocab, axis, redux);
             break;
         case DataType::FP32_FAST_FP16:
             run_embedding_backward<nntile::fp32_fast_fp16_t>(
-                ctx, index, embed, vocab, axis, redux);
+                runtime, index, embed, vocab, axis, redux);
             break;
         case DataType::FP32_FAST_BF16:
             run_embedding_backward<nntile::fp32_fast_bf16_t>(
-                ctx, index, embed, vocab, axis, redux);
+                runtime, index, embed, vocab, axis, redux);
             break;
         case DataType::FP64:
             run_embedding_backward<nntile::fp64_t>(
-                ctx, index, embed, vocab, axis, redux);
+                runtime, index, embed, vocab, axis, redux);
             break;
         case DataType::FP16:
             run_embedding_backward<nntile::fp16_t>(
-                ctx, index, embed, vocab, axis, redux);
+                runtime, index, embed, vocab, axis, redux);
             break;
         case DataType::BF16:
             run_embedding_backward<nntile::bf16_t>(
-                ctx, index, embed, vocab, axis, redux);
+                runtime, index, embed, vocab, axis, redux);
             break;
         case DataType::INT64:
         case DataType::BOOL:

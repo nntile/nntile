@@ -30,12 +30,12 @@ namespace
 
 template<typename T>
 void run_relu(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     TensorGraph::TensorNode* x,
     TensorGraph::TensorNode* y)
 {
-    auto& x_t = ctx.get_tensor<T>(x);
-    auto& y_t = ctx.get_tensor<T>(y);
+    auto& x_t = runtime.get_tensor<T>(x);
+    auto& y_t = runtime.get_tensor<T>(y);
     nntile::tensor::relu<T>(x_t, y_t);
 }
 
@@ -91,32 +91,32 @@ void relu(
 }
 
 void TensorReluOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(src);
+    DataType dtype = runtime.get_dtype(src);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_relu<nntile::fp32_t>(ctx, src, dst);
+            run_relu<nntile::fp32_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_relu<nntile::fp32_fast_tf32_t>(ctx, src, dst);
+            run_relu<nntile::fp32_fast_tf32_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_relu<nntile::fp32_fast_fp16_t>(ctx, src, dst);
+            run_relu<nntile::fp32_fast_fp16_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_relu<nntile::fp32_fast_bf16_t>(ctx, src, dst);
+            run_relu<nntile::fp32_fast_bf16_t>(runtime, src, dst);
             break;
         case DataType::FP64:
-            run_relu<nntile::fp64_t>(ctx, src, dst);
+            run_relu<nntile::fp64_t>(runtime, src, dst);
             break;
         case DataType::FP16:
-            run_relu<nntile::fp16_t>(ctx, src, dst);
+            run_relu<nntile::fp16_t>(runtime, src, dst);
             break;
         case DataType::BF16:
-            run_relu<nntile::bf16_t>(ctx, src, dst);
+            run_relu<nntile::bf16_t>(runtime, src, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

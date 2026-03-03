@@ -28,14 +28,14 @@ namespace
 
 template<typename T>
 void run_add_fiber_inplace(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar alpha, Scalar beta,
     Index axis, Index batch_ndim,
     TensorGraph::TensorNode* fiber,
     TensorGraph::TensorNode* tensor)
 {
-    auto& fiber_t = ctx.get_tensor<T>(fiber);
-    auto& tensor_t = ctx.get_tensor<T>(tensor);
+    auto& fiber_t = runtime.get_tensor<T>(fiber);
+    auto& tensor_t = runtime.get_tensor<T>(tensor);
     nntile::tensor::add_fiber_inplace<T>(
         alpha, fiber_t, beta, tensor_t, axis, batch_ndim);
 }
@@ -72,31 +72,31 @@ void add_fiber_inplace(
 }
 
 void TensorAddFiberInplaceOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(fiber);
+    DataType dtype = runtime.get_dtype(fiber);
 
     switch(dtype)
     {
         case DataType::FP32:
             run_add_fiber_inplace<nntile::fp32_t>(
-                ctx, alpha, beta, axis, batch_ndim, fiber, tensor);
+                runtime, alpha, beta, axis, batch_ndim, fiber, tensor);
             break;
         case DataType::FP32_FAST_TF32:
             run_add_fiber_inplace<nntile::fp32_fast_tf32_t>(
-                ctx, alpha, beta, axis, batch_ndim, fiber, tensor);
+                runtime, alpha, beta, axis, batch_ndim, fiber, tensor);
             break;
         case DataType::FP32_FAST_FP16:
             run_add_fiber_inplace<nntile::fp32_fast_fp16_t>(
-                ctx, alpha, beta, axis, batch_ndim, fiber, tensor);
+                runtime, alpha, beta, axis, batch_ndim, fiber, tensor);
             break;
         case DataType::FP32_FAST_BF16:
             run_add_fiber_inplace<nntile::fp32_fast_bf16_t>(
-                ctx, alpha, beta, axis, batch_ndim, fiber, tensor);
+                runtime, alpha, beta, axis, batch_ndim, fiber, tensor);
             break;
         case DataType::FP64:
             run_add_fiber_inplace<nntile::fp64_t>(
-                ctx, alpha, beta, axis, batch_ndim, fiber, tensor);
+                runtime, alpha, beta, axis, batch_ndim, fiber, tensor);
             break;
         case DataType::FP16:
         case DataType::INT64:
@@ -106,7 +106,7 @@ void TensorAddFiberInplaceOp::execute(
                 " data type not supported for add_fiber_inplace operation");
         case DataType::BF16:
             run_add_fiber_inplace<nntile::bf16_t>(
-                ctx, alpha, beta, axis, batch_ndim, fiber, tensor);
+                runtime, alpha, beta, axis, batch_ndim, fiber, tensor);
             break;
         default:
             throw std::runtime_error(

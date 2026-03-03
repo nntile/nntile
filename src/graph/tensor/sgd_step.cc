@@ -27,16 +27,16 @@ namespace
 {
 
 template<typename T>
-void run_sgd_step(TensorGraph::ExecutionContext& ctx,
+void run_sgd_step(TensorGraph::Runtime& runtime,
                   Index num_iter, Scalar momentum, Scalar lr,
                   Scalar weight_decay, Scalar dampening, bool nesterov,
                   TensorGraph::TensorNode* grad,
                   TensorGraph::TensorNode* velocity,
                   TensorGraph::TensorNode* p)
 {
-    auto& grad_t = ctx.get_tensor<T>(grad);
-    auto& velocity_t = ctx.get_tensor<T>(velocity);
-    auto& p_t = ctx.get_tensor<T>(p);
+    auto& grad_t = runtime.get_tensor<T>(grad);
+    auto& velocity_t = runtime.get_tensor<T>(velocity);
+    auto& p_t = runtime.get_tensor<T>(p);
     nntile::tensor::sgd_step<T>(num_iter, momentum, lr, weight_decay,
                                 dampening, nesterov, grad_t, velocity_t, p_t);
 }
@@ -61,37 +61,37 @@ void sgd_step(Index num_iter, Scalar momentum, Scalar lr,
     p->graph()->add_op(op);
 }
 
-void TensorSgdStepOp::execute(TensorGraph::ExecutionContext& ctx) const
+void TensorSgdStepOp::execute(TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(grad);
+    DataType dtype = runtime.get_dtype(grad);
     switch(dtype)
     {
         case DataType::FP32:
-            run_sgd_step<nntile::fp32_t>(ctx, num_iter, momentum, lr,
+            run_sgd_step<nntile::fp32_t>(runtime, num_iter, momentum, lr,
                 weight_decay, dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP32_FAST_TF32:
-            run_sgd_step<nntile::fp32_fast_tf32_t>(ctx, num_iter, momentum, lr,
+            run_sgd_step<nntile::fp32_fast_tf32_t>(runtime, num_iter, momentum, lr,
                 weight_decay, dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP32_FAST_FP16:
-            run_sgd_step<nntile::fp32_fast_fp16_t>(ctx, num_iter, momentum, lr,
+            run_sgd_step<nntile::fp32_fast_fp16_t>(runtime, num_iter, momentum, lr,
                 weight_decay, dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP32_FAST_BF16:
-            run_sgd_step<nntile::fp32_fast_bf16_t>(ctx, num_iter, momentum, lr,
+            run_sgd_step<nntile::fp32_fast_bf16_t>(runtime, num_iter, momentum, lr,
                 weight_decay, dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP64:
-            run_sgd_step<nntile::fp64_t>(ctx, num_iter, momentum, lr,
+            run_sgd_step<nntile::fp64_t>(runtime, num_iter, momentum, lr,
                 weight_decay, dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP16:
-            run_sgd_step<nntile::fp16_t>(ctx, num_iter, momentum, lr,
+            run_sgd_step<nntile::fp16_t>(runtime, num_iter, momentum, lr,
                 weight_decay, dampening, nesterov, grad, velocity, p);
             break;
         case DataType::BF16:
-            run_sgd_step<nntile::bf16_t>(ctx, num_iter, momentum, lr,
+            run_sgd_step<nntile::bf16_t>(runtime, num_iter, momentum, lr,
                 weight_decay, dampening, nesterov, grad, velocity, p);
             break;
         case DataType::INT64:

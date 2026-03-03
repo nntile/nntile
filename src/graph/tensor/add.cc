@@ -32,16 +32,16 @@ namespace
 
 template<typename T>
 void run_add(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar alpha,
     Scalar beta,
     TensorGraph::TensorNode* x,
     TensorGraph::TensorNode* y,
     TensorGraph::TensorNode* z)
 {
-    auto& x_t = ctx.get_tensor<T>(x);
-    auto& y_t = ctx.get_tensor<T>(y);
-    auto& z_t = ctx.get_tensor<T>(z);
+    auto& x_t = runtime.get_tensor<T>(x);
+    auto& y_t = runtime.get_tensor<T>(y);
+    auto& z_t = runtime.get_tensor<T>(z);
     nntile::tensor::add<T>(alpha, x_t, beta, y_t, z_t);
 }
 
@@ -116,32 +116,32 @@ void add(
     x->graph()->add_op(op);
 }
 
-void TensorAddOp::execute(TensorGraph::ExecutionContext& ctx) const
+void TensorAddOp::execute(TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(x);
+    DataType dtype = x->dtype();
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_add<nntile::fp32_t>(ctx, alpha, beta, x, y, z);
+            run_add<nntile::fp32_t>(runtime, alpha, beta, x, y, z);
             break;
         case DataType::FP32_FAST_TF32:
-            run_add<nntile::fp32_fast_tf32_t>(ctx, alpha, beta, x, y, z);
+            run_add<nntile::fp32_fast_tf32_t>(runtime, alpha, beta, x, y, z);
             break;
         case DataType::FP32_FAST_FP16:
-            run_add<nntile::fp32_fast_fp16_t>(ctx, alpha, beta, x, y, z);
+            run_add<nntile::fp32_fast_fp16_t>(runtime, alpha, beta, x, y, z);
             break;
         case DataType::FP32_FAST_BF16:
-            run_add<nntile::fp32_fast_bf16_t>(ctx, alpha, beta, x, y, z);
+            run_add<nntile::fp32_fast_bf16_t>(runtime, alpha, beta, x, y, z);
             break;
         case DataType::FP64:
-            run_add<nntile::fp64_t>(ctx, alpha, beta, x, y, z);
+            run_add<nntile::fp64_t>(runtime, alpha, beta, x, y, z);
             break;
         case DataType::FP16:
-            run_add<nntile::fp16_t>(ctx, alpha, beta, x, y, z);
+            run_add<nntile::fp16_t>(runtime, alpha, beta, x, y, z);
             break;
         case DataType::BF16:
-            run_add<nntile::bf16_t>(ctx, alpha, beta, x, y, z);
+            run_add<nntile::bf16_t>(runtime, alpha, beta, x, y, z);
             break;
         case DataType::INT64:
         case DataType::BOOL:

@@ -30,16 +30,16 @@ namespace
 
 template<typename T>
 void run_norm_fiber(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar alpha, Scalar beta,
     Index axis, Index batch_ndim, int redux,
     TensorGraph::TensorNode* src1,
     TensorGraph::TensorNode* src2,
     TensorGraph::TensorNode* dst)
 {
-    auto& src1_t = ctx.get_tensor<T>(src1);
-    auto& src2_t = ctx.get_tensor<T>(src2);
-    auto& dst_t = ctx.get_tensor<T>(dst);
+    auto& src1_t = runtime.get_tensor<T>(src1);
+    auto& src2_t = runtime.get_tensor<T>(src2);
+    auto& dst_t = runtime.get_tensor<T>(dst);
     nntile::tensor::norm_fiber<T>(
         alpha, src1_t, beta, src2_t, dst_t, axis, batch_ndim, redux);
 }
@@ -120,31 +120,31 @@ void norm_fiber(
 }
 
 void TensorNormFiberOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(src1);
+    DataType dtype = runtime.get_dtype(src1);
 
     switch(dtype)
     {
         case DataType::FP32:
             run_norm_fiber<nntile::fp32_t>(
-                ctx, alpha, beta, axis, batch_ndim, redux, src1, src2, dst);
+                runtime, alpha, beta, axis, batch_ndim, redux, src1, src2, dst);
             break;
         case DataType::FP32_FAST_TF32:
             run_norm_fiber<nntile::fp32_fast_tf32_t>(
-                ctx, alpha, beta, axis, batch_ndim, redux, src1, src2, dst);
+                runtime, alpha, beta, axis, batch_ndim, redux, src1, src2, dst);
             break;
         case DataType::FP32_FAST_FP16:
             run_norm_fiber<nntile::fp32_fast_fp16_t>(
-                ctx, alpha, beta, axis, batch_ndim, redux, src1, src2, dst);
+                runtime, alpha, beta, axis, batch_ndim, redux, src1, src2, dst);
             break;
         case DataType::FP32_FAST_BF16:
             run_norm_fiber<nntile::fp32_fast_bf16_t>(
-                ctx, alpha, beta, axis, batch_ndim, redux, src1, src2, dst);
+                runtime, alpha, beta, axis, batch_ndim, redux, src1, src2, dst);
             break;
         case DataType::FP64:
             run_norm_fiber<nntile::fp64_t>(
-                ctx, alpha, beta, axis, batch_ndim, redux, src1, src2, dst);
+                runtime, alpha, beta, axis, batch_ndim, redux, src1, src2, dst);
             break;
         case DataType::FP16:
         case DataType::INT64:
@@ -154,7 +154,7 @@ void TensorNormFiberOp::execute(
                 " data type not supported for norm_fiber operation");
         case DataType::BF16:
             run_norm_fiber<nntile::bf16_t>(
-                ctx, alpha, beta, axis, batch_ndim, redux, src1, src2, dst);
+                runtime, alpha, beta, axis, batch_ndim, redux, src1, src2, dst);
             break;
         default:
             throw std::runtime_error("Unsupported data type for norm_fiber");

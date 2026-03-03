@@ -27,10 +27,10 @@ namespace
 {
 
 template<typename T>
-void run_scale_inplace(TensorGraph::ExecutionContext& ctx, Scalar alpha,
+void run_scale_inplace(TensorGraph::Runtime& runtime, Scalar alpha,
                       TensorGraph::TensorNode* dst)
 {
-    auto& dst_t = ctx.get_tensor<T>(dst);
+    auto& dst_t = runtime.get_tensor<T>(dst);
     nntile::tensor::scale_inplace<T>(alpha, dst_t);
 }
 
@@ -45,32 +45,32 @@ void scale_inplace(Scalar alpha, TensorGraph::TensorNode* dst)
 }
 
 void TensorScaleInplaceOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(dst);
+    DataType dtype = runtime.get_dtype(dst);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_scale_inplace<nntile::fp32_t>(ctx, alpha, dst);
+            run_scale_inplace<nntile::fp32_t>(runtime, alpha, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_scale_inplace<nntile::fp32_fast_tf32_t>(ctx, alpha, dst);
+            run_scale_inplace<nntile::fp32_fast_tf32_t>(runtime, alpha, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_scale_inplace<nntile::fp32_fast_fp16_t>(ctx, alpha, dst);
+            run_scale_inplace<nntile::fp32_fast_fp16_t>(runtime, alpha, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_scale_inplace<nntile::fp32_fast_bf16_t>(ctx, alpha, dst);
+            run_scale_inplace<nntile::fp32_fast_bf16_t>(runtime, alpha, dst);
             break;
         case DataType::FP64:
-            run_scale_inplace<nntile::fp64_t>(ctx, alpha, dst);
+            run_scale_inplace<nntile::fp64_t>(runtime, alpha, dst);
             break;
         case DataType::FP16:
-            run_scale_inplace<nntile::fp16_t>(ctx, alpha, dst);
+            run_scale_inplace<nntile::fp16_t>(runtime, alpha, dst);
             break;
         case DataType::BF16:
-            run_scale_inplace<nntile::bf16_t>(ctx, alpha, dst);
+            run_scale_inplace<nntile::bf16_t>(runtime, alpha, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

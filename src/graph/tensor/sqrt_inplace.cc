@@ -29,10 +29,10 @@ namespace
 
 template<typename T>
 void run_sqrt_inplace(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     TensorGraph::TensorNode* dst)
 {
-    auto& dst_t = ctx.get_tensor<T>(dst);
+    auto& dst_t = runtime.get_tensor<T>(dst);
     nntile::tensor::sqrt_inplace<T>(dst_t);
 }
 
@@ -50,33 +50,33 @@ void sqrt_inplace(TensorGraph::TensorNode* dst)
 }
 
 void TensorSqrtInplaceOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(dst);
+    DataType dtype = runtime.get_dtype(dst);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_sqrt_inplace<nntile::fp32_t>(ctx, dst);
+            run_sqrt_inplace<nntile::fp32_t>(runtime, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_sqrt_inplace<nntile::fp32_fast_tf32_t>(ctx, dst);
+            run_sqrt_inplace<nntile::fp32_fast_tf32_t>(runtime, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_sqrt_inplace<nntile::fp32_fast_fp16_t>(ctx, dst);
+            run_sqrt_inplace<nntile::fp32_fast_fp16_t>(runtime, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_sqrt_inplace<nntile::fp32_fast_bf16_t>(ctx, dst);
+            run_sqrt_inplace<nntile::fp32_fast_bf16_t>(runtime, dst);
             break;
         case DataType::FP64:
-            run_sqrt_inplace<nntile::fp64_t>(ctx, dst);
+            run_sqrt_inplace<nntile::fp64_t>(runtime, dst);
             break;
         case DataType::FP16:
             throw std::runtime_error(
                 "FP16 not supported for sqrt_inplace (use FP32_FAST_FP16)");
             break;
         case DataType::BF16:
-            run_sqrt_inplace<nntile::bf16_t>(ctx, dst);
+            run_sqrt_inplace<nntile::bf16_t>(runtime, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

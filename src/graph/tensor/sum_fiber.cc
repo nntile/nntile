@@ -28,14 +28,14 @@ namespace
 
 template<typename T>
 void run_sum_fiber(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar alpha, Scalar beta,
     Index axis, Index batch_ndim, int redux,
     TensorGraph::TensorNode* x,
     TensorGraph::TensorNode* y)
 {
-    auto& x_t = ctx.get_tensor<T>(x);
-    auto& y_t = ctx.get_tensor<T>(y);
+    auto& x_t = runtime.get_tensor<T>(x);
+    auto& y_t = runtime.get_tensor<T>(y);
     nntile::tensor::sum_fiber<T>(
         alpha, x_t, beta, y_t, axis, batch_ndim, redux);
 }
@@ -74,39 +74,39 @@ void sum_fiber(
 }
 
 void TensorSumFiberOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(x);
+    DataType dtype = runtime.get_dtype(x);
 
     switch(dtype)
     {
         case DataType::FP32:
             run_sum_fiber<nntile::fp32_t>(
-                ctx, alpha, beta, axis, batch_ndim, redux, x, y);
+                runtime, alpha, beta, axis, batch_ndim, redux, x, y);
             break;
         case DataType::FP32_FAST_TF32:
             run_sum_fiber<nntile::fp32_fast_tf32_t>(
-                ctx, alpha, beta, axis, batch_ndim, redux, x, y);
+                runtime, alpha, beta, axis, batch_ndim, redux, x, y);
             break;
         case DataType::FP32_FAST_FP16:
             run_sum_fiber<nntile::fp32_fast_fp16_t>(
-                ctx, alpha, beta, axis, batch_ndim, redux, x, y);
+                runtime, alpha, beta, axis, batch_ndim, redux, x, y);
             break;
         case DataType::FP32_FAST_BF16:
             run_sum_fiber<nntile::fp32_fast_bf16_t>(
-                ctx, alpha, beta, axis, batch_ndim, redux, x, y);
+                runtime, alpha, beta, axis, batch_ndim, redux, x, y);
             break;
         case DataType::FP64:
             run_sum_fiber<nntile::fp64_t>(
-                ctx, alpha, beta, axis, batch_ndim, redux, x, y);
+                runtime, alpha, beta, axis, batch_ndim, redux, x, y);
             break;
         case DataType::FP16:
             run_sum_fiber<nntile::fp16_t>(
-                ctx, alpha, beta, axis, batch_ndim, redux, x, y);
+                runtime, alpha, beta, axis, batch_ndim, redux, x, y);
             break;
         case DataType::BF16:
             run_sum_fiber<nntile::bf16_t>(
-                ctx, alpha, beta, axis, batch_ndim, redux, x, y);
+                runtime, alpha, beta, axis, batch_ndim, redux, x, y);
             break;
         case DataType::INT64:
         case DataType::BOOL:

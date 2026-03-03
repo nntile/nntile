@@ -29,16 +29,16 @@ namespace
 
 template<typename T>
 void run_rope(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     TensorGraph::TensorNode* sin,
     TensorGraph::TensorNode* cos,
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst)
 {
-    auto& sin_t = ctx.get_tensor<T>(sin);
-    auto& cos_t = ctx.get_tensor<T>(cos);
-    auto& src_t = ctx.get_tensor<T>(src);
-    auto& dst_t = ctx.get_tensor<T>(dst);
+    auto& sin_t = runtime.get_tensor<T>(sin);
+    auto& cos_t = runtime.get_tensor<T>(cos);
+    auto& src_t = runtime.get_tensor<T>(src);
+    auto& dst_t = runtime.get_tensor<T>(dst);
     nntile::tensor::rope<T>(sin_t, cos_t, src_t, dst_t);
 }
 
@@ -111,32 +111,32 @@ void rope(
 }
 
 void TensorRopeOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(src);
+    DataType dtype = runtime.get_dtype(src);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_rope<nntile::fp32_t>(ctx, sin, cos, src, dst);
+            run_rope<nntile::fp32_t>(runtime, sin, cos, src, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_rope<nntile::fp32_fast_tf32_t>(ctx, sin, cos, src, dst);
+            run_rope<nntile::fp32_fast_tf32_t>(runtime, sin, cos, src, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_rope<nntile::fp32_fast_fp16_t>(ctx, sin, cos, src, dst);
+            run_rope<nntile::fp32_fast_fp16_t>(runtime, sin, cos, src, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_rope<nntile::fp32_fast_bf16_t>(ctx, sin, cos, src, dst);
+            run_rope<nntile::fp32_fast_bf16_t>(runtime, sin, cos, src, dst);
             break;
         case DataType::FP64:
-            run_rope<nntile::fp64_t>(ctx, sin, cos, src, dst);
+            run_rope<nntile::fp64_t>(runtime, sin, cos, src, dst);
             break;
         case DataType::FP16:
-            run_rope<nntile::fp16_t>(ctx, sin, cos, src, dst);
+            run_rope<nntile::fp16_t>(runtime, sin, cos, src, dst);
             break;
         case DataType::BF16:
-            run_rope<nntile::bf16_t>(ctx, sin, cos, src, dst);
+            run_rope<nntile::bf16_t>(runtime, sin, cos, src, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

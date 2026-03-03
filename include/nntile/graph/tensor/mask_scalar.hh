@@ -41,7 +41,7 @@ struct TensorMaskScalarOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "MASK_SCALAR"; }
 
-    void execute(TensorGraph::ExecutionContext& ctx) const override;
+    void execute(TensorGraph::Runtime& runtime) const override;
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {

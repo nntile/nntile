@@ -26,14 +26,14 @@ namespace
 {
 
 template<typename T>
-void run_copy_intersection(TensorGraph::ExecutionContext& ctx,
+void run_copy_intersection(TensorGraph::Runtime& runtime,
                            TensorGraph::TensorNode* src,
                            const std::vector<Index>& src_offset,
                            TensorGraph::TensorNode* dst,
                            const std::vector<Index>& dst_offset)
 {
-    auto& src_t = ctx.get_tensor<T>(src);
-    auto& dst_t = ctx.get_tensor<T>(dst);
+    auto& src_t = runtime.get_tensor<T>(src);
+    auto& dst_t = runtime.get_tensor<T>(dst);
     nntile::tensor::copy_intersection<T>(
         src_t, src_offset, dst_t, dst_offset);
 }
@@ -63,38 +63,38 @@ void copy_intersection(TensorGraph::TensorNode* src,
 }
 
 void TensorCopyIntersectionOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(src);
+    DataType dtype = runtime.get_dtype(src);
     switch(dtype)
     {
         case DataType::FP32:
             run_copy_intersection<nntile::fp32_t>(
-                ctx, src, src_offset, dst, dst_offset);
+                runtime, src, src_offset, dst, dst_offset);
             break;
         case DataType::FP32_FAST_TF32:
             run_copy_intersection<nntile::fp32_fast_tf32_t>(
-                ctx, src, src_offset, dst, dst_offset);
+                runtime, src, src_offset, dst, dst_offset);
             break;
         case DataType::FP32_FAST_FP16:
             run_copy_intersection<nntile::fp32_fast_fp16_t>(
-                ctx, src, src_offset, dst, dst_offset);
+                runtime, src, src_offset, dst, dst_offset);
             break;
         case DataType::FP32_FAST_BF16:
             run_copy_intersection<nntile::fp32_fast_bf16_t>(
-                ctx, src, src_offset, dst, dst_offset);
+                runtime, src, src_offset, dst, dst_offset);
             break;
         case DataType::FP64:
             run_copy_intersection<nntile::fp64_t>(
-                ctx, src, src_offset, dst, dst_offset);
+                runtime, src, src_offset, dst, dst_offset);
             break;
         case DataType::FP16:
             run_copy_intersection<nntile::fp16_t>(
-                ctx, src, src_offset, dst, dst_offset);
+                runtime, src, src_offset, dst, dst_offset);
             break;
         case DataType::BF16:
             run_copy_intersection<nntile::bf16_t>(
-                ctx, src, src_offset, dst, dst_offset);
+                runtime, src, src_offset, dst, dst_offset);
             break;
         case DataType::INT64:
         case DataType::BOOL:

@@ -11,7 +11,7 @@
 #
 # @version 1.1.0
 
-set(TESTS_TENSOR_CATCH2 "add")
+set(TESTS_TENSOR_CATCH2 "add" "scale")
 
 foreach(test IN LISTS TESTS_TENSOR_CATCH2)
     add_test_set(TARGET_NAME tests_graph_tensor_${test}

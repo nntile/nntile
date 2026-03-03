@@ -29,17 +29,17 @@ namespace
 
 template<typename T>
 void run_total_sum_accum(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar alpha, Index ignore_index,
     TensorGraph::TensorNode* logsumexp,
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* class_labels,
     TensorGraph::TensorNode* val)
 {
-    auto& logsumexp_t = ctx.get_tensor<T>(logsumexp);
-    auto& src_t = ctx.get_tensor<T>(src);
-    auto& class_labels_t = ctx.get_tensor<int64_t>(class_labels);
-    auto& val_t = ctx.get_tensor<nntile::fp32_t>(val);
+    auto& logsumexp_t = runtime.get_tensor<T>(logsumexp);
+    auto& src_t = runtime.get_tensor<T>(src);
+    auto& class_labels_t = runtime.get_tensor<int64_t>(class_labels);
+    auto& val_t = runtime.get_tensor<nntile::fp32_t>(val);
     nntile::tensor::total_sum_accum<T>(
         alpha, logsumexp_t, src_t, class_labels_t, val_t, ignore_index);
 }
@@ -89,45 +89,45 @@ void total_sum_accum(
 }
 
 void TensorTotalSumAccumOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(logsumexp);
+    DataType dtype = runtime.get_dtype(logsumexp);
 
     switch(dtype)
     {
         case DataType::FP32:
             run_total_sum_accum<nntile::fp32_t>(
-                ctx, alpha, ignore_index,
+                runtime, alpha, ignore_index,
                 logsumexp, src, class_labels, val);
             break;
         case DataType::FP32_FAST_TF32:
             run_total_sum_accum<nntile::fp32_fast_tf32_t>(
-                ctx, alpha, ignore_index,
+                runtime, alpha, ignore_index,
                 logsumexp, src, class_labels, val);
             break;
         case DataType::FP32_FAST_FP16:
             run_total_sum_accum<nntile::fp32_fast_fp16_t>(
-                ctx, alpha, ignore_index,
+                runtime, alpha, ignore_index,
                 logsumexp, src, class_labels, val);
             break;
         case DataType::FP32_FAST_BF16:
             run_total_sum_accum<nntile::fp32_fast_bf16_t>(
-                ctx, alpha, ignore_index,
+                runtime, alpha, ignore_index,
                 logsumexp, src, class_labels, val);
             break;
         case DataType::FP64:
             run_total_sum_accum<nntile::fp64_t>(
-                ctx, alpha, ignore_index,
+                runtime, alpha, ignore_index,
                 logsumexp, src, class_labels, val);
             break;
         case DataType::FP16:
             run_total_sum_accum<nntile::fp16_t>(
-                ctx, alpha, ignore_index,
+                runtime, alpha, ignore_index,
                 logsumexp, src, class_labels, val);
             break;
         case DataType::BF16:
             run_total_sum_accum<nntile::bf16_t>(
-                ctx, alpha, ignore_index,
+                runtime, alpha, ignore_index,
                 logsumexp, src, class_labels, val);
             break;
         case DataType::INT64:

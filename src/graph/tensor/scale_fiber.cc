@@ -30,13 +30,13 @@ namespace
 
 template<typename T>
 void run_scale_fiber(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar alpha, Index axis, Index batch_ndim,
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst)
 {
-    auto& src_t = ctx.get_tensor<T>(src);
-    auto& dst_t = ctx.get_tensor<T>(dst);
+    auto& src_t = runtime.get_tensor<T>(src);
+    auto& dst_t = runtime.get_tensor<T>(dst);
     nntile::tensor::scale_fiber<T>(alpha, src_t, dst_t, axis, batch_ndim);
 }
 
@@ -96,39 +96,39 @@ void scale_fiber(
 }
 
 void TensorScaleFiberOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(src);
+    DataType dtype = runtime.get_dtype(src);
 
     switch(dtype)
     {
         case DataType::FP32:
             run_scale_fiber<nntile::fp32_t>(
-                ctx, alpha, axis, batch_ndim, src, dst);
+                runtime, alpha, axis, batch_ndim, src, dst);
             break;
         case DataType::FP32_FAST_TF32:
             run_scale_fiber<nntile::fp32_fast_tf32_t>(
-                ctx, alpha, axis, batch_ndim, src, dst);
+                runtime, alpha, axis, batch_ndim, src, dst);
             break;
         case DataType::FP32_FAST_FP16:
             run_scale_fiber<nntile::fp32_fast_fp16_t>(
-                ctx, alpha, axis, batch_ndim, src, dst);
+                runtime, alpha, axis, batch_ndim, src, dst);
             break;
         case DataType::FP32_FAST_BF16:
             run_scale_fiber<nntile::fp32_fast_bf16_t>(
-                ctx, alpha, axis, batch_ndim, src, dst);
+                runtime, alpha, axis, batch_ndim, src, dst);
             break;
         case DataType::FP64:
             run_scale_fiber<nntile::fp64_t>(
-                ctx, alpha, axis, batch_ndim, src, dst);
+                runtime, alpha, axis, batch_ndim, src, dst);
             break;
         case DataType::FP16:
             run_scale_fiber<nntile::fp16_t>(
-                ctx, alpha, axis, batch_ndim, src, dst);
+                runtime, alpha, axis, batch_ndim, src, dst);
             break;
         case DataType::BF16:
             run_scale_fiber<nntile::bf16_t>(
-                ctx, alpha, axis, batch_ndim, src, dst);
+                runtime, alpha, axis, batch_ndim, src, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

@@ -420,12 +420,10 @@ set(TENSOR_HDR
 set(GRAPH_HDR
     "nntile/graph.hh"
     "nntile/graph/dtype.hh"
-    "nntile/graph/compiled.hh"
-    "nntile/graph/compiled/graph.hh"
     "nntile/graph/tensor.hh"
     "nntile/graph/tensor/graph.hh"
     "nntile/graph/tensor/graph_decl.hh"
-    "nntile/graph/tensor/graph_exec_ctx.hh"
+    "nntile/graph/tensor/graph_runtime.hh"
     "nntile/graph/tensor/graph_op_node.hh"
     "nntile/graph/tensor/graph_data_node.hh"
     "nntile/graph/tensor/graph_ops.hh"

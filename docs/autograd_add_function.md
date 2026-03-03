@@ -142,14 +142,18 @@ void NNAddOp::backward() const
         return;
 
     if(x != nullptr && x->requires_grad()) {
+        bool first = graph.is_first_grad(x);
         NNGraph::TensorNode* grad_x =
             graph.get_or_create_grad(x, x->name() + "_grad");
-        graph::add_inplace(alpha, grad_out->data(), Scalar(1.0), grad_x->data());
+        Scalar grad_beta = first ? 0.0 : 1.0;
+        graph::add_inplace(alpha, grad_out->data(), grad_beta, grad_x->data());
     }
     if(y != nullptr && y->requires_grad()) {
+        bool first = graph.is_first_grad(y);
         NNGraph::TensorNode* grad_y =
             graph.get_or_create_grad(y, y->name() + "_grad");
-        graph::add_inplace(beta, grad_out->data(), Scalar(1.0), grad_y->data());
+        Scalar grad_beta = first ? 0.0 : 1.0;
+        graph::add_inplace(beta, grad_out->data(), grad_beta, grad_y->data());
     }
 }
 ```

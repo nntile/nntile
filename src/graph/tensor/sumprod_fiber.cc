@@ -28,16 +28,16 @@ namespace
 
 template<typename T>
 void run_sumprod_fiber(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar alpha, Scalar beta,
     Index axis, int redux,
     TensorGraph::TensorNode* src1,
     TensorGraph::TensorNode* src2,
     TensorGraph::TensorNode* dst)
 {
-    auto& src1_t = ctx.get_tensor<T>(src1);
-    auto& src2_t = ctx.get_tensor<T>(src2);
-    auto& dst_t = ctx.get_tensor<T>(dst);
+    auto& src1_t = runtime.get_tensor<T>(src1);
+    auto& src2_t = runtime.get_tensor<T>(src2);
+    auto& dst_t = runtime.get_tensor<T>(dst);
     nntile::tensor::sumprod_fiber<T>(
         alpha, src1_t, src2_t, beta, dst_t, axis, redux);
 }
@@ -95,39 +95,39 @@ void sumprod_fiber(
 }
 
 void TensorSumprodFiberOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(src1);
+    DataType dtype = runtime.get_dtype(src1);
 
     switch(dtype)
     {
         case DataType::FP32:
             run_sumprod_fiber<nntile::fp32_t>(
-                ctx, alpha, beta, axis, redux, src1, src2, dst);
+                runtime, alpha, beta, axis, redux, src1, src2, dst);
             break;
         case DataType::FP32_FAST_TF32:
             run_sumprod_fiber<nntile::fp32_fast_tf32_t>(
-                ctx, alpha, beta, axis, redux, src1, src2, dst);
+                runtime, alpha, beta, axis, redux, src1, src2, dst);
             break;
         case DataType::FP32_FAST_FP16:
             run_sumprod_fiber<nntile::fp32_fast_fp16_t>(
-                ctx, alpha, beta, axis, redux, src1, src2, dst);
+                runtime, alpha, beta, axis, redux, src1, src2, dst);
             break;
         case DataType::FP32_FAST_BF16:
             run_sumprod_fiber<nntile::fp32_fast_bf16_t>(
-                ctx, alpha, beta, axis, redux, src1, src2, dst);
+                runtime, alpha, beta, axis, redux, src1, src2, dst);
             break;
         case DataType::FP64:
             run_sumprod_fiber<nntile::fp64_t>(
-                ctx, alpha, beta, axis, redux, src1, src2, dst);
+                runtime, alpha, beta, axis, redux, src1, src2, dst);
             break;
         case DataType::FP16:
             run_sumprod_fiber<nntile::fp16_t>(
-                ctx, alpha, beta, axis, redux, src1, src2, dst);
+                runtime, alpha, beta, axis, redux, src1, src2, dst);
             break;
         case DataType::BF16:
             run_sumprod_fiber<nntile::bf16_t>(
-                ctx, alpha, beta, axis, redux, src1, src2, dst);
+                runtime, alpha, beta, axis, redux, src1, src2, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

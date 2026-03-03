@@ -28,22 +28,21 @@ namespace nntile::graph
 //! GEMM op: C = alpha * op(A) @ op(B). PyTorch-style: outputs created in forward().
 struct NNGemmOp : NNGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    bool trans_a = false;
-    bool trans_b = false;
-    Index ndim = 1;
-    Index batch_ndim = 0;
+    Scalar alpha;
+    bool trans_a;
+    bool trans_b;
+    Index ndim;
+    Index batch_ndim;
     NNGraph::TensorNode* a = nullptr;
     NNGraph::TensorNode* b = nullptr;
 
-    NNGemmOp() = default;
     NNGemmOp(NNGraph::TensorNode* a_,
             NNGraph::TensorNode* b_,
-            Scalar alpha_ = 1.0,
-            bool trans_a_ = false,
-            bool trans_b_ = false,
-            Index ndim_ = 1,
-            Index batch_ndim_ = 0)
+            Scalar alpha_,
+            bool trans_a_,
+            bool trans_b_,
+            Index ndim_,
+            Index batch_ndim_)
         : alpha(alpha_), trans_a(trans_a_), trans_b(trans_b_)
         , ndim(ndim_), batch_ndim(batch_ndim_)
         , a(a_), b(b_)

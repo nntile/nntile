@@ -29,12 +29,12 @@ namespace
 
 template<typename T>
 void run_logsumexp(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst)
 {
-    auto& src_t = ctx.get_tensor<T>(src);
-    auto& dst_t = ctx.get_tensor<T>(dst);
+    auto& src_t = runtime.get_tensor<T>(src);
+    auto& dst_t = runtime.get_tensor<T>(dst);
     nntile::tensor::logsumexp<T>(src_t, dst_t);
 }
 
@@ -92,32 +92,32 @@ void logsumexp(
 }
 
 void TensorLogsumexpOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(src);
+    DataType dtype = runtime.get_dtype(src);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_logsumexp<nntile::fp32_t>(ctx, src, dst);
+            run_logsumexp<nntile::fp32_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_logsumexp<nntile::fp32_fast_tf32_t>(ctx, src, dst);
+            run_logsumexp<nntile::fp32_fast_tf32_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_logsumexp<nntile::fp32_fast_fp16_t>(ctx, src, dst);
+            run_logsumexp<nntile::fp32_fast_fp16_t>(runtime, src, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_logsumexp<nntile::fp32_fast_bf16_t>(ctx, src, dst);
+            run_logsumexp<nntile::fp32_fast_bf16_t>(runtime, src, dst);
             break;
         case DataType::FP64:
-            run_logsumexp<nntile::fp64_t>(ctx, src, dst);
+            run_logsumexp<nntile::fp64_t>(runtime, src, dst);
             break;
         case DataType::FP16:
-            run_logsumexp<nntile::fp16_t>(ctx, src, dst);
+            run_logsumexp<nntile::fp16_t>(runtime, src, dst);
             break;
         case DataType::BF16:
-            run_logsumexp<nntile::bf16_t>(ctx, src, dst);
+            run_logsumexp<nntile::bf16_t>(runtime, src, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

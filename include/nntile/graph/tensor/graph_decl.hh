@@ -32,7 +32,7 @@ class TensorGraph
 {
 public:
     class TensorNode;
-    class ExecutionContext;
+    class Runtime;
     class OpNode;
     using NodeId = uint64_t;
 

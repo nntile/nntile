@@ -16,5 +16,4 @@
 
 // Include related NNTile headers - core classes
 #include <nntile/graph/nn.hh>
-#include <nntile/graph/compiled.hh>
 #include <nntile/graph/tensor.hh>

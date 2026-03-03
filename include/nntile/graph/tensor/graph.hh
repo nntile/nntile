@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/tensor/graph.hh
- * TensorGraph - graph operating on tensors. Purely symbolic; use CompiledGraph
+ * TensorGraph - graph operating on tensors. Purely symbolic; use Runtime
  * for execution.
  *
  * @version 1.1.0
@@ -17,7 +17,7 @@
 
 #include <nntile/graph/tensor/graph_decl.hh>
 #include <nntile/graph/tensor/graph_data_node.hh>
-#include <nntile/graph/tensor/graph_exec_ctx.hh>
+#include <nntile/graph/tensor/graph_runtime.hh>
 #include <nntile/graph/tensor/graph_op_node.hh>
 
 namespace nntile::graph

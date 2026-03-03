@@ -28,12 +28,11 @@ namespace nntile::graph
 //! Add op: z = alpha*x + beta*y. PyTorch-style: outputs created in forward().
 struct NNAddOp : NNGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Scalar beta = 1.0;
+    Scalar alpha;
+    Scalar beta;
     NNGraph::TensorNode* x = nullptr;
     NNGraph::TensorNode* y = nullptr;
 
-    NNAddOp() = default;
     NNAddOp(NNGraph::TensorNode* x_,
             NNGraph::TensorNode* y_,
             Scalar alpha_, Scalar beta_)

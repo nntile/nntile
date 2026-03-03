@@ -30,13 +30,13 @@ namespace
 
 template<typename T>
 void run_maxsumexp(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Index axis, int redux,
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst)
 {
-    auto& src_t = ctx.get_tensor<T>(src);
-    auto& dst_t = ctx.get_tensor<T>(dst);
+    auto& src_t = runtime.get_tensor<T>(src);
+    auto& dst_t = runtime.get_tensor<T>(dst);
     nntile::tensor::maxsumexp<T>(src_t, dst_t, axis, redux);
 }
 
@@ -95,32 +95,32 @@ void maxsumexp(
 }
 
 void TensorMaxsumexpOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(src);
+    DataType dtype = runtime.get_dtype(src);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_maxsumexp<nntile::fp32_t>(ctx, axis, redux, src, dst);
+            run_maxsumexp<nntile::fp32_t>(runtime, axis, redux, src, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_maxsumexp<nntile::fp32_fast_tf32_t>(ctx, axis, redux, src, dst);
+            run_maxsumexp<nntile::fp32_fast_tf32_t>(runtime, axis, redux, src, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_maxsumexp<nntile::fp32_fast_fp16_t>(ctx, axis, redux, src, dst);
+            run_maxsumexp<nntile::fp32_fast_fp16_t>(runtime, axis, redux, src, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_maxsumexp<nntile::fp32_fast_bf16_t>(ctx, axis, redux, src, dst);
+            run_maxsumexp<nntile::fp32_fast_bf16_t>(runtime, axis, redux, src, dst);
             break;
         case DataType::FP64:
-            run_maxsumexp<nntile::fp64_t>(ctx, axis, redux, src, dst);
+            run_maxsumexp<nntile::fp64_t>(runtime, axis, redux, src, dst);
             break;
         case DataType::FP16:
-            run_maxsumexp<nntile::fp16_t>(ctx, axis, redux, src, dst);
+            run_maxsumexp<nntile::fp16_t>(runtime, axis, redux, src, dst);
             break;
         case DataType::BF16:
-            run_maxsumexp<nntile::bf16_t>(ctx, axis, redux, src, dst);
+            run_maxsumexp<nntile::bf16_t>(runtime, axis, redux, src, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

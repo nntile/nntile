@@ -29,10 +29,10 @@ namespace
 
 template<typename T>
 void run_clear(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     TensorGraph::TensorNode* x)
 {
-    auto& x_t = ctx.get_tensor<T>(x);
+    auto& x_t = runtime.get_tensor<T>(x);
     nntile::tensor::clear<T>(x_t);
 }
 
@@ -50,38 +50,38 @@ void clear(TensorGraph::TensorNode* x)
 }
 
 void TensorClearOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(x);
+    DataType dtype = runtime.get_dtype(x);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_clear<nntile::fp32_t>(ctx, x);
+            run_clear<nntile::fp32_t>(runtime, x);
             break;
         case DataType::FP32_FAST_TF32:
-            run_clear<nntile::fp32_fast_tf32_t>(ctx, x);
+            run_clear<nntile::fp32_fast_tf32_t>(runtime, x);
             break;
         case DataType::FP32_FAST_FP16:
-            run_clear<nntile::fp32_fast_fp16_t>(ctx, x);
+            run_clear<nntile::fp32_fast_fp16_t>(runtime, x);
             break;
         case DataType::FP32_FAST_BF16:
-            run_clear<nntile::fp32_fast_bf16_t>(ctx, x);
+            run_clear<nntile::fp32_fast_bf16_t>(runtime, x);
             break;
         case DataType::FP64:
-            run_clear<nntile::fp64_t>(ctx, x);
+            run_clear<nntile::fp64_t>(runtime, x);
             break;
         case DataType::FP16:
-            run_clear<nntile::fp16_t>(ctx, x);
+            run_clear<nntile::fp16_t>(runtime, x);
             break;
         case DataType::BF16:
-            run_clear<nntile::bf16_t>(ctx, x);
+            run_clear<nntile::bf16_t>(runtime, x);
             break;
         case DataType::INT64:
-            run_clear<nntile::int64_t>(ctx, x);
+            run_clear<nntile::int64_t>(runtime, x);
             break;
         case DataType::BOOL:
-            run_clear<nntile::bool_t>(ctx, x);
+            run_clear<nntile::bool_t>(runtime, x);
             break;
         default:
             throw std::runtime_error("Unsupported data type for clear");

@@ -28,13 +28,13 @@ namespace
 
 template<typename T>
 void run_sum(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar alpha, Scalar beta,
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst)
 {
-    auto& src_t = ctx.get_tensor<T>(src);
-    auto& dst_t = ctx.get_tensor<T>(dst);
+    auto& src_t = runtime.get_tensor<T>(src);
+    auto& dst_t = runtime.get_tensor<T>(dst);
     nntile::tensor::sum<T>(alpha, src_t, beta, dst_t);
 }
 
@@ -72,32 +72,32 @@ void sum(
 }
 
 void TensorSumOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(src);
+    DataType dtype = runtime.get_dtype(src);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_sum<nntile::fp32_t>(ctx, alpha, beta, src, dst);
+            run_sum<nntile::fp32_t>(runtime, alpha, beta, src, dst);
             break;
         case DataType::FP32_FAST_TF32:
-            run_sum<nntile::fp32_fast_tf32_t>(ctx, alpha, beta, src, dst);
+            run_sum<nntile::fp32_fast_tf32_t>(runtime, alpha, beta, src, dst);
             break;
         case DataType::FP32_FAST_FP16:
-            run_sum<nntile::fp32_fast_fp16_t>(ctx, alpha, beta, src, dst);
+            run_sum<nntile::fp32_fast_fp16_t>(runtime, alpha, beta, src, dst);
             break;
         case DataType::FP32_FAST_BF16:
-            run_sum<nntile::fp32_fast_bf16_t>(ctx, alpha, beta, src, dst);
+            run_sum<nntile::fp32_fast_bf16_t>(runtime, alpha, beta, src, dst);
             break;
         case DataType::FP64:
-            run_sum<nntile::fp64_t>(ctx, alpha, beta, src, dst);
+            run_sum<nntile::fp64_t>(runtime, alpha, beta, src, dst);
             break;
         case DataType::FP16:
-            run_sum<nntile::fp16_t>(ctx, alpha, beta, src, dst);
+            run_sum<nntile::fp16_t>(runtime, alpha, beta, src, dst);
             break;
         case DataType::BF16:
-            run_sum<nntile::bf16_t>(ctx, alpha, beta, src, dst);
+            run_sum<nntile::bf16_t>(runtime, alpha, beta, src, dst);
             break;
         case DataType::INT64:
         case DataType::BOOL:

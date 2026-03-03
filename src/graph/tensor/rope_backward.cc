@@ -29,16 +29,16 @@ namespace
 
 template<typename T>
 void run_rope_backward(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     TensorGraph::TensorNode* sin,
     TensorGraph::TensorNode* cos,
     TensorGraph::TensorNode* dy,
     TensorGraph::TensorNode* dx)
 {
-    auto& sin_t = ctx.get_tensor<T>(sin);
-    auto& cos_t = ctx.get_tensor<T>(cos);
-    auto& dy_t = ctx.get_tensor<T>(dy);
-    auto& dx_t = ctx.get_tensor<T>(dx);
+    auto& sin_t = runtime.get_tensor<T>(sin);
+    auto& cos_t = runtime.get_tensor<T>(cos);
+    auto& dy_t = runtime.get_tensor<T>(dy);
+    auto& dx_t = runtime.get_tensor<T>(dx);
     nntile::tensor::rope_backward<T>(sin_t, cos_t, dy_t, dx_t);
 }
 
@@ -111,32 +111,32 @@ void rope_backward(
 }
 
 void TensorRopeBackwardOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(dy);
+    DataType dtype = runtime.get_dtype(dy);
 
     switch(dtype)
     {
         case DataType::FP32:
-            run_rope_backward<nntile::fp32_t>(ctx, sin, cos, dy, dx);
+            run_rope_backward<nntile::fp32_t>(runtime, sin, cos, dy, dx);
             break;
         case DataType::FP32_FAST_TF32:
-            run_rope_backward<nntile::fp32_fast_tf32_t>(ctx, sin, cos, dy, dx);
+            run_rope_backward<nntile::fp32_fast_tf32_t>(runtime, sin, cos, dy, dx);
             break;
         case DataType::FP32_FAST_FP16:
-            run_rope_backward<nntile::fp32_fast_fp16_t>(ctx, sin, cos, dy, dx);
+            run_rope_backward<nntile::fp32_fast_fp16_t>(runtime, sin, cos, dy, dx);
             break;
         case DataType::FP32_FAST_BF16:
-            run_rope_backward<nntile::fp32_fast_bf16_t>(ctx, sin, cos, dy, dx);
+            run_rope_backward<nntile::fp32_fast_bf16_t>(runtime, sin, cos, dy, dx);
             break;
         case DataType::FP64:
-            run_rope_backward<nntile::fp64_t>(ctx, sin, cos, dy, dx);
+            run_rope_backward<nntile::fp64_t>(runtime, sin, cos, dy, dx);
             break;
         case DataType::FP16:
-            run_rope_backward<nntile::fp16_t>(ctx, sin, cos, dy, dx);
+            run_rope_backward<nntile::fp16_t>(runtime, sin, cos, dy, dx);
             break;
         case DataType::BF16:
-            run_rope_backward<nntile::bf16_t>(ctx, sin, cos, dy, dx);
+            run_rope_backward<nntile::bf16_t>(runtime, sin, cos, dy, dx);
             break;
         case DataType::INT64:
         case DataType::BOOL:

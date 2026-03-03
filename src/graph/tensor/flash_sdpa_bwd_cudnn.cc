@@ -27,7 +27,7 @@ namespace
 {
 
 template<typename T>
-void run_flash_sdpa_bwd_cudnn(TensorGraph::ExecutionContext& ctx,
+void run_flash_sdpa_bwd_cudnn(TensorGraph::Runtime& runtime,
                               TensorGraph::TensorNode* K,
                               TensorGraph::TensorNode* Q,
                               TensorGraph::TensorNode* V,
@@ -39,16 +39,16 @@ void run_flash_sdpa_bwd_cudnn(TensorGraph::ExecutionContext& ctx,
                               TensorGraph::TensorNode* dQ,
                               TensorGraph::TensorNode* dV)
 {
-    auto& K_t = ctx.get_tensor<T>(K);
-    auto& Q_t = ctx.get_tensor<T>(Q);
-    auto& V_t = ctx.get_tensor<T>(V);
-    auto& A_t = ctx.get_tensor<T>(A);
-    auto& dA_t = ctx.get_tensor<T>(dA);
-    auto& mask_t = ctx.get_tensor<T>(mask);
-    auto& logsumexp_t = ctx.get_tensor<nntile::fp32_t>(logsumexp);
-    auto& dK_t = ctx.get_tensor<T>(dK);
-    auto& dQ_t = ctx.get_tensor<T>(dQ);
-    auto& dV_t = ctx.get_tensor<T>(dV);
+    auto& K_t = runtime.get_tensor<T>(K);
+    auto& Q_t = runtime.get_tensor<T>(Q);
+    auto& V_t = runtime.get_tensor<T>(V);
+    auto& A_t = runtime.get_tensor<T>(A);
+    auto& dA_t = runtime.get_tensor<T>(dA);
+    auto& mask_t = runtime.get_tensor<T>(mask);
+    auto& logsumexp_t = runtime.get_tensor<nntile::fp32_t>(logsumexp);
+    auto& dK_t = runtime.get_tensor<T>(dK);
+    auto& dQ_t = runtime.get_tensor<T>(dQ);
+    auto& dV_t = runtime.get_tensor<T>(dV);
     nntile::tensor::flash_sdpa_bwd_cudnn<T>(
         K_t, Q_t, V_t, A_t, dA_t, mask_t, logsumexp_t,
         dK_t, dQ_t, dV_t);
@@ -94,18 +94,18 @@ void flash_sdpa_bwd_cudnn(TensorGraph::TensorNode* K,
 }
 
 void TensorFlashSdpaBwdCudnnOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(K);
+    DataType dtype = runtime.get_dtype(K);
     switch(dtype)
     {
         case DataType::FP16:
             run_flash_sdpa_bwd_cudnn<nntile::fp16_t>(
-                ctx, K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
+                runtime, K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
             break;
         case DataType::BF16:
             run_flash_sdpa_bwd_cudnn<nntile::bf16_t>(
-                ctx, K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
+                runtime, K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
             break;
         case DataType::FP32:
         case DataType::FP32_FAST_TF32:

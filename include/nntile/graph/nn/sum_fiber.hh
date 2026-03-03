@@ -28,14 +28,13 @@ namespace nntile::graph
 //! SumFiber op: y = alpha*sum_fiber(x) + beta*y. PyTorch-style: outputs in forward().
 struct NNSumFiberOp : NNGraph::OpNode
 {
-    Scalar alpha = 1.0;
-    Scalar beta = 0.0;
-    Index axis = 0;
-    Index batch_ndim = 0;
-    int redux = 0;
+    Scalar alpha;
+    Scalar beta;
+    Index axis;
+    Index batch_ndim;
+    int redux;
     NNGraph::TensorNode* x = nullptr;
 
-    NNSumFiberOp() = default;
     NNSumFiberOp(NNGraph::TensorNode* x_,
                  Index axis_, Index batch_ndim_,
                  int redux_, Scalar alpha_, Scalar beta_)

@@ -29,14 +29,14 @@ namespace
 
 template<typename T>
 void run_norm_slice_inplace(
-    TensorGraph::ExecutionContext& ctx,
+    TensorGraph::Runtime& runtime,
     Scalar alpha, Scalar beta,
     Index axis, int redux,
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst)
 {
-    auto& src_t = ctx.get_tensor<T>(src);
-    auto& dst_t = ctx.get_tensor<T>(dst);
+    auto& src_t = runtime.get_tensor<T>(src);
+    auto& dst_t = runtime.get_tensor<T>(dst);
     nntile::tensor::norm_slice_inplace<T>(
         alpha, src_t, beta, dst_t, axis, redux);
 }
@@ -73,31 +73,31 @@ void norm_slice_inplace(
 }
 
 void TensorNormSliceInplaceOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(src);
+    DataType dtype = runtime.get_dtype(src);
 
     switch(dtype)
     {
         case DataType::FP32:
             run_norm_slice_inplace<nntile::fp32_t>(
-                ctx, alpha, beta, axis, redux, src, dst);
+                runtime, alpha, beta, axis, redux, src, dst);
             break;
         case DataType::FP32_FAST_TF32:
             run_norm_slice_inplace<nntile::fp32_fast_tf32_t>(
-                ctx, alpha, beta, axis, redux, src, dst);
+                runtime, alpha, beta, axis, redux, src, dst);
             break;
         case DataType::FP32_FAST_FP16:
             run_norm_slice_inplace<nntile::fp32_fast_fp16_t>(
-                ctx, alpha, beta, axis, redux, src, dst);
+                runtime, alpha, beta, axis, redux, src, dst);
             break;
         case DataType::FP32_FAST_BF16:
             run_norm_slice_inplace<nntile::fp32_fast_bf16_t>(
-                ctx, alpha, beta, axis, redux, src, dst);
+                runtime, alpha, beta, axis, redux, src, dst);
             break;
         case DataType::FP64:
             run_norm_slice_inplace<nntile::fp64_t>(
-                ctx, alpha, beta, axis, redux, src, dst);
+                runtime, alpha, beta, axis, redux, src, dst);
             break;
         case DataType::FP16:
         case DataType::INT64:
@@ -107,7 +107,7 @@ void TensorNormSliceInplaceOp::execute(
                 " data type not supported for norm_slice_inplace operation");
         case DataType::BF16:
             run_norm_slice_inplace<nntile::bf16_t>(
-                ctx, alpha, beta, axis, redux, src, dst);
+                runtime, alpha, beta, axis, redux, src, dst);
             break;
         default:
             throw std::runtime_error(

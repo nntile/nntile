@@ -27,7 +27,7 @@ namespace
 {
 
 template<typename T>
-void run_conv2d_bwd_input_inplace(TensorGraph::ExecutionContext& ctx,
+void run_conv2d_bwd_input_inplace(TensorGraph::Runtime& runtime,
                                  Scalar alpha, TensorGraph::TensorNode* dY,
                                  TensorGraph::TensorNode* kernel, Scalar beta,
                                  TensorGraph::TensorNode* dX,
@@ -35,9 +35,9 @@ void run_conv2d_bwd_input_inplace(TensorGraph::ExecutionContext& ctx,
                                  const std::array<Index, 2>& stride,
                                  const std::array<Index, 2>& dilation)
 {
-    auto& dY_t = ctx.get_tensor<T>(dY);
-    auto& kernel_t = ctx.get_tensor<T>(kernel);
-    auto& dX_t = ctx.get_tensor<T>(dX);
+    auto& dY_t = runtime.get_tensor<T>(dY);
+    auto& kernel_t = runtime.get_tensor<T>(kernel);
+    auto& dX_t = runtime.get_tensor<T>(dX);
     nntile::tensor::conv2d_bwd_input_inplace<T>(
         alpha, dY_t, kernel_t, beta, dX_t, padding, stride, dilation);
 }
@@ -68,30 +68,30 @@ void conv2d_bwd_input_inplace(Scalar alpha,
 }
 
 void TensorConv2dBwdInputInplaceOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(dY);
+    DataType dtype = runtime.get_dtype(dY);
     switch(dtype)
     {
         case DataType::FP32:
             run_conv2d_bwd_input_inplace<nntile::fp32_t>(
-                ctx, alpha, dY, kernel, beta, dX, padding, stride, dilation);
+                runtime, alpha, dY, kernel, beta, dX, padding, stride, dilation);
             break;
         case DataType::FP32_FAST_TF32:
             run_conv2d_bwd_input_inplace<nntile::fp32_fast_tf32_t>(
-                ctx, alpha, dY, kernel, beta, dX, padding, stride, dilation);
+                runtime, alpha, dY, kernel, beta, dX, padding, stride, dilation);
             break;
         case DataType::FP32_FAST_FP16:
             run_conv2d_bwd_input_inplace<nntile::fp32_fast_fp16_t>(
-                ctx, alpha, dY, kernel, beta, dX, padding, stride, dilation);
+                runtime, alpha, dY, kernel, beta, dX, padding, stride, dilation);
             break;
         case DataType::FP32_FAST_BF16:
             run_conv2d_bwd_input_inplace<nntile::fp32_fast_bf16_t>(
-                ctx, alpha, dY, kernel, beta, dX, padding, stride, dilation);
+                runtime, alpha, dY, kernel, beta, dX, padding, stride, dilation);
             break;
         case DataType::FP64:
             run_conv2d_bwd_input_inplace<nntile::fp64_t>(
-                ctx, alpha, dY, kernel, beta, dX, padding, stride, dilation);
+                runtime, alpha, dY, kernel, beta, dX, padding, stride, dilation);
             break;
         case DataType::FP16:
             throw std::runtime_error(
@@ -100,7 +100,7 @@ void TensorConv2dBwdInputInplaceOp::execute(
             break;
         case DataType::BF16:
             run_conv2d_bwd_input_inplace<nntile::bf16_t>(
-                ctx, alpha, dY, kernel, beta, dX, padding, stride, dilation);
+                runtime, alpha, dY, kernel, beta, dX, padding, stride, dilation);
             break;
         case DataType::INT64:
         case DataType::BOOL:

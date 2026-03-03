@@ -27,7 +27,7 @@ namespace
 {
 
 template<typename T>
-void run_flash_sdpa_fwd_cudnn(TensorGraph::ExecutionContext& ctx,
+void run_flash_sdpa_fwd_cudnn(TensorGraph::Runtime& runtime,
                               TensorGraph::TensorNode* K,
                               TensorGraph::TensorNode* Q,
                               TensorGraph::TensorNode* mask,
@@ -35,12 +35,12 @@ void run_flash_sdpa_fwd_cudnn(TensorGraph::ExecutionContext& ctx,
                               TensorGraph::TensorNode* V,
                               TensorGraph::TensorNode* A)
 {
-    auto& K_t = ctx.get_tensor<T>(K);
-    auto& Q_t = ctx.get_tensor<T>(Q);
-    auto& mask_t = ctx.get_tensor<T>(mask);
-    auto& logsumexp_t = ctx.get_tensor<nntile::fp32_t>(logsumexp);
-    auto& V_t = ctx.get_tensor<T>(V);
-    auto& A_t = ctx.get_tensor<T>(A);
+    auto& K_t = runtime.get_tensor<T>(K);
+    auto& Q_t = runtime.get_tensor<T>(Q);
+    auto& mask_t = runtime.get_tensor<T>(mask);
+    auto& logsumexp_t = runtime.get_tensor<nntile::fp32_t>(logsumexp);
+    auto& V_t = runtime.get_tensor<T>(V);
+    auto& A_t = runtime.get_tensor<T>(A);
     nntile::tensor::flash_sdpa_fwd_cudnn<T>(
         K_t, Q_t, mask_t, logsumexp_t, V_t, A_t);
 }
@@ -111,18 +111,18 @@ void flash_sdpa_fwd_cudnn(TensorGraph::TensorNode* K,
 }
 
 void TensorFlashSdpaFwdCudnnOp::execute(
-    TensorGraph::ExecutionContext& ctx) const
+    TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(K);
+    DataType dtype = runtime.get_dtype(K);
     switch(dtype)
     {
         case DataType::FP16:
             run_flash_sdpa_fwd_cudnn<nntile::fp16_t>(
-                ctx, K, Q, mask, logsumexp, V, A);
+                runtime, K, Q, mask, logsumexp, V, A);
             break;
         case DataType::BF16:
             run_flash_sdpa_fwd_cudnn<nntile::bf16_t>(
-                ctx, K, Q, mask, logsumexp, V, A);
+                runtime, K, Q, mask, logsumexp, V, A);
             break;
         case DataType::FP32:
         case DataType::FP32_FAST_TF32:

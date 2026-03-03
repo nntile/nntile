@@ -26,11 +26,11 @@ namespace
 {
 
 template<typename T>
-void run_log_scalar(TensorGraph::ExecutionContext& ctx,
+void run_log_scalar(TensorGraph::Runtime& runtime,
                    const std::string& name,
                    TensorGraph::TensorNode* value)
 {
-    auto& value_t = ctx.get_tensor<T>(value);
+    auto& value_t = runtime.get_tensor<T>(value);
     nntile::tensor::log_scalar<T>(name, value_t);
 }
 
@@ -45,32 +45,32 @@ void log_scalar(const std::string& name,
     value->graph()->add_op(op);
 }
 
-void TensorLogScalarOp::execute(TensorGraph::ExecutionContext& ctx) const
+void TensorLogScalarOp::execute(TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(value);
+    DataType dtype = runtime.get_dtype(value);
     switch(dtype)
     {
         case DataType::FP32:
-            run_log_scalar<nntile::fp32_t>(ctx, name, value);
+            run_log_scalar<nntile::fp32_t>(runtime, name, value);
             break;
         case DataType::FP32_FAST_TF32:
-            run_log_scalar<nntile::fp32_fast_tf32_t>(ctx, name, value);
+            run_log_scalar<nntile::fp32_fast_tf32_t>(runtime, name, value);
             break;
         case DataType::FP32_FAST_FP16:
-            run_log_scalar<nntile::fp32_fast_fp16_t>(ctx, name, value);
+            run_log_scalar<nntile::fp32_fast_fp16_t>(runtime, name, value);
             break;
         case DataType::FP32_FAST_BF16:
-            run_log_scalar<nntile::fp32_fast_bf16_t>(ctx, name, value);
+            run_log_scalar<nntile::fp32_fast_bf16_t>(runtime, name, value);
             break;
         case DataType::FP64:
-            run_log_scalar<nntile::fp64_t>(ctx, name, value);
+            run_log_scalar<nntile::fp64_t>(runtime, name, value);
             break;
         case DataType::FP16:
             throw std::runtime_error(
                 "FP16 not supported for log_scalar (use FP32_FAST_FP16)");
             break;
         case DataType::BF16:
-            run_log_scalar<nntile::bf16_t>(ctx, name, value);
+            run_log_scalar<nntile::bf16_t>(runtime, name, value);
             break;
         case DataType::INT64:
         case DataType::BOOL:

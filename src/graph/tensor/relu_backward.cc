@@ -27,13 +27,13 @@ namespace
 {
 
 template<typename T>
-void run_relu_backward(TensorGraph::ExecutionContext& ctx,
+void run_relu_backward(TensorGraph::Runtime& runtime,
                       TensorGraph::TensorNode* x, TensorGraph::TensorNode* dy,
                       TensorGraph::TensorNode* dx)
 {
-    auto& x_t = ctx.get_tensor<T>(x);
-    auto& dy_t = ctx.get_tensor<T>(dy);
-    auto& dx_t = ctx.get_tensor<T>(dx);
+    auto& x_t = runtime.get_tensor<T>(x);
+    auto& dy_t = runtime.get_tensor<T>(dy);
+    auto& dx_t = runtime.get_tensor<T>(dx);
     nntile::tensor::relu_backward<T>(x_t, dy_t, dx_t);
 }
 
@@ -73,21 +73,21 @@ void relu_backward(TensorGraph::TensorNode* x, TensorGraph::TensorNode* dy,
     x->graph()->add_op(op);
 }
 
-void TensorReluBackwardOp::execute(TensorGraph::ExecutionContext& ctx) const
+void TensorReluBackwardOp::execute(TensorGraph::Runtime& runtime) const
 {
-    DataType dtype = ctx.get_dtype(x);
+    DataType dtype = runtime.get_dtype(x);
     switch(dtype)
     {
-        case DataType::FP32: run_relu_backward<nntile::fp32_t>(ctx, x, dy, dx); break;
-        case DataType::FP32_FAST_TF32: run_relu_backward<nntile::fp32_fast_tf32_t>(ctx, x, dy, dx); break;
-        case DataType::FP32_FAST_FP16: run_relu_backward<nntile::fp32_fast_fp16_t>(ctx, x, dy, dx); break;
-        case DataType::FP32_FAST_BF16: run_relu_backward<nntile::fp32_fast_bf16_t>(ctx, x, dy, dx); break;
-        case DataType::FP64: run_relu_backward<nntile::fp64_t>(ctx, x, dy, dx); break;
+        case DataType::FP32: run_relu_backward<nntile::fp32_t>(runtime, x, dy, dx); break;
+        case DataType::FP32_FAST_TF32: run_relu_backward<nntile::fp32_fast_tf32_t>(runtime, x, dy, dx); break;
+        case DataType::FP32_FAST_FP16: run_relu_backward<nntile::fp32_fast_fp16_t>(runtime, x, dy, dx); break;
+        case DataType::FP32_FAST_BF16: run_relu_backward<nntile::fp32_fast_bf16_t>(runtime, x, dy, dx); break;
+        case DataType::FP64: run_relu_backward<nntile::fp64_t>(runtime, x, dy, dx); break;
         case DataType::FP16:
             throw std::runtime_error(
                 "FP16 not supported for relu_backward (use FP32_FAST_FP16)");
             break;
-        case DataType::BF16: run_relu_backward<nntile::bf16_t>(ctx, x, dy, dx); break;
+        case DataType::BF16: run_relu_backward<nntile::bf16_t>(runtime, x, dy, dx); break;
         case DataType::INT64:
         case DataType::BOOL:
             throw std::runtime_error(std::string(dtype_to_string(dtype)) +

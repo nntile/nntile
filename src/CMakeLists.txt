@@ -474,7 +474,7 @@ set(GRAPH_CORE_SRC
     "graph/tensor/transpose.cc"
 )
 
-# NNGraph, TensorGraph, CompiledGraph
+# NNGraph, TensorGraph, Runtime
 set(GRAPH_NN_SRC
     "graph/nn_graph.cc"
     "graph/nn/tensor_node.cc"
@@ -483,7 +483,7 @@ set(GRAPH_NN_SRC
     "graph/nn/gemm.cc"
     "graph/nn/gelu.cc"
     "graph/nn/sum_fiber.cc"
-    "graph/compiled_graph.cc"
+    "graph/tensor/graph_runtime.cc"
     "graph/tensor_graph_node.cc"
 )
 
