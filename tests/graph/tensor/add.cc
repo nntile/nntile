@@ -17,7 +17,7 @@
 
 #include <numeric>
 
-#include "nntile/context.hh"
+#include "context_fixture.hh"
 #include "nntile/graph/tensor/add.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/add.hh"
@@ -29,12 +29,14 @@ using namespace nntile::graph;
 
 //! Run add via TensorGraph (compile + execute) and via tensor API, compare
 template<typename T>
-void check_add_vs_tensor_api(const std::vector<Index>& shape,
-                             Scalar alpha, Scalar beta)
+void check_add_vs_tensor_api(
+    const std::vector<Index>& shape,
+    Scalar alpha,
+    Scalar beta)
 {
     using Y = typename T::repr_t;
-    const Index nelems =
-        std::accumulate(shape.begin(), shape.end(), Index(1), std::multiplies<>());
+    const Index nelems = std::accumulate(
+        shape.begin(), shape.end(), Index(1), std::multiplies<>());
 
     // --- TensorGraph path ---
     TensorGraph graph("add_test");
@@ -100,7 +102,6 @@ void check_add_vs_tensor_api(const std::vector<Index>& shape,
         loc.release();
     }
 
-    // --- Compare ---
     constexpr float tol = 1e-5f;
     REQUIRE(graph_result.size() == tensor_result.size());
     for(size_t i = 0; i < graph_result.size(); ++i)
@@ -111,8 +112,10 @@ void check_add_vs_tensor_api(const std::vector<Index>& shape,
 
 TEST_CASE("TensorGraph add structure", "[graph][tensor]")
 {
-    const Scalar alpha = GENERATE(Scalar(1.0));
-    const Scalar beta = GENERATE(Scalar(1.0));
+    const auto [alpha, beta] = GENERATE(
+        std::tuple{1.0, 1.0},
+        std::tuple{2.0, 3.0},
+        std::tuple{0.5, -1.0});
     constexpr Index dim0 = 4;
     constexpr Index dim1 = 5;
 
@@ -135,14 +138,16 @@ TEST_CASE("TensorGraph add structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == z);
 }
 
-TEST_CASE("TensorGraph add matches tensor::add", "[graph][tensor]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph add matches tensor::add", "[graph][tensor]")
 {
     const auto [alpha, beta, shape] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0), std::vector<Index>{4, 5}},
-        std::tuple{Scalar(2.0), Scalar(3.0), std::vector<Index>{4, 5}},
-        std::tuple{Scalar(0.5), Scalar(-1.0), std::vector<Index>{6}});
+        std::tuple{1.0, 1.0, std::vector<Index>{4, 5}},
+        std::tuple{2.0, 3.0, std::vector<Index>{4, 5}},
+        std::tuple{0.5, -1.0, std::vector<Index>{6}},
+        std::tuple{1.0, 2.0, std::vector<Index>{3, 4}},
+        std::tuple{-0.5, 1.5, std::vector<Index>{2, 2}});
 
-    Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0);
-
-    check_add_vs_tensor_api<nntile::fp32_t>(shape, alpha, beta);
+    check_add_vs_tensor_api<nntile::fp32_t>(
+        shape, alpha, beta);
 }

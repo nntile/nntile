@@ -17,7 +17,7 @@
 
 #include <numeric>
 
-#include "nntile/context.hh"
+#include "context_fixture.hh"
 #include "nntile/graph/tensor/relu.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/relu.hh"
@@ -27,11 +27,12 @@ using namespace nntile;
 using namespace nntile::graph;
 
 template<typename T>
-void check_relu_vs_tensor_api(const std::vector<Index>& shape)
+void check_relu_vs_tensor_api(
+    const std::vector<Index>& shape)
 {
     using Y = typename T::repr_t;
-    const Index nelems =
-        std::accumulate(shape.begin(), shape.end(), Index(1), std::multiplies<>());
+    const Index nelems = std::accumulate(
+        shape.begin(), shape.end(), Index(1), std::multiplies<>());
 
     // --- TensorGraph path ---
     TensorGraph graph("relu_test");
@@ -119,13 +120,14 @@ TEST_CASE("TensorGraph relu structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == dst);
 }
 
-TEST_CASE("TensorGraph relu matches tensor::relu", "[graph][tensor]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph relu matches tensor::relu", "[graph][tensor]")
 {
-    const std::vector<Index> shape = GENERATE(
+    const auto shape = GENERATE(
         std::vector<Index>{4, 5},
-        std::vector<Index>{6});
-
-    Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0);
+        std::vector<Index>{6},
+        std::vector<Index>{2, 3},
+        std::vector<Index>{1, 10});
 
     check_relu_vs_tensor_api<nntile::fp32_t>(shape);
 }

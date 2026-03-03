@@ -111,9 +111,9 @@ void NNGraph::TensorNode::backward(bool retain_graph)
             continue;
         }
         visited.insert(t);
-        stack.push_back(t);  // Re-push to add after children
         if(t->producer() != nullptr)
         {
+            stack.push_back(t);  // Re-push to add after children
             for(TensorNode* in : t->producer()->inputs())
             {
                 if(in != nullptr && in->requires_grad() && !done.count(in))

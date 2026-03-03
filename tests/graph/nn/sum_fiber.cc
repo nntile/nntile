@@ -12,12 +12,14 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 
+#include "context_fixture.hh"
 #include "nntile/graph.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 
-TEST_CASE("NNGraph Autograd SumFiber ForwardAndBackward", "[graph][nn_graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph Autograd SumFiber ForwardAndBackward", "[graph][nn_graph]")
 {
     const Index axis = GENERATE(Index(1));
     const Index batch_ndim = GENERATE(Index(0));

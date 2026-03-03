@@ -12,12 +12,14 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 
+#include "context_fixture.hh"
 #include "nntile/graph.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 
-TEST_CASE("NNGraph Autograd Add build_forward", "[graph][nn_graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph Autograd Add build_forward", "[graph][nn_graph]")
 {
     const Scalar alpha = GENERATE(Scalar(1.0));
     const Scalar beta = GENERATE(Scalar(1.0));
@@ -30,7 +32,8 @@ TEST_CASE("NNGraph Autograd Add build_forward", "[graph][nn_graph]")
     REQUIRE(z->has_producer());
 }
 
-TEST_CASE("NNGraph Autograd Add Backward", "[graph][nn_graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph Autograd Add Backward", "[graph][nn_graph]")
 {
     const Scalar alpha = GENERATE(Scalar(2.0));
     const Scalar beta = GENERATE(Scalar(3.0));
@@ -63,7 +66,8 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph][nn_graph]")
     REQUIRE(add_inplace_count == 2);
 }
 
-TEST_CASE("NNGraph Autograd Add Chain", "[graph][nn_graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph Autograd Add Chain", "[graph][nn_graph]")
 {
     const Scalar add_alpha = GENERATE(Scalar(1.0));
     const Scalar add_beta = GENERATE(Scalar(1.0));
@@ -87,7 +91,8 @@ TEST_CASE("NNGraph Autograd Add Chain", "[graph][nn_graph]")
     REQUIRE(w->has_grad());
 }
 
-TEST_CASE("NNGraph Autograd Add Diamond", "[graph][nn_graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph Autograd Add Diamond", "[graph][nn_graph]")
 {
     const Scalar add_alpha = GENERATE(Scalar(1.0));
     const Scalar add_beta = GENERATE(Scalar(1.0));
@@ -111,7 +116,8 @@ TEST_CASE("NNGraph Autograd Add Diamond", "[graph][nn_graph]")
     REQUIRE(v->has_grad());
 }
 
-TEST_CASE("NNGraph Autograd Add ForwardAndBackward", "[graph][nn_graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph Autograd Add ForwardAndBackward", "[graph][nn_graph]")
 {
     const Scalar add_alpha = GENERATE(Scalar(1.0));
     const Scalar add_beta = GENERATE(Scalar(1.0));

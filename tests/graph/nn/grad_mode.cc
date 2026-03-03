@@ -12,12 +12,14 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 
+#include "context_fixture.hh"
 #include "nntile/graph.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 
-TEST_CASE("GradMode disabled: Add does not set producer")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "GradMode disabled: Add does not set producer")
 {
     const Scalar add_alpha = GENERATE(Scalar(1.0));
     const Scalar add_beta = GENERATE(Scalar(1.0));
@@ -38,7 +40,8 @@ TEST_CASE("GradMode disabled: Add does not set producer")
     REQUIRE(z->is_leaf());
 }
 
-TEST_CASE("GradMode enabled: Add sets producer")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "GradMode enabled: Add sets producer")
 {
     const Scalar add_alpha = GENERATE(Scalar(1.0));
     const Scalar add_beta = GENERATE(Scalar(1.0));

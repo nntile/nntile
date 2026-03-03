@@ -21,12 +21,14 @@
 #include <catch2/generators/catch_generators_all.hpp>
 
 // Include other NNTile headers
+#include "context_fixture.hh"
 #include "nntile/graph.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 
-TEST_CASE("NNGraph TensorNodeNullData", "[graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph TensorNodeNullData", "[graph]")
 {
     NNGraph g("test");
     REQUIRE_THROWS_AS(
@@ -34,7 +36,8 @@ TEST_CASE("NNGraph TensorNodeNullData", "[graph]")
         std::invalid_argument);
 }
 
-TEST_CASE("NNGraph TensorCreationAndLookup", "[graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph TensorCreationAndLookup", "[graph]")
 {
     NNGraph g("test");
 
@@ -51,7 +54,8 @@ TEST_CASE("NNGraph TensorCreationAndLookup", "[graph]")
     REQUIRE(std::find(names.begin(), names.end(), "x") != names.end());
 }
 
-TEST_CASE("NNGraph OpNullInputs", "[graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph OpNullInputs", "[graph]")
 {
     const Scalar gemm_alpha = GENERATE(Scalar(1.0));
     const bool trans_a = GENERATE(false);
@@ -77,7 +81,8 @@ TEST_CASE("NNGraph OpNullInputs", "[graph]")
     REQUIRE(g.tensor_graph().ops().front()->op_name() == "GELU");
 }
 
-TEST_CASE("NNGraph GradHelpersAndToString", "[graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph GradHelpersAndToString", "[graph]")
 {
     NNGraph g("grad");
 
@@ -102,6 +107,9 @@ TEST_CASE("NNGraph GradHelpersAndToString", "[graph]")
     REQUIRE(grad_again == grad);
     REQUIRE(g.tensor_graph().num_ops() == 1);
 
+    REQUIRE_THROWS_AS(g.get_or_create_grad(x, "different_grad_name"),
+        std::invalid_argument);
+
     auto node_text = x->to_string();
     REQUIRE(node_text.find("requires_grad=true") != std::string::npos);
     REQUIRE(node_text.find("grad='x_grad'") != std::string::npos);
@@ -111,7 +119,8 @@ TEST_CASE("NNGraph GradHelpersAndToString", "[graph]")
     REQUIRE(graph_text.find("Operations:") != std::string::npos);
 }
 
-TEST_CASE("NNGraph ToMermaidDelegatesToTensorGraph", "[graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph ToMermaidDelegatesToTensorGraph", "[graph]")
 {
     const Scalar gemm_alpha = GENERATE(Scalar(1.0));
     const bool trans_a = GENERATE(false);
@@ -136,7 +145,8 @@ TEST_CASE("NNGraph ToMermaidDelegatesToTensorGraph", "[graph]")
     REQUIRE(nn_mermaid.find("graph TD") != std::string::npos);
 }
 
-TEST_CASE("NNGraph MarkInputOutput", "[graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph MarkInputOutput", "[graph]")
 {
     const Scalar gemm_alpha = GENERATE(Scalar(1.0));
     const bool trans_a = GENERATE(false);
@@ -159,7 +169,8 @@ TEST_CASE("NNGraph MarkInputOutput", "[graph]")
     REQUIRE(y->data()->is_output());
 }
 
-TEST_CASE("NNGraph Autograd Add Backward", "[graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph Autograd Add Backward", "[graph]")
 {
     // Example: z = add(alpha, x, beta, y) with z.backward()
     // Mimics PyTorch: z = alpha*x + beta*y, then z.backward()
@@ -219,7 +230,8 @@ TEST_CASE("NNGraph Autograd Add Backward", "[graph]")
     REQUIRE(g.get_tensor("z_grad") != nullptr);
 }
 
-TEST_CASE("NNGraph Autograd Add Chain", "[graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph Autograd Add Chain", "[graph]")
 {
     // Chain: w = x + y, z = w + u. Each tensor gets its gradient.
     const Scalar add_alpha = GENERATE(Scalar(1.0));
@@ -247,7 +259,8 @@ TEST_CASE("NNGraph Autograd Add Chain", "[graph]")
     REQUIRE(w->has_grad());
 }
 
-TEST_CASE("NNGraph Autograd Add Diamond", "[graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph Autograd Add Diamond", "[graph]")
 {
     // Diamond: w = x + y, v = w + y, z = v + w.
     // w feeds into both v and z; backward must process v and z before w
@@ -274,7 +287,8 @@ TEST_CASE("NNGraph Autograd Add Diamond", "[graph]")
     REQUIRE(v->has_grad());
 }
 
-TEST_CASE("NNGraph BackwardRequiresGrad", "[graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph BackwardRequiresGrad", "[graph]")
 {
     // backward() must be called only when grad is already set
     const Scalar add_alpha = GENERATE(Scalar(1.0));

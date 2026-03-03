@@ -17,7 +17,7 @@
 
 #include <numeric>
 
-#include "nntile/context.hh"
+#include "context_fixture.hh"
 #include "nntile/graph/tensor/multiply.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/multiply.hh"
@@ -27,11 +27,13 @@ using namespace nntile;
 using namespace nntile::graph;
 
 template<typename T>
-void check_multiply_vs_tensor_api(const std::vector<Index>& shape, Scalar alpha)
+void check_multiply_vs_tensor_api(
+    const std::vector<Index>& shape,
+    Scalar alpha)
 {
     using Y = typename T::repr_t;
-    const Index nelems =
-        std::accumulate(shape.begin(), shape.end(), Index(1), std::multiplies<>());
+    const Index nelems = std::accumulate(
+        shape.begin(), shape.end(), Index(1), std::multiplies<>());
 
     // --- TensorGraph path ---
     TensorGraph graph("multiply_test");
@@ -106,7 +108,7 @@ void check_multiply_vs_tensor_api(const std::vector<Index>& shape, Scalar alpha)
 
 TEST_CASE("TensorGraph multiply structure", "[graph][tensor]")
 {
-    const Scalar alpha = GENERATE(Scalar(1.0));
+    const auto alpha = GENERATE(1.0, 2.5, 0.5);
     constexpr Index dim0 = 4;
     constexpr Index dim1 = 5;
 
@@ -129,14 +131,16 @@ TEST_CASE("TensorGraph multiply structure", "[graph][tensor]")
     REQUIRE(ops[0]->outputs()[0] == z);
 }
 
-TEST_CASE("TensorGraph multiply matches tensor::multiply", "[graph][tensor]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph multiply matches tensor::multiply", "[graph][tensor]")
 {
     const auto [alpha, shape] = GENERATE(
-        std::tuple{Scalar(1.0), std::vector<Index>{4, 5}},
-        std::tuple{Scalar(2.5), std::vector<Index>{4, 5}},
-        std::tuple{Scalar(1.0), std::vector<Index>{6}});
+        std::tuple{1.0, std::vector<Index>{4, 5}},
+        std::tuple{2.5, std::vector<Index>{4, 5}},
+        std::tuple{0.5, std::vector<Index>{2, 3}},
+        std::tuple{1.0, std::vector<Index>{6}},
+        std::tuple{3.0, std::vector<Index>{1, 10}});
 
-    Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0);
-
-    check_multiply_vs_tensor_api<nntile::fp32_t>(shape, alpha);
+    check_multiply_vs_tensor_api<nntile::fp32_t>(
+        shape, alpha);
 }

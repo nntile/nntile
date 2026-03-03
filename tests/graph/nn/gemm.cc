@@ -12,12 +12,14 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 
+#include "context_fixture.hh"
 #include "nntile/graph.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 
-TEST_CASE("NNGraph Autograd Gemm ForwardAndBackward", "[graph][nn_graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph Autograd Gemm ForwardAndBackward", "[graph][nn_graph]")
 {
     const Scalar gemm_alpha = GENERATE(Scalar(1.0));
     const bool trans_a = GENERATE(false);
@@ -45,7 +47,8 @@ TEST_CASE("NNGraph Autograd Gemm ForwardAndBackward", "[graph][nn_graph]")
     REQUIRE(b->grad()->shape() == (std::vector<Index>{3, 4}));
 }
 
-TEST_CASE("NNGraph Autograd Gemm Backward TransposedA", "[graph][nn_graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph Autograd Gemm Backward TransposedA", "[graph][nn_graph]")
 {
     SECTION("trans_b=false uses grad_C transpose for grad_A")
     {

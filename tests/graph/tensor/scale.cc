@@ -17,7 +17,7 @@
 
 #include <numeric>
 
-#include "nntile/context.hh"
+#include "context_fixture.hh"
 #include "nntile/graph/tensor/scale.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/scale.hh"
@@ -27,11 +27,13 @@ using namespace nntile;
 using namespace nntile::graph;
 
 template<typename T>
-void check_scale_vs_tensor_api(const std::vector<Index>& shape, Scalar alpha)
+void check_scale_vs_tensor_api(
+    const std::vector<Index>& shape,
+    Scalar alpha)
 {
     using Y = typename T::repr_t;
-    const Index nelems =
-        std::accumulate(shape.begin(), shape.end(), Index(1), std::multiplies<>());
+    const Index nelems = std::accumulate(
+        shape.begin(), shape.end(), Index(1), std::multiplies<>());
 
     // --- TensorGraph path ---
     TensorGraph graph("scale_test");
@@ -97,13 +99,15 @@ void check_scale_vs_tensor_api(const std::vector<Index>& shape, Scalar alpha)
     }
 }
 
-TEST_CASE("TensorGraph scale matches tensor::scale", "[graph][tensor]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph scale matches tensor::scale", "[graph][tensor]")
 {
     const auto [alpha, shape] = GENERATE(
-        std::tuple{Scalar(2.5), std::vector<Index>{4, 5}},
-        std::tuple{Scalar(-1.0), std::vector<Index>{6}});
+        std::tuple{2.5, std::vector<Index>{4, 5}},
+        std::tuple{-1.0, std::vector<Index>{6}},
+        std::tuple{1.0, std::vector<Index>{2, 3}},
+        std::tuple{0.5, std::vector<Index>{1}});
 
-    Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0);
-
-    check_scale_vs_tensor_api<nntile::fp32_t>(shape, alpha);
+    check_scale_vs_tensor_api<nntile::fp32_t>(
+        shape, alpha);
 }

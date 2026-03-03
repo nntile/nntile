@@ -130,6 +130,13 @@ NNGraph::TensorNode* NNGraph::get_or_create_grad(
     }
     if(tensor->grad() != nullptr)
     {
+        if(tensor->grad()->name() != grad_name)
+        {
+            throw std::invalid_argument(
+                "NNGraph::get_or_create_grad: tensor '" + tensor->name() +
+                "' already has gradient '" + tensor->grad()->name() +
+                "' but caller requested '" + grad_name + "'");
+        }
         return tensor->grad();
     }
 

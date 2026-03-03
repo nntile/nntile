@@ -12,12 +12,14 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 
+#include "context_fixture.hh"
 #include "nntile/graph.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 
-TEST_CASE("NNGraph Autograd Gelu ForwardAndBackward", "[graph][nn_graph]")
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph Autograd Gelu ForwardAndBackward", "[graph][nn_graph]")
 {
     const Scalar grad_fill_val = GENERATE(Scalar(1.0));
 

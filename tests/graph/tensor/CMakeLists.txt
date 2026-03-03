@@ -15,11 +15,13 @@ set(TESTS_TENSOR_CATCH2 "add" "scale" "multiply" "relu" "sqrt" "copy")
 
 foreach(test IN LISTS TESTS_TENSOR_CATCH2)
     add_test_set(TARGET_NAME tests_graph_tensor_${test}
-        EXEC_NAME test_tensor_${test}
+        EXEC_NAME test_${test}
         SOURCES ${test}.cc
         LINK_LIBRARIES nntile Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_graph_tensor_${test}
         COV_GLOBAL coverage_graph coverage
     )
+    target_include_directories(tests_graph_tensor_${test} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/..)
 endforeach()
