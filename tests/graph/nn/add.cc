@@ -15,6 +15,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
 
+#ifdef NNTILE_HAVE_TORCH
+#   include "pytorch_helper.hh"
+#endif
+
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
 
@@ -153,3 +157,134 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(x->has_grad());
     REQUIRE(y->has_grad());
 }
+
+#ifdef NNTILE_HAVE_TORCH
+
+using nntile::test::compare_float_vectors;
+using nntile::test::pytorch_tolerance;
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph add forward matches PyTorch", "[graph][nn_graph][pytorch]")
+{
+    const auto [alpha, beta] = GENERATE(
+        std::tuple{Scalar(1.0), Scalar(1.0)},
+        std::tuple{Scalar(2.0), Scalar(3.0)},
+        std::tuple{Scalar(0.5), Scalar(-1.0)});
+
+    constexpr Index dim0 = 4;
+    constexpr Index dim1 = 6;
+    constexpr Index nelems = dim0 * dim1;
+
+    std::vector<float> x_data(nelems);
+    std::vector<float> y_data(nelems);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        x_data[i] = 0.1f * static_cast<float>(i + 1);
+        y_data[i] = 0.2f * static_cast<float>(-i - 1);
+    }
+
+    NNGraph g("add_pytorch");
+    auto* x = g.tensor({dim0, dim1}, "x", DataType::FP32, true);
+    auto* y = g.tensor({dim0, dim1}, "y", DataType::FP32, true);
+    auto* z = add(alpha, x, beta, y, "z");
+
+    x->mark_input(true);
+    y->mark_input(true);
+    z->mark_output(true);
+
+    TensorGraph::Runtime runtime(g.tensor_graph());
+    runtime.compile();
+    runtime.bind_data("x", x_data);
+    runtime.bind_data("y", y_data);
+    runtime.execute();
+    runtime.wait();
+
+    std::vector<float> nntile_out = runtime.get_output<float>("z");
+
+    auto x_pt = torch::from_blob(x_data.data(), {dim0, dim1},
+                                 torch::TensorOptions().dtype(torch::kFloat32))
+                    .clone()
+                    .set_requires_grad(false);
+    auto y_pt = torch::from_blob(y_data.data(), {dim0, dim1},
+                                 torch::TensorOptions().dtype(torch::kFloat32))
+                    .clone()
+                    .set_requires_grad(false);
+
+    auto z_pt = x_pt.mul(alpha).add(y_pt, beta);
+    std::vector<float> pytorch_out(z_pt.data_ptr<float>(),
+                                   z_pt.data_ptr<float>() + nelems);
+
+    REQUIRE(nntile_out.size() == pytorch_out.size());
+    for(size_t i = 0; i < nntile_out.size(); ++i)
+    {
+        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
+    }
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph add backward matches PyTorch", "[graph][nn_graph][pytorch]")
+{
+    const auto [alpha, beta, grad_fill_val] = GENERATE(
+        std::tuple{Scalar(1.0), Scalar(1.0), Scalar(1.0)},
+        std::tuple{Scalar(2.0), Scalar(3.0), Scalar(1.0)},
+        std::tuple{Scalar(0.5), Scalar(-1.0), Scalar(2.0)});
+
+    constexpr Index dim0 = 3;
+    constexpr Index dim1 = 5;
+    constexpr Index nelems = dim0 * dim1;
+
+    std::vector<float> x_data(nelems);
+    std::vector<float> y_data(nelems);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        x_data[i] = 0.1f * static_cast<float>(i);
+        y_data[i] = 0.15f * static_cast<float>(i + 10);
+    }
+
+    NNGraph g("add_bwd_pytorch");
+    auto* x = g.tensor({dim0, dim1}, "x", DataType::FP32, true);
+    auto* y = g.tensor({dim0, dim1}, "y", DataType::FP32, true);
+    auto* z = add(alpha, x, beta, y, "z");
+
+    x->mark_input(true);
+    y->mark_input(true);
+
+    auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
+    fill(grad_fill_val, z_grad->data());
+    z->backward();
+
+    x->grad()->mark_output(true);
+    y->grad()->mark_output(true);
+
+    TensorGraph::Runtime runtime(g.tensor_graph());
+    runtime.compile();
+    runtime.bind_data("x", x_data);
+    runtime.bind_data("y", y_data);
+    runtime.execute();
+    runtime.wait();
+
+    std::vector<float> nntile_grad_x =
+        runtime.get_output<float>(x->grad()->name());
+    std::vector<float> nntile_grad_y =
+        runtime.get_output<float>(y->grad()->name());
+
+    auto x_pt = torch::from_blob(x_data.data(), {dim0, dim1},
+                                 torch::TensorOptions().dtype(torch::kFloat32))
+                    .clone()
+                    .set_requires_grad(true);
+    auto y_pt = torch::from_blob(y_data.data(), {dim0, dim1},
+                                 torch::TensorOptions().dtype(torch::kFloat32))
+                    .clone()
+                    .set_requires_grad(true);
+
+    auto z_pt = x_pt.mul(alpha).add(y_pt, beta);
+    auto grad_output = torch::full(
+        {dim0, dim1}, static_cast<float>(grad_fill_val),
+        torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
+    z_pt.backward(grad_output);
+
+    compare_float_vectors(nntile_grad_x, x_pt.grad());
+    compare_float_vectors(nntile_grad_y, y_pt.grad());
+}
+
+#endif // NNTILE_HAVE_TORCH

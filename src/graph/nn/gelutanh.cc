@@ -17,6 +17,7 @@
 
 #include <stdexcept>
 
+#include "nntile/graph/tensor/clear.hh"
 #include "nntile/graph/tensor/gelutanh.hh"
 #include "nntile/graph/tensor/gelutanh_backward.hh"
 
@@ -51,7 +52,10 @@ void NNGelutanhOp::backward() const
     {
         auto [grad_x, is_first] =
             graph->get_or_create_grad(x, x->name() + "_grad");
-        (void)is_first;  // gelutanh_backward overwrites; no beta
+        if(is_first)
+        {
+            graph::clear(grad_x->data());
+        }
         graph::gelutanh_backward(x->data(), grad_out->data(), grad_x->data());
     }
 }

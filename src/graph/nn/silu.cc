@@ -17,6 +17,7 @@
 
 #include <stdexcept>
 
+#include "nntile/graph/tensor/clear.hh"
 #include "nntile/graph/tensor/silu.hh"
 #include "nntile/graph/tensor/silu_backward.hh"
 
@@ -51,7 +52,10 @@ void NNSiluOp::backward() const
     {
         auto [grad_x, is_first] =
             graph->get_or_create_grad(x, x->name() + "_grad");
-        (void)is_first;  // silu_backward overwrites; no beta
+        if(is_first)
+        {
+            graph::clear(grad_x->data());
+        }
         graph::silu_backward(x->data(), grad_out->data(), grad_x->data());
     }
 }
