@@ -11,9 +11,13 @@
 set(TESTS_NN_CATCH2
     "add"
     "add_fiber"
-    "grad_mode"
     "gelu"
+    "gelutanh"
     "gemm"
+    "grad_mode"
+    "relu"
+    "silu"
+    "softmax"
     "sum_fiber"
 )
 

@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/graph/nn/gelu.cc
- * Test NNGraph gelu autograd operation.
+ * @file tests/graph/nn/gelutanh.cc
+ * Test NNGraph gelutanh autograd operation.
  *
  * @version 1.1.0
  * */
@@ -22,33 +22,33 @@ using namespace nntile;
 using namespace nntile::graph;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph gelu structure", "[graph][nn_graph]")
+    "NNGraph gelutanh structure", "[graph][nn_graph]")
 {
     const auto shape = GENERATE(
         std::vector<Index>{2, 3},
         std::vector<Index>{4, 5});
 
-    NNGraph g("gelu_structure");
+    NNGraph g("gelutanh_structure");
     auto* x = g.tensor(shape, "x", DataType::FP32);
-    auto* y = gelu(x, "y");
+    auto* y = gelutanh(x, "y");
 
     REQUIRE(y != nullptr);
     REQUIRE(y->has_producer());
     REQUIRE(y->shape() == shape);
     REQUIRE(g.num_ops() == 1);
-    REQUIRE(g.tensor_graph().ops()[0]->op_name() == "GELU");
+    REQUIRE(g.tensor_graph().ops()[0]->op_name() == "GELUTANH");
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph gelu backward", "[graph][nn_graph]")
+    "NNGraph gelutanh backward", "[graph][nn_graph]")
 {
     const auto [shape, grad_fill_val] = GENERATE(
         std::tuple{std::vector<Index>{2, 3}, Scalar(1.0)},
         std::tuple{std::vector<Index>{4, 5}, Scalar(-1.0)});
 
-    NNGraph g("gelu_backward");
+    NNGraph g("gelutanh_backward");
     auto* x = g.tensor(shape, "x", DataType::FP32);
-    auto* y = gelu(x, "y");
+    auto* y = gelutanh(x, "y");
 
     auto* y_grad = g.get_or_create_grad(y, "y_grad");
     fill(grad_fill_val, y_grad->data());
@@ -59,7 +59,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph gelu forward and backward", "[graph][nn_graph]")
+    "NNGraph gelutanh forward and backward", "[graph][nn_graph]")
 {
     const auto [shape, grad_fill_val] = GENERATE(
         std::tuple{std::vector<Index>{2, 3}, Scalar(1.0)},
@@ -67,9 +67,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{std::vector<Index>{6}, Scalar(2.0)},
         std::tuple{std::vector<Index>{2, 2, 3}, Scalar(-1.0)});
 
-    NNGraph g("gelu");
+    NNGraph g("gelutanh");
     auto* x = g.tensor(shape, "x", DataType::FP32, true);
-    auto* y = gelu(x, "y");
+    auto* y = gelutanh(x, "y");
 
     REQUIRE(y != nullptr);
     REQUIRE(y->has_producer());

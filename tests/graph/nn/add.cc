@@ -3,8 +3,11 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
  * @file tests/graph/nn/add.cc
- * Tests for NNGraph add autograd operation.
+ * Test NNGraph add autograd operation.
  *
  * @version 1.1.0
  * */
@@ -19,25 +22,35 @@ using namespace nntile;
 using namespace nntile::graph;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph Autograd Add build_forward", "[graph][nn_graph]")
+    "NNGraph add structure", "[graph][nn_graph]")
 {
-    const Scalar alpha = GENERATE(Scalar(1.0));
-    const Scalar beta = GENERATE(Scalar(1.0));
+    const auto [alpha, beta] = GENERATE(
+        std::tuple{Scalar(1.0), Scalar(1.0)},
+        std::tuple{Scalar(2.0), Scalar(3.0)},
+        std::tuple{Scalar(0.5), Scalar(-1.0)});
 
-    NNGraph g("add_build_forward");
-    auto* x = g.tensor({2, 3}, "x", DataType::FP32);
-    auto* y = g.tensor({2, 3}, "y", DataType::FP32);
+    constexpr Index dim0 = 2;
+    constexpr Index dim1 = 3;
+
+    NNGraph g("add_structure");
+    auto* x = g.tensor({dim0, dim1}, "x", DataType::FP32);
+    auto* y = g.tensor({dim0, dim1}, "y", DataType::FP32);
     auto* z = add(alpha, x, beta, y, "z");
+
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
+    REQUIRE(z->shape() == (std::vector<Index>{dim0, dim1}));
+    REQUIRE(g.num_ops() == 1);
+    REQUIRE(g.tensor_graph().ops()[0]->op_name() == "ADD");
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph Autograd Add Backward", "[graph][nn_graph]")
+    "NNGraph add backward", "[graph][nn_graph]")
 {
-    const Scalar alpha = GENERATE(Scalar(2.0));
-    const Scalar beta = GENERATE(Scalar(3.0));
-    const Scalar grad_fill_val = GENERATE(Scalar(1.0));
+    const auto [alpha, beta, grad_fill_val] = GENERATE(
+        std::tuple{Scalar(2.0), Scalar(3.0), Scalar(1.0)},
+        std::tuple{Scalar(0.5), Scalar(-1.0), Scalar(2.0)},
+        std::tuple{Scalar(1.0), Scalar(0.0), Scalar(1.0)});
 
     NNGraph g("autograd_add");
     auto* x = g.tensor({2, 3}, "x", DataType::FP32);
@@ -67,11 +80,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph Autograd Add Chain", "[graph][nn_graph]")
+    "NNGraph add chain", "[graph][nn_graph]")
 {
-    const Scalar add_alpha = GENERATE(Scalar(1.0));
-    const Scalar add_beta = GENERATE(Scalar(1.0));
-    const Scalar grad_fill_val = GENERATE(Scalar(1.0));
+    const auto [add_alpha, add_beta, grad_fill_val] = GENERATE(
+        std::tuple{Scalar(1.0), Scalar(1.0), Scalar(1.0)},
+        std::tuple{Scalar(0.5), Scalar(2.0), Scalar(-1.0)});
 
     NNGraph g("add_chain");
     auto* x = g.tensor({2, 2}, "x", DataType::FP32);
@@ -92,11 +105,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph Autograd Add Diamond", "[graph][nn_graph]")
+    "NNGraph add diamond", "[graph][nn_graph]")
 {
-    const Scalar add_alpha = GENERATE(Scalar(1.0));
-    const Scalar add_beta = GENERATE(Scalar(1.0));
-    const Scalar grad_fill_val = GENERATE(Scalar(1.0));
+    const auto [add_alpha, add_beta, grad_fill_val] = GENERATE(
+        std::tuple{Scalar(1.0), Scalar(1.0), Scalar(1.0)},
+        std::tuple{Scalar(2.0), Scalar(0.5), Scalar(1.0)});
 
     NNGraph g("add_diamond");
     auto* x = g.tensor({2, 2}, "x", DataType::FP32);
@@ -117,11 +130,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph Autograd Add ForwardAndBackward", "[graph][nn_graph]")
+    "NNGraph add forward and backward", "[graph][nn_graph]")
 {
-    const Scalar add_alpha = GENERATE(Scalar(1.0));
-    const Scalar add_beta = GENERATE(Scalar(1.0));
-    const Scalar grad_fill_val = GENERATE(Scalar(1.0));
+    const auto [add_alpha, add_beta, grad_fill_val] = GENERATE(
+        std::tuple{Scalar(1.0), Scalar(1.0), Scalar(1.0)},
+        std::tuple{Scalar(2.0), Scalar(3.0), Scalar(1.0)},
+        std::tuple{Scalar(0.5), Scalar(-1.0), Scalar(2.0)});
 
     NNGraph g("add");
     auto* x = g.tensor({2, 3}, "x", DataType::FP32, true);

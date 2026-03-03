@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/graph/nn/gelu.cc
- * Test NNGraph gelu autograd operation.
+ * @file tests/graph/nn/softmax.cc
+ * Test NNGraph softmax autograd operation.
  *
  * @version 1.1.0
  * */
@@ -22,36 +22,36 @@ using namespace nntile;
 using namespace nntile::graph;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph gelu structure", "[graph][nn_graph]")
+    "NNGraph softmax structure", "[graph][nn_graph]")
 {
-    const auto shape = GENERATE(
-        std::vector<Index>{2, 3},
-        std::vector<Index>{4, 5});
+    const auto [shape, axis] = GENERATE(
+        std::tuple{std::vector<Index>{2, 3}, Index(0)},
+        std::tuple{std::vector<Index>{4, 5}, Index(1)},
+        std::tuple{std::vector<Index>{2, 3, 4}, Index(1)});
 
-    NNGraph g("gelu_structure");
+    NNGraph g("softmax_structure");
     auto* x = g.tensor(shape, "x", DataType::FP32);
-    auto* y = gelu(x, "y");
+    auto* y = softmax(x, "y", axis);
 
     REQUIRE(y != nullptr);
     REQUIRE(y->has_producer());
     REQUIRE(y->shape() == shape);
-    REQUIRE(g.num_ops() == 1);
-    REQUIRE(g.tensor_graph().ops()[0]->op_name() == "GELU");
+    REQUIRE(g.num_ops() > 1);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph gelu backward", "[graph][nn_graph]")
+    "NNGraph softmax backward", "[graph][nn_graph]")
 {
-    const auto [shape, grad_fill_val] = GENERATE(
-        std::tuple{std::vector<Index>{2, 3}, Scalar(1.0)},
-        std::tuple{std::vector<Index>{4, 5}, Scalar(-1.0)});
+    const auto [shape, axis, grad_fill_val] = GENERATE(
+        std::tuple{std::vector<Index>{2, 3}, Index(0), Scalar(1.0)},
+        std::tuple{std::vector<Index>{4, 5}, Index(1), Scalar(-1.0)});
 
-    NNGraph g("gelu_backward");
+    NNGraph g("softmax_backward");
     auto* x = g.tensor(shape, "x", DataType::FP32);
-    auto* y = gelu(x, "y");
+    auto* y = softmax(x, "y", axis);
 
     auto* y_grad = g.get_or_create_grad(y, "y_grad");
-    fill(grad_fill_val, y_grad->data());
+    fill(grad_fill_val, y_grad);
     y->backward();
 
     REQUIRE(x->has_grad());
@@ -59,24 +59,24 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph gelu forward and backward", "[graph][nn_graph]")
+    "NNGraph softmax forward and backward", "[graph][nn_graph]")
 {
-    const auto [shape, grad_fill_val] = GENERATE(
-        std::tuple{std::vector<Index>{2, 3}, Scalar(1.0)},
-        std::tuple{std::vector<Index>{4, 5}, Scalar(1.0)},
-        std::tuple{std::vector<Index>{6}, Scalar(2.0)},
-        std::tuple{std::vector<Index>{2, 2, 3}, Scalar(-1.0)});
+    const auto [shape, axis, grad_fill_val] = GENERATE(
+        std::tuple{std::vector<Index>{2, 3}, Index(0), Scalar(1.0)},
+        std::tuple{std::vector<Index>{4, 5}, Index(1), Scalar(1.0)},
+        std::tuple{std::vector<Index>{6}, Index(0), Scalar(2.0)},
+        std::tuple{std::vector<Index>{2, 2, 3}, Index(1), Scalar(-1.0)});
 
-    NNGraph g("gelu");
+    NNGraph g("softmax");
     auto* x = g.tensor(shape, "x", DataType::FP32, true);
-    auto* y = gelu(x, "y");
+    auto* y = softmax(x, "y", axis);
 
     REQUIRE(y != nullptr);
     REQUIRE(y->has_producer());
     REQUIRE(y->shape() == x->shape());
 
     auto* y_grad = g.get_or_create_grad(y, "y_grad");
-    fill(grad_fill_val, y_grad->data());
+    fill(grad_fill_val, y_grad);
     y->backward();
 
     REQUIRE(x->has_grad());
