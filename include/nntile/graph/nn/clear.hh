@@ -14,6 +14,10 @@
 
 #pragma once
 
+// Standard library headers
+#include <stdexcept>
+
+// NNTile headers
 #include <nntile/graph/nn/graph.hh>
 #include <nntile/graph/tensor/clear.hh>
 
@@ -23,10 +27,11 @@ namespace nntile::graph
 //! Clear NNGraph tensor: x = 0. Adds TensorClearOp to tensor graph.
 inline void clear(NNGraph::TensorNode* x)
 {
-    if(x != nullptr)
+    if(x == nullptr)
     {
-        graph::tensor::clear(x->data());
+        throw std::invalid_argument("clear: input tensor must be non-null");
     }
+    graph::tensor::clear(x->data());
 }
 
 } // namespace nntile::graph

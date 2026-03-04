@@ -14,10 +14,12 @@
 
 #pragma once
 
+// Standard library headers
 #include <memory>
 #include <string>
 #include <vector>
 
+// NNTile headers
 #include <nntile/graph/tensor/graph_data_node.hh>
 #include <nntile/graph/tensor/graph_runtime.hh>
 

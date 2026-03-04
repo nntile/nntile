@@ -14,14 +14,15 @@
 
 #pragma once
 
+// Standard library headers
+#include <cstdint>
 #include <functional>
 #include <numeric>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-#include <cstdint>
-
+// NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
 

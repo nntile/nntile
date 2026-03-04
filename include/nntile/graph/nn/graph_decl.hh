@@ -14,6 +14,7 @@
 
 #pragma once
 
+// Standard library headers
 #include <functional>
 #include <map>
 #include <memory>
@@ -21,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+// NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tensor/graph.hh>

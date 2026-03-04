@@ -14,10 +14,12 @@
 
 #pragma once
 
+// Standard library headers
+#include <vector>
+
+// NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
-
-#include <vector>
 
 namespace nntile::graph::tensor
 {

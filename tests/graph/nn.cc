@@ -75,6 +75,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                      std::invalid_argument);
     REQUIRE_THROWS_AS(gelu(static_cast<NNGraph::TensorNode*>(nullptr), "out"),
                      std::invalid_argument);
+    REQUIRE_THROWS_AS(fill(Scalar(1.0), static_cast<NNGraph::TensorNode*>(nullptr)),
+                     std::invalid_argument);
+    REQUIRE_THROWS_AS(clear(static_cast<NNGraph::TensorNode*>(nullptr)),
+                     std::invalid_argument);
 
     auto* z = gelu(x, "z");
     REQUIRE(z != nullptr);

@@ -16,9 +16,11 @@
 
 #pragma once
 
+// Standard library headers
 #include <memory>
 #include <vector>
 
+// NNTile headers
 #include <nntile/graph/nn/graph_decl.hh>
 #include <nntile/graph/nn/graph_data_node.hh>
 

@@ -17,7 +17,7 @@
 
 #pragma once
 
-// Include NNGraph operation overloads (one file per op)
+// NNTile headers
 #include <nntile/graph/nn/add.hh>
 #include <nntile/graph/nn/add_fiber.hh>
 #include <nntile/graph/nn/clear.hh>

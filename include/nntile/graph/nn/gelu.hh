@@ -17,8 +17,10 @@
 
 #pragma once
 
+// Standard library headers
 #include <string>
 
+// NNTile headers
 #include <nntile/graph/nn/graph_op_node.hh>
 #include <nntile/graph/tensor/gelu.hh>
 

@@ -14,8 +14,11 @@
 
 #pragma once
 
-#include <nntile/graph/tensor/graph.hh>
+// Standard library headers
 #include <string>
+
+// NNTile headers
+#include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::graph::tensor
 {

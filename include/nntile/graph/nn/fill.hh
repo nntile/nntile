@@ -14,6 +14,10 @@
 
 #pragma once
 
+// Standard library headers
+#include <stdexcept>
+
+// NNTile headers
 #include <nntile/graph/nn/graph.hh>
 #include <nntile/graph/tensor/fill.hh>
 
@@ -23,10 +27,11 @@ namespace nntile::graph
 //! Fill NNGraph tensor: x = val. Adds TensorFillOp to tensor graph.
 inline void fill(Scalar val, NNGraph::TensorNode* x)
 {
-    if(x != nullptr)
+    if(x == nullptr)
     {
-        graph::tensor::fill(val, x->data());
+        throw std::invalid_argument("fill: input tensor must be non-null");
     }
+    graph::tensor::fill(val, x->data());
 }
 
 } // namespace nntile::graph

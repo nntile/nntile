@@ -14,8 +14,10 @@
 
 #pragma once
 
+// Standard library headers
 #include <string>
 
+// NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 

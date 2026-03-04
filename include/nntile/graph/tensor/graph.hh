@@ -15,6 +15,7 @@
 
 #pragma once
 
+// NNTile headers
 #include <nntile/graph/tensor/graph_decl.hh>
 #include <nntile/graph/tensor/graph_data_node.hh>
 #include <nntile/graph/tensor/graph_runtime.hh>

@@ -16,11 +16,13 @@
 
 #pragma once
 
+// Standard library headers
 #include <functional>
 #include <memory>
 #include <string>
 #include <vector>
 
+// NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/nn/graph_decl.hh>
