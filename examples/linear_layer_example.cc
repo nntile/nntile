@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
     auto [grad_output_tensor, _] = graph.get_or_create_grad(
         &output_tensor,
         "external_grad_output");
-    nntile::graph::fill(nntile::Scalar(1.0f), grad_output_tensor);
+    nntile::graph::fill(nntile::Scalar(1.0f), grad_output_tensor->data());
 
     // Mark parameter tensors for bind_data (weight)
     linear.weight_tensor()->mark_input(true);

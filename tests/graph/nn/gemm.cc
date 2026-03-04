@@ -87,6 +87,21 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(c->shape() == (std::vector<Index>{M, N, B}));
         REQUIRE(g.num_ops() == 1);
     }
+    SECTION("ndim=2, batch_ndim=0: a.ndim() != b.ndim() (3D @ 4D)")
+    {
+        const Index M1 = 2, K1 = 3, K2 = 4, N1 = 5, N2 = 6;
+        NNGraph g("gemm_3d_4d");
+        auto* a = g.tensor({M1, K1, K2}, "a", DataType::FP32);
+        auto* b = g.tensor({K1, K2, N1, N2}, "b", DataType::FP32);
+        auto* c = gemm(a, b, "c", gemm_alpha_one, trans_a_default, trans_b_default,
+                       ndim_two, batch_ndim_none);
+        REQUIRE(c != nullptr);
+        REQUIRE(c->has_producer());
+        REQUIRE(a->ndim() == 3);
+        REQUIRE(b->ndim() == 4);
+        REQUIRE(c->shape() == (std::vector<Index>{M1, N1, N2}));
+        REQUIRE(g.num_ops() == 1);
+    }
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -147,6 +162,22 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(a->grad()->shape() == (std::vector<Index>{M, K, B}));
         REQUIRE(b->grad()->shape() == (std::vector<Index>{K, N, B}));
     }
+    SECTION("ndim=2, batch_ndim=0: a.ndim() != b.ndim() (3D @ 4D)")
+    {
+        const Index M1 = 2, K1 = 3, K2 = 4, N1 = 5, N2 = 6;
+        NNGraph g("gemm_bwd_3d_4d");
+        auto* a = g.tensor({M1, K1, K2}, "a", DataType::FP32);
+        auto* b = g.tensor({K1, K2, N1, N2}, "b", DataType::FP32);
+        auto* c = gemm(a, b, "c", gemm_alpha_one, trans_a_default, trans_b_default,
+                       ndim_two, batch_ndim_none);
+        auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
+        fill(Scalar(1.0), c_grad->data());
+        c->backward();
+        REQUIRE(a->has_grad());
+        REQUIRE(b->has_grad());
+        REQUIRE(a->grad()->shape() == (std::vector<Index>{M1, K1, K2}));
+        REQUIRE(b->grad()->shape() == (std::vector<Index>{K1, K2, N1, N2}));
+    }
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -187,7 +218,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                        Scalar(1.0), Scalar(1.0)},
             std::tuple{std::vector<Index>{2, 4, 3}, std::vector<Index>{4, 3, 3},
                        std::vector<Index>{2, 3, 3}, ndim_one, batch_ndim_one,
-                       Scalar(0.5), Scalar(-1.0)});
+                       Scalar(0.5), Scalar(-1.0)},
+            std::tuple{std::vector<Index>{2, 3, 4}, std::vector<Index>{3, 4, 5, 6},
+                       std::vector<Index>{2, 5, 6}, ndim_two, batch_ndim_none,
+                       Scalar(1.0), Scalar(1.0)});
 
     NNGraph g("gemm_md");
     auto* a = g.tensor(a_shape, "a", DataType::FP32, true);
