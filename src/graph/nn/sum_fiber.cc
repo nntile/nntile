@@ -15,10 +15,8 @@
 #include "nntile/graph/nn/sum_fiber.hh"
 
 #include <stdexcept>
-#include <vector>
 
 #include "nntile/graph/tensor/add_fiber_inplace.hh"
-#include "nntile/graph/tensor/clear.hh"
 #include "nntile/graph/tensor/sum_fiber.hh"
 
 namespace nntile::graph
@@ -28,22 +26,6 @@ namespace
 {
 constexpr Scalar grad_overwrite = 0.0;
 constexpr Scalar grad_accumulate = 1.0;
-
-std::vector<Index> sum_fiber_output_shape(const std::vector<Index>& x_shape,
-                                           Index axis,
-                                           Index batch_ndim)
-{
-    Index ndim = static_cast<Index>(x_shape.size());
-    std::vector<Index> out_shape;
-    out_shape.reserve(batch_ndim + 1);
-    out_shape.push_back(x_shape[axis]);
-    for(Index i = 0; i < batch_ndim; ++i)
-    {
-        out_shape.push_back(x_shape[ndim - batch_ndim + i]);
-    }
-    return out_shape;
-}
-
 } // anonymous namespace
 
 NNGraph::TensorNode* NNSumFiberOp::forward(const std::string& output_name)
@@ -54,14 +36,11 @@ NNGraph::TensorNode* NNSumFiberOp::forward(const std::string& output_name)
             "NNSumFiberOp::forward: x must be non-null");
     }
     NNGraph* graph = x->graph();
-    std::vector<Index> y_shape =
-        sum_fiber_output_shape(x->shape(), axis, batch_ndim);
     bool out_requires_grad = any_input_requires_grad({x});
-    NNGraph::TensorNode* y = graph->tensor(
-        std::move(y_shape), output_name, x->dtype(), out_requires_grad);
+    TensorGraph::TensorNode* y_data = graph::sum_fiber(
+        x->data(), output_name, axis, batch_ndim, redux, alpha, beta);
+    NNGraph::TensorNode* y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
-    graph::clear(y->data());
-    graph::sum_fiber(x->data(), y->data(), axis, batch_ndim, redux, alpha, beta);
     return y;
 }
 

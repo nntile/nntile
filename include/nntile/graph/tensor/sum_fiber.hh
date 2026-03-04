@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <string>
+
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
@@ -55,14 +57,17 @@ struct TensorSumFiberOp : TensorGraph::OpNode
     }
 };
 
-//! Sum along fibers: y = alpha * sum_fiber(x) + beta * y
-//! @param x Input tensor
-//! @param y Output tensor to accumulate into
-//! @param axis Axis along which to sum (default: 0)
-//! @param batch_ndim Number of trailing batch dimensions (default: 0)
-//! @param redux Whether to use reduction (default: 0)
-//! @param alpha Scaling factor for sum (default: 1.0)
-//! @param beta Scaling factor for existing y (default: 0.0)
+//! Sum along fibers: y = alpha * sum_fiber(x) + beta * y (creates output)
+TensorGraph::TensorNode* sum_fiber(
+    TensorGraph::TensorNode* x,
+    const std::string& output_name,
+    Index axis,
+    Index batch_ndim,
+    int redux,
+    Scalar alpha,
+    Scalar beta);
+
+//! Sum along fibers: y = alpha * sum_fiber(x) + beta * y (uses existing output)
 void sum_fiber(
     TensorGraph::TensorNode* x,
     TensorGraph::TensorNode* y,

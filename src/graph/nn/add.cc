@@ -38,10 +38,10 @@ NNGraph::TensorNode* NNAddOp::forward(const std::string& output_name)
     }
     NNGraph* graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x, y});
-    NNGraph::TensorNode* z = graph->tensor(
-        x->shape(), output_name, x->dtype(), out_requires_grad);
+    TensorGraph::TensorNode* z_data =
+        graph::add(alpha, x->data(), beta, y->data(), output_name);
+    NNGraph::TensorNode* z = graph->tensor(z_data, out_requires_grad);
     outputs_ = {z};
-    graph::add(alpha, x->data(), beta, y->data(), z->data());
     return z;
 }
 

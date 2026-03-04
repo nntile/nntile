@@ -33,10 +33,9 @@ NNGraph::TensorNode* NNReluOp::forward(const std::string& output_name)
     }
     NNGraph* graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x});
-    NNGraph::TensorNode* y = graph->tensor(
-        x->shape(), output_name, x->dtype(), out_requires_grad);
+    TensorGraph::TensorNode* y_data = graph::relu(x->data(), output_name);
+    NNGraph::TensorNode* y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
-    graph::relu(x->data(), y->data());
     return y;
 }
 

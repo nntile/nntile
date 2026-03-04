@@ -34,19 +34,10 @@ NNGraph::TensorNode* NNEmbeddingOp::forward(const std::string& output_name)
     NNGraph* graph = vocab->graph();
     bool out_requires_grad = any_input_requires_grad({vocab});
 
-    std::vector<Index> embed_shape = index->shape();
-    if(vocab->ndim() != 2)
-    {
-        throw std::invalid_argument(
-            "NNEmbeddingOp::forward: vocab must be 2D");
-    }
-    embed_shape.push_back(vocab->shape()[1]);
-
-    NNGraph::TensorNode* embed = graph->tensor(
-        std::move(embed_shape), output_name, vocab->dtype(), out_requires_grad);
+    TensorGraph::TensorNode* embed_data = graph::embedding(
+        index->data(), vocab->data(), output_name, axis);
+    NNGraph::TensorNode* embed = graph->tensor(embed_data, out_requires_grad);
     outputs_ = {embed};
-
-    graph::embedding(index->data(), vocab->data(), embed->data(), axis);
     return embed;
 }
 

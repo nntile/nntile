@@ -40,11 +40,11 @@ NNGraph::TensorNode* NNAddFiberOp::forward(const std::string& output_name)
     }
     NNGraph* graph = fiber->graph();
     bool out_requires_grad = any_input_requires_grad({fiber, tensor});
-    NNGraph::TensorNode* output = graph->tensor(
-        tensor->shape(), output_name, tensor->dtype(), out_requires_grad);
+    TensorGraph::TensorNode* output_data = graph::add_fiber(
+        alpha, fiber->data(), beta, tensor->data(),
+        output_name, axis, batch_ndim);
+    NNGraph::TensorNode* output = graph->tensor(output_data, out_requires_grad);
     outputs_ = {output};
-    graph::add_fiber(alpha, fiber->data(), beta, tensor->data(),
-                    output->data(), axis, batch_ndim);
     return output;
 }
 

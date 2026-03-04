@@ -37,14 +37,12 @@ NNGraph::TensorNode* NNGemmOp::forward(const std::string& output_name)
             "NNGemmOp::forward: a, b must be non-null");
     }
     NNGraph* graph = a->graph();
-    std::vector<Index> c_shape = gemm_output_shape(
-        a->shape(), b->shape(), trans_a, trans_b, ndim, batch_ndim);
     bool out_requires_grad = any_input_requires_grad({a, b});
-    NNGraph::TensorNode* c = graph->tensor(
-        std::move(c_shape), output_name, a->dtype(), out_requires_grad);
+    TensorGraph::TensorNode* c_data = graph::gemm(
+        a->data(), b->data(), output_name,
+        alpha, trans_a, trans_b, ndim, batch_ndim);
+    NNGraph::TensorNode* c = graph->tensor(c_data, out_requires_grad);
     outputs_ = {c};
-    graph::gemm(a->data(), b->data(), c->data(),
-                alpha, gemm_new_output_beta, trans_a, trans_b, ndim, batch_ndim);
     return c;
 }
 

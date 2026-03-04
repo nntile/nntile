@@ -26,6 +26,16 @@ using namespace nntile;
 using namespace nntile::graph;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph add rejects shape mismatch", "[graph][nn_graph]")
+{
+    NNGraph g("add_shape_mismatch");
+    auto* x = g.tensor({2, 3}, "x", DataType::FP32);
+    auto* y = g.tensor({3, 2}, "y", DataType::FP32);  // different shape
+
+    REQUIRE_THROWS_AS(add(1.0, x, 1.0, y, "z"), std::invalid_argument);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph add structure", "[graph][nn_graph]")
 {
     const auto [alpha, beta] = GENERATE(

@@ -15,6 +15,8 @@
 #include "nntile/graph/tensor/sum_fiber.hh"
 
 #include <stdexcept>
+#include <utility>
+#include <vector>
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/tensor.hh"
@@ -40,7 +42,50 @@ void run_sum_fiber(
         alpha, x_t, beta, y_t, axis, batch_ndim, redux);
 }
 
+std::vector<Index> sum_fiber_output_shape(
+    const std::vector<Index>& x_shape,
+    Index axis,
+    Index batch_ndim)
+{
+    Index ndim = static_cast<Index>(x_shape.size());
+    std::vector<Index> out_shape;
+    out_shape.reserve(batch_ndim + 1);
+    out_shape.push_back(x_shape[axis]);
+    for(Index i = 0; i < batch_ndim; ++i)
+    {
+        out_shape.push_back(x_shape[ndim - batch_ndim + i]);
+    }
+    return out_shape;
+}
+
 } // namespace
+
+TensorGraph::TensorNode* sum_fiber(
+    TensorGraph::TensorNode* x,
+    const std::string& output_name,
+    Index axis,
+    Index batch_ndim,
+    int redux,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(x == nullptr)
+    {
+        throw std::invalid_argument(
+            "sum_fiber: input tensor must be non-null");
+    }
+
+    std::vector<Index> output_shape =
+        sum_fiber_output_shape(x->shape(), axis, batch_ndim);
+    TensorGraph::TensorNode* output = x->graph()->data(
+        std::move(output_shape),
+        output_name,
+        x->dtype());
+
+    sum_fiber(x, output, axis, batch_ndim, redux, alpha, beta);
+
+    return output;
+}
 
 void sum_fiber(
     TensorGraph::TensorNode* x,

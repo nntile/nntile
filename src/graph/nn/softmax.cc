@@ -45,17 +45,16 @@ NNGraph::TensorNode* NNSoftmaxOp::forward(const std::string& output_name)
     NNGraph* graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x});
 
-    NNGraph::TensorNode* y = graph->tensor(
-        x->shape(), output_name, x->dtype(), out_requires_grad);
-    outputs_ = {y};
-
-    graph::copy(x->data(), y->data());
+    TensorGraph::TensorNode* y_data = graph::copy(x->data(), output_name);
 
     std::string mse_name = output_name + "_mse";
     TensorGraph::TensorNode* maxsumexp_buf =
-        graph::maxsumexp(y->data(), mse_name, axis, redux);
+        graph::maxsumexp(y_data, mse_name, axis, redux);
 
-    graph::softmax_inplace(maxsumexp_buf, y->data(), 1.0, axis);
+    graph::softmax_inplace(maxsumexp_buf, y_data, 1.0, axis);
+
+    NNGraph::TensorNode* y = graph->tensor(y_data, out_requires_grad);
+    outputs_ = {y};
 
     std::vector<Index> sumprod_shape;
     sumprod_shape.reserve(x->ndim() - 1);
