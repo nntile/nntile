@@ -101,7 +101,7 @@ public:
     // -----------------------------------------------------------------
 
     bool requires_grad(const TensorNode* tensor) const;
-    void set_requires_grad(TensorNode* tensor, bool requires = true);
+    void set_requires_grad(TensorNode* tensor, bool value = true);
 
     //! Get or create gradient tensor. Does NOT add CLEAR.
     //! Returns (grad_tensor, is_first_write): is_first_write is true when

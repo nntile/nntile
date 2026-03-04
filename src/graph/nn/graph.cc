@@ -109,11 +109,11 @@ bool NNGraph::requires_grad(const TensorNode* tensor) const
            (tensor->requires_grad() || tensor->grad() != nullptr);
 }
 
-void NNGraph::set_requires_grad(TensorNode* tensor, bool requires)
+void NNGraph::set_requires_grad(TensorNode* tensor, bool value)
 {
     if(tensor != nullptr)
     {
-        tensor->set_requires_grad(requires);
+        tensor->set_requires_grad(value);
     }
 }
 

@@ -64,7 +64,7 @@ public:
 
     // Gradient requirement
     bool requires_grad() const { return requires_grad_; }
-    void set_requires_grad(bool requires) { requires_grad_ = requires; }
+    void set_requires_grad(bool value) { requires_grad_ = value; }
 
     // Autograd: NNGraph-level producer (not TensorGraph)
     bool is_leaf() const { return producer_ == nullptr; }

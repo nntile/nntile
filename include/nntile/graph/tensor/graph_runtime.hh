@@ -128,6 +128,59 @@ nntile::tensor::Tensor<T>& TensorGraph::Runtime::get_data(const std::string& nam
     return *static_cast<nntile::tensor::Tensor<T>*>(it->second.get());
 }
 
+namespace detail
+{
+
+//! Map tensor element type to DataType for runtime type checking in get_tensor.
+//! Only the supported tensor types below have specializations; unsupported T
+//! triggers a compile error via the generic template.
+template<typename T>
+struct dtype_for
+{
+    static_assert(sizeof(T) == 0,
+                  "Unsupported tensor type for get_tensor; use fp32_t, fp64_t, "
+                  "fp16_t, bf16_t, int64_t, bool_t, or fp32_fast_* variants");
+};
+
+template<> struct dtype_for<nntile::fp32_t>
+{
+    static constexpr DataType value = DataType::FP32;
+};
+template<> struct dtype_for<nntile::fp32_fast_tf32_t>
+{
+    static constexpr DataType value = DataType::FP32_FAST_TF32;
+};
+template<> struct dtype_for<nntile::fp32_fast_fp16_t>
+{
+    static constexpr DataType value = DataType::FP32_FAST_FP16;
+};
+template<> struct dtype_for<nntile::fp32_fast_bf16_t>
+{
+    static constexpr DataType value = DataType::FP32_FAST_BF16;
+};
+template<> struct dtype_for<nntile::fp64_t>
+{
+    static constexpr DataType value = DataType::FP64;
+};
+template<> struct dtype_for<nntile::fp16_t>
+{
+    static constexpr DataType value = DataType::FP16;
+};
+template<> struct dtype_for<nntile::bf16_t>
+{
+    static constexpr DataType value = DataType::BF16;
+};
+template<> struct dtype_for<nntile::int64_t>
+{
+    static constexpr DataType value = DataType::INT64;
+};
+template<> struct dtype_for<nntile::bool_t>
+{
+    static constexpr DataType value = DataType::BOOL;
+};
+
+} // namespace detail
+
 template<typename T>
 nntile::tensor::Tensor<T>& TensorGraph::Runtime::get_tensor(
     const TensorNode* node)
@@ -138,12 +191,16 @@ nntile::tensor::Tensor<T>& TensorGraph::Runtime::get_tensor(
         throw std::runtime_error(
             "Runtime::get_tensor: node not found");
     }
-    auto ptr = std::static_pointer_cast<nntile::tensor::Tensor<T>>(it->second);
-    if(!ptr)
+    // Check that requested type T matches the node's dtype before casting.
+    // static_pointer_cast from shared_ptr<void> always succeeds (non-null),
+    // so we must verify the type explicitly to avoid undefined behavior.
+    if(node->dtype() != detail::dtype_for<T>::value)
     {
         throw std::runtime_error(
-            "Runtime::get_tensor: wrong type");
+            "Runtime::get_tensor: wrong type (requested type does not match "
+            "tensor dtype)");
     }
+    auto ptr = std::static_pointer_cast<nntile::tensor::Tensor<T>>(it->second);
     return *ptr;
 }
 
