@@ -264,7 +264,7 @@ void TensorGraph::Runtime::execute()
     for(size_t i = 0; i < execution_order_.size(); ++i)
     {
         execution_order_[i]->execute(*this);
-        invalidate_unused_inputs(i);
+        invalidate_unused_tensors(i);
     }
 }
 
@@ -318,10 +318,12 @@ void TensorGraph::Runtime::invalidate_data(const std::string& name)
     }
 }
 
-void TensorGraph::Runtime::invalidate_unused_inputs(size_t op_idx)
+void TensorGraph::Runtime::invalidate_unused_tensors(size_t op_idx)
 {
     const auto& op = execution_order_.at(op_idx);
     std::unordered_set<std::string> seen;
+
+    // Invalidate inputs that were last used by this op
     for(const auto* input : op->inputs())
     {
         const std::string& input_name = input->name();
@@ -351,6 +353,26 @@ void TensorGraph::Runtime::invalidate_unused_inputs(size_t op_idx)
         if(it != data_last_use_.end() && it->second == op_idx)
         {
             invalidate_data(input_name);
+        }
+    }
+
+    // Invalidate outputs that are never consumed (data_last_use_ only tracks
+    // inputs; outputs without consumers would otherwise leak memory)
+    for(const auto* output : op->outputs())
+    {
+        const std::string& output_name = output->name();
+        if(!seen.insert(output_name).second)
+        {
+            continue;
+        }
+        if(data_is_input_.count(output_name) ||
+           data_is_output_.count(output_name))
+        {
+            continue;
+        }
+        if(data_last_use_.count(output_name) == 0)
+        {
+            invalidate_data(output_name);
         }
     }
 }

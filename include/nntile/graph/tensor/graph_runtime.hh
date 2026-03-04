@@ -94,7 +94,7 @@ private:
     void allocate_impl();
     void eliminate_dead_ops();
     void invalidate_data(const std::string& name);
-    void invalidate_unused_inputs(size_t op_idx);
+    void invalidate_unused_tensors(size_t op_idx);
 
     //! Template helpers for bind_data/get_output - dispatch on DataType
     template<typename T, typename NntileT, typename CastT>
