@@ -23,7 +23,6 @@ template<typename T>
 void hypot_scalar_inverse_async(Scalar eps, Scalar alpha, const Tensor<T> &dst)
 {
     // Apply per-tile hypot asynchronously as needed
-    int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         auto dst_tile_handle = dst.get_tile_handle(i);
