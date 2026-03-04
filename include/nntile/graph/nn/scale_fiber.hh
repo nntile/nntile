@@ -6,11 +6,11 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/nn/sum_fiber.hh
- * NNGraph sum_fiber autograd operation.
+ * @file include/nntile/graph/nn/scale_fiber.hh
+ * NNGraph scale_fiber autograd operation.
  *
- * Forward: y = alpha * sum_fiber(x) (fresh output, no in-place)
- * Backward: grad_x += alpha * add_fiber_inplace(grad_y)
+ * Forward: output = alpha * src (broadcast along fiber)
+ * Backward: grad_src += alpha * sum_fiber(grad_out)
  *
  * @version 1.1.0
  * */
@@ -19,42 +19,45 @@
 
 // Standard library headers
 #include <string>
+#include <vector>
 
 // NNTile headers
 #include <nntile/graph/nn/graph_op_node.hh>
-#include <nntile/graph/tensor/sum_fiber.hh>
+#include <nntile/graph/tensor/scale_fiber.hh>
 
 namespace nntile::graph
 {
 
-//! SumFiber op: y = alpha*sum_fiber(x). PyTorch-style. Always fresh output.
-struct NNSumFiberOp : NNGraph::OpNode
+//! ScaleFiber op: output = alpha * src (broadcast). PyTorch-style.
+struct NNScaleFiberOp : NNGraph::OpNode
 {
     Scalar alpha;
     Index axis;
     Index batch_ndim;
-    int redux;
-    NNGraph::TensorNode* x = nullptr;
+    std::vector<Index> dst_shape;
+    NNGraph::TensorNode* src = nullptr;
 
-    NNSumFiberOp(NNGraph::TensorNode* x_,
-                 Index axis_, Index batch_ndim_,
-                 int redux_, Scalar alpha_)
+    NNScaleFiberOp(NNGraph::TensorNode* src_,
+                   Scalar alpha_,
+                   Index axis_,
+                   Index batch_ndim_,
+                   std::vector<Index> dst_shape_)
         : alpha(alpha_), axis(axis_), batch_ndim(batch_ndim_)
-        , redux(redux_), x(x_)
+        , dst_shape(std::move(dst_shape_)), src(src_)
     {
-        inputs_ = {x};
+        inputs_ = {src};
     }
 
     NNGraph::TensorNode* forward(const std::string& output_name);
     void backward() const override;
 };
 
-NNGraph::TensorNode* sum_fiber(
-    NNGraph::TensorNode* x,
+NNGraph::TensorNode* scale_fiber(
+    Scalar alpha,
+    NNGraph::TensorNode* src,
     const std::string& output_name,
+    const std::vector<Index>& dst_shape,
     Index axis,
-    Index batch_ndim,
-    int redux,
-    Scalar alpha);
+    Index batch_ndim);
 
 } // namespace nntile::graph
