@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -50,7 +51,7 @@ void check_randn_vs_tensor_api(const std::vector<Index>& shape)
     auto* dst_node = graph.data(shape, "dst", DataType::FP32);
     dst_node->mark_output(true);
 
-    randn(dst_node, start, shape, seed, mean, stddev);
+    gt::randn(dst_node, start, shape, seed, mean, stddev);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -61,11 +62,11 @@ void check_randn_vs_tensor_api(const std::vector<Index>& shape)
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> dst_t(traits, distr);
+    nntile::tensor::Tensor<T> dst_t(traits, distr);
 
-    tensor::randn<T>(dst_t, start, shape, seed, mean, stddev);
+    nntile::tensor::randn<T>(dst_t, start, shape, seed, mean, stddev);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -91,7 +92,7 @@ TEST_CASE("TensorGraph randn structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto* dst = graph.data({4, 5}, "dst");
-    randn(dst, {0, 0}, {4, 5}, seed, mean, stddev);
+    gt::randn(dst, {0, 0}, {4, 5}, seed, mean, stddev);
 
     REQUIRE(graph.num_data() == 1);
     REQUIRE(graph.num_ops() == 1);
@@ -108,7 +109,7 @@ TEST_CASE("TensorGraph randn rejects null", "[graph][tensor]")
     TensorGraph graph("test");
 
     REQUIRE_THROWS_AS(
-        randn(nullptr, {0, 0}, {4, 5}, seed, mean, stddev),
+        gt::randn(nullptr, {0, 0}, {4, 5}, seed, mean, stddev),
         std::invalid_argument);
 }
 
@@ -119,15 +120,15 @@ TEST_CASE("TensorGraph randn rejects mismatched start/underlying_shape",
     auto* dst = graph.data({4, 5}, "dst");
 
     REQUIRE_THROWS_AS(
-        randn(dst, {0}, {4, 5}, seed, mean, stddev),
+        gt::randn(dst, {0}, {4, 5}, seed, mean, stddev),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        randn(dst, {0, 0}, {4}, seed, mean, stddev),
+        gt::randn(dst, {0, 0}, {4}, seed, mean, stddev),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph randn matches tensor::randn", "[graph][tensor]")
+    "TensorGraph randn matches nntile::tensor::randn", "[graph][tensor]")
 {
     const auto shape = GENERATE(
         std::vector<Index>{4, 5},

@@ -19,7 +19,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Sum fiber operation at tensor level: y = alpha * sum_fiber(x) + beta * y
@@ -77,4 +77,4 @@ void sum_fiber(
     Scalar alpha,
     Scalar beta);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

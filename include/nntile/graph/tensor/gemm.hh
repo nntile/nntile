@@ -20,7 +20,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Compute output shape for gemm: C = alpha * op(A) @ op(B)
@@ -120,4 +120,4 @@ void gemm(
     Index ndim,
     Index batch_ndim);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

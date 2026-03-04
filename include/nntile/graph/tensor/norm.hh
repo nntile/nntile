@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Norm operation at tensor level
@@ -51,4 +51,4 @@ struct TensorNormOp : TensorGraph::OpNode
 void norm(TensorGraph::TensorNode* x, TensorGraph::TensorNode* y,
           Scalar alpha, Scalar beta);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

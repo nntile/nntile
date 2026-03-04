@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Embedding backward: vocab += scatter(embed, index)
@@ -57,4 +57,4 @@ void embedding_backward(TensorGraph::TensorNode* index,
                         Index axis,
                         int redux);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

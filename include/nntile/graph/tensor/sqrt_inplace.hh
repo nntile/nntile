@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! ReLU in-place at tensor level: dst = sqrt(dst)
@@ -45,4 +45,4 @@ struct TensorSqrtInplaceOp : TensorGraph::OpNode
 //! ReLU in-place: dst = sqrt(dst)
 void sqrt_inplace(TensorGraph::TensorNode* dst);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

@@ -167,7 +167,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
         // Fill logsumexp with -inf, clear y
         graph_.add_op(
             std::make_shared<graph::NNFillOp>(),
-            std::make_shared<graph::TensorFillOp>(graph::TensorFillOp{
+            std::make_shared<graph::tensor::TensorFillOp>(graph::tensor::TensorFillOp{
                 nullptr, mask_val_}),
             {},
             {flash_logsumexp_tensor_});
@@ -231,7 +231,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
         // attn = scale * K^T @ Q (ndim=1, batch_ndim)
         graph_.add_op(
             std::make_shared<graph::NNGemmOp>(),
-            std::make_shared<graph::TensorGemmOp>(graph::TensorGemmOp{
+            std::make_shared<graph::tensor::TensorGemmOp>(graph::tensor::TensorGemmOp{
                 nullptr, nullptr, nullptr, scale_, 0.0, true, false, 1, batch_ndim_}),
             {k_tensor_, &q},
             {attn_tensor_});
@@ -270,7 +270,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
         // y = V @ attn
         graph_.add_op(
             std::make_shared<graph::NNGemmOp>(),
-            std::make_shared<graph::TensorGemmOp>(graph::TensorGemmOp{
+            std::make_shared<graph::tensor::TensorGemmOp>(graph::tensor::TensorGemmOp{
                 nullptr, nullptr, nullptr, 1.0, 0.0, false, false, 1, batch_ndim_}),
             {v_tensor_, attn_tensor_},
             {output_tensor_});

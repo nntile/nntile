@@ -27,6 +27,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -73,7 +74,7 @@ void check_gemm_vs_tensor_api(
     a_node->mark_input(true);
     b_node->mark_input(true);
 
-    auto* c_node = gemm(a_node, b_node, "c", alpha,
+    auto* c_node = gt::gemm(a_node, b_node, "c", alpha,
                         trans_a, trans_b, ndim, batch_ndim);
     c_node->mark_output(true);
 
@@ -88,14 +89,14 @@ void check_gemm_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("c");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits a_traits(a_shape, a_shape);
-    tensor::TensorTraits b_traits(b_shape, b_shape);
-    tensor::TensorTraits c_traits(c_shape, c_shape);
+    nntile::tensor::TensorTraits a_traits(a_shape, a_shape);
+    nntile::tensor::TensorTraits b_traits(b_shape, b_shape);
+    nntile::tensor::TensorTraits c_traits(c_shape, c_shape);
     std::vector<int> distr_single(1, distr_rank_single);
 
-    tensor::Tensor<T> a_t(a_traits, distr_single);
-    tensor::Tensor<T> b_t(b_traits, distr_single);
-    tensor::Tensor<T> c_t(c_traits, distr_single);
+    nntile::tensor::Tensor<T> a_t(a_traits, distr_single);
+    nntile::tensor::Tensor<T> b_t(b_traits, distr_single);
+    nntile::tensor::Tensor<T> c_t(c_traits, distr_single);
 
     {
         auto tile = a_t.get_tile(0);
@@ -117,7 +118,7 @@ void check_gemm_vs_tensor_api(
     }
     nntile::tensor::clear<T>(c_t);
 
-    tensor::gemm<T>(alpha, TransOp(TransOp::NoTrans), a_t,
+    nntile::tensor::gemm<T>(alpha, TransOp(TransOp::NoTrans), a_t,
                     TransOp(TransOp::NoTrans), b_t, 0.0, c_t,
                     ndim, batch_ndim);
     starpu_task_wait_for_all();
@@ -148,7 +149,7 @@ TEST_CASE("TensorGraph gemm structure", "[graph][tensor]")
 
     auto* a = graph.data({4, 5}, "a");
     auto* b = graph.data({5, 6}, "b");
-    auto* c = gemm(a, b, "c", alpha_one, trans_a, trans_b, ndim, batch_ndim);
+    auto* c = gt::gemm(a, b, "c", alpha_one, trans_a, trans_b, ndim, batch_ndim);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -170,15 +171,15 @@ TEST_CASE("TensorGraph gemm rejects null", "[graph][tensor]")
     auto* b = graph.data({5, 6}, "b");
 
     REQUIRE_THROWS_AS(
-        gemm(nullptr, b, "c", alpha_one, trans_a, trans_b, ndim, batch_ndim),
+        gt::gemm(nullptr, b, "c", alpha_one, trans_a, trans_b, ndim, batch_ndim),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        gemm(a, nullptr, "c", alpha_one, trans_a, trans_b, ndim, batch_ndim),
+        gt::gemm(a, nullptr, "c", alpha_one, trans_a, trans_b, ndim, batch_ndim),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph gemm matches tensor::gemm", "[graph][tensor]")
+    "TensorGraph gemm matches nntile::tensor::gemm", "[graph][tensor]")
 {
     const auto [M, K, N, alpha] = GENERATE(
         std::tuple{Index(4), Index(5), Index(6), 1.0},

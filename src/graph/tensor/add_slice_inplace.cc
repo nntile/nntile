@@ -20,7 +20,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/add_slice_inplace.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -129,4 +129,4 @@ void TensorAddSliceInplaceOp::execute(
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

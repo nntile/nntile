@@ -21,7 +21,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gather.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -128,4 +128,4 @@ void TensorGatherOp::execute(
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

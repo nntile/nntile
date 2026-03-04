@@ -22,7 +22,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/scale_slice.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -177,4 +177,4 @@ void TensorScaleSliceOp::execute(
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

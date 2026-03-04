@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 template<typename T>
 void check_sqrt_inplace_vs_tensor_api(
@@ -40,7 +41,7 @@ void check_sqrt_inplace_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    sqrt_inplace(dst_node);
+    gt::sqrt_inplace(dst_node);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -59,9 +60,9 @@ void check_sqrt_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path (same input data) ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    tensor::Tensor<T> dst(traits, distr);
+    nntile::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile = dst.get_tile(0);
@@ -73,7 +74,7 @@ void check_sqrt_inplace_vs_tensor_api(
         loc.release();
     }
 
-    tensor::sqrt_inplace<T>(dst);
+    nntile::tensor::sqrt_inplace<T>(dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -104,7 +105,7 @@ TEST_CASE("TensorGraph sqrt_inplace structure", "[graph][tensor]")
 
     auto* dst = graph.data({dim0, dim1}, "dst");
 
-    sqrt_inplace(dst);
+    gt::sqrt_inplace(dst);
 
     REQUIRE(graph.num_data() == 1);
     REQUIRE(graph.num_ops() == 1);
@@ -117,7 +118,7 @@ TEST_CASE("TensorGraph sqrt_inplace structure", "[graph][tensor]")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sqrt_inplace matches tensor::sqrt_inplace", "[graph][tensor]")
+    "TensorGraph sqrt_inplace matches nntile::tensor::sqrt_inplace", "[graph][tensor]")
 {
     const auto shape = GENERATE(
         std::vector<Index>{4, 5},

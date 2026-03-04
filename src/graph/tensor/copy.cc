@@ -20,7 +20,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/copy.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -85,4 +85,4 @@ void TensorCopyOp::execute(TensorGraph::Runtime& runtime) const
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

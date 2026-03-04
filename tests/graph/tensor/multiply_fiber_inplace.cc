@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -75,7 +76,7 @@ void check_multiply_fiber_inplace_vs_tensor_api(
     tensor_node->mark_input(true);
     tensor_node->mark_output(true);
 
-    multiply_fiber_inplace(alpha, fiber_node, tensor_node, axis);
+    gt::multiply_fiber_inplace(alpha, fiber_node, tensor_node, axis);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -99,12 +100,12 @@ void check_multiply_fiber_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("tensor");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits fiber_traits(fiber_sh, fiber_sh);
-    tensor::TensorTraits tensor_traits(tensor_shape, tensor_shape);
+    nntile::tensor::TensorTraits fiber_traits(fiber_sh, fiber_sh);
+    nntile::tensor::TensorTraits tensor_traits(tensor_shape, tensor_shape);
     std::vector<int> fiber_distr(fiber_traits.grid.nelems, distr_rank_single);
     std::vector<int> tensor_distr(tensor_traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> fiber_t(fiber_traits, fiber_distr);
-    tensor::Tensor<T> tensor_t(tensor_traits, tensor_distr);
+    nntile::tensor::Tensor<T> fiber_t(fiber_traits, fiber_distr);
+    nntile::tensor::Tensor<T> tensor_t(tensor_traits, tensor_distr);
 
     {
         auto tile = fiber_t.get_tile(0);
@@ -125,7 +126,7 @@ void check_multiply_fiber_inplace_vs_tensor_api(
         loc.release();
     }
 
-    tensor::multiply_fiber_inplace<T>(alpha, fiber_t, tensor_t, axis);
+    nntile::tensor::multiply_fiber_inplace<T>(alpha, fiber_t, tensor_t, axis);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(tensor_nelems);
@@ -153,7 +154,7 @@ TEST_CASE("TensorGraph multiply_fiber_inplace structure", "[graph][tensor]")
     auto* fiber = graph.data({dim_4}, "fiber");
     auto* tensor = graph.data({dim_2, dim_4}, "tensor");
 
-    multiply_fiber_inplace(alpha_one, fiber, tensor, axis_1);
+    gt::multiply_fiber_inplace(alpha_one, fiber, tensor, axis_1);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -172,7 +173,7 @@ TEST_CASE("TensorGraph multiply_fiber_inplace rejects duplicate tensors",
     auto* fiber = graph.data({dim_4}, "fiber");
 
     REQUIRE_THROWS_AS(
-        multiply_fiber_inplace(alpha_one, fiber, fiber, axis_0),
+        gt::multiply_fiber_inplace(alpha_one, fiber, fiber, axis_0),
         std::invalid_argument);
 }
 
@@ -186,12 +187,12 @@ TEST_CASE("TensorGraph multiply_fiber_inplace rejects mismatched shapes",
     // Fiber length must match tensor dim along axis
     auto* wrong_fiber = graph.data({dim_5}, "wrong_fiber");
     REQUIRE_THROWS_AS(
-        multiply_fiber_inplace(alpha_one, wrong_fiber, tensor, axis_1),
+        gt::multiply_fiber_inplace(alpha_one, wrong_fiber, tensor, axis_1),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph multiply_fiber_inplace matches tensor::multiply_fiber_inplace",
+    "TensorGraph multiply_fiber_inplace matches nntile::tensor::multiply_fiber_inplace",
     "[graph][tensor]")
 {
     const auto [tensor_shape, axis, alpha] = GENERATE(

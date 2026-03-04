@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -55,7 +56,7 @@ void check_sum_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    sum(src_node, dst_node, alpha, beta);
+    gt::sum(src_node, dst_node, alpha, beta);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -76,12 +77,12 @@ void check_sum_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits src_traits(src_shape, src_shape);
-    tensor::TensorTraits dst_traits({}, {});
+    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::tensor::TensorTraits dst_traits({}, {});
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(1, distr_rank_single);
-    tensor::Tensor<T> src_t(src_traits, src_distr);
-    tensor::Tensor<T> dst_t(dst_traits, dst_distr);
+    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -99,7 +100,7 @@ void check_sum_vs_tensor_api(
         loc.release();
     }
 
-    tensor::sum<T>(alpha, src_t, beta, dst_t);
+    nntile::tensor::sum<T>(alpha, src_t, beta, dst_t);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(1);
@@ -125,7 +126,7 @@ TEST_CASE("TensorGraph sum structure", "[graph][tensor]")
     auto* src = graph.data({dim0, dim1}, "src");
     auto* dst = graph.data({}, "dst");
 
-    sum(src, dst, alpha_one, beta_zero);
+    gt::sum(src, dst, alpha_one, beta_zero);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -143,11 +144,11 @@ TEST_CASE("TensorGraph sum rejects duplicate tensors", "[graph][tensor]")
     TensorGraph graph("test");
     auto* t = graph.data({4, 5}, "t");
 
-    REQUIRE_THROWS_AS(sum(t, t, alpha_one, beta_zero), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::sum(t, t, alpha_one, beta_zero), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sum matches tensor::sum", "[graph][tensor]")
+    "TensorGraph sum matches nntile::tensor::sum", "[graph][tensor]")
 {
     const auto [alpha, beta, shape] = GENERATE(
         std::tuple{1.0, 0.0, std::vector<Index>{4, 5}},

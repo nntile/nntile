@@ -35,12 +35,12 @@ graph::NNGraph::TensorNode& MseLoss::build_forward(
     // y = norm(x)
     graph::TensorGraph::TensorNode* norm_data =
         graph_.tensor_graph().data({}, tensor_name("norm"), dtype_);
-    graph::clear(norm_data);
-    graph::norm(input.data(), norm_data, 1.0, 0.0);
+    graph::tensor::clear(norm_data);
+    graph::tensor::norm(input.data(), norm_data, 1.0, 0.0);
 
     // loss = y * y
     graph::TensorGraph::TensorNode* loss_data =
-        graph::multiply(norm_data, norm_data, tensor_name("loss"), 1.0);
+        graph::tensor::multiply(norm_data, norm_data, tensor_name("loss"), 1.0);
 
     loss_tensor_ = graph_.tensor(loss_data);
     return *loss_tensor_;

@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -93,7 +94,7 @@ void check_sum_fiber_vs_tensor_api(
     y_node->mark_input(true);
     y_node->mark_output(true);
 
-    sum_fiber(x_node, y_node, axis, batch_ndim, redux, alpha, beta);
+    gt::sum_fiber(x_node, y_node, axis, batch_ndim, redux, alpha, beta);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -118,12 +119,12 @@ void check_sum_fiber_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("y");
 
     // --- Direct tensor API path (same input data) ---
-    tensor::TensorTraits x_traits(x_shape, x_shape);
-    tensor::TensorTraits y_traits(y_shape, y_shape);
+    nntile::tensor::TensorTraits x_traits(x_shape, x_shape);
+    nntile::tensor::TensorTraits y_traits(y_shape, y_shape);
     std::vector<int> x_distr(x_traits.grid.nelems, distr_rank_single);
     std::vector<int> y_distr(y_traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> src(x_traits, x_distr);
-    tensor::Tensor<T> dst(y_traits, y_distr);
+    nntile::tensor::Tensor<T> src(x_traits, x_distr);
+    nntile::tensor::Tensor<T> dst(y_traits, y_distr);
 
     {
         auto tile = src.get_tile(0);
@@ -145,7 +146,7 @@ void check_sum_fiber_vs_tensor_api(
         loc.release();
     }
 
-    tensor::sum_fiber<T>(alpha, src, beta, dst, axis, batch_ndim, redux);
+    nntile::tensor::sum_fiber<T>(alpha, src, beta, dst, axis, batch_ndim, redux);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(y_nelems);
@@ -173,7 +174,7 @@ TEST_CASE("TensorGraph sum_fiber structure", "[graph][tensor]")
     auto* x = graph.data({dim_4, dim_5}, "x");
     auto* y = graph.data({dim_4}, "y");  // axis=0: sum over dim_5, keep dim_4
 
-    sum_fiber(x, y, axis_0, batch_ndim_none, redux_none, alpha_one, beta_zero);
+    gt::sum_fiber(x, y, axis_0, batch_ndim_none, redux_none, alpha_one, beta_zero);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -193,12 +194,12 @@ TEST_CASE("TensorGraph sum_fiber rejects duplicate tensors", "[graph][tensor]")
     auto* x = graph.data({dim_4, dim_5}, "x");
 
     REQUIRE_THROWS_AS(
-        sum_fiber(x, x, axis_0, batch_ndim_none, redux_none, alpha_one, beta_zero),
+        gt::sum_fiber(x, x, axis_0, batch_ndim_none, redux_none, alpha_one, beta_zero),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sum_fiber matches tensor::sum_fiber", "[graph][tensor]")
+    "TensorGraph sum_fiber matches nntile::tensor::sum_fiber", "[graph][tensor]")
 {
     const auto [x_shape, axis, batch_ndim, redux, alpha, beta] = GENERATE(
         std::tuple{std::vector<Index>{dim_4, dim_5}, axis_0, batch_ndim_none, redux_none, alpha_one, beta_zero},

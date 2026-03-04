@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -86,7 +87,7 @@ void check_add_slice_vs_tensor_api(
     src1_node->mark_input(true);
     src2_node->mark_input(true);
 
-    auto* out_node = add_slice(alpha, src1_node, beta, src2_node, "out", axis);
+    auto* out_node = gt::add_slice(alpha, src1_node, beta, src2_node, "out", axis);
     out_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
@@ -111,13 +112,13 @@ void check_add_slice_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("out");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits src1_traits(src1_sh, src1_sh);
-    tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::tensor::TensorTraits src1_traits(src1_sh, src1_sh);
+    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> src1_distr(src1_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> src1_t(src1_traits, src1_distr);
-    tensor::Tensor<T> src2_t(dst_traits, dst_distr);
-    tensor::Tensor<T> out_t(dst_traits, dst_distr);
+    nntile::tensor::Tensor<T> src1_t(src1_traits, src1_distr);
+    nntile::tensor::Tensor<T> src2_t(dst_traits, dst_distr);
+    nntile::tensor::Tensor<T> out_t(dst_traits, dst_distr);
 
     {
         auto tile = src1_t.get_tile(0);
@@ -138,7 +139,7 @@ void check_add_slice_vs_tensor_api(
         loc.release();
     }
 
-    tensor::add_slice<T>(alpha, src1_t, beta, src2_t, out_t, axis);
+    nntile::tensor::add_slice<T>(alpha, src1_t, beta, src2_t, out_t, axis);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(dst_nelems);
@@ -166,7 +167,7 @@ TEST_CASE("TensorGraph add_slice structure", "[graph][tensor]")
     auto* src1 = graph.data({dim_4}, "src1");  // slice for axis=1
     auto* src2 = graph.data({dim_2, dim_4}, "src2");
 
-    auto* out = add_slice(alpha_one, src1, beta_one, src2, "out", axis_1);
+    auto* out = gt::add_slice(alpha_one, src1, beta_one, src2, "out", axis_1);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -186,12 +187,12 @@ TEST_CASE("TensorGraph add_slice rejects duplicate tensors", "[graph][tensor]")
     auto* src2 = graph.data({dim_2, dim_4}, "src2");
 
     REQUIRE_THROWS_AS(
-        add_slice(alpha_one, src1, beta_one, src2, src2, axis_1),
+        gt::add_slice(alpha_one, src1, beta_one, src2, src2, axis_1),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph add_slice matches tensor::add_slice", "[graph][tensor]")
+    "TensorGraph add_slice matches nntile::tensor::add_slice", "[graph][tensor]")
 {
     const auto [dst_shape, axis, alpha, beta] = GENERATE(
         std::tuple{std::vector<Index>{dim_2, dim_4}, axis_1, alpha_one, beta_one},

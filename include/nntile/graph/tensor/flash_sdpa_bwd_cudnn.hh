@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Flash SDPA backward: dK, dQ, dV = backward(K, Q, V, A, dA, mask, logsumexp)
@@ -76,4 +76,4 @@ void flash_sdpa_bwd_cudnn(TensorGraph::TensorNode* K,
                           TensorGraph::TensorNode* dQ,
                           TensorGraph::TensorNode* dV);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

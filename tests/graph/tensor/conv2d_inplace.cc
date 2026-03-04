@@ -26,6 +26,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -80,7 +81,7 @@ void check_conv2d_inplace_vs_tensor_api(
     y_node->mark_input(true);
     y_node->mark_output(true);
 
-    conv2d_inplace(alpha, x_node, c_node, beta, y_node, padding, stride, dilation);
+    gt::conv2d_inplace(alpha, x_node, c_node, beta, y_node, padding, stride, dilation);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -110,16 +111,16 @@ void check_conv2d_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("y");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits x_traits(x_shape, x_shape);
-    tensor::TensorTraits c_traits(c_shape, c_shape);
-    tensor::TensorTraits y_traits(y_shape, y_shape);
+    nntile::tensor::TensorTraits x_traits(x_shape, x_shape);
+    nntile::tensor::TensorTraits c_traits(c_shape, c_shape);
+    nntile::tensor::TensorTraits y_traits(y_shape, y_shape);
     std::vector<int> distr(1, distr_rank_single);
 
-    tensor::Tensor<T> x_t(x_traits, distr);
-    tensor::Tensor<T> c_t(c_traits, distr);
-    tensor::Tensor<T> y_t(y_traits, distr);
+    nntile::tensor::Tensor<T> x_t(x_traits, distr);
+    nntile::tensor::Tensor<T> c_t(c_traits, distr);
+    nntile::tensor::Tensor<T> y_t(y_traits, distr);
 
-    auto init_tile = [](tensor::Tensor<T>& t, const std::vector<float>& data)
+    auto init_tile = [](nntile::tensor::Tensor<T>& t, const std::vector<float>& data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
@@ -133,7 +134,7 @@ void check_conv2d_inplace_vs_tensor_api(
     init_tile(c_t, c_data);
     init_tile(y_t, y_data);
 
-    tensor::conv2d_inplace<T>(alpha, x_t, c_t, beta, y_t, padding, stride, dilation);
+    nntile::tensor::conv2d_inplace<T>(alpha, x_t, c_t, beta, y_t, padding, stride, dilation);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(y_nelems);
@@ -162,7 +163,7 @@ TEST_CASE("TensorGraph conv2d_inplace structure", "[graph][tensor]")
     auto* c = graph.data({2, 2, 2, 2}, "c");
     auto* y = graph.data({3, 3, 2, 2}, "y");
 
-    conv2d_inplace(1.0, x, c, 0.0, y, {0, 0}, {1, 1}, {1, 1});
+    gt::conv2d_inplace(1.0, x, c, 0.0, y, {0, 0}, {1, 1}, {1, 1});
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -182,15 +183,15 @@ TEST_CASE("TensorGraph conv2d_inplace rejects null tensors", "[graph][tensor]")
     auto* y = graph.data({3, 3, 2, 2}, "y");
 
     REQUIRE_THROWS_AS(
-        conv2d_inplace(1.0, nullptr, c, 0.0, y, {0, 0}, {1, 1}, {1, 1}),
+        gt::conv2d_inplace(1.0, nullptr, c, 0.0, y, {0, 0}, {1, 1}, {1, 1}),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        conv2d_inplace(1.0, x, nullptr, 0.0, y, {0, 0}, {1, 1}, {1, 1}),
+        gt::conv2d_inplace(1.0, x, nullptr, 0.0, y, {0, 0}, {1, 1}, {1, 1}),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph conv2d_inplace matches tensor::conv2d_inplace", "[graph][tensor]")
+    "TensorGraph conv2d_inplace matches nntile::tensor::conv2d_inplace", "[graph][tensor]")
 {
     const auto [x_shape, c_shape, alpha, beta, padding, stride, dilation] = GENERATE(
         std::tuple{std::vector<Index>{4, 4, 2, 2}, std::vector<Index>{2, 2, 2, 2},

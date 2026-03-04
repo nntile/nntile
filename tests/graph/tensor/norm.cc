@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -55,7 +56,7 @@ void check_norm_vs_tensor_api(
     y_node->mark_input(true);
     y_node->mark_output(true);
 
-    norm(x_node, y_node, alpha, beta);
+    gt::norm(x_node, y_node, alpha, beta);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -76,12 +77,12 @@ void check_norm_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("y");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits x_traits(x_shape, x_shape);
-    tensor::TensorTraits y_traits({}, {});
+    nntile::tensor::TensorTraits x_traits(x_shape, x_shape);
+    nntile::tensor::TensorTraits y_traits({}, {});
     std::vector<int> x_distr(x_traits.grid.nelems, distr_rank_single);
     std::vector<int> y_distr(1, distr_rank_single);
-    tensor::Tensor<T> x_t(x_traits, x_distr);
-    tensor::Tensor<T> y_t(y_traits, y_distr);
+    nntile::tensor::Tensor<T> x_t(x_traits, x_distr);
+    nntile::tensor::Tensor<T> y_t(y_traits, y_distr);
 
     {
         auto tile = x_t.get_tile(0);
@@ -99,7 +100,7 @@ void check_norm_vs_tensor_api(
         loc.release();
     }
 
-    tensor::norm<T>(alpha, x_t, beta, y_t);
+    nntile::tensor::norm<T>(alpha, x_t, beta, y_t);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(1);
@@ -125,7 +126,7 @@ TEST_CASE("TensorGraph norm structure", "[graph][tensor]")
     auto* x = graph.data({dim0, dim1}, "x");
     auto* y = graph.data({}, "y");
 
-    norm(x, y, alpha_one, beta_zero);
+    gt::norm(x, y, alpha_one, beta_zero);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -143,11 +144,11 @@ TEST_CASE("TensorGraph norm rejects duplicate tensors", "[graph][tensor]")
     TensorGraph graph("test");
     auto* t = graph.data({4, 5}, "t");
 
-    REQUIRE_THROWS_AS(norm(t, t, alpha_one, beta_zero), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::norm(t, t, alpha_one, beta_zero), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph norm matches tensor::norm", "[graph][tensor]")
+    "TensorGraph norm matches nntile::tensor::norm", "[graph][tensor]")
 {
     const auto [alpha, beta, shape] = GENERATE(
         std::tuple{1.0, 0.0, std::vector<Index>{4, 5}},

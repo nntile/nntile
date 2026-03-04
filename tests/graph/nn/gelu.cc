@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph gelu structure", "[graph][nn_graph]")
@@ -56,7 +57,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* y = gelu(x, "y");
 
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");
-    fill(grad_fill_val, y_grad->data());
+    gt::fill(grad_fill_val, y_grad->data());
     y->backward();
 
     REQUIRE(x->has_grad());
@@ -81,7 +82,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(y->shape() == x->shape());
 
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");
-    fill(grad_fill_val, y_grad->data());
+    gt::fill(grad_fill_val, y_grad->data());
     y->backward();
 
     REQUIRE(x->has_grad());
@@ -159,7 +160,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     x->mark_input(true);
 
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");
-    fill(grad_fill_val, y_grad->data());
+    gt::fill(grad_fill_val, y_grad->data());
     y->backward();
 
     x->grad()->mark_output(true);

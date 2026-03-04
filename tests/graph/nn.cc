@@ -26,6 +26,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph TensorNodeNullData", "[graph]")
@@ -199,7 +200,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     // Set upstream gradient before backward (required)
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
-    fill(grad_fill_val, z_grad->data());
+    gt::fill(grad_fill_val, z_grad->data());
 
     // Build backward graph (PyTorch-style)
     z->backward();
@@ -251,7 +252,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(w->has_producer());
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
-    fill(grad_fill_val, z_grad->data());
+    gt::fill(grad_fill_val, z_grad->data());
     z->backward();
 
     REQUIRE(x->has_grad());
@@ -279,7 +280,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* z = add(add_alpha, v, add_beta, w, "z");
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
-    fill(grad_fill_val, z_grad->data());
+    gt::fill(grad_fill_val, z_grad->data());
     z->backward();
 
     REQUIRE(x->has_grad());
@@ -305,6 +306,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     // After setting grad, backward succeeds
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
-    fill(grad_fill_val, z_grad->data());
+    gt::fill(grad_fill_val, z_grad->data());
     REQUIRE_NOTHROW(z->backward());
 }

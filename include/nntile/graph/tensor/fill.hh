@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Fill operation at tensor level: x = val
@@ -47,4 +47,4 @@ struct TensorFillOp : TensorGraph::OpNode
 //! Fill tensor: x = val
 void fill(Scalar val, TensorGraph::TensorNode* x);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

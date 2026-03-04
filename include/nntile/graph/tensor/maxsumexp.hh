@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! MaxSumExp operation: dst = maxsumexp(src, axis)
@@ -62,4 +62,4 @@ void maxsumexp(
     Index axis,
     int redux);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

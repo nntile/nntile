@@ -21,7 +21,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/add_slice.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -174,4 +174,4 @@ void TensorAddSliceOp::execute(
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

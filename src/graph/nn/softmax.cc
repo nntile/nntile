@@ -45,13 +45,13 @@ NNGraph::TensorNode* NNSoftmaxOp::forward(const std::string& output_name)
     NNGraph* graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x});
 
-    TensorGraph::TensorNode* y_data = graph::copy(x->data(), output_name);
+    TensorGraph::TensorNode* y_data = graph::tensor::copy(x->data(), output_name);
 
     std::string mse_name = output_name + "_mse";
     TensorGraph::TensorNode* maxsumexp_buf =
-        graph::maxsumexp(y_data, mse_name, axis, redux);
+        graph::tensor::maxsumexp(y_data, mse_name, axis, redux);
 
-    graph::softmax_inplace(maxsumexp_buf, y_data, 1.0, axis);
+    graph::tensor::softmax_inplace(maxsumexp_buf, y_data, 1.0, axis);
 
     NNGraph::TensorNode* y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
@@ -103,13 +103,13 @@ void NNSoftmaxOp::backward() const
     auto [grad_x, is_first] =
         graph->get_or_create_grad(x, x->name() + "_grad");
 
-    graph::sumprod_slice(
+    graph::tensor::sumprod_slice(
         out->data(), grad_out->data(), sumprod_buf->data(),
         axis, redux, 1.0, 0.0);
-    graph::add_slice(-1.0, sumprod_buf->data(), 1.0, grad_out->data(),
+    graph::tensor::add_slice(-1.0, sumprod_buf->data(), 1.0, grad_out->data(),
                     grad_temp->data(), axis);
-    graph::multiply_inplace(1.0, out->data(), grad_temp->data());
-    graph::add_inplace(1.0, grad_temp->data(),
+    graph::tensor::multiply_inplace(1.0, out->data(), grad_temp->data());
+    graph::tensor::add_inplace(1.0, grad_temp->data(),
                       is_first ? grad_overwrite : grad_accumulate,
                       grad_x->data());
 }

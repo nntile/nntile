@@ -18,7 +18,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Copy operation at tensor level: dst = src
@@ -55,4 +55,4 @@ void copy(
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

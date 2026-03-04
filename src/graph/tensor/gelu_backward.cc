@@ -20,7 +20,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gelu_backward.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -114,4 +114,4 @@ void TensorGeluBackwardOp::execute(
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

@@ -21,7 +21,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/fill.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -87,4 +87,4 @@ void TensorFillOp::execute(
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

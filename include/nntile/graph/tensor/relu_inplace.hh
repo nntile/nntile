@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! ReLU in-place at tensor level: dst = relu(dst)
@@ -45,4 +45,4 @@ struct TensorReluInplaceOp : TensorGraph::OpNode
 //! ReLU in-place: dst = relu(dst)
 void relu_inplace(TensorGraph::TensorNode* dst);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

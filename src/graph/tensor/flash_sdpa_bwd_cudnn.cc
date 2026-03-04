@@ -20,7 +20,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/flash_sdpa_bwd_cudnn.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -126,4 +126,4 @@ void TensorFlashSdpaBwdCudnnOp::execute(
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

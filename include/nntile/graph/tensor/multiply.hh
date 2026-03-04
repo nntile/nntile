@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Multiply operation at tensor level
@@ -59,4 +59,4 @@ TensorGraph::TensorNode* multiply(
     const std::string& output_name,
     Scalar alpha);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

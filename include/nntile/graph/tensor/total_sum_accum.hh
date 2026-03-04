@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Total sum accumulating: (alpha, logsumexp, src, class_labels, val, ignore_index)
@@ -64,4 +64,4 @@ void total_sum_accum(
     TensorGraph::TensorNode* val,
     Index ignore_index = -1);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

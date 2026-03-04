@@ -27,6 +27,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -81,7 +82,7 @@ void check_conv2d_bwd_input_inplace_vs_tensor_api(
     dx_node->mark_input(true);
     dx_node->mark_output(true);
 
-    conv2d_bwd_input_inplace(alpha, dy_node, kernel_node, beta, dx_node,
+    gt::conv2d_bwd_input_inplace(alpha, dy_node, kernel_node, beta, dx_node,
                              padding, stride, dilation);
 
     TensorGraph::Runtime runtime(graph);
@@ -112,16 +113,16 @@ void check_conv2d_bwd_input_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dx");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits dy_traits(dy_shape, dy_shape);
-    tensor::TensorTraits kernel_traits(kernel_shape, kernel_shape);
-    tensor::TensorTraits dx_traits(dx_shape, dx_shape);
+    nntile::tensor::TensorTraits dy_traits(dy_shape, dy_shape);
+    nntile::tensor::TensorTraits kernel_traits(kernel_shape, kernel_shape);
+    nntile::tensor::TensorTraits dx_traits(dx_shape, dx_shape);
     std::vector<int> distr(1, distr_rank_single);
 
-    tensor::Tensor<T> dy_t(dy_traits, distr);
-    tensor::Tensor<T> kernel_t(kernel_traits, distr);
-    tensor::Tensor<T> dx_t(dx_traits, distr);
+    nntile::tensor::Tensor<T> dy_t(dy_traits, distr);
+    nntile::tensor::Tensor<T> kernel_t(kernel_traits, distr);
+    nntile::tensor::Tensor<T> dx_t(dx_traits, distr);
 
-    auto init_tile = [](tensor::Tensor<T>& t, const std::vector<float>& data)
+    auto init_tile = [](nntile::tensor::Tensor<T>& t, const std::vector<float>& data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
@@ -135,7 +136,7 @@ void check_conv2d_bwd_input_inplace_vs_tensor_api(
     init_tile(kernel_t, kernel_data);
     init_tile(dx_t, dx_data);
 
-    tensor::conv2d_bwd_input_inplace<T>(alpha, dy_t, kernel_t, beta, dx_t,
+    nntile::tensor::conv2d_bwd_input_inplace<T>(alpha, dy_t, kernel_t, beta, dx_t,
                                         padding, stride, dilation);
     starpu_task_wait_for_all();
 
@@ -165,7 +166,7 @@ TEST_CASE("TensorGraph conv2d_bwd_input_inplace structure", "[graph][tensor]")
     auto* kernel = graph.data({2, 2, 2, 2}, "kernel");
     auto* dx = graph.data({4, 4, 2, 2}, "dx");
 
-    conv2d_bwd_input_inplace(1.0, dy, kernel, 0.0, dx, {0, 0}, {1, 1}, {1, 1});
+    gt::conv2d_bwd_input_inplace(1.0, dy, kernel, 0.0, dx, {0, 0}, {1, 1}, {1, 1});
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -185,15 +186,15 @@ TEST_CASE("TensorGraph conv2d_bwd_input_inplace rejects null tensors", "[graph][
     auto* dx = graph.data({4, 4, 2, 2}, "dx");
 
     REQUIRE_THROWS_AS(
-        conv2d_bwd_input_inplace(1.0, nullptr, kernel, 0.0, dx, {0, 0}, {1, 1}, {1, 1}),
+        gt::conv2d_bwd_input_inplace(1.0, nullptr, kernel, 0.0, dx, {0, 0}, {1, 1}, {1, 1}),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        conv2d_bwd_input_inplace(1.0, dy, nullptr, 0.0, dx, {0, 0}, {1, 1}, {1, 1}),
+        gt::conv2d_bwd_input_inplace(1.0, dy, nullptr, 0.0, dx, {0, 0}, {1, 1}, {1, 1}),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph conv2d_bwd_input_inplace matches tensor::conv2d_bwd_input_inplace",
+    "TensorGraph conv2d_bwd_input_inplace matches nntile::tensor::conv2d_bwd_input_inplace",
     "[graph][tensor]")
 {
     const auto [dx_shape, kernel_shape, alpha, beta, padding, stride, dilation] =

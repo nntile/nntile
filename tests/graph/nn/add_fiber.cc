@@ -24,6 +24,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -72,7 +73,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                          axis, batch_ndim_none);
 
     auto [out_grad, _] = g.get_or_create_grad(out, "out_grad");
-    fill(grad_fill_val, out_grad->data());
+    gt::fill(grad_fill_val, out_grad->data());
     out->backward();
 
     REQUIRE(fiber->has_grad());
@@ -108,7 +109,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(out->shape() == tensor_shape);
 
     auto [out_grad, _] = g.get_or_create_grad(out, "out_grad");
-    fill(grad_fill_val, out_grad->data());
+    gt::fill(grad_fill_val, out_grad->data());
     out->backward();
 
     REQUIRE(fiber->has_grad());
@@ -229,7 +230,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     tensor->mark_input(true);
 
     auto [out_grad, _] = g.get_or_create_grad(out, "out_grad");
-    fill(grad_fill_val, out_grad->data());
+    gt::fill(grad_fill_val, out_grad->data());
     out->backward();
 
     fiber->grad()->mark_output(true);

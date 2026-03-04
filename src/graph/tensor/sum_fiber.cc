@@ -22,7 +22,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/sum_fiber.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -168,4 +168,4 @@ void TensorSumFiberOp::execute(
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

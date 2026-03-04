@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -82,7 +83,7 @@ void check_scale_slice_vs_tensor_api(
     auto* src_node = graph.data(src_sh, "src", DataType::FP32);
     src_node->mark_input(true);
 
-    auto* out_node = scale_slice(alpha, src_node, "out", axis, axis_size);
+    auto* out_node = gt::scale_slice(alpha, src_node, "out", axis, axis_size);
     out_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
@@ -101,12 +102,12 @@ void check_scale_slice_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("out");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits src_traits(src_sh, src_sh);
-    tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::tensor::TensorTraits src_traits(src_sh, src_sh);
+    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> src_t(src_traits, src_distr);
-    tensor::Tensor<T> out_t(dst_traits, dst_distr);
+    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::tensor::Tensor<T> out_t(dst_traits, dst_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -118,7 +119,7 @@ void check_scale_slice_vs_tensor_api(
         loc.release();
     }
 
-    tensor::scale_slice<T>(alpha, src_t, out_t, axis);
+    nntile::tensor::scale_slice<T>(alpha, src_t, out_t, axis);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(dst_nelems);
@@ -144,7 +145,7 @@ TEST_CASE("TensorGraph scale_slice structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto* src = graph.data({dim_4}, "src");  // slice for dst shape [dim_2, dim_4]
-    auto* out = scale_slice(alpha_one, src, "out", axis_0, dim_2);
+    auto* out = gt::scale_slice(alpha_one, src, "out", axis_0, dim_2);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -163,12 +164,12 @@ TEST_CASE("TensorGraph scale_slice rejects duplicate tensors", "[graph][tensor]"
     auto* src = graph.data({dim_4}, "src");
 
     REQUIRE_THROWS_AS(
-        scale_slice(alpha_one, src, src, axis_0),
+        gt::scale_slice(alpha_one, src, src, axis_0),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph scale_slice matches tensor::scale_slice", "[graph][tensor]")
+    "TensorGraph scale_slice matches nntile::tensor::scale_slice", "[graph][tensor]")
 {
     const auto [dst_shape, axis, alpha] = GENERATE(
         std::tuple{std::vector<Index>{dim_2, dim_4}, axis_1, alpha_one},

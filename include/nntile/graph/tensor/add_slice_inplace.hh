@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Add slice in-place at tensor level: dst = alpha * src + beta * dst
@@ -60,4 +60,4 @@ void add_slice_inplace(
     TensorGraph::TensorNode* dst,
     Index axis);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

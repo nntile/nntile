@@ -25,7 +25,7 @@ inline void clear(NNGraph::TensorNode* x)
 {
     if(x != nullptr)
     {
-        graph::clear(x->data());
+        graph::tensor::clear(x->data());
     }
 }
 

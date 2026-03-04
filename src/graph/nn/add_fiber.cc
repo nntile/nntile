@@ -40,7 +40,7 @@ NNGraph::TensorNode* NNAddFiberOp::forward(const std::string& output_name)
     }
     NNGraph* graph = fiber->graph();
     bool out_requires_grad = any_input_requires_grad({fiber, tensor});
-    TensorGraph::TensorNode* output_data = graph::add_fiber(
+    TensorGraph::TensorNode* output_data = graph::tensor::add_fiber(
         alpha, fiber->data(), beta, tensor->data(),
         output_name, axis, batch_ndim);
     NNGraph::TensorNode* output = graph->tensor(output_data, out_requires_grad);
@@ -65,7 +65,7 @@ void NNAddFiberOp::backward() const
     {
         auto [grad_fiber, is_first] =
             graph->get_or_create_grad(fiber, fiber->name() + "_grad");
-        graph::sum_fiber(grad_out->data(), grad_fiber->data(), axis,
+        graph::tensor::sum_fiber(grad_out->data(), grad_fiber->data(), axis,
                         batch_ndim, sum_fiber_redux, alpha,
                         is_first ? grad_overwrite : grad_accumulate);
     }
@@ -74,7 +74,7 @@ void NNAddFiberOp::backward() const
         auto [grad_tensor, is_first] =
             graph->get_or_create_grad(tensor, tensor->name() + "_grad");
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        graph::add_inplace(beta, grad_out->data(), grad_beta,
+        graph::tensor::add_inplace(beta, grad_out->data(), grad_beta,
                           grad_tensor->data());
     }
 }

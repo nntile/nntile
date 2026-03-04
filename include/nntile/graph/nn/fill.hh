@@ -25,7 +25,7 @@ inline void fill(Scalar val, NNGraph::TensorNode* x)
 {
     if(x != nullptr)
     {
-        graph::fill(val, x->data());
+        graph::tensor::fill(val, x->data());
     }
 }
 

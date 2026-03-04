@@ -24,6 +24,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph add rejects shape mismatch", "[graph][nn_graph]")
@@ -78,7 +79,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(y->is_leaf());
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
-    fill(grad_fill_val, z_grad->data());
+    gt::fill(grad_fill_val, z_grad->data());
     z->backward();
 
     REQUIRE(x->has_grad());
@@ -109,7 +110,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* z = add(add_alpha, w, add_beta, u, "z");
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
-    fill(grad_fill_val, z_grad->data());
+    gt::fill(grad_fill_val, z_grad->data());
     z->backward();
 
     REQUIRE(x->has_grad());
@@ -134,7 +135,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* z = add(add_alpha, v, add_beta, w, "z");
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
-    fill(grad_fill_val, z_grad->data());
+    gt::fill(grad_fill_val, z_grad->data());
     z->backward();
 
     REQUIRE(x->has_grad());
@@ -161,7 +162,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(z->shape() == (std::vector<Index>{2, 3}));
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
-    fill(grad_fill_val, z_grad->data());
+    gt::fill(grad_fill_val, z_grad->data());
     z->backward();
 
     REQUIRE(x->has_grad());
@@ -260,7 +261,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     y->mark_input(true);
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
-    fill(grad_fill_val, z_grad->data());
+    gt::fill(grad_fill_val, z_grad->data());
     z->backward();
 
     x->grad()->mark_output(true);

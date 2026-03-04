@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Pow in-place: A = alpha * A^exp
@@ -54,4 +54,4 @@ void pow(
     Scalar exp,
     TensorGraph::TensorNode* A);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

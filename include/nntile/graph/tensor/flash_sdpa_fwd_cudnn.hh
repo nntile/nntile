@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Flash SDPA forward: A = attention(K, Q, V, mask)
@@ -68,4 +68,4 @@ void flash_sdpa_fwd_cudnn(TensorGraph::TensorNode* K,
                           TensorGraph::TensorNode* V,
                           TensorGraph::TensorNode* A);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

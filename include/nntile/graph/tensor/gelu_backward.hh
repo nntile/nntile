@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! GeLU backward operation at tensor level: dx += gelu_backward(x, dy)
@@ -56,4 +56,4 @@ void gelu_backward(
     TensorGraph::TensorNode* dy,
     TensorGraph::TensorNode* dx);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

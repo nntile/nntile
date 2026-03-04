@@ -18,7 +18,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Conv2D backward input: dX = alpha*conv_bwd(dY,kernel) + beta*dX
@@ -72,4 +72,4 @@ void conv2d_bwd_input_inplace(Scalar alpha,
                               std::array<Index, 2> stride,
                               std::array<Index, 2> dilation);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

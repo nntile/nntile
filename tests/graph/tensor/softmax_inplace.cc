@@ -28,6 +28,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -75,8 +76,8 @@ void check_softmax_inplace_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    auto* maxsumexp_node = maxsumexp(src_node, "maxsumexp", axis, redux);
-    softmax_inplace(maxsumexp_node, dst_node, alpha, axis);
+    auto* maxsumexp_node = gt::maxsumexp(src_node, "maxsumexp", axis, redux);
+    gt::softmax_inplace(maxsumexp_node, dst_node, alpha, axis);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -97,16 +98,16 @@ void check_softmax_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits src_traits(src_shape, src_shape);
-    tensor::TensorTraits maxsumexp_traits(maxsumexp_shape, maxsumexp_shape);
+    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::tensor::TensorTraits maxsumexp_traits(maxsumexp_shape, maxsumexp_shape);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> mse_distr(maxsumexp_traits.grid.nelems,
                                distr_rank_single);
     std::vector<int> dst_distr(src_traits.grid.nelems, distr_rank_single);
 
-    tensor::Tensor<T> src_t(src_traits, src_distr);
-    tensor::Tensor<T> maxsumexp_t(maxsumexp_traits, mse_distr);
-    tensor::Tensor<T> dst_t(src_traits, dst_distr);
+    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::tensor::Tensor<T> maxsumexp_t(maxsumexp_traits, mse_distr);
+    nntile::tensor::Tensor<T> dst_t(src_traits, dst_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -126,9 +127,9 @@ void check_softmax_inplace_vs_tensor_api(
         }
         loc.release();
     }
-    tensor::clear<T>(maxsumexp_t);
-    tensor::maxsumexp<T>(src_t, maxsumexp_t, axis, redux);
-    tensor::softmax_inplace<T>(maxsumexp_t, alpha, dst_t, axis);
+    nntile::tensor::clear<T>(maxsumexp_t);
+    nntile::tensor::maxsumexp<T>(src_t, maxsumexp_t, axis, redux);
+    nntile::tensor::softmax_inplace<T>(maxsumexp_t, alpha, dst_t, axis);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(src_nelems);
@@ -161,7 +162,7 @@ TEST_CASE("TensorGraph softmax_inplace structure", "[graph][tensor]")
     auto* maxsumexp_node = graph.data({2, dim0, dim1}, "maxsumexp");
     auto* dst = graph.data({dim0, dim1}, "dst");
 
-    softmax_inplace(maxsumexp_node, dst, alpha_one, axis_0);
+    gt::softmax_inplace(maxsumexp_node, dst, alpha_one, axis_0);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -180,15 +181,15 @@ TEST_CASE("TensorGraph softmax_inplace rejects null", "[graph][tensor]")
     auto* dst = graph.data({4, 5}, "dst");
 
     REQUIRE_THROWS_AS(
-        softmax_inplace(nullptr, dst, alpha_one, axis_0),
+        gt::softmax_inplace(nullptr, dst, alpha_one, axis_0),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        softmax_inplace(mse, nullptr, alpha_one, axis_0),
+        gt::softmax_inplace(mse, nullptr, alpha_one, axis_0),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph softmax_inplace matches tensor::softmax_inplace",
+    "TensorGraph softmax_inplace matches nntile::tensor::softmax_inplace",
     "[graph][tensor]")
 {
     const auto [shape, axis, alpha] = GENERATE(

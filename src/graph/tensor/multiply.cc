@@ -22,7 +22,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/multiply.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -125,4 +125,4 @@ void TensorMultiplyOp::execute(
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

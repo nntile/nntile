@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! SiLU in-place operation: dst = silu(dst)
@@ -44,4 +44,4 @@ struct TensorSiluInplaceOp : TensorGraph::OpNode
 
 void silu_inplace(TensorGraph::TensorNode* dst);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

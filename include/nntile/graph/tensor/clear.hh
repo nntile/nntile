@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Clear operation at tensor level: x = 0
@@ -45,4 +45,4 @@ struct TensorClearOp : TensorGraph::OpNode
 //! Clear tensor: x = 0
 void clear(TensorGraph::TensorNode* x);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

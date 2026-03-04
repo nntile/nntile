@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -69,7 +70,7 @@ void check_rope_vs_tensor_api(const std::vector<Index>& sin_shape)
     cos_node->mark_input(true);
     src_node->mark_input(true);
 
-    auto* dst_node = rope(sin_node, cos_node, src_node, "dst");
+    auto* dst_node = gt::rope(sin_node, cos_node, src_node, "dst");
     dst_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
@@ -84,16 +85,16 @@ void check_rope_vs_tensor_api(const std::vector<Index>& sin_shape)
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits sin_traits(sin_shape, sin_shape);
-    tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::tensor::TensorTraits sin_traits(sin_shape, sin_shape);
+    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
     std::vector<int> distr_single(1, distr_rank_single);
     std::vector<int> sin_distr(sin_traits.grid.nelems, distr_rank_single);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
 
-    tensor::Tensor<T> sin_t(sin_traits, sin_distr);
-    tensor::Tensor<T> cos_t(sin_traits, sin_distr);
-    tensor::Tensor<T> src_t(src_traits, src_distr);
-    tensor::Tensor<T> dst_t(src_traits, src_distr);
+    nntile::tensor::Tensor<T> sin_t(sin_traits, sin_distr);
+    nntile::tensor::Tensor<T> cos_t(sin_traits, sin_distr);
+    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::tensor::Tensor<T> dst_t(src_traits, src_distr);
 
     {
         auto tile = sin_t.get_tile(0);
@@ -123,7 +124,7 @@ void check_rope_vs_tensor_api(const std::vector<Index>& sin_shape)
         loc.release();
     }
 
-    tensor::rope<T>(sin_t, cos_t, src_t, dst_t);
+    nntile::tensor::rope<T>(sin_t, cos_t, src_t, dst_t);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(src_nelems);
@@ -153,7 +154,7 @@ TEST_CASE("TensorGraph rope structure", "[graph][tensor]")
     auto* sin = graph.data({2, 4}, "sin");
     auto* cos = graph.data({2, 4}, "cos");
     auto* src = graph.data({4, 4}, "src");
-    auto* dst = rope(sin, cos, src, "dst");
+    auto* dst = gt::rope(sin, cos, src, "dst");
 
     REQUIRE(graph.num_data() == 4);
     REQUIRE(graph.num_ops() == 1);
@@ -173,13 +174,13 @@ TEST_CASE("TensorGraph rope rejects null", "[graph][tensor]")
     auto* cos = graph.data({2, 4}, "cos");
     auto* src = graph.data({4, 4}, "src");
 
-    REQUIRE_THROWS_AS(rope(nullptr, cos, src, "dst"), std::invalid_argument);
-    REQUIRE_THROWS_AS(rope(sin, nullptr, src, "dst"), std::invalid_argument);
-    REQUIRE_THROWS_AS(rope(sin, cos, nullptr, "dst"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::rope(nullptr, cos, src, "dst"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::rope(sin, nullptr, src, "dst"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::rope(sin, cos, nullptr, "dst"), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph rope matches tensor::rope", "[graph][tensor]")
+    "TensorGraph rope matches nntile::tensor::rope", "[graph][tensor]")
 {
     const auto sin_shape = GENERATE(
         std::vector<Index>{2, 4},

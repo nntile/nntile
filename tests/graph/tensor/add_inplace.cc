@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -52,7 +53,7 @@ void check_add_inplace_vs_tensor_api(
     y_node->mark_input(true);
     y_node->mark_output(true);
 
-    add_inplace(alpha, x_node, beta, y_node);
+    gt::add_inplace(alpha, x_node, beta, y_node);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -72,10 +73,10 @@ void check_add_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("y");
 
     // --- Direct tensor API path (same input data) ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    tensor::Tensor<T> src(traits, distr);
-    tensor::Tensor<T> dst(traits, distr);
+    nntile::tensor::Tensor<T> src(traits, distr);
+    nntile::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile1 = src.get_tile(0);
@@ -91,7 +92,7 @@ void check_add_inplace_vs_tensor_api(
         loc2.release();
     }
 
-    tensor::add_inplace<T>(alpha, src, beta, dst);
+    nntile::tensor::add_inplace<T>(alpha, src, beta, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -123,7 +124,7 @@ TEST_CASE("TensorGraph add_inplace structure", "[graph][tensor]")
     auto* x = graph.data({dim0, dim1}, "x");
     auto* y = graph.data({dim0, dim1}, "y");
 
-    add_inplace(alpha, x, beta, y);
+    gt::add_inplace(alpha, x, beta, y);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -140,11 +141,11 @@ TEST_CASE("TensorGraph add_inplace rejects duplicate tensors", "[graph][tensor]"
     TensorGraph graph("test");
     auto* t = graph.data({4, 5}, "t");
 
-    REQUIRE_THROWS_AS(add_inplace(alpha, t, beta, t), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::add_inplace(alpha, t, beta, t), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph add_inplace matches tensor::add_inplace", "[graph][tensor]")
+    "TensorGraph add_inplace matches nntile::tensor::add_inplace", "[graph][tensor]")
 {
     const auto [alpha, beta, shape] = GENERATE(
         std::tuple{1.0, 1.0, std::vector<Index>{4, 5}},

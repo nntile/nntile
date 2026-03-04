@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Scale in-place operation at tensor level: dst = alpha * dst
@@ -47,4 +47,4 @@ struct TensorScaleInplaceOp : TensorGraph::OpNode
 //! Scale in-place: dst = alpha * dst
 void scale_inplace(Scalar alpha, TensorGraph::TensorNode* dst);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

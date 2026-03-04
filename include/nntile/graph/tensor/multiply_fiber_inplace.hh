@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Multiply fiber in-place: dst = alpha * src * dst
@@ -57,4 +57,4 @@ void multiply_fiber_inplace(
     TensorGraph::TensorNode* dst,
     Index axis);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

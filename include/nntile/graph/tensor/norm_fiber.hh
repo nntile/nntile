@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Norm fiber operation: dst = alpha*norm(src1) + beta*src2
@@ -77,4 +77,4 @@ void norm_fiber(
     Index batch_ndim,
     int redux);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

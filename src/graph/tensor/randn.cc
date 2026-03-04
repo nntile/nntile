@@ -21,7 +21,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/randn.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -115,4 +115,4 @@ void TensorRandnOp::execute(
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

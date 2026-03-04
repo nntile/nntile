@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! SiLU backward operation: dx = silu_backward(x, dy)
@@ -57,4 +57,4 @@ void silu_backward(
     TensorGraph::TensorNode* dy,
     TensorGraph::TensorNode* dx);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

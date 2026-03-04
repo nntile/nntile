@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -52,7 +53,7 @@ void check_copy_intersection_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    copy_intersection(src_node, src_offset, dst_node, dst_offset);
+    gt::copy_intersection(src_node, src_offset, dst_node, dst_offset);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -72,10 +73,10 @@ void check_copy_intersection_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> src_t(traits, distr);
-    tensor::Tensor<T> dst_t(traits, distr);
+    nntile::tensor::Tensor<T> src_t(traits, distr);
+    nntile::tensor::Tensor<T> dst_t(traits, distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -96,7 +97,7 @@ void check_copy_intersection_vs_tensor_api(
         loc.release();
     }
 
-    tensor::copy_intersection<T>(src_t, src_offset, dst_t, dst_offset);
+    nntile::tensor::copy_intersection<T>(src_t, src_offset, dst_t, dst_offset);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -129,7 +130,7 @@ TEST_CASE("TensorGraph copy_intersection structure", "[graph][tensor]")
     std::vector<Index> src_offset{0, 0};
     std::vector<Index> dst_offset{0, 0};
 
-    copy_intersection(src, src_offset, dst, dst_offset);
+    gt::copy_intersection(src, src_offset, dst, dst_offset);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -148,15 +149,15 @@ TEST_CASE("TensorGraph copy_intersection rejects null tensors", "[graph][tensor]
     std::vector<Index> offset{0, 0};
 
     REQUIRE_THROWS_AS(
-        copy_intersection(nullptr, offset, t, offset),
+        gt::copy_intersection(nullptr, offset, t, offset),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        copy_intersection(t, offset, nullptr, offset),
+        gt::copy_intersection(t, offset, nullptr, offset),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph copy_intersection matches tensor::copy_intersection",
+    "TensorGraph copy_intersection matches nntile::tensor::copy_intersection",
     "[graph][tensor]")
 {
     const auto [shape, src_off, dst_off] = GENERATE(

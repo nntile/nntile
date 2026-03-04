@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 template<typename T>
 void check_clear_vs_tensor_api(
@@ -40,7 +41,7 @@ void check_clear_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    clear(dst_node);
+    gt::clear(dst_node);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -58,9 +59,9 @@ void check_clear_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    tensor::Tensor<T> dst(traits, distr);
+    nntile::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile = dst.get_tile(0);
@@ -72,7 +73,7 @@ void check_clear_vs_tensor_api(
         loc.release();
     }
 
-    tensor::clear<T>(dst);
+    nntile::tensor::clear<T>(dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -104,7 +105,7 @@ TEST_CASE("TensorGraph clear structure", "[graph][tensor]")
 
     auto* src = graph.data({dim0, dim1}, "src");
 
-    clear(src);
+    gt::clear(src);
 
     REQUIRE(graph.num_data() == 1);
     REQUIRE(graph.num_ops() == 1);
@@ -117,7 +118,7 @@ TEST_CASE("TensorGraph clear structure", "[graph][tensor]")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph clear matches tensor::clear", "[graph][tensor]")
+    "TensorGraph clear matches nntile::tensor::clear", "[graph][tensor]")
 {
     const auto shape = GENERATE(
         std::vector<Index>{4, 5},

@@ -18,7 +18,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! ReLU backward operation: dx = relu_backward(x, dy)
@@ -60,4 +60,4 @@ void relu_backward(
     TensorGraph::TensorNode* dy,
     TensorGraph::TensorNode* dx);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

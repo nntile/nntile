@@ -22,7 +22,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/sqrt.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -134,4 +134,4 @@ void TensorSqrtOp::execute(
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

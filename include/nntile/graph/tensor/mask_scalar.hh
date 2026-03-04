@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Mask scalar operation: A[mask] = val
@@ -55,4 +55,4 @@ void mask_scalar(TensorGraph::TensorNode* mask,
                  TensorGraph::TensorNode* A,
                  Index batch_ndim);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

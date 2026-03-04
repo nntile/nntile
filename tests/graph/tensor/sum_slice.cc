@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -92,7 +93,7 @@ void check_sum_slice_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    sum_slice(src_node, dst_node, axis, redux, alpha, beta);
+    gt::sum_slice(src_node, dst_node, axis, redux, alpha, beta);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -117,12 +118,12 @@ void check_sum_slice_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits src_traits(src_shape, src_shape);
-    tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> src_t(src_traits, src_distr);
-    tensor::Tensor<T> dst_t(dst_traits, dst_distr);
+    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -144,7 +145,7 @@ void check_sum_slice_vs_tensor_api(
         loc.release();
     }
 
-    tensor::sum_slice<T>(alpha, src_t, beta, dst_t, axis, redux);
+    nntile::tensor::sum_slice<T>(alpha, src_t, beta, dst_t, axis, redux);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(dst_nelems);
@@ -172,7 +173,7 @@ TEST_CASE("TensorGraph sum_slice structure", "[graph][tensor]")
     auto* src = graph.data({dim_4, dim_5}, "src");
     auto* dst = graph.data({dim_4}, "dst");  // axis=1: sum over dim_5
 
-    sum_slice(src, dst, axis_1, redux_none, alpha_one, beta_zero);
+    gt::sum_slice(src, dst, axis_1, redux_none, alpha_one, beta_zero);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -192,12 +193,12 @@ TEST_CASE("TensorGraph sum_slice rejects duplicate tensors", "[graph][tensor]")
     auto* src = graph.data({dim_4, dim_5}, "src");
 
     REQUIRE_THROWS_AS(
-        sum_slice(src, src, axis_1, redux_none, alpha_one, beta_zero),
+        gt::sum_slice(src, src, axis_1, redux_none, alpha_one, beta_zero),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sum_slice matches tensor::sum_slice", "[graph][tensor]")
+    "TensorGraph sum_slice matches nntile::tensor::sum_slice", "[graph][tensor]")
 {
     const auto [src_shape, axis, redux, alpha, beta] = GENERATE(
         std::tuple{std::vector<Index>{dim_4, dim_5}, axis_0, redux_none, alpha_one, beta_zero},

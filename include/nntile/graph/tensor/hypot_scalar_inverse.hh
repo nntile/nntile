@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Hypot scalar inverse: dst = 1/hypot(alpha*dst, eps)
@@ -54,4 +54,4 @@ void hypot_scalar_inverse(
     Scalar alpha,
     TensorGraph::TensorNode* dst);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

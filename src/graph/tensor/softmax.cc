@@ -22,7 +22,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/softmax.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -157,4 +157,4 @@ void TensorSoftmaxOp::execute(
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

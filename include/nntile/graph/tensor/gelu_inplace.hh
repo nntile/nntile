@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! GeLU in-place operation: dst = gelu(dst)
@@ -44,4 +44,4 @@ struct TensorGeluInplaceOp : TensorGraph::OpNode
 
 void gelu_inplace(TensorGraph::TensorNode* dst);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

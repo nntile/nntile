@@ -20,7 +20,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/adamw_step.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -113,4 +113,4 @@ void TensorAdamwStepOp::execute(TensorGraph::Runtime& runtime) const
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

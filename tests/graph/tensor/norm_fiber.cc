@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -92,7 +93,7 @@ void check_norm_fiber_vs_tensor_api(
     x_node->mark_input(true);
     y_node->mark_input(true);
 
-    auto* out_node = norm_fiber(alpha, x_node, beta, y_node, "out", axis, batch_ndim, redux);
+    auto* out_node = gt::norm_fiber(alpha, x_node, beta, y_node, "out", axis, batch_ndim, redux);
     out_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
@@ -118,15 +119,15 @@ void check_norm_fiber_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("out");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits x_traits(x_shape, x_shape);
-    tensor::TensorTraits y_traits(y_shape, y_shape);
-    tensor::TensorTraits out_traits(y_shape, y_shape);
+    nntile::tensor::TensorTraits x_traits(x_shape, x_shape);
+    nntile::tensor::TensorTraits y_traits(y_shape, y_shape);
+    nntile::tensor::TensorTraits out_traits(y_shape, y_shape);
     std::vector<int> x_distr(x_traits.grid.nelems, distr_rank_single);
     std::vector<int> y_distr(y_traits.grid.nelems, distr_rank_single);
     std::vector<int> out_distr(out_traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> src(x_traits, x_distr);
-    tensor::Tensor<T> src2(y_traits, y_distr);
-    tensor::Tensor<T> dst(out_traits, out_distr);
+    nntile::tensor::Tensor<T> src(x_traits, x_distr);
+    nntile::tensor::Tensor<T> src2(y_traits, y_distr);
+    nntile::tensor::Tensor<T> dst(out_traits, out_distr);
 
     {
         auto tile = src.get_tile(0);
@@ -158,7 +159,7 @@ void check_norm_fiber_vs_tensor_api(
         loc.release();
     }
 
-    tensor::norm_fiber<T>(alpha, src, beta, src2, dst, axis, batch_ndim, redux);
+    nntile::tensor::norm_fiber<T>(alpha, src, beta, src2, dst, axis, batch_ndim, redux);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(y_nelems);
@@ -186,7 +187,7 @@ TEST_CASE("TensorGraph norm_fiber structure", "[graph][tensor]")
     auto* x = graph.data({dim_4, dim_5}, "x");
     auto* y = graph.data({dim_4}, "y");
 
-    auto* out = norm_fiber(alpha_one, x, beta_zero, y, "out", axis_0, batch_ndim_none, redux_none);
+    auto* out = gt::norm_fiber(alpha_one, x, beta_zero, y, "out", axis_0, batch_ndim_none, redux_none);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -207,12 +208,12 @@ TEST_CASE("TensorGraph norm_fiber rejects duplicate tensors", "[graph][tensor]")
     auto* y = graph.data({dim_4}, "y");
 
     REQUIRE_THROWS_AS(
-        norm_fiber(alpha_one, x, beta_zero, y, y, axis_0, batch_ndim_none, redux_none),
+        gt::norm_fiber(alpha_one, x, beta_zero, y, y, axis_0, batch_ndim_none, redux_none),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph norm_fiber matches tensor::norm_fiber", "[graph][tensor]")
+    "TensorGraph norm_fiber matches nntile::tensor::norm_fiber", "[graph][tensor]")
 {
     const auto [x_shape, axis, batch_ndim, redux, alpha, beta] = GENERATE(
         std::tuple{std::vector<Index>{dim_4, dim_5}, axis_0, batch_ndim_none, redux_none, alpha_one, beta_zero},

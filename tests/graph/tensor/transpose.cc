@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -58,7 +59,7 @@ void check_transpose_vs_tensor_api(
     auto* src_node = graph.data(shape, "src", DataType::FP32);
     src_node->mark_input(true);
 
-    auto* dst_node = transpose(alpha, src_node, "dst", ndim);
+    auto* dst_node = gt::transpose(alpha, src_node, "dst", ndim);
     dst_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
@@ -77,12 +78,12 @@ void check_transpose_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path (same input data) ---
-    tensor::TensorTraits src_traits(shape, shape);
-    tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::tensor::TensorTraits src_traits(shape, shape);
+    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> distr_src(src_traits.grid.nelems, 0);
     std::vector<int> distr_dst(dst_traits.grid.nelems, 0);
-    tensor::Tensor<T> src(src_traits, distr_src);
-    tensor::Tensor<T> dst(dst_traits, distr_dst);
+    nntile::tensor::Tensor<T> src(src_traits, distr_src);
+    nntile::tensor::Tensor<T> dst(dst_traits, distr_dst);
 
     {
         auto tile = src.get_tile(0);
@@ -94,7 +95,7 @@ void check_transpose_vs_tensor_api(
         loc.release();
     }
 
-    tensor::transpose<T>(alpha, src, dst, ndim);
+    nntile::tensor::transpose<T>(alpha, src, dst, ndim);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(dst_nelems);
@@ -125,7 +126,7 @@ TEST_CASE("TensorGraph transpose structure", "[graph][tensor]")
 
     auto* src = graph.data({dim0, dim1}, "src");
 
-    auto* dst = transpose(alpha, src, "dst", ndim);
+    auto* dst = gt::transpose(alpha, src, "dst", ndim);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -146,11 +147,11 @@ TEST_CASE("TensorGraph transpose rejects duplicate tensors", "[graph][tensor]")
     TensorGraph graph("test");
     auto* src = graph.data({dim0, dim1}, "src");
 
-    REQUIRE_THROWS_AS(transpose(alpha, src, src, Index(1)), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::transpose(alpha, src, src, Index(1)), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph transpose matches tensor::transpose", "[graph][tensor]")
+    "TensorGraph transpose matches nntile::tensor::transpose", "[graph][tensor]")
 {
     const auto [alpha, ndim, shape] = GENERATE(
         std::tuple{1.0, Index(1), std::vector<Index>{4, 5}},

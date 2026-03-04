@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! LogSumExp operation: dst = logsumexp(src)
@@ -53,4 +53,4 @@ void logsumexp(
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

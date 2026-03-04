@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Subtract indexed outputs: dst[labels[i]] -= val
@@ -55,4 +55,4 @@ void subtract_indexed_outputs(Scalar val,
                              TensorGraph::TensorNode* dst,
                              Index ignore_index);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

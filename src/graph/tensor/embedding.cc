@@ -19,7 +19,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/embedding.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -116,4 +116,4 @@ void TensorEmbeddingOp::execute(TensorGraph::Runtime& runtime) const
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -81,7 +82,7 @@ void check_sumprod_fiber_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    sumprod_fiber(src1_node, src2_node, dst_node, axis, redux, alpha, beta);
+    gt::sumprod_fiber(src1_node, src2_node, dst_node, axis, redux, alpha, beta);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -108,13 +109,13 @@ void check_sumprod_fiber_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits src_traits(src_shape, src_shape);
-    tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> src1_t(src_traits, src_distr);
-    tensor::Tensor<T> src2_t(src_traits, src_distr);
-    tensor::Tensor<T> dst_t(dst_traits, dst_distr);
+    nntile::tensor::Tensor<T> src1_t(src_traits, src_distr);
+    nntile::tensor::Tensor<T> src2_t(src_traits, src_distr);
+    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
 
     {
         auto tile = src1_t.get_tile(0);
@@ -144,7 +145,7 @@ void check_sumprod_fiber_vs_tensor_api(
         loc.release();
     }
 
-    tensor::sumprod_fiber<T>(alpha, src1_t, src2_t, beta, dst_t, axis, redux);
+    nntile::tensor::sumprod_fiber<T>(alpha, src1_t, src2_t, beta, dst_t, axis, redux);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(dst_nelems);
@@ -173,7 +174,7 @@ TEST_CASE("TensorGraph sumprod_fiber structure", "[graph][tensor]")
     auto* src2 = graph.data({dim_2, dim_4}, "src2");
     auto* dst = graph.data({dim_4}, "dst");  // axis=1: fiber length dim_4
 
-    sumprod_fiber(src1, src2, dst, axis_1, redux_none, alpha_one, beta_zero);
+    gt::sumprod_fiber(src1, src2, dst, axis_1, redux_none, alpha_one, beta_zero);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -194,15 +195,15 @@ TEST_CASE("TensorGraph sumprod_fiber rejects duplicate tensors", "[graph][tensor
     auto* dst = graph.data({dim_4}, "dst");
 
     REQUIRE_THROWS_AS(
-        sumprod_fiber(src1, src1, dst, axis_1, redux_none, alpha_one, beta_zero),
+        gt::sumprod_fiber(src1, src1, dst, axis_1, redux_none, alpha_one, beta_zero),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        sumprod_fiber(src1, src2, src1, axis_1, redux_none, alpha_one, beta_zero),
+        gt::sumprod_fiber(src1, src2, src1, axis_1, redux_none, alpha_one, beta_zero),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sumprod_fiber matches tensor::sumprod_fiber", "[graph][tensor]")
+    "TensorGraph sumprod_fiber matches nntile::tensor::sumprod_fiber", "[graph][tensor]")
 {
     const auto [src_shape, axis, redux, alpha, beta] = GENERATE(
         std::tuple{std::vector<Index>{dim_2, dim_4}, axis_0, redux_none, alpha_one, beta_zero},

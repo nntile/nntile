@@ -17,7 +17,7 @@
 #include <nntile/graph/tensor/graph.hh>
 #include <vector>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Copy intersection: copy overlapping region from src to dst
@@ -56,4 +56,4 @@ void copy_intersection(TensorGraph::TensorNode* src,
                        TensorGraph::TensorNode* dst,
                        const std::vector<Index>& dst_offset);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

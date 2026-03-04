@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! RoPE operation: dst = rope(sin, cos, src)
@@ -61,4 +61,4 @@ void rope(
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

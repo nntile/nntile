@@ -26,6 +26,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 //! Run add via TensorGraph (compile + execute) and via tensor API, compare
 template<typename T>
@@ -45,7 +46,7 @@ void check_add_vs_tensor_api(
     x_node->mark_input(true);
     y_node->mark_input(true);
 
-    auto* z_node = add(alpha, x_node, beta, y_node, "z");
+    auto* z_node = gt::add(alpha, x_node, beta, y_node, "z");
     z_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
@@ -68,11 +69,11 @@ void check_add_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("z");
 
     // --- Direct tensor API path (same input data) ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    tensor::Tensor<T> src1(traits, distr);
-    tensor::Tensor<T> src2(traits, distr);
-    tensor::Tensor<T> dst(traits, distr);
+    nntile::tensor::Tensor<T> src1(traits, distr);
+    nntile::tensor::Tensor<T> src2(traits, distr);
+    nntile::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile1 = src1.get_tile(0);
@@ -88,7 +89,7 @@ void check_add_vs_tensor_api(
         loc2.release();
     }
 
-    tensor::add<T>(alpha, src1, beta, src2, dst);
+    nntile::tensor::add<T>(alpha, src1, beta, src2, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -124,7 +125,7 @@ TEST_CASE("TensorGraph add structure", "[graph][tensor]")
     auto* x = graph.data({dim0, dim1}, "x");
     auto* y = graph.data({dim0, dim1}, "y");
 
-    auto* z = add(alpha, x, beta, y, "z");
+    auto* z = gt::add(alpha, x, beta, y, "z");
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -143,11 +144,11 @@ TEST_CASE("TensorGraph add rejects duplicate tensors", "[graph][tensor]")
     TensorGraph graph("test");
     auto* x = graph.data({4, 5}, "x");
 
-    REQUIRE_THROWS_AS(add(1.0, x, 1.0, x, "z"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::add(1.0, x, 1.0, x, "z"), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph add matches tensor::add", "[graph][tensor]")
+    "TensorGraph add matches nntile::tensor::add", "[graph][tensor]")
 {
     const auto [alpha, beta, shape] = GENERATE(
         std::tuple{1.0, 1.0, std::vector<Index>{4, 5}},

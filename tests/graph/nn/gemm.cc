@@ -24,6 +24,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -118,7 +119,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                    ndim_one, batch_ndim_none);
 
     auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
-    fill(grad_fill_val, c_grad->data());
+    gt::fill(grad_fill_val, c_grad->data());
     c->backward();
 
     REQUIRE(a->has_grad());
@@ -139,7 +140,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto* c = gemm(a, b, "c", gemm_alpha_one, trans_a_default, trans_b_default,
                        ndim_two, batch_ndim_none);
         auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
-        fill(Scalar(1.0), c_grad->data());
+        gt::fill(Scalar(1.0), c_grad->data());
         c->backward();
         REQUIRE(a->has_grad());
         REQUIRE(b->has_grad());
@@ -155,7 +156,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto* c = gemm(a, b, "c", gemm_alpha_one, trans_a_default, trans_b_default,
                        ndim_one, batch_ndim_one);
         auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
-        fill(Scalar(-1.0), c_grad->data());
+        gt::fill(Scalar(-1.0), c_grad->data());
         c->backward();
         REQUIRE(a->has_grad());
         REQUIRE(b->has_grad());
@@ -171,7 +172,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto* c = gemm(a, b, "c", gemm_alpha_one, trans_a_default, trans_b_default,
                        ndim_two, batch_ndim_none);
         auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
-        fill(Scalar(1.0), c_grad->data());
+        gt::fill(Scalar(1.0), c_grad->data());
         c->backward();
         REQUIRE(a->has_grad());
         REQUIRE(b->has_grad());
@@ -199,7 +200,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(c->shape() == (std::vector<Index>{M, N}));
 
     auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
-    fill(grad_fill_val, c_grad->data());
+    gt::fill(grad_fill_val, c_grad->data());
     c->backward();
 
     REQUIRE(a->has_grad());
@@ -233,7 +234,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(c->shape() == expected_c_shape);
 
     auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
-    fill(grad_val, c_grad->data());
+    gt::fill(grad_val, c_grad->data());
     c->backward();
 
     REQUIRE(a->has_grad());
@@ -262,7 +263,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(c->shape() == (std::vector<Index>{2, 3}));
 
         auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
-        fill(grad_fill_val, c_grad->data());
+        gt::fill(grad_fill_val, c_grad->data());
 
         REQUIRE_NOTHROW(c->backward());
         REQUIRE(a->has_grad());
@@ -286,7 +287,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         REQUIRE(c->shape() == (std::vector<Index>{2, 3}));
 
         auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
-        fill(grad_fill_val, c_grad->data());
+        gt::fill(grad_fill_val, c_grad->data());
 
         REQUIRE_NOTHROW(c->backward());
         REQUIRE(a->has_grad());
@@ -391,7 +392,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     b->mark_input(true);
 
     auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
-    fill(grad_fill_val, c_grad->data());
+    gt::fill(grad_fill_val, c_grad->data());
     c->backward();
 
     a->grad()->mark_output(true);
@@ -578,7 +579,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     b->mark_input(true);
 
     auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
-    fill(grad_fill_val, c_grad->data());
+    gt::fill(grad_fill_val, c_grad->data());
     c->backward();
 
     a->grad()->mark_output(true);
@@ -644,7 +645,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     b->mark_input(true);
 
     auto [c_grad, _] = g.get_or_create_grad(c, "c_grad");
-    fill(grad_fill_val, c_grad->data());
+    gt::fill(grad_fill_val, c_grad->data());
     c->backward();
 
     a->grad()->mark_output(true);

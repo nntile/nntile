@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -47,7 +48,7 @@ void check_scale_vs_tensor_api(
     auto* src_node = graph.data(shape, "src", DataType::FP32);
     src_node->mark_input(true);
 
-    auto* dst_node = scale(alpha, src_node, "dst");
+    auto* dst_node = gt::scale(alpha, src_node, "dst");
     dst_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
@@ -68,10 +69,10 @@ void check_scale_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path (same input data) ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    tensor::Tensor<T> src(traits, distr);
-    tensor::Tensor<T> dst(traits, distr);
+    nntile::tensor::Tensor<T> src(traits, distr);
+    nntile::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile = src.get_tile(0);
@@ -83,7 +84,7 @@ void check_scale_vs_tensor_api(
         loc.release();
     }
 
-    tensor::scale<T>(alpha, src, dst);
+    nntile::tensor::scale<T>(alpha, src, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -115,7 +116,7 @@ TEST_CASE("TensorGraph scale structure", "[graph][tensor]")
 
     auto* src = graph.data({dim0, dim1}, "src");
 
-    auto* dst = scale(alpha, src, "dst");
+    auto* dst = gt::scale(alpha, src, "dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -134,11 +135,11 @@ TEST_CASE("TensorGraph scale rejects duplicate tensors", "[graph][tensor]")
     TensorGraph graph("test");
     auto* src = graph.data({4, 5}, "src");
 
-    REQUIRE_THROWS_AS(scale(alpha, src, src), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::scale(alpha, src, src), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph scale matches tensor::scale", "[graph][tensor]")
+    "TensorGraph scale matches nntile::tensor::scale", "[graph][tensor]")
 {
     const auto [alpha, shape] = GENERATE(
         std::tuple{2.5, std::vector<Index>{4, 5}},

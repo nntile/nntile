@@ -27,6 +27,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -59,7 +60,7 @@ TEST_CASE("TensorGraph conv2d_bwd_weight_inplace structure", "[graph][tensor]")
     auto* dy = graph.data({3, 3, 2, 2}, "dy");
     auto* dc = graph.data({2, 2, 2, 2}, "dc");
 
-    conv2d_bwd_weight_inplace(1.0, x, dy, 0.0, dc, {0, 0}, {1, 1}, {1, 1});
+    gt::conv2d_bwd_weight_inplace(1.0, x, dy, 0.0, dc, {0, 0}, {1, 1}, {1, 1});
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -79,10 +80,10 @@ TEST_CASE("TensorGraph conv2d_bwd_weight_inplace rejects null tensors", "[graph]
     auto* dc = graph.data({2, 2, 2, 2}, "dc");
 
     REQUIRE_THROWS_AS(
-        conv2d_bwd_weight_inplace(1.0, nullptr, dy, 0.0, dc, {0, 0}, {1, 1}, {1, 1}),
+        gt::conv2d_bwd_weight_inplace(1.0, nullptr, dy, 0.0, dc, {0, 0}, {1, 1}, {1, 1}),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        conv2d_bwd_weight_inplace(1.0, x, nullptr, 0.0, dc, {0, 0}, {1, 1}, {1, 1}),
+        gt::conv2d_bwd_weight_inplace(1.0, x, nullptr, 0.0, dc, {0, 0}, {1, 1}, {1, 1}),
         std::invalid_argument);
 }
 
@@ -116,7 +117,7 @@ void check_conv2d_bwd_weight_inplace_vs_tensor_api(
     dc_node->mark_input(true);
     dc_node->mark_output(true);
 
-    conv2d_bwd_weight_inplace(alpha, x_node, dy_node, beta, dc_node,
+    gt::conv2d_bwd_weight_inplace(alpha, x_node, dy_node, beta, dc_node,
                              padding, stride, dilation);
 
     TensorGraph::Runtime runtime(graph);
@@ -147,16 +148,16 @@ void check_conv2d_bwd_weight_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dc");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits x_traits(x_shape, x_shape);
-    tensor::TensorTraits dy_traits(dy_shape, dy_shape);
-    tensor::TensorTraits dc_traits(dc_shape, dc_shape);
+    nntile::tensor::TensorTraits x_traits(x_shape, x_shape);
+    nntile::tensor::TensorTraits dy_traits(dy_shape, dy_shape);
+    nntile::tensor::TensorTraits dc_traits(dc_shape, dc_shape);
     std::vector<int> distr(1, distr_rank_single);
 
-    tensor::Tensor<T> x_t(x_traits, distr);
-    tensor::Tensor<T> dy_t(dy_traits, distr);
-    tensor::Tensor<T> dc_t(dc_traits, distr);
+    nntile::tensor::Tensor<T> x_t(x_traits, distr);
+    nntile::tensor::Tensor<T> dy_t(dy_traits, distr);
+    nntile::tensor::Tensor<T> dc_t(dc_traits, distr);
 
-    auto init_tile = [](tensor::Tensor<T>& t, const std::vector<float>& data)
+    auto init_tile = [](nntile::tensor::Tensor<T>& t, const std::vector<float>& data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
@@ -170,7 +171,7 @@ void check_conv2d_bwd_weight_inplace_vs_tensor_api(
     init_tile(dy_t, dy_data);
     init_tile(dc_t, dc_data);
 
-    tensor::conv2d_bwd_weight_inplace<T>(
+    nntile::tensor::conv2d_bwd_weight_inplace<T>(
         alpha, x_t, dy_t, beta, dc_t, padding, stride, dilation);
     starpu_task_wait_for_all();
 

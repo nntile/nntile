@@ -21,7 +21,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/transpose.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -108,4 +108,4 @@ void TensorTransposeOp::execute(TensorGraph::Runtime& runtime) const
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

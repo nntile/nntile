@@ -19,7 +19,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/log_scalar.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -82,4 +82,4 @@ void TensorLogScalarOp::execute(TensorGraph::Runtime& runtime) const
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

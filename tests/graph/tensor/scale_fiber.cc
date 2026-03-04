@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -79,7 +80,7 @@ void check_scale_fiber_vs_tensor_api(
     auto* src_node = graph.data(fiber_sh, "src", DataType::FP32);
     src_node->mark_input(true);
 
-    auto* dst_node = scale_fiber(alpha_val, src_node, "dst", dst_shape,
+    auto* dst_node = gt::scale_fiber(alpha_val, src_node, "dst", dst_shape,
                                  axis, batch_ndim);
     dst_node->mark_output(true);
 
@@ -99,12 +100,12 @@ void check_scale_fiber_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits src_traits(fiber_sh, fiber_sh);
-    tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::tensor::TensorTraits src_traits(fiber_sh, fiber_sh);
+    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> src_t(src_traits, src_distr);
-    tensor::Tensor<T> dst_t(dst_traits, dst_distr);
+    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -116,7 +117,7 @@ void check_scale_fiber_vs_tensor_api(
         loc.release();
     }
 
-    tensor::scale_fiber<T>(alpha_val, src_t, dst_t, axis, batch_ndim);
+    nntile::tensor::scale_fiber<T>(alpha_val, src_t, dst_t, axis, batch_ndim);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(dst_nelems);
@@ -143,7 +144,7 @@ TEST_CASE("TensorGraph scale_fiber structure", "[graph][tensor]")
 
     auto* src = graph.data({dim_4}, "src");
 
-    auto* dst = scale_fiber(alpha, src, "dst", {dim_2, dim_4},
+    auto* dst = gt::scale_fiber(alpha, src, "dst", {dim_2, dim_4},
                            axis_1, batch_ndim_none);
 
     REQUIRE(graph.num_data() == 2);
@@ -163,12 +164,12 @@ TEST_CASE("TensorGraph scale_fiber rejects duplicate tensors", "[graph][tensor]"
     auto* src = graph.data({dim_4}, "src");
 
     REQUIRE_THROWS_AS(
-        scale_fiber(alpha, src, src, axis_1, batch_ndim_none),
+        gt::scale_fiber(alpha, src, src, axis_1, batch_ndim_none),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph scale_fiber matches tensor::scale_fiber", "[graph][tensor]")
+    "TensorGraph scale_fiber matches nntile::tensor::scale_fiber", "[graph][tensor]")
 {
     const auto [dst_shape, axis, batch_ndim, alpha_val] = GENERATE(
         std::tuple{std::vector<Index>{dim_2, dim_4}, axis_1, batch_ndim_none, alpha},

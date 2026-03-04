@@ -20,7 +20,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Add operation at tensor level: z = alpha * x + beta * y
@@ -76,4 +76,4 @@ void add(
     TensorGraph::TensorNode* y,
     TensorGraph::TensorNode* z);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

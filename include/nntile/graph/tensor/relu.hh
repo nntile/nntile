@@ -18,7 +18,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! ReLU operation at tensor level: dst = relu(src)
@@ -55,4 +55,4 @@ void relu(
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

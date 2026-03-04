@@ -22,7 +22,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gemm.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 std::vector<Index> gemm_output_shape(
@@ -225,4 +225,4 @@ void TensorGemmOp::execute(
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Hypot operation: dst = hypot(alpha*src1, beta*src2)
@@ -66,4 +66,4 @@ void hypot(
     TensorGraph::TensorNode* src2,
     TensorGraph::TensorNode* dst);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

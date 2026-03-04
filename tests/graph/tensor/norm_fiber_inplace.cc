@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -92,7 +93,7 @@ void check_norm_fiber_inplace_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    norm_fiber_inplace(alpha, src_node, beta, dst_node, axis, batch_ndim, redux);
+    gt::norm_fiber_inplace(alpha, src_node, beta, dst_node, axis, batch_ndim, redux);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -116,12 +117,12 @@ void check_norm_fiber_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits src_traits(tensor_shape, tensor_shape);
-    tensor::TensorTraits dst_traits(fiber_sh, fiber_sh);
+    nntile::tensor::TensorTraits src_traits(tensor_shape, tensor_shape);
+    nntile::tensor::TensorTraits dst_traits(fiber_sh, fiber_sh);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> src_t(src_traits, src_distr);
-    tensor::Tensor<T> dst_t(dst_traits, dst_distr);
+    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -142,7 +143,7 @@ void check_norm_fiber_inplace_vs_tensor_api(
         loc.release();
     }
 
-    tensor::norm_fiber_inplace<T>(alpha, src_t, beta, dst_t, axis, batch_ndim, redux);
+    nntile::tensor::norm_fiber_inplace<T>(alpha, src_t, beta, dst_t, axis, batch_ndim, redux);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(fiber_nelems);
@@ -170,7 +171,7 @@ TEST_CASE("TensorGraph norm_fiber_inplace structure", "[graph][tensor]")
     auto* src = graph.data({dim_2, dim_4}, "src");
     auto* dst = graph.data({dim_4}, "dst");  // axis=1: norm over dim_2
 
-    norm_fiber_inplace(alpha_one, src, beta_one, dst, axis_1, batch_ndim_none, redux_none);
+    gt::norm_fiber_inplace(alpha_one, src, beta_one, dst, axis_1, batch_ndim_none, redux_none);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -188,12 +189,12 @@ TEST_CASE("TensorGraph norm_fiber_inplace rejects duplicate tensors", "[graph][t
     auto* src = graph.data({dim_2, dim_4}, "src");
 
     REQUIRE_THROWS_AS(
-        norm_fiber_inplace(alpha_one, src, beta_one, src, axis_1, batch_ndim_none, redux_none),
+        gt::norm_fiber_inplace(alpha_one, src, beta_one, src, axis_1, batch_ndim_none, redux_none),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph norm_fiber_inplace matches tensor::norm_fiber_inplace", "[graph][tensor]")
+    "TensorGraph norm_fiber_inplace matches nntile::tensor::norm_fiber_inplace", "[graph][tensor]")
 {
     const auto [tensor_shape, axis, batch_ndim, redux, alpha, beta] = GENERATE(
         std::tuple{std::vector<Index>{dim_2, dim_4}, axis_1, batch_ndim_none, redux_none, alpha_one, beta_one},

@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 template<typename T>
 void check_relu_backward_vs_tensor_api(
@@ -44,7 +45,7 @@ void check_relu_backward_vs_tensor_api(
     dx_node->mark_input(true);
     dx_node->mark_output(true);
 
-    relu_backward(x_node, dy_node, dx_node);
+    gt::relu_backward(x_node, dy_node, dx_node);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -66,11 +67,11 @@ void check_relu_backward_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dx");
 
     // --- Direct tensor API path (same input data) ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    tensor::Tensor<T> x_t(traits, distr);
-    tensor::Tensor<T> dy_t(traits, distr);
-    tensor::Tensor<T> dx_t(traits, distr);
+    nntile::tensor::Tensor<T> x_t(traits, distr);
+    nntile::tensor::Tensor<T> dy_t(traits, distr);
+    nntile::tensor::Tensor<T> dx_t(traits, distr);
 
     {
         auto tile = x_t.get_tile(0);
@@ -94,7 +95,7 @@ void check_relu_backward_vs_tensor_api(
         loc.release();
     }
 
-    tensor::relu_backward<T>(x_t, dy_t, dx_t);
+    nntile::tensor::relu_backward<T>(x_t, dy_t, dx_t);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -124,7 +125,7 @@ TEST_CASE("TensorGraph relu_backward structure", "[graph][tensor]")
     auto* x = graph.data({dim0, dim1}, "x");
     auto* dy = graph.data({dim0, dim1}, "dy");
 
-    auto* dx = relu_backward(x, dy, "dx");
+    auto* dx = gt::relu_backward(x, dy, "dx");
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -144,13 +145,13 @@ TEST_CASE("TensorGraph relu_backward rejects duplicate tensors", "[graph][tensor
     auto* x = graph.data({4, 5}, "x");
     auto* dy = graph.data({4, 5}, "dy");
 
-    REQUIRE_THROWS_AS(relu_backward(x, x, "dx"), std::invalid_argument);
-    REQUIRE_THROWS_AS(relu_backward(x, dy, x), std::invalid_argument);
-    REQUIRE_THROWS_AS(relu_backward(x, dy, dy), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::relu_backward(x, x, "dx"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::relu_backward(x, dy, x), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::relu_backward(x, dy, dy), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph relu_backward matches tensor::relu_backward", "[graph][tensor]")
+    "TensorGraph relu_backward matches nntile::tensor::relu_backward", "[graph][tensor]")
 {
     const auto shape = GENERATE(
         std::vector<Index>{4, 5},

@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -61,7 +62,7 @@ void check_sgd_step_vs_tensor_api(
     velocity_node->mark_output(true);
     p_node->mark_output(true);
 
-    sgd_step(num_iter, momentum, lr, weight_decay, dampening, nesterov,
+    gt::sgd_step(num_iter, momentum, lr, weight_decay, dampening, nesterov,
              grad_node, velocity_node, p_node);
 
     TensorGraph::Runtime runtime(graph);
@@ -87,13 +88,13 @@ void check_sgd_step_vs_tensor_api(
     std::vector<float> graph_p = runtime.get_output<float>("p");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> grad_t(traits, distr);
-    tensor::Tensor<T> velocity_t(traits, distr);
-    tensor::Tensor<T> p_t(traits, distr);
+    nntile::tensor::Tensor<T> grad_t(traits, distr);
+    nntile::tensor::Tensor<T> velocity_t(traits, distr);
+    nntile::tensor::Tensor<T> p_t(traits, distr);
 
-    auto init_tile = [&](tensor::Tensor<T>& t, const std::vector<float>& data)
+    auto init_tile = [&](nntile::tensor::Tensor<T>& t, const std::vector<float>& data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
@@ -107,7 +108,7 @@ void check_sgd_step_vs_tensor_api(
     init_tile(velocity_t, velocity_data);
     init_tile(p_t, p_data);
 
-    tensor::sgd_step<T>(num_iter, momentum, lr, weight_decay, dampening,
+    nntile::tensor::sgd_step<T>(num_iter, momentum, lr, weight_decay, dampening,
                         nesterov, grad_t, velocity_t, p_t);
     starpu_task_wait_for_all();
 
@@ -144,7 +145,7 @@ TEST_CASE("TensorGraph sgd_step structure", "[graph][tensor]")
     auto* velocity = graph.data({dim_4, dim_5}, "velocity");
     auto* p = graph.data({dim_4, dim_5}, "p");
 
-    sgd_step(1, 0.9, 0.001, 0.0, 0.0, false,
+    gt::sgd_step(1, 0.9, 0.001, 0.0, 0.0, false,
              grad, velocity, p);
 
     REQUIRE(graph.num_data() == 3);
@@ -164,17 +165,17 @@ TEST_CASE("TensorGraph sgd_step rejects null tensors", "[graph][tensor]")
     auto* p = graph.data({4, 5}, "p");
 
     REQUIRE_THROWS_AS(
-        sgd_step(1, 0.9, 0.001, 0.0, 0.0, false,
+        gt::sgd_step(1, 0.9, 0.001, 0.0, 0.0, false,
                  nullptr, velocity, p),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        sgd_step(1, 0.9, 0.001, 0.0, 0.0, false,
+        gt::sgd_step(1, 0.9, 0.001, 0.0, 0.0, false,
                  grad, nullptr, p),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sgd_step matches tensor::sgd_step", "[graph][tensor]")
+    "TensorGraph sgd_step matches nntile::tensor::sgd_step", "[graph][tensor]")
 {
     const auto [shape, num_iter, momentum, lr, weight_decay, dampening, nesterov] =
         GENERATE(

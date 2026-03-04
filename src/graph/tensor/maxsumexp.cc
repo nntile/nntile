@@ -23,7 +23,7 @@
 #include "nntile/tensor/clear.hh"
 #include "nntile/tensor/maxsumexp.hh"
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -144,4 +144,4 @@ void TensorMaxsumexpOp::execute(
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

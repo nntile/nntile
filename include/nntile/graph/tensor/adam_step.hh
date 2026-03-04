@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Adam step: p = p - lr * m_hat / (sqrt(v_hat) + eps)
@@ -68,4 +68,4 @@ void adam_step(Index num_iter, Scalar beta_1, Scalar beta_2,
                TensorGraph::TensorNode* second_moment,
                TensorGraph::TensorNode* p);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

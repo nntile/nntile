@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -51,7 +52,7 @@ void check_hypot_vs_tensor_api(
     src1_node->mark_input(true);
     src2_node->mark_input(true);
 
-    auto* dst_node = hypot(alpha, src1_node, beta, src2_node, "dst");
+    auto* dst_node = gt::hypot(alpha, src1_node, beta, src2_node, "dst");
     dst_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
@@ -72,11 +73,11 @@ void check_hypot_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path (same input data) ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    tensor::Tensor<T> src1(traits, distr);
-    tensor::Tensor<T> src2(traits, distr);
-    tensor::Tensor<T> dst(traits, distr);
+    nntile::tensor::Tensor<T> src1(traits, distr);
+    nntile::tensor::Tensor<T> src2(traits, distr);
+    nntile::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile1 = src1.get_tile(0);
@@ -92,7 +93,7 @@ void check_hypot_vs_tensor_api(
         loc2.release();
     }
 
-    tensor::hypot<T>(alpha, src1, beta, src2, dst);
+    nntile::tensor::hypot<T>(alpha, src1, beta, src2, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -124,7 +125,7 @@ TEST_CASE("TensorGraph hypot structure", "[graph][tensor]")
     auto* src1 = graph.data({dim0, dim1}, "src1");
     auto* src2 = graph.data({dim0, dim1}, "src2");
 
-    auto* dst = hypot(alpha, src1, beta, src2, "dst");
+    auto* dst = gt::hypot(alpha, src1, beta, src2, "dst");
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -144,12 +145,12 @@ TEST_CASE("TensorGraph hypot rejects duplicate tensors", "[graph][tensor]")
     auto* src1 = graph.data({4, 5}, "src1");
 
     REQUIRE_THROWS_AS(
-        hypot(alpha, src1, beta, src1, "dst"),
+        gt::hypot(alpha, src1, beta, src1, "dst"),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph hypot matches tensor::hypot", "[graph][tensor]")
+    "TensorGraph hypot matches nntile::tensor::hypot", "[graph][tensor]")
 {
     const auto [alpha, beta, shape] = GENERATE(
         std::tuple{1.0, 1.0, std::vector<Index>{4, 5}},

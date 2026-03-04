@@ -18,7 +18,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! GeLU operation at tensor level: y = gelu(x)
@@ -60,4 +60,4 @@ void gelu(
     TensorGraph::TensorNode* x,
     TensorGraph::TensorNode* y);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -64,7 +65,7 @@ void check_adam_step_vs_tensor_api(
     second_moment_node->mark_output(true);
     p_node->mark_output(true);
 
-    adam_step(num_iter, beta_1, beta_2, eps, lr, weight_decay,
+    gt::adam_step(num_iter, beta_1, beta_2, eps, lr, weight_decay,
               grad_node, first_moment_node, second_moment_node, p_node);
 
     TensorGraph::Runtime runtime(graph);
@@ -94,14 +95,14 @@ void check_adam_step_vs_tensor_api(
     std::vector<float> graph_p = runtime.get_output<float>("p");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> grad_t(traits, distr);
-    tensor::Tensor<T> first_moment_t(traits, distr);
-    tensor::Tensor<T> second_moment_t(traits, distr);
-    tensor::Tensor<T> p_t(traits, distr);
+    nntile::tensor::Tensor<T> grad_t(traits, distr);
+    nntile::tensor::Tensor<T> first_moment_t(traits, distr);
+    nntile::tensor::Tensor<T> second_moment_t(traits, distr);
+    nntile::tensor::Tensor<T> p_t(traits, distr);
 
-    auto init_tile = [&](tensor::Tensor<T>& t, const std::vector<float>& data)
+    auto init_tile = [&](nntile::tensor::Tensor<T>& t, const std::vector<float>& data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
@@ -116,7 +117,7 @@ void check_adam_step_vs_tensor_api(
     init_tile(second_moment_t, second_moment_data);
     init_tile(p_t, p_data);
 
-    tensor::adam_step<T>(num_iter, beta_1, beta_2, eps, lr, weight_decay,
+    nntile::tensor::adam_step<T>(num_iter, beta_1, beta_2, eps, lr, weight_decay,
                          grad_t, first_moment_t, second_moment_t, p_t);
     starpu_task_wait_for_all();
 
@@ -161,7 +162,7 @@ TEST_CASE("TensorGraph adam_step structure", "[graph][tensor]")
     auto* second_moment = graph.data({dim_4, dim_5}, "second_moment");
     auto* p = graph.data({dim_4, dim_5}, "p");
 
-    adam_step(1, 0.9, 0.999, 1e-8, 0.001, 0.0,
+    gt::adam_step(1, 0.9, 0.999, 1e-8, 0.001, 0.0,
              grad, first_moment, second_moment, p);
 
     REQUIRE(graph.num_data() == 4);
@@ -182,17 +183,17 @@ TEST_CASE("TensorGraph adam_step rejects null tensors", "[graph][tensor]")
     auto* p = graph.data({4, 5}, "p");
 
     REQUIRE_THROWS_AS(
-        adam_step(1, 0.9, 0.999, 1e-8, 0.001, 0.0,
+        gt::adam_step(1, 0.9, 0.999, 1e-8, 0.001, 0.0,
                   nullptr, first_moment, second_moment, p),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        adam_step(1, 0.9, 0.999, 1e-8, 0.001, 0.0,
+        gt::adam_step(1, 0.9, 0.999, 1e-8, 0.001, 0.0,
                   grad, nullptr, second_moment, p),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph adam_step matches tensor::adam_step", "[graph][tensor]")
+    "TensorGraph adam_step matches nntile::tensor::adam_step", "[graph][tensor]")
 {
     const auto [shape, num_iter, beta_1, beta_2, eps, lr, weight_decay] =
         GENERATE(

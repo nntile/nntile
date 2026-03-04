@@ -26,6 +26,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -70,7 +71,7 @@ void check_maxsumexp_vs_tensor_api(
     auto* src_node = graph.data(src_shape, "src", DataType::FP32);
     src_node->mark_input(true);
 
-    auto* dst_node = maxsumexp(src_node, "dst", axis, redux);
+    auto* dst_node = gt::maxsumexp(src_node, "dst", axis, redux);
     dst_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
@@ -89,12 +90,12 @@ void check_maxsumexp_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits src_traits(src_shape, src_shape);
-    tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> src_t(src_traits, src_distr);
-    tensor::Tensor<T> dst_t(dst_traits, dst_distr);
+    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -105,8 +106,8 @@ void check_maxsumexp_vs_tensor_api(
         }
         loc.release();
     }
-    tensor::clear<T>(dst_t);
-    tensor::maxsumexp<T>(src_t, dst_t, axis, redux);
+    nntile::tensor::clear<T>(dst_t);
+    nntile::tensor::maxsumexp<T>(src_t, dst_t, axis, redux);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(dst_nelems);
@@ -137,7 +138,7 @@ TEST_CASE("TensorGraph maxsumexp structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto* src = graph.data({dim0, dim1}, "src");
-    auto* dst = maxsumexp(src, "dst", axis_0, redux);
+    auto* dst = gt::maxsumexp(src, "dst", axis_0, redux);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -157,12 +158,12 @@ TEST_CASE("TensorGraph maxsumexp rejects null", "[graph][tensor]")
     TensorGraph graph("test");
 
     REQUIRE_THROWS_AS(
-        maxsumexp(nullptr, "dst", axis_0, redux),
+        gt::maxsumexp(nullptr, "dst", axis_0, redux),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph maxsumexp matches tensor::maxsumexp", "[graph][tensor]")
+    "TensorGraph maxsumexp matches nntile::tensor::maxsumexp", "[graph][tensor]")
 {
     const auto [shape, axis] = GENERATE(
         std::tuple{std::vector<Index>{4, 5}, Index(0)},

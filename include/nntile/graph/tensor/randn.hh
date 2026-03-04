@@ -19,7 +19,7 @@
 
 #include <vector>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Randn operation: fill dst with random normal values
@@ -66,4 +66,4 @@ void randn(
     Scalar mean,
     Scalar stddev);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

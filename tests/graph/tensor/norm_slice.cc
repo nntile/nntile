@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -91,7 +92,7 @@ void check_norm_slice_vs_tensor_api(
     src_node->mark_input(true);
     dst_node->mark_input(true);
 
-    auto* out_node = norm_slice(alpha, src_node, beta, dst_node, "out", axis, redux);
+    auto* out_node = gt::norm_slice(alpha, src_node, beta, dst_node, "out", axis, redux);
     out_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
@@ -117,15 +118,15 @@ void check_norm_slice_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("out");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits src_traits(src_shape, src_shape);
-    tensor::TensorTraits dst_traits(dst_shape, dst_shape);
-    tensor::TensorTraits out_traits(dst_shape, dst_shape);
+    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::tensor::TensorTraits out_traits(dst_shape, dst_shape);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
     std::vector<int> out_distr(out_traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> src_t(src_traits, src_distr);
-    tensor::Tensor<T> src2_t(dst_traits, dst_distr);
-    tensor::Tensor<T> out_t(out_traits, out_distr);
+    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::tensor::Tensor<T> src2_t(dst_traits, dst_distr);
+    nntile::tensor::Tensor<T> out_t(out_traits, out_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -157,7 +158,7 @@ void check_norm_slice_vs_tensor_api(
         loc.release();
     }
 
-    tensor::norm_slice<T>(alpha, src_t, beta, src2_t, out_t, axis, redux);
+    nntile::tensor::norm_slice<T>(alpha, src_t, beta, src2_t, out_t, axis, redux);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(dst_nelems);
@@ -185,7 +186,7 @@ TEST_CASE("TensorGraph norm_slice structure", "[graph][tensor]")
     auto* src = graph.data({dim_4, dim_5}, "src");
     auto* dst = graph.data({dim_4}, "dst");  // axis=1: norm over dim_5
 
-    auto* out = norm_slice(alpha_one, src, beta_zero, dst, "out", axis_1, redux_none);
+    auto* out = gt::norm_slice(alpha_one, src, beta_zero, dst, "out", axis_1, redux_none);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -206,12 +207,12 @@ TEST_CASE("TensorGraph norm_slice rejects duplicate tensors", "[graph][tensor]")
     auto* dst = graph.data({dim_4}, "dst");
 
     REQUIRE_THROWS_AS(
-        norm_slice(alpha_one, src, beta_zero, dst, dst, axis_1, redux_none),
+        gt::norm_slice(alpha_one, src, beta_zero, dst, dst, axis_1, redux_none),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph norm_slice matches tensor::norm_slice", "[graph][tensor]")
+    "TensorGraph norm_slice matches nntile::tensor::norm_slice", "[graph][tensor]")
 {
     const auto [src_shape, axis, redux, alpha, beta] = GENERATE(
         std::tuple{std::vector<Index>{dim_4, dim_5}, axis_0, redux_none, alpha_one, beta_zero},

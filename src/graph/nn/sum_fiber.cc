@@ -37,7 +37,7 @@ NNGraph::TensorNode* NNSumFiberOp::forward(const std::string& output_name)
     }
     NNGraph* graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x});
-    TensorGraph::TensorNode* y_data = graph::sum_fiber(
+    TensorGraph::TensorNode* y_data = graph::tensor::sum_fiber(
         x->data(), output_name, axis, batch_ndim, redux, alpha, beta);
     NNGraph::TensorNode* y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
@@ -62,7 +62,7 @@ void NNSumFiberOp::backward() const
         auto [grad_x, is_first] =
             graph->get_or_create_grad(x, x->name() + "_grad");
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        graph::add_fiber_inplace(alpha, grad_out->data(), grad_beta,
+        graph::tensor::add_fiber_inplace(alpha, grad_out->data(), grad_beta,
                                 grad_x->data(), axis, batch_ndim);
     }
 }

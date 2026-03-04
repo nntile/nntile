@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! RoPE backward operation: dx = rope_backward(sin, cos, dy)
@@ -61,4 +61,4 @@ void rope_backward(
     TensorGraph::TensorNode* dy,
     TensorGraph::TensorNode* dx);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

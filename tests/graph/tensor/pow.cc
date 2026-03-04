@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -50,12 +51,12 @@ void check_pow_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    pow(alpha_val, exponent_val, dst_node);
+    gt::pow(alpha_val, exponent_val, dst_node);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
 
-    // Use positive values for pow (avoid complex/NaN for negative base)
+    // Use positive values for gt::pow(avoid complex/NaN for negative base)
     std::vector<float> dst_data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -69,9 +70,9 @@ void check_pow_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path (same input data) ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    tensor::Tensor<T> dst(traits, distr);
+    nntile::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile = dst.get_tile(0);
@@ -83,7 +84,7 @@ void check_pow_vs_tensor_api(
         loc.release();
     }
 
-    tensor::pow<T>(alpha_val, exponent_val, dst);
+    nntile::tensor::pow<T>(alpha_val, exponent_val, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -114,7 +115,7 @@ TEST_CASE("TensorGraph pow structure", "[graph][tensor]")
 
     auto* dst = graph.data({dim0, dim1}, "dst");
 
-    pow(alpha, exponent, dst);
+    gt::pow(alpha, exponent, dst);
 
     REQUIRE(graph.num_data() == 1);
     REQUIRE(graph.num_ops() == 1);
@@ -127,7 +128,7 @@ TEST_CASE("TensorGraph pow structure", "[graph][tensor]")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph pow matches tensor::pow", "[graph][tensor]")
+    "TensorGraph pow matches nntile::tensor::pow", "[graph][tensor]")
 {
     const auto [alpha_val, exponent_val, shape] = GENERATE(
         std::tuple{1.0, 2.0, std::vector<Index>{4, 5}},

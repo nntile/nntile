@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -54,7 +55,7 @@ void check_hypot_inplace_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    hypot_inplace(alpha, src_node, beta, dst_node);
+    gt::hypot_inplace(alpha, src_node, beta, dst_node);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -75,10 +76,10 @@ void check_hypot_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> src_t(traits, distr);
-    tensor::Tensor<T> dst_t(traits, distr);
+    nntile::tensor::Tensor<T> src_t(traits, distr);
+    nntile::tensor::Tensor<T> dst_t(traits, distr);
 
     {
         auto tile1 = src_t.get_tile(0);
@@ -94,7 +95,7 @@ void check_hypot_inplace_vs_tensor_api(
         loc2.release();
     }
 
-    tensor::hypot_inplace<T>(alpha, src_t, beta, dst_t);
+    nntile::tensor::hypot_inplace<T>(alpha, src_t, beta, dst_t);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -125,7 +126,7 @@ TEST_CASE("TensorGraph hypot_inplace structure", "[graph][tensor]")
     auto* src = graph.data({dim0, dim1}, "src");
     auto* dst = graph.data({dim0, dim1}, "dst");
 
-    hypot_inplace(alpha_one, src, beta_one, dst);
+    gt::hypot_inplace(alpha_one, src, beta_one, dst);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -143,12 +144,12 @@ TEST_CASE("TensorGraph hypot_inplace rejects duplicate tensors", "[graph][tensor
     auto* t = graph.data({4, 5}, "t");
 
     REQUIRE_THROWS_AS(
-        hypot_inplace(alpha_one, t, beta_one, t),
+        gt::hypot_inplace(alpha_one, t, beta_one, t),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph hypot_inplace matches tensor::hypot_inplace", "[graph][tensor]")
+    "TensorGraph hypot_inplace matches nntile::tensor::hypot_inplace", "[graph][tensor]")
 {
     const auto [alpha, beta, shape] = GENERATE(
         std::tuple{1.0, 1.0, std::vector<Index>{4, 5}},

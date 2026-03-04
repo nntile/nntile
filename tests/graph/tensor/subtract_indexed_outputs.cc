@@ -26,6 +26,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -70,7 +71,7 @@ void check_subtract_indexed_outputs_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    subtract_indexed_outputs(val, labels_node, dst_node, ignore_index);
+    gt::subtract_indexed_outputs(val, labels_node, dst_node, ignore_index);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -83,12 +84,12 @@ void check_subtract_indexed_outputs_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits labels_traits(labels_shape, labels_shape);
-    tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::tensor::TensorTraits labels_traits(labels_shape, labels_shape);
+    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> labels_distr(labels_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<nntile::int64_t> labels_t(labels_traits, labels_distr);
-    tensor::Tensor<T> dst_t(dst_traits, dst_distr);
+    nntile::tensor::Tensor<nntile::int64_t> labels_t(labels_traits, labels_distr);
+    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
 
     {
         auto tile = labels_t.get_tile(0);
@@ -109,7 +110,7 @@ void check_subtract_indexed_outputs_vs_tensor_api(
         loc.release();
     }
 
-    tensor::subtract_indexed_outputs<T>(val, labels_t, dst_t, ignore_index);
+    nntile::tensor::subtract_indexed_outputs<T>(val, labels_t, dst_t, ignore_index);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(dst_nelems);
@@ -137,7 +138,7 @@ TEST_CASE("TensorGraph subtract_indexed_outputs structure", "[graph][tensor]")
     auto* labels = graph.data({4}, "labels", DataType::INT64);
     auto* dst = graph.data({5, 4}, "dst");
 
-    subtract_indexed_outputs(val, labels, dst, ignore_index);
+    gt::subtract_indexed_outputs(val, labels, dst, ignore_index);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -156,10 +157,10 @@ TEST_CASE("TensorGraph subtract_indexed_outputs rejects null", "[graph][tensor]"
     auto* dst = graph.data({5, 4}, "dst");
 
     REQUIRE_THROWS_AS(
-        subtract_indexed_outputs(val, nullptr, dst, ignore_index),
+        gt::subtract_indexed_outputs(val, nullptr, dst, ignore_index),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        subtract_indexed_outputs(val, labels, nullptr, ignore_index),
+        gt::subtract_indexed_outputs(val, labels, nullptr, ignore_index),
         std::invalid_argument);
 }
 
@@ -171,12 +172,12 @@ TEST_CASE("TensorGraph subtract_indexed_outputs rejects non-INT64 labels",
     auto* dst = graph.data({5, 4}, "dst");
 
     REQUIRE_THROWS_AS(
-        subtract_indexed_outputs(val, labels, dst, ignore_index),
+        gt::subtract_indexed_outputs(val, labels, dst, ignore_index),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph subtract_indexed_outputs matches tensor::subtract_indexed_outputs",
+    "TensorGraph subtract_indexed_outputs matches nntile::tensor::subtract_indexed_outputs",
     "[graph][tensor]")
 {
     const auto [labels_shape, n_class] = GENERATE(

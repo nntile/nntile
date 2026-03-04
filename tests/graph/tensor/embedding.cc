@@ -26,6 +26,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -82,7 +83,7 @@ void check_embedding_vs_tensor_api(
     embed_node->mark_input(true);
     embed_node->mark_output(true);
 
-    embedding(index_node, vocab_node, embed_node, axis);
+    gt::embedding(index_node, vocab_node, embed_node, axis);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -108,16 +109,16 @@ void check_embedding_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("embed");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits index_traits(index_shape, index_shape);
-    tensor::TensorTraits vocab_traits(vocab_shape, vocab_shape);
-    tensor::TensorTraits embed_traits(embed_shape, embed_shape);
+    nntile::tensor::TensorTraits index_traits(index_shape, index_shape);
+    nntile::tensor::TensorTraits vocab_traits(vocab_shape, vocab_shape);
+    nntile::tensor::TensorTraits embed_traits(embed_shape, embed_shape);
     std::vector<int> distr(1, distr_rank_single);
 
-    tensor::Tensor<nntile::int64_t> index_t(index_traits, distr);
-    tensor::Tensor<T> vocab_t(vocab_traits, distr);
-    tensor::Tensor<T> embed_t(embed_traits, distr);
+    nntile::tensor::Tensor<nntile::int64_t> index_t(index_traits, distr);
+    nntile::tensor::Tensor<T> vocab_t(vocab_traits, distr);
+    nntile::tensor::Tensor<T> embed_t(embed_traits, distr);
 
-    auto init_index = [](tensor::Tensor<nntile::int64_t>& t,
+    auto init_index = [](nntile::tensor::Tensor<nntile::int64_t>& t,
                         const std::vector<std::int64_t>& data)
     {
         auto tile = t.get_tile(0);
@@ -128,7 +129,7 @@ void check_embedding_vs_tensor_api(
         }
         loc.release();
     };
-    auto init_float = [](tensor::Tensor<T>& t, const std::vector<float>& data)
+    auto init_float = [](nntile::tensor::Tensor<T>& t, const std::vector<float>& data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
@@ -142,7 +143,7 @@ void check_embedding_vs_tensor_api(
     init_index(index_t, index_data);
     init_float(vocab_t, vocab_data);
 
-    tensor::embedding<T>(index_t, vocab_t, embed_t, axis);
+    nntile::tensor::embedding<T>(index_t, vocab_t, embed_t, axis);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(embed_nelems);
@@ -171,7 +172,7 @@ TEST_CASE("TensorGraph embedding structure", "[graph][tensor]")
     auto* vocab = graph.data({10, 100}, "vocab");
     auto* embed = graph.data({4, 5, 10}, "embed");
 
-    embedding(index, vocab, embed, 2);
+    gt::embedding(index, vocab, embed, 2);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -191,13 +192,13 @@ TEST_CASE("TensorGraph embedding rejects null tensors", "[graph][tensor]")
     auto* embed = graph.data({4, 5, 10}, "embed");
 
     REQUIRE_THROWS_AS(
-        embedding(nullptr, vocab, embed, 2),
+        gt::embedding(nullptr, vocab, embed, 2),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        embedding(index, nullptr, embed, 2),
+        gt::embedding(index, nullptr, embed, 2),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        embedding(index, vocab, nullptr, 2),
+        gt::embedding(index, vocab, nullptr, 2),
         std::invalid_argument);
 }
 
@@ -207,7 +208,7 @@ TEST_CASE("TensorGraph embedding with output_name", "[graph][tensor]")
     auto* index = graph.data({4, 5}, "index", DataType::INT64);
     auto* vocab = graph.data({10, 100}, "vocab");
 
-    auto* embed = embedding(index, vocab, "embed", 2);
+    auto* embed = gt::embedding(index, vocab, "embed", 2);
 
     REQUIRE(embed != nullptr);
     // Graph uses embed_shape = index.shape + vocab.dim(1)
@@ -217,7 +218,7 @@ TEST_CASE("TensorGraph embedding with output_name", "[graph][tensor]")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph embedding matches tensor::embedding", "[graph][tensor]")
+    "TensorGraph embedding matches nntile::tensor::embedding", "[graph][tensor]")
 {
     const auto [index_shape, vocab_shape, axis] = GENERATE(
         std::tuple{std::vector<Index>{4, 5}, std::vector<Index>{10, 100}, Index(2)},

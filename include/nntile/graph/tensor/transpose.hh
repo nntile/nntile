@@ -19,7 +19,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Transpose operation at tensor level: dst = alpha * transpose(src)
@@ -64,4 +64,4 @@ void transpose(
     TensorGraph::TensorNode* dst,
     Index ndim);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

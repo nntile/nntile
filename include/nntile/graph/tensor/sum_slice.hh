@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Sum slice operation at tensor level: dst = alpha * sum_slice(src) + beta * dst
@@ -62,4 +62,4 @@ void sum_slice(
     Scalar alpha,
     Scalar beta);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

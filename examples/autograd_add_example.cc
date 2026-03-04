@@ -24,6 +24,7 @@
 int main(int argc, char** argv)
 {
     using namespace nntile::graph;
+    namespace gt = nntile::graph::tensor;
 
     if(argc > 1 && (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help"))
     {
@@ -54,7 +55,7 @@ int main(int argc, char** argv)
 
     // Set grad_z = 1, then backward
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
-    fill(nntile::Scalar(1.0), z_grad->data());
+    gt::fill(nntile::Scalar(1.0), z_grad->data());
     z->backward();
 
     std::cout << "\n=== After z.backward() ===" << std::endl;

@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -50,7 +51,7 @@ void check_multiply_inplace_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    multiply_inplace(alpha, src_node, dst_node);
+    gt::multiply_inplace(alpha, src_node, dst_node);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -70,10 +71,10 @@ void check_multiply_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path (same input data) ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    tensor::Tensor<T> src(traits, distr);
-    tensor::Tensor<T> dst(traits, distr);
+    nntile::tensor::Tensor<T> src(traits, distr);
+    nntile::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile1 = src.get_tile(0);
@@ -89,7 +90,7 @@ void check_multiply_inplace_vs_tensor_api(
         loc2.release();
     }
 
-    tensor::multiply_inplace<T>(alpha, src, dst);
+    nntile::tensor::multiply_inplace<T>(alpha, src, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -121,7 +122,7 @@ TEST_CASE("TensorGraph multiply_inplace structure", "[graph][tensor]")
     auto* src = graph.data({dim0, dim1}, "src");
     auto* dst = graph.data({dim0, dim1}, "dst");
 
-    multiply_inplace(alpha, src, dst);
+    gt::multiply_inplace(alpha, src, dst);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -138,11 +139,11 @@ TEST_CASE("TensorGraph multiply_inplace rejects duplicate tensors", "[graph][ten
     TensorGraph graph("test");
     auto* src = graph.data({4, 5}, "src");
 
-    REQUIRE_THROWS_AS(multiply_inplace(alpha, src, src), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::multiply_inplace(alpha, src, src), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph multiply_inplace matches tensor::multiply_inplace", "[graph][tensor]")
+    "TensorGraph multiply_inplace matches nntile::tensor::multiply_inplace", "[graph][tensor]")
 {
     const auto [alpha, shape] = GENERATE(
         std::tuple{1.0, std::vector<Index>{4, 5}},

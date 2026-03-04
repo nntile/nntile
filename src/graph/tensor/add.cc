@@ -24,7 +24,7 @@
 #include <nntile/graph/tensor.hh>
 #include <nntile/tensor/add.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 namespace
@@ -158,4 +158,4 @@ void TensorAddOp::execute(TensorGraph::Runtime& runtime) const
     }
 }
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

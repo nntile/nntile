@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 template<typename T>
 void check_relu_vs_tensor_api(
@@ -39,7 +40,7 @@ void check_relu_vs_tensor_api(
     auto* src_node = graph.data(shape, "src", DataType::FP32);
     src_node->mark_input(true);
 
-    auto* dst_node = relu(src_node, "dst");
+    auto* dst_node = gt::relu(src_node, "dst");
     dst_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
@@ -59,10 +60,10 @@ void check_relu_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path (same input data) ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    tensor::Tensor<T> src(traits, distr);
-    tensor::Tensor<T> dst(traits, distr);
+    nntile::tensor::Tensor<T> src(traits, distr);
+    nntile::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile = src.get_tile(0);
@@ -74,7 +75,7 @@ void check_relu_vs_tensor_api(
         loc.release();
     }
 
-    tensor::relu<T>(src, dst);
+    nntile::tensor::relu<T>(src, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -106,7 +107,7 @@ TEST_CASE("TensorGraph relu structure", "[graph][tensor]")
 
     auto* src = graph.data({dim0, dim1}, "src");
 
-    auto* dst = relu(src, "dst");
+    auto* dst = gt::relu(src, "dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -125,11 +126,11 @@ TEST_CASE("TensorGraph relu rejects duplicate tensors", "[graph][tensor]")
     TensorGraph graph("test");
     auto* t = graph.data({4, 5}, "t");
 
-    REQUIRE_THROWS_AS(relu(t, t), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::relu(t, t), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph relu matches tensor::relu", "[graph][tensor]")
+    "TensorGraph relu matches nntile::tensor::relu", "[graph][tensor]")
 {
     const auto shape = GENERATE(
         std::vector<Index>{4, 5},

@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -48,7 +49,7 @@ void check_scale_inplace_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    scale_inplace(alpha, dst_node);
+    gt::scale_inplace(alpha, dst_node);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -66,9 +67,9 @@ void check_scale_inplace_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path (same input data) ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, 0);
-    tensor::Tensor<T> dst(traits, distr);
+    nntile::tensor::Tensor<T> dst(traits, distr);
 
     {
         auto tile = dst.get_tile(0);
@@ -80,7 +81,7 @@ void check_scale_inplace_vs_tensor_api(
         loc.release();
     }
 
-    tensor::scale_inplace<T>(alpha, dst);
+    nntile::tensor::scale_inplace<T>(alpha, dst);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -111,7 +112,7 @@ TEST_CASE("TensorGraph scale_inplace structure", "[graph][tensor]")
 
     auto* dst = graph.data({dim0, dim1}, "dst");
 
-    scale_inplace(alpha, dst);
+    gt::scale_inplace(alpha, dst);
 
     REQUIRE(graph.num_data() == 1);
     REQUIRE(graph.num_ops() == 1);
@@ -124,7 +125,7 @@ TEST_CASE("TensorGraph scale_inplace structure", "[graph][tensor]")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph scale_inplace matches tensor::scale_inplace", "[graph][tensor]")
+    "TensorGraph scale_inplace matches nntile::tensor::scale_inplace", "[graph][tensor]")
 {
     const auto [alpha, shape] = GENERATE(
         std::tuple{2.5, std::vector<Index>{4, 5}},

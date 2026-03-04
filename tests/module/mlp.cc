@@ -27,6 +27,7 @@
 using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::module;
+namespace gt = nntile::graph::tensor;
 
 TEST_CASE("Mlp ForwardBuildsOutput", "[module]")
 {
@@ -78,7 +79,7 @@ TEST_CASE("Mlp BackwardCreatesGradients", "[module]")
 
     auto& output = mlp.build_forward(*input);
     g.get_or_create_grad(&output, "output_grad");
-    fill(Scalar(1.0), output.grad()->data());
+    gt::fill(Scalar(1.0), output.grad()->data());
     output.backward();
 
     REQUIRE(mlp.fc1().weight_tensor()->grad() != nullptr);

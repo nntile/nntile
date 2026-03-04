@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -46,7 +47,7 @@ void check_gather_vs_tensor_api(const std::vector<Index>& shape)
     auto* src_node = graph.data(shape, "src", DataType::FP32);
     src_node->mark_input(true);
 
-    auto* dst_node = gather(src_node, "dst");
+    auto* dst_node = gt::gather(src_node, "dst");
     dst_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
@@ -65,10 +66,10 @@ void check_gather_vs_tensor_api(const std::vector<Index>& shape)
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path (single-tile: gather = copy) ---
-    tensor::TensorTraits traits(shape, shape);
+    nntile::tensor::TensorTraits traits(shape, shape);
     std::vector<int> distr(traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> src_t(traits, distr);
-    tensor::Tensor<T> dst_t(traits, distr);
+    nntile::tensor::Tensor<T> src_t(traits, distr);
+    nntile::tensor::Tensor<T> dst_t(traits, distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -80,7 +81,7 @@ void check_gather_vs_tensor_api(const std::vector<Index>& shape)
         loc.release();
     }
 
-    tensor::gather<T>(src_t, dst_t);
+    nntile::tensor::gather<T>(src_t, dst_t);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(nelems);
@@ -106,7 +107,7 @@ TEST_CASE("TensorGraph gather structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto* src = graph.data({4, 5}, "src");
-    auto* dst = gather(src, "dst");
+    auto* dst = gt::gather(src, "dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -123,11 +124,11 @@ TEST_CASE("TensorGraph gather rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    REQUIRE_THROWS_AS(gather(nullptr, "dst"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::gather(nullptr, "dst"), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph gather matches tensor::gather", "[graph][tensor]")
+    "TensorGraph gather matches nntile::tensor::gather", "[graph][tensor]")
 {
     const auto shape = GENERATE(
         std::vector<Index>{4, 5},

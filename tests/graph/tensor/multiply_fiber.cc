@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -74,7 +75,7 @@ void check_multiply_fiber_vs_tensor_api(
     fiber_node->mark_input(true);
     tensor_node->mark_input(true);
 
-    auto* out_node = multiply_fiber(alpha, fiber_node, tensor_node, "out", axis);
+    auto* out_node = gt::multiply_fiber(alpha, fiber_node, tensor_node, "out", axis);
     out_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
@@ -99,13 +100,13 @@ void check_multiply_fiber_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("out");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits fiber_traits(fiber_sh, fiber_sh);
-    tensor::TensorTraits tensor_traits(tensor_shape, tensor_shape);
+    nntile::tensor::TensorTraits fiber_traits(fiber_sh, fiber_sh);
+    nntile::tensor::TensorTraits tensor_traits(tensor_shape, tensor_shape);
     std::vector<int> fiber_distr(fiber_traits.grid.nelems, distr_rank_single);
     std::vector<int> tensor_distr(tensor_traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> fiber_t(fiber_traits, fiber_distr);
-    tensor::Tensor<T> tensor_t(tensor_traits, tensor_distr);
-    tensor::Tensor<T> out_t(tensor_traits, tensor_distr);
+    nntile::tensor::Tensor<T> fiber_t(fiber_traits, fiber_distr);
+    nntile::tensor::Tensor<T> tensor_t(tensor_traits, tensor_distr);
+    nntile::tensor::Tensor<T> out_t(tensor_traits, tensor_distr);
 
     {
         auto tile = fiber_t.get_tile(0);
@@ -126,7 +127,7 @@ void check_multiply_fiber_vs_tensor_api(
         loc.release();
     }
 
-    tensor::multiply_fiber<T>(alpha, fiber_t, tensor_t, out_t, axis);
+    nntile::tensor::multiply_fiber<T>(alpha, fiber_t, tensor_t, out_t, axis);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(tensor_nelems);
@@ -154,7 +155,7 @@ TEST_CASE("TensorGraph multiply_fiber structure", "[graph][tensor]")
     auto* fiber = graph.data({dim_4}, "fiber");
     auto* tensor = graph.data({dim_2, dim_4}, "tensor");
 
-    auto* out = multiply_fiber(alpha_one, fiber, tensor, "out", axis_1);
+    auto* out = gt::multiply_fiber(alpha_one, fiber, tensor, "out", axis_1);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
@@ -174,12 +175,12 @@ TEST_CASE("TensorGraph multiply_fiber rejects duplicate tensors", "[graph][tenso
     auto* tensor = graph.data({dim_2, dim_4}, "tensor");
 
     REQUIRE_THROWS_AS(
-        multiply_fiber(alpha_one, fiber, tensor, tensor, axis_1),
+        gt::multiply_fiber(alpha_one, fiber, tensor, tensor, axis_1),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph multiply_fiber matches tensor::multiply_fiber", "[graph][tensor]")
+    "TensorGraph multiply_fiber matches nntile::tensor::multiply_fiber", "[graph][tensor]")
 {
     const auto [tensor_shape, axis, alpha] = GENERATE(
         std::tuple{std::vector<Index>{dim_2, dim_4}, axis_1, alpha_one},

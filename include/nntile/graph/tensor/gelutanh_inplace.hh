@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! GeLUTanh in-place operation: dst = gelutanh(dst)
@@ -44,4 +44,4 @@ struct TensorGelutanhInplaceOp : TensorGraph::OpNode
 
 void gelutanh_inplace(TensorGraph::TensorNode* dst);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

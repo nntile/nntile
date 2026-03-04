@@ -39,7 +39,7 @@ NNGraph::TensorNode* NNAddOp::forward(const std::string& output_name)
     NNGraph* graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x, y});
     TensorGraph::TensorNode* z_data =
-        graph::add(alpha, x->data(), beta, y->data(), output_name);
+        graph::tensor::add(alpha, x->data(), beta, y->data(), output_name);
     NNGraph::TensorNode* z = graph->tensor(z_data, out_requires_grad);
     outputs_ = {z};
     return z;
@@ -63,14 +63,14 @@ void NNAddOp::backward() const
         auto [grad_x, is_first] =
             graph->get_or_create_grad(x, x->name() + "_grad");
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        graph::add_inplace(alpha, grad_out->data(), grad_beta, grad_x->data());
+        graph::tensor::add_inplace(alpha, grad_out->data(), grad_beta, grad_x->data());
     }
     if(y != nullptr && y->requires_grad())
     {
         auto [grad_y, is_first] =
             graph->get_or_create_grad(y, y->name() + "_grad");
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        graph::add_inplace(beta, grad_out->data(), grad_beta, grad_y->data());
+        graph::tensor::add_inplace(beta, grad_out->data(), grad_beta, grad_y->data());
     }
 }
 

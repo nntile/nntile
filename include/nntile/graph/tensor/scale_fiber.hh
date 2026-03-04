@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Scale fiber operation: dst = alpha * src (fiber broadcast)
@@ -68,4 +68,4 @@ void scale_fiber(
     Index axis,
     Index batch_ndim);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

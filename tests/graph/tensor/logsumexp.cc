@@ -28,6 +28,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -79,8 +80,8 @@ void check_logsumexp_vs_tensor_api(
     auto* src_node = graph.data(src_shape, "src", DataType::FP32);
     src_node->mark_input(true);
 
-    auto* maxsumexp_node = maxsumexp(src_node, "maxsumexp", axis, redux);
-    auto* logsumexp_node = logsumexp(maxsumexp_node, "logsumexp");
+    auto* maxsumexp_node = gt::maxsumexp(src_node, "maxsumexp", axis, redux);
+    auto* logsumexp_node = gt::logsumexp(maxsumexp_node, "logsumexp");
     logsumexp_node->mark_output(true);
 
     TensorGraph::Runtime runtime(graph);
@@ -100,9 +101,9 @@ void check_logsumexp_vs_tensor_api(
         runtime.get_output<float>("logsumexp");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits src_traits(src_shape, src_shape);
-    tensor::TensorTraits maxsumexp_traits(maxsumexp_shape, maxsumexp_shape);
-    tensor::TensorTraits logsumexp_traits(logsumexp_shape, logsumexp_shape);
+    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::tensor::TensorTraits maxsumexp_traits(maxsumexp_shape, maxsumexp_shape);
+    nntile::tensor::TensorTraits logsumexp_traits(logsumexp_shape, logsumexp_shape);
     std::vector<int> distr_single(1, distr_rank_single);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> mse_distr(maxsumexp_traits.grid.nelems,
@@ -110,9 +111,9 @@ void check_logsumexp_vs_tensor_api(
     std::vector<int> lse_distr(logsumexp_traits.grid.nelems,
                               distr_rank_single);
 
-    tensor::Tensor<T> src_t(src_traits, src_distr);
-    tensor::Tensor<T> maxsumexp_t(maxsumexp_traits, mse_distr);
-    tensor::Tensor<T> logsumexp_t(logsumexp_traits, lse_distr);
+    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::tensor::Tensor<T> maxsumexp_t(maxsumexp_traits, mse_distr);
+    nntile::tensor::Tensor<T> logsumexp_t(logsumexp_traits, lse_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -123,9 +124,9 @@ void check_logsumexp_vs_tensor_api(
         }
         loc.release();
     }
-    tensor::clear<T>(maxsumexp_t);
-    tensor::maxsumexp<T>(src_t, maxsumexp_t, axis, redux);
-    tensor::logsumexp<T>(maxsumexp_t, logsumexp_t);
+    nntile::tensor::clear<T>(maxsumexp_t);
+    nntile::tensor::maxsumexp<T>(src_t, maxsumexp_t, axis, redux);
+    nntile::tensor::logsumexp<T>(maxsumexp_t, logsumexp_t);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(logsumexp_nelems);
@@ -153,7 +154,7 @@ TEST_CASE("TensorGraph logsumexp structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto* src = graph.data({2, 4, 5}, "src");  // maxsumexp output shape
-    auto* dst = logsumexp(src, "dst");
+    auto* dst = gt::logsumexp(src, "dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -172,11 +173,11 @@ TEST_CASE("TensorGraph logsumexp rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    REQUIRE_THROWS_AS(logsumexp(nullptr, "dst"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::logsumexp(nullptr, "dst"), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph logsumexp matches tensor::logsumexp", "[graph][tensor]")
+    "TensorGraph logsumexp matches nntile::tensor::logsumexp", "[graph][tensor]")
 {
     const auto [shape, axis] = GENERATE(
         std::tuple{std::vector<Index>{4, 5}, Index(0)},

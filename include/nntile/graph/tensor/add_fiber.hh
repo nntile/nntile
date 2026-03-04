@@ -19,7 +19,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Add fiber operation at tensor level: output = alpha * fiber + beta * tensor
@@ -78,4 +78,4 @@ void add_fiber(
     Index axis,
     Index batch_ndim);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

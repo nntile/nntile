@@ -17,7 +17,7 @@
 #include <nntile/graph/tensor/graph.hh>
 #include <string>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Log scalar: log scalar value from tensor
@@ -49,4 +49,4 @@ struct TensorLogScalarOp : TensorGraph::OpNode
 void log_scalar(const std::string& name,
                 TensorGraph::TensorNode* value);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

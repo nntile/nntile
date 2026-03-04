@@ -19,7 +19,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Scale slice operation: dst = alpha * src (slice broadcast)
@@ -66,4 +66,4 @@ void scale_slice(
     TensorGraph::TensorNode* dst,
     Index axis);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

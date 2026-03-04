@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Norm slice in-place: dst = alpha*norm(src) + beta*dst
@@ -62,4 +62,4 @@ void norm_slice_inplace(
     Index axis,
     int redux);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

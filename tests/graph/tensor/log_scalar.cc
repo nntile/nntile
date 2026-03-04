@@ -22,6 +22,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -36,7 +37,7 @@ TEST_CASE("TensorGraph log_scalar structure", "[graph][tensor]")
     TensorGraph graph("test");
 
     auto* value = graph.data({}, "value");
-    log_scalar("test_scalar", value);
+    gt::log_scalar("test_scalar", value);
 
     REQUIRE(graph.num_data() == 1);
     REQUIRE(graph.num_ops() == 1);
@@ -51,7 +52,7 @@ TEST_CASE("TensorGraph log_scalar rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    REQUIRE_THROWS_AS(log_scalar("name", nullptr), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::log_scalar("name", nullptr), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -64,7 +65,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     value_node->mark_input(true);
     value_node->mark_output(true);
 
-    log_scalar("test_value", value_node);
+    gt::log_scalar("test_value", value_node);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();

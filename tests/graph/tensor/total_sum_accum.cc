@@ -26,6 +26,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -79,7 +80,7 @@ void check_total_sum_accum_vs_tensor_api(
     val_node->mark_input(true);
     val_node->mark_output(true);
 
-    total_sum_accum(alpha_one, logsumexp_node, src_node, labels_node,
+    gt::total_sum_accum(alpha_one, logsumexp_node, src_node, labels_node,
                    val_node, ignore_index);
 
     TensorGraph::Runtime runtime(graph);
@@ -95,18 +96,18 @@ void check_total_sum_accum_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("val");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits logsumexp_traits(labels_shape, labels_shape);
-    tensor::TensorTraits src_traits(src_shape, src_shape);
-    tensor::TensorTraits labels_traits(labels_shape, labels_shape);
-    tensor::TensorTraits val_traits({}, {});
+    nntile::tensor::TensorTraits logsumexp_traits(labels_shape, labels_shape);
+    nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
+    nntile::tensor::TensorTraits labels_traits(labels_shape, labels_shape);
+    nntile::tensor::TensorTraits val_traits({}, {});
     std::vector<int> distr_single(1, distr_rank_single);
     std::vector<int> labels_distr(labels_traits.grid.nelems, distr_rank_single);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
 
-    tensor::Tensor<T> logsumexp_t(logsumexp_traits, labels_distr);
-    tensor::Tensor<T> src_t(src_traits, src_distr);
-    tensor::Tensor<nntile::int64_t> labels_t(labels_traits, labels_distr);
-    tensor::Tensor<nntile::fp32_t> val_t(val_traits, distr_single);
+    nntile::tensor::Tensor<T> logsumexp_t(logsumexp_traits, labels_distr);
+    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::tensor::Tensor<nntile::int64_t> labels_t(labels_traits, labels_distr);
+    nntile::tensor::Tensor<nntile::fp32_t> val_t(val_traits, distr_single);
 
     {
         auto tile = logsumexp_t.get_tile(0);
@@ -142,7 +143,7 @@ void check_total_sum_accum_vs_tensor_api(
         loc.release();
     }
 
-    tensor::total_sum_accum<T>(alpha_one, logsumexp_t, src_t, labels_t,
+    nntile::tensor::total_sum_accum<T>(alpha_one, logsumexp_t, src_t, labels_t,
                               val_t, ignore_index);
     starpu_task_wait_for_all();
 
@@ -170,7 +171,7 @@ TEST_CASE("TensorGraph total_sum_accum structure", "[graph][tensor]")
     auto* labels = graph.data({4}, "labels", DataType::INT64);
     auto* val = graph.data({}, "val", DataType::FP32);
 
-    total_sum_accum(alpha_one, logsumexp, src, labels, val, ignore_index);
+    gt::total_sum_accum(alpha_one, logsumexp, src, labels, val, ignore_index);
 
     REQUIRE(graph.num_data() == 4);
     REQUIRE(graph.num_ops() == 1);
@@ -191,16 +192,16 @@ TEST_CASE("TensorGraph total_sum_accum rejects null", "[graph][tensor]")
     auto* val = graph.data({}, "val", DataType::FP32);
 
     REQUIRE_THROWS_AS(
-        total_sum_accum(alpha_one, nullptr, src, labels, val, ignore_index),
+        gt::total_sum_accum(alpha_one, nullptr, src, labels, val, ignore_index),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        total_sum_accum(alpha_one, logsumexp, nullptr, labels, val, ignore_index),
+        gt::total_sum_accum(alpha_one, logsumexp, nullptr, labels, val, ignore_index),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        total_sum_accum(alpha_one, logsumexp, src, nullptr, val, ignore_index),
+        gt::total_sum_accum(alpha_one, logsumexp, src, nullptr, val, ignore_index),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        total_sum_accum(alpha_one, logsumexp, src, labels, nullptr, ignore_index),
+        gt::total_sum_accum(alpha_one, logsumexp, src, labels, nullptr, ignore_index),
         std::invalid_argument);
 }
 
@@ -213,12 +214,12 @@ TEST_CASE("TensorGraph total_sum_accum rejects wrong dtypes", "[graph][tensor]")
     auto* val = graph.data({}, "val", DataType::FP32);
 
     REQUIRE_THROWS_AS(
-        total_sum_accum(alpha_one, logsumexp, src, labels, val, ignore_index),
+        gt::total_sum_accum(alpha_one, logsumexp, src, labels, val, ignore_index),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph total_sum_accum matches tensor::total_sum_accum",
+    "TensorGraph total_sum_accum matches nntile::tensor::total_sum_accum",
     "[graph][tensor]")
 {
     const auto [labels_shape, n_class] = GENERATE(

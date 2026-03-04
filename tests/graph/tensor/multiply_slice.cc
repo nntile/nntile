@@ -25,6 +25,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
+namespace gt = nntile::graph::tensor;
 
 namespace
 {
@@ -85,7 +86,7 @@ void check_multiply_slice_vs_tensor_api(
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
-    multiply_slice(alpha, src_node, dst_node, axis);
+    gt::multiply_slice(alpha, src_node, dst_node, axis);
 
     TensorGraph::Runtime runtime(graph);
     runtime.compile();
@@ -109,12 +110,12 @@ void check_multiply_slice_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("dst");
 
     // --- Direct tensor API path ---
-    tensor::TensorTraits src_traits(src_sh, src_sh);
-    tensor::TensorTraits dst_traits(dst_shape, dst_shape);
+    nntile::tensor::TensorTraits src_traits(src_sh, src_sh);
+    nntile::tensor::TensorTraits dst_traits(dst_shape, dst_shape);
     std::vector<int> src_distr(src_traits.grid.nelems, distr_rank_single);
     std::vector<int> dst_distr(dst_traits.grid.nelems, distr_rank_single);
-    tensor::Tensor<T> src_t(src_traits, src_distr);
-    tensor::Tensor<T> dst_t(dst_traits, dst_distr);
+    nntile::tensor::Tensor<T> src_t(src_traits, src_distr);
+    nntile::tensor::Tensor<T> dst_t(dst_traits, dst_distr);
 
     {
         auto tile = src_t.get_tile(0);
@@ -135,7 +136,7 @@ void check_multiply_slice_vs_tensor_api(
         loc.release();
     }
 
-    tensor::multiply_slice<T>(alpha, src_t, dst_t, axis);
+    nntile::tensor::multiply_slice<T>(alpha, src_t, dst_t, axis);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_result(dst_nelems);
@@ -163,7 +164,7 @@ TEST_CASE("TensorGraph multiply_slice structure", "[graph][tensor]")
     auto* src = graph.data({dim_2}, "src");  // slice for dst [dim_2, dim_4], axis=1
     auto* dst = graph.data({dim_2, dim_4}, "dst");
 
-    multiply_slice(alpha_one, src, dst, axis_1);
+    gt::multiply_slice(alpha_one, src, dst, axis_1);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
@@ -183,12 +184,12 @@ TEST_CASE("TensorGraph multiply_slice rejects duplicate tensors", "[graph][tenso
     auto* dst = graph.data({dim_2, dim_4}, "dst");
 
     REQUIRE_THROWS_AS(
-        multiply_slice(alpha_one, src, src, axis_1),
+        gt::multiply_slice(alpha_one, src, src, axis_1),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph multiply_slice matches tensor::multiply_slice", "[graph][tensor]")
+    "TensorGraph multiply_slice matches nntile::tensor::multiply_slice", "[graph][tensor]")
 {
     const auto [dst_shape, axis, alpha] = GENERATE(
         std::tuple{std::vector<Index>{dim_2, dim_4}, axis_1, alpha_one},

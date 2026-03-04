@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Add in-place operation at tensor level: y = alpha * x + beta * y
@@ -56,4 +56,4 @@ void add_inplace(
     Scalar beta,
     TensorGraph::TensorNode* y);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

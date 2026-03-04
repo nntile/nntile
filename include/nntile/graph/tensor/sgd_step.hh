@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! SGD step: p = p - lr*grad (with momentum, weight decay, etc.)
@@ -64,4 +64,4 @@ void sgd_step(Index num_iter, Scalar momentum, Scalar lr,
               TensorGraph::TensorNode* velocity,
               TensorGraph::TensorNode* p);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Embedding operation: embed = vocab[index]
@@ -60,4 +60,4 @@ void embedding(TensorGraph::TensorNode* index,
                TensorGraph::TensorNode* embed,
                Index axis);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

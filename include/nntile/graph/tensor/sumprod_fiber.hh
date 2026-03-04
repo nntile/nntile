@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Sumprod fiber operation: dst = alpha * sumprod_fiber(src1, src2) + beta * dst
@@ -65,4 +65,4 @@ void sumprod_fiber(
     Scalar alpha,
     Scalar beta);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

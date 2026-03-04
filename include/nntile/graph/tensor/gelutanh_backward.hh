@@ -16,7 +16,7 @@
 
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! GeLUTanh backward operation: dx = gelutanh_backward(x, dy)
@@ -57,4 +57,4 @@ void gelutanh_backward(
     TensorGraph::TensorNode* dy,
     TensorGraph::TensorNode* dx);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor

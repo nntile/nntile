@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
-namespace nntile::graph
+namespace nntile::graph::tensor
 {
 
 //! Softmax in-place: dst = softmax(maxsumexp, alpha, dst, axis)
@@ -57,4 +57,4 @@ void softmax_inplace(
     Scalar alpha,
     Index axis);
 
-} // namespace nntile::graph
+} // namespace nntile::graph::tensor
