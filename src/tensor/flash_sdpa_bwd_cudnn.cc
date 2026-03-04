@@ -177,6 +177,7 @@ void flash_sdpa_bwd_cudnn_async(
         const auto &Q_tile = Q.get_tile(dq_linear);
         const auto &A_tile = A.get_tile(dq_linear);
         const auto &dA_tile = dA.get_tile(dq_linear);
+        const auto &dQ_tile = dQ.get_tile(dq_linear);
         std::vector<Index> logsumexp_tile_index = {
             dq_tile_index[1],
             dq_tile_index[2],
@@ -223,7 +224,6 @@ void flash_sdpa_bwd_cudnn_async(
                 throw std::runtime_error("logsumexp tile shape mismatches dQ tile");
             }
 
-            auto dQ_tile = dQ.get_tile(dq_linear);
             tile::flash_sdpa_bwd_cudnn_async<T>(K_tile, Q_tile, V_tile, A_tile,
                     dA_tile, mask_tile, logsumexp_tile, dK_tile, dQ_tile,
                     dV_tile);

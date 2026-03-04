@@ -41,6 +41,7 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
     {
         throw std::runtime_error("src.shape != dst.shape");
     }
+    tile::Tile<int64_t> scratch_tile({std::max<Index>(1, 2*src.ndim)});
     auto dst_tile = dst.get_tile(0);
     auto dst_tile_handle = dst.get_tile_handle(0);
     // Prohibit gather from tensor into itself (same shape implies same layout)
@@ -53,7 +54,6 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
     {
         auto src_tile = src.get_tile(0);
         std::vector<Index> zero_offset(src.ndim, 0);
-        tile::Tile<int64_t> scratch_tile({std::max<Index>(1, 2*src.ndim)});
         tile::copy_intersection_async<T>(src_tile, zero_offset, dst_tile,
                 zero_offset, scratch_tile);
         dst_tile_handle.mpi_flush();
@@ -61,7 +61,6 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
     }
     // Do the slow complex copy
     Index ndim = src.ndim;
-    tile::Tile<int64_t> scratch_tile({std::max<Index>(1, 2*ndim)});
     std::vector<Index> dst_offset(ndim, 0);
     std::vector<Index> src_tile_index(ndim, 0);
     tile::clear_async<T>(dst_tile);

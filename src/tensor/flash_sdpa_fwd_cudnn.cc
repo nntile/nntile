@@ -224,6 +224,7 @@ void flash_sdpa_fwd_cudnn_async(const Tensor<T> &K, const Tensor<T> &Q,
 
         const auto &A_tile_handle = A.get_tile_handle(a_linear);
         const auto &Q_tile = Q.get_tile(a_linear);
+        const auto &A_tile = A.get_tile(a_linear);
         std::vector<Index> logsumexp_tile_index = {
             a_tile_index[1],
             a_tile_index[2],
@@ -268,7 +269,6 @@ void flash_sdpa_fwd_cudnn_async(const Tensor<T> &K, const Tensor<T> &Q,
                 throw std::runtime_error("logsumexp tile shape mismatches Q tile");
             }
 
-            auto A_tile = A.get_tile(a_linear);
             tile::flash_sdpa_fwd_cudnn_async<T>(K_tile, Q_tile, mask_tile,
                     logsumexp_tile, V_tile, A_tile);
         }

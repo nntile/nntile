@@ -38,8 +38,6 @@ void copy_async(const Tensor<T> &src, const Tensor<T> &dst)
         throw std::runtime_error("src.basetile_shape != dst.basetile_shape");
     }
     // Copy tile-by-tile
-    int mpi_rank = starpu_mpi_world_rank();
-    int ret;
     for(Index i = 0; i < src.grid.nelems; ++i)
     {
         auto dst_tile_handle = dst.get_tile_handle(i);
