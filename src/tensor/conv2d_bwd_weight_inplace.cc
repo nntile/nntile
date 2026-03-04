@@ -121,6 +121,7 @@ void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
 
     // There is only single dC tile, so a loop over tiles of dC is omitted
     auto dC_tile_traits = dC.get_tile_traits(0);
+    auto dC_tile_handle = dC.get_tile_handle(0);
     auto dC_tile = dC.get_tile(0);
     Scalar dC_tile_beta = beta;
     bool initialized = false;
@@ -208,6 +209,8 @@ void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
         }
         // Do nothing if beta is 1.0
     }
+    // Flush cache for the output tile on every node
+    dC_tile_handle.mpi_flush();
 }
 
 template <typename T>
