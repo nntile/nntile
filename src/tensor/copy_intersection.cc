@@ -51,21 +51,117 @@ void copy_intersection_async(const Tensor<T> &src,
     }
     Index ndim = src.ndim;
     tile::Tile<int64_t> scratch_tile({std::max<Index>(1, 2*ndim)});
-    for(Index dst_linear = 0; dst_linear < dst.grid.nelems; ++dst_linear)
+    // Treat special case of ndim=0
+    if(ndim == 0)
     {
+        auto src_tile = src.get_tile(0);
+        auto dst_tile = dst.get_tile(0);
+        auto dst_tile_handle = dst.get_tile_handle(0);
+        tile::copy_intersection_async<T>(src_tile, src_offset, dst_tile,
+                dst_offset, scratch_tile);
+        dst_tile_handle.mpi_flush();
+        return;
+    }
+    // Compute tensor-wise intersection: src_start, dst_start, copy_shape
+    std::vector<Index> src_start(ndim), dst_start(ndim), copy_shape(ndim);
+    std::vector<Index> dst_tile_index_begin(ndim), dst_tile_index_end(ndim);
+    Index dst_ntiles = 1;
+    for(Index i = 0; i < ndim; ++i)
+    {
+        // Early exit if tensors do not intersect
+        if((src_offset[i]+src.shape[i] <= dst_offset[i])
+                or (dst_offset[i]+dst.shape[i] <= src_offset[i]))
+        {
+            return;
+        }
+        // Compute intersection region
+        if(src_offset[i] < dst_offset[i])
+        {
+            src_start[i] = dst_offset[i] - src_offset[i];
+            dst_start[i] = 0;
+            copy_shape[i] = std::min(src.shape[i]-src_start[i], dst.shape[i]);
+        }
+        else
+        {
+            src_start[i] = 0;
+            dst_start[i] = src_offset[i] - dst_offset[i];
+            copy_shape[i] = std::min(dst.shape[i]-dst_start[i], src.shape[i]);
+        }
+        dst_tile_index_begin[i] = dst_start[i] / dst.basetile_shape[i];
+        dst_tile_index_end[i] = (dst_start[i]+copy_shape[i]-1)
+            / dst.basetile_shape[i] + 1;
+        dst_ntiles *= dst_tile_index_end[i] - dst_tile_index_begin[i];
+    }
+    // Fast path: full copy when shapes and offsets match
+    if(src_offset == dst_offset and src.shape == dst.shape
+            and src.basetile_shape == dst.basetile_shape)
+    {
+        for(Index i = 0; i < src.grid.nelems; ++i)
+        {
+            auto src_tile = src.get_tile(i);
+            auto dst_tile = dst.get_tile(i);
+            auto dst_tile_handle = dst.get_tile_handle(i);
+            std::vector<Index> src_tile_offset(ndim), dst_tile_offset(ndim);
+            auto tile_index = src.grid.linear_to_index(i);
+            for(Index d = 0; d < ndim; ++d)
+            {
+                src_tile_offset[d] = src_offset[d]
+                    + tile_index[d] * src.basetile_shape[d];
+                dst_tile_offset[d] = dst_offset[d]
+                    + tile_index[d] * dst.basetile_shape[d];
+            }
+            tile::copy_intersection_async<T>(src_tile, src_tile_offset, dst_tile,
+                    dst_tile_offset, scratch_tile);
+            dst_tile_handle.mpi_flush();
+        }
+        return;
+    }
+    // Iterate only over destination tiles that intersect the copy region
+    std::vector<Index> dst_tile_index(dst_tile_index_begin);
+    for(Index i = 0; i < dst_ntiles; ++i)
+    {
+        Index dst_linear = dst.grid.index_to_linear(dst_tile_index);
         auto dst_tile = dst.get_tile(dst_linear);
         auto dst_tile_handle = dst.get_tile_handle(dst_linear);
-        auto dst_tile_index = dst.grid.linear_to_index(dst_linear);
         std::vector<Index> dst_tile_offset(ndim);
         for(Index d = 0; d < ndim; ++d)
         {
             dst_tile_offset[d] = dst_offset[d]
                 + dst_tile_index[d] * dst.basetile_shape[d];
         }
-        for(Index src_linear = 0; src_linear < src.grid.nelems; ++src_linear)
+        // Compute which source tiles overlap this destination tile
+        std::vector<Index> src_tile_index_begin(ndim), src_tile_index_end(ndim);
+        Index src_ntiles = 1;
+        for(Index j = 0; j < ndim; ++j)
         {
+            if(dst_tile_index[j] == dst_tile_index_begin[j])
+            {
+                src_tile_index_begin[j] = src_start[j] / src.basetile_shape[j];
+            }
+            else
+            {
+                src_tile_index_begin[j] = (dst_tile_index[j]*dst.basetile_shape[j]
+                        - dst_start[j] + src_start[j]) / src.basetile_shape[j];
+            }
+            if(dst_tile_index[j]+1 == dst_tile_index_end[j])
+            {
+                src_tile_index_end[j] = (src_start[j]+copy_shape[j]-1)
+                    / src.basetile_shape[j] + 1;
+            }
+            else
+            {
+                src_tile_index_end[j] = ((dst_tile_index[j]+1)
+                        *dst.basetile_shape[j]-1 - dst_start[j] + src_start[j])
+                    / src.basetile_shape[j] + 1;
+            }
+            src_ntiles *= src_tile_index_end[j] - src_tile_index_begin[j];
+        }
+        // Iterate only over source tiles that overlap this destination tile
+        std::vector<Index> src_tile_index(src_tile_index_begin);
+        for(Index j = 0; j < src_ntiles; ++j)
+        {
+            Index src_linear = src.grid.index_to_linear(src_tile_index);
             auto src_tile = src.get_tile(src_linear);
-            auto src_tile_index = src.grid.linear_to_index(src_linear);
             std::vector<Index> src_tile_offset(ndim);
             for(Index d = 0; d < ndim; ++d)
             {
@@ -74,8 +170,33 @@ void copy_intersection_async(const Tensor<T> &src,
             }
             tile::copy_intersection_async<T>(src_tile, src_tile_offset, dst_tile,
                     dst_tile_offset, scratch_tile);
+            // Advance to next source tile index
+            ++src_tile_index[0];
+            Index k = 0;
+            while(k < ndim and src_tile_index[k] == src_tile_index_end[k])
+            {
+                src_tile_index[k] = src_tile_index_begin[k];
+                ++k;
+                if(k < ndim)
+                {
+                    ++src_tile_index[k];
+                }
+            }
         }
         dst_tile_handle.mpi_flush();
+        // Advance to next destination tile index
+        if(i == dst_ntiles-1)
+        {
+            break;
+        }
+        ++dst_tile_index[0];
+        Index k = 0;
+        while(dst_tile_index[k] == dst_tile_index_end[k])
+        {
+            dst_tile_index[k] = dst_tile_index_begin[k];
+            ++k;
+            ++dst_tile_index[k];
+        }
     }
 }
 

@@ -41,14 +41,27 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
         throw std::runtime_error("src.shape != dst.shape");
     }
     Index ndim = src.ndim;
-    tile::Tile<int64_t> scratch_tile({std::max<Index>(1, 2*ndim)});
     auto src_tile = src.get_tile(0);
+    tile::Tile<int64_t> scratch_tile({std::max<Index>(1, 2*ndim)});
     std::vector<Index> src_offset(ndim, 0);
+    // Treat special case of a single destination tile
+    if(dst.grid.nelems == 1)
+    {
+        auto dst_tile = dst.get_tile(0);
+        auto dst_tile_handle = dst.get_tile_handle(0);
+        std::vector<Index> dst_offset(ndim, 0);
+        tile::copy_intersection_async<T>(src_tile, src_offset, dst_tile,
+                dst_offset, scratch_tile);
+        dst_tile_handle.mpi_flush();
+        return;
+    }
+    // Do the slow complex copy - cycle through all destination tiles
+    std::vector<Index> dst_tile_index(ndim, 0);
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         auto dst_tile_handle = dst.get_tile_handle(i);
         auto dst_tile = dst.get_tile(i);
-        auto dst_tile_index = dst.grid.linear_to_index(i);
+        // Compute dst_offset: global position of this destination tile
         std::vector<Index> dst_offset(ndim);
         for(Index k = 0; k < ndim; ++k)
         {
@@ -57,6 +70,18 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
         tile::copy_intersection_async<T>(src_tile, src_offset, dst_tile,
                 dst_offset, scratch_tile);
         dst_tile_handle.mpi_flush();
+        // Get next tile index (carry propagation through dimensions)
+        if(i < dst.grid.nelems - 1)
+        {
+            ++dst_tile_index[0];
+            Index k = 0;
+            while(dst_tile_index[k] == dst.grid.shape[k])
+            {
+                dst_tile_index[k] = 0;
+                ++k;
+                ++dst_tile_index[k];
+            }
+        }
     }
 }
 

@@ -41,21 +41,55 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
     {
         throw std::runtime_error("src.shape != dst.shape");
     }
+    auto dst_tile = dst.get_tile(0);
+    auto dst_tile_handle = dst.get_tile_handle(0);
+    // Prohibit gather from tensor into itself (same shape implies same layout)
+    if(src.get_tile_handle(0).get() == dst_tile_handle.get())
+    {
+        throw std::runtime_error("Cannot gather from tensor into itself");
+    }
+    // Treat special case of a single source tile
+    if(src.grid.nelems == 1)
+    {
+        auto src_tile = src.get_tile(0);
+        std::vector<Index> zero_offset(src.ndim, 0);
+        tile::Tile<int64_t> scratch_tile({std::max<Index>(1, 2*src.ndim)});
+        tile::copy_intersection_async<T>(src_tile, zero_offset, dst_tile,
+                zero_offset, scratch_tile);
+        dst_tile_handle.mpi_flush();
+        return;
+    }
+    // Do the slow complex copy
     Index ndim = src.ndim;
     tile::Tile<int64_t> scratch_tile({std::max<Index>(1, 2*ndim)});
     std::vector<Index> dst_offset(ndim, 0);
-    auto dst_tile = dst.get_tile(0);
-    auto dst_tile_handle = dst.get_tile_handle(0);
+    std::vector<Index> src_tile_index(ndim, 0);
     tile::clear_async<T>(dst_tile);
-    for(Index i = 0; i < src.grid.nelems; ++i)
+    // Init with the first source tile
     {
-        auto src_tile = src.get_tile(i);
-        auto src_tile_index = src.grid.linear_to_index(i);
+        auto src_tile = src.get_tile(0);
+        std::vector<Index> src_offset(ndim, 0);
+        tile::copy_intersection_async<T>(src_tile, src_offset, dst_tile,
+                dst_offset, scratch_tile);
+    }
+    // Cycle through all other source tiles
+    for(Index i = 1; i < src.grid.nelems; ++i)
+    {
+        // Get next tile index and corresponding offset
+        ++src_tile_index[0];
+        Index k = 0;
+        while(src_tile_index[k] == src.grid.shape[k])
+        {
+            src_tile_index[k] = 0;
+            ++k;
+            ++src_tile_index[k];
+        }
         std::vector<Index> src_offset(ndim);
         for(Index k = 0; k < ndim; ++k)
         {
             src_offset[k] = src_tile_index[k] * src.basetile_shape[k];
         }
+        auto src_tile = src.get_tile(i);
         tile::copy_intersection_async<T>(src_tile, src_offset, dst_tile,
                 dst_offset, scratch_tile);
     }
