@@ -159,7 +159,7 @@ TEST_CASE("TensorGraph rope_backward structure", "[graph][tensor]")
 
     const auto& ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "ROPE_BACKWARD");
-    REQUIRE(ops[0]->inputs().size() == 3);
+    REQUIRE(ops[0]->inputs().size() == 4);
     REQUIRE(ops[0]->outputs().size() == 1);
     REQUIRE(ops[0]->outputs()[0] == dx);
 }

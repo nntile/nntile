@@ -133,7 +133,7 @@ TEST_CASE("TensorGraph relu_backward structure", "[graph][tensor]")
 
     const auto& ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "RELU_BACKWARD");
-    REQUIRE(ops[0]->inputs().size() == 2);
+    REQUIRE(ops[0]->inputs().size() == 3);
     REQUIRE(ops[0]->outputs().size() == 1);
     REQUIRE(ops[0]->outputs()[0] == dx);
 }
