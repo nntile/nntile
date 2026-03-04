@@ -476,7 +476,7 @@ set(GRAPH_CORE_SRC
 
 # NNGraph, TensorGraph, Runtime
 set(GRAPH_NN_SRC
-    "graph/nn_graph.cc"
+    "graph/nn/graph.cc"
     "graph/nn/tensor_node.cc"
     "graph/nn/add.cc"
     "graph/nn/add_fiber.cc"
@@ -489,8 +489,8 @@ set(GRAPH_NN_SRC
     "graph/nn/silu.cc"
     "graph/nn/softmax.cc"
     "graph/nn/sum_fiber.cc"
+    "graph/tensor/graph_data_node.cc"
     "graph/tensor/graph_runtime.cc"
-    "graph/tensor_graph_node.cc"
 )
 
 set(GRAPH_SRC ${GRAPH_CORE_SRC} ${GRAPH_NN_SRC})

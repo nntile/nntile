@@ -87,7 +87,7 @@ NNGraph::TensorNode* embedding(
     NNGraph* graph = vocab->graph();
     auto op = std::make_shared<NNEmbeddingOp>(index, vocab, axis, redux);
     NNGraph::TensorNode* embed = op->forward(output_name);
-    register_op(*graph, std::move(op));
+    graph->register_op(std::move(op));
     return embed;
 }
 

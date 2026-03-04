@@ -111,8 +111,9 @@ public:
         TensorNode* tensor,
         const std::string& grad_name);
 
-    //! Create and register an NNGraph-level op (AutoGradFunction).
-    OpNode* create_op(std::shared_ptr<OpNode> op);
+    //! Register op for backward. Stores op only when grad mode enabled
+    //! and any input requires grad. Sets producer on outputs.
+    void register_op(std::shared_ptr<OpNode> op);
 
     // -----------------------------------------------------------------
     // Gradient recording mode (no_grad)
@@ -153,14 +154,6 @@ public:
 private:
     bool grad_enabled_ = true;
 };
-
-// -----------------------------------------------------------------
-// Operation registration (part of graph API)
-// -----------------------------------------------------------------
-
-//! Register op for backward. Creates OpNode only when graph grad mode enabled
-//! and any input requires grad. Sets producer on outputs.
-void register_op(NNGraph& graph, std::shared_ptr<NNGraph::OpNode> op);
 
 //! True if any input requires grad.
 bool any_input_requires_grad(

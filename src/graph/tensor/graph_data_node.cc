@@ -3,13 +3,19 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
- * @file src/graph/tensor_graph_node.cc
- * TensorGraph::TensorNode implementation.
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/graph/tensor/graph_data_node.cc
+ * Implementation of TensorGraph::TensorNode (include/nntile/graph/tensor/graph_data_node.hh).
  *
  * @version 1.1.0
  * */
 
 #include "nntile/graph/tensor/graph.hh"
+
+#include <numeric>
+#include <stdexcept>
 
 namespace nntile::graph
 {

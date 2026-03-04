@@ -97,7 +97,7 @@ NNGraph::TensorNode* add_fiber(
     auto op = std::make_shared<NNAddFiberOp>(
         fiber, tensor, alpha, beta, axis, batch_ndim);
     NNGraph::TensorNode* output = op->forward(output_name);
-    register_op(*graph, std::move(op));
+    graph->register_op(std::move(op));
     return output;
 }
 

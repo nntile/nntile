@@ -143,7 +143,7 @@ NNGraph::TensorNode* gemm(
     auto op = std::make_shared<NNGemmOp>(
         a, b, alpha, trans_a, trans_b, ndim, batch_ndim);
     NNGraph::TensorNode* c = op->forward(output_name);
-    register_op(*graph, std::move(op));
+    graph->register_op(std::move(op));
     return c;
 }
 

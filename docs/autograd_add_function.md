@@ -188,12 +188,12 @@ NNGraph::TensorNode* add(
     NNGraph& graph = x->graph();
     auto op = std::make_shared<NNAddOp>(x, y, alpha, beta);
     NNGraph::TensorNode* z = op->forward(output_name);
-    register_op(graph, std::move(op));
+    graph.register_op(std::move(op));
     return z;
 }
 ```
 
-**Pattern:** `op = make_op(inputs...); output = op->forward(output_name); register_op(graph, op); return output;`
+**Pattern:** `op = make_op(inputs...); output = op->forward(output_name); graph.register_op(op); return output;`
 
 ---
 
@@ -202,7 +202,7 @@ NNGraph::TensorNode* add(
 Add an include for your new op in `include/nntile/graph/nn/graph_ops.hh`:
 
 ```cpp
-#include <nntile/graph/nn_graph/my_op.hh>
+#include <nntile/graph/nn/my_op.hh>
 ```
 
 ---
@@ -220,7 +220,7 @@ Ensure your new `.cc` file is added to the build (e.g., in `src/CMakeLists.txt`)
 - [ ] Forward: validate inputs, create output via `graph.tensor()`, set `outputs_`, add tensor ops, return output
 - [ ] Backward: use `output()->grad()`, propagate via tensor ops to `grad_x->data()`, etc.
 - [ ] Use `(grad, is_first)` from `get_or_create_grad` for overwrite vs accumulate
-- [ ] Free function: create op with inputs, call `op->forward(output_name)`, `register_op`, return output
+- [ ] Create op with inputs, call `op->forward(output_name)`, `graph.register_op(op)`, return output
 - [ ] Include in `nn/graph_ops.hh`
 - [ ] Add to build system
 

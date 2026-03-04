@@ -84,7 +84,7 @@ NNGraph::TensorNode* sum_fiber(
     auto op = std::make_shared<NNSumFiberOp>(
         x, axis, batch_ndim, redux, alpha, beta);
     NNGraph::TensorNode* y = op->forward(output_name);
-    register_op(*graph, std::move(op));
+    graph->register_op(std::move(op));
     return y;
 }
 

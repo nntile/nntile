@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/graph/nn_graph.cc
- * Implementation of NNGraph class.
+ * @file src/graph/nn/graph.cc
+ * Implementation of NNGraph class (include/nntile/graph/nn/graph.hh).
  *
  * @version 1.1.0
  * */
@@ -152,13 +152,6 @@ std::pair<NNGraph::TensorNode*, bool> NNGraph::get_or_create_grad(
     return {grad_ptr, true};
 }
 
-NNGraph::OpNode* NNGraph::create_op(std::shared_ptr<OpNode> op)
-{
-    OpNode* ptr = op.get();
-    op_nodes_.push_back(std::move(op));
-    return ptr;
-}
-
 void NNGraph::clear_op_nodes()
 {
     op_nodes_.clear();
@@ -208,23 +201,20 @@ std::string NNGraph::to_string() const
     return ss.str();
 }
 
-// -----------------------------------------------------------------
-// Operation registration (part of graph API)
-// -----------------------------------------------------------------
-
-void register_op(NNGraph& graph, std::shared_ptr<NNGraph::OpNode> op)
+void NNGraph::register_op(std::shared_ptr<OpNode> op)
 {
     const bool need_backward =
-        graph.is_grad_enabled() && any_input_requires_grad(op->inputs());
+        is_grad_enabled() && any_input_requires_grad(op->inputs());
 
     if(!need_backward)
     {
         return;
     }
 
-    NNGraph::OpNode* op_nn = graph.create_op(std::move(op));
+    OpNode* op_nn = op.get();
+    op_nodes_.push_back(std::move(op));
 
-    for(NNGraph::TensorNode* out : op_nn->outputs())
+    for(TensorNode* out : op_nn->outputs())
     {
         if(out != nullptr)
         {

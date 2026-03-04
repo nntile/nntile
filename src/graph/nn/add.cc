@@ -88,7 +88,7 @@ NNGraph::TensorNode* add(
     NNGraph* graph = x->graph();
     auto op = std::make_shared<NNAddOp>(x, y, alpha, beta);
     NNGraph::TensorNode* z = op->forward(output_name);
-    register_op(*graph, std::move(op));
+    graph->register_op(std::move(op));
     return z;
 }
 

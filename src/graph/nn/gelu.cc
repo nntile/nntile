@@ -75,7 +75,7 @@ NNGraph::TensorNode* gelu(
     NNGraph* graph = x->graph();
     auto op = std::make_shared<NNGeluOp>(x);
     NNGraph::TensorNode* y = op->forward(output_name);
-    register_op(*graph, std::move(op));
+    graph->register_op(std::move(op));
     return y;
 }
 

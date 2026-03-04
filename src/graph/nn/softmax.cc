@@ -131,7 +131,7 @@ NNGraph::TensorNode* softmax(
     NNGraph* graph = x->graph();
     auto op = std::make_shared<NNSoftmaxOp>(x, axis, redux);
     NNGraph::TensorNode* y = op->forward(output_name);
-    register_op(*graph, std::move(op));
+    graph->register_op(std::move(op));
     return y;
 }
 

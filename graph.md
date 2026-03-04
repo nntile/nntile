@@ -46,15 +46,14 @@ include/nntile/
 
 src/graph/
 ├── dtype.cc
-├── tensor_graph_node.cc
-├── compiled_graph.cc
-├── nn_graph.cc
 ├── tensor/
+│   ├── graph_data_node.cc
 │   ├── add.cc
 │   ├── add_fiber.cc
 │   ├── ...
 │   └── sum_fiber.cc
 └── nn/
+    ├── graph.cc
     ├── tensor_node.cc
     ├── add.cc
     ├── add_fiber.cc
@@ -136,7 +135,7 @@ GEMM shape rules (see `gemm_output_shape` in `tensor/gemm.hh`):
 
 ## NNGraph
 
-`NNGraph` (in `nn/graph.hh` and `nn_graph.cc`) wraps `TensorGraph` and adds gradient tracking.
+`NNGraph` (in `nn/graph.hh` and `nn/graph.cc`) wraps `TensorGraph` and adds gradient tracking.
 
 - `NNGraph::TensorNode` points to a `TensorGraph::DataNode` (via `.data()`) and
   tracks `grad` and `requires_grad`.
@@ -162,7 +161,7 @@ This mirrors PyTorch: outputs and temporaries appear in the forward pass, not at
 
 ### register_op
 
-- `register_op(graph, op)` — when `graph.is_grad_enabled()` and any input requires grad, stores the op and sets `producer` on each output. The op's `outputs_` must be populated by `forward()` before registration. Use `graph.no_grad()` for a scope where grad recording is disabled.
+- `graph.register_op(op)` — when `graph.is_grad_enabled()` and any input requires grad, stores the op and sets `producer` on each output. The op's `outputs_` must be populated by `forward()` before registration. Use `graph.no_grad()` for a scope where grad recording is disabled.
 
 ## Adding new graph operations
 
@@ -193,7 +192,7 @@ Add to `graph_ops.hh` if needed.
 
 - `forward(output_name)`: create output via `graph.tensor()`, set `outputs_`, add tensor ops via `x->data()`, return output.
 - `backward()`: use `output()->grad()`, `grad_x->data()`, etc. with tensor ops.
-- Free function: `op = make_op(inputs); output = op->forward(output_name); register_op(graph, op); return output;`
+- `op = make_op(inputs); output = op->forward(output_name); graph.register_op(op); return output;`
 
 See `docs/autograd_add_function.md` for a full guide. Add to `nn/graph_ops.hh`.
 
