@@ -221,6 +221,14 @@ void TensorGraph::Runtime::bind_data_impl(const std::string& name,
                                           const T* data, size_t count)
 {
     auto& tensor = get_data<NntileT>(name);
+    if(tensor.grid.nelems != 1)
+    {
+        throw std::runtime_error(
+            "bind_data: data '" + name +
+            "' has more than one tile (grid.nelems=" +
+            std::to_string(tensor.grid.nelems) +
+            "); only single-tile tensors are supported");
+    }
     if(count != static_cast<size_t>(tensor.nelems))
     {
         throw std::runtime_error("Data size mismatch for data " + name);
@@ -291,6 +299,14 @@ void TensorGraph::Runtime::get_output_impl(const std::string& name,
                                            std::vector<T>& result)
 {
     auto& tensor = get_data<NntileT>(name);
+    if(tensor.grid.nelems != 1)
+    {
+        throw std::runtime_error(
+            "get_output: data '" + name +
+            "' has more than one tile (grid.nelems=" +
+            std::to_string(tensor.grid.nelems) +
+            "); only single-tile tensors are supported");
+    }
     result.resize(tensor.nelems);
     auto tile = tensor.get_tile(0);
     auto tile_local = tile.acquire(STARPU_R);
