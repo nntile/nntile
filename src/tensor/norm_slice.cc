@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/norm_slice.hh"
 #include "nntile/tile/norm_slice.hh"
+#include "nntile/tile/norm_slice_inplace.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -91,6 +92,7 @@ void norm_slice_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
         }
     }
     // Do actual calculations
+    constexpr Scalar one = 1.0;
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         auto dst_tile_handle = dst.get_tile_handle(i);
@@ -115,8 +117,18 @@ void norm_slice_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
             src1_tile_index[axis] = j;
             Index src1_tile_offset = src1.grid.index_to_linear(src1_tile_index);
             auto src1_tile = src1.get_tile(src1_tile_offset);
-            tile::norm_slice_async<T>(alpha, src1_tile, beta, src2_tile,
-                    dst_tile, axis, 0);  // redux ignored for now
+            if(j == 0)
+            {
+                // First tile: init with beta * src2
+                tile::norm_slice_async<T>(alpha, src1_tile, beta, src2_tile,
+                        dst_tile, axis, 0);  // redux ignored for now
+            }
+            else
+            {
+                // Subsequent tiles: accumulate into dst (beta=1.0)
+                tile::norm_slice_inplace_async<T>(alpha, src1_tile, one,
+                        dst_tile, axis, 0);  // redux ignored for now
+            }
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
