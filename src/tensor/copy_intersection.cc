@@ -50,7 +50,31 @@ void copy_intersection_async(const Tensor<T> &src,
         throw std::runtime_error("dst.ndim != dst_offset.size()");
     }
     Index ndim = src.ndim;
-    tile::Tile<int64_t> scratch_tile({std::max<Index>(1, 2*ndim)});
+    int mpi_rank = starpu_mpi_world_rank();
+    // Fast path: full copy when shapes, offsets, and tile shapes match.
+    // Check first to avoid intersection computation and use starpu_data_cpy.
+    if(src_offset == dst_offset and src.shape == dst.shape
+            and src.basetile_shape == dst.basetile_shape)
+    {
+        for(Index i = 0; i < src.grid.nelems; ++i)
+        {
+            auto src_tile_handle = src.get_tile_handle(i);
+            auto dst_tile_handle = dst.get_tile_handle(i);
+            int dst_tile_rank = dst_tile_handle.mpi_get_rank();
+            src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
+            if(mpi_rank == dst_tile_rank)
+            {
+                int ret = starpu_data_cpy(dst_tile_handle.get(),
+                        src_tile_handle.get(), 1, nullptr, nullptr);
+                if(ret != 0)
+                {
+                    throw std::runtime_error("Error in starpu_data_cpy");
+                }
+            }
+            dst_tile_handle.mpi_flush();
+        }
+        return;
+    }
     // Treat special case of ndim=0
     if(ndim == 0)
     {
@@ -62,7 +86,8 @@ void copy_intersection_async(const Tensor<T> &src,
         dst_tile_handle.mpi_flush();
         return;
     }
-    // Compute tensor-wise intersection: src_start, dst_start, copy_shape
+    // Slow path: compute tensor-wise intersection
+    tile::Tile<int64_t> scratch_tile({std::max<Index>(1, 2*ndim)});
     std::vector<Index> src_start(ndim), dst_start(ndim), copy_shape(ndim);
     std::vector<Index> dst_tile_index_begin(ndim), dst_tile_index_end(ndim);
     Index dst_ntiles = 1;
@@ -91,30 +116,6 @@ void copy_intersection_async(const Tensor<T> &src,
         dst_tile_index_end[i] = (dst_start[i]+copy_shape[i]-1)
             / dst.basetile_shape[i] + 1;
         dst_ntiles *= dst_tile_index_end[i] - dst_tile_index_begin[i];
-    }
-    // Fast path: full copy when shapes and offsets match
-    if(src_offset == dst_offset and src.shape == dst.shape
-            and src.basetile_shape == dst.basetile_shape)
-    {
-        for(Index i = 0; i < src.grid.nelems; ++i)
-        {
-            auto src_tile = src.get_tile(i);
-            auto dst_tile = dst.get_tile(i);
-            auto dst_tile_handle = dst.get_tile_handle(i);
-            std::vector<Index> src_tile_offset(ndim), dst_tile_offset(ndim);
-            auto tile_index = src.grid.linear_to_index(i);
-            for(Index d = 0; d < ndim; ++d)
-            {
-                src_tile_offset[d] = src_offset[d]
-                    + tile_index[d] * src.basetile_shape[d];
-                dst_tile_offset[d] = dst_offset[d]
-                    + tile_index[d] * dst.basetile_shape[d];
-            }
-            tile::copy_intersection_async<T>(src_tile, src_tile_offset, dst_tile,
-                    dst_tile_offset, scratch_tile);
-            dst_tile_handle.mpi_flush();
-        }
-        return;
     }
     // Iterate only over destination tiles that intersect the copy region
     std::vector<Index> dst_tile_index(dst_tile_index_begin);
@@ -170,25 +171,32 @@ void copy_intersection_async(const Tensor<T> &src,
             }
             tile::copy_intersection_async<T>(src_tile, src_tile_offset, dst_tile,
                     dst_tile_offset, scratch_tile);
-            // Advance to next source tile index
+            // Advance to next source tile if we are not at the last tile
+            if(j == src_ntiles-1)
+            {
+                break;
+            }
+            // The if(j == src_ntiles-1) break above avoids overflow: we never
+            // advance from the last tile, so k cannot reach ndim and
+            // src_tile_index[k] stays in bounds.
             ++src_tile_index[0];
             Index k = 0;
-            while(k < ndim and src_tile_index[k] == src_tile_index_end[k])
+            while(src_tile_index[k] == src_tile_index_end[k])
             {
                 src_tile_index[k] = src_tile_index_begin[k];
                 ++k;
-                if(k < ndim)
-                {
-                    ++src_tile_index[k];
-                }
+                ++src_tile_index[k];
             }
         }
         dst_tile_handle.mpi_flush();
-        // Advance to next destination tile index
+        // Advance to next destination tile if we are not at the last tile
         if(i == dst_ntiles-1)
         {
             break;
         }
+        // The if(i == dst_ntiles-1) break above avoids overflow: we never
+        // advance from the last tile, so k cannot reach ndim and
+        // dst_tile_index[k] stays in bounds.
         ++dst_tile_index[0];
         Index k = 0;
         while(dst_tile_index[k] == dst_tile_index_end[k])
