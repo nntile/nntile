@@ -397,6 +397,114 @@ set(LOGGER_SRC
     "logger/websocket_client.cc"
 )
 
+# Graph-related sources (core: always built)
+set(GRAPH_CORE_SRC
+    "graph/dtype.cc"
+    "graph/tensor/add.cc"
+    "graph/tensor/add_fiber.cc"
+    "graph/tensor/add_fiber_inplace.cc"
+    "graph/tensor/add_inplace.cc"
+    "graph/tensor/add_slice.cc"
+    "graph/tensor/add_slice_inplace.cc"
+    "graph/tensor/clear.cc"
+    "graph/tensor/conv2d_bwd_input_inplace.cc"
+    "graph/tensor/conv2d_bwd_weight_inplace.cc"
+    "graph/tensor/conv2d_inplace.cc"
+    "graph/tensor/copy.cc"
+    "graph/tensor/copy_intersection.cc"
+    "graph/tensor/embedding.cc"
+    "graph/tensor/embedding_backward.cc"
+    "graph/tensor/fill.cc"
+    "graph/tensor/flash_sdpa_bwd_cudnn.cc"
+    "graph/tensor/flash_sdpa_fwd_cudnn.cc"
+    "graph/tensor/gather.cc"
+    "graph/tensor/gemm.cc"
+    "graph/tensor/gelu.cc"
+    "graph/tensor/gelu_backward.cc"
+    "graph/tensor/gelu_inplace.cc"
+    "graph/tensor/gelutanh.cc"
+    "graph/tensor/gelutanh_backward.cc"
+    "graph/tensor/gelutanh_inplace.cc"
+    "graph/tensor/hypot.cc"
+    "graph/tensor/hypot_inplace.cc"
+    "graph/tensor/hypot_scalar_inverse.cc"
+    "graph/tensor/log_scalar.cc"
+    "graph/tensor/logsumexp.cc"
+    "graph/tensor/mask_scalar.cc"
+    "graph/tensor/maxsumexp.cc"
+    "graph/tensor/multiply.cc"
+    "graph/tensor/multiply_fiber.cc"
+    "graph/tensor/multiply_fiber_inplace.cc"
+    "graph/tensor/multiply_inplace.cc"
+    "graph/tensor/multiply_slice.cc"
+    "graph/tensor/norm.cc"
+    "graph/tensor/norm_fiber.cc"
+    "graph/tensor/norm_fiber_inplace.cc"
+    "graph/tensor/norm_slice.cc"
+    "graph/tensor/norm_slice_inplace.cc"
+    "graph/tensor/pow.cc"
+    "graph/tensor/randn.cc"
+    "graph/tensor/relu.cc"
+    "graph/tensor/sgd_step.cc"
+    "graph/tensor/adam_step.cc"
+    "graph/tensor/adamw_step.cc"
+    "graph/tensor/relu_backward.cc"
+    "graph/tensor/relu_inplace.cc"
+    "graph/tensor/rope.cc"
+    "graph/tensor/rope_backward.cc"
+    "graph/tensor/scale.cc"
+    "graph/tensor/scale_fiber.cc"
+    "graph/tensor/scale_inplace.cc"
+    "graph/tensor/scale_slice.cc"
+    "graph/tensor/scatter.cc"
+    "graph/tensor/silu.cc"
+    "graph/tensor/silu_backward.cc"
+    "graph/tensor/silu_inplace.cc"
+    "graph/tensor/softmax.cc"
+    "graph/tensor/softmax_inplace.cc"
+    "graph/tensor/sqrt.cc"
+    "graph/tensor/sqrt_inplace.cc"
+    "graph/tensor/sum.cc"
+    "graph/tensor/sum_fiber.cc"
+    "graph/tensor/sum_slice.cc"
+    "graph/tensor/subtract_indexed_outputs.cc"
+    "graph/tensor/sumprod_fiber.cc"
+    "graph/tensor/sumprod_slice.cc"
+    "graph/tensor/total_sum_accum.cc"
+    "graph/tensor/transpose.cc"
+)
+
+# NNGraph, TensorGraph, Runtime
+set(GRAPH_NN_SRC
+    "graph/nn/graph.cc"
+    "graph/nn/tensor_node.cc"
+    "graph/nn/add.cc"
+    "graph/nn/add_fiber.cc"
+    "graph/nn/embedding.cc"
+    "graph/nn/gemm.cc"
+    "graph/nn/gelu.cc"
+    "graph/nn/gelutanh.cc"
+    "graph/nn/relu.cc"
+    "graph/nn/rope.cc"
+    "graph/nn/silu.cc"
+    "graph/nn/softmax.cc"
+    "graph/nn/sum_fiber.cc"
+    "graph/tensor/graph_data_node.cc"
+    "graph/tensor/graph_runtime.cc"
+)
+
+set(GRAPH_SRC ${GRAPH_CORE_SRC} ${GRAPH_NN_SRC})
+
+# Module implementations
+set(MODULE_SRC
+    "module/module.cc"
+    "module/gelu.cc"
+    "module/mlp.cc"
+    "module/linear.cc"
+    # "module/mse_loss.cc"
+    # "module/sdpa.cc"
+)
+
 # Set the list of all sources
 set(NNTILE_SRC
     ${BASE_SRC}
@@ -408,6 +516,8 @@ set(NNTILE_SRC
     ${TILE_OPERATION_SRC}
     ${TENSOR_BASE_SRC}
     ${TENSOR_OPERATION_SRC}
+    ${GRAPH_SRC}
+    ${MODULE_SRC}
     ${LOGGER_SRC}
 )
 

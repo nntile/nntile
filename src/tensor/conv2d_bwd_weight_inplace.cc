@@ -225,7 +225,7 @@ void conv2d_bwd_weight_inplace(Scalar alpha, const Tensor<T> &X,
  * @param[in] dilation: Padding of the convolution
  * */
 {
-    conv2d_bwd_weight_inplace_async<T>(alpha, X, dY, beta, dY, padding, stride,
+    conv2d_bwd_weight_inplace_async<T>(alpha, X, dY, beta, dC, padding, stride,
             dilation);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);

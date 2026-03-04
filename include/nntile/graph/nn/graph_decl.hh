@@ -1,0 +1,164 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file include/nntile/graph/nn/graph_decl.hh
+ * NNGraph class declaration (included by graph.hh).
+ *
+ * @version 1.1.0
+ * */
+
+#pragma once
+
+// Standard library headers
+#include <functional>
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+// NNTile headers
+#include <nntile/base_types.hh>
+#include <nntile/graph/dtype.hh>
+#include <nntile/graph/tensor/graph.hh>
+
+namespace nntile::graph
+{
+
+//! Neural network graph - wraps tensor graph and tracks gradients
+class NNGraph
+{
+public:
+    //! Tensor node - full definition in graph_data_node.hh
+    class TensorNode;
+
+    //! Op node (AutoGradFunction) - full definition in graph_op_node.hh
+    class OpNode;
+
+    //! Destructor defined in .cc (needs complete TensorNode for unique_ptr)
+    ~NNGraph();
+
+private:
+    std::string name_;
+    TensorGraph tensor_graph_;
+    std::vector<std::unique_ptr<TensorNode>> tensors_;
+    std::vector<std::shared_ptr<OpNode>> op_nodes_;
+    std::map<std::string, TensorNode*> tensor_by_name_;
+
+public:
+    explicit NNGraph(const std::string& name = "");
+
+    // -----------------------------------------------------------------
+    // Tensor Creation
+    // -----------------------------------------------------------------
+
+    TensorNode* tensor(
+        std::vector<Index> shape,
+        const std::string& name,
+        DataType dtype = DataType::FP32,
+        bool requires_grad = true
+    );
+
+    TensorNode* tensor(TensorGraph::TensorNode* data,
+                       bool requires_grad = false);
+
+    // -----------------------------------------------------------------
+    // Queries
+    // -----------------------------------------------------------------
+
+    const std::string& name() const { return name_; }
+    size_t num_tensors() const { return tensors_.size(); }
+    size_t num_ops() const { return op_nodes_.size(); }
+
+    TensorNode* get_tensor(const std::string& name);
+    const TensorNode* get_tensor(const std::string& name) const;
+
+    std::vector<std::string> tensor_names() const;
+
+    const std::vector<std::unique_ptr<TensorNode>>& tensors() const
+    {
+        return tensors_;
+    }
+    const std::vector<std::shared_ptr<TensorGraph::OpNode>>& ops() const
+    {
+        return tensor_graph_.ops();
+    }
+
+    TensorGraph& tensor_graph() { return tensor_graph_; }
+    const TensorGraph& tensor_graph() const { return tensor_graph_; }
+
+    //! Clear op_nodes_ (used when retain_graph=false after backward)
+    void clear_op_nodes();
+
+    //! Set producer_=nullptr on all tensors that had producers
+    void clear_producers_on_tensors();
+
+    // -----------------------------------------------------------------
+    // Gradient helpers
+    // -----------------------------------------------------------------
+
+    bool requires_grad(const TensorNode* tensor) const;
+    void set_requires_grad(TensorNode* tensor, bool value = true);
+
+    //! Get or create gradient tensor. Does NOT add CLEAR.
+    //! Returns (grad_tensor, is_first_write): is_first_write is true when
+    //! the gradient was just created, so the caller should use overwrite
+    //! (beta=0); false means accumulate (beta=1).
+    std::pair<TensorNode*, bool> get_or_create_grad(
+        TensorNode* tensor,
+        const std::string& grad_name);
+
+    //! Register op for backward. Stores op only when grad mode enabled
+    //! and any input requires grad. Sets producer on outputs.
+    void register_op(std::shared_ptr<OpNode> op);
+
+    // -----------------------------------------------------------------
+    // Gradient recording mode (no_grad)
+    // -----------------------------------------------------------------
+
+    //! Check if gradient recording is enabled for this graph
+    bool is_grad_enabled() const { return grad_enabled_; }
+
+    //! Set gradient recording (for testing; prefer NoGradGuard)
+    void set_grad_enabled(bool enabled) { grad_enabled_ = enabled; }
+
+    //! RAII guard to temporarily disable gradient recording.
+    //! Use: { auto g = graph.no_grad(); ... } or NNGraph::NoGradGuard guard(graph);
+    class NoGradGuard
+    {
+    public:
+        explicit NoGradGuard(NNGraph& graph);
+        ~NoGradGuard();
+        NoGradGuard(const NoGradGuard&) = delete;
+        NoGradGuard& operator=(const NoGradGuard&) = delete;
+
+    private:
+        NNGraph& graph_;
+        bool prev_;
+    };
+
+    //! Create a guard that disables grad recording until scope exit
+    NoGradGuard no_grad() { return NoGradGuard(*this); }
+
+    // -----------------------------------------------------------------
+    // String representation
+    // -----------------------------------------------------------------
+
+    std::string to_string() const;
+
+    std::string to_mermaid() const { return tensor_graph_.to_mermaid(); }
+
+private:
+    bool grad_enabled_ = true;
+};
+
+//! True if any input requires grad.
+bool any_input_requires_grad(
+    const std::vector<NNGraph::TensorNode*>& inputs);
+
+} // namespace nntile::graph

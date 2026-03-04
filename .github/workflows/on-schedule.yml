@@ -61,6 +61,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install PyTorch for LibTorch
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          $HOME/.local/bin/uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
       - name: Build StarPU
         run: |
           export STARPU_VERSION=starpu-1.4.8
@@ -94,7 +98,8 @@ jobs:
           retention-days: 7
       - name: Build NNTile native libraries
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+            -DCMAKE_PREFIX_PATH=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
           cmake --build build -j
       - name: Upload all shared objects (*.so)
         uses: actions/upload-artifact@v4.3.4

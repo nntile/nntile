@@ -748,12 +748,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("pow_async_fp32_fast_bf16", &pow_async<fp32_fast_bf16_t>);
     m.def("pow_async_bf16", &pow_async<bf16_t>);
 
-    m.def("pow_fp64", &pow<fp64_t>);
-    m.def("pow_fp32", &pow<fp32_t>);
-    m.def("pow_fp32_fast_tf32", &pow<fp32_fast_tf32_t>);
-    m.def("pow_fp32_fast_fp16", &pow<fp32_fast_fp16_t>);
-    m.def("pow_fp32_fast_bf16", &pow<fp32_fast_bf16_t>);
-    m.def("pow_bf16", &pow<bf16_t>);
+    m.def("pow_fp64", &nntile::tensor::pow<fp64_t>);
+    m.def("pow_fp32", &nntile::tensor::pow<fp32_t>);
+    m.def("pow_fp32_fast_tf32", &nntile::tensor::pow<fp32_fast_tf32_t>);
+    m.def("pow_fp32_fast_fp16", &nntile::tensor::pow<fp32_fast_fp16_t>);
+    m.def("pow_fp32_fast_bf16", &nntile::tensor::pow<fp32_fast_bf16_t>);
+    m.def("pow_bf16", &nntile::tensor::pow<bf16_t>);
 
     m.def("softmax_async_fp64", &softmax_async<fp64_t>);
     m.def("softmax_async_fp32", &softmax_async<fp32_t>);
@@ -1131,12 +1131,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("sqrt_async_fp32_fast_bf16", &sqrt_async<fp32_fast_bf16_t>);
     m.def("sqrt_async_bf16", &sqrt_async<bf16_t>);
 
-    m.def("sqrt_fp64", &sqrt<fp64_t>);
-    m.def("sqrt_fp32", &sqrt<fp32_t>);
-    m.def("sqrt_fp32_fast_tf32", &sqrt<fp32_fast_tf32_t>);
-    m.def("sqrt_fp32_fast_fp16", &sqrt<fp32_fast_fp16_t>);
-    m.def("sqrt_fp32_fast_bf16", &sqrt<fp32_fast_bf16_t>);
-    m.def("sqrt_bf16", &sqrt<bf16_t>);
+    m.def("sqrt_fp64", &nntile::tensor::sqrt<fp64_t>);
+    m.def("sqrt_fp32", &nntile::tensor::sqrt<fp32_t>);
+    m.def("sqrt_fp32_fast_tf32", &nntile::tensor::sqrt<fp32_fast_tf32_t>);
+    m.def("sqrt_fp32_fast_fp16", &nntile::tensor::sqrt<fp32_fast_fp16_t>);
+    m.def("sqrt_fp32_fast_bf16", &nntile::tensor::sqrt<fp32_fast_bf16_t>);
+    m.def("sqrt_bf16", &nntile::tensor::sqrt<bf16_t>);
 
     m.def("sqrt_inplace_async_fp64", &sqrt_inplace_async<fp64_t>);
     m.def("sqrt_inplace_async_fp32", &sqrt_inplace_async<fp32_t>);
@@ -1488,13 +1488,13 @@ void def_mod_tensor(py::module_ &m)
     m.def("hypot_async_bf16", &hypot_async<bf16_t>);
     m.def("hypot_async_fp16", &hypot_async<fp16_t>);
 
-    m.def("hypot_fp64", &hypot<fp64_t>);
-    m.def("hypot_fp32", &hypot<fp32_t>);
-    m.def("hypot_fp32_fast_tf32", &hypot<fp32_fast_tf32_t>);
-    m.def("hypot_fp32_fast_fp16", &hypot<fp32_fast_fp16_t>);
-    m.def("hypot_fp32_fast_bf16", &hypot<fp32_fast_bf16_t>);
-    m.def("hypot_bf16", &hypot<bf16_t>);
-    m.def("hypot_fp16", &hypot<fp16_t>);
+    m.def("hypot_fp64", &nntile::tensor::hypot<fp64_t>);
+    m.def("hypot_fp32", &nntile::tensor::hypot<fp32_t>);
+    m.def("hypot_fp32_fast_tf32", &nntile::tensor::hypot<fp32_fast_tf32_t>);
+    m.def("hypot_fp32_fast_fp16", &nntile::tensor::hypot<fp32_fast_fp16_t>);
+    m.def("hypot_fp32_fast_bf16", &nntile::tensor::hypot<fp32_fast_bf16_t>);
+    m.def("hypot_bf16", &nntile::tensor::hypot<bf16_t>);
+    m.def("hypot_fp16", &nntile::tensor::hypot<fp16_t>);
 
     m.def("hypot_scalar_inverse_async_fp64", &hypot_scalar_inverse_async<fp64_t>);
     m.def("hypot_scalar_inverse_async_fp32", &hypot_scalar_inverse_async<fp32_t>);
@@ -1660,6 +1660,7 @@ void def_mod_tensor(py::module_ &m)
 // Main extension module with all wrappers
 PYBIND11_MODULE(nntile_core, m)
 {
+    using namespace nntile::tensor;
     // Add NNTile configuration class
     py::class_<nntile::Context>(m, "Context")
         .def(
