@@ -75,18 +75,7 @@ void copy_intersection_async(const Tensor<T> &src,
         }
         return;
     }
-    // Treat special case of ndim=0
-    if(ndim == 0)
-    {
-        auto src_tile = src.get_tile(0);
-        auto dst_tile = dst.get_tile(0);
-        auto dst_tile_handle = dst.get_tile_handle(0);
-        tile::copy_intersection_async<T>(src_tile, src_offset, dst_tile,
-                dst_offset, scratch_tile);
-        dst_tile_handle.mpi_flush();
-        return;
-    }
-    // Slow path: compute tensor-wise intersection
+    // Do the slow complex copy
     tile::Tile<int64_t> scratch_tile({std::max<Index>(1, 2*ndim)});
     std::vector<Index> src_start(ndim), dst_start(ndim), copy_shape(ndim);
     std::vector<Index> dst_tile_index_begin(ndim), dst_tile_index_end(ndim);
