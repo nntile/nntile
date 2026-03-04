@@ -135,6 +135,7 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
     {
         auto Y_tile_index = Y.grid.linear_to_index(i);
         auto Y_tile_traits = Y.get_tile_traits(i);
+        auto Y_tile_handle = Y.get_tile_handle(i);
         auto Y_tile = Y.get_tile(i);
         // Get start and end coordinates of dst tile within Y tensor
         Index Y_start_m = Y_tile_index[0] * Y.basetile_shape[0];
@@ -179,7 +180,8 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
                 tile::scale_inplace_async<T>(beta, Y_tile);
             }
             // Do nothing if beta is one
-            // Cycle to the next Y tile
+            // Flush cache for the output tile on every node
+            Y_tile_handle.mpi_flush();
             continue;
         }
         // Loop through corresponding X tiles
@@ -211,6 +213,8 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
                 Y_tile_beta = 1.0;
             }
         }
+        // Flush cache for the output tile on every node
+        Y_tile_handle.mpi_flush();
     }
 }
 

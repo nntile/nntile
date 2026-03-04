@@ -126,6 +126,7 @@ void conv2d_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &dY,
     {
         auto dX_tile_index = dX.grid.linear_to_index(i);
         auto dX_tile_traits = dX.get_tile_traits(i);
+        auto dX_tile_handle = dX.get_tile_handle(i);
         auto dX_tile = dX.get_tile(i);
         // Get start and end coordinates of dst tile within dX tensor
         Index dX_start_m = dX_tile_index[0] * dX.basetile_shape[0];
@@ -166,7 +167,8 @@ void conv2d_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &dY,
                 tile::scale_inplace_async<T>(beta, dX_tile);
             }
             // Do nothing if beta is one
-            // Cycle to the next dX tile
+            // Flush cache for the output tile on every node
+            dX_tile_handle.mpi_flush();
             continue;
         }
         // Loop through corresponding dY tiles
@@ -199,6 +201,8 @@ void conv2d_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &dY,
                 dX_tile_beta = 1.0;
             }
         }
+        // Flush cache for the output tile on every node
+        dX_tile_handle.mpi_flush();
     }
 }
 
