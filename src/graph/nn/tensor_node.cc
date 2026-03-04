@@ -142,7 +142,7 @@ void NNGraph::TensorNode::backward(bool retain_graph)
     std::unordered_set<const OpNode*> op_done;
     for(TensorNode* t : rev_topo)
     {
-        const OpNode* op = t->producer();
+        OpNode* op = t->producer();
         if(op == nullptr || op_done.count(op))
         {
             continue;

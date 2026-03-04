@@ -69,6 +69,7 @@ public:
     // Autograd: NNGraph-level producer (not TensorGraph)
     bool is_leaf() const { return producer_ == nullptr; }
     bool has_producer() const { return producer_ != nullptr; }
+    OpNode* producer() { return producer_; }
     const OpNode* producer() const { return producer_; }
 
     // Set by NNGraph op that created this tensor (may use multiple TensorGraph ops)
