@@ -109,7 +109,10 @@ void copy_intersection_async(const Tile<T> &src,
             copy_shape[i] = std::min(dst.shape[i]-dst_start[i],
                     src.shape[i]);
         }
-        // Check if destination is fully inside source
+        // Check if destination is fully inside source. For partial copies use
+        // STARPU_RW to preserve existing data in non-copied regions. Caller must
+        // clear the destination before copy_intersection when it is
+        // uninitialized (e.g., gather does this).
         if(copy_shape[i] != dst.shape[i])
         {
             dst_tile_mode = STARPU_RW;
