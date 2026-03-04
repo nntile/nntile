@@ -202,7 +202,7 @@ void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
             tile::clear_async<T>(dC_tile);
         }
         // Scale inplace if beta is not 1.0 or 0.0
-        if(beta != 1.0)
+        else if(beta != 1.0)
         {
             tile::scale_inplace_async<T>(beta, dC_tile);
         }
