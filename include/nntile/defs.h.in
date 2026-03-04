@@ -20,4 +20,3 @@
 #cmakedefine NNTILE_USE_CUDA_FP16
 #cmakedefine NNTILE_USE_CUDA_BF16
 #cmakedefine NNTILE_USE_CUDA_FP8
-#cmakedefine NNTILE_BUILD_MODULES

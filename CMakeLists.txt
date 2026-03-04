@@ -172,10 +172,6 @@ target_include_directories(nntile PRIVATE
     "${PROJECT_SOURCE_DIR}/external"
     )
 
-# Set NNTILE_BUILD_MODULES for defs.h (must be before configure_file)
-# Modules gelu, linear, mlp are always built; sdpa and mse_loss are commented out
-set(NNTILE_BUILD_MODULES ON)
-
 # Configure list of definitions
 configure_file("${PROJECT_SOURCE_DIR}/include/nntile/defs.h.in"
     "${PROJECT_BINARY_DIR}/include/nntile/defs.h" @ONLY)
