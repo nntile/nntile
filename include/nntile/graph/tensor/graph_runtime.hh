@@ -250,6 +250,13 @@ std::vector<T> TensorGraph::Runtime::get_output(const std::string& name)
     {
         throw std::runtime_error("Data not found: " + name);
     }
+    if(!data_is_output_.count(name))
+    {
+        throw std::runtime_error(
+            "get_output: data '" + name +
+            "' is not marked as output; intermediate tensors are invalidated "
+            "during execution; call mark_output(true) on the data node");
+    }
     auto dtype_it = data_dtypes_.find(name);
     if(dtype_it == data_dtypes_.end())
     {
