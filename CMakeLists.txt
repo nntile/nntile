@@ -40,6 +40,7 @@ option(USE_CUDA_BF16 "Enable BF16 CUDA support" ON)
 option(USE_CUDA_FP8 "Enable FP8 CUDA support" ON)
 option(USE_CBLAS "Use CPU CBLAS" ON)
 option(BUILD_TESTS "Build tests" ON)
+option(BUILD_TESTS_PYTORCH "Build NNGraph tests comparing against PyTorch C++ frontend (LibTorch)" ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
@@ -202,6 +203,20 @@ add_subdirectory("src")
 
 # Add sirectory with headers
 add_subdirectory("include")
+
+# Find LibTorch (PyTorch C++ frontend) for NNGraph comparison tests
+set(NNTILE_HAVE_TORCH OFF)
+if(BUILD_TESTS_PYTORCH AND BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)
+    find_package(Torch QUIET)
+    if(Torch_FOUND)
+        set(NNTILE_HAVE_TORCH ON)
+        message(STATUS "LibTorch found: ${TORCH_INSTALL_PREFIX}")
+    else()
+        message(WARNING "BUILD_TESTS_PYTORCH=ON but LibTorch not found. "
+            "Set CMAKE_PREFIX_PATH to LibTorch root, e.g.: "
+            "cmake -DCMAKE_PREFIX_PATH=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)') ..")
+    endif()
+endif()
 
 # Add subdirectory with tests
 if(BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)
