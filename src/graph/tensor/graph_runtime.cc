@@ -357,7 +357,9 @@ void TensorGraph::Runtime::invalidate_unused_tensors(size_t op_idx)
     }
 
     // Invalidate outputs that are never consumed (data_last_use_ only tracks
-    // inputs; outputs without consumers would otherwise leak memory)
+    // inputs; outputs without consumers would otherwise leak memory).
+    // For in-place outputs, data_last_use_ is set because the tensor is also
+    // an input; invalidate when last use is this op (no subsequent consumer).
     for(const auto* output : op->outputs())
     {
         const std::string& output_name = output->name();
@@ -370,7 +372,8 @@ void TensorGraph::Runtime::invalidate_unused_tensors(size_t op_idx)
         {
             continue;
         }
-        if(data_last_use_.count(output_name) == 0)
+        auto it = data_last_use_.find(output_name);
+        if(it == data_last_use_.end() || it->second == op_idx)
         {
             invalidate_data(output_name);
         }
