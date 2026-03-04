@@ -71,7 +71,7 @@ public:
 
     const std::string& name() const { return name_; }
     size_t num_tensors() const { return tensors_.size(); }
-    size_t num_ops() const { return tensor_graph_.num_ops(); }
+    size_t num_ops() const { return op_nodes_.size(); }
 
     TensorNode* get_tensor(const std::string& name);
     const TensorNode* get_tensor(const std::string& name) const;

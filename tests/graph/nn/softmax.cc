@@ -41,7 +41,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(y != nullptr);
     REQUIRE(y->has_producer());
     REQUIRE(y->shape() == shape);
-    REQUIRE(g.num_ops() > 1);
+    REQUIRE(g.num_ops() == 1);  // one NN-level softmax op
+    REQUIRE(g.tensor_graph().num_ops() > 1);  // softmax expands to multiple tensor ops
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
