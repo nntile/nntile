@@ -63,7 +63,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install PyTorch for LibTorch
         run: |
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          $HOME/.local/bin/uv pip install torch --index-url https://download.pytorch.org/whl/cpu
       - name: Build StarPU
         run: |
           export STARPU_VERSION=starpu-1.4.8
