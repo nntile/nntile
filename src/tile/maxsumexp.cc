@@ -74,7 +74,7 @@ void maxsumexp_async(const Tile<T> &src, const Tile<T> &dst, Index axis,
     src.mpi_transfer(dst_rank, mpi_rank);
     if(mpi_rank == dst_rank)
     {
-        starpu::maxsumexp.submit<std::tuple<T>>(m, n, k, src, dst, redux);
+        starpu::maxsumexp.submit<std::tuple<T>>(m, n, k, src, dst, 0);  // redux ignored for now
     }
 }
 

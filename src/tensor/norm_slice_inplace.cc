@@ -96,12 +96,12 @@ void norm_slice_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
             if(j == 0)
             {
                 tile::norm_slice_inplace_async<T>(alpha, src_tile, beta,
-                        dst_tile, axis, redux);
+                        dst_tile, axis, 0);  // redux ignored for now
             }
             else
             {
                 tile::norm_slice_inplace_async<T>(alpha, src_tile, one,
-                        dst_tile, axis, redux);
+                        dst_tile, axis, 0);  // redux ignored for now
             }
         }
         // Flush cache for the output tile on every node

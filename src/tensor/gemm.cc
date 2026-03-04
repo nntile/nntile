@@ -390,7 +390,7 @@ void gemm_async(Scalar alpha, const TransOp &transA, const Tensor<T> &A,
                 auto A_first_tile = A.get_tile(A_tile_offset);
                 auto B_first_tile = B.get_tile(B_tile_offset);
                 tile::gemm_async<T>(alpha, transA, A_first_tile, transB,
-                        B_first_tile, beta, C_tile, ndim, batch_ndim, redux);
+                        B_first_tile, beta, C_tile, ndim, batch_ndim, 0);  // redux ignored for now
                 // all other l>0
                 for(Index l = 1; l < k; ++l)
                 {
@@ -400,7 +400,7 @@ void gemm_async(Scalar alpha, const TransOp &transA, const Tensor<T> &A,
                     auto A_tile = A.get_tile(A_tile_offset);
                     auto B_tile = B.get_tile(B_tile_offset);
                     tile::gemm_async<T>(alpha, transA, A_tile, transB, B_tile,
-                            one, C_tile, ndim, batch_ndim, redux);
+                            one, C_tile, ndim, batch_ndim, 0);  // redux ignored for now
                 }
                 // Flush cache for the output tile on every node
                 C_tile_handle.mpi_flush();

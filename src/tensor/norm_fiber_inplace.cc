@@ -93,12 +93,12 @@ void norm_fiber_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
         if(init_first)
         {
             tile::norm_fiber_inplace_async<T>(alpha, src_tile, beta, dst_tile,
-                    axis, batch_ndim, redux);
+                    axis, batch_ndim, 0);  // redux ignored for now
         }
         else
         {
             tile::norm_fiber_inplace_async<T>(alpha, src_tile, one, dst_tile,
-                    axis, batch_ndim, redux);
+                    axis, batch_ndim, 0);  // redux ignored for now
         }
     }
     // Flush cache for the output tiles on every node

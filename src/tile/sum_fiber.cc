@@ -69,7 +69,7 @@ void sum_fiber_async(Scalar alpha, const Tile<T> &src, Scalar beta,
     if(mpi_rank == dst_rank)
     {
         starpu::sum_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src,
-                beta, dst, redux);
+                beta, dst, 0);  // redux ignored for now
     }
 }
 

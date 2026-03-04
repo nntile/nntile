@@ -98,7 +98,7 @@ void sum_fiber_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
         else
         {
             tile::sum_fiber_async<T>(alpha, src_tile, one, dst_tile, axis,
-                    batch_ndim, redux);
+                    batch_ndim, 0);  // redux ignored for now
         }
     }
     // Flush cache for the output tiles on every node

@@ -96,7 +96,7 @@ void sumprod_slice_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &s
         auto src1_tile = src1.get_tile(src_tile_offset);
         auto src2_tile = src2.get_tile(src_tile_offset);
         tile::sumprod_slice_async<T>(alpha, src1_tile, src2_tile, beta,
-                dst_tile, axis, redux);
+                dst_tile, axis, 0);  // redux ignored for now
         // Launch kernel for all other appropriate source tiles with beta=1
         for(Index j = 1; j < src1.grid.shape[axis]; ++j)
         {
@@ -105,7 +105,7 @@ void sumprod_slice_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &s
             auto src1_tile = src1.get_tile(src_tile_offset);
             auto src2_tile = src2.get_tile(src_tile_offset);
             tile::sumprod_slice_async<T>(alpha, src1_tile, src2_tile, 1.0,
-                    dst_tile, axis, redux);
+                    dst_tile, axis, 0);  // redux ignored for now
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();

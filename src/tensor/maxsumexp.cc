@@ -100,7 +100,7 @@ void maxsumexp_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis,
             src_tile_index[axis] = j;
             Index src_tile_offset = src.grid.index_to_linear(src_tile_index);
             auto src_tile = src.get_tile(src_tile_offset);
-            tile::maxsumexp_async<T>(src_tile, dst_tile, axis, redux);
+            tile::maxsumexp_async<T>(src_tile, dst_tile, axis, 0);  // redux ignored for now
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();

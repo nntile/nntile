@@ -102,7 +102,7 @@ void embedding_backward_async(const Tensor<int64_t> &index,
             k_start = (j-vocab_start) * vocab.basetile_shape[0];
             k_size = vocab_tile_traits.shape[0];
             tile::embedding_backward_async<T>(m, n, k, k_start, k_size,
-                    index_tile, embed_tile, vocab_tile, redux);
+                    index_tile, embed_tile, vocab_tile, 0);  // redux ignored for now
         }
     }
     // Flush cache for the output tile on every node

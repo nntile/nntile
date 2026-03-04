@@ -76,7 +76,7 @@ void sumprod_slice_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
     if(mpi_rank == dst_rank)
     {
         starpu::sumprod_slice.submit<std::tuple<T>>(m, n, k, alpha, src1, src2,
-                beta, dst, redux);
+                beta, dst, 0);  // redux ignored for now
     }
 }
 

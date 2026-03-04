@@ -308,7 +308,7 @@ void gemm_async(Scalar alpha, const TransOp &transA, const Tile<T> &A,
     if(mpi_rank == c_rank)
     {
         starpu::gemm.submit<std::tuple<T>>(
-            transA, transB, m, n, k, batch, alpha, A, B, beta, C, redux);
+            transA, transB, m, n, k, batch, alpha, A, B, beta, C, 0);  // redux ignored for now
     }
 }
 

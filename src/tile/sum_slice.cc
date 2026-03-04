@@ -69,7 +69,7 @@ void sum_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta,
     if(mpi_rank == dst_rank)
     {
         starpu::sum_slice.submit<std::tuple<T>>(m, n, k, alpha, src, beta, dst,
-                redux);
+                0);  // redux ignored for now
     }
 }
 

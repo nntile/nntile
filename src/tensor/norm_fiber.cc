@@ -113,13 +113,13 @@ void norm_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
         {
             // The first time we need to take into account src2
             tile::norm_fiber_async<T>(alpha, src1_tile, beta, src2_tile,
-                    dst_tile, axis, batch_ndim, redux);
+                    dst_tile, axis, batch_ndim, 0);  // redux ignored for now
         }
         else
         {
             // The rest of the times we shall rely on an inplace update
             tile::norm_fiber_inplace_async<T>(alpha, src1_tile, one, dst_tile,
-                    axis, batch_ndim, redux);
+                    axis, batch_ndim, 0);  // redux ignored for now
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();

@@ -85,7 +85,7 @@ void sum_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
             auto src_tile = src.get_tile(src_tile_offset);
             auto dst_tile = dst.get_tile(i);
             tile::sum_slice_async<T>(alpha, src_tile, beta, dst_tile, axis,
-                    redux);
+                    0);  // redux ignored for now
         }
         // Launch kernel for each appropriate source tile
         for(Index j = 1; j < src.grid.shape[axis]; ++j)
@@ -96,7 +96,7 @@ void sum_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
             auto dst_tile = dst.get_tile(i);
             constexpr Scalar one = 1.0;
             tile::sum_slice_async<T>(alpha, src_tile, one, dst_tile, axis,
-                    redux);
+                    0);  // redux ignored for now
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();

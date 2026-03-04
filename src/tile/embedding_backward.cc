@@ -31,7 +31,7 @@ void embedding_backward_async(Index m, Index n, Index k, Index k_start,
     if(mpi_rank == vocab_rank)
     {
         starpu::embedding_backward.submit<std::tuple<T>>(m, n, k, k_start,
-                k_size, index, embed, vocab, redux);
+                k_size, index, embed, vocab, 0);  // redux ignored for now
     }
 }
 

@@ -70,7 +70,7 @@ void norm_slice_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta, con
     if(mpi_rank == dst_rank)
     {
         starpu::norm_slice_inplace.submit<std::tuple<T>>(m, n, k, alpha, src,
-                beta, dst, redux);
+                beta, dst, 0);  // redux ignored for now
     }
 }
 

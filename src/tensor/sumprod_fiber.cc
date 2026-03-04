@@ -87,7 +87,7 @@ void sumprod_fiber_async(Scalar alpha, const Tensor<T> &src1,
         else
         {
             tile::sumprod_fiber_async<T>(alpha, src1_tile, src2_tile, one,
-                    dst_tile, axis, redux);
+                    dst_tile, axis, 0);  // redux ignored for now
         }
     }
     // Flush cache for the output tiles on every node

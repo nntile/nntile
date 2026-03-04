@@ -71,7 +71,7 @@ void norm_fiber_async(Scalar alpha, const Tile<T> &src1, Scalar beta,
     {
         // Insert task
         starpu::norm_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src1,
-                beta, src2, dst, redux);
+                beta, src2, dst, 0);  // redux ignored for now
     }
 }
 

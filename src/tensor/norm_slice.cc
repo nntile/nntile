@@ -116,7 +116,7 @@ void norm_slice_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
             Index src1_tile_offset = src1.grid.index_to_linear(src1_tile_index);
             auto src1_tile = src1.get_tile(src1_tile_offset);
             tile::norm_slice_async<T>(alpha, src1_tile, beta, src2_tile,
-                    dst_tile, axis, redux);
+                    dst_tile, axis, 0);  // redux ignored for now
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
