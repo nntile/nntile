@@ -232,6 +232,17 @@ void flash_sdpa_bwd_cudnn_async(
         dQ_handle.mpi_flush();
         logsumexp_handle.mpi_flush();
     }
+
+    // Flush dK and dV tiles (each receives contributions from multiple dQ
+    // tiles across outer loop iterations; must invalidate MPI caches)
+    for(Index i = 0; i < dK.grid.nelems; ++i)
+    {
+        dK.get_tile_handle(i).mpi_flush();
+    }
+    for(Index i = 0; i < dV.grid.nelems; ++i)
+    {
+        dV.get_tile_handle(i).mpi_flush();
+    }
 }
 
 template<typename T>
