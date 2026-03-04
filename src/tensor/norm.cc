@@ -50,9 +50,9 @@ void norm_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T>
         {
             tile::norm_async<T>(alpha, src_tile, one, dst_tile);
         }
-        // Flush cache for the output tile on every node
-        dst_tile_handle.mpi_flush();
     }
+    // Flush cache for the output tile on every node
+    dst_tile_handle.mpi_flush();
 }
 
 //! Tensor-wise norm
