@@ -21,10 +21,10 @@ TEST_CASE("MseLoss BuildForward", "[module]")
 {
     NNGraph g("mse");
     auto* x = g.tensor({2, 3}, "x", DataType::FP32);
-    MseLoss mse(g, "mse");
+    MseLoss mse(&g, "mse");
 
-    auto& loss = mse.build_forward(*x);
-    REQUIRE(loss.ndim() == 0);
-    REQUIRE(loss.shape().empty());
-    REQUIRE(loss.name() == "mse_loss");
+    auto* loss = mse.forward(x);
+    REQUIRE(loss->ndim() == 0);
+    REQUIRE(loss->shape().empty());
+    REQUIRE(loss->name() == "mse_loss");
 }

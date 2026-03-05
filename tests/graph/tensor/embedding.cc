@@ -211,8 +211,8 @@ TEST_CASE("TensorGraph embedding with output_name", "[graph][tensor]")
     auto* embed = gt::embedding(index, vocab, "embed", 2);
 
     REQUIRE(embed != nullptr);
-    // Graph uses embed_shape = index.shape + vocab.dim(1)
-    REQUIRE(embed->shape() == std::vector<Index>{4, 5, 100});
+    // NNTile layout: embed.shape[axis] == vocab.shape[0] (embed_dim)
+    REQUIRE(embed->shape() == std::vector<Index>{4, 5, 10});
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
 }

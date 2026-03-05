@@ -493,6 +493,7 @@ set(GRAPH_NN_SRC
     "graph/nn/norm_fiber.cc"
     "graph/nn/norm_slice.cc"
     "graph/nn/relu.cc"
+    "graph/nn/rms_norm.cc"
     "graph/nn/rope.cc"
     "graph/nn/scale.cc"
     "graph/nn/scale_fiber.cc"
@@ -510,9 +511,11 @@ set(GRAPH_SRC ${GRAPH_CORE_SRC} ${GRAPH_NN_SRC})
 # Module implementations
 set(MODULE_SRC
     "module/module.cc"
-    "module/gelu.cc"
+    "module/activation.cc"
+    "module/gated_mlp.cc"
     "module/mlp.cc"
     "module/linear.cc"
+    "module/embedding.cc"
     # "module/mse_loss.cc"
     # "module/sdpa.cc"
 )
