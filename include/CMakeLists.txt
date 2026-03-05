@@ -529,6 +529,7 @@ set(GRAPH_HDR
     "nntile/graph/nn/sum_fiber.hh"
     "nntile/graph/nn/sum_slice.hh"
     "nntile/graph/nn/clear.hh"
+    "nntile/graph/nn/cross_entropy.hh"
     "nntile/graph/nn/fill.hh"
     )
 
@@ -540,7 +541,6 @@ set(MODULE_HDR
     "nntile/module/linear.hh"
     "nntile/module/embedding.hh"
     "nntile/module/mlp.hh"
-    # "nntile/module/mse_loss.hh"
 )
 
 set(OPTIMIZER_HDR

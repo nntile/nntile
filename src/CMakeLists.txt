@@ -485,6 +485,7 @@ set(GRAPH_NN_SRC
     "graph/nn/gemm.cc"
     "graph/nn/gelu.cc"
     "graph/nn/gelutanh.cc"
+    "graph/nn/mse_loss.cc"
     "graph/nn/multiply.cc"
     "graph/nn/multiply_fiber.cc"
     "graph/nn/multiply_slice.cc"
@@ -500,6 +501,7 @@ set(GRAPH_NN_SRC
     "graph/nn/scale_slice.cc"
     "graph/nn/silu.cc"
     "graph/nn/softmax.cc"
+    "graph/nn/cross_entropy.cc"
     "graph/nn/sum_fiber.cc"
     "graph/nn/sum_slice.cc"
     "graph/tensor/graph_data_node.cc"
@@ -516,8 +518,6 @@ set(MODULE_SRC
     "module/mlp.cc"
     "module/linear.cc"
     "module/embedding.cc"
-    # "module/mse_loss.cc"
-    # "module/sdpa.cc"  # Replaced by graph/nn/sdpa_eager
 )
 
 # Set the list of all sources

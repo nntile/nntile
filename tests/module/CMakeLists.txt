@@ -19,7 +19,6 @@ set(TESTS_CATCH2
     "linear"
     "mlp"
     "module"
-    # "mse_loss"
 )
 
 # Module tests with PyTorch comparison
