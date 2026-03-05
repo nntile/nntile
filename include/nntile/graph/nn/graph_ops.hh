@@ -27,6 +27,7 @@
 #include <nntile/graph/nn/gelu.hh>
 #include <nntile/graph/nn/gelutanh.hh>
 #include <nntile/graph/nn/relu.hh>
+#include <nntile/graph/nn/rms_norm.hh>
 #include <nntile/graph/nn/rope.hh>
 #include <nntile/graph/nn/silu.hh>
 #include <nntile/graph/nn/softmax.hh>

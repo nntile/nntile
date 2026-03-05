@@ -485,6 +485,7 @@ set(GRAPH_NN_SRC
     "graph/nn/gelu.cc"
     "graph/nn/gelutanh.cc"
     "graph/nn/relu.cc"
+    "graph/nn/rms_norm.cc"
     "graph/nn/rope.cc"
     "graph/nn/silu.cc"
     "graph/nn/softmax.cc"
