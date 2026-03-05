@@ -541,6 +541,10 @@ set(MODULE_HDR
     # "nntile/module/sdpa.hh"
 )
 
+set(MODEL_HDR
+    "nntile/model/llama/llama_mlp.hh"
+)
+
 set(OPTIMIZER_HDR
     #"nntile/optimizer.hh"
     #"nntile/optimizer/base.hh"
@@ -554,6 +558,6 @@ set(LOGGER_HDR
     )
 
 set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR}
-    ${TENSOR_HDR} ${GRAPH_HDR} ${MODULE_HDR} ${LOGGER_HDR})
+    ${TENSOR_HDR} ${GRAPH_HDR} ${MODULE_HDR} ${MODEL_HDR} ${LOGGER_HDR})
 
 target_sources(nntile PUBLIC ${HDR})

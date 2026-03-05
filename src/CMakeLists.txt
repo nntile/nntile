@@ -517,6 +517,11 @@ set(MODULE_SRC
     # "module/sdpa.cc"
 )
 
+# Model implementations
+set(MODEL_SRC
+    "model/llama/llama_mlp.cc"
+)
+
 # Set the list of all sources
 set(NNTILE_SRC
     ${BASE_SRC}
@@ -530,6 +535,7 @@ set(NNTILE_SRC
     ${TENSOR_OPERATION_SRC}
     ${GRAPH_SRC}
     ${MODULE_SRC}
+    ${MODEL_SRC}
     ${LOGGER_SRC}
 )
 
