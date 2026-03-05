@@ -130,8 +130,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     labels->mark_input(true);
     loss->mark_output(true);
 
+    // loss.grad is implicit 1.0, no need to fill it
+    // but we need to allocate it to make autograd work
     auto [loss_grad, _] = g.get_or_create_grad(loss, "loss_grad");
-    fill(1.0, loss_grad);
     loss->backward();
 
     x->grad()->mark_output(true);
