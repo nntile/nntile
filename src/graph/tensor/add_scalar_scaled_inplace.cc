@@ -49,7 +49,8 @@ void run_add_scalar_scaled_inplace(
     {
         auto tile = scalar_t.get_tile(0);
         auto tile_local = tile.acquire(STARPU_R);
-        scalar_val = static_cast<Scalar>(tile_local[0].value);
+        // Use conversion operator (repr_t), not .value - fp16/bf16 store raw bits
+        scalar_val = static_cast<Scalar>(static_cast<typename T::repr_t>(tile_local[0]));
         tile_local.release();
     }
 
