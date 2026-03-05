@@ -515,6 +515,7 @@ set(GRAPH_NN_SRC
     "graph/nn/cross_entropy.cc"
     "graph/nn/sum_fiber.cc"
     "graph/nn/sum_slice.cc"
+    "graph/nn/transpose.cc"
     "graph/tensor/graph_data_node.cc"
     "graph/tensor/graph_runtime.cc"
 )
@@ -531,6 +532,16 @@ set(MODULE_SRC
     "module/embedding.cc"
 )
 
+# Model implementations
+set(MODEL_SRC
+    "model/llama/llama_mlp.cc"
+    "model/llama/llama_attention.cc"
+    "model/llama/rms_norm.cc"
+    "model/llama/llama_decoder.cc"
+    "model/llama/llama_model.cc"
+    "model/llama/llama_causal.cc"
+)
+
 # Set the list of all sources
 set(NNTILE_SRC
     ${BASE_SRC}
@@ -544,6 +555,7 @@ set(NNTILE_SRC
     ${TENSOR_OPERATION_SRC}
     ${GRAPH_SRC}
     ${MODULE_SRC}
+    ${MODEL_SRC}
     ${LOGGER_SRC}
 )
 

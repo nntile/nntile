@@ -46,3 +46,4 @@
 #include <nntile/graph/nn/softmax.hh>
 #include <nntile/graph/nn/sum_fiber.hh>
 #include <nntile/graph/nn/sum_slice.hh>
+#include <nntile/graph/nn/transpose.hh>

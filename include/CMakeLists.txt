@@ -539,6 +539,7 @@ set(GRAPH_HDR
     "nntile/graph/nn/softmax.hh"
     "nntile/graph/nn/sum_fiber.hh"
     "nntile/graph/nn/sum_slice.hh"
+    "nntile/graph/nn/transpose.hh"
     "nntile/graph/nn/clear.hh"
     "nntile/graph/nn/cross_entropy.hh"
     "nntile/graph/nn/fill.hh"
@@ -554,6 +555,18 @@ set(MODULE_HDR
     "nntile/module/mlp.hh"
 )
 
+set(MODEL_HDR
+    "nntile/model/llama.hh"
+    "nntile/model/llama/llama_config.hh"
+    "nntile/model/llama/llama_mlp.hh"
+    "nntile/model/llama/llama_attention.hh"
+    "nntile/model/llama/rms_norm.hh"
+    "nntile/model/llama/llama_decoder.hh"
+    "nntile/model/llama/llama_model.hh"
+    "nntile/model/llama/llama.hh"
+    "nntile/model/llama/llama_causal.hh"
+)
+
 set(OPTIMIZER_HDR
     #"nntile/optimizer.hh"
     #"nntile/optimizer/base.hh"
@@ -567,6 +580,6 @@ set(LOGGER_HDR
     )
 
 set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR}
-    ${TENSOR_HDR} ${GRAPH_HDR} ${MODULE_HDR} ${LOGGER_HDR})
+    ${TENSOR_HDR} ${GRAPH_HDR} ${MODULE_HDR} ${MODEL_HDR} ${LOGGER_HDR})
 
 target_sources(nntile PUBLIC ${HDR})
