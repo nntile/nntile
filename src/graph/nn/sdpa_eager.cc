@@ -170,7 +170,7 @@ void NNSdpaEagerOp::backward() const
             grad_temp->data(),
             grad_q->data(),
             scale, beta,
-            true, false,
+            false, false,
             q_ndim - batch_ndim - ndim_contraction,
             batch_ndim);
     }
@@ -181,8 +181,8 @@ void NNSdpaEagerOp::backward() const
             graph->get_or_create_grad(k, k->name() + "_grad");
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
         graph::tensor::gemm(
-            grad_temp->data(),
             q->data(),
+            grad_temp->data(),
             grad_k->data(),
             scale, beta,
             false, true,
