@@ -149,7 +149,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<::int64_t> slice_shape_pt(slice_sh.begin(), slice_sh.end());
     auto slice_pt = torch::from_blob(slice_data.data(), slice_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(false);
-    auto out_pt = (alpha * slice_pt.unsqueeze(static_cast<int64_t>(axis))
+    auto out_pt = (alpha * slice_pt.unsqueeze(static_cast<std::int64_t>(axis))
                       .expand({dim_2, dim_4})).contiguous();
 
     std::vector<float> pytorch_out(out_pt.data_ptr<float>(),
@@ -204,7 +204,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<::int64_t> slice_shape_pt(slice_sh.begin(), slice_sh.end());
     auto slice_pt = torch::from_blob(slice_data.data(), slice_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(true);
-    auto out_pt = alpha * slice_pt.unsqueeze(static_cast<int64_t>(axis)).expand({dim_2, dim_4});
+    auto out_pt = alpha * slice_pt.unsqueeze(static_cast<std::int64_t>(axis)).expand({dim_2, dim_4});
 
     auto grad_output = torch::full({dim_2, dim_4}, static_cast<float>(grad_fill_val),
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));

@@ -166,7 +166,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto src2_pt = torch::from_blob(src2_rowmajor.data(), dst_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(false);
 
-    auto src1_bc = src1_pt.unsqueeze(static_cast<int64_t>(axis))
+    auto src1_bc = src1_pt.unsqueeze(static_cast<std::int64_t>(axis))
                        .expand(dst_shape_pt);
     auto out_pt = (alpha * src1_bc + beta * src2_pt).contiguous();
 
@@ -241,7 +241,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto src2_pt = torch::from_blob(src2_rowmajor.data(), dst_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(true);
 
-    auto src1_bc = src1_pt.unsqueeze(static_cast<int64_t>(axis))
+    auto src1_bc = src1_pt.unsqueeze(static_cast<std::int64_t>(axis))
                        .expand(dst_shape_pt);
     auto out_pt = alpha * src1_bc + beta * src2_pt;
 

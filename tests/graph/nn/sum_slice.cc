@@ -129,7 +129,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());
     auto x_pt = torch::from_blob(x_rowmajor.data(), x_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(false);
-    auto y_pt = (alpha * x_pt.sum(static_cast<int64_t>(axis), false)).contiguous();
+    auto y_pt = (alpha * x_pt.sum(static_cast<std::int64_t>(axis), false)).contiguous();
 
     std::vector<float> pytorch_out(y_pt.data_ptr<float>(),
                                    y_pt.data_ptr<float>() + y_pt.numel());
@@ -183,7 +183,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());
     auto x_pt = torch::from_blob(x_rowmajor.data(), x_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(true);
-    auto y_pt = alpha * x_pt.sum(static_cast<int64_t>(axis), false);
+    auto y_pt = alpha * x_pt.sum(static_cast<std::int64_t>(axis), false);
 
     auto grad_y = torch::full({y_pt.numel()}, static_cast<float>(grad_fill_val),
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
