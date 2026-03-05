@@ -95,7 +95,7 @@ using nntile::test::colmajor_to_rowmajor;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph mse_loss forward matches PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph mse_loss forward and backward match PyTorch", "[graph][nn_graph][pytorch]")
 {
     const auto [x_shape, scale] = GENERATE(
         std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
@@ -117,51 +117,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     x->mark_input(true);
     loss->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
-    runtime.compile();
-    runtime.bind_data("x", x_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> nntile_loss = runtime.get_output<float>("loss");
-    std::vector<float> x_row = colmajor_to_rowmajor(x_data, x_shape);
-    std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());
-
-    auto x_pt = torch::from_blob(x_row.data(), x_shape_pt,
-                                 torch::TensorOptions().dtype(torch::kFloat32))
-                    .clone()
-                    .set_requires_grad(false);
-
-    // PyTorch: mse_loss = scale * sum(x^2)
-    auto loss_pt = scale * (x_pt * x_pt).sum();
-    float pytorch_loss = loss_pt.item<float>();
-
-    REQUIRE(nntile_loss.size() == 1);
-    REQUIRE(std::abs(nntile_loss[0] - pytorch_loss) < pytorch_tolerance);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph mse_loss backward matches PyTorch", "[graph][nn_graph][pytorch]")
-{
-    const auto [x_shape, scale] = GENERATE(
-        std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
-        std::tuple{std::vector<Index>{3, 5}, Scalar(0.5)},
-        std::tuple{std::vector<Index>{2, 3, 4}, Scalar(1.0 / 24.0)});
-
-    Index x_nelems = 1;
-    for(auto s : x_shape)
-        x_nelems *= s;
-
-    std::vector<float> x_data(x_nelems);
-    for(Index i = 0; i < x_nelems; ++i)
-        x_data[i] = 0.15f * static_cast<float>(i);
-
-    NNGraph g("mse_loss_bwd_pytorch");
-    auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
-    auto* loss = mse_loss(x, "loss", scale);
-
-    x->mark_input(true);
-
     // grad_loss implicitly 1.0 for loss outputs
     auto [loss_grad, _] = g.get_or_create_grad(loss, "loss_grad");
     gt::fill(1.0, loss_grad->data());
@@ -175,6 +130,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
+    std::vector<float> nntile_loss = runtime.get_output<float>("loss");
     std::vector<float> nntile_grad_x_colmajor =
         runtime.get_output<float>(x->grad()->name());
     std::vector<float> nntile_grad_x =
@@ -192,9 +148,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto loss_pt = scale * (x_pt * x_pt).sum();
     loss_pt.backward();  // scalar default grad is 1.0
 
+    float pytorch_loss = loss_pt.item<float>();
     auto grad_x_pt = x_pt.grad().contiguous();
     std::vector<float> pytorch_grad_x(grad_x_pt.data_ptr<float>(),
                                       grad_x_pt.data_ptr<float>() + x_nelems);
+
+    REQUIRE(nntile_loss.size() == 1);
+    REQUIRE(std::abs(nntile_loss[0] - pytorch_loss) < pytorch_tolerance);
 
     REQUIRE(nntile_grad_x.size() == pytorch_grad_x.size());
     for(size_t i = 0; i < nntile_grad_x.size(); ++i)
