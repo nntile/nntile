@@ -21,9 +21,11 @@ namespace nntile::module
 
 MseLoss::MseLoss(graph::NNGraph* graph,
                  const std::string& name,
-                 graph::DataType dtype)
+                 graph::DataType dtype,
+                 Scalar scale)
     : Module(graph, name)
     , dtype_(dtype)
+    , scale_(scale)
 {
 }
 
@@ -43,9 +45,14 @@ graph::NNGraph::TensorNode* MseLoss::forward(
     graph::tensor::clear(norm_data);
     graph::tensor::norm(input->data(), norm_data, 1.0, 0.0);
 
-    // loss = y * y
+    // norm_copy for multiply (multiply requires distinct tensors)
+    graph::TensorGraph::TensorNode* norm_copy_data =
+        graph::tensor::copy(norm_data, tensor_name("norm_copy"));
+
+    // loss = scale * y * y
     graph::TensorGraph::TensorNode* loss_data =
-        graph::tensor::multiply(norm_data, norm_data, tensor_name("loss"), 1.0);
+        graph::tensor::multiply(norm_data, norm_copy_data,
+                               tensor_name("loss"), scale_);
 
     loss_tensor_ = graph_->tensor(loss_data);
     return loss_tensor_;
@@ -53,7 +60,7 @@ graph::NNGraph::TensorNode* MseLoss::forward(
 
 std::string MseLoss::repr() const
 {
-    return "MseLoss()";
+    return "MseLoss(scale=" + std::to_string(scale_) + ")";
 }
 
 } // namespace nntile::module

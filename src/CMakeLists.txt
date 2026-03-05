@@ -485,6 +485,7 @@ set(GRAPH_NN_SRC
     "graph/nn/gemm.cc"
     "graph/nn/gelu.cc"
     "graph/nn/gelutanh.cc"
+    "graph/nn/mse_loss.cc"
     "graph/nn/multiply.cc"
     "graph/nn/multiply_fiber.cc"
     "graph/nn/multiply_slice.cc"

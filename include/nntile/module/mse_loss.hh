@@ -24,23 +24,26 @@ namespace nntile::module
 {
 
 //! MSE loss: squared Frobenius norm of input tensor.
-//! loss = norm(x)^2, gradient = 2*x
+//! loss = scale * norm(x)^2, gradient = 2*scale*x
+//! scale=1.0 gives total loss, scale=1/num_values gives mean loss
 class MseLoss : public Module
 {
 private:
     graph::NNGraph::TensorNode* input_tensor_ = nullptr;
     graph::NNGraph::TensorNode* loss_tensor_ = nullptr;
     graph::DataType dtype_;
+    Scalar scale_;
 
 public:
     //! Constructor
     MseLoss(graph::NNGraph* graph,
             const std::string& name,
-            graph::DataType dtype = graph::DataType::FP32);
+            graph::DataType dtype = graph::DataType::FP32,
+            Scalar scale = 1.0);
 
-    //! Build forward: loss = norm(x)^2 (scalar)
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input);
+    //! Build forward: loss = scale * norm(x)^2 (scalar)
+    graph::NNGraph::TensorNode& forward(
+        graph::NNGraph::TensorNode& input);
 
     //! Forward: calls forward
     graph::NNGraph::TensorNode* operator()(graph::NNGraph::TensorNode* input)
@@ -49,6 +52,9 @@ public:
     }
 
     std::string repr() const override;
+
+    //! Get scale parameter
+    Scalar scale() const { return scale_; }
 };
 
 } // namespace nntile::module

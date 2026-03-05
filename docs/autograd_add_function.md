@@ -170,6 +170,12 @@ if(x != nullptr && x->requires_grad()) {
 
 ---
 
+## Loss outputs: implicit gradient 1.0
+
+For **loss outputs** (scalar outputs that represent a loss value, e.g. `mse_loss`), the gradient over the loss is **implicitly 1.0**. The backward pass should compute `grad_input += ...` as if `grad_loss == 1.0`. The caller fills `grad_out` with 1.0 when initiating backward from a loss. Do not read `grad_out` at runtime to scale the gradient — use compile-time constants only (e.g. `add_inplace(2*scale, x->data(), grad_beta, grad_x->data())` for mse_loss).
+
+---
+
 ## Step 5: Implement the Free Function
 
 The free function creates the op, calls `forward()`, and registers it:
