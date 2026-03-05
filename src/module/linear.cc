@@ -16,7 +16,11 @@
 #include "nntile/module/linear.hh"
 
 // Include standard headers
+#include <cstring>
 #include <stdexcept>
+
+// Include NNTile headers
+#include "nntile/graph/dtype.hh"
 
 namespace nntile::module
 {
@@ -212,6 +216,58 @@ graph::NNGraph::TensorNode& Linear::build_forward(
     }
 
     return *output_tensor_;
+}
+
+void Linear::bind_weight(std::vector<std::uint8_t> data)
+{
+    if(weight_tensor_ == nullptr)
+    {
+        throw std::runtime_error(
+            "Linear::bind_weight: weight tensor is null (external weight mode)");
+    }
+    weight_tensor_->data()->set_bind_hint(std::move(data));
+    weight_tensor_->mark_input(true);
+}
+
+void Linear::bind_weight(const std::vector<float>& data)
+{
+    const size_t expected = static_cast<size_t>(input_dim_) * output_dim_;
+    if(data.size() != expected)
+    {
+        throw std::invalid_argument(
+            "Linear::bind_weight: size mismatch, expected " +
+            std::to_string(expected) + " elements, got " +
+            std::to_string(data.size()));
+    }
+    std::vector<std::uint8_t> bytes(data.size() * sizeof(float));
+    std::memcpy(bytes.data(), data.data(), bytes.size());
+    bind_weight(std::move(bytes));
+}
+
+void Linear::bind_bias(std::vector<std::uint8_t> data)
+{
+    if(bias_tensor_ == nullptr)
+    {
+        throw std::runtime_error(
+            "Linear::bind_bias: bias tensor is null (no bias)");
+    }
+    bias_tensor_->data()->set_bind_hint(std::move(data));
+    bias_tensor_->mark_input(true);
+}
+
+void Linear::bind_bias(const std::vector<float>& data)
+{
+    const size_t expected = static_cast<size_t>(output_dim_);
+    if(data.size() != expected)
+    {
+        throw std::invalid_argument(
+            "Linear::bind_bias: size mismatch, expected " +
+            std::to_string(expected) + " elements, got " +
+            std::to_string(data.size()));
+    }
+    std::vector<std::uint8_t> bytes(data.size() * sizeof(float));
+    std::memcpy(bytes.data(), data.data(), bytes.size());
+    bind_bias(std::move(bytes));
 }
 
 //! Get string representation with dimensions

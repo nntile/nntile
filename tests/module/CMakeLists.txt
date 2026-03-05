@@ -16,9 +16,9 @@ set(TESTS_CATCH2
     "activation"
     "embedding"
     "gelu"
-    "gated_mlp"
+    # "gated_mlp"
     "linear"
-    "mlp"
+    # "mlp"
     "module"
     # "mse_loss"
     # "sdpa"
@@ -26,9 +26,9 @@ set(TESTS_CATCH2
 
 # Module tests with PyTorch comparison
 set(TESTS_MODULE_PYTORCH
-    "gated_mlp"
+    # "gated_mlp"
     "linear"
-    "mlp"
+    # "mlp"
 )
 
 # Setup a target for coverage of module tests

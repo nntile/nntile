@@ -15,6 +15,7 @@
 #pragma once
 
 // Include standard headers
+#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -108,11 +109,10 @@ public:
 
 #ifdef NNTILE_HAVE_TORCH
     //! Constructor: creates Linear from torch::nn::Linear (same dimensions)
-    //! Use weight_data_from_pytorch() and bias_data_from_pytorch() to get
-    //! data for runtime.bind_data().
+    //! and binds weight/bias data from the PyTorch layer.
     //! @param graph The neural network graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
-    //! @param linear_layer PyTorch Linear layer to mirror
+    //! @param linear_layer PyTorch Linear layer to mirror (weight/bias copied)
     //! @param dtype Data type for tensors
     Linear(
         graph::NNGraph& graph,
@@ -132,6 +132,20 @@ public:
 
     graph::NNGraph::TensorNode& build_forward(
         graph::NNGraph::TensorNode& input);
+
+    //! Bind weight data for Runtime::compile(). Data must be in NNTile layout.
+    //! Moves data into the graph; call std::move() to avoid copy.
+    void bind_weight(std::vector<std::uint8_t> data);
+
+    //! Bind weight data (FP32 convenience; copies into internal buffer).
+    void bind_weight(const std::vector<float>& data);
+
+    //! Bind bias data for Runtime::compile(). Data must be in NNTile layout.
+    //! Moves data into the graph; call std::move() to avoid copy.
+    void bind_bias(std::vector<std::uint8_t> data);
+
+    //! Bind bias data (FP32 convenience; copies into internal buffer).
+    void bind_bias(const std::vector<float>& data);
 
     //! Forward: calls build_forward (user does bookkeeping via autograd ops)
     graph::NNGraph::TensorNode& operator()(graph::NNGraph::TensorNode& input)
@@ -166,7 +180,13 @@ inline Linear::Linear(graph::NNGraph& graph,
              static_cast<Index>(linear_layer->weight.size(0)),
              linear_layer->options.bias(),
              dtype)
-{}
+{
+    bind_weight(weight_data_from_pytorch(linear_layer->weight));
+    if(linear_layer->options.bias())
+    {
+        bind_bias(bias_data_from_pytorch(linear_layer->bias));
+    }
+}
 
 inline std::vector<float> Linear::weight_data_from_pytorch(
     const torch::Tensor& w)

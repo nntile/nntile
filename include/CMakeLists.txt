@@ -536,10 +536,10 @@ set(MODULE_HDR
     "nntile/module/module.hh"
     "nntile/module/activation.hh"
     "nntile/module/gelu.hh"
-    "nntile/module/gated_mlp.hh"
+    # "nntile/module/gated_mlp.hh"
     "nntile/module/linear.hh"
     "nntile/module/embedding.hh"
-    "nntile/module/mlp.hh"
+    # "nntile/module/mlp.hh"
     # "nntile/module/mse_loss.hh"
     # "nntile/module/sdpa.hh"
 )
