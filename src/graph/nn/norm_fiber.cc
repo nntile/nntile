@@ -15,6 +15,7 @@
 #include "nntile/graph/nn/norm_fiber.hh"
 
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -51,6 +52,20 @@ NNGraph::TensorNode* NNNormFiberOp::forward(const std::string& output_name)
     {
         throw std::invalid_argument(
             "NNNormFiberOp::forward: x must be non-null");
+    }
+    Index ndim = static_cast<Index>(x->shape().size());
+    if(axis < 0 || axis >= ndim)
+    {
+        throw std::invalid_argument(
+            "NNNormFiberOp::forward: axis must be in [0, ndim), got axis="
+            + std::to_string(axis) + ", ndim=" + std::to_string(ndim));
+    }
+    if(batch_ndim < 0 || batch_ndim > ndim)
+    {
+        throw std::invalid_argument(
+            "NNNormFiberOp::forward: batch_ndim must be in [0, ndim], got "
+            "batch_ndim=" + std::to_string(batch_ndim)
+            + ", ndim=" + std::to_string(ndim));
     }
     NNGraph* graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x});
