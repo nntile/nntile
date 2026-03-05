@@ -17,21 +17,14 @@
 
 // Include NNTile headers
 #include "nntile/graph/nn/clear.hh"
-#include "nntile/graph/nn/fill.hh"
-#include "nntile/graph/nn/gemm.hh"
-#include "nntile/graph/nn/softmax.hh"
-#include "nntile/graph/tensor/flash_sdpa_fwd_cudnn.hh"
-
-// Include standard headers
-#include <cmath>
-#include <stdexcept>
-
-// Include graph tensor operations
-#include "nntile/graph/nn/clear.hh"
 #include "nntile/graph/tensor/gemm.hh"
 #include "nntile/graph/tensor/mask_scalar.hh"
 #include "nntile/graph/tensor/maxsumexp.hh"
 #include "nntile/graph/tensor/softmax_inplace.hh"
+
+// Include standard headers
+#include <cmath>
+#include <stdexcept>
 
 namespace nntile::module
 {
@@ -155,44 +148,44 @@ graph::NNGraph::TensorNode* Sdpa::forward(
     std::vector<Index> attn_shape = {k_seq, q_seq};
     attn_shape.insert(attn_shape.end(), batch_shape.begin(), batch_shape.end());
 
-    attn_tensor_ = graph_.tensor(
+    attn_tensor_ = graph_->tensor(
         attn_shape,
         tensor_name("attn"),
-        q.dtype(),
+        q->dtype(),
         output_requires_grad);
 
     std::vector<Index> attn_max_shape = {2, q_seq};
     attn_max_shape.insert(
         attn_max_shape.end(), batch_shape.begin(), batch_shape.end());
-    attn_maxsumexp_tensor_ = graph_.tensor(
+    attn_maxsumexp_tensor_ = graph_->tensor(
         attn_max_shape,
         tensor_name("attn_maxsumexp"),
-        q.dtype(),
+        q->dtype(),
         false);
     register_buffer("attn_maxsumexp", attn_maxsumexp_tensor_);
 
     std::vector<Index> attn_sum_shape = {q_seq};
     attn_sum_shape.insert(
         attn_sum_shape.end(), batch_shape.begin(), batch_shape.end());
-    attn_sumprod_slice_tensor_ = graph_.tensor(
+    attn_sumprod_slice_tensor_ = graph_->tensor(
         attn_sum_shape,
         tensor_name("attn_sumprod_slice"),
-        q.dtype(),
+        q->dtype(),
         false);
     register_buffer("attn_sumprod_slice", attn_sumprod_slice_tensor_);
 
     // Create output y
     std::vector<Index> y_shape = q_shape;
-    output_tensor_ = graph_.tensor(
+    output_tensor_ = graph_->tensor(
         y_shape,
         tensor_name("output"),
-        q.dtype(),
+        q->dtype(),
         output_requires_grad);
 
     // attn = scale * K^T @ Q (ndim=1, batch_ndim)
     graph::tensor::gemm(
         k_tensor_->data(),
-        q.data(),
+        q->data(),
         attn_tensor_->data(),
         scale_,
         0.0,

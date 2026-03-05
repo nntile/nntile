@@ -494,6 +494,7 @@ set(GRAPH_NN_SRC
     "graph/nn/relu.cc"
     "graph/nn/rms_norm.cc"
     "graph/nn/rope.cc"
+    "graph/nn/sdpa_eager.cc"
     "graph/nn/scale.cc"
     "graph/nn/scale_fiber.cc"
     "graph/nn/scale_slice.cc"
@@ -516,7 +517,7 @@ set(MODULE_SRC
     "module/linear.cc"
     "module/embedding.cc"
     # "module/mse_loss.cc"
-    "module/sdpa.cc"
+    # "module/sdpa.cc"  # Replaced by graph/nn/sdpa_eager
 )
 
 # Set the list of all sources

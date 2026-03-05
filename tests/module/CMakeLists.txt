@@ -20,7 +20,6 @@ set(TESTS_CATCH2
     "mlp"
     "module"
     # "mse_loss"
-    "sdpa"
 )
 
 # Module tests with PyTorch comparison
