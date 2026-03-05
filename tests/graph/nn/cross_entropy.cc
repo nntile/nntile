@@ -95,69 +95,10 @@ using nntile::test::permute_rowmajor;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph cross_entropy forward matches PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph cross_entropy matches PyTorch", "[graph][nn_graph][pytorch]")
 {
     // NNTile requires axis=0: x [nclasses, batch], labels [batch]
     // PyTorch expects [N, C] = [batch, nclasses], target [N]
-    const Index batch_size = 7;
-    const Index nclasses = 5;
-    std::vector<Index> x_shape{nclasses, batch_size};
-    std::vector<Index> labels_shape{batch_size};
-
-    Index x_nelems = nclasses * batch_size;
-    std::vector<float> x_data(x_nelems);
-    for(Index i = 0; i < x_nelems; ++i)
-    {
-        x_data[i] = 0.1f * static_cast<float>(i - x_nelems / 2);
-    }
-
-    std::vector<std::int64_t> labels_data(batch_size);
-    for(Index i = 0; i < batch_size; ++i)
-    {
-        labels_data[i] = i % nclasses;
-    }
-
-    std::vector<float> x_rowmajor_57 = colmajor_to_rowmajor(x_data, x_shape);
-    std::vector<float> x_rowmajor_75 =
-        permute_rowmajor(x_rowmajor_57, x_shape, {1, 0});
-
-    NNGraph g("cross_entropy_pytorch");
-    auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
-    auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
-    auto* loss = cross_entropy(x, labels, "loss");
-
-    x->mark_input(true);
-    labels->mark_input(true);
-    loss->mark_output(true);
-
-    TensorGraph::Runtime runtime(g.tensor_graph());
-    runtime.compile();
-    runtime.bind_data("x", x_data);
-    runtime.bind_data("labels", labels_data);
-    runtime.execute();
-    runtime.wait();
-
-    std::vector<float> nntile_loss = runtime.get_output<float>("loss");
-    REQUIRE(nntile_loss.size() == 1);
-
-    std::vector<::int64_t> shape_pt{batch_size, nclasses};
-    auto x_pt = torch::from_blob(x_rowmajor_75.data(), shape_pt,
-                                 torch::TensorOptions().dtype(torch::kFloat32))
-                    .clone()
-                    .set_requires_grad(false);
-    auto labels_pt = torch::from_blob(labels_data.data(),
-        {static_cast<::int64_t>(batch_size)},
-        torch::TensorOptions().dtype(torch::kLong));
-    auto loss_pt = torch::nn::functional::cross_entropy(
-        x_pt, labels_pt, torch::nn::functional::CrossEntropyFuncOptions().reduction(torch::kSum));
-
-    REQUIRE(std::abs(nntile_loss[0] - loss_pt.item<float>()) <
-            pytorch_tolerance * (std::abs(loss_pt.item<float>()) + 1e-6f));
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph cross_entropy backward matches PyTorch", "[graph][nn_graph][pytorch]")
-{
     const Index batch_size = 7;
     const Index nclasses = 5;
     std::vector<Index> x_shape{nclasses, batch_size};
@@ -180,13 +121,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> x_rowmajor_75 =
         permute_rowmajor(x_rowmajor_57, x_shape, {1, 0});
 
-    NNGraph g("cross_entropy_bwd_pytorch");
+    NNGraph g("cross_entropy_pytorch");
     auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
     auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
     auto* loss = cross_entropy(x, labels, "loss");
 
     x->mark_input(true);
     labels->mark_input(true);
+    loss->mark_output(true);
 
     auto [loss_grad, _] = g.get_or_create_grad(loss, "loss_grad");
     fill(1.0, loss_grad);
@@ -200,6 +142,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.bind_data("labels", labels_data);
     runtime.execute();
     runtime.wait();
+
+    std::vector<float> nntile_loss = runtime.get_output<float>("loss");
+    REQUIRE(nntile_loss.size() == 1);
 
     std::vector<float> nntile_grad_x_colmajor =
         runtime.get_output<float>(x->grad()->name());
@@ -218,8 +163,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kLong));
     auto loss_pt = torch::nn::functional::cross_entropy(
         x_pt, labels_pt, torch::nn::functional::CrossEntropyFuncOptions().reduction(torch::kSum));
-    loss_pt.backward();
 
+    REQUIRE(std::abs(nntile_loss[0] - loss_pt.item<float>()) <
+            pytorch_tolerance * (std::abs(loss_pt.item<float>()) + 1e-6f));
+
+    loss_pt.backward();
     compare_float_vectors(nntile_grad_x, x_pt.grad());
 }
 
