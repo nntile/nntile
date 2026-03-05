@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
 
     // Create Linear module (tied to the graph)
     nntile::module::Linear linear(
-        graph, "linear1", 8, 4, nntile::graph::DataType::FP32);
+        &graph, "linear1", 8, 4, nntile::graph::DataType::FP32);
 
     // Create input tensor (requires_grad to compute input gradients)
     // Shape is [batch, features] (last dim = features): 4 batches, 8 features
@@ -53,20 +53,27 @@ int main(int argc, char** argv) {
     input_tensor->mark_input(true);  // bind_data() requires input marking
 
     // Build forward operation and get output tensor
-    auto& output_tensor = linear.build_forward(*input_tensor);
-    output_tensor.mark_output(true);  // get_output() requires output marking
+    auto* output_tensor = linear.forward(input_tensor);
+    output_tensor->mark_output(true);  // get_output() requires output marking
 
     // Attach an external gradient to the output (e.g., loss gradient)
     auto [grad_output_tensor, _] = graph.get_or_create_grad(
-        &output_tensor,
+        output_tensor,
         "external_grad_output");
     gt::fill(nntile::Scalar(1.0f), grad_output_tensor->data());
 
-    // Mark parameter tensors for bind_data (weight)
-    linear.weight_tensor()->mark_input(true);
+    // Bind weight data early (before compile); Runtime::compile() will apply it
+    std::vector<float> weight_data(linear.input_dim() * linear.output_dim());
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::normal_distribution<float> dist2(0.0f, 0.1f);
+    for (auto& val : weight_data) {
+        val = dist2(gen);
+    }
+    linear.bind_weight(weight_data);  // mark_input(true) done by bind_weight
 
     // Build backward via autograd (output.backward())
-    output_tensor.backward();
+    output_tensor->backward();
 
     // Mark gradient tensors for get_output (created during backward)
     linear.weight_tensor()->grad()->mark_output(true);
@@ -78,14 +85,12 @@ int main(int argc, char** argv) {
     std::cout << "Graph structure:" << std::endl;
     std::cout << graph.to_string() << std::endl;
 
-    // Compile the graph for execution
+    // Compile the graph for execution (weight data applied from bind_weight)
     nntile::graph::TensorGraph::Runtime runtime(graph.tensor_graph());
     runtime.compile();
 
     // Generate random input data (4 batches x 8 features)
     std::vector<float> input_data(4 * 8);
-    std::random_device rd;
-    std::mt19937 gen(rd());
     std::normal_distribution<float> dist(0.0f, 1.0f);
     for (auto& val : input_data) {
         val = dist(gen);
@@ -95,14 +100,6 @@ int main(int argc, char** argv) {
 
     // Bind input data to the external input tensor
     runtime.bind_data("external_input", input_data);
-
-    // Initialize weight data (reuse gen from input data generation)
-    std::vector<float> weight_data(linear.input_dim() * linear.output_dim());
-    std::normal_distribution<float> dist2(0.0f, 0.1f);
-    for (auto& val : weight_data) {
-        val = dist2(gen);
-    }
-    runtime.bind_data(linear.weight_tensor()->name(), weight_data);
 
     // Execute the graph (contains both forward and backward operations)
     auto start = std::chrono::high_resolution_clock::now();
@@ -117,7 +114,7 @@ int main(int argc, char** argv) {
     std::cout << "Output shape: [4, 4] (batch, features)" << std::endl;
 
     // Get output data from the output tensor
-    auto output_data = runtime.get_output<float>(output_tensor.name());
+    auto output_data = runtime.get_output<float>(output_tensor->name());
     std::cout << "Sample output values: ";
     for (size_t i = 0; i < std::min(size_t(8), output_data.size()); ++i) {
         std::cout << output_data[i] << " ";

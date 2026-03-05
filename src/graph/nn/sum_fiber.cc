@@ -26,6 +26,7 @@ namespace
 {
 constexpr Scalar grad_overwrite = 0.0;
 constexpr Scalar grad_accumulate = 1.0;
+constexpr Scalar beta_fresh = 0.0;  // NNGraph always outputs fresh data
 } // anonymous namespace
 
 NNGraph::TensorNode* NNSumFiberOp::forward(const std::string& output_name)
@@ -38,7 +39,7 @@ NNGraph::TensorNode* NNSumFiberOp::forward(const std::string& output_name)
     NNGraph* graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x});
     TensorGraph::TensorNode* y_data = graph::tensor::sum_fiber(
-        x->data(), output_name, axis, batch_ndim, redux, alpha, beta);
+        x->data(), output_name, axis, batch_ndim, redux, alpha, beta_fresh);
     NNGraph::TensorNode* y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
     return y;
@@ -73,8 +74,7 @@ NNGraph::TensorNode* sum_fiber(
     Index axis,
     Index batch_ndim,
     int redux,
-    Scalar alpha,
-    Scalar beta)
+    Scalar alpha)
 {
     if(x == nullptr)
     {
@@ -82,7 +82,7 @@ NNGraph::TensorNode* sum_fiber(
     }
     NNGraph* graph = x->graph();
     auto op = std::make_shared<NNSumFiberOp>(
-        x, axis, batch_ndim, redux, alpha, beta);
+        x, axis, batch_ndim, redux, alpha);
     NNGraph::TensorNode* y = op->forward(output_name);
     graph->register_op(std::move(op));
     return y;

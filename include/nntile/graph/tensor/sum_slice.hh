@@ -14,6 +14,9 @@
 
 #pragma once
 
+// Standard library headers
+#include <string>
+
 // NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
@@ -54,7 +57,16 @@ struct TensorSumSliceOp : TensorGraph::OpNode
     }
 };
 
-//! Sum over fibers into slice: dst = alpha * sum_slice(src) + beta * dst
+//! Sum over fibers into slice: dst = alpha * sum_slice(src) + beta * dst (creates output)
+TensorGraph::TensorNode* sum_slice(
+    TensorGraph::TensorNode* src,
+    const std::string& output_name,
+    Index axis,
+    int redux,
+    Scalar alpha,
+    Scalar beta);
+
+//! Sum over fibers into slice: dst = alpha * sum_slice(src) + beta * dst (uses existing output)
 void sum_slice(
     TensorGraph::TensorNode* src,
     TensorGraph::TensorNode* dst,

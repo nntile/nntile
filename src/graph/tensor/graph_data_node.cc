@@ -94,4 +94,26 @@ std::string TensorGraph::TensorNode::to_string() const
     return result;
 }
 
+void TensorGraph::TensorNode::set_bind_hint(std::vector<std::uint8_t> data)
+{
+    const size_t expected = size_bytes();
+    if(data.size() != expected)
+    {
+        throw std::invalid_argument(
+            "TensorGraph::TensorNode::set_bind_hint: size mismatch, expected " +
+            std::to_string(expected) + " bytes, got " +
+            std::to_string(data.size()));
+    }
+    bind_hint_.emplace(std::move(data));
+}
+
+const std::vector<std::uint8_t>* TensorGraph::TensorNode::get_bind_hint() const
+{
+    if(bind_hint_.has_value())
+    {
+        return &(*bind_hint_);
+    }
+    return nullptr;
+}
+
 } // namespace nntile::graph
