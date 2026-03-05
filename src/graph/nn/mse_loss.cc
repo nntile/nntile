@@ -72,11 +72,7 @@ void NNMseLossOp::backward() const
         return;
     }
     NNGraph* graph = out->graph();
-    NNGraph::TensorNode* grad_out = out->grad();
-    if(grad_out == nullptr)
-    {
-        return;
-    }
+    // grad_loss implicitly 1.0 for loss outputs; grad_out is ignored
     if(x != nullptr && x->requires_grad())
     {
         auto [grad_x, is_first] =
