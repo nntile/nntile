@@ -29,21 +29,31 @@ using namespace nntile::graph;
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph cross_entropy structure", "[graph][nn_graph]")
 {
-    const auto [x_shape, labels_shape, axis] = GENERATE(
-        std::tuple{std::vector<Index>{5, 7}, std::vector<Index>{7}, Index(0)},
-        std::tuple{std::vector<Index>{7, 5}, std::vector<Index>{7}, Index(1)},
-        std::tuple{std::vector<Index>{4, 3, 2}, std::vector<Index>{3, 2}, Index(0)});
+    const auto [x_shape, labels_shape] = GENERATE(
+        std::tuple{std::vector<Index>{5, 7}, std::vector<Index>{7}},
+        std::tuple{std::vector<Index>{4, 3, 2}, std::vector<Index>{3, 2}});
 
     NNGraph g("cross_entropy_structure");
     auto* x = g.tensor(x_shape, "x", DataType::FP32);
     auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
-    auto* loss = cross_entropy(x, labels, "loss", axis);
+    auto* loss = cross_entropy(x, labels, "loss", 0);
 
     REQUIRE(loss != nullptr);
     REQUIRE(loss->has_producer());
     REQUIRE(loss->shape() == std::vector<Index>{});
     REQUIRE(g.num_ops() == 1);
     REQUIRE(g.tensor_graph().num_ops() > 1);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph cross_entropy rejects axis != 0", "[graph][nn_graph]")
+{
+    NNGraph g("cross_entropy_axis_reject");
+    auto* x = g.tensor({7, 5}, "x", DataType::FP32);
+    auto* labels = g.tensor({7}, "labels", DataType::INT64, false);
+
+    REQUIRE_THROWS_AS(cross_entropy(x, labels, "loss", 1),
+                     std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -68,24 +78,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph cross_entropy forward and backward", "[graph][nn_graph]")
 {
-    const auto [x_shape, axis] = GENERATE(
-        std::tuple{std::vector<Index>{5, 7}, Index(0)},
-        std::tuple{std::vector<Index>{7, 5}, Index(1)});
-
-    std::vector<Index> labels_shape;
-    labels_shape.reserve(x_shape.size() - 1);
-    for(Index i = 0; i < static_cast<Index>(x_shape.size()); ++i)
-    {
-        if(i != axis)
-        {
-            labels_shape.push_back(x_shape[i]);
-        }
-    }
+    std::vector<Index> x_shape{5, 7};
+    std::vector<Index> labels_shape{7};
 
     NNGraph g("cross_entropy");
     auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
     auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
-    auto* loss = cross_entropy(x, labels, "loss", axis);
+    auto* loss = cross_entropy(x, labels, "loss", 0);
 
     REQUIRE(loss != nullptr);
     REQUIRE(loss->has_producer());
@@ -103,18 +102,20 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
+using nntile::test::permute_rowmajor;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph cross_entropy forward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
-    // PyTorch expects input [N, C] = [batch, nclasses], target [N]
+    // NNTile requires axis=0: x [nclasses, batch], labels [batch]
+    // PyTorch expects [N, C] = [batch, nclasses], target [N]
     const Index batch_size = 7;
     const Index nclasses = 5;
-    std::vector<Index> x_shape{batch_size, nclasses};
+    std::vector<Index> x_shape{nclasses, batch_size};
     std::vector<Index> labels_shape{batch_size};
 
-    Index x_nelems = batch_size * nclasses;
+    Index x_nelems = nclasses * batch_size;
     std::vector<float> x_data(x_nelems);
     for(Index i = 0; i < x_nelems; ++i)
     {
@@ -127,12 +128,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         labels_data[i] = i % nclasses;
     }
 
-    std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, x_shape);
+    std::vector<float> x_rowmajor_57 = colmajor_to_rowmajor(x_data, x_shape);
+    std::vector<float> x_rowmajor_75 =
+        permute_rowmajor(x_rowmajor_57, x_shape, {1, 0});
 
     NNGraph g("cross_entropy_pytorch");
     auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
     auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
-    auto* loss = cross_entropy(x, labels, "loss", 1);
+    auto* loss = cross_entropy(x, labels, "loss", 0);
 
     x->mark_input(true);
     labels->mark_input(true);
@@ -148,8 +151,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> nntile_loss = runtime.get_output<float>("loss");
     REQUIRE(nntile_loss.size() == 1);
 
-    std::vector<::int64_t> shape_pt(x_shape.begin(), x_shape.end());
-    auto x_pt = torch::from_blob(x_rowmajor.data(), shape_pt,
+    std::vector<::int64_t> shape_pt{batch_size, nclasses};
+    auto x_pt = torch::from_blob(x_rowmajor_75.data(), shape_pt,
                                  torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(false);
@@ -168,10 +171,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     const Index batch_size = 7;
     const Index nclasses = 5;
-    std::vector<Index> x_shape{batch_size, nclasses};
+    std::vector<Index> x_shape{nclasses, batch_size};
     std::vector<Index> labels_shape{batch_size};
 
-    Index x_nelems = batch_size * nclasses;
+    Index x_nelems = nclasses * batch_size;
     std::vector<float> x_data(x_nelems);
     for(Index i = 0; i < x_nelems; ++i)
     {
@@ -184,12 +187,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         labels_data[i] = i % nclasses;
     }
 
-    std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, x_shape);
+    std::vector<float> x_rowmajor_57 = colmajor_to_rowmajor(x_data, x_shape);
+    std::vector<float> x_rowmajor_75 =
+        permute_rowmajor(x_rowmajor_57, x_shape, {1, 0});
 
     NNGraph g("cross_entropy_bwd_pytorch");
     auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
     auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
-    auto* loss = cross_entropy(x, labels, "loss", 1);
+    auto* loss = cross_entropy(x, labels, "loss", 0);
 
     x->mark_input(true);
     labels->mark_input(true);
@@ -209,11 +214,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_x_colmajor =
         runtime.get_output<float>(x->grad()->name());
-    std::vector<float> nntile_grad_x =
+    std::vector<float> nntile_grad_x_57 =
         colmajor_to_rowmajor(nntile_grad_x_colmajor, x_shape);
+    std::vector<float> nntile_grad_x =
+        permute_rowmajor(nntile_grad_x_57, x_shape, {1, 0});
 
-    std::vector<::int64_t> shape_pt(x_shape.begin(), x_shape.end());
-    auto x_pt = torch::from_blob(x_rowmajor.data(), shape_pt,
+    std::vector<::int64_t> shape_pt{batch_size, nclasses};
+    auto x_pt = torch::from_blob(x_rowmajor_75.data(), shape_pt,
                                  torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);

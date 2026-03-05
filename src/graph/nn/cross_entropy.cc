@@ -26,7 +26,6 @@
 #include "nntile/graph/tensor/softmax.hh"
 #include "nntile/graph/tensor/subtract_indexed_outputs.hh"
 #include "nntile/graph/tensor/total_sum_accum.hh"
-#include "nntile/graph/tensor/transpose.hh"
 
 namespace nntile::graph
 {
@@ -58,6 +57,12 @@ NNGraph::TensorNode* NNCrossEntropyOp::forward(const std::string& output_name)
     {
         throw std::invalid_argument(
             "NNCrossEntropyOp::forward: axis out of range");
+    }
+    if(axis != 0)
+    {
+        throw std::invalid_argument(
+            "NNCrossEntropyOp::forward: axis must be 0 (total_sum_accum and "
+            "subtract_indexed_outputs require class dimension at axis 0)");
     }
 
     NNGraph* graph = x->graph();
@@ -107,54 +112,21 @@ NNGraph::TensorNode* NNCrossEntropyOp::forward(const std::string& output_name)
         tg.data({}, output_name, x->dtype());
 
     // Forward: clear maxsumexp, maxsumexp, logsumexp, total_sum_accum
-    // total_sum_accum and subtract_indexed_outputs require class dimension at
-    // axis 0. When axis != 0, transpose x so class dimension is first.
     graph::tensor::clear(maxsumexp_data_);
     graph::tensor::maxsumexp(x->data(), maxsumexp_data_, axis, redux);
     graph::tensor::logsumexp(maxsumexp_data_, logsumexp_data);
-
-    // val accumulates the loss; must be zero-initialized
     graph::tensor::clear(val_data);
-
-    TensorGraph::TensorNode* x_for_accum = x->data();
-    if(axis != 0)
-    {
-        std::vector<Index> x_t_shape(x->ndim());
-        for(Index i = 0; i < x->ndim(); ++i)
-        {
-            x_t_shape[i] = x_shape[(i + axis) % x->ndim()];
-        }
-        TensorGraph::TensorNode* x_t_data =
-            tg.data(x_t_shape, output_name + "_x_t", x->dtype());
-        graph::tensor::transpose(1.0, x->data(), x_t_data, axis);
-        x_for_accum = x_t_data;
-    }
     graph::tensor::total_sum_accum(
-        scale, logsumexp_data, x_for_accum, labels->data(),
+        scale, logsumexp_data, x->data(), labels->data(),
         val_data, ignore_index);
 
     NNGraph::TensorNode* loss = graph->tensor(val_data, out_requires_grad);
     outputs_ = {loss};
 
-    // Buffers for backward: maxsumexp (reused), grad_temp, and when axis!=0
-    // also grad_temp_t (transposed view for subtract_indexed_outputs)
+    // Buffers for backward: maxsumexp (reused), grad_temp
     NNGraph::TensorNode* grad_temp = graph->tensor(
         x_shape, output_name + "_gt", x->dtype(), false);
-    if(axis == 0)
-    {
-        buffers_ = {grad_temp};
-    }
-    else
-    {
-        std::vector<Index> grad_temp_t_shape(x->ndim());
-        for(Index i = 0; i < x->ndim(); ++i)
-        {
-            grad_temp_t_shape[i] = x_shape[(i + axis) % x->ndim()];
-        }
-        NNGraph::TensorNode* grad_temp_t = graph->tensor(
-            grad_temp_t_shape, output_name + "_gt_t", x->dtype(), false);
-        buffers_ = {grad_temp, grad_temp_t};
-    }
+    buffers_ = {grad_temp};
 
     return loss;
 }
@@ -200,23 +172,8 @@ void NNCrossEntropyOp::backward() const
     graph::tensor::softmax(
         maxsumexp_data_, x->data(), grad_temp->data(),
         scale, axis);
-
-    // subtract_indexed_outputs requires class dimension at axis 0
-    if(axis == 0)
-    {
-        graph::tensor::subtract_indexed_outputs(
-            scale, labels->data(), grad_temp->data(), ignore_index);
-    }
-    else
-    {
-        NNGraph::TensorNode* grad_temp_t = buffers_[1];
-        graph::tensor::transpose(1.0, grad_temp->data(), grad_temp_t->data(),
-                                axis);
-        graph::tensor::subtract_indexed_outputs(
-            scale, labels->data(), grad_temp_t->data(), ignore_index);
-        graph::tensor::transpose(1.0, grad_temp_t->data(), grad_temp->data(),
-                                axis);
-    }
+    graph::tensor::subtract_indexed_outputs(
+        scale, labels->data(), grad_temp->data(), ignore_index);
 
     // grad_x += grad_out * grad_temp
     // For scalar loss, grad_out is typically 1.0. We add grad_temp to grad_x.
@@ -241,6 +198,11 @@ NNGraph::TensorNode* cross_entropy(
     if(labels == nullptr)
     {
         throw std::invalid_argument("cross_entropy: labels must be non-null");
+    }
+    if(axis != 0)
+    {
+        throw std::invalid_argument(
+            "cross_entropy: axis must be 0 (class dimension must be at axis 0)");
     }
     NNGraph* graph = x->graph();
     auto op = std::make_shared<NNCrossEntropyOp>(
