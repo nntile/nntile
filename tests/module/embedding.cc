@@ -180,10 +180,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(out.size() == 4 * 5 * embed_dim);
     // output[0,0,:] = vocab[:, index[0,0]]. index[0,0]=0, so first column of vocab
     // In col-major vocab, column 0 is vocab[0:embed_dim]
-    float expected = 0;
+    // Output layout [batch, seq_len, embed_dim]: stride for embed_dim is 4*5=20
+    const Index stride = 4 * 5;
     for(Index i = 0; i < embed_dim; ++i)
-        expected += vocab_data[i];
-    REQUIRE(std::abs(out[0] - vocab_data[0]) < 1e-5f);
+        REQUIRE(std::abs(out[i * stride] - vocab_data[i]) < 1e-5f);
 }
 
 using nntile::test::colmajor_to_rowmajor;
