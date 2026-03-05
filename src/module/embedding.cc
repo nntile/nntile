@@ -34,9 +34,9 @@ Embedding::Embedding(graph::NNGraph& graph,
     , redux_(0)
     , dtype_(dtype)
 {
-    // Create vocab tensor: [num_embeddings, embed_dim]
+    // Create vocab tensor: [embed_dim, num_embeddings] (NNTile layout, transpose of PyTorch)
     vocab_tensor_ = graph_.tensor(
-        {num_embeddings_, embed_dim_},
+        {embed_dim_, num_embeddings_},
         tensor_name("vocab"),
         dtype_,
         true);
@@ -59,7 +59,7 @@ Embedding::Embedding(graph::NNGraph& graph,
     , dtype_(dtype)
 {
     vocab_tensor_ = graph_.tensor(
-        {num_embeddings_, embed_dim_},
+        {embed_dim_, num_embeddings_},
         tensor_name("vocab"),
         dtype_,
         true);
@@ -86,8 +86,8 @@ Embedding::Embedding(graph::NNGraph& graph,
     }
 
     const auto& v_shape = vocab_tensor.shape();
-    num_embeddings_ = v_shape[0];
-    embed_dim_ = v_shape[1];
+    embed_dim_ = v_shape[0];
+    num_embeddings_ = v_shape[1];
 
     register_parameter("vocab", vocab_tensor_);
 }
@@ -114,8 +114,8 @@ Embedding::Embedding(graph::NNGraph& graph,
     }
 
     const auto& v_shape = vocab_tensor.shape();
-    num_embeddings_ = v_shape[0];
-    embed_dim_ = v_shape[1];
+    embed_dim_ = v_shape[0];
+    num_embeddings_ = v_shape[1];
 
     register_parameter("vocab", vocab_tensor_);
 }

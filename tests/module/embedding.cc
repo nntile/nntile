@@ -33,7 +33,7 @@ TEST_CASE("Embedding ConstructorCreatesParameters", "[module]")
 
     Embedding emb(g, "emb", 10, 100);
     REQUIRE(emb.vocab_tensor() != nullptr);
-    REQUIRE(emb.vocab_tensor()->shape() == std::vector<Index>({10, 100}));
+    REQUIRE(emb.vocab_tensor()->shape() == std::vector<Index>({100, 10}));
     REQUIRE(emb.vocab_tensor()->name() == "emb_vocab");
     REQUIRE(emb.parameters().size() == 1);
     REQUIRE(emb.num_embeddings() == 10);
@@ -44,7 +44,8 @@ TEST_CASE("Embedding ConstructorWithExistingTensor", "[module]")
 {
     NNGraph g("embedding");
 
-    auto* vocab = g.tensor({8, 50}, "shared_vocab", DataType::FP32);
+    // NNTile layout: vocab [embed_dim, num_embeddings]
+    auto* vocab = g.tensor({50, 8}, "shared_vocab", DataType::FP32);
 
     Embedding emb(g, "emb", *vocab);
     REQUIRE(emb.vocab_tensor() == vocab);
@@ -128,5 +129,5 @@ TEST_CASE("Embedding BackwardCreatesGradients", "[module]")
 
     REQUIRE(emb.vocab_tensor()->grad() != nullptr);
     REQUIRE(emb.vocab_tensor()->grad()->shape() ==
-        std::vector<Index>({10, 100}));
+        std::vector<Index>({100, 10}));
 }
