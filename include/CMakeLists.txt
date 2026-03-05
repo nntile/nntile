@@ -534,7 +534,8 @@ set(GRAPH_HDR
 set(MODULE_HDR
     "nntile/module.hh"
     "nntile/module/module.hh"
-    "nntile/module/gelu.hh"
+    "nntile/module/activation.hh"
+    "nntile/module/gated_mlp.hh"
     "nntile/module/linear.hh"
     "nntile/module/embedding.hh"
     "nntile/module/mlp.hh"

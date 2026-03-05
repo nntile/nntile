@@ -14,10 +14,12 @@
 
 #include "nntile/graph/tensor/graph_runtime.hh"
 
+#include <cstring>
 #include <stdexcept>
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
+#include "nntile/graph/tensor/graph_data_node.hh"
 #include "nntile/graph/tensor/graph_op_node.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -44,6 +46,27 @@ void allocate_and_register(
     tensor_map[node] = t;
 }
 
+template<typename T>
+void apply_bind_hint_impl(
+    nntile::tensor::Tensor<T>& tensor,
+    const std::vector<std::uint8_t>& data)
+{
+    if(tensor.grid.nelems != 1)
+    {
+        throw std::runtime_error(
+            "apply_bind_hint: only single-tile tensors are supported");
+    }
+    if(data.size() != static_cast<size_t>(tensor.nelems) * sizeof(T))
+    {
+        throw std::runtime_error(
+            "apply_bind_hint: data size mismatch");
+    }
+    auto tile = tensor.get_tile(0);
+    auto tile_local = tile.acquire(STARPU_W);
+    std::memcpy(tile_local.get_ptr(), data.data(), data.size());
+    tile_local.release();
+}
+
 } // namespace
 
 TensorGraph::Runtime::Runtime(const TensorGraph& graph)
@@ -59,6 +82,54 @@ void TensorGraph::Runtime::compile()
     }
 
     allocate_impl();
+
+    // Apply bind hints from TensorNodes (data already in NNTile layout)
+    for(const auto& node : graph_.tensor_nodes())
+    {
+        const std::vector<std::uint8_t>* hint = node->get_bind_hint();
+        if(hint == nullptr)
+        {
+            continue;
+        }
+        const std::string& name = node->name();
+        DataType dtype = node->dtype();
+        switch(dtype)
+        {
+            case DataType::FP32:
+                apply_bind_hint_impl<nntile::fp32_t>(get_data<nntile::fp32_t>(name), *hint);
+                break;
+            case DataType::FP32_FAST_TF32:
+                apply_bind_hint_impl<nntile::fp32_fast_tf32_t>(
+                    get_data<nntile::fp32_fast_tf32_t>(name), *hint);
+                break;
+            case DataType::FP32_FAST_FP16:
+                apply_bind_hint_impl<nntile::fp32_fast_fp16_t>(
+                    get_data<nntile::fp32_fast_fp16_t>(name), *hint);
+                break;
+            case DataType::FP32_FAST_BF16:
+                apply_bind_hint_impl<nntile::fp32_fast_bf16_t>(
+                    get_data<nntile::fp32_fast_bf16_t>(name), *hint);
+                break;
+            case DataType::FP64:
+                apply_bind_hint_impl<nntile::fp64_t>(get_data<nntile::fp64_t>(name), *hint);
+                break;
+            case DataType::FP16:
+                apply_bind_hint_impl<nntile::fp16_t>(get_data<nntile::fp16_t>(name), *hint);
+                break;
+            case DataType::BF16:
+                apply_bind_hint_impl<nntile::bf16_t>(get_data<nntile::bf16_t>(name), *hint);
+                break;
+            case DataType::INT64:
+                apply_bind_hint_impl<nntile::int64_t>(get_data<nntile::int64_t>(name), *hint);
+                break;
+            case DataType::BOOL:
+                apply_bind_hint_impl<nntile::bool_t>(get_data<nntile::bool_t>(name), *hint);
+                break;
+            default:
+                throw std::runtime_error(
+                    "apply_bind_hint: unsupported data type for " + name);
+        }
+    }
 
     execution_order_.clear();
     execution_order_.reserve(graph_.ops().size());

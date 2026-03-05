@@ -74,7 +74,7 @@ TEST_CASE("Sdpa Vanilla BuildForward", "[module]")
     auto* v = g.tensor({64, 8, 2, 4}, "v", DataType::FP32);
 
     Sdpa sdpa(g, "sdpa", 64, 2, DataType::FP32);
-    auto& output = sdpa.build_forward(*q, *k, *v, nullptr);
+    auto& output = sdpa.forward(*q, *k, *v, nullptr);
 
     REQUIRE(output.shape() == std::vector<Index>({64, 8, 2, 4}));
     REQUIRE(output.name() == "sdpa_output");
@@ -112,7 +112,7 @@ TEST_CASE("Sdpa Vanilla BuildForwardWithMask", "[module]")
     auto* mask = g.tensor({8, 8}, "mask", DataType::BOOL);
 
     Sdpa sdpa(g, "sdpa", 64, 2, DataType::FP32);
-    auto& output = sdpa.build_forward(*q, *k, *v, mask);
+    auto& output = sdpa.forward(*q, *k, *v, mask);
 
     REQUIRE(output.shape() == std::vector<Index>({64, 8, 2, 4}));
 
@@ -137,7 +137,7 @@ TEST_CASE("Sdpa Vanilla BuildForwardValidatesShape", "[module]")
 
     Sdpa sdpa(g, "sdpa", 64, 2, DataType::FP32);
     REQUIRE_THROWS_AS(
-        sdpa.build_forward(*q, *k, *v, nullptr),
+        sdpa.forward(*q, *k, *v, nullptr),
         std::invalid_argument);
 }
 
@@ -150,7 +150,7 @@ TEST_CASE("Sdpa Flash BuildForward", "[module]")
     auto* v = g.tensor({64, 8, 2, 4}, "v", DataType::FP16);
 
     Sdpa sdpa(g, "sdpa", 64, 2, true, DataType::FP16);
-    auto& output = sdpa.build_forward(*q, *k, *v, nullptr);
+    auto& output = sdpa.forward(*q, *k, *v, nullptr);
 
     REQUIRE(output.shape() == std::vector<Index>({64, 8, 2, 4}));
 
@@ -175,6 +175,6 @@ TEST_CASE("Sdpa Flash BuildForwardValidatesDtype", "[module]")
 
     Sdpa sdpa(g, "sdpa", 64, 2, true, DataType::FP16);
     REQUIRE_THROWS_AS(
-        sdpa.build_forward(*q, *k, *v, nullptr),
+        sdpa.forward(*q, *k, *v, nullptr),
         std::invalid_argument);
 }

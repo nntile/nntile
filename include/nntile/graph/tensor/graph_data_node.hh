@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <functional>
 #include <numeric>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -66,6 +67,12 @@ public:
     void mark_input(bool v = true) { is_input_ = v; }
     void mark_output(bool v = true) { is_output_ = v; }
 
+    // Bind hint: data to copy into runtime tensor when Runtime::compile() runs.
+    // Data must already be in NNTile (Fortran) layout. Pass-by-value enables
+    // move when caller uses std::move().
+    void set_bind_hint(std::vector<std::uint8_t> data);
+    const std::vector<std::uint8_t>* get_bind_hint() const;
+
     // String representation
     std::string to_string() const;
 
@@ -77,6 +84,7 @@ private:
     std::string name_;
     bool is_input_ = false;
     bool is_output_ = false;
+    std::optional<std::vector<std::uint8_t>> bind_hint_;
 
     friend class TensorGraph;
 };
