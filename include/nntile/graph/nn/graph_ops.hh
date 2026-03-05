@@ -27,6 +27,7 @@
 #include <nntile/graph/nn/gemm.hh>
 #include <nntile/graph/nn/gelu.hh>
 #include <nntile/graph/nn/gelutanh.hh>
+#include <nntile/graph/nn/mse_loss.hh>
 #include <nntile/graph/nn/multiply.hh>
 #include <nntile/graph/nn/multiply_fiber.hh>
 #include <nntile/graph/nn/multiply_slice.hh>
