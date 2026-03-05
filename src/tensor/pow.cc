@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/pow.hh"
-#include "nntile/starpu/pow.hh"
+#include "nntile/tile/pow.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -25,18 +25,11 @@ namespace nntile::tensor
 template<typename T>
 void pow_async(Scalar alpha, Scalar exp, const Tensor<T> &A)
 {
-    int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < A.grid.nelems; ++i)
     {
         auto tile_handle = A.get_tile_handle(i);
-        int tile_rank = tile_handle.mpi_get_rank();
-        // Execute only on node-owner
-        if(mpi_rank == tile_rank)
-        {
-            auto tile_traits = A.get_tile_traits(i);
-            starpu::pow.submit<std::tuple<T>>(tile_traits.nelems, alpha, exp,
-                    tile_handle);
-        }
+        auto tile = A.get_tile(i);
+        tile::pow_async<T>(alpha, exp, tile);
         // Flush cache for the output tile on every node
         tile_handle.mpi_flush();
     }

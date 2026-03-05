@@ -180,7 +180,7 @@ void AddSlice<std::tuple<T>>::submit(
     // If alpha is zero then reduce to scale
     if(alpha == 0.0)
     {
-        scale.submit<std::tuple<T>>(m*n, beta, src2, dst);
+        scale.submit<std::tuple<T>>(m * k * n, beta, src2, dst);
         return;
     }
     // If beta is zero then reduce to scale_slice

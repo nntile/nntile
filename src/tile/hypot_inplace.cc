@@ -14,6 +14,7 @@
 
 #include "nntile/tile/hypot_inplace.hh"
 #include "nntile/starpu/hypot_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -40,8 +41,15 @@ void hypot_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Ti
     {
         return;
     }
-    // Insert corresponding task
-    starpu::hypot_inplace.submit<std::tuple<T>>(src.nelems, alpha, src, beta, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert corresponding task
+        starpu::hypot_inplace.submit<std::tuple<T>>(src.nelems, alpha, src,
+                beta, dst);
+    }
 }
 
 //! Tile-wise hypot_inplace operation
@@ -62,6 +70,14 @@ void hypot_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
+void hypot_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
+        const Tile<fp32_fast_fp16_t> &dst);
+
+template
+void hypot_inplace_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tile<fp32_fast_bf16_t> &dst);
+
+template
 void hypot_inplace_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst);
 
@@ -77,6 +93,14 @@ void hypot_inplace<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
 template
 void hypot_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst);
+
+template
+void hypot_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
+        const Tile<fp32_fast_fp16_t> &dst);
+
+template
+void hypot_inplace<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tile<fp32_fast_bf16_t> &dst);
 
 template
 void hypot_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,

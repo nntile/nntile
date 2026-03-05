@@ -14,6 +14,7 @@
 
 #include "nntile/tile/gelu_backward.hh"
 #include "nntile/starpu/gelu_backward.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -34,8 +35,15 @@ void gelu_backward_async(const Tile<T> &x, const Tile<T> &dy,
     {
         throw std::runtime_error("x.shape != dx.shape");
     }
-    // Submit task without any arguments checked
-    starpu::gelu_backward.submit<std::tuple<T>>(x.nelems, x, dy, dx);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dx_rank = dx.mpi_get_rank();
+    x.mpi_transfer(dx_rank, mpi_rank);
+    dy.mpi_transfer(dx_rank, mpi_rank);
+    if(mpi_rank == dx_rank)
+    {
+        // Submit task without any arguments checked
+        starpu::gelu_backward.submit<std::tuple<T>>(x.nelems, x, dy, dx);
+    }
 }
 
 //! Blocking version of tile-wise backward GeLU operation

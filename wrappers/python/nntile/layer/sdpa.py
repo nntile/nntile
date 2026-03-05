@@ -521,6 +521,7 @@ class Sdpa(BaseLayer):
                 min(q_bt, q_seq),
             ),
         )
+        mask_tmp.from_array(np.ones((k_seq, q_seq), dtype=bool, order="F"))
         copy_intersection_async(
             mask_bool,
             [0, 0],

@@ -14,6 +14,7 @@
 
 #include "nntile/tile/randn.hh"
 #include "nntile/starpu/randn.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -62,20 +63,25 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &start,
     }
     // Temporary index
     starpu::VariableHandle tmp_index(sizeof(nntile::int64_t)*2*ndim);
-    // Insert task
-    starpu::randn.submit<std::tuple<T>>(
-        ndim,
-        dst.nelems,
-        seed,
-        mean,
-        stddev,
-        start,
-        dst.shape,
-        dst.stride,
-        underlying_shape,
-        dst,
-        tmp_index
-    );
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    if(mpi_rank == dst_rank)
+    {
+        // Insert task
+        starpu::randn.submit<std::tuple<T>>(
+            ndim,
+            dst.nelems,
+            seed,
+            mean,
+            stddev,
+            start,
+            dst.shape,
+            dst.stride,
+            underlying_shape,
+            dst,
+            tmp_index
+        );
+    }
     // Unregister temporary index in an async way
     tmp_index.unregister_submit();
 }
@@ -117,6 +123,18 @@ void randn_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &dst,
         Scalar mean, Scalar stddev);
 
 template
+void randn_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &dst,
+        const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        Scalar mean, Scalar stddev);
+
+template
+void randn_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &dst,
+        const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        Scalar mean, Scalar stddev);
+
+template
 void randn_async<fp64_t>(const Tile<fp64_t> &dst,
         const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
@@ -136,6 +154,16 @@ void randn<fp32_t>(const Tile<fp32_t> &dst, const std::vector<Index> &start,
 
 template
 void randn<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &dst, const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        Scalar mean, Scalar stddev);
+
+template
+void randn<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &dst, const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        Scalar mean, Scalar stddev);
+
+template
+void randn<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 

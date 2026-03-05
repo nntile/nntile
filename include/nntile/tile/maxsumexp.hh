@@ -20,9 +20,11 @@ namespace nntile::tile
 {
 
 template<typename T>
-void maxsumexp_async(const Tile<T> &src, const Tile<T> &dst, Index axis);
+void maxsumexp_async(const Tile<T> &src, const Tile<T> &dst, Index axis,
+        int redux=0);
 
 template<typename T>
-void maxsumexp(const Tile<T> &src, const Tile<T> &dst, Index axis);
+void maxsumexp(const Tile<T> &src, const Tile<T> &dst, Index axis,
+        int redux=0);
 
 } // namespace nntile::tile

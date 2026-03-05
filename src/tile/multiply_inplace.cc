@@ -14,6 +14,7 @@
 
 #include "nntile/tile/multiply_inplace.hh"
 #include "nntile/starpu/multiply_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -31,8 +32,15 @@ void multiply_inplace_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst
     {
         throw std::runtime_error("src.shape != dst.shape");
     }
-    // Submit task
-    starpu::multiply_inplace.submit<std::tuple<T>>(src.nelems, alpha, src, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Submit task
+        starpu::multiply_inplace.submit<std::tuple<T>>(src.nelems, alpha, src,
+                dst);
+    }
 }
 
 //! Blocking version of tile-wise multiply operation

@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/subtract_indexed_outputs.hh"
-#include "nntile/starpu/subtract_indexed_outputs.hh"
+#include "nntile/tile/subtract_indexed_outputs.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -44,23 +44,13 @@ void subtract_indexed_outputs_async(Scalar val, const Tensor<int64_t> &labels,
         throw std::runtime_error("dst.shape[0] != dst.basetile_shape[0]");
     }
     // Do actual calculations
-    int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
-        auto labels_tile_handle = labels.get_tile_handle(i);
-        auto labels_traits = labels.get_tile_traits(i);
         auto dst_tile_handle = dst.get_tile_handle(i);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-        // Transfer data
-        labels_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        // Execute on destination node
-        if(mpi_rank == dst_tile_rank)
-        {
-            // Insert task
-            starpu::subtract_indexed_outputs.submit<std::tuple<T>>(dst.shape[0],
-                    labels_traits.nelems, ignore_index, val, labels_tile_handle,
-                    dst_tile_handle);
-        }
+        auto labels_tile = labels.get_tile(i);
+        auto dst_tile = dst.get_tile(i);
+        tile::subtract_indexed_outputs_async<T>(val, labels_tile, dst_tile,
+                ignore_index);
         dst_tile_handle.mpi_flush();
     }
 }

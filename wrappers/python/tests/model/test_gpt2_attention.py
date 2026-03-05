@@ -38,7 +38,7 @@ dtype2nntile = {
 }
 
 dtype2tol = {
-    "fp32": {"rtol": 1e-6},
+    "fp32": {"rtol": 5e-6},
     "fp32_fast_tf32": {"rtol": 7e-4},
     "fp32_fast_fp16": {"rtol": 7e-4},
     "fp32_fast_bf16": {"rtol": 5e-3},

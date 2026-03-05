@@ -1304,6 +1304,8 @@ def clear_async(x: Tensor) -> None:
         ops.clear_async_fp32_fast_bf16(x)
     elif type(x) is ops.Tensor_fp64:
         ops.clear_async_fp64(x)
+    elif type(x) is ops.Tensor_bool:
+        ops.clear_async_bool(x)
     elif type(x) is ops.Tensor_bf16:
         ops.clear_async_bf16(x)
     elif type(x) is ops.Tensor_fp16:

@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/hypot_scalar_inverse.hh"
-#include "nntile/starpu/hypot_scalar_inverse.hh"
+#include "nntile/tile/hypot_scalar_inverse.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -23,19 +23,11 @@ template<typename T>
 void hypot_scalar_inverse_async(Scalar eps, Scalar alpha, const Tensor<T> &dst)
 {
     // Apply per-tile hypot asynchronously as needed
-    int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         auto dst_tile_handle = dst.get_tile_handle(i);
-        // MPI rank of the destination tile
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-        // Execute only on destination node
-        if(mpi_rank == dst_tile_rank)
-        {
-            auto traits = dst.get_tile_traits(i);
-            starpu::hypot_scalar_inverse.submit<std::tuple<T>>(traits.nelems, eps, alpha,
-                    dst_tile_handle);
-        }
+        auto dst_tile = dst.get_tile(i);
+        tile::hypot_scalar_inverse_async<T>(eps, alpha, dst_tile);
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
     }

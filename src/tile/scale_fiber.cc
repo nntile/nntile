@@ -14,6 +14,7 @@
 
 #include "nntile/tile/scale_fiber.hh"
 #include "nntile/starpu/scale_fiber.hh"
+#include "nntile/starpu/config.hh"
 #include "nntile/tile/clear.hh"
 
 namespace nntile::tile
@@ -71,8 +72,15 @@ void scale_fiber_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
     m = dst.stride[axis];
     n = dst.matrix_shape[axis+1][1] / batch;
     k = dst.shape[axis];
-    // Insert corresponding task
-    starpu::scale_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert corresponding task
+        starpu::scale_fiber.submit<std::tuple<T>>(m, n, k, batch, alpha, src,
+                dst);
+    }
 }
 
 template<typename T>

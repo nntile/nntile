@@ -14,6 +14,7 @@
 
 #include "nntile/tile/scale.hh"
 #include "nntile/starpu/scale.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -35,8 +36,14 @@ void scale_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
             throw std::runtime_error("dst.shape[i] != src.shape[i]");
         }
     }
-    // Insert corresponding task
-    starpu::scale.submit<std::tuple<T>>(src.nelems, alpha, src, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert corresponding task
+        starpu::scale.submit<std::tuple<T>>(src.nelems, alpha, src, dst);
+    }
 }
 
 //! Tile-wise scale operation
@@ -59,6 +66,10 @@ void scale_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &s
 template
 void scale_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst);
+
+template
+void scale_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
+        const Tile<fp32_fast_bf16_t> &dst);
 
 template
 void scale_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
@@ -84,6 +95,10 @@ void scale<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
 template
 void scale<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src,
         const Tile<fp32_fast_fp16_t> &dst);
+
+template
+void scale<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src,
+        const Tile<fp32_fast_bf16_t> &dst);
 
 template
 void scale<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,

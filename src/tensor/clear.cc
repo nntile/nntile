@@ -16,7 +16,7 @@
 #include "nntile/tensor/clear.hh"
 
 // Other NNTile headers
-#include "nntile/starpu/clear.hh"
+#include "nntile/tile/clear.hh"
 #include "nntile/starpu/config.hh"
 
 // Namespace
@@ -26,15 +26,11 @@ namespace nntile::tensor
 template<typename T>
 void clear_async(const Tensor<T> &dst)
 {
-    int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         auto dst_tile_handle = dst.get_tile_handle(i);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-        if(mpi_rank == dst_tile_rank)
-        {
-            starpu::clear.submit(dst_tile_handle);
-        }
+        auto dst_tile = dst.get_tile(i);
+        tile::clear_async<T>(dst_tile);
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
     }
