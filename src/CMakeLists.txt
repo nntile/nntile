@@ -516,7 +516,6 @@ set(MODULE_SRC
     "module/mlp.cc"
     "module/linear.cc"
     "module/embedding.cc"
-    # "module/mse_loss.cc"
     # "module/sdpa.cc"
 )
 

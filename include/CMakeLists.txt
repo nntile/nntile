@@ -539,7 +539,6 @@ set(MODULE_HDR
     "nntile/module/linear.hh"
     "nntile/module/embedding.hh"
     "nntile/module/mlp.hh"
-    # "nntile/module/mse_loss.hh"
     # "nntile/module/sdpa.hh"
 )
 
