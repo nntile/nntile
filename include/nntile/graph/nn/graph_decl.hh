@@ -128,22 +128,22 @@ public:
     void set_grad_enabled(bool enabled) { grad_enabled_ = enabled; }
 
     //! RAII guard to temporarily disable gradient recording.
-    //! Use: { auto g = graph.no_grad(); ... } or NNGraph::NoGradGuard guard(graph);
+    //! Use: { auto g = graph.no_grad(); ... } or NNGraph::NoGradGuard guard(&graph);
     class NoGradGuard
     {
     public:
-        explicit NoGradGuard(NNGraph& graph);
+        explicit NoGradGuard(NNGraph* graph);
         ~NoGradGuard();
         NoGradGuard(const NoGradGuard&) = delete;
         NoGradGuard& operator=(const NoGradGuard&) = delete;
 
     private:
-        NNGraph& graph_;
+        NNGraph* graph_;
         bool prev_;
     };
 
     //! Create a guard that disables grad recording until scope exit
-    NoGradGuard no_grad() { return NoGradGuard(*this); }
+    NoGradGuard no_grad() { return NoGradGuard(this); }
 
     // -----------------------------------------------------------------
     // String representation

@@ -168,16 +168,22 @@ void NNGraph::clear_producers_on_tensors()
     }
 }
 
-NNGraph::NoGradGuard::NoGradGuard(NNGraph& graph)
+NNGraph::NoGradGuard::NoGradGuard(NNGraph* graph)
     : graph_(graph)
-    , prev_(graph.grad_enabled_)
+    , prev_(graph != nullptr ? graph->grad_enabled_ : true)
 {
-    graph_.grad_enabled_ = false;
+    if(graph_ != nullptr)
+    {
+        graph_->grad_enabled_ = false;
+    }
 }
 
 NNGraph::NoGradGuard::~NoGradGuard()
 {
-    graph_.grad_enabled_ = prev_;
+    if(graph_ != nullptr)
+    {
+        graph_->grad_enabled_ = prev_;
+    }
 }
 
 std::string NNGraph::to_string() const

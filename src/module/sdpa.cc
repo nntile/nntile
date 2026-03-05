@@ -15,6 +15,13 @@
 // Include corresponding header
 #include "nntile/module/sdpa.hh"
 
+// Include NNTile headers
+#include "nntile/graph/nn/clear.hh"
+#include "nntile/graph/nn/fill.hh"
+#include "nntile/graph/nn/gemm.hh"
+#include "nntile/graph/nn/softmax.hh"
+#include "nntile/graph/tensor/flash_sdpa_fwd_cudnn.hh"
+
 // Include standard headers
 #include <cmath>
 #include <stdexcept>
@@ -31,13 +38,13 @@ namespace nntile::module
 
 //! Constructor: vanilla SDPA
 Sdpa::Sdpa(
-    graph::NNGraph& graph,
+    graph::NNGraph* graph,
     const std::string& name,
     Index head_size,
     Index batch_ndim,
     graph::DataType dtype,
     int redux)
-    : ModuleBase(graph, name)
+    : Module(graph, name)
     , flash_attention_(false)
     , head_size_(head_size)
     , batch_ndim_(batch_ndim)
@@ -55,14 +62,14 @@ Sdpa::Sdpa(
 
 //! Constructor: Flash SDPA (placeholder - throws if flash_attention=true)
 Sdpa::Sdpa(
-    graph::NNGraph& graph,
+    graph::NNGraph* graph,
     const std::string& name,
     Index head_size,
     Index batch_ndim,
     bool flash_attention,
     graph::DataType dtype,
     int redux)
-    : ModuleBase(graph, name)
+    : Module(graph, name)
     , flash_attention_(flash_attention)
     , head_size_(head_size)
     , batch_ndim_(batch_ndim)
@@ -91,10 +98,10 @@ Sdpa::Sdpa(
         "Sdpa: Flash attention (flash_attention=true) is not supported");
 }
 
-graph::NNGraph::TensorNode& Sdpa::build_forward(
-    graph::NNGraph::TensorNode& q,
-    graph::NNGraph::TensorNode& k,
-    graph::NNGraph::TensorNode& v,
+graph::NNGraph::TensorNode* Sdpa::forward(
+    graph::NNGraph::TensorNode* q,
+    graph::NNGraph::TensorNode* k,
+    graph::NNGraph::TensorNode* v,
     graph::NNGraph::TensorNode* mask)
 {
     if(flash_attention_)
@@ -103,36 +110,42 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
             "Sdpa::build_forward: Flash attention is not supported");
     }
 
-    const auto& q_shape = q.shape();
-    const auto& k_shape = k.shape();
-    const auto& v_shape = v.shape();
+    if(q == nullptr || k == nullptr || v == nullptr)
+    {
+        throw std::invalid_argument(
+            "Sdpa::forward: Q, K, V must be non-null");
+    }
+  
+    const auto& q_shape = q->shape();
+    const auto& k_shape = k->shape();
+    const auto& v_shape = v->shape();
 
     if(q_shape.size() != k_shape.size() || q_shape.size() != v_shape.size())
     {
         throw std::invalid_argument(
-            "Sdpa::build_forward: Q, K, V must have same ndim");
+            "Sdpa::forward: Q, K, V must have same ndim");
     }
     if(q_shape[0] != head_size_)
     {
         throw std::invalid_argument(
-            "Sdpa::build_forward: Q head_size mismatch");
+            "Sdpa::forward: Q head_size mismatch");
     }
     if(k_shape[0] != head_size_ || v_shape[0] != head_size_)
     {
         throw std::invalid_argument(
-            "Sdpa::build_forward: K and V head_size must match Q");
+            "Sdpa::forward: K and V head_size must match Q");
     }
 
     Index q_seq = q_shape[1];
     Index k_seq = k_shape[1];
 
-    q_tensor_ = &q;
-    k_tensor_ = &k;
-    v_tensor_ = &v;
+    q_tensor_ = q;
+    k_tensor_ = k;
+    v_tensor_ = v;
     mask_tensor_ = mask;
 
-    bool output_requires_grad = graph_.requires_grad(&q) ||
-        graph_.requires_grad(&k) || graph_.requires_grad(&v);
+    bool output_requires_grad = graph_->requires_grad(q) ||
+        graph_->requires_grad(k) || graph_->requires_grad(v);
 
     // Vanilla SDPA: attn = scale * K^T @ Q, mask, maxsumexp, softmax, y = V @ attn
     std::vector<Index> batch_shape(
@@ -227,7 +240,7 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
         1,
         batch_ndim_);
 
-    return *output_tensor_;
+    return output_tensor_;
 }
 
 std::string Sdpa::repr() const

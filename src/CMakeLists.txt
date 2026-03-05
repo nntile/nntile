@@ -510,9 +510,11 @@ set(GRAPH_SRC ${GRAPH_CORE_SRC} ${GRAPH_NN_SRC})
 # Module implementations
 set(MODULE_SRC
     "module/module.cc"
-    "module/gelu.cc"
+    "module/activation.cc"
+    "module/gated_mlp.cc"
     "module/mlp.cc"
     "module/linear.cc"
+    "module/embedding.cc"
     # "module/mse_loss.cc"
     "module/sdpa.cc"
 )

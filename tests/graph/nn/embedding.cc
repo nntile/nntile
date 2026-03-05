@@ -25,13 +25,13 @@
 using namespace nntile;
 using namespace nntile::graph;
 
-// embed shape: index.shape + vocab.dim(1), axis = index.ndim
+// NNTile layout: vocab [embed_dim, num_embeddings]; embed.shape[axis] == vocab.shape[0]
 static std::vector<Index> embed_output_shape(
     const std::vector<Index>& index_shape,
     const std::vector<Index>& vocab_shape)
 {
     std::vector<Index> embed_shape = index_shape;
-    embed_shape.push_back(vocab_shape[1]);
+    embed_shape.push_back(vocab_shape[0]);
     return embed_shape;
 }
 

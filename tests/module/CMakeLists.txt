@@ -13,12 +13,23 @@
 
 # All module tests using Catch2
 set(TESTS_CATCH2
-    "gelu"
-    "module"
+    "activation"
+    "embedding"
+    "gated_mlp"
     "linear"
     "mlp"
+    "module"
     # "mse_loss"
     "sdpa"
+)
+
+# Module tests with PyTorch comparison
+set(TESTS_MODULE_PYTORCH
+    "activation"
+    "embedding"
+    "gated_mlp"
+    "linear"
+    "mlp"
 )
 
 # Setup a target for coverage of module tests
@@ -40,16 +51,19 @@ foreach(test IN LISTS TESTS_CATCH2)
     )
     target_include_directories(tests_module_${test} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
         ${CMAKE_CURRENT_SOURCE_DIR}/../graph
         ${CMAKE_CURRENT_SOURCE_DIR}/../graph/nn)
-    if(NNTILE_HAVE_TORCH AND test STREQUAL "sdpa")
+    if(NNTILE_HAVE_TORCH AND test IN_LIST TESTS_MODULE_PYTORCH)
         target_compile_definitions(tests_module_${test} PRIVATE NNTILE_HAVE_TORCH)
         target_link_libraries(tests_module_${test} PRIVATE ${TORCH_LIBRARIES})
         target_include_directories(tests_module_${test} PRIVATE
             ${TORCH_INSTALL_PREFIX}/include)
         if(TORCH_CXX_FLAGS)
-            separate_arguments(TORCH_CXX_FLAGS_LIST NATIVE_COMMAND "${TORCH_CXX_FLAGS}")
-            target_compile_options(tests_module_${test} PRIVATE ${TORCH_CXX_FLAGS_LIST})
+            separate_arguments(TORCH_CXX_FLAGS_LIST NATIVE_COMMAND
+                "${TORCH_CXX_FLAGS}")
+            target_compile_options(tests_module_${test} PRIVATE
+                ${TORCH_CXX_FLAGS_LIST})
         endif()
     endif()
 endforeach()

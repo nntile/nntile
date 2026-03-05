@@ -32,33 +32,38 @@ using namespace nntile::module;
 namespace
 {
 
-class DummyModule final : public ModuleBase
+class DummyModule final : public Module
 {
 private:
     NNGraph::TensorNode* input_tensor_ = nullptr;
     NNGraph::TensorNode* output_tensor_ = nullptr;
 
 public:
-    DummyModule(NNGraph& graph, const std::string& name)
-        : ModuleBase(graph, name)
+    DummyModule(NNGraph* graph, const std::string& name)
+        : Module(graph, name)
     {
     }
 
-    NNGraph::TensorNode& build_forward(NNGraph::TensorNode& input)
+    NNGraph::TensorNode* forward(NNGraph::TensorNode* input)
     {
-        input_tensor_ = &input;
-        std::vector<Index> output_shape = input.shape();
-        output_tensor_ = graph_.tensor(
+        if(input == nullptr)
+        {
+            throw std::runtime_error(
+                "DummyModule::forward: input must be non-null");
+        }
+        input_tensor_ = input;
+        std::vector<Index> output_shape = input->shape();
+        output_tensor_ = graph()->tensor(
             output_shape,
             tensor_name("output"),
-            input.dtype(),
-            graph_.requires_grad(&input));
-        return *output_tensor_;
+            input->dtype(),
+            graph()->requires_grad(input));
+        return output_tensor_;
     }
 
-    NNGraph::TensorNode& operator()(NNGraph::TensorNode& input)
+    NNGraph::TensorNode* operator()(NNGraph::TensorNode* input)
     {
-        return build_forward(input);
+        return forward(input);
     }
 
     void check_backward_prereqs()
@@ -81,7 +86,7 @@ public:
 TEST_CASE("Module RegisterParameterAndBuffer", "[module]")
 {
     NNGraph g("module");
-    DummyModule module(g, "mod");
+    DummyModule module(&g, "mod");
 
     auto* param = g.tensor({2, 3}, "param", DataType::FP32, true);
     auto* buffer = g.tensor({4}, "buffer", DataType::FP32, true);
@@ -109,7 +114,7 @@ TEST_CASE("Module RegisterParameterAndBuffer", "[module]")
 TEST_CASE("Module RegisterNullPointers", "[module]")
 {
     NNGraph g("module");
-    DummyModule module(g, "mod");
+    DummyModule module(&g, "mod");
 
     REQUIRE_THROWS_AS(
         module.register_parameter("weight", nullptr),
@@ -125,8 +130,8 @@ TEST_CASE("Module RegisterNullPointers", "[module]")
 TEST_CASE("Module RecursiveParametersAndModules", "[module]")
 {
     NNGraph g("module");
-    DummyModule parent(g, "parent");
-    DummyModule child(g, "child");
+    DummyModule parent(&g, "parent");
+    DummyModule child(&g, "child");
 
     parent.register_module("child", &child);
 

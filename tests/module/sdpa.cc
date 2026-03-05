@@ -90,7 +90,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* v = g.tensor({64, 8, 2, 4}, "v", DataType::FP32);
 
     Sdpa sdpa(g, "sdpa", 64, 2, DataType::FP32);
-    auto& output = sdpa.build_forward(*q, *k, *v, nullptr);
+    auto& output = sdpa.forward(*q, *k, *v, nullptr);
 
     REQUIRE(output.shape() == std::vector<Index>({64, 8, 2, 4}));
     REQUIRE(output.name() == "sdpa_output");
@@ -129,7 +129,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* mask = g.tensor({8, 8}, "mask", DataType::BOOL);
 
     Sdpa sdpa(g, "sdpa", 64, 2, DataType::FP32);
-    auto& output = sdpa.build_forward(*q, *k, *v, mask);
+    auto& output = sdpa.forward(*q, *k, *v, mask);
 
     REQUIRE(output.shape() == std::vector<Index>({64, 8, 2, 4}));
 
@@ -155,7 +155,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     Sdpa sdpa(g, "sdpa", 64, 2, DataType::FP32);
     REQUIRE_THROWS_AS(
-        sdpa.build_forward(*q, *k, *v, nullptr),
+        sdpa.forward(*q, *k, *v, nullptr),
         std::invalid_argument);
 }
 
