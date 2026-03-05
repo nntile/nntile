@@ -38,4 +38,18 @@ foreach(test IN LISTS TESTS_CATCH2)
         COV_NAME coverage_module_${test}
         COV_GLOBAL coverage_module coverage
     )
+    target_include_directories(tests_module_${test} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../graph
+        ${CMAKE_CURRENT_SOURCE_DIR}/../graph/nn)
+    if(NNTILE_HAVE_TORCH AND test STREQUAL "sdpa")
+        target_compile_definitions(tests_module_${test} PRIVATE NNTILE_HAVE_TORCH)
+        target_link_libraries(tests_module_${test} PRIVATE ${TORCH_LIBRARIES})
+        target_include_directories(tests_module_${test} PRIVATE
+            ${TORCH_INSTALL_PREFIX}/include)
+        if(TORCH_CXX_FLAGS)
+            separate_arguments(TORCH_CXX_FLAGS_LIST NATIVE_COMMAND "${TORCH_CXX_FLAGS}")
+            target_compile_options(tests_module_${test} PRIVATE ${TORCH_CXX_FLAGS_LIST})
+        endif()
+    endif()
 endforeach()
