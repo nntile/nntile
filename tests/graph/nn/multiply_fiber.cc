@@ -85,6 +85,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 using nntile::test::broadcast_fiber;
 using nntile::test::compare_float_vectors;
+using nntile::test::colmajor_to_rowmajor;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -100,6 +101,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::vector<Index>{dim_2} : std::vector<Index>{dim_4};
     const Index fiber_nelems = static_cast<Index>(fiber_shape[0]);
     constexpr Index nelems = dim_2 * dim_4;
+    const std::vector<Index> dst_shape = {dim_2, dim_4};
 
     std::vector<float> src1_data(fiber_nelems);
     std::vector<float> src2_data(nelems);
@@ -107,10 +109,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         src1_data[i] = 0.1f * static_cast<float>(i + 1);
     for(Index i = 0; i < nelems; ++i)
         src2_data[i] = 0.2f * static_cast<float>(-i - 1);
+    std::vector<float> src2_rowmajor = colmajor_to_rowmajor(src2_data, dst_shape);
 
     NNGraph g("multiply_fiber_pytorch");
     auto* src1 = g.tensor(fiber_shape, "src1", DataType::FP32, true);
-    auto* src2 = g.tensor({dim_2, dim_4}, "src2", DataType::FP32, true);
+    auto* src2 = g.tensor(dst_shape, "src2", DataType::FP32, true);
     auto* out = multiply_fiber(alpha, src1, src2, "out", axis);
 
     src1->mark_input(true);
@@ -124,12 +127,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out = runtime.get_output<float>("out");
+    std::vector<float> nntile_out_colmajor = runtime.get_output<float>("out");
+    std::vector<float> nntile_out =
+        colmajor_to_rowmajor(nntile_out_colmajor, dst_shape);
 
     auto src1_pt = torch::from_blob(src1_data.data(),
         {static_cast<long>(fiber_nelems)},
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(false);
-    auto src2_pt = torch::from_blob(src2_data.data(), {dim_2, dim_4},
+    auto src2_pt = torch::from_blob(src2_rowmajor.data(), {dim_2, dim_4},
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(false);
 
     auto src1_bc = broadcast_fiber(src1_pt, {dim_2, dim_4}, axis);
@@ -155,6 +160,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::vector<Index>{dim_2} : std::vector<Index>{dim_4};
     const Index fiber_nelems = static_cast<Index>(fiber_shape[0]);
     constexpr Index nelems = dim_2 * dim_4;
+    const std::vector<Index> dst_shape = {dim_2, dim_4};
 
     std::vector<float> src1_data(fiber_nelems);
     std::vector<float> src2_data(nelems);
@@ -162,10 +168,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         src1_data[i] = 0.1f * static_cast<float>(i);
     for(Index i = 0; i < nelems; ++i)
         src2_data[i] = 0.15f * static_cast<float>(i + 10);
+    std::vector<float> src2_rowmajor = colmajor_to_rowmajor(src2_data, dst_shape);
 
     NNGraph g("multiply_fiber_bwd_pytorch");
     auto* src1 = g.tensor(fiber_shape, "src1", DataType::FP32, true);
-    auto* src2 = g.tensor({dim_2, dim_4}, "src2", DataType::FP32, true);
+    auto* src2 = g.tensor(dst_shape, "src2", DataType::FP32, true);
     auto* out = multiply_fiber(alpha, src1, src2, "out", axis);
 
     src1->mark_input(true);
@@ -187,13 +194,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_grad_src1 =
         runtime.get_output<float>(src1->grad()->name());
-    std::vector<float> nntile_grad_src2 =
+    std::vector<float> nntile_grad_src2_colmajor =
         runtime.get_output<float>(src2->grad()->name());
+    std::vector<float> nntile_grad_src2 =
+        colmajor_to_rowmajor(nntile_grad_src2_colmajor, dst_shape);
 
     auto src1_pt = torch::from_blob(src1_data.data(),
         {static_cast<long>(fiber_nelems)},
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(true);
-    auto src2_pt = torch::from_blob(src2_data.data(), {dim_2, dim_4},
+    auto src2_pt = torch::from_blob(src2_rowmajor.data(), {dim_2, dim_4},
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(true);
 
     auto src1_bc = broadcast_fiber(src1_pt, {dim_2, dim_4}, axis);
