@@ -108,7 +108,7 @@ graph::NNGraph::TensorNode* Sdpa::forward(
         throw std::invalid_argument(
             "Sdpa::forward: Q, K, V must be non-null");
     }
-  
+
     const auto& q_shape = q->shape();
     const auto& k_shape = k->shape();
     const auto& v_shape = v->shape();
