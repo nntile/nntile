@@ -53,30 +53,16 @@ NNGraph::TensorNode* NNCrossEntropyOp::forward(const std::string& output_name)
         throw std::invalid_argument(
             "NNCrossEntropyOp::forward: labels must have INT64 dtype");
     }
-    if(axis < 0 || axis >= x->ndim())
-    {
-        throw std::invalid_argument(
-            "NNCrossEntropyOp::forward: axis out of range");
-    }
-    if(axis != 0)
-    {
-        throw std::invalid_argument(
-            "NNCrossEntropyOp::forward: axis must be 0 (total_sum_accum and "
-            "subtract_indexed_outputs require class dimension at axis 0)");
-    }
 
     NNGraph* graph = x->graph();
     const auto& x_shape = x->shape();
 
-    // labels shape: x.shape without axis (shape[1:] for axis 0)
+    // Class dimension is axis 0. labels shape: x.shape without axis 0.
     std::vector<Index> labels_shape;
     labels_shape.reserve(x->ndim() - 1);
-    for(Index i = 0; i < x->ndim(); ++i)
+    for(Index i = 1; i < x->ndim(); ++i)
     {
-        if(i != axis)
-        {
-            labels_shape.push_back(x_shape[i]);
-        }
+        labels_shape.push_back(x_shape[i]);
     }
     if(labels->shape() != labels_shape)
     {
@@ -89,16 +75,13 @@ NNGraph::TensorNode* NNCrossEntropyOp::forward(const std::string& output_name)
 
     TensorGraph& tg = graph->tensor_graph();
 
-    // maxsumexp shape: [2] + shape without axis
+    // maxsumexp shape: [2] + shape without axis 0
     std::vector<Index> maxsumexp_shape;
     maxsumexp_shape.reserve(x->ndim());
     maxsumexp_shape.push_back(2);
-    for(Index i = 0; i < x->ndim(); ++i)
+    for(Index i = 1; i < x->ndim(); ++i)
     {
-        if(i != axis)
-        {
-            maxsumexp_shape.push_back(x_shape[i]);
-        }
+        maxsumexp_shape.push_back(x_shape[i]);
     }
     maxsumexp_data_ =
         tg.data(maxsumexp_shape, output_name + "_mse", x->dtype());
@@ -113,7 +96,7 @@ NNGraph::TensorNode* NNCrossEntropyOp::forward(const std::string& output_name)
 
     // Forward: clear maxsumexp, maxsumexp, logsumexp, total_sum_accum
     graph::tensor::clear(maxsumexp_data_);
-    graph::tensor::maxsumexp(x->data(), maxsumexp_data_, axis, redux);
+    graph::tensor::maxsumexp(x->data(), maxsumexp_data_, 0, redux);
     graph::tensor::logsumexp(maxsumexp_data_, logsumexp_data);
     graph::tensor::clear(val_data);
     graph::tensor::total_sum_accum(
@@ -166,12 +149,12 @@ void NNCrossEntropyOp::backward() const
 
     // Recompute maxsumexp for backward (needed for softmax)
     graph::tensor::clear(maxsumexp_data_);
-    graph::tensor::maxsumexp(x->data(), maxsumexp_data_, axis, redux);
+    graph::tensor::maxsumexp(x->data(), maxsumexp_data_, 0, redux);
 
     // grad_temp = scale * (softmax(x) - one_hot(labels))
     graph::tensor::softmax(
         maxsumexp_data_, x->data(), grad_temp->data(),
-        scale, axis);
+        scale, 0);
     graph::tensor::subtract_indexed_outputs(
         scale, labels->data(), grad_temp->data(), ignore_index);
 
@@ -186,7 +169,6 @@ NNGraph::TensorNode* cross_entropy(
     NNGraph::TensorNode* x,
     NNGraph::TensorNode* labels,
     const std::string& output_name,
-    Index axis,
     int redux,
     Scalar scale,
     Index ignore_index)
@@ -199,14 +181,9 @@ NNGraph::TensorNode* cross_entropy(
     {
         throw std::invalid_argument("cross_entropy: labels must be non-null");
     }
-    if(axis != 0)
-    {
-        throw std::invalid_argument(
-            "cross_entropy: axis must be 0 (class dimension must be at axis 0)");
-    }
     NNGraph* graph = x->graph();
     auto op = std::make_shared<NNCrossEntropyOp>(
-        x, labels, axis, redux, scale, ignore_index);
+        x, labels, redux, scale, ignore_index);
     NNGraph::TensorNode* loss = op->forward(output_name);
     graph->register_op(std::move(op));
     return loss;

@@ -36,24 +36,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     NNGraph g("cross_entropy_structure");
     auto* x = g.tensor(x_shape, "x", DataType::FP32);
     auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
-    auto* loss = cross_entropy(x, labels, "loss", 0);
+    auto* loss = cross_entropy(x, labels, "loss");
 
     REQUIRE(loss != nullptr);
     REQUIRE(loss->has_producer());
     REQUIRE(loss->shape() == std::vector<Index>{});
     REQUIRE(g.num_ops() == 1);
     REQUIRE(g.tensor_graph().num_ops() > 1);
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph cross_entropy rejects axis != 0", "[graph][nn_graph]")
-{
-    NNGraph g("cross_entropy_axis_reject");
-    auto* x = g.tensor({7, 5}, "x", DataType::FP32);
-    auto* labels = g.tensor({7}, "labels", DataType::INT64, false);
-
-    REQUIRE_THROWS_AS(cross_entropy(x, labels, "loss", 1),
-                     std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -65,7 +54,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     NNGraph g("cross_entropy_backward");
     auto* x = g.tensor(x_shape, "x", DataType::FP32);
     auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
-    auto* loss = cross_entropy(x, labels, "loss", 0);
+    auto* loss = cross_entropy(x, labels, "loss");
 
     auto [loss_grad, _] = g.get_or_create_grad(loss, "loss_grad");
     fill(1.0, loss_grad);
@@ -84,7 +73,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     NNGraph g("cross_entropy");
     auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
     auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
-    auto* loss = cross_entropy(x, labels, "loss", 0);
+    auto* loss = cross_entropy(x, labels, "loss");
 
     REQUIRE(loss != nullptr);
     REQUIRE(loss->has_producer());
@@ -135,7 +124,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     NNGraph g("cross_entropy_pytorch");
     auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
     auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
-    auto* loss = cross_entropy(x, labels, "loss", 0);
+    auto* loss = cross_entropy(x, labels, "loss");
 
     x->mark_input(true);
     labels->mark_input(true);
@@ -194,7 +183,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     NNGraph g("cross_entropy_bwd_pytorch");
     auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
     auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
-    auto* loss = cross_entropy(x, labels, "loss", 0);
+    auto* loss = cross_entropy(x, labels, "loss");
 
     x->mark_input(true);
     labels->mark_input(true);

@@ -36,7 +36,6 @@ namespace nntile::graph
 //! Output: scalar loss.
 struct NNCrossEntropyOp : NNGraph::OpNode
 {
-    Index axis;
     int redux;
     Scalar scale;
     Index ignore_index;
@@ -47,11 +46,10 @@ struct NNCrossEntropyOp : NNGraph::OpNode
     NNCrossEntropyOp() = default;
     NNCrossEntropyOp(NNGraph::TensorNode* x_,
                     NNGraph::TensorNode* labels_,
-                    Index axis_ = 0,
                     int redux_ = 0,
                     Scalar scale_ = 1.0,
                     Index ignore_index_ = -100)
-        : axis(axis_), redux(redux_), scale(scale_), ignore_index(ignore_index_)
+        : redux(redux_), scale(scale_), ignore_index(ignore_index_)
         , x(x_), labels(labels_)
     {
         inputs_ = {x, labels};
@@ -65,7 +63,6 @@ NNGraph::TensorNode* cross_entropy(
     NNGraph::TensorNode* x,
     NNGraph::TensorNode* labels,
     const std::string& output_name,
-    Index axis = 0,
     int redux = 0,
     Scalar scale = 1.0,
     Index ignore_index = -100);
