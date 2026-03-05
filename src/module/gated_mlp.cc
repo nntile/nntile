@@ -22,7 +22,7 @@ namespace nntile::module
 {
 
 //! Constructor: creates GatedMLP with specified dimensions
-GatedMlp::GatedMlp(graph::NNGraph& graph,
+GatedMlp::GatedMlp(graph::NNGraph* graph,
                    const std::string& name,
                    Index input_dim,
                    Index intermediate_dim,
@@ -47,7 +47,7 @@ GatedMlp::GatedMlp(graph::NNGraph& graph,
 }
 
 //! Constructor: creates GatedMLP where output_dim == input_dim
-GatedMlp::GatedMlp(graph::NNGraph& graph,
+GatedMlp::GatedMlp(graph::NNGraph* graph,
                    const std::string& name,
                    Index input_dim,
                    Index intermediate_dim,
@@ -58,17 +58,22 @@ GatedMlp::GatedMlp(graph::NNGraph& graph,
 {
 }
 
-graph::NNGraph::TensorNode& GatedMlp::build_forward(
-    graph::NNGraph::TensorNode& input)
+graph::NNGraph::TensorNode* GatedMlp::forward(
+    graph::NNGraph::TensorNode* input)
 {
-    input_tensor_ = &input;
-    gate_tensor_ = &gate_proj_(input);
-    up_tensor_ = &up_proj_(input);
-    gate_act_tensor_ = &activation_(*gate_tensor_);
+    if(input == nullptr)
+    {
+        throw std::invalid_argument(
+            "GatedMlp::forward: input tensor must be non-null");
+    }
+    input_tensor_ = input;
+    gate_tensor_ = gate_proj_(input);
+    up_tensor_ = up_proj_(input);
+    gate_act_tensor_ = activation_(gate_tensor_);
     hidden_tensor_ = graph::multiply(gate_act_tensor_, up_tensor_,
                                     tensor_name("hidden"));
-    output_tensor_ = &down_proj_(*hidden_tensor_);
-    return *output_tensor_;
+    output_tensor_ = down_proj_(hidden_tensor_);
+    return output_tensor_;
 }
 
 //! Get string representation with dimensions

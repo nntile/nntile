@@ -19,7 +19,7 @@
 namespace nntile::module
 {
 
-MseLoss::MseLoss(graph::NNGraph& graph,
+MseLoss::MseLoss(graph::NNGraph* graph,
                  const std::string& name,
                  graph::DataType dtype)
     : Module(graph, name)
@@ -27,23 +27,28 @@ MseLoss::MseLoss(graph::NNGraph& graph,
 {
 }
 
-graph::NNGraph::TensorNode& MseLoss::build_forward(
-    graph::NNGraph::TensorNode& input)
+graph::NNGraph::TensorNode* MseLoss::forward(
+    graph::NNGraph::TensorNode* input)
 {
-    input_tensor_ = &input;
+    if(input == nullptr)
+    {
+        throw std::invalid_argument(
+            "MseLoss::forward: input tensor must be non-null");
+    }
+    input_tensor_ = input;
 
     // y = norm(x)
     graph::TensorGraph::TensorNode* norm_data =
-        graph_.tensor_graph().data({}, tensor_name("norm"), dtype_);
+        graph_->tensor_graph().data({}, tensor_name("norm"), dtype_);
     graph::tensor::clear(norm_data);
-    graph::tensor::norm(input.data(), norm_data, 1.0, 0.0);
+    graph::tensor::norm(input->data(), norm_data, 1.0, 0.0);
 
     // loss = y * y
     graph::TensorGraph::TensorNode* loss_data =
         graph::tensor::multiply(norm_data, norm_data, tensor_name("loss"), 1.0);
 
-    loss_tensor_ = graph_.tensor(loss_data);
-    return *loss_tensor_;
+    loss_tensor_ = graph_->tensor(loss_data);
+    return loss_tensor_;
 }
 
 std::string MseLoss::repr() const

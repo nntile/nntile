@@ -31,8 +31,8 @@ namespace nntile::module
 class Module
 {
 protected:
-    //! Reference to the graph this module belongs to
-    graph::NNGraph& graph_;
+    //! Pointer to the graph this module belongs to
+    graph::NNGraph* graph_;
 
     //! Module name (used for generating tensor names)
     std::string name_;
@@ -49,9 +49,9 @@ protected:
 
 public:
     //! Constructor
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Module name (used for generating unique tensor names)
-    Module(graph::NNGraph& graph, const std::string& name);
+    Module(graph::NNGraph* graph, const std::string& name);
 
     //! Virtual destructor for proper cleanup of derived classes
     virtual ~Module() = default;
@@ -69,8 +69,8 @@ public:
     // -----------------------------------------------------------------
 
     //! Get the graph this module belongs to
-    graph::NNGraph& graph() { return graph_; }
-    const graph::NNGraph& graph() const { return graph_; }
+    graph::NNGraph* graph() { return graph_; }
+    const graph::NNGraph* graph() const { return graph_; }
 
     // -----------------------------------------------------------------
     // Parameter/Buffer Registration (called by subclasses)

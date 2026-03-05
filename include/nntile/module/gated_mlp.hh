@@ -65,7 +65,7 @@ private:
     Index output_dim_;
     graph::DataType dtype_;
 
-    //! Intermediate tensors (created during build_forward)
+    //! Intermediate tensors (created during forward)
     graph::NNGraph::TensorNode* gate_tensor_ = nullptr;   // After gate_proj
     graph::NNGraph::TensorNode* up_tensor_ = nullptr;    // After up_proj
     graph::NNGraph::TensorNode* gate_act_tensor_ = nullptr;  // After activation
@@ -76,14 +76,14 @@ private:
 
 public:
     //! Constructor: creates GatedMLP with specified dimensions
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Module name
     //! @param input_dim Input feature dimension
     //! @param intermediate_dim Hidden layer dimension
     //! @param output_dim Output feature dimension
     //! @param activation Activation for gate (default: silu, Llama-style)
     //! @param dtype Data type for all tensors
-    GatedMlp(graph::NNGraph& graph,
+    GatedMlp(graph::NNGraph* graph,
              const std::string& name,
              Index input_dim,
              Index intermediate_dim,
@@ -92,13 +92,13 @@ public:
              graph::DataType dtype = graph::DataType::FP32);
 
     //! Constructor: creates GatedMLP where output_dim == input_dim (common in transformers)
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Module name
     //! @param input_dim Input/output feature dimension
     //! @param intermediate_dim Hidden layer dimension
     //! @param activation Activation for gate (default: silu, Llama-style)
     //! @param dtype Data type for all tensors
-    GatedMlp(graph::NNGraph& graph,
+    GatedMlp(graph::NNGraph* graph,
              const std::string& name,
              Index input_dim,
              Index intermediate_dim,
@@ -108,14 +108,14 @@ public:
 #ifdef NNTILE_HAVE_TORCH
     //! Constructor: creates GatedMlp from PyTorch Linear layers with
     //! automatic weight/bias binding for easy data transfer.
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Module name
     //! @param gate_proj_layer PyTorch gate projection (input -> intermediate)
     //! @param up_proj_layer PyTorch up projection (input -> intermediate)
     //! @param down_proj_layer PyTorch down projection (intermediate -> output)
     //! @param activation Activation for gate (must match PyTorch)
     //! @param dtype Data type for all tensors
-    GatedMlp(graph::NNGraph& graph,
+    GatedMlp(graph::NNGraph* graph,
              const std::string& name,
              const torch::nn::Linear& gate_proj_layer,
              const torch::nn::Linear& up_proj_layer,
@@ -124,13 +124,13 @@ public:
              graph::DataType dtype = graph::DataType::FP32);
 #endif
 
-    graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input);
+    graph::NNGraph::TensorNode* forward(
+        graph::NNGraph::TensorNode* input);
 
-    //! Forward: calls build_forward
-    graph::NNGraph::TensorNode& operator()(graph::NNGraph::TensorNode& input)
+    //! Forward: calls forward
+    graph::NNGraph::TensorNode* operator()(graph::NNGraph::TensorNode* input)
     {
-        return build_forward(input);
+        return forward(input);
     }
 
     //! Get string representation with dimensions
@@ -154,7 +154,7 @@ public:
 
 #ifdef NNTILE_HAVE_TORCH
 
-inline GatedMlp::GatedMlp(graph::NNGraph& graph,
+inline GatedMlp::GatedMlp(graph::NNGraph* graph,
                          const std::string& name,
                          const torch::nn::Linear& gate_proj_layer,
                          const torch::nn::Linear& up_proj_layer,

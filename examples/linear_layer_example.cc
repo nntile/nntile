@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
 
     // Create Linear module (tied to the graph)
     nntile::module::Linear linear(
-        graph, "linear1", 8, 4, nntile::graph::DataType::FP32);
+        &graph, "linear1", 8, 4, nntile::graph::DataType::FP32);
 
     // Create input tensor (requires_grad to compute input gradients)
     // Shape is [batch, features] (last dim = features): 4 batches, 8 features
@@ -53,12 +53,12 @@ int main(int argc, char** argv) {
     input_tensor->mark_input(true);  // bind_data() requires input marking
 
     // Build forward operation and get output tensor
-    auto& output_tensor = linear.build_forward(*input_tensor);
-    output_tensor.mark_output(true);  // get_output() requires output marking
+    auto* output_tensor = linear.forward(input_tensor);
+    output_tensor->mark_output(true);  // get_output() requires output marking
 
     // Attach an external gradient to the output (e.g., loss gradient)
     auto [grad_output_tensor, _] = graph.get_or_create_grad(
-        &output_tensor,
+        output_tensor,
         "external_grad_output");
     gt::fill(nntile::Scalar(1.0f), grad_output_tensor->data());
 
@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
     linear.bind_weight(weight_data);  // mark_input(true) done by bind_weight
 
     // Build backward via autograd (output.backward())
-    output_tensor.backward();
+    output_tensor->backward();
 
     // Mark gradient tensors for get_output (created during backward)
     linear.weight_tensor()->grad()->mark_output(true);
@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
     std::cout << "Output shape: [4, 4] (batch, features)" << std::endl;
 
     // Get output data from the output tensor
-    auto output_data = runtime.get_output<float>(output_tensor.name());
+    auto output_data = runtime.get_output<float>(output_tensor->name());
     std::cout << "Sample output values: ";
     for (size_t i = 0; i < std::min(size_t(8), output_data.size()); ++i) {
         std::cout << output_data[i] << " ";

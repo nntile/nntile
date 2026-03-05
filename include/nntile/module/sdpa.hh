@@ -45,7 +45,7 @@ private:
     Scalar mask_val_;
     int redux_;
 
-    // Input tensors from last build_forward
+    // Input tensors from last forward
     graph::NNGraph::TensorNode* q_tensor_ = nullptr;
     graph::NNGraph::TensorNode* k_tensor_ = nullptr;
     graph::NNGraph::TensorNode* v_tensor_ = nullptr;
@@ -63,14 +63,14 @@ private:
 
 public:
     //! Constructor: vanilla SDPA (creates attn, attn_maxsumexp, attn_sumprod_slice)
-    //! @param graph The neural network graph
+    //! @param graph Pointer to the neural network graph
     //! @param name Module name
     //! @param head_size Head dimension (scale = 1/sqrt(head_size))
     //! @param batch_ndim Number of trailing batch dimensions
     //! @param dtype Data type for tensors
     //! @param redux Reduction mode for distributed training (default: 0)
     Sdpa(
-        graph::NNGraph& graph,
+        graph::NNGraph* graph,
         const std::string& name,
         Index head_size,
         Index batch_ndim,
@@ -79,7 +79,7 @@ public:
     );
 
     //! Constructor: Flash SDPA (creates flash_logsumexp, requires FP16/BF16)
-    //! @param graph The neural network graph
+    //! @param graph Pointer to the neural network graph
     //! @param name Module name
     //! @param head_size Head dimension
     //! @param batch_ndim Number of trailing batch dimensions
@@ -87,7 +87,7 @@ public:
     //! @param dtype Must be FP16 or BF16
     //! @param redux Reduction mode (default: 0)
     Sdpa(
-        graph::NNGraph& graph,
+        graph::NNGraph* graph,
         const std::string& name,
         Index head_size,
         Index batch_ndim,
@@ -102,21 +102,21 @@ public:
     //! @param v Value tensor [head_size, k_seq, batch...]
     //! @param mask Optional boolean mask [k_seq, q_seq] (nullptr = no mask)
     //! @return Output tensor [head_size, q_seq, batch...]
-    graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& q,
-        graph::NNGraph::TensorNode& k,
-        graph::NNGraph::TensorNode& v,
+    graph::NNGraph::TensorNode* forward(
+        graph::NNGraph::TensorNode* q,
+        graph::NNGraph::TensorNode* k,
+        graph::NNGraph::TensorNode* v,
         graph::NNGraph::TensorNode* mask = nullptr
     );
 
-    //! Forward: calls build_forward
-    graph::NNGraph::TensorNode& operator()(
-        graph::NNGraph::TensorNode& q,
-        graph::NNGraph::TensorNode& k,
-        graph::NNGraph::TensorNode& v,
+    //! Forward: calls forward
+    graph::NNGraph::TensorNode* operator()(
+        graph::NNGraph::TensorNode* q,
+        graph::NNGraph::TensorNode* k,
+        graph::NNGraph::TensorNode* v,
         graph::NNGraph::TensorNode* mask = nullptr)
     {
-        return build_forward(q, k, v, mask);
+        return forward(q, k, v, mask);
     }
 
     //! Get string representation

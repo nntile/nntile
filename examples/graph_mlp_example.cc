@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
 
     // Create MLP module (input_dim=8, intermediate_dim=16, output_dim=4)
     nntile::module::Mlp mlp(
-        graph, "mlp", 8, 16, 4, nntile::graph::DataType::FP32);
+        &graph, "mlp", 8, 16, 4, nntile::graph::DataType::FP32);
 
     // Create input tensor (requires_grad to compute input gradients)
     // Shape is [batch, features] (last dim = features): 4 batches, 8 features
@@ -53,12 +53,12 @@ int main(int argc, char** argv) {
     input_tensor->mark_input(true);  // bind_data() requires input marking
 
     // Build forward operation and get output tensor
-    auto& output_tensor = mlp.build_forward(*input_tensor);
-    output_tensor.mark_output(true);  // get_output() requires output marking
+    auto* output_tensor = mlp.forward(input_tensor);
+    output_tensor->mark_output(true);  // get_output() requires output marking
 
     // Attach an external gradient to the output (e.g., loss gradient)
     auto [grad_output_tensor, _] = graph.get_or_create_grad(
-        &output_tensor,
+        output_tensor,
         "external_grad_output");
     gt::fill(nntile::Scalar(1.0f), grad_output_tensor->data());
 
@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
     mlp.fc2().weight_tensor()->mark_input(true);
 
     // Build backward via autograd (output.backward())
-    output_tensor.backward();
+    output_tensor->backward();
 
     // Mark gradient tensors for get_output (created during backward)
     mlp.fc1().weight_tensor()->grad()->mark_output(true);
@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
     std::cout << "Graph execution time: " << duration << " microseconds" << std::endl;
 
     // Get output data
-    auto output_data = runtime.get_output<float>(output_tensor.name());
+    auto output_data = runtime.get_output<float>(output_tensor->name());
     std::cout << "Sample output values: ";
     for (size_t i = 0; i < std::min(size_t(8), output_data.size()); ++i) {
         std::cout << output_data[i] << " ";

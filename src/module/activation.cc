@@ -21,7 +21,7 @@
 namespace nntile::module
 {
 
-Activation::Activation(graph::NNGraph& graph,
+Activation::Activation(graph::NNGraph* graph,
                        const std::string& name,
                        ActivationType type)
     : Module(graph, name)
@@ -29,26 +29,31 @@ Activation::Activation(graph::NNGraph& graph,
 {
 }
 
-graph::NNGraph::TensorNode& Activation::build_forward(
-    graph::NNGraph::TensorNode& input)
+graph::NNGraph::TensorNode* Activation::forward(
+    graph::NNGraph::TensorNode* input)
 {
-    input_tensor_ = &input;
+    if(input == nullptr)
+    {
+        throw std::invalid_argument(
+            "Activation::forward: input tensor must be non-null");
+    }
+    input_tensor_ = input;
     switch(type_)
     {
         case ActivationType::GELU:
-            output_tensor_ = graph::gelu(&input, tensor_name("output"));
+            output_tensor_ = graph::gelu(input, tensor_name("output"));
             break;
         case ActivationType::GELUTANH:
-            output_tensor_ = graph::gelutanh(&input, tensor_name("output"));
+            output_tensor_ = graph::gelutanh(input, tensor_name("output"));
             break;
         case ActivationType::RELU:
-            output_tensor_ = graph::relu(&input, tensor_name("output"));
+            output_tensor_ = graph::relu(input, tensor_name("output"));
             break;
         case ActivationType::SILU:
-            output_tensor_ = graph::silu(&input, tensor_name("output"));
+            output_tensor_ = graph::silu(input, tensor_name("output"));
             break;
     }
-    return *output_tensor_;
+    return output_tensor_;
 }
 
 std::string Activation::repr() const

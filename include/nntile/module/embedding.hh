@@ -51,13 +51,13 @@ private:
 
 public:
     //! Constructor: creates new vocab tensor
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
     //! @param num_embeddings Size of the vocabulary
     //! @param embed_dim Size of each embedding vector
     //! @param dtype Data type for tensors
     Embedding(
-        graph::NNGraph& graph,
+        graph::NNGraph* graph,
         const std::string& name,
         Index num_embeddings,
         Index embed_dim,
@@ -65,7 +65,7 @@ public:
     );
 
     //! Constructor: creates new vocab tensor with custom axis and redux
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
     //! @param num_embeddings Size of the vocabulary
     //! @param embed_dim Size of each embedding vector
@@ -73,7 +73,7 @@ public:
     //! @param redux Reduction mode for backward (0=no reduction, 1=reduce)
     //! @param dtype Data type for tensors
     Embedding(
-        graph::NNGraph& graph,
+        graph::NNGraph* graph,
         const std::string& name,
         Index num_embeddings,
         Index embed_dim,
@@ -83,36 +83,36 @@ public:
     );
 
     //! Constructor: uses existing vocab tensor
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
     //! @param vocab_tensor Existing vocab tensor [num_embeddings, embed_dim]
     Embedding(
-        graph::NNGraph& graph,
+        graph::NNGraph* graph,
         const std::string& name,
-        graph::NNGraph::TensorNode& vocab_tensor
+        graph::NNGraph::TensorNode* vocab_tensor
     );
 
     //! Constructor: uses existing vocab tensor with custom axis and redux
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
     //! @param vocab_tensor Existing vocab tensor [num_embeddings, embed_dim]
     //! @param axis Axis along which embedding dimension is inserted
     //! @param redux Reduction mode for backward
     Embedding(
-        graph::NNGraph& graph,
+        graph::NNGraph* graph,
         const std::string& name,
-        graph::NNGraph::TensorNode& vocab_tensor,
+        graph::NNGraph::TensorNode* vocab_tensor,
         Index axis,
         int redux
     );
 
-    graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& index);
+    graph::NNGraph::TensorNode* forward(
+        graph::NNGraph::TensorNode* index);
 
-    //! Forward: calls build_forward (user does bookkeeping via autograd ops)
-    graph::NNGraph::TensorNode& operator()(graph::NNGraph::TensorNode& index)
+    //! Forward: calls forward (user does bookkeeping via autograd ops)
+    graph::NNGraph::TensorNode* operator()(graph::NNGraph::TensorNode* index)
     {
-        return build_forward(index);
+        return forward(index);
     }
 
     //! Get string representation with dimensions

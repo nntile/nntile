@@ -34,17 +34,17 @@ private:
 
 public:
     //! Constructor
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Module name (used to generate unique tensor names)
-    Gelu(graph::NNGraph& graph, const std::string& name);
+    Gelu(graph::NNGraph* graph, const std::string& name);
 
-    graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input);
+    graph::NNGraph::TensorNode* forward(
+        graph::NNGraph::TensorNode* input);
 
-    //! Forward: calls build_forward
-    graph::NNGraph::TensorNode& operator()(graph::NNGraph::TensorNode& input)
+    //! Forward: calls forward
+    graph::NNGraph::TensorNode* operator()(graph::NNGraph::TensorNode* input)
     {
-        return build_forward(input);
+        return forward(input);
     }
 
     //! Get string representation

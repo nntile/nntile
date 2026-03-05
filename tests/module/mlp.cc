@@ -46,7 +46,7 @@ TEST_CASE("Mlp ForwardBuildsOutput", "[module]")
     NNGraph g("mlp");
 
     auto* input = g.tensor({2, 3}, "input", DataType::FP32);
-    Mlp mlp(g, "mlp", 3, 4, 5);
+    Mlp mlp(&g, "mlp", 3, 4, 5);
 
     auto children = mlp.named_children();
     REQUIRE(children.size() == 3);
@@ -60,8 +60,8 @@ TEST_CASE("Mlp ForwardBuildsOutput", "[module]")
         children.begin(), children.end(),
         [](const auto& entry) { return entry.first == "fc2"; }));
 
-    auto& output = mlp.build_forward(*input);
-    REQUIRE(output.shape() == std::vector<Index>({2, 5}));
+    auto* output = mlp.forward(input);
+    REQUIRE(output->shape() == std::vector<Index>({2, 5}));
     REQUIRE(mlp.parameters_recursive().size() == 2);
 
     REQUIRE(g.num_ops() == 3);
@@ -87,12 +87,12 @@ TEST_CASE("Mlp BackwardCreatesGradients", "[module]")
     NNGraph g("mlp");
 
     auto* input = g.tensor({2, 3}, "input", DataType::FP32);
-    Mlp mlp(g, "mlp", 3, 4, 5);
+    Mlp mlp(&g, "mlp", 3, 4, 5);
 
-    auto& output = mlp.build_forward(*input);
-    g.get_or_create_grad(&output, "output_grad");
-    gt::fill(Scalar(1.0), output.grad()->data());
-    output.backward();
+    auto* output = mlp.forward(input);
+    g.get_or_create_grad(output, "output_grad");
+    gt::fill(Scalar(1.0), output->grad()->data());
+    output->backward();
 
     REQUIRE(mlp.fc1().weight_tensor()->grad() != nullptr);
     REQUIRE(mlp.fc2().weight_tensor()->grad() != nullptr);
@@ -115,13 +115,13 @@ TEST_CASE("Mlp ActivationTypes", "[module]")
 
     auto* input = g.tensor({2, 3}, "input", DataType::FP32);
 
-    Mlp mlp_gelu(g, "mlp_gelu", 3, 4, 5, ActivationType::GELU);
-    Mlp mlp_silu(g, "mlp_silu", 3, 4, 5, ActivationType::SILU);
-    Mlp mlp_relu(g, "mlp_relu", 3, 4, 5, ActivationType::RELU);
-    Mlp mlp_gelutanh(g, "mlp_gelutanh", 3, 4, 5, ActivationType::GELUTANH);
+    Mlp mlp_gelu(&g, "mlp_gelu", 3, 4, 5, ActivationType::GELU);
+    Mlp mlp_silu(&g, "mlp_silu", 3, 4, 5, ActivationType::SILU);
+    Mlp mlp_relu(&g, "mlp_relu", 3, 4, 5, ActivationType::RELU);
+    Mlp mlp_gelutanh(&g, "mlp_gelutanh", 3, 4, 5, ActivationType::GELUTANH);
 
-    auto& out_gelu = mlp_gelu.build_forward(*input);
-    REQUIRE(out_gelu.shape() == std::vector<Index>({2, 5}));
+    auto* out_gelu = mlp_gelu.forward(input);
+    REQUIRE(out_gelu->shape() == std::vector<Index>({2, 5}));
 
     REQUIRE(mlp_gelu.activation().type() == ActivationType::GELU);
     REQUIRE(mlp_silu.activation().type() == ActivationType::SILU);
@@ -208,15 +208,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     NNGraph g("mlp_pytorch");
     auto* input = g.tensor({batch, in_dim}, "input", DataType::FP32, true);
-    Mlp mlp(g, "mlp", fc1, fc2, activation);
-    auto& output = mlp.build_forward(*input);
+    Mlp mlp(&g, "mlp", fc1, fc2, activation);
+    auto* output = mlp.forward(input);
 
     input->mark_input(true);
-    output.mark_output(true);
+    output->mark_output(true);
 
-    auto [grad_output_tensor, _] = g.get_or_create_grad(&output, "output_grad");
+    auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(grad_fill_val), grad_output_tensor->data());
-    output.backward();
+    output->backward();
 
     mlp.fc1().weight_tensor()->grad()->mark_output(true);
     mlp.fc2().weight_tensor()->grad()->mark_output(true);
@@ -237,7 +237,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     std::vector<float> nntile_out_colmajor =
-        runtime.get_output<float>(output.name());
+        runtime.get_output<float>(output->name());
     std::vector<float> nntile_out =
         colmajor_to_rowmajor(nntile_out_colmajor, {batch, out_dim});
 
@@ -311,15 +311,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     NNGraph g("mlp_fwd_bwd_pytorch");
     auto* input = g.tensor({batch, in_dim}, "input", DataType::FP32, true);
-    Mlp mlp(g, "mlp", fc1, fc2, ActivationType::GELU);
-    auto& output = mlp.build_forward(*input);
+    Mlp mlp(&g, "mlp", fc1, fc2, ActivationType::GELU);
+    auto* output = mlp.forward(input);
 
     input->mark_input(true);
-    output.mark_output(true);
+    output->mark_output(true);
 
-    auto [grad_output_tensor, _] = g.get_or_create_grad(&output, "output_grad");
+    auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(1.0f), grad_output_tensor->data());
-    output.backward();
+    output->backward();
 
     mlp.fc1().weight_tensor()->grad()->mark_output(true);
     mlp.fc2().weight_tensor()->grad()->mark_output(true);
@@ -342,7 +342,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    auto out = runtime.get_output<float>(output.name());
+    auto out = runtime.get_output<float>(output->name());
     REQUIRE(out.size() == static_cast<size_t>(batch * out_dim));
 
     auto grad_w1 = runtime.get_output<float>(mlp.fc1().grad_name("weight"));

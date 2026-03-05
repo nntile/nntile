@@ -21,17 +21,22 @@
 namespace nntile::module
 {
 
-Gelu::Gelu(graph::NNGraph& graph, const std::string& name)
+Gelu::Gelu(graph::NNGraph* graph, const std::string& name)
     : Module(graph, name)
 {
 }
 
-graph::NNGraph::TensorNode& Gelu::build_forward(
-    graph::NNGraph::TensorNode& input)
+graph::NNGraph::TensorNode* Gelu::forward(
+    graph::NNGraph::TensorNode* input)
 {
-    input_tensor_ = &input;
-    output_tensor_ = graph::gelu(&input, tensor_name("output"));
-    return *output_tensor_;
+    if(input == nullptr)
+    {
+        throw std::invalid_argument(
+            "Gelu::forward: input tensor must be non-null");
+    }
+    input_tensor_ = input;
+    output_tensor_ = graph::gelu(input, tensor_name("output"));
+    return output_tensor_;
 }
 
 std::string Gelu::repr() const

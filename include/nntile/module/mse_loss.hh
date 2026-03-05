@@ -34,18 +34,18 @@ private:
 
 public:
     //! Constructor
-    MseLoss(graph::NNGraph& graph,
+    MseLoss(graph::NNGraph* graph,
             const std::string& name,
             graph::DataType dtype = graph::DataType::FP32);
 
     //! Build forward: loss = norm(x)^2 (scalar)
-    graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input);
+    graph::NNGraph::TensorNode* forward(
+        graph::NNGraph::TensorNode* input);
 
-    //! Forward: calls build_forward
-    graph::NNGraph::TensorNode& operator()(graph::NNGraph::TensorNode& input)
+    //! Forward: calls forward
+    graph::NNGraph::TensorNode* operator()(graph::NNGraph::TensorNode* input)
     {
-        return build_forward(input);
+        return forward(input);
     }
 
     std::string repr() const override;

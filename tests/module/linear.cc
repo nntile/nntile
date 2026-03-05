@@ -43,7 +43,7 @@ TEST_CASE("Linear ConstructorCreatesParameters", "[module]")
 {
     NNGraph g("linear");
 
-    Linear with_bias(g, "linear_bias", 3, 4, true);
+    Linear with_bias(&g, "linear_bias", 3, 4, true);
     REQUIRE(with_bias.weight_tensor() != nullptr);
     REQUIRE(with_bias.bias_tensor() != nullptr);
     REQUIRE(with_bias.weight_tensor()->shape() ==
@@ -53,7 +53,7 @@ TEST_CASE("Linear ConstructorCreatesParameters", "[module]")
     REQUIRE(with_bias.bias_tensor()->name() == "linear_bias_bias");
     REQUIRE(with_bias.parameters().size() == 2);
 
-    Linear no_bias(g, "linear_no_bias", 3, 4);
+    Linear no_bias(&g, "linear_no_bias", 3, 4);
     REQUIRE(no_bias.weight_tensor() != nullptr);
     REQUIRE(no_bias.bias_tensor() == nullptr);
     REQUIRE(no_bias.parameters().size() == 1);
@@ -66,13 +66,13 @@ TEST_CASE("Linear ConstructorWithExistingTensors", "[module]")
     auto* weight = g.tensor({3, 4}, "shared_weight", DataType::FP32);
     auto* bias = g.tensor({4}, "shared_bias", DataType::FP32);
 
-    Linear from_weight(g, "linear_weight", *weight);
+    Linear from_weight(&g, "linear_weight", weight);
     REQUIRE(from_weight.weight_tensor() == weight);
     REQUIRE(from_weight.bias_tensor() == nullptr);
     REQUIRE(from_weight.input_dim() == 3);
     REQUIRE(from_weight.output_dim() == 4);
 
-    Linear from_weight_bias(g, "linear_weight_bias", *weight, *bias);
+    Linear from_weight_bias(&g, "linear_weight_bias", weight, bias);
     REQUIRE(from_weight_bias.weight_tensor() == weight);
     REQUIRE(from_weight_bias.bias_tensor() == bias);
     REQUIRE(from_weight_bias.parameters().size() == 2);
@@ -84,13 +84,13 @@ TEST_CASE("Linear ConstructorValidations", "[module]")
 
     auto* bad_weight = g.tensor({4}, "bad_weight", DataType::FP32);
     REQUIRE_THROWS_AS(
-        Linear(g, "linear_bad_weight", *bad_weight),
+        Linear(&g, "linear_bad_weight", bad_weight),
         std::invalid_argument);
 
     auto* weight = g.tensor({3, 4}, "weight", DataType::FP32);
     auto* bad_bias = g.tensor({5}, "bad_bias", DataType::FP32);
     REQUIRE_THROWS_AS(
-        Linear(g, "linear_bad_bias", *weight, *bad_bias),
+        Linear(&g, "linear_bad_bias", weight, bad_bias),
         std::invalid_argument);
 }
 
@@ -98,9 +98,9 @@ TEST_CASE("Linear Callable", "[module]")
 {
     NNGraph g("linear_callable");
     auto* input = g.tensor({2, 3}, "input", DataType::FP32);
-    Linear linear(g, "linear", 3, 4, true);
-    auto& output = linear(*input);
-    REQUIRE(output.shape() == std::vector<Index>({2, 4}));
+    Linear linear(&g, "linear", 3, 4, true);
+    auto* output = linear(input);
+    REQUIRE(output->shape() == std::vector<Index>({2, 4}));
 }
 
 TEST_CASE("Linear BuildForwardWithBias", "[module]")
@@ -108,17 +108,17 @@ TEST_CASE("Linear BuildForwardWithBias", "[module]")
     NNGraph g("linear");
 
     auto* input = g.tensor({2, 3}, "input", DataType::FP32);
-    Linear linear(g, "linear", 3, 4, true);
+    Linear linear(&g, "linear", 3, 4, true);
 
-    auto& output = linear.build_forward(*input);
-    REQUIRE(output.shape() == std::vector<Index>({2, 4}));
-    REQUIRE(output.name() == "linear_output");
+    auto* output = linear.forward(input);
+    REQUIRE(output->shape() == std::vector<Index>({2, 4}));
+    REQUIRE(output->name() == "linear_output");
     REQUIRE(g.num_ops() >= 2);
     REQUIRE(g.ops()[0]->op_name() == "GEMM");
     REQUIRE(g.ops()[1]->op_name() == "ADD_FIBER");
 
     // Output producer is AddFiber functor (autograd, no module-level backward)
-    REQUIRE(output.has_producer());
+    REQUIRE(output->has_producer());
 }
 
 TEST_CASE("Linear BuildForwardValidatesInputDim", "[module]")
@@ -126,10 +126,10 @@ TEST_CASE("Linear BuildForwardValidatesInputDim", "[module]")
     NNGraph g("linear");
 
     auto* input = g.tensor({2, 5}, "input", DataType::FP32);
-    Linear linear(g, "linear", 3, 4, false);
+    Linear linear(&g, "linear", 3, 4, false);
 
     REQUIRE_THROWS_AS(
-        linear.build_forward(*input),
+        linear.forward(input),
         std::invalid_argument);
 }
 
@@ -138,10 +138,10 @@ TEST_CASE("Linear BuildForwardRejectsScalarTensor", "[module]")
     NNGraph g("linear");
 
     auto* scalar = g.tensor({}, "scalar", DataType::FP32);
-    Linear linear(g, "linear", 3, 4, false);
+    Linear linear(&g, "linear", 3, 4, false);
 
     REQUIRE_THROWS_AS(
-        linear.build_forward(*scalar),
+        linear.forward(scalar),
         std::invalid_argument);
 }
 
@@ -150,11 +150,11 @@ TEST_CASE("Linear BackwardCreatesGradients", "[module]")
     NNGraph g("linear");
 
     auto* input = g.tensor({2, 3}, "input", DataType::FP32, true);
-    Linear linear(g, "linear", 3, 4, true);
+    Linear linear(&g, "linear", 3, 4, true);
 
-    auto& output = linear.build_forward(*input);
-    g.get_or_create_grad(&output, "output_grad");
-    output.backward();
+    auto* output = linear.forward(input);
+    g.get_or_create_grad(output, "output_grad");
+    output->backward();
 
     REQUIRE(linear.weight_tensor()->grad() != nullptr);
     REQUIRE(linear.bias_tensor()->grad() != nullptr);
@@ -189,11 +189,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     NNGraph g("linear_bind");
     auto* input = g.tensor({2, 3}, "input", DataType::FP32, true);
-    Linear linear(g, "linear", 3, 4, false);
+    Linear linear(&g, "linear", 3, 4, false);
 
-    auto& output = linear.build_forward(*input);
+    auto* output = linear.forward(input);
     input->mark_input(true);
-    output.mark_output(true);
+    output->mark_output(true);
 
     // Bind weight before compile; data in NNTile (column-major) layout
     std::vector<float> weight_data(3 * 4);
@@ -211,7 +211,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    auto out = runtime.get_output<float>(output.name());
+    auto out = runtime.get_output<float>(output->name());
     REQUIRE(out.size() == 8);
     // output = input @ weight: [2,3] @ [3,4] = [2,4]. Col-major out[b,j] at b+j*2
     // For input all 1s: out[b,j] = sum_i weight[i,j]. weight[i,j] at i+j*3
@@ -226,11 +226,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     NNGraph g("linear_bind_bias");
     auto* input = g.tensor({2, 3}, "input", DataType::FP32, true);
-    Linear linear(g, "linear", 3, 4, true);
+    Linear linear(&g, "linear", 3, 4, true);
 
-    auto& output = linear.build_forward(*input);
+    auto* output = linear.forward(input);
     input->mark_input(true);
-    output.mark_output(true);
+    output->mark_output(true);
 
     std::vector<float> weight_data(3 * 4, 0.0f);
     weight_data[0] = 1.0f;  // [0,0] = 1
@@ -249,7 +249,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    auto out = runtime.get_output<float>(output.name());
+    auto out = runtime.get_output<float>(output->name());
     REQUIRE(out.size() == 8);
     // output = input @ weight + bias. Col-major: out[b,j] at index b + j*2
     // weight[0,0]=1, others 0; input all 1: gemm out[b,0]=1, out[b,j]=0 for j>0
@@ -275,11 +275,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     NNGraph g("linear_from_pytorch");
     auto* input = g.tensor({batch, in_dim}, "input", DataType::FP32, true);
-    Linear linear(g, "linear", linear_pt);  // constructor binds automatically
-    auto& output = linear.build_forward(*input);
+    Linear linear(&g, "linear", linear_pt);  // constructor binds automatically
+    auto* output = linear.forward(input);
 
     input->mark_input(true);
-    output.mark_output(true);
+    output->mark_output(true);
 
     std::vector<float> input_data(batch * in_dim);
     for(Index i = 0; i < batch * in_dim; ++i)
@@ -292,7 +292,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     std::vector<float> nntile_out_colmajor =
-        runtime.get_output<float>(output.name());
+        runtime.get_output<float>(output->name());
     std::vector<float> input_rowmajor =
         colmajor_to_rowmajor(input_data, {batch, in_dim});
     auto input_pt = torch::from_blob(input_rowmajor.data(), {batch, in_dim},
@@ -334,15 +334,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     NNGraph g("linear_pytorch");
     auto* input = g.tensor({batch, in_dim}, "input", DataType::FP32, true);
-    Linear linear(g, "linear", linear_pt);
-    auto& output = linear.build_forward(*input);
+    Linear linear(&g, "linear", linear_pt);
+    auto* output = linear.forward(input);
 
     input->mark_input(true);
-    output.mark_output(true);
+    output->mark_output(true);
 
-    auto [grad_output_tensor, _] = g.get_or_create_grad(&output, "output_grad");
+    auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(grad_fill_val), grad_output_tensor->data());
-    output.backward();
+    output->backward();
 
     linear.weight_tensor()->grad()->mark_output(true);
     input->grad()->mark_output(true);
@@ -354,7 +354,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     std::vector<float> nntile_out_colmajor =
-        runtime.get_output<float>(output.name());
+        runtime.get_output<float>(output->name());
     std::vector<float> nntile_out =
         colmajor_to_rowmajor(nntile_out_colmajor, {batch, out_dim});
 
@@ -408,15 +408,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     NNGraph g("linear_bias_pytorch");
     auto* input = g.tensor({batch, in_dim}, "input", DataType::FP32, true);
-    Linear linear(g, "linear", linear_pt);
-    auto& output = linear.build_forward(*input);
+    Linear linear(&g, "linear", linear_pt);
+    auto* output = linear.forward(input);
 
     input->mark_input(true);
-    output.mark_output(true);
+    output->mark_output(true);
 
-    auto [grad_output_tensor, _] = g.get_or_create_grad(&output, "output_grad");
+    auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(grad_fill_val), grad_output_tensor->data());
-    output.backward();
+    output->backward();
 
     linear.weight_tensor()->grad()->mark_output(true);
     linear.bias_tensor()->grad()->mark_output(true);
@@ -429,7 +429,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     std::vector<float> nntile_out_colmajor =
-        runtime.get_output<float>(output.name());
+        runtime.get_output<float>(output->name());
     std::vector<float> nntile_out =
         colmajor_to_rowmajor(nntile_out_colmajor, {batch, out_dim});
 
@@ -481,16 +481,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     NNGraph g("linear_fwd_bwd_pytorch");
     auto* input = g.tensor({batch, in_dim}, "input", DataType::FP32, true);
-    Linear linear(g, "linear", linear_pt);
-    auto& output = linear.build_forward(*input);
+    Linear linear(&g, "linear", linear_pt);
+    auto* output = linear.forward(input);
 
     input->mark_input(true);
-    output.mark_output(true);
+    output->mark_output(true);
 
-    auto [grad_output_tensor, _] = g.get_or_create_grad(&output, "output_grad");
+    auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(1.0f), grad_output_tensor->data());
 
-    output.backward();
+    output->backward();
 
     linear.weight_tensor()->grad()->mark_output(true);
     if(linear.bias_tensor())
@@ -508,7 +508,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    auto out = runtime.get_output<float>(output.name());
+    auto out = runtime.get_output<float>(output->name());
     REQUIRE(out.size() == static_cast<size_t>(batch * out_dim));
 
     auto grad_weight = runtime.get_output<float>(linear.grad_name("weight"));

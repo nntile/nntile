@@ -59,7 +59,7 @@ private:
     Index output_dim_;
     graph::DataType dtype_;
 
-    //! Intermediate tensors (created during build_forward)
+    //! Intermediate tensors (created during forward)
     graph::NNGraph::TensorNode* hidden_tensor_ = nullptr;      // After fc1
     graph::NNGraph::TensorNode* activation_tensor_ = nullptr;  // After activation
 
@@ -68,14 +68,14 @@ private:
 
 public:
     //! Constructor: creates MLP with specified dimensions
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Module name
     //! @param input_dim Input feature dimension
     //! @param intermediate_dim Hidden layer dimension (after fc1)
     //! @param output_dim Output feature dimension
     //! @param activation Activation function (default: gelu)
     //! @param dtype Data type for all tensors
-    Mlp(graph::NNGraph& graph,
+    Mlp(graph::NNGraph* graph,
         const std::string& name,
         Index input_dim,
         Index intermediate_dim,
@@ -84,13 +84,13 @@ public:
         graph::DataType dtype = graph::DataType::FP32);
 
     //! Constructor: creates MLP where output_dim == input_dim (common in transformers)
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Module name
     //! @param input_dim Input/output feature dimension
     //! @param intermediate_dim Hidden layer dimension
     //! @param activation Activation function (default: gelu)
     //! @param dtype Data type for all tensors
-    Mlp(graph::NNGraph& graph,
+    Mlp(graph::NNGraph* graph,
         const std::string& name,
         Index input_dim,
         Index intermediate_dim,
@@ -100,13 +100,13 @@ public:
 #ifdef NNTILE_HAVE_TORCH
     //! Constructor: creates MLP from PyTorch Linear layers (fc1, fc2) with
     //! automatic weight/bias binding for easy data transfer.
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Module name
     //! @param fc1_layer PyTorch first linear layer (input -> intermediate)
     //! @param fc2_layer PyTorch second linear layer (intermediate -> output)
     //! @param activation Activation function (must match PyTorch MLP)
     //! @param dtype Data type for all tensors
-    Mlp(graph::NNGraph& graph,
+    Mlp(graph::NNGraph* graph,
         const std::string& name,
         const torch::nn::Linear& fc1_layer,
         const torch::nn::Linear& fc2_layer,
@@ -114,13 +114,13 @@ public:
         graph::DataType dtype = graph::DataType::FP32);
 #endif
 
-    graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input);
+    graph::NNGraph::TensorNode* forward(
+        graph::NNGraph::TensorNode* input);
 
-    //! Forward: calls build_forward
-    graph::NNGraph::TensorNode& operator()(graph::NNGraph::TensorNode& input)
+    //! Forward: calls forward
+    graph::NNGraph::TensorNode* operator()(graph::NNGraph::TensorNode* input)
     {
-        return build_forward(input);
+        return forward(input);
     }
 
     //! Get string representation with dimensions
@@ -142,7 +142,7 @@ public:
 
 #ifdef NNTILE_HAVE_TORCH
 
-inline Mlp::Mlp(graph::NNGraph& graph,
+inline Mlp::Mlp(graph::NNGraph* graph,
                 const std::string& name,
                 const torch::nn::Linear& fc1_layer,
                 const torch::nn::Linear& fc2_layer,

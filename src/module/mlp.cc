@@ -22,7 +22,7 @@ namespace nntile::module
 {
 
 //! Constructor: creates MLP with specified dimensions
-Mlp::Mlp(graph::NNGraph& graph,
+Mlp::Mlp(graph::NNGraph* graph,
          const std::string& name,
          Index input_dim,
          Index intermediate_dim,
@@ -45,7 +45,7 @@ Mlp::Mlp(graph::NNGraph& graph,
 }
 
 //! Constructor: creates MLP where output_dim == input_dim
-Mlp::Mlp(graph::NNGraph& graph,
+Mlp::Mlp(graph::NNGraph* graph,
          const std::string& name,
          Index input_dim,
          Index intermediate_dim,
@@ -55,14 +55,19 @@ Mlp::Mlp(graph::NNGraph& graph,
 {
 }
 
-graph::NNGraph::TensorNode& Mlp::build_forward(
-    graph::NNGraph::TensorNode& input)
+graph::NNGraph::TensorNode* Mlp::forward(
+    graph::NNGraph::TensorNode* input)
 {
-    input_tensor_ = &input;
-    hidden_tensor_ = &fc1_(input);
-    activation_tensor_ = &activation_(*hidden_tensor_);
-    output_tensor_ = &fc2_(*activation_tensor_);
-    return *output_tensor_;
+    if(input == nullptr)
+    {
+        throw std::invalid_argument(
+            "Mlp::forward: input tensor must be non-null");
+    }
+    input_tensor_ = input;
+    hidden_tensor_ = fc1_(input);
+    activation_tensor_ = activation_(hidden_tensor_);
+    output_tensor_ = fc2_(activation_tensor_);
+    return output_tensor_;
 }
 
 //! Get string representation with dimensions

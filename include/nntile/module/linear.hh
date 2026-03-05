@@ -62,7 +62,7 @@ public:
     //! @param output_dim Output feature dimension
     //! @param dtype Data type for tensors
     Linear(
-        graph::NNGraph& graph,
+        graph::NNGraph* graph,
         const std::string& name,
         Index input_dim,
         Index output_dim,
@@ -70,14 +70,14 @@ public:
     );
 
     //! Constructor: creates new weight and optionally bias tensors
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
     //! @param input_dim Input feature dimension
     //! @param output_dim Output feature dimension
     //! @param with_bias Whether to create bias tensor
     //! @param dtype Data type for tensors
     Linear(
-        graph::NNGraph& graph,
+        graph::NNGraph* graph,
         const std::string& name,
         Index input_dim,
         Index output_dim,
@@ -86,36 +86,36 @@ public:
     );
 
     //! Constructor: uses existing weight tensor, no bias
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
     //! @param weight_tensor Existing weight tensor to use [input_dim, output_dim]
     Linear(
-        graph::NNGraph& graph,
+        graph::NNGraph* graph,
         const std::string& name,
-        graph::NNGraph::TensorNode& weight_tensor
+        graph::NNGraph::TensorNode* weight_tensor
     );
 
     //! Constructor: uses existing weight and bias tensors
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
     //! @param weight_tensor Existing weight tensor [input_dim, output_dim]
     //! @param bias_tensor Existing bias tensor [output_dim]
     Linear(
-        graph::NNGraph& graph,
+        graph::NNGraph* graph,
         const std::string& name,
-        graph::NNGraph::TensorNode& weight_tensor,
-        graph::NNGraph::TensorNode& bias_tensor
+        graph::NNGraph::TensorNode* weight_tensor,
+        graph::NNGraph::TensorNode* bias_tensor
     );
 
 #ifdef NNTILE_HAVE_TORCH
     //! Constructor: creates Linear from torch::nn::Linear (same dimensions)
     //! and binds weight/bias data from the PyTorch layer.
-    //! @param graph The neural network graph this module belongs to
+    //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Layer name (used to generate unique tensor names)
     //! @param linear_layer PyTorch Linear layer to mirror (weight/bias copied)
     //! @param dtype Data type for tensors
     Linear(
-        graph::NNGraph& graph,
+        graph::NNGraph* graph,
         const std::string& name,
         const torch::nn::Linear& linear_layer,
         graph::DataType dtype = graph::DataType::FP32
@@ -130,8 +130,8 @@ public:
     static std::vector<float> bias_data_from_pytorch(const torch::Tensor& b);
 #endif
 
-    graph::NNGraph::TensorNode& build_forward(
-        graph::NNGraph::TensorNode& input);
+    graph::NNGraph::TensorNode* forward(
+        graph::NNGraph::TensorNode* input);
 
     //! Bind weight data for Runtime::compile(). Data must be in NNTile layout.
     //! Moves data into the graph; call std::move() to avoid copy.
@@ -147,10 +147,10 @@ public:
     //! Bind bias data (FP32 convenience; copies into internal buffer).
     void bind_bias(const std::vector<float>& data);
 
-    //! Forward: calls build_forward (user does bookkeeping via autograd ops)
-    graph::NNGraph::TensorNode& operator()(graph::NNGraph::TensorNode& input)
+    //! Forward: calls forward (user does bookkeeping via autograd ops)
+    graph::NNGraph::TensorNode* operator()(graph::NNGraph::TensorNode* input)
     {
-        return build_forward(input);
+        return forward(input);
     }
 
     //! Get string representation with dimensions
@@ -171,7 +171,7 @@ public:
 
 #ifdef NNTILE_HAVE_TORCH
 
-inline Linear::Linear(graph::NNGraph& graph,
+inline Linear::Linear(graph::NNGraph* graph,
                      const std::string& name,
                      const torch::nn::Linear& linear_layer,
                      graph::DataType dtype)

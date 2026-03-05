@@ -23,10 +23,15 @@ namespace nntile::module
 {
 
 //! Constructor
-Module::Module(graph::NNGraph& graph, const std::string& name)
+Module::Module(graph::NNGraph* graph, const std::string& name)
     : graph_(graph)
     , name_(name)
 {
+    if(graph_ == nullptr)
+    {
+        throw std::invalid_argument(
+            "Module::Module: graph pointer must be non-null");
+    }
 }
 
 // -----------------------------------------------------------------
@@ -52,7 +57,7 @@ void Module::register_buffer(const std::string& local_name,
         throw std::invalid_argument(
             "Module::register_buffer: tensor is nullptr");
     }
-    graph_.set_requires_grad(tensor, false);
+    graph_->set_requires_grad(tensor, false);
     buffers_.emplace_back(local_name, tensor);
 }
 

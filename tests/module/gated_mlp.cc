@@ -46,7 +46,7 @@ TEST_CASE("GatedMlp ForwardBuildsOutput", "[module]")
     NNGraph g("gated_mlp");
 
     auto* input = g.tensor({2, 3}, "input", DataType::FP32);
-    GatedMlp gated_mlp(g, "gated_mlp", 3, 4, 5);
+    GatedMlp gated_mlp(&g, "gated_mlp", 3, 4, 5);
 
     auto children = gated_mlp.named_children();
     REQUIRE(children.size() == 4);
@@ -63,8 +63,8 @@ TEST_CASE("GatedMlp ForwardBuildsOutput", "[module]")
         children.begin(), children.end(),
         [](const auto& entry) { return entry.first == "down_proj"; }));
 
-    auto& output = gated_mlp.build_forward(*input);
-    REQUIRE(output.shape() == std::vector<Index>({2, 5}));
+    auto* output = gated_mlp.forward(input);
+    REQUIRE(output->shape() == std::vector<Index>({2, 5}));
     REQUIRE(gated_mlp.parameters_recursive().size() == 3);
 
     REQUIRE(gated_mlp.activation().type() == ActivationType::SILU);
@@ -97,12 +97,12 @@ TEST_CASE("GatedMlp BackwardCreatesGradients", "[module]")
     NNGraph g("gated_mlp_bwd");
 
     auto* input = g.tensor({2, 3}, "input", DataType::FP32);
-    GatedMlp gated_mlp(g, "gated_mlp", 3, 4, 5);
+    GatedMlp gated_mlp(&g, "gated_mlp", 3, 4, 5);
 
-    auto& output = gated_mlp.build_forward(*input);
-    g.get_or_create_grad(&output, "output_grad");
-    gt::fill(Scalar(1.0), output.grad()->data());
-    output.backward();
+    auto* output = gated_mlp.forward(input);
+    g.get_or_create_grad(output, "output_grad");
+    gt::fill(Scalar(1.0), output->grad()->data());
+    output->backward();
 
     REQUIRE(gated_mlp.gate_proj().weight_tensor()->grad() != nullptr);
     REQUIRE(gated_mlp.up_proj().weight_tensor()->grad() != nullptr);
@@ -115,10 +115,10 @@ TEST_CASE("GatedMlp OutputDimEqualsInputDim", "[module]")
     NNGraph g("gated_mlp_square");
 
     auto* input = g.tensor({2, 8}, "input", DataType::FP32);
-    GatedMlp gated_mlp(g, "gated_mlp", 8, 16);
+    GatedMlp gated_mlp(&g, "gated_mlp", 8, 16);
 
-    auto& output = gated_mlp.build_forward(*input);
-    REQUIRE(output.shape() == std::vector<Index>({2, 8}));
+    auto* output = gated_mlp.forward(input);
+    REQUIRE(output->shape() == std::vector<Index>({2, 8}));
 }
 
 #ifdef NNTILE_HAVE_TORCH
@@ -196,15 +196,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     NNGraph g("gated_mlp_pytorch");
     auto* input = g.tensor({batch, in_dim}, "input", DataType::FP32, true);
-    GatedMlp gated_mlp(g, "gated_mlp", gate_proj, up_proj, down_proj, activation);
-    auto& output = gated_mlp.build_forward(*input);
+    GatedMlp gated_mlp(&g, "gated_mlp", gate_proj, up_proj, down_proj, activation);
+    auto* output = gated_mlp.forward(input);
 
     input->mark_input(true);
-    output.mark_output(true);
+    output->mark_output(true);
 
-    auto [grad_output_tensor, _] = g.get_or_create_grad(&output, "output_grad");
+    auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(grad_fill_val), grad_output_tensor->data());
-    output.backward();
+    output->backward();
 
     gated_mlp.gate_proj().weight_tensor()->grad()->mark_output(true);
     gated_mlp.up_proj().weight_tensor()->grad()->mark_output(true);
@@ -230,7 +230,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.wait();
 
     std::vector<float> nntile_out_colmajor =
-        runtime.get_output<float>(output.name());
+        runtime.get_output<float>(output->name());
     std::vector<float> nntile_out =
         colmajor_to_rowmajor(nntile_out_colmajor, {batch, out_dim});
 
@@ -322,16 +322,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     NNGraph g("gated_mlp_fwd_bwd_pytorch");
     auto* input = g.tensor({batch, in_dim}, "input", DataType::FP32, true);
-    GatedMlp gated_mlp(g, "gated_mlp", gate_proj, up_proj, down_proj,
+    GatedMlp gated_mlp(&g, "gated_mlp", gate_proj, up_proj, down_proj,
                        ActivationType::SILU);
-    auto& output = gated_mlp.build_forward(*input);
+    auto* output = gated_mlp.forward(input);
 
     input->mark_input(true);
-    output.mark_output(true);
+    output->mark_output(true);
 
-    auto [grad_output_tensor, _] = g.get_or_create_grad(&output, "output_grad");
+    auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
     gt::fill(Scalar(1.0f), grad_output_tensor->data());
-    output.backward();
+    output->backward();
 
     gated_mlp.gate_proj().weight_tensor()->grad()->mark_output(true);
     gated_mlp.up_proj().weight_tensor()->grad()->mark_output(true);
@@ -359,7 +359,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
-    auto out = runtime.get_output<float>(output.name());
+    auto out = runtime.get_output<float>(output->name());
     REQUIRE(out.size() == static_cast<size_t>(batch * out_dim));
 
     auto grad_gate = runtime.get_output<float>(gated_mlp.gate_proj().grad_name("weight"));

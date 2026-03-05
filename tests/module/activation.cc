@@ -33,13 +33,13 @@ TEST_CASE("Activation AllTypes", "[module]")
 
     auto* input = g.tensor({2, 3}, "input", DataType::FP32);
 
-    Activation gelu(g, "gelu", ActivationType::GELU);
-    Activation gelutanh(g, "gelutanh", ActivationType::GELUTANH);
-    Activation relu(g, "relu", ActivationType::RELU);
-    Activation silu(g, "silu", ActivationType::SILU);
+    Activation gelu(&g, "gelu", ActivationType::GELU);
+    Activation gelutanh(&g, "gelutanh", ActivationType::GELUTANH);
+    Activation relu(&g, "relu", ActivationType::RELU);
+    Activation silu(&g, "silu", ActivationType::SILU);
 
-    auto& out_gelu = gelu.build_forward(*input);
-    REQUIRE(out_gelu.shape() == std::vector<Index>({2, 3}));
+    auto* out_gelu = gelu.forward(input);
+    REQUIRE(out_gelu->shape() == std::vector<Index>({2, 3}));
 
     REQUIRE(gelu.type() == ActivationType::GELU);
     REQUIRE(gelutanh.type() == ActivationType::GELUTANH);
