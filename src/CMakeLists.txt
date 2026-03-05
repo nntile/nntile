@@ -404,7 +404,6 @@ set(GRAPH_CORE_SRC
     "graph/tensor/add_fiber.cc"
     "graph/tensor/add_fiber_inplace.cc"
     "graph/tensor/add_inplace.cc"
-    "graph/tensor/add_scalar_scaled_inplace.cc"
     "graph/tensor/add_slice.cc"
     "graph/tensor/add_slice_inplace.cc"
     "graph/tensor/clear.cc"

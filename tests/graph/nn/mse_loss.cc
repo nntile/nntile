@@ -67,10 +67,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph mse_loss forward and backward", "[graph][nn_graph]")
 {
-    const auto [x_shape, scale, grad_fill_val] = GENERATE(
-        std::tuple{std::vector<Index>{2, 4}, Scalar(1.0), Scalar(1.0)},
-        std::tuple{std::vector<Index>{3, 6}, Scalar(0.5), Scalar(1.0)},
-        std::tuple{std::vector<Index>{2, 3, 4}, Scalar(1.0 / 24.0), Scalar(-1.0)});
+    const auto [x_shape, scale] = GENERATE(
+        std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
+        std::tuple{std::vector<Index>{3, 6}, Scalar(0.5)},
+        std::tuple{std::vector<Index>{2, 3, 4}, Scalar(1.0 / 24.0)});
 
     NNGraph g("mse_loss");
     auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
@@ -80,8 +80,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(loss->has_producer());
     REQUIRE(loss->shape().empty());
 
+    // grad_loss implicitly 1.0 for loss outputs
     auto [loss_grad, _] = g.get_or_create_grad(loss, "loss_grad");
-    gt::fill(grad_fill_val, loss_grad->data());
+    gt::fill(1.0, loss_grad->data());
     loss->backward();
 
     REQUIRE(x->has_grad());
@@ -142,10 +143,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph mse_loss backward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
-    const auto [x_shape, scale, grad_fill_val] = GENERATE(
-        std::tuple{std::vector<Index>{2, 4}, Scalar(1.0), Scalar(1.0)},
-        std::tuple{std::vector<Index>{3, 5}, Scalar(0.5), Scalar(1.0)},
-        std::tuple{std::vector<Index>{2, 3, 4}, Scalar(1.0 / 24.0), Scalar(-1.0)});
+    const auto [x_shape, scale] = GENERATE(
+        std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
+        std::tuple{std::vector<Index>{3, 5}, Scalar(0.5)},
+        std::tuple{std::vector<Index>{2, 3, 4}, Scalar(1.0 / 24.0)});
 
     Index x_nelems = 1;
     for(auto s : x_shape)
@@ -161,8 +162,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     x->mark_input(true);
 
+    // grad_loss implicitly 1.0 for loss outputs
     auto [loss_grad, _] = g.get_or_create_grad(loss, "loss_grad");
-    gt::fill(grad_fill_val, loss_grad->data());
+    gt::fill(1.0, loss_grad->data());
     loss->backward();
 
     x->grad()->mark_output(true);
@@ -186,12 +188,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                     .clone()
                     .set_requires_grad(true);
 
-    // PyTorch: loss = scale * sum(x^2), grad_x = 2 * scale * x * grad_loss
+    // PyTorch: loss = scale * sum(x^2), grad_x = 2 * scale * x (grad_loss=1.0)
     auto loss_pt = scale * (x_pt * x_pt).sum();
-    auto grad_output = torch::full(
-        {}, static_cast<float>(grad_fill_val),
-        torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
-    loss_pt.backward(grad_output);
+    loss_pt.backward();  // scalar default grad is 1.0
 
     auto grad_x_pt = x_pt.grad().contiguous();
     std::vector<float> pytorch_grad_x(grad_x_pt.data_ptr<float>(),

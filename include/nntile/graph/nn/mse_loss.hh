@@ -12,7 +12,8 @@
  * Forward: loss = scale * ||x||^2 = scale * sum(x^2)
  * scale=1.0 gives total loss, scale=1/num_values gives mean loss.
  *
- * Backward: grad_x += 2 * scale * x * grad_loss
+ * Backward: grad_x += 2 * scale * x
+ * (Gradient over the loss value is implicitly 1.0.)
  *
  * @version 1.1.0
  * */

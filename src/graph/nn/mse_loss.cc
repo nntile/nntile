@@ -16,7 +16,7 @@
 
 #include <stdexcept>
 
-#include "nntile/graph/tensor/add_scalar_scaled_inplace.hh"
+#include "nntile/graph/tensor/add_inplace.hh"
 #include "nntile/graph/tensor/clear.hh"
 #include "nntile/graph/tensor/copy.hh"
 #include "nntile/graph/tensor/multiply.hh"
@@ -82,11 +82,9 @@ void NNMseLossOp::backward() const
         auto [grad_x, is_first] =
             graph->get_or_create_grad(x, x->name() + "_grad");
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        // grad_x += 2*scale*x*grad_loss
-        // Use add_scalar_scaled_inplace: dst = alpha*scalar*src + beta*dst
-        // So: grad_x = 2*scale*grad_out*x + grad_beta*grad_x
-        graph::tensor::add_scalar_scaled_inplace(
-            2.0 * scale, grad_out->data(), x->data(), grad_beta, grad_x->data());
+        // grad_x += 2*scale*x (grad_loss implicitly 1.0)
+        graph::tensor::add_inplace(2.0 * scale, x->data(), grad_beta,
+                                  grad_x->data());
     }
 }
 

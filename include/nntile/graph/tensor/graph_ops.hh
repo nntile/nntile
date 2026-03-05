@@ -19,7 +19,6 @@
 #include <nntile/graph/tensor/add_fiber.hh>
 #include <nntile/graph/tensor/add_fiber_inplace.hh>
 #include <nntile/graph/tensor/add_inplace.hh>
-#include <nntile/graph/tensor/add_scalar_scaled_inplace.hh>
 #include <nntile/graph/tensor/add_slice.hh>
 #include <nntile/graph/tensor/add_slice_inplace.hh>
 #include <nntile/graph/tensor/clear.hh>
