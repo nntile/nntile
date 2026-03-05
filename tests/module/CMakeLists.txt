@@ -15,7 +15,6 @@
 set(TESTS_CATCH2
     "activation"
     "embedding"
-    "gelu"
     "gated_mlp"
     "linear"
     "mlp"
@@ -27,6 +26,7 @@ set(TESTS_CATCH2
 # Module tests with PyTorch comparison
 set(TESTS_MODULE_PYTORCH
     "activation"
+    "embedding"
     "gated_mlp"
     "linear"
     "mlp"

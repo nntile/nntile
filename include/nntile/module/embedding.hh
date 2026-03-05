@@ -15,7 +15,13 @@
 #pragma once
 
 // Include standard headers
+#include <cstdint>
 #include <string>
+#include <vector>
+
+#ifdef NNTILE_HAVE_TORCH
+#   include <torch/torch.h>
+#endif
 
 // Include NNTile headers
 #include <nntile/graph.hh>
@@ -106,8 +112,36 @@ public:
         int redux
     );
 
+#ifdef NNTILE_HAVE_TORCH
+    //! Constructor: creates Embedding from torch::nn::Embedding (same dimensions)
+    //! and binds vocab data from the PyTorch layer.
+    //! @param graph Pointer to the neural network graph this module belongs to
+    //! @param name Layer name (used to generate unique tensor names)
+    //! @param embedding_layer PyTorch Embedding layer to mirror (weight copied)
+    //! @param dtype Data type for tensors
+    Embedding(
+        graph::NNGraph* graph,
+        const std::string& name,
+        const torch::nn::Embedding& embedding_layer,
+        graph::DataType dtype = graph::DataType::FP32
+    );
+
+    //! Get vocab data in NNTile format for runtime.bind_data().
+    //! Converts PyTorch [num_embeddings, embed_dim] row-major to NNTile
+    //! [embed_dim, num_embeddings] column-major.
+    static std::vector<float> vocab_data_from_pytorch(const torch::Tensor& w);
+#endif
+
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* index);
+
+    //! Bind vocab (weight) data for Runtime::compile(). Data must be in NNTile
+    //! layout [embed_dim, num_embeddings] column-major.
+    //! Moves data into the graph; call std::move() to avoid copy.
+    void bind_weight(std::vector<std::uint8_t> data);
+
+    //! Bind vocab (weight) data (FP32 convenience; copies into internal buffer).
+    void bind_weight(const std::vector<float>& data);
 
     //! Forward: calls forward (user does bookkeeping via autograd ops)
     graph::NNGraph::TensorNode* operator()(graph::NNGraph::TensorNode* index)
@@ -128,5 +162,49 @@ public:
     int redux() const { return redux_; }
     graph::DataType dtype() const { return dtype_; }
 };
+
+#ifdef NNTILE_HAVE_TORCH
+
+inline Embedding::Embedding(graph::NNGraph* graph,
+                           const std::string& name,
+                           const torch::nn::Embedding& embedding_layer,
+                           graph::DataType dtype)
+    : Embedding(graph, name,
+                static_cast<Index>(embedding_layer->weight.size(0)),
+                static_cast<Index>(embedding_layer->weight.size(1)),
+                dtype)
+{
+    bind_weight(vocab_data_from_pytorch(embedding_layer->weight));
+}
+
+inline std::vector<float> Embedding::vocab_data_from_pytorch(
+    const torch::Tensor& w)
+{
+    if(!w.defined())
+    {
+        throw std::invalid_argument(
+            "Embedding::vocab_data_from_pytorch: tensor undefined");
+    }
+    if(w.dim() != 2)
+    {
+        throw std::invalid_argument(
+            "Embedding::vocab_data_from_pytorch: expected 2D tensor");
+    }
+    // PyTorch weight: [num_embeddings, embed_dim]; NNTile vocab: [embed_dim, num_embeddings] col-major
+    const long num_emb = w.size(0);
+    const long emb_dim = w.size(1);
+    std::vector<float> result(static_cast<size_t>(emb_dim * num_emb));
+    auto acc = w.accessor<float, 2>();
+    for(long j = 0; j < num_emb; ++j)
+    {
+        for(long i = 0; i < emb_dim; ++i)
+        {
+            result[static_cast<size_t>(i + j * emb_dim)] = acc[j][i];
+        }
+    }
+    return result;
+}
+
+#endif // NNTILE_HAVE_TORCH
 
 } // namespace nntile::module

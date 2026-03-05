@@ -16,6 +16,7 @@
 #include "nntile/module/embedding.hh"
 
 // Include standard headers
+#include <cstring>
 #include <stdexcept>
 
 namespace nntile::module
@@ -163,6 +164,33 @@ graph::NNGraph::TensorNode* Embedding::forward(
         redux_);
 
     return output_tensor_;
+}
+
+void Embedding::bind_weight(std::vector<std::uint8_t> data)
+{
+    if(vocab_tensor_ == nullptr)
+    {
+        throw std::runtime_error(
+            "Embedding::bind_weight: vocab tensor is null (external vocab mode)");
+    }
+    vocab_tensor_->data()->set_bind_hint(std::move(data));
+    vocab_tensor_->mark_input(true);
+}
+
+void Embedding::bind_weight(const std::vector<float>& data)
+{
+    const size_t expected =
+        static_cast<size_t>(embed_dim_) * num_embeddings_;
+    if(data.size() != expected)
+    {
+        throw std::invalid_argument(
+            "Embedding::bind_weight: size mismatch, expected " +
+            std::to_string(expected) + " elements, got " +
+            std::to_string(data.size()));
+    }
+    std::vector<std::uint8_t> bytes(data.size() * sizeof(float));
+    std::memcpy(bytes.data(), data.data(), bytes.size());
+    bind_weight(std::move(bytes));
 }
 
 //! Get string representation with dimensions

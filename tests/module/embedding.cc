@@ -18,10 +18,21 @@
 
 // Include third-party headers
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
+
+#ifdef NNTILE_HAVE_TORCH
+#   include <torch/nn/modules/embedding.h>
+#endif
 
 // Include other NNTile headers
 #include "nntile/graph.hh"
 #include "nntile/module/embedding.hh"
+#include "nntile/graph/tensor/graph.hh"
+
+#ifdef NNTILE_HAVE_TORCH
+#   include "context_fixture.hh"
+#   include "pytorch_helper.hh"
+#endif
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -131,3 +142,142 @@ TEST_CASE("Embedding BackwardCreatesGradients", "[module]")
     REQUIRE(emb.vocab_tensor()->grad()->shape() ==
         std::vector<Index>({100, 10}));
 }
+
+#ifdef NNTILE_HAVE_TORCH
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "Embedding bind_weight applies data on compile", "[module]")
+{
+    const Index num_embeddings = 10;
+    const Index embed_dim = 100;
+
+    NNGraph g("embedding_bind");
+    auto* index = g.tensor({4, 5}, "index", DataType::INT64, false);
+    Embedding emb(&g, "emb", num_embeddings, embed_dim);
+
+    auto* output = emb.forward(index);
+    index->mark_input(true);
+    output->mark_output(true);
+
+    // Bind vocab before compile; data in NNTile (column-major) layout
+    // vocab shape [embed_dim, num_embeddings]
+    std::vector<float> vocab_data(embed_dim * num_embeddings);
+    for(Index i = 0; i < embed_dim * num_embeddings; ++i)
+        vocab_data[i] = 0.1f * static_cast<float>(i + 1);
+    emb.bind_weight(vocab_data);
+
+    TensorGraph::Runtime runtime(g.tensor_graph());
+    runtime.compile();
+
+    std::vector<std::int64_t> index_data(4 * 5);
+    for(Index i = 0; i < 20; ++i)
+        index_data[i] = static_cast<std::int64_t>(i % num_embeddings);
+    runtime.bind_data(index->name(), index_data);
+    runtime.execute();
+    runtime.wait();
+
+    auto out = runtime.get_output<float>(output->name());
+    REQUIRE(out.size() == 4 * 5 * embed_dim);
+    // output[0,0,:] = vocab[:, index[0,0]]. index[0,0]=0, so first column of vocab
+    // In col-major vocab, column 0 is vocab[0:embed_dim]
+    float expected = 0;
+    for(Index i = 0; i < embed_dim; ++i)
+        expected += vocab_data[i];
+    REQUIRE(std::abs(out[0] - vocab_data[0]) < 1e-5f);
+}
+
+using nntile::test::colmajor_to_rowmajor;
+using nntile::test::pytorch_tolerance;
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "Embedding from PyTorch binds weight in constructor", "[module][pytorch]")
+{
+    const Index num_embeddings = 10;
+    const Index embed_dim = 100;
+    const Index batch = 4;
+    const Index seq_len = 5;
+
+    torch::manual_seed(42);
+    auto emb_pt = torch::nn::Embedding(num_embeddings, embed_dim);
+
+    NNGraph g("embedding_from_pytorch");
+    auto* index = g.tensor({batch, seq_len}, "index", DataType::INT64, false);
+    Embedding emb(&g, "emb", emb_pt);
+    auto* output = emb.forward(index);
+
+    index->mark_input(true);
+    output->mark_output(true);
+
+    std::vector<std::int64_t> index_data(batch * seq_len);
+    for(Index i = 0; i < batch * seq_len; ++i)
+        index_data[i] = static_cast<std::int64_t>(i % num_embeddings);
+
+    TensorGraph::Runtime runtime(g.tensor_graph());
+    runtime.compile();
+    runtime.bind_data("index", index_data);
+    runtime.execute();
+    runtime.wait();
+
+    std::vector<float> nntile_out_colmajor =
+        runtime.get_output<float>(output->name());
+    std::vector<float> nntile_out =
+        colmajor_to_rowmajor(nntile_out_colmajor, {batch, seq_len, embed_dim});
+
+    // Index data is column-major (NNTile layout); convert for PyTorch row-major
+    std::vector<std::int64_t> index_rowmajor =
+        colmajor_to_rowmajor(index_data, {batch, seq_len});
+    std::vector<std::int64_t> index_shape_pt{batch, seq_len};
+    auto index_pt = torch::from_blob(index_rowmajor.data(), index_shape_pt,
+        torch::TensorOptions().dtype(torch::kInt64)).clone();
+    auto out_pt = emb_pt->forward(index_pt);
+    std::vector<float> pytorch_out(out_pt.data_ptr<float>(),
+        out_pt.data_ptr<float>() + batch * seq_len * embed_dim);
+
+    REQUIRE(nntile_out.size() == pytorch_out.size());
+    for(size_t i = 0; i < nntile_out.size(); ++i)
+        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "Embedding from PyTorch forward-backward", "[module][pytorch]")
+{
+    const auto [num_embeddings, embed_dim, batch, seq_len] = GENERATE(
+        std::tuple{Index(10), Index(100), Index(4), Index(5)},
+        std::tuple{Index(8), Index(50), Index(2), Index(3)});
+
+    torch::manual_seed(42);
+    auto emb_pt = torch::nn::Embedding(num_embeddings, embed_dim);
+
+    std::vector<std::int64_t> index_data(batch * seq_len);
+    for(Index i = 0; i < batch * seq_len; ++i)
+        index_data[i] = static_cast<std::int64_t>(i % num_embeddings);
+
+    NNGraph g("embedding_fwd_bwd_pytorch");
+    auto* index = g.tensor({batch, seq_len}, "index", DataType::INT64, false);
+    Embedding emb(&g, "emb", emb_pt);
+    auto* output = emb.forward(index);
+
+    index->mark_input(true);
+    output->mark_output(true);
+
+    auto [grad_output_tensor, _] = g.get_or_create_grad(output, "output_grad");
+    fill(Scalar(1.0f), grad_output_tensor);
+    output->backward();
+
+    emb.vocab_tensor()->grad()->mark_output(true);
+
+    TensorGraph::Runtime runtime(g.tensor_graph());
+    runtime.compile();
+    runtime.bind_data("index", index_data);
+    runtime.execute();
+    runtime.wait();
+
+    auto out = runtime.get_output<float>(output->name());
+    REQUIRE(out.size() == static_cast<size_t>(batch * seq_len * embed_dim));
+
+    auto grad_vocab = runtime.get_output<float>(emb.grad_name("vocab"));
+    REQUIRE(grad_vocab.size() ==
+        static_cast<size_t>(embed_dim * num_embeddings));
+}
+
+#endif // NNTILE_HAVE_TORCH
