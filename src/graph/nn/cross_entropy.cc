@@ -122,8 +122,7 @@ void NNCrossEntropyOp::backward() const
         return;
     }
     NNGraph* graph = out->graph();
-    NNGraph::TensorNode* grad_out = out->grad();
-    if(grad_out == nullptr)
+    if(out->grad() == nullptr)
     {
         return;
     }
@@ -158,8 +157,8 @@ void NNCrossEntropyOp::backward() const
     graph::tensor::subtract_indexed_outputs(
         scale, labels->data(), grad_temp->data(), ignore_index);
 
-    // grad_x += grad_out * grad_temp
-    // For scalar loss, grad_out is typically 1.0. We add grad_temp to grad_x.
+    // grad_x += grad_temp (gradient w.r.t. loss is implicitly 1.0, as in
+    // scalar loss.backward())
     Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
     graph::tensor::add_inplace(1.0, grad_temp->data(), grad_beta,
                               grad_x->data());
