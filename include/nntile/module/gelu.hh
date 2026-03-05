@@ -26,7 +26,7 @@ namespace nntile::module
 
 //! GeLU activation module using graph API
 //! Computes: output = gelu(input)
-class Gelu : public ModuleBase
+class Gelu : public Module
 {
 private:
     graph::NNGraph::TensorNode* input_tensor_ = nullptr;

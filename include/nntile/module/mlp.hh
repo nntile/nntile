@@ -21,7 +21,7 @@
 
 // Include NNTile headers
 #include <nntile/graph.hh>
-#include <nntile/module/gelu.hh>
+#include <nntile/module/activation.hh>
 #include <nntile/module/linear.hh>
 #include <nntile/module/module.hh>
 
@@ -30,20 +30,20 @@ namespace nntile::module
 
 //! MLP (Multi-Layer Perceptron) module using graph API
 //!
-//! Architecture: Linear -> GELU -> Linear
+//! Architecture: Linear -> Activation -> Linear
 //!   - fc1: input_dim -> intermediate_dim
-//!   - activation: GELU
+//!   - activation: gelu (default), gelutanh, relu, or silu
 //!   - fc2: intermediate_dim -> output_dim
 //!
 //! This module demonstrates composing multiple submodules.
-class Mlp : public ModuleBase
+class Mlp : public Module
 {
 private:
     //! First linear layer: input -> intermediate
     Linear fc1_;
 
     //! Activation module: hidden -> activation
-    Gelu gelu_;
+    Activation activation_;
 
     //! Second linear layer: activation -> output
     Linear fc2_;
@@ -56,7 +56,7 @@ private:
 
     //! Intermediate tensors (created during build_forward)
     graph::NNGraph::TensorNode* hidden_tensor_ = nullptr;      // After fc1
-    graph::NNGraph::TensorNode* activation_tensor_ = nullptr;  // After GELU
+    graph::NNGraph::TensorNode* activation_tensor_ = nullptr;  // After activation
 
     graph::NNGraph::TensorNode* input_tensor_ = nullptr;
     graph::NNGraph::TensorNode* output_tensor_ = nullptr;
@@ -68,12 +68,14 @@ public:
     //! @param input_dim Input feature dimension
     //! @param intermediate_dim Hidden layer dimension (after fc1)
     //! @param output_dim Output feature dimension
+    //! @param activation Activation function (default: gelu)
     //! @param dtype Data type for all tensors
     Mlp(graph::NNGraph& graph,
         const std::string& name,
         Index input_dim,
         Index intermediate_dim,
         Index output_dim,
+        ActivationType activation = ActivationType::GELU,
         graph::DataType dtype = graph::DataType::FP32);
 
     //! Constructor: creates MLP where output_dim == input_dim (common in transformers)
@@ -81,11 +83,13 @@ public:
     //! @param name Module name
     //! @param input_dim Input/output feature dimension
     //! @param intermediate_dim Hidden layer dimension
+    //! @param activation Activation function (default: gelu)
     //! @param dtype Data type for all tensors
     Mlp(graph::NNGraph& graph,
         const std::string& name,
         Index input_dim,
         Index intermediate_dim,
+        ActivationType activation = ActivationType::GELU,
         graph::DataType dtype = graph::DataType::FP32);
 
     graph::NNGraph::TensorNode& build_forward(
@@ -108,8 +112,8 @@ public:
     // Submodule accessors
     Linear& fc1() { return fc1_; }
     const Linear& fc1() const { return fc1_; }
-    Gelu& gelu() { return gelu_; }
-    const Gelu& gelu() const { return gelu_; }
+    Activation& activation() { return activation_; }
+    const Activation& activation() const { return activation_; }
     Linear& fc2() { return fc2_; }
     const Linear& fc2() const { return fc2_; }
 };

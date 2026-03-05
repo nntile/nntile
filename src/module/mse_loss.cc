@@ -22,7 +22,7 @@ namespace nntile::module
 MseLoss::MseLoss(graph::NNGraph& graph,
                  const std::string& name,
                  graph::DataType dtype)
-    : ModuleBase(graph, name)
+    : Module(graph, name)
     , dtype_(dtype)
 {
 }

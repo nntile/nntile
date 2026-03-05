@@ -23,7 +23,7 @@ namespace nntile::module
 {
 
 //! Constructor
-ModuleBase::ModuleBase(graph::NNGraph& graph, const std::string& name)
+Module::Module(graph::NNGraph& graph, const std::string& name)
     : graph_(graph)
     , name_(name)
 {
@@ -33,7 +33,7 @@ ModuleBase::ModuleBase(graph::NNGraph& graph, const std::string& name)
 // Parameter/Buffer Registration
 // -----------------------------------------------------------------
 
-void ModuleBase::register_parameter(const std::string& local_name,
+void Module::register_parameter(const std::string& local_name,
                                 graph::NNGraph::TensorNode* tensor)
 {
     if(tensor == nullptr)
@@ -44,7 +44,7 @@ void ModuleBase::register_parameter(const std::string& local_name,
     parameters_.emplace_back(local_name, tensor);
 }
 
-void ModuleBase::register_buffer(const std::string& local_name,
+void Module::register_buffer(const std::string& local_name,
                              graph::NNGraph::TensorNode* tensor)
 {
     if(tensor == nullptr)
@@ -56,8 +56,8 @@ void ModuleBase::register_buffer(const std::string& local_name,
     buffers_.emplace_back(local_name, tensor);
 }
 
-void ModuleBase::register_module(const std::string& local_name,
-                                  ModuleBase* module)
+void Module::register_module(const std::string& local_name,
+                                  Module* module)
 {
     if(module == nullptr)
     {
@@ -71,7 +71,7 @@ void ModuleBase::register_module(const std::string& local_name,
 // Parameter Access
 // -----------------------------------------------------------------
 
-std::vector<graph::NNGraph::TensorNode*> ModuleBase::parameters() const
+std::vector<graph::NNGraph::TensorNode*> Module::parameters() const
 {
     std::vector<graph::NNGraph::TensorNode*> result;
     result.reserve(parameters_.size());
@@ -83,12 +83,12 @@ std::vector<graph::NNGraph::TensorNode*> ModuleBase::parameters() const
 }
 
 const std::vector<std::pair<std::string, graph::NNGraph::TensorNode*>>&
-ModuleBase::named_parameters() const
+Module::named_parameters() const
 {
     return parameters_;
 }
 
-std::vector<graph::NNGraph::TensorNode*> ModuleBase::parameters_recursive() const
+std::vector<graph::NNGraph::TensorNode*> Module::parameters_recursive() const
 {
     std::vector<graph::NNGraph::TensorNode*> result;
 
@@ -109,14 +109,14 @@ std::vector<graph::NNGraph::TensorNode*> ModuleBase::parameters_recursive() cons
 }
 
 std::vector<std::pair<std::string, graph::NNGraph::TensorNode*>>
-ModuleBase::named_parameters_recursive() const
+Module::named_parameters_recursive() const
 {
     std::vector<std::pair<std::string, graph::NNGraph::TensorNode*>> result;
     collect_parameters_recursive(name_, result);
     return result;
 }
 
-void ModuleBase::collect_parameters_recursive(
+void Module::collect_parameters_recursive(
     const std::string& prefix,
     std::vector<std::pair<std::string, graph::NNGraph::TensorNode*>>& result) const
 {
@@ -137,7 +137,7 @@ void ModuleBase::collect_parameters_recursive(
 // Buffer Access
 // -----------------------------------------------------------------
 
-std::vector<graph::NNGraph::TensorNode*> ModuleBase::buffers() const
+std::vector<graph::NNGraph::TensorNode*> Module::buffers() const
 {
     std::vector<graph::NNGraph::TensorNode*> result;
     result.reserve(buffers_.size());
@@ -149,7 +149,7 @@ std::vector<graph::NNGraph::TensorNode*> ModuleBase::buffers() const
 }
 
 const std::vector<std::pair<std::string, graph::NNGraph::TensorNode*>>&
-ModuleBase::named_buffers() const
+Module::named_buffers() const
 {
     return buffers_;
 }
@@ -160,7 +160,7 @@ ModuleBase::named_buffers() const
 
 std::vector<std::pair<graph::NNGraph::TensorNode*,
                       graph::NNGraph::TensorNode*>>
-ModuleBase::parameter_gradients() const
+Module::parameter_gradients() const
 {
     std::vector<std::pair<graph::NNGraph::TensorNode*,
                           graph::NNGraph::TensorNode*>> result;
@@ -180,7 +180,7 @@ ModuleBase::parameter_gradients() const
 
 std::vector<std::pair<graph::NNGraph::TensorNode*,
                       graph::NNGraph::TensorNode*>>
-ModuleBase::parameter_gradients_recursive() const
+Module::parameter_gradients_recursive() const
 {
     std::vector<std::pair<graph::NNGraph::TensorNode*,
                           graph::NNGraph::TensorNode*>> result;
@@ -209,9 +209,9 @@ ModuleBase::parameter_gradients_recursive() const
 // Module Hierarchy
 // -----------------------------------------------------------------
 
-std::vector<ModuleBase*> ModuleBase::children() const
+std::vector<Module*> Module::children() const
 {
-    std::vector<ModuleBase*> result;
+    std::vector<Module*> result;
     result.reserve(submodules_.size());
     for(const auto& [name, module] : submodules_)
     {
@@ -220,23 +220,23 @@ std::vector<ModuleBase*> ModuleBase::children() const
     return result;
 }
 
-const std::vector<std::pair<std::string, ModuleBase*>>&
-ModuleBase::named_children() const
+const std::vector<std::pair<std::string, Module*>>&
+Module::named_children() const
 {
     return submodules_;
 }
 
-std::vector<ModuleBase*> ModuleBase::modules() const
+std::vector<Module*> Module::modules() const
 {
-    std::vector<ModuleBase*> result;
+    std::vector<Module*> result;
     collect_modules_recursive(result);
     return result;
 }
 
-void ModuleBase::collect_modules_recursive(std::vector<ModuleBase*>& result) const
+void Module::collect_modules_recursive(std::vector<Module*>& result) const
 {
     // Add self (const_cast needed because we return non-const pointers)
-    result.push_back(const_cast<ModuleBase*>(this));
+    result.push_back(const_cast<Module*>(this));
 
     // Recurse into submodules
     for(const auto& [name, module] : submodules_)
@@ -249,12 +249,12 @@ void ModuleBase::collect_modules_recursive(std::vector<ModuleBase*>& result) con
 // Name Helpers
 // -----------------------------------------------------------------
 
-std::string ModuleBase::tensor_name(const std::string& local_name) const
+std::string Module::tensor_name(const std::string& local_name) const
 {
     return name_ + "_" + local_name;
 }
 
-std::string ModuleBase::grad_name(const std::string& local_name) const
+std::string Module::grad_name(const std::string& local_name) const
 {
     return name_ + "_" + local_name + "_grad";
 }
@@ -263,24 +263,24 @@ std::string ModuleBase::grad_name(const std::string& local_name) const
 // String Representation
 // -----------------------------------------------------------------
 
-std::string ModuleBase::repr() const
+std::string Module::repr() const
 {
     return name_ + "()";
 }
 
-std::string ModuleBase::to_string() const
+std::string Module::to_string() const
 {
     std::ostringstream ss;
     to_string_recursive(ss, "");
     return ss.str();
 }
 
-void ModuleBase::print() const
+void Module::print() const
 {
     std::cout << to_string() << std::endl;
 }
 
-void ModuleBase::to_string_recursive(std::ostringstream& ss,
+void Module::to_string_recursive(std::ostringstream& ss,
                                   const std::string& indent) const
 {
     // Print this module

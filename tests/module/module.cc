@@ -32,7 +32,7 @@ using namespace nntile::module;
 namespace
 {
 
-class DummyModule final : public ModuleBase
+class DummyModule final : public Module
 {
 private:
     NNGraph::TensorNode* input_tensor_ = nullptr;
@@ -40,7 +40,7 @@ private:
 
 public:
     DummyModule(NNGraph& graph, const std::string& name)
-        : ModuleBase(graph, name)
+        : Module(graph, name)
     {
     }
 

@@ -15,8 +15,13 @@
 #pragma once
 
 // Include standard headers
+#include <stdexcept>
 #include <string>
 #include <vector>
+
+#ifdef NNTILE_HAVE_TORCH
+#   include <torch/torch.h>
+#endif
 
 // Include NNTile headers
 #include <nntile/graph.hh>
@@ -33,7 +38,7 @@ namespace nntile::module
 //! Supports flexible construction modes:
 //! 1. Create new weight/bias tensors (specify dimensions)
 //! 2. Use existing weight/bias tensors (for weight/bias sharing)
-class Linear : public ModuleBase
+class Linear : public Module
 {
 private:
     // References to parameter tensors (also registered via register_parameter)
@@ -101,6 +106,30 @@ public:
         graph::NNGraph::TensorNode& bias_tensor
     );
 
+#ifdef NNTILE_HAVE_TORCH
+    //! Constructor: creates Linear from torch::nn::Linear (same dimensions)
+    //! Use weight_data_from_pytorch() and bias_data_from_pytorch() to get
+    //! data for runtime.bind_data().
+    //! @param graph The neural network graph this module belongs to
+    //! @param name Layer name (used to generate unique tensor names)
+    //! @param linear_layer PyTorch Linear layer to mirror
+    //! @param dtype Data type for tensors
+    Linear(
+        graph::NNGraph& graph,
+        const std::string& name,
+        const torch::nn::Linear& linear_layer,
+        graph::DataType dtype = graph::DataType::FP32
+    );
+
+    //! Get weight data in NNTile format for runtime.bind_data().
+    //! Converts PyTorch [out,in] row-major to NNTile [in,out] column-major.
+    static std::vector<float> weight_data_from_pytorch(const torch::Tensor& w);
+
+    //! Get bias data in NNTile format for runtime.bind_data().
+    //! Copies 1D tensor [output_dim].
+    static std::vector<float> bias_data_from_pytorch(const torch::Tensor& b);
+#endif
+
     graph::NNGraph::TensorNode& build_forward(
         graph::NNGraph::TensorNode& input);
 
@@ -125,5 +154,70 @@ public:
     Index output_dim() const { return output_dim_; }
     graph::DataType dtype() const { return dtype_; }
 };
+
+#ifdef NNTILE_HAVE_TORCH
+
+inline Linear::Linear(graph::NNGraph& graph,
+                     const std::string& name,
+                     const torch::nn::Linear& linear_layer,
+                     graph::DataType dtype)
+    : Linear(graph, name,
+             static_cast<Index>(linear_layer->weight.size(1)),
+             static_cast<Index>(linear_layer->weight.size(0)),
+             linear_layer->options.bias(),
+             dtype)
+{}
+
+inline std::vector<float> Linear::weight_data_from_pytorch(
+    const torch::Tensor& w)
+{
+    if(!w.defined())
+    {
+        throw std::invalid_argument(
+            "Linear::weight_data_from_pytorch: tensor undefined");
+    }
+    if(w.dim() != 2)
+    {
+        throw std::invalid_argument(
+            "Linear::weight_data_from_pytorch: expected 2D tensor");
+    }
+    const long out = w.size(0);
+    const long in = w.size(1);
+    std::vector<float> result(static_cast<size_t>(in * out));
+    auto acc = w.accessor<float, 2>();
+    for(long j = 0; j < out; ++j)
+    {
+        for(long i = 0; i < in; ++i)
+        {
+            result[static_cast<size_t>(i + j * in)] = acc[j][i];
+        }
+    }
+    return result;
+}
+
+inline std::vector<float> Linear::bias_data_from_pytorch(
+    const torch::Tensor& b)
+{
+    if(!b.defined())
+    {
+        throw std::invalid_argument(
+            "Linear::bias_data_from_pytorch: tensor undefined");
+    }
+    if(b.dim() != 1)
+    {
+        throw std::invalid_argument(
+            "Linear::bias_data_from_pytorch: expected 1D tensor");
+    }
+    const long n = b.size(0);
+    std::vector<float> result(static_cast<size_t>(n));
+    auto acc = b.accessor<float, 1>();
+    for(long i = 0; i < n; ++i)
+    {
+        result[static_cast<size_t>(i)] = acc[i];
+    }
+    return result;
+}
+
+#endif // NNTILE_HAVE_TORCH
 
 } // namespace nntile::module

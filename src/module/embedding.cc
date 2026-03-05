@@ -27,7 +27,7 @@ Embedding::Embedding(graph::NNGraph& graph,
                      Index num_embeddings,
                      Index embed_dim,
                      graph::DataType dtype)
-    : ModuleBase(graph, name)
+    : Module(graph, name)
     , num_embeddings_(num_embeddings)
     , embed_dim_(embed_dim)
     , axis_(-1)
@@ -51,7 +51,7 @@ Embedding::Embedding(graph::NNGraph& graph,
                      Index axis,
                      int redux,
                      graph::DataType dtype)
-    : ModuleBase(graph, name)
+    : Module(graph, name)
     , num_embeddings_(num_embeddings)
     , embed_dim_(embed_dim)
     , axis_(axis)
@@ -70,7 +70,7 @@ Embedding::Embedding(graph::NNGraph& graph,
 Embedding::Embedding(graph::NNGraph& graph,
                      const std::string& name,
                      graph::NNGraph::TensorNode& vocab_tensor)
-    : ModuleBase(graph, name)
+    : Module(graph, name)
     , vocab_tensor_(&vocab_tensor)
     , num_embeddings_(0)
     , embed_dim_(0)
@@ -98,7 +98,7 @@ Embedding::Embedding(graph::NNGraph& graph,
                      graph::NNGraph::TensorNode& vocab_tensor,
                      Index axis,
                      int redux)
-    : ModuleBase(graph, name)
+    : Module(graph, name)
     , vocab_tensor_(&vocab_tensor)
     , num_embeddings_(0)
     , embed_dim_(0)

@@ -19,9 +19,19 @@
 // Include third-party headers
 #include <catch2/catch_test_macros.hpp>
 
+#ifdef NNTILE_HAVE_TORCH
+#   include <torch/nn/modules/linear.h>
+#endif
+
 // Include other NNTile headers
 #include "nntile/graph.hh"
 #include "nntile/module/linear.hh"
+
+#ifdef NNTILE_HAVE_TORCH
+#   include "nntile/graph/tensor/graph.hh"
+#   include "context_fixture.hh"
+#   include "pytorch_helper.hh"
+#endif
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -170,3 +180,112 @@ TEST_CASE("Linear BackwardCreatesGradients", "[module]")
     REQUIRE(gemm_count == 3);
     REQUIRE(sum_fiber_count == 1);
 }
+
+#ifdef NNTILE_HAVE_TORCH
+
+using nntile::test::colmajor_to_rowmajor;
+using nntile::test::pytorch_tolerance;
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "Linear forward matches PyTorch (no bias)", "[module][pytorch]")
+{
+    const Index batch = 2;
+    const Index in_dim = 3;
+    const Index out_dim = 4;
+
+    torch::manual_seed(42);
+    auto linear_pt = torch::nn::Linear(
+        torch::nn::LinearOptions(in_dim, out_dim).bias(false));
+
+    std::vector<float> input_data(batch * in_dim);
+    for(Index i = 0; i < batch * in_dim; ++i)
+        input_data[i] = 0.1f * static_cast<float>(i + 1);
+
+    std::vector<float> input_rowmajor =
+        colmajor_to_rowmajor(input_data, {batch, in_dim});
+    auto input_pt = torch::from_blob(input_rowmajor.data(), {batch, in_dim},
+        torch::TensorOptions().dtype(torch::kFloat32)).clone();
+    auto out_pt = linear_pt->forward(input_pt);
+    std::vector<float> pytorch_out(out_pt.data_ptr<float>(),
+        out_pt.data_ptr<float>() + batch * out_dim);
+
+    NNGraph g("linear_pytorch");
+    auto* input = g.tensor({batch, in_dim}, "input", DataType::FP32, true);
+    Linear linear(g, "linear", linear_pt);
+    auto& output = linear.build_forward(*input);
+
+    input->mark_input(true);
+    output.mark_output(true);
+    linear.weight_tensor()->mark_input(true);
+
+    TensorGraph::Runtime runtime(g.tensor_graph());
+    runtime.compile();
+    runtime.bind_data("input", input_data);
+    runtime.bind_data("linear_weight",
+        Linear::weight_data_from_pytorch(linear_pt->weight));
+    runtime.execute();
+    runtime.wait();
+
+    std::vector<float> nntile_out_colmajor =
+        runtime.get_output<float>(output.name());
+    std::vector<float> nntile_out =
+        colmajor_to_rowmajor(nntile_out_colmajor, {batch, out_dim});
+
+    REQUIRE(nntile_out.size() == pytorch_out.size());
+    for(size_t i = 0; i < nntile_out.size(); ++i)
+        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "Linear forward matches PyTorch (with bias)", "[module][pytorch]")
+{
+    const Index batch = 2;
+    const Index in_dim = 3;
+    const Index out_dim = 4;
+
+    torch::manual_seed(42);
+    auto linear_pt = torch::nn::Linear(in_dim, out_dim);
+
+    std::vector<float> input_data(batch * in_dim);
+    for(Index i = 0; i < batch * in_dim; ++i)
+        input_data[i] = 0.1f * static_cast<float>(i + 1);
+
+    std::vector<float> input_rowmajor =
+        colmajor_to_rowmajor(input_data, {batch, in_dim});
+    auto input_pt = torch::from_blob(input_rowmajor.data(), {batch, in_dim},
+        torch::TensorOptions().dtype(torch::kFloat32)).clone();
+    auto out_pt = linear_pt->forward(input_pt);
+    std::vector<float> pytorch_out(out_pt.data_ptr<float>(),
+        out_pt.data_ptr<float>() + batch * out_dim);
+
+    NNGraph g("linear_bias_pytorch");
+    auto* input = g.tensor({batch, in_dim}, "input", DataType::FP32, true);
+    Linear linear(g, "linear", linear_pt);
+    auto& output = linear.build_forward(*input);
+
+    input->mark_input(true);
+    output.mark_output(true);
+    linear.weight_tensor()->mark_input(true);
+    linear.bias_tensor()->mark_input(true);
+
+    TensorGraph::Runtime runtime(g.tensor_graph());
+    runtime.compile();
+    runtime.bind_data("input", input_data);
+    runtime.bind_data("linear_weight",
+        Linear::weight_data_from_pytorch(linear_pt->weight));
+    runtime.bind_data("linear_bias",
+        Linear::bias_data_from_pytorch(linear_pt->bias));
+    runtime.execute();
+    runtime.wait();
+
+    std::vector<float> nntile_out_colmajor =
+        runtime.get_output<float>(output.name());
+    std::vector<float> nntile_out =
+        colmajor_to_rowmajor(nntile_out_colmajor, {batch, out_dim});
+
+    REQUIRE(nntile_out.size() == pytorch_out.size());
+    for(size_t i = 0; i < nntile_out.size(); ++i)
+        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
+}
+
+#endif // NNTILE_HAVE_TORCH

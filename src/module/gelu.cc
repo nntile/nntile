@@ -22,7 +22,7 @@ namespace nntile::module
 {
 
 Gelu::Gelu(graph::NNGraph& graph, const std::string& name)
-    : ModuleBase(graph, name)
+    : Module(graph, name)
 {
 }
 

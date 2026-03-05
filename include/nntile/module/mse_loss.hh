@@ -25,7 +25,7 @@ namespace nntile::module
 
 //! MSE loss: squared Frobenius norm of input tensor.
 //! loss = norm(x)^2, gradient = 2*x
-class MseLoss : public ModuleBase
+class MseLoss : public Module
 {
 private:
     graph::NNGraph::TensorNode* input_tensor_ = nullptr;

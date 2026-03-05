@@ -35,7 +35,7 @@ namespace nntile::module
 //! - K: [head_size, k_seq, batch...]
 //! - V: [head_size, k_seq, batch...]
 //! - Y: [head_size, q_seq, batch...]
-class Sdpa : public ModuleBase
+class Sdpa : public Module
 {
 private:
     bool flash_attention_;

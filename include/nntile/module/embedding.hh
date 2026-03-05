@@ -33,7 +33,7 @@ namespace nntile::module
 //! Supports flexible construction modes:
 //! 1. Create new vocab tensor (specify num_embeddings, embed_dim)
 //! 2. Use existing vocab tensor (for weight sharing)
-class Embedding : public ModuleBase
+class Embedding : public Module
 {
 private:
     // Reference to parameter tensor (also registered via register_parameter)

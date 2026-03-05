@@ -27,10 +27,11 @@ Mlp::Mlp(graph::NNGraph& graph,
          Index input_dim,
          Index intermediate_dim,
          Index output_dim,
+         ActivationType activation,
          graph::DataType dtype)
-    : ModuleBase(graph, name)
+    : Module(graph, name)
     , fc1_(graph, name + "_fc1", input_dim, intermediate_dim, dtype)
-    , gelu_(graph, name + "_gelu")
+    , activation_(graph, name + "_activation", activation)
     , fc2_(graph, name + "_fc2", intermediate_dim, output_dim, dtype)
     , input_dim_(input_dim)
     , intermediate_dim_(intermediate_dim)
@@ -39,7 +40,7 @@ Mlp::Mlp(graph::NNGraph& graph,
 {
     // Register submodules
     register_module("fc1", &fc1_);
-    register_module("gelu", &gelu_);
+    register_module("activation", &activation_);
     register_module("fc2", &fc2_);
 }
 
@@ -48,8 +49,9 @@ Mlp::Mlp(graph::NNGraph& graph,
          const std::string& name,
          Index input_dim,
          Index intermediate_dim,
+         ActivationType activation,
          graph::DataType dtype)
-    : Mlp(graph, name, input_dim, intermediate_dim, input_dim, dtype)
+    : Mlp(graph, name, input_dim, intermediate_dim, input_dim, activation, dtype)
 {
 }
 
@@ -58,7 +60,7 @@ graph::NNGraph::TensorNode& Mlp::build_forward(
 {
     input_tensor_ = &input;
     hidden_tensor_ = &fc1_(input);
-    activation_tensor_ = &gelu_(*hidden_tensor_);
+    activation_tensor_ = &activation_(*hidden_tensor_);
     output_tensor_ = &fc2_(*activation_tensor_);
     return *output_tensor_;
 }
@@ -68,7 +70,8 @@ std::string Mlp::repr() const
 {
     return "Mlp(in=" + std::to_string(input_dim_) +
            ", intermediate=" + std::to_string(intermediate_dim_) +
-           ", out=" + std::to_string(output_dim_) + ")";
+           ", out=" + std::to_string(output_dim_) +
+           ", activation=" + activation_type_to_string(activation_.type()) + ")";
 }
 
 } // namespace nntile::module
