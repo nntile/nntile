@@ -16,8 +16,13 @@
 
 // Include standard headers
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
+
+#ifdef NNTILE_HAVE_TORCH
+#   include <torch/torch.h>
+#endif
 
 // Include NNTile headers
 #include <nntile/graph.hh>
@@ -92,6 +97,23 @@ public:
         ActivationType activation = ActivationType::GELU,
         graph::DataType dtype = graph::DataType::FP32);
 
+#ifdef NNTILE_HAVE_TORCH
+    //! Constructor: creates MLP from PyTorch Linear layers (fc1, fc2) with
+    //! automatic weight/bias binding for easy data transfer.
+    //! @param graph The neural network graph this module belongs to
+    //! @param name Module name
+    //! @param fc1_layer PyTorch first linear layer (input -> intermediate)
+    //! @param fc2_layer PyTorch second linear layer (intermediate -> output)
+    //! @param activation Activation function (must match PyTorch MLP)
+    //! @param dtype Data type for all tensors
+    Mlp(graph::NNGraph& graph,
+        const std::string& name,
+        const torch::nn::Linear& fc1_layer,
+        const torch::nn::Linear& fc2_layer,
+        ActivationType activation = ActivationType::GELU,
+        graph::DataType dtype = graph::DataType::FP32);
+#endif
+
     graph::NNGraph::TensorNode& build_forward(
         graph::NNGraph::TensorNode& input);
 
@@ -117,5 +139,37 @@ public:
     Linear& fc2() { return fc2_; }
     const Linear& fc2() const { return fc2_; }
 };
+
+#ifdef NNTILE_HAVE_TORCH
+
+inline Mlp::Mlp(graph::NNGraph& graph,
+                const std::string& name,
+                const torch::nn::Linear& fc1_layer,
+                const torch::nn::Linear& fc2_layer,
+                ActivationType activation,
+                graph::DataType dtype)
+    : Module(graph, name)
+    , fc1_(graph, name + "_fc1", fc1_layer, dtype)
+    , activation_(graph, name + "_activation", activation)
+    , fc2_(graph, name + "_fc2", fc2_layer, dtype)
+    , input_dim_(static_cast<Index>(fc1_layer->weight.size(1)))
+    , intermediate_dim_(static_cast<Index>(fc1_layer->weight.size(0)))
+    , output_dim_(static_cast<Index>(fc2_layer->weight.size(0)))
+    , dtype_(dtype)
+{
+    // Validate fc2 input dim matches fc1 output dim
+    if(static_cast<Index>(fc2_layer->weight.size(1)) != intermediate_dim_)
+    {
+        throw std::invalid_argument(
+            "Mlp::Mlp: fc2 input dimension must match fc1 output dimension. "
+            "fc1 out=" + std::to_string(intermediate_dim_) +
+            ", fc2 in=" + std::to_string(fc2_layer->weight.size(1)));
+    }
+    register_module("fc1", &fc1_);
+    register_module("activation", &activation_);
+    register_module("fc2", &fc2_);
+}
+
+#endif // NNTILE_HAVE_TORCH
 
 } // namespace nntile::module

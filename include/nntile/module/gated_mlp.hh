@@ -23,8 +23,13 @@
 
 // Include standard headers
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
+
+#ifdef NNTILE_HAVE_TORCH
+#   include <torch/torch.h>
+#endif
 
 // Include NNTile headers
 #include <nntile/graph.hh>
@@ -100,6 +105,25 @@ public:
              ActivationType activation = ActivationType::SILU,
              graph::DataType dtype = graph::DataType::FP32);
 
+#ifdef NNTILE_HAVE_TORCH
+    //! Constructor: creates GatedMlp from PyTorch Linear layers with
+    //! automatic weight/bias binding for easy data transfer.
+    //! @param graph The neural network graph this module belongs to
+    //! @param name Module name
+    //! @param gate_proj_layer PyTorch gate projection (input -> intermediate)
+    //! @param up_proj_layer PyTorch up projection (input -> intermediate)
+    //! @param down_proj_layer PyTorch down projection (intermediate -> output)
+    //! @param activation Activation for gate (must match PyTorch)
+    //! @param dtype Data type for all tensors
+    GatedMlp(graph::NNGraph& graph,
+             const std::string& name,
+             const torch::nn::Linear& gate_proj_layer,
+             const torch::nn::Linear& up_proj_layer,
+             const torch::nn::Linear& down_proj_layer,
+             ActivationType activation = ActivationType::SILU,
+             graph::DataType dtype = graph::DataType::FP32);
+#endif
+
     graph::NNGraph::TensorNode& build_forward(
         graph::NNGraph::TensorNode& input);
 
@@ -127,5 +151,43 @@ public:
     Linear& down_proj() { return down_proj_; }
     const Linear& down_proj() const { return down_proj_; }
 };
+
+#ifdef NNTILE_HAVE_TORCH
+
+inline GatedMlp::GatedMlp(graph::NNGraph& graph,
+                         const std::string& name,
+                         const torch::nn::Linear& gate_proj_layer,
+                         const torch::nn::Linear& up_proj_layer,
+                         const torch::nn::Linear& down_proj_layer,
+                         ActivationType activation,
+                         graph::DataType dtype)
+    : Module(graph, name)
+    , gate_proj_(graph, name + "_gate_proj", gate_proj_layer, dtype)
+    , up_proj_(graph, name + "_up_proj", up_proj_layer, dtype)
+    , activation_(graph, name + "_activation", activation)
+    , down_proj_(graph, name + "_down_proj", down_proj_layer, dtype)
+    , input_dim_(static_cast<Index>(gate_proj_layer->weight.size(1)))
+    , intermediate_dim_(static_cast<Index>(gate_proj_layer->weight.size(0)))
+    , output_dim_(static_cast<Index>(down_proj_layer->weight.size(0)))
+    , dtype_(dtype)
+{
+    if(static_cast<Index>(up_proj_layer->weight.size(1)) != input_dim_ ||
+       static_cast<Index>(up_proj_layer->weight.size(0)) != intermediate_dim_)
+    {
+        throw std::invalid_argument(
+            "GatedMlp::GatedMlp: up_proj dimensions must match gate_proj");
+    }
+    if(static_cast<Index>(down_proj_layer->weight.size(1)) != intermediate_dim_)
+    {
+        throw std::invalid_argument(
+            "GatedMlp::GatedMlp: down_proj input dim must match intermediate");
+    }
+    register_module("gate_proj", &gate_proj_);
+    register_module("up_proj", &up_proj_);
+    register_module("activation", &activation_);
+    register_module("down_proj", &down_proj_);
+}
+
+#endif // NNTILE_HAVE_TORCH
 
 } // namespace nntile::module
