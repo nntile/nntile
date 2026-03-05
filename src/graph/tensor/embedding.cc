@@ -51,12 +51,12 @@ TensorGraph::TensorNode* embedding(TensorGraph::TensorNode* index,
         throw std::invalid_argument("embedding: tensors must belong to same graph");
     if(index->dtype() != DataType::INT64)
         throw std::invalid_argument("embedding: index must have INT64 dtype");
-    // Output shape: index.shape + (vocab.shape[1],) for axis typically 0
-    // Embedding: index [...,], vocab [vocab_size, embed_dim] -> embed [..., embed_dim]
+    // Output shape: index.shape + (vocab.shape[0],) at axis
+    // NNTile layout: vocab [embed_dim, num_embeddings]; embed.shape[axis] == vocab.shape[0]
     std::vector<Index> embed_shape = index->shape();
     if(vocab->ndim() != 2)
         throw std::invalid_argument("embedding: vocab must be 2D");
-    embed_shape.push_back(vocab->dim(1));
+    embed_shape.push_back(vocab->dim(0));
     TensorGraph::TensorNode* embed = vocab->graph()->data(
         std::move(embed_shape), output_name, vocab->dtype());
     embedding(index, vocab, embed, axis);
