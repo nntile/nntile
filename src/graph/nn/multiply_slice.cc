@@ -15,7 +15,11 @@
 #include "nntile/graph/nn/multiply_slice.hh"
 
 #include <stdexcept>
+#include <utility>
 
+#include "nntile/graph/tensor/add_inplace.hh"
+#include "nntile/graph/tensor/copy.hh"
+#include "nntile/graph/tensor/multiply.hh"
 #include "nntile/graph/tensor/multiply_slice.hh"
 #include "nntile/graph/tensor/sum_slice.hh"
 
@@ -31,16 +35,20 @@ constexpr int sum_slice_redux = 0;
 
 NNGraph::TensorNode* NNMultiplySliceOp::forward(const std::string& output_name)
 {
-    if(src == nullptr)
+    if(slice == nullptr || tensor == nullptr)
     {
         throw std::invalid_argument(
-            "NNMultiplySliceOp::forward: src must be non-null");
+            "NNMultiplySliceOp::forward: slice and tensor must be non-null");
     }
-    NNGraph* graph = src->graph();
-    bool out_requires_grad = any_input_requires_grad({src});
-    TensorGraph::TensorNode* output_data = graph::tensor::multiply_slice(
-        alpha, src->data(), output_name, axis, axis_size);
-    NNGraph::TensorNode* output = graph->tensor(output_data, out_requires_grad);
+    NNGraph* graph = slice->graph();
+    TensorGraph::TensorNode* slice_data = slice->data();
+    TensorGraph::TensorNode* tensor_data = tensor->data();
+    bool out_requires_grad = any_input_requires_grad({slice, tensor});
+
+    TensorGraph::TensorNode* dst = graph::tensor::copy(tensor_data, output_name);
+    graph::tensor::multiply_slice(alpha, slice_data, dst, axis);
+
+    NNGraph::TensorNode* output = graph->tensor(dst, out_requires_grad);
     outputs_ = {output};
     return output;
 }
@@ -58,29 +66,43 @@ void NNMultiplySliceOp::backward() const
     {
         return;
     }
-    if(src != nullptr && src->requires_grad())
+    if(slice != nullptr && slice->requires_grad())
     {
-        auto [grad_src, is_first] =
-            graph->get_or_create_grad(src, src->name() + "_grad");
+        auto [grad_slice, is_first] =
+            graph->get_or_create_grad(slice, slice->name() + "_grad");
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        graph::tensor::sum_slice(grad_out->data(), grad_src->data(),
+        TensorGraph::TensorNode* buf = graph::tensor::multiply(
+            grad_out->data(), tensor->data(),
+            out->name() + "_grad_slice_buf", 1.0);
+        graph::tensor::sum_slice(buf, grad_slice->data(),
                         axis, sum_slice_redux, alpha, grad_beta);
+    }
+    if(tensor != nullptr && tensor->requires_grad())
+    {
+        auto [grad_tensor, is_first] =
+            graph->get_or_create_grad(tensor, tensor->name() + "_grad");
+        Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
+        TensorGraph::TensorNode* buf = graph::tensor::copy(
+            grad_out->data(), out->name() + "_grad_tensor_buf");
+        graph::tensor::multiply_slice(alpha, slice->data(), buf, axis);
+        graph::tensor::add_inplace(1.0, buf, grad_beta, grad_tensor->data());
     }
 }
 
 NNGraph::TensorNode* multiply_slice(
     Scalar alpha,
-    NNGraph::TensorNode* src,
+    NNGraph::TensorNode* slice,
+    NNGraph::TensorNode* tensor,
     const std::string& output_name,
-    Index axis,
-    Index axis_size)
+    Index axis)
 {
-    if(src == nullptr)
+    if(slice == nullptr || tensor == nullptr)
     {
-        throw std::invalid_argument("multiply_slice: src must be non-null");
+        throw std::invalid_argument(
+            "multiply_slice: slice and tensor must be non-null");
     }
-    NNGraph* graph = src->graph();
-    auto op = std::make_shared<NNMultiplySliceOp>(src, alpha, axis, axis_size);
+    NNGraph* graph = slice->graph();
+    auto op = std::make_shared<NNMultiplySliceOp>(slice, tensor, alpha, axis);
     NNGraph::TensorNode* output = op->forward(output_name);
     graph->register_op(std::move(op));
     return output;
