@@ -19,7 +19,6 @@ set(TESTS_CATCH2
     "linear"
     "mlp"
     "module"
-    # "sdpa"
 )
 
 # Module tests with PyTorch comparison

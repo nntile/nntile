@@ -520,6 +520,7 @@ set(GRAPH_HDR
     "nntile/graph/nn/norm_slice.hh"
     "nntile/graph/nn/relu.hh"
     "nntile/graph/nn/rope.hh"
+    "nntile/graph/nn/sdpa_eager.hh"
     "nntile/graph/nn/scale.hh"
     "nntile/graph/nn/scale_fiber.hh"
     "nntile/graph/nn/scale_slice.hh"
@@ -540,7 +541,6 @@ set(MODULE_HDR
     "nntile/module/linear.hh"
     "nntile/module/embedding.hh"
     "nntile/module/mlp.hh"
-    # "nntile/module/sdpa.hh"
 )
 
 set(OPTIMIZER_HDR
