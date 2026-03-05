@@ -498,6 +498,7 @@ set(GRAPH_NN_SRC
     "graph/nn/scale_slice.cc"
     "graph/nn/silu.cc"
     "graph/nn/softmax.cc"
+    "graph/nn/cross_entropy.cc"
     "graph/nn/sum_fiber.cc"
     "graph/nn/sum_slice.cc"
     "graph/tensor/graph_data_node.cc"
