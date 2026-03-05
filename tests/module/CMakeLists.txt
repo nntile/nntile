@@ -16,6 +16,7 @@ set(TESTS_CATCH2
     "gelu"
     "module"
     "linear"
+    "embedding"
     "mlp"
     # "mse_loss"
     # "sdpa"
