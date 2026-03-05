@@ -528,6 +528,7 @@ set(GRAPH_HDR
     "nntile/graph/nn/sum_fiber.hh"
     "nntile/graph/nn/sum_slice.hh"
     "nntile/graph/nn/clear.hh"
+    "nntile/graph/nn/cross_entropy.hh"
     "nntile/graph/nn/fill.hh"
     )
 
