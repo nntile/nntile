@@ -38,13 +38,14 @@ TEST_CASE("Sdpa Vanilla Constructor", "[module]")
     REQUIRE(sdpa.scale() > 0);
 }
 
-TEST_CASE("Sdpa Flash Constructor", "[module]")
+TEST_CASE("Sdpa Flash Constructor Throws", "[module]")
 {
     NNGraph g("sdpa");
 
-    Sdpa sdpa(g, "sdpa", 64, 2, true, DataType::FP16);
-    REQUIRE(sdpa.flash_attention() == true);
-    REQUIRE(sdpa.head_size() == 64);
+    // Flash attention is not supported - constructor throws
+    REQUIRE_THROWS_AS(
+        Sdpa(g, "sdpa", 64, 2, true, DataType::FP16),
+        std::runtime_error);
 }
 
 TEST_CASE("Sdpa ConstructorValidations", "[module]")
@@ -62,6 +63,11 @@ TEST_CASE("Sdpa ConstructorValidations", "[module]")
     REQUIRE_THROWS_AS(
         Sdpa(g, "sdpa", 64, 2, true, DataType::FP32),
         std::invalid_argument);
+
+    // Flash with valid dtype still throws (not implemented)
+    REQUIRE_THROWS_AS(
+        Sdpa(g, "sdpa", 64, 2, true, DataType::FP16),
+        std::runtime_error);
 }
 
 TEST_CASE("Sdpa Vanilla BuildForward", "[module]")
@@ -141,40 +147,4 @@ TEST_CASE("Sdpa Vanilla BuildForwardValidatesShape", "[module]")
         std::invalid_argument);
 }
 
-TEST_CASE("Sdpa Flash BuildForward", "[module]")
-{
-    NNGraph g("sdpa");
-
-    auto* q = g.tensor({64, 8, 2, 4}, "q", DataType::FP16);
-    auto* k = g.tensor({64, 8, 2, 4}, "k", DataType::FP16);
-    auto* v = g.tensor({64, 8, 2, 4}, "v", DataType::FP16);
-
-    Sdpa sdpa(g, "sdpa", 64, 2, true, DataType::FP16);
-    auto& output = sdpa.build_forward(*q, *k, *v, nullptr);
-
-    REQUIRE(output.shape() == std::vector<Index>({64, 8, 2, 4}));
-
-    size_t flash_count = 0;
-    for(const auto& op : g.ops())
-    {
-        if(op->op_name() == "FLASH_SDPA_FWD_CUDNN")
-        {
-            ++flash_count;
-        }
-    }
-    REQUIRE(flash_count == 1);
-}
-
-TEST_CASE("Sdpa Flash BuildForwardValidatesDtype", "[module]")
-{
-    NNGraph g("sdpa");
-
-    auto* q = g.tensor({64, 8, 2, 4}, "q", DataType::FP32);
-    auto* k = g.tensor({64, 8, 2, 4}, "k", DataType::FP32);
-    auto* v = g.tensor({64, 8, 2, 4}, "v", DataType::FP32);
-
-    Sdpa sdpa(g, "sdpa", 64, 2, true, DataType::FP16);
-    REQUIRE_THROWS_AS(
-        sdpa.build_forward(*q, *k, *v, nullptr),
-        std::invalid_argument);
-}
+// Flash SDPA is not implemented - constructor throws before build_forward

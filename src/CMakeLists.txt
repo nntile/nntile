@@ -514,7 +514,7 @@ set(MODULE_SRC
     "module/mlp.cc"
     "module/linear.cc"
     # "module/mse_loss.cc"
-    # "module/sdpa.cc"
+    "module/sdpa.cc"
 )
 
 # Set the list of all sources

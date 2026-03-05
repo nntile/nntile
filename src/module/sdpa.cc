@@ -19,6 +19,13 @@
 #include <cmath>
 #include <stdexcept>
 
+// Include graph tensor operations
+#include "nntile/graph/nn/clear.hh"
+#include "nntile/graph/tensor/gemm.hh"
+#include "nntile/graph/tensor/mask_scalar.hh"
+#include "nntile/graph/tensor/maxsumexp.hh"
+#include "nntile/graph/tensor/softmax_inplace.hh"
+
 namespace nntile::module
 {
 
@@ -46,7 +53,7 @@ Sdpa::Sdpa(
     }
 }
 
-//! Constructor: Flash SDPA
+//! Constructor: Flash SDPA (placeholder - throws if flash_attention=true)
 Sdpa::Sdpa(
     graph::NNGraph& graph,
     const std::string& name,
@@ -56,7 +63,7 @@ Sdpa::Sdpa(
     graph::DataType dtype,
     int redux)
     : ModuleBase(graph, name)
-    , flash_attention_(true)
+    , flash_attention_(flash_attention)
     , head_size_(head_size)
     , batch_ndim_(batch_ndim)
     , scale_(1.0 / std::sqrt(static_cast<Scalar>(head_size)))
@@ -79,6 +86,9 @@ Sdpa::Sdpa(
         throw std::invalid_argument(
             "Sdpa: Flash SDPA requires FP16 or BF16 dtype");
     }
+    // Flash attention is not implemented - throw exception
+    throw std::runtime_error(
+        "Sdpa: Flash attention (flash_attention=true) is not supported");
 }
 
 graph::NNGraph::TensorNode& Sdpa::build_forward(
@@ -87,6 +97,12 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
     graph::NNGraph::TensorNode& v,
     graph::NNGraph::TensorNode* mask)
 {
+    if(flash_attention_)
+    {
+        throw std::runtime_error(
+            "Sdpa::build_forward: Flash attention is not supported");
+    }
+
     const auto& q_shape = q.shape();
     const auto& k_shape = k.shape();
     const auto& v_shape = v.shape();
@@ -118,163 +134,98 @@ graph::NNGraph::TensorNode& Sdpa::build_forward(
     bool output_requires_grad = graph_.requires_grad(&q) ||
         graph_.requires_grad(&k) || graph_.requires_grad(&v);
 
-    if(flash_attention_)
+    // Vanilla SDPA: attn = scale * K^T @ Q, mask, maxsumexp, softmax, y = V @ attn
+    std::vector<Index> batch_shape(
+        q_shape.begin() + 2,
+        q_shape.begin() + 2 + static_cast<ptrdiff_t>(batch_ndim_));
+
+    std::vector<Index> attn_shape = {k_seq, q_seq};
+    attn_shape.insert(attn_shape.end(), batch_shape.begin(), batch_shape.end());
+
+    attn_tensor_ = graph_.tensor(
+        attn_shape,
+        tensor_name("attn"),
+        q.dtype(),
+        output_requires_grad);
+
+    std::vector<Index> attn_max_shape = {2, q_seq};
+    attn_max_shape.insert(
+        attn_max_shape.end(), batch_shape.begin(), batch_shape.end());
+    attn_maxsumexp_tensor_ = graph_.tensor(
+        attn_max_shape,
+        tensor_name("attn_maxsumexp"),
+        q.dtype(),
+        false);
+    register_buffer("attn_maxsumexp", attn_maxsumexp_tensor_);
+
+    std::vector<Index> attn_sum_shape = {q_seq};
+    attn_sum_shape.insert(
+        attn_sum_shape.end(), batch_shape.begin(), batch_shape.end());
+    attn_sumprod_slice_tensor_ = graph_.tensor(
+        attn_sum_shape,
+        tensor_name("attn_sumprod_slice"),
+        q.dtype(),
+        false);
+    register_buffer("attn_sumprod_slice", attn_sumprod_slice_tensor_);
+
+    // Create output y
+    std::vector<Index> y_shape = q_shape;
+    output_tensor_ = graph_.tensor(
+        y_shape,
+        tensor_name("output"),
+        q.dtype(),
+        output_requires_grad);
+
+    // attn = scale * K^T @ Q (ndim=1, batch_ndim)
+    graph::tensor::gemm(
+        k_tensor_->data(),
+        q.data(),
+        attn_tensor_->data(),
+        scale_,
+        0.0,
+        true,
+        false,
+        1,
+        batch_ndim_);
+
+    // Clear attn_maxsumexp
+    graph::clear(attn_maxsumexp_tensor_);
+
+    // Optional mask: A[mask] = val for masked positions
+    if(mask_tensor_ != nullptr)
     {
-        // Flash path: validate dtypes
-        if(q.dtype() != graph::DataType::FP16 && q.dtype() != graph::DataType::BF16)
-        {
-            throw std::invalid_argument(
-                "Sdpa::build_forward: Flash SDPA requires FP16 or BF16");
-        }
-
-        // Create flash_logsumexp [q_seq, batch...] fp32
-        std::vector<Index> logsumexp_shape(q_shape.begin() + 1, q_shape.end());
-        flash_logsumexp_tensor_ = graph_.tensor(
-            logsumexp_shape,
-            tensor_name("flash_logsumexp"),
-            graph::DataType::FP32,
-            false);
-        register_buffer("flash_logsumexp", flash_logsumexp_tensor_);
-
-        // Create output y [head_size, q_seq, batch...]
-        std::vector<Index> y_shape = q_shape;
-        output_tensor_ = graph_.tensor(
-            y_shape,
-            tensor_name("output"),
-            q.dtype(),
-            output_requires_grad);
-
-        // Create default mask if needed: [q_seq, q_seq] or [k_seq, q_seq]
-        graph::NNGraph::TensorNode* mask_to_use = mask;
-        graph::NNGraph::TensorNode* default_mask = nullptr;
-        if(mask_to_use == nullptr)
-        {
-            std::vector<Index> mask_shape = {k_seq, q_seq};
-            default_mask = graph_.tensor(
-                mask_shape,
-                tensor_name("default_mask"),
-                q.dtype(),
-                false);
-            register_buffer("default_mask", default_mask);
-            mask_to_use = default_mask;
-            graph_.add_op(
-                std::make_shared<graph::NNClearOp>(),
-                nullptr,
-                {},
-                {default_mask});
-        }
-
-        // Fill logsumexp with -inf, clear y
-        graph_.add_op(
-            std::make_shared<graph::NNFillOp>(),
-            std::make_shared<graph::tensor::TensorFillOp>(graph::tensor::TensorFillOp{
-                nullptr, mask_val_}),
-            {},
-            {flash_logsumexp_tensor_});
-        graph_.add_op(
-            std::make_shared<graph::NNClearOp>(),
-            nullptr,
-            {},
-            {output_tensor_});
-
-        // Flash SDPA forward: K, Q, mask, logsumexp, V -> A (output)
-        graph_.add_op(
-            std::make_shared<graph::NNUnimplementedForwardOp>(),
-            nullptr,
-            {k_tensor_, &q, mask_to_use, flash_logsumexp_tensor_, v_tensor_},
-            {output_tensor_});
+        graph::tensor::mask_scalar(
+            mask_tensor_->data(),
+            mask_val_,
+            attn_tensor_->data(),
+            batch_ndim_);
     }
-    else
-    {
-        // Vanilla path: create buffers
-        std::vector<Index> batch_shape(
-            q_shape.begin() + 2,
-            q_shape.begin() + 2 + static_cast<ptrdiff_t>(batch_ndim_));
 
-        std::vector<Index> attn_shape = {k_seq, q_seq};
-        attn_shape.insert(attn_shape.end(), batch_shape.begin(), batch_shape.end());
+    // maxsumexp along axis 0
+    graph::tensor::maxsumexp(
+        attn_tensor_->data(),
+        attn_maxsumexp_tensor_->data(),
+        0,
+        redux_);
 
-        attn_tensor_ = graph_.tensor(
-            attn_shape,
-            tensor_name("attn"),
-            q.dtype(),
-            output_requires_grad);
+    // softmax_inplace: attn = softmax(attn) using maxsumexp
+    graph::tensor::softmax_inplace(
+        attn_maxsumexp_tensor_->data(),
+        attn_tensor_->data(),
+        1.0,
+        0);
 
-        std::vector<Index> attn_max_shape = {2, q_seq};
-        attn_max_shape.insert(
-            attn_max_shape.end(), batch_shape.begin(), batch_shape.end());
-        attn_maxsumexp_tensor_ = graph_.tensor(
-            attn_max_shape,
-            tensor_name("attn_maxsumexp"),
-            q.dtype(),
-            false);
-        register_buffer("attn_maxsumexp", attn_maxsumexp_tensor_);
-
-        std::vector<Index> attn_sum_shape = {q_seq};
-        attn_sum_shape.insert(
-            attn_sum_shape.end(), batch_shape.begin(), batch_shape.end());
-        attn_sumprod_slice_tensor_ = graph_.tensor(
-            attn_sum_shape,
-            tensor_name("attn_sumprod_slice"),
-            q.dtype(),
-            false);
-        register_buffer("attn_sumprod_slice", attn_sumprod_slice_tensor_);
-
-        // Create output y
-        std::vector<Index> y_shape = q_shape;
-        output_tensor_ = graph_.tensor(
-            y_shape,
-            tensor_name("output"),
-            q.dtype(),
-            output_requires_grad);
-
-        // attn = scale * K^T @ Q (ndim=1, batch_ndim)
-        graph_.add_op(
-            std::make_shared<graph::NNGemmOp>(),
-            std::make_shared<graph::tensor::TensorGemmOp>(graph::tensor::TensorGemmOp{
-                nullptr, nullptr, nullptr, scale_, 0.0, true, false, 1, batch_ndim_}),
-            {k_tensor_, &q},
-            {attn_tensor_});
-
-        // Clear attn_maxsumexp
-        graph_.add_op(
-            std::make_shared<graph::NNClearOp>(),
-            nullptr,
-            {},
-            {attn_maxsumexp_tensor_});
-
-        // Optional mask
-        if(mask_tensor_ != nullptr)
-        {
-            graph_.add_op(
-                std::make_shared<graph::NNUnimplementedForwardOp>(),
-                nullptr,
-                {mask_tensor_, attn_tensor_},
-                {attn_tensor_});
-        }
-
-        // maxsumexp along axis 0
-        graph_.add_op(
-            std::make_shared<graph::NNUnimplementedForwardOp>(),
-            nullptr,
-            {attn_tensor_},
-            {attn_maxsumexp_tensor_});
-
-        // softmax_inplace
-        graph_.add_op(
-            std::make_shared<graph::NNUnimplementedForwardOp>(),
-            nullptr,
-            {attn_maxsumexp_tensor_, attn_tensor_},
-            {attn_tensor_});
-
-        // y = V @ attn
-        graph_.add_op(
-            std::make_shared<graph::NNGemmOp>(),
-            std::make_shared<graph::tensor::TensorGemmOp>(graph::tensor::TensorGemmOp{
-                nullptr, nullptr, nullptr, 1.0, 0.0, false, false, 1, batch_ndim_}),
-            {v_tensor_, attn_tensor_},
-            {output_tensor_});
-    }
+    // y = V @ attn
+    graph::tensor::gemm(
+        v_tensor_->data(),
+        attn_tensor_->data(),
+        output_tensor_->data(),
+        1.0,
+        0.0,
+        false,
+        false,
+        1,
+        batch_ndim_);
 
     return *output_tensor_;
 }
