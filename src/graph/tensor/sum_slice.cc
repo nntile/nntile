@@ -15,6 +15,8 @@
 #include "nntile/graph/tensor/sum_slice.hh"
 
 #include <stdexcept>
+#include <utility>
+#include <vector>
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/tensor.hh"
@@ -25,6 +27,22 @@ namespace nntile::graph::tensor
 
 namespace
 {
+
+std::vector<Index> sum_slice_output_shape(
+    const std::vector<Index>& src_shape,
+    Index axis)
+{
+    std::vector<Index> out_shape;
+    out_shape.reserve(src_shape.size() - 1);
+    for(Index i = 0; i < static_cast<Index>(src_shape.size()); ++i)
+    {
+        if(i != axis)
+        {
+            out_shape.push_back(src_shape[i]);
+        }
+    }
+    return out_shape;
+}
 
 template<typename T>
 void run_sum_slice(
@@ -40,6 +58,37 @@ void run_sum_slice(
 }
 
 } // namespace
+
+TensorGraph::TensorNode* sum_slice(
+    TensorGraph::TensorNode* src,
+    const std::string& output_name,
+    Index axis,
+    int redux,
+    Scalar alpha,
+    Scalar beta)
+{
+    if(src == nullptr)
+    {
+        throw std::invalid_argument(
+            "sum_slice: input tensor must be non-null");
+    }
+    if(axis < 0 || axis >= src->ndim())
+    {
+        throw std::invalid_argument(
+            "sum_slice: axis out of range");
+    }
+
+    std::vector<Index> output_shape =
+        sum_slice_output_shape(src->shape(), axis);
+    TensorGraph::TensorNode* output = src->graph()->data(
+        std::move(output_shape),
+        output_name,
+        src->dtype());
+
+    sum_slice(src, output, axis, redux, alpha, beta);
+
+    return output;
+}
 
 void sum_slice(
     TensorGraph::TensorNode* src,

@@ -39,15 +39,15 @@ constexpr Index dim_4 = 4;
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph sum_fiber structure", "[graph][nn_graph]")
 {
-    const auto [x_shape, axis, alpha, beta] = GENERATE(
-        std::tuple{std::vector<Index>{dim_2, dim_4}, Index(1), Scalar(1.0), Scalar(0.0)},
-        std::tuple{std::vector<Index>{dim_2, dim_4}, Index(0), Scalar(2.0), Scalar(0.0)});
+    const auto [x_shape, axis, alpha] = GENERATE(
+        std::tuple{std::vector<Index>{dim_2, dim_4}, Index(1), Scalar(1.0)},
+        std::tuple{std::vector<Index>{dim_2, dim_4}, Index(0), Scalar(2.0)});
 
     std::vector<Index> y_shape = {x_shape[axis]};
 
     NNGraph g("sum_fiber_structure");
     auto* x = g.tensor(x_shape, "x", DataType::FP32);
-    auto* y = sum_fiber(x, "y", axis, batch_ndim_none, redux_none, alpha, beta);
+    auto* y = sum_fiber(x, "y", axis, batch_ndim_none, redux_none, alpha);
 
     REQUIRE(y != nullptr);
     REQUIRE(y->has_producer());
@@ -68,17 +68,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph sum_fiber backward", "[graph][nn_graph]")
 {
-    const auto [x_shape, axis, alpha, beta, grad_fill_val] = GENERATE(
-        std::tuple{std::vector<Index>{dim_2, dim_4}, Index(1), Scalar(1.0), Scalar(0.0),
-                   Scalar(1.0)},
-        std::tuple{std::vector<Index>{dim_2, dim_4}, Index(0), Scalar(1.0), Scalar(0.0),
-                   Scalar(-1.0)});
+    const auto [x_shape, axis, alpha, grad_fill_val] = GENERATE(
+        std::tuple{std::vector<Index>{dim_2, dim_4}, Index(1), Scalar(1.0), Scalar(1.0)},
+        std::tuple{std::vector<Index>{dim_2, dim_4}, Index(0), Scalar(1.0), Scalar(-1.0)});
 
     std::vector<Index> y_shape = {x_shape[axis]};
 
     NNGraph g("sum_fiber_backward");
     auto* x = g.tensor(x_shape, "x", DataType::FP32);
-    auto* y = sum_fiber(x, "y", axis, batch_ndim_none, redux_none, alpha, beta);
+    auto* y = sum_fiber(x, "y", axis, batch_ndim_none, redux_none, alpha);
 
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");
     gt::fill(grad_fill_val, y_grad->data());
@@ -91,23 +89,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph sum_fiber forward and backward", "[graph][nn_graph]")
 {
-    const auto [x_shape, axis, alpha, beta, grad_fill_val] = GENERATE(
-        std::tuple{std::vector<Index>{2, 4}, Index(1), Scalar(1.0), Scalar(0.0),
-                   Scalar(1.0)},
-        std::tuple{std::vector<Index>{2, 4}, Index(0), Scalar(1.0), Scalar(0.0),
-                   Scalar(1.0)},
-        std::tuple{std::vector<Index>{3, 6}, Index(0), Scalar(2.0), Scalar(0.0),
-                   Scalar(1.0)},
-        std::tuple{std::vector<Index>{3, 6}, Index(1), Scalar(1.0), Scalar(0.5),
-                   Scalar(-1.0)},
-        std::tuple{std::vector<Index>{2, 3, 4}, Index(2), Scalar(1.0), Scalar(0.0),
-                   Scalar(1.0)});
+    const auto [x_shape, axis, alpha, grad_fill_val] = GENERATE(
+        std::tuple{std::vector<Index>{2, 4}, Index(1), Scalar(1.0), Scalar(1.0)},
+        std::tuple{std::vector<Index>{2, 4}, Index(0), Scalar(1.0), Scalar(1.0)},
+        std::tuple{std::vector<Index>{3, 6}, Index(0), Scalar(2.0), Scalar(1.0)},
+        std::tuple{std::vector<Index>{3, 6}, Index(1), Scalar(1.0), Scalar(-1.0)},
+        std::tuple{std::vector<Index>{2, 3, 4}, Index(2), Scalar(1.0), Scalar(1.0)});
 
     std::vector<Index> y_shape = {x_shape[axis]};
 
     NNGraph g("sum_fiber");
     auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
-    auto* y = sum_fiber(x, "y", axis, batch_ndim_none, redux_none, alpha, beta);
+    auto* y = sum_fiber(x, "y", axis, batch_ndim_none, redux_none, alpha);
 
     REQUIRE(y != nullptr);
     REQUIRE(y->has_producer());
@@ -130,11 +123,11 @@ using nntile::test::pytorch_tolerance;
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph sum_fiber forward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
-    const auto [x_shape, axis, alpha, beta] = GENERATE(
-        std::tuple{std::vector<Index>{2, 4}, Index(1), Scalar(1.0), Scalar(0.0)},
-        std::tuple{std::vector<Index>{2, 4}, Index(0), Scalar(2.0), Scalar(0.0)},
-        std::tuple{std::vector<Index>{3, 5}, Index(0), Scalar(1.0), Scalar(0.0)},
-        std::tuple{std::vector<Index>{3, 5}, Index(1), Scalar(0.5), Scalar(0.0)});
+    const auto [x_shape, axis, alpha] = GENERATE(
+        std::tuple{std::vector<Index>{2, 4}, Index(1), Scalar(1.0)},
+        std::tuple{std::vector<Index>{2, 4}, Index(0), Scalar(2.0)},
+        std::tuple{std::vector<Index>{3, 5}, Index(0), Scalar(1.0)},
+        std::tuple{std::vector<Index>{3, 5}, Index(1), Scalar(0.5)});
 
     const Index x_nelems = x_shape[0] * x_shape[1];
     const Index y_nelems = x_shape[axis];
@@ -145,7 +138,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     NNGraph g("sum_fiber_pytorch");
     auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
-    auto* y = sum_fiber(x, "y", axis, batch_ndim_none, redux_none, alpha, beta);
+    auto* y = sum_fiber(x, "y", axis, batch_ndim_none, redux_none, alpha);
 
     x->mark_input(true);
     y->mark_output(true);
@@ -183,13 +176,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph sum_fiber backward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
-    const auto [x_shape, axis, alpha, beta, grad_fill_val] = GENERATE(
-        std::tuple{std::vector<Index>{2, 4}, Index(1), Scalar(1.0), Scalar(0.0),
-                   Scalar(1.0)},
-        std::tuple{std::vector<Index>{2, 4}, Index(0), Scalar(1.0), Scalar(0.0),
-                   Scalar(-1.0)},
-        std::tuple{std::vector<Index>{3, 5}, Index(0), Scalar(2.0), Scalar(0.0),
-                   Scalar(1.0)});
+    const auto [x_shape, axis, alpha, grad_fill_val] = GENERATE(
+        std::tuple{std::vector<Index>{2, 4}, Index(1), Scalar(1.0), Scalar(1.0)},
+        std::tuple{std::vector<Index>{2, 4}, Index(0), Scalar(1.0), Scalar(-1.0)},
+        std::tuple{std::vector<Index>{3, 5}, Index(0), Scalar(2.0), Scalar(1.0)});
 
     const Index x_nelems = x_shape[0] * x_shape[1];
     const Index y_nelems = x_shape[axis];
@@ -200,7 +190,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     NNGraph g("sum_fiber_bwd_pytorch");
     auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
-    auto* y = sum_fiber(x, "y", axis, batch_ndim_none, redux_none, alpha, beta);
+    auto* y = sum_fiber(x, "y", axis, batch_ndim_none, redux_none, alpha);
 
     x->mark_input(true);
 

@@ -55,13 +55,6 @@ struct TensorMultiplySliceOp : TensorGraph::OpNode
     }
 };
 
-TensorGraph::TensorNode* multiply_slice(
-    Scalar alpha,
-    TensorGraph::TensorNode* src,
-    const std::string& output_name,
-    Index axis,
-    Index axis_size);
-
 void multiply_slice(
     Scalar alpha,
     TensorGraph::TensorNode* src,
