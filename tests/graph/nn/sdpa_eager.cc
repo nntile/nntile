@@ -102,15 +102,21 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 #ifdef NNTILE_HAVE_TORCH
 
 using nntile::test::colmajor_to_rowmajor;
+using nntile::test::permute_rowmajor;
+using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph sdpa_eager forward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
     const auto [head_size, n_seq, batch0, batch1, use_mask] = GENERATE(
-        std::tuple{Index(8), Index(6), Index(2), Index(4), false},
-        std::tuple{16, Index(8), Index(2), Index(4), false},
-        std::tuple{32, Index(4), Index(3), Index(2), false},
-        std::tuple{Index(8), Index(6), Index(2), Index(4), true});
+        std::tuple{8, 6, 1, 1, false},
+        std::tuple{8, 6, 2, 4, false},
+        std::tuple{16, 8, 2, 4, false},
+        std::tuple{32, 4, 3, 2, false},
+        std::tuple{8, 6, 1, 1, true},
+        std::tuple{8, 6, 2, 4, true},
+        std::tuple{16, 8, 2, 4, true},
+        std::tuple{32, 4, 3, 2, true});
 
     const std::vector<Index> shape = {head_size, n_seq, batch0, batch1};
     const std::vector<Index> mask_shape = {n_seq, n_seq};
@@ -170,8 +176,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_out_colmajor =
         runtime.get_output<float>(output->name());
-    std::vector<float> nntile_out =
+    std::vector<float> nntile_out_rowmajor =
         colmajor_to_rowmajor(nntile_out_colmajor, shape);
+    // Batch-of-matrices: permute [h,s,b0,b1] -> [b0,b1,h,s] for comparison
+    std::vector<float> nntile_out =
+        permute_rowmajor(nntile_out_rowmajor, shape, {2, 3, 0, 1});
 
     std::vector<float> q_row = colmajor_to_rowmajor(q_data, shape);
     std::vector<float> k_row = colmajor_to_rowmajor(k_data, shape);
@@ -189,7 +198,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto scores = torch::einsum("hsbn,htbn->stbn", {k_pt, q_pt}) * scale;
     if(use_mask)
     {
-        auto mask_pt = torch::from_blob(mask_data.data(), {n_seq, n_seq},
+        std::vector<uint8_t> mask_row =
+            colmajor_to_rowmajor(mask_data, mask_shape);
+        auto mask_pt = torch::from_blob(mask_row.data(), {n_seq, n_seq},
             torch::TensorOptions().dtype(torch::kBool)).clone();
         mask_pt = mask_pt.unsqueeze(-1).unsqueeze(-1)
             .expand({n_seq, n_seq, batch0, batch1});
@@ -198,6 +209,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
     auto attn = torch::softmax(scores, 0);
     auto out_pt = torch::einsum("hsbn,stbn->htbn", {v_pt, attn});
+    // Match batch-first layout for comparison
+    out_pt = out_pt.permute({2, 3, 0, 1}).contiguous();
 
     std::vector<float> pytorch_out(out_pt.data_ptr<float>(),
                                    out_pt.data_ptr<float>() + nelems);
@@ -206,7 +219,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     float max_diff = 0;
     for(size_t i = 0; i < nntile_out.size(); ++i)
         max_diff = std::max(max_diff, std::abs(nntile_out[i] - pytorch_out[i]));
-    REQUIRE(max_diff < 1.0f);
+    REQUIRE(max_diff < pytorch_tolerance);
 }
 
 #endif // NNTILE_HAVE_TORCH
