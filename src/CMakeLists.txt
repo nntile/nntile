@@ -492,6 +492,7 @@ set(GRAPH_NN_SRC
     "graph/nn/norm_fiber.cc"
     "graph/nn/norm_slice.cc"
     "graph/nn/relu.cc"
+    "graph/nn/rms_norm.cc"
     "graph/nn/rope.cc"
     "graph/nn/scale.cc"
     "graph/nn/scale_fiber.cc"
