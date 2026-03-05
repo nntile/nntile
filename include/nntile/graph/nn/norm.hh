@@ -6,11 +6,11 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/nn/sum_fiber.hh
- * NNGraph sum_fiber autograd operation.
+ * @file include/nntile/graph/nn/norm.hh
+ * NNGraph norm autograd operation.
  *
- * Forward: y = alpha * sum_fiber(x) (fresh output, no in-place)
- * Backward: grad_x += alpha * add_fiber_inplace(grad_y)
+ * Forward: output = alpha * norm(x) (scalar)
+ * Backward: not implemented (throws)
  *
  * @version 1.1.0
  * */
@@ -22,25 +22,20 @@
 
 // NNTile headers
 #include <nntile/graph/nn/graph_op_node.hh>
-#include <nntile/graph/tensor/sum_fiber.hh>
+#include <nntile/graph/tensor/norm.hh>
 
 namespace nntile::graph
 {
 
-//! SumFiber op: y = alpha*sum_fiber(x). PyTorch-style. Always fresh output.
-struct NNSumFiberOp : NNGraph::OpNode
+//! Norm op: output = alpha * norm(x) (scalar). PyTorch-style. Always fresh output.
+struct NNNormOp : NNGraph::OpNode
 {
     Scalar alpha;
-    Index axis;
-    Index batch_ndim;
-    int redux;
     NNGraph::TensorNode* x = nullptr;
 
-    NNSumFiberOp(NNGraph::TensorNode* x_,
-                 Index axis_, Index batch_ndim_,
-                 int redux_, Scalar alpha_)
-        : alpha(alpha_), axis(axis_), batch_ndim(batch_ndim_)
-        , redux(redux_), x(x_)
+    NNNormOp(NNGraph::TensorNode* x_,
+             Scalar alpha_)
+        : alpha(alpha_), x(x_)
     {
         inputs_ = {x};
     }
@@ -49,12 +44,9 @@ struct NNSumFiberOp : NNGraph::OpNode
     void backward() const override;
 };
 
-NNGraph::TensorNode* sum_fiber(
+NNGraph::TensorNode* norm(
     NNGraph::TensorNode* x,
     const std::string& output_name,
-    Index axis,
-    Index batch_ndim,
-    int redux,
-    Scalar alpha);
+    Scalar alpha = 1.0);
 
 } // namespace nntile::graph
