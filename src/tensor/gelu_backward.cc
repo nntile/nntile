@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/gelu_backward.hh"
-#include "nntile/starpu/gelu_backward.hh"
+#include "nntile/tile/gelu_backward.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -44,21 +44,13 @@ void gelu_backward_async(const Tensor<T> &x, const Tensor<T> &dy,
         throw std::runtime_error("x.basetile_shape != dx.basetile_shape");
     }
     // Do actual calculations
-    int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < x.grid.nelems; ++i)
     {
-        auto x_tile_handle = x.get_tile_handle(i);
-        auto dy_tile_handle = dy.get_tile_handle(i);
         auto dx_tile_handle = dx.get_tile_handle(i);
-        // Execution node
-        int exec_rank = dx_tile_handle.mpi_get_rank();
-        // Execution node submission
-        if(mpi_rank == exec_rank)
-        {
-            auto x_tile_traits = x.get_tile_traits(i);
-            starpu::gelu_backward.submit<std::tuple<T>>(x_tile_traits.nelems,
-                    x_tile_handle, dy_tile_handle, dx_tile_handle);
-        }
+        auto x_tile = x.get_tile(i);
+        auto dy_tile = dy.get_tile(i);
+        auto dx_tile = dx.get_tile(i);
+        tile::gelu_backward_async<T>(x_tile, dy_tile, dx_tile);
         // Clear cached output value
         dx_tile_handle.mpi_flush();
     }

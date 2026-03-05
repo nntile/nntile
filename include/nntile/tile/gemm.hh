@@ -29,12 +29,12 @@ void gemm_check(const TransOp &transA, const TileTraits &A,
 template<typename T>
 void gemm_async(Scalar alpha, const TransOp &transA, const Tile<T> &A,
         const TransOp &transB, const Tile<T> &B, Scalar beta, const Tile<T> &C,
-        Index ndim, Index batch_ndim);
+        Index ndim, Index batch_ndim, int redux=0);
 
 // Blocking version of tile-wise gemm operation
 template<typename T>
 void gemm(Scalar alpha, const TransOp &transA, const Tile<T> &A,
         const TransOp &transB, const Tile<T> &B, Scalar beta, const Tile<T> &C,
-        Index ndim, Index batch_ndim);
+        Index ndim, Index batch_ndim, int redux=0);
 
 } // namespace nntile::tile

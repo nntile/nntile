@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/multiply_fiber.hh"
-#include "nntile/starpu/multiply_fiber.hh"
+#include "nntile/tile/multiply_fiber.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -69,33 +69,17 @@ void multiply_fiber_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &
         throw std::runtime_error("src2.basetile_shape != dst.basetile_shape");
     }
     // Apply per-tile multiply_fiber asynchronously as needed
-    int mpi_rank = starpu_mpi_world_rank();
-    int ret;
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         auto dst_tile_index = dst.grid.linear_to_index(i);
-        auto dst_tile_traits = dst.get_tile_traits(i);
         auto dst_tile_handle = dst.get_tile_handle(i);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
+        auto dst_tile = dst.get_tile(i);
         // Get corresponding src tile
         Index j = dst_tile_index[axis];
-        auto src1_tile_handle = src1.get_tile_handle(j);
-        auto src2_tile_handle = src2.get_tile_handle(i);
-        // Transfer data
-        src1_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        src2_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        // Execute on destination node
-        if(mpi_rank == dst_tile_rank)
-        {
-            // Reshape inputs: src_tile -> (m,n), dst_tile -> (m,k,n)
-            Index m, n, k;
-            m = dst_tile_traits.stride[axis];
-            n = dst_tile_traits.matrix_shape[axis+1][1];
-            k = dst_tile_traits.shape[axis];
-            // Insert corresponding task
-            starpu::multiply_fiber.submit<std::tuple<T>>(m, n, k, alpha, src1_tile_handle,
-                    src2_tile_handle, dst_tile_handle);
-        }
+        auto src1_tile = src1.get_tile(j);
+        auto src2_tile = src2.get_tile(i);
+        tile::multiply_fiber_async<T>(alpha, src1_tile, src2_tile, dst_tile,
+                axis);
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
     }

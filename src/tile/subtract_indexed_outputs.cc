@@ -13,6 +13,7 @@
 
 #include "nntile/tile/subtract_indexed_outputs.hh"
 #include "nntile/starpu/subtract_indexed_outputs.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -33,9 +34,15 @@ void subtract_indexed_outputs_async(Scalar val, const Tile<int64_t> &labels,
             throw std::runtime_error("labels.shape[i] != dst.shape[i+1]");
         }
     }
-    // Insert task
-    starpu::subtract_indexed_outputs.submit<std::tuple<T>>(dst.shape[0], labels.nelems, ignore_index,
-            val, labels, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    labels.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Insert task
+        starpu::subtract_indexed_outputs.submit<std::tuple<T>>(dst.shape[0],
+                labels.nelems, ignore_index, val, labels, dst);
+    }
 }
 
 template<typename T>

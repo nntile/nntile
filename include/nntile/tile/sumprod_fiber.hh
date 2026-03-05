@@ -21,10 +21,10 @@ namespace nntile::tile
 
 template<typename T>
 void sumprod_fiber_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
-        Scalar beta, const Tile<T> &dst, Index axis);
+        Scalar beta, const Tile<T> &dst, Index axis, int redux=0);
 
 template<typename T>
 void sumprod_fiber(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2, Scalar beta,
-        const Tile<T> &dst, Index axis);
+        const Tile<T> &dst, Index axis, int redux=0);
 
 } // namespace nntile::tile

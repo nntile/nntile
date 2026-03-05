@@ -14,6 +14,7 @@
 
 #include "nntile/tile/scale_inplace.hh"
 #include "nntile/starpu/scale_inplace.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -22,8 +23,13 @@ namespace nntile::tile
 template<typename T>
 void scale_inplace_async(Scalar alpha, const Tile<T> &data)
 {
-    // Insert task
-    starpu::scale_inplace.submit<std::tuple<T>>(data.nelems, alpha, data);
+    int mpi_rank = starpu_mpi_world_rank();
+    int data_rank = data.mpi_get_rank();
+    if(mpi_rank == data_rank)
+    {
+        // Insert task
+        starpu::scale_inplace.submit<std::tuple<T>>(data.nelems, alpha, data);
+    }
 }
 
 //! Tile-wise scale_inplace operation
@@ -45,6 +51,9 @@ template
 void scale_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &data);
 
 template
+void scale_inplace_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &data);
+
+template
 void scale_inplace_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &data);
 
 template
@@ -62,6 +71,9 @@ void scale_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> 
 
 template
 void scale_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &data);
+
+template
+void scale_inplace<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &data);
 
 template
 void scale_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &data);

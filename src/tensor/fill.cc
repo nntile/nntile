@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/fill.hh"
-#include "nntile/starpu/fill.hh"
+#include "nntile/tile/fill.hh"
 #include "nntile/starpu/config.hh"
 
 namespace nntile::tensor
@@ -25,17 +25,11 @@ namespace nntile::tensor
 template<typename T>
 void fill_async(Scalar val, const Tensor<T> &A)
 {
-    int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < A.grid.nelems; ++i)
     {
         auto tile_handle = A.get_tile_handle(i);
-        int tile_rank = tile_handle.mpi_get_rank();
-        // Execute only on node-owner
-        if(mpi_rank == tile_rank)
-        {
-            auto tile_traits = A.get_tile_traits(i);
-            starpu::fill.submit<std::tuple<T>>(tile_traits.nelems, val, tile_handle);
-        }
+        auto tile = A.get_tile(i);
+        tile::fill_async<T>(val, tile);
         // Flush cache for the output tile on every node
         tile_handle.mpi_flush();
     }

@@ -21,10 +21,10 @@ namespace nntile::tile
 
 template<typename T>
 void norm_slice_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        Index axis);
+        Index axis, int redux=0);
 
 template<typename T>
 void norm_slice_inplace(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        Index axis);
+        Index axis, int redux=0);
 
 } // namespace nntile::tile

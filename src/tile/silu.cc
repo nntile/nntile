@@ -14,6 +14,7 @@
 
 #include "nntile/tile/silu.hh"
 #include "nntile/starpu/silu.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::tile
 {
@@ -26,8 +27,14 @@ void silu_async(const Tile<T> &src, const Tile<T> &dst)
     {
         throw std::runtime_error("src.shape != dst.shape");
     }
-    // Submit silu
-    starpu::silu.submit<std::tuple<T>>(src.nelems, src, dst);
+    int mpi_rank = starpu_mpi_world_rank();
+    int dst_rank = dst.mpi_get_rank();
+    src.mpi_transfer(dst_rank, mpi_rank);
+    if(mpi_rank == dst_rank)
+    {
+        // Submit silu
+        starpu::silu.submit<std::tuple<T>>(src.nelems, src, dst);
+    }
 }
 
 template<typename T>

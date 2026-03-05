@@ -22,11 +22,11 @@ namespace nntile::tile
 // Tile<T> RoPE
 template<typename T>
 void rope_async(const Tile<T> &sin, const Tile<T> &cos,
-        const Tile<T> &src, const Tile<T> &dst, Index axis);
+        const Tile<T> &src, const Tile<T> &dst);
 
 // Tile<T> RoPE
 template<typename T>
 void rope(const Tile<T> &sin, const Tile<T> &cos,
-        const Tile<T> &src, const Tile<T> &dst, Index axis);
+        const Tile<T> &src, const Tile<T> &dst);
 
 } // namespace nntile::tile
