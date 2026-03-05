@@ -26,6 +26,7 @@ set(TESTS_CATCH2
 
 # Module tests with PyTorch comparison
 set(TESTS_MODULE_PYTORCH
+    "activation"
     "gated_mlp"
     "linear"
     "mlp"
