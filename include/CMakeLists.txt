@@ -553,6 +553,7 @@ set(MODULE_HDR
     "nntile/module/linear.hh"
     "nntile/module/embedding.hh"
     "nntile/module/mlp.hh"
+    "nntile/module/rms_norm.hh"
 )
 
 set(MODEL_HDR
@@ -560,7 +561,6 @@ set(MODEL_HDR
     "nntile/model/llama/llama_config.hh"
     "nntile/model/llama/llama_mlp.hh"
     "nntile/model/llama/llama_attention.hh"
-    "nntile/model/llama/rms_norm.hh"
     "nntile/model/llama/llama_decoder.hh"
     "nntile/model/llama/llama_model.hh"
     "nntile/model/llama/llama.hh"

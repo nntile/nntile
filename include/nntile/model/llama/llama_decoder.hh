@@ -22,8 +22,8 @@
 #include <nntile/model/llama/llama_attention.hh>
 #include <nntile/model/llama/llama_config.hh>
 #include <nntile/model/llama/llama_mlp.hh>
-#include <nntile/model/llama/rms_norm.hh>
 #include <nntile/module/module.hh>
+#include <nntile/module/rms_norm.hh>
 
 namespace nntile::model::llama
 {
@@ -32,9 +32,9 @@ namespace nntile::model::llama
 class LlamaDecoder : public module::Module
 {
 private:
-    RMSNorm input_norm_;
+    module::RMSNorm input_norm_;
     LlamaAttention attention_;
-    RMSNorm post_attn_norm_;
+    module::RMSNorm post_attn_norm_;
     LlamaMLP mlp_;
 
     LlamaConfig config_;
@@ -48,7 +48,7 @@ public:
                  graph::DataType dtype = graph::DataType::FP32);
 
     //! Forward pass
-    //! @param x Input (seq, batch, hidden_size)
+    //! @param x Input (hidden_size, seq, batch) in Fortran order
     //! @param sin RoPE sin (optional)
     //! @param cos RoPE cos (optional)
     //! @param mask Attention mask (optional)

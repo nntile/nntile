@@ -6,18 +6,18 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/model/llama/rms_norm.cc
+ * @file src/module/rms_norm.cc
  * RMSNorm module implementation.
  *
  * @version 1.1.0
  * */
 
-#include "nntile/model/llama/rms_norm.hh"
+#include "nntile/module/rms_norm.hh"
 #include "nntile/graph/nn/rms_norm.hh"
 
 #include <stdexcept>
 
-namespace nntile::model::llama
+namespace nntile::module
 {
 
 RMSNorm::RMSNorm(graph::NNGraph* graph,
@@ -27,7 +27,7 @@ RMSNorm::RMSNorm(graph::NNGraph* graph,
                  float eps,
                  int redux,
                  graph::DataType dtype)
-    : module::Module(graph, name)
+    : Module(graph, name)
     , normalized_shape_(normalized_shape)
     , axis_(axis)
     , eps_(eps)
@@ -60,4 +60,4 @@ std::string RMSNorm::repr() const
            ", eps=" + std::to_string(eps_) + ")";
 }
 
-} // namespace nntile::model::llama
+} // namespace nntile::module

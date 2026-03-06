@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/model/llama/llama_causal.hh"
+#include "nntile/graph/nn/transpose.hh"
 
 #include <stdexcept>
 
@@ -40,9 +41,15 @@ graph::NNGraph::TensorNode* LlamaCausal::forward(
     graph::NNGraph::TensorNode* cos,
     graph::NNGraph::TensorNode* mask)
 {
+    // Model output: (hidden, seq, batch)
     graph::NNGraph::TensorNode* hidden =
         model_->forward(input_ids, sin, cos, mask);
-    return lm_head_.forward(hidden);
+    // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for lm_head (ndim=1)
+    graph::NNGraph::TensorNode* hidden_sbh =
+        graph::transpose(hidden, tensor_name("hidden_sbh"), 1);
+    graph::NNGraph::TensorNode* logits_sbv = lm_head_.forward(hidden_sbh);
+    // Transpose to (vocab, seq, batch) for output (ndim=2)
+    return graph::transpose(logits_sbv, tensor_name("logits"), 2);
 }
 
 std::string LlamaCausal::repr() const

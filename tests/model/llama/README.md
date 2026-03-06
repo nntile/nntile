@@ -2,6 +2,12 @@
 
 Tests for the NNTile C++ Llama model components, mirroring the Python implementations in `wrappers/python/nntile/model/`.
 
+RMSNorm is a shared module in `nntile::module` (see `include/nntile/module/rms_norm.hh`) and can be reused by other models (GPT, etc.).
+
+## Layout
+
+All tensors use **(hidden_size, seq, batch)** in Fortran (column-major) order. The embedding takes input_ids (seq, batch) and produces (hidden, seq, batch) after transpose. LlamaCausal outputs logits (vocab_size, seq, batch).
+
 ## Test Coverage
 
 - **llama_config**: LlamaConfig validation and defaults

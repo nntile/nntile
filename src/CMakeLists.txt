@@ -530,13 +530,13 @@ set(MODULE_SRC
     "module/mlp.cc"
     "module/linear.cc"
     "module/embedding.cc"
+    "module/rms_norm.cc"
 )
 
 # Model implementations
 set(MODEL_SRC
     "model/llama/llama_mlp.cc"
     "model/llama/llama_attention.cc"
-    "model/llama/rms_norm.cc"
     "model/llama/llama_decoder.cc"
     "model/llama/llama_model.cc"
     "model/llama/llama_causal.cc"

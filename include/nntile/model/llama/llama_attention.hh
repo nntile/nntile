@@ -9,7 +9,7 @@
  * @file include/nntile/model/llama/llama_attention.hh
  * LlamaAttention - self-attention with RoPE and sdpa_eager.
  *
- * Input layout: (seq, batch, hidden_size)
+ * Input layout: (hidden_size, seq, batch) in Fortran order.
  * Uses sdpa_eager for scaled dot-product attention.
  *
  * @version 1.1.0

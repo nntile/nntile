@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/model/llama/llama_mlp.hh"
+#include "nntile/graph/nn/transpose.hh"
 
 namespace nntile::model::llama
 {
@@ -33,7 +34,12 @@ LlamaMLP::LlamaMLP(graph::NNGraph* graph,
 graph::NNGraph::TensorNode* LlamaMLP::forward(
     graph::NNGraph::TensorNode* input)
 {
-    return module::GatedMlp::forward(input);
+    // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for GatedMlp (ndim=1)
+    graph::NNGraph::TensorNode* x_sbh =
+        graph::transpose(input, tensor_name("x_sbh"), 1);
+    graph::NNGraph::TensorNode* out_sbh = module::GatedMlp::forward(x_sbh);
+    // Transpose back to (hidden, seq, batch) (ndim=2)
+    return graph::transpose(out_sbh, tensor_name("mlp_out"), 2);
 }
 
 std::string LlamaMLP::repr() const

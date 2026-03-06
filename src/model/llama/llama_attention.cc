@@ -79,10 +79,14 @@ graph::NNGraph::TensorNode* LlamaAttention::forward(
             "LlamaAttention::forward: input tensor must be non-null");
     }
 
+    // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for Linear (ndim=1)
+    graph::NNGraph::TensorNode* x_sbh =
+        graph::transpose(x, tensor_name("x_sbh"), 1);
+
     // Q, K, V projections: (seq, batch, hidden) -> (seq, batch, head_size)
-    graph::NNGraph::TensorNode* q = q_proj_.forward(x);
-    graph::NNGraph::TensorNode* k = k_proj_.forward(x);
-    graph::NNGraph::TensorNode* v = v_proj_.forward(x);
+    graph::NNGraph::TensorNode* q = q_proj_.forward(x_sbh);
+    graph::NNGraph::TensorNode* k = k_proj_.forward(x_sbh);
+    graph::NNGraph::TensorNode* v = v_proj_.forward(x_sbh);
 
     // Transpose to (head_size, seq, batch) for sdpa_eager (ndim=2 cyclic shift)
     graph::NNGraph::TensorNode* q_t =
@@ -104,7 +108,7 @@ graph::NNGraph::TensorNode* LlamaAttention::forward(
     // SDPA: batch_ndim=1 for (head_size, seq, batch)
     graph::NNGraph::TensorNode* attn_out = graph::sdpa_eager(
         q_rope, k_rope, v_t,
-        tensor_name("attn_out"),
+        tensor_name("sdpa_out"),
         mask,
         1,  // batch_ndim
         0   // redux
@@ -114,8 +118,11 @@ graph::NNGraph::TensorNode* LlamaAttention::forward(
     graph::NNGraph::TensorNode* attn_t =
         graph::transpose(attn_out, tensor_name("attn_t"), 1);
 
-    // Output projection
-    return out_proj_.forward(attn_t);
+    // Output projection -> (seq, batch, hidden)
+    graph::NNGraph::TensorNode* out_sbh = out_proj_.forward(attn_t);
+
+    // Transpose back to (hidden, seq, batch) (ndim=2 for 3D)
+    return graph::transpose(out_sbh, tensor_name("out_hsb"), 2);
 }
 
 std::string LlamaAttention::repr() const

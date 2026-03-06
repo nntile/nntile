@@ -39,5 +39,6 @@ TEST_CASE("LlamaCausal forward builds output", "[model][llama]")
     auto* output = model.forward(input_ids);
 
     REQUIRE(output != nullptr);
-    REQUIRE(output->shape() == std::vector<Index>({4, 2, 100}));
+    // Output: (vocab, seq, batch) = (100, 4, 2)
+    REQUIRE(output->shape() == std::vector<Index>({100, 4, 2}));
 }

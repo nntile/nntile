@@ -31,12 +31,13 @@ TEST_CASE("LlamaAttention forward builds output", "[model][llama]")
     config.num_key_value_heads = 1;
     config.compute_head_dim();
 
-    auto* input = g.tensor({4, 2, 8}, "input", DataType::FP32);
+    // Input: (hidden, seq, batch) = (8, 4, 2)
+    auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
     LlamaAttention attn(&g, "attn", config);
     auto* output = attn.forward(input);
 
     REQUIRE(output != nullptr);
-    REQUIRE(output->shape() == std::vector<Index>({4, 2, 8}));
+    REQUIRE(output->shape() == std::vector<Index>({8, 4, 2}));
 }
 
 // Note: Backward test disabled - sdpa_eager backward may have add_slice

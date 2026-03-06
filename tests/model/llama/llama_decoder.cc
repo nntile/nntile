@@ -32,10 +32,11 @@ TEST_CASE("LlamaDecoder forward builds output", "[model][llama]")
     config.num_key_value_heads = 1;
     config.compute_head_dim();
 
-    auto* input = g.tensor({4, 2, 8}, "input", DataType::FP32);
+    // Input: (hidden, seq, batch) = (8, 4, 2)
+    auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
     LlamaDecoder decoder(&g, "decoder", config);
     auto* output = decoder.forward(input);
 
     REQUIRE(output != nullptr);
-    REQUIRE(output->shape() == std::vector<Index>({4, 2, 8}));
+    REQUIRE(output->shape() == std::vector<Index>({8, 4, 2}));
 }

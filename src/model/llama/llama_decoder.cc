@@ -26,10 +26,10 @@ LlamaDecoder::LlamaDecoder(graph::NNGraph* graph,
                            graph::DataType dtype)
     : module::Module(graph, name)
     , input_norm_(graph, name + "_input_norm",
-                  config.hidden_size, 2, config.rms_norm_eps, 0, dtype)  // axis=2 for (seq,batch,hidden)
+                  config.hidden_size, 0, config.rms_norm_eps, 0, dtype)  // axis=0 for (hidden,seq,batch)
     , attention_(graph, name + "_self_attn", config, dtype)
     , post_attn_norm_(graph, name + "_post_attn_norm",
-                     config.hidden_size, 2, config.rms_norm_eps, 0, dtype)  // axis=2
+                     config.hidden_size, 0, config.rms_norm_eps, 0, dtype)  // axis=0
     , mlp_(graph, name + "_mlp", config, dtype)
     , config_(config)
     , dtype_(dtype)

@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/model/llama/rms_norm.hh
+ * @file include/nntile/module/rms_norm.hh
  * RMSNorm module - wraps gamma parameter and rms_norm graph op.
  *
  * @version 1.1.0
@@ -21,11 +21,11 @@
 #include <nntile/graph.hh>
 #include <nntile/module/module.hh>
 
-namespace nntile::model::llama
+namespace nntile::module
 {
 
 //! RMSNorm module: y = gamma * (x / sqrt(mean(x^2) + eps))
-class RMSNorm : public module::Module
+class RMSNorm : public Module
 {
 private:
     graph::NNGraph::TensorNode* gamma_tensor_ = nullptr;
@@ -55,4 +55,4 @@ public:
     graph::NNGraph::TensorNode* gamma_tensor() const { return gamma_tensor_; }
 };
 
-} // namespace nntile::model::llama
+} // namespace nntile::module

@@ -23,8 +23,8 @@
 #include <nntile/graph.hh>
 #include <nntile/model/llama/llama_config.hh>
 #include <nntile/model/llama/llama_decoder.hh>
-#include <nntile/model/llama/rms_norm.hh>
 #include <nntile/module/embedding.hh>
+#include <nntile/module/rms_norm.hh>
 #include <nntile/module/module.hh>
 
 namespace nntile::model::llama
@@ -36,7 +36,7 @@ class LlamaModel : public module::Module
 private:
     module::Embedding embed_tokens_;
     std::vector<std::unique_ptr<LlamaDecoder>> layers_;
-    RMSNorm norm_;
+    module::RMSNorm norm_;
 
     LlamaConfig config_;
     graph::DataType dtype_;
@@ -49,7 +49,7 @@ public:
                graph::DataType dtype = graph::DataType::FP32);
 
     //! Forward pass
-    //! @param input_ids (seq, batch) INT64 token indices
+    //! @param input_ids (seq, batch) INT64 token indices; output is (hidden_size, seq, batch)
     //! @param sin RoPE sin per layer (optional)
     //! @param cos RoPE cos per layer (optional)
     //! @param mask Attention mask (optional)

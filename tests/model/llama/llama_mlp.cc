@@ -30,11 +30,12 @@ TEST_CASE("LlamaMLP forward builds output", "[model][llama]")
     config.intermediate_size = 16;
     config.compute_head_dim();
 
-    auto* input = g.tensor({4, 2, 8}, "input", DataType::FP32);
+    // Input: (hidden, seq, batch) = (8, 4, 2)
+    auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
     LlamaMLP mlp(&g, "mlp", config);
     auto* output = mlp.forward(input);
 
     REQUIRE(output != nullptr);
-    REQUIRE(output->shape() == std::vector<Index>({4, 2, 8}));
+    REQUIRE(output->shape() == std::vector<Index>({8, 4, 2}));
     REQUIRE(mlp.parameters_recursive().size() == 3);
 }

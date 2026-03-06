@@ -21,3 +21,4 @@
 #include <nntile/module/embedding.hh>
 #include <nntile/module/gated_mlp.hh>
 #include <nntile/module/mlp.hh>
+#include <nntile/module/rms_norm.hh>
