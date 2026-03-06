@@ -353,7 +353,10 @@ void Module::import_hf(const io::SafeTensorsReader& reader,
 {
     for(const auto& [child_name, child] : submodules_)
     {
-        child->import_hf(reader, hf_prefix + "." + child_name);
+        std::string child_prefix = hf_prefix.empty()
+            ? child_name
+            : hf_prefix + "." + child_name;
+        child->import_hf(reader, child_prefix);
     }
 }
 
@@ -362,7 +365,10 @@ void Module::export_hf(io::SafeTensorsWriter& writer,
 {
     for(const auto& [child_name, child] : submodules_)
     {
-        child->export_hf(writer, hf_prefix + "." + child_name);
+        std::string child_prefix = hf_prefix.empty()
+            ? child_name
+            : hf_prefix + "." + child_name;
+        child->export_hf(writer, child_prefix);
     }
 }
 
