@@ -10,7 +10,10 @@
  * LlamaAttention - self-attention with RoPE and sdpa_eager.
  *
  * Input layout: (hidden_size, seq, batch) in Fortran order.
- * Uses sdpa_eager for scaled dot-product attention.
+ * Mimics wrappers/python/nntile/model/llama_attention.py::forward_async():
+ * - No transpose on input before Q/K/V
+ * - Q/K/V via gemm with 3D/4D weight matrices (not Linear)
+ * - Transpose applied to Q, K, V outputs (not to input)
  *
  * @version 1.1.0
  * */
@@ -23,21 +26,21 @@
 // NNTile headers
 #include <nntile/graph.hh>
 #include <nntile/model/llama/llama_config.hh>
-#include <nntile/module/linear.hh>
 #include <nntile/module/module.hh>
 
 namespace nntile::model::llama
 {
 
-//! LlamaAttention - Q/K/V projections, RoPE, SDPA, output projection
-//! Supports num_attention_heads == num_key_value_heads (no GQA) for simplicity.
+//! LlamaAttention - Q/K/V projections via gemm, RoPE, SDPA, output projection
+//! Uses gemm directly (not Linear) to support 3D/4D weight layouts like Python.
 class LlamaAttention : public module::Module
 {
 private:
-    module::Linear q_proj_;
-    module::Linear k_proj_;
-    module::Linear v_proj_;
-    module::Linear out_proj_;
+    // Weight tensors: 3D/4D as in Python (not 2D Linear)
+    graph::NNGraph::TensorNode* w_q_ = nullptr;  // (kv_group_size, n_head_kv, head_size, n_emb) or (n_heads, head_size, n_emb)
+    graph::NNGraph::TensorNode* w_k_ = nullptr;  // (n_head_kv, head_size, n_emb)
+    graph::NNGraph::TensorNode* w_v_ = nullptr;  // (n_head_kv, head_size, n_emb)
+    graph::NNGraph::TensorNode* w_o_ = nullptr;   // (n_emb, kv_group_size, n_head_kv, head_size) or (n_emb, n_heads, head_size)
 
     LlamaConfig config_;
     graph::DataType dtype_;
@@ -46,6 +49,7 @@ private:
     Index n_heads_;
     Index n_head_kv_;
     Index kv_group_size_;
+    bool use_gqa_;  // true if n_head_kv < n_heads
 
 public:
     //! Constructor
@@ -59,7 +63,7 @@ public:
                    graph::DataType dtype = graph::DataType::FP32);
 
     //! Forward pass
-    //! @param x Input tensor (seq, batch, hidden_size)
+    //! @param x Input tensor (hidden_size, seq, batch)
     //! @param sin RoPE sin tensor (head_size/2, seq, batch), may be nullptr to skip RoPE
     //! @param cos RoPE cos tensor (head_size/2, seq, batch), may be nullptr to skip RoPE
     //! @param mask Optional attention mask (k_seq, q_seq), may be nullptr

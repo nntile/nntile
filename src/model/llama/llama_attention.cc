@@ -7,12 +7,15 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/model/llama/llama_attention.cc
- * LlamaAttention implementation (sdpa_eager-based).
+ * LlamaAttention implementation - gemm-based, mimics Python forward_async.
  *
  * @version 1.1.0
  * */
 
 #include "nntile/model/llama/llama_attention.hh"
+#include "nntile/graph/nn/add_slice.hh"
+#include "nntile/graph/nn/fill.hh"
+#include "nntile/graph/nn/gemm.hh"
 #include "nntile/graph/nn/rope.hh"
 #include "nntile/graph/nn/sdpa_eager.hh"
 #include "nntile/graph/nn/transpose.hh"
@@ -28,43 +31,71 @@ LlamaAttention::LlamaAttention(graph::NNGraph* graph,
                                const LlamaConfig& config,
                                graph::DataType dtype)
     : module::Module(graph, name)
-    , q_proj_(graph, name + "_q_proj",
-              config.hidden_size,
-              config.num_attention_heads * config.head_dim,
-              config.attention_bias,
-              dtype)
-    , k_proj_(graph, name + "_k_proj",
-              config.hidden_size,
-              config.num_key_value_heads * config.head_dim,
-              config.attention_bias,
-              dtype)
-    , v_proj_(graph, name + "_v_proj",
-              config.hidden_size,
-              config.num_key_value_heads * config.head_dim,
-              config.attention_bias,
-              dtype)
-    , out_proj_(graph, name + "_o_proj",
-                config.num_attention_heads * config.head_dim,
-                config.hidden_size,
-                config.attention_bias,
-                dtype)
     , config_(config)
     , dtype_(dtype)
     , head_size_(config.head_dim)
     , n_heads_(config.num_attention_heads)
     , n_head_kv_(config.num_key_value_heads)
     , kv_group_size_(config.num_attention_heads / config.num_key_value_heads)
+    , use_gqa_(config.num_key_value_heads < config.num_attention_heads)
 {
-    if(n_heads_ != n_head_kv_)
+    Index n_emb = config.hidden_size;
+
+    // Create weight tensors with 3D/4D shapes as in Python
+    if(use_gqa_)
     {
-        throw std::invalid_argument(
-            "LlamaAttention: GQA (num_key_value_heads < num_attention_heads) "
-            "requires repeat_kv which needs reshape - not yet supported");
+        // Q: (kv_group_size, n_head_kv, head_size, n_emb) - 4D
+        w_q_ = graph_->tensor(
+            {kv_group_size_, n_head_kv_, head_size_, n_emb},
+            tensor_name("q_weight"),
+            dtype_,
+            true);
     }
-    register_module("q_proj", &q_proj_);
-    register_module("k_proj", &k_proj_);
-    register_module("v_proj", &v_proj_);
-    register_module("out_proj", &out_proj_);
+    else
+    {
+        // Q: (n_heads, head_size, n_emb) - 3D for non-GQA
+        w_q_ = graph_->tensor(
+            {n_heads_, head_size_, n_emb},
+            tensor_name("q_weight"),
+            dtype_,
+            true);
+    }
+    register_parameter("q_weight", w_q_);
+
+    // K, V: (n_head_kv, head_size, n_emb) - 3D
+    w_k_ = graph_->tensor(
+        {n_head_kv_, head_size_, n_emb},
+        tensor_name("k_weight"),
+        dtype_,
+        true);
+    register_parameter("k_weight", w_k_);
+
+    w_v_ = graph_->tensor(
+        {n_head_kv_, head_size_, n_emb},
+        tensor_name("v_weight"),
+        dtype_,
+        true);
+    register_parameter("v_weight", w_v_);
+
+    if(use_gqa_)
+    {
+        // Out: (n_emb, kv_group_size, n_head_kv, head_size) - 4D
+        w_o_ = graph_->tensor(
+            {n_emb, kv_group_size_, n_head_kv_, head_size_},
+            tensor_name("o_weight"),
+            dtype_,
+            true);
+    }
+    else
+    {
+        // Out: (n_emb, n_heads, head_size) - 3D for non-GQA
+        w_o_ = graph_->tensor(
+            {n_emb, n_heads_, head_size_},
+            tensor_name("o_weight"),
+            dtype_,
+            true);
+    }
+    register_parameter("o_weight", w_o_);
 }
 
 graph::NNGraph::TensorNode* LlamaAttention::forward(
@@ -79,50 +110,123 @@ graph::NNGraph::TensorNode* LlamaAttention::forward(
             "LlamaAttention::forward: input tensor must be non-null");
     }
 
-    // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for Linear (ndim=1)
-    graph::NNGraph::TensorNode* x_sbh =
-        graph::transpose(x, tensor_name("x_sbh"), 1);
+    const auto& x_shape = x->shape();
+    Index n_seq = x_shape[1];
+    Index n_batch = x_shape[2];
 
-    // Q, K, V projections: (seq, batch, hidden) -> (seq, batch, head_size)
-    graph::NNGraph::TensorNode* q = q_proj_.forward(x_sbh);
-    graph::NNGraph::TensorNode* k = k_proj_.forward(x_sbh);
-    graph::NNGraph::TensorNode* v = v_proj_.forward(x_sbh);
-
-    // Transpose to (head_size, seq, batch) for sdpa_eager (ndim=2 cyclic shift)
-    graph::NNGraph::TensorNode* q_t =
-        graph::transpose(q, tensor_name("q_t"), 2);
-    graph::NNGraph::TensorNode* k_t =
-        graph::transpose(k, tensor_name("k_t"), 2);
-    graph::NNGraph::TensorNode* v_t =
-        graph::transpose(v, tensor_name("v_t"), 2);
-
-    // RoPE on Q and K (if sin/cos provided)
-    graph::NNGraph::TensorNode* q_rope = q_t;
-    graph::NNGraph::TensorNode* k_rope = k_t;
-    if(sin != nullptr && cos != nullptr)
+    // Q = gemm(w_q, x), no transpose on x
+    // x: (hidden, seq, batch), w_q: (..., n_emb) for contraction
+    graph::NNGraph::TensorNode* q_proj;
+    graph::NNGraph::TensorNode* q;
+    if(use_gqa_)
     {
-        q_rope = graph::rope(sin, cos, q_t, tensor_name("q_rope"));
-        k_rope = graph::rope(sin, cos, k_t, tensor_name("k_rope"));
+        // w_q (kv_group_size, n_head_kv, head_size, n_emb), x (n_emb, seq, batch)
+        // gemm ndim=1 -> (kv_group_size, n_head_kv, head_size, seq, batch)
+        q_proj = graph::gemm(
+            w_q_, x, tensor_name("q_proj"),
+            1.0, false, false, 1, 0);
+        // transpose ndim=2: (d0,d1,d2,d3,d4) -> (d2,d3,d4,d0,d1)
+        // (kv_group_size, n_head_kv, head_size, seq, batch) -> (head_size, seq, batch, kv_group_size, n_head_kv)
+        q = graph::transpose(q_proj, tensor_name("q"), 2);
+    }
+    else
+    {
+        // w_q (n_heads, head_size, n_emb), x (n_emb, seq, batch)
+        // gemm ndim=1 -> (n_heads, head_size, seq, batch)
+        q_proj = graph::gemm(
+            w_q_, x, tensor_name("q_proj"),
+            1.0, false, false, 1, 0);
+        // transpose ndim=1: (d0,d1,d2,d3) -> (d1,d2,d3,d0)
+        // (n_heads, head_size, seq, batch) -> (head_size, seq, batch, n_heads)
+        q = graph::transpose(q_proj, tensor_name("q"), 1);
     }
 
-    // SDPA: batch_ndim=1 for (head_size, seq, batch)
+    // K = gemm(w_k, x), then transpose
+    // w_k (n_head_kv, head_size, n_emb), x (n_emb, seq, batch)
+    graph::NNGraph::TensorNode* k_proj = graph::gemm(
+        w_k_, x, tensor_name("k_proj"),
+        1.0, false, false, 1, 0);
+    // transpose ndim=1: (n_head_kv, head_size, seq, batch) -> (head_size, seq, batch, n_head_kv)
+    graph::NNGraph::TensorNode* k =
+        graph::transpose(k_proj, tensor_name("k"), 1);
+
+    // V = gemm(w_v, x), then transpose
+    graph::NNGraph::TensorNode* v_proj = graph::gemm(
+        w_v_, x, tensor_name("v_proj"),
+        1.0, false, false, 1, 0);
+    graph::NNGraph::TensorNode* v =
+        graph::transpose(v_proj, tensor_name("v"), 1);
+
+    // RoPE on Q and K (if sin/cos provided)
+    graph::NNGraph::TensorNode* q_rope = q;
+    graph::NNGraph::TensorNode* k_rope = k;
+    if(sin != nullptr && cos != nullptr)
+    {
+        q_rope = graph::rope(sin, cos, q, tensor_name("q_rope"));
+        k_rope = graph::rope(sin, cos, k, tensor_name("k_rope"));
+    }
+
+    // For GQA: repeat K and V to match Q's head count
+    graph::NNGraph::TensorNode* k_sdpa = k_rope;
+    graph::NNGraph::TensorNode* v_sdpa = v;
+    if(use_gqa_)
+    {
+        // k_rope: (head_size, seq, batch, n_head_kv) - 4D
+        // k_rep: (head_size, seq, batch, kv_group_size, n_head_kv) - 5D
+        // add_slice(1.0, k_rope, 0.0, zeros, axis=3) broadcasts k along axis 3
+        graph::NNGraph::TensorNode* zeros_k = graph_->tensor(
+            {head_size_, n_seq, n_batch, kv_group_size_, n_head_kv_},
+            tensor_name("k_rep_zeros"), dtype_, false);
+        graph::fill(0.0, zeros_k);
+        graph::NNGraph::TensorNode* k_rep = graph::add_slice(
+            1.0, k_rope, 0.0, zeros_k, tensor_name("k_rep"), 3);
+
+        graph::NNGraph::TensorNode* zeros_v = graph_->tensor(
+            {head_size_, n_seq, n_batch, kv_group_size_, n_head_kv_},
+            tensor_name("v_rep_zeros"), dtype_, false);
+        graph::fill(0.0, zeros_v);
+        graph::NNGraph::TensorNode* v_rep = graph::add_slice(
+            1.0, v, 0.0, zeros_v, tensor_name("v_rep"), 3);
+
+        k_sdpa = k_rep;
+        v_sdpa = v_rep;
+    }
+
+    // SDPA: q, k, v layout (head_size, seq, batch, ...)
+    Index batch_ndim = use_gqa_ ? 3 : 2;
     graph::NNGraph::TensorNode* attn_out = graph::sdpa_eager(
-        q_rope, k_rope, v_t,
+        q_rope, k_sdpa, v_sdpa,
         tensor_name("sdpa_out"),
         mask,
-        1,  // batch_ndim
-        0   // redux
-    );
+        batch_ndim,
+        0);
 
-    // Transpose back to (seq, batch, head_size) - ndim=1 for 3D
-    graph::NNGraph::TensorNode* attn_t =
-        graph::transpose(attn_out, tensor_name("attn_t"), 1);
+    // Transpose to (..., head_size) for output projection
+    graph::NNGraph::TensorNode* attn_t;
+    if(use_gqa_)
+    {
+        // attn_out: (head_size, seq, batch, kv_group_size, n_head_kv)
+        // transpose ndim=3 -> (kv_group_size, n_head_kv, head_size, seq, batch)
+        attn_t = graph::transpose(attn_out, tensor_name("attn_t"), 3);
+    }
+    else
+    {
+        // attn_out: (head_size, seq, batch, n_heads)
+        // transpose ndim=3 -> (n_heads, head_size, seq, batch)
+        attn_t = graph::transpose(attn_out, tensor_name("attn_t"), 3);
+    }
 
-    // Output projection -> (seq, batch, hidden)
-    graph::NNGraph::TensorNode* out_sbh = out_proj_.forward(attn_t);
+    // Output projection: gemm(w_o, attn_t)
+    // w_o (n_emb, kv_group_size, n_head_kv, head_size) or (n_emb, n_heads, head_size)
+    // attn_t (kv_group_size, n_head_kv, head_size, seq, batch) or (n_heads, head_size, seq, batch)
+    // Contract last 2 dims of w_o with first 2 dims of attn_t for 3D w_o; last 3 with first 3 for 4D w_o
+    Index out_ndim = use_gqa_ ? 3 : 2;
+    graph::NNGraph::TensorNode* out_sbh = graph::gemm(
+        w_o_, attn_t, tensor_name("out_proj"),
+        1.0, false, false, out_ndim, 0);
 
-    // Transpose back to (hidden, seq, batch) (ndim=2 for 3D)
-    return graph::transpose(out_sbh, tensor_name("out_hsb"), 2);
+    // Output is already (hidden, seq, batch)
+    return out_sbh;
 }
 
 std::string LlamaAttention::repr() const
