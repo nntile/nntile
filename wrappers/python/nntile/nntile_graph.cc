@@ -275,6 +275,15 @@ PYBIND11_MODULE(nntile_graph, m)
              [](NNGraph& g) -> TensorGraph* {
                  return &g.tensor_graph();
              }, py::return_value_policy::reference_internal)
+        .def("get_or_create_grad",
+             [](NNGraph& g, NNGraph::TensorNode* t,
+                const std::string& grad_name) -> NNGraph::TensorNode* {
+                 auto [grad, is_first] =
+                     g.get_or_create_grad(t, grad_name);
+                 return grad;
+             },
+             "tensor"_a, "grad_name"_a,
+             py::return_value_policy::reference)
         .def_property_readonly("grad_enabled", &NNGraph::is_grad_enabled)
         .def("set_grad_enabled", &NNGraph::set_grad_enabled, "enabled"_a)
         .def("__repr__", &NNGraph::to_string)

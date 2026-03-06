@@ -14,6 +14,7 @@
 from ..nntile_graph import (
     DataType, Module, NNGraph, Runtime, TensorDataNode, TensorGraph,
     TensorNode, dtype_to_string, llama, nn)
+from . import llama_attention, llama_config
 
 __all__ = [
     "DataType",
@@ -25,5 +26,7 @@ __all__ = [
     "TensorNode",
     "dtype_to_string",
     "llama",
+    "llama_attention",
+    "llama_config",
     "nn",
 ]

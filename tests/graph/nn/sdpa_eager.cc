@@ -102,21 +102,24 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 #ifdef NNTILE_HAVE_TORCH
 
 using nntile::test::colmajor_to_rowmajor;
+using nntile::test::compare_float_vectors;
 using nntile::test::permute_rowmajor;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph sdpa_eager forward matches PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph sdpa_eager forward and backward match PyTorch",
+    "[graph][nn_graph][pytorch]")
 {
-    const auto [head_size, n_seq, batch0, batch1, use_mask] = GENERATE(
-        std::tuple{8, 6, 1, 1, false},
-        std::tuple{8, 6, 2, 4, false},
-        std::tuple{16, 8, 2, 4, false},
-        std::tuple{32, 4, 3, 2, false},
-        std::tuple{8, 6, 1, 1, true},
-        std::tuple{8, 6, 2, 4, true},
-        std::tuple{16, 8, 2, 4, true},
-        std::tuple{32, 4, 3, 2, true});
+    const auto [head_size, n_seq, batch0, batch1, use_mask, grad_fill_val] =
+        GENERATE(
+        std::tuple{8, 6, 1, 1, false, Scalar(1.0)},
+        std::tuple{8, 6, 2, 4, false, Scalar(1.0)},
+        std::tuple{16, 8, 2, 4, false, Scalar(1.0)},
+        std::tuple{32, 4, 3, 2, false, Scalar(1.0)},
+        std::tuple{8, 6, 1, 1, true, Scalar(1.0)},
+        std::tuple{8, 6, 2, 4, true, Scalar(1.0)},
+        std::tuple{16, 8, 2, 4, true, Scalar(1.0)},
+        std::tuple{32, 4, 3, 2, true, Scalar(1.0)});
 
     const std::vector<Index> shape = {head_size, n_seq, batch0, batch1};
     const std::vector<Index> mask_shape = {n_seq, n_seq};
@@ -164,6 +167,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         mask->mark_input(true);
     output->mark_output(true);
 
+    // Build backward graph
+    auto [out_grad, is_first] = g.get_or_create_grad(output, "out_grad");
+    fill(grad_fill_val, out_grad);
+    output->backward();
+
+    q->grad()->mark_output(true);
+    k->grad()->mark_output(true);
+    v->grad()->mark_output(true);
+
     TensorGraph::Runtime runtime(g.tensor_graph());
     runtime.compile();
     runtime.bind_data("q", q_data);
@@ -174,11 +186,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.execute();
     runtime.wait();
 
+    // --- Forward comparison ---
     std::vector<float> nntile_out_colmajor =
         runtime.get_output<float>(output->name());
     std::vector<float> nntile_out_rowmajor =
         colmajor_to_rowmajor(nntile_out_colmajor, shape);
-    // Batch-of-matrices: permute [h,s,b0,b1] -> [b0,b1,h,s] for comparison
     std::vector<float> nntile_out =
         permute_rowmajor(nntile_out_rowmajor, shape, {2, 3, 0, 1});
 
@@ -188,11 +200,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
     auto q_pt = torch::from_blob(q_row.data(), shape_pt,
-        torch::TensorOptions().dtype(torch::kFloat32)).clone();
+        torch::TensorOptions().dtype(torch::kFloat32))
+        .clone().set_requires_grad(true);
     auto k_pt = torch::from_blob(k_row.data(), shape_pt,
-        torch::TensorOptions().dtype(torch::kFloat32)).clone();
+        torch::TensorOptions().dtype(torch::kFloat32))
+        .clone().set_requires_grad(true);
     auto v_pt = torch::from_blob(v_row.data(), shape_pt,
-        torch::TensorOptions().dtype(torch::kFloat32)).clone();
+        torch::TensorOptions().dtype(torch::kFloat32))
+        .clone().set_requires_grad(true);
 
     float scale = 1.0f / std::sqrt(static_cast<float>(head_size));
     auto scores = torch::einsum("hsbn,htbn->stbn", {k_pt, q_pt}) * scale;
@@ -209,17 +224,39 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
     auto attn = torch::softmax(scores, 0);
     auto out_pt = torch::einsum("hsbn,stbn->htbn", {v_pt, attn});
-    // Match batch-first layout for comparison
     out_pt = out_pt.permute({2, 3, 0, 1}).contiguous();
 
     std::vector<float> pytorch_out(out_pt.data_ptr<float>(),
                                    out_pt.data_ptr<float>() + nelems);
 
     REQUIRE(nntile_out.size() == pytorch_out.size());
-    float max_diff = 0;
+    float max_fwd_diff = 0;
     for(size_t i = 0; i < nntile_out.size(); ++i)
-        max_diff = std::max(max_diff, std::abs(nntile_out[i] - pytorch_out[i]));
-    REQUIRE(max_diff < pytorch_tolerance);
+        max_fwd_diff = std::max(max_fwd_diff,
+            std::abs(nntile_out[i] - pytorch_out[i]));
+    REQUIRE(max_fwd_diff < pytorch_tolerance);
+
+    // --- Backward comparison ---
+    auto grad_output_pt = torch::full(shape_pt,
+        static_cast<float>(grad_fill_val),
+        torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
+    // Undo permute to match [h,s,b0,b1] layout before backward
+    out_pt = out_pt.permute({2, 3, 0, 1}).contiguous();
+    out_pt.backward(grad_output_pt);
+
+    std::vector<float> nntile_grad_q =
+        colmajor_to_rowmajor(
+            runtime.get_output<float>(q->grad()->name()), shape);
+    std::vector<float> nntile_grad_k =
+        colmajor_to_rowmajor(
+            runtime.get_output<float>(k->grad()->name()), shape);
+    std::vector<float> nntile_grad_v =
+        colmajor_to_rowmajor(
+            runtime.get_output<float>(v->grad()->name()), shape);
+
+    compare_float_vectors(nntile_grad_q, q_pt.grad());
+    compare_float_vectors(nntile_grad_k, k_pt.grad());
+    compare_float_vectors(nntile_grad_v, v_pt.grad());
 }
 
 #endif // NNTILE_HAVE_TORCH
