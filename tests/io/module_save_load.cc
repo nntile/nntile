@@ -23,6 +23,8 @@
 #include "nntile/graph.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/io/safetensors.hh"
+#include "nntile/module/embedding.hh"
+#include "nntile/module/gated_mlp.hh"
 #include "nntile/module/linear.hh"
 #include "nntile/module/mlp.hh"
 
@@ -416,4 +418,500 @@ TEST_CASE("Module load rejects shape mismatch", "[io][module]")
         std::runtime_error);
 
     remove_temp(path);
+}
+
+// =========================================================================
+// GatedMlp tests (nested module with 3 Linear children)
+// =========================================================================
+
+TEST_CASE("GatedMlp save and load round-trip", "[io][module][gated_mlp]")
+{
+    const std::string path = temp_path("gated_mlp_save_load");
+    const Index in_dim = 4;
+    const Index inter_dim = 8;
+    const Index out_dim = 4;
+
+    // Build and populate GatedMlp
+    NNGraph g1("save_graph");
+    GatedMlp gmlp1(&g1, "gmlp", in_dim, inter_dim, out_dim);
+
+    // Bind data to all 3 Linear weights
+    std::vector<float> gate_w(in_dim * inter_dim);
+    std::vector<float> up_w(in_dim * inter_dim);
+    std::vector<float> down_w(inter_dim * out_dim);
+    for(std::size_t i = 0; i < gate_w.size(); ++i)
+        gate_w[i] = 0.01f * static_cast<float>(i);
+    for(std::size_t i = 0; i < up_w.size(); ++i)
+        up_w[i] = 0.02f * static_cast<float>(i);
+    for(std::size_t i = 0; i < down_w.size(); ++i)
+        down_w[i] = 0.03f * static_cast<float>(i);
+
+    gmlp1.gate_proj().bind_weight(gate_w);
+    gmlp1.up_proj().bind_weight(up_w);
+    gmlp1.down_proj().bind_weight(down_w);
+
+    gmlp1.save(path);
+
+    // Verify the file has the correct nested names
+    {
+        SafeTensorsReader reader(path);
+        REQUIRE(reader.size() == 3);
+        REQUIRE(reader.has_tensor("gmlp.gate_proj.weight"));
+        REQUIRE(reader.has_tensor("gmlp.up_proj.weight"));
+        REQUIRE(reader.has_tensor("gmlp.down_proj.weight"));
+
+        REQUIRE(reader.tensor_info("gmlp.gate_proj.weight").shape ==
+                std::vector<std::int64_t>({in_dim, inter_dim}));
+        REQUIRE(reader.tensor_info("gmlp.up_proj.weight").shape ==
+                std::vector<std::int64_t>({in_dim, inter_dim}));
+        REQUIRE(reader.tensor_info("gmlp.down_proj.weight").shape ==
+                std::vector<std::int64_t>({inter_dim, out_dim}));
+    }
+
+    // Load into a new GatedMlp
+    NNGraph g2("load_graph");
+    GatedMlp gmlp2(&g2, "gmlp", in_dim, inter_dim, out_dim);
+    gmlp2.load(path);
+
+    // Verify gate_proj weight
+    const auto* gate_hint = gmlp2.gate_proj().weight_tensor()->data()->get_bind_hint();
+    REQUIRE(gate_hint != nullptr);
+    auto gate_loaded = bytes_to_fp32(*gate_hint);
+    REQUIRE(gate_loaded.size() == gate_w.size());
+    for(std::size_t i = 0; i < gate_w.size(); ++i)
+        REQUIRE(gate_loaded[i] == gate_w[i]);
+
+    // Verify up_proj weight
+    const auto* up_hint = gmlp2.up_proj().weight_tensor()->data()->get_bind_hint();
+    REQUIRE(up_hint != nullptr);
+    auto up_loaded = bytes_to_fp32(*up_hint);
+    for(std::size_t i = 0; i < up_w.size(); ++i)
+        REQUIRE(up_loaded[i] == up_w[i]);
+
+    // Verify down_proj weight
+    const auto* down_hint = gmlp2.down_proj().weight_tensor()->data()->get_bind_hint();
+    REQUIRE(down_hint != nullptr);
+    auto down_loaded = bytes_to_fp32(*down_hint);
+    for(std::size_t i = 0; i < down_w.size(); ++i)
+        REQUIRE(down_loaded[i] == down_w[i]);
+
+    remove_temp(path);
+}
+
+TEST_CASE("GatedMlp HF import via default delegation", "[io][module][gated_mlp][hf]")
+{
+    const std::string path = temp_path("gated_mlp_hf_import");
+    const Index in_dim = 4;
+    const Index inter_dim = 8;
+    const Index out_dim = 4;
+
+    // Create HF-format safetensors with Llama-style naming
+    // HF stores Linear weight as (out_features, in_features) row-major
+    std::vector<float> hf_gate_w(inter_dim * in_dim);
+    std::vector<float> hf_up_w(inter_dim * in_dim);
+    std::vector<float> hf_down_w(out_dim * inter_dim);
+    for(std::size_t i = 0; i < hf_gate_w.size(); ++i)
+        hf_gate_w[i] = 0.1f * static_cast<float>(i);
+    for(std::size_t i = 0; i < hf_up_w.size(); ++i)
+        hf_up_w[i] = 0.2f * static_cast<float>(i);
+    for(std::size_t i = 0; i < hf_down_w.size(); ++i)
+        hf_down_w[i] = 0.3f * static_cast<float>(i);
+
+    {
+        SafeTensorsWriter writer;
+        writer.add_tensor(
+            "layers.0.mlp.gate_proj.weight", DataType::FP32,
+            {inter_dim, in_dim}, make_fp32_bytes(hf_gate_w));
+        writer.add_tensor(
+            "layers.0.mlp.up_proj.weight", DataType::FP32,
+            {inter_dim, in_dim}, make_fp32_bytes(hf_up_w));
+        writer.add_tensor(
+            "layers.0.mlp.down_proj.weight", DataType::FP32,
+            {out_dim, inter_dim}, make_fp32_bytes(hf_down_w));
+        writer.write(path);
+    }
+
+    // Import via default delegation
+    NNGraph g("graph");
+    GatedMlp gmlp(&g, "gmlp", in_dim, inter_dim, out_dim);
+
+    SafeTensorsReader reader(path);
+    gmlp.import_hf(reader, "layers.0.mlp");
+
+    // Verify each child got its data.
+    // HF (out, in) row-major == NNTile (in, out) column-major, same bytes.
+    const auto* gate_hint = gmlp.gate_proj().weight_tensor()->data()->get_bind_hint();
+    REQUIRE(gate_hint != nullptr);
+    auto gate_loaded = bytes_to_fp32(*gate_hint);
+    REQUIRE(gate_loaded.size() == hf_gate_w.size());
+    for(std::size_t i = 0; i < hf_gate_w.size(); ++i)
+        REQUIRE(gate_loaded[i] == hf_gate_w[i]);
+
+    const auto* up_hint = gmlp.up_proj().weight_tensor()->data()->get_bind_hint();
+    REQUIRE(up_hint != nullptr);
+    auto up_loaded = bytes_to_fp32(*up_hint);
+    for(std::size_t i = 0; i < hf_up_w.size(); ++i)
+        REQUIRE(up_loaded[i] == hf_up_w[i]);
+
+    const auto* down_hint = gmlp.down_proj().weight_tensor()->data()->get_bind_hint();
+    REQUIRE(down_hint != nullptr);
+    auto down_loaded = bytes_to_fp32(*down_hint);
+    for(std::size_t i = 0; i < hf_down_w.size(); ++i)
+        REQUIRE(down_loaded[i] == hf_down_w[i]);
+
+    remove_temp(path);
+}
+
+TEST_CASE("GatedMlp HF export via default delegation", "[io][module][gated_mlp][hf]")
+{
+    const std::string path = temp_path("gated_mlp_hf_export");
+    const Index in_dim = 4;
+    const Index inter_dim = 8;
+    const Index out_dim = 4;
+
+    NNGraph g("graph");
+    GatedMlp gmlp(&g, "gmlp", in_dim, inter_dim, out_dim);
+
+    std::vector<float> gate_w(in_dim * inter_dim, 1.0f);
+    std::vector<float> up_w(in_dim * inter_dim, 2.0f);
+    std::vector<float> down_w(inter_dim * out_dim, 3.0f);
+    gmlp.gate_proj().bind_weight(gate_w);
+    gmlp.up_proj().bind_weight(up_w);
+    gmlp.down_proj().bind_weight(down_w);
+
+    SafeTensorsWriter writer;
+    gmlp.export_hf(writer, "model.layers.0.mlp");
+    writer.write(path);
+
+    SafeTensorsReader reader(path);
+    REQUIRE(reader.size() == 3);
+    REQUIRE(reader.has_tensor("model.layers.0.mlp.gate_proj.weight"));
+    REQUIRE(reader.has_tensor("model.layers.0.mlp.up_proj.weight"));
+    REQUIRE(reader.has_tensor("model.layers.0.mlp.down_proj.weight"));
+
+    // HF shape is (out_features, in_features) = (inter_dim, in_dim)
+    REQUIRE(reader.tensor_info("model.layers.0.mlp.gate_proj.weight").shape ==
+            std::vector<std::int64_t>({inter_dim, in_dim}));
+    REQUIRE(reader.tensor_info("model.layers.0.mlp.down_proj.weight").shape ==
+            std::vector<std::int64_t>({out_dim, inter_dim}));
+
+    remove_temp(path);
+}
+
+TEST_CASE("GatedMlp HF import then export round-trip", "[io][module][gated_mlp][hf]")
+{
+    const std::string path_in = temp_path("gated_mlp_hf_rt_in");
+    const std::string path_out = temp_path("gated_mlp_hf_rt_out");
+    const Index in_dim = 4;
+    const Index inter_dim = 6;
+
+    // Create HF data
+    std::vector<float> hf_gate(inter_dim * in_dim);
+    std::vector<float> hf_up(inter_dim * in_dim);
+    std::vector<float> hf_down(in_dim * inter_dim);
+    for(std::size_t i = 0; i < hf_gate.size(); ++i)
+        hf_gate[i] = static_cast<float>(i) * 0.001f;
+    for(std::size_t i = 0; i < hf_up.size(); ++i)
+        hf_up[i] = static_cast<float>(i) * 0.002f;
+    for(std::size_t i = 0; i < hf_down.size(); ++i)
+        hf_down[i] = static_cast<float>(i) * 0.003f;
+
+    {
+        SafeTensorsWriter writer;
+        writer.add_tensor("mlp.gate_proj.weight", DataType::FP32,
+                          {inter_dim, in_dim}, make_fp32_bytes(hf_gate));
+        writer.add_tensor("mlp.up_proj.weight", DataType::FP32,
+                          {inter_dim, in_dim}, make_fp32_bytes(hf_up));
+        writer.add_tensor("mlp.down_proj.weight", DataType::FP32,
+                          {in_dim, inter_dim}, make_fp32_bytes(hf_down));
+        writer.write(path_in);
+    }
+
+    // Import
+    NNGraph g("graph");
+    GatedMlp gmlp(&g, "gmlp", in_dim, inter_dim, in_dim);
+    {
+        SafeTensorsReader reader(path_in);
+        gmlp.import_hf(reader, "mlp");
+    }
+
+    // Export
+    {
+        SafeTensorsWriter writer;
+        gmlp.export_hf(writer, "mlp");
+        writer.write(path_out);
+    }
+
+    // Verify round-trip: exported bytes match original
+    {
+        SafeTensorsReader reader(path_out);
+        auto gate_bytes = reader.read_tensor("mlp.gate_proj.weight");
+        auto gate_floats = bytes_to_fp32(gate_bytes);
+        REQUIRE(gate_floats.size() == hf_gate.size());
+        for(std::size_t i = 0; i < hf_gate.size(); ++i)
+            REQUIRE(gate_floats[i] == hf_gate[i]);
+
+        auto up_bytes = reader.read_tensor("mlp.up_proj.weight");
+        auto up_floats = bytes_to_fp32(up_bytes);
+        for(std::size_t i = 0; i < hf_up.size(); ++i)
+            REQUIRE(up_floats[i] == hf_up[i]);
+
+        auto down_bytes = reader.read_tensor("mlp.down_proj.weight");
+        auto down_floats = bytes_to_fp32(down_bytes);
+        for(std::size_t i = 0; i < hf_down.size(); ++i)
+            REQUIRE(down_floats[i] == hf_down[i]);
+    }
+
+    remove_temp(path_in);
+    remove_temp(path_out);
+}
+
+// =========================================================================
+// Mlp tests (nested module with 2 Linear children)
+// =========================================================================
+
+TEST_CASE("Mlp save and load round-trip", "[io][module][mlp]")
+{
+    const std::string path = temp_path("mlp_save_load");
+    const Index in_dim = 4;
+    const Index inter_dim = 8;
+    const Index out_dim = 4;
+
+    NNGraph g1("save_graph");
+    Mlp mlp1(&g1, "mlp", in_dim, inter_dim, out_dim);
+
+    std::vector<float> fc1_w(in_dim * inter_dim);
+    std::vector<float> fc2_w(inter_dim * out_dim);
+    for(std::size_t i = 0; i < fc1_w.size(); ++i)
+        fc1_w[i] = 0.05f * static_cast<float>(i);
+    for(std::size_t i = 0; i < fc2_w.size(); ++i)
+        fc2_w[i] = 0.06f * static_cast<float>(i);
+
+    mlp1.fc1().bind_weight(fc1_w);
+    mlp1.fc2().bind_weight(fc2_w);
+    mlp1.save(path);
+
+    // Verify nested names
+    {
+        SafeTensorsReader reader(path);
+        REQUIRE(reader.size() == 2);
+        REQUIRE(reader.has_tensor("mlp.fc1.weight"));
+        REQUIRE(reader.has_tensor("mlp.fc2.weight"));
+    }
+
+    // Load
+    NNGraph g2("load_graph");
+    Mlp mlp2(&g2, "mlp", in_dim, inter_dim, out_dim);
+    mlp2.load(path);
+
+    const auto* fc1_hint = mlp2.fc1().weight_tensor()->data()->get_bind_hint();
+    REQUIRE(fc1_hint != nullptr);
+    auto fc1_loaded = bytes_to_fp32(*fc1_hint);
+    for(std::size_t i = 0; i < fc1_w.size(); ++i)
+        REQUIRE(fc1_loaded[i] == fc1_w[i]);
+
+    const auto* fc2_hint = mlp2.fc2().weight_tensor()->data()->get_bind_hint();
+    REQUIRE(fc2_hint != nullptr);
+    auto fc2_loaded = bytes_to_fp32(*fc2_hint);
+    for(std::size_t i = 0; i < fc2_w.size(); ++i)
+        REQUIRE(fc2_loaded[i] == fc2_w[i]);
+
+    remove_temp(path);
+}
+
+TEST_CASE("Mlp HF import and export round-trip", "[io][module][mlp][hf]")
+{
+    const std::string path_in = temp_path("mlp_hf_rt_in");
+    const std::string path_out = temp_path("mlp_hf_rt_out");
+    const Index in_dim = 4;
+    const Index inter_dim = 8;
+
+    std::vector<float> hf_fc1(inter_dim * in_dim);
+    std::vector<float> hf_fc2(in_dim * inter_dim);
+    for(std::size_t i = 0; i < hf_fc1.size(); ++i)
+        hf_fc1[i] = static_cast<float>(i) * 0.01f;
+    for(std::size_t i = 0; i < hf_fc2.size(); ++i)
+        hf_fc2[i] = static_cast<float>(i) * 0.02f;
+
+    {
+        SafeTensorsWriter writer;
+        writer.add_tensor("block.mlp.fc1.weight", DataType::FP32,
+                          {inter_dim, in_dim}, make_fp32_bytes(hf_fc1));
+        writer.add_tensor("block.mlp.fc2.weight", DataType::FP32,
+                          {in_dim, inter_dim}, make_fp32_bytes(hf_fc2));
+        writer.write(path_in);
+    }
+
+    NNGraph g("graph");
+    Mlp mlp(&g, "mlp", in_dim, inter_dim, in_dim);
+    {
+        SafeTensorsReader reader(path_in);
+        mlp.import_hf(reader, "block.mlp");
+    }
+
+    {
+        SafeTensorsWriter writer;
+        mlp.export_hf(writer, "block.mlp");
+        writer.write(path_out);
+    }
+
+    {
+        SafeTensorsReader reader(path_out);
+        auto fc1_loaded = bytes_to_fp32(reader.read_tensor("block.mlp.fc1.weight"));
+        REQUIRE(fc1_loaded.size() == hf_fc1.size());
+        for(std::size_t i = 0; i < hf_fc1.size(); ++i)
+            REQUIRE(fc1_loaded[i] == hf_fc1[i]);
+
+        auto fc2_loaded = bytes_to_fp32(reader.read_tensor("block.mlp.fc2.weight"));
+        for(std::size_t i = 0; i < hf_fc2.size(); ++i)
+            REQUIRE(fc2_loaded[i] == hf_fc2[i]);
+    }
+
+    remove_temp(path_in);
+    remove_temp(path_out);
+}
+
+// =========================================================================
+// Embedding tests
+// =========================================================================
+
+TEST_CASE("Embedding save and load round-trip", "[io][module][embedding]")
+{
+    const std::string path = temp_path("embedding_save_load");
+    const Index num_emb = 100;
+    const Index emb_dim = 16;
+
+    NNGraph g1("save_graph");
+    Embedding emb1(&g1, "embed", num_emb, emb_dim);
+
+    // NNTile stores vocab as (embed_dim, num_embeddings) column-major
+    std::vector<float> vocab(emb_dim * num_emb);
+    for(std::size_t i = 0; i < vocab.size(); ++i)
+        vocab[i] = 0.001f * static_cast<float>(i);
+    emb1.bind_weight(vocab);
+    emb1.save(path);
+
+    {
+        SafeTensorsReader reader(path);
+        REQUIRE(reader.size() == 1);
+        REQUIRE(reader.has_tensor("embed.vocab"));
+        REQUIRE(reader.tensor_info("embed.vocab").shape ==
+                std::vector<std::int64_t>({emb_dim, num_emb}));
+    }
+
+    NNGraph g2("load_graph");
+    Embedding emb2(&g2, "embed", num_emb, emb_dim);
+    emb2.load(path);
+
+    const auto* hint = emb2.vocab_tensor()->data()->get_bind_hint();
+    REQUIRE(hint != nullptr);
+    auto loaded = bytes_to_fp32(*hint);
+    REQUIRE(loaded.size() == vocab.size());
+    for(std::size_t i = 0; i < vocab.size(); ++i)
+        REQUIRE(loaded[i] == vocab[i]);
+
+    remove_temp(path);
+}
+
+TEST_CASE("Embedding HF import transposes dimensions", "[io][module][embedding][hf]")
+{
+    const std::string path = temp_path("embedding_hf_import");
+    const Index num_emb = 50;
+    const Index emb_dim = 8;
+
+    // HF embedding weight: (num_embeddings, embed_dim) row-major
+    std::vector<float> hf_weight(num_emb * emb_dim);
+    for(std::size_t i = 0; i < hf_weight.size(); ++i)
+        hf_weight[i] = static_cast<float>(i) * 0.01f;
+
+    {
+        SafeTensorsWriter writer;
+        writer.add_tensor("model.embed_tokens.weight", DataType::FP32,
+                          {num_emb, emb_dim}, make_fp32_bytes(hf_weight));
+        writer.write(path);
+    }
+
+    NNGraph g("graph");
+    Embedding emb(&g, "embed", num_emb, emb_dim);
+
+    SafeTensorsReader reader(path);
+    emb.import_hf(reader, "model.embed_tokens");
+
+    // HF row-major (num_emb, emb_dim) == NNTile col-major (emb_dim, num_emb)
+    const auto* hint = emb.vocab_tensor()->data()->get_bind_hint();
+    REQUIRE(hint != nullptr);
+    auto loaded = bytes_to_fp32(*hint);
+    REQUIRE(loaded.size() == hf_weight.size());
+    for(std::size_t i = 0; i < hf_weight.size(); ++i)
+        REQUIRE(loaded[i] == hf_weight[i]);
+
+    remove_temp(path);
+}
+
+TEST_CASE("Embedding HF export writes correct shape", "[io][module][embedding][hf]")
+{
+    const std::string path = temp_path("embedding_hf_export");
+    const Index num_emb = 50;
+    const Index emb_dim = 8;
+
+    NNGraph g("graph");
+    Embedding emb(&g, "embed", num_emb, emb_dim);
+
+    std::vector<float> vocab(emb_dim * num_emb, 0.5f);
+    emb.bind_weight(vocab);
+
+    SafeTensorsWriter writer;
+    emb.export_hf(writer, "model.embed_tokens");
+    writer.write(path);
+
+    SafeTensorsReader reader(path);
+    REQUIRE(reader.has_tensor("model.embed_tokens.weight"));
+    // HF shape: (num_embeddings, embed_dim)
+    REQUIRE(reader.tensor_info("model.embed_tokens.weight").shape ==
+            std::vector<std::int64_t>({num_emb, emb_dim}));
+
+    remove_temp(path);
+}
+
+TEST_CASE("Embedding HF import then export round-trip", "[io][module][embedding][hf]")
+{
+    const std::string path_in = temp_path("embedding_hf_rt_in");
+    const std::string path_out = temp_path("embedding_hf_rt_out");
+    const Index num_emb = 30;
+    const Index emb_dim = 12;
+
+    std::vector<float> hf_weight(num_emb * emb_dim);
+    for(std::size_t i = 0; i < hf_weight.size(); ++i)
+        hf_weight[i] = static_cast<float>(i) * 0.005f;
+
+    {
+        SafeTensorsWriter writer;
+        writer.add_tensor("emb.weight", DataType::FP32,
+                          {num_emb, emb_dim}, make_fp32_bytes(hf_weight));
+        writer.write(path_in);
+    }
+
+    NNGraph g("graph");
+    Embedding emb(&g, "embed", num_emb, emb_dim);
+    {
+        SafeTensorsReader reader(path_in);
+        emb.import_hf(reader, "emb");
+    }
+
+    {
+        SafeTensorsWriter writer;
+        emb.export_hf(writer, "emb");
+        writer.write(path_out);
+    }
+
+    {
+        SafeTensorsReader reader(path_out);
+        auto loaded = bytes_to_fp32(reader.read_tensor("emb.weight"));
+        REQUIRE(loaded.size() == hf_weight.size());
+        for(std::size_t i = 0; i < hf_weight.size(); ++i)
+            REQUIRE(loaded[i] == hf_weight[i]);
+    }
+
+    remove_temp(path_in);
+    remove_temp(path_out);
 }
