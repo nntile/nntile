@@ -12,17 +12,8 @@
 # @version 1.1.0
 
 from ..nntile_graph import (
-    DataType,
-    Module,
-    NNGraph,
-    Runtime,
-    TensorDataNode,
-    TensorGraph,
-    TensorNode,
-    dtype_to_string,
-    llama,
-    nn,
-)
+    DataType, Module, NNGraph, Runtime, TensorDataNode, TensorGraph,
+    TensorNode, dtype_to_string, llama, nn)
 
 __all__ = [
     "DataType",
