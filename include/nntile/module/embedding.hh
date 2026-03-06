@@ -149,6 +149,16 @@ public:
         return forward(index);
     }
 
+    //! HF import: read embedding weight from an HF SafeTensors file.
+    //! HF stores (num_embeddings, embed_dim) row-major, which is byte-
+    //! identical to NNTile (embed_dim, num_embeddings) column-major.
+    void import_hf(const io::SafeTensorsReader& reader,
+                   const std::string& hf_prefix) override;
+
+    //! HF export: write embedding weight to an HF SafeTensors writer.
+    void export_hf(io::SafeTensorsWriter& writer,
+                   const std::string& hf_prefix) const override;
+
     //! Get string representation with dimensions
     std::string repr() const override;
 
