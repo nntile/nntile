@@ -285,6 +285,80 @@ void Linear::bind_bias(const std::vector<float>& data)
     bind_bias(std::move(bytes));
 }
 
+// -----------------------------------------------------------------
+// HF Import/Export
+// -----------------------------------------------------------------
+
+void Linear::import_hf(const io::SafeTensorsReader& reader,
+                       const std::string& hf_prefix)
+{
+    const std::string w_name = hf_prefix + ".weight";
+
+    if(!reader.has_tensor(w_name))
+    {
+        throw std::runtime_error(
+            "Linear::import_hf: tensor '" + w_name + "' not found");
+    }
+
+    const auto& w_info = reader.tensor_info(w_name);
+    auto w_data = reader.read_tensor(w_name);
+
+    // HF stores weight as (out_features, in_features) row-major.
+    // NNTile stores as (input_dim, output_dim) column-major.
+    // Row-major [out, in] has the same byte layout as column-major [in, out]:
+    // element (j, i) in row-major is at offset j*in + i,
+    // element (i, j) in column-major is at offset i + j*in = j*in + i.
+    // So no byte shuffle is needed -- just reinterpret the dimensions.
+    weight_tensor_->data()->set_bind_hint(std::move(w_data));
+    weight_tensor_->mark_input(true);
+
+    // Bias: 1D, no conversion needed
+    if(bias_tensor_ != nullptr)
+    {
+        const std::string b_name = hf_prefix + ".bias";
+        if(reader.has_tensor(b_name))
+        {
+            auto b_data = reader.read_tensor(b_name);
+            bias_tensor_->data()->set_bind_hint(std::move(b_data));
+            bias_tensor_->mark_input(true);
+        }
+    }
+}
+
+void Linear::export_hf(io::SafeTensorsWriter& writer,
+                       const std::string& hf_prefix) const
+{
+    const std::string w_name = hf_prefix + ".weight";
+
+    const auto* w_hint = weight_tensor_->data()->get_bind_hint();
+    if(w_hint == nullptr)
+    {
+        throw std::runtime_error(
+            "Linear::export_hf: weight has no bind_hint data");
+    }
+
+    // NNTile column-major (input_dim, output_dim) has the same byte layout
+    // as HF row-major (output_dim, input_dim). Just write with HF shape.
+    writer.add_tensor(
+        w_name, dtype_,
+        {static_cast<std::int64_t>(output_dim_),
+         static_cast<std::int64_t>(input_dim_)},
+        *w_hint);
+
+    // Bias: 1D, no conversion
+    if(bias_tensor_ != nullptr)
+    {
+        const auto* b_hint = bias_tensor_->data()->get_bind_hint();
+        if(b_hint != nullptr)
+        {
+            writer.add_tensor(
+                hf_prefix + ".bias", dtype_,
+                {static_cast<std::int64_t>(output_dim_)},
+                *b_hint);
+        }
+    }
+}
+
 //! Get string representation with dimensions
 std::string Linear::repr() const
 {
