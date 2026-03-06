@@ -521,6 +521,11 @@ set(GRAPH_NN_SRC
 
 set(GRAPH_SRC ${GRAPH_CORE_SRC} ${GRAPH_NN_SRC})
 
+# I/O serialization
+set(IO_SRC
+    "io/safetensors.cc"
+)
+
 # Module implementations
 set(MODULE_SRC
     "module/module.cc"
@@ -543,6 +548,7 @@ set(NNTILE_SRC
     ${TENSOR_BASE_SRC}
     ${TENSOR_OPERATION_SRC}
     ${GRAPH_SRC}
+    ${IO_SRC}
     ${MODULE_SRC}
     ${LOGGER_SRC}
 )
