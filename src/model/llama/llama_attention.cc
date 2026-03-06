@@ -13,9 +13,8 @@
  * */
 
 #include "nntile/model/llama/llama_attention.hh"
-#include "nntile/graph/nn/add_slice.hh"
-#include "nntile/graph/nn/fill.hh"
 #include "nntile/graph/nn/gemm.hh"
+#include "nntile/graph/nn/scale_slice.hh"
 #include "nntile/graph/nn/rope.hh"
 #include "nntile/graph/nn/sdpa_eager.hh"
 #include "nntile/graph/nn/transpose.hh"
@@ -44,7 +43,7 @@ LlamaAttention::LlamaAttention(graph::NNGraph* graph,
     // Create weight tensors with 3D/4D shapes as in Python
     if(use_gqa_)
     {
-        // Q: (kv_group_size, n_head_kv, head_size, n_emb) - 4D
+        // w_q: (kv_group_size, n_head_kv, head_size, n_emb) - 4D
         w_q_ = graph_->tensor(
             {kv_group_size_, n_head_kv_, head_size_, n_emb},
             tensor_name("q_weight"),
@@ -53,7 +52,7 @@ LlamaAttention::LlamaAttention(graph::NNGraph* graph,
     }
     else
     {
-        // Q: (n_heads, head_size, n_emb) - 3D for non-GQA
+        // w_q: (n_heads, head_size, n_emb) - 3D for non-GQA
         w_q_ = graph_->tensor(
             {n_heads_, head_size_, n_emb},
             tensor_name("q_weight"),
@@ -62,7 +61,7 @@ LlamaAttention::LlamaAttention(graph::NNGraph* graph,
     }
     register_parameter("q_weight", w_q_);
 
-    // K, V: (n_head_kv, head_size, n_emb) - 3D
+    // w_k, w_v: (n_head_kv, head_size, n_emb) - 3D
     w_k_ = graph_->tensor(
         {n_head_kv_, head_size_, n_emb},
         tensor_name("k_weight"),
@@ -79,7 +78,7 @@ LlamaAttention::LlamaAttention(graph::NNGraph* graph,
 
     if(use_gqa_)
     {
-        // Out: (n_emb, kv_group_size, n_head_kv, head_size) - 4D
+        // w_o: (n_emb, kv_group_size, n_head_kv, head_size) - 4D
         w_o_ = graph_->tensor(
             {n_emb, kv_group_size_, n_head_kv_, head_size_},
             tensor_name("o_weight"),
@@ -88,7 +87,7 @@ LlamaAttention::LlamaAttention(graph::NNGraph* graph,
     }
     else
     {
-        // Out: (n_emb, n_heads, head_size) - 3D for non-GQA
+        // w_o: (n_emb, n_heads, head_size) - 3D for non-GQA
         w_o_ = graph_->tensor(
             {n_emb, n_heads_, head_size_},
             tensor_name("o_weight"),
@@ -120,7 +119,7 @@ graph::NNGraph::TensorNode* LlamaAttention::forward(
     graph::NNGraph::TensorNode* q;
     if(use_gqa_)
     {
-        // w_q (kv_group_size, n_head_kv, head_size, n_emb), x (n_emb, seq, batch)
+        // w_q (kv_group_size, n_head_kv, head_size, n_emb) x (n_emb, seq, batch)
         // gemm ndim=1 -> (kv_group_size, n_head_kv, head_size, seq, batch)
         q_proj = graph::gemm(
             w_q_, x, tensor_name("q_proj"),
@@ -131,7 +130,7 @@ graph::NNGraph::TensorNode* LlamaAttention::forward(
     }
     else
     {
-        // w_q (n_heads, head_size, n_emb), x (n_emb, seq, batch)
+        // w_q (n_heads, head_size, n_emb) x (n_emb, seq, batch)
         // gemm ndim=1 -> (n_heads, head_size, seq, batch)
         q_proj = graph::gemm(
             w_q_, x, tensor_name("q_proj"),
@@ -142,7 +141,7 @@ graph::NNGraph::TensorNode* LlamaAttention::forward(
     }
 
     // K = gemm(w_k, x), then transpose
-    // w_k (n_head_kv, head_size, n_emb), x (n_emb, seq, batch)
+    // w_k (n_head_kv, head_size, n_emb) x (n_emb, seq, batch)
     graph::NNGraph::TensorNode* k_proj = graph::gemm(
         w_k_, x, tensor_name("k_proj"),
         1.0, false, false, 1, 0);
@@ -167,66 +166,45 @@ graph::NNGraph::TensorNode* LlamaAttention::forward(
     }
 
     // For GQA: repeat K and V to match Q's head count
-    graph::NNGraph::TensorNode* k_sdpa = k_rope;
-    graph::NNGraph::TensorNode* v_sdpa = v;
+    graph::NNGraph::TensorNode* k_rep = k_rope;
+    graph::NNGraph::TensorNode* v_rep = v;
     if(use_gqa_)
     {
         // k_rope: (head_size, seq, batch, n_head_kv) - 4D
         // k_rep: (head_size, seq, batch, kv_group_size, n_head_kv) - 5D
-        // add_slice(1.0, k_rope, 0.0, zeros, axis=3) broadcasts k along axis 3
-        graph::NNGraph::TensorNode* zeros_k = graph_->tensor(
-            {head_size_, n_seq, n_batch, kv_group_size_, n_head_kv_},
-            tensor_name("k_rep_zeros"), dtype_, false);
-        graph::fill(0.0, zeros_k);
-        graph::NNGraph::TensorNode* k_rep = graph::add_slice(
-            1.0, k_rope, 0.0, zeros_k, tensor_name("k_rep"), 3);
+        // scale_slice broadcasts k along axis 3
+        k_rep = graph::scale_slice(
+            1.0, k_rope, tensor_name("k_rep"), 3, kv_group_size_);
 
-        graph::NNGraph::TensorNode* zeros_v = graph_->tensor(
-            {head_size_, n_seq, n_batch, kv_group_size_, n_head_kv_},
-            tensor_name("v_rep_zeros"), dtype_, false);
-        graph::fill(0.0, zeros_v);
-        graph::NNGraph::TensorNode* v_rep = graph::add_slice(
-            1.0, v, 0.0, zeros_v, tensor_name("v_rep"), 3);
-
-        k_sdpa = k_rep;
-        v_sdpa = v_rep;
+        v_rep = graph::scale_slice(
+            1.0, v, tensor_name("v_rep"), 3, kv_group_size_);
     }
 
     // SDPA: q, k, v layout (head_size, seq, batch, ...)
     Index batch_ndim = use_gqa_ ? 3 : 2;
     graph::NNGraph::TensorNode* attn_out = graph::sdpa_eager(
-        q_rope, k_sdpa, v_sdpa,
+        q_rope, k_rep, v_rep,
         tensor_name("sdpa_out"),
         mask,
         batch_ndim,
         0);
 
     // Transpose to (..., head_size) for output projection
-    graph::NNGraph::TensorNode* attn_t;
-    if(use_gqa_)
-    {
-        // attn_out: (head_size, seq, batch, kv_group_size, n_head_kv)
-        // transpose ndim=3 -> (kv_group_size, n_head_kv, head_size, seq, batch)
-        attn_t = graph::transpose(attn_out, tensor_name("attn_t"), 3);
-    }
-    else
-    {
-        // attn_out: (head_size, seq, batch, n_heads)
-        // transpose ndim=3 -> (n_heads, head_size, seq, batch)
-        attn_t = graph::transpose(attn_out, tensor_name("attn_t"), 3);
-    }
+    // attn_out: (head_size, seq, batch, ...) -> attn_t: (..., head_size, seq, batch)
+    graph::NNGraph::TensorNode* attn_t =
+        graph::transpose(attn_out, tensor_name("attn_t"), 3);
 
     // Output projection: gemm(w_o, attn_t)
     // w_o (n_emb, kv_group_size, n_head_kv, head_size) or (n_emb, n_heads, head_size)
     // attn_t (kv_group_size, n_head_kv, head_size, seq, batch) or (n_heads, head_size, seq, batch)
     // Contract last 2 dims of w_o with first 2 dims of attn_t for 3D w_o; last 3 with first 3 for 4D w_o
     Index out_ndim = use_gqa_ ? 3 : 2;
-    graph::NNGraph::TensorNode* out_sbh = graph::gemm(
+    graph::NNGraph::TensorNode* out = graph::gemm(
         w_o_, attn_t, tensor_name("out_proj"),
         1.0, false, false, out_ndim, 0);
 
     // Output is already (hidden, seq, batch)
-    return out_sbh;
+    return out;
 }
 
 std::string LlamaAttention::repr() const

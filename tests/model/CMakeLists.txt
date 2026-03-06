@@ -27,6 +27,8 @@ foreach(test_path IN LISTS TESTS_MODEL)
         COV_NAME coverage_model_${test_name}
         COV_GLOBAL coverage_model coverage
     )
+    set_target_properties(tests_model_${test_name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/llama)
     target_include_directories(tests_model_${test_name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/..

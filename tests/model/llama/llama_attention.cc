@@ -39,8 +39,3 @@ TEST_CASE("LlamaAttention forward builds output", "[model][llama]")
     REQUIRE(output != nullptr);
     REQUIRE(output->shape() == std::vector<Index>({8, 4, 2}));
 }
-
-// Note: Backward test disabled - sdpa_eager backward may have add_slice
-// tensor aliasing constraints. Forward and structure tests pass.
-// For full validation, compare against transformers (PyTorch) when
-// NNTILE_HAVE_TORCH is enabled.

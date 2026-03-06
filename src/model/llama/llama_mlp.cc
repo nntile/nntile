@@ -35,11 +35,11 @@ graph::NNGraph::TensorNode* LlamaMLP::forward(
     graph::NNGraph::TensorNode* input)
 {
     // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for GatedMlp (ndim=1)
-    graph::NNGraph::TensorNode* x_sbh =
-        graph::transpose(input, tensor_name("x_sbh"), 1);
-    graph::NNGraph::TensorNode* out_sbh = module::GatedMlp::forward(x_sbh);
+    graph::NNGraph::TensorNode* x =
+        graph::transpose(input, tensor_name("x"), 1);
+    graph::NNGraph::TensorNode* out = module::GatedMlp::forward(x);
     // Transpose back to (hidden, seq, batch) (ndim=2)
-    return graph::transpose(out_sbh, tensor_name("mlp_out"), 2);
+    return graph::transpose(out, tensor_name("mlp_out"), 2);
 }
 
 std::string LlamaMLP::repr() const

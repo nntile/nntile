@@ -58,10 +58,10 @@ graph::NNGraph::TensorNode* LlamaModel::forward(
     }
 
     // Embedding: (seq, batch) -> (seq, batch, hidden)
-    graph::NNGraph::TensorNode* x_sbh = embed_tokens_.forward(input_ids);
+    graph::NNGraph::TensorNode* embed = embed_tokens_.forward(input_ids);
     // Transpose to (hidden, seq, batch) for decoder layers (ndim=2)
     graph::NNGraph::TensorNode* x =
-        graph::transpose(x_sbh, tensor_name("embed_out"), 2);
+        graph::transpose(embed, tensor_name("embed_out"), 2);
 
     for(auto& layer : layers_)
     {
