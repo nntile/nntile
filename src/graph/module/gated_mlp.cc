@@ -6,29 +6,29 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/module/gated_mlp.cc
+ * @file src/graph/module/gated_mlp.cc
  * Gated MLP module implementation using NNTile graph API.
  *
  * @version 1.1.0
  * */
 
 // Include corresponding header
-#include "nntile/module/gated_mlp.hh"
+#include "nntile/graph/module/gated_mlp.hh"
 
 // Include standard headers
 #include <stdexcept>
 
-namespace nntile::module
+namespace nntile::graph::module
 {
 
 //! Constructor: creates GatedMLP with specified dimensions
-GatedMlp::GatedMlp(graph::NNGraph* graph,
+GatedMlp::GatedMlp(NNGraph* graph,
                    const std::string& name,
                    Index input_dim,
                    Index intermediate_dim,
                    Index output_dim,
                    ActivationType activation,
-                   graph::DataType dtype)
+                   DataType dtype)
     : Module(graph, name)
     , gate_proj_(graph, name + "_gate_proj", input_dim, intermediate_dim, dtype)
     , up_proj_(graph, name + "_up_proj", input_dim, intermediate_dim, dtype)
@@ -47,19 +47,19 @@ GatedMlp::GatedMlp(graph::NNGraph* graph,
 }
 
 //! Constructor: creates GatedMLP where output_dim == input_dim
-GatedMlp::GatedMlp(graph::NNGraph* graph,
+GatedMlp::GatedMlp(NNGraph* graph,
                    const std::string& name,
                    Index input_dim,
                    Index intermediate_dim,
                    ActivationType activation,
-                   graph::DataType dtype)
+                   DataType dtype)
     : GatedMlp(graph, name, input_dim, intermediate_dim, input_dim, activation,
                dtype)
 {
 }
 
-graph::NNGraph::TensorNode* GatedMlp::forward(
-    graph::NNGraph::TensorNode* input)
+NNGraph::TensorNode* GatedMlp::forward(
+    NNGraph::TensorNode* input)
 {
     if(input == nullptr)
     {
@@ -85,4 +85,4 @@ std::string GatedMlp::repr() const
            ", activation=" + activation_type_to_string(activation_.type()) + ")";
 }
 
-} // namespace nntile::module
+} // namespace nntile::graph::module

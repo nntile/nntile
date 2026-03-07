@@ -6,22 +6,22 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/module/activation.cc
+ * @file src/graph/module/activation.cc
  * Configurable activation module implementation.
  *
  * @version 1.1.0
  * */
 
 // Include corresponding header
-#include "nntile/module/activation.hh"
+#include "nntile/graph/module/activation.hh"
 
 // Include standard headers
 #include <stdexcept>
 
-namespace nntile::module
+namespace nntile::graph::module
 {
 
-Activation::Activation(graph::NNGraph* graph,
+Activation::Activation(NNGraph* graph,
                        const std::string& name,
                        ActivationType type)
     : Module(graph, name)
@@ -29,8 +29,8 @@ Activation::Activation(graph::NNGraph* graph,
 {
 }
 
-graph::NNGraph::TensorNode* Activation::forward(
-    graph::NNGraph::TensorNode* input)
+NNGraph::TensorNode* Activation::forward(
+    NNGraph::TensorNode* input)
 {
     if(input == nullptr)
     {
@@ -61,4 +61,4 @@ std::string Activation::repr() const
     return std::string("Activation(") + activation_type_to_string(type_) + ")";
 }
 
-} // namespace nntile::module
+} // namespace nntile::graph::module

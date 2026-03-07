@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/module/module.cc
+ * @file src/graph/module/module.cc
  * Implementation of base Module class.
  *
  * @version 1.1.0
  * */
 
 // Include corresponding header
-#include "nntile/module/module.hh"
+#include "nntile/graph/module/module.hh"
 
 // Include standard headers
 #include <iostream>
@@ -22,11 +22,11 @@
 // Include NNTile headers
 #include "nntile/graph/dtype.hh"
 
-namespace nntile::module
+namespace nntile::graph::module
 {
 
 //! Constructor
-Module::Module(graph::NNGraph* graph, const std::string& name)
+Module::Module(NNGraph* graph, const std::string& name)
     : graph_(graph)
     , name_(name)
 {
@@ -42,7 +42,7 @@ Module::Module(graph::NNGraph* graph, const std::string& name)
 // -----------------------------------------------------------------
 
 void Module::register_parameter(const std::string& local_name,
-                                graph::NNGraph::TensorNode* tensor)
+                                NNGraph::TensorNode* tensor)
 {
     if(tensor == nullptr)
     {
@@ -53,7 +53,7 @@ void Module::register_parameter(const std::string& local_name,
 }
 
 void Module::register_buffer(const std::string& local_name,
-                             graph::NNGraph::TensorNode* tensor)
+                             NNGraph::TensorNode* tensor)
 {
     if(tensor == nullptr)
     {
@@ -79,9 +79,9 @@ void Module::register_module(const std::string& local_name,
 // Parameter Access
 // -----------------------------------------------------------------
 
-std::vector<graph::NNGraph::TensorNode*> Module::parameters() const
+std::vector<NNGraph::TensorNode*> Module::parameters() const
 {
-    std::vector<graph::NNGraph::TensorNode*> result;
+    std::vector<NNGraph::TensorNode*> result;
     result.reserve(parameters_.size());
     for(const auto& [name, tensor] : parameters_)
     {
@@ -90,15 +90,15 @@ std::vector<graph::NNGraph::TensorNode*> Module::parameters() const
     return result;
 }
 
-const std::vector<std::pair<std::string, graph::NNGraph::TensorNode*>>&
+const std::vector<std::pair<std::string, NNGraph::TensorNode*>>&
 Module::named_parameters() const
 {
     return parameters_;
 }
 
-std::vector<graph::NNGraph::TensorNode*> Module::parameters_recursive() const
+std::vector<NNGraph::TensorNode*> Module::parameters_recursive() const
 {
-    std::vector<graph::NNGraph::TensorNode*> result;
+    std::vector<NNGraph::TensorNode*> result;
 
     // Add own parameters
     for(const auto& [name, tensor] : parameters_)
@@ -116,17 +116,17 @@ std::vector<graph::NNGraph::TensorNode*> Module::parameters_recursive() const
     return result;
 }
 
-std::vector<std::pair<std::string, graph::NNGraph::TensorNode*>>
+std::vector<std::pair<std::string, NNGraph::TensorNode*>>
 Module::named_parameters_recursive() const
 {
-    std::vector<std::pair<std::string, graph::NNGraph::TensorNode*>> result;
+    std::vector<std::pair<std::string, NNGraph::TensorNode*>> result;
     collect_parameters_recursive(name_, result);
     return result;
 }
 
 void Module::collect_parameters_recursive(
     const std::string& prefix,
-    std::vector<std::pair<std::string, graph::NNGraph::TensorNode*>>& result) const
+    std::vector<std::pair<std::string, NNGraph::TensorNode*>>& result) const
 {
     // Add own parameters with prefix
     for(const auto& [local_name, tensor] : parameters_)
@@ -145,9 +145,9 @@ void Module::collect_parameters_recursive(
 // Buffer Access
 // -----------------------------------------------------------------
 
-std::vector<graph::NNGraph::TensorNode*> Module::buffers() const
+std::vector<NNGraph::TensorNode*> Module::buffers() const
 {
-    std::vector<graph::NNGraph::TensorNode*> result;
+    std::vector<NNGraph::TensorNode*> result;
     result.reserve(buffers_.size());
     for(const auto& [name, tensor] : buffers_)
     {
@@ -156,7 +156,7 @@ std::vector<graph::NNGraph::TensorNode*> Module::buffers() const
     return result;
 }
 
-const std::vector<std::pair<std::string, graph::NNGraph::TensorNode*>>&
+const std::vector<std::pair<std::string, NNGraph::TensorNode*>>&
 Module::named_buffers() const
 {
     return buffers_;
@@ -166,17 +166,17 @@ Module::named_buffers() const
 // Gradient Access
 // -----------------------------------------------------------------
 
-std::vector<std::pair<graph::NNGraph::TensorNode*,
-                      graph::NNGraph::TensorNode*>>
+std::vector<std::pair<NNGraph::TensorNode*,
+                      NNGraph::TensorNode*>>
 Module::parameter_gradients() const
 {
-    std::vector<std::pair<graph::NNGraph::TensorNode*,
-                          graph::NNGraph::TensorNode*>> result;
+    std::vector<std::pair<NNGraph::TensorNode*,
+                          NNGraph::TensorNode*>> result;
     result.reserve(parameters_.size());
 
     for(const auto& [name, param] : parameters_)
     {
-        graph::NNGraph::TensorNode* grad = param->grad();
+        NNGraph::TensorNode* grad = param->grad();
         if(grad != nullptr)
         {
             result.emplace_back(param, grad);
@@ -186,17 +186,17 @@ Module::parameter_gradients() const
     return result;
 }
 
-std::vector<std::pair<graph::NNGraph::TensorNode*,
-                      graph::NNGraph::TensorNode*>>
+std::vector<std::pair<NNGraph::TensorNode*,
+                      NNGraph::TensorNode*>>
 Module::parameter_gradients_recursive() const
 {
-    std::vector<std::pair<graph::NNGraph::TensorNode*,
-                          graph::NNGraph::TensorNode*>> result;
+    std::vector<std::pair<NNGraph::TensorNode*,
+                          NNGraph::TensorNode*>> result;
 
     // Add own parameter gradients
     for(const auto& [name, param] : parameters_)
     {
-        graph::NNGraph::TensorNode* grad = param->grad();
+        NNGraph::TensorNode* grad = param->grad();
         if(grad != nullptr)
         {
             result.emplace_back(param, grad);
@@ -479,4 +479,4 @@ void Module::to_string_recursive(std::ostringstream& ss,
     ss << "\n";
 }
 
-} // namespace nntile::module
+} // namespace nntile::graph::module

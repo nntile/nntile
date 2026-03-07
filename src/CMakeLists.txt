@@ -526,17 +526,17 @@ set(GRAPH_SRC ${GRAPH_CORE_SRC} ${GRAPH_NN_SRC})
 
 # I/O serialization
 set(IO_SRC
-    "io/safetensors.cc"
+    "graph/io/safetensors.cc"
 )
 
 # Module implementations
 set(MODULE_SRC
-    "module/module.cc"
-    "module/activation.cc"
-    "module/gated_mlp.cc"
-    "module/mlp.cc"
-    "module/linear.cc"
-    "module/embedding.cc"
+    "graph/module/module.cc"
+    "graph/module/activation.cc"
+    "graph/module/gated_mlp.cc"
+    "graph/module/mlp.cc"
+    "graph/module/linear.cc"
+    "graph/module/embedding.cc"
 )
 
 # Set the list of all sources

@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file tests/module/CMakeLists.txt
-# Tests for nntile::module components
+# @file tests/graph/module/CMakeLists.txt
+# Tests for nntile::graph::module components
 #
 # @version 1.1.0
 
@@ -50,8 +50,7 @@ foreach(test IN LISTS TESTS_CATCH2)
     target_include_directories(tests_module_${test} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/..
-        ${CMAKE_CURRENT_SOURCE_DIR}/../graph
-        ${CMAKE_CURRENT_SOURCE_DIR}/../graph/nn)
+        ${CMAKE_CURRENT_SOURCE_DIR}/../nn)
     if(NNTILE_HAVE_TORCH AND test IN_LIST TESTS_MODULE_PYTORCH)
         target_compile_definitions(tests_module_${test} PRIVATE NNTILE_HAVE_TORCH)
         target_link_libraries(tests_module_${test} PRIVATE ${TORCH_LIBRARIES})

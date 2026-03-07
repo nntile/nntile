@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/io/module_save_load.cc
+ * @file tests/graph/io/module_save_load.cc
  * Tests for Module::save() / Module::load() and Linear HF import/export.
  *
  * @version 1.1.0
@@ -22,16 +22,16 @@
 
 #include "nntile/graph.hh"
 #include "nntile/graph/dtype.hh"
-#include "nntile/io/safetensors.hh"
-#include "nntile/module/embedding.hh"
-#include "nntile/module/gated_mlp.hh"
-#include "nntile/module/linear.hh"
-#include "nntile/module/mlp.hh"
+#include "nntile/graph/io/safetensors.hh"
+#include "nntile/graph/module/embedding.hh"
+#include "nntile/graph/module/gated_mlp.hh"
+#include "nntile/graph/module/linear.hh"
+#include "nntile/graph/module/mlp.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
-using namespace nntile::module;
-using namespace nntile::io;
+using namespace nntile::graph::module;
+using namespace nntile::graph::io;
 
 namespace
 {

@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/module/mlp.hh
+ * @file include/nntile/graph/module/mlp.hh
  * MLP module implementation using NNTile graph API.
  *
  * @version 1.1.0
@@ -26,11 +26,11 @@
 
 // Include NNTile headers
 #include <nntile/graph.hh>
-#include <nntile/module/activation.hh>
-#include <nntile/module/linear.hh>
-#include <nntile/module/module.hh>
+#include <nntile/graph/module/activation.hh>
+#include <nntile/graph/module/linear.hh>
+#include <nntile/graph/module/module.hh>
 
-namespace nntile::module
+namespace nntile::graph::module
 {
 
 //! MLP (Multi-Layer Perceptron) module using graph API
@@ -57,14 +57,14 @@ private:
     Index input_dim_;
     Index intermediate_dim_;
     Index output_dim_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
     //! Intermediate tensors (created during forward)
-    graph::NNGraph::TensorNode* hidden_tensor_ = nullptr;      // After fc1
-    graph::NNGraph::TensorNode* activation_tensor_ = nullptr;  // After activation
+    NNGraph::TensorNode* hidden_tensor_ = nullptr;      // After fc1
+    NNGraph::TensorNode* activation_tensor_ = nullptr;  // After activation
 
-    graph::NNGraph::TensorNode* input_tensor_ = nullptr;
-    graph::NNGraph::TensorNode* output_tensor_ = nullptr;
+    NNGraph::TensorNode* input_tensor_ = nullptr;
+    NNGraph::TensorNode* output_tensor_ = nullptr;
 
 public:
     //! Constructor: creates MLP with specified dimensions
@@ -75,13 +75,13 @@ public:
     //! @param output_dim Output feature dimension
     //! @param activation Activation function (default: gelu)
     //! @param dtype Data type for all tensors
-    Mlp(graph::NNGraph* graph,
+    Mlp(NNGraph* graph,
         const std::string& name,
         Index input_dim,
         Index intermediate_dim,
         Index output_dim,
         ActivationType activation = ActivationType::GELU,
-        graph::DataType dtype = graph::DataType::FP32);
+        DataType dtype = DataType::FP32);
 
     //! Constructor: creates MLP where output_dim == input_dim (common in transformers)
     //! @param graph Pointer to the neural network graph this module belongs to
@@ -90,12 +90,12 @@ public:
     //! @param intermediate_dim Hidden layer dimension
     //! @param activation Activation function (default: gelu)
     //! @param dtype Data type for all tensors
-    Mlp(graph::NNGraph* graph,
+    Mlp(NNGraph* graph,
         const std::string& name,
         Index input_dim,
         Index intermediate_dim,
         ActivationType activation = ActivationType::GELU,
-        graph::DataType dtype = graph::DataType::FP32);
+        DataType dtype = DataType::FP32);
 
 #ifdef NNTILE_HAVE_TORCH
     //! Constructor: creates MLP from PyTorch Linear layers (fc1, fc2) with
@@ -106,19 +106,19 @@ public:
     //! @param fc2_layer PyTorch second linear layer (intermediate -> output)
     //! @param activation Activation function (must match PyTorch MLP)
     //! @param dtype Data type for all tensors
-    Mlp(graph::NNGraph* graph,
+    Mlp(NNGraph* graph,
         const std::string& name,
         const torch::nn::Linear& fc1_layer,
         const torch::nn::Linear& fc2_layer,
         ActivationType activation = ActivationType::GELU,
-        graph::DataType dtype = graph::DataType::FP32);
+        DataType dtype = DataType::FP32);
 #endif
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input);
 
     //! Forward: calls forward
-    graph::NNGraph::TensorNode* operator()(graph::NNGraph::TensorNode* input)
+    NNGraph::TensorNode* operator()(NNGraph::TensorNode* input)
     {
         return forward(input);
     }
@@ -142,12 +142,12 @@ public:
 
 #ifdef NNTILE_HAVE_TORCH
 
-inline Mlp::Mlp(graph::NNGraph* graph,
+inline Mlp::Mlp(NNGraph* graph,
                 const std::string& name,
                 const torch::nn::Linear& fc1_layer,
                 const torch::nn::Linear& fc2_layer,
                 ActivationType activation,
-                graph::DataType dtype)
+                DataType dtype)
     : Module(graph, name)
     , fc1_(graph, name + "_fc1", fc1_layer, dtype)
     , activation_(graph, name + "_activation", activation)
@@ -172,4 +172,4 @@ inline Mlp::Mlp(graph::NNGraph* graph,
 
 #endif // NNTILE_HAVE_TORCH
 
-} // namespace nntile::module
+} // namespace nntile::graph::module

@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/module/activation.hh
+ * @file include/nntile/graph/module/activation.hh
  * Configurable activation module (gelu, gelutanh, relu, silu).
  *
  * @version 1.1.0
@@ -20,9 +20,9 @@
 
 // Include NNTile headers
 #include <nntile/graph.hh>
-#include <nntile/module/module.hh>
+#include <nntile/graph/module/module.hh>
 
-namespace nntile::module
+namespace nntile::graph::module
 {
 
 //! Activation function type
@@ -63,23 +63,23 @@ class Activation : public Module
 {
 private:
     ActivationType type_;
-    graph::NNGraph::TensorNode* input_tensor_ = nullptr;
-    graph::NNGraph::TensorNode* output_tensor_ = nullptr;
+    NNGraph::TensorNode* input_tensor_ = nullptr;
+    NNGraph::TensorNode* output_tensor_ = nullptr;
 
 public:
     //! Constructor
     //! @param graph Pointer to the neural network graph this module belongs to
     //! @param name Module name (used to generate unique tensor names)
     //! @param type Activation function type
-    Activation(graph::NNGraph* graph,
+    Activation(NNGraph* graph,
                const std::string& name,
                ActivationType type = ActivationType::GELU);
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input);
 
     //! Forward: calls forward
-    graph::NNGraph::TensorNode* operator()(graph::NNGraph::TensorNode* input)
+    NNGraph::TensorNode* operator()(NNGraph::TensorNode* input)
     {
         return forward(input);
     }
@@ -91,4 +91,4 @@ public:
     ActivationType type() const { return type_; }
 };
 
-} // namespace nntile::module
+} // namespace nntile::graph::module

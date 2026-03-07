@@ -6,29 +6,29 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/module/mlp.cc
+ * @file src/graph/module/mlp.cc
  * MLP module implementation using NNTile graph API.
  *
  * @version 1.1.0
  * */
 
 // Include corresponding header
-#include "nntile/module/mlp.hh"
+#include "nntile/graph/module/mlp.hh"
 
 // Include standard headers
 #include <stdexcept>
 
-namespace nntile::module
+namespace nntile::graph::module
 {
 
 //! Constructor: creates MLP with specified dimensions
-Mlp::Mlp(graph::NNGraph* graph,
+Mlp::Mlp(NNGraph* graph,
          const std::string& name,
          Index input_dim,
          Index intermediate_dim,
          Index output_dim,
          ActivationType activation,
-         graph::DataType dtype)
+         DataType dtype)
     : Module(graph, name)
     , fc1_(graph, name + "_fc1", input_dim, intermediate_dim, dtype)
     , activation_(graph, name + "_activation", activation)
@@ -45,18 +45,18 @@ Mlp::Mlp(graph::NNGraph* graph,
 }
 
 //! Constructor: creates MLP where output_dim == input_dim
-Mlp::Mlp(graph::NNGraph* graph,
+Mlp::Mlp(NNGraph* graph,
          const std::string& name,
          Index input_dim,
          Index intermediate_dim,
          ActivationType activation,
-         graph::DataType dtype)
+         DataType dtype)
     : Mlp(graph, name, input_dim, intermediate_dim, input_dim, activation, dtype)
 {
 }
 
-graph::NNGraph::TensorNode* Mlp::forward(
-    graph::NNGraph::TensorNode* input)
+NNGraph::TensorNode* Mlp::forward(
+    NNGraph::TensorNode* input)
 {
     if(input == nullptr)
     {
@@ -79,4 +79,4 @@ std::string Mlp::repr() const
            ", activation=" + activation_type_to_string(activation_.type()) + ")";
 }
 
-} // namespace nntile::module
+} // namespace nntile::graph::module

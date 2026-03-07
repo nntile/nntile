@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/io/safetensors.cc
+ * @file tests/graph/io/safetensors.cc
  * Tests for SafeTensors reader/writer and dtype mapping.
  *
  * @version 1.1.0
@@ -22,11 +22,11 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "nntile/io/safetensors.hh"
+#include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/dtype.hh"
 
 using namespace nntile;
-using namespace nntile::io;
+using namespace nntile::graph::io;
 using namespace nntile::graph;
 
 namespace

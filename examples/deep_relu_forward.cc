@@ -26,11 +26,11 @@
 #include <vector>
 
 #include <nntile.hh>
-#include <nntile/io/safetensors.hh>
+#include <nntile/graph/io/safetensors.hh>
 
 using namespace nntile;
 using namespace nntile::graph;
-using namespace nntile::module;
+using namespace nntile::graph::module;
 
 // A deep ReLU network: a chain of (Linear -> ReLU) blocks, built by
 // composing Module primitives. The last layer has no activation.

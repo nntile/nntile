@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/io/safetensors.hh
+ * @file include/nntile/graph/io/safetensors.hh
  * SafeTensors reader/writer for tensor serialization.
  *
  * @version 1.1.0
@@ -21,27 +21,27 @@
 
 #include <nntile/graph/dtype.hh>
 
-namespace nntile::io
+namespace nntile::graph::io
 {
 
 //! Convert NNTile DataType to SafeTensors dtype string.
 //! FP32_FAST_* variants all map to "F32" (storage type, not compute hint).
-std::string dtype_to_safetensors(graph::DataType dtype);
+std::string dtype_to_safetensors(DataType dtype);
 
 //! Convert SafeTensors dtype string to NNTile DataType.
 //! Returns the base storage type (e.g. "F32" -> FP32, not any FAST variant).
-graph::DataType safetensors_to_dtype(const std::string& st_dtype);
+DataType safetensors_to_dtype(const std::string& st_dtype);
 
 //! Check whether a SafeTensors dtype string is a valid storage type
 //! that NNTile can handle.
 bool is_safetensors_dtype_compatible(const std::string& st_dtype,
-                                     graph::DataType nntile_dtype);
+                                     DataType nntile_dtype);
 
 //! Metadata for a single tensor stored in a SafeTensors file.
 struct TensorInfo
 {
     std::string name;
-    graph::DataType dtype;
+    DataType dtype;
     std::vector<std::int64_t> shape;
     std::size_t data_offset;
     std::size_t data_size;
@@ -106,13 +106,13 @@ public:
     //!               product(shape) * dtype_size(dtype).
     //! @throws std::invalid_argument if name is duplicate or data size mismatches.
     void add_tensor(const std::string& name,
-                    graph::DataType dtype,
+                    DataType dtype,
                     const std::vector<std::int64_t>& shape,
                     const std::vector<std::uint8_t>& data);
 
     //! Move-overload for zero-copy when caller can give up ownership.
     void add_tensor(const std::string& name,
-                    graph::DataType dtype,
+                    DataType dtype,
                     const std::vector<std::int64_t>& shape,
                     std::vector<std::uint8_t>&& data);
 
@@ -130,7 +130,7 @@ private:
     struct Entry
     {
         std::string name;
-        graph::DataType dtype;
+        DataType dtype;
         std::vector<std::int64_t> shape;
         std::vector<std::uint8_t> data;
     };
@@ -141,7 +141,7 @@ private:
 //! Save a single tensor to a SafeTensors file (convenience wrapper).
 void save_tensor(const std::string& path,
                  const std::string& name,
-                 graph::DataType dtype,
+                 DataType dtype,
                  const std::vector<std::int64_t>& shape,
                  const std::vector<std::uint8_t>& data);
 
@@ -149,4 +149,4 @@ void save_tensor(const std::string& path,
 std::vector<std::uint8_t> load_tensor(const std::string& path,
                                        const std::string& name);
 
-} // namespace nntile::io
+} // namespace nntile::graph::io

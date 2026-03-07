@@ -17,6 +17,8 @@ set(TESTS_CATCH2 "nn")
 # Include nn and tensor operation tests
 add_subdirectory(nn)
 add_subdirectory(tensor)
+add_subdirectory(module)
+add_subdirectory(io)
 
 # Setup a target for coverage of graph tests
 if(BUILD_COVERAGE)

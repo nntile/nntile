@@ -15,9 +15,9 @@
 #pragma once
 
 // Include related NNTile headers
-#include <nntile/module/module.hh>
-#include <nntile/module/activation.hh>
-#include <nntile/module/linear.hh>
-#include <nntile/module/embedding.hh>
-#include <nntile/module/gated_mlp.hh>
-#include <nntile/module/mlp.hh>
+#include <nntile/graph/module/module.hh>
+#include <nntile/graph/module/activation.hh>
+#include <nntile/graph/module/linear.hh>
+#include <nntile/graph/module/embedding.hh>
+#include <nntile/graph/module/gated_mlp.hh>
+#include <nntile/graph/module/mlp.hh>

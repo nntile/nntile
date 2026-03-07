@@ -6,13 +6,13 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/io/safetensors.cc
+ * @file src/graph/io/safetensors.cc
  * SafeTensors reader/writer implementation.
  *
  * @version 1.1.0
  * */
 
-#include "nntile/io/safetensors.hh"
+#include "nntile/graph/io/safetensors.hh"
 
 #include <algorithm>
 #include <cstring>
@@ -22,31 +22,31 @@
 
 #include <nlohmann/json.hpp>
 
-namespace nntile::io
+namespace nntile::graph::io
 {
 
 // -------------------------------------------------------------------------
 // Dtype mapping
 // -------------------------------------------------------------------------
 
-std::string dtype_to_safetensors(graph::DataType dtype)
+std::string dtype_to_safetensors(DataType dtype)
 {
     switch(dtype)
     {
-        case graph::DataType::FP32:
-        case graph::DataType::FP32_FAST_TF32:
-        case graph::DataType::FP32_FAST_FP16:
-        case graph::DataType::FP32_FAST_BF16:
+        case DataType::FP32:
+        case DataType::FP32_FAST_TF32:
+        case DataType::FP32_FAST_FP16:
+        case DataType::FP32_FAST_BF16:
             return "F32";
-        case graph::DataType::FP64:
+        case DataType::FP64:
             return "F64";
-        case graph::DataType::FP16:
+        case DataType::FP16:
             return "F16";
-        case graph::DataType::BF16:
+        case DataType::BF16:
             return "BF16";
-        case graph::DataType::INT64:
+        case DataType::INT64:
             return "I64";
-        case graph::DataType::BOOL:
+        case DataType::BOOL:
             return "BOOL";
         default:
             throw std::invalid_argument(
@@ -54,20 +54,20 @@ std::string dtype_to_safetensors(graph::DataType dtype)
     }
 }
 
-graph::DataType safetensors_to_dtype(const std::string& st_dtype)
+DataType safetensors_to_dtype(const std::string& st_dtype)
 {
-    if(st_dtype == "F32")  return graph::DataType::FP32;
-    if(st_dtype == "F64")  return graph::DataType::FP64;
-    if(st_dtype == "F16")  return graph::DataType::FP16;
-    if(st_dtype == "BF16") return graph::DataType::BF16;
-    if(st_dtype == "I64")  return graph::DataType::INT64;
-    if(st_dtype == "BOOL") return graph::DataType::BOOL;
+    if(st_dtype == "F32")  return DataType::FP32;
+    if(st_dtype == "F64")  return DataType::FP64;
+    if(st_dtype == "F16")  return DataType::FP16;
+    if(st_dtype == "BF16") return DataType::BF16;
+    if(st_dtype == "I64")  return DataType::INT64;
+    if(st_dtype == "BOOL") return DataType::BOOL;
     throw std::invalid_argument(
         "safetensors_to_dtype: unknown SafeTensors dtype '" + st_dtype + "'");
 }
 
 bool is_safetensors_dtype_compatible(const std::string& st_dtype,
-                                     graph::DataType nntile_dtype)
+                                     DataType nntile_dtype)
 {
     return dtype_to_safetensors(nntile_dtype) == st_dtype;
 }
@@ -261,21 +261,21 @@ namespace
 
 std::size_t compute_expected_size(
     const std::vector<std::int64_t>& shape,
-    graph::DataType dtype)
+    DataType dtype)
 {
     std::int64_t nelems = 1;
     for(auto dim : shape)
     {
         nelems *= dim;
     }
-    return static_cast<std::size_t>(nelems) * graph::dtype_size(dtype);
+    return static_cast<std::size_t>(nelems) * dtype_size(dtype);
 }
 
 } // anonymous namespace
 
 void SafeTensorsWriter::add_tensor(
     const std::string& name,
-    graph::DataType dtype,
+    DataType dtype,
     const std::vector<std::int64_t>& shape,
     const std::vector<std::uint8_t>& data)
 {
@@ -284,7 +284,7 @@ void SafeTensorsWriter::add_tensor(
 
 void SafeTensorsWriter::add_tensor(
     const std::string& name,
-    graph::DataType dtype,
+    DataType dtype,
     const std::vector<std::int64_t>& shape,
     std::vector<std::uint8_t>&& data)
 {
@@ -376,7 +376,7 @@ void SafeTensorsWriter::write(const std::string& path) const
 
 void save_tensor(const std::string& path,
                  const std::string& name,
-                 graph::DataType dtype,
+                 DataType dtype,
                  const std::vector<std::int64_t>& shape,
                  const std::vector<std::uint8_t>& data)
 {
@@ -392,4 +392,4 @@ std::vector<std::uint8_t> load_tensor(const std::string& path,
     return reader.read_tensor(name);
 }
 
-} // namespace nntile::io
+} // namespace nntile::graph::io

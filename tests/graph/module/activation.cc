@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/module/activation.cc
+ * @file tests/graph/module/activation.cc
  * Tests for Activation module.
  *
  * @version 1.1.0
@@ -26,7 +26,7 @@
 
 // Include other NNTile headers
 #include "nntile/graph.hh"
-#include "nntile/module/activation.hh"
+#include "nntile/graph/module/activation.hh"
 
 #ifdef NNTILE_HAVE_TORCH
 #   include "nntile/graph/tensor/graph.hh"
@@ -36,7 +36,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
-using namespace nntile::module;
+using namespace nntile::graph::module;
 namespace gt = nntile::graph::tensor;
 
 TEST_CASE("Activation AllTypes", "[module]")
