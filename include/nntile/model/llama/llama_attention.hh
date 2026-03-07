@@ -25,6 +25,7 @@
 
 // NNTile headers
 #include <nntile/graph.hh>
+#include <nntile/io/safetensors.hh>
 #include <nntile/model/llama/llama_config.hh>
 #include <nntile/module/module.hh>
 
@@ -75,6 +76,14 @@ public:
 
     //! Get string representation
     std::string repr() const override;
+
+    //! Import weights from HF-format SafeTensors (q_proj, k_proj, v_proj, o_proj)
+    void import_hf(const io::SafeTensorsReader& reader,
+                   const std::string& hf_prefix) override;
+
+    //! Export weights to HF-format SafeTensors
+    void export_hf(io::SafeTensorsWriter& writer,
+                   const std::string& hf_prefix) const override;
 
     // Dimension accessors
     Index head_size() const { return head_size_; }

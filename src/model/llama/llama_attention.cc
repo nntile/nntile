@@ -20,6 +20,7 @@
 #include "nntile/graph/nn/transpose.hh"
 
 #include <cmath>
+#include <cstring>
 #include <stdexcept>
 
 namespace nntile::model::llama
@@ -212,6 +213,185 @@ std::string LlamaAttention::repr() const
     return "LlamaAttention(hidden=" + std::to_string(config_.hidden_size) +
            ", n_heads=" + std::to_string(n_heads_) +
            ", head_size=" + std::to_string(head_size_) + ")";
+}
+
+namespace
+{
+
+// Convert HF (out, in) row-major to NNTile (n_heads, head_size, n_emb) col-major
+void hf_linear_to_3d(const std::vector<std::uint8_t>& hf_data,
+                    Index n_heads, Index head_size, Index n_emb,
+                    std::vector<std::uint8_t>& out)
+{
+    const float* src = reinterpret_cast<const float*>(hf_data.data());
+    float* dst = reinterpret_cast<float*>(out.data());
+    for(Index h = 0; h < n_heads; ++h)
+    {
+        for(Index s = 0; s < head_size; ++s)
+        {
+            Index row = h * head_size + s;
+            for(Index e = 0; e < n_emb; ++e)
+            {
+                dst[h + s * n_heads + e * n_heads * head_size] =
+                    src[row * n_emb + e];
+            }
+        }
+    }
+}
+
+// Convert NNTile (n_heads, head_size, n_emb) to HF (out, in) for q,k,v
+void nntile_qkv_to_hf(const std::vector<std::uint8_t>& nntile_data,
+                      Index n_heads, Index head_size, Index n_emb,
+                      std::vector<std::uint8_t>& out)
+{
+    const float* src = reinterpret_cast<const float*>(nntile_data.data());
+    float* dst = reinterpret_cast<float*>(out.data());
+    for(Index h = 0; h < n_heads; ++h)
+    {
+        for(Index s = 0; s < head_size; ++s)
+        {
+            Index row = h * head_size + s;
+            for(Index e = 0; e < n_emb; ++e)
+            {
+                dst[row * n_emb + e] =
+                    src[h + s * n_heads + e * n_heads * head_size];
+            }
+        }
+    }
+}
+
+// Convert NNTile (n_emb, n_heads, head_size) to HF (n_emb, n_emb) for o_proj
+void nntile_o_to_hf(const std::vector<std::uint8_t>& nntile_data,
+                    Index n_emb, Index n_heads, Index head_size,
+                    std::vector<std::uint8_t>& out)
+{
+    const float* src = reinterpret_cast<const float*>(nntile_data.data());
+    float* dst = reinterpret_cast<float*>(out.data());
+    for(Index e = 0; e < n_emb; ++e)
+    {
+        for(Index h = 0; h < n_heads; ++h)
+        {
+            for(Index s = 0; s < head_size; ++s)
+            {
+                Index col = h * head_size + s;
+                dst[e * n_emb + col] =
+                    src[e + h * n_emb + s * n_emb * n_heads];
+            }
+        }
+    }
+}
+
+// Convert HF (n_emb, n_emb) to NNTile (n_emb, n_heads, head_size) for o_proj
+void hf_to_nntile_o(const std::vector<std::uint8_t>& hf_data,
+                    Index n_emb, Index n_heads, Index head_size,
+                    std::vector<std::uint8_t>& out)
+{
+    const float* src = reinterpret_cast<const float*>(hf_data.data());
+    float* dst = reinterpret_cast<float*>(out.data());
+    for(Index e = 0; e < n_emb; ++e)
+    {
+        for(Index h = 0; h < n_heads; ++h)
+        {
+            for(Index s = 0; s < head_size; ++s)
+            {
+                Index col = h * head_size + s;
+                dst[e + h * n_emb + s * n_emb * n_heads] = src[e * n_emb + col];
+            }
+        }
+    }
+}
+
+} // anonymous namespace
+
+void LlamaAttention::import_hf(const io::SafeTensorsReader& reader,
+                              const std::string& hf_prefix)
+{
+    Index n_emb = config_.hidden_size;
+    const std::string prefix = hf_prefix.empty() ? "" : hf_prefix + ".";
+
+    auto load_qkv = [&](const std::string& name, graph::NNGraph::TensorNode* param,
+                       Index out_rows, Index out_cols)
+    {
+        const std::string key = prefix + name + ".weight";
+        if(!reader.has_tensor(key))
+        {
+            throw std::runtime_error("LlamaAttention::import_hf: '" + key + "' not found");
+        }
+        const auto& info = reader.tensor_info(key);
+        if(info.shape.size() != 2 || info.shape[0] != static_cast<std::int64_t>(out_rows) ||
+           info.shape[1] != static_cast<std::int64_t>(out_cols))
+        {
+            throw std::runtime_error("LlamaAttention::import_hf: shape mismatch for " + key);
+        }
+        auto data = reader.read_tensor(key);
+        const auto& param_shape = param->shape();
+        std::vector<std::uint8_t> nntile_data(
+            param_shape[0] * param_shape[1] * param_shape[2] * sizeof(float));
+        hf_linear_to_3d(data, param_shape[0], param_shape[1], param_shape[2], nntile_data);
+        param->data()->set_bind_hint(std::move(nntile_data));
+        param->mark_input(true);
+    };
+
+    load_qkv("q_proj", w_q_, n_emb, n_emb);
+    load_qkv("k_proj", w_k_, n_head_kv_ * head_size_, n_emb);
+    load_qkv("v_proj", w_v_, n_head_kv_ * head_size_, n_emb);
+
+    const std::string o_key = prefix + "o_proj.weight";
+    if(!reader.has_tensor(o_key))
+    {
+        throw std::runtime_error("LlamaAttention::import_hf: '" + o_key + "' not found");
+    }
+    const auto& o_info = reader.tensor_info(o_key);
+    if(o_info.shape.size() != 2 || o_info.shape[0] != static_cast<std::int64_t>(n_emb) ||
+       o_info.shape[1] != static_cast<std::int64_t>(n_emb))
+    {
+        throw std::runtime_error("LlamaAttention::import_hf: shape mismatch for " + o_key);
+    }
+    auto o_data = reader.read_tensor(o_key);
+    std::vector<std::uint8_t> o_nntile(n_emb * n_heads_ * head_size_ * sizeof(float));
+    hf_to_nntile_o(o_data, n_emb, n_heads_, head_size_, o_nntile);
+    w_o_->data()->set_bind_hint(std::move(o_nntile));
+    w_o_->mark_input(true);
+}
+
+void LlamaAttention::export_hf(io::SafeTensorsWriter& writer,
+                               const std::string& hf_prefix) const
+{
+    Index n_emb = config_.hidden_size;
+    const std::string prefix = hf_prefix.empty() ? "" : hf_prefix + ".";
+
+    auto export_qkv = [&](const std::string& name,
+                          graph::NNGraph::TensorNode* param,
+                          Index out_rows, Index out_cols)
+    {
+        const auto* hint = param->data()->get_bind_hint();
+        if(hint == nullptr)
+        {
+            throw std::runtime_error("LlamaAttention::export_hf: " + name + " has no data");
+        }
+        const auto& shape = param->shape();
+        std::vector<std::uint8_t> hf_data(out_rows * out_cols * sizeof(float));
+        nntile_qkv_to_hf(*hint, shape[0], shape[1], shape[2], hf_data);
+        writer.add_tensor(prefix + name + ".weight", dtype_,
+                         {static_cast<std::int64_t>(out_rows),
+                          static_cast<std::int64_t>(out_cols)},
+                         std::move(hf_data));
+    };
+
+    export_qkv("q_proj", w_q_, n_emb, n_emb);
+    export_qkv("k_proj", w_k_, n_head_kv_ * head_size_, n_emb);
+    export_qkv("v_proj", w_v_, n_head_kv_ * head_size_, n_emb);
+
+    const auto* o_hint = w_o_->data()->get_bind_hint();
+    if(o_hint == nullptr)
+    {
+        throw std::runtime_error("LlamaAttention::export_hf: o_proj has no data");
+    }
+    std::vector<std::uint8_t> o_hf(n_emb * n_emb * sizeof(float));
+    nntile_o_to_hf(*o_hint, n_emb, n_heads_, head_size_, o_hf);
+    writer.add_tensor(prefix + "o_proj.weight", dtype_,
+                     {static_cast<std::int64_t>(n_emb), static_cast<std::int64_t>(n_emb)},
+                     std::move(o_hf));
 }
 
 } // namespace nntile::model::llama
