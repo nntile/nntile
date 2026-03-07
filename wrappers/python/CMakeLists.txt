@@ -25,6 +25,15 @@ set_target_properties(nntile_core PROPERTIES LIBRARY_OUTPUT_DIRECTORY "nntile"
     SUFFIX ".so")
 target_link_libraries(nntile_core PRIVATE nntile)
 
+# Graph API extension module
+set(GRAPH_SRC
+    "nntile/nntile_graph.cc"
+)
+pybind11_add_module(nntile_graph ${GRAPH_SRC})
+set_target_properties(nntile_graph PROPERTIES LIBRARY_OUTPUT_DIRECTORY "nntile"
+    SUFFIX ".so")
+target_link_libraries(nntile_graph PRIVATE nntile)
+
 # Collect all *.py source files and copy them into build directory
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/nntile DESTINATION
     ${CMAKE_CURRENT_BINARY_DIR} FILES_MATCHING PATTERN "*.py"

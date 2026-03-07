@@ -50,8 +50,10 @@ jobs:
 
   # TODO(@daskol): We need rework this stage: pre-build images, build StarPU
   # in-tree, rework layout and defaults, etc.
-  build:
-    name: Build a CPU-only extension for Python ${{ matrix.python-version }}
+  # Install Python deps before compilation so NNTile links against the same
+  # LibTorch that pytest loads at runtime (single env, no ABI mismatch).
+  build-and-test:
+    name: Build and test (Python ${{ matrix.python-version }})
     needs: 'lint'
     runs-on: 'ubuntu-24.04'
     strategy:
@@ -80,16 +82,30 @@ jobs:
               autoconf automake binutils build-essential ca-certificates \
               clang cmake curl fxt-tools gdb git lcov libfxt-dev libhwloc-dev \
               libopenblas-dev libopenmpi-dev libopenmpi3 libtool-bin \
-              lsb-release ninja-build openmpi-bin pkg-config
+              lsb-release ninja-build openmpi-bin pkg-config sqlite3
       - uses: actions/checkout@v4
+      - name: Pull all PR commits
+        if: github.event.pull_request
+        run: |
+          git config --global --add safe.directory ${GITHUB_WORKSPACE}
+          git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+          git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
+            --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
+          git checkout ${{ github.event.pull_request.head.ref }}
+          git fetch origin main:main --depth=100
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install PyTorch for LibTorch
+      - name: Install Python dependencies (before compilation)
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          $HOME/.local/bin/uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install uv --root-user-action=ignore
+          uv sync --extra ci --extra test \
+            --no-install-project --no-build-isolation \
+            --default-index https://download.pytorch.org/whl/cpu \
+            --index https://download.pytorch.org/whl/cpu \
+            --index https://pypi.org/simple \
+            --index-strategy unsafe-best-match
       - name: Build StarPU
         run: |
           export STARPU_VERSION=starpu-1.4.8
@@ -115,118 +131,25 @@ jobs:
               --prefix=/usr
           make -j 4 install
           rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
-      - name: Upload StarPU libraries (*.so)
-        uses: actions/upload-artifact@v4.3.4
-        with:
-          name: starpu-${{ matrix.python-version }}
-          path: /usr/lib/libstarpu*.so*
-          retention-days: 7
       - name: Build NNTile native libraries
         run: |
+          . .venv/bin/activate
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
-            -DCMAKE_PREFIX_PATH=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
+            -DCMAKE_PREFIX_PATH=$(python -c 'import torch; print(torch.utils.cmake_prefix_path)')
           cmake --build build -j
-      - name: Upload all shared objects (*.so)
-        uses: actions/upload-artifact@v4.3.4
-        with:
-          name: shared-objects-${{ matrix.python-version }}
-          path: build/**/*.so
-          retention-days: 7
-      - name: Test CPU-only C++ tests
-        run: |
-          ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
-
-  test-python:
-    name: Run CPU-only tests with Python ${{ matrix.python-version }}
-    needs: 'build'
-    runs-on: 'ubuntu-24.04'
-    strategy:
-      matrix:
-        python-version: ['3.12']
-    container:
-      image: 'ubuntu:24.04'
-    steps:
-      - name: Cache system packages
-        uses: actions/cache@v4
-        id: cache-apt
-        env:
-          cache-name: cache-apt-packages
-        with:
-          path: /var/cache/apt
-          key: ${{ runner.os }}-build-${{ env.cache-name }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}
-            ${{ runner.os }}-build-
-            ${{ runner.os }}
-      - name: Install Git in container
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker*
-          apt update
-          apt install -y --no-install-recommends ca-certificates git
-      # NOTE Step order is important for checkout in container: git
-      # installation in container precedes repo checkout.
-      # NOTE Values of ${GITHUB_WORKSPACE} and ${{ github.workspace }} differ
-      # (see https://github.com/actions/checkout/issues/785 for details).
-      - uses: actions/checkout@v4
-      - name: Pull all PR commits
-        if: github.event.pull_request
-        run: |
-          # Restore `.git` location.
-          git config --global --add safe.directory ${GITHUB_WORKSPACE}
-          git config --list
-          # Un-shallow refs.
-          git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
-          # Deepen topic branch; checkout topic branch.
-          git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
-            --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
-          git checkout ${{ github.event.pull_request.head.ref }}
-          # Fetch main for common origin.
-          git fetch origin main:main --depth=100
-      - name: Install system dependencies
-        run: |
-          rm -rfv /etc/apt/apt.conf.d/docker*
-          apt update
-          apt install -y --no-install-recommends \
-              autoconf automake binutils build-essential ca-certificates \
-              clang cmake curl fxt-tools git lcov libfxt-dev libhwloc-dev \
-              libopenblas-dev libopenmpi-dev libopenmpi3 libtool-bin \
-              lsb-release ninja-build openmpi-bin pkg-config sqlite3
-      - name: Download StarPU libraries (*.so)
-        uses: actions/download-artifact@v4
-        with:
-          name: starpu-${{ matrix.python-version }}
-          path: /usr/lib
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Download all shared objects (*.so)
-        uses: actions/download-artifact@v4
-        with:
-          name: shared-objects-${{ matrix.python-version }}
-          path: build
-      # TODO(@daskol): We should not remove platform tag and rework extension
-      # build in general.
       - name: Make in-tree symlink to an extension
         run: |
           ln -rs \
             build/wrappers/python/nntile/nntile_core.so \
             wrappers/python/nntile/nntile_core.so
-      # TODO(@daskol): We should rely on `uv` or any other package managing
-      # utility here.
-      - name: Install Python dependencies
+          ln -rs \
+            build/wrappers/python/nntile/nntile_graph.so \
+            wrappers/python/nntile/nntile_graph.so
+      - name: Test CPU-only C++ tests
         run: |
-          # Use `uv` for syncing dependencies directly from `pyproject.toml`
-          # (but without`uv.lock` file at the moment).
-          python -m pip install uv --root-user-action=ignore
-          uv sync --extra ci --extra test \
-            --no-install-project --no-build-isolation \
-            --default-index https://download.pytorch.org/whl/cpu \
-            --index https://download.pytorch.org/whl/cpu \
-            --index https://pypi.org/simple \
-            --index-strategy unsafe-best-match
+          ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
       - name: Run dirty tests with PyTest
-        if: 'github.event.pull_request'
+        if: github.event.pull_request
         run: |
           . .venv/bin/activate
           export PYTHON_TAG=$(
@@ -234,7 +157,6 @@ jobs:
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
           .github/scripts/run-dirty-tests.sh \
             ${{ github.event.pull_request.head.ref }}
-      # Full testing is temporary enabled even for PRs, as dirty testing is broken
       - name: Run all tests with PyTest
         if: '!github.event.pull_request'
         run: |
@@ -254,8 +176,6 @@ jobs:
           path: |
             coverage
             pytest
-      # This step never fails but it is useful to monitor status of type
-      # corectness.
       - name: Run type checking
         run: |
           . .venv/bin/activate

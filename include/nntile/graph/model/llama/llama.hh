@@ -6,18 +6,20 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/module.hh
- * Convenience header for NNTile module classes.
+ * @file include/nntile/model/llama/llama.hh
+ * Llama - alias for LlamaModel (base model without LM head).
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/graph/module/module.hh>
-#include <nntile/graph/module/activation.hh>
-#include <nntile/graph/module/linear.hh>
-#include <nntile/graph/module/embedding.hh>
-#include <nntile/graph/module/gated_mlp.hh>
-#include <nntile/graph/module/mlp.hh>
-#include <nntile/graph/module/rms_norm.hh>
+#include <nntile/graph/model/llama/llama_model.hh>
+
+namespace nntile::model::llama
+{
+
+//! Llama - same as LlamaModel (embedding + decoder layers + final norm)
+using Llama = LlamaModel;
+
+} // namespace nntile::model::llama
