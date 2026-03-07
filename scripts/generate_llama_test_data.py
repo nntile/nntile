@@ -108,10 +108,9 @@ def generate_llama_attention_data(
             x_pt = x_pt.unsqueeze(0).permute(0, 2, 1, 3)
             x_pt.requires_grad_(True)
 
-            with torch.no_grad():
-                out_pt, _, _ = pt_attn(
-                    x_pt, position_ids=None, past_key_value=None
-                )
+            out_pt, _, _ = pt_attn(
+                x_pt, position_ids=None, past_key_value=None
+            )
             out_pt = out_pt.squeeze(0).permute(2, 1, 0)  # (hidden, seq, batch)
             out_np = out_pt.detach().numpy()
             out_np = fortran_order(out_np)

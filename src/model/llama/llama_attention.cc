@@ -325,9 +325,30 @@ void LlamaAttention::import_hf(const io::SafeTensorsReader& reader,
         }
         auto data = reader.read_tensor(key);
         const auto& param_shape = param->shape();
-        std::vector<std::uint8_t> nntile_data(
-            param_shape[0] * param_shape[1] * param_shape[2] * sizeof(float));
-        hf_linear_to_3d(data, param_shape[0], param_shape[1], param_shape[2], nntile_data);
+        Index n_elems = 1;
+        for(const auto& d : param_shape)
+        {
+            n_elems *= static_cast<Index>(d);
+        }
+        std::vector<std::uint8_t> nntile_data(n_elems * sizeof(float));
+        Index n_heads_dim, head_size_dim, n_emb_dim;
+        if(param_shape.size() == 3)
+        {
+            n_heads_dim = param_shape[0];
+            head_size_dim = param_shape[1];
+            n_emb_dim = param_shape[2];
+        }
+        else if(param_shape.size() == 4)
+        {
+            n_heads_dim = param_shape[0] * param_shape[1];
+            head_size_dim = param_shape[2];
+            n_emb_dim = param_shape[3];
+        }
+        else
+        {
+            throw std::runtime_error("LlamaAttention::import_hf: QKV param must be 3D or 4D");
+        }
+        hf_linear_to_3d(data, n_heads_dim, head_size_dim, n_emb_dim, nntile_data);
         param->data()->set_bind_hint(std::move(nntile_data));
         param->mark_input(true);
     };
@@ -370,8 +391,25 @@ void LlamaAttention::export_hf(io::SafeTensorsWriter& writer,
             throw std::runtime_error("LlamaAttention::export_hf: " + name + " has no data");
         }
         const auto& shape = param->shape();
+        Index n_heads_dim, head_size_dim, n_emb_dim;
+        if(shape.size() == 3)
+        {
+            n_heads_dim = shape[0];
+            head_size_dim = shape[1];
+            n_emb_dim = shape[2];
+        }
+        else if(shape.size() == 4)
+        {
+            n_heads_dim = shape[0] * shape[1];
+            head_size_dim = shape[2];
+            n_emb_dim = shape[3];
+        }
+        else
+        {
+            throw std::runtime_error("LlamaAttention::export_hf: QKV param must be 3D or 4D");
+        }
         std::vector<std::uint8_t> hf_data(out_rows * out_cols * sizeof(float));
-        nntile_qkv_to_hf(*hint, shape[0], shape[1], shape[2], hf_data);
+        nntile_qkv_to_hf(*hint, n_heads_dim, head_size_dim, n_emb_dim, hf_data);
         writer.add_tensor(prefix + name + ".weight", dtype_,
                          {static_cast<std::int64_t>(out_rows),
                           static_cast<std::int64_t>(out_cols)},
