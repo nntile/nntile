@@ -22,7 +22,8 @@
 #include <vector>
 
 // Include NNTile headers
-#include <nntile/graph.hh>
+#include <nntile/graph/nn.hh>
+#include <nntile/graph/tensor.hh>
 #include <nntile/graph/io/safetensors.hh>
 
 namespace nntile::graph::module

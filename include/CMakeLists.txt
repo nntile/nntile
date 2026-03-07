@@ -428,8 +428,7 @@ set(TENSOR_HDR
     "nntile/tensor/rope_backward.hh"
     )
 
-set(GRAPH_HDR
-    "nntile/graph.hh"
+set(GRAPH_TENSOR_HDR
     "nntile/graph/dtype.hh"
     "nntile/graph/tensor.hh"
     "nntile/graph/tensor/graph.hh"
@@ -510,6 +509,9 @@ set(GRAPH_HDR
     "nntile/graph/tensor/sumprod_slice.hh"
     "nntile/graph/tensor/total_sum_accum.hh"
     "nntile/graph/tensor/transpose.hh"
+    )
+
+set(GRAPH_NN_HDR
     "nntile/graph/nn.hh"
     "nntile/graph/nn/graph.hh"
     "nntile/graph/nn/graph_decl.hh"
@@ -547,22 +549,36 @@ set(GRAPH_HDR
     "nntile/graph/nn/adamw_step.hh"
     )
 
-set(MODULE_HDR
-    "nntile/module.hh"
+set(GRAPH_IO_HDR
+    "nntile/graph/io.hh"
+    "nntile/graph/io/safetensors.hh"
+    )
+
+set(GRAPH_MODULE_HDR
+    "nntile/graph/module.hh"
     "nntile/graph/module/module.hh"
     "nntile/graph/module/activation.hh"
     "nntile/graph/module/gated_mlp.hh"
     "nntile/graph/module/linear.hh"
     "nntile/graph/module/embedding.hh"
     "nntile/graph/module/mlp.hh"
-    "nntile/graph/io/safetensors.hh"
-)
+    )
 
-set(OPTIMIZER_HDR
-    #"nntile/optimizer.hh"
-    #"nntile/optimizer/base.hh"
-    #"nntile/optimizer/sgd.hh"
-    #"nntile/optimizer/deep_linear.hh"
+set(GRAPH_OPTIM_HDR
+    "nntile/graph/optim.hh"
+    "nntile/graph/optim/optimizer.hh"
+    "nntile/graph/optim/sgd.hh"
+    "nntile/graph/optim/adam.hh"
+    "nntile/graph/optim/adamw.hh"
+    )
+
+set(GRAPH_HDR
+    "nntile/graph.hh"
+    ${GRAPH_TENSOR_HDR}
+    ${GRAPH_NN_HDR}
+    ${GRAPH_IO_HDR}
+    ${GRAPH_MODULE_HDR}
+    ${GRAPH_OPTIM_HDR}
     )
 
 set(LOGGER_HDR
@@ -571,6 +587,6 @@ set(LOGGER_HDR
     )
 
 set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR}
-    ${TENSOR_HDR} ${GRAPH_HDR} ${MODULE_HDR} ${LOGGER_HDR})
+    ${TENSOR_HDR} ${GRAPH_HDR} ${LOGGER_HDR})
 
 target_sources(nntile PUBLIC ${HDR})
