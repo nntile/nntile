@@ -55,7 +55,7 @@ void SGD::step()
         ps.param->mark_output(true);
 
         sgd_step(ps.param, ps.grad, velocity,
-                 1, momentum_, lr_, weight_decay_, dampening_, nesterov_);
+                 num_iter_ + 1, momentum_, lr_, weight_decay_, dampening_, nesterov_);
 
         ps.buffers.emplace_back(vel_name, velocity);
     }

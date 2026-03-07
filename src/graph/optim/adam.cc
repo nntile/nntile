@@ -63,7 +63,7 @@ void Adam::step()
         ps.param->mark_output(true);
 
         adam_step(ps.param, ps.grad, first_moment, second_moment,
-                  1, beta_1_, beta_2_, eps_, lr_, weight_decay_);
+                  num_iter_ + 1, beta_1_, beta_2_, eps_, lr_, weight_decay_);
 
         ps.buffers.emplace_back(m1_name, first_moment);
         ps.buffers.emplace_back(m2_name, second_moment);

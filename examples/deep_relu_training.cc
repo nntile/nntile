@@ -408,7 +408,6 @@ int main(int argc, char** argv)
                       << ": loss = " << loss_val << "\n";
         }
 
-        optimizer->set_num_iter(optimizer->num_iter() + 1);
     }
 
     auto t_end = std::chrono::high_resolution_clock::now();
