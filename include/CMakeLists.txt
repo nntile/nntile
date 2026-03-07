@@ -559,10 +559,11 @@ set(MODULE_HDR
 )
 
 set(OPTIMIZER_HDR
-    #"nntile/optimizer.hh"
-    #"nntile/optimizer/base.hh"
-    #"nntile/optimizer/sgd.hh"
-    #"nntile/optimizer/deep_linear.hh"
+    "nntile/optim.hh"
+    "nntile/graph/optim/optimizer.hh"
+    "nntile/graph/optim/sgd.hh"
+    "nntile/graph/optim/adam.hh"
+    "nntile/graph/optim/adamw.hh"
     )
 
 set(LOGGER_HDR
@@ -571,6 +572,6 @@ set(LOGGER_HDR
     )
 
 set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR}
-    ${TENSOR_HDR} ${GRAPH_HDR} ${MODULE_HDR} ${LOGGER_HDR})
+    ${TENSOR_HDR} ${GRAPH_HDR} ${MODULE_HDR} ${OPTIMIZER_HDR} ${LOGGER_HDR})
 
 target_sources(nntile PUBLIC ${HDR})

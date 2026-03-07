@@ -46,5 +46,8 @@
 // Modules using graph API
 #include <nntile/module.hh>
 
+// Optimizers using graph API
+#include <nntile/optim.hh>
+
 // Logger thread to log activities
 #include <nntile/logger.hh>

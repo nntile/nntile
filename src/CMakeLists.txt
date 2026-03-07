@@ -539,6 +539,14 @@ set(MODULE_SRC
     "graph/module/embedding.cc"
 )
 
+# Optimizer implementations
+set(OPTIM_SRC
+    "graph/optim/optimizer.cc"
+    "graph/optim/sgd.cc"
+    "graph/optim/adam.cc"
+    "graph/optim/adamw.cc"
+)
+
 # Set the list of all sources
 set(NNTILE_SRC
     ${BASE_SRC}
@@ -553,6 +561,7 @@ set(NNTILE_SRC
     ${GRAPH_SRC}
     ${IO_SRC}
     ${MODULE_SRC}
+    ${OPTIM_SRC}
     ${LOGGER_SRC}
 )
 
