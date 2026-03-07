@@ -22,20 +22,23 @@ Uses PyTorch transformers for reference output/gradients when available.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
+from pathlib import Path
 
 import numpy as np
 
 try:
     from safetensors.numpy import save_file
 except ImportError:
-    print("safetensors required: pip install safetensors", file=sys.stderr)
+    print(
+        "safetensors required: pip install safetensors",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 
 def fortran_order(arr: np.ndarray) -> np.ndarray:
-    """Ensure array is Fortran-order (column-major) for NNTile compatibility."""
+    """Ensure array is Fortran-order (column-major) for NNTile."""
     return np.asfortranarray(arr).astype(np.float32)
 
 
@@ -44,7 +47,8 @@ def pt_to_nntile_attn_weights(
     n_heads: int, head_size: int, n_emb: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Convert PyTorch (out,in) 2D weights to NNTile 3D layout.
-    PT q_proj: (n_emb, n_emb) row-major -> NNTile: (n_heads, head_size, n_emb) Fortran.
+    PT q_proj: (n_emb, n_emb) row-major -> NNTile:
+    (n_heads, head_size, n_emb) Fortran.
     """
     # PT weight (out, in); reshape out dim to (n_heads, head_size)
     q_3d = fortran_order(q.reshape(n_heads, head_size, n_emb).copy())
@@ -65,7 +69,7 @@ def generate_llama_attention_data(
     use_torch_ref: bool = True,
 ) -> dict[str, np.ndarray]:
     """Generate test data for LlamaAttention (non-GQA).
-    Parameter names match C++ named_parameters_recursive for module named 'attn'.
+    Parameter names match C++ named_parameters_recursive for module 'attn'.
     """
     rng = np.random.default_rng(seed)
     n_emb = hidden
@@ -74,7 +78,8 @@ def generate_llama_attention_data(
         try:
             import torch
             from transformers import LlamaConfig
-            from transformers.models.llama.modeling_llama import LlamaAttention as PtLlamaAttention
+            from transformers.models.llama.modeling_llama import (
+                LlamaAttention as PtLlamaAttention)
 
             torch.manual_seed(seed)
             config = LlamaConfig(
@@ -96,13 +101,17 @@ def generate_llama_attention_data(
                 q, k, v, o, n_heads, head_size, n_emb)
 
             # Input: (hidden, seq, batch) - NNTile layout
-            x_np = rng.standard_normal((hidden, seq, batch)).astype(np.float32) * 0.1
-            x_pt = torch.from_numpy(np.ascontiguousarray(x_np.T))  # (batch, seq, hidden)
-            x_pt = x_pt.unsqueeze(0).permute(0, 2, 1, 3)  # (1, batch, seq, hidden)
+            x_np = rng.standard_normal((hidden, seq, batch)).astype(
+                np.float32
+            ) * 0.1
+            x_pt = torch.from_numpy(np.ascontiguousarray(x_np.T))
+            x_pt = x_pt.unsqueeze(0).permute(0, 2, 1, 3)
             x_pt.requires_grad_(True)
 
             with torch.no_grad():
-                out_pt, _, _ = pt_attn(x_pt, position_ids=None, past_key_value=None)
+                out_pt, _, _ = pt_attn(
+                    x_pt, position_ids=None, past_key_value=None
+                )
             out_pt = out_pt.squeeze(0).permute(2, 1, 0)  # (hidden, seq, batch)
             out_np = out_pt.detach().numpy()
             out_np = fortran_order(out_np)
@@ -134,16 +143,21 @@ def generate_llama_attention_data(
             use_torch_ref = False
 
     # Fallback: random data without reference output
-    q_weight = fortran_order(rng.standard_normal((n_heads, head_size, n_emb)).astype(np.float32) * 0.02)
-    k_weight = fortran_order(rng.standard_normal((n_heads, head_size, n_emb)).astype(np.float32) * 0.02)
-    v_weight = fortran_order(rng.standard_normal((n_heads, head_size, n_emb)).astype(np.float32) * 0.02)
-    o_weight = fortran_order(rng.standard_normal((n_emb, n_heads, head_size)).astype(np.float32) * 0.02)
-    input_hsb = fortran_order(rng.standard_normal((hidden, seq, batch)).astype(np.float32) * 0.1)
-    output_hsb = fortran_order(rng.standard_normal((hidden, seq, batch)).astype(np.float32) * 0.1)
-    q_grad = fortran_order(rng.standard_normal((n_heads, head_size, n_emb)).astype(np.float32) * 0.01)
-    k_grad = fortran_order(rng.standard_normal((n_heads, head_size, n_emb)).astype(np.float32) * 0.01)
-    v_grad = fortran_order(rng.standard_normal((n_heads, head_size, n_emb)).astype(np.float32) * 0.01)
-    o_grad = fortran_order(rng.standard_normal((n_emb, n_heads, head_size)).astype(np.float32) * 0.01)
+    def _rand(shape: tuple, scale: float) -> np.ndarray:
+        return fortran_order(
+            rng.standard_normal(shape).astype(np.float32) * scale
+        )
+
+    q_weight = _rand((n_heads, head_size, n_emb), 0.02)
+    k_weight = _rand((n_heads, head_size, n_emb), 0.02)
+    v_weight = _rand((n_heads, head_size, n_emb), 0.02)
+    o_weight = _rand((n_emb, n_heads, head_size), 0.02)
+    input_hsb = _rand((hidden, seq, batch), 0.1)
+    output_hsb = _rand((hidden, seq, batch), 0.1)
+    q_grad = _rand((n_heads, head_size, n_emb), 0.01)
+    k_grad = _rand((n_heads, head_size, n_emb), 0.01)
+    v_grad = _rand((n_heads, head_size, n_emb), 0.01)
+    o_grad = _rand((n_emb, n_heads, head_size), 0.01)
 
     return {
         "attn.q_weight": q_weight,
@@ -160,28 +174,38 @@ def generate_llama_attention_data(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate Llama test data (safetensors)")
-    parser.add_argument("--output", "-o", default=None,
-                        help="Output directory (default: tests/model/llama/data)")
-    parser.add_argument("--seed", "-s", type=int, default=42, help="Random seed")
-    parser.add_argument("--no-torch", action="store_true",
-                        help="Skip PyTorch reference (use random data only)")
+    parser = argparse.ArgumentParser(
+        description="Generate Llama test data (safetensors)",
+    )
+    parser.add_argument(
+        "--output", "-o", default=None,
+        help="Output directory (default: tests/model/llama/data)",
+    )
+    parser.add_argument(
+        "--seed", "-s", type=int, default=42, help="Random seed",
+    )
+    parser.add_argument(
+        "--no-torch", action="store_true",
+        help="Skip PyTorch reference (use random data only)",
+    )
     args = parser.parse_args()
 
-    out_dir = args.output or os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "tests", "model", "llama", "data"
-    )
-    os.makedirs(out_dir, exist_ok=True)
+    base = Path(__file__).resolve().parent.parent
+    out_dir = args.output or str(base / "tests" / "model" / "llama" / "data")
+    Path(out_dir).mkdir(parents=True, exist_ok=True)
 
-    data = generate_llama_attention_data(seed=args.seed, use_torch_ref=not args.no_torch)
-    weights_only = {k: v for k, v in data.items()
-                    if "grad" not in k and k not in ("input", "output_ref")}
-    full_path = os.path.join(out_dir, "llama_attention.safetensors")
+    data = generate_llama_attention_data(
+        seed=args.seed, use_torch_ref=not args.no_torch
+    )
+    weights_only = {
+        k: v for k, v in data.items()
+        if "grad" not in k and k not in ("input", "output_ref")
+    }
+    full_path = str(Path(out_dir) / "llama_attention.safetensors")
     save_file(weights_only, full_path)
     print(f"Saved weights to {full_path}")
 
-    full_data_path = os.path.join(out_dir, "llama_attention_full.safetensors")
+    full_data_path = str(Path(out_dir) / "llama_attention_full.safetensors")
     save_file(data, full_data_path)
     print(f"Saved full test data to {full_data_path}")
 

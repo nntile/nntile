@@ -18,9 +18,7 @@ from typing import Optional
 import numpy as np
 import torch
 from transformers.models.llama.modeling_llama import (
-    LlamaAttention as LlamaAttention_torch,
-    LlamaConfig as LlamaConfig_torch,
-)
+    LlamaAttention as LlamaAttention_torch, LlamaConfig as LlamaConfig_torch)
 
 from ..nntile_graph import DataType, NNGraph, llama
 
@@ -120,7 +118,7 @@ class GraphLlamaAttention:
         head_size: int,
         rope_theta: float,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Compute sin/cos arrays in NNTile layout (head_size/2, seq, batch)."""
+        """Compute sin/cos in NNTile layout (head_size/2, seq, batch)."""
         n_batch, n_seq = position_ids.shape
         tmp = np.arange(0, head_size, 2, dtype=np.float32)
         inv_freq = 1.0 / (rope_theta ** (tmp / head_size))

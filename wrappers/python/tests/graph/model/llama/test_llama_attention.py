@@ -17,13 +17,10 @@ import numpy as np
 import pytest
 import torch
 from transformers.models.llama.modeling_llama import (
-    LlamaAttention,
-    LlamaConfig,
-    LlamaRotaryEmbedding,
-)
+    LlamaAttention, LlamaConfig, LlamaRotaryEmbedding)
 
 import nntile
-from nntile.graph import DataType, NNGraph, Runtime
+from nntile.graph import DataType, Runtime
 from nntile.graph.llama_attention import GraphLlamaAttention
 
 
@@ -117,7 +114,6 @@ class TestGraphLlamaAttention:
         """Weights survive the round-trip HF -> NNTile -> HF."""
         torch_layer, _ = _build_torch_layer(params)
         gen = np.random.default_rng(42)
-        hidden_size = params.head_size * params.n_head
         pos_ids = gen.integers(
             params.seq_len,
             size=(params.n_batch, params.seq_len),
@@ -221,7 +217,7 @@ class TestGraphLlamaAttention:
             np.ones((params.seq_len, params.seq_len)), k=0
         ).astype(bool)
 
-        y_torch, x_torch, pos_embs, mask_torch = _run_torch_forward(
+        y_torch, x_torch, _, _ = _run_torch_forward(
             torch_layer, x_np, params, pos_ids, mask,
         )
 
