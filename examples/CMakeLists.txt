@@ -75,3 +75,8 @@ add_example(TARGET_NAME examples_deep_relu_forward
     EXEC_NAME "deep_relu_forward"
     SOURCES "deep_relu_forward.cc"
     LINK_LIBRARIES nntile)
+
+add_example(TARGET_NAME examples_deep_relu_training
+    EXEC_NAME "deep_relu_training"
+    SOURCES "deep_relu_training.cc"
+    LINK_LIBRARIES nntile)
