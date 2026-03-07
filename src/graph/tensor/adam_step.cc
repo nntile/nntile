@@ -53,17 +53,6 @@ void adam_step(Index num_iter, Scalar beta_1, Scalar beta_2,
                TensorGraph::TensorNode* second_moment,
                TensorGraph::TensorNode* p)
 {
-    adam_step(std::make_shared<Index>(num_iter), beta_1, beta_2, eps, lr,
-             weight_decay, grad, first_moment, second_moment, p);
-}
-
-void adam_step(std::shared_ptr<Index> num_iter, Scalar beta_1, Scalar beta_2,
-               Scalar eps, Scalar lr, Scalar weight_decay,
-               TensorGraph::TensorNode* grad,
-               TensorGraph::TensorNode* first_moment,
-               TensorGraph::TensorNode* second_moment,
-               TensorGraph::TensorNode* p)
-{
     if(grad == nullptr || first_moment == nullptr ||
        second_moment == nullptr || p == nullptr)
         throw std::invalid_argument("adam_step: tensors must be non-null");
@@ -76,7 +65,7 @@ void adam_step(std::shared_ptr<Index> num_iter, Scalar beta_1, Scalar beta_2,
        second_moment->dtype() != p->dtype())
         throw std::invalid_argument("adam_step: tensors must have same dtype");
     auto op = std::make_shared<TensorAdamStepOp>(
-        std::move(num_iter), beta_1, beta_2, eps, lr, weight_decay,
+        num_iter, beta_1, beta_2, eps, lr, weight_decay,
         grad, first_moment, second_moment, p);
     p->graph()->add_op(op);
 }
@@ -87,31 +76,31 @@ void TensorAdamStepOp::execute(TensorGraph::Runtime& runtime) const
     switch(dtype)
     {
         case DataType::FP32:
-            run_adam_step<nntile::fp32_t>(runtime, *num_iter, beta_1, beta_2,
+            run_adam_step<nntile::fp32_t>(runtime, num_iter, beta_1, beta_2,
                 eps, lr, weight_decay, grad, first_moment, second_moment, p);
             break;
         case DataType::FP32_FAST_TF32:
-            run_adam_step<nntile::fp32_fast_tf32_t>(runtime, *num_iter, beta_1, beta_2,
+            run_adam_step<nntile::fp32_fast_tf32_t>(runtime, num_iter, beta_1, beta_2,
                 eps, lr, weight_decay, grad, first_moment, second_moment, p);
             break;
         case DataType::FP32_FAST_FP16:
-            run_adam_step<nntile::fp32_fast_fp16_t>(runtime, *num_iter, beta_1, beta_2,
+            run_adam_step<nntile::fp32_fast_fp16_t>(runtime, num_iter, beta_1, beta_2,
                 eps, lr, weight_decay, grad, first_moment, second_moment, p);
             break;
         case DataType::FP32_FAST_BF16:
-            run_adam_step<nntile::fp32_fast_bf16_t>(runtime, *num_iter, beta_1, beta_2,
+            run_adam_step<nntile::fp32_fast_bf16_t>(runtime, num_iter, beta_1, beta_2,
                 eps, lr, weight_decay, grad, first_moment, second_moment, p);
             break;
         case DataType::FP64:
-            run_adam_step<nntile::fp64_t>(runtime, *num_iter, beta_1, beta_2,
+            run_adam_step<nntile::fp64_t>(runtime, num_iter, beta_1, beta_2,
                 eps, lr, weight_decay, grad, first_moment, second_moment, p);
             break;
         case DataType::FP16:
-            run_adam_step<nntile::fp16_t>(runtime, *num_iter, beta_1, beta_2,
+            run_adam_step<nntile::fp16_t>(runtime, num_iter, beta_1, beta_2,
                 eps, lr, weight_decay, grad, first_moment, second_moment, p);
             break;
         case DataType::BF16:
-            run_adam_step<nntile::bf16_t>(runtime, *num_iter, beta_1, beta_2,
+            run_adam_step<nntile::bf16_t>(runtime, num_iter, beta_1, beta_2,
                 eps, lr, weight_decay, grad, first_moment, second_moment, p);
             break;
         case DataType::INT64:

@@ -17,7 +17,6 @@
 // NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
-#include <memory>
 
 namespace nntile::graph::tensor
 {
@@ -25,7 +24,7 @@ namespace nntile::graph::tensor
 //! Adam step: p = p - lr * m_hat / (sqrt(v_hat) + eps)
 struct TensorAdamStepOp : TensorGraph::OpNode
 {
-    std::shared_ptr<Index> num_iter;
+    Index num_iter;
     Scalar beta_1;
     Scalar beta_2;
     Scalar eps;
@@ -37,13 +36,13 @@ struct TensorAdamStepOp : TensorGraph::OpNode
     TensorGraph::TensorNode* p = nullptr;
 
     TensorAdamStepOp() = default;
-    TensorAdamStepOp(std::shared_ptr<Index> num_iter_, Scalar beta_1_, Scalar beta_2_,
+    TensorAdamStepOp(Index num_iter_, Scalar beta_1_, Scalar beta_2_,
                     Scalar eps_, Scalar lr_, Scalar weight_decay_,
                     TensorGraph::TensorNode* grad_,
                     TensorGraph::TensorNode* first_moment_,
                     TensorGraph::TensorNode* second_moment_,
                     TensorGraph::TensorNode* p_)
-        : num_iter(std::move(num_iter_)), beta_1(beta_1_), beta_2(beta_2_),
+        : num_iter(num_iter_), beta_1(beta_1_), beta_2(beta_2_),
           eps(eps_), lr(lr_), weight_decay(weight_decay_),
           grad(grad_), first_moment(first_moment_),
           second_moment(second_moment_), p(p_)
@@ -64,13 +63,6 @@ struct TensorAdamStepOp : TensorGraph::OpNode
 
 //! Adam step
 void adam_step(Index num_iter, Scalar beta_1, Scalar beta_2,
-               Scalar eps, Scalar lr, Scalar weight_decay,
-               TensorGraph::TensorNode* grad,
-               TensorGraph::TensorNode* first_moment,
-               TensorGraph::TensorNode* second_moment,
-               TensorGraph::TensorNode* p);
-
-void adam_step(std::shared_ptr<Index> num_iter, Scalar beta_1, Scalar beta_2,
                Scalar eps, Scalar lr, Scalar weight_decay,
                TensorGraph::TensorNode* grad,
                TensorGraph::TensorNode* first_moment,

@@ -47,18 +47,6 @@ void sgd_step(
     Index num_iter, Scalar momentum, Scalar lr,
     Scalar weight_decay, Scalar dampening, bool nesterov)
 {
-    sgd_step(param, grad, velocity,
-             std::make_shared<Index>(num_iter), momentum, lr,
-             weight_decay, dampening, nesterov);
-}
-
-void sgd_step(
-    NNGraph::TensorNode* param,
-    NNGraph::TensorNode* grad,
-    NNGraph::TensorNode* velocity,
-    std::shared_ptr<Index> num_iter, Scalar momentum, Scalar lr,
-    Scalar weight_decay, Scalar dampening, bool nesterov)
-{
     if(param == nullptr || grad == nullptr || velocity == nullptr)
     {
         throw std::invalid_argument(
@@ -69,7 +57,7 @@ void sgd_step(
 
     auto op = std::make_shared<NNSgdStepOp>(
         param, grad, velocity,
-        std::move(num_iter), momentum, lr, weight_decay, dampening, nesterov);
+        num_iter, momentum, lr, weight_decay, dampening, nesterov);
     op->forward();
     graph->register_op(std::move(op));
 }

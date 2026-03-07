@@ -51,19 +51,6 @@ void adam_step(
     Index num_iter, Scalar beta_1, Scalar beta_2,
     Scalar eps, Scalar lr, Scalar weight_decay)
 {
-    adam_step(param, grad, first_moment, second_moment,
-             std::make_shared<Index>(num_iter), beta_1, beta_2,
-             eps, lr, weight_decay);
-}
-
-void adam_step(
-    NNGraph::TensorNode* param,
-    NNGraph::TensorNode* grad,
-    NNGraph::TensorNode* first_moment,
-    NNGraph::TensorNode* second_moment,
-    std::shared_ptr<Index> num_iter, Scalar beta_1, Scalar beta_2,
-    Scalar eps, Scalar lr, Scalar weight_decay)
-{
     if(param == nullptr || grad == nullptr ||
        first_moment == nullptr || second_moment == nullptr)
     {
@@ -76,7 +63,7 @@ void adam_step(
 
     auto op = std::make_shared<NNAdamStepOp>(
         param, grad, first_moment, second_moment,
-        std::move(num_iter), beta_1, beta_2, eps, lr, weight_decay);
+        num_iter, beta_1, beta_2, eps, lr, weight_decay);
     op->forward();
     graph->register_op(std::move(op));
 }

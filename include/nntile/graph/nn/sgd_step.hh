@@ -21,14 +21,13 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/nn/graph_op_node.hh>
 #include <nntile/graph/tensor/sgd_step.hh>
-#include <memory>
 
 namespace nntile::graph
 {
 
 struct NNSgdStepOp : NNGraph::OpNode
 {
-    std::shared_ptr<Index> num_iter;
+    Index num_iter;
     Scalar momentum;
     Scalar lr;
     Scalar weight_decay;
@@ -42,9 +41,9 @@ struct NNSgdStepOp : NNGraph::OpNode
     NNSgdStepOp(NNGraph::TensorNode* param_,
                 NNGraph::TensorNode* grad_,
                 NNGraph::TensorNode* velocity_,
-                std::shared_ptr<Index> num_iter_, Scalar momentum_, Scalar lr_,
+                Index num_iter_, Scalar momentum_, Scalar lr_,
                 Scalar weight_decay_, Scalar dampening_, bool nesterov_)
-        : num_iter(std::move(num_iter_)), momentum(momentum_), lr(lr_),
+        : num_iter(num_iter_), momentum(momentum_), lr(lr_),
           weight_decay(weight_decay_), dampening(dampening_),
           nesterov(nesterov_),
           param(param_), grad(grad_), velocity(velocity_)
@@ -63,14 +62,6 @@ void sgd_step(
     NNGraph::TensorNode* grad,
     NNGraph::TensorNode* velocity,
     Index num_iter, Scalar momentum, Scalar lr,
-    Scalar weight_decay = 0.0, Scalar dampening = 0.0,
-    bool nesterov = false);
-
-void sgd_step(
-    NNGraph::TensorNode* param,
-    NNGraph::TensorNode* grad,
-    NNGraph::TensorNode* velocity,
-    std::shared_ptr<Index> num_iter, Scalar momentum, Scalar lr,
     Scalar weight_decay = 0.0, Scalar dampening = 0.0,
     bool nesterov = false);
 
