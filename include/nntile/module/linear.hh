@@ -153,6 +153,16 @@ public:
         return forward(input);
     }
 
+    //! HF import: read weight (and optionally bias) from an HF SafeTensors
+    //! file and transpose the 2D weight from row-major to column-major.
+    void import_hf(const io::SafeTensorsReader& reader,
+                   const std::string& hf_prefix) override;
+
+    //! HF export: write weight (and optionally bias) to an HF SafeTensors
+    //! writer, transposing the weight back from column-major to row-major.
+    void export_hf(io::SafeTensorsWriter& writer,
+                   const std::string& hf_prefix) const override;
+
     //! Get string representation with dimensions
     std::string repr() const override;
 

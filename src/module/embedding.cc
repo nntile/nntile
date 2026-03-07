@@ -193,6 +193,74 @@ void Embedding::bind_weight(const std::vector<float>& data)
     bind_weight(std::move(bytes));
 }
 
+// -----------------------------------------------------------------
+// HF Import/Export
+// -----------------------------------------------------------------
+
+void Embedding::import_hf(const io::SafeTensorsReader& reader,
+                          const std::string& hf_prefix)
+{
+    const std::string w_name = hf_prefix.empty()
+        ? "weight" : hf_prefix + ".weight";
+
+    if(!reader.has_tensor(w_name))
+    {
+        throw std::runtime_error(
+            "Embedding::import_hf: tensor '" + w_name + "' not found");
+    }
+
+    const auto& w_info = reader.tensor_info(w_name);
+
+    // Validate dtype compatibility
+    if(!io::is_safetensors_dtype_compatible(
+           io::dtype_to_safetensors(w_info.dtype), dtype_))
+    {
+        throw std::runtime_error(
+            "Embedding::import_hf: dtype mismatch for '" + w_name +
+            "': file has " + io::dtype_to_safetensors(w_info.dtype) +
+            ", module expects " + io::dtype_to_safetensors(dtype_));
+    }
+
+    // Validate shape: HF embedding is (num_embeddings, embed_dim)
+    if(w_info.shape.size() != 2 ||
+       w_info.shape[0] != static_cast<std::int64_t>(num_embeddings_) ||
+       w_info.shape[1] != static_cast<std::int64_t>(embed_dim_))
+    {
+        throw std::runtime_error(
+            "Embedding::import_hf: shape mismatch for '" + w_name +
+            "': expected [" + std::to_string(num_embeddings_) + ", " +
+            std::to_string(embed_dim_) + "]");
+    }
+
+    auto w_data = reader.read_tensor(w_name);
+
+    // HF stores (num_embeddings, embed_dim) row-major.
+    // NNTile stores (embed_dim, num_embeddings) column-major.
+    // Same byte layout (row-major [V, D] == column-major [D, V]).
+    vocab_tensor_->data()->set_bind_hint(std::move(w_data));
+    vocab_tensor_->mark_input(true);
+}
+
+void Embedding::export_hf(io::SafeTensorsWriter& writer,
+                          const std::string& hf_prefix) const
+{
+    const auto* hint = vocab_tensor_->data()->get_bind_hint();
+    if(hint == nullptr)
+    {
+        throw std::runtime_error(
+            "Embedding::export_hf: vocab has no bind_hint data");
+    }
+
+    const std::string w_name = hf_prefix.empty()
+        ? "weight" : hf_prefix + ".weight";
+
+    writer.add_tensor(
+        w_name, dtype_,
+        {static_cast<std::int64_t>(num_embeddings_),
+         static_cast<std::int64_t>(embed_dim_)},
+        *hint);
+}
+
 //! Get string representation with dimensions
 std::string Embedding::repr() const
 {

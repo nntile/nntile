@@ -19,6 +19,9 @@
 #include <iostream>
 #include <stdexcept>
 
+// Include NNTile headers
+#include "nntile/graph/dtype.hh"
+
 namespace nntile::module
 {
 
@@ -247,6 +250,125 @@ void Module::collect_modules_recursive(std::vector<Module*>& result) const
     for(const auto& [name, module] : submodules_)
     {
         module->collect_modules_recursive(result);
+    }
+}
+
+// -----------------------------------------------------------------
+// Serialization (NNTile-native SafeTensors)
+// -----------------------------------------------------------------
+
+void Module::save(const std::string& path) const
+{
+    io::SafeTensorsWriter writer;
+    auto params = named_parameters_recursive();
+
+    for(const auto& [name, tensor] : params)
+    {
+        if(tensor == nullptr)
+        {
+            continue;
+        }
+        const auto* hint = tensor->data()->get_bind_hint();
+        if(hint == nullptr)
+        {
+            continue;
+        }
+
+        // Convert Index shape to int64_t shape
+        const auto& idx_shape = tensor->shape();
+        std::vector<std::int64_t> shape(idx_shape.begin(), idx_shape.end());
+
+        writer.add_tensor(name, tensor->dtype(), shape, *hint);
+    }
+
+    writer.write(path);
+}
+
+void Module::load(const std::string& path, bool strict)
+{
+    io::SafeTensorsReader reader(path);
+    auto params = named_parameters_recursive();
+
+    for(const auto& [name, tensor] : params)
+    {
+        if(tensor == nullptr)
+        {
+            continue;
+        }
+
+        if(!reader.has_tensor(name))
+        {
+            if(strict)
+            {
+                throw std::runtime_error(
+                    "Module::load: parameter '" + name +
+                    "' not found in '" + path + "'");
+            }
+            continue;
+        }
+
+        const auto& info = reader.tensor_info(name);
+
+        // Validate dtype compatibility
+        if(!io::is_safetensors_dtype_compatible(
+               io::dtype_to_safetensors(info.dtype), tensor->dtype()))
+        {
+            throw std::runtime_error(
+                "Module::load: dtype mismatch for parameter '" + name +
+                "': file has " + io::dtype_to_safetensors(info.dtype) +
+                ", module expects " +
+                io::dtype_to_safetensors(tensor->dtype()));
+        }
+
+        // Validate shape
+        const auto& idx_shape = tensor->shape();
+        if(static_cast<std::size_t>(idx_shape.size()) != info.shape.size())
+        {
+            throw std::runtime_error(
+                "Module::load: shape rank mismatch for parameter '" +
+                name + "'");
+        }
+        for(std::size_t i = 0; i < info.shape.size(); ++i)
+        {
+            if(static_cast<std::int64_t>(idx_shape[i]) != info.shape[i])
+            {
+                throw std::runtime_error(
+                    "Module::load: shape mismatch for parameter '" +
+                    name + "' at dimension " + std::to_string(i));
+            }
+        }
+
+        auto data = reader.read_tensor(name);
+        tensor->data()->set_bind_hint(std::move(data));
+        tensor->mark_input(true);
+    }
+}
+
+// -----------------------------------------------------------------
+// HuggingFace Import/Export
+// -----------------------------------------------------------------
+
+void Module::import_hf(const io::SafeTensorsReader& reader,
+                       const std::string& hf_prefix)
+{
+    for(const auto& [child_name, child] : submodules_)
+    {
+        std::string child_prefix = hf_prefix.empty()
+            ? child_name
+            : hf_prefix + "." + child_name;
+        child->import_hf(reader, child_prefix);
+    }
+}
+
+void Module::export_hf(io::SafeTensorsWriter& writer,
+                       const std::string& hf_prefix) const
+{
+    for(const auto& [child_name, child] : submodules_)
+    {
+        std::string child_prefix = hf_prefix.empty()
+            ? child_name
+            : hf_prefix + "." + child_name;
+        child->export_hf(writer, child_prefix);
     }
 }
 
