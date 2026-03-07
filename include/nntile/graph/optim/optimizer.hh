@@ -19,7 +19,8 @@
 #include <string>
 #include <vector>
 
-#include <nntile/graph.hh>
+#include <nntile/graph/nn.hh>
+#include <nntile/graph/tensor.hh>
 #include <nntile/graph/io/safetensors.hh>
 #include <nntile/graph/module/module.hh>
 

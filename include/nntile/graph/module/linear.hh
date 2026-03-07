@@ -25,7 +25,7 @@
 #endif
 
 // Include NNTile headers
-#include <nntile/graph.hh>
+#include <nntile/graph/nn.hh>
 #include <nntile/graph/module/module.hh>
 
 namespace nntile::graph::module

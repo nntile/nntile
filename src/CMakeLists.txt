@@ -408,8 +408,7 @@ set(LOGGER_SRC
     "logger/websocket_client.cc"
 )
 
-# Graph-related sources (core: always built)
-set(GRAPH_CORE_SRC
+set(GRAPH_TENSOR_SRC
     "graph/dtype.cc"
     "graph/tensor/add.cc"
     "graph/tensor/add_fiber.cc"
@@ -436,6 +435,8 @@ set(GRAPH_CORE_SRC
     "graph/tensor/gelutanh.cc"
     "graph/tensor/gelutanh_backward.cc"
     "graph/tensor/gelutanh_inplace.cc"
+    "graph/tensor/graph_data_node.cc"
+    "graph/tensor/graph_runtime.cc"
     "graph/tensor/hypot.cc"
     "graph/tensor/hypot_inplace.cc"
     "graph/tensor/hypot_scalar_inverse.cc"
@@ -485,7 +486,6 @@ set(GRAPH_CORE_SRC
     "graph/tensor/transpose.cc"
 )
 
-# NNGraph, TensorGraph, Runtime
 set(GRAPH_NN_SRC
     "graph/nn/graph.cc"
     "graph/nn/tensor_node.cc"
@@ -518,24 +518,34 @@ set(GRAPH_NN_SRC
     "graph/nn/adamw_step.cc"
     "graph/nn/sum_fiber.cc"
     "graph/nn/sum_slice.cc"
-    "graph/tensor/graph_data_node.cc"
-    "graph/tensor/graph_runtime.cc"
 )
 
-set(GRAPH_SRC
-    ${GRAPH_CORE_SRC}
-    ${GRAPH_NN_SRC}
+set(GRAPH_IO_SRC
     "graph/io/safetensors.cc"
+)
+
+set(GRAPH_MODULE_SRC
     "graph/module/module.cc"
     "graph/module/activation.cc"
     "graph/module/gated_mlp.cc"
     "graph/module/mlp.cc"
     "graph/module/linear.cc"
     "graph/module/embedding.cc"
+)
+
+set(GRAPH_OPTIM_SRC
     "graph/optim/optimizer.cc"
     "graph/optim/sgd.cc"
     "graph/optim/adam.cc"
     "graph/optim/adamw.cc"
+)
+
+set(GRAPH_SRC
+    ${GRAPH_TENSOR_SRC}
+    ${GRAPH_NN_SRC}
+    ${GRAPH_IO_SRC}
+    ${GRAPH_MODULE_SRC}
+    ${GRAPH_OPTIM_SRC}
 )
 
 # Set the list of all sources
