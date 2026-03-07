@@ -542,6 +542,9 @@ set(GRAPH_HDR
     "nntile/graph/nn/clear.hh"
     "nntile/graph/nn/cross_entropy.hh"
     "nntile/graph/nn/fill.hh"
+    "nntile/graph/nn/sgd_step.hh"
+    "nntile/graph/nn/adam_step.hh"
+    "nntile/graph/nn/adamw_step.hh"
     )
 
 set(MODULE_HDR
