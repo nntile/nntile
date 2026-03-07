@@ -89,7 +89,10 @@ jobs:
       - name: Install PyTorch for LibTorch
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
-          $HOME/.local/bin/uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
+          # Must match torch version used in test-python (pyproject.toml ci extra)
+          # to avoid ABI mismatch: build links LibTorch, runtime loads different torch.
+          $HOME/.local/bin/uv pip install --system 'torch==2.7.1+cpu' \
+            --index-url https://download.pytorch.org/whl/cpu
       - name: Build StarPU
         run: |
           export STARPU_VERSION=starpu-1.4.8

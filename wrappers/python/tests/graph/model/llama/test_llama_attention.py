@@ -63,6 +63,12 @@ def _build_torch_layer(params: Params):
     return LlamaAttention(cfg, layer_idx=0), cfg
 
 
+def _causal_mask(seq_len: int) -> np.ndarray:
+    """Causal mask: True where we can attend. HF (q,k), NNTile (k,q) both use
+    upper triangle: attend when key <= query."""
+    return np.triu(np.ones((seq_len, seq_len)), k=0).astype(bool)
+
+
 def _run_torch_forward(torch_layer, x_np, params, pos_ids, mask):
     """Run HF LlamaAttention forward and return the output tensor."""
     x_torch = torch.tensor(x_np.T.copy(), requires_grad=True)
@@ -119,9 +125,7 @@ class TestGraphLlamaAttention:
             size=(params.n_batch, params.seq_len),
             dtype=np.int64,
         )
-        mask = np.triu(
-            np.ones((params.seq_len, params.seq_len)), k=0
-        ).astype(bool)
+        mask = _causal_mask(params.seq_len)
 
         wrapper = GraphLlamaAttention.from_torch(
             torch_layer, params.seq_len, params.n_batch,
@@ -154,9 +158,7 @@ class TestGraphLlamaAttention:
             size=(params.n_batch, params.seq_len),
             dtype=np.int64,
         )
-        mask = np.triu(
-            np.ones((params.seq_len, params.seq_len)), k=0
-        ).astype(bool)
+        mask = _causal_mask(params.seq_len)
 
         y_torch, _, _, _ = _run_torch_forward(
             torch_layer, x_np, params, pos_ids, mask,
@@ -213,9 +215,7 @@ class TestGraphLlamaAttention:
             size=(params.n_batch, params.seq_len),
             dtype=np.int64,
         )
-        mask = np.triu(
-            np.ones((params.seq_len, params.seq_len)), k=0
-        ).astype(bool)
+        mask = _causal_mask(params.seq_len)
 
         y_torch, x_torch, _, _ = _run_torch_forward(
             torch_layer, x_np, params, pos_ids, mask,
