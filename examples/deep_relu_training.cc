@@ -427,14 +427,40 @@ int main(int argc, char** argv)
                         || !args.export_hf.empty();
     bool need_optim_sync = !args.save_optim.empty()
                         || !args.export_hf_optim.empty();
+    auto sync_tensor = [&runtime](NNGraph::TensorNode* t) {
+        const auto& tname = t->name();
+        std::vector<std::uint8_t> bytes;
+        switch(t->dtype())
+        {
+            case DataType::FP64:
+            {
+                auto d = runtime.get_output<double>(tname);
+                bytes.resize(d.size() * sizeof(double));
+                std::memcpy(bytes.data(), d.data(), bytes.size());
+                break;
+            }
+            case DataType::INT64:
+            {
+                auto d = runtime.get_output<std::int64_t>(tname);
+                bytes.resize(d.size() * sizeof(std::int64_t));
+                std::memcpy(bytes.data(), d.data(), bytes.size());
+                break;
+            }
+            default:
+            {
+                auto d = runtime.get_output<float>(tname);
+                bytes.resize(d.size() * sizeof(float));
+                std::memcpy(bytes.data(), d.data(), bytes.size());
+                break;
+            }
+        }
+        t->data()->set_bind_hint(std::move(bytes));
+    };
     if(need_model_sync)
     {
         for(const auto& [pname, ptensor] : params)
         {
-            auto pdata = runtime.get_output<float>(ptensor->name());
-            std::vector<std::uint8_t> bytes(pdata.size() * sizeof(float));
-            std::memcpy(bytes.data(), pdata.data(), bytes.size());
-            ptensor->data()->set_bind_hint(std::move(bytes));
+            sync_tensor(ptensor);
         }
     }
     if(need_optim_sync)

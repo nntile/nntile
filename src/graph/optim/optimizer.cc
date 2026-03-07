@@ -128,6 +128,43 @@ void Optimizer::load(const std::string& path)
     }
 }
 
+namespace
+{
+
+template<typename T>
+std::vector<std::uint8_t> get_output_bytes(TensorGraph::Runtime& runtime,
+                                           const std::string& name)
+{
+    auto data = runtime.get_output<T>(name);
+    std::vector<std::uint8_t> bytes(data.size() * sizeof(T));
+    std::memcpy(bytes.data(), data.data(), bytes.size());
+    return bytes;
+}
+
+std::vector<std::uint8_t> sync_tensor_bytes(TensorGraph::Runtime& runtime,
+                                            const std::string& name,
+                                            DataType dtype)
+{
+    switch(dtype)
+    {
+        case DataType::FP32:
+        case DataType::FP32_FAST_TF32:
+        case DataType::FP32_FAST_FP16:
+        case DataType::FP32_FAST_BF16:
+            return get_output_bytes<float>(runtime, name);
+        case DataType::FP64:
+            return get_output_bytes<double>(runtime, name);
+        case DataType::INT64:
+            return get_output_bytes<std::int64_t>(runtime, name);
+        default:
+            throw std::runtime_error(
+                "sync_tensor_bytes: unsupported dtype for tensor '" +
+                name + "'");
+    }
+}
+
+} // anonymous namespace
+
 void Optimizer::sync_from_runtime(TensorGraph::Runtime& runtime)
 {
     for(auto& ps : param_states_)
@@ -138,9 +175,8 @@ void Optimizer::sync_from_runtime(TensorGraph::Runtime& runtime)
             {
                 continue;
             }
-            auto data = runtime.get_output<float>(buf_name);
-            std::vector<std::uint8_t> bytes(data.size() * sizeof(float));
-            std::memcpy(bytes.data(), data.data(), bytes.size());
+            auto bytes = sync_tensor_bytes(
+                runtime, buf_name, buf_tensor->dtype());
             buf_tensor->data()->set_bind_hint(std::move(bytes));
         }
     }
