@@ -21,13 +21,14 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/nn/graph_op_node.hh>
 #include <nntile/graph/tensor/adam_step.hh>
+#include <memory>
 
 namespace nntile::graph
 {
 
 struct NNAdamStepOp : NNGraph::OpNode
 {
-    Index num_iter;
+    std::shared_ptr<Index> num_iter;
     Scalar beta_1;
     Scalar beta_2;
     Scalar eps;
@@ -43,9 +44,9 @@ struct NNAdamStepOp : NNGraph::OpNode
                  NNGraph::TensorNode* grad_,
                  NNGraph::TensorNode* first_moment_,
                  NNGraph::TensorNode* second_moment_,
-                 Index num_iter_, Scalar beta_1_, Scalar beta_2_,
+                 std::shared_ptr<Index> num_iter_, Scalar beta_1_, Scalar beta_2_,
                  Scalar eps_, Scalar lr_, Scalar weight_decay_)
-        : num_iter(num_iter_), beta_1(beta_1_), beta_2(beta_2_),
+        : num_iter(std::move(num_iter_)), beta_1(beta_1_), beta_2(beta_2_),
           eps(eps_), lr(lr_), weight_decay(weight_decay_),
           param(param_), grad(grad_),
           first_moment(first_moment_), second_moment(second_moment_)
@@ -65,6 +66,14 @@ void adam_step(
     NNGraph::TensorNode* first_moment,
     NNGraph::TensorNode* second_moment,
     Index num_iter, Scalar beta_1 = 0.9, Scalar beta_2 = 0.999,
+    Scalar eps = 1e-8, Scalar lr = 0.001, Scalar weight_decay = 0.0);
+
+void adam_step(
+    NNGraph::TensorNode* param,
+    NNGraph::TensorNode* grad,
+    NNGraph::TensorNode* first_moment,
+    NNGraph::TensorNode* second_moment,
+    std::shared_ptr<Index> num_iter, Scalar beta_1 = 0.9, Scalar beta_2 = 0.999,
     Scalar eps = 1e-8, Scalar lr = 0.001, Scalar weight_decay = 0.0);
 
 } // namespace nntile::graph
