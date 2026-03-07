@@ -41,7 +41,6 @@ Optimizer::Optimizer(NNGraph* graph, module::Module* module)
 
 void Optimizer::collect_params(module::Module* module)
 {
-    auto param_grads = module->parameter_gradients_recursive();
     auto named_params = module->named_parameters_recursive();
 
     for(std::size_t i = 0; i < named_params.size(); ++i)
