@@ -168,6 +168,8 @@ endif()
 #find_package(MPI REQUIRED)
 #target_link_libraries(nntile PUBLIC MPI::MPI_CXX)
 
+target_link_libraries(nntile PUBLIC nlohmann_json::nlohmann_json)
+
 target_include_directories(nntile PRIVATE
     "${PROJECT_SOURCE_DIR}/external"
     )

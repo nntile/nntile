@@ -23,6 +23,7 @@
 
 // Include NNTile headers
 #include <nntile/graph.hh>
+#include <nntile/io/safetensors.hh>
 
 namespace nntile::module
 {
@@ -166,6 +167,42 @@ public:
     //! "weight", "bias"), not for external input tensors. For input gradients,
     //! use input_tensor->name() + "_grad".
     std::string grad_name(const std::string& local_name) const;
+
+    // -----------------------------------------------------------------
+    // Serialization (NNTile-native SafeTensors)
+    // -----------------------------------------------------------------
+
+    //! Save all parameters to a SafeTensors file in NNTile-native layout.
+    //! Iterates named_parameters_recursive() and writes each parameter's
+    //! bind_hint data. Parameters without a bind_hint are skipped.
+    void save(const std::string& path) const;
+
+    //! Load parameters from a SafeTensors file in NNTile-native layout.
+    //! Matches tensor names from the file to named_parameters_recursive()
+    //! and calls set_bind_hint() on each matched parameter.
+    //! @param strict If true (default), throws if any module parameter is
+    //!        missing from the file. If false, missing tensors are skipped.
+    void load(const std::string& path, bool strict = true);
+
+    // -----------------------------------------------------------------
+    // HuggingFace Import/Export
+    // -----------------------------------------------------------------
+
+    //! Import weights from an HF-format SafeTensors file.
+    //! Default implementation delegates to submodules, appending child
+    //! names to the prefix. Leaf modules override to do the actual
+    //! data reading and conversion (transpose, reshape, etc.).
+    //! @param reader  An already-opened SafeTensorsReader for the HF file.
+    //! @param hf_prefix  The HF key prefix for this module's tensors
+    //!                   (e.g. "model.layers.0.self_attn").
+    virtual void import_hf(const io::SafeTensorsReader& reader,
+                           const std::string& hf_prefix);
+
+    //! Export weights to an HF-format SafeTensors file.
+    //! Default implementation delegates to submodules. Leaf modules
+    //! override to do the reverse conversion and write via the writer.
+    virtual void export_hf(io::SafeTensorsWriter& writer,
+                           const std::string& hf_prefix) const;
 
     // -----------------------------------------------------------------
     // String Representation
