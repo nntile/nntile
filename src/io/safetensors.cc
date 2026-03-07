@@ -279,27 +279,7 @@ void SafeTensorsWriter::add_tensor(
     const std::vector<std::int64_t>& shape,
     const std::vector<std::uint8_t>& data)
 {
-    // Check for duplicate names
-    for(const auto& e : entries_)
-    {
-        if(e.name == name)
-        {
-            throw std::invalid_argument(
-                "SafeTensorsWriter::add_tensor: duplicate name '" +
-                name + "'");
-        }
-    }
-
-    std::size_t expected = compute_expected_size(shape, dtype);
-    if(data.size() != expected)
-    {
-        throw std::invalid_argument(
-            "SafeTensorsWriter::add_tensor: data size mismatch for '" +
-            name + "': expected " + std::to_string(expected) +
-            " bytes, got " + std::to_string(data.size()));
-    }
-
-    entries_.push_back({name, dtype, shape, data});
+    add_tensor(name, dtype, shape, std::vector<std::uint8_t>(data));
 }
 
 void SafeTensorsWriter::add_tensor(
