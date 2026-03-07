@@ -282,8 +282,12 @@ int main(int argc, char** argv)
     auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(
         t_end - t_start).count();
 
-    std::cout << "\nTraining completed in " << total_us << " us"
-              << " (" << (total_us / num_iters) << " us/iter)\n";
+    std::cout << "\nTraining completed in " << total_us << " us";
+    if(num_iters > 0)
+    {
+        std::cout << " (" << (total_us / num_iters) << " us/iter)";
+    }
+    std::cout << "\n";
 
     std::cout << "\nDone.\n";
     return 0;
