@@ -3,3 +3,6 @@ build/
 .vscode
 __pycache__
 .venv/
+
+# Binary test data (generated at test time via CTest fixture)
+*.safetensors
