@@ -17,6 +17,7 @@
 // NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
+#include <memory>
 
 namespace nntile::graph::tensor
 {
@@ -24,7 +25,7 @@ namespace nntile::graph::tensor
 //! SGD step: p = p - lr*grad (with momentum, weight decay, etc.)
 struct TensorSgdStepOp : TensorGraph::OpNode
 {
-    Index num_iter;
+    std::shared_ptr<Index> num_iter;
     Scalar momentum;
     Scalar lr;
     Scalar weight_decay;
@@ -35,12 +36,12 @@ struct TensorSgdStepOp : TensorGraph::OpNode
     TensorGraph::TensorNode* p = nullptr;
 
     TensorSgdStepOp() = default;
-    TensorSgdStepOp(Index num_iter_, Scalar momentum_, Scalar lr_,
+    TensorSgdStepOp(std::shared_ptr<Index> num_iter_, Scalar momentum_, Scalar lr_,
                    Scalar weight_decay_, Scalar dampening_, bool nesterov_,
                    TensorGraph::TensorNode* grad_,
                    TensorGraph::TensorNode* velocity_,
                    TensorGraph::TensorNode* p_)
-        : num_iter(num_iter_), momentum(momentum_), lr(lr_),
+        : num_iter(std::move(num_iter_)), momentum(momentum_), lr(lr_),
           weight_decay(weight_decay_), dampening(dampening_), nesterov(nesterov_),
           grad(grad_), velocity(velocity_), p(p_)
     {
@@ -60,6 +61,12 @@ struct TensorSgdStepOp : TensorGraph::OpNode
 
 //! SGD step
 void sgd_step(Index num_iter, Scalar momentum, Scalar lr,
+              Scalar weight_decay, Scalar dampening, bool nesterov,
+              TensorGraph::TensorNode* grad,
+              TensorGraph::TensorNode* velocity,
+              TensorGraph::TensorNode* p);
+
+void sgd_step(std::shared_ptr<Index> num_iter, Scalar momentum, Scalar lr,
               Scalar weight_decay, Scalar dampening, bool nesterov,
               TensorGraph::TensorNode* grad,
               TensorGraph::TensorNode* velocity,
