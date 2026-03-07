@@ -545,9 +545,7 @@ set(GRAPH_HDR
     "nntile/graph/nn/sgd_step.hh"
     "nntile/graph/nn/adam_step.hh"
     "nntile/graph/nn/adamw_step.hh"
-    )
-
-set(MODULE_HDR
+    "nntile/graph/io/safetensors.hh"
     "nntile/module.hh"
     "nntile/graph/module/module.hh"
     "nntile/graph/module/activation.hh"
@@ -555,10 +553,6 @@ set(MODULE_HDR
     "nntile/graph/module/linear.hh"
     "nntile/graph/module/embedding.hh"
     "nntile/graph/module/mlp.hh"
-    "nntile/graph/io/safetensors.hh"
-)
-
-set(OPTIMIZER_HDR
     "nntile/optim.hh"
     "nntile/graph/optim/optimizer.hh"
     "nntile/graph/optim/sgd.hh"
@@ -572,6 +566,6 @@ set(LOGGER_HDR
     )
 
 set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR}
-    ${TENSOR_HDR} ${GRAPH_HDR} ${MODULE_HDR} ${OPTIMIZER_HDR} ${LOGGER_HDR})
+    ${TENSOR_HDR} ${GRAPH_HDR} ${LOGGER_HDR})
 
 target_sources(nntile PUBLIC ${HDR})

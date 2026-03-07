@@ -522,25 +522,16 @@ set(GRAPH_NN_SRC
     "graph/tensor/graph_runtime.cc"
 )
 
-set(GRAPH_SRC ${GRAPH_CORE_SRC} ${GRAPH_NN_SRC})
-
-# I/O serialization
-set(IO_SRC
+set(GRAPH_SRC
+    ${GRAPH_CORE_SRC}
+    ${GRAPH_NN_SRC}
     "graph/io/safetensors.cc"
-)
-
-# Module implementations
-set(MODULE_SRC
     "graph/module/module.cc"
     "graph/module/activation.cc"
     "graph/module/gated_mlp.cc"
     "graph/module/mlp.cc"
     "graph/module/linear.cc"
     "graph/module/embedding.cc"
-)
-
-# Optimizer implementations
-set(OPTIM_SRC
     "graph/optim/optimizer.cc"
     "graph/optim/sgd.cc"
     "graph/optim/adam.cc"
@@ -559,9 +550,6 @@ set(NNTILE_SRC
     ${TENSOR_BASE_SRC}
     ${TENSOR_OPERATION_SRC}
     ${GRAPH_SRC}
-    ${IO_SRC}
-    ${MODULE_SRC}
-    ${OPTIM_SRC}
     ${LOGGER_SRC}
 )
 
