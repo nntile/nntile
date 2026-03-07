@@ -6,28 +6,28 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/module/embedding.cc
+ * @file src/graph/module/embedding.cc
  * Embedding module implementation using NNTile graph API.
  *
  * @version 1.1.0
  * */
 
 // Include corresponding header
-#include "nntile/module/embedding.hh"
+#include "nntile/graph/module/embedding.hh"
 
 // Include standard headers
 #include <cstring>
 #include <stdexcept>
 
-namespace nntile::module
+namespace nntile::graph::module
 {
 
 //! Constructor: creates new vocab tensor
-Embedding::Embedding(graph::NNGraph* graph,
+Embedding::Embedding(NNGraph* graph,
                      const std::string& name,
                      Index num_embeddings,
                      Index embed_dim,
-                     graph::DataType dtype)
+                     DataType dtype)
     : Module(graph, name)
     , num_embeddings_(num_embeddings)
     , embed_dim_(embed_dim)
@@ -45,13 +45,13 @@ Embedding::Embedding(graph::NNGraph* graph,
 }
 
 //! Constructor: creates new vocab tensor with custom axis and redux
-Embedding::Embedding(graph::NNGraph* graph,
+Embedding::Embedding(NNGraph* graph,
                      const std::string& name,
                      Index num_embeddings,
                      Index embed_dim,
                      Index axis,
                      int redux,
-                     graph::DataType dtype)
+                     DataType dtype)
     : Module(graph, name)
     , num_embeddings_(num_embeddings)
     , embed_dim_(embed_dim)
@@ -68,16 +68,16 @@ Embedding::Embedding(graph::NNGraph* graph,
 }
 
 //! Constructor: uses existing vocab tensor
-Embedding::Embedding(graph::NNGraph* graph,
+Embedding::Embedding(NNGraph* graph,
                      const std::string& name,
-                     graph::NNGraph::TensorNode* vocab_tensor)
+                     NNGraph::TensorNode* vocab_tensor)
     : Module(graph, name)
     , vocab_tensor_(vocab_tensor)
     , num_embeddings_(0)
     , embed_dim_(0)
     , axis_(-1)
     , redux_(0)
-    , dtype_(vocab_tensor != nullptr ? vocab_tensor->dtype() : graph::DataType::FP32)
+    , dtype_(vocab_tensor != nullptr ? vocab_tensor->dtype() : DataType::FP32)
 {
     if(vocab_tensor == nullptr)
     {
@@ -99,9 +99,9 @@ Embedding::Embedding(graph::NNGraph* graph,
 }
 
 //! Constructor: uses existing vocab tensor with custom axis and redux
-Embedding::Embedding(graph::NNGraph* graph,
+Embedding::Embedding(NNGraph* graph,
                      const std::string& name,
-                     graph::NNGraph::TensorNode* vocab_tensor,
+                     NNGraph::TensorNode* vocab_tensor,
                      Index axis,
                      int redux)
     : Module(graph, name)
@@ -110,7 +110,7 @@ Embedding::Embedding(graph::NNGraph* graph,
     , embed_dim_(0)
     , axis_(axis)
     , redux_(redux)
-    , dtype_(vocab_tensor != nullptr ? vocab_tensor->dtype() : graph::DataType::FP32)
+    , dtype_(vocab_tensor != nullptr ? vocab_tensor->dtype() : DataType::FP32)
 {
     if(vocab_tensor == nullptr)
     {
@@ -131,8 +131,8 @@ Embedding::Embedding(graph::NNGraph* graph,
     register_parameter("vocab", vocab_tensor_);
 }
 
-graph::NNGraph::TensorNode* Embedding::forward(
-    graph::NNGraph::TensorNode* index)
+NNGraph::TensorNode* Embedding::forward(
+    NNGraph::TensorNode* index)
 {
     if(index == nullptr)
     {
@@ -145,7 +145,7 @@ graph::NNGraph::TensorNode* Embedding::forward(
             "Embedding::forward: index tensor must have at least one "
             "dimension, got 0-dimensional (scalar) tensor");
     }
-    if(index->dtype() != graph::DataType::INT64)
+    if(index->dtype() != DataType::INT64)
     {
         throw std::invalid_argument(
             "Embedding::forward: index tensor must have INT64 dtype");
@@ -270,4 +270,4 @@ std::string Embedding::repr() const
     return result;
 }
 
-} // namespace nntile::module
+} // namespace nntile::graph::module

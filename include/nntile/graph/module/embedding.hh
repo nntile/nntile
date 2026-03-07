@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/module/embedding.hh
+ * @file include/nntile/graph/module/embedding.hh
  * Embedding module implementation using NNTile graph API.
  *
  * @version 1.1.0
@@ -25,9 +25,9 @@
 
 // Include NNTile headers
 #include <nntile/graph.hh>
-#include <nntile/module/module.hh>
+#include <nntile/graph/module/module.hh>
 
-namespace nntile::module
+namespace nntile::graph::module
 {
 
 //! Embedding module using graph API
@@ -43,17 +43,17 @@ class Embedding : public Module
 {
 private:
     // Reference to parameter tensor (also registered via register_parameter)
-    graph::NNGraph::TensorNode* vocab_tensor_ = nullptr;
+    NNGraph::TensorNode* vocab_tensor_ = nullptr;
 
-    graph::NNGraph::TensorNode* index_tensor_ = nullptr;
-    graph::NNGraph::TensorNode* output_tensor_ = nullptr;
+    NNGraph::TensorNode* index_tensor_ = nullptr;
+    NNGraph::TensorNode* output_tensor_ = nullptr;
 
     // Dimensions and data type
     Index num_embeddings_;
     Index embed_dim_;
     Index axis_;
     int redux_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
     //! Constructor: creates new vocab tensor
@@ -63,11 +63,11 @@ public:
     //! @param embed_dim Size of each embedding vector
     //! @param dtype Data type for tensors
     Embedding(
-        graph::NNGraph* graph,
+        NNGraph* graph,
         const std::string& name,
         Index num_embeddings,
         Index embed_dim,
-        graph::DataType dtype = graph::DataType::FP32
+        DataType dtype = DataType::FP32
     );
 
     //! Constructor: creates new vocab tensor with custom axis and redux
@@ -79,13 +79,13 @@ public:
     //! @param redux Reduction mode for backward (0=no reduction, 1=reduce)
     //! @param dtype Data type for tensors
     Embedding(
-        graph::NNGraph* graph,
+        NNGraph* graph,
         const std::string& name,
         Index num_embeddings,
         Index embed_dim,
         Index axis,
         int redux,
-        graph::DataType dtype = graph::DataType::FP32
+        DataType dtype = DataType::FP32
     );
 
     //! Constructor: uses existing vocab tensor
@@ -93,9 +93,9 @@ public:
     //! @param name Layer name (used to generate unique tensor names)
     //! @param vocab_tensor Existing vocab tensor [num_embeddings, embed_dim]
     Embedding(
-        graph::NNGraph* graph,
+        NNGraph* graph,
         const std::string& name,
-        graph::NNGraph::TensorNode* vocab_tensor
+        NNGraph::TensorNode* vocab_tensor
     );
 
     //! Constructor: uses existing vocab tensor with custom axis and redux
@@ -105,9 +105,9 @@ public:
     //! @param axis Axis along which embedding dimension is inserted
     //! @param redux Reduction mode for backward
     Embedding(
-        graph::NNGraph* graph,
+        NNGraph* graph,
         const std::string& name,
-        graph::NNGraph::TensorNode* vocab_tensor,
+        NNGraph::TensorNode* vocab_tensor,
         Index axis,
         int redux
     );
@@ -120,10 +120,10 @@ public:
     //! @param embedding_layer PyTorch Embedding layer to mirror (weight copied)
     //! @param dtype Data type for tensors
     Embedding(
-        graph::NNGraph* graph,
+        NNGraph* graph,
         const std::string& name,
         const torch::nn::Embedding& embedding_layer,
-        graph::DataType dtype = graph::DataType::FP32
+        DataType dtype = DataType::FP32
     );
 
     //! Get vocab data in NNTile format for runtime.bind_data().
@@ -132,8 +132,8 @@ public:
     static std::vector<float> vocab_data_from_pytorch(const torch::Tensor& w);
 #endif
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* index);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* index);
 
     //! Bind vocab (weight) data for Runtime::compile(). Data must be in NNTile
     //! layout [embed_dim, num_embeddings] column-major.
@@ -144,7 +144,7 @@ public:
     void bind_weight(const std::vector<float>& data);
 
     //! Forward: calls forward (user does bookkeeping via autograd ops)
-    graph::NNGraph::TensorNode* operator()(graph::NNGraph::TensorNode* index)
+    NNGraph::TensorNode* operator()(NNGraph::TensorNode* index)
     {
         return forward(index);
     }
@@ -163,22 +163,22 @@ public:
     std::string repr() const override;
 
     // Tensor accessors
-    graph::NNGraph::TensorNode* vocab_tensor() const { return vocab_tensor_; }
+    NNGraph::TensorNode* vocab_tensor() const { return vocab_tensor_; }
 
     // Dimension accessors
     Index num_embeddings() const { return num_embeddings_; }
     Index embed_dim() const { return embed_dim_; }
     Index axis() const { return axis_; }
     int redux() const { return redux_; }
-    graph::DataType dtype() const { return dtype_; }
+    DataType dtype() const { return dtype_; }
 };
 
 #ifdef NNTILE_HAVE_TORCH
 
-inline Embedding::Embedding(graph::NNGraph* graph,
+inline Embedding::Embedding(NNGraph* graph,
                            const std::string& name,
                            const torch::nn::Embedding& embedding_layer,
-                           graph::DataType dtype)
+                           DataType dtype)
     : Embedding(graph, name,
                 static_cast<Index>(embedding_layer->weight.size(0)),
                 static_cast<Index>(embedding_layer->weight.size(1)),
@@ -217,4 +217,4 @@ inline std::vector<float> Embedding::vocab_data_from_pytorch(
 
 #endif // NNTILE_HAVE_TORCH
 
-} // namespace nntile::module
+} // namespace nntile::graph::module

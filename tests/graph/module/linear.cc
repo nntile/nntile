@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/module/linear.cc
+ * @file tests/graph/module/linear.cc
  * Tests for Linear module.
  *
  * @version 1.1.0
@@ -26,7 +26,7 @@
 
 // Include other NNTile headers
 #include "nntile/graph.hh"
-#include "nntile/module/linear.hh"
+#include "nntile/graph/module/linear.hh"
 #include "nntile/graph/tensor/graph.hh"
 
 #ifdef NNTILE_HAVE_TORCH
@@ -36,7 +36,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
-using namespace nntile::module;
+using namespace nntile::graph::module;
 namespace gt = nntile::graph::tensor;
 
 TEST_CASE("Linear ConstructorCreatesParameters", "[module]")

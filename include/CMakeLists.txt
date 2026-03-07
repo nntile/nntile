@@ -549,12 +549,13 @@ set(GRAPH_HDR
 
 set(MODULE_HDR
     "nntile/module.hh"
-    "nntile/module/module.hh"
-    "nntile/module/activation.hh"
-    "nntile/module/gated_mlp.hh"
-    "nntile/module/linear.hh"
-    "nntile/module/embedding.hh"
-    "nntile/module/mlp.hh"
+    "nntile/graph/module/module.hh"
+    "nntile/graph/module/activation.hh"
+    "nntile/graph/module/gated_mlp.hh"
+    "nntile/graph/module/linear.hh"
+    "nntile/graph/module/embedding.hh"
+    "nntile/graph/module/mlp.hh"
+    "nntile/graph/io/safetensors.hh"
 )
 
 set(OPTIMIZER_HDR

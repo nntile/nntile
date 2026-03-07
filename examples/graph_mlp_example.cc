@@ -40,8 +40,8 @@ int main(int argc, char** argv) {
     nntile::graph::NNGraph graph("MLP_Graph");
 
     // Create MLP module (input_dim=8, intermediate_dim=16, output_dim=4)
-    nntile::module::Mlp mlp(
-        &graph, "mlp", 8, 16, 4, nntile::module::ActivationType::GELU,
+    nntile::graph::module::Mlp mlp(
+        &graph, "mlp", 8, 16, 4, nntile::graph::module::ActivationType::GELU,
         nntile::graph::DataType::FP32);
 
     // Create input tensor (requires_grad to compute input gradients)

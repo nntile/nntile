@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/module/gated_mlp.hh
+ * @file include/nntile/graph/module/gated_mlp.hh
  * Gated MLP module (Llama-style) using NNTile graph API.
  *
  * Architecture: down_proj(activation(gate_proj(x)) * up_proj(x))
@@ -33,11 +33,11 @@
 
 // Include NNTile headers
 #include <nntile/graph.hh>
-#include <nntile/module/activation.hh>
-#include <nntile/module/linear.hh>
-#include <nntile/module/module.hh>
+#include <nntile/graph/module/activation.hh>
+#include <nntile/graph/module/linear.hh>
+#include <nntile/graph/module/module.hh>
 
-namespace nntile::module
+namespace nntile::graph::module
 {
 
 //! Gated MLP (Llama-style) module using graph API
@@ -63,16 +63,16 @@ private:
     Index input_dim_;
     Index intermediate_dim_;
     Index output_dim_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
     //! Intermediate tensors (created during forward)
-    graph::NNGraph::TensorNode* gate_tensor_ = nullptr;   // After gate_proj
-    graph::NNGraph::TensorNode* up_tensor_ = nullptr;    // After up_proj
-    graph::NNGraph::TensorNode* gate_act_tensor_ = nullptr;  // After activation
-    graph::NNGraph::TensorNode* hidden_tensor_ = nullptr;    // gate_act * up
+    NNGraph::TensorNode* gate_tensor_ = nullptr;   // After gate_proj
+    NNGraph::TensorNode* up_tensor_ = nullptr;    // After up_proj
+    NNGraph::TensorNode* gate_act_tensor_ = nullptr;  // After activation
+    NNGraph::TensorNode* hidden_tensor_ = nullptr;    // gate_act * up
 
-    graph::NNGraph::TensorNode* input_tensor_ = nullptr;
-    graph::NNGraph::TensorNode* output_tensor_ = nullptr;
+    NNGraph::TensorNode* input_tensor_ = nullptr;
+    NNGraph::TensorNode* output_tensor_ = nullptr;
 
 public:
     //! Constructor: creates GatedMLP with specified dimensions
@@ -83,13 +83,13 @@ public:
     //! @param output_dim Output feature dimension
     //! @param activation Activation for gate (default: silu, Llama-style)
     //! @param dtype Data type for all tensors
-    GatedMlp(graph::NNGraph* graph,
+    GatedMlp(NNGraph* graph,
              const std::string& name,
              Index input_dim,
              Index intermediate_dim,
              Index output_dim,
              ActivationType activation = ActivationType::SILU,
-             graph::DataType dtype = graph::DataType::FP32);
+             DataType dtype = DataType::FP32);
 
     //! Constructor: creates GatedMLP where output_dim == input_dim (common in transformers)
     //! @param graph Pointer to the neural network graph this module belongs to
@@ -98,12 +98,12 @@ public:
     //! @param intermediate_dim Hidden layer dimension
     //! @param activation Activation for gate (default: silu, Llama-style)
     //! @param dtype Data type for all tensors
-    GatedMlp(graph::NNGraph* graph,
+    GatedMlp(NNGraph* graph,
              const std::string& name,
              Index input_dim,
              Index intermediate_dim,
              ActivationType activation = ActivationType::SILU,
-             graph::DataType dtype = graph::DataType::FP32);
+             DataType dtype = DataType::FP32);
 
 #ifdef NNTILE_HAVE_TORCH
     //! Constructor: creates GatedMlp from PyTorch Linear layers with
@@ -115,20 +115,20 @@ public:
     //! @param down_proj_layer PyTorch down projection (intermediate -> output)
     //! @param activation Activation for gate (must match PyTorch)
     //! @param dtype Data type for all tensors
-    GatedMlp(graph::NNGraph* graph,
+    GatedMlp(NNGraph* graph,
              const std::string& name,
              const torch::nn::Linear& gate_proj_layer,
              const torch::nn::Linear& up_proj_layer,
              const torch::nn::Linear& down_proj_layer,
              ActivationType activation = ActivationType::SILU,
-             graph::DataType dtype = graph::DataType::FP32);
+             DataType dtype = DataType::FP32);
 #endif
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input);
 
     //! Forward: calls forward
-    graph::NNGraph::TensorNode* operator()(graph::NNGraph::TensorNode* input)
+    NNGraph::TensorNode* operator()(NNGraph::TensorNode* input)
     {
         return forward(input);
     }
@@ -154,13 +154,13 @@ public:
 
 #ifdef NNTILE_HAVE_TORCH
 
-inline GatedMlp::GatedMlp(graph::NNGraph* graph,
+inline GatedMlp::GatedMlp(NNGraph* graph,
                          const std::string& name,
                          const torch::nn::Linear& gate_proj_layer,
                          const torch::nn::Linear& up_proj_layer,
                          const torch::nn::Linear& down_proj_layer,
                          ActivationType activation,
-                         graph::DataType dtype)
+                         DataType dtype)
     : Module(graph, name)
     , gate_proj_(graph, name + "_gate_proj", gate_proj_layer, dtype)
     , up_proj_(graph, name + "_up_proj", up_proj_layer, dtype)
@@ -190,4 +190,4 @@ inline GatedMlp::GatedMlp(graph::NNGraph* graph,
 
 #endif // NNTILE_HAVE_TORCH
 
-} // namespace nntile::module
+} // namespace nntile::graph::module

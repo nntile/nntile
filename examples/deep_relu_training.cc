@@ -30,7 +30,7 @@
 
 using namespace nntile;
 using namespace nntile::graph;
-using namespace nntile::module;
+using namespace nntile::graph::module;
 
 class DeepReLU : public Module
 {

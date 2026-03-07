@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/module/linear.cc
+ * @file src/graph/module/linear.cc
  * Linear module implementation using NNTile graph API.
  *
  * @version 1.1.0
  * */
 
 // Include corresponding header
-#include "nntile/module/linear.hh"
+#include "nntile/graph/module/linear.hh"
 
 // Include standard headers
 #include <cstring>
@@ -22,7 +22,7 @@
 // Include NNTile headers
 #include "nntile/graph/dtype.hh"
 
-namespace nntile::module
+namespace nntile::graph::module
 {
 
 namespace
@@ -38,10 +38,10 @@ constexpr Scalar ADD_FIBER_BETA = 1.0;
 } // anonymous namespace
 
 //! Constructor: creates new weight tensor, no bias
-Linear::Linear(graph::NNGraph* graph,
+Linear::Linear(NNGraph* graph,
                const std::string& name,
                Index input_dim, Index output_dim,
-               graph::DataType dtype)
+               DataType dtype)
     : Module(graph, name)
     , input_dim_(input_dim)
     , output_dim_(output_dim)
@@ -57,11 +57,11 @@ Linear::Linear(graph::NNGraph* graph,
 }
 
 //! Constructor: creates new weight and optionally bias tensors
-Linear::Linear(graph::NNGraph* graph,
+Linear::Linear(NNGraph* graph,
                const std::string& name,
                Index input_dim, Index output_dim,
                bool with_bias,
-               graph::DataType dtype)
+               DataType dtype)
     : Module(graph, name)
     , input_dim_(input_dim)
     , output_dim_(output_dim)
@@ -88,14 +88,14 @@ Linear::Linear(graph::NNGraph* graph,
 }
 
 //! Constructor: uses existing weight tensor, no bias
-Linear::Linear(graph::NNGraph* graph,
+Linear::Linear(NNGraph* graph,
                const std::string& name,
-               graph::NNGraph::TensorNode* weight_tensor)
+               NNGraph::TensorNode* weight_tensor)
     : Module(graph, name)
     , weight_tensor_(weight_tensor)
     , input_dim_(0)
     , output_dim_(0)
-    , dtype_(weight_tensor != nullptr ? weight_tensor->dtype() : graph::DataType::FP32)
+    , dtype_(weight_tensor != nullptr ? weight_tensor->dtype() : DataType::FP32)
 {
     if(weight_tensor == nullptr)
     {
@@ -120,16 +120,16 @@ Linear::Linear(graph::NNGraph* graph,
 }
 
 //! Constructor: uses existing weight and bias tensors
-Linear::Linear(graph::NNGraph* graph,
+Linear::Linear(NNGraph* graph,
                const std::string& name,
-               graph::NNGraph::TensorNode* weight_tensor,
-               graph::NNGraph::TensorNode* bias_tensor)
+               NNGraph::TensorNode* weight_tensor,
+               NNGraph::TensorNode* bias_tensor)
     : Module(graph, name)
     , weight_tensor_(weight_tensor)
     , bias_tensor_(bias_tensor)
     , input_dim_(0)
     , output_dim_(0)
-    , dtype_(weight_tensor != nullptr ? weight_tensor->dtype() : graph::DataType::FP32)
+    , dtype_(weight_tensor != nullptr ? weight_tensor->dtype() : DataType::FP32)
 {
     if(weight_tensor == nullptr || bias_tensor == nullptr)
     {
@@ -176,8 +176,8 @@ Linear::Linear(graph::NNGraph* graph,
     register_parameter("bias", bias_tensor_);
 }
 
-graph::NNGraph::TensorNode* Linear::forward(
-    graph::NNGraph::TensorNode* input)
+NNGraph::TensorNode* Linear::forward(
+    NNGraph::TensorNode* input)
 {
     if(input == nullptr)
     {
@@ -203,7 +203,7 @@ graph::NNGraph::TensorNode* Linear::forward(
     const std::string gemm_name = bias_tensor_ != nullptr
         ? tensor_name("gemm_output")
         : tensor_name("output");
-    graph::NNGraph::TensorNode* gemm_out = graph::gemm(
+    NNGraph::TensorNode* gemm_out = graph::gemm(
         input,
         weight_tensor_,
         gemm_name,
@@ -414,4 +414,4 @@ std::string Linear::repr() const
     return result;
 }
 
-} // namespace nntile::module
+} // namespace nntile::graph::module

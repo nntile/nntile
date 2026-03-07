@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/module/linear.hh
+ * @file include/nntile/graph/module/linear.hh
  * Linear module implementation using NNTile graph API.
  *
  * @version 1.1.0
@@ -26,9 +26,9 @@
 
 // Include NNTile headers
 #include <nntile/graph.hh>
-#include <nntile/module/module.hh>
+#include <nntile/graph/module/module.hh>
 
-namespace nntile::module
+namespace nntile::graph::module
 {
 
 //! Linear module using graph API
@@ -43,16 +43,16 @@ class Linear : public Module
 {
 private:
     // References to parameter tensors (also registered via register_parameter)
-    graph::NNGraph::TensorNode* weight_tensor_ = nullptr;
-    graph::NNGraph::TensorNode* bias_tensor_ = nullptr;
+    NNGraph::TensorNode* weight_tensor_ = nullptr;
+    NNGraph::TensorNode* bias_tensor_ = nullptr;
 
-    graph::NNGraph::TensorNode* input_tensor_ = nullptr;
-    graph::NNGraph::TensorNode* output_tensor_ = nullptr;
+    NNGraph::TensorNode* input_tensor_ = nullptr;
+    NNGraph::TensorNode* output_tensor_ = nullptr;
 
     // Dimensions and data type
     Index input_dim_;
     Index output_dim_;
-    graph::DataType dtype_;
+    DataType dtype_;
 
 public:
     //! Constructor: creates new weight tensor, no bias
@@ -62,11 +62,11 @@ public:
     //! @param output_dim Output feature dimension
     //! @param dtype Data type for tensors
     Linear(
-        graph::NNGraph* graph,
+        NNGraph* graph,
         const std::string& name,
         Index input_dim,
         Index output_dim,
-        graph::DataType dtype = graph::DataType::FP32
+        DataType dtype = DataType::FP32
     );
 
     //! Constructor: creates new weight and optionally bias tensors
@@ -77,12 +77,12 @@ public:
     //! @param with_bias Whether to create bias tensor
     //! @param dtype Data type for tensors
     Linear(
-        graph::NNGraph* graph,
+        NNGraph* graph,
         const std::string& name,
         Index input_dim,
         Index output_dim,
         bool with_bias,
-        graph::DataType dtype = graph::DataType::FP32
+        DataType dtype = DataType::FP32
     );
 
     //! Constructor: uses existing weight tensor, no bias
@@ -90,9 +90,9 @@ public:
     //! @param name Layer name (used to generate unique tensor names)
     //! @param weight_tensor Existing weight tensor to use [input_dim, output_dim]
     Linear(
-        graph::NNGraph* graph,
+        NNGraph* graph,
         const std::string& name,
-        graph::NNGraph::TensorNode* weight_tensor
+        NNGraph::TensorNode* weight_tensor
     );
 
     //! Constructor: uses existing weight and bias tensors
@@ -101,10 +101,10 @@ public:
     //! @param weight_tensor Existing weight tensor [input_dim, output_dim]
     //! @param bias_tensor Existing bias tensor [output_dim]
     Linear(
-        graph::NNGraph* graph,
+        NNGraph* graph,
         const std::string& name,
-        graph::NNGraph::TensorNode* weight_tensor,
-        graph::NNGraph::TensorNode* bias_tensor
+        NNGraph::TensorNode* weight_tensor,
+        NNGraph::TensorNode* bias_tensor
     );
 
 #ifdef NNTILE_HAVE_TORCH
@@ -115,10 +115,10 @@ public:
     //! @param linear_layer PyTorch Linear layer to mirror (weight/bias copied)
     //! @param dtype Data type for tensors
     Linear(
-        graph::NNGraph* graph,
+        NNGraph* graph,
         const std::string& name,
         const torch::nn::Linear& linear_layer,
-        graph::DataType dtype = graph::DataType::FP32
+        DataType dtype = DataType::FP32
     );
 
     //! Get weight data in NNTile format for runtime.bind_data().
@@ -130,8 +130,8 @@ public:
     static std::vector<float> bias_data_from_pytorch(const torch::Tensor& b);
 #endif
 
-    graph::NNGraph::TensorNode* forward(
-        graph::NNGraph::TensorNode* input);
+    NNGraph::TensorNode* forward(
+        NNGraph::TensorNode* input);
 
     //! Bind weight data for Runtime::compile(). Data must be in NNTile layout.
     //! Moves data into the graph; call std::move() to avoid copy.
@@ -148,7 +148,7 @@ public:
     void bind_bias(const std::vector<float>& data);
 
     //! Forward: calls forward (user does bookkeeping via autograd ops)
-    graph::NNGraph::TensorNode* operator()(graph::NNGraph::TensorNode* input)
+    NNGraph::TensorNode* operator()(NNGraph::TensorNode* input)
     {
         return forward(input);
     }
@@ -167,8 +167,8 @@ public:
     std::string repr() const override;
 
     // Tensor accessors
-    graph::NNGraph::TensorNode* weight_tensor() const { return weight_tensor_; }
-    graph::NNGraph::TensorNode* bias_tensor() const { return bias_tensor_; }
+    NNGraph::TensorNode* weight_tensor() const { return weight_tensor_; }
+    NNGraph::TensorNode* bias_tensor() const { return bias_tensor_; }
 
     // Check if bias is enabled
     bool has_bias() const { return bias_tensor_ != nullptr; }
@@ -176,15 +176,15 @@ public:
     // Dimension accessors
     Index input_dim() const { return input_dim_; }
     Index output_dim() const { return output_dim_; }
-    graph::DataType dtype() const { return dtype_; }
+    DataType dtype() const { return dtype_; }
 };
 
 #ifdef NNTILE_HAVE_TORCH
 
-inline Linear::Linear(graph::NNGraph* graph,
+inline Linear::Linear(NNGraph* graph,
                      const std::string& name,
                      const torch::nn::Linear& linear_layer,
-                     graph::DataType dtype)
+                     DataType dtype)
     : Linear(graph, name,
              static_cast<Index>(linear_layer->weight.size(1)),
              static_cast<Index>(linear_layer->weight.size(0)),
@@ -250,4 +250,4 @@ inline std::vector<float> Linear::bias_data_from_pytorch(
 
 #endif // NNTILE_HAVE_TORCH
 
-} // namespace nntile::module
+} // namespace nntile::graph::module
