@@ -11,9 +11,14 @@
 # Llama test data: generated at test time via CTest fixture (no binary in repo)
 set(LLAMA_DATA_DIR "${CMAKE_CURRENT_BINARY_DIR}/llama_data")
 find_package(Python3 COMPONENTS Interpreter QUIET)
+# Prefer venv Python (has numpy, safetensors from uv sync); fallback to system
+set(LLAMA_DATA_PYTHON "${Python3_EXECUTABLE}")
+if(EXISTS "${CMAKE_SOURCE_DIR}/.venv/bin/python")
+    set(LLAMA_DATA_PYTHON "${CMAKE_SOURCE_DIR}/.venv/bin/python")
+endif()
 if(Python3_Interpreter_FOUND)
     add_test(NAME llama_data_setup
-        COMMAND "${Python3_EXECUTABLE}"
+        COMMAND "${LLAMA_DATA_PYTHON}"
             "${CMAKE_SOURCE_DIR}/scripts/generate_llama_test_data.py"
             --output "${LLAMA_DATA_DIR}" --seed 42 --no-torch
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
