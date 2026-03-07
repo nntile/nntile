@@ -7,13 +7,16 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph.hh
- * Convenience header for NNTile graph system.
+ * Convenience header for the entire NNTile graph API:
+ * TensorGraph, NNGraph, I/O, Modules, and Optimizers.
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-// Include related NNTile headers - core classes
-#include <nntile/graph/nn.hh>
 #include <nntile/graph/tensor.hh>
+#include <nntile/graph/nn.hh>
+#include <nntile/graph/io.hh>
+#include <nntile/graph/module.hh>
+#include <nntile/graph/optim.hh>

@@ -111,6 +111,7 @@ void TensorAdamwStepOp::execute(TensorGraph::Runtime& runtime) const
         default:
             throw std::runtime_error("Unsupported data type for adamw_step");
     }
+    ++num_iter;
 }
 
 } // namespace nntile::graph::tensor

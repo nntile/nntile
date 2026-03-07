@@ -18,8 +18,8 @@
 
 #include <nntile/graph.hh>
 #include <nntile/graph/nn/graph_ops.hh>
-#include <nntile/model/llama/llama_config.hh>
-#include <nntile/model/llama/llama_attention.hh>
+#include <nntile/graph/model/llama/llama_config.hh>
+#include <nntile/graph/model/llama/llama_attention.hh>
 
 #include <cstring>
 #include <stdexcept>
@@ -369,31 +369,32 @@ PYBIND11_MODULE(nntile_graph, m)
     // -----------------------------------------------------------------------
     // Module base class
     // -----------------------------------------------------------------------
-    py::class_<module::Module>(m, "Module")
-        .def_property_readonly("name", &module::Module::name)
+    py::class_<graph::module::Module>(m, "Module")
+        .def_property_readonly("name", &graph::module::Module::name)
         .def("parameters",
              static_cast<std::vector<NNGraph::TensorNode*>
-                 (module::Module::*)() const>(&module::Module::parameters),
+                 (graph::module::Module::*)() const>(
+                     &graph::module::Module::parameters),
              py::return_value_policy::reference)
         .def("named_parameters",
-             &module::Module::named_parameters,
+             &graph::module::Module::named_parameters,
              py::return_value_policy::reference)
         .def("parameters_recursive",
-             &module::Module::parameters_recursive,
+             &graph::module::Module::parameters_recursive,
              py::return_value_policy::reference)
         .def("named_parameters_recursive",
-             &module::Module::named_parameters_recursive,
+             &graph::module::Module::named_parameters_recursive,
              py::return_value_policy::reference)
         .def("parameter_gradients",
-             &module::Module::parameter_gradients,
+             &graph::module::Module::parameter_gradients,
              py::return_value_policy::reference)
         .def("parameter_gradients_recursive",
-             &module::Module::parameter_gradients_recursive,
+             &graph::module::Module::parameter_gradients_recursive,
              py::return_value_policy::reference)
-        .def("children", &module::Module::children,
+        .def("children", &graph::module::Module::children,
              py::return_value_policy::reference)
-        .def("repr", &module::Module::repr)
-        .def("__repr__", &module::Module::to_string);
+        .def("repr", &graph::module::Module::repr)
+        .def("__repr__", &graph::module::Module::to_string);
 
     // -----------------------------------------------------------------------
     // Llama model components
@@ -438,7 +439,7 @@ PYBIND11_MODULE(nntile_graph, m)
                    ", layers=" + std::to_string(c.num_hidden_layers) + ")";
         });
 
-    py::class_<model::llama::LlamaAttention, module::Module>(
+    py::class_<model::llama::LlamaAttention, graph::module::Module>(
             llama, "LlamaAttention")
         .def(py::init<NNGraph*, const std::string&,
                       const model::llama::LlamaConfig&, DataType>(),

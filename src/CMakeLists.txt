@@ -408,8 +408,7 @@ set(LOGGER_SRC
     "logger/websocket_client.cc"
 )
 
-# Graph-related sources (core: always built)
-set(GRAPH_CORE_SRC
+set(GRAPH_TENSOR_SRC
     "graph/dtype.cc"
     "graph/tensor/add.cc"
     "graph/tensor/add_fiber.cc"
@@ -436,6 +435,8 @@ set(GRAPH_CORE_SRC
     "graph/tensor/gelutanh.cc"
     "graph/tensor/gelutanh_backward.cc"
     "graph/tensor/gelutanh_inplace.cc"
+    "graph/tensor/graph_data_node.cc"
+    "graph/tensor/graph_runtime.cc"
     "graph/tensor/hypot.cc"
     "graph/tensor/hypot_inplace.cc"
     "graph/tensor/hypot_scalar_inverse.cc"
@@ -485,7 +486,6 @@ set(GRAPH_CORE_SRC
     "graph/tensor/transpose.cc"
 )
 
-# NNGraph, TensorGraph, Runtime
 set(GRAPH_NN_SRC
     "graph/nn/graph.cc"
     "graph/nn/tensor_node.cc"
@@ -513,38 +513,50 @@ set(GRAPH_NN_SRC
     "graph/nn/silu.cc"
     "graph/nn/softmax.cc"
     "graph/nn/cross_entropy.cc"
+    "graph/nn/sgd_step.cc"
+    "graph/nn/adam_step.cc"
+    "graph/nn/adamw_step.cc"
     "graph/nn/sum_fiber.cc"
     "graph/nn/sum_slice.cc"
     "graph/nn/transpose.cc"
-    "graph/tensor/graph_data_node.cc"
-    "graph/tensor/graph_runtime.cc"
 )
 
-set(GRAPH_SRC ${GRAPH_CORE_SRC} ${GRAPH_NN_SRC})
-
-# I/O serialization
-set(IO_SRC
-    "io/safetensors.cc"
+set(GRAPH_IO_SRC
+    "graph/io/safetensors.cc"
 )
 
-# Module implementations
-set(MODULE_SRC
-    "module/module.cc"
-    "module/activation.cc"
-    "module/gated_mlp.cc"
-    "module/mlp.cc"
-    "module/linear.cc"
-    "module/embedding.cc"
-    "module/rms_norm.cc"
+set(GRAPH_MODULE_SRC
+    "graph/module/module.cc"
+    "graph/module/activation.cc"
+    "graph/module/gated_mlp.cc"
+    "graph/module/mlp.cc"
+    "graph/module/linear.cc"
+    "graph/module/embedding.cc"
+    "graph/module/rms_norm.cc"
 )
 
-# Model implementations
-set(MODEL_SRC
-    "model/llama/llama_mlp.cc"
-    "model/llama/llama_attention.cc"
-    "model/llama/llama_decoder.cc"
-    "model/llama/llama_model.cc"
-    "model/llama/llama_causal.cc"
+set(GRAPH_MODEL_SRC
+    "graph/model/llama/llama_mlp.cc"
+    "graph/model/llama/llama_attention.cc"
+    "graph/model/llama/llama_decoder.cc"
+    "graph/model/llama/llama_model.cc"
+    "graph/model/llama/llama_causal.cc"
+    )
+
+set(GRAPH_OPTIM_SRC
+    "graph/optim/optimizer.cc"
+    "graph/optim/sgd.cc"
+    "graph/optim/adam.cc"
+    "graph/optim/adamw.cc"
+)
+
+set(GRAPH_SRC
+    ${GRAPH_TENSOR_SRC}
+    ${GRAPH_NN_SRC}
+    ${GRAPH_IO_SRC}
+    ${GRAPH_MODULE_SRC}
+    ${GRAPH_MODEL_SRC}
+    ${GRAPH_OPTIM_SRC}
 )
 
 # Set the list of all sources
@@ -559,9 +571,6 @@ set(NNTILE_SRC
     ${TENSOR_BASE_SRC}
     ${TENSOR_OPERATION_SRC}
     ${GRAPH_SRC}
-    ${IO_SRC}
-    ${MODULE_SRC}
-    ${MODEL_SRC}
     ${LOGGER_SRC}
 )
 

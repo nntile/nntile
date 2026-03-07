@@ -40,11 +40,8 @@
 // Tensor as a set of tiles with its operations
 #include <nntile/tensor.hh>
 
-// Logical and compiled graphs for computation
+// Graph API: TensorGraph, NNGraph, I/O, Modules, Optimizers
 #include <nntile/graph.hh>
-
-// Modules using graph API
-#include <nntile/module.hh>
 
 // Logger thread to log activities
 #include <nntile/logger.hh>

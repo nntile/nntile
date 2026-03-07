@@ -24,7 +24,7 @@ namespace nntile::graph::tensor
 //! AdamW step: Adam with decoupled weight decay
 struct TensorAdamwStepOp : TensorGraph::OpNode
 {
-    Index num_iter;
+    mutable Index num_iter;
     Scalar beta_1;
     Scalar beta_2;
     Scalar eps;

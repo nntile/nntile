@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
     nntile::graph::NNGraph graph("Linear_Graph");
 
     // Create Linear module (tied to the graph)
-    nntile::module::Linear linear(
+    nntile::graph::module::Linear linear(
         &graph, "linear1", 8, 4, nntile::graph::DataType::FP32);
 
     // Create input tensor (requires_grad to compute input gradients)
