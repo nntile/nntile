@@ -185,6 +185,7 @@ class TestGraphLlamaAttention:
 
         rt.execute()
         rt.wait()
+        nntile.starpu.wait_for_all()
 
         out_name = wrapper.output_node.name
         y_flat = np.array(rt.get_output(out_name))
@@ -192,8 +193,6 @@ class TestGraphLlamaAttention:
             y_flat, dtype=np.float32,
         ).reshape(x_shape, order='F')
         y_nntile = torch.tensor(y_nntile_np.T.copy())
-
-        nntile.starpu.wait_for_all()
 
         rtol = 1e-5
         diff = torch.norm(y_torch - y_nntile)
