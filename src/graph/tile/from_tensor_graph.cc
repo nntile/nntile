@@ -84,13 +84,6 @@ TileGraph TileGraph::from_tensor_graph(const TensorGraph& tg)
             tile_node->mark_output(true);
         }
 
-        const std::vector<std::uint8_t>* hint = tensor_node->get_bind_hint();
-        if(hint != nullptr)
-        {
-            tile_node->set_bind_hint(*hint);
-        }
-
-        // Build TensorDescriptor: 1 tile, grid is all ones
         TensorDescriptor desc;
         desc.tensor_name = tensor_node->name();
         desc.tensor_shape = tensor_shape;
@@ -98,6 +91,7 @@ TileGraph TileGraph::from_tensor_graph(const TensorGraph& tg)
         desc.grid_shape.assign(tensor_shape.size(), 1);
         desc.dtype = tensor_node->dtype();
         desc.tiles = {tile_node};
+        desc.source_node = tensor_node.get();
 
         TensorDescriptor* desc_ptr = tile_graph.add_tensor_descriptor(
             std::move(desc));

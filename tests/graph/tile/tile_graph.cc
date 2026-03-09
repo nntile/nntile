@@ -14,6 +14,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <cstring>
 #include <numeric>
 
 #include "context_fixture.hh"
@@ -171,7 +172,8 @@ TEST_CASE("TileGraph from_tensor_graph structure", "[graph][tile]")
     REQUIRE(tz->tile_coord() == std::vector<Index>{0, 0});
 }
 
-TEST_CASE("TileGraph from_tensor_graph preserves bind hints", "[graph][tile]")
+TEST_CASE("TileGraph from_tensor_graph links source TensorNode",
+          "[graph][tile]")
 {
     TensorGraph tg_graph("hint_test");
     auto* x = tg_graph.data({2}, "x", DataType::FP32);
@@ -184,9 +186,15 @@ TEST_CASE("TileGraph from_tensor_graph preserves bind hints", "[graph][tile]")
     auto* tx = tile_graph.get_tile_node("x");
     REQUIRE(tx != nullptr);
 
-    const auto* tx_hint = tx->get_bind_hint();
-    REQUIRE(tx_hint != nullptr);
-    REQUIRE(*tx_hint == hint);
+    // Bind hints are not copied to TileNode; they stay on the TensorNode
+    REQUIRE(tx->get_bind_hint() == nullptr);
+
+    // Instead the TensorDescriptor references the source TensorNode
+    auto* td = tile_graph.get_tensor_descriptor("x");
+    REQUIRE(td != nullptr);
+    REQUIRE(td->source_node == x);
+    REQUIRE(td->source_node->get_bind_hint() != nullptr);
+    REQUIRE(*td->source_node->get_bind_hint() == hint);
 }
 
 TEST_CASE("TileGraph from_tensor_graph with add_inplace and fill",
@@ -294,6 +302,46 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(std::abs(result[1] - 24.0f) < tol);
     REQUIRE(std::abs(result[2] - 36.0f) < tol);
     REQUIRE(std::abs(result[3] - 48.0f) < tol);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TileGraph compile resolves bind hints from source TensorNode",
+    "[graph][tile]")
+{
+    // Build a TensorGraph with a bind hint on x, convert, execute
+    std::vector<Index> shape = {2};
+    TensorGraph tg_graph("bind_via_source");
+    auto* tx = tg_graph.data(shape, "x", DataType::FP32);
+    auto* ty = tg_graph.data(shape, "y", DataType::FP32);
+    tx->mark_input(true);
+    ty->mark_input(true);
+
+    auto* tz = gt::add(1.0, tx, 1.0, ty, "z");
+    tz->mark_output(true);
+
+    // Set bind hint on the TensorNode (not on TileNode)
+    float x_vals[2] = {10.0f, 20.0f};
+    std::vector<std::uint8_t> x_hint(sizeof(x_vals));
+    std::memcpy(x_hint.data(), x_vals, sizeof(x_vals));
+    tx->set_bind_hint(x_hint);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(tg_graph);
+
+    TileGraph::Runtime tile_rt(tile_graph);
+    tile_rt.compile();
+
+    // x was initialized from the source TensorNode's bind hint;
+    // we only need to bind y
+    std::vector<float> y_data = {1.0f, 2.0f};
+    tile_rt.bind_data("y", y_data);
+    tile_rt.execute();
+    tile_rt.wait();
+
+    auto result = tile_rt.get_output<float>("z");
+    constexpr float tol = 1e-5f;
+    REQUIRE(result.size() == 2);
+    REQUIRE(std::abs(result[0] - 11.0f) < tol);
+    REQUIRE(std::abs(result[1] - 22.0f) < tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

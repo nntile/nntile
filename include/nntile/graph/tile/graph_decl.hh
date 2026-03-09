@@ -23,11 +23,11 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
+#include <nntile/graph/tensor/graph_decl.hh>
+#include <nntile/graph/tensor/graph_data_node.hh>
 
 namespace nntile::graph
 {
-
-class TensorGraph;
 
 //! Tile graph - defines computation at tile level.
 //! Constructed from a TensorGraph by splitting tensors into tiles.
@@ -41,6 +41,8 @@ public:
     using NodeId = uint64_t;
 
     //! Describes how one tensor was split into tiles.
+    //! Holds a back-pointer to the source TensorNode so that
+    //! tile data can be obtained from the tensor at compile time.
     struct TensorDescriptor
     {
         std::string tensor_name;
@@ -49,6 +51,7 @@ public:
         std::vector<Index> grid_shape;
         DataType dtype;
         std::vector<TileNode*> tiles;
+        const TensorGraph::TensorNode* source_node = nullptr;
     };
 
     explicit TileGraph(const std::string& name = "")

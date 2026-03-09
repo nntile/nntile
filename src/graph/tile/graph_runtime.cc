@@ -21,6 +21,7 @@
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tile/graph_data_node.hh"
 #include "nntile/graph/tile/graph_op_node.hh"
+#include "nntile/graph/tensor/graph_data_node.hh"
 #include "nntile/tile/tile.hh"
 
 namespace nntile::graph
@@ -76,7 +77,17 @@ void TileGraph::Runtime::compile()
 
     for(const auto& node : graph_.tile_nodes())
     {
-        const std::vector<std::uint8_t>* hint = node->get_bind_hint();
+        // Resolve bind hint: prefer source TensorNode, fall back to TileNode
+        const std::vector<std::uint8_t>* hint = nullptr;
+        const auto* td = node->tensor_descriptor();
+        if(td != nullptr && td->source_node != nullptr)
+        {
+            hint = td->source_node->get_bind_hint();
+        }
+        if(hint == nullptr)
+        {
+            hint = node->get_bind_hint();
+        }
         if(hint == nullptr)
         {
             continue;
