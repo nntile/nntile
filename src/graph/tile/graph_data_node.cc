@@ -76,6 +76,14 @@ const TileGraph* TileGraph::TileNode::graph() const
     return graph_;
 }
 
+void TileGraph::TileNode::set_tensor_info(
+    TileGraph::TensorDescriptor* desc,
+    std::vector<Index> coord)
+{
+    tensor_desc_ = desc;
+    tile_coord_ = std::move(coord);
+}
+
 std::string TileGraph::TileNode::to_string() const
 {
     std::string result = "TileGraph::TileNode(id=" +
@@ -85,7 +93,18 @@ std::string TileGraph::TileNode::to_string() const
         if(i > 0) result += ", ";
         result += std::to_string(shape_[i]);
     }
-    result += "], dtype=" + dtype_to_string(dtype_) + ")";
+    result += "], dtype=" + dtype_to_string(dtype_);
+    if(tensor_desc_ != nullptr)
+    {
+        result += ", tensor='" + tensor_desc_->tensor_name + "', coord=[";
+        for(size_t i = 0; i < tile_coord_.size(); ++i)
+        {
+            if(i > 0) result += ", ";
+            result += std::to_string(tile_coord_[i]);
+        }
+        result += "]";
+    }
+    result += ")";
     return result;
 }
 

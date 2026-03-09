@@ -40,6 +40,17 @@ public:
     class OpNode;
     using NodeId = uint64_t;
 
+    //! Describes how one tensor was split into tiles.
+    struct TensorDescriptor
+    {
+        std::string tensor_name;
+        std::vector<Index> tensor_shape;
+        std::vector<Index> tile_shape;
+        std::vector<Index> grid_shape;
+        DataType dtype;
+        std::vector<TileNode*> tiles;
+    };
+
     explicit TileGraph(const std::string& name = "")
         : name_(name)
     {
@@ -55,15 +66,29 @@ public:
     void add_op(std::shared_ptr<TileGraph::OpNode> op_node,
                 const std::string& name = "");
 
+    //! Register a TensorDescriptor (returns non-owning pointer)
+    TensorDescriptor* add_tensor_descriptor(TensorDescriptor desc);
+
     //! Build a TileGraph from a TensorGraph (1 tile per tensor)
     static TileGraph from_tensor_graph(const TensorGraph& tg);
 
     const std::string& name() const { return name_; }
     size_t num_data() const { return data_.size(); }
     size_t num_ops() const { return ops_.size(); }
+    size_t num_tensors() const { return tensors_.size(); }
 
     TileNode* get_tile_node(const std::string& name);
     const TileNode* get_tile_node(const std::string& name) const;
+
+    TensorDescriptor* get_tensor_descriptor(const std::string& tensor_name);
+    const TensorDescriptor* get_tensor_descriptor(
+        const std::string& tensor_name) const;
+
+    const std::vector<std::unique_ptr<TensorDescriptor>>& tensor_descriptors()
+        const
+    {
+        return tensors_;
+    }
 
     std::vector<std::string> data_names() const
     {
@@ -93,7 +118,9 @@ private:
     std::string name_;
     std::vector<std::unique_ptr<TileNode>> data_;
     std::vector<std::shared_ptr<TileGraph::OpNode>> ops_;
+    std::vector<std::unique_ptr<TensorDescriptor>> tensors_;
     std::map<std::string, TileNode*> data_by_name_;
+    std::map<std::string, TensorDescriptor*> tensors_by_name_;
 
     NodeId next_data_id_ = 0;
     NodeId next_op_id_ = 0;

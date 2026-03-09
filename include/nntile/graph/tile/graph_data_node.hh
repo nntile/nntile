@@ -60,6 +60,19 @@ public:
     void mark_input(bool v = true) { is_input_ = v; }
     void mark_output(bool v = true) { is_output_ = v; }
 
+    //! Parent tensor descriptor (nullptr if not part of a tensor tiling)
+    const TileGraph::TensorDescriptor* tensor_descriptor() const
+    {
+        return tensor_desc_;
+    }
+
+    //! Tile coordinate within the tensor's grid (empty if no descriptor)
+    const std::vector<Index>& tile_coord() const { return tile_coord_; }
+
+    //! Set tensor descriptor and tile coordinate
+    void set_tensor_info(TileGraph::TensorDescriptor* desc,
+                         std::vector<Index> coord);
+
     void set_bind_hint(std::vector<std::uint8_t> data);
     const std::vector<std::uint8_t>* get_bind_hint() const;
 
@@ -74,6 +87,8 @@ private:
     bool is_input_ = false;
     bool is_output_ = false;
     std::optional<std::vector<std::uint8_t>> bind_hint_;
+    TileGraph::TensorDescriptor* tensor_desc_ = nullptr;
+    std::vector<Index> tile_coord_;
 
     friend class TileGraph;
 };

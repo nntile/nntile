@@ -80,6 +80,16 @@ inline void TileGraph::add_op(std::shared_ptr<OpNode> op_node,
     ops_.push_back(std::move(op_node));
 }
 
+inline TileGraph::TensorDescriptor* TileGraph::add_tensor_descriptor(
+    TensorDescriptor desc)
+{
+    auto ptr = std::make_unique<TensorDescriptor>(std::move(desc));
+    TensorDescriptor* raw = ptr.get();
+    tensors_by_name_[raw->tensor_name] = raw;
+    tensors_.push_back(std::move(ptr));
+    return raw;
+}
+
 inline TileGraph::TileNode* TileGraph::get_tile_node(
     const std::string& name)
 {
@@ -94,13 +104,54 @@ inline const TileGraph::TileNode* TileGraph::get_tile_node(
     return it != data_by_name_.end() ? it->second : nullptr;
 }
 
+inline TileGraph::TensorDescriptor* TileGraph::get_tensor_descriptor(
+    const std::string& tensor_name)
+{
+    auto it = tensors_by_name_.find(tensor_name);
+    return it != tensors_by_name_.end() ? it->second : nullptr;
+}
+
+inline const TileGraph::TensorDescriptor* TileGraph::get_tensor_descriptor(
+    const std::string& tensor_name) const
+{
+    auto it = tensors_by_name_.find(tensor_name);
+    return it != tensors_by_name_.end() ? it->second : nullptr;
+}
+
 inline std::string TileGraph::to_string() const
 {
     std::stringstream ss;
-    ss << "TileGraph(name='" << name_ << "', data=" << num_data()
-       << ", ops=" << num_ops() << ")\n";
+    ss << "TileGraph(name='" << name_ << "', tensors=" << num_tensors()
+       << ", tiles=" << num_data() << ", ops=" << num_ops() << ")\n";
 
-    ss << "Data:\n";
+    if(!tensors_.empty())
+    {
+        ss << "Tensors:\n";
+        for(const auto& td : tensors_)
+        {
+            ss << "  " << td->tensor_name << " shape=[";
+            for(size_t i = 0; i < td->tensor_shape.size(); ++i)
+            {
+                if(i > 0) ss << ", ";
+                ss << td->tensor_shape[i];
+            }
+            ss << "] tile=[";
+            for(size_t i = 0; i < td->tile_shape.size(); ++i)
+            {
+                if(i > 0) ss << ", ";
+                ss << td->tile_shape[i];
+            }
+            ss << "] grid=[";
+            for(size_t i = 0; i < td->grid_shape.size(); ++i)
+            {
+                if(i > 0) ss << ", ";
+                ss << td->grid_shape[i];
+            }
+            ss << "] tiles=" << td->tiles.size() << "\n";
+        }
+    }
+
+    ss << "Tiles:\n";
     for(const auto& t : data_)
     {
         ss << "  " << t->to_string() << "\n";

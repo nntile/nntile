@@ -46,6 +46,10 @@ TEST_CASE("TileGraph data creation", "[graph][tile]")
     REQUIRE(x->nelems() == 6);
     REQUIRE(graph.num_data() == 1);
 
+    // Standalone tiles have no tensor descriptor
+    REQUIRE(x->tensor_descriptor() == nullptr);
+    REQUIRE(x->tile_coord().empty());
+
     auto* y = graph.data({4}, "y", DataType::FP64);
     REQUIRE(y->nelems() == 4);
     REQUIRE(graph.num_data() == 2);
@@ -77,6 +81,31 @@ TEST_CASE("TileGraph to_string", "[graph][tile]")
     std::string s = graph.to_string();
     REQUIRE(s.find("TileGraph") != std::string::npos);
     REQUIRE(s.find("TILE_ADD") != std::string::npos);
+    REQUIRE(s.find("Tiles:") != std::string::npos);
+}
+
+TEST_CASE("TileGraph add_tensor_descriptor manual", "[graph][tile]")
+{
+    TileGraph graph("manual_desc_test");
+    auto* t0 = graph.data({4}, "t0");
+
+    TileGraph::TensorDescriptor desc;
+    desc.tensor_name = "T";
+    desc.tensor_shape = {4};
+    desc.tile_shape = {4};
+    desc.grid_shape = {1};
+    desc.dtype = DataType::FP32;
+    desc.tiles = {t0};
+
+    auto* dp = graph.add_tensor_descriptor(std::move(desc));
+    t0->set_tensor_info(dp, {0});
+
+    REQUIRE(graph.num_tensors() == 1);
+    REQUIRE(graph.get_tensor_descriptor("T") == dp);
+    REQUIRE(graph.get_tensor_descriptor("missing") == nullptr);
+    REQUIRE(t0->tensor_descriptor() == dp);
+    REQUIRE(t0->tile_coord() == std::vector<Index>{0});
+    REQUIRE(dp->tiles[0] == t0);
 }
 
 TEST_CASE("TileGraph to_mermaid", "[graph][tile]")
@@ -105,6 +134,7 @@ TEST_CASE("TileGraph from_tensor_graph structure", "[graph][tile]")
 
     REQUIRE(tile_graph.num_data() == 3);
     REQUIRE(tile_graph.num_ops() == 1);
+    REQUIRE(tile_graph.num_tensors() == 3);
 
     auto* tx = tile_graph.get_tile_node("x");
     auto* ty = tile_graph.get_tile_node("y");
@@ -122,6 +152,23 @@ TEST_CASE("TileGraph from_tensor_graph structure", "[graph][tile]")
     REQUIRE(tz->shape() == std::vector<Index>{2, 3});
 
     REQUIRE(tile_graph.ops()[0]->op_name() == "TILE_ADD");
+
+    // Verify tensor descriptors
+    auto* xd = tile_graph.get_tensor_descriptor("x");
+    REQUIRE(xd != nullptr);
+    REQUIRE(xd->tensor_name == "x");
+    REQUIRE(xd->tensor_shape == std::vector<Index>{2, 3});
+    REQUIRE(xd->tile_shape == std::vector<Index>{2, 3});
+    REQUIRE(xd->grid_shape == std::vector<Index>{1, 1});
+    REQUIRE(xd->dtype == DataType::FP32);
+    REQUIRE(xd->tiles.size() == 1);
+    REQUIRE(xd->tiles[0] == tx);
+
+    // Verify tile coordinates
+    REQUIRE(tx->tensor_descriptor() == xd);
+    REQUIRE(tx->tile_coord() == std::vector<Index>{0, 0});
+    REQUIRE(ty->tile_coord() == std::vector<Index>{0, 0});
+    REQUIRE(tz->tile_coord() == std::vector<Index>{0, 0});
 }
 
 TEST_CASE("TileGraph from_tensor_graph preserves bind hints", "[graph][tile]")
