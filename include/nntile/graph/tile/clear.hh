@@ -28,7 +28,6 @@ struct TileClearOp : TileGraph::OpNode
     explicit TileClearOp(TileGraph::TileNode* x_)
         : x(x_)
     {
-        inputs_ = {x};
         outputs_ = {x};
     }
 
