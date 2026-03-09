@@ -540,12 +540,23 @@ set(GRAPH_OPTIM_SRC
     "graph/optim/adamw.cc"
 )
 
+set(GRAPH_TILE_SRC
+    "graph/tile/graph_data_node.cc"
+    "graph/tile/graph_runtime.cc"
+    "graph/tile/from_tensor_graph.cc"
+    "graph/tile/add.cc"
+    "graph/tile/add_inplace.cc"
+    "graph/tile/fill.cc"
+    "graph/tile/clear.cc"
+)
+
 set(GRAPH_SRC
     ${GRAPH_TENSOR_SRC}
     ${GRAPH_NN_SRC}
     ${GRAPH_IO_SRC}
     ${GRAPH_MODULE_SRC}
     ${GRAPH_OPTIM_SRC}
+    ${GRAPH_TILE_SRC}
 )
 
 # Set the list of all sources
