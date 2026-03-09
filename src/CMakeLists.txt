@@ -436,7 +436,6 @@ set(GRAPH_TENSOR_SRC
     "graph/tensor/gelutanh_backward.cc"
     "graph/tensor/gelutanh_inplace.cc"
     "graph/tensor/axis_descriptor.cc"
-    "graph/tensor/dimension_group.cc"
     "graph/tensor/graph_data_node.cc"
     "graph/tensor/graph_runtime.cc"
     "graph/tensor/hypot.cc"
