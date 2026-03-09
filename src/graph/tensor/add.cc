@@ -63,24 +63,32 @@ TensorGraph::TensorNode* add(
         throw std::invalid_argument(
             "add: input tensors must belong to the same graph");
     }
+    if(x == y)
+    {
+        throw std::invalid_argument(
+            "add: x and y must be distinct tensors");
+    }
     if(x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "add: input tensors must have the same dtype");
     }
-    if(x->shape() != y->shape())
+    if(x->ndim() != y->ndim())
     {
         throw std::invalid_argument(
-            "add: input tensors must have the same shape");
+            "add: input tensors must have the same ndim");
     }
 
-    std::vector<Index> output_shape = x->shape();
-    TensorGraph::TensorNode* output = x->graph()->data(
-        std::move(output_shape),
-        output_name,
-        x->dtype());
+    for(Index i = 0; i < x->ndim(); ++i)
+    {
+        merge_axis(x->mutable_axes()[i], y->mutable_axes()[i]);
+    }
 
-    add(alpha, x, beta, y, output);
+    TensorGraph::TensorNode* output = x->graph()->data(
+        output_name, x->axes(), x->dtype());
+
+    auto op = std::make_shared<TensorAddOp>(x, y, output, alpha, beta);
+    x->graph()->add_op(op);
 
     return output;
 }
@@ -96,6 +104,11 @@ void add(
     {
         throw std::invalid_argument("add: input tensors must be non-null");
     }
+    if(x == y || x == z || y == z)
+    {
+        throw std::invalid_argument(
+            "add: x, y, and z must be distinct tensors");
+    }
     if(x->graph() != y->graph() || x->graph() != z->graph())
     {
         throw std::invalid_argument(
@@ -106,15 +119,16 @@ void add(
         throw std::invalid_argument(
             "add: input tensors must have the same dtype");
     }
-    if(x->shape() != y->shape() || x->shape() != z->shape())
+    if(x->ndim() != y->ndim() || x->ndim() != z->ndim())
     {
         throw std::invalid_argument(
-            "add: input tensors must have the same shape");
+            "add: input tensors must have the same ndim");
     }
-    if(x == y || x == z || y == z)
+
+    for(Index i = 0; i < x->ndim(); ++i)
     {
-        throw std::invalid_argument(
-            "add: x, y, and z must be distinct tensors");
+        merge_axis(x->mutable_axes()[i], y->mutable_axes()[i]);
+        merge_axis(x->mutable_axes()[i], z->mutable_axes()[i]);
     }
 
     auto op = std::make_shared<TensorAddOp>(x, y, z, alpha, beta);

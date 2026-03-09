@@ -143,8 +143,10 @@ TEST_CASE("TensorGraph add rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
     auto* x = graph.data({4, 5}, "x");
+    auto* y = graph.data({4, 5}, "y");
 
     REQUIRE_THROWS_AS(gt::add(1.0, x, 1.0, x, "z"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::add(1.0, x, 1.0, y, x), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

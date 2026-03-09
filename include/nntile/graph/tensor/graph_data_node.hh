@@ -17,6 +17,7 @@
 // Standard library headers
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <numeric>
 #include <optional>
 #include <stdexcept>
@@ -26,6 +27,7 @@
 // NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
+#include <nntile/graph/tensor/axis_descriptor.hh>
 
 namespace nntile::graph
 {
@@ -61,6 +63,17 @@ public:
     TensorGraph* graph();
     const TensorGraph* graph() const;
 
+    // Axis descriptors (parallel to shape_, one per dimension)
+    AxisDescriptor* axis(int i) const;
+    const std::vector<std::shared_ptr<AxisDescriptor>>& axes() const
+    {
+        return axes_;
+    }
+    std::vector<std::shared_ptr<AxisDescriptor>>& mutable_axes()
+    {
+        return axes_;
+    }
+
     // Graph structure
     bool is_input() const { return is_input_; }
     bool is_output() const { return is_output_; }
@@ -68,8 +81,6 @@ public:
     void mark_output(bool v = true) { is_output_ = v; }
 
     // Bind hint: data to copy into runtime tensor when Runtime::compile() runs.
-    // Data must already be in NNTile (Fortran) layout. Pass-by-value enables
-    // move when caller uses std::move().
     void set_bind_hint(std::vector<std::uint8_t> data);
     const std::vector<std::uint8_t>* get_bind_hint() const;
 
@@ -80,6 +91,7 @@ private:
     NodeId id_;
     TensorGraph* graph_;
     std::vector<Index> shape_;
+    std::vector<std::shared_ptr<AxisDescriptor>> axes_;
     DataType dtype_;
     std::string name_;
     bool is_input_ = false;

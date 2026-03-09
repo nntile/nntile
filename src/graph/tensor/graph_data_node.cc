@@ -14,6 +14,7 @@
 
 #include "nntile/graph/tensor/graph.hh"
 
+#include <algorithm>
 #include <numeric>
 #include <stdexcept>
 
@@ -40,6 +41,30 @@ TensorGraph::TensorNode::TensorNode(
                 "TensorGraph::TensorNode: all dimensions must be positive");
         }
     }
+
+    axes_.reserve(shape_.size());
+    for(size_t i = 0; i < shape_.size(); ++i)
+    {
+        auto desc = std::make_shared<AxisDescriptor>();
+        desc->extent = shape_[i];
+        desc->members.push_back({static_cast<void*>(this),
+                                  static_cast<int>(i)});
+        axes_.push_back(std::move(desc));
+    }
+}
+
+AxisDescriptor* TensorGraph::TensorNode::axis(int i) const
+{
+    if(i < 0)
+    {
+        i += static_cast<int>(axes_.size());
+    }
+    if(i < 0 || static_cast<size_t>(i) >= axes_.size())
+    {
+        throw std::out_of_range(
+            "TensorGraph::TensorNode::axis: index out of range");
+    }
+    return axes_[static_cast<size_t>(i)].get();
 }
 
 Index TensorGraph::TensorNode::dim(int idx) const

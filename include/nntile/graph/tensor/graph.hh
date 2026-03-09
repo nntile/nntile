@@ -50,6 +50,51 @@ inline TensorGraph::TensorNode* TensorGraph::data(
     return node_ptr;
 }
 
+inline TensorGraph::TensorNode* TensorGraph::data(
+    const std::string& name,
+    const std::vector<std::shared_ptr<AxisDescriptor>>& axes,
+    DataType dtype)
+{
+    if(data_by_name_.count(name) > 0)
+    {
+        throw std::invalid_argument(
+            "TensorGraph::data: data '" + name + "' already exists");
+    }
+
+    std::vector<Index> shape;
+    shape.reserve(axes.size());
+    for(const auto& ax : axes)
+    {
+        shape.push_back(ax->extent);
+    }
+
+    auto node = std::make_unique<TensorNode>(
+        next_data_id_,
+        this,
+        std::move(shape),
+        dtype,
+        name);
+    ++next_data_id_;
+    TensorNode* node_ptr = node.get();
+
+    // Replace fresh axes with the provided shared axes
+    for(size_t i = 0; i < axes.size(); ++i)
+    {
+        // Remove from the fresh axis group
+        auto& old_members = node_ptr->axes_[i]->members;
+        old_members.clear();
+        // Join the provided axis group
+        node_ptr->axes_[i] = axes[i];
+        axes[i]->members.push_back(
+            {static_cast<void*>(node_ptr), static_cast<int>(i)});
+    }
+
+    data_.push_back(std::move(node));
+    data_by_name_[name] = node_ptr;
+
+    return node_ptr;
+}
+
 inline void TensorGraph::add_op(std::shared_ptr<OpNode> op_node,
                                 const std::string& name)
 {
