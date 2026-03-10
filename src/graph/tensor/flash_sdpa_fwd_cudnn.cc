@@ -78,6 +78,16 @@ TensorGraph::TensorNode* flash_sdpa_fwd_cudnn(
         std::move(logsumexp_shape), logsumexp_name, DataType::FP32);
     TensorGraph::TensorNode* A_node = K->graph()->data(
         std::move(A_shape), output_name, K->dtype());
+
+    // A has same shape as K
+    A_node->set_axes(K->axes());
+    // logsumexp.dim[i] == K.dim[i+1]
+    for(Index i = 0; i < logsumexp_node->ndim(); ++i)
+    {
+        merge_axis(logsumexp_node->mutable_axes()[i],
+                   K->mutable_axes()[static_cast<size_t>(i + 1)]);
+    }
+
     flash_sdpa_fwd_cudnn(K, Q, mask, logsumexp_node, V, A_node);
     return A_node;
 }
@@ -105,6 +115,37 @@ void flash_sdpa_fwd_cudnn(TensorGraph::TensorNode* K,
     if(logsumexp->dtype() != DataType::FP32)
         throw std::invalid_argument(
             "flash_sdpa_fwd_cudnn: logsumexp must have FP32 dtype");
+
+    // K and A: same shape
+    for(Index i = 0; i < K->ndim(); ++i)
+    {
+        merge_axis(K->mutable_axes()[i], A->mutable_axes()[i]);
+    }
+    // logsumexp.dim[i] == K.dim[i+1]
+    for(Index i = 0; i < logsumexp->ndim(); ++i)
+    {
+        merge_axis(logsumexp->mutable_axes()[i],
+                   K->mutable_axes()[static_cast<size_t>(i + 1)]);
+    }
+    // Q shares head_size and batch dims with K (dims 0, 2, 3, 4)
+    if(Q->ndim() == K->ndim())
+    {
+        merge_axis(Q->mutable_axes()[0], K->mutable_axes()[0]);
+        for(Index i = 2; i < K->ndim(); ++i)
+        {
+            merge_axis(Q->mutable_axes()[i], K->mutable_axes()[i]);
+        }
+    }
+    // V shares head_size and batch dims with K (dims 0, 2, 3, 4)
+    if(V->ndim() == K->ndim())
+    {
+        merge_axis(V->mutable_axes()[0], K->mutable_axes()[0]);
+        for(Index i = 2; i < K->ndim(); ++i)
+        {
+            merge_axis(V->mutable_axes()[i], K->mutable_axes()[i]);
+        }
+    }
+
     auto op = std::make_shared<TensorFlashSdpaFwdCudnnOp>(
         K, Q, mask, logsumexp, V, A);
     A->graph()->add_op(op);

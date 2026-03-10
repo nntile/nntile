@@ -55,6 +55,19 @@ void embedding_backward(TensorGraph::TensorNode* index,
         throw std::invalid_argument("embedding_backward: index must have INT64 dtype");
     if(embed->dtype() != vocab->dtype())
         throw std::invalid_argument("embedding_backward: embed and vocab must have same dtype");
+
+    // embed.dim[i] == index.dim[i] for i < index.ndim
+    for(Index i = 0; i < index->ndim(); ++i)
+    {
+        merge_axis(embed->mutable_axes()[i], index->mutable_axes()[i]);
+    }
+    // embed.dim[index.ndim] == vocab.dim[0]
+    if(embed->ndim() > index->ndim())
+    {
+        merge_axis(embed->mutable_axes()[static_cast<size_t>(index->ndim())],
+                   vocab->mutable_axes()[0]);
+    }
+
     auto op = std::make_shared<TensorEmbeddingBackwardOp>(
         index, embed, vocab, axis, redux);
     vocab->graph()->add_op(op);

@@ -55,6 +55,17 @@ void subtract_indexed_outputs(Scalar val,
     if(labels->dtype() != DataType::INT64)
         throw std::invalid_argument(
             "subtract_indexed_outputs: labels must have INT64 dtype");
+
+    // labels.dim[i] == dst.dim[i+1]: labels index the batch dims of dst
+    if(labels->ndim() + 1 == dst->ndim())
+    {
+        for(Index i = 0; i < labels->ndim(); ++i)
+        {
+            merge_axis(labels->mutable_axes()[i],
+                       dst->mutable_axes()[static_cast<size_t>(i + 1)]);
+        }
+    }
+
     auto op = std::make_shared<TensorSubtractIndexedOutputsOp>(
         val, labels, dst, ignore_index);
     dst->graph()->add_op(op);

@@ -83,6 +83,25 @@ void total_sum_accum(
             "total_sum_accum: val must have FP32 dtype");
     }
 
+    // logsumexp and class_labels: same shape
+    if(logsumexp->ndim() == class_labels->ndim())
+    {
+        for(Index i = 0; i < logsumexp->ndim(); ++i)
+        {
+            merge_axis(logsumexp->mutable_axes()[i],
+                       class_labels->mutable_axes()[i]);
+        }
+    }
+    // src.dim[1:] matches logsumexp (src has extra first dim for classes)
+    if(src->ndim() == logsumexp->ndim() + 1)
+    {
+        for(Index i = 0; i < logsumexp->ndim(); ++i)
+        {
+            merge_axis(src->mutable_axes()[static_cast<size_t>(i + 1)],
+                       logsumexp->mutable_axes()[i]);
+        }
+    }
+
     auto op = std::make_shared<TensorTotalSumAccumOp>(
         alpha, logsumexp, src, class_labels, val, ignore_index);
     logsumexp->graph()->add_op(op);
