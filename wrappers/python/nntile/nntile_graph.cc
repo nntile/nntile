@@ -18,8 +18,6 @@
 
 #include <nntile/graph.hh>
 #include <nntile/graph/nn/graph_ops.hh>
-#include <nntile/graph/model/llama/llama_config.hh>
-#include <nntile/graph/model/llama/llama_attention.hh>
 
 #include <cstring>
 #include <stdexcept>
@@ -395,63 +393,4 @@ PYBIND11_MODULE(nntile_graph, m)
              py::return_value_policy::reference)
         .def("repr", &graph::module::Module::repr)
         .def("__repr__", &graph::module::Module::to_string);
-
-    // -----------------------------------------------------------------------
-    // Llama model components
-    // -----------------------------------------------------------------------
-    auto llama = m.def_submodule("llama", "Llama model components");
-
-    py::class_<model::llama::LlamaConfig>(llama, "LlamaConfig")
-        .def(py::init<>())
-        .def_readwrite("vocab_size",
-                       &model::llama::LlamaConfig::vocab_size)
-        .def_readwrite("hidden_size",
-                       &model::llama::LlamaConfig::hidden_size)
-        .def_readwrite("intermediate_size",
-                       &model::llama::LlamaConfig::intermediate_size)
-        .def_readwrite("num_hidden_layers",
-                       &model::llama::LlamaConfig::num_hidden_layers)
-        .def_readwrite("num_attention_heads",
-                       &model::llama::LlamaConfig::num_attention_heads)
-        .def_readwrite("num_key_value_heads",
-                       &model::llama::LlamaConfig::num_key_value_heads)
-        .def_readwrite("max_position_embeddings",
-                       &model::llama::LlamaConfig::max_position_embeddings)
-        .def_readwrite("head_dim",
-                       &model::llama::LlamaConfig::head_dim)
-        .def_readwrite("rms_norm_eps",
-                       &model::llama::LlamaConfig::rms_norm_eps)
-        .def_readwrite("rope_theta",
-                       &model::llama::LlamaConfig::rope_theta)
-        .def_readwrite("attention_bias",
-                       &model::llama::LlamaConfig::attention_bias)
-        .def_readwrite("mlp_bias",
-                       &model::llama::LlamaConfig::mlp_bias)
-        .def_readwrite("name",
-                       &model::llama::LlamaConfig::name)
-        .def("compute_head_dim",
-             &model::llama::LlamaConfig::compute_head_dim)
-        .def("validate", &model::llama::LlamaConfig::validate)
-        .def("__repr__", [](const model::llama::LlamaConfig& c) {
-            return "LlamaConfig(hidden=" + std::to_string(c.hidden_size) +
-                   ", heads=" + std::to_string(c.num_attention_heads) +
-                   ", kv_heads=" + std::to_string(c.num_key_value_heads) +
-                   ", layers=" + std::to_string(c.num_hidden_layers) + ")";
-        });
-
-    py::class_<model::llama::LlamaAttention, graph::module::Module>(
-            llama, "LlamaAttention")
-        .def(py::init<NNGraph*, const std::string&,
-                      const model::llama::LlamaConfig&, DataType>(),
-             "graph"_a, "name"_a, "config"_a,
-             "dtype"_a = DataType::FP32)
-        .def("forward", &model::llama::LlamaAttention::forward,
-             "x"_a, "sin"_a = nullptr, "cos"_a = nullptr,
-             "mask"_a = nullptr,
-             py::return_value_policy::reference)
-        .def_property_readonly("head_size",
-                               &model::llama::LlamaAttention::head_size)
-        .def_property_readonly("num_heads",
-                               &model::llama::LlamaAttention::num_heads)
-        .def("repr", &model::llama::LlamaAttention::repr);
 }
