@@ -45,7 +45,6 @@ cat affected.txt
 # Run tests affected by this PR.
 if [ -s affected.txt ]; then
     pytest -vv \
-        --ignore=wrappers/python/tests/graph/model/llama \
         --cov=wrappers/python/nntile \
         --cov-report=html:coverage/html/${PYTHON_TAG} \
         --cov-report=xml:coverage/xml/report.${PYTHON_TAG}.xml \
