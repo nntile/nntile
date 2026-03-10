@@ -70,6 +70,39 @@ Index AxisDescriptor::num_tiles() const
     return static_cast<Index>(tile_sizes.size());
 }
 
+std::string AxisDescriptor::tile_sizes_to_string() const
+{
+    if(tile_sizes.empty())
+    {
+        return "";
+    }
+    if(tile_sizes.size() == 1)
+    {
+        return std::to_string(tile_sizes[0]);
+    }
+    bool uniform = true;
+    for(size_t t = 1; t < tile_sizes.size(); ++t)
+    {
+        if(tile_sizes[t] != tile_sizes[0])
+        {
+            uniform = false;
+            break;
+        }
+    }
+    if(uniform)
+    {
+        return std::to_string(tile_sizes[0]);
+    }
+    std::string result = "{";
+    for(size_t t = 0; t < tile_sizes.size(); ++t)
+    {
+        if(t > 0) result += ",";
+        result += std::to_string(tile_sizes[t]);
+    }
+    result += "}";
+    return result;
+}
+
 void merge_axis(std::shared_ptr<AxisDescriptor>& keep,
                 std::shared_ptr<AxisDescriptor>& replace)
 {

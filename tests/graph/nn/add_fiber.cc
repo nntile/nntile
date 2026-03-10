@@ -40,17 +40,21 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     const auto [alpha, beta, axis] = GENERATE(
         std::tuple{Scalar(1.0), Scalar(1.0), Index(1)},
-        std::tuple{Scalar(0.5), Scalar(2.0), Index(1)});
+        std::tuple{Scalar(0.5), Scalar(2.0), Index(0)});
+
+    std::vector<Index> tensor_shape = (axis == 0) ?
+        std::vector<Index>{dim_4, dim_2} : std::vector<Index>{dim_2, dim_4};
+    std::vector<Index> fiber_shape = {tensor_shape[axis]};
 
     NNGraph g("add_fiber_structure");
-    auto* fiber = g.tensor({dim_4}, "fiber", DataType::FP32);
-    auto* tensor = g.tensor({dim_2, dim_4}, "tensor", DataType::FP32);
+    auto* fiber = g.tensor(fiber_shape, "fiber", DataType::FP32);
+    auto* tensor = g.tensor(tensor_shape, "tensor", DataType::FP32);
     auto* out = add_fiber(alpha, fiber, beta, tensor, "out",
                          axis, batch_ndim_none);
 
     REQUIRE(out != nullptr);
     REQUIRE(out->has_producer());
-    REQUIRE(out->shape() == (std::vector<Index>{dim_2, dim_4}));
+    REQUIRE(out->shape() == tensor_shape);
     REQUIRE(g.num_ops() == 1);
     REQUIRE(g.tensor_graph().ops()[0]->op_name() == "ADD_FIBER");
 }

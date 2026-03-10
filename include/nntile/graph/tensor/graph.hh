@@ -156,37 +156,7 @@ inline std::string TensorGraph::to_string() const
             }
             if(g->is_tiled())
             {
-                ss << " tile=";
-                if(g->tile_sizes.size() == 1)
-                {
-                    ss << g->tile_sizes[0];
-                }
-                else
-                {
-                    bool uniform = true;
-                    for(size_t t = 1; t < g->tile_sizes.size(); ++t)
-                    {
-                        if(g->tile_sizes[t] != g->tile_sizes[0])
-                        {
-                            uniform = false;
-                            break;
-                        }
-                    }
-                    if(uniform)
-                    {
-                        ss << g->tile_sizes[0];
-                    }
-                    else
-                    {
-                        ss << "{";
-                        for(size_t t = 0; t < g->tile_sizes.size(); ++t)
-                        {
-                            if(t > 0) ss << ",";
-                            ss << g->tile_sizes[t];
-                        }
-                        ss << "}";
-                    }
-                }
+                ss << " tile=" << g->tile_sizes_to_string();
             }
             ss << " members=" << g->members.size() << "\n";
         }
@@ -233,7 +203,7 @@ inline std::string TensorGraph::to_mermaid() const
             }
             if(ax->is_tiled())
             {
-                axes_str += "/" + std::to_string(ax->tile_sizes[0]);
+                axes_str += "/" + ax->tile_sizes_to_string();
             }
         }
         axes_str += "]";

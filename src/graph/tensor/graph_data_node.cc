@@ -158,37 +158,7 @@ std::string TensorGraph::TensorNode::to_string() const
         }
         if(ax->is_tiled())
         {
-            result += "/";
-            if(ax->tile_sizes.size() == 1)
-            {
-                result += std::to_string(ax->tile_sizes[0]);
-            }
-            else
-            {
-                bool uniform = true;
-                for(size_t t = 1; t < ax->tile_sizes.size(); ++t)
-                {
-                    if(ax->tile_sizes[t] != ax->tile_sizes[0])
-                    {
-                        uniform = false;
-                        break;
-                    }
-                }
-                if(uniform && ax->tile_sizes.size() > 1)
-                {
-                    result += std::to_string(ax->tile_sizes[0]);
-                }
-                else
-                {
-                    result += "{";
-                    for(size_t t = 0; t < ax->tile_sizes.size(); ++t)
-                    {
-                        if(t > 0) result += ",";
-                        result += std::to_string(ax->tile_sizes[t]);
-                    }
-                    result += "}";
-                }
-            }
+            result += "/" + ax->tile_sizes_to_string();
         }
     }
     result += "], dtype=" + dtype_to_string(dtype_) + ")";

@@ -56,6 +56,10 @@ struct AxisDescriptor
 
     //! Number of tiles along this axis (1 if not tiled).
     Index num_tiles() const;
+
+    //! Human-readable tile sizes for display: "N" for single/uniform,
+    //! "{a,b,c}" for heterogeneous. Returns empty string if not tiled.
+    std::string tile_sizes_to_string() const;
 };
 
 //! Merge two axis groups. All tensors holding `replace` are redirected
