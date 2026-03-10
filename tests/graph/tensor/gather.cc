@@ -19,6 +19,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/gather.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/tensor/tensor.hh"
@@ -137,3 +138,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     check_gather_vs_tensor_api<nntile::fp32_t>(shape);
 }
+
+// gather requires dst to be single-tiled; tiling all shared axes would
+// violate that constraint, so no tiled-vs-untiled test is added here.

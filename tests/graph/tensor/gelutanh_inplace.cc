@@ -22,6 +22,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gelutanh_inplace.hh"
 #include "nntile/tensor/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -127,4 +128,68 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::vector<Index>{1, 10});
 
     check_gelutanh_inplace_vs_tensor_api<nntile::fp32_t>(shape);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph gelutanh_inplace tiled matches untiled", "[graph][tensor]")
+{
+    const auto shape = GENERATE(
+        std::vector<Index>{4, 6},
+        std::vector<Index>{6},
+        std::vector<Index>{2, 4});
+
+    using T = nntile::fp32_t;
+    using Y = T::repr_t;
+    const Index nelems = std::accumulate(
+        shape.begin(), shape.end(), Index(1), std::multiplies<>());
+
+    std::vector<float> dst_data(nelems);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        dst_data[i] = static_cast<float>(Y(i - nelems / 2));
+    }
+
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("gelutanh_inplace_untiled");
+        auto* dst_node = graph.data(shape, "dst", DataType::FP32);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+        gt::gelutanh_inplace(dst_node);
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+        runtime.bind_data("dst", dst_data);
+        runtime.execute();
+        runtime.wait();
+        untiled_result = runtime.get_output<float>("dst");
+    }
+
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("gelutanh_inplace_tiled");
+        auto* dst_node = graph.data(shape, "dst", DataType::FP32);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+        gt::gelutanh_inplace(dst_node);
+
+        for(auto* ag : graph.axis_groups())
+        {
+            ag->set_tiling((ag->extent + 1) / 2);
+        }
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+        runtime.bind_data("dst", dst_data);
+        runtime.execute();
+        runtime.wait();
+        tiled_result = runtime.get_output<float>("dst");
+    }
+
+    constexpr float tol = 1e-5f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }

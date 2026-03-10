@@ -22,6 +22,7 @@
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor/graph_data_node.hh"
 #include "nntile/graph/tensor/graph_op_node.hh"
+#include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/tensor.hh"
 
 namespace nntile::graph
@@ -111,20 +112,28 @@ void apply_bind_hint_impl(
     nntile::tensor::Tensor<T>& tensor,
     const std::vector<std::uint8_t>& data)
 {
-    if(tensor.grid.nelems != 1)
-    {
-        throw std::runtime_error(
-            "apply_bind_hint: only single-tile tensors are supported");
-    }
     if(data.size() != static_cast<size_t>(tensor.nelems) * sizeof(T))
     {
         throw std::runtime_error(
             "apply_bind_hint: data size mismatch");
     }
-    auto tile = tensor.get_tile(0);
-    auto tile_local = tile.acquire(STARPU_W);
-    std::memcpy(tile_local.get_ptr(), data.data(), data.size());
-    tile_local.release();
+    if(tensor.grid.nelems == 1)
+    {
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        std::memcpy(tile_local.get_ptr(), data.data(), data.size());
+        tile_local.release();
+    }
+    else
+    {
+        nntile::tensor::Tensor<T> temp(
+            nntile::tensor::TensorTraits(tensor.shape, tensor.shape));
+        auto tile = temp.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        std::memcpy(tile_local.get_ptr(), data.data(), data.size());
+        tile_local.release();
+        nntile::tensor::scatter(temp, tensor);
+    }
 }
 
 } // namespace

@@ -22,6 +22,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/add_slice_inplace.hh"
 #include "nntile/tensor/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -202,4 +203,74 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     check_add_slice_inplace_vs_tensor_api<nntile::fp32_t>(
         dst_shape, axis, alpha, beta);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph add_slice_inplace tiled matches untiled", "[graph][tensor]")
+{
+    const auto [dst_shape, axis, alpha, beta] = GENERATE(
+        std::tuple{std::vector<Index>{2, 4}, Index(1), 1.0, 1.0},
+        std::tuple{std::vector<Index>{2, 4, 6}, Index(1), 2.0, 0.5});
+
+    using T = nntile::fp32_t;
+    using Y = T::repr_t;
+    std::vector<Index> src_sh = slice_shape(dst_shape, axis);
+    const Index dst_nelems = std::accumulate(
+        dst_shape.begin(), dst_shape.end(), Index(1), std::multiplies<>());
+    const Index src_nelems = std::accumulate(
+        src_sh.begin(), src_sh.end(), Index(1), std::multiplies<>());
+
+    std::vector<float> src_data(src_nelems);
+    std::vector<float> dst_data(dst_nelems);
+    for(Index i = 0; i < src_nelems; ++i)
+        src_data[i] = static_cast<float>(Y(i + 1));
+    for(Index i = 0; i < dst_nelems; ++i)
+        dst_data[i] = static_cast<float>(Y(-i - 1));
+
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("add_slice_inplace_untiled");
+        auto* src_node = graph.data(src_sh, "src", DataType::FP32);
+        auto* dst_node = graph.data(dst_shape, "dst", DataType::FP32);
+        src_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+        gt::add_slice_inplace(alpha, src_node, beta, dst_node, axis);
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+        runtime.bind_data("src", src_data);
+        runtime.bind_data("dst", dst_data);
+        runtime.execute();
+        runtime.wait();
+        untiled_result = runtime.get_output<float>("dst");
+    }
+
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("add_slice_inplace_tiled");
+        auto* src_node = graph.data(src_sh, "src", DataType::FP32);
+        auto* dst_node = graph.data(dst_shape, "dst", DataType::FP32);
+        src_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+        gt::add_slice_inplace(alpha, src_node, beta, dst_node, axis);
+        for(auto* ag : graph.axis_groups())
+        {
+            ag->set_tiling((ag->extent + 1) / 2);
+        }
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+        runtime.bind_data("src", src_data);
+        runtime.bind_data("dst", dst_data);
+        runtime.execute();
+        runtime.wait();
+        tiled_result = runtime.get_output<float>("dst");
+    }
+
+    constexpr float tol = 1e-5f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }

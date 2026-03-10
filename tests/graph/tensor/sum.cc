@@ -22,6 +22,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/sum.hh"
 #include "nntile/tensor/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -156,4 +157,83 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{1.0, 1.0, std::vector<Index>{3, 4}});
 
     check_sum_vs_tensor_api<nntile::fp32_t>(shape, alpha, beta);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph sum tiled matches untiled", "[graph][tensor]")
+{
+    const auto [alpha, beta, src_shape] = GENERATE(
+        std::tuple{1.0, 0.0, std::vector<Index>{4, 6}},
+        std::tuple{1.0, 1.0, std::vector<Index>{6}});
+
+    using T = nntile::fp32_t;
+    using Y = typename T::repr_t;
+    const Index src_nelems = std::accumulate(
+        src_shape.begin(), src_shape.end(), Index(1), std::multiplies<>());
+
+    std::vector<float> src_data(src_nelems);
+    for(Index i = 0; i < src_nelems; ++i)
+    {
+        src_data[i] = static_cast<float>(Y(i + 1));
+    }
+    std::vector<float> dst_data(1);
+    dst_data[0] = (beta != beta_zero) ? 1.0f : 0.0f;
+
+    // --- Untiled run ---
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("sum_untiled");
+        auto* src_node = graph.data(src_shape, "src", DataType::FP32);
+        auto* dst_node = graph.data({}, "dst", DataType::FP32);
+        src_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+
+        gt::sum(src_node, dst_node, alpha, beta);
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("src", src_data);
+        runtime.bind_data("dst", dst_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_result = runtime.get_output<float>("dst");
+    }
+
+    // --- Tiled run ---
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("sum_tiled");
+        auto* src_node = graph.data(src_shape, "src", DataType::FP32);
+        auto* dst_node = graph.data({}, "dst", DataType::FP32);
+        src_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+
+        gt::sum(src_node, dst_node, alpha, beta);
+        for(auto* ag : graph.axis_groups())
+        {
+            ag->set_tiling((ag->extent + 1) / 2);
+        }
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("src", src_data);
+        runtime.bind_data("dst", dst_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_result = runtime.get_output<float>("dst");
+    }
+
+    // --- Compare ---
+    constexpr float tol = 1e-5f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }

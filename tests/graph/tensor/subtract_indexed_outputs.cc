@@ -20,6 +20,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/subtract_indexed_outputs.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/subtract_indexed_outputs.hh"
 #include "nntile/tensor/tensor.hh"
@@ -187,4 +188,97 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     check_subtract_indexed_outputs_vs_tensor_api<nntile::fp32_t>(
         labels_shape, n_class);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph subtract_indexed_outputs tiled matches untiled",
+    "[graph][tensor]")
+{
+    const auto [labels_shape, n_class] = GENERATE(
+        std::tuple{std::vector<Index>{4}, Index(6)},
+        std::tuple{std::vector<Index>{2, 4}, Index(4)});
+
+    std::vector<Index> dst_shape = {n_class};
+    dst_shape.insert(dst_shape.end(), labels_shape.begin(), labels_shape.end());
+    const Index labels_nelems = std::accumulate(
+        labels_shape.begin(), labels_shape.end(), Index(1), std::multiplies<>());
+    const Index dst_nelems = std::accumulate(
+        dst_shape.begin(), dst_shape.end(), Index(1), std::multiplies<>());
+
+    std::vector<std::int64_t> labels_data(labels_nelems);
+    std::vector<float> dst_data(dst_nelems);
+    for(Index i = 0; i < labels_nelems; ++i)
+    {
+        labels_data[i] = static_cast<std::int64_t>(i % n_class);
+    }
+    for(Index i = 0; i < dst_nelems; ++i)
+    {
+        dst_data[i] = static_cast<float>(i);
+    }
+
+    // --- Untiled run ---
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("subtract_indexed_outputs_untiled");
+        auto* labels_node = graph.data(labels_shape, "labels", DataType::INT64);
+        auto* dst_node = graph.data(dst_shape, "dst", DataType::FP32);
+        labels_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+
+        gt::subtract_indexed_outputs(val, labels_node, dst_node, ignore_index);
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("labels", labels_data);
+        runtime.bind_data("dst", dst_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_result = runtime.get_output<float>("dst");
+    }
+
+    // --- Tiled run ---
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("subtract_indexed_outputs_tiled");
+        auto* labels_node = graph.data(labels_shape, "labels", DataType::INT64);
+        auto* dst_node = graph.data(dst_shape, "dst", DataType::FP32);
+        labels_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+
+        gt::subtract_indexed_outputs(val, labels_node, dst_node, ignore_index);
+        auto* nclass_axis = dst_node->axis(0);
+        for(auto* ag : graph.axis_groups())
+        {
+            if(ag == nclass_axis)
+            {
+                ag->set_tiling(ag->extent);
+            }
+            else
+            {
+                ag->set_tiling((ag->extent + 1) / 2);
+            }
+        }
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("labels", labels_data);
+        runtime.bind_data("dst", dst_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_result = runtime.get_output<float>("dst");
+    }
+
+    // --- Compare ---
+    constexpr float tol = 1e-5f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }

@@ -122,7 +122,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     auto graph_text = g.to_string();
     REQUIRE(graph_text.find("NNGraph(name='grad'") != std::string::npos);
-    REQUIRE(graph_text.find("Operations:") != std::string::npos);
+    REQUIRE(graph_text.find("Tensors:") != std::string::npos);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

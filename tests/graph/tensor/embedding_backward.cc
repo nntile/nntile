@@ -24,6 +24,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/embedding_backward.hh"
 #include "nntile/tensor/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -218,4 +219,107 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     check_embedding_backward_vs_tensor_api<nntile::fp32_t>(
         index_shape, vocab_shape, axis, redux);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph embedding_backward tiled matches untiled", "[graph][tensor]")
+{
+    const auto [index_shape, vocab_shape, axis, redux] = GENERATE(
+        std::tuple{std::vector<Index>{4, 5}, std::vector<Index>{10, 100},
+                   Index(2), 0},
+        std::tuple{std::vector<Index>{3}, std::vector<Index>{8, 50},
+                   Index(1), 0});
+
+    auto embed_shape = embed_output_shape(index_shape, vocab_shape, axis);
+
+    const Index index_nelems = std::accumulate(
+        index_shape.begin(), index_shape.end(), Index(1), std::multiplies<>());
+    const Index embed_nelems = std::accumulate(
+        embed_shape.begin(), embed_shape.end(), Index(1), std::multiplies<>());
+    const Index vocab_nelems = std::accumulate(
+        vocab_shape.begin(), vocab_shape.end(), Index(1), std::multiplies<>());
+
+    std::vector<std::int64_t> index_data(index_nelems);
+    std::vector<float> embed_data(embed_nelems);
+    std::vector<float> vocab_data(vocab_nelems, 0.0f);
+    for(Index i = 0; i < index_nelems; ++i)
+    {
+        index_data[i] = static_cast<std::int64_t>(i % vocab_shape[1]);
+    }
+    for(Index i = 0; i < embed_nelems; ++i)
+    {
+        embed_data[i] = 0.1f * static_cast<float>(i % 5);
+    }
+
+    // --- Untiled run ---
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("embedding_backward_untiled");
+        auto* index_node = graph.data(index_shape, "index", DataType::INT64);
+        auto* embed_node = graph.data(embed_shape, "embed", DataType::FP32);
+        auto* vocab_node = graph.data(vocab_shape, "vocab", DataType::FP32);
+        index_node->mark_input(true);
+        embed_node->mark_input(true);
+        vocab_node->mark_input(true);
+        vocab_node->mark_output(true);
+
+        gt::embedding_backward(index_node, embed_node, vocab_node, axis, redux);
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("index", index_data);
+        runtime.bind_data("embed", embed_data);
+        runtime.bind_data("vocab", vocab_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_result = runtime.get_output<float>("vocab");
+    }
+
+    // --- Tiled run ---
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("embedding_backward_tiled");
+        auto* index_node = graph.data(index_shape, "index", DataType::INT64);
+        auto* embed_node = graph.data(embed_shape, "embed", DataType::FP32);
+        auto* vocab_node = graph.data(vocab_shape, "vocab", DataType::FP32);
+        index_node->mark_input(true);
+        embed_node->mark_input(true);
+        vocab_node->mark_input(true);
+        vocab_node->mark_output(true);
+
+        gt::embedding_backward(index_node, embed_node, vocab_node, axis, redux);
+        auto* num_embed_axis = vocab_node->axis(1);
+        for(auto* ag : graph.axis_groups())
+        {
+            if(ag == num_embed_axis)
+            {
+                ag->set_tiling(ag->extent);
+            }
+            else
+            {
+                ag->set_tiling((ag->extent + 1) / 2);
+            }
+        }
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("index", index_data);
+        runtime.bind_data("embed", embed_data);
+        runtime.bind_data("vocab", vocab_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_result = runtime.get_output<float>("vocab");
+    }
+
+    // --- Compare ---
+    constexpr float tol = 1e-5f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }
