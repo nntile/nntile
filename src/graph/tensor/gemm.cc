@@ -125,6 +125,33 @@ TensorGraph::TensorNode* gemm(
         output_name,
         a->dtype());
 
+    int a_ndim = static_cast<int>(a->shape().size());
+    int b_ndim = static_cast<int>(b->shape().size());
+    int nd = static_cast<int>(ndim);
+    int bn = static_cast<int>(batch_ndim);
+    int a_batch_start = a_ndim - bn;
+    int b_batch_start = b_ndim - bn;
+    int a_m_begin = trans_a ? nd : 0;
+    int a_m_end = trans_a ? a_batch_start : a_batch_start - nd;
+    int a_k_begin = trans_a ? 0 : a_m_end;
+    int b_k_begin = trans_b ? (b_batch_start - nd) : 0;
+    int b_n_begin = trans_b ? 0 : nd;
+    int b_n_end = trans_b ? b_batch_start - nd : b_batch_start;
+    int num_m = a_m_end - a_m_begin;
+    int num_n = b_n_end - b_n_begin;
+    for(int i = 0; i < num_m; ++i)
+        merge_axis(a->mutable_axes()[a_m_begin + i], output->mutable_axes()[i]);
+    for(int i = 0; i < nd; ++i)
+        merge_axis(a->mutable_axes()[a_k_begin + i], b->mutable_axes()[b_k_begin + i]);
+    for(int i = 0; i < num_n; ++i)
+        merge_axis(b->mutable_axes()[b_n_begin + i], output->mutable_axes()[num_m + i]);
+    int c_batch_start = num_m + num_n;
+    for(int i = 0; i < bn; ++i)
+    {
+        merge_axis(a->mutable_axes()[a_batch_start + i], output->mutable_axes()[c_batch_start + i]);
+        merge_axis(b->mutable_axes()[b_batch_start + i], output->mutable_axes()[c_batch_start + i]);
+    }
+
     auto op = std::make_shared<TensorGemmOp>(
         a, b, output, alpha, gemm_new_output_beta, trans_a, trans_b, ndim, batch_ndim);
 
@@ -161,10 +188,37 @@ void gemm(
 
     std::vector<Index> expected_shape = gemm_output_shape(
         a->shape(), b->shape(), trans_a, trans_b, ndim, batch_ndim);
-    if(c->shape() != expected_shape)
+    if(c->ndim() != static_cast<Index>(expected_shape.size()))
     {
         throw std::invalid_argument(
-            "gemm: tensor c has incompatible shape for accumulation");
+            "gemm: tensor c has incompatible ndim for accumulation");
+    }
+
+    int a_ndim = static_cast<int>(a->shape().size());
+    int b_ndim = static_cast<int>(b->shape().size());
+    int nd = static_cast<int>(ndim);
+    int bn = static_cast<int>(batch_ndim);
+    int a_batch_start = a_ndim - bn;
+    int b_batch_start = b_ndim - bn;
+    int a_m_begin = trans_a ? nd : 0;
+    int a_m_end = trans_a ? a_batch_start : a_batch_start - nd;
+    int a_k_begin = trans_a ? 0 : a_m_end;
+    int b_k_begin = trans_b ? (b_batch_start - nd) : 0;
+    int b_n_begin = trans_b ? 0 : nd;
+    int b_n_end = trans_b ? b_batch_start - nd : b_batch_start;
+    int num_m = a_m_end - a_m_begin;
+    int num_n = b_n_end - b_n_begin;
+    for(int i = 0; i < num_m; ++i)
+        merge_axis(a->mutable_axes()[a_m_begin + i], c->mutable_axes()[i]);
+    for(int i = 0; i < nd; ++i)
+        merge_axis(a->mutable_axes()[a_k_begin + i], b->mutable_axes()[b_k_begin + i]);
+    for(int i = 0; i < num_n; ++i)
+        merge_axis(b->mutable_axes()[b_n_begin + i], c->mutable_axes()[num_m + i]);
+    int c_batch_start = num_m + num_n;
+    for(int i = 0; i < bn; ++i)
+    {
+        merge_axis(a->mutable_axes()[a_batch_start + i], c->mutable_axes()[c_batch_start + i]);
+        merge_axis(b->mutable_axes()[b_batch_start + i], c->mutable_axes()[c_batch_start + i]);
     }
 
     auto op = std::make_shared<TensorGemmOp>(

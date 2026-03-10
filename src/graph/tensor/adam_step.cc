@@ -64,6 +64,16 @@ void adam_step(Index num_iter, Scalar beta_1, Scalar beta_2,
        first_moment->dtype() != second_moment->dtype() ||
        second_moment->dtype() != p->dtype())
         throw std::invalid_argument("adam_step: tensors must have same dtype");
+    if(grad->ndim() != first_moment->ndim() ||
+       first_moment->ndim() != second_moment->ndim() ||
+       second_moment->ndim() != p->ndim())
+        throw std::invalid_argument("adam_step: tensors must have same ndim");
+    for(Index i = 0; i < grad->ndim(); ++i)
+    {
+        merge_axis(grad->mutable_axes()[i], first_moment->mutable_axes()[i]);
+        merge_axis(grad->mutable_axes()[i], second_moment->mutable_axes()[i]);
+        merge_axis(grad->mutable_axes()[i], p->mutable_axes()[i]);
+    }
     auto op = std::make_shared<TensorAdamStepOp>(
         num_iter, beta_1, beta_2, eps, lr, weight_decay,
         grad, first_moment, second_moment, p);

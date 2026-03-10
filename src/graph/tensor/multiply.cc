@@ -65,10 +65,10 @@ TensorGraph::TensorNode* multiply(
         throw std::invalid_argument(
             "multiply: input tensors must have the same dtype");
     }
-    if(x->shape() != y->shape())
+    if(x->ndim() != y->ndim())
     {
         throw std::invalid_argument(
-            "multiply: input tensors must have the same shape");
+            "multiply: input tensors must have the same ndim");
     }
     if(x == y)
     {
@@ -76,11 +76,17 @@ TensorGraph::TensorNode* multiply(
             "multiply: x and y must be distinct tensors");
     }
 
+    for(Index i = 0; i < x->ndim(); ++i)
+    {
+        merge_axis(x->mutable_axes()[i], y->mutable_axes()[i]);
+    }
+
     std::vector<Index> output_shape = x->shape();
     TensorGraph::TensorNode* output = x->graph()->data(
         std::move(output_shape),
         output_name,
         x->dtype());
+    output->set_axes(x->axes());
 
     auto op = std::make_shared<TensorMultiplyOp>(x, y, output, alpha);
     x->graph()->add_op(op);

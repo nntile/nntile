@@ -47,6 +47,7 @@ TensorGraph::TensorNode* scale(Scalar alpha, TensorGraph::TensorNode* src,
     std::vector<Index> output_shape = src->shape();
     TensorGraph::TensorNode* output = src->graph()->data(
         std::move(output_shape), output_name, src->dtype());
+    output->set_axes(src->axes());
     scale(alpha, src, output);
     return output;
 }
@@ -60,10 +61,16 @@ void scale(Scalar alpha, TensorGraph::TensorNode* src,
         throw std::invalid_argument("scale: tensors must belong to same graph");
     if(src->dtype() != dst->dtype())
         throw std::invalid_argument("scale: tensors must have same dtype");
-    if(src->shape() != dst->shape())
-        throw std::invalid_argument("scale: tensors must have same shape");
+    if(src->ndim() != dst->ndim())
+        throw std::invalid_argument("scale: tensors must have same ndim");
     if(src == dst)
         throw std::invalid_argument("scale: src and dst must be distinct tensors");
+
+    for(Index i = 0; i < src->ndim(); ++i)
+    {
+        merge_axis(src->mutable_axes()[i], dst->mutable_axes()[i]);
+    }
+
     auto op = std::make_shared<TensorScaleOp>(src, dst, alpha);
     src->graph()->add_op(op);
 }

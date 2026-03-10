@@ -71,10 +71,15 @@ TensorGraph::TensorNode* hypot(
         throw std::invalid_argument(
             "hypot: input tensors must have the same dtype");
     }
-    if(src1->shape() != src2->shape())
+    if(src1->ndim() != src2->ndim())
     {
         throw std::invalid_argument(
-            "hypot: input tensors must have the same shape");
+            "hypot: input tensors must have the same ndim");
+    }
+
+    for(Index i = 0; i < src1->ndim(); ++i)
+    {
+        merge_axis(src1->mutable_axes()[i], src2->mutable_axes()[i]);
     }
 
     std::vector<Index> output_shape = src1->shape();
@@ -82,6 +87,7 @@ TensorGraph::TensorNode* hypot(
         std::move(output_shape),
         output_name,
         src1->dtype());
+    dst->set_axes(src1->axes());
 
     hypot(alpha, src1, beta, src2, dst);
 
@@ -110,15 +116,21 @@ void hypot(
         throw std::invalid_argument(
             "hypot: input tensors must have the same dtype");
     }
-    if(src1->shape() != dst->shape())
+    if(src1->ndim() != dst->ndim())
     {
         throw std::invalid_argument(
-            "hypot: output shape must match input shape");
+            "hypot: output ndim must match input ndim");
     }
     if(src1 == src2 || src1 == dst || src2 == dst)
     {
         throw std::invalid_argument(
             "hypot: src1, src2, and dst must be distinct tensors");
+    }
+
+    for(Index i = 0; i < src1->ndim(); ++i)
+    {
+        merge_axis(src1->mutable_axes()[i], src2->mutable_axes()[i]);
+        merge_axis(src1->mutable_axes()[i], dst->mutable_axes()[i]);
     }
 
     auto op = std::make_shared<TensorHypotOp>(
