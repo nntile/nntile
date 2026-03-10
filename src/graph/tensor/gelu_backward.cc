@@ -61,15 +61,21 @@ void gelu_backward(
         throw std::invalid_argument(
             "gelu_backward: input tensors must have the same dtype");
     }
-    if(x->shape() != dy->shape() || x->shape() != dx->shape())
+    if(x->ndim() != dy->ndim() || x->ndim() != dx->ndim())
     {
         throw std::invalid_argument(
-            "gelu_backward: all tensors must have the same shape");
+            "gelu_backward: all tensors must have the same ndim");
     }
     if(x == dy || x == dx || dy == dx)
     {
         throw std::invalid_argument(
             "gelu_backward: x, dy, and dx must be distinct tensors");
+    }
+
+    for(Index i = 0; i < x->ndim(); ++i)
+    {
+        merge_axis(x->mutable_axes()[i], dy->mutable_axes()[i]);
+        merge_axis(x->mutable_axes()[i], dx->mutable_axes()[i]);
     }
 
     auto op = std::make_shared<TensorGeluBackwardOp>(x, dy, dx);

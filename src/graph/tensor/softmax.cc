@@ -68,11 +68,11 @@ TensorGraph::TensorNode* softmax(
     }
     // maxsumexp has shape with 2 at axis, src has full shape
 
-    std::vector<Index> output_shape = src->shape();
     TensorGraph::TensorNode* dst = src->graph()->data(
-        std::move(output_shape),
+        src->shape(),
         output_name,
         src->dtype());
+    dst->set_axes(src->axes());
 
     softmax(maxsumexp, src, dst, alpha, axis);
 
@@ -101,10 +101,15 @@ void softmax(
         throw std::invalid_argument(
             "softmax: input tensors must have the same dtype");
     }
-    if(src->shape() != dst->shape())
+    if(src->ndim() != dst->ndim())
     {
         throw std::invalid_argument(
-            "softmax: dst must have the same shape as src");
+            "softmax: dst must have the same ndim as src");
+    }
+
+    for(Index i = 0; i < src->ndim(); ++i)
+    {
+        merge_axis(src->mutable_axes()[i], dst->mutable_axes()[i]);
     }
 
     auto op = std::make_shared<TensorSoftmaxOp>(

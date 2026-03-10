@@ -66,11 +66,11 @@ TensorGraph::TensorNode* rope_backward(
             "rope_backward: input tensors must have the same dtype");
     }
 
-    std::vector<Index> output_shape = dy->shape();
     TensorGraph::TensorNode* dx = dy->graph()->data(
-        std::move(output_shape),
+        dy->shape(),
         output_name,
         dy->dtype());
+    dx->set_axes(dy->axes());
 
     rope_backward(sin, cos, dy, dx);
 
@@ -100,10 +100,15 @@ void rope_backward(
         throw std::invalid_argument(
             "rope_backward: input tensors must have the same dtype");
     }
-    if(dy->shape() != dx->shape())
+    if(dy->ndim() != dx->ndim())
     {
         throw std::invalid_argument(
-            "rope_backward: dx must have the same shape as dy");
+            "rope_backward: dx must have the same ndim as dy");
+    }
+
+    for(Index i = 0; i < dy->ndim(); ++i)
+    {
+        merge_axis(dy->mutable_axes()[i], dx->mutable_axes()[i]);
     }
 
     auto op = std::make_shared<TensorRopeBackwardOp>(sin, cos, dy, dx);

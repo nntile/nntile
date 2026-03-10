@@ -62,6 +62,11 @@ TensorGraph::TensorNode* logsumexp(
         output_name,
         src->dtype());
 
+    for(Index i = 0; i < dst->ndim(); ++i)
+    {
+        merge_axis(src->mutable_axes()[i + 1], dst->mutable_axes()[i]);
+    }
+
     logsumexp(src, dst);
 
     return dst;
@@ -85,6 +90,11 @@ void logsumexp(
     {
         throw std::invalid_argument(
             "logsumexp: input tensors must have the same dtype");
+    }
+
+    for(Index i = 0; i < dst->ndim(); ++i)
+    {
+        merge_axis(src->mutable_axes()[i + 1], dst->mutable_axes()[i]);
     }
 
     auto op = std::make_shared<TensorLogsumexpOp>(src, dst);
