@@ -117,49 +117,43 @@ void flash_sdpa_fwd_cudnn(TensorGraph::TensorNode* K,
             "flash_sdpa_fwd_cudnn: logsumexp must have FP32 dtype");
     validate_same_shape_and_merge(K, A, "flash_sdpa_fwd_cudnn");
     validate_logsumexp_shape_and_merge(K, logsumexp, "flash_sdpa_fwd_cudnn");
-    if(Q->ndim() == K->ndim())
+    if(Q->ndim() != K->ndim())
+        throw std::invalid_argument(
+            "flash_sdpa_fwd_cudnn: Q.ndim must match K.ndim");
+    if(V->ndim() != K->ndim())
+        throw std::invalid_argument(
+            "flash_sdpa_fwd_cudnn: V.ndim must match K.ndim");
+    if(Q->shape()[0] != K->shape()[0])
+        throw std::invalid_argument(
+            "flash_sdpa_fwd_cudnn: Q.dim[0] must match K.dim[0]");
+    for(Index i = 2; i < K->ndim(); ++i)
     {
-        if(Q->shape()[0] != K->shape()[0])
+        if(Q->shape()[i] != K->shape()[i])
             throw std::invalid_argument(
-                "flash_sdpa_fwd_cudnn: Q.dim[0] must match K.dim[0]");
-        for(Index i = 2; i < K->ndim(); ++i)
-        {
-            if(Q->shape()[i] != K->shape()[i])
-                throw std::invalid_argument(
-                    "flash_sdpa_fwd_cudnn: Q.dim[" + std::to_string(i) +
-                    "] must match K.dim[" + std::to_string(i) + "]");
-        }
+                "flash_sdpa_fwd_cudnn: Q.dim[" + std::to_string(i) +
+                "] must match K.dim[" + std::to_string(i) + "]");
     }
-    if(V->ndim() == K->ndim())
+    if(V->shape()[0] != K->shape()[0])
+        throw std::invalid_argument(
+            "flash_sdpa_fwd_cudnn: V.dim[0] must match K.dim[0]");
+    for(Index i = 2; i < K->ndim(); ++i)
     {
-        if(V->shape()[0] != K->shape()[0])
+        if(V->shape()[i] != K->shape()[i])
             throw std::invalid_argument(
-                "flash_sdpa_fwd_cudnn: V.dim[0] must match K.dim[0]");
-        for(Index i = 2; i < K->ndim(); ++i)
-        {
-            if(V->shape()[i] != K->shape()[i])
-                throw std::invalid_argument(
-                    "flash_sdpa_fwd_cudnn: V.dim[" + std::to_string(i) +
-                    "] must match K.dim[" + std::to_string(i) + "]");
-        }
+                "flash_sdpa_fwd_cudnn: V.dim[" + std::to_string(i) +
+                "] must match K.dim[" + std::to_string(i) + "]");
     }
     // Q shares head_size and batch dims with K (dims 0, 2, 3, 4)
-    if(Q->ndim() == K->ndim())
+    merge_axis(Q->mutable_axes()[0], K->mutable_axes()[0]);
+    for(Index i = 2; i < K->ndim(); ++i)
     {
-        merge_axis(Q->mutable_axes()[0], K->mutable_axes()[0]);
-        for(Index i = 2; i < K->ndim(); ++i)
-        {
-            merge_axis(Q->mutable_axes()[i], K->mutable_axes()[i]);
-        }
+        merge_axis(Q->mutable_axes()[i], K->mutable_axes()[i]);
     }
     // V shares head_size and batch dims with K (dims 0, 2, 3, 4)
-    if(V->ndim() == K->ndim())
+    merge_axis(V->mutable_axes()[0], K->mutable_axes()[0]);
+    for(Index i = 2; i < K->ndim(); ++i)
     {
-        merge_axis(V->mutable_axes()[0], K->mutable_axes()[0]);
-        for(Index i = 2; i < K->ndim(); ++i)
-        {
-            merge_axis(V->mutable_axes()[i], K->mutable_axes()[i]);
-        }
+        merge_axis(V->mutable_axes()[i], K->mutable_axes()[i]);
     }
 
     auto op = std::make_shared<TensorFlashSdpaFwdCudnnOp>(
