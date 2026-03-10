@@ -8,24 +8,31 @@
 #
 # @version 1.1.0
 
-# Llama test data: generated at test time via CTest fixture (no binary in repo)
+# Llama test data: generated at test time via CTest fixtures (one per block)
 set(LLAMA_DATA_DIR "${CMAKE_CURRENT_BINARY_DIR}/llama_data")
 find_package(Python3 COMPONENTS Interpreter QUIET)
-# Prefer venv Python (has numpy, safetensors from uv sync); fallback to system
+# Prefer venv Python (has torch, transformers, safetensors); fallback to system
 set(LLAMA_DATA_PYTHON "${Python3_EXECUTABLE}")
 if(EXISTS "${CMAKE_SOURCE_DIR}/.venv/bin/python")
     set(LLAMA_DATA_PYTHON "${CMAKE_SOURCE_DIR}/.venv/bin/python")
 endif()
+
+set(LLAMA_GENERATE_SCRIPT
+    "${CMAKE_CURRENT_SOURCE_DIR}/llama/generate_test_data.py")
+
+set(LLAMA_BLOCKS attention mlp decoder model causal)
+
 if(Python3_Interpreter_FOUND)
-    add_test(NAME llama_data_setup
-        COMMAND "${LLAMA_DATA_PYTHON}"
-            "${CMAKE_SOURCE_DIR}/scripts/generate_llama_test_data.py"
-            --output "${LLAMA_DATA_DIR}" --seed 42 --no-torch
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    )
-    set_tests_properties(llama_data_setup PROPERTIES
-        FIXTURES_SETUP "llama_data"
-    )
+    foreach(block IN LISTS LLAMA_BLOCKS)
+        add_test(NAME llama_${block}_data_setup
+            COMMAND "${LLAMA_DATA_PYTHON}" "${LLAMA_GENERATE_SCRIPT}"
+                --block "${block}" --output "${LLAMA_DATA_DIR}" --seed 42
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        )
+        set_tests_properties(llama_${block}_data_setup PROPERTIES
+            FIXTURES_SETUP "llama_${block}_data"
+        )
+    endforeach()
 endif()
 
 set(TESTS_MODEL
@@ -39,29 +46,31 @@ set(TESTS_MODEL
 
 foreach(test_path IN LISTS TESTS_MODEL)
     get_filename_component(test_name ${test_path} NAME)
-    add_test_set(TARGET_NAME tests_model_${test_name}
+    add_test_set(TARGET_NAME tests_graph_model_${test_name}
         EXEC_NAME test_${test_name}
         SOURCES ${test_path}.cc
         LINK_LIBRARIES nntile Catch2::Catch2WithMain
         COV_ENABLE ${BUILD_COVERAGE}
-        COV_NAME coverage_model_${test_name}
-        COV_GLOBAL coverage_model coverage
+        COV_NAME coverage_graph_model_${test_name}
+        COV_GLOBAL coverage_graph_model coverage
     )
-    target_include_directories(tests_model_${test_name} PRIVATE
+    target_include_directories(tests_graph_model_${test_name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/..
         ${CMAKE_CURRENT_SOURCE_DIR}/../..
         ${CMAKE_CURRENT_SOURCE_DIR}/../../nn
     )
-    set_target_properties(tests_model_${test_name} PROPERTIES
+    set_target_properties(tests_graph_model_${test_name} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/llama)
-    if(test_name STREQUAL "llama_attention")
-        target_compile_definitions(tests_model_${test_name} PRIVATE
+    if(NOT test_name STREQUAL "llama_config")
+        target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             LLAMA_DATA_DIR="${LLAMA_DATA_DIR}"
         )
+        # Extract block name from test_name (strip "llama_" prefix)
+        string(REPLACE "llama_" "" block_name "${test_name}")
         if(Python3_Interpreter_FOUND)
-            set_tests_properties(tests_model_${test_name} PROPERTIES
-                FIXTURES_REQUIRED "llama_data"
+            set_tests_properties(tests_graph_model_${test_name} PROPERTIES
+                FIXTURES_REQUIRED "llama_${block_name}_data"
             )
         endif()
     endif()
