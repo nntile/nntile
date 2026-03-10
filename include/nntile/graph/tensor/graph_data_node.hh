@@ -356,6 +356,55 @@ inline void validate_logsumexp_shape_and_merge(
     }
 }
 
+//! Validate flash_sdpa Q/K/V shape: Q and V must have same ndim as K,
+//! share head_size (dim 0) and batch dims (dims 2, 3, 4); seq (dim 1) may differ.
+//! Merge axes for matching dimensions.
+inline void validate_flash_sdpa_qkv_shape_and_merge(
+    TensorGraph::TensorNode* K,
+    TensorGraph::TensorNode* Q,
+    TensorGraph::TensorNode* V,
+    const std::string& op_name)
+{
+    if(Q->ndim() != K->ndim())
+        throw std::invalid_argument(
+            op_name + ": Q.ndim must match K.ndim");
+    if(V->ndim() != K->ndim())
+        throw std::invalid_argument(
+            op_name + ": V.ndim must match K.ndim");
+    if(Q->shape()[0] != K->shape()[0])
+        throw std::invalid_argument(
+            op_name + ": Q.dim[0] must match K.dim[0]");
+    for(Index i = 2; i < K->ndim(); ++i)
+    {
+        if(Q->shape()[i] != K->shape()[i])
+            throw std::invalid_argument(
+                op_name + ": Q.dim[" + std::to_string(i) +
+                "] must match K.dim[" + std::to_string(i) + "]");
+    }
+    if(V->shape()[0] != K->shape()[0])
+        throw std::invalid_argument(
+            op_name + ": V.dim[0] must match K.dim[0]");
+    for(Index i = 2; i < K->ndim(); ++i)
+    {
+        if(V->shape()[i] != K->shape()[i])
+            throw std::invalid_argument(
+                op_name + ": V.dim[" + std::to_string(i) +
+                "] must match K.dim[" + std::to_string(i) + "]");
+    }
+    // Q shares head_size and batch dims with K (dims 0, 2, 3, 4)
+    merge_axis(Q->mutable_axes()[0], K->mutable_axes()[0]);
+    for(Index i = 2; i < K->ndim(); ++i)
+    {
+        merge_axis(Q->mutable_axes()[i], K->mutable_axes()[i]);
+    }
+    // V shares head_size and batch dims with K (dims 0, 2, 3, 4)
+    merge_axis(V->mutable_axes()[0], K->mutable_axes()[0]);
+    for(Index i = 2; i < K->ndim(); ++i)
+    {
+        merge_axis(V->mutable_axes()[i], K->mutable_axes()[i]);
+    }
+}
+
 //! Validate embedding output shape and merge axes.
 inline void validate_embedding_shape_and_merge(
     TensorGraph::TensorNode* embed,
