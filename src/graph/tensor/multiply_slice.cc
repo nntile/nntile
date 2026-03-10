@@ -67,32 +67,7 @@ void multiply_slice(
         throw std::invalid_argument(
             "multiply_slice: input tensors must have the same dtype");
     }
-    if(dst->ndim() != src->ndim() + 1)
-    {
-        throw std::invalid_argument(
-            "multiply_slice: dst must have ndim = src.ndim + 1");
-    }
-    if(axis < 0 || axis >= dst->ndim())
-    {
-        throw std::invalid_argument(
-            "multiply_slice: axis out of range");
-    }
-    for(Index i = 0; i < axis; ++i)
-    {
-        if(dst->shape()[i] != src->shape()[i])
-        {
-            throw std::invalid_argument(
-                "multiply_slice: dst.shape[i] must match src.shape[i] for i < axis");
-        }
-    }
-    for(Index i = axis + 1; i < dst->ndim(); ++i)
-    {
-        if(dst->shape()[i] != src->shape()[i - 1])
-        {
-            throw std::invalid_argument(
-                "multiply_slice: dst.shape[i] must match src.shape[i-1] for i > axis");
-        }
-    }
+    validate_slice_shape_and_merge(src, dst, axis, "multiply_slice");
 
     auto op = std::make_shared<TensorMultiplySliceOp>(alpha, src, dst, axis);
     src->graph()->add_op(op);

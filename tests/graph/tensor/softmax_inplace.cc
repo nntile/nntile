@@ -25,6 +25,7 @@
 #include "nntile/tensor/maxsumexp.hh"
 #include "nntile/tensor/softmax_inplace.hh"
 #include "nntile/tensor/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -198,4 +199,92 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{std::vector<Index>{3, 4}, Index(0), 0.5});
 
     check_softmax_inplace_vs_tensor_api<nntile::fp32_t>(shape, axis, alpha);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph softmax_inplace tiled matches untiled", "[graph][tensor]")
+{
+    const auto [shape, axis, alpha] = GENERATE(
+        std::tuple{std::vector<Index>{4, 6}, Index(0), 1.0},
+        std::tuple{std::vector<Index>{3, 4}, Index(0), 0.5});
+
+    using Y = nntile::fp32_t::repr_t;
+    const Index nelems = std::accumulate(
+        shape.begin(), shape.end(), Index(1), std::multiplies<>());
+
+    std::vector<float> src_data(nelems);
+    std::vector<float> dst_data(nelems);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        src_data[i] = static_cast<float>(Y(i % 10 - 2));
+        dst_data[i] = src_data[i];
+    }
+
+    // --- Untiled run ---
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("softmax_inplace_untiled");
+        auto* src_node = graph.data(shape, "src", DataType::FP32);
+        auto* dst_node = graph.data(shape, "dst", DataType::FP32);
+        src_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+
+        auto* maxsumexp_node = gt::maxsumexp(src_node, "maxsumexp", axis, redux);
+        gt::softmax_inplace(maxsumexp_node, dst_node, alpha, axis);
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("src", src_data);
+        runtime.bind_data("dst", dst_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_result = runtime.get_output<float>("dst");
+    }
+
+    // --- Tiled run ---
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("softmax_inplace_tiled");
+        auto* src_node = graph.data(shape, "src", DataType::FP32);
+        auto* dst_node = graph.data(shape, "dst", DataType::FP32);
+        src_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+
+        auto* maxsumexp_node = gt::maxsumexp(src_node, "maxsumexp", axis, redux);
+        gt::softmax_inplace(maxsumexp_node, dst_node, alpha, axis);
+        auto* maxsumexp_dim0 = maxsumexp_node->axis(0);
+        for(auto* ag : graph.axis_groups())
+        {
+            if(ag == maxsumexp_dim0)
+            {
+                ag->set_tiling(ag->extent);
+            }
+            else
+            {
+                ag->set_tiling((ag->extent + 1) / 2);
+            }
+        }
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("src", src_data);
+        runtime.bind_data("dst", dst_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_result = runtime.get_output<float>("dst");
+    }
+
+    // --- Compare ---
+    constexpr float tol = 1e-4f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }

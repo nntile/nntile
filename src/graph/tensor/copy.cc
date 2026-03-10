@@ -45,6 +45,7 @@ TensorGraph::TensorNode* copy(TensorGraph::TensorNode* src,
     std::vector<Index> output_shape = src->shape();
     TensorGraph::TensorNode* output = src->graph()->data(
         std::move(output_shape), output_name, src->dtype());
+    output->set_axes(src->axes());
     copy(src, output);
     return output;
 }
@@ -57,10 +58,10 @@ void copy(TensorGraph::TensorNode* src, TensorGraph::TensorNode* dst)
         throw std::invalid_argument("copy: tensors must belong to same graph");
     if(src->dtype() != dst->dtype())
         throw std::invalid_argument("copy: tensors must have same dtype");
-    if(src->shape() != dst->shape())
-        throw std::invalid_argument("copy: tensors must have same shape");
     if(src == dst)
         throw std::invalid_argument("copy: src and dst must be distinct tensors");
+    validate_same_shape_and_merge(src, dst, "copy");
+
     auto op = std::make_shared<TensorCopyOp>(src, dst);
     src->graph()->add_op(op);
 }

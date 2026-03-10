@@ -22,6 +22,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/multiply_fiber.hh"
 #include "nntile/tensor/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -190,4 +191,76 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{std::vector<Index>{dim_2, dim_3, dim_4}, axis_2, alpha_two});
 
     check_multiply_fiber_vs_tensor_api<nntile::fp32_t>(tensor_shape, axis, alpha);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph multiply_fiber tiled matches untiled", "[graph][tensor]")
+{
+    const auto [tensor_shape, axis, alpha] = GENERATE(
+        std::tuple{std::vector<Index>{2, 4}, Index(1), 1.0},
+        std::tuple{std::vector<Index>{2, 4}, Index(0), 1.0});
+
+    using T = nntile::fp32_t;
+    using Y = T::repr_t;
+    std::vector<Index> fiber_sh = fiber_shape(tensor_shape, axis);
+    const Index tensor_nelems = std::accumulate(
+        tensor_shape.begin(), tensor_shape.end(), Index(1), std::multiplies<>());
+    const Index fiber_nelems = std::accumulate(
+        fiber_sh.begin(), fiber_sh.end(), Index(1), std::multiplies<>());
+
+    std::vector<float> fiber_data(fiber_nelems);
+    std::vector<float> tensor_data(tensor_nelems);
+    for(Index i = 0; i < fiber_nelems; ++i)
+        fiber_data[i] = static_cast<float>(Y(i + 1));
+    for(Index i = 0; i < tensor_nelems; ++i)
+        tensor_data[i] = static_cast<float>(Y(-i - 1));
+
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("multiply_fiber_untiled");
+        auto* fiber_node = graph.data(fiber_sh, "fiber", DataType::FP32);
+        auto* tensor_node = graph.data(tensor_shape, "tensor", DataType::FP32);
+        fiber_node->mark_input(true);
+        tensor_node->mark_input(true);
+        auto* out_node = gt::multiply_fiber(alpha, fiber_node, tensor_node,
+                                            "out", axis);
+        out_node->mark_output(true);
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+        runtime.bind_data("fiber", fiber_data);
+        runtime.bind_data("tensor", tensor_data);
+        runtime.execute();
+        runtime.wait();
+        untiled_result = runtime.get_output<float>("out");
+    }
+
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("multiply_fiber_tiled");
+        auto* fiber_node = graph.data(fiber_sh, "fiber", DataType::FP32);
+        auto* tensor_node = graph.data(tensor_shape, "tensor", DataType::FP32);
+        fiber_node->mark_input(true);
+        tensor_node->mark_input(true);
+        auto* out_node = gt::multiply_fiber(alpha, fiber_node, tensor_node,
+                                            "out", axis);
+        out_node->mark_output(true);
+        for(auto* ag : graph.axis_groups())
+        {
+            ag->set_tiling((ag->extent + 1) / 2);
+        }
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+        runtime.bind_data("fiber", fiber_data);
+        runtime.bind_data("tensor", tensor_data);
+        runtime.execute();
+        runtime.wait();
+        tiled_result = runtime.get_output<float>("out");
+    }
+
+    constexpr float tol = 1e-5f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }

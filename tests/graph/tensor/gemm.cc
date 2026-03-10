@@ -24,6 +24,7 @@
 #include "nntile/tensor/clear.hh"
 #include "nntile/tensor/gemm.hh"
 #include "nntile/tensor/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -187,4 +188,90 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Index(2), Index(3), Index(4), 0.5});
 
     check_gemm_vs_tensor_api<nntile::fp32_t>(M, K, N, alpha);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph gemm tiled matches untiled", "[graph][tensor]")
+{
+    const auto [M, K, N, alpha] = GENERATE(
+        std::tuple{Index(4), Index(6), Index(8), 1.0},
+        std::tuple{Index(2), Index(4), Index(6), 0.5});
+
+    using Y = nntile::fp32_t::repr_t;
+    std::vector<Index> a_shape = {M, K};
+    std::vector<Index> b_shape = {K, N};
+
+    const Index a_nelems = M * K;
+    const Index b_nelems = K * N;
+
+    std::vector<float> a_data(a_nelems);
+    std::vector<float> b_data(b_nelems);
+    for(Index i = 0; i < a_nelems; ++i)
+    {
+        a_data[i] = static_cast<float>(Y(i % 10)) * 0.1f;
+    }
+    for(Index i = 0; i < b_nelems; ++i)
+    {
+        b_data[i] = static_cast<float>(Y(i % 7)) * 0.1f;
+    }
+
+    // --- Untiled run ---
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("gemm_untiled");
+        auto* a_node = graph.data(a_shape, "a", DataType::FP32);
+        auto* b_node = graph.data(b_shape, "b", DataType::FP32);
+        a_node->mark_input(true);
+        b_node->mark_input(true);
+
+        auto* c_node = gt::gemm(a_node, b_node, "c", alpha,
+                            trans_a, trans_b, ndim, batch_ndim);
+        c_node->mark_output(true);
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("a", a_data);
+        runtime.bind_data("b", b_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_result = runtime.get_output<float>("c");
+    }
+
+    // --- Tiled run ---
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("gemm_tiled");
+        auto* a_node = graph.data(a_shape, "a", DataType::FP32);
+        auto* b_node = graph.data(b_shape, "b", DataType::FP32);
+        a_node->mark_input(true);
+        b_node->mark_input(true);
+
+        auto* c_node = gt::gemm(a_node, b_node, "c", alpha,
+                            trans_a, trans_b, ndim, batch_ndim);
+        c_node->mark_output(true);
+        for(auto* ag : graph.axis_groups())
+        {
+            ag->set_tiling((ag->extent + 1) / 2);
+        }
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("a", a_data);
+        runtime.bind_data("b", b_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_result = runtime.get_output<float>("c");
+    }
+
+    // --- Compare ---
+    constexpr float tol = 1e-4f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }

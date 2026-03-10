@@ -63,24 +63,24 @@ TensorGraph::TensorNode* add(
         throw std::invalid_argument(
             "add: input tensors must belong to the same graph");
     }
+    if(x == y)
+    {
+        throw std::invalid_argument(
+            "add: x and y must be distinct tensors");
+    }
     if(x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "add: input tensors must have the same dtype");
     }
-    if(x->shape() != y->shape())
-    {
-        throw std::invalid_argument(
-            "add: input tensors must have the same shape");
-    }
+    validate_same_shape_and_merge(x, y, "add");
 
-    std::vector<Index> output_shape = x->shape();
     TensorGraph::TensorNode* output = x->graph()->data(
-        std::move(output_shape),
-        output_name,
-        x->dtype());
+        x->shape(), output_name, x->dtype());
+    output->set_axes(x->axes());
 
-    add(alpha, x, beta, y, output);
+    auto op = std::make_shared<TensorAddOp>(x, y, output, alpha, beta);
+    x->graph()->add_op(op);
 
     return output;
 }
@@ -96,6 +96,11 @@ void add(
     {
         throw std::invalid_argument("add: input tensors must be non-null");
     }
+    if(x == y || x == z || y == z)
+    {
+        throw std::invalid_argument(
+            "add: x, y, and z must be distinct tensors");
+    }
     if(x->graph() != y->graph() || x->graph() != z->graph())
     {
         throw std::invalid_argument(
@@ -106,16 +111,8 @@ void add(
         throw std::invalid_argument(
             "add: input tensors must have the same dtype");
     }
-    if(x->shape() != y->shape() || x->shape() != z->shape())
-    {
-        throw std::invalid_argument(
-            "add: input tensors must have the same shape");
-    }
-    if(x == y || x == z || y == z)
-    {
-        throw std::invalid_argument(
-            "add: x, y, and z must be distinct tensors");
-    }
+    validate_same_shape_and_merge(x, y, "add");
+    validate_same_shape_and_merge(x, z, "add");
 
     auto op = std::make_shared<TensorAddOp>(x, y, z, alpha, beta);
     x->graph()->add_op(op);

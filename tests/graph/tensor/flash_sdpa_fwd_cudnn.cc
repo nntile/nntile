@@ -12,6 +12,8 @@
  * @version 1.1.0
  * */
 
+#include "nntile/defs.h"
+
 #ifdef NNTILE_USE_CUDA
 
 #include <catch2/catch_test_macros.hpp>
@@ -24,6 +26,8 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/flash_sdpa_fwd_cudnn.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
+#include "nntile/tensor/clear.hh"
 #include "nntile/tensor/flash_sdpa_fwd_cudnn.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -200,10 +204,10 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     init_tile(Q_t, Q_data);
     init_tile(V_t, V_data);
     init_tile(mask_t, mask_data);
-    init_gt::logsumexp(logsumexp_t);
+    init_logsumexp(logsumexp_t);
+    nntile::tensor::clear_async(A_t);
 
     nntile::tensor::flash_sdpa_fwd_cudnn<T>(K_t, Q_t, mask_t, logsumexp_t, V_t, A_t);
-    starpu_task_wait_for_all();
 
     std::vector<float> tensor_A(kv_nelems);
     {
@@ -220,6 +224,94 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     for(size_t i = 0; i < graph_A.size(); ++i)
     {
         REQUIRE(std::abs(graph_A[i] - tensor_A[i]) < tolerance);
+    }
+}
+
+TEST_CASE_METHOD(nntile::test::CudaContextFixture,
+    "TensorGraph flash_sdpa_fwd_cudnn tiled matches untiled", "[graph][tensor][cuda]")
+{
+    Index head_size = 32;
+    Index n_seq = 64;
+    Index n_batch = 2;
+    Index kv_group_size = 1;
+    Index n_head_kv = 1;
+
+    std::vector<Index> K_shape = {head_size, n_seq, n_batch, kv_group_size, n_head_kv};
+    std::vector<Index> mask_shape = {n_seq, n_seq};
+
+    const Index kv_nelems = std::accumulate(
+        K_shape.begin(), K_shape.end(), Index(1), std::multiplies<>());
+    const Index mask_nelems = n_seq * n_seq;
+
+    std::vector<float> K_data(kv_nelems);
+    std::vector<float> Q_data(kv_nelems);
+    std::vector<float> V_data(kv_nelems);
+    std::vector<float> mask_data(mask_nelems);
+    for(Index i = 0; i < kv_nelems; ++i)
+    {
+        K_data[i] = 0.1f * static_cast<float>((i % 10) - 5);
+        Q_data[i] = 0.1f * static_cast<float>(((i + 1) % 10) - 5);
+        V_data[i] = 0.1f * static_cast<float>(((i + 2) % 10) - 5);
+    }
+    for(Index i = 0; i < n_seq; ++i)
+    {
+        for(Index j = 0; j < n_seq; ++j)
+        {
+            mask_data[i * n_seq + j] = (j <= i)
+                ? 0.0f : -std::numeric_limits<float>::infinity();
+        }
+    }
+
+    auto run_graph = [&](bool tiled) -> std::vector<float>
+    {
+        TensorGraph graph(tiled ? "fwd_tiled" : "fwd_untiled");
+        auto* K_node = graph.data(K_shape, "K", DataType::FP16);
+        auto* Q_node = graph.data(K_shape, "Q", DataType::FP16);
+        auto* mask_node = graph.data(mask_shape, "mask", DataType::FP16);
+        auto* V_node = graph.data(K_shape, "V", DataType::FP16);
+        K_node->mark_input(true);
+        Q_node->mark_input(true);
+        mask_node->mark_input(true);
+        V_node->mark_input(true);
+
+        auto* A_node = gt::flash_sdpa_fwd_cudnn(K_node, Q_node, mask_node,
+                                                  V_node, "logsumexp", "A");
+        A_node->mark_output(true);
+
+        if(tiled)
+        {
+            auto* head_axis = K_node->axis(0);
+            for(auto* ag : graph.axis_groups())
+            {
+                if(ag == head_axis)
+                {
+                    ag->set_tiling(ag->extent);
+                }
+                else
+                {
+                    ag->set_tiling((ag->extent + 1) / 2);
+                }
+            }
+        }
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+        runtime.bind_data("K", K_data);
+        runtime.bind_data("Q", Q_data);
+        runtime.bind_data("mask", mask_data);
+        runtime.bind_data("V", V_data);
+        runtime.execute();
+        runtime.wait();
+        return runtime.get_output<float>("A");
+    };
+
+    auto untiled_A = run_graph(false);
+    auto tiled_A = run_graph(true);
+
+    REQUIRE(tiled_A.size() == untiled_A.size());
+    for(size_t i = 0; i < tiled_A.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_A[i] - untiled_A[i]) < tolerance);
     }
 }
 

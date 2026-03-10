@@ -22,6 +22,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/scale_slice.hh"
 #include "nntile/tensor/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -179,4 +180,64 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{std::vector<Index>{dim_2, dim_3, dim_4}, axis_2, alpha_two});
 
     check_scale_slice_vs_tensor_api<nntile::fp32_t>(dst_shape, axis, alpha);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph scale_slice tiled matches untiled", "[graph][tensor]")
+{
+    const auto [dst_shape, axis, alpha] = GENERATE(
+        std::tuple{std::vector<Index>{2, 4}, Index(1), 1.0},
+        std::tuple{std::vector<Index>{2, 4}, Index(0), 1.0});
+
+    using T = nntile::fp32_t;
+    using Y = T::repr_t;
+    std::vector<Index> src_sh = slice_shape(dst_shape, axis);
+    const Index src_nelems = std::accumulate(
+        src_sh.begin(), src_sh.end(), Index(1), std::multiplies<>());
+    const Index axis_size = dst_shape[axis];
+
+    std::vector<float> src_data(src_nelems);
+    for(Index i = 0; i < src_nelems; ++i)
+        src_data[i] = static_cast<float>(Y(i + 1));
+
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("scale_slice_untiled");
+        auto* src_node = graph.data(src_sh, "src", DataType::FP32);
+        src_node->mark_input(true);
+        auto* out_node = gt::scale_slice(alpha, src_node, "out", axis, axis_size);
+        out_node->mark_output(true);
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+        runtime.bind_data("src", src_data);
+        runtime.execute();
+        runtime.wait();
+        untiled_result = runtime.get_output<float>("out");
+    }
+
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("scale_slice_tiled");
+        auto* src_node = graph.data(src_sh, "src", DataType::FP32);
+        src_node->mark_input(true);
+        auto* out_node = gt::scale_slice(alpha, src_node, "out", axis, axis_size);
+        out_node->mark_output(true);
+        for(auto* ag : graph.axis_groups())
+        {
+            ag->set_tiling((ag->extent + 1) / 2);
+        }
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+        runtime.bind_data("src", src_data);
+        runtime.execute();
+        runtime.wait();
+        tiled_result = runtime.get_output<float>("out");
+    }
+
+    constexpr float tol = 1e-5f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }

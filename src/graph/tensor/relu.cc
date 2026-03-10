@@ -55,6 +55,7 @@ TensorGraph::TensorNode* relu(
         std::move(output_shape),
         output_name,
         x->dtype());
+    output->set_axes(x->axes());
 
     auto op = std::make_shared<TensorReluOp>(x, output);
     x->graph()->add_op(op);
@@ -80,16 +81,12 @@ void relu(
         throw std::invalid_argument(
             "relu: input tensors must have the same dtype");
     }
-    if(x->shape() != y->shape())
-    {
-        throw std::invalid_argument(
-            "relu: output must have the same shape as input");
-    }
     if(x == y)
     {
         throw std::invalid_argument(
             "relu: x and y must be distinct tensors");
     }
+    validate_same_shape_and_merge(x, y, "relu");
 
     auto op = std::make_shared<TensorReluOp>(x, y);
     x->graph()->add_op(op);

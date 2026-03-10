@@ -54,6 +54,7 @@ TensorGraph::TensorNode* gelutanh(
         std::move(output_shape),
         output_name,
         src->dtype());
+    dst->set_axes(src->axes());
 
     gelutanh(src, dst);
 
@@ -79,16 +80,12 @@ void gelutanh(
         throw std::invalid_argument(
             "gelutanh: input tensors must have the same dtype");
     }
-    if(src->shape() != dst->shape())
-    {
-        throw std::invalid_argument(
-            "gelutanh: output must have the same shape as input");
-    }
     if(src == dst)
     {
         throw std::invalid_argument(
             "gelutanh: src and dst must be distinct tensors");
     }
+    validate_same_shape_and_merge(src, dst, "gelutanh");
 
     auto op = std::make_shared<TensorGelutanhOp>(src, dst);
     src->graph()->add_op(op);

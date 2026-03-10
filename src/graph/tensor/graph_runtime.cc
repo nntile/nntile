@@ -19,8 +19,10 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor/graph_data_node.hh"
 #include "nntile/graph/tensor/graph_op_node.hh"
+#include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/tensor.hh"
 
 namespace nntile::graph
@@ -28,6 +30,65 @@ namespace nntile::graph
 
 namespace
 {
+
+//! Compute basetile_shape from axis descriptors for TensorTraits.
+//! - If tiling not provided: single tile (basetile = extent).
+//! - If tiling provided: validate base+leftover scheme; basetile = tile_sizes[0].
+//! Throws if tiling is not supported by NNTile (heterogeneous beyond base+leftover).
+std::vector<Index> compute_basetile_shape(const TensorGraph::TensorNode* node)
+{
+    const std::vector<Index>& shape = node->shape();
+    const auto& axes = node->axes();
+    if(axes.size() != shape.size())
+    {
+        throw std::runtime_error(
+            "compute_basetile_shape: axes size mismatch for '" + node->name() +
+            "'");
+    }
+    std::vector<Index> basetile(shape.size());
+    for(size_t i = 0; i < shape.size(); ++i)
+    {
+        const AxisDescriptor* ax = axes[i].get();
+        if(!ax->is_tiled())
+        {
+            basetile[i] = shape[i];
+            continue;
+        }
+        const std::vector<Index>& ts = ax->tile_sizes;
+        if(ts.size() == 1)
+        {
+            basetile[i] = ts[0];
+            continue;
+        }
+        // NNTile supports: base tile + optional leftover (last tile <= base).
+        // Validate: all except last equal; last positive and <= first.
+        Index base = ts[0];
+        for(size_t t = 1; t < ts.size() - 1; ++t)
+        {
+            if(ts[t] != base)
+            {
+                throw std::invalid_argument(
+                    "TensorGraph::Runtime: axis " + std::to_string(i) +
+                    " of '" + node->name() +
+                    "' has unsupported tiling: all tile sizes except the last "
+                    "must be equal (got heterogeneous sizes); NNTile supports "
+                    "only base tile + optional leftover");
+            }
+        }
+        Index last = ts.back();
+        if(last <= 0 || last > base)
+        {
+            throw std::invalid_argument(
+                "TensorGraph::Runtime: axis " + std::to_string(i) +
+                " of '" + node->name() +
+                "' has unsupported tiling: last tile size must be positive "
+                "and not greater than the base tile size (got last=" +
+                std::to_string(last) + ", base=" + std::to_string(base) + ")");
+        }
+        basetile[i] = base;
+    }
+    return basetile;
+}
 
 template<typename T>
 void allocate_and_register(
@@ -38,9 +99,9 @@ void allocate_and_register(
     std::map<const TensorGraph::TensorNode*, std::shared_ptr<void>>&
         tensor_map)
 {
-    std::vector<Index> tile_shape = shape;
+    std::vector<Index> basetile_shape = compute_basetile_shape(node);
     auto t = std::make_shared<nntile::tensor::Tensor<T>>(
-        nntile::tensor::TensorTraits(shape, tile_shape));
+        nntile::tensor::TensorTraits(shape, basetile_shape));
     runtime_data[node->name()] = t;
     data_dtypes[node->name()] = node->dtype();
     tensor_map[node] = t;
@@ -51,20 +112,28 @@ void apply_bind_hint_impl(
     nntile::tensor::Tensor<T>& tensor,
     const std::vector<std::uint8_t>& data)
 {
-    if(tensor.grid.nelems != 1)
-    {
-        throw std::runtime_error(
-            "apply_bind_hint: only single-tile tensors are supported");
-    }
     if(data.size() != static_cast<size_t>(tensor.nelems) * sizeof(T))
     {
         throw std::runtime_error(
             "apply_bind_hint: data size mismatch");
     }
-    auto tile = tensor.get_tile(0);
-    auto tile_local = tile.acquire(STARPU_W);
-    std::memcpy(tile_local.get_ptr(), data.data(), data.size());
-    tile_local.release();
+    if(tensor.grid.nelems == 1)
+    {
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        std::memcpy(tile_local.get_ptr(), data.data(), data.size());
+        tile_local.release();
+    }
+    else
+    {
+        nntile::tensor::Tensor<T> temp(
+            nntile::tensor::TensorTraits(tensor.shape, tensor.shape));
+        auto tile = temp.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        std::memcpy(tile_local.get_ptr(), data.data(), data.size());
+        tile_local.release();
+        nntile::tensor::scatter(temp, tensor);
+    }
 }
 
 } // namespace

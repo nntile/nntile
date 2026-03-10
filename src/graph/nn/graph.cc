@@ -142,6 +142,8 @@ std::pair<NNGraph::TensorNode*, bool> NNGraph::get_or_create_grad(
         tensor->shape(),
         grad_name,
         tensor->dtype());
+    // Grad axes must match the tensor's axes (same tiling, same dimension groups)
+    grad_data->set_axes(tensor->data()->axes());
     auto grad_node = std::make_unique<TensorNode>(this, grad_data, false);
     TensorNode* grad_ptr = grad_node.get();
     tensors_.push_back(std::move(grad_node));
@@ -190,18 +192,12 @@ std::string NNGraph::to_string() const
 {
     std::stringstream ss;
     ss << "NNGraph(name='" << name_ << "', tensors=" << num_tensors()
-       << ", ops=" << num_ops() << ")\n";
+       << ", autograd_ops=" << num_ops() << ")\n";
 
     ss << "Tensors:\n";
     for(const auto& t : tensors_)
     {
         ss << "  " << t->to_string() << "\n";
-    }
-
-    ss << "Operations:\n";
-    for(const auto& op : tensor_graph_.ops())
-    {
-        ss << "  " << op->op_name() << "(id=" << op->id() << ")\n";
     }
 
     return ss.str();

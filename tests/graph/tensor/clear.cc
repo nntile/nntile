@@ -19,6 +19,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/clear.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/clear.hh"
 #include "nntile/tensor/tensor.hh"
@@ -127,4 +128,76 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::vector<Index>{1, 10});
 
     check_clear_vs_tensor_api<nntile::fp32_t>(shape);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph clear tiled matches untiled", "[graph][tensor]")
+{
+    const auto shape = GENERATE(
+        std::vector<Index>{4, 6},
+        std::vector<Index>{6},
+        std::vector<Index>{2, 4});
+
+    using T = nntile::fp32_t;
+    using Y = typename T::repr_t;
+    const Index nelems = std::accumulate(
+        shape.begin(), shape.end(), Index(1), std::multiplies<>());
+
+    std::vector<float> init_data(nelems);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        init_data[i] = static_cast<float>(Y(i + 1));
+    }
+
+    // --- Untiled run ---
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("clear_untiled");
+        auto* dst_node = graph.data(shape, "dst", DataType::FP32);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+
+        gt::clear(dst_node);
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("dst", init_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_result = runtime.get_output<float>("dst");
+    }
+
+    // --- Tiled run ---
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("clear_tiled");
+        auto* dst_node = graph.data(shape, "dst", DataType::FP32);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+
+        gt::clear(dst_node);
+        for(auto* ag : graph.axis_groups())
+        {
+            ag->set_tiling((ag->extent + 1) / 2);
+        }
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("dst", init_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_result = runtime.get_output<float>("dst");
+    }
+
+    // --- Compare ---
+    constexpr float tol = 1e-5f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }

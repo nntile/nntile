@@ -64,6 +64,9 @@ void adam_step(Index num_iter, Scalar beta_1, Scalar beta_2,
        first_moment->dtype() != second_moment->dtype() ||
        second_moment->dtype() != p->dtype())
         throw std::invalid_argument("adam_step: tensors must have same dtype");
+    validate_same_shape_and_merge(grad, first_moment, "adam_step");
+    validate_same_shape_and_merge(grad, second_moment, "adam_step");
+    validate_same_shape_and_merge(grad, p, "adam_step");
     auto op = std::make_shared<TensorAdamStepOp>(
         num_iter, beta_1, beta_2, eps, lr, weight_decay,
         grad, first_moment, second_moment, p);

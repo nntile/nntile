@@ -66,11 +66,11 @@ TensorGraph::TensorNode* rope(
             "rope: input tensors must have the same dtype");
     }
 
-    std::vector<Index> output_shape = src->shape();
     TensorGraph::TensorNode* dst = src->graph()->data(
-        std::move(output_shape),
+        src->shape(),
         output_name,
         src->dtype());
+    dst->set_axes(src->axes());
 
     rope(sin, cos, src, dst);
 
@@ -100,11 +100,7 @@ void rope(
         throw std::invalid_argument(
             "rope: input tensors must have the same dtype");
     }
-    if(src->shape() != dst->shape())
-    {
-        throw std::invalid_argument(
-            "rope: dst must have the same shape as src");
-    }
+    validate_same_shape_and_merge(src, dst, "rope");
 
     auto op = std::make_shared<TensorRopeOp>(sin, cos, src, dst);
     src->graph()->add_op(op);

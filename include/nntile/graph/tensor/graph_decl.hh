@@ -29,6 +29,8 @@
 namespace nntile::graph
 {
 
+struct AxisDescriptor;
+
 //! Tensor graph - defines computation at tensor level
 class TensorGraph
 {
@@ -43,7 +45,7 @@ public:
     {
     }
 
-    //! Create an input data node (not produced by any operation)
+    //! Create a data node with fresh axis descriptors
     TensorNode* data(
         std::vector<Index> shape,
         const std::string& name,
@@ -52,6 +54,13 @@ public:
     //! Add an operation to the graph
     void add_op(std::shared_ptr<TensorGraph::OpNode> op_node,
                 const std::string& name = "");
+
+    //! Collect unique axis groups across all tensors in the graph.
+    //! Returns a vector of pointers to the distinct AxisDescriptors.
+    std::vector<AxisDescriptor*> axis_groups() const;
+
+    //! Number of axis groups that have no tiling set.
+    size_t num_untiled_groups() const;
 
     // Queries
     const std::string& name() const { return name_; }

@@ -70,14 +70,19 @@ TensorGraph::TensorNode* add_fiber(
             "add_fiber: input tensors must have the same dtype");
     }
 
+    validate_fiber_shape_and_merge(fiber, tensor, axis, batch_ndim, "add_fiber");
+
     // Output shape matches tensor (fiber is broadcast)
     std::vector<Index> output_shape = tensor->shape();
     TensorGraph::TensorNode* output = tensor->graph()->data(
         std::move(output_shape),
         output_name,
         tensor->dtype());
+    output->set_axes(tensor->axes());
 
-    add_fiber(alpha, fiber, beta, tensor, output, axis, batch_ndim);
+    auto op = std::make_shared<TensorAddFiberOp>(
+        fiber, tensor, output, alpha, beta, axis, batch_ndim);
+    fiber->graph()->add_op(op);
 
     return output;
 }
@@ -106,16 +111,13 @@ void add_fiber(
         throw std::invalid_argument(
             "add_fiber: input tensors must have the same dtype");
     }
-    if(tensor->shape() != output->shape())
-    {
-        throw std::invalid_argument(
-            "add_fiber: output shape must match tensor shape");
-    }
     if(fiber == tensor || fiber == output || tensor == output)
     {
         throw std::invalid_argument(
             "add_fiber: fiber, tensor, and output must be distinct tensors");
     }
+    validate_fiber_shape_and_merge(fiber, tensor, axis, batch_ndim, "add_fiber");
+    validate_same_shape_and_merge(tensor, output, "add_fiber");
 
     auto op = std::make_shared<TensorAddFiberOp>(
         fiber, tensor, output, alpha, beta, axis, batch_ndim);

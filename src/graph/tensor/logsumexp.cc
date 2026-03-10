@@ -86,6 +86,7 @@ void logsumexp(
         throw std::invalid_argument(
             "logsumexp: input tensors must have the same dtype");
     }
+    validate_logsumexp_shape_and_merge(src, dst, "logsumexp");
 
     auto op = std::make_shared<TensorLogsumexpOp>(src, dst);
     src->graph()->add_op(op);

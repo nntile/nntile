@@ -20,6 +20,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/total_sum_accum.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/total_sum_accum.hh"
 #include "nntile/tensor/tensor.hh"
@@ -229,4 +230,115 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     check_total_sum_accum_vs_tensor_api<nntile::fp32_t>(
         labels_shape, n_class);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph total_sum_accum tiled matches untiled", "[graph][tensor]")
+{
+    const auto [labels_shape, n_class] = GENERATE(
+        std::tuple{std::vector<Index>{4}, Index(6)},
+        std::tuple{std::vector<Index>{2, 4}, Index(4)});
+
+    std::vector<Index> src_shape = {n_class};
+    src_shape.insert(src_shape.end(), labels_shape.begin(), labels_shape.end());
+
+    const Index labels_nelems = std::accumulate(
+        labels_shape.begin(), labels_shape.end(), Index(1), std::multiplies<>());
+    const Index src_nelems = std::accumulate(
+        src_shape.begin(), src_shape.end(), Index(1), std::multiplies<>());
+
+    std::vector<float> logsumexp_data(labels_nelems);
+    std::vector<float> src_data(src_nelems);
+    std::vector<std::int64_t> labels_data(labels_nelems);
+    std::vector<float> val_data(1, 0.0f);
+
+    for(Index i = 0; i < labels_nelems; ++i)
+    {
+        logsumexp_data[i] = static_cast<float>(i % 5);
+        labels_data[i] = static_cast<std::int64_t>(i % n_class);
+    }
+    for(Index i = 0; i < src_nelems; ++i)
+    {
+        src_data[i] = static_cast<float>(i % 10);
+    }
+
+    // --- Untiled run ---
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("total_sum_accum_untiled");
+        auto* logsumexp_node = graph.data(labels_shape, "logsumexp", DataType::FP32);
+        auto* src_node = graph.data(src_shape, "src", DataType::FP32);
+        auto* labels_node = graph.data(labels_shape, "labels", DataType::INT64);
+        auto* val_node = graph.data({}, "val", DataType::FP32);
+        logsumexp_node->mark_input(true);
+        src_node->mark_input(true);
+        labels_node->mark_input(true);
+        val_node->mark_input(true);
+        val_node->mark_output(true);
+
+        gt::total_sum_accum(alpha_one, logsumexp_node, src_node, labels_node,
+                       val_node, ignore_index);
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("logsumexp", logsumexp_data);
+        runtime.bind_data("src", src_data);
+        runtime.bind_data("labels", labels_data);
+        runtime.bind_data("val", val_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_result = runtime.get_output<float>("val");
+    }
+
+    // --- Tiled run ---
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("total_sum_accum_tiled");
+        auto* logsumexp_node = graph.data(labels_shape, "logsumexp", DataType::FP32);
+        auto* src_node = graph.data(src_shape, "src", DataType::FP32);
+        auto* labels_node = graph.data(labels_shape, "labels", DataType::INT64);
+        auto* val_node = graph.data({}, "val", DataType::FP32);
+        logsumexp_node->mark_input(true);
+        src_node->mark_input(true);
+        labels_node->mark_input(true);
+        val_node->mark_input(true);
+        val_node->mark_output(true);
+
+        gt::total_sum_accum(alpha_one, logsumexp_node, src_node, labels_node,
+                       val_node, ignore_index);
+        auto* nclass_axis = src_node->axis(0);
+        for(auto* ag : graph.axis_groups())
+        {
+            if(ag == nclass_axis)
+            {
+                ag->set_tiling(ag->extent);
+            }
+            else
+            {
+                ag->set_tiling((ag->extent + 1) / 2);
+            }
+        }
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("logsumexp", logsumexp_data);
+        runtime.bind_data("src", src_data);
+        runtime.bind_data("labels", labels_data);
+        runtime.bind_data("val", val_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_result = runtime.get_output<float>("val");
+    }
+
+    // --- Compare ---
+    constexpr float tol = 1e-4f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }

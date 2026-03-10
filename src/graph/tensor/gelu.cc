@@ -55,6 +55,7 @@ TensorGraph::TensorNode* gelu(
         std::move(output_shape),
         output_name,
         x->dtype());
+    output->set_axes(x->axes());
 
     auto op = std::make_shared<TensorGeluOp>(x, output);
     x->graph()->add_op(op);
@@ -80,16 +81,12 @@ void gelu(
         throw std::invalid_argument(
             "gelu: input tensors must have the same dtype");
     }
-    if(x->shape() != y->shape())
-    {
-        throw std::invalid_argument(
-            "gelu: output must have the same shape as input");
-    }
     if(x == y)
     {
         throw std::invalid_argument(
             "gelu: x and y must be distinct tensors");
     }
+    validate_same_shape_and_merge(x, y, "gelu");
 
     auto op = std::make_shared<TensorGeluOp>(x, y);
     x->graph()->add_op(op);

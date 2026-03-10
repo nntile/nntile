@@ -63,21 +63,13 @@ void add_slice_inplace(
         throw std::invalid_argument(
             "add_slice_inplace: input tensors must have the same dtype");
     }
-    if(src->ndim() + 1 != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "add_slice_inplace: src must have ndim = dst.ndim - 1");
-    }
-    if(axis < 0 || axis >= dst->ndim())
-    {
-        throw std::invalid_argument(
-            "add_slice_inplace: axis out of range");
-    }
     if(src == dst)
     {
         throw std::invalid_argument(
             "add_slice_inplace: src and dst must be distinct tensors");
     }
+    validate_slice_shape_and_merge(src, dst, axis,
+                                            "add_slice_inplace");
 
     auto op = std::make_shared<TensorAddSliceInplaceOp>(
         src, dst, alpha, beta, axis);

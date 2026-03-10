@@ -61,16 +61,13 @@ void gelu_backward(
         throw std::invalid_argument(
             "gelu_backward: input tensors must have the same dtype");
     }
-    if(x->shape() != dy->shape() || x->shape() != dx->shape())
-    {
-        throw std::invalid_argument(
-            "gelu_backward: all tensors must have the same shape");
-    }
     if(x == dy || x == dx || dy == dx)
     {
         throw std::invalid_argument(
             "gelu_backward: x, dy, and dx must be distinct tensors");
     }
+    validate_same_shape_and_merge(x, dy, "gelu_backward");
+    validate_same_shape_and_merge(x, dx, "gelu_backward");
 
     auto op = std::make_shared<TensorGeluBackwardOp>(x, dy, dx);
     x->graph()->add_op(op);
