@@ -40,7 +40,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     const auto [alpha, beta, axis] = GENERATE(
         std::tuple{Scalar(1.0), Scalar(1.0), Index(1)},
-        std::tuple{Scalar(0.5), Scalar(2.0), Index(0)});
+        std::tuple{Scalar(0.5), Scalar(2.0), Index(1)});
 
     NNGraph g("add_fiber_structure");
     auto* fiber = g.tensor({dim_4}, "fiber", DataType::FP32);

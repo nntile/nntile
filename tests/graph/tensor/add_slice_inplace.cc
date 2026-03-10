@@ -163,7 +163,7 @@ TEST_CASE("TensorGraph add_slice_inplace structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto* src = graph.data({dim_4}, "src");
+    auto* src = graph.data({dim_2}, "src");  // slice for axis=1: {2,4} without dim 1 = {2}
     auto* dst = graph.data({dim_2, dim_4}, "dst");
 
     gt::add_slice_inplace(alpha_one, src, beta_one, dst, axis_1);

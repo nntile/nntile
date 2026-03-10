@@ -164,7 +164,7 @@ TEST_CASE("TensorGraph add_slice structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto* src1 = graph.data({dim_4}, "src1");  // slice for axis=1
+    auto* src1 = graph.data({dim_2}, "src1");  // slice for axis=1: {2,4} without dim 1 = {2}
     auto* src2 = graph.data({dim_2, dim_4}, "src2");
 
     auto* out = gt::add_slice(alpha_one, src1, beta_one, src2, "out", axis_1);
@@ -183,7 +183,7 @@ TEST_CASE("TensorGraph add_slice structure", "[graph][tensor]")
 TEST_CASE("TensorGraph add_slice rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto* src1 = graph.data({dim_4}, "src1");
+    auto* src1 = graph.data({dim_2}, "src1");
     auto* src2 = graph.data({dim_2, dim_4}, "src2");
 
     REQUIRE_THROWS_AS(
