@@ -1,4 +1,4 @@
- /*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.

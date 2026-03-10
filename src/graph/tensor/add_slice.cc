@@ -67,16 +67,6 @@ TensorGraph::TensorNode* add_slice(
         throw std::invalid_argument(
             "add_slice: input tensors must have the same dtype");
     }
-    if(src1->ndim() + 1 != src2->ndim())
-    {
-        throw std::invalid_argument(
-            "add_slice: src1 must have ndim = src2.ndim - 1");
-    }
-    if(axis < 0 || axis >= src2->ndim())
-    {
-        throw std::invalid_argument(
-            "add_slice: axis out of range");
-    }
     validate_slice_shape_and_merge(src1, src2, axis, "add_slice");
 
     // Output shape matches src2

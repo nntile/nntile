@@ -71,19 +71,13 @@ TensorGraph::TensorNode* norm_slice(
             "norm_slice: input tensors must have the same dtype");
     }
 
-    if(src1->ndim() - 1 != src2->ndim())
-    {
-        throw std::invalid_argument(
-            "norm_slice: src2 must have ndim = src1.ndim - 1");
-    }
-
     std::vector<Index> output_shape = src2->shape();
     TensorGraph::TensorNode* dst = src1->graph()->data(
         std::move(output_shape),
         output_name,
         src1->dtype());
 
-    validate_slice_shape_and_merge(src1, dst, axis, "norm_slice");
+    validate_slice_shape_and_merge(dst, src1, axis, "norm_slice");
     validate_same_shape_and_merge(src2, dst, "norm_slice");
 
     auto op = std::make_shared<TensorNormSliceOp>(
@@ -122,13 +116,7 @@ void norm_slice(
         throw std::invalid_argument(
             "norm_slice: src1, src2, and dst must be distinct tensors");
     }
-    if(src1->ndim() - 1 != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "norm_slice: dst must have ndim = src1.ndim - 1");
-    }
-
-    validate_slice_shape_and_merge(src1, dst, axis, "norm_slice");
+    validate_slice_shape_and_merge(dst, src1, axis, "norm_slice");
     validate_same_shape_and_merge(src2, dst, "norm_slice");
 
     auto op = std::make_shared<TensorNormSliceOp>(

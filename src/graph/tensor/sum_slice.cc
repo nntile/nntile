@@ -85,7 +85,7 @@ TensorGraph::TensorNode* sum_slice(
         output_name,
         src->dtype());
 
-    validate_slice_shape_and_merge(src, output, axis, "sum_slice");
+    validate_slice_shape_and_merge(output, src, axis, "sum_slice");
 
     auto op = std::make_shared<TensorSumSliceOp>(
         src, output, axis, redux, alpha, beta);
@@ -127,7 +127,7 @@ void sum_slice(
         throw std::invalid_argument(
             "sum_slice: src and dst must be distinct tensors");
     }
-    validate_slice_shape_and_merge(src, dst, axis, "sum_slice");
+    validate_slice_shape_and_merge(dst, src, axis, "sum_slice");
 
     auto op = std::make_shared<TensorSumSliceOp>(
         src, dst, axis, redux, alpha, beta);

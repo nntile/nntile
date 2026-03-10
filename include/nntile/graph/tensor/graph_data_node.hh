@@ -130,42 +130,40 @@ inline void validate_same_shape_and_merge(TensorGraph::TensorNode* a,
     }
 }
 
-//! Validate slice shape and merge axes (one tensor ndim-1, the other ndim; axis
-//! in the larger). x and y can be in either order.
+//! Validate slice shape and merge axes. slice must have ndim-1, tensor ndim;
+//! axis indexes the tensor. slice's shape must match tensor's shape with the
+//! axis dimension removed.
 inline void validate_slice_shape_and_merge(
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* y,
+    TensorGraph::TensorNode* slice,
+    TensorGraph::TensorNode* tensor,
     Index axis,
     const std::string& op_name)
 {
-    TensorGraph::TensorNode* larger =
-        (x->ndim() > y->ndim()) ? x : y;
-    TensorGraph::TensorNode* smaller =
-        (x->ndim() > y->ndim()) ? y : x;
-    if(larger->ndim() != smaller->ndim() + 1)
+    if(slice->ndim() + 1 != tensor->ndim())
     {
         throw std::invalid_argument(
-            op_name + ": one tensor must have ndim = other.ndim - 1 (" +
-            std::to_string(x->ndim()) + " vs " + std::to_string(y->ndim()) +
-            ")");
+            op_name + ": slice must have ndim = tensor.ndim - 1 (" +
+            std::to_string(slice->ndim()) + " vs " +
+            std::to_string(tensor->ndim()) + ")");
     }
-    if(axis < 0 || axis >= larger->ndim())
+    if(axis < 0 || axis >= tensor->ndim())
     {
         throw std::invalid_argument(op_name + ": axis out of range");
     }
     int d = 0;
-    for(Index i = 0; i < larger->ndim(); ++i)
+    for(Index i = 0; i < tensor->ndim(); ++i)
     {
         if(i == axis)
             continue;
-        if(smaller->shape()[d] != larger->shape()[i])
+        if(slice->shape()[d] != tensor->shape()[i])
         {
             throw std::invalid_argument(
                 op_name + ": shape mismatch at dimension " +
-                std::to_string(i) + " (" + std::to_string(smaller->shape()[d]) +
-                " vs " + std::to_string(larger->shape()[i]) + ")");
+                std::to_string(i) + " (slice: " +
+                std::to_string(slice->shape()[d]) +
+                " vs tensor: " + std::to_string(tensor->shape()[i]) + ")");
         }
-        merge_axis(smaller->mutable_axes()[d], larger->mutable_axes()[i]);
+        merge_axis(slice->mutable_axes()[d], tensor->mutable_axes()[i]);
         ++d;
     }
 }
