@@ -192,18 +192,12 @@ std::string NNGraph::to_string() const
 {
     std::stringstream ss;
     ss << "NNGraph(name='" << name_ << "', tensors=" << num_tensors()
-       << ", ops=" << num_ops() << ")\n";
+       << ", autograd_ops=" << num_ops() << ")\n";
 
     ss << "Tensors:\n";
     for(const auto& t : tensors_)
     {
         ss << "  " << t->to_string() << "\n";
-    }
-
-    ss << "Operations:\n";
-    for(const auto& op : tensor_graph_.ops())
-    {
-        ss << "  " << op->op_name() << "(id=" << op->id() << ")\n";
     }
 
     return ss.str();

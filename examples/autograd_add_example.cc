@@ -72,31 +72,14 @@ int main(int argc, char** argv)
     }
     std::cout << "  ADD_INPLACE count=" << add_inplace_count << std::endl;
 
-    std::cout << "\n=== Graph structure ===" << std::endl;
+    std::cout << "\n=== NNGraph structure ===" << std::endl;
     std::cout << g.to_string() << std::endl;
 
-    // --- Name axis groups and set tiling ---
-    std::cout << "=== Axis groups and tiling ===" << std::endl;
+    // --- Name axis groups and set tiling (TensorGraph::to_string shows them) ---
     x->data()->axis(0)->name = "rows";
     x->data()->axis(1)->name = "cols";
     x->data()->axis(0)->set_tiling(1);
     x->data()->axis(1)->set_tiling(2);
-
-    auto groups = g.tensor_graph().axis_groups();
-    std::cout << "  Total axis groups: " << groups.size() << std::endl;
-    std::cout << "  Untiled groups: "
-              << g.tensor_graph().num_untiled_groups() << std::endl;
-    for(auto* ag : groups)
-    {
-        std::cout << "  group extent=" << ag->extent;
-        if(!ag->name.empty()) std::cout << " name='" << ag->name << "'";
-        if(ag->is_tiled())
-        {
-            std::cout << " tile=" << ag->tile_sizes[0]
-                      << " num_tiles=" << ag->num_tiles();
-        }
-        std::cout << " members=" << ag->members.size() << std::endl;
-    }
 
     std::cout << "\n=== TensorGraph structure ===" << std::endl;
     std::cout << g.tensor_graph().to_string() << std::endl;
