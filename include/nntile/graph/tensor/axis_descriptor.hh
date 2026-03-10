@@ -38,6 +38,24 @@ struct AxisDescriptor
     //! (tensor_node, axis_index) pairs for all members of this group.
     //! Updated during merge_axis().
     std::vector<std::pair<void*, int>> members;
+
+    //! Tile sizes along this axis. Empty means not tiled (single tile
+    //! covering the full extent).
+    std::vector<Index> tile_sizes;
+
+    //! Set uniform tiling: all tiles have the given size (last tile
+    //! may be smaller if extent is not divisible).
+    void set_tiling(Index tile_size);
+
+    //! Set heterogeneous tiling: explicit tile size per tile.
+    //! Sum of tile_sizes must equal extent.
+    void set_tiling(const std::vector<Index>& sizes);
+
+    //! True if tiling has been set.
+    bool is_tiled() const { return !tile_sizes.empty(); }
+
+    //! Number of tiles along this axis (1 if not tiled).
+    Index num_tiles() const;
 };
 
 //! Merge two axis groups. All tensors holding `replace` are redirected

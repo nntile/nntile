@@ -15,6 +15,9 @@
 
 #pragma once
 
+// Standard library headers
+#include <set>
+
 // NNTile headers
 #include <nntile/graph/tensor/graph_decl.hh>
 #include <nntile/graph/tensor/graph_data_node.hh>
@@ -95,11 +98,77 @@ inline const TensorGraph::TensorNode* TensorGraph::get_tensor_node(
     return it != data_by_name_.end() ? it->second : nullptr;
 }
 
+inline std::vector<AxisDescriptor*> TensorGraph::axis_groups() const
+{
+    std::set<AxisDescriptor*> seen;
+    std::vector<AxisDescriptor*> result;
+    for(const auto& node : data_)
+    {
+        for(const auto& ax : node->axes())
+        {
+            if(seen.insert(ax.get()).second)
+            {
+                result.push_back(ax.get());
+            }
+        }
+    }
+    return result;
+}
+
+inline size_t TensorGraph::num_untiled_groups() const
+{
+    auto groups = axis_groups();
+    size_t count = 0;
+    for(const auto* g : groups)
+    {
+        if(!g->is_tiled())
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
 inline std::string TensorGraph::to_string() const
 {
+    auto groups = axis_groups();
+    size_t tiled = 0;
+    for(const auto* g : groups)
+    {
+        if(g->is_tiled()) ++tiled;
+    }
+
     std::stringstream ss;
     ss << "TensorGraph(name='" << name_ << "', data=" << num_data()
-       << ", ops=" << num_ops() << ")\n";
+       << ", ops=" << num_ops()
+       << ", axis_groups=" << groups.size()
+       << ", tiled=" << tiled << "/" << groups.size() << ")\n";
+
+    if(!groups.empty())
+    {
+        ss << "Axis groups:\n";
+        for(const auto* g : groups)
+        {
+            ss << "  extent=" << g->extent;
+            if(!g->name.empty())
+            {
+                ss << " name='" << g->name << "'";
+            }
+            if(g->is_tiled())
+            {
+                ss << " tile=";
+                if(g->tile_sizes.size() == 1)
+                {
+                    ss << g->tile_sizes[0];
+                }
+                else
+                {
+                    ss << g->tile_sizes[0];
+                }
+            }
+            ss << " members=" << g->members.size() << "\n";
+        }
+    }
 
     ss << "Data:\n";
     for(const auto& t : data_)
@@ -127,14 +196,26 @@ inline std::string TensorGraph::to_mermaid() const
         std::string label = node->name();
         if(label.empty()) label = "Data" + std::to_string(node->id());
 
-        std::string shape_str = "[";
-        for(size_t i = 0; i < node->shape().size(); ++i)
+        std::string axes_str = "[";
+        for(size_t i = 0; i < node->axes().size(); ++i)
         {
-            if(i > 0) shape_str += ",";
-            shape_str += std::to_string(node->shape()[i]);
+            if(i > 0) axes_str += ",";
+            const auto& ax = node->axes()[i];
+            if(!ax->name.empty())
+            {
+                axes_str += ax->name;
+            }
+            else
+            {
+                axes_str += std::to_string(ax->extent);
+            }
+            if(ax->is_tiled())
+            {
+                axes_str += "/" + std::to_string(ax->tile_sizes[0]);
+            }
         }
-        shape_str += "]";
-        label += "\\n" + dtype_to_string(node->dtype()) + "\\n" + shape_str;
+        axes_str += "]";
+        label += "\\n" + dtype_to_string(node->dtype()) + "\\n" + axes_str;
 
         ss << "    " << node_id << "[\"" << label << "\"]\n";
     }

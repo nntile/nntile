@@ -15,10 +15,60 @@
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor/graph.hh"
 
+#include <numeric>
 #include <stdexcept>
 
 namespace nntile::graph
 {
+
+void AxisDescriptor::set_tiling(Index tile_size)
+{
+    if(tile_size <= 0)
+    {
+        throw std::invalid_argument(
+            "AxisDescriptor::set_tiling: tile_size must be positive");
+    }
+    tile_sizes.clear();
+    for(Index remaining = extent; remaining > 0; remaining -= tile_size)
+    {
+        tile_sizes.push_back(std::min(tile_size, remaining));
+    }
+}
+
+void AxisDescriptor::set_tiling(const std::vector<Index>& sizes)
+{
+    if(sizes.empty())
+    {
+        throw std::invalid_argument(
+            "AxisDescriptor::set_tiling: sizes must be non-empty");
+    }
+    Index total = std::accumulate(sizes.begin(), sizes.end(), Index(0));
+    if(total != extent)
+    {
+        throw std::invalid_argument(
+            "AxisDescriptor::set_tiling: sum of tile sizes (" +
+            std::to_string(total) + ") must equal extent (" +
+            std::to_string(extent) + ")");
+    }
+    for(Index s : sizes)
+    {
+        if(s <= 0)
+        {
+            throw std::invalid_argument(
+                "AxisDescriptor::set_tiling: all tile sizes must be positive");
+        }
+    }
+    tile_sizes = sizes;
+}
+
+Index AxisDescriptor::num_tiles() const
+{
+    if(tile_sizes.empty())
+    {
+        return 1;
+    }
+    return static_cast<Index>(tile_sizes.size());
+}
 
 void merge_axis(std::shared_ptr<AxisDescriptor>& keep,
                 std::shared_ptr<AxisDescriptor>& replace)
@@ -38,6 +88,10 @@ void merge_axis(std::shared_ptr<AxisDescriptor>& keep,
     if(keep->name.empty() && !replace->name.empty())
     {
         keep->name = replace->name;
+    }
+    if(!keep->is_tiled() && replace->is_tiled())
+    {
+        keep->tile_sizes = replace->tile_sizes;
     }
 
     // Save the descriptor being replaced — the `replace` reference may
