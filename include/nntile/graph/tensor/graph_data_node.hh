@@ -286,13 +286,13 @@ inline void validate_logsumexp_shape_and_merge(
     }
 }
 
-//! Validate flash_sdpa Q/K/V shape: Q and V must have same ndim as K,
-//! share head_size (dim 0) and batch dims (dims 2, 3, 4). Q's seq (dim 1) may
-//! differ from K; V's seq (dim 1) must match K (key-sequence length). Merge
-//! axes for matching dimensions.
+//! Validate flash_sdpa Q/K/V shape: Q, K, V must have same ndim. Q and K share
+//! head_size (dim 0) and batch dims (dims 2, 3, 4); Q's seq (dim 1) may differ
+//! from K's (seq_q vs seq_kv). V's seq (dim 1) must match K (key-sequence).
+//! Merge axes for matching dimensions.
 inline void validate_flash_sdpa_qkv_shape_and_merge(
-    TensorGraph::TensorNode* K,
     TensorGraph::TensorNode* Q,
+    TensorGraph::TensorNode* K,
     TensorGraph::TensorNode* V,
     const std::string& op_name)
 {

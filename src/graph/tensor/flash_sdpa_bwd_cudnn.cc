@@ -91,10 +91,10 @@ void flash_sdpa_bwd_cudnn(TensorGraph::TensorNode* K,
     validate_same_shape_and_merge(K, dK, "flash_sdpa_bwd_cudnn");
     validate_same_shape_and_merge(Q, dQ, "flash_sdpa_bwd_cudnn");
     validate_same_shape_and_merge(V, dV, "flash_sdpa_bwd_cudnn");
-    validate_same_shape_and_merge(K, A, "flash_sdpa_bwd_cudnn");
-    validate_same_shape_and_merge(K, dA, "flash_sdpa_bwd_cudnn");
-    validate_logsumexp_shape_and_merge(K, logsumexp, "flash_sdpa_bwd_cudnn");
-    validate_flash_sdpa_qkv_shape_and_merge(K, Q, V, "flash_sdpa_bwd_cudnn");
+    validate_same_shape_and_merge(Q, A, "flash_sdpa_bwd_cudnn");
+    validate_same_shape_and_merge(Q, dA, "flash_sdpa_bwd_cudnn");
+    validate_logsumexp_shape_and_merge(Q, logsumexp, "flash_sdpa_bwd_cudnn");
+    validate_flash_sdpa_qkv_shape_and_merge(Q, K, V, "flash_sdpa_bwd_cudnn");
     if(mask->ndim() != 2)
         throw std::invalid_argument(
             "flash_sdpa_bwd_cudnn: mask must be 2D");
