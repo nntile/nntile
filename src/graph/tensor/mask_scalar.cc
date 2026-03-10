@@ -52,27 +52,24 @@ void mask_scalar(TensorGraph::TensorNode* mask,
     if(mask->dtype() != DataType::BOOL)
         throw std::invalid_argument("mask_scalar: mask must have BOOL dtype");
     Index A_data_ndim = A->ndim() - batch_ndim;
-    if(mask->ndim() == A_data_ndim)
+    if(mask->ndim() != A_data_ndim)
     {
-        for(Index i = 0; i < A_data_ndim; ++i)
-        {
-            if(mask->shape()[i] != A->shape()[i])
-            {
-                throw std::invalid_argument(
-                    "mask_scalar: mask.dim[" + std::to_string(i) +
-                    "] must match A.dim[" + std::to_string(i) + "] (" +
-                    std::to_string(mask->shape()[i]) + " vs " +
-                    std::to_string(A->shape()[i]) + ")");
-            }
-        }
+        throw std::invalid_argument(
+            "mask_scalar: mask.ndim must equal A.ndim - batch_ndim (" +
+            std::to_string(mask->ndim()) + " vs " +
+            std::to_string(A_data_ndim) + ")");
     }
-    // mask covers the non-batch (data) dims of A.
-    if(mask->ndim() == A_data_ndim)
+    for(Index i = 0; i < A_data_ndim; ++i)
     {
-        for(Index i = 0; i < A_data_ndim; ++i)
+        if(mask->shape()[i] != A->shape()[i])
         {
-            merge_axis(mask->mutable_axes()[i], A->mutable_axes()[i]);
+            throw std::invalid_argument(
+                "mask_scalar: mask.dim[" + std::to_string(i) +
+                "] must match A.dim[" + std::to_string(i) + "] (" +
+                std::to_string(mask->shape()[i]) + " vs " +
+                std::to_string(A->shape()[i]) + ")");
         }
+        merge_axis(mask->mutable_axes()[i], A->mutable_axes()[i]);
     }
 
     auto op = std::make_shared<TensorMaskScalarOp>(mask, val, A, batch_ndim);

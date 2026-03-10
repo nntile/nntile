@@ -32,7 +32,6 @@ namespace
 {
 
 constexpr Scalar val = -0.5;
-constexpr Index batch_ndim = 0;
 constexpr float tolerance = 1e-5f;
 constexpr int distr_rank_single = 0;
 
@@ -40,25 +39,35 @@ constexpr int distr_rank_single = 0;
 
 template<typename T>
 void check_mask_scalar_vs_tensor_api(
-    const std::vector<Index>& shape)
+    const std::vector<Index>& A_shape,
+    Index batch_ndim)
 {
     using Y = typename T::repr_t;
-    const Index nelems = std::accumulate(
-        shape.begin(), shape.end(), Index(1), std::multiplies<>());
+    const Index A_nelems = std::accumulate(
+        A_shape.begin(), A_shape.end(), Index(1), std::multiplies<>());
+    const Index A_data_ndim =
+        static_cast<Index>(A_shape.size()) - batch_ndim;
+    std::vector<Index> mask_shape(A_shape.begin(),
+                                  A_shape.begin() + A_data_ndim);
+    const Index mask_nelems = std::accumulate(
+        mask_shape.begin(), mask_shape.end(), Index(1), std::multiplies<>());
 
     // Build mask: true = keep, false = replace with val
-    std::vector<float> mask_data(nelems);
-    std::vector<float> A_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    std::vector<float> mask_data(mask_nelems);
+    std::vector<float> A_data(A_nelems);
+    for(Index i = 0; i < mask_nelems; ++i)
+    {
+        mask_data[i] = (i % 2 == 0) ? 0.0f : 1.0f;  // even -> false, odd -> true
+    }
+    for(Index i = 0; i < A_nelems; ++i)
     {
         A_data[i] = static_cast<float>(Y(i + 1));
-        mask_data[i] = (i % 2 == 0) ? 0.0f : 1.0f;  // even -> false, odd -> true
     }
 
     // --- TensorGraph path ---
     TensorGraph graph("mask_scalar_test");
-    auto* mask_node = graph.data(shape, "mask", DataType::BOOL);
-    auto* A_node = graph.data(shape, "A", DataType::FP32);
+    auto* mask_node = graph.data(mask_shape, "mask", DataType::BOOL);
+    auto* A_node = graph.data(A_shape, "A", DataType::FP32);
     mask_node->mark_input(true);
     A_node->mark_input(true);
     A_node->mark_output(true);
@@ -76,20 +85,17 @@ void check_mask_scalar_vs_tensor_api(
     std::vector<float> graph_result = runtime.get_output<float>("A");
 
     // --- Direct tensor API path ---
-    nntile::tensor::TensorTraits A_traits(shape, shape);
+    nntile::tensor::TensorTraits A_traits(A_shape, A_shape);
     std::vector<int> distr(A_traits.grid.nelems, distr_rank_single);
     nntile::tensor::Tensor<T> A_t(A_traits, distr);
 
-    std::vector<Index> mask_shape(shape.begin(),
-                                  shape.begin() + static_cast<long>(shape.size())
-                                      - batch_ndim);
     nntile::tensor::TensorTraits mask_traits(mask_shape, mask_shape);
     nntile::tensor::Tensor<nntile::bool_t> mask_t(mask_traits, distr);
 
     {
         auto tile = A_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < nelems; ++i)
+        for(Index i = 0; i < A_nelems; ++i)
         {
             loc[i] = static_cast<Y>(A_data[i]);
         }
@@ -98,7 +104,7 @@ void check_mask_scalar_vs_tensor_api(
     {
         auto tile = mask_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < nelems; ++i)
+        for(Index i = 0; i < mask_nelems; ++i)
         {
             loc[i] = nntile::bool_t(mask_data[i] != 0.0f);
         }
@@ -108,11 +114,11 @@ void check_mask_scalar_vs_tensor_api(
     nntile::tensor::mask_scalar<T>(mask_t, val, A_t, batch_ndim);
     starpu_task_wait_for_all();
 
-    std::vector<float> tensor_result(nelems);
+    std::vector<float> tensor_result(A_nelems);
     {
         auto tile = A_t.get_tile(0);
         auto loc = tile.acquire(STARPU_R);
-        for(Index i = 0; i < nelems; ++i)
+        for(Index i = 0; i < A_nelems; ++i)
         {
             tensor_result[i] = static_cast<float>(loc[i]);
         }
@@ -130,6 +136,7 @@ TEST_CASE("TensorGraph mask_scalar structure", "[graph][tensor]")
 {
     constexpr Index dim0 = 4;
     constexpr Index dim1 = 5;
+    constexpr Index batch_ndim = 0;
 
     TensorGraph graph("test");
 
@@ -150,6 +157,7 @@ TEST_CASE("TensorGraph mask_scalar structure", "[graph][tensor]")
 
 TEST_CASE("TensorGraph mask_scalar rejects null tensors", "[graph][tensor]")
 {
+    constexpr Index batch_ndim = 0;
     TensorGraph graph("test");
     auto* mask = graph.data({4, 5}, "mask", DataType::BOOL);
     auto* A = graph.data({4, 5}, "A");
@@ -164,6 +172,7 @@ TEST_CASE("TensorGraph mask_scalar rejects null tensors", "[graph][tensor]")
 
 TEST_CASE("TensorGraph mask_scalar rejects non-BOOL mask", "[graph][tensor]")
 {
+    constexpr Index batch_ndim = 0;
     TensorGraph graph("test");
     auto* mask = graph.data({4, 5}, "mask");  // FP32 by default
     auto* A = graph.data({4, 5}, "A");
@@ -173,43 +182,75 @@ TEST_CASE("TensorGraph mask_scalar rejects non-BOOL mask", "[graph][tensor]")
         std::invalid_argument);
 }
 
+TEST_CASE("TensorGraph mask_scalar rejects mismatched mask ndim", "[graph][tensor]")
+{
+    TensorGraph graph("test");
+    // A is seq x seq x batch (3D), mask must be seq x seq (2D)
+    auto* mask = graph.data({4, 5, 8}, "mask", DataType::BOOL);  // wrong: 3D
+    auto* A = graph.data({4, 5, 8}, "A");
+    REQUIRE_THROWS_AS(
+        gt::mask_scalar(mask, val, A, 1),
+        std::invalid_argument);
+
+    // mask 1D when A_data is 2D
+    TensorGraph graph2("test2");
+    auto* mask2 = graph2.data({4}, "mask", DataType::BOOL);
+    auto* A2 = graph2.data({4, 5}, "A");
+    REQUIRE_THROWS_AS(
+        gt::mask_scalar(mask2, val, A2, 0),
+        std::invalid_argument);
+}
+
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph mask_scalar matches nntile::tensor::mask_scalar", "[graph][tensor]")
 {
-    const auto shape = GENERATE(
-        std::vector<Index>{4, 5},
-        std::vector<Index>{6},
-        std::vector<Index>{2, 3});
+    const auto [A_shape, batch_ndim] = GENERATE(
+        std::make_pair(std::vector<Index>{4, 5}, Index(0)),
+        std::make_pair(std::vector<Index>{6}, Index(0)),
+        std::make_pair(std::vector<Index>{2, 3}, Index(0)),
+        std::make_pair(std::vector<Index>{4, 5, 8}, Index(1)),
+        std::make_pair(std::vector<Index>{2, 3, 4, 5}, Index(2)));
 
-    check_mask_scalar_vs_tensor_api<nntile::fp32_t>(shape);
+    check_mask_scalar_vs_tensor_api<nntile::fp32_t>(A_shape, batch_ndim);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph mask_scalar tiled matches untiled", "[graph][tensor]")
 {
-    const auto shape = GENERATE(
-        std::vector<Index>{4, 6},
-        std::vector<Index>{6},
-        std::vector<Index>{2, 4});
+    const auto [A_shape, batch_ndim] = GENERATE(
+        std::make_pair(std::vector<Index>{4, 6}, Index(0)),
+        std::make_pair(std::vector<Index>{6}, Index(0)),
+        std::make_pair(std::vector<Index>{2, 4}, Index(0)),
+        std::make_pair(std::vector<Index>{4, 6, 8}, Index(1)));
+
+    const Index A_data_ndim =
+        static_cast<Index>(A_shape.size()) - batch_ndim;
+    std::vector<Index> mask_shape(A_shape.begin(),
+                                  A_shape.begin() + A_data_ndim);
+    const Index mask_nelems = std::accumulate(
+        mask_shape.begin(), mask_shape.end(), Index(1), std::multiplies<>());
+    const Index A_nelems = std::accumulate(
+        A_shape.begin(), A_shape.end(), Index(1), std::multiplies<>());
 
     using T = nntile::fp32_t;
     using Y = typename T::repr_t;
-    const Index nelems = std::accumulate(
-        shape.begin(), shape.end(), Index(1), std::multiplies<>());
-
-    std::vector<float> mask_data(nelems), A_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    std::vector<float> mask_data(mask_nelems);
+    std::vector<float> A_data(A_nelems);
+    for(Index i = 0; i < mask_nelems; ++i)
+    {
+        mask_data[i] = (i % 2 == 0) ? 0.0f : 1.0f;
+    }
+    for(Index i = 0; i < A_nelems; ++i)
     {
         A_data[i] = static_cast<float>(Y(i + 1));
-        mask_data[i] = (i % 2 == 0) ? 0.0f : 1.0f;
     }
 
     // --- Untiled run ---
     std::vector<float> untiled_result;
     {
         TensorGraph graph("mask_scalar_untiled");
-        auto* mask_node = graph.data(shape, "mask", DataType::BOOL);
-        auto* A_node = graph.data(shape, "A", DataType::FP32);
+        auto* mask_node = graph.data(mask_shape, "mask", DataType::BOOL);
+        auto* A_node = graph.data(A_shape, "A", DataType::FP32);
         mask_node->mark_input(true);
         A_node->mark_input(true);
         A_node->mark_output(true);
@@ -231,8 +272,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("mask_scalar_tiled");
-        auto* mask_node = graph.data(shape, "mask", DataType::BOOL);
-        auto* A_node = graph.data(shape, "A", DataType::FP32);
+        auto* mask_node = graph.data(mask_shape, "mask", DataType::BOOL);
+        auto* A_node = graph.data(A_shape, "A", DataType::FP32);
         mask_node->mark_input(true);
         A_node->mark_input(true);
         A_node->mark_output(true);
