@@ -12,6 +12,8 @@
  * @version 1.1.0
  * */
 
+#include "nntile/defs.h"
+
 #ifdef NNTILE_USE_CUDA
 
 #include <catch2/catch_test_macros.hpp>
@@ -26,6 +28,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/flash_sdpa_fwd_cudnn.hh"
 #include "nntile/tensor/tensor.hh"
+#include "nntile/tensor/clear.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -200,10 +203,10 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     init_tile(Q_t, Q_data);
     init_tile(V_t, V_data);
     init_tile(mask_t, mask_data);
-    init_gt::logsumexp(logsumexp_t);
+    init_logsumexp(logsumexp_t);
+    nntile::tensor::clear_async(A_t);
 
     nntile::tensor::flash_sdpa_fwd_cudnn<T>(K_t, Q_t, mask_t, logsumexp_t, V_t, A_t);
-    starpu_task_wait_for_all();
 
     std::vector<float> tensor_A(kv_nelems);
     {

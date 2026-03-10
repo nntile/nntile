@@ -12,6 +12,8 @@
  * @version 1.1.0
  * */
 
+#include <nntile/defs.h>
+
 #ifdef NNTILE_USE_CUDA
 
 #include <catch2/catch_test_macros.hpp>
@@ -24,6 +26,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/tensor/clear.hh"
 #include "nntile/tensor/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -65,7 +68,7 @@ TEST_CASE("TensorGraph flash_sdpa_bwd_cudnn structure", "[graph][tensor][cuda]")
 
     const auto& ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "FLASH_SDPA_BWD_CUDNN");
-    REQUIRE(ops[0]->inputs().size() == 7);
+    REQUIRE(ops[0]->inputs().size() == 10);
     REQUIRE(ops[0]->outputs().size() == 3);
 }
 
@@ -248,7 +251,10 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     init_tile(A_t, A_data);
     init_tile(dA_t, dA_data);
     init_tile(mask_t, mask_data);
-    init_gt::logsumexp(logsumexp_t, logsumexp_data);
+    init_logsumexp(logsumexp_t, logsumexp_data);
+    nntile::tensor::clear<T>(dK_t);
+    nntile::tensor::clear<T>(dQ_t);
+    nntile::tensor::clear<T>(dV_t);
 
     nntile::tensor::flash_sdpa_bwd_cudnn<T>(K_t, Q_t, V_t, A_t, dA_t, mask_t, logsumexp_t,
                                     dK_t, dQ_t, dV_t);

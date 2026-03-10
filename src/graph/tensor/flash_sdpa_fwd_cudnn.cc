@@ -14,10 +14,16 @@
 
 #include "nntile/graph/tensor/flash_sdpa_fwd_cudnn.hh"
 
+#include <cmath>
+#include <limits>
 #include <stdexcept>
+
+#include <starpu.h>
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/tensor/clear.hh"
+#include "nntile/tensor/fill.hh"
 #include "nntile/tensor/flash_sdpa_fwd_cudnn.hh"
 
 namespace nntile::graph::tensor
@@ -41,6 +47,11 @@ void run_flash_sdpa_fwd_cudnn(TensorGraph::Runtime& runtime,
     auto& logsumexp_t = runtime.get_tensor<nntile::fp32_t>(logsumexp);
     auto& V_t = runtime.get_tensor<T>(V);
     auto& A_t = runtime.get_tensor<T>(A);
+    nntile::tensor::fill_async(
+        static_cast<nntile::Scalar>(-std::numeric_limits<float>::infinity()),
+        logsumexp_t);
+    nntile::tensor::clear_async(A_t);
+    starpu_task_wait_for_all();
     nntile::tensor::flash_sdpa_fwd_cudnn<T>(
         K_t, Q_t, mask_t, logsumexp_t, V_t, A_t);
 }
