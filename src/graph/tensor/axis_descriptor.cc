@@ -89,7 +89,15 @@ void merge_axis(std::shared_ptr<AxisDescriptor>& keep,
     {
         keep->name = replace->name;
     }
-    if(!keep->is_tiled() && replace->is_tiled())
+    if(keep->is_tiled() && replace->is_tiled())
+    {
+        if(keep->tile_sizes != replace->tile_sizes)
+        {
+            throw std::invalid_argument(
+                "merge_axis: cannot merge axes with different tile sizes");
+        }
+    }
+    else if(!keep->is_tiled() && replace->is_tiled())
     {
         keep->tile_sizes = replace->tile_sizes;
     }
