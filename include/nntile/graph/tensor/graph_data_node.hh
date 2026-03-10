@@ -74,6 +74,10 @@ public:
         return axes_;
     }
 
+    //! Replace this node's axes with the provided shared axes,
+    //! joining their groups. Sizes must match shape.
+    void set_axes(const std::vector<std::shared_ptr<AxisDescriptor>>& axes);
+
     // Graph structure
     bool is_input() const { return is_input_; }
     bool is_output() const { return is_output_; }

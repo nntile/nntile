@@ -135,13 +135,14 @@ TEST_CASE("Axis merge rejects different extents", "[graph][axis]")
         gt::add(1.0, x, 1.0, y, "z"), std::invalid_argument);
 }
 
-TEST_CASE("data(name, axes) creates tensor sharing axis groups",
+TEST_CASE("set_axes shares axis groups with another tensor",
           "[graph][axis]")
 {
     TensorGraph graph("shared_axes");
     auto* x = graph.data({4, 5}, "x");
 
-    auto* y = graph.data("y", x->axes());
+    auto* y = graph.data({4, 5}, "y");
+    y->set_axes(x->axes());
     REQUIRE(x->axis(0) == y->axis(0));
     REQUIRE(x->axis(1) == y->axis(1));
     REQUIRE(x->axis(0)->members.size() == 2);

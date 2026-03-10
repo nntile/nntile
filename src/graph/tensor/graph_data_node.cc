@@ -53,6 +53,29 @@ TensorGraph::TensorNode::TensorNode(
     }
 }
 
+void TensorGraph::TensorNode::set_axes(
+    const std::vector<std::shared_ptr<AxisDescriptor>>& axes)
+{
+    if(axes.size() != axes_.size())
+    {
+        throw std::invalid_argument(
+            "TensorNode::set_axes: axes size mismatch");
+    }
+    for(size_t i = 0; i < axes.size(); ++i)
+    {
+        if(axes[i]->extent != shape_[i])
+        {
+            throw std::invalid_argument(
+                "TensorNode::set_axes: extent mismatch at axis " +
+                std::to_string(i));
+        }
+        axes_[i]->members.clear();
+        axes_[i] = axes[i];
+        axes[i]->members.push_back(
+            {static_cast<void*>(this), static_cast<int>(i)});
+    }
+}
+
 AxisDescriptor* TensorGraph::TensorNode::axis(int i) const
 {
     if(i < 0)

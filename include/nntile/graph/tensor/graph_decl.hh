@@ -29,8 +29,6 @@
 namespace nntile::graph
 {
 
-struct AxisDescriptor;
-
 //! Tensor graph - defines computation at tensor level
 class TensorGraph
 {
@@ -49,12 +47,6 @@ public:
     TensorNode* data(
         std::vector<Index> shape,
         const std::string& name,
-        DataType dtype = DataType::FP32);
-
-    //! Create a data node sharing existing axis descriptors
-    TensorNode* data(
-        const std::string& name,
-        const std::vector<std::shared_ptr<AxisDescriptor>>& axes,
         DataType dtype = DataType::FP32);
 
     //! Add an operation to the graph

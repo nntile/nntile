@@ -85,7 +85,8 @@ TensorGraph::TensorNode* add(
     }
 
     TensorGraph::TensorNode* output = x->graph()->data(
-        output_name, x->axes(), x->dtype());
+        x->shape(), output_name, x->dtype());
+    output->set_axes(x->axes());
 
     auto op = std::make_shared<TensorAddOp>(x, y, output, alpha, beta);
     x->graph()->add_op(op);
