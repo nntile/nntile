@@ -67,6 +67,11 @@ void multiply_slice(
         throw std::invalid_argument(
             "multiply_slice: input tensors must have the same dtype");
     }
+    if(src->ndim() + 1 != dst->ndim())
+    {
+        throw std::invalid_argument(
+            "multiply_slice: dst must have ndim = src.ndim + 1");
+    }
     if(axis < 0 || axis >= dst->ndim())
     {
         throw std::invalid_argument(

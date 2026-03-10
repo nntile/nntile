@@ -71,6 +71,11 @@ void norm_slice_inplace(
         throw std::invalid_argument(
             "norm_slice_inplace: src and dst must be distinct tensors");
     }
+    if(src->ndim() - 1 != dst->ndim())
+    {
+        throw std::invalid_argument(
+            "norm_slice_inplace: dst must have ndim = src.ndim - 1");
+    }
 
     // Merge slice reduce: src -> dst
     int d = 0;

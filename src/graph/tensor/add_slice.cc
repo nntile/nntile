@@ -67,6 +67,11 @@ TensorGraph::TensorNode* add_slice(
         throw std::invalid_argument(
             "add_slice: input tensors must have the same dtype");
     }
+    if(src1->ndim() + 1 != src2->ndim())
+    {
+        throw std::invalid_argument(
+            "add_slice: src1 must have ndim = src2.ndim - 1");
+    }
     if(axis < 0 || axis >= src2->ndim())
     {
         throw std::invalid_argument(
@@ -125,6 +130,11 @@ void add_slice(
     {
         throw std::invalid_argument(
             "add_slice: src1, src2, and dst must be distinct tensors");
+    }
+    if(src1->ndim() + 1 != src2->ndim())
+    {
+        throw std::invalid_argument(
+            "add_slice: src1 must have ndim = src2.ndim - 1");
     }
 
     // Merge slice broadcast: src1 with src2

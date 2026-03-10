@@ -89,6 +89,11 @@ void sumprod_slice(
     {
         merge_axis(src1->mutable_axes()[i], src2->mutable_axes()[i]);
     }
+    if(src1->ndim() - 1 != dst->ndim())
+    {
+        throw std::invalid_argument(
+            "sumprod_slice: dst must have ndim = src1.ndim - 1");
+    }
     // Merge slice reduce: src1 -> dst
     {
         int d = 0;

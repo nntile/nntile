@@ -137,6 +137,11 @@ void sum_slice(
         throw std::invalid_argument(
             "sum_slice: src and dst must be distinct tensors");
     }
+    if(src->ndim() - 1 != dst->ndim())
+    {
+        throw std::invalid_argument(
+            "sum_slice: dst must have ndim = src.ndim - 1");
+    }
 
     // Merge slice reduce: src -> dst
     int d = 0;

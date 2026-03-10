@@ -73,6 +73,11 @@ void add_slice_inplace(
         throw std::invalid_argument(
             "add_slice_inplace: src and dst must be distinct tensors");
     }
+    if(src->ndim() + 1 != dst->ndim())
+    {
+        throw std::invalid_argument(
+            "add_slice_inplace: src must have ndim = dst.ndim - 1");
+    }
 
     // Merge slice broadcast: src with dst
     int d = 0;
