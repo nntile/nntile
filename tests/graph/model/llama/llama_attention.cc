@@ -13,10 +13,14 @@
  * */
 
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <string>
+#include <vector>
 
+#include "context_fixture.hh"
 #include "nntile/graph.hh"
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/llama/llama_attention.hh"
@@ -85,6 +89,92 @@ TEST_CASE("LlamaAttention load from safetensors roundtrip", "[model][llama][io]"
     }
 
     std::remove(save_path.c_str());
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "LlamaAttention tiled matches untiled", "[model][llama]")
+{
+    const std::string data_dir(LLAMA_DATA_DIR);
+    const std::string full_path = data_dir + "/llama_attention_full.safetensors";
+    std::ifstream check(full_path);
+    if(!check.good())
+    {
+        SKIP("Llama full test data not found. Run llama_data_setup fixture.");
+    }
+
+    LlamaConfig config;
+    config.hidden_size = 8;
+    config.num_attention_heads = 1;
+    config.num_key_value_heads = 1;
+    config.compute_head_dim();
+    const Index head_size = config.head_dim;
+
+    SafeTensorsReader reader(full_path);
+    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
+    const size_t input_nelems = input_bytes.size() / sizeof(float);
+    std::vector<float> input_data(input_nelems);
+    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
+
+    // --- Untiled run ---
+    std::vector<float> untiled_result;
+    {
+        NNGraph g("llama_attn_untiled");
+        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
+        LlamaAttention attn(&g, "attn", config);
+        auto* output = attn.forward(input, nullptr, nullptr, nullptr);
+        input->mark_input(true);
+        output->mark_output(true);
+
+        attn.load(full_path);
+
+        TensorGraph& tg = g.tensor_graph();
+        TensorGraph::Runtime runtime(tg);
+        runtime.compile();
+        runtime.bind_data("input", input_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_result = runtime.get_output<float>(output->name());
+    }
+
+    // --- Tiled run: 2 tiles per axis, except head_size ---
+    std::vector<float> tiled_result;
+    {
+        NNGraph g("llama_attn_tiled");
+        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
+        LlamaAttention attn(&g, "attn", config);
+        auto* output = attn.forward(input, nullptr, nullptr, nullptr);
+        input->mark_input(true);
+        output->mark_output(true);
+
+        attn.load(full_path);
+
+        TensorGraph& tg = g.tensor_graph();
+        for(auto* ag : tg.axis_groups())
+        {
+            // Do not tile head_size (breaks attention). Do not tile extent 2
+            // (maxsumexp/logsumexp require dst.basetile_shape[0]==2).
+            if(ag->extent != head_size && ag->extent != 2)
+            {
+                ag->set_tiling((ag->extent + 1) / 2);
+            }
+        }
+
+        TensorGraph::Runtime runtime(tg);
+        runtime.compile();
+        runtime.bind_data("input", input_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_result = runtime.get_output<float>(output->name());
+    }
+
+    constexpr float tol = 1e-4f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }
 #endif
 

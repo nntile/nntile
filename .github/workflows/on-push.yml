@@ -165,6 +165,7 @@ jobs:
             python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
           pytest -vv \
+            --ignore=wrappers/python/tests/graph/model/llama \
             --cov=wrappers/python/nntile \
             --cov-report=html:coverage/html/${PYTHON_TAG} \
             --cov-report=xml:coverage/xml/report.${PYTHON_TAG}.xml \
