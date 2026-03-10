@@ -390,11 +390,8 @@ inline void validate_embedding_shape_and_merge(
             std::to_string(embed->shape()[index->ndim()]) + " vs " +
             std::to_string(vocab->dim(0)) + ")");
     }
-    if(embed->ndim() > index->ndim())
-    {
-        merge_axis(embed->mutable_axes()[index->ndim()],
-                   vocab->mutable_axes()[0]);
-    }
+    merge_axis(embed->mutable_axes()[index->ndim()],
+               vocab->mutable_axes()[0]);
 }
 
 } // namespace nntile::graph
