@@ -130,80 +130,48 @@ inline void validate_same_shape_and_merge(TensorGraph::TensorNode* a,
     }
 }
 
-//! Validate slice broadcast shape and merge axes (src ndim-1 into dst).
-inline void validate_slice_broadcast_shape_and_merge(
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst,
+//! Validate slice shape and merge axes (one tensor ndim-1, the other ndim; axis
+//! in the larger). x and y can be in either order.
+inline void validate_slice_shape_and_merge(
+    TensorGraph::TensorNode* x,
+    TensorGraph::TensorNode* y,
     Index axis,
     const std::string& op_name)
 {
-    if(src->ndim() + 1 != dst->ndim())
+    TensorGraph::TensorNode* larger =
+        (x->ndim() > y->ndim()) ? x : y;
+    TensorGraph::TensorNode* smaller =
+        (x->ndim() > y->ndim()) ? y : x;
+    if(larger->ndim() != smaller->ndim() + 1)
     {
         throw std::invalid_argument(
-            op_name + ": src must have ndim = dst.ndim - 1 (" +
-            std::to_string(src->ndim()) + " vs " +
-            std::to_string(dst->ndim()) + ")");
+            op_name + ": one tensor must have ndim = other.ndim - 1 (" +
+            std::to_string(x->ndim()) + " vs " + std::to_string(y->ndim()) +
+            ")");
     }
-    if(axis < 0 || axis >= dst->ndim())
+    if(axis < 0 || axis >= larger->ndim())
     {
         throw std::invalid_argument(op_name + ": axis out of range");
     }
     int d = 0;
-    for(Index i = 0; i < dst->ndim(); ++i)
+    for(Index i = 0; i < larger->ndim(); ++i)
     {
         if(i == axis)
             continue;
-        if(src->shape()[d] != dst->shape()[i])
+        if(smaller->shape()[d] != larger->shape()[i])
         {
             throw std::invalid_argument(
-                op_name + ": shape mismatch at broadcast dimension " +
-                std::to_string(i) + " (src " + std::to_string(d) + ": " +
-                std::to_string(src->shape()[d]) + " vs dst: " +
-                std::to_string(dst->shape()[i]) + ")");
+                op_name + ": shape mismatch at dimension " +
+                std::to_string(i) + " (" + std::to_string(smaller->shape()[d]) +
+                " vs " + std::to_string(larger->shape()[i]) + ")");
         }
-        merge_axis(src->mutable_axes()[d], dst->mutable_axes()[i]);
+        merge_axis(smaller->mutable_axes()[d], larger->mutable_axes()[i]);
         ++d;
     }
 }
 
-//! Validate slice reduce shape and merge axes (src ndim+1 into dst).
-inline void validate_slice_reduce_shape_and_merge(
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst,
-    Index axis,
-    const std::string& op_name)
-{
-    if(src->ndim() != dst->ndim() + 1)
-    {
-        throw std::invalid_argument(
-            op_name + ": dst must have ndim = src.ndim - 1 (" +
-            std::to_string(dst->ndim()) + " vs " +
-            std::to_string(src->ndim()) + ")");
-    }
-    if(axis < 0 || axis >= src->ndim())
-    {
-        throw std::invalid_argument(op_name + ": axis out of range");
-    }
-    int d = 0;
-    for(Index i = 0; i < src->ndim(); ++i)
-    {
-        if(i == axis)
-            continue;
-        if(src->shape()[i] != dst->shape()[d])
-        {
-            throw std::invalid_argument(
-                op_name + ": shape mismatch at reduce dimension " +
-                std::to_string(i) + " (src: " + std::to_string(src->shape()[i]) +
-                " vs dst " + std::to_string(d) + ": " +
-                std::to_string(dst->shape()[d]) + ")");
-        }
-        merge_axis(src->mutable_axes()[i], dst->mutable_axes()[d]);
-        ++d;
-    }
-}
-
-//! Validate fiber broadcast shape and merge axes (fiber 1+batch_ndim into tensor).
-inline void validate_fiber_broadcast_shape_and_merge(
+//! Validate fiber shape and merge axes (fiber 1+batch_ndim into tensor).
+inline void validate_fiber_shape_and_merge(
     TensorGraph::TensorNode* fiber,
     TensorGraph::TensorNode* tensor,
     Index axis,

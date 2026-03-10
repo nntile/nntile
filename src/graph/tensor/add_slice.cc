@@ -77,7 +77,7 @@ TensorGraph::TensorNode* add_slice(
         throw std::invalid_argument(
             "add_slice: axis out of range");
     }
-    validate_slice_broadcast_shape_and_merge(src1, src2, axis, "add_slice");
+    validate_slice_shape_and_merge(src1, src2, axis, "add_slice");
 
     // Output shape matches src2
     std::vector<Index> output_shape = src2->shape();
@@ -122,7 +122,7 @@ void add_slice(
         throw std::invalid_argument(
             "add_slice: src1, src2, and dst must be distinct tensors");
     }
-    validate_slice_broadcast_shape_and_merge(src1, src2, axis, "add_slice");
+    validate_slice_shape_and_merge(src1, src2, axis, "add_slice");
     validate_same_shape_and_merge(src2, dst, "add_slice");
 
     auto op = std::make_shared<TensorAddSliceOp>(

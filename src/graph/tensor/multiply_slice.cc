@@ -67,7 +67,7 @@ void multiply_slice(
         throw std::invalid_argument(
             "multiply_slice: input tensors must have the same dtype");
     }
-    validate_slice_broadcast_shape_and_merge(src, dst, axis, "multiply_slice");
+    validate_slice_shape_and_merge(src, dst, axis, "multiply_slice");
 
     auto op = std::make_shared<TensorMultiplySliceOp>(alpha, src, dst, axis);
     src->graph()->add_op(op);

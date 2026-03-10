@@ -83,7 +83,7 @@ TensorGraph::TensorNode* norm_slice(
         output_name,
         src1->dtype());
 
-    validate_slice_reduce_shape_and_merge(src1, dst, axis, "norm_slice");
+    validate_slice_shape_and_merge(src1, dst, axis, "norm_slice");
     validate_same_shape_and_merge(src2, dst, "norm_slice");
 
     auto op = std::make_shared<TensorNormSliceOp>(
@@ -128,7 +128,7 @@ void norm_slice(
             "norm_slice: dst must have ndim = src1.ndim - 1");
     }
 
-    validate_slice_reduce_shape_and_merge(src1, dst, axis, "norm_slice");
+    validate_slice_shape_and_merge(src1, dst, axis, "norm_slice");
     validate_same_shape_and_merge(src2, dst, "norm_slice");
 
     auto op = std::make_shared<TensorNormSliceOp>(

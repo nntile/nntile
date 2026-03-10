@@ -71,7 +71,7 @@ void norm_slice_inplace(
         throw std::invalid_argument(
             "norm_slice_inplace: src and dst must be distinct tensors");
     }
-    validate_slice_reduce_shape_and_merge(src, dst, axis, "norm_slice_inplace");
+    validate_slice_shape_and_merge(src, dst, axis, "norm_slice_inplace");
 
     auto op = std::make_shared<TensorNormSliceInplaceOp>(
         alpha, beta, src, dst, axis, redux);

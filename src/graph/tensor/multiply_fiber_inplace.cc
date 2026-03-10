@@ -67,7 +67,7 @@ void multiply_fiber_inplace(
         throw std::invalid_argument(
             "multiply_fiber_inplace: input tensors must have the same dtype");
     }
-    validate_fiber_broadcast_shape_and_merge(src, dst, axis, 0,
+    validate_fiber_shape_and_merge(src, dst, axis, 0,
                                   "multiply_fiber_inplace");
 
     auto op = std::make_shared<TensorMultiplyFiberInplaceOp>(

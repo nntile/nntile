@@ -93,7 +93,7 @@ void scale_fiber(
         throw std::invalid_argument(
             "scale_fiber: input tensors must have the same dtype");
     }
-    validate_fiber_broadcast_shape_and_merge(src, dst, axis, batch_ndim, "scale_fiber");
+    validate_fiber_shape_and_merge(src, dst, axis, batch_ndim, "scale_fiber");
 
     auto op = std::make_shared<TensorScaleFiberOp>(
         alpha, src, dst, axis, batch_ndim);

@@ -70,7 +70,7 @@ TensorGraph::TensorNode* add_fiber(
             "add_fiber: input tensors must have the same dtype");
     }
 
-    validate_fiber_broadcast_shape_and_merge(fiber, tensor, axis, batch_ndim, "add_fiber");
+    validate_fiber_shape_and_merge(fiber, tensor, axis, batch_ndim, "add_fiber");
 
     // Output shape matches tensor (fiber is broadcast)
     std::vector<Index> output_shape = tensor->shape();
@@ -116,7 +116,7 @@ void add_fiber(
         throw std::invalid_argument(
             "add_fiber: fiber, tensor, and output must be distinct tensors");
     }
-    validate_fiber_broadcast_shape_and_merge(fiber, tensor, axis, batch_ndim, "add_fiber");
+    validate_fiber_shape_and_merge(fiber, tensor, axis, batch_ndim, "add_fiber");
     validate_same_shape_and_merge(tensor, output, "add_fiber");
 
     auto op = std::make_shared<TensorAddFiberOp>(

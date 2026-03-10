@@ -73,7 +73,7 @@ void add_slice_inplace(
         throw std::invalid_argument(
             "add_slice_inplace: src and dst must be distinct tensors");
     }
-    validate_slice_broadcast_shape_and_merge(src, dst, axis,
+    validate_slice_shape_and_merge(src, dst, axis,
                                             "add_slice_inplace");
 
     auto op = std::make_shared<TensorAddSliceInplaceOp>(

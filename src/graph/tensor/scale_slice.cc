@@ -108,7 +108,7 @@ void scale_slice(
         throw std::invalid_argument(
             "scale_slice: input tensors must have the same dtype");
     }
-    validate_slice_broadcast_shape_and_merge(src, dst, axis, "scale_slice");
+    validate_slice_shape_and_merge(src, dst, axis, "scale_slice");
 
     auto op = std::make_shared<TensorScaleSliceOp>(alpha, src, dst, axis);
     src->graph()->add_op(op);

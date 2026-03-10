@@ -77,7 +77,7 @@ TensorGraph::TensorNode* multiply_fiber(
             "multiply_fiber: axis out of range");
     }
 
-    validate_fiber_broadcast_shape_and_merge(src1, src2, axis, 0, "multiply_fiber");
+    validate_fiber_shape_and_merge(src1, src2, axis, 0, "multiply_fiber");
 
     std::vector<Index> output_shape = src2->shape();
     TensorGraph::TensorNode* dst = src1->graph()->data(
@@ -131,7 +131,7 @@ void multiply_fiber(
             "multiply_fiber: src1, src2, and dst must be distinct tensors");
     }
 
-    validate_fiber_broadcast_shape_and_merge(src1, src2, axis, 0, "multiply_fiber");
+    validate_fiber_shape_and_merge(src1, src2, axis, 0, "multiply_fiber");
     validate_same_shape_and_merge(src2, dst, "multiply_fiber");
 
     auto op = std::make_shared<TensorMultiplyFiberOp>(

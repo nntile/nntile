@@ -80,22 +80,7 @@ void sumprod_slice(
     }
 
     validate_same_shape_and_merge(src1, src2, "sumprod_slice");
-    if(src1->ndim() - 1 != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "sumprod_slice: dst must have ndim = src1.ndim - 1");
-    }
-    // Merge slice reduce: src1 -> dst
-    {
-        int d = 0;
-        for(Index i = 0; i < src1->ndim(); ++i)
-        {
-            if(i == axis) continue;
-            merge_axis(src1->mutable_axes()[i],
-                       dst->mutable_axes()[d]);
-            ++d;
-        }
-    }
+    validate_slice_shape_and_merge(src1, dst, axis, "sumprod_slice");
 
     auto op = std::make_shared<TensorSumprodSliceOp>(
         src1, src2, dst, axis, redux, alpha, beta);

@@ -70,7 +70,7 @@ void add_fiber_inplace(
         throw std::invalid_argument(
             "add_fiber_inplace: fiber and tensor must be distinct tensors");
     }
-    validate_fiber_broadcast_shape_and_merge(fiber, tensor, axis, batch_ndim,
+    validate_fiber_shape_and_merge(fiber, tensor, axis, batch_ndim,
                                    "add_fiber_inplace");
 
     auto op = std::make_shared<TensorAddFiberInplaceOp>(

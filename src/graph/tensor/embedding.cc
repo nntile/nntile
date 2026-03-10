@@ -60,15 +60,6 @@ TensorGraph::TensorNode* embedding(TensorGraph::TensorNode* index,
     TensorGraph::TensorNode* embed = vocab->graph()->data(
         std::move(embed_shape), output_name, vocab->dtype());
 
-    // embed.dim[i] == index.dim[i] for i < index.ndim
-    for(Index i = 0; i < index->ndim(); ++i)
-    {
-        merge_axis(embed->mutable_axes()[i], index->mutable_axes()[i]);
-    }
-    // embed.dim[index.ndim] == vocab.dim[0] (embedding dimension)
-    merge_axis(embed->mutable_axes()[index->ndim()],
-               vocab->mutable_axes()[0]);
-
     embedding(index, vocab, embed, axis);
     return embed;
 }
