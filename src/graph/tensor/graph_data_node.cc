@@ -166,7 +166,7 @@ std::string TensorGraph::TensorNode::to_string() const
             else
             {
                 bool uniform = true;
-                for(size_t t = 1; t < ax->tile_sizes.size() - 1; ++t)
+                for(size_t t = 1; t < ax->tile_sizes.size(); ++t)
                 {
                     if(ax->tile_sizes[t] != ax->tile_sizes[0])
                     {
