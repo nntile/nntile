@@ -142,6 +142,8 @@ std::pair<NNGraph::TensorNode*, bool> NNGraph::get_or_create_grad(
         tensor->shape(),
         grad_name,
         tensor->dtype());
+    // Grad axes must match the tensor's axes (same tiling, same dimension groups)
+    grad_data->set_axes(tensor->data()->axes());
     auto grad_node = std::make_unique<TensorNode>(this, grad_data, false);
     TensorNode* grad_ptr = grad_node.get();
     tensors_.push_back(std::move(grad_node));

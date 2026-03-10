@@ -124,6 +124,11 @@ void add_fiber(
         throw std::invalid_argument(
             "add_fiber: fiber, tensor, and output must be distinct tensors");
     }
+    if(tensor->ndim() != output->ndim())
+    {
+        throw std::invalid_argument(
+            "add_fiber: output ndim must match tensor ndim");
+    }
 
     // Merge fiber axes with tensor axes
     merge_axis(fiber->mutable_axes()[0],
