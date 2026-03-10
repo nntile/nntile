@@ -80,18 +80,23 @@ std::string AxisDescriptor::tile_sizes_to_string() const
     {
         return std::to_string(tile_sizes[0]);
     }
-    bool uniform = true;
-    for(size_t t = 1; t < tile_sizes.size(); ++t)
+    // Base+leftover pattern (from set_tiling(Index)): all except last equal
+    // base; last tile may be smaller. Treat as uniform "N" like
+    // compute_basetile_shape.
+    Index base = tile_sizes[0];
+    bool base_plus_leftover = true;
+    for(size_t t = 1; t < tile_sizes.size() - 1; ++t)
     {
-        if(tile_sizes[t] != tile_sizes[0])
+        if(tile_sizes[t] != base)
         {
-            uniform = false;
+            base_plus_leftover = false;
             break;
         }
     }
-    if(uniform)
+    Index last = tile_sizes.back();
+    if(base_plus_leftover && last > 0 && last <= base)
     {
-        return std::to_string(tile_sizes[0]);
+        return std::to_string(base);
     }
     std::string result = "{";
     for(size_t t = 0; t < tile_sizes.size(); ++t)
