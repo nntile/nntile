@@ -18,8 +18,6 @@
 #include <limits>
 #include <stdexcept>
 
-#include <starpu.h>
-
 #include "nntile/base_types.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/clear.hh"
@@ -51,7 +49,9 @@ void run_flash_sdpa_fwd_cudnn(TensorGraph::Runtime& runtime,
         static_cast<nntile::Scalar>(-std::numeric_limits<float>::infinity()),
         logsumexp_t);
     nntile::tensor::clear_async(A_t);
-    starpu_task_wait_for_all();
+    // Rely on StarPU data-dependency tracking: flash_sdpa_fwd_cudnn reads
+    // logsumexp_t and A_t, so its tasks are automatically ordered after
+    // fill_async and clear_async. No global barrier needed.
     nntile::tensor::flash_sdpa_fwd_cudnn<T>(
         K_t, Q_t, mask_t, logsumexp_t, V_t, A_t);
 }
