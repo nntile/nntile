@@ -357,8 +357,9 @@ inline void validate_logsumexp_shape_and_merge(
 }
 
 //! Validate flash_sdpa Q/K/V shape: Q and V must have same ndim as K,
-//! share head_size (dim 0) and batch dims (dims 2, 3, 4); seq (dim 1) may differ.
-//! Merge axes for matching dimensions.
+//! share head_size (dim 0) and batch dims (dims 2, 3, 4). Q's seq (dim 1) may
+//! differ from K; V's seq (dim 1) must match K (key-sequence length). Merge
+//! axes for matching dimensions.
 inline void validate_flash_sdpa_qkv_shape_and_merge(
     TensorGraph::TensorNode* K,
     TensorGraph::TensorNode* Q,
@@ -384,6 +385,9 @@ inline void validate_flash_sdpa_qkv_shape_and_merge(
     if(V->shape()[0] != K->shape()[0])
         throw std::invalid_argument(
             op_name + ": V.dim[0] must match K.dim[0]");
+    if(V->shape()[1] != K->shape()[1])
+        throw std::invalid_argument(
+            op_name + ": V.dim[1] must match K.dim[1] (key-sequence length)");
     for(Index i = 2; i < K->ndim(); ++i)
     {
         if(V->shape()[i] != K->shape()[i])
@@ -397,8 +401,9 @@ inline void validate_flash_sdpa_qkv_shape_and_merge(
     {
         merge_axis(Q->mutable_axes()[i], K->mutable_axes()[i]);
     }
-    // V shares head_size and batch dims with K (dims 0, 2, 3, 4)
+    // V shares head_size, key-sequence (dim 1), and batch dims with K
     merge_axis(V->mutable_axes()[0], K->mutable_axes()[0]);
+    merge_axis(V->mutable_axes()[1], K->mutable_axes()[1]);
     for(Index i = 2; i < K->ndim(); ++i)
     {
         merge_axis(V->mutable_axes()[i], K->mutable_axes()[i]);
