@@ -69,10 +69,15 @@ void TensorGraph::TensorNode::set_axes(
                 "TensorNode::set_axes: extent mismatch at axis " +
                 std::to_string(i));
         }
-        axes_[i]->members.clear();
+        auto& old_members = axes_[i]->members;
+        void* self = static_cast<void*>(this);
+        int idx = static_cast<int>(i);
+        old_members.erase(
+            std::remove(old_members.begin(), old_members.end(),
+                        std::make_pair(self, idx)),
+            old_members.end());
         axes_[i] = axes[i];
-        axes[i]->members.push_back(
-            {static_cast<void*>(this), static_cast<int>(i)});
+        axes[i]->members.push_back({self, idx});
     }
 }
 
