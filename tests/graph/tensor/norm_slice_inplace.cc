@@ -22,6 +22,7 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/norm_slice_inplace.hh"
 #include "nntile/tensor/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -205,4 +206,90 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     check_norm_slice_inplace_vs_tensor_api<nntile::fp32_t>(
         src_shape, axis, redux, alpha, beta);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph norm_slice_inplace tiled matches untiled", "[graph][tensor]")
+{
+    const auto [src_shape, axis, redux, alpha, beta] = GENERATE(
+        std::tuple{std::vector<Index>{dim_4, dim_5}, axis_0, redux_none, alpha_one, beta_zero},
+        std::tuple{std::vector<Index>{dim_2, dim_3, dim_4}, axis_1, redux_none, alpha_one, beta_zero});
+
+    using T = nntile::fp32_t;
+    using Y = typename T::repr_t;
+    const Index src_nelems = std::accumulate(
+        src_shape.begin(), src_shape.end(), Index(1), std::multiplies<>());
+
+    std::vector<Index> dst_sh = slice_shape(src_shape, axis);
+    const Index dst_nelems = std::accumulate(
+        dst_sh.begin(), dst_sh.end(), Index(1), std::multiplies<>());
+
+    std::vector<float> src_data(src_nelems);
+    for(Index i = 0; i < src_nelems; ++i)
+    {
+        src_data[i] = static_cast<float>(Y(i + x_fill_offset));
+    }
+    std::vector<float> dst_data(dst_nelems);
+    for(Index i = 0; i < dst_nelems; ++i)
+    {
+        dst_data[i] = (beta != beta_zero) ? static_cast<float>(Y(i + 10)) : 0.0f;
+    }
+
+    // --- Untiled run ---
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("norm_slice_inplace_untiled");
+        auto* src_node = graph.data(src_shape, "src", DataType::FP32);
+        auto* dst_node = graph.data(dst_sh, "dst", DataType::FP32);
+        src_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+
+        gt::norm_slice_inplace(alpha, src_node, beta, dst_node, axis, redux);
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("src", src_data);
+        runtime.bind_data("dst", dst_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_result = runtime.get_output<float>("dst");
+    }
+
+    // --- Tiled run ---
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("norm_slice_inplace_tiled");
+        auto* src_node = graph.data(src_shape, "src", DataType::FP32);
+        auto* dst_node = graph.data(dst_sh, "dst", DataType::FP32);
+        src_node->mark_input(true);
+        dst_node->mark_input(true);
+        dst_node->mark_output(true);
+
+        gt::norm_slice_inplace(alpha, src_node, beta, dst_node, axis, redux);
+        for(auto* ag : graph.axis_groups())
+        {
+            ag->set_tiling((ag->extent + 1) / 2);
+        }
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("src", src_data);
+        runtime.bind_data("dst", dst_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_result = runtime.get_output<float>("dst");
+    }
+
+    // --- Compare ---
+    constexpr float tol = 1e-5f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }

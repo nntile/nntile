@@ -49,13 +49,12 @@ TensorGraph::TensorNode* relu_backward(TensorGraph::TensorNode* x,
         throw std::invalid_argument("relu_backward: inputs must belong to same graph");
     if(x->dtype() != dy->dtype())
         throw std::invalid_argument("relu_backward: inputs must have same dtype");
-    if(x->shape() != dy->shape())
-        throw std::invalid_argument("relu_backward: x and dy must have same shape");
     if(x == dy)
         throw std::invalid_argument("relu_backward: x and dy must be distinct tensors");
-    std::vector<Index> output_shape = x->shape();
+    validate_same_shape_and_merge(x, dy, "relu_backward");
     TensorGraph::TensorNode* output = x->graph()->data(
-        std::move(output_shape), output_name, x->dtype());
+        x->shape(), output_name, x->dtype());
+    output->set_axes(x->axes());
     relu_backward(x, dy, output);
     return output;
 }
@@ -69,10 +68,10 @@ void relu_backward(TensorGraph::TensorNode* x, TensorGraph::TensorNode* dy,
         throw std::invalid_argument("relu_backward: tensors must belong to same graph");
     if(x->dtype() != dy->dtype() || x->dtype() != dx->dtype())
         throw std::invalid_argument("relu_backward: tensors must have same dtype");
-    if(x->shape() != dy->shape() || x->shape() != dx->shape())
-        throw std::invalid_argument("relu_backward: x, dy, dx must have same shape");
     if(x == dy || x == dx || dy == dx)
         throw std::invalid_argument("relu_backward: x, dy, and dx must be distinct tensors");
+    validate_same_shape_and_merge(x, dy, "relu_backward");
+    validate_same_shape_and_merge(x, dx, "relu_backward");
     auto op = std::make_shared<TensorReluBackwardOp>(x, dy, dx);
     x->graph()->add_op(op);
 }

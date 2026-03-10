@@ -61,16 +61,12 @@ void add_inplace(
         throw std::invalid_argument(
             "add_inplace: input tensors must have the same dtype");
     }
-    if(x->shape() != y->shape())
-    {
-        throw std::invalid_argument(
-            "add_inplace: input tensors must have the same shape");
-    }
     if(x == y)
     {
         throw std::invalid_argument(
             "add_inplace: x and y must be distinct tensors");
     }
+    validate_same_shape_and_merge(x, y, "add_inplace");
 
     auto op = std::make_shared<TensorAddInplaceOp>(x, y, alpha, beta);
     x->graph()->add_op(op);

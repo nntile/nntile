@@ -19,6 +19,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/multiply.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/multiply.hh"
 #include "nntile/tensor/tensor.hh"
@@ -152,4 +153,83 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     check_multiply_vs_tensor_api<nntile::fp32_t>(
         shape, alpha);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph multiply tiled matches untiled", "[graph][tensor]")
+{
+    const auto [alpha, shape] = GENERATE(
+        std::tuple{1.0, std::vector<Index>{4, 6}},
+        std::tuple{2.5, std::vector<Index>{2, 4}},
+        std::tuple{0.5, std::vector<Index>{6}});
+
+    using T = nntile::fp32_t;
+    using Y = typename T::repr_t;
+    const Index nelems = std::accumulate(
+        shape.begin(), shape.end(), Index(1), std::multiplies<>());
+
+    std::vector<float> x_data(nelems), y_data(nelems);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        x_data[i] = static_cast<float>(Y(i + 1));
+        y_data[i] = static_cast<float>(Y(-i - 1));
+    }
+
+    // --- Untiled run ---
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("multiply_untiled");
+        auto* x_node = graph.data(shape, "x", DataType::FP32);
+        auto* y_node = graph.data(shape, "y", DataType::FP32);
+        x_node->mark_input(true);
+        y_node->mark_input(true);
+
+        auto* z_node = gt::multiply(x_node, y_node, "z", alpha);
+        z_node->mark_output(true);
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("x", x_data);
+        runtime.bind_data("y", y_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_result = runtime.get_output<float>("z");
+    }
+
+    // --- Tiled run ---
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("multiply_tiled");
+        auto* x_node = graph.data(shape, "x", DataType::FP32);
+        auto* y_node = graph.data(shape, "y", DataType::FP32);
+        x_node->mark_input(true);
+        y_node->mark_input(true);
+
+        auto* z_node = gt::multiply(x_node, y_node, "z", alpha);
+        z_node->mark_output(true);
+        for(auto* ag : graph.axis_groups())
+        {
+            ag->set_tiling((ag->extent + 1) / 2);
+        }
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("x", x_data);
+        runtime.bind_data("y", y_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_result = runtime.get_output<float>("z");
+    }
+
+    // --- Compare ---
+    constexpr float tol = 1e-5f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }

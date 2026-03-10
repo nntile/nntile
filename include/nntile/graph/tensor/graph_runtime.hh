@@ -33,6 +33,8 @@
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tensor/graph_decl.hh>
 #include <nntile/graph/tensor/graph_data_node.hh>
+#include <nntile/tensor/gather.hh>
+#include <nntile/tensor/scatter.hh>
 #include <nntile/tensor/tensor.hh>
 
 namespace nntile::graph
@@ -281,25 +283,33 @@ void TensorGraph::Runtime::bind_data_impl(const std::string& name,
                                           const T* data, size_t count)
 {
     auto& tensor = get_data<NntileT>(name);
-    if(tensor.grid.nelems != 1)
-    {
-        throw std::runtime_error(
-            "bind_data: data '" + name +
-            "' has more than one tile (grid.nelems=" +
-            std::to_string(tensor.grid.nelems) +
-            "); only single-tile tensors are supported");
-    }
     if(count != static_cast<size_t>(tensor.nelems))
     {
         throw std::runtime_error("Data size mismatch for data " + name);
     }
-    auto tile = tensor.get_tile(0);
-    auto tile_local = tile.acquire(STARPU_W);
-    for(size_t i = 0; i < count; ++i)
+    if(tensor.grid.nelems == 1)
     {
-        tile_local[i] = NntileT(static_cast<CastT>(data[i]));
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        for(size_t i = 0; i < count; ++i)
+        {
+            tile_local[i] = NntileT(static_cast<CastT>(data[i]));
+        }
+        tile_local.release();
     }
-    tile_local.release();
+    else
+    {
+        nntile::tensor::Tensor<NntileT> temp(
+            nntile::tensor::TensorTraits(tensor.shape, tensor.shape));
+        auto tile = temp.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        for(size_t i = 0; i < count; ++i)
+        {
+            tile_local[i] = NntileT(static_cast<CastT>(data[i]));
+        }
+        tile_local.release();
+        nntile::tensor::scatter(temp, tensor);
+    }
 }
 
 template<typename T>
@@ -366,22 +376,30 @@ void TensorGraph::Runtime::get_output_impl(const std::string& name,
                                            std::vector<T>& result)
 {
     auto& tensor = get_data<NntileT>(name);
-    if(tensor.grid.nelems != 1)
-    {
-        throw std::runtime_error(
-            "get_output: data '" + name +
-            "' has more than one tile (grid.nelems=" +
-            std::to_string(tensor.grid.nelems) +
-            "); only single-tile tensors are supported");
-    }
     result.resize(tensor.nelems);
-    auto tile = tensor.get_tile(0);
-    auto tile_local = tile.acquire(STARPU_R);
-    for(Index i = 0; i < tensor.nelems; ++i)
+    if(tensor.grid.nelems == 1)
     {
-        result[i] = static_cast<T>(static_cast<CastT>(tile_local[i]));
+        auto tile = tensor.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
+            result[i] = static_cast<T>(static_cast<CastT>(tile_local[i]));
+        }
+        tile_local.release();
     }
-    tile_local.release();
+    else
+    {
+        nntile::tensor::Tensor<NntileT> temp(
+            nntile::tensor::TensorTraits(tensor.shape, tensor.shape));
+        nntile::tensor::gather(tensor, temp);
+        auto tile = temp.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        for(Index i = 0; i < tensor.nelems; ++i)
+        {
+            result[i] = static_cast<T>(static_cast<CastT>(tile_local[i]));
+        }
+        tile_local.release();
+    }
 }
 
 } // namespace nntile::graph

@@ -68,16 +68,6 @@ void sumprod_slice(
         throw std::invalid_argument(
             "sumprod_slice: input tensors must have the same dtype");
     }
-    if(src1->shape() != src2->shape())
-    {
-        throw std::invalid_argument(
-            "sumprod_slice: src1 and src2 must have the same shape");
-    }
-    if(src1->ndim() - 1 != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "sumprod_slice: dst must have ndim = src1.ndim - 1");
-    }
     if(axis < 0 || axis >= src1->ndim())
     {
         throw std::invalid_argument(
@@ -88,6 +78,9 @@ void sumprod_slice(
         throw std::invalid_argument(
             "sumprod_slice: src1, src2, and dst must be distinct tensors");
     }
+
+    validate_same_shape_and_merge(src1, src2, "sumprod_slice");
+    validate_slice_shape_and_merge(dst, src1, axis, "sumprod_slice");
 
     auto op = std::make_shared<TensorSumprodSliceOp>(
         src1, src2, dst, axis, redux, alpha, beta);

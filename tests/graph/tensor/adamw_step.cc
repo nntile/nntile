@@ -19,6 +19,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/adamw_step.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/adamw_step.hh"
 #include "nntile/tensor/tensor.hh"
@@ -206,4 +207,114 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     check_adamw_step_vs_tensor_api<nntile::fp32_t>(
         shape, num_iter, beta_1, beta_2, eps, lr, weight_decay);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph adamw_step tiled matches untiled", "[graph][tensor]")
+{
+    const auto [shape, num_iter, beta_1, beta_2, eps, lr, weight_decay] =
+        GENERATE(
+            std::tuple{std::vector<Index>{4, 6}, Index(1), 0.9, 0.999,
+                       1e-8, 0.001, 0.01},
+            std::tuple{std::vector<Index>{2, 4}, Index(2), 0.95, 0.99,
+                       1e-6, 0.001, 0.001});
+
+    const Index nelems = std::accumulate(
+        shape.begin(), shape.end(), Index(1), std::multiplies<>());
+
+    std::vector<float> grad_data(nelems);
+    std::vector<float> first_moment_data(nelems);
+    std::vector<float> second_moment_data(nelems);
+    std::vector<float> p_data(nelems);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        grad_data[i] = 0.1f * static_cast<float>(i + 1);
+        first_moment_data[i] = 0.01f * static_cast<float>(i);
+        second_moment_data[i] = 0.02f * static_cast<float>(i + 1);
+        p_data[i] = 1.0f * static_cast<float>(i - nelems / 2);
+    }
+
+    // --- Untiled run ---
+    std::vector<float> untiled_first, untiled_second, untiled_p;
+    {
+        TensorGraph graph("adamw_step_untiled");
+        auto* grad_node = graph.data(shape, "grad", DataType::FP32);
+        auto* first_moment_node = graph.data(shape, "first_moment", DataType::FP32);
+        auto* second_moment_node = graph.data(shape, "second_moment", DataType::FP32);
+        auto* p_node = graph.data(shape, "p", DataType::FP32);
+        grad_node->mark_input(true);
+        first_moment_node->mark_input(true);
+        second_moment_node->mark_input(true);
+        p_node->mark_input(true);
+        first_moment_node->mark_output(true);
+        second_moment_node->mark_output(true);
+        p_node->mark_output(true);
+
+        gt::adamw_step(num_iter, beta_1, beta_2, eps, lr, weight_decay,
+                   grad_node, first_moment_node, second_moment_node, p_node);
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("grad", grad_data);
+        runtime.bind_data("first_moment", first_moment_data);
+        runtime.bind_data("second_moment", second_moment_data);
+        runtime.bind_data("p", p_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_first = runtime.get_output<float>("first_moment");
+        untiled_second = runtime.get_output<float>("second_moment");
+        untiled_p = runtime.get_output<float>("p");
+    }
+
+    // --- Tiled run ---
+    std::vector<float> tiled_first, tiled_second, tiled_p;
+    {
+        TensorGraph graph("adamw_step_tiled");
+        auto* grad_node = graph.data(shape, "grad", DataType::FP32);
+        auto* first_moment_node = graph.data(shape, "first_moment", DataType::FP32);
+        auto* second_moment_node = graph.data(shape, "second_moment", DataType::FP32);
+        auto* p_node = graph.data(shape, "p", DataType::FP32);
+        grad_node->mark_input(true);
+        first_moment_node->mark_input(true);
+        second_moment_node->mark_input(true);
+        p_node->mark_input(true);
+        first_moment_node->mark_output(true);
+        second_moment_node->mark_output(true);
+        p_node->mark_output(true);
+
+        gt::adamw_step(num_iter, beta_1, beta_2, eps, lr, weight_decay,
+                   grad_node, first_moment_node, second_moment_node, p_node);
+        for(auto* ag : graph.axis_groups())
+        {
+            ag->set_tiling((ag->extent + 1) / 2);
+        }
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("grad", grad_data);
+        runtime.bind_data("first_moment", first_moment_data);
+        runtime.bind_data("second_moment", second_moment_data);
+        runtime.bind_data("p", p_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_first = runtime.get_output<float>("first_moment");
+        tiled_second = runtime.get_output<float>("second_moment");
+        tiled_p = runtime.get_output<float>("p");
+    }
+
+    // --- Compare ---
+    constexpr float tol = 1e-5f;
+    REQUIRE(tiled_first.size() == untiled_first.size());
+    REQUIRE(tiled_second.size() == untiled_second.size());
+    REQUIRE(tiled_p.size() == untiled_p.size());
+    for(size_t i = 0; i < tiled_p.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_first[i] - untiled_first[i]) < tol);
+        REQUIRE(std::abs(tiled_second[i] - untiled_second[i]) < tol);
+        REQUIRE(std::abs(tiled_p[i] - untiled_p[i]) < tol);
+    }
 }

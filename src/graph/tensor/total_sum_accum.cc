@@ -82,6 +82,8 @@ void total_sum_accum(
         throw std::invalid_argument(
             "total_sum_accum: val must have FP32 dtype");
     }
+    validate_same_shape_and_merge(logsumexp, class_labels, "total_sum_accum");
+    validate_logsumexp_shape_and_merge(src, logsumexp, "total_sum_accum");
 
     auto op = std::make_shared<TensorTotalSumAccumOp>(
         alpha, logsumexp, src, class_labels, val, ignore_index);

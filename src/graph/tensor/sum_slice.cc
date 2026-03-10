@@ -34,7 +34,7 @@ std::vector<Index> sum_slice_output_shape(
 {
     std::vector<Index> out_shape;
     out_shape.reserve(src_shape.size() - 1);
-    for(Index i = 0; i < static_cast<Index>(src_shape.size()); ++i)
+    for(Index i = 0; i < src_shape.size(); ++i)
     {
         if(i != axis)
         {
@@ -85,7 +85,11 @@ TensorGraph::TensorNode* sum_slice(
         output_name,
         src->dtype());
 
-    sum_slice(src, output, axis, redux, alpha, beta);
+    validate_slice_shape_and_merge(output, src, axis, "sum_slice");
+
+    auto op = std::make_shared<TensorSumSliceOp>(
+        src, output, axis, redux, alpha, beta);
+    src->graph()->add_op(op);
 
     return output;
 }
@@ -113,11 +117,6 @@ void sum_slice(
         throw std::invalid_argument(
             "sum_slice: input tensors must have the same dtype");
     }
-    if(src->ndim() - 1 != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "sum_slice: dst must have ndim = src.ndim - 1");
-    }
     if(axis < 0 || axis >= src->ndim())
     {
         throw std::invalid_argument(
@@ -128,6 +127,7 @@ void sum_slice(
         throw std::invalid_argument(
             "sum_slice: src and dst must be distinct tensors");
     }
+    validate_slice_shape_and_merge(dst, src, axis, "sum_slice");
 
     auto op = std::make_shared<TensorSumSliceOp>(
         src, dst, axis, redux, alpha, beta);

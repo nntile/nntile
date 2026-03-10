@@ -71,17 +71,14 @@ TensorGraph::TensorNode* hypot(
         throw std::invalid_argument(
             "hypot: input tensors must have the same dtype");
     }
-    if(src1->shape() != src2->shape())
-    {
-        throw std::invalid_argument(
-            "hypot: input tensors must have the same shape");
-    }
+    validate_same_shape_and_merge(src1, src2, "hypot");
 
     std::vector<Index> output_shape = src1->shape();
     TensorGraph::TensorNode* dst = src1->graph()->data(
         std::move(output_shape),
         output_name,
         src1->dtype());
+    dst->set_axes(src1->axes());
 
     hypot(alpha, src1, beta, src2, dst);
 
@@ -110,16 +107,13 @@ void hypot(
         throw std::invalid_argument(
             "hypot: input tensors must have the same dtype");
     }
-    if(src1->shape() != dst->shape())
-    {
-        throw std::invalid_argument(
-            "hypot: output shape must match input shape");
-    }
     if(src1 == src2 || src1 == dst || src2 == dst)
     {
         throw std::invalid_argument(
             "hypot: src1, src2, and dst must be distinct tensors");
     }
+    validate_same_shape_and_merge(src1, src2, "hypot");
+    validate_same_shape_and_merge(src1, dst, "hypot");
 
     auto op = std::make_shared<TensorHypotOp>(
         alpha, beta, src1, src2, dst);

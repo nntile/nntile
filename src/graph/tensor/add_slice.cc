@@ -67,16 +67,7 @@ TensorGraph::TensorNode* add_slice(
         throw std::invalid_argument(
             "add_slice: input tensors must have the same dtype");
     }
-    if(src1->ndim() + 1 != src2->ndim())
-    {
-        throw std::invalid_argument(
-            "add_slice: src1 must have ndim = src2.ndim - 1");
-    }
-    if(axis < 0 || axis >= src2->ndim())
-    {
-        throw std::invalid_argument(
-            "add_slice: axis out of range");
-    }
+    validate_slice_shape_and_merge(src1, src2, axis, "add_slice");
 
     // Output shape matches src2
     std::vector<Index> output_shape = src2->shape();
@@ -84,8 +75,11 @@ TensorGraph::TensorNode* add_slice(
         std::move(output_shape),
         output_name,
         src2->dtype());
+    output->set_axes(src2->axes());
 
-    add_slice(alpha, src1, beta, src2, output, axis);
+    auto op = std::make_shared<TensorAddSliceOp>(
+        src1, src2, output, alpha, beta, axis);
+    src1->graph()->add_op(op);
 
     return output;
 }
@@ -113,16 +107,13 @@ void add_slice(
         throw std::invalid_argument(
             "add_slice: input tensors must have the same dtype");
     }
-    if(dst->shape() != src2->shape())
-    {
-        throw std::invalid_argument(
-            "add_slice: dst shape must match src2 shape");
-    }
     if(src1 == src2 || src1 == dst || src2 == dst)
     {
         throw std::invalid_argument(
             "add_slice: src1, src2, and dst must be distinct tensors");
     }
+    validate_slice_shape_and_merge(src1, src2, axis, "add_slice");
+    validate_same_shape_and_merge(src2, dst, "add_slice");
 
     auto op = std::make_shared<TensorAddSliceOp>(
         src1, src2, dst, alpha, beta, axis);

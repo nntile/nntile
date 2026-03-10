@@ -62,22 +62,18 @@ TensorGraph::TensorNode* gelutanh_backward(
         throw std::invalid_argument(
             "gelutanh_backward: input tensors must have the same dtype");
     }
-    if(x->shape() != dy->shape())
-    {
-        throw std::invalid_argument(
-            "gelutanh_backward: input tensors must have the same shape");
-    }
     if(x == dy)
     {
         throw std::invalid_argument(
             "gelutanh_backward: x and dy must be distinct tensors");
     }
+    validate_same_shape_and_merge(x, dy, "gelutanh_backward");
 
-    std::vector<Index> output_shape = x->shape();
     TensorGraph::TensorNode* dx = x->graph()->data(
-        std::move(output_shape),
+        x->shape(),
         output_name,
         x->dtype());
+    dx->set_axes(x->axes());
 
     gelutanh_backward(x, dy, dx);
 
@@ -104,16 +100,13 @@ void gelutanh_backward(
         throw std::invalid_argument(
             "gelutanh_backward: input tensors must have the same dtype");
     }
-    if(x->shape() != dx->shape())
-    {
-        throw std::invalid_argument(
-            "gelutanh_backward: dx must have the same shape as x");
-    }
     if(x == dy || x == dx || dy == dx)
     {
         throw std::invalid_argument(
             "gelutanh_backward: x, dy, and dx must be distinct tensors");
     }
+    validate_same_shape_and_merge(x, dy, "gelutanh_backward");
+    validate_same_shape_and_merge(x, dx, "gelutanh_backward");
 
     auto op = std::make_shared<TensorGelutanhBackwardOp>(x, dy, dx);
     x->graph()->add_op(op);

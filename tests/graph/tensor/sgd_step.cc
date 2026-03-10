@@ -19,6 +19,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/sgd_step.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/sgd_step.hh"
 #include "nntile/tensor/tensor.hh"
@@ -190,4 +191,100 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     check_sgd_step_vs_tensor_api<nntile::fp32_t>(
         shape, num_iter, momentum, lr, weight_decay, dampening, nesterov);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph sgd_step tiled matches untiled", "[graph][tensor]")
+{
+    const auto [shape, num_iter, momentum, lr, weight_decay, dampening, nesterov] =
+        GENERATE(
+            std::tuple{std::vector<Index>{4, 6}, Index(1), 0.9, 0.001,
+                       0.0, 0.0, false},
+            std::tuple{std::vector<Index>{2, 4}, Index(1), 0.9, 0.001,
+                       0.01, 0.0, false});
+
+    const Index nelems = std::accumulate(
+        shape.begin(), shape.end(), Index(1), std::multiplies<>());
+
+    std::vector<float> grad_data(nelems);
+    std::vector<float> velocity_data(nelems);
+    std::vector<float> p_data(nelems);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        grad_data[i] = 0.1f * static_cast<float>(i + 1);
+        velocity_data[i] = 0.01f * static_cast<float>(i);
+        p_data[i] = 1.0f * static_cast<float>(i - nelems / 2);
+    }
+
+    // --- Untiled run ---
+    std::vector<float> untiled_velocity, untiled_p;
+    {
+        TensorGraph graph("sgd_step_untiled");
+        auto* grad_node = graph.data(shape, "grad", DataType::FP32);
+        auto* velocity_node = graph.data(shape, "velocity", DataType::FP32);
+        auto* p_node = graph.data(shape, "p", DataType::FP32);
+        grad_node->mark_input(true);
+        velocity_node->mark_input(true);
+        p_node->mark_input(true);
+        velocity_node->mark_output(true);
+        p_node->mark_output(true);
+
+        gt::sgd_step(num_iter, momentum, lr, weight_decay, dampening, nesterov,
+                 grad_node, velocity_node, p_node);
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("grad", grad_data);
+        runtime.bind_data("velocity", velocity_data);
+        runtime.bind_data("p", p_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_velocity = runtime.get_output<float>("velocity");
+        untiled_p = runtime.get_output<float>("p");
+    }
+
+    // --- Tiled run ---
+    std::vector<float> tiled_velocity, tiled_p;
+    {
+        TensorGraph graph("sgd_step_tiled");
+        auto* grad_node = graph.data(shape, "grad", DataType::FP32);
+        auto* velocity_node = graph.data(shape, "velocity", DataType::FP32);
+        auto* p_node = graph.data(shape, "p", DataType::FP32);
+        grad_node->mark_input(true);
+        velocity_node->mark_input(true);
+        p_node->mark_input(true);
+        velocity_node->mark_output(true);
+        p_node->mark_output(true);
+
+        gt::sgd_step(num_iter, momentum, lr, weight_decay, dampening, nesterov,
+                 grad_node, velocity_node, p_node);
+        for(auto* ag : graph.axis_groups())
+        {
+            ag->set_tiling((ag->extent + 1) / 2);
+        }
+
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+
+        runtime.bind_data("grad", grad_data);
+        runtime.bind_data("velocity", velocity_data);
+        runtime.bind_data("p", p_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_velocity = runtime.get_output<float>("velocity");
+        tiled_p = runtime.get_output<float>("p");
+    }
+
+    // --- Compare ---
+    constexpr float tol = 1e-5f;
+    REQUIRE(tiled_velocity.size() == untiled_velocity.size());
+    REQUIRE(tiled_p.size() == untiled_p.size());
+    for(size_t i = 0; i < tiled_p.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_velocity[i] - untiled_velocity[i]) < tol);
+        REQUIRE(std::abs(tiled_p[i] - untiled_p[i]) < tol);
+    }
 }

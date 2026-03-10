@@ -77,7 +77,12 @@ TensorGraph::TensorNode* norm_slice(
         output_name,
         src1->dtype());
 
-    norm_slice(alpha, src1, beta, src2, dst, axis, redux);
+    validate_slice_shape_and_merge(dst, src1, axis, "norm_slice");
+    validate_same_shape_and_merge(src2, dst, "norm_slice");
+
+    auto op = std::make_shared<TensorNormSliceOp>(
+        alpha, beta, src1, src2, dst, axis, redux);
+    src1->graph()->add_op(op);
 
     return dst;
 }
@@ -106,16 +111,13 @@ void norm_slice(
         throw std::invalid_argument(
             "norm_slice: input tensors must have the same dtype");
     }
-    if(src2->shape() != dst->shape())
-    {
-        throw std::invalid_argument(
-            "norm_slice: dst shape must match src2 shape");
-    }
     if(src1 == src2 || src1 == dst || src2 == dst)
     {
         throw std::invalid_argument(
             "norm_slice: src1, src2, and dst must be distinct tensors");
     }
+    validate_slice_shape_and_merge(dst, src1, axis, "norm_slice");
+    validate_same_shape_and_merge(src2, dst, "norm_slice");
 
     auto op = std::make_shared<TensorNormSliceOp>(
         alpha, beta, src1, src2, dst, axis, redux);

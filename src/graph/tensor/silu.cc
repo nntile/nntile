@@ -54,6 +54,7 @@ TensorGraph::TensorNode* silu(
         std::move(output_shape),
         output_name,
         src->dtype());
+    dst->set_axes(src->axes());
 
     silu(src, dst);
 
@@ -78,16 +79,12 @@ void silu(
         throw std::invalid_argument(
             "silu: input tensors must have the same dtype");
     }
-    if(src->shape() != dst->shape())
-    {
-        throw std::invalid_argument(
-            "silu: output must have the same shape as input");
-    }
     if(src == dst)
     {
         throw std::invalid_argument(
             "silu: src and dst must be distinct tensors");
     }
+    validate_same_shape_and_merge(src, dst, "silu");
 
     auto op = std::make_shared<TensorSiluOp>(src, dst);
     src->graph()->add_op(op);
