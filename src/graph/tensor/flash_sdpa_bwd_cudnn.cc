@@ -95,6 +95,14 @@ void flash_sdpa_bwd_cudnn(TensorGraph::TensorNode* K,
     validate_same_shape_and_merge(K, dA, "flash_sdpa_bwd_cudnn");
     validate_logsumexp_shape_and_merge(K, logsumexp, "flash_sdpa_bwd_cudnn");
     validate_flash_sdpa_qkv_shape_and_merge(K, Q, V, "flash_sdpa_bwd_cudnn");
+    if(mask->ndim() != 2)
+        throw std::invalid_argument(
+            "flash_sdpa_bwd_cudnn: mask must be 2D");
+    if(mask->shape()[0] != K->shape()[1] || mask->shape()[1] != Q->shape()[1])
+        throw std::invalid_argument(
+            "flash_sdpa_bwd_cudnn: mask shape must be {K_seq, Q_seq}");
+    merge_axis(mask->mutable_axes()[0], K->mutable_axes()[1]);
+    merge_axis(mask->mutable_axes()[1], Q->mutable_axes()[1]);
 
     auto op = std::make_shared<TensorFlashSdpaBwdCudnnOp>(
         K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
