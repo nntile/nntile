@@ -51,12 +51,19 @@ TensorGraph::TensorNode* transpose(
     if(ndim <= 0 || ndim >= src->ndim())
         throw std::invalid_argument("transpose: ndim must be in (0, src.ndim)");
     std::vector<Index> src_shape = src->shape();
-    std::vector<Index> output_shape(src->ndim());
-    for(Index i = 0; i < src->ndim(); ++i)
-        output_shape[i] = src_shape[(i + ndim) % src->ndim()];
+    Index n = src->ndim();
+    std::vector<Index> output_shape(n);
+    for(Index i = 0; i < n; ++i)
+        output_shape[i] = src_shape[(i + ndim) % n];
     TensorGraph::TensorNode* output = src->graph()->data(
         std::move(output_shape), output_name, src->dtype());
-    transpose(alpha, src, output, ndim);
+    for(Index i = 0; i < n; ++i)
+    {
+        merge_axis(src->mutable_axes()[static_cast<size_t>((i + ndim) % n)],
+                   output->mutable_axes()[static_cast<size_t>(i)]);
+    }
+    auto op = std::make_shared<TensorTransposeOp>(src, output, ndim, alpha);
+    src->graph()->add_op(op);
     return output;
 }
 
@@ -78,11 +85,11 @@ void transpose(
         throw std::invalid_argument("transpose: ndim must be in (0, src.ndim)");
     if(dst->ndim() != src->ndim())
         throw std::invalid_argument("transpose: dst.ndim must equal src.ndim");
-    auto src_shape = src->shape();
-    for(Index i = 0; i < dst->ndim(); ++i)
+    Index n = src->ndim();
+    for(Index i = 0; i < n; ++i)
     {
-        if(dst->dim(i) != src_shape[(i + ndim) % dst->ndim()])
-            throw std::invalid_argument("transpose: dst shape must match transpose of src");
+        merge_axis(src->mutable_axes()[static_cast<size_t>((i + ndim) % n)],
+                   dst->mutable_axes()[static_cast<size_t>(i)]);
     }
     auto op = std::make_shared<TensorTransposeOp>(src, dst, ndim, alpha);
     src->graph()->add_op(op);

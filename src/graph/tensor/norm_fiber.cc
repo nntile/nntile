@@ -78,7 +78,24 @@ TensorGraph::TensorNode* norm_fiber(
         output_name,
         src1->dtype());
 
-    norm_fiber(alpha, src1, beta, src2, dst, axis, batch_ndim, redux);
+    // Merge dst (fiber) axes with src1 (full tensor) axes
+    merge_axis(dst->mutable_axes()[0],
+               src1->mutable_axes()[static_cast<size_t>(axis)]);
+    for(Index i = 0; i < batch_ndim; ++i)
+    {
+        merge_axis(dst->mutable_axes()[static_cast<size_t>(1 + i)],
+                   src1->mutable_axes()[static_cast<size_t>(
+                       src1->ndim() - batch_ndim + i)]);
+    }
+    // Merge src2 with dst (same shape)
+    for(Index i = 0; i < dst->ndim(); ++i)
+    {
+        merge_axis(src2->mutable_axes()[i], dst->mutable_axes()[i]);
+    }
+
+    auto op = std::make_shared<TensorNormFiberOp>(
+        alpha, beta, src1, src2, dst, axis, batch_ndim, redux);
+    src1->graph()->add_op(op);
 
     return dst;
 }
@@ -108,15 +125,30 @@ void norm_fiber(
         throw std::invalid_argument(
             "norm_fiber: input tensors must have the same dtype");
     }
-    if(src2->shape() != dst->shape())
-    {
-        throw std::invalid_argument(
-            "norm_fiber: dst shape must match src2 shape");
-    }
     if(src1 == src2 || src1 == dst || src2 == dst)
     {
         throw std::invalid_argument(
             "norm_fiber: src1, src2, and dst must be distinct tensors");
+    }
+
+    // Merge dst (fiber) axes with src1 (full tensor) axes
+    merge_axis(dst->mutable_axes()[0],
+               src1->mutable_axes()[static_cast<size_t>(axis)]);
+    for(Index i = 0; i < batch_ndim; ++i)
+    {
+        merge_axis(dst->mutable_axes()[static_cast<size_t>(1 + i)],
+                   src1->mutable_axes()[static_cast<size_t>(
+                       src1->ndim() - batch_ndim + i)]);
+    }
+    // Merge src2 with dst (same shape)
+    if(src2->ndim() != dst->ndim())
+    {
+        throw std::invalid_argument(
+            "norm_fiber: dst ndim must match src2 ndim");
+    }
+    for(Index i = 0; i < dst->ndim(); ++i)
+    {
+        merge_axis(src2->mutable_axes()[i], dst->mutable_axes()[i]);
     }
 
     auto op = std::make_shared<TensorNormFiberOp>(

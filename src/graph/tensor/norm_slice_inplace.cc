@@ -72,6 +72,16 @@ void norm_slice_inplace(
             "norm_slice_inplace: src and dst must be distinct tensors");
     }
 
+    // Merge slice reduce: src -> dst
+    int d = 0;
+    for(Index i = 0; i < src->ndim(); ++i)
+    {
+        if(i == axis) continue;
+        merge_axis(src->mutable_axes()[static_cast<size_t>(i)],
+                   dst->mutable_axes()[static_cast<size_t>(d)]);
+        ++d;
+    }
+
     auto op = std::make_shared<TensorNormSliceInplaceOp>(
         alpha, beta, src, dst, axis, redux);
     src->graph()->add_op(op);

@@ -71,6 +71,16 @@ void add_fiber_inplace(
             "add_fiber_inplace: fiber and tensor must be distinct tensors");
     }
 
+    // Merge fiber axes with tensor axes
+    merge_axis(fiber->mutable_axes()[0],
+               tensor->mutable_axes()[static_cast<size_t>(axis)]);
+    for(Index i = 0; i < batch_ndim; ++i)
+    {
+        merge_axis(fiber->mutable_axes()[static_cast<size_t>(1 + i)],
+                   tensor->mutable_axes()[static_cast<size_t>(
+                       tensor->ndim() - batch_ndim + i)]);
+    }
+
     auto op = std::make_shared<TensorAddFiberInplaceOp>(
         fiber, tensor, alpha, beta, axis, batch_ndim);
     tensor->graph()->add_op(op);

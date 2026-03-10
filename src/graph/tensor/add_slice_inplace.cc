@@ -63,11 +63,6 @@ void add_slice_inplace(
         throw std::invalid_argument(
             "add_slice_inplace: input tensors must have the same dtype");
     }
-    if(src->ndim() + 1 != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "add_slice_inplace: src must have ndim = dst.ndim - 1");
-    }
     if(axis < 0 || axis >= dst->ndim())
     {
         throw std::invalid_argument(
@@ -77,6 +72,16 @@ void add_slice_inplace(
     {
         throw std::invalid_argument(
             "add_slice_inplace: src and dst must be distinct tensors");
+    }
+
+    // Merge slice broadcast: src with dst
+    int d = 0;
+    for(Index i = 0; i < dst->ndim(); ++i)
+    {
+        if(i == axis) continue;
+        merge_axis(src->mutable_axes()[static_cast<size_t>(d)],
+                   dst->mutable_axes()[static_cast<size_t>(i)]);
+        ++d;
     }
 
     auto op = std::make_shared<TensorAddSliceInplaceOp>(

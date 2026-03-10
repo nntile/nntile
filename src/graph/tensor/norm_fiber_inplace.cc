@@ -73,6 +73,16 @@ void norm_fiber_inplace(
             "norm_fiber_inplace: src and dst must be distinct tensors");
     }
 
+    // Merge dst (fiber) axes with src (full tensor) axes
+    merge_axis(dst->mutable_axes()[0],
+               src->mutable_axes()[static_cast<size_t>(axis)]);
+    for(Index i = 0; i < batch_ndim; ++i)
+    {
+        merge_axis(dst->mutable_axes()[static_cast<size_t>(1 + i)],
+                   src->mutable_axes()[static_cast<size_t>(
+                       src->ndim() - batch_ndim + i)]);
+    }
+
     auto op = std::make_shared<TensorNormFiberInplaceOp>(
         alpha, beta, src, dst, axis, batch_ndim, redux);
     src->graph()->add_op(op);

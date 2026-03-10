@@ -82,7 +82,19 @@ TensorGraph::TensorNode* sum_fiber(
         output_name,
         x->dtype());
 
-    sum_fiber(x, output, axis, batch_ndim, redux, alpha, beta);
+    // Merge output fiber axes with x axes
+    merge_axis(output->mutable_axes()[0],
+               x->mutable_axes()[static_cast<size_t>(axis)]);
+    for(Index i = 0; i < batch_ndim; ++i)
+    {
+        merge_axis(output->mutable_axes()[static_cast<size_t>(1 + i)],
+                   x->mutable_axes()[static_cast<size_t>(
+                       x->ndim() - batch_ndim + i)]);
+    }
+
+    auto op = std::make_shared<TensorSumFiberOp>(
+        x, output, axis, batch_ndim, redux, alpha, beta);
+    x->graph()->add_op(op);
 
     return output;
 }
@@ -115,6 +127,16 @@ void sum_fiber(
     {
         throw std::invalid_argument(
             "sum_fiber: x and y must be distinct tensors");
+    }
+
+    // Merge y (fiber) axes with x (full tensor) axes
+    merge_axis(y->mutable_axes()[0],
+               x->mutable_axes()[static_cast<size_t>(axis)]);
+    for(Index i = 0; i < batch_ndim; ++i)
+    {
+        merge_axis(y->mutable_axes()[static_cast<size_t>(1 + i)],
+                   x->mutable_axes()[static_cast<size_t>(
+                       x->ndim() - batch_ndim + i)]);
     }
 
     auto op = std::make_shared<TensorSumFiberOp>(

@@ -76,19 +76,21 @@ TensorGraph::TensorNode* multiply_fiber(
         throw std::invalid_argument(
             "multiply_fiber: axis out of range");
     }
-    if(src1->shape()[0] != src2->shape()[axis])
-    {
-        throw std::invalid_argument(
-            "multiply_fiber: src1.shape[0] must match src2.shape[axis]");
-    }
+
+    // Merge fiber axis with full tensor axis
+    merge_axis(src1->mutable_axes()[0],
+               src2->mutable_axes()[static_cast<size_t>(axis)]);
 
     std::vector<Index> output_shape = src2->shape();
     TensorGraph::TensorNode* dst = src1->graph()->data(
         std::move(output_shape),
         output_name,
         src1->dtype());
+    dst->set_axes(src2->axes());
 
-    multiply_fiber(alpha, src1, src2, dst, axis);
+    auto op = std::make_shared<TensorMultiplyFiberOp>(
+        alpha, src1, src2, dst, axis);
+    src1->graph()->add_op(op);
 
     return dst;
 }
@@ -120,30 +122,29 @@ void multiply_fiber(
         throw std::invalid_argument(
             "multiply_fiber: src1 must have ndim = 1");
     }
-    if(src2->ndim() != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "multiply_fiber: src2.ndim must match dst.ndim");
-    }
-    if(axis < 0 || axis >= dst->ndim())
+    if(axis < 0 || axis >= src2->ndim())
     {
         throw std::invalid_argument(
             "multiply_fiber: axis out of range");
-    }
-    if(src1->shape()[0] != dst->shape()[axis])
-    {
-        throw std::invalid_argument(
-            "multiply_fiber: src1.shape[0] must match dst.shape[axis]");
-    }
-    if(src2->shape() != dst->shape())
-    {
-        throw std::invalid_argument(
-            "multiply_fiber: src2.shape must match dst.shape");
     }
     if(src1 == src2 || src1 == dst || src2 == dst)
     {
         throw std::invalid_argument(
             "multiply_fiber: src1, src2, and dst must be distinct tensors");
+    }
+
+    // Merge fiber axis with full tensor axis
+    merge_axis(src1->mutable_axes()[0],
+               src2->mutable_axes()[static_cast<size_t>(axis)]);
+    // Merge src2 with dst (same shape)
+    if(src2->ndim() != dst->ndim())
+    {
+        throw std::invalid_argument(
+            "multiply_fiber: src2.ndim must match dst.ndim");
+    }
+    for(Index i = 0; i < src2->ndim(); ++i)
+    {
+        merge_axis(src2->mutable_axes()[i], dst->mutable_axes()[i]);
     }
 
     auto op = std::make_shared<TensorMultiplyFiberOp>(

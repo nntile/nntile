@@ -68,11 +68,6 @@ void sumprod_fiber(
         throw std::invalid_argument(
             "sumprod_fiber: input tensors must have the same dtype");
     }
-    if(src1->shape() != src2->shape())
-    {
-        throw std::invalid_argument(
-            "sumprod_fiber: src1 and src2 must have the same shape");
-    }
     if(dst->ndim() != 1)
     {
         throw std::invalid_argument(
@@ -83,16 +78,25 @@ void sumprod_fiber(
         throw std::invalid_argument(
             "sumprod_fiber: axis out of range");
     }
-    if(dst->dim(0) != src1->dim(axis))
-    {
-        throw std::invalid_argument(
-            "sumprod_fiber: dst.shape[0] must equal src1.shape[axis]");
-    }
     if(src1 == src2 || src1 == dst || src2 == dst)
     {
         throw std::invalid_argument(
             "sumprod_fiber: src1, src2, and dst must be distinct tensors");
     }
+
+    // Merge src1 with src2 (same shape)
+    if(src1->ndim() != src2->ndim())
+    {
+        throw std::invalid_argument(
+            "sumprod_fiber: src1 and src2 must have the same ndim");
+    }
+    for(Index i = 0; i < src1->ndim(); ++i)
+    {
+        merge_axis(src1->mutable_axes()[i], src2->mutable_axes()[i]);
+    }
+    // Merge dst fiber axis with src1 axis
+    merge_axis(dst->mutable_axes()[0],
+               src1->mutable_axes()[static_cast<size_t>(axis)]);
 
     auto op = std::make_shared<TensorSumprodFiberOp>(
         src1, src2, dst, axis, redux, alpha, beta);

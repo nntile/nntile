@@ -67,15 +67,20 @@ TensorGraph::TensorNode* add_slice(
         throw std::invalid_argument(
             "add_slice: input tensors must have the same dtype");
     }
-    if(src1->ndim() + 1 != src2->ndim())
-    {
-        throw std::invalid_argument(
-            "add_slice: src1 must have ndim = src2.ndim - 1");
-    }
     if(axis < 0 || axis >= src2->ndim())
     {
         throw std::invalid_argument(
             "add_slice: axis out of range");
+    }
+
+    // Merge slice broadcast: src1 with src2
+    int d = 0;
+    for(Index i = 0; i < src2->ndim(); ++i)
+    {
+        if(i == axis) continue;
+        merge_axis(src1->mutable_axes()[static_cast<size_t>(d)],
+                   src2->mutable_axes()[static_cast<size_t>(i)]);
+        ++d;
     }
 
     // Output shape matches src2
@@ -84,8 +89,11 @@ TensorGraph::TensorNode* add_slice(
         std::move(output_shape),
         output_name,
         src2->dtype());
+    output->set_axes(src2->axes());
 
-    add_slice(alpha, src1, beta, src2, output, axis);
+    auto op = std::make_shared<TensorAddSliceOp>(
+        src1, src2, output, alpha, beta, axis);
+    src1->graph()->add_op(op);
 
     return output;
 }
@@ -113,15 +121,32 @@ void add_slice(
         throw std::invalid_argument(
             "add_slice: input tensors must have the same dtype");
     }
-    if(dst->shape() != src2->shape())
-    {
-        throw std::invalid_argument(
-            "add_slice: dst shape must match src2 shape");
-    }
     if(src1 == src2 || src1 == dst || src2 == dst)
     {
         throw std::invalid_argument(
             "add_slice: src1, src2, and dst must be distinct tensors");
+    }
+
+    // Merge slice broadcast: src1 with src2
+    {
+        int d = 0;
+        for(Index i = 0; i < src2->ndim(); ++i)
+        {
+            if(i == axis) continue;
+            merge_axis(src1->mutable_axes()[static_cast<size_t>(d)],
+                       src2->mutable_axes()[static_cast<size_t>(i)]);
+            ++d;
+        }
+    }
+    // Merge src2 with dst (same shape)
+    if(src2->ndim() != dst->ndim())
+    {
+        throw std::invalid_argument(
+            "add_slice: dst ndim must match src2 ndim");
+    }
+    for(Index i = 0; i < src2->ndim(); ++i)
+    {
+        merge_axis(src2->mutable_axes()[i], dst->mutable_axes()[i]);
     }
 
     auto op = std::make_shared<TensorAddSliceOp>(

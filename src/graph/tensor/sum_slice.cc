@@ -85,7 +85,21 @@ TensorGraph::TensorNode* sum_slice(
         output_name,
         src->dtype());
 
-    sum_slice(src, output, axis, redux, alpha, beta);
+    // Merge slice reduce: src -> output
+    {
+        int d = 0;
+        for(Index i = 0; i < src->ndim(); ++i)
+        {
+            if(i == axis) continue;
+            merge_axis(src->mutable_axes()[static_cast<size_t>(i)],
+                       output->mutable_axes()[static_cast<size_t>(d)]);
+            ++d;
+        }
+    }
+
+    auto op = std::make_shared<TensorSumSliceOp>(
+        src, output, axis, redux, alpha, beta);
+    src->graph()->add_op(op);
 
     return output;
 }
@@ -113,11 +127,6 @@ void sum_slice(
         throw std::invalid_argument(
             "sum_slice: input tensors must have the same dtype");
     }
-    if(src->ndim() - 1 != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "sum_slice: dst must have ndim = src.ndim - 1");
-    }
     if(axis < 0 || axis >= src->ndim())
     {
         throw std::invalid_argument(
@@ -127,6 +136,16 @@ void sum_slice(
     {
         throw std::invalid_argument(
             "sum_slice: src and dst must be distinct tensors");
+    }
+
+    // Merge slice reduce: src -> dst
+    int d = 0;
+    for(Index i = 0; i < src->ndim(); ++i)
+    {
+        if(i == axis) continue;
+        merge_axis(src->mutable_axes()[static_cast<size_t>(i)],
+                   dst->mutable_axes()[static_cast<size_t>(d)]);
+        ++d;
     }
 
     auto op = std::make_shared<TensorSumSliceOp>(

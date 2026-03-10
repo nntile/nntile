@@ -77,11 +77,10 @@ void multiply_fiber_inplace(
         throw std::invalid_argument(
             "multiply_fiber_inplace: axis out of range");
     }
-    if(src->dim(0) != dst->dim(axis))
-    {
-        throw std::invalid_argument(
-            "multiply_fiber_inplace: src.shape[0] must equal dst.shape[axis]");
-    }
+
+    // Merge fiber axis with full tensor axis
+    merge_axis(src->mutable_axes()[0],
+               dst->mutable_axes()[static_cast<size_t>(axis)]);
 
     auto op = std::make_shared<TensorMultiplyFiberInplaceOp>(
         alpha, src, dst, axis);
