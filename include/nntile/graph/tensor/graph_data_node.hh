@@ -189,6 +189,13 @@ inline void validate_fiber_shape_and_merge(
     {
         throw std::invalid_argument(op_name + ": axis out of range");
     }
+    if(tensor->ndim() < batch_ndim)
+    {
+        throw std::invalid_argument(
+            op_name + ": tensor must have ndim >= batch_ndim (" +
+            std::to_string(tensor->ndim()) + " vs " +
+            std::to_string(batch_ndim) + ")");
+    }
     if(fiber->shape()[0] != tensor->shape()[axis])
     {
         throw std::invalid_argument(
