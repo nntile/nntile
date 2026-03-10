@@ -102,6 +102,7 @@ void softmax(
             "softmax: input tensors must have the same dtype");
     }
     validate_same_shape_and_merge(src, dst, "softmax");
+    validate_maxsumexp_shape_and_merge(src, maxsumexp, axis, "softmax");
 
     auto op = std::make_shared<TensorSoftmaxOp>(
         maxsumexp, src, dst, alpha, axis);

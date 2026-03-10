@@ -154,7 +154,8 @@ TEST_CASE("TensorGraph softmax structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto* maxsumexp_node = graph.data({2, dim0, dim1}, "maxsumexp");
+    // maxsumexp shape for axis 0: [2] + src.shape without axis 0 = [2, dim1]
+    auto* maxsumexp_node = graph.data({2, dim1}, "maxsumexp");
     auto* src = graph.data({dim0, dim1}, "src");
     auto* dst = gt::softmax(maxsumexp_node, src, "dst", alpha_one, axis_0);
 
@@ -174,7 +175,8 @@ TEST_CASE("TensorGraph softmax structure", "[graph][tensor]")
 TEST_CASE("TensorGraph softmax rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto* mse = graph.data({2, 4, 5}, "mse");
+    // maxsumexp shape for axis 0, src [4,5]: [2, 5]
+    auto* mse = graph.data({2, 5}, "mse");
     auto* src = graph.data({4, 5}, "src");
 
     REQUIRE_THROWS_AS(
