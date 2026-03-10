@@ -177,6 +177,19 @@ TEST_CASE("TensorGraph subtract_indexed_outputs rejects non-INT64 labels",
         std::invalid_argument);
 }
 
+TEST_CASE("TensorGraph subtract_indexed_outputs rejects ndim mismatch",
+    "[graph][tensor]")
+{
+    TensorGraph graph("test");
+    auto* labels = graph.data({4}, "labels", DataType::INT64);
+    // dst has ndim=3 (labels.ndim+2), but must be labels.ndim+1
+    auto* dst = graph.data({5, 4, 3}, "dst");
+
+    REQUIRE_THROWS_AS(
+        gt::subtract_indexed_outputs(val, labels, dst, ignore_index),
+        std::invalid_argument);
+}
+
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "TensorGraph subtract_indexed_outputs matches nntile::tensor::subtract_indexed_outputs",
     "[graph][tensor]")
