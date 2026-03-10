@@ -61,15 +61,9 @@ void scale(Scalar alpha, TensorGraph::TensorNode* src,
         throw std::invalid_argument("scale: tensors must belong to same graph");
     if(src->dtype() != dst->dtype())
         throw std::invalid_argument("scale: tensors must have same dtype");
-    if(src->ndim() != dst->ndim())
-        throw std::invalid_argument("scale: tensors must have same ndim");
     if(src == dst)
         throw std::invalid_argument("scale: src and dst must be distinct tensors");
-
-    for(Index i = 0; i < src->ndim(); ++i)
-    {
-        merge_axis(src->mutable_axes()[i], dst->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(src, dst, "scale");
 
     auto op = std::make_shared<TensorScaleOp>(src, dst, alpha);
     src->graph()->add_op(op);

@@ -77,9 +77,7 @@ TensorGraph::TensorNode* multiply_fiber(
             "multiply_fiber: axis out of range");
     }
 
-    // Merge fiber axis with full tensor axis
-    merge_axis(src1->mutable_axes()[0],
-               src2->mutable_axes()[static_cast<size_t>(axis)]);
+    validate_fiber_broadcast_shape_and_merge(src1, src2, axis, 0, "multiply_fiber");
 
     std::vector<Index> output_shape = src2->shape();
     TensorGraph::TensorNode* dst = src1->graph()->data(
@@ -133,19 +131,8 @@ void multiply_fiber(
             "multiply_fiber: src1, src2, and dst must be distinct tensors");
     }
 
-    // Merge fiber axis with full tensor axis
-    merge_axis(src1->mutable_axes()[0],
-               src2->mutable_axes()[static_cast<size_t>(axis)]);
-    // Merge src2 with dst (same shape)
-    if(src2->ndim() != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "multiply_fiber: src2.ndim must match dst.ndim");
-    }
-    for(Index i = 0; i < src2->ndim(); ++i)
-    {
-        merge_axis(src2->mutable_axes()[i], dst->mutable_axes()[i]);
-    }
+    validate_fiber_broadcast_shape_and_merge(src1, src2, axis, 0, "multiply_fiber");
+    validate_same_shape_and_merge(src2, dst, "multiply_fiber");
 
     auto op = std::make_shared<TensorMultiplyFiberOp>(
         alpha, src1, src2, dst, axis);

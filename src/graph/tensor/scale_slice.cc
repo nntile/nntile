@@ -54,7 +54,7 @@ TensorGraph::TensorNode* scale_slice(
         throw std::invalid_argument(
             "scale_slice: input tensor must be non-null");
     }
-    if(axis < 0 || axis > static_cast<Index>(src->shape().size()))
+    if(axis < 0 || axis > src->shape().size())
     {
         throw std::invalid_argument(
             "scale_slice: axis out of range");
@@ -67,7 +67,7 @@ TensorGraph::TensorNode* scale_slice(
         output_shape.push_back(src->shape()[i]);
     }
     output_shape.push_back(axis_size);
-    for(Index i = axis; i < static_cast<Index>(src->shape().size()); ++i)
+    for(Index i = axis; i < src->shape().size(); ++i)
     {
         output_shape.push_back(src->shape()[i]);
     }
@@ -108,26 +108,7 @@ void scale_slice(
         throw std::invalid_argument(
             "scale_slice: input tensors must have the same dtype");
     }
-    if(src->ndim() + 1 != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "scale_slice: dst must have ndim = src.ndim + 1");
-    }
-    if(axis < 0 || axis >= dst->ndim())
-    {
-        throw std::invalid_argument(
-            "scale_slice: axis out of range");
-    }
-
-    // Merge slice broadcast: src with dst
-    int d = 0;
-    for(Index i = 0; i < dst->ndim(); ++i)
-    {
-        if(i == axis) continue;
-        merge_axis(src->mutable_axes()[static_cast<size_t>(d)],
-                   dst->mutable_axes()[static_cast<size_t>(i)]);
-        ++d;
-    }
+    validate_slice_broadcast_shape_and_merge(src, dst, axis, "scale_slice");
 
     auto op = std::make_shared<TensorScaleSliceOp>(alpha, src, dst, axis);
     src->graph()->add_op(op);

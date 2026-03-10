@@ -100,16 +100,7 @@ void rope_backward(
         throw std::invalid_argument(
             "rope_backward: input tensors must have the same dtype");
     }
-    if(dy->ndim() != dx->ndim())
-    {
-        throw std::invalid_argument(
-            "rope_backward: dx must have the same ndim as dy");
-    }
-
-    for(Index i = 0; i < dy->ndim(); ++i)
-    {
-        merge_axis(dy->mutable_axes()[i], dx->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(dy, dx, "rope_backward");
 
     auto op = std::make_shared<TensorRopeBackwardOp>(sin, cos, dy, dx);
     dy->graph()->add_op(op);

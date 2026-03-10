@@ -60,21 +60,12 @@ void multiply_inplace(
         throw std::invalid_argument(
             "multiply_inplace: input tensors must have the same dtype");
     }
-    if(src->ndim() != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "multiply_inplace: input tensors must have the same ndim");
-    }
     if(src == dst)
     {
         throw std::invalid_argument(
             "multiply_inplace: src and dst must be distinct tensors");
     }
-
-    for(Index i = 0; i < src->ndim(); ++i)
-    {
-        merge_axis(src->mutable_axes()[i], dst->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(src, dst, "multiply_inplace");
 
     auto op = std::make_shared<TensorMultiplyInplaceOp>(src, dst, alpha);
     src->graph()->add_op(op);

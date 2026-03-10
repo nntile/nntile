@@ -82,22 +82,37 @@ void total_sum_accum(
         throw std::invalid_argument(
             "total_sum_accum: val must have FP32 dtype");
     }
-
-    // logsumexp and class_labels: same shape
+    // logsumexp and class_labels: same shape when same ndim (inline check+merge)
     if(logsumexp->ndim() == class_labels->ndim())
     {
         for(Index i = 0; i < logsumexp->ndim(); ++i)
         {
+            if(logsumexp->shape()[i] != class_labels->shape()[i])
+            {
+                throw std::invalid_argument(
+                    "total_sum_accum: logsumexp and class_labels must match at "
+                    "dimension " + std::to_string(i) + " (" +
+                    std::to_string(logsumexp->shape()[i]) + " vs " +
+                    std::to_string(class_labels->shape()[i]) + ")");
+            }
             merge_axis(logsumexp->mutable_axes()[i],
                        class_labels->mutable_axes()[i]);
         }
     }
-    // src.dim[1:] matches logsumexp (src has extra first dim for classes)
+    // src.dim[1:] matches logsumexp when src has extra first dim (inline check+merge)
     if(src->ndim() == logsumexp->ndim() + 1)
     {
         for(Index i = 0; i < logsumexp->ndim(); ++i)
         {
-            merge_axis(src->mutable_axes()[static_cast<size_t>(i + 1)],
+            if(src->shape()[i + 1] != logsumexp->shape()[i])
+            {
+                throw std::invalid_argument(
+                    "total_sum_accum: src.dim[" + std::to_string(i + 1) +
+                    "] must match logsumexp.dim[" + std::to_string(i) + "] (" +
+                    std::to_string(src->shape()[i + 1]) + " vs " +
+                    std::to_string(logsumexp->shape()[i]) + ")");
+            }
+            merge_axis(src->mutable_axes()[i + 1],
                        logsumexp->mutable_axes()[i]);
         }
     }

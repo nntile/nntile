@@ -62,21 +62,12 @@ TensorGraph::TensorNode* gelutanh_backward(
         throw std::invalid_argument(
             "gelutanh_backward: input tensors must have the same dtype");
     }
-    if(x->ndim() != dy->ndim())
-    {
-        throw std::invalid_argument(
-            "gelutanh_backward: input tensors must have the same ndim");
-    }
     if(x == dy)
     {
         throw std::invalid_argument(
             "gelutanh_backward: x and dy must be distinct tensors");
     }
-
-    for(Index i = 0; i < x->ndim(); ++i)
-    {
-        merge_axis(x->mutable_axes()[i], dy->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(x, dy, "gelutanh_backward");
 
     TensorGraph::TensorNode* dx = x->graph()->data(
         x->shape(),
@@ -109,22 +100,13 @@ void gelutanh_backward(
         throw std::invalid_argument(
             "gelutanh_backward: input tensors must have the same dtype");
     }
-    if(x->ndim() != dy->ndim() || x->ndim() != dx->ndim())
-    {
-        throw std::invalid_argument(
-            "gelutanh_backward: all tensors must have the same ndim");
-    }
     if(x == dy || x == dx || dy == dx)
     {
         throw std::invalid_argument(
             "gelutanh_backward: x, dy, and dx must be distinct tensors");
     }
-
-    for(Index i = 0; i < x->ndim(); ++i)
-    {
-        merge_axis(x->mutable_axes()[i], dy->mutable_axes()[i]);
-        merge_axis(x->mutable_axes()[i], dx->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(x, dy, "gelutanh_backward");
+    validate_same_shape_and_merge(x, dx, "gelutanh_backward");
 
     auto op = std::make_shared<TensorGelutanhBackwardOp>(x, dy, dx);
     x->graph()->add_op(op);

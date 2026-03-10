@@ -61,21 +61,12 @@ void add_inplace(
         throw std::invalid_argument(
             "add_inplace: input tensors must have the same dtype");
     }
-    if(x->ndim() != y->ndim())
-    {
-        throw std::invalid_argument(
-            "add_inplace: input tensors must have the same ndim");
-    }
     if(x == y)
     {
         throw std::invalid_argument(
             "add_inplace: x and y must be distinct tensors");
     }
-
-    for(Index i = 0; i < x->ndim(); ++i)
-    {
-        merge_axis(x->mutable_axes()[i], y->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(x, y, "add_inplace");
 
     auto op = std::make_shared<TensorAddInplaceOp>(x, y, alpha, beta);
     x->graph()->add_op(op);

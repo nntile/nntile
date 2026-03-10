@@ -147,7 +147,7 @@ void merge_axis(std::shared_ptr<AxisDescriptor>& keep,
     for(auto [node_ptr, axis_idx] : old_desc->members)
     {
         auto* node = static_cast<TensorGraph::TensorNode*>(node_ptr);
-        node->mutable_axes()[static_cast<size_t>(axis_idx)] = keep;
+        node->mutable_axes()[axis_idx] = keep;
         keep->members.push_back({node_ptr, axis_idx});
     }
     old_desc->members.clear();

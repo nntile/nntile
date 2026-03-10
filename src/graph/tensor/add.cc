@@ -73,16 +73,7 @@ TensorGraph::TensorNode* add(
         throw std::invalid_argument(
             "add: input tensors must have the same dtype");
     }
-    if(x->ndim() != y->ndim())
-    {
-        throw std::invalid_argument(
-            "add: input tensors must have the same ndim");
-    }
-
-    for(Index i = 0; i < x->ndim(); ++i)
-    {
-        merge_axis(x->mutable_axes()[i], y->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(x, y, "add");
 
     TensorGraph::TensorNode* output = x->graph()->data(
         x->shape(), output_name, x->dtype());
@@ -120,17 +111,8 @@ void add(
         throw std::invalid_argument(
             "add: input tensors must have the same dtype");
     }
-    if(x->ndim() != y->ndim() || x->ndim() != z->ndim())
-    {
-        throw std::invalid_argument(
-            "add: input tensors must have the same ndim");
-    }
-
-    for(Index i = 0; i < x->ndim(); ++i)
-    {
-        merge_axis(x->mutable_axes()[i], y->mutable_axes()[i]);
-        merge_axis(x->mutable_axes()[i], z->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(x, y, "add");
+    validate_same_shape_and_merge(x, z, "add");
 
     auto op = std::make_shared<TensorAddOp>(x, y, z, alpha, beta);
     x->graph()->add_op(op);

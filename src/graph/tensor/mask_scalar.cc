@@ -51,11 +51,22 @@ void mask_scalar(TensorGraph::TensorNode* mask,
         throw std::invalid_argument("mask_scalar: tensors must belong to same graph");
     if(mask->dtype() != DataType::BOOL)
         throw std::invalid_argument("mask_scalar: mask must have BOOL dtype");
-
-    // mask covers the non-batch (data) dims of A.
-    // A has shape [data_dims..., batch_dims...] where batch_dims has batch_ndim dims.
-    // mask has shape = A's data dims (the first A.ndim - batch_ndim dims).
     Index A_data_ndim = A->ndim() - batch_ndim;
+    if(mask->ndim() == A_data_ndim)
+    {
+        for(Index i = 0; i < A_data_ndim; ++i)
+        {
+            if(mask->shape()[i] != A->shape()[i])
+            {
+                throw std::invalid_argument(
+                    "mask_scalar: mask.dim[" + std::to_string(i) +
+                    "] must match A.dim[" + std::to_string(i) + "] (" +
+                    std::to_string(mask->shape()[i]) + " vs " +
+                    std::to_string(A->shape()[i]) + ")");
+            }
+        }
+    }
+    // mask covers the non-batch (data) dims of A.
     if(mask->ndim() == A_data_ndim)
     {
         for(Index i = 0; i < A_data_ndim; ++i)

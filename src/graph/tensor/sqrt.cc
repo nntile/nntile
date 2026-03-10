@@ -81,21 +81,12 @@ void sqrt(
         throw std::invalid_argument(
             "sqrt: input tensors must have the same dtype");
     }
-    if(src->ndim() != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "sqrt: output must have the same ndim as input");
-    }
     if(src == dst)
     {
         throw std::invalid_argument(
             "sqrt: src and dst must be distinct tensors");
     }
-
-    for(Index i = 0; i < src->ndim(); ++i)
-    {
-        merge_axis(src->mutable_axes()[i], dst->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(src, dst, "sqrt");
 
     auto op = std::make_shared<TensorSqrtOp>(src, dst);
     src->graph()->add_op(op);

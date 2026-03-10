@@ -77,16 +77,7 @@ TensorGraph::TensorNode* add_slice(
         throw std::invalid_argument(
             "add_slice: axis out of range");
     }
-
-    // Merge slice broadcast: src1 with src2
-    int d = 0;
-    for(Index i = 0; i < src2->ndim(); ++i)
-    {
-        if(i == axis) continue;
-        merge_axis(src1->mutable_axes()[static_cast<size_t>(d)],
-                   src2->mutable_axes()[static_cast<size_t>(i)]);
-        ++d;
-    }
+    validate_slice_broadcast_shape_and_merge(src1, src2, axis, "add_slice");
 
     // Output shape matches src2
     std::vector<Index> output_shape = src2->shape();
@@ -131,33 +122,8 @@ void add_slice(
         throw std::invalid_argument(
             "add_slice: src1, src2, and dst must be distinct tensors");
     }
-    if(src1->ndim() + 1 != src2->ndim())
-    {
-        throw std::invalid_argument(
-            "add_slice: src1 must have ndim = src2.ndim - 1");
-    }
-
-    // Merge slice broadcast: src1 with src2
-    {
-        int d = 0;
-        for(Index i = 0; i < src2->ndim(); ++i)
-        {
-            if(i == axis) continue;
-            merge_axis(src1->mutable_axes()[static_cast<size_t>(d)],
-                       src2->mutable_axes()[static_cast<size_t>(i)]);
-            ++d;
-        }
-    }
-    // Merge src2 with dst (same shape)
-    if(src2->ndim() != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "add_slice: dst ndim must match src2 ndim");
-    }
-    for(Index i = 0; i < src2->ndim(); ++i)
-    {
-        merge_axis(src2->mutable_axes()[i], dst->mutable_axes()[i]);
-    }
+    validate_slice_broadcast_shape_and_merge(src1, src2, axis, "add_slice");
+    validate_same_shape_and_merge(src2, dst, "add_slice");
 
     auto op = std::make_shared<TensorAddSliceOp>(
         src1, src2, dst, alpha, beta, axis);

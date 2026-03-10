@@ -34,7 +34,7 @@ std::vector<Index> sum_slice_output_shape(
 {
     std::vector<Index> out_shape;
     out_shape.reserve(src_shape.size() - 1);
-    for(Index i = 0; i < static_cast<Index>(src_shape.size()); ++i)
+    for(Index i = 0; i < src_shape.size(); ++i)
     {
         if(i != axis)
         {
@@ -91,8 +91,8 @@ TensorGraph::TensorNode* sum_slice(
         for(Index i = 0; i < src->ndim(); ++i)
         {
             if(i == axis) continue;
-            merge_axis(src->mutable_axes()[static_cast<size_t>(i)],
-                       output->mutable_axes()[static_cast<size_t>(d)]);
+            merge_axis(src->mutable_axes()[i],
+                       output->mutable_axes()[d]);
             ++d;
         }
     }
@@ -137,21 +137,7 @@ void sum_slice(
         throw std::invalid_argument(
             "sum_slice: src and dst must be distinct tensors");
     }
-    if(src->ndim() - 1 != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "sum_slice: dst must have ndim = src.ndim - 1");
-    }
-
-    // Merge slice reduce: src -> dst
-    int d = 0;
-    for(Index i = 0; i < src->ndim(); ++i)
-    {
-        if(i == axis) continue;
-        merge_axis(src->mutable_axes()[static_cast<size_t>(i)],
-                   dst->mutable_axes()[static_cast<size_t>(d)]);
-        ++d;
-    }
+    validate_slice_reduce_shape_and_merge(src, dst, axis, "sum_slice");
 
     auto op = std::make_shared<TensorSumSliceOp>(
         src, dst, axis, redux, alpha, beta);

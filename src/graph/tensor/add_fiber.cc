@@ -70,15 +70,7 @@ TensorGraph::TensorNode* add_fiber(
             "add_fiber: input tensors must have the same dtype");
     }
 
-    // Merge fiber axes with tensor axes
-    merge_axis(fiber->mutable_axes()[0],
-               tensor->mutable_axes()[static_cast<size_t>(axis)]);
-    for(Index i = 0; i < batch_ndim; ++i)
-    {
-        merge_axis(fiber->mutable_axes()[static_cast<size_t>(1 + i)],
-                   tensor->mutable_axes()[static_cast<size_t>(
-                       tensor->ndim() - batch_ndim + i)]);
-    }
+    validate_fiber_broadcast_shape_and_merge(fiber, tensor, axis, batch_ndim, "add_fiber");
 
     // Output shape matches tensor (fiber is broadcast)
     std::vector<Index> output_shape = tensor->shape();
@@ -124,26 +116,8 @@ void add_fiber(
         throw std::invalid_argument(
             "add_fiber: fiber, tensor, and output must be distinct tensors");
     }
-    if(tensor->ndim() != output->ndim())
-    {
-        throw std::invalid_argument(
-            "add_fiber: output ndim must match tensor ndim");
-    }
-
-    // Merge fiber axes with tensor axes
-    merge_axis(fiber->mutable_axes()[0],
-               tensor->mutable_axes()[static_cast<size_t>(axis)]);
-    for(Index i = 0; i < batch_ndim; ++i)
-    {
-        merge_axis(fiber->mutable_axes()[static_cast<size_t>(1 + i)],
-                   tensor->mutable_axes()[static_cast<size_t>(
-                       tensor->ndim() - batch_ndim + i)]);
-    }
-    // Merge tensor with output (same shape)
-    for(Index i = 0; i < tensor->ndim(); ++i)
-    {
-        merge_axis(tensor->mutable_axes()[i], output->mutable_axes()[i]);
-    }
+    validate_fiber_broadcast_shape_and_merge(fiber, tensor, axis, batch_ndim, "add_fiber");
+    validate_same_shape_and_merge(tensor, output, "add_fiber");
 
     auto op = std::make_shared<TensorAddFiberOp>(
         fiber, tensor, output, alpha, beta, axis, batch_ndim);

@@ -67,16 +67,7 @@ void hypot_inplace(
         throw std::invalid_argument(
             "hypot_inplace: input tensors must have the same dtype");
     }
-    if(src->ndim() != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "hypot_inplace: src and dst must have the same ndim");
-    }
-
-    for(Index i = 0; i < src->ndim(); ++i)
-    {
-        merge_axis(src->mutable_axes()[i], dst->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(src, dst, "hypot_inplace");
 
     auto op = std::make_shared<TensorHypotInplaceOp>(
         alpha, beta, src, dst);

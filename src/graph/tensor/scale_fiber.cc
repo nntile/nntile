@@ -93,15 +93,7 @@ void scale_fiber(
         throw std::invalid_argument(
             "scale_fiber: input tensors must have the same dtype");
     }
-    // Merge fiber axes with full tensor axes
-    merge_axis(src->mutable_axes()[0],
-               dst->mutable_axes()[static_cast<size_t>(axis)]);
-    for(Index i = 0; i < batch_ndim; ++i)
-    {
-        merge_axis(src->mutable_axes()[static_cast<size_t>(1 + i)],
-                   dst->mutable_axes()[static_cast<size_t>(
-                       dst->ndim() - batch_ndim + i)]);
-    }
+    validate_fiber_broadcast_shape_and_merge(src, dst, axis, batch_ndim, "scale_fiber");
 
     auto op = std::make_shared<TensorScaleFiberOp>(
         alpha, src, dst, axis, batch_ndim);

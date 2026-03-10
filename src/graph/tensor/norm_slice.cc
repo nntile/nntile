@@ -83,22 +83,8 @@ TensorGraph::TensorNode* norm_slice(
         output_name,
         src1->dtype());
 
-    // Merge slice reduce: src1 -> dst
-    {
-        int d = 0;
-        for(Index i = 0; i < src1->ndim(); ++i)
-        {
-            if(i == axis) continue;
-            merge_axis(src1->mutable_axes()[static_cast<size_t>(i)],
-                       dst->mutable_axes()[static_cast<size_t>(d)]);
-            ++d;
-        }
-    }
-    // Merge src2 with dst (same shape)
-    for(Index i = 0; i < dst->ndim(); ++i)
-    {
-        merge_axis(src2->mutable_axes()[i], dst->mutable_axes()[i]);
-    }
+    validate_slice_reduce_shape_and_merge(src1, dst, axis, "norm_slice");
+    validate_same_shape_and_merge(src2, dst, "norm_slice");
 
     auto op = std::make_shared<TensorNormSliceOp>(
         alpha, beta, src1, src2, dst, axis, redux);
@@ -142,27 +128,8 @@ void norm_slice(
             "norm_slice: dst must have ndim = src1.ndim - 1");
     }
 
-    // Merge slice reduce: src1 -> dst
-    {
-        int d = 0;
-        for(Index i = 0; i < src1->ndim(); ++i)
-        {
-            if(i == axis) continue;
-            merge_axis(src1->mutable_axes()[static_cast<size_t>(i)],
-                       dst->mutable_axes()[static_cast<size_t>(d)]);
-            ++d;
-        }
-    }
-    // Merge src2 with dst (same shape)
-    if(src2->ndim() != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "norm_slice: dst ndim must match src2 ndim");
-    }
-    for(Index i = 0; i < dst->ndim(); ++i)
-    {
-        merge_axis(src2->mutable_axes()[i], dst->mutable_axes()[i]);
-    }
+    validate_slice_reduce_shape_and_merge(src1, dst, axis, "norm_slice");
+    validate_same_shape_and_merge(src2, dst, "norm_slice");
 
     auto op = std::make_shared<TensorNormSliceOp>(
         alpha, beta, src1, src2, dst, axis, redux);

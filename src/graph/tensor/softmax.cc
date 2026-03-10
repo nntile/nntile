@@ -101,16 +101,7 @@ void softmax(
         throw std::invalid_argument(
             "softmax: input tensors must have the same dtype");
     }
-    if(src->ndim() != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "softmax: dst must have the same ndim as src");
-    }
-
-    for(Index i = 0; i < src->ndim(); ++i)
-    {
-        merge_axis(src->mutable_axes()[i], dst->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(src, dst, "softmax");
 
     auto op = std::make_shared<TensorSoftmaxOp>(
         maxsumexp, src, dst, alpha, axis);

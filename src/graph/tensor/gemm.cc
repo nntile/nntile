@@ -64,7 +64,8 @@ namespace
 {
 constexpr Scalar gemm_new_output_beta = 0.0;
 
-void gemm_merge_axes(
+//! Validate A-B, A-C, B-C shapes and merge axes (inline check+merge per dimension).
+void validate_gemm_shape_and_merge(
     TensorGraph::TensorNode* a,
     TensorGraph::TensorNode* b,
     TensorGraph::TensorNode* c,
@@ -73,31 +74,100 @@ void gemm_merge_axes(
     Index ndim,
     Index batch_ndim)
 {
-    int a_ndim = static_cast<int>(a->shape().size());
-    int b_ndim = static_cast<int>(b->shape().size());
-    int nd = static_cast<int>(ndim);
-    int bn = static_cast<int>(batch_ndim);
-    int a_batch_start = a_ndim - bn;
-    int b_batch_start = b_ndim - bn;
-    int a_m_begin = trans_a ? nd : 0;
-    int a_m_end = trans_a ? a_batch_start : a_batch_start - nd;
-    int a_k_begin = trans_a ? 0 : a_m_end;
-    int b_k_begin = trans_b ? (b_batch_start - nd) : 0;
-    int b_n_begin = trans_b ? 0 : nd;
-    int b_n_end = trans_b ? b_batch_start - nd : b_batch_start;
-    int num_m = a_m_end - a_m_begin;
-    int num_n = b_n_end - b_n_begin;
-    for(int i = 0; i < num_m; ++i)
-        merge_axis(a->mutable_axes()[a_m_begin + i], c->mutable_axes()[i]);
-    for(int i = 0; i < nd; ++i)
-        merge_axis(a->mutable_axes()[a_k_begin + i], b->mutable_axes()[b_k_begin + i]);
-    for(int i = 0; i < num_n; ++i)
-        merge_axis(b->mutable_axes()[b_n_begin + i], c->mutable_axes()[num_m + i]);
-    int c_batch_start = num_m + num_n;
-    for(int i = 0; i < bn; ++i)
+    Index a_ndim = a->ndim();
+    Index b_ndim = b->ndim();
+    Index c_ndim = c->ndim();
+    if(a_ndim < ndim + batch_ndim)
     {
-        merge_axis(a->mutable_axes()[a_batch_start + i], c->mutable_axes()[c_batch_start + i]);
-        merge_axis(b->mutable_axes()[b_batch_start + i], c->mutable_axes()[c_batch_start + i]);
+        throw std::invalid_argument(
+            "gemm: A must have ndim >= ndim + batch_ndim (" +
+            std::to_string(a_ndim) + " vs " +
+            std::to_string(ndim + batch_ndim) + ")");
+    }
+    if(b_ndim < ndim + batch_ndim)
+    {
+        throw std::invalid_argument(
+            "gemm: B must have ndim >= ndim + batch_ndim (" +
+            std::to_string(b_ndim) + " vs " +
+            std::to_string(ndim + batch_ndim) + ")");
+    }
+    Index a_batch_start = a_ndim - batch_ndim;
+    Index b_batch_start = b_ndim - batch_ndim;
+    Index a_m_begin = trans_a ? ndim : 0;
+    Index a_m_end = trans_a ? a_batch_start : a_batch_start - ndim;
+    Index a_k_begin = trans_a ? 0 : a_m_end;
+    Index b_k_begin = trans_b ? (b_batch_start - ndim) : 0;
+    Index b_n_begin = trans_b ? 0 : ndim;
+    Index b_n_end = trans_b ? b_batch_start - ndim : b_batch_start;
+    Index num_m = a_m_end - a_m_begin;
+    Index num_n = b_n_end - b_n_begin;
+    Index c_batch_start = num_m + num_n;
+    if(c_ndim != c_batch_start + batch_ndim)
+    {
+        throw std::invalid_argument(
+            "gemm: C ndim must equal num_m + num_n + batch_ndim (" +
+            std::to_string(c_ndim) + " vs " +
+            std::to_string(c_batch_start + batch_ndim) + ")");
+    }
+    // A-B: contracted (K) dimensions
+    for(Index i = 0; i < ndim; ++i)
+    {
+        if(a->shape()[a_k_begin + i] != b->shape()[b_k_begin + i])
+        {
+            throw std::invalid_argument(
+                "gemm: contracted dimension " + std::to_string(i) +
+                " must match (A: " + std::to_string(a->shape()[a_k_begin + i]) +
+                " vs B: " + std::to_string(b->shape()[b_k_begin + i]) + ")");
+        }
+        merge_axis(a->mutable_axes()[a_k_begin + i],
+                   b->mutable_axes()[b_k_begin + i]);
+    }
+    // A-C: M dimensions
+    for(Index i = 0; i < num_m; ++i)
+    {
+        if(a->shape()[a_m_begin + i] != c->shape()[i])
+        {
+            throw std::invalid_argument(
+                "gemm: M dimension " + std::to_string(i) +
+                " must match (A: " + std::to_string(a->shape()[a_m_begin + i]) +
+                " vs C: " + std::to_string(c->shape()[i]) + ")");
+        }
+        merge_axis(a->mutable_axes()[a_m_begin + i], c->mutable_axes()[i]);
+    }
+    // B-C: N dimensions
+    for(Index i = 0; i < num_n; ++i)
+    {
+        if(b->shape()[b_n_begin + i] != c->shape()[num_m + i])
+        {
+            throw std::invalid_argument(
+                "gemm: N dimension " + std::to_string(i) +
+                " must match (B: " + std::to_string(b->shape()[b_n_begin + i]) +
+                " vs C: " + std::to_string(c->shape()[num_m + i]) + ")");
+        }
+        merge_axis(b->mutable_axes()[b_n_begin + i],
+                   c->mutable_axes()[num_m + i]);
+    }
+    // A-B-C: batch dimensions
+    for(Index i = 0; i < batch_ndim; ++i)
+    {
+        if(a->shape()[a_batch_start + i] != c->shape()[c_batch_start + i])
+        {
+            throw std::invalid_argument(
+                "gemm: batch dimension " + std::to_string(i) +
+                " must match (A: " + std::to_string(a->shape()[a_batch_start + i]) +
+                " vs C: " + std::to_string(c->shape()[c_batch_start + i]) + ")");
+        }
+        merge_axis(a->mutable_axes()[a_batch_start + i],
+                   c->mutable_axes()[c_batch_start + i]);
+        if(b->shape()[b_batch_start + i] != c->shape()[c_batch_start + i])
+        {
+            throw std::invalid_argument(
+                "gemm: batch dimension " + std::to_string(i) +
+                " must match (B: " + std::to_string(b->shape()[b_batch_start + i]) +
+                " vs C: " + std::to_string(c->shape()[c_batch_start + i]) + ")");
+        }
+        merge_axis(b->mutable_axes()[b_batch_start + i],
+                   c->mutable_axes()[c_batch_start + i]);
     }
 }
 
@@ -153,6 +223,20 @@ TensorGraph::TensorNode* gemm(
         throw std::invalid_argument(
             "gemm: input tensors must have the same dtype");
     }
+    if(a->ndim() < ndim + batch_ndim)
+    {
+        throw std::invalid_argument(
+            "gemm: A must have ndim >= ndim + batch_ndim (" +
+            std::to_string(a->ndim()) + " vs " +
+            std::to_string(ndim + batch_ndim) + ")");
+    }
+    if(b->ndim() < ndim + batch_ndim)
+    {
+        throw std::invalid_argument(
+            "gemm: B must have ndim >= ndim + batch_ndim (" +
+            std::to_string(b->ndim()) + " vs " +
+            std::to_string(ndim + batch_ndim) + ")");
+    }
 
     std::vector<Index> output_shape = gemm_output_shape(
         a->shape(), b->shape(), trans_a, trans_b, ndim, batch_ndim);
@@ -162,12 +246,8 @@ TensorGraph::TensorNode* gemm(
         output_name,
         a->dtype());
 
-    gemm_merge_axes(a, b, output, trans_a, trans_b, ndim, batch_ndim);
-
-    auto op = std::make_shared<TensorGemmOp>(
-        a, b, output, alpha, gemm_new_output_beta, trans_a, trans_b, ndim, batch_ndim);
-
-    a->graph()->add_op(op);
+    gemm(a, b, output, alpha, gemm_new_output_beta, trans_a, trans_b, ndim,
+         batch_ndim);
 
     return output;
 }
@@ -198,15 +278,7 @@ void gemm(
             "gemm: input tensors must have the same dtype");
     }
 
-    std::vector<Index> expected_shape = gemm_output_shape(
-        a->shape(), b->shape(), trans_a, trans_b, ndim, batch_ndim);
-    if(c->ndim() != static_cast<Index>(expected_shape.size()))
-    {
-        throw std::invalid_argument(
-            "gemm: tensor c has incompatible ndim for accumulation");
-    }
-
-    gemm_merge_axes(a, b, c, trans_a, trans_b, ndim, batch_ndim);
+    validate_gemm_shape_and_merge(a, b, c, trans_a, trans_b, ndim, batch_ndim);
 
     auto op = std::make_shared<TensorGemmOp>(
         a, b, c, alpha, beta, trans_a, trans_b, ndim, batch_ndim);

@@ -75,17 +75,7 @@ TensorGraph::TensorNode* maxsumexp(
         output_name,
         src->dtype());
 
-    // Merge non-axis dims of src with dst dims [1:]
-    {
-        int d = 1;
-        for(Index i = 0; i < src->ndim(); ++i)
-        {
-            if(i == axis) continue;
-            merge_axis(src->mutable_axes()[static_cast<size_t>(i)],
-                       dst->mutable_axes()[static_cast<size_t>(d)]);
-            ++d;
-        }
-    }
+    validate_maxsumexp_shape_and_merge(src, dst, axis, "maxsumexp");
 
     auto op = std::make_shared<TensorMaxsumexpOp>(src, dst, axis, redux);
     src->graph()->add_op(op);
@@ -114,16 +104,7 @@ void maxsumexp(
         throw std::invalid_argument(
             "maxsumexp: input tensors must have the same dtype");
     }
-
-    // Merge non-axis dims of src with dst dims [1:]
-    int d = 1;
-    for(Index i = 0; i < src->ndim(); ++i)
-    {
-        if(i == axis) continue;
-        merge_axis(src->mutable_axes()[static_cast<size_t>(i)],
-                   dst->mutable_axes()[static_cast<size_t>(d)]);
-        ++d;
-    }
+    validate_maxsumexp_shape_and_merge(src, dst, axis, "maxsumexp");
 
     auto op = std::make_shared<TensorMaxsumexpOp>(src, dst, axis, redux);
     src->graph()->add_op(op);

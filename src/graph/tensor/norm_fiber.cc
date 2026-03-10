@@ -78,20 +78,8 @@ TensorGraph::TensorNode* norm_fiber(
         output_name,
         src1->dtype());
 
-    // Merge dst (fiber) axes with src1 (full tensor) axes
-    merge_axis(dst->mutable_axes()[0],
-               src1->mutable_axes()[static_cast<size_t>(axis)]);
-    for(Index i = 0; i < batch_ndim; ++i)
-    {
-        merge_axis(dst->mutable_axes()[static_cast<size_t>(1 + i)],
-                   src1->mutable_axes()[static_cast<size_t>(
-                       src1->ndim() - batch_ndim + i)]);
-    }
-    // Merge src2 with dst (same shape)
-    for(Index i = 0; i < dst->ndim(); ++i)
-    {
-        merge_axis(src2->mutable_axes()[i], dst->mutable_axes()[i]);
-    }
+    validate_fiber_reduce_shape_and_merge(dst, src1, axis, batch_ndim, "norm_fiber");
+    validate_same_shape_and_merge(src2, dst, "norm_fiber");
 
     auto op = std::make_shared<TensorNormFiberOp>(
         alpha, beta, src1, src2, dst, axis, batch_ndim, redux);
@@ -131,25 +119,8 @@ void norm_fiber(
             "norm_fiber: src1, src2, and dst must be distinct tensors");
     }
 
-    // Merge dst (fiber) axes with src1 (full tensor) axes
-    merge_axis(dst->mutable_axes()[0],
-               src1->mutable_axes()[static_cast<size_t>(axis)]);
-    for(Index i = 0; i < batch_ndim; ++i)
-    {
-        merge_axis(dst->mutable_axes()[static_cast<size_t>(1 + i)],
-                   src1->mutable_axes()[static_cast<size_t>(
-                       src1->ndim() - batch_ndim + i)]);
-    }
-    // Merge src2 with dst (same shape)
-    if(src2->ndim() != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "norm_fiber: dst ndim must match src2 ndim");
-    }
-    for(Index i = 0; i < dst->ndim(); ++i)
-    {
-        merge_axis(src2->mutable_axes()[i], dst->mutable_axes()[i]);
-    }
+    validate_fiber_reduce_shape_and_merge(dst, src1, axis, batch_ndim, "norm_fiber");
+    validate_same_shape_and_merge(src2, dst, "norm_fiber");
 
     auto op = std::make_shared<TensorNormFiberOp>(
         alpha, beta, src1, src2, dst, axis, batch_ndim, redux);

@@ -79,21 +79,12 @@ void silu(
         throw std::invalid_argument(
             "silu: input tensors must have the same dtype");
     }
-    if(src->ndim() != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "silu: output must have the same ndim as input");
-    }
     if(src == dst)
     {
         throw std::invalid_argument(
             "silu: src and dst must be distinct tensors");
     }
-
-    for(Index i = 0; i < src->ndim(); ++i)
-    {
-        merge_axis(src->mutable_axes()[i], dst->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(src, dst, "silu");
 
     auto op = std::make_shared<TensorSiluOp>(src, dst);
     src->graph()->add_op(op);

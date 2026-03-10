@@ -59,8 +59,8 @@ TensorGraph::TensorNode* transpose(
         std::move(output_shape), output_name, src->dtype());
     for(Index i = 0; i < n; ++i)
     {
-        merge_axis(src->mutable_axes()[static_cast<size_t>((i + ndim) % n)],
-                   output->mutable_axes()[static_cast<size_t>(i)]);
+        merge_axis(src->mutable_axes()[(i + ndim) % n],
+                   output->mutable_axes()[i]);
     }
     auto op = std::make_shared<TensorTransposeOp>(src, output, ndim, alpha);
     src->graph()->add_op(op);
@@ -83,13 +83,31 @@ void transpose(
         throw std::invalid_argument("transpose: tensors must have same dtype");
     if(ndim <= 0 || ndim >= src->ndim())
         throw std::invalid_argument("transpose: ndim must be in (0, src.ndim)");
-    if(dst->ndim() != src->ndim())
-        throw std::invalid_argument("transpose: dst.ndim must equal src.ndim");
     Index n = src->ndim();
+    const auto& src_shape = src->shape();
+    const auto& dst_shape = dst->shape();
+    if(dst_shape.size() != n)
+    {
+        throw std::invalid_argument(
+            "transpose: dst.ndim must equal src.ndim (" +
+            std::to_string(dst_shape.size()) + " vs " + std::to_string(n) + ")");
+    }
     for(Index i = 0; i < n; ++i)
     {
-        merge_axis(src->mutable_axes()[static_cast<size_t>((i + ndim) % n)],
-                   dst->mutable_axes()[static_cast<size_t>(i)]);
+        Index expected = src_shape[(i + ndim) % n];
+        if(dst_shape[i] != expected)
+        {
+            throw std::invalid_argument(
+                "transpose: dst shape must be permuted src shape; mismatch at "
+                "dimension " + std::to_string(i) + " (" +
+                std::to_string(dst_shape[i]) + " vs " +
+                std::to_string(expected) + ")");
+        }
+    }
+    for(Index i = 0; i < n; ++i)
+    {
+        merge_axis(src->mutable_axes()[(i + ndim) % n],
+                   dst->mutable_axes()[i]);
     }
     auto op = std::make_shared<TensorTransposeOp>(src, dst, ndim, alpha);
     src->graph()->add_op(op);

@@ -67,4 +67,32 @@ struct AxisDescriptor
 void merge_axis(std::shared_ptr<AxisDescriptor>& keep,
                 std::shared_ptr<AxisDescriptor>& replace);
 
+//! Validate that two shapes are identical. Throws with an operation-specific
+//! message identifying the mismatched dimension and extents. Call before
+//! merge_axis to give users clear errors instead of cryptic merge_axis failures.
+inline void validate_same_shape(const std::vector<Index>& a,
+                                const std::vector<Index>& b,
+                                const std::string& op_name)
+{
+    if(a == b)
+        return;
+    if(a.size() != b.size())
+    {
+        throw std::invalid_argument(
+            op_name + ": tensors must have same ndim (" +
+            std::to_string(a.size()) + " vs " + std::to_string(b.size()) +
+            ")");
+    }
+    for(size_t i = 0; i < a.size(); ++i)
+    {
+        if(a[i] != b[i])
+        {
+            throw std::invalid_argument(
+                op_name + ": tensors must have same shape; mismatch at dimension "
+                + std::to_string(i) + " (" + std::to_string(a[i]) + " vs " +
+                std::to_string(b[i]) + ")");
+        }
+    }
+}
+
 } // namespace nntile::graph

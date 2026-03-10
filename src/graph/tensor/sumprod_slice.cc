@@ -79,16 +79,7 @@ void sumprod_slice(
             "sumprod_slice: src1, src2, and dst must be distinct tensors");
     }
 
-    // Merge src1 with src2 (same shape)
-    if(src1->ndim() != src2->ndim())
-    {
-        throw std::invalid_argument(
-            "sumprod_slice: src1 and src2 must have the same ndim");
-    }
-    for(Index i = 0; i < src1->ndim(); ++i)
-    {
-        merge_axis(src1->mutable_axes()[i], src2->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(src1, src2, "sumprod_slice");
     if(src1->ndim() - 1 != dst->ndim())
     {
         throw std::invalid_argument(
@@ -100,8 +91,8 @@ void sumprod_slice(
         for(Index i = 0; i < src1->ndim(); ++i)
         {
             if(i == axis) continue;
-            merge_axis(src1->mutable_axes()[static_cast<size_t>(i)],
-                       dst->mutable_axes()[static_cast<size_t>(d)]);
+            merge_axis(src1->mutable_axes()[i],
+                       dst->mutable_axes()[d]);
             ++d;
         }
     }

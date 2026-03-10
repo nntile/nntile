@@ -85,7 +85,7 @@ TensorGraph::TensorNode* flash_sdpa_fwd_cudnn(
     for(Index i = 0; i < logsumexp_node->ndim(); ++i)
     {
         merge_axis(logsumexp_node->mutable_axes()[i],
-                   K->mutable_axes()[static_cast<size_t>(i + 1)]);
+                   K->mutable_axes()[i + 1]);
     }
 
     flash_sdpa_fwd_cudnn(K, Q, mask, logsumexp_node, V, A_node);
@@ -115,17 +115,33 @@ void flash_sdpa_fwd_cudnn(TensorGraph::TensorNode* K,
     if(logsumexp->dtype() != DataType::FP32)
         throw std::invalid_argument(
             "flash_sdpa_fwd_cudnn: logsumexp must have FP32 dtype");
-
-    // K and A: same shape
-    for(Index i = 0; i < K->ndim(); ++i)
+    validate_same_shape_and_merge(K, A, "flash_sdpa_fwd_cudnn");
+    validate_logsumexp_shape_and_merge(K, logsumexp, "flash_sdpa_fwd_cudnn");
+    if(Q->ndim() == K->ndim())
     {
-        merge_axis(K->mutable_axes()[i], A->mutable_axes()[i]);
+        if(Q->shape()[0] != K->shape()[0])
+            throw std::invalid_argument(
+                "flash_sdpa_fwd_cudnn: Q.dim[0] must match K.dim[0]");
+        for(Index i = 2; i < K->ndim(); ++i)
+        {
+            if(Q->shape()[i] != K->shape()[i])
+                throw std::invalid_argument(
+                    "flash_sdpa_fwd_cudnn: Q.dim[" + std::to_string(i) +
+                    "] must match K.dim[" + std::to_string(i) + "]");
+        }
     }
-    // logsumexp.dim[i] == K.dim[i+1]
-    for(Index i = 0; i < logsumexp->ndim(); ++i)
+    if(V->ndim() == K->ndim())
     {
-        merge_axis(logsumexp->mutable_axes()[i],
-                   K->mutable_axes()[static_cast<size_t>(i + 1)]);
+        if(V->shape()[0] != K->shape()[0])
+            throw std::invalid_argument(
+                "flash_sdpa_fwd_cudnn: V.dim[0] must match K.dim[0]");
+        for(Index i = 2; i < K->ndim(); ++i)
+        {
+            if(V->shape()[i] != K->shape()[i])
+                throw std::invalid_argument(
+                    "flash_sdpa_fwd_cudnn: V.dim[" + std::to_string(i) +
+                    "] must match K.dim[" + std::to_string(i) + "]");
+        }
     }
     // Q shares head_size and batch dims with K (dims 0, 2, 3, 4)
     if(Q->ndim() == K->ndim())

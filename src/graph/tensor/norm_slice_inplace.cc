@@ -71,21 +71,7 @@ void norm_slice_inplace(
         throw std::invalid_argument(
             "norm_slice_inplace: src and dst must be distinct tensors");
     }
-    if(src->ndim() - 1 != dst->ndim())
-    {
-        throw std::invalid_argument(
-            "norm_slice_inplace: dst must have ndim = src.ndim - 1");
-    }
-
-    // Merge slice reduce: src -> dst
-    int d = 0;
-    for(Index i = 0; i < src->ndim(); ++i)
-    {
-        if(i == axis) continue;
-        merge_axis(src->mutable_axes()[static_cast<size_t>(i)],
-                   dst->mutable_axes()[static_cast<size_t>(d)]);
-        ++d;
-    }
+    validate_slice_reduce_shape_and_merge(src, dst, axis, "norm_slice_inplace");
 
     auto op = std::make_shared<TensorNormSliceInplaceOp>(
         alpha, beta, src, dst, axis, redux);

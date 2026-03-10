@@ -81,21 +81,12 @@ void relu(
         throw std::invalid_argument(
             "relu: input tensors must have the same dtype");
     }
-    if(x->ndim() != y->ndim())
-    {
-        throw std::invalid_argument(
-            "relu: output must have the same ndim as input");
-    }
     if(x == y)
     {
         throw std::invalid_argument(
             "relu: x and y must be distinct tensors");
     }
-
-    for(Index i = 0; i < x->ndim(); ++i)
-    {
-        merge_axis(x->mutable_axes()[i], y->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(x, y, "relu");
 
     auto op = std::make_shared<TensorReluOp>(x, y);
     x->graph()->add_op(op);

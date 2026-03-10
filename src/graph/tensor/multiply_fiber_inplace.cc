@@ -67,20 +67,8 @@ void multiply_fiber_inplace(
         throw std::invalid_argument(
             "multiply_fiber_inplace: input tensors must have the same dtype");
     }
-    if(src->ndim() != 1)
-    {
-        throw std::invalid_argument(
-            "multiply_fiber_inplace: src must be 1-dimensional (fiber)");
-    }
-    if(axis < 0 || axis >= dst->ndim())
-    {
-        throw std::invalid_argument(
-            "multiply_fiber_inplace: axis out of range");
-    }
-
-    // Merge fiber axis with full tensor axis
-    merge_axis(src->mutable_axes()[0],
-               dst->mutable_axes()[static_cast<size_t>(axis)]);
+    validate_fiber_broadcast_shape_and_merge(src, dst, axis, 0,
+                                  "multiply_fiber_inplace");
 
     auto op = std::make_shared<TensorMultiplyFiberInplaceOp>(
         alpha, src, dst, axis);

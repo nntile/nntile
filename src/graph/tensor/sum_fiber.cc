@@ -47,7 +47,7 @@ std::vector<Index> sum_fiber_output_shape(
     Index axis,
     Index batch_ndim)
 {
-    Index ndim = static_cast<Index>(x_shape.size());
+    Index ndim = x_shape.size();
     std::vector<Index> out_shape;
     out_shape.reserve(batch_ndim + 1);
     out_shape.push_back(x_shape[axis]);
@@ -84,12 +84,11 @@ TensorGraph::TensorNode* sum_fiber(
 
     // Merge output fiber axes with x axes
     merge_axis(output->mutable_axes()[0],
-               x->mutable_axes()[static_cast<size_t>(axis)]);
+               x->mutable_axes()[axis]);
     for(Index i = 0; i < batch_ndim; ++i)
     {
-        merge_axis(output->mutable_axes()[static_cast<size_t>(1 + i)],
-                   x->mutable_axes()[static_cast<size_t>(
-                       x->ndim() - batch_ndim + i)]);
+        merge_axis(output->mutable_axes()[1 + i],
+                   x->mutable_axes()[x->ndim() - batch_ndim + i]);
     }
 
     auto op = std::make_shared<TensorSumFiberOp>(
@@ -128,16 +127,7 @@ void sum_fiber(
         throw std::invalid_argument(
             "sum_fiber: x and y must be distinct tensors");
     }
-
-    // Merge y (fiber) axes with x (full tensor) axes
-    merge_axis(y->mutable_axes()[0],
-               x->mutable_axes()[static_cast<size_t>(axis)]);
-    for(Index i = 0; i < batch_ndim; ++i)
-    {
-        merge_axis(y->mutable_axes()[static_cast<size_t>(1 + i)],
-                   x->mutable_axes()[static_cast<size_t>(
-                       x->ndim() - batch_ndim + i)]);
-    }
+    validate_fiber_reduce_shape_and_merge(y, x, axis, batch_ndim, "sum_fiber");
 
     auto op = std::make_shared<TensorSumFiberOp>(
         x, y, axis, batch_ndim, redux, alpha, beta);

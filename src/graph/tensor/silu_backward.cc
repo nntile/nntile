@@ -62,21 +62,12 @@ TensorGraph::TensorNode* silu_backward(
         throw std::invalid_argument(
             "silu_backward: input tensors must have the same dtype");
     }
-    if(x->ndim() != dy->ndim())
-    {
-        throw std::invalid_argument(
-            "silu_backward: input tensors must have the same ndim");
-    }
     if(x == dy)
     {
         throw std::invalid_argument(
             "silu_backward: x and dy must be distinct tensors");
     }
-
-    for(Index i = 0; i < x->ndim(); ++i)
-    {
-        merge_axis(x->mutable_axes()[i], dy->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(x, dy, "silu_backward");
 
     TensorGraph::TensorNode* dx = x->graph()->data(
         x->shape(),
@@ -109,22 +100,13 @@ void silu_backward(
         throw std::invalid_argument(
             "silu_backward: input tensors must have the same dtype");
     }
-    if(x->ndim() != dy->ndim() || x->ndim() != dx->ndim())
-    {
-        throw std::invalid_argument(
-            "silu_backward: all tensors must have the same ndim");
-    }
     if(x == dy || x == dx || dy == dx)
     {
         throw std::invalid_argument(
             "silu_backward: x, dy, and dx must be distinct tensors");
     }
-
-    for(Index i = 0; i < x->ndim(); ++i)
-    {
-        merge_axis(x->mutable_axes()[i], dy->mutable_axes()[i]);
-        merge_axis(x->mutable_axes()[i], dx->mutable_axes()[i]);
-    }
+    validate_same_shape_and_merge(x, dy, "silu_backward");
+    validate_same_shape_and_merge(x, dx, "silu_backward");
 
     auto op = std::make_shared<TensorSiluBackwardOp>(x, dy, dx);
     x->graph()->add_op(op);
