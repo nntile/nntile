@@ -127,7 +127,7 @@ void sum_fiber(
         throw std::invalid_argument(
             "sum_fiber: x and y must be distinct tensors");
     }
-    validate_fiber_reduce_shape_and_merge(y, x, axis, batch_ndim, "sum_fiber");
+    validate_fiber_broadcast_shape_and_merge(y, x, axis, batch_ndim, "sum_fiber");
 
     auto op = std::make_shared<TensorSumFiberOp>(
         x, y, axis, batch_ndim, redux, alpha, beta);

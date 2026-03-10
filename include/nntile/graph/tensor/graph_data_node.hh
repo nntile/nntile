@@ -245,49 +245,6 @@ inline void validate_fiber_broadcast_shape_and_merge(
     }
 }
 
-//! Validate fiber reduce shape and merge axes (tensor reduced to fiber 1+batch_ndim).
-inline void validate_fiber_reduce_shape_and_merge(
-    TensorGraph::TensorNode* fiber,
-    TensorGraph::TensorNode* tensor,
-    Index axis,
-    Index batch_ndim,
-    const std::string& op_name)
-{
-    if(fiber->ndim() != 1 + batch_ndim)
-    {
-        throw std::invalid_argument(
-            op_name + ": fiber must have ndim = 1 + batch_ndim (" +
-            std::to_string(fiber->ndim()) + " vs " +
-            std::to_string(1 + batch_ndim) + ")");
-    }
-    if(axis < 0 || axis >= tensor->ndim())
-    {
-        throw std::invalid_argument(op_name + ": axis out of range");
-    }
-    if(fiber->shape()[0] != tensor->shape()[axis])
-    {
-        throw std::invalid_argument(
-            op_name + ": fiber dim 0 must match tensor dim " +
-            std::to_string(axis) + " (" + std::to_string(fiber->shape()[0]) +
-            " vs " + std::to_string(tensor->shape()[axis]) + ")");
-    }
-    merge_axis(fiber->mutable_axes()[0], tensor->mutable_axes()[axis]);
-    for(Index i = 0; i < batch_ndim; ++i)
-    {
-        Index ti = tensor->ndim() - batch_ndim + i;
-        if(fiber->shape()[1 + i] != tensor->shape()[ti])
-        {
-            throw std::invalid_argument(
-                op_name + ": fiber dim " + std::to_string(1 + i) +
-                " must match tensor dim " + std::to_string(ti) + " (" +
-                std::to_string(fiber->shape()[1 + i]) + " vs " +
-                std::to_string(tensor->shape()[ti]) + ")");
-        }
-        merge_axis(fiber->mutable_axes()[1 + i],
-                   tensor->mutable_axes()[ti]);
-    }
-}
-
 //! Validate maxsumexp output shape and merge axes.
 inline void validate_maxsumexp_shape_and_merge(
     TensorGraph::TensorNode* src,
