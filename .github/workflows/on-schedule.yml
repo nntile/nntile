@@ -36,6 +36,8 @@ jobs:
       image: ubuntu:24.04
     env:
       CCACHE_DIR: /tmp/ccache
+      PKG_CONFIG_PATH: /opt/starpu/lib/pkgconfig
+      LD_LIBRARY_PATH: /opt/starpu/lib
     steps:
       - name: Cache system packages
         id: cache-apt
@@ -54,10 +56,43 @@ jobs:
           rm -rfv /etc/apt/apt.conf.d/docker*
           apt update
           apt install -y --no-install-recommends \
-              binutils build-essential ca-certificates ccache \
-              clang cmake curl gdb git lcov libhwloc-dev \
-              libopenblas-dev libopenmpi-dev libopenmpi3 libstarpu-dev \
-              lsb-release ninja-build openmpi-bin pkg-config sqlite3
+              autoconf automake binutils build-essential ca-certificates \
+              ccache clang cmake curl fxt-tools gdb git lcov libfxt-dev \
+              libhwloc-dev libopenblas-dev libopenmpi-dev libopenmpi3 \
+              libtool-bin lsb-release ninja-build openmpi-bin pkg-config \
+              sqlite3
+      - name: Cache StarPU
+        id: cache-starpu
+        uses: actions/cache@v4
+        with:
+          path: /opt/starpu
+          key: starpu-1.4.8-${{ runner.os }}
+      - name: Build StarPU from source
+        if: steps.cache-starpu.outputs.cache-hit != 'true'
+        run: |
+          export STARPU_VERSION=starpu-1.4.8
+          export STARPU_LABEL=$STARPU_VERSION
+          mkdir -p /usr/src
+          curl -SL https://gitlab.inria.fr/starpu/starpu/-/archive/$STARPU_LABEL/starpu-$STARPU_LABEL.tar.gz | tar -xzC /usr/src
+          ln -s /usr/src/starpu-$STARPU_LABEL /usr/src/starpu
+          cd /usr/src/starpu
+          ./autogen.sh
+          ./configure \
+              --disable-build-doc \
+              --disable-build-examples \
+              --disable-build-tests \
+              --disable-fortran \
+              --disable-opencl \
+              --disable-socl \
+              --disable-starpufft \
+              --disable-starpupy \
+              --enable-blas-lib=none \
+              --enable-maxcudadev=8 \
+              --enable-maxbuffers=16 \
+              --with-fxt \
+              --prefix=/opt/starpu
+          make -j 4 install
+          rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
       - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
@@ -112,6 +147,8 @@ jobs:
         python-version: ['3.12']
     container:
       image: 'ubuntu:24.04'
+    env:
+      LD_LIBRARY_PATH: /opt/starpu/lib
     steps:
       - uses: actions/checkout@v4
       - name: Cache system packages
@@ -132,9 +169,14 @@ jobs:
           apt update
           apt install -y --no-install-recommends \
               binutils build-essential ca-certificates \
-              clang cmake curl lcov libhwloc-dev \
-              libopenblas-dev libopenmpi-dev libopenmpi3 libstarpu-dev \
+              clang cmake curl libfxt-dev git lcov libhwloc-dev \
+              libopenblas-dev libopenmpi-dev libopenmpi3 \
               lsb-release ninja-build openmpi-bin pkg-config sqlite3
+      - name: Restore StarPU cache
+        uses: actions/cache@v4
+        with:
+          path: /opt/starpu
+          key: starpu-1.4.8-${{ runner.os }}
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
