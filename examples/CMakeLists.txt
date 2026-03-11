@@ -80,3 +80,8 @@ add_example(TARGET_NAME examples_deep_relu_training
     EXEC_NAME "deep_relu_training"
     SOURCES "deep_relu_training.cc"
     LINK_LIBRARIES nntile)
+
+add_example(TARGET_NAME examples_llama_generate
+    EXEC_NAME "llama_generate"
+    SOURCES "llama_generate.cc"
+    LINK_LIBRARIES nntile)

@@ -19,6 +19,7 @@ add_subdirectory(nn)
 add_subdirectory(tensor)
 add_subdirectory(module)
 add_subdirectory(io)
+add_subdirectory(model)
 
 # Setup a target for coverage of graph tests
 if(BUILD_COVERAGE)

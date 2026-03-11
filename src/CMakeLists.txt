@@ -519,6 +519,7 @@ set(GRAPH_NN_SRC
     "graph/nn/adamw_step.cc"
     "graph/nn/sum_fiber.cc"
     "graph/nn/sum_slice.cc"
+    "graph/nn/transpose.cc"
 )
 
 set(GRAPH_IO_SRC
@@ -532,7 +533,16 @@ set(GRAPH_MODULE_SRC
     "graph/module/mlp.cc"
     "graph/module/linear.cc"
     "graph/module/embedding.cc"
+    "graph/module/rms_norm.cc"
 )
+
+set(GRAPH_MODEL_SRC
+    "graph/model/llama/llama_mlp.cc"
+    "graph/model/llama/llama_attention.cc"
+    "graph/model/llama/llama_decoder.cc"
+    "graph/model/llama/llama_model.cc"
+    "graph/model/llama/llama_causal.cc"
+    )
 
 set(GRAPH_OPTIM_SRC
     "graph/optim/optimizer.cc"
@@ -546,6 +556,7 @@ set(GRAPH_SRC
     ${GRAPH_NN_SRC}
     ${GRAPH_IO_SRC}
     ${GRAPH_MODULE_SRC}
+    ${GRAPH_MODEL_SRC}
     ${GRAPH_OPTIM_SRC}
 )
 

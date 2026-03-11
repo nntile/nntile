@@ -49,3 +49,4 @@
 #include <nntile/graph/nn/adamw_step.hh>
 #include <nntile/graph/nn/sum_fiber.hh>
 #include <nntile/graph/nn/sum_slice.hh>
+#include <nntile/graph/nn/transpose.hh>

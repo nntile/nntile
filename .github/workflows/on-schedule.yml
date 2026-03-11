@@ -55,16 +55,19 @@ jobs:
               autoconf automake binutils build-essential ca-certificates \
               clang cmake curl fxt-tools gdb git lcov libfxt-dev libhwloc-dev \
               libopenblas-dev libopenmpi-dev libopenmpi3 libtool-bin \
-              lsb-release ninja-build openmpi-bin pkg-config
+              lsb-release ninja-build openmpi-bin pkg-config sqlite3
       - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install PyTorch for LibTorch
+      - name: Install Python dependencies
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
-          $HOME/.local/bin/uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
+          $HOME/.local/bin/uv pip install --system \
+            torch --index-url https://download.pytorch.org/whl/cpu
+          $HOME/.local/bin/uv pip install --system \
+            numpy safetensors "transformers<4.53"
       - name: Build StarPU
         run: |
           export STARPU_VERSION=starpu-1.4.8
@@ -164,6 +167,9 @@ jobs:
           ln -rs \
             build/wrappers/python/nntile/nntile_core.so \
             wrappers/python/nntile/nntile_core.so
+          ln -rs \
+            build/wrappers/python/nntile/nntile_graph.so \
+            wrappers/python/nntile/nntile_graph.so
       # TODO(@daskol): We should rely on `uv` or any other package managing
       # utility here.
       - name: Install Python dependencies

@@ -56,7 +56,7 @@ dependencies = [
     "pydantic",
     "scipy",
     "torch",
-    "transformers<=4.52",
+    "transformers<4.53",
     "typing_extensions>=4.6.0; python_version<'3.12'",
     "uvicorn",
 ]
@@ -65,7 +65,8 @@ requires-python = ">=3.10,<4"
 [project.optional-dependencies]
 dev = ["isort", "mypy", "ruff"]
 test = [
-    "datasets", "pytest>=8.2", "pytest-benchmark", "sentencepiece", "tokenizers", "torchvision",
+    "datasets", "numpy", "pytest>=8.2", "pytest-benchmark", "sentencepiece",
+    "tokenizers", "torchvision",
 ]
 ci = [
     "mypy",
