@@ -173,13 +173,13 @@ jobs:
       - name: Run dirty C++ tests
         if: github.event.pull_request
         run: |
-          export LD_LIBRARY_PATH=/opt/starpu/lib
+          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           .github/scripts/run-dirty-cpp-tests.sh \
             ${{ github.event.pull_request.head.ref }}
       - name: Run all C++ tests
         if: '!github.event.pull_request'
         run: |
-          export LD_LIBRARY_PATH=/opt/starpu/lib
+          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
 
   test-python:
@@ -278,7 +278,7 @@ jobs:
         if: 'github.event.pull_request'
         run: |
           . .venv/bin/activate
-          export LD_LIBRARY_PATH=/opt/starpu/lib
+          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           export PYTHON_TAG=$(
             python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
@@ -289,7 +289,7 @@ jobs:
         if: '!github.event.pull_request'
         run: |
           . .venv/bin/activate
-          export LD_LIBRARY_PATH=/opt/starpu/lib
+          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           export PYTHON_TAG=$(
             python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH

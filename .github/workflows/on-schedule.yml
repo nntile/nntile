@@ -141,7 +141,7 @@ jobs:
           retention-days: 7
       - name: Run all C++ tests
         run: |
-          export LD_LIBRARY_PATH=/opt/starpu/lib
+          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
 
   test-python:
@@ -216,7 +216,7 @@ jobs:
       - name: Run all tests with PyTest
         run: |
           . .venv/bin/activate
-          export LD_LIBRARY_PATH=/opt/starpu/lib
+          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           export PYTHON_TAG=$(
             python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
