@@ -31,12 +31,8 @@ import torch
 from safetensors.numpy import save_file
 from transformers import LlamaConfig
 from transformers.models.llama.modeling_llama import (
-    LlamaAttention as PtAttention,
-    LlamaDecoderLayer as PtDecoderLayer,
-    LlamaForCausalLM as PtCausalLM,
-    LlamaMLP as PtMLP,
-    LlamaModel as PtModel,
-)
+    LlamaAttention as PtAttention, LlamaDecoderLayer as PtDecoderLayer,
+    LlamaForCausalLM as PtCausalLM, LlamaMLP as PtMLP, LlamaModel as PtModel)
 
 # ── Test dimensions (must match C++ test configs) ────────────────────────
 HIDDEN = 8
@@ -94,7 +90,7 @@ class _IdentityRoPE(torch.nn.Module):
 
 
 def _patch_model(model):
-    """Disable RoPE and causal mask so forward matches NNTile (no-RoPE, no-mask)."""
+    """Disable RoPE and causal mask for NNTile (no-RoPE, no-mask) match."""
     target = getattr(model, "model", model)
     if hasattr(target, "rotary_emb"):
         target.rotary_emb = _IdentityRoPE(HEAD_SIZE)
@@ -174,7 +170,7 @@ def _model_weights(model, prefix: str) -> dict[str, np.ndarray]:
 
 
 def _hidden_input(rng, scale: float = 0.1):
-    """Random hidden-state input: NNTile ``(H,S,B)`` Fortran + PT ``(B,S,H)``."""
+    """Random hidden-state input: NNTile (H,S,B) Fortran + PT (B,S,H)."""
     x = rng.standard_normal((HIDDEN, SEQ, BATCH)).astype(np.float32) * scale
     x_nt = fortran_order(x)
     x_pt = torch.tensor(x.transpose(2, 1, 0).copy())
