@@ -89,7 +89,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: /opt/starpu
-          key: starpu-1.4.8-${{ runner.os }}
+          key: starpu-1.4.8-${{ runner.os }}-v2
       - name: Build StarPU from source
         if: steps.cache-starpu.outputs.cache-hit != 'true'
         run: |
@@ -113,9 +113,14 @@ jobs:
               --enable-maxcudadev=8 \
               --enable-maxbuffers=16 \
               --with-fxt \
-              --prefix=/opt/starpu
+              --prefix=/opt/starpu \
+              --libdir=/opt/starpu/lib
           make -j 4 install
           rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
+      - name: Verify StarPU installation
+        run: |
+          ls /opt/starpu/lib/pkgconfig/starpu-1.4.pc
+          PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig pkg-config --modversion starpu-1.4
       - uses: actions/checkout@v6
       - name: Pull all PR commits
         if: github.event.pull_request
@@ -236,7 +241,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: /opt/starpu
-          key: starpu-1.4.8-${{ runner.os }}
+          key: starpu-1.4.8-${{ runner.os }}-v2
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
