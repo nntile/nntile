@@ -72,6 +72,7 @@ def _make_config() -> LlamaConfig:
         rms_norm_eps=RMS_EPS,
         max_position_embeddings=2048,
         _attn_implementation="eager",
+        base_model_tp_plan=None,
     )
 
 
@@ -214,7 +215,7 @@ def generate_attention(seed: int) -> dict[str, np.ndarray]:
 
     pos = _identity_pos_emb(BATCH, SEQ, HEAD_SIZE)
     with torch.no_grad():
-        out = pt(x_pt, position_embeddings=pos)[0]
+        out = pt(x_pt, position_embeddings=pos, attention_mask=None)[0]
     data["output_ref"] = _out_to_nntile(out)
     return data
 
