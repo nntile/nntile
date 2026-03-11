@@ -54,7 +54,6 @@ from huggingface_hub import snapshot_download
 from safetensors import safe_open
 from transformers import AutoConfig, AutoTokenizer
 
-
 # ── Layout helpers ────────────────────────────────────────────────────────
 
 
@@ -121,7 +120,7 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
     """Return ``(nntile_name, shape)`` for every output tensor."""
     H = config.hidden_size
     V = config.vocab_size
-    I = config.intermediate_size
+    inter = config.intermediate_size
     nh = config.num_attention_heads
     kv = getattr(config, "num_key_value_heads", nh)
     hd = H // nh
@@ -149,9 +148,9 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
         specs.append((f"{p}.attention.k_weight", (kv, hd, H)))
         specs.append((f"{p}.attention.v_weight", (kv, hd, H)))
 
-        specs.append((f"{p}.mlp.gate_proj.weight", (H, I)))
-        specs.append((f"{p}.mlp.up_proj.weight", (H, I)))
-        specs.append((f"{p}.mlp.down_proj.weight", (I, H)))
+        specs.append((f"{p}.mlp.gate_proj.weight", (H, inter)))
+        specs.append((f"{p}.mlp.up_proj.weight", (H, inter)))
+        specs.append((f"{p}.mlp.down_proj.weight", (inter, H)))
 
     return specs
 
@@ -180,8 +179,9 @@ def _make_converter(
             return fortran_order(hf_get("model.norm.weight"))
 
         if name == "model.lm_head.weight":
-            src = "lm_head.weight" if has_lm_head else "model.embed_tokens.weight"
-            return fortran_order(hf_get(src).T)
+            key = ("lm_head.weight" if has_lm_head
+                   else "model.embed_tokens.weight")
+            return fortran_order(hf_get(key).T)
 
         # Layer tensors: model.model.layers_{i}.<rest>
         parts = name.split(".")
@@ -253,9 +253,11 @@ def main() -> int:
     )
     parser.add_argument(
         "--model", required=True,
-        help="HuggingFace model name (e.g. TinyLlama/TinyLlama-1.1B-Chat-v1.0)"
-             " or local path to a directory with config.json + *.safetensors.  "
-             "Remote names are downloaded to the HF cache automatically.",
+        help="HuggingFace model name "
+             "(e.g. TinyLlama/TinyLlama-1.1B-Chat-v1.0)"
+             " or local path to a directory with "
+             "config.json + *.safetensors.  Remote names"
+             " are downloaded to the HF cache.",
     )
     parser.add_argument(
         "--output-dir", required=True,
@@ -321,8 +323,8 @@ def main() -> int:
     n_hf = len(tensor_to_handle)
     print(f"Indexed {n_hf} tensors from {len(st_files)} shard(s) (mmap)")
 
-    def hf_get(name: str) -> np.ndarray:
-        return (tensor_to_handle[name]
+    def hf_get(name: str, _m=tensor_to_handle) -> np.ndarray:
+        return (_m[name]
                 .get_tensor(name)
                 .to(torch.float32)
                 .numpy())
