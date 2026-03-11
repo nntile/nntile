@@ -705,6 +705,14 @@ set(GRAPH_MODEL_HDR
     "nntile/graph/model/gpt2/gpt2_block.hh"
     "nntile/graph/model/gpt2/gpt2_model.hh"
     "nntile/graph/model/gpt2/gpt2_causal.hh"
+    "nntile/graph/model/gptneox.hh"
+    "nntile/graph/model/gptneox/gptneox_config.hh"
+    "nntile/graph/model/gptneox/gptneox_mlp.hh"
+    "nntile/graph/model/gptneox/gptneox_attention.hh"
+    "nntile/graph/model/gptneox/gptneox_decoder.hh"
+    "nntile/graph/model/gptneox/gptneox_model.hh"
+    "nntile/graph/model/gptneox/gptneox.hh"
+    "nntile/graph/model/gptneox/gptneox_causal.hh"
     )
 
 set(GRAPH_OPTIM_HDR

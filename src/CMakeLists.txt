@@ -574,6 +574,11 @@ set(GRAPH_MODEL_SRC
     "graph/model/gpt2/gpt2_block.cc"
     "graph/model/gpt2/gpt2_model.cc"
     "graph/model/gpt2/gpt2_causal.cc"
+    "graph/model/gptneox/gptneox_mlp.cc"
+    "graph/model/gptneox/gptneox_attention.cc"
+    "graph/model/gptneox/gptneox_decoder.cc"
+    "graph/model/gptneox/gptneox_model.cc"
+    "graph/model/gptneox/gptneox_causal.cc"
     )
 
 set(GRAPH_OPTIM_SRC
