@@ -85,3 +85,8 @@ add_example(TARGET_NAME examples_llama_generate
     EXEC_NAME "llama_generate"
     SOURCES "llama_generate.cc"
     LINK_LIBRARIES nntile)
+
+add_example(TARGET_NAME examples_gptneo_generate
+    EXEC_NAME "gptneo_generate"
+    SOURCES "gptneo_generate.cc"
+    LINK_LIBRARIES nntile)
