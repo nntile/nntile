@@ -17,7 +17,6 @@
 #include "nntile/graph/nn/sdpa_eager.hh"
 #include "nntile/graph/nn/transpose.hh"
 
-#include <cmath>
 #include <stdexcept>
 
 namespace nntile::model::t5
@@ -107,8 +106,7 @@ graph::NNGraph::TensorNode* T5Attention::forward(
     graph::NNGraph::TensorNode* v =
         graph::transpose(v_proj, tensor_name("v"), 1);
 
-    // SDPA with scale 1/sqrt(head_size)
-    Scalar scale = 1.0 / std::sqrt(static_cast<double>(head_size_));
+    // SDPA (sdpa_eager applies 1/sqrt(head_size) internally)
     graph::NNGraph::TensorNode* attn_out = graph::sdpa_eager(
         q, k, v,
         tensor_name("sdpa_out"),
