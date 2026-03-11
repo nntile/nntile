@@ -30,7 +30,7 @@
 Produces:
   - weights.safetensors  NNTile-layout weight file
   - config.json  Model configuration readable by the C++ example
-  - prompt_ids.txt  Comma-separated token IDs for the prompt (if --prompt supplied)
+  - prompt_ids.txt  Comma-separated token IDs (if --prompt supplied)
 """
 
 from __future__ import annotations
@@ -84,7 +84,8 @@ def _write_safetensors_streaming(
         for name, nbytes in entry_order:
             arr = get_data(name)
             raw = arr.tobytes()
-            assert len(raw) == nbytes, f"{name}: expected {nbytes} bytes, got {len(raw)}"
+            assert len(raw) == nbytes, (
+                f"{name}: expected {nbytes} bytes, got {len(raw)}")
             f.write(raw)
             del arr, raw
 
@@ -124,14 +125,17 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
 
 def _make_converter(
     config,
-    hf_get: Callable[[str], np.ndarray],
-    tensor_keys: set,
+    tensor_to_handle: dict,
 ) -> Callable[[str], np.ndarray]:
     """Return a function that converts a single NNTile tensor on demand."""
     H = config.n_embd
     n_head = config.n_head
     head_size = H // n_head
-    n_inner = getattr(config, "n_inner", None) or 4 * H
+    tensor_keys = set(tensor_to_handle.keys())
+
+    def hf_get(name: str) -> np.ndarray:
+        h = tensor_to_handle[name]
+        return h.get_tensor(name).to(torch.float32).numpy()
 
     def convert(name: str) -> np.ndarray:
         if name == "model.transformer.wte.vocab":
@@ -165,20 +169,23 @@ def _make_converter(
             return fortran_order(q)
         if rest == "attn.k_weight":
             c_attn = hf_get(f"{hp}.attn.c_attn.weight")
-            k = c_attn[:, H:2*H].T.reshape(n_head, head_size, H)
+            k = c_attn[:, H:2 * H].T.reshape(n_head, head_size, H)
             return fortran_order(k)
         if rest == "attn.v_weight":
             c_attn = hf_get(f"{hp}.attn.c_attn.weight")
-            v = c_attn[:, 2*H:3*H].T.reshape(n_head, head_size, H)
+            v = c_attn[:, 2 * H:3 * H].T.reshape(n_head, head_size, H)
             return fortran_order(v)
         if rest == "attn.o_weight":
-            o = hf_get(f"{hp}.attn.c_proj.weight").T.reshape(H, n_head, head_size)
+            o = hf_get(f"{hp}.attn.c_proj.weight").T.reshape(
+                H, n_head, head_size)
             return fortran_order(o)
 
         if rest == "mlp.fc1.weight":
-            return fortran_order(hf_get(f"{hp}.mlp.c_fc.weight").T)
+            # Conv1D: (in, out), same as NNTile
+            return fortran_order(hf_get(f"{hp}.mlp.c_fc.weight"))
         if rest == "mlp.fc2.weight":
-            return fortran_order(hf_get(f"{hp}.mlp.c_proj.weight").T)
+            # Conv1D: (in, out), same as NNTile
+            return fortran_order(hf_get(f"{hp}.mlp.c_proj.weight"))
 
         raise ValueError(f"Unknown NNTile tensor: {name}")
 
@@ -249,7 +256,9 @@ def main() -> int:
 
     st_files = sorted(model_dir.glob("*.safetensors"))
     if not st_files:
-        print(f"ERROR: no *.safetensors files found in {model_dir}", file=sys.stderr)
+        print(
+            f"ERROR: no *.safetensors files in {model_dir}",
+            file=sys.stderr)
         return 1
 
     handles: list = []
@@ -260,12 +269,8 @@ def main() -> int:
         for key in h.keys():
             tensor_to_handle[key] = h
 
-    def hf_get(name: str) -> np.ndarray:
-        return tensor_to_handle[name].get_tensor(name).to(torch.float32).numpy()
-
-    tensor_keys = set(tensor_to_handle.keys())
     specs = _output_specs(config)
-    converter = _make_converter(config, hf_get, tensor_keys)
+    converter = _make_converter(config, tensor_to_handle)
 
     weights_path = out_dir / "weights.safetensors"
     print(f"Converting {len(specs)} tensors (streaming) ...")
@@ -277,8 +282,9 @@ def main() -> int:
     if args.prompt is not None:
         tokenizer = _load_tokenizer(str(model_dir), model_id)
         if tokenizer is None:
-            print("WARNING: could not load tokenizer; skipping prompt tokenization.",
-                  file=sys.stderr)
+            print(
+                "WARNING: could not load tokenizer; skipping prompt.",
+                file=sys.stderr)
         else:
             ids = tokenizer.encode(args.prompt, add_special_tokens=True)
             ids_str = ",".join(str(i) for i in ids)
