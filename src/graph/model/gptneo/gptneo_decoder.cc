@@ -35,7 +35,7 @@ GptneoDecoder::GptneoDecoder(graph::NNGraph* graph,
     , dtype_(dtype)
 {
     register_module("input_norm", &input_norm_);
-    register_module("attention", &attention_);
+    register_module("self_attn", &attention_);
     register_module("post_attn_norm", &post_attn_norm_);
     register_module("mlp", &mlp_);
 }

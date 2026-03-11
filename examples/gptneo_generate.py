@@ -25,12 +25,12 @@
 #
 # @version 1.1.0
 
-"""Convert HuggingFace GPT-Neo checkpoint to NNTile format and tokenize a prompt.
+"""Convert HF GPT-Neo checkpoint to NNTile format and tokenize a prompt.
 
 Produces:
   - weights.safetensors  NNTile-layout weight file
   - config.json  Model configuration readable by the C++ example
-  - prompt_ids.txt  Comma-separated token IDs for the prompt (if --prompt supplied)
+  - prompt_ids.txt  Comma-separated token IDs (if --prompt supplied)
 """
 
 from __future__ import annotations
@@ -103,17 +103,18 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
     H = config.hidden_size
     V = config.vocab_size
     inter = config.intermediate_size
-    nh = config.num_attention_heads
+    nh = config.num_heads
     hd = H // nh
 
     specs: list[tuple[str, tuple[int, ...]]] = []
 
     specs.append(("model.model.wte.vocab", (H, V)))
-    specs.append(("model.model.wpe.vocab", (H, config.max_position_embeddings)))
+    max_pos = config.max_position_embeddings
+    specs.append(("model.model.wpe.vocab", (H, max_pos)))
     specs.append(("model.model.norm.gamma", (H,)))
     specs.append(("model.lm_head.weight", (H, V)))
 
-    for i in range(config.num_hidden_layers):
+    for i in range(config.num_layers):
         p = f"model.model.layers_{i}"
         specs.append((f"{p}.input_norm.gamma", (H,)))
         specs.append((f"{p}.post_attn_norm.gamma", (H,)))
@@ -140,7 +141,7 @@ def _make_converter(
 ) -> Callable[[str], np.ndarray]:
     """Return a function that converts a single NNTile tensor on demand."""
     H = config.hidden_size
-    nh = config.num_attention_heads
+    nh = config.num_heads
     hd = H // nh
 
     def convert(name: str) -> np.ndarray:
@@ -169,17 +170,17 @@ def _make_converter(
             return fortran_order(hf_get(f"{hp}.ln_2.weight"))
 
         if rest == "self_attn.q_weight":
-            return fortran_order(
-                hf_get(f"{hp}.attn.attention.q_proj.weight").reshape(nh, hd, H))
+            w = hf_get(f"{hp}.attn.attention.q_proj.weight")
+            return fortran_order(w.reshape(nh, hd, H))
         if rest == "self_attn.k_weight":
-            return fortran_order(
-                hf_get(f"{hp}.attn.attention.k_proj.weight").reshape(nh, hd, H))
+            w = hf_get(f"{hp}.attn.attention.k_proj.weight")
+            return fortran_order(w.reshape(nh, hd, H))
         if rest == "self_attn.v_weight":
-            return fortran_order(
-                hf_get(f"{hp}.attn.attention.v_proj.weight").reshape(nh, hd, H))
+            w = hf_get(f"{hp}.attn.attention.v_proj.weight")
+            return fortran_order(w.reshape(nh, hd, H))
         if rest == "self_attn.o_weight":
-            return fortran_order(
-                hf_get(f"{hp}.attn.attention.c_proj.weight").reshape(H, nh, hd))
+            w = hf_get(f"{hp}.attn.attention.c_proj.weight")
+            return fortran_order(w.reshape(H, nh, hd))
         if rest == "self_attn.o_bias":
             return fortran_order(hf_get(f"{hp}.attn.attention.c_proj.bias"))
 
@@ -217,7 +218,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--model", required=True,
-        help="HuggingFace model name (e.g. EleutherAI/gpt-neo-1.3B) or local path",
+        help="HF model name (e.g. EleutherAI/gpt-neo-1.3B) or local path",
     )
     parser.add_argument(
         "--output-dir", required=True,
@@ -242,11 +243,15 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     config = AutoConfig.from_pretrained(str(model_dir))
-    inter = getattr(config, "intermediate_size", None) or 4 * config.hidden_size
+    inter = getattr(config, "intermediate_size", None) or (
+        4 * config.hidden_size
+    )
     config.intermediate_size = inter
 
-    print(f"Model: {config.model_type}  hidden={config.hidden_size}  "
-          f"layers={config.num_layers}  vocab={config.vocab_size}")
+    print(
+        f"Model: {config.model_type}  hidden={config.hidden_size}  "
+        f"layers={config.num_layers}  vocab={config.vocab_size}"
+    )
 
     nntile_config = {
         "vocab_size": config.vocab_size,
@@ -278,7 +283,8 @@ def main() -> int:
         for key in h.keys():
             tensor_to_handle[key] = h
 
-    print(f"Indexed {len(tensor_to_handle)} tensors from {len(st_files)} shard(s)")
+    n_t = len(tensor_to_handle)
+    print(f"Indexed {n_t} tensors from {len(st_files)} shard(s)")
 
     def hf_get(name: str, _m=tensor_to_handle) -> np.ndarray:
         return (_m[name]
@@ -300,8 +306,11 @@ def main() -> int:
     if args.prompt is not None:
         tokenizer = _load_tokenizer(str(model_dir), model_id)
         if tokenizer is None:
-            print("WARNING: could not load tokenizer; skipping prompt tokenization.",
-                  file=sys.stderr)
+            msg = (
+                "WARNING: could not load tokenizer; "
+                "skipping prompt tokenization."
+            )
+            print(msg, file=sys.stderr)
         else:
             ids = tokenizer.encode(args.prompt, add_special_tokens=True)
             ids_str = ",".join(str(i) for i in ids)
