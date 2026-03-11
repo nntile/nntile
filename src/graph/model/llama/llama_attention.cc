@@ -302,7 +302,8 @@ void hf_to_nntile_o(const std::vector<std::uint8_t>& hf_data,
 }
 
 // Convert HF (n_emb, n_emb) to NNTile (n_emb, kv_group_size, n_head_kv, head_size) for o_proj (GQA)
-// HF col = (g*n_head_kv + h)*head_size + s; 4D index = e + g*n_emb + h*n_emb*kv_group_size + s*n_emb*kv_group_size*n_head_kv
+// HF repeat_kv produces flat_head = h*kv_group_size + g, so
+// HF col = (h*kv_group_size + g)*head_size + s; 4D index = e + g*n_emb + h*n_emb*kv_group_size + s*n_emb*kv_group_size*n_head_kv
 void hf_to_nntile_o_4d(const std::vector<std::uint8_t>& hf_data,
                        Index n_emb, Index kv_group_size, Index n_head_kv, Index head_size,
                        std::vector<std::uint8_t>& out)
@@ -317,7 +318,7 @@ void hf_to_nntile_o_4d(const std::vector<std::uint8_t>& hf_data,
             {
                 for(Index s = 0; s < head_size; ++s)
                 {
-                    Index col = (g * n_head_kv + h) * head_size + s;
+                    Index col = (h * kv_group_size + g) * head_size + s;
                     Index idx = e + g * n_emb + h * n_emb * kv_group_size +
                                s * n_emb * kv_group_size * n_head_kv;
                     dst[idx] = src[e * n_emb + col];
@@ -342,7 +343,7 @@ void nntile_o_to_hf_4d(const std::vector<std::uint8_t>& nntile_data,
             {
                 for(Index s = 0; s < head_size; ++s)
                 {
-                    Index col = (g * n_head_kv + h) * head_size + s;
+                    Index col = (h * kv_group_size + g) * head_size + s;
                     Index idx = e + g * n_emb + h * n_emb * kv_group_size +
                                s * n_emb * kv_group_size * n_head_kv;
                     dst[e * n_emb + col] = src[idx];

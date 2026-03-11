@@ -86,10 +86,13 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install PyTorch for LibTorch
+      - name: Install Python dependencies
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
-          $HOME/.local/bin/uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
+          $HOME/.local/bin/uv pip install --system \
+            torch --index-url https://download.pytorch.org/whl/cpu
+          $HOME/.local/bin/uv pip install --system \
+            numpy safetensors "transformers<4.53"
       - name: Build StarPU
         run: |
           export STARPU_VERSION=starpu-1.4.8
@@ -190,7 +193,7 @@ jobs:
               autoconf automake binutils build-essential ca-certificates \
               clang cmake curl fxt-tools git lcov libfxt-dev libhwloc-dev \
               libopenblas-dev libopenmpi-dev libopenmpi3 libtool-bin \
-              lsb-release ninja-build openmpi-bin pkg-config sqlite3
+              lsb-release ninja-build openmpi-bin pkg-config
       - name: Download StarPU libraries (*.so)
         uses: actions/download-artifact@v4
         with:

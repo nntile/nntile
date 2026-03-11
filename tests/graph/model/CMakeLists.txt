@@ -13,9 +13,6 @@ set(LLAMA_DATA_DIR "${CMAKE_CURRENT_BINARY_DIR}/llama_data")
 find_package(Python3 COMPONENTS Interpreter QUIET)
 # Prefer venv Python (has torch, transformers, safetensors); fallback to system
 set(LLAMA_DATA_PYTHON "${Python3_EXECUTABLE}")
-if(EXISTS "${CMAKE_SOURCE_DIR}/.venv/bin/python")
-    set(LLAMA_DATA_PYTHON "${CMAKE_SOURCE_DIR}/.venv/bin/python")
-endif()
 
 set(LLAMA_GENERATE_SCRIPT
     "${CMAKE_CURRENT_SOURCE_DIR}/llama/generate_test_data.py")
