@@ -92,11 +92,10 @@ jobs:
               --libdir=/opt/starpu/lib
           make -j 4 install
           rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
-      - name: Set up StarPU environment
+      - name: Verify StarPU installation
         run: |
-          echo "PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=/opt/starpu/lib" >> $GITHUB_ENV
-          ls /opt/starpu/lib/pkgconfig/starpu-1.4.pc
+          echo ":: StarPU tree"
+          find /opt/starpu -name '*.pc' -o -name 'libstarpu*' | head -20
           PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig pkg-config --modversion starpu-1.4
       - uses: actions/checkout@v6
       - name: Set up Python ${{ matrix.python-version }}
@@ -125,6 +124,7 @@ jobs:
           ccache --zero-stats
       - name: Build NNTile native libraries
         run: |
+          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -141,6 +141,7 @@ jobs:
           retention-days: 7
       - name: Run all C++ tests
         run: |
+          export LD_LIBRARY_PATH=/opt/starpu/lib
           ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
 
   test-python:
@@ -180,8 +181,6 @@ jobs:
         with:
           path: /opt/starpu
           key: starpu-1.4.8-${{ runner.os }}-v2
-      - name: Set up StarPU environment
-        run: echo "LD_LIBRARY_PATH=/opt/starpu/lib" >> $GITHUB_ENV
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
@@ -217,6 +216,7 @@ jobs:
       - name: Run all tests with PyTest
         run: |
           . .venv/bin/activate
+          export LD_LIBRARY_PATH=/opt/starpu/lib
           export PYTHON_TAG=$(
             python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
