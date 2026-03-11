@@ -50,15 +50,16 @@ graph::NNGraph::TensorNode* LlamaModel::forward(
     graph::NNGraph::TensorNode* sin,
     graph::NNGraph::TensorNode* cos,
     graph::NNGraph::TensorNode* mask,
-    const std::vector<std::pair<graph::NNGraph::TensorNode*,
-                               graph::NNGraph::TensorNode*>>* kv_caches,
-    Index cache_len)
+    graph::KVCache* kv_cache)
 {
     if(input_ids == nullptr)
     {
         throw std::invalid_argument(
             "LlamaModel::forward: input_ids must be non-null");
     }
+
+    const auto* kv_caches = kv_cache ? kv_cache->get_cache() : nullptr;
+    Index cache_len = kv_cache ? kv_cache->len() : 0;
 
     // Embedding: (seq, batch) -> (seq, batch, hidden)
     graph::NNGraph::TensorNode* embed = embed_tokens_.forward(input_ids);

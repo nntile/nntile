@@ -367,7 +367,7 @@ int main(int argc, char** argv)
 
         LlamaCausal model(&graph, "model", config);
         auto* output = model.forward(input_ids, nullptr, nullptr, nullptr,
-                                     kv_cache.get_cache(), kv_cache.len());
+                                     &kv_cache);
         output->mark_output(true);
 
         apply_weight_cache(model, weights);
