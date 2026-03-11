@@ -155,8 +155,10 @@ while IFS= read -r file; do
 done <<< "$all_changed"
 
 if [ ${#affected[@]} -eq 0 ]; then
-    echo ":: No C++ tests affected by this PR"
-    exit 0
+    echo ":: Unknown changes (no pattern matched), running all C++ tests"
+    ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" \
+        --output-on-failure
+    exit
 fi
 
 # Build an anchored ctest regex.  The (_[0-9]+)? suffix accounts for

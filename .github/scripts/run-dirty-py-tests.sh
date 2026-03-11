@@ -38,6 +38,22 @@ changed-files 'wrappers/python/**/*.py' >> changed.txt
 echo ':: Changed python modules'
 cat changed.txt
 
+# Unknown changes (e.g. only workflow files) — run full suite, like run-dirty-cpp-tests.sh.
+if [ ! -s changed.txt ]; then
+    all_changed=$(git diff --name-only main..$branch)
+    if [ -n "$all_changed" ]; then
+        echo ':: Unknown changes (no pattern matched), running all Python tests'
+        pytest -vv \
+            --cov=wrappers/python/nntile \
+            --cov-report=html:coverage/html/${PYTHON_TAG} \
+            --cov-report=xml:coverage/xml/report.${PYTHON_TAG}.xml \
+            --junitxml=pytest/report.${PYTHON_TAG}.xml
+        exit
+    fi
+    echo ':: No tests affected'
+    exit 0
+fi
+
 # What python tests are affected in this PR?
 : > affected.txt
 pytest-dirty changed.txt affected.txt
