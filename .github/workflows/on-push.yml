@@ -48,8 +48,6 @@ jobs:
         uses: pre-commit/action@v3.0.0
         if: '!github.event.pull_request'
 
-  # TODO(@daskol): We need rework this stage: pre-build images, build StarPU
-  # in-tree, rework layout and defaults, etc.
   build:
     name: Build a CPU-only extension for Python ${{ matrix.python-version }}
     needs: 'lint'
@@ -59,6 +57,8 @@ jobs:
         python-version: ['3.12']
     container:
       image: ubuntu:24.04
+    env:
+      CCACHE_DIR: /tmp/ccache
     steps:
       - name: Cache system packages
         id: cache-apt
@@ -77,11 +77,20 @@ jobs:
           rm -rfv /etc/apt/apt.conf.d/docker*
           apt update
           apt install -y --no-install-recommends \
-              autoconf automake binutils build-essential ca-certificates \
-              clang cmake curl fxt-tools gdb git lcov libfxt-dev libhwloc-dev \
-              libopenblas-dev libopenmpi-dev libopenmpi3 libtool-bin \
+              binutils build-essential ca-certificates ccache \
+              clang cmake curl gdb git lcov libhwloc-dev \
+              libopenblas-dev libopenmpi-dev libopenmpi3 libstarpu-dev \
               lsb-release ninja-build openmpi-bin pkg-config sqlite3
       - uses: actions/checkout@v4
+      - name: Pull all PR commits
+        if: github.event.pull_request
+        run: |
+          git config --global --add safe.directory ${GITHUB_WORKSPACE}
+          git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+          git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
+            --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
+          git checkout ${{ github.event.pull_request.head.ref }}
+          git fetch origin main:main --depth=100
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
@@ -93,49 +102,41 @@ jobs:
             torch --index-url https://download.pytorch.org/whl/cpu
           $HOME/.local/bin/uv pip install --system \
             numpy safetensors "transformers<4.53"
-      - name: Build StarPU
-        run: |
-          export STARPU_VERSION=starpu-1.4.8
-          export STARPU_LABEL=$STARPU_VERSION
-          mkdir -p /usr/src
-          curl -SL https://gitlab.inria.fr/starpu/starpu/-/archive/$STARPU_LABEL/starpu-$STARPU_LABEL.tar.gz | tar -xzC /usr/src
-          ln -s /usr/src/starpu-$STARPU_LABEL /usr/src/starpu
-          cd /usr/src/starpu
-          ./autogen.sh
-          ./configure \
-              --disable-build-doc \
-              --disable-build-examples \
-              --disable-build-tests \
-              --disable-fortran \
-              --disable-opencl \
-              --disable-socl \
-              --disable-starpufft \
-              --disable-starpupy \
-              --enable-blas-lib=none \
-              --enable-maxcudadev=8 \
-              --enable-maxbuffers=16 \
-              --with-fxt \
-              --prefix=/usr
-          make -j 4 install
-          rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
-      - name: Upload StarPU libraries (*.so)
-        uses: actions/upload-artifact@v4.3.4
+      - name: Restore ccache
+        uses: actions/cache@v4
         with:
-          name: starpu-${{ matrix.python-version }}
-          path: /usr/lib/libstarpu*.so*
-          retention-days: 7
+          path: /tmp/ccache
+          key: ccache-${{ runner.os }}-${{ matrix.python-version }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ matrix.python-version }}-
+      - name: Configure ccache
+        run: |
+          ccache --set-config=max_size=500M
+          ccache --set-config=compression=true
+          ccache --zero-stats
       - name: Build NNTile native libraries
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_PREFIX_PATH=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
           cmake --build build -j
+      - name: Show ccache stats
+        if: always()
+        run: ccache --show-stats
       - name: Upload all shared objects (*.so)
         uses: actions/upload-artifact@v4.3.4
         with:
           name: shared-objects-${{ matrix.python-version }}
           path: build/**/*.so
           retention-days: 7
-      - name: Test CPU-only C++ tests
+      - name: Run dirty C++ tests
+        if: github.event.pull_request
+        run: |
+          .github/scripts/run-dirty-cpp-tests.sh \
+            ${{ github.event.pull_request.head.ref }}
+      - name: Run all C++ tests
+        if: '!github.event.pull_request'
         run: |
           ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
 
@@ -190,15 +191,10 @@ jobs:
           rm -rfv /etc/apt/apt.conf.d/docker*
           apt update
           apt install -y --no-install-recommends \
-              autoconf automake binutils build-essential ca-certificates \
-              clang cmake curl fxt-tools git lcov libfxt-dev libhwloc-dev \
-              libopenblas-dev libopenmpi-dev libopenmpi3 libtool-bin \
+              binutils build-essential ca-certificates \
+              clang cmake curl lcov libhwloc-dev \
+              libopenblas-dev libopenmpi-dev libopenmpi3 libstarpu-dev \
               lsb-release ninja-build openmpi-bin pkg-config sqlite3
-      - name: Download StarPU libraries (*.so)
-        uses: actions/download-artifact@v4
-        with:
-          name: starpu-${{ matrix.python-version }}
-          path: /usr/lib
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
