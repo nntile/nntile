@@ -36,7 +36,6 @@ from transformers.models.llama.modeling_llama import (
     LlamaAttention as PtAttention, LlamaDecoderLayer as PtDecoderLayer,
     LlamaForCausalLM as PtCausalLM, LlamaMLP as PtMLP, LlamaModel as PtModel)
 
-
 # ── Test dimension bundles ────────────────────────────────────────────────
 
 
@@ -194,7 +193,8 @@ def _mlp(mlp, prefix: str) -> dict[str, np.ndarray]:
     }
 
 
-def _decoder_layer(layer, prefix: str, dims: TestDims) -> dict[str, np.ndarray]:
+def _decoder_layer(
+    layer, prefix: str, dims: TestDims) -> dict[str, np.ndarray]:
     d: dict[str, np.ndarray] = {}
     d.update(_rms(layer.input_layernorm, f"{prefix}.input_norm"))
     d.update(_attn(layer.self_attn, f"{prefix}.attention", dims))
@@ -205,7 +205,8 @@ def _decoder_layer(layer, prefix: str, dims: TestDims) -> dict[str, np.ndarray]:
     return d
 
 
-def _model_weights(model, prefix: str, dims: TestDims) -> dict[str, np.ndarray]:
+def _model_weights(
+    model, prefix: str, dims: TestDims) -> dict[str, np.ndarray]:
     d: dict[str, np.ndarray] = {}
     d.update(_embed(model.embed_tokens, f"{prefix}.embed_tokens"))
     d.update(_rms(model.norm, f"{prefix}.norm"))
@@ -241,7 +242,8 @@ def _grad_output(rng, pt_out: torch.Tensor, scale: float = 0.1):
 
 def _ids_input(rng, dims: TestDims):
     """Random token-id input: NNTile ``(S,B)`` Fortran + PT ``(B,S)``."""
-    ids = rng.integers(0, dims.vocab, size=(dims.seq, dims.batch)).astype(np.int64)
+    ids = rng.integers(
+        0, dims.vocab, size=(dims.seq, dims.batch)).astype(np.int64)
     ids_nt = ids.ravel("F").reshape(ids.shape)
     ids_pt = torch.tensor(ids.T.copy(), dtype=torch.long)
     return ids_nt, ids_pt
@@ -255,7 +257,8 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
 # ── Block generators ─────────────────────────────────────────────────────
 
 
-def generate_attention(seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
+def generate_attention(
+    seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -278,7 +281,8 @@ def generate_attention(seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.nda
     return data
 
 
-def generate_mlp(seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
+def generate_mlp(
+    seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -300,7 +304,8 @@ def generate_mlp(seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
     return data
 
 
-def generate_decoder(seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
+def generate_decoder(
+    seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -323,7 +328,8 @@ def generate_decoder(seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarr
     return data
 
 
-def generate_model(seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
+def generate_model(
+    seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -344,7 +350,8 @@ def generate_model(seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray
     return data
 
 
-def generate_causal(seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
+def generate_causal(
+    seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
