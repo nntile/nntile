@@ -105,7 +105,7 @@ while IFS= read -r file; do
             affected["tests_graph_$(basename "$file" .cc)"]=1 ;;
 
         # ---- kernel sources / headers → all layers -----------------------
-        src/kernel/*/cpu.cc | src/kernel/*/cuda.cc)
+        src/kernel/*/cpu.cc | src/kernel/*/cuda.cc | src/kernel/*/cuda.cu)
             add_all_layers "$(basename "$(dirname "$file")")" ;;
         include/nntile/kernel/*/cpu.hh | include/nntile/kernel/*/cuda.hh)
             add_all_layers "$(basename "$(dirname "$file")")" ;;
