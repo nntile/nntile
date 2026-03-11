@@ -48,6 +48,7 @@
 
 #include <nntile.hh>
 #include <nntile/graph/io/safetensors.hh>
+#include <nntile/graph/kv_cache.hh>
 #include <nntile/graph/model/llama/llama_causal.hh>
 #include <nntile/graph/model/llama/llama_config.hh>
 #include <nlohmann/json.hpp>
@@ -339,25 +340,15 @@ int main(int argc, char** argv)
                     "localhost", 5001, 0);
 
     // ── KV cache setup ───────────────────────────────────────────────
-    Index head_size = config.head_dim;
-    Index n_head_kv = config.num_key_value_heads;
-    Index max_seq = static_cast<Index>(tokens.size()) + args.max_tokens;
-    Index n_layers = config.num_hidden_layers;
-
-    // Per-layer cache buffers: (head_size, max_seq, batch=1, n_head_kv)
-    std::vector<std::vector<float>> k_cache_buffers(n_layers);
-    std::vector<std::vector<float>> v_cache_buffers(n_layers);
-    size_t cache_nelems = static_cast<size_t>(head_size * max_seq * 1
-                                              * n_head_kv);
-    for(Index i = 0; i < n_layers; ++i)
-    {
-        k_cache_buffers[i].resize(cache_nelems, 0.0f);
-        v_cache_buffers[i].resize(cache_nelems, 0.0f);
-    }
+    KVCache kv_cache(config.num_hidden_layers,
+                     config.head_dim,
+                     config.num_key_value_heads,
+                     static_cast<Index>(tokens.size()) + args.max_tokens,
+                     1);
+    kv_cache.reset();
 
     // ── Autoregressive generation loop (with KV cache) ────────────────
     std::cout << "\n--- Generating (greedy, with KV-cache) ---\n";
-    Index cache_len = 0;
     for(int step = 0; step < args.max_tokens; ++step)
     {
         const bool is_prefill = (step == 0);
@@ -372,40 +363,18 @@ int main(int argc, char** argv)
             {seq_len, 1}, "input_ids", DataType::INT64, false);
         input_ids->mark_input(true);
 
-        // Create KV cache tensors for each layer
-        std::vector<std::pair<NNGraph::TensorNode*, NNGraph::TensorNode*>>
-            kv_caches(n_layers);
-        for(Index i = 0; i < n_layers; ++i)
-        {
-            auto* k_cache = graph.tensor(
-                {head_size, max_seq, 1, n_head_kv},
-                "k_cache_" + std::to_string(i),
-                DataType::FP32,
-                false);
-            auto* v_cache = graph.tensor(
-                {head_size, max_seq, 1, n_head_kv},
-                "v_cache_" + std::to_string(i),
-                DataType::FP32,
-                false);
-            k_cache->mark_input(true);
-            k_cache->mark_output(true);
-            v_cache->mark_input(true);
-            v_cache->mark_output(true);
-            kv_caches[i] = {k_cache, v_cache};
-        }
+        kv_cache.create_tensors(&graph, "kv_cache");
 
         LlamaCausal model(&graph, "model", config);
         auto* output = model.forward(input_ids, nullptr, nullptr, nullptr,
-                                     &kv_caches, cache_len);
+                                     kv_cache.get_cache(), kv_cache.len());
         output->mark_output(true);
 
         apply_weight_cache(model, weights);
 
-        // Compile, bind, execute
         TensorGraph::Runtime runtime(graph.tensor_graph());
         runtime.compile();
 
-        // Bind input token(s)
         if(is_prefill)
         {
             runtime.bind_data("input_ids", tokens);
@@ -416,33 +385,19 @@ int main(int argc, char** argv)
                 std::vector<std::int64_t>{tokens.back()});
         }
 
-        // Bind KV cache buffers
-        for(Index i = 0; i < n_layers; ++i)
-        {
-            runtime.bind_data("k_cache_" + std::to_string(i),
-                             k_cache_buffers[i]);
-            runtime.bind_data("v_cache_" + std::to_string(i),
-                             v_cache_buffers[i]);
-        }
+        kv_cache.bind(runtime, "kv_cache");
 
         runtime.execute();
         runtime.wait();
 
-        // Read updated cache buffers back for next step
-        for(Index i = 0; i < n_layers; ++i)
-        {
-            k_cache_buffers[i] = runtime.get_output<float>(
-                "k_cache_" + std::to_string(i));
-            v_cache_buffers[i] = runtime.get_output<float>(
-                "v_cache_" + std::to_string(i));
-        }
+        kv_cache.update_from(runtime, "kv_cache");
 
         auto logits = runtime.get_output<float>(output->name());
 
         std::int64_t next_id = argmax_last_position(
             logits, config.vocab_size, seq_len);
         tokens.push_back(next_id);
-        cache_len += seq_len;
+        kv_cache.advance(seq_len);
 
         std::cout << "step " << (step + 1) << "  token=" << next_id << "\n";
 

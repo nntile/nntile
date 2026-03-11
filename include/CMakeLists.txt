@@ -557,6 +557,10 @@ set(GRAPH_IO_HDR
     "nntile/graph/io/safetensors.hh"
     )
 
+set(GRAPH_UTIL_HDR
+    "nntile/graph/kv_cache.hh"
+    )
+
 set(GRAPH_MODULE_HDR
     "nntile/graph/module.hh"
     "nntile/graph/module/module.hh"
@@ -592,6 +596,7 @@ set(GRAPH_HDR
     ${GRAPH_TENSOR_HDR}
     ${GRAPH_NN_HDR}
     ${GRAPH_IO_HDR}
+    ${GRAPH_UTIL_HDR}
     ${GRAPH_MODULE_HDR}
     ${GRAPH_MODEL_HDR}
     ${GRAPH_OPTIM_HDR}

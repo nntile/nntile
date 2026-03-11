@@ -528,6 +528,10 @@ set(GRAPH_IO_SRC
     "graph/io/safetensors.cc"
 )
 
+set(GRAPH_UTIL_SRC
+    "graph/kv_cache.cc"
+)
+
 set(GRAPH_MODULE_SRC
     "graph/module/module.cc"
     "graph/module/activation.cc"
@@ -557,6 +561,7 @@ set(GRAPH_SRC
     ${GRAPH_TENSOR_SRC}
     ${GRAPH_NN_SRC}
     ${GRAPH_IO_SRC}
+    ${GRAPH_UTIL_SRC}
     ${GRAPH_MODULE_SRC}
     ${GRAPH_MODEL_SRC}
     ${GRAPH_OPTIM_SRC}
