@@ -36,8 +36,6 @@ jobs:
       image: ubuntu:24.04
     env:
       CCACHE_DIR: /tmp/ccache
-      PKG_CONFIG_PATH: /opt/starpu/lib/pkgconfig
-      LD_LIBRARY_PATH: /opt/starpu/lib
     steps:
       - name: Cache system packages
         id: cache-apt
@@ -94,8 +92,10 @@ jobs:
               --libdir=/opt/starpu/lib
           make -j 4 install
           rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
-      - name: Verify StarPU installation
+      - name: Set up StarPU environment
         run: |
+          echo "PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/opt/starpu/lib" >> $GITHUB_ENV
           ls /opt/starpu/lib/pkgconfig/starpu-1.4.pc
           PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig pkg-config --modversion starpu-1.4
       - uses: actions/checkout@v6
@@ -152,8 +152,6 @@ jobs:
         python-version: ['3.12']
     container:
       image: 'ubuntu:24.04'
-    env:
-      LD_LIBRARY_PATH: /opt/starpu/lib
     steps:
       - uses: actions/checkout@v6
       - name: Cache system packages
@@ -182,6 +180,8 @@ jobs:
         with:
           path: /opt/starpu
           key: starpu-1.4.8-${{ runner.os }}-v2
+      - name: Set up StarPU environment
+        run: echo "LD_LIBRARY_PATH=/opt/starpu/lib" >> $GITHUB_ENV
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
