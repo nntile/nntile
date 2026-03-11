@@ -542,6 +542,11 @@ set(GRAPH_MODEL_SRC
     "graph/model/llama/llama_decoder.cc"
     "graph/model/llama/llama_model.cc"
     "graph/model/llama/llama_causal.cc"
+    "graph/model/t5/t5_attention.cc"
+    "graph/model/t5/t5_ff.cc"
+    "graph/model/t5/t5_block.cc"
+    "graph/model/t5/t5_model.cc"
+    "graph/model/t5/t5_for_conditional_generation.cc"
     )
 
 set(GRAPH_OPTIM_SRC
