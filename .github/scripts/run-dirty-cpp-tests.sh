@@ -40,7 +40,7 @@ if $run_all; then
     echo ":: Core files changed, running all C++ tests"
     ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" \
         --output-on-failure
-    exit $?
+    exit
 fi
 
 declare -A affected
