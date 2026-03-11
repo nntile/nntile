@@ -282,7 +282,7 @@ jobs:
           export PYTHON_TAG=$(
             python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
-          .github/scripts/run-dirty-tests.sh \
+          .github/scripts/run-dirty-py-tests.sh \
             ${{ github.event.pull_request.head.ref }}
       # Full testing is temporary enabled even for PRs, as dirty testing is broken
       - name: Run all tests with PyTest

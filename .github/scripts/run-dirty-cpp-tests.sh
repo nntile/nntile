@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run only those C++ (CTest) tests whose corresponding sources were updated
-# in the current PR, similar to run-dirty-tests.sh for pytest.
+# in the current PR, similar to run-dirty-py-tests.sh for pytest.
 
 set -e
 
