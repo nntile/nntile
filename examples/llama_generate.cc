@@ -42,6 +42,8 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <sys/wait.h>
+#include <unistd.h>
 #include <vector>
 
 #include <nntile.hh>
@@ -198,19 +200,51 @@ static void apply_weight_cache(
 
 static bool run_python_conversion(const Args& args)
 {
-    std::ostringstream cmd;
-    cmd << "python3 "
-        << "examples/llama_generate.py"
-        << " --model " << args.model
-        << " --output-dir " << args.output_dir;
+    std::vector<std::string> argv_strs = {
+        "python3",
+        "examples/llama_generate.py",
+        "--model",
+        args.model,
+        "--output-dir",
+        args.output_dir,
+    };
     if(!args.prompt.empty())
     {
-        cmd << " --prompt \"" << args.prompt << "\"";
+        argv_strs.push_back("--prompt");
+        argv_strs.push_back(args.prompt);
     }
 
-    std::cout << "Running: " << cmd.str() << "\n";
-    int rc = std::system(cmd.str().c_str());
-    return rc == 0;
+    std::vector<char*> argv;
+    argv.reserve(argv_strs.size() + 1);
+    for(auto& s : argv_strs)
+        argv.push_back(s.data());
+    argv.push_back(nullptr);
+
+    std::cout << "Running: python3 examples/llama_generate.py --model "
+              << args.model << " --output-dir " << args.output_dir;
+    if(!args.prompt.empty())
+        std::cout << " --prompt " << args.prompt;
+    std::cout << "\n";
+
+    pid_t pid = fork();
+    if(pid < 0)
+    {
+        std::cerr << "fork() failed\n";
+        return false;
+    }
+    if(pid == 0)
+    {
+        execvp("python3", argv.data());
+        std::cerr << "execvp(python3) failed\n";
+        _exit(127);
+    }
+    int status;
+    if(waitpid(pid, &status, 0) != pid)
+    {
+        std::cerr << "waitpid() failed\n";
+        return false;
+    }
+    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
 }
 
 // ── Read prompt_ids.txt ──────────────────────────────────────────────────
