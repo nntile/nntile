@@ -575,6 +575,14 @@ set(GRAPH_MODEL_HDR
     "nntile/graph/model/llama/llama_model.hh"
     "nntile/graph/model/llama/llama.hh"
     "nntile/graph/model/llama/llama_causal.hh"
+    "nntile/graph/model/gptneox.hh"
+    "nntile/graph/model/gptneox/gptneox_config.hh"
+    "nntile/graph/model/gptneox/gptneox_mlp.hh"
+    "nntile/graph/model/gptneox/gptneox_attention.hh"
+    "nntile/graph/model/gptneox/gptneox_decoder.hh"
+    "nntile/graph/model/gptneox/gptneox_model.hh"
+    "nntile/graph/model/gptneox/gptneox.hh"
+    "nntile/graph/model/gptneox/gptneox_causal.hh"
     )
 
 set(GRAPH_OPTIM_HDR
