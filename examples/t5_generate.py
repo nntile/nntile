@@ -10,12 +10,11 @@
 # @file examples/t5_generate.py
 # Convert a HuggingFace T5 checkpoint to NNTile format for C++ inference.
 #
-# Usage:
+# Usage (requires T5 v1.1+ gated models, e.g. flan-t5-small):
 #   python examples/t5_generate.py \
-#       --model google-t5/t5-small \
+#       --model google/flan-t5-small \
 #       --output-dir /tmp/nntile_t5 \
-#       --encoder-prompt "translate English to German: The house is wonderful." \
-#       --decoder-prompt ""
+#       --encoder-prompt "translate English to German: The house is wonderful."
 #
 # Then run the C++ binary:
 #   ./t5_generate \
@@ -33,7 +32,7 @@ Produces:
   - weights.safetensors  NNTile-layout weight file
   - config.json  Model configuration readable by the C++ example
   - encoder_ids.txt  Comma-separated token IDs for encoder input
-  - decoder_ids.txt  Comma-separated token IDs for decoder start (if --decoder-prompt)
+  - decoder_ids.txt  Comma-separated token IDs for decoder start
 """
 
 from __future__ import annotations
@@ -161,12 +160,21 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
 def _make_converter(
     config,
     hf_get: Callable[[str], np.ndarray],
+    has_tensor: Callable[[str], bool],
 ) -> Callable[[str], np.ndarray]:
     """Return a function that converts a single NNTile tensor on demand."""
     d_model = config.d_model
-    d_ff = config.d_ff
     n_heads = config.num_heads
-    d_kv = config.d_kv
+    d_kv = getattr(config, "d_kv", d_model // n_heads)
+
+    def _get_ff_wi_2(hp: str, layer_idx: int) -> np.ndarray:
+        key = f"{hp}.layer.{layer_idx}.DenseReluDense.wi_2.weight"
+        if not has_tensor(key):
+            raise KeyError(
+                "T5 v1.0 (non-gated) models are not supported. "
+                f"Missing {key}. Use T5 v1.1+ (e.g. google/flan-t5-small)."
+            )
+        return hf_get(key)
 
     def convert(name: str) -> np.ndarray:
         if name == "model.model.embed_tokens.vocab":
@@ -213,7 +221,7 @@ def _make_converter(
                     hf_get(f"{hp}.layer.1.DenseReluDense.wi.weight").T)
             if rest == "ff.dense.up_proj.weight":
                 return fortran_order(
-                    hf_get(f"{hp}.layer.1.DenseReluDense.wi_2.weight").T)
+                    _get_ff_wi_2(hp, 1).T)
             if rest == "ff.dense.down_proj.weight":
                 return fortran_order(
                     hf_get(f"{hp}.layer.1.DenseReluDense.wo.weight").T)
@@ -265,7 +273,7 @@ def _make_converter(
                     hf_get(f"{hp}.layer.2.DenseReluDense.wi.weight").T)
             if rest == "ff.dense.up_proj.weight":
                 return fortran_order(
-                    hf_get(f"{hp}.layer.2.DenseReluDense.wi_2.weight").T)
+                    _get_ff_wi_2(hp, 2).T)
             if rest == "ff.dense.down_proj.weight":
                 return fortran_order(
                     hf_get(f"{hp}.layer.2.DenseReluDense.wo.weight").T)
@@ -284,7 +292,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--model", required=True,
-        help="HuggingFace model name (e.g. google-t5/t5-small) or local path",
+        help="HF model (e.g. google/flan-t5-small) or local path",
     )
     parser.add_argument(
         "--output-dir", required=True,
@@ -296,7 +304,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--decoder-prompt", default=None,
-        help="Optional text for decoder start (default: decoder_start_token only)",
+        help="Optional text for decoder start (default: decoder_start_token)",
     )
     args = parser.parse_args()
 
@@ -313,6 +321,14 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     config = AutoConfig.from_pretrained(str(model_dir))
+    is_gated = getattr(config, "is_gated_act", True)
+    if not is_gated:
+        print(
+            "ERROR: T5 v1.0 (non-gated) models are not supported. "
+            "Use T5 v1.1+ gated models (e.g. google/flan-t5-small).",
+            file=sys.stderr,
+        )
+        return 1
     print(f"Model: {config.model_type}  d_model={config.d_model}  "
           f"layers={config.num_layers}/{config.num_decoder_layers}  "
           f"vocab={config.vocab_size}")
@@ -350,14 +366,16 @@ def main() -> int:
         for key in h.keys():
             tensor_to_handle[key] = h
 
+    tth = tensor_to_handle
+
     def hf_get(name: str) -> np.ndarray:
-        return (tensor_to_handle[name]
-                .get_tensor(name)
-                .to(torch.float32)
-                .numpy())
+        return (tth[name].get_tensor(name).to(torch.float32).numpy())
+
+    def has_tensor(name: str) -> bool:
+        return name in tth
 
     specs = _output_specs(config)
-    converter = _make_converter(config, hf_get)
+    converter = _make_converter(config, hf_get, has_tensor)
 
     weights_path = out_dir / "weights.safetensors"
     print(f"Converting {len(specs)} tensors (streaming) ...")
