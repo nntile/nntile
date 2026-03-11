@@ -50,8 +50,15 @@ RMS_EPS = 1e-6
 
 
 def fortran_order(arr: np.ndarray) -> np.ndarray:
-    """Return a Fortran-contiguous float32 copy (NNTile layout)."""
-    return np.asfortranarray(arr).astype(np.float32)
+    """Return C-contiguous array whose flat bytes match NNTile column-major layout.
+
+    ``safetensors`` stores C-order (row-major) flat bytes via ``tobytes()``.
+    NNTile reads those bytes linearly into Fortran-order (column-major) tiles.
+    Ravelling in F-order and reshaping in C-order makes the C-order flat
+    representation equal the column-major element sequence that NNTile expects.
+    """
+    a = np.asarray(arr, dtype=np.float32)
+    return a.ravel("F").reshape(a.shape)
 
 
 def _make_config() -> LlamaConfig:
@@ -180,7 +187,7 @@ def _hidden_input(rng, scale: float = 0.1):
 def _ids_input(rng):
     """Random token-id input: NNTile ``(S,B)`` Fortran + PT ``(B,S)``."""
     ids = rng.integers(0, VOCAB, size=(SEQ, BATCH)).astype(np.int64)
-    ids_nt = np.asfortranarray(ids)
+    ids_nt = ids.ravel("F").reshape(ids.shape)
     ids_pt = torch.tensor(ids.T.copy(), dtype=torch.long)
     return ids_nt, ids_pt
 

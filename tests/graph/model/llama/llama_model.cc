@@ -159,7 +159,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 
     auto config = test_config();
-    const Index head_size = config.head_dim;
 
     SafeTensorsReader reader(full_path);
 
@@ -199,10 +198,30 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         model.load(full_path);
 
+        auto ag_has_member = [](
+            const graph::AxisDescriptor* ag,
+            const std::string& name_substr, int axis_idx) -> bool
+        {
+            for(const auto& [node_ptr, axis] : ag->members)
+            {
+                if(axis != axis_idx)
+                    continue;
+                auto* node = static_cast<
+                    const TensorGraph::TensorNode*>(node_ptr);
+                if(node->name().find(name_substr) != std::string::npos)
+                    return true;
+            }
+            return false;
+        };
+
         TensorGraph& tg = g.tensor_graph();
         for(auto* ag : tg.axis_groups())
         {
-            if(ag->extent != head_size && ag->extent != 2)
+            // head_size is axis 1 of q_weight (n_heads, head_size, n_emb)
+            bool is_head_dim = ag_has_member(ag, "q_weight", 1);
+            // vocab_size is axis 1 of embedding vocab (embed_dim, num_embeddings)
+            bool is_vocab_dim = ag_has_member(ag, "vocab", 1);
+            if(!is_head_dim && !is_vocab_dim && ag->extent > 2)
             {
                 ag->set_tiling((ag->extent + 1) / 2);
             }
