@@ -50,7 +50,7 @@ RMS_EPS = 1e-6
 
 
 def fortran_order(arr: np.ndarray) -> np.ndarray:
-    """Return C-contiguous array whose flat bytes match NNTile column-major layout.
+    """Return C-contiguous array matching NNTile column-major layout.
 
     ``safetensors`` stores C-order (row-major) flat bytes via ``tobytes()``.
     NNTile reads those bytes linearly into Fortran-order (column-major) tiles.
