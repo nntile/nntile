@@ -215,6 +215,9 @@ jobs:
           ln -rs \
             build/wrappers/python/nntile/nntile_core.so \
             wrappers/python/nntile/nntile_core.so
+          ln -rs \
+            build/wrappers/python/nntile/nntile_graph.so \
+            wrappers/python/nntile/nntile_graph.so
       # TODO(@daskol): We should rely on `uv` or any other package managing
       # utility here.
       - name: Install Python dependencies
