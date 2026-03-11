@@ -32,9 +32,9 @@ namespace nntile::model::llama
 class LlamaDecoder : public graph::module::Module
 {
 private:
-    module::RMSNorm input_norm_;
+    graph::module::RMSNorm input_norm_;
     LlamaAttention attention_;
-    module::RMSNorm post_attn_norm_;
+    graph::module::RMSNorm post_attn_norm_;
     LlamaMLP mlp_;
 
     LlamaConfig config_;

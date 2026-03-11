@@ -19,7 +19,7 @@
 
 #include "nntile/graph/io/safetensors.hh"
 
-namespace nntile::module
+namespace nntile::graph::module
 {
 
 RMSNorm::RMSNorm(graph::NNGraph* graph,
@@ -29,7 +29,7 @@ RMSNorm::RMSNorm(graph::NNGraph* graph,
                  float eps,
                  int redux,
                  graph::DataType dtype)
-    : graph::module::Module(graph, name)
+    : Module(graph, name)
     , normalized_shape_(normalized_shape)
     , axis_(axis)
     , eps_(eps)
@@ -95,4 +95,4 @@ void RMSNorm::export_hf(graph::io::SafeTensorsWriter& writer,
                       *hint);
 }
 
-} // namespace nntile::module
+} // namespace nntile::graph::module

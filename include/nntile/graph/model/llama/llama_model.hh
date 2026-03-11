@@ -36,7 +36,7 @@ class LlamaModel : public graph::module::Module
 private:
     graph::module::Embedding embed_tokens_;
     std::vector<std::unique_ptr<LlamaDecoder>> layers_;
-    module::RMSNorm norm_;
+    graph::module::RMSNorm norm_;
 
     LlamaConfig config_;
     graph::DataType dtype_;

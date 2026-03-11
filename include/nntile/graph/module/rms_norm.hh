@@ -22,11 +22,11 @@
 #include <nntile/graph/io/safetensors.hh>
 #include <nntile/graph/module/module.hh>
 
-namespace nntile::module
+namespace nntile::graph::module
 {
 
 //! RMSNorm module: y = gamma * (x / sqrt(mean(x^2) + eps))
-class RMSNorm : public graph::module::Module
+class RMSNorm : public Module
 {
 private:
     graph::NNGraph::TensorNode* gamma_tensor_ = nullptr;
@@ -62,4 +62,4 @@ public:
     graph::NNGraph::TensorNode* gamma_tensor() const { return gamma_tensor_; }
 };
 
-} // namespace nntile::module
+} // namespace nntile::graph::module

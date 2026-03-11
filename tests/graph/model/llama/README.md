@@ -2,7 +2,7 @@
 
 Tests for the NNTile C++ Llama model components. Testing is done via safetensors disk files (no Python wrappers).
 
-RMSNorm is a shared module in `nntile::module` (see `include/nntile/module/rms_norm.hh`) and can be reused by other models (GPT, etc.).
+RMSNorm is a shared module in `nntile::graph::module` (see `include/nntile/graph/module/rms_norm.hh`) and can be reused by other models (GPT, etc.).
 
 ## Layout
 
