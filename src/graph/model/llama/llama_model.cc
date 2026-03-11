@@ -49,7 +49,10 @@ graph::NNGraph::TensorNode* LlamaModel::forward(
     graph::NNGraph::TensorNode* input_ids,
     graph::NNGraph::TensorNode* sin,
     graph::NNGraph::TensorNode* cos,
-    graph::NNGraph::TensorNode* mask)
+    graph::NNGraph::TensorNode* mask,
+    const std::vector<std::pair<graph::NNGraph::TensorNode*,
+                               graph::NNGraph::TensorNode*>>* kv_caches,
+    Index cache_len)
 {
     if(input_ids == nullptr)
     {
@@ -63,9 +66,16 @@ graph::NNGraph::TensorNode* LlamaModel::forward(
     graph::NNGraph::TensorNode* x =
         graph::transpose(embed, tensor_name("embed_out"), 2);
 
-    for(auto& layer : layers_)
+    for(size_t i = 0; i < layers_.size(); ++i)
     {
-        x = layer->forward(x, sin, cos, mask);
+        graph::NNGraph::TensorNode* k_cache = nullptr;
+        graph::NNGraph::TensorNode* v_cache = nullptr;
+        if(kv_caches != nullptr && i < kv_caches->size())
+        {
+            k_cache = (*kv_caches)[i].first;
+            v_cache = (*kv_caches)[i].second;
+        }
+        x = layers_[i]->forward(x, sin, cos, mask, k_cache, v_cache, cache_len);
     }
 
     return norm_.forward(x);

@@ -17,6 +17,8 @@
 // Include standard headers
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 // NNTile headers
 #include <nntile/graph.hh>
@@ -46,11 +48,16 @@ public:
                 graph::DataType dtype = graph::DataType::FP32);
 
     //! Forward pass
+    //! @param kv_caches Optional per-layer KV caches; cache_len = current valid length
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* input_ids,
         graph::NNGraph::TensorNode* sin = nullptr,
         graph::NNGraph::TensorNode* cos = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr);
+        graph::NNGraph::TensorNode* mask = nullptr,
+        const std::vector<std::pair<graph::NNGraph::TensorNode*,
+                                   graph::NNGraph::TensorNode*>>* kv_caches =
+            nullptr,
+        Index cache_len = 0);
 
     std::string repr() const override;
 

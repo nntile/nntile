@@ -39,11 +39,14 @@ graph::NNGraph::TensorNode* LlamaCausal::forward(
     graph::NNGraph::TensorNode* input_ids,
     graph::NNGraph::TensorNode* sin,
     graph::NNGraph::TensorNode* cos,
-    graph::NNGraph::TensorNode* mask)
+    graph::NNGraph::TensorNode* mask,
+    const std::vector<std::pair<graph::NNGraph::TensorNode*,
+                               graph::NNGraph::TensorNode*>>* kv_caches,
+    Index cache_len)
 {
     // Model output: (hidden, seq, batch)
     graph::NNGraph::TensorNode* hidden =
-        model_->forward(input_ids, sin, cos, mask);
+        model_->forward(input_ids, sin, cos, mask, kv_caches, cache_len);
     // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for lm_head (ndim=1)
     graph::NNGraph::TensorNode* hidden_t =
         graph::transpose(hidden, tensor_name("hidden_t"), 1);

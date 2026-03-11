@@ -17,6 +17,7 @@
 // Include standard headers
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 // NNTile headers
@@ -53,11 +54,17 @@ public:
     //! @param sin RoPE sin per layer (optional)
     //! @param cos RoPE cos per layer (optional)
     //! @param mask Attention mask (optional)
+    //! @param kv_caches Optional per-layer KV caches: {k_cache, v_cache} per layer
+    //! @param cache_len Current valid length in cache (0 = prefill)
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* input_ids,
         graph::NNGraph::TensorNode* sin = nullptr,
         graph::NNGraph::TensorNode* cos = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr);
+        graph::NNGraph::TensorNode* mask = nullptr,
+        const std::vector<std::pair<graph::NNGraph::TensorNode*,
+                                   graph::NNGraph::TensorNode*>>* kv_caches =
+            nullptr,
+        Index cache_len = 0);
 
     std::string repr() const override;
 

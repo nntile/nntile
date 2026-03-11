@@ -52,11 +52,17 @@ public:
     //! @param sin RoPE sin (optional)
     //! @param cos RoPE cos (optional)
     //! @param mask Attention mask (optional)
+    //! @param k_cache Optional KV cache for K (optional)
+    //! @param v_cache Optional KV cache for V (optional)
+    //! @param cache_len Current valid length in cache (0 = prefill)
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* x,
         graph::NNGraph::TensorNode* sin = nullptr,
         graph::NNGraph::TensorNode* cos = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr);
+        graph::NNGraph::TensorNode* mask = nullptr,
+        graph::NNGraph::TensorNode* k_cache = nullptr,
+        graph::NNGraph::TensorNode* v_cache = nullptr,
+        Index cache_len = 0);
 
     std::string repr() const override;
 
