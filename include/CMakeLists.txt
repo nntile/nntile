@@ -715,6 +715,13 @@ set(GRAPH_MODEL_HDR
     "nntile/graph/model/gptneox/gptneox.hh"
     "nntile/graph/model/gptneox/gptneox_rope.hh"
     "nntile/graph/model/gptneox/gptneox_causal.hh"
+    "nntile/graph/model/t5.hh"
+    "nntile/graph/model/t5/t5_config.hh"
+    "nntile/graph/model/t5/t5_attention.hh"
+    "nntile/graph/model/t5/t5_ff.hh"
+    "nntile/graph/model/t5/t5_block.hh"
+    "nntile/graph/model/t5/t5_model.hh"
+    "nntile/graph/model/t5/t5_for_conditional_generation.hh"
     )
 
 set(GRAPH_OPTIM_HDR
