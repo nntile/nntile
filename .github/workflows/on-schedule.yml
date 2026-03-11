@@ -16,9 +16,9 @@ jobs:
       matrix:
         python-version: ['3.10', '3.11', '3.12']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           cache: 'pip'
           python-version: ${{ matrix.python-version }}
@@ -41,7 +41,7 @@ jobs:
     steps:
       - name: Cache system packages
         id: cache-apt
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         env:
           cache-name: cache-apt-packages
         with:
@@ -63,7 +63,7 @@ jobs:
               sqlite3
       - name: Cache StarPU
         id: cache-starpu
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /opt/starpu
           key: starpu-1.4.8-${{ runner.os }}
@@ -93,9 +93,9 @@ jobs:
               --prefix=/opt/starpu
           make -j 4 install
           rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Python dependencies
@@ -106,7 +106,7 @@ jobs:
           $HOME/.local/bin/uv pip install --system \
             numpy safetensors "transformers<4.53"
       - name: Restore ccache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/ccache
           key: ccache-nightly-${{ runner.os }}-${{ matrix.python-version }}-${{ github.sha }}
@@ -129,7 +129,7 @@ jobs:
         if: always()
         run: ccache --show-stats
       - name: Upload all shared objects (*.so)
-        uses: actions/upload-artifact@v4.3.4
+        uses: actions/upload-artifact@v7
         with:
           name: shared-objects-${{ matrix.python-version }}
           path: build/**/*.so
@@ -150,9 +150,9 @@ jobs:
     env:
       LD_LIBRARY_PATH: /opt/starpu/lib
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Cache system packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: cache-apt
         env:
           cache-name: cache-apt-packages
@@ -173,16 +173,16 @@ jobs:
               libopenblas-dev libopenmpi-dev libopenmpi3 \
               lsb-release ninja-build openmpi-bin pkg-config sqlite3
       - name: Restore StarPU cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /opt/starpu
           key: starpu-1.4.8-${{ runner.os }}
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - name: Download all shared objects (*.so)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: shared-objects-${{ matrix.python-version }}
           path: build
@@ -221,7 +221,7 @@ jobs:
             --cov-report=xml:coverage/xml/report.${PYTHON_TAG}.xml \
             --junitxml=pytest/report.${PYTHON_TAG}.xml
       - name: Upload PyTest report for Python ${{ matrix.python-version }}
-        uses: actions/upload-artifact@v4.3.4
+        uses: actions/upload-artifact@v7
         with:
           name: pytest-report
           path: |
