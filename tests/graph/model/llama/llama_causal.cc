@@ -26,11 +26,13 @@
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/llama/llama_causal.hh"
 #include "nntile/graph/model/llama/llama_config.hh"
+#include "nntile/graph/tensor/fill.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::model::llama;
 using namespace nntile::graph::io;
+namespace gt = nntile::graph::tensor;
 
 static LlamaConfig test_config()
 {
@@ -45,10 +47,36 @@ static LlamaConfig test_config()
     return config;
 }
 
+static LlamaConfig test_config_gqa()
+{
+    LlamaConfig config;
+    config.vocab_size = 100;
+    config.hidden_size = 8;
+    config.intermediate_size = 16;
+    config.num_hidden_layers = 2;
+    config.num_attention_heads = 4;
+    config.num_key_value_heads = 2;
+    config.compute_head_dim();
+    return config;
+}
+
 TEST_CASE("LlamaCausal forward builds output", "[model][llama]")
 {
     NNGraph g("llama_causal");
     auto config = test_config();
+
+    auto* input_ids = g.tensor({4, 2}, "input_ids", DataType::INT64);
+    LlamaCausal model(&g, "model", config);
+    auto* output = model.forward(input_ids);
+
+    REQUIRE(output != nullptr);
+    REQUIRE(output->shape() == std::vector<Index>({100, 4, 2}));
+}
+
+TEST_CASE("LlamaCausal GQA forward builds output", "[model][llama][gqa]")
+{
+    NNGraph g("llama_causal_gqa");
+    auto config = test_config_gqa();
 
     auto* input_ids = g.tensor({4, 2}, "input_ids", DataType::INT64);
     LlamaCausal model(&g, "model", config);
@@ -241,6 +269,184 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for(size_t i = 0; i < tiled_result.size(); ++i)
     {
         REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "LlamaCausal backward tiled matches untiled", "[model][llama]")
+{
+    const std::string full_path =
+        std::string(LLAMA_DATA_DIR) + "/llama_causal_full.safetensors";
+    std::ifstream check(full_path);
+    if(!check.good())
+    {
+        SKIP("Llama causal full test data not found.");
+    }
+
+    auto config = test_config();
+
+    SafeTensorsReader reader(full_path);
+
+    std::vector<std::uint8_t> ids_bytes = reader.read_tensor("input_ids");
+    std::vector<std::int64_t> ids_data(ids_bytes.size() / sizeof(std::int64_t));
+    std::memcpy(ids_data.data(), ids_bytes.data(), ids_bytes.size());
+
+    std::vector<std::uint8_t> grad_out_bytes = reader.read_tensor("grad_output");
+    std::vector<float> grad_out_data(grad_out_bytes.size() / sizeof(float));
+    std::memcpy(grad_out_data.data(), grad_out_bytes.data(),
+        grad_out_bytes.size());
+
+    const std::string grad_name = "model_lm_head_weight_grad";
+
+    std::vector<float> untiled_result;
+    {
+        NNGraph g("causal_bwd_untiled");
+        auto* input_ids = g.tensor({4, 2}, "input_ids", DataType::INT64);
+        LlamaCausal model(&g, "model", config);
+        auto* output = model.forward(input_ids);
+
+        input_ids->mark_input(true);
+        output->mark_output(true);
+
+        auto [grad_output_tensor, _] =
+            g.get_or_create_grad(output, "grad_output");
+        grad_output_tensor->mark_input(true);
+        output->backward();
+
+        for(auto [param, grad] : model.parameter_gradients_recursive())
+        {
+            grad->mark_output(true);
+        }
+
+        model.load(full_path);
+
+        TensorGraph& tg = g.tensor_graph();
+        TensorGraph::Runtime runtime(tg);
+        runtime.compile();
+        runtime.bind_data("input_ids", ids_data);
+        runtime.bind_data("grad_output", grad_out_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_result = runtime.get_output<float>(grad_name);
+    }
+
+    std::vector<float> tiled_result;
+    {
+        NNGraph g("causal_bwd_tiled");
+        auto* input_ids = g.tensor({4, 2}, "input_ids", DataType::INT64);
+        LlamaCausal model(&g, "model", config);
+        auto* output = model.forward(input_ids);
+
+        input_ids->mark_input(true);
+        output->mark_output(true);
+
+        auto [grad_output_tensor, _] =
+            g.get_or_create_grad(output, "grad_output");
+        grad_output_tensor->mark_input(true);
+        output->backward();
+
+        for(auto [param, grad] : model.parameter_gradients_recursive())
+        {
+            grad->mark_output(true);
+        }
+
+        model.load(full_path);
+
+        auto axis_has_member = [](
+            const graph::AxisDescriptor* ag,
+            const std::string& name_substr, int axis_idx) -> bool
+        {
+            for(const auto& [node_ptr, axis] : ag->members)
+            {
+                if(axis != axis_idx)
+                    continue;
+                auto* node = static_cast<
+                    const TensorGraph::TensorNode*>(node_ptr);
+                if(node->name().find(name_substr) != std::string::npos)
+                    return true;
+            }
+            return false;
+        };
+
+        TensorGraph& tg = g.tensor_graph();
+        for(auto* ag : tg.axis_groups())
+        {
+            bool is_head_dim = axis_has_member(ag, "q_weight", 1);
+            bool is_vocab_dim = axis_has_member(ag, "vocab", 1);
+            if(!is_head_dim && !is_vocab_dim && ag->extent > 2)
+            {
+                ag->set_tiling((ag->extent + 1) / 2);
+            }
+        }
+
+        TensorGraph::Runtime runtime(tg);
+        runtime.compile();
+        runtime.bind_data("input_ids", ids_data);
+        runtime.bind_data("grad_output", grad_out_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_result = runtime.get_output<float>(grad_name);
+    }
+
+    constexpr float tol = 1e-4f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "LlamaCausal GQA matches PyTorch reference", "[model][llama][gqa]")
+{
+    const std::string full_path =
+        std::string(LLAMA_DATA_DIR) + "/llama_causal_gqa_full.safetensors";
+    std::ifstream check(full_path);
+    if(!check.good())
+    {
+        SKIP("Llama causal GQA test data not found.");
+    }
+
+    auto config = test_config_gqa();
+
+    SafeTensorsReader reader(full_path);
+
+    std::vector<std::uint8_t> ids_bytes = reader.read_tensor("input_ids");
+    std::vector<std::int64_t> ids_data(ids_bytes.size() / sizeof(std::int64_t));
+    std::memcpy(ids_data.data(), ids_bytes.data(), ids_bytes.size());
+
+    std::vector<std::uint8_t> ref_bytes = reader.read_tensor("output_ref");
+    std::vector<float> ref_data(ref_bytes.size() / sizeof(float));
+    std::memcpy(ref_data.data(), ref_bytes.data(), ref_bytes.size());
+
+    std::vector<float> result;
+    {
+        NNGraph g("causal_gqa_ref");
+        auto* input_ids = g.tensor({4, 2}, "input_ids", DataType::INT64);
+        LlamaCausal model(&g, "model", config);
+        auto* output = model.forward(input_ids);
+        input_ids->mark_input(true);
+        output->mark_output(true);
+
+        model.load(full_path);
+
+        TensorGraph& tg = g.tensor_graph();
+        TensorGraph::Runtime runtime(tg);
+        runtime.compile();
+        runtime.bind_data("input_ids", ids_data);
+        runtime.execute();
+        runtime.wait();
+
+        result = runtime.get_output<float>(output->name());
+    }
+
+    constexpr float tol = 1e-4f;
+    REQUIRE(result.size() == ref_data.size());
+    for(size_t i = 0; i < result.size(); ++i)
+    {
+        REQUIRE(std::abs(result[i] - ref_data[i]) < tol);
     }
 }
 #endif

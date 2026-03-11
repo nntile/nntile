@@ -25,11 +25,13 @@
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/llama/llama_config.hh"
 #include "nntile/graph/model/llama/llama_mlp.hh"
+#include "nntile/graph/tensor/fill.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::model::llama;
 using namespace nntile::graph::io;
+namespace gt = nntile::graph::tensor;
 
 static LlamaConfig test_config()
 {
@@ -208,6 +210,170 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         runtime.wait();
 
         tiled_result = runtime.get_output<float>(output->name());
+    }
+
+    constexpr float tol = 1e-4f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "LlamaMLP backward matches PyTorch reference", "[model][llama]")
+{
+    const std::string full_path =
+        std::string(LLAMA_DATA_DIR) + "/llama_mlp_full.safetensors";
+    std::ifstream check(full_path);
+    if(!check.good())
+    {
+        SKIP("Llama MLP full test data not found.");
+    }
+
+    auto config = test_config();
+
+    SafeTensorsReader reader(full_path);
+    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
+    std::vector<float> input_data(input_bytes.size() / sizeof(float));
+    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
+
+    std::vector<std::uint8_t> grad_out_bytes = reader.read_tensor("grad_output");
+    std::vector<float> grad_out_data(grad_out_bytes.size() / sizeof(float));
+    std::memcpy(grad_out_data.data(), grad_out_bytes.data(),
+        grad_out_bytes.size());
+
+    std::vector<std::uint8_t> ref_bytes = reader.read_tensor("grad_input");
+    std::vector<float> grad_input_ref(ref_bytes.size() / sizeof(float));
+    std::memcpy(grad_input_ref.data(), ref_bytes.data(), ref_bytes.size());
+
+    std::vector<float> grad_input_result;
+    {
+        NNGraph g("mlp_bwd");
+        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32, true);
+        LlamaMLP mlp(&g, "mlp", config);
+        auto* output = mlp.forward(input);
+
+        input->mark_input(true);
+        output->mark_output(true);
+
+        auto [grad_output_tensor, _] =
+            g.get_or_create_grad(output, "grad_output");
+        grad_output_tensor->mark_input(true);
+        output->backward();
+        input->grad()->mark_output(true);
+
+        mlp.load(full_path);
+
+        TensorGraph& tg = g.tensor_graph();
+        TensorGraph::Runtime runtime(tg);
+        runtime.compile();
+        runtime.bind_data("input", input_data);
+        runtime.bind_data("grad_output", grad_out_data);
+        runtime.execute();
+        runtime.wait();
+
+        grad_input_result =
+            runtime.get_output<float>(input->grad()->name());
+    }
+
+    constexpr float tol = 1e-4f;
+    REQUIRE(grad_input_result.size() == grad_input_ref.size());
+    for(size_t i = 0; i < grad_input_result.size(); ++i)
+    {
+        REQUIRE(std::abs(grad_input_result[i] - grad_input_ref[i]) < tol);
+    }
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "LlamaMLP backward tiled matches untiled", "[model][llama]")
+{
+    const std::string full_path =
+        std::string(LLAMA_DATA_DIR) + "/llama_mlp_full.safetensors";
+    std::ifstream check(full_path);
+    if(!check.good())
+    {
+        SKIP("Llama MLP full test data not found.");
+    }
+
+    auto config = test_config();
+
+    SafeTensorsReader reader(full_path);
+    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
+    std::vector<float> input_data(input_bytes.size() / sizeof(float));
+    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
+
+    std::vector<std::uint8_t> grad_out_bytes = reader.read_tensor("grad_output");
+    std::vector<float> grad_out_data(grad_out_bytes.size() / sizeof(float));
+    std::memcpy(grad_out_data.data(), grad_out_bytes.data(),
+        grad_out_bytes.size());
+
+    std::vector<float> untiled_result;
+    {
+        NNGraph g("mlp_bwd_untiled");
+        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32, true);
+        LlamaMLP mlp(&g, "mlp", config);
+        auto* output = mlp.forward(input);
+
+        input->mark_input(true);
+        output->mark_output(true);
+
+        auto [grad_output_tensor, _] =
+            g.get_or_create_grad(output, "grad_output");
+        grad_output_tensor->mark_input(true);
+        output->backward();
+        input->grad()->mark_output(true);
+
+        mlp.load(full_path);
+
+        TensorGraph& tg = g.tensor_graph();
+        TensorGraph::Runtime runtime(tg);
+        runtime.compile();
+        runtime.bind_data("input", input_data);
+        runtime.bind_data("grad_output", grad_out_data);
+        runtime.execute();
+        runtime.wait();
+
+        untiled_result =
+            runtime.get_output<float>(input->grad()->name());
+    }
+
+    std::vector<float> tiled_result;
+    {
+        NNGraph g("mlp_bwd_tiled");
+        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32, true);
+        LlamaMLP mlp(&g, "mlp", config);
+        auto* output = mlp.forward(input);
+
+        input->mark_input(true);
+        output->mark_output(true);
+
+        auto [grad_output_tensor, _] =
+            g.get_or_create_grad(output, "grad_output");
+        grad_output_tensor->mark_input(true);
+        output->backward();
+        input->grad()->mark_output(true);
+
+        mlp.load(full_path);
+
+        TensorGraph& tg = g.tensor_graph();
+        for(auto* ag : tg.axis_groups())
+        {
+            if(ag->extent > 2)
+            {
+                ag->set_tiling((ag->extent + 1) / 2);
+            }
+        }
+
+        TensorGraph::Runtime runtime(tg);
+        runtime.compile();
+        runtime.bind_data("input", input_data);
+        runtime.bind_data("grad_output", grad_out_data);
+        runtime.execute();
+        runtime.wait();
+
+        tiled_result =
+            runtime.get_output<float>(input->grad()->name());
     }
 
     constexpr float tol = 1e-4f;

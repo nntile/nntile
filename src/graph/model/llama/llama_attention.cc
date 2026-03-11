@@ -23,6 +23,8 @@
 #include <cstring>
 #include <stdexcept>
 
+#include "nntile/graph/dtype.hh"
+
 namespace nntile::model::llama
 {
 
@@ -218,13 +220,19 @@ std::string LlamaAttention::repr() const
 namespace
 {
 
-// Convert HF (out, in) row-major to NNTile (n_heads, head_size, n_emb) col-major
+// Copy one element of `es` bytes from src to dst at byte offsets
+inline void copy_elem(const std::uint8_t* src, std::uint8_t* dst, size_t es)
+{
+    std::memcpy(dst, src, es);
+}
+
+// HF (out, in) row-major -> NNTile (n_heads, head_size, n_emb) col-major
 void hf_linear_to_3d(const std::vector<std::uint8_t>& hf_data,
                     Index n_heads, Index head_size, Index n_emb,
-                    std::vector<std::uint8_t>& out)
+                    std::vector<std::uint8_t>& out, size_t es)
 {
-    const float* src = reinterpret_cast<const float*>(hf_data.data());
-    float* dst = reinterpret_cast<float*>(out.data());
+    const auto* src = hf_data.data();
+    auto* dst = out.data();
     for(Index h = 0; h < n_heads; ++h)
     {
         for(Index s = 0; s < head_size; ++s)
@@ -232,20 +240,21 @@ void hf_linear_to_3d(const std::vector<std::uint8_t>& hf_data,
             Index row = h * head_size + s;
             for(Index e = 0; e < n_emb; ++e)
             {
-                dst[h + s * n_heads + e * n_heads * head_size] =
-                    src[row * n_emb + e];
+                Index dst_idx = h + s * n_heads + e * n_heads * head_size;
+                Index src_idx = row * n_emb + e;
+                copy_elem(src + src_idx * es, dst + dst_idx * es, es);
             }
         }
     }
 }
 
-// Convert NNTile (n_heads, head_size, n_emb) to HF (out, in) for q,k,v
+// NNTile (n_heads, head_size, n_emb) -> HF (out, in) row-major for q,k,v
 void nntile_qkv_to_hf(const std::vector<std::uint8_t>& nntile_data,
                       Index n_heads, Index head_size, Index n_emb,
-                      std::vector<std::uint8_t>& out)
+                      std::vector<std::uint8_t>& out, size_t es)
 {
-    const float* src = reinterpret_cast<const float*>(nntile_data.data());
-    float* dst = reinterpret_cast<float*>(out.data());
+    const auto* src = nntile_data.data();
+    auto* dst = out.data();
     for(Index h = 0; h < n_heads; ++h)
     {
         for(Index s = 0; s < head_size; ++s)
@@ -253,20 +262,21 @@ void nntile_qkv_to_hf(const std::vector<std::uint8_t>& nntile_data,
             Index row = h * head_size + s;
             for(Index e = 0; e < n_emb; ++e)
             {
-                dst[row * n_emb + e] =
-                    src[h + s * n_heads + e * n_heads * head_size];
+                Index dst_idx = row * n_emb + e;
+                Index src_idx = h + s * n_heads + e * n_heads * head_size;
+                copy_elem(src + src_idx * es, dst + dst_idx * es, es);
             }
         }
     }
 }
 
-// Convert NNTile (n_emb, n_heads, head_size) to HF (n_emb, n_emb) for o_proj
+// NNTile (n_emb, n_heads, head_size) -> HF (n_emb, n_emb) for o_proj
 void nntile_o_to_hf(const std::vector<std::uint8_t>& nntile_data,
                     Index n_emb, Index n_heads, Index head_size,
-                    std::vector<std::uint8_t>& out)
+                    std::vector<std::uint8_t>& out, size_t es)
 {
-    const float* src = reinterpret_cast<const float*>(nntile_data.data());
-    float* dst = reinterpret_cast<float*>(out.data());
+    const auto* src = nntile_data.data();
+    auto* dst = out.data();
     for(Index e = 0; e < n_emb; ++e)
     {
         for(Index h = 0; h < n_heads; ++h)
@@ -274,20 +284,21 @@ void nntile_o_to_hf(const std::vector<std::uint8_t>& nntile_data,
             for(Index s = 0; s < head_size; ++s)
             {
                 Index col = h * head_size + s;
-                dst[e * n_emb + col] =
-                    src[e + h * n_emb + s * n_emb * n_heads];
+                Index dst_idx = e * n_emb + col;
+                Index src_idx = e + h * n_emb + s * n_emb * n_heads;
+                copy_elem(src + src_idx * es, dst + dst_idx * es, es);
             }
         }
     }
 }
 
-// Convert HF (n_emb, n_emb) to NNTile (n_emb, n_heads, head_size) for o_proj (non-GQA)
+// HF (n_emb, n_emb) -> NNTile (n_emb, n_heads, head_size) for o_proj (non-GQA)
 void hf_to_nntile_o(const std::vector<std::uint8_t>& hf_data,
                     Index n_emb, Index n_heads, Index head_size,
-                    std::vector<std::uint8_t>& out)
+                    std::vector<std::uint8_t>& out, size_t es)
 {
-    const float* src = reinterpret_cast<const float*>(hf_data.data());
-    float* dst = reinterpret_cast<float*>(out.data());
+    const auto* src = hf_data.data();
+    auto* dst = out.data();
     for(Index e = 0; e < n_emb; ++e)
     {
         for(Index h = 0; h < n_heads; ++h)
@@ -295,21 +306,21 @@ void hf_to_nntile_o(const std::vector<std::uint8_t>& hf_data,
             for(Index s = 0; s < head_size; ++s)
             {
                 Index col = h * head_size + s;
-                dst[e + h * n_emb + s * n_emb * n_heads] = src[e * n_emb + col];
+                Index dst_idx = e + h * n_emb + s * n_emb * n_heads;
+                Index src_idx = e * n_emb + col;
+                copy_elem(src + src_idx * es, dst + dst_idx * es, es);
             }
         }
     }
 }
 
-// Convert HF (n_emb, n_emb) to NNTile (n_emb, kv_group_size, n_head_kv, head_size) for o_proj (GQA)
-// HF repeat_kv produces flat_head = h*kv_group_size + g, so
-// HF col = (h*kv_group_size + g)*head_size + s; 4D index = e + g*n_emb + h*n_emb*kv_group_size + s*n_emb*kv_group_size*n_head_kv
+// HF (n_emb, n_emb) -> NNTile (n_emb, kv_group_size, n_head_kv, head_size) for o_proj (GQA)
 void hf_to_nntile_o_4d(const std::vector<std::uint8_t>& hf_data,
                        Index n_emb, Index kv_group_size, Index n_head_kv, Index head_size,
-                       std::vector<std::uint8_t>& out)
+                       std::vector<std::uint8_t>& out, size_t es)
 {
-    const float* src = reinterpret_cast<const float*>(hf_data.data());
-    float* dst = reinterpret_cast<float*>(out.data());
+    const auto* src = hf_data.data();
+    auto* dst = out.data();
     for(Index e = 0; e < n_emb; ++e)
     {
         for(Index g = 0; g < kv_group_size; ++g)
@@ -319,22 +330,23 @@ void hf_to_nntile_o_4d(const std::vector<std::uint8_t>& hf_data,
                 for(Index s = 0; s < head_size; ++s)
                 {
                     Index col = (h * kv_group_size + g) * head_size + s;
-                    Index idx = e + g * n_emb + h * n_emb * kv_group_size +
+                    Index dst_idx = e + g * n_emb + h * n_emb * kv_group_size +
                                s * n_emb * kv_group_size * n_head_kv;
-                    dst[idx] = src[e * n_emb + col];
+                    Index src_idx = e * n_emb + col;
+                    copy_elem(src + src_idx * es, dst + dst_idx * es, es);
                 }
             }
         }
     }
 }
 
-// Convert NNTile (n_emb, kv_group_size, n_head_kv, head_size) to HF (n_emb, n_emb) for o_proj (GQA)
+// NNTile (n_emb, kv_group_size, n_head_kv, head_size) -> HF (n_emb, n_emb) for o_proj (GQA)
 void nntile_o_to_hf_4d(const std::vector<std::uint8_t>& nntile_data,
                        Index n_emb, Index kv_group_size, Index n_head_kv, Index head_size,
-                       std::vector<std::uint8_t>& out)
+                       std::vector<std::uint8_t>& out, size_t es)
 {
-    const float* src = reinterpret_cast<const float*>(nntile_data.data());
-    float* dst = reinterpret_cast<float*>(out.data());
+    const auto* src = nntile_data.data();
+    auto* dst = out.data();
     for(Index e = 0; e < n_emb; ++e)
     {
         for(Index g = 0; g < kv_group_size; ++g)
@@ -344,9 +356,10 @@ void nntile_o_to_hf_4d(const std::vector<std::uint8_t>& nntile_data,
                 for(Index s = 0; s < head_size; ++s)
                 {
                     Index col = (h * kv_group_size + g) * head_size + s;
-                    Index idx = e + g * n_emb + h * n_emb * kv_group_size +
+                    Index src_idx = e + g * n_emb + h * n_emb * kv_group_size +
                                s * n_emb * kv_group_size * n_head_kv;
-                    dst[e * n_emb + col] = src[idx];
+                    Index dst_idx = e * n_emb + col;
+                    copy_elem(src + src_idx * es, dst + dst_idx * es, es);
                 }
             }
         }
@@ -359,7 +372,21 @@ void LlamaAttention::import_hf(const graph::io::SafeTensorsReader& reader,
                               const std::string& hf_prefix)
 {
     Index n_emb = config_.hidden_size;
+    const size_t es = graph::dtype_size(dtype_);
     const std::string prefix = hf_prefix.empty() ? "" : hf_prefix + ".";
+
+    auto validate_dtype = [&](const std::string& key,
+                              const graph::io::TensorInfo& info)
+    {
+        if(!graph::io::is_safetensors_dtype_compatible(
+               graph::io::dtype_to_safetensors(info.dtype), dtype_))
+        {
+            throw std::runtime_error(
+                "LlamaAttention::import_hf: dtype mismatch for '" + key +
+                "': file has " + graph::io::dtype_to_safetensors(info.dtype) +
+                ", module expects " + graph::io::dtype_to_safetensors(dtype_));
+        }
+    };
 
     auto load_qkv = [&](const std::string& name, graph::NNGraph::TensorNode* param,
                        Index out_rows, Index out_cols)
@@ -370,6 +397,7 @@ void LlamaAttention::import_hf(const graph::io::SafeTensorsReader& reader,
             throw std::runtime_error("LlamaAttention::import_hf: '" + key + "' not found");
         }
         const auto& info = reader.tensor_info(key);
+        validate_dtype(key, info);
         if(info.shape.size() != 2 || info.shape[0] != static_cast<std::int64_t>(out_rows) ||
            info.shape[1] != static_cast<std::int64_t>(out_cols))
         {
@@ -382,7 +410,7 @@ void LlamaAttention::import_hf(const graph::io::SafeTensorsReader& reader,
         {
             n_elems *= static_cast<Index>(d);
         }
-        std::vector<std::uint8_t> nntile_data(n_elems * sizeof(float));
+        std::vector<std::uint8_t> nntile_data(n_elems * es);
         Index n_heads_dim, head_size_dim, n_emb_dim;
         if(param_shape.size() == 3)
         {
@@ -400,7 +428,7 @@ void LlamaAttention::import_hf(const graph::io::SafeTensorsReader& reader,
         {
             throw std::runtime_error("LlamaAttention::import_hf: QKV param must be 3D or 4D");
         }
-        hf_linear_to_3d(data, n_heads_dim, head_size_dim, n_emb_dim, nntile_data);
+        hf_linear_to_3d(data, n_heads_dim, head_size_dim, n_emb_dim, nntile_data, es);
         param->data()->set_bind_hint(std::move(nntile_data));
         param->mark_input(true);
     };
@@ -415,6 +443,7 @@ void LlamaAttention::import_hf(const graph::io::SafeTensorsReader& reader,
         throw std::runtime_error("LlamaAttention::import_hf: '" + o_key + "' not found");
     }
     const auto& o_info = reader.tensor_info(o_key);
+    validate_dtype(o_key, o_info);
     if(o_info.shape.size() != 2 || o_info.shape[0] != static_cast<std::int64_t>(n_emb) ||
        o_info.shape[1] != static_cast<std::int64_t>(n_emb))
     {
@@ -423,15 +452,14 @@ void LlamaAttention::import_hf(const graph::io::SafeTensorsReader& reader,
     auto o_data = reader.read_tensor(o_key);
     if(use_gqa_)
     {
-        std::vector<std::uint8_t> o_nntile(n_emb * kv_group_size_ * n_head_kv_ * head_size_ *
-                                           sizeof(float));
-        hf_to_nntile_o_4d(o_data, n_emb, kv_group_size_, n_head_kv_, head_size_, o_nntile);
+        std::vector<std::uint8_t> o_nntile(n_emb * kv_group_size_ * n_head_kv_ * head_size_ * es);
+        hf_to_nntile_o_4d(o_data, n_emb, kv_group_size_, n_head_kv_, head_size_, o_nntile, es);
         w_o_->data()->set_bind_hint(std::move(o_nntile));
     }
     else
     {
-        std::vector<std::uint8_t> o_nntile(n_emb * n_heads_ * head_size_ * sizeof(float));
-        hf_to_nntile_o(o_data, n_emb, n_heads_, head_size_, o_nntile);
+        std::vector<std::uint8_t> o_nntile(n_emb * n_heads_ * head_size_ * es);
+        hf_to_nntile_o(o_data, n_emb, n_heads_, head_size_, o_nntile, es);
         w_o_->data()->set_bind_hint(std::move(o_nntile));
     }
     w_o_->mark_input(true);
@@ -441,6 +469,7 @@ void LlamaAttention::export_hf(graph::io::SafeTensorsWriter& writer,
                                const std::string& hf_prefix) const
 {
     Index n_emb = config_.hidden_size;
+    const size_t es = graph::dtype_size(dtype_);
     const std::string prefix = hf_prefix.empty() ? "" : hf_prefix + ".";
 
     auto export_qkv = [&](const std::string& name,
@@ -470,8 +499,8 @@ void LlamaAttention::export_hf(graph::io::SafeTensorsWriter& writer,
         {
             throw std::runtime_error("LlamaAttention::export_hf: QKV param must be 3D or 4D");
         }
-        std::vector<std::uint8_t> hf_data(out_rows * out_cols * sizeof(float));
-        nntile_qkv_to_hf(*hint, n_heads_dim, head_size_dim, n_emb_dim, hf_data);
+        std::vector<std::uint8_t> hf_data(out_rows * out_cols * es);
+        nntile_qkv_to_hf(*hint, n_heads_dim, head_size_dim, n_emb_dim, hf_data, es);
         writer.add_tensor(prefix + name + ".weight", dtype_,
                          {static_cast<std::int64_t>(out_rows),
                           static_cast<std::int64_t>(out_cols)},
@@ -487,14 +516,14 @@ void LlamaAttention::export_hf(graph::io::SafeTensorsWriter& writer,
     {
         throw std::runtime_error("LlamaAttention::export_hf: o_proj has no data");
     }
-    std::vector<std::uint8_t> o_hf(n_emb * n_emb * sizeof(float));
+    std::vector<std::uint8_t> o_hf(n_emb * n_emb * es);
     if(use_gqa_)
     {
-        nntile_o_to_hf_4d(*o_hint, n_emb, kv_group_size_, n_head_kv_, head_size_, o_hf);
+        nntile_o_to_hf_4d(*o_hint, n_emb, kv_group_size_, n_head_kv_, head_size_, o_hf, es);
     }
     else
     {
-        nntile_o_to_hf(*o_hint, n_emb, n_heads_, head_size_, o_hf);
+        nntile_o_to_hf(*o_hint, n_emb, n_heads_, head_size_, o_hf, es);
     }
     writer.add_tensor(prefix + "o_proj.weight", dtype_,
                      {static_cast<std::int64_t>(n_emb), static_cast<std::int64_t>(n_emb)},

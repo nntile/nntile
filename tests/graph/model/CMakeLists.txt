@@ -63,8 +63,28 @@ foreach(test_path IN LISTS TESTS_MODEL)
                 PROPERTIES
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
             )
+            set(required_fixtures "tests_graph_model_${test_name}_data")
+
+            # GQA data fixture (for blocks with attention)
+            if(NOT block_name STREQUAL "mlp")
+                add_test(NAME tests_graph_model_${test_name}_gqa_data_setup
+                    COMMAND "${LLAMA_DATA_PYTHON}" "${LLAMA_GENERATE_SCRIPT}"
+                        --block "${block_name}_gqa"
+                        --output "${LLAMA_DATA_DIR}" --seed 42
+                    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                )
+                set_tests_properties(
+                    tests_graph_model_${test_name}_gqa_data_setup
+                    PROPERTIES
+                        FIXTURES_SETUP
+                            "tests_graph_model_${test_name}_gqa_data"
+                )
+                list(APPEND required_fixtures
+                    "tests_graph_model_${test_name}_gqa_data")
+            endif()
+
             set_tests_properties(tests_graph_model_${test_name} PROPERTIES
-                FIXTURES_REQUIRED "tests_graph_model_${test_name}_data"
+                FIXTURES_REQUIRED "${required_fixtures}"
             )
         endif()
     endif()
