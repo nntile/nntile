@@ -25,12 +25,12 @@
 #
 # @version 1.1.0
 
-"""Convert HuggingFace GPT-NeoX checkpoint to NNTile format and tokenize a prompt.
+"""Convert HF GPT-NeoX checkpoint to NNTile format and tokenize a prompt.
 
 Produces:
   - weights.safetensors  NNTile-layout weight file
   - config.json  Model configuration readable by the C++ example
-  - prompt_ids.txt  Comma-separated token IDs for the prompt (if --prompt supplied)
+  - prompt_ids.txt  Comma-separated token IDs (if --prompt supplied)
 """
 
 from __future__ import annotations
@@ -84,7 +84,8 @@ def _write_safetensors_streaming(
         for name, nbytes in entry_order:
             arr = get_data(name)
             raw = arr.tobytes()
-            assert len(raw) == nbytes, f"{name}: expected {nbytes} bytes, got {len(raw)}"
+            err = f"{name}: expected {nbytes} bytes, got {len(raw)}"
+            assert len(raw) == nbytes, err
             f.write(raw)
             del arr, raw
 
@@ -137,7 +138,11 @@ def _make_converter(
             return fortran_order(hf_get("gpt_neox.final_layer_norm.weight"))
 
         if name == "model.lm_head.weight":
-            key = "embed_out.weight" if has_lm_head else "gpt_neox.embed_in.weight"
+            key = (
+                "embed_out.weight"
+                if has_lm_head
+                else "gpt_neox.embed_in.weight"
+            )
             return fortran_order(hf_get(key).T)
 
         parts = name.split(".")
@@ -148,7 +153,8 @@ def _make_converter(
         if rest == "input_norm.gamma":
             return fortran_order(hf_get(f"{hp}.input_layernorm.weight"))
         if rest == "post_attn_norm.gamma":
-            return fortran_order(hf_get(f"{hp}.post_attention_layernorm.weight"))
+            w = hf_get(f"{hp}.post_attention_layernorm.weight")
+            return fortran_order(w)
 
         if rest == "attention.q_weight":
             qkv = hf_get(f"{hp}.attention.query_key_value.weight")
@@ -173,8 +179,8 @@ def _make_converter(
             return fortran_order(o.reshape(H, nh, hd))
 
         if rest == "mlp.fc1.weight":
-            # HF dense: (inter, H); NNTile fc1: (inter, H)
-            return fortran_order(hf_get(f"{hp}.mlp.dense.weight"))
+            # HF dense_h_to_4h: (inter, H); NNTile fc1: (inter, H)
+            return fortran_order(hf_get(f"{hp}.mlp.dense_h_to_4h.weight"))
         if rest == "mlp.fc2.weight":
             # HF dense_4h_to_h: (H, inter); NNTile fc2: (H, inter)
             return fortran_order(hf_get(f"{hp}.mlp.dense_4h_to_h.weight"))
@@ -203,7 +209,7 @@ def main() -> int:
     parser.add_argument(
         "--model",
         required=True,
-        help="HuggingFace model name (e.g. EleutherAI/gpt-neox-125m) or local path",
+        help="HF model name or path (e.g. EleutherAI/gpt-neox-125m)",
     )
     parser.add_argument(
         "--output-dir",
@@ -244,7 +250,8 @@ def main() -> int:
         "layer_norm_eps": getattr(config, "layer_norm_eps", 1e-5),
         "rotary_pct": getattr(config, "rotary_pct", 0.25),
         "rotary_emb_base": getattr(config, "rotary_emb_base", 10000),
-        "use_parallel_residual": getattr(config, "use_parallel_residual", True),
+        "use_parallel_residual": getattr(
+            config, "use_parallel_residual", True),
         "eos_token_id": getattr(config, "eos_token_id", 50256),
         "bos_token_id": getattr(config, "bos_token_id", 50256),
     }
@@ -254,7 +261,9 @@ def main() -> int:
 
     st_files = sorted(model_dir.glob("*.safetensors"))
     if not st_files:
-        print(f"ERROR: no *.safetensors files found in {model_dir}", file=sys.stderr)
+        print(
+            f"ERROR: no *.safetensors files found in {model_dir}",
+            file=sys.stderr)
         return 1
 
     handles: list = []
@@ -286,7 +295,7 @@ def main() -> int:
         tokenizer = _load_tokenizer(str(model_dir), model_id)
         if tokenizer is None:
             print(
-                "WARNING: could not load tokenizer; skipping prompt tokenization.",
+                "WARNING: tokenizer not loaded; skipping prompt tokenization.",
                 file=sys.stderr,
             )
         else:
