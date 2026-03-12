@@ -142,14 +142,42 @@ SafeTensorsReader::SafeTensorsReader(const std::string& path)
         TensorInfo info;
         info.name = name;
 
-        // dtype
+        // dtype (accept string "F32" or numeric code for robustness)
         if(!entry.contains("dtype"))
         {
             throw std::runtime_error(
                 "SafeTensorsReader: tensor '" + name +
                 "' missing 'dtype' in '" + path_ + "'");
         }
-        std::string st_dtype = entry["dtype"].get<std::string>();
+        std::string st_dtype;
+        const auto& dtype_val = entry["dtype"];
+        if(dtype_val.is_string())
+        {
+            st_dtype = dtype_val.get<std::string>();
+        }
+        else if(dtype_val.is_number_integer())
+        {
+            int code = dtype_val.get<int>();
+            switch(code)
+            {
+                case 0: st_dtype = "F32"; break;
+                case 1: st_dtype = "F16"; break;
+                case 2: st_dtype = "F64"; break;
+                case 3: st_dtype = "BF16"; break;
+                case 4: st_dtype = "I64"; break;
+                default:
+                    throw std::runtime_error(
+                        "SafeTensorsReader: tensor '" + name +
+                        "' has unknown dtype code " + std::to_string(code) +
+                        " in '" + path_ + "' (expected string like \"F32\")");
+            }
+        }
+        else
+        {
+            throw std::runtime_error(
+                "SafeTensorsReader: tensor '" + name +
+                "' dtype must be string or int in '" + path_ + "'");
+        }
         info.dtype = safetensors_to_dtype(st_dtype);
 
         // shape

@@ -44,7 +44,10 @@ graph::NNGraph::TensorNode* LlamaDecoder::forward(
     graph::NNGraph::TensorNode* x,
     graph::NNGraph::TensorNode* sin,
     graph::NNGraph::TensorNode* cos,
-    graph::NNGraph::TensorNode* mask)
+    graph::NNGraph::TensorNode* mask,
+    graph::NNGraph::TensorNode* k_cache,
+    graph::NNGraph::TensorNode* v_cache,
+    Index cache_len)
 {
     if(x == nullptr)
     {
@@ -55,7 +58,7 @@ graph::NNGraph::TensorNode* LlamaDecoder::forward(
     // input_norm -> attention
     graph::NNGraph::TensorNode* x_norm = input_norm_.forward(x);
     graph::NNGraph::TensorNode* attn_out =
-        attention_.forward(x_norm, sin, cos, mask);
+        attention_.forward(x_norm, sin, cos, mask, k_cache, v_cache, cache_len);
 
     // residual: x + attn_out
     graph::NNGraph::TensorNode* post_attn =

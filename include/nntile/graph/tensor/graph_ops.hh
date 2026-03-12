@@ -25,6 +25,7 @@
 #include <nntile/graph/tensor/conv2d_bwd_input_inplace.hh>
 #include <nntile/graph/tensor/conv2d_bwd_weight_inplace.hh>
 #include <nntile/graph/tensor/conv2d_inplace.hh>
+#include <nntile/graph/tensor/concat.hh>
 #include <nntile/graph/tensor/copy.hh>
 #include <nntile/graph/tensor/copy_intersection.hh>
 #include <nntile/graph/tensor/embedding.hh>
