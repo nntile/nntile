@@ -140,6 +140,36 @@ static std::vector<std::int64_t> parse_ids(const std::string& s)
 
 // ── Config loader ────────────────────────────────────────────────────────
 
+// Extract int from JSON; accepts both number and string (e.g. "32000").
+static int config_get_int(const json& j, const char* key, int default_val)
+{
+    if(!j.contains(key))
+        return default_val;
+    const auto& v = j[key];
+    if(v.is_number_integer())
+        return v.get<int>();
+    if(v.is_number_float())
+        return static_cast<int>(v.get<double>());
+    if(v.is_string())
+        return std::stoi(v.get<std::string>());
+    throw std::runtime_error(std::string("config: '") + key +
+                            "' must be int or string, got " + v.type_name());
+}
+
+// Extract float from JSON; accepts both number and string.
+static float config_get_float(const json& j, const char* key, float default_val)
+{
+    if(!j.contains(key))
+        return default_val;
+    const auto& v = j[key];
+    if(v.is_number_integer() || v.is_number_float())
+        return static_cast<float>(v.get<double>());
+    if(v.is_string())
+        return std::stof(v.get<std::string>());
+    throw std::runtime_error(std::string("config: '") + key +
+                            "' must be number or string, got " + v.type_name());
+}
+
 static Gpt2Config load_config(const std::string& path)
 {
     std::ifstream f(path);
@@ -150,15 +180,15 @@ static Gpt2Config load_config(const std::string& path)
     json j = json::parse(f);
 
     Gpt2Config cfg;
-    cfg.vocab_size           = j.value("vocab_size", 50257);
-    cfg.hidden_size          = j.value("n_embd", 768);
-    cfg.intermediate_size     = j.value("n_inner", 4 * cfg.hidden_size);
-    cfg.num_hidden_layers    = j.value("n_layer", 12);
-    cfg.num_attention_heads  = j.value("n_head", 12);
-    cfg.max_position_embeddings = j.value("n_positions", 1024);
-    cfg.layer_norm_eps       = j.value("layer_norm_epsilon", 1e-5f);
-    cfg.eos_token_id         = j.value("eos_token_id", 50256);
-    cfg.bos_token_id         = j.value("bos_token_id", 50256);
+    cfg.vocab_size           = config_get_int(j, "vocab_size", 50257);
+    cfg.hidden_size          = config_get_int(j, "n_embd", 768);
+    cfg.intermediate_size     = config_get_int(j, "n_inner", 4 * cfg.hidden_size);
+    cfg.num_hidden_layers    = config_get_int(j, "n_layer", 12);
+    cfg.num_attention_heads  = config_get_int(j, "n_head", 12);
+    cfg.max_position_embeddings = config_get_int(j, "n_positions", 1024);
+    cfg.layer_norm_eps       = config_get_float(j, "layer_norm_epsilon", 1e-5f);
+    cfg.eos_token_id         = config_get_int(j, "eos_token_id", 50256);
+    cfg.bos_token_id         = config_get_int(j, "bos_token_id", 50256);
     cfg.validate();
     return cfg;
 }
@@ -325,7 +355,7 @@ int main(int argc, char** argv)
     WeightCache weights = load_weights_to_memory(args.weights_path);
     std::cout << "Cached " << weights.size() << " parameter tensors\n";
 
-    Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0,
+    Context context(1, 1, 0, "/tmp/nntile_ooc", 16777216, 0,
                     "localhost", 5001, 0);
 
     std::cout << "\n--- Generating (greedy, no KV-cache) ---\n";
