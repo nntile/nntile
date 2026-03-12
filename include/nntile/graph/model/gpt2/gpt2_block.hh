@@ -25,7 +25,7 @@
 #include <nntile/graph/model/gpt2/gpt2_config.hh>
 #include <nntile/graph/model/gpt2/gpt2_mlp.hh>
 #include <nntile/graph/module/module.hh>
-#include <nntile/graph/module/rms_norm.hh>
+#include <nntile/graph/module/layer_norm.hh>
 
 namespace nntile::model::gpt2
 {
@@ -34,9 +34,9 @@ namespace nntile::model::gpt2
 class Gpt2Block : public graph::module::Module
 {
 private:
-    graph::module::RMSNorm ln_1_;
+    graph::module::LayerNorm ln_1_;
     Gpt2Attention attention_;
-    graph::module::RMSNorm ln_2_;
+    graph::module::LayerNorm ln_2_;
     Gpt2MLP mlp_;
 
     Gpt2Config config_;

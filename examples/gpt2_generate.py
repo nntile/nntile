@@ -107,7 +107,9 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
     for i in range(n_layer):
         p = f"model.transformer.h_{i}"
         specs.append((f"{p}.ln_1.gamma", (H,)))
+        specs.append((f"{p}.ln_1.beta", (H,)))
         specs.append((f"{p}.ln_2.gamma", (H,)))
+        specs.append((f"{p}.ln_2.beta", (H,)))
 
         specs.append((f"{p}.attn.q_weight", (n_head, head_size, H)))
         specs.append((f"{p}.attn.k_weight", (n_head, head_size, H)))
@@ -118,6 +120,7 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
         specs.append((f"{p}.mlp.fc2.weight", (n_inner, H)))
 
     specs.append(("model.transformer.ln_f.gamma", (H,)))
+    specs.append(("model.transformer.ln_f.beta", (H,)))
     specs.append(("model.lm_head.weight", (H, V)))
 
     return specs
@@ -146,6 +149,8 @@ def _make_converter(
 
         if name == "model.transformer.ln_f.gamma":
             return fortran_order(hf_get("ln_f.weight"))
+        if name == "model.transformer.ln_f.beta":
+            return fortran_order(hf_get("ln_f.bias"))
 
         if name == "model.lm_head.weight":
             # GPT2LMHeadModel ties lm_head to wte; use wte if lm_head missing
@@ -160,8 +165,12 @@ def _make_converter(
 
         if rest == "ln_1.gamma":
             return fortran_order(hf_get(f"{hp}.ln_1.weight"))
+        if rest == "ln_1.beta":
+            return fortran_order(hf_get(f"{hp}.ln_1.bias"))
         if rest == "ln_2.gamma":
             return fortran_order(hf_get(f"{hp}.ln_2.weight"))
+        if rest == "ln_2.beta":
+            return fortran_order(hf_get(f"{hp}.ln_2.bias"))
 
         if rest == "attn.q_weight":
             c_attn = hf_get(f"{hp}.attn.c_attn.weight")

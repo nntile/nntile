@@ -25,7 +25,7 @@
 #include <nntile/graph/model/gpt2/gpt2_config.hh>
 #include <nntile/graph/module/embedding.hh>
 #include <nntile/graph/module/module.hh>
-#include <nntile/graph/module/rms_norm.hh>
+#include <nntile/graph/module/layer_norm.hh>
 
 namespace nntile::model::gpt2
 {
@@ -37,7 +37,7 @@ private:
     graph::module::Embedding wte_;
     graph::module::Embedding wpe_;
     std::vector<std::unique_ptr<Gpt2Block>> layers_;
-    graph::module::RMSNorm ln_f_;
+    graph::module::LayerNorm ln_f_;
 
     Gpt2Config config_;
     graph::DataType dtype_;

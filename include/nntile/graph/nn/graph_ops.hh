@@ -37,6 +37,7 @@
 #include <nntile/graph/nn/norm_slice.hh>
 #include <nntile/graph/nn/relu.hh>
 #include <nntile/graph/nn/rms_norm.hh>
+#include <nntile/graph/nn/layer_norm.hh>
 #include <nntile/graph/nn/rope.hh>
 #include <nntile/graph/nn/sdpa_eager.hh>
 #include <nntile/graph/nn/scale.hh>

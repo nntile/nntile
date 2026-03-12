@@ -506,6 +506,7 @@ set(GRAPH_NN_SRC
     "graph/nn/norm_slice.cc"
     "graph/nn/relu.cc"
     "graph/nn/rms_norm.cc"
+    "graph/nn/layer_norm.cc"
     "graph/nn/rope.cc"
     "graph/nn/sdpa_eager.cc"
     "graph/nn/scale.cc"
@@ -534,6 +535,7 @@ set(GRAPH_MODULE_SRC
     "graph/module/linear.cc"
     "graph/module/embedding.cc"
     "graph/module/rms_norm.cc"
+    "graph/module/layer_norm.cc"
 )
 
 set(GRAPH_MODEL_SRC
