@@ -96,6 +96,7 @@ private:
         kernel::flash_sdpa_bwd_cudnn::FlashSdpaBwdGraph graph;
         void *workspace = nullptr;
         std::int64_t workspace_size = 0;
+        T *mask_scratch = nullptr;  // Mask with -inf replaced by lowest() for cuDNN
         Index seq = 0;
         Index head = 0;
         Index batch = 0;
@@ -131,6 +132,10 @@ private:
                 workspace = nullptr;
                 workspace_size = 0;
             }
+            if (mask_scratch != nullptr) {
+                cudaFree(mask_scratch);
+                mask_scratch = nullptr;
+            }
         }
 
         void move_from(CacheEntry &&other) noexcept
@@ -138,12 +143,14 @@ private:
             graph = std::move(other.graph);
             workspace = other.workspace;
             workspace_size = other.workspace_size;
+            mask_scratch = other.mask_scratch;
             seq = other.seq;
             head = other.head;
             batch = other.batch;
 
             other.workspace = nullptr;
             other.workspace_size = 0;
+            other.mask_scratch = nullptr;
         }
     };
 

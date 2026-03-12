@@ -141,8 +141,8 @@ void check(const FlashTensorCase &cfg)
             for(Index j = 0; j < n_seq; ++j)
             {
                 Index idx = i * n_seq + j;
-                // Create a simple mask: allow attention within a window
-                if (std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 32)
+                // Create a simple causal mask
+                if(j <= i)
                 {
                     mask_local[idx] = T(Y(0.0));  // Attend
                 }

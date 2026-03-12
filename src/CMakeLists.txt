@@ -156,8 +156,8 @@ if(NOT HAVE_STARPU_SIMGRID)
             "kernel/sumprod_slice/cuda.cu"
             "kernel/total_sum_accum/cuda.cu"
             "kernel/transpose/cuda.cu"
-            "kernel/flash_sdpa_fwd_cudnn/cuda.cc"
-            "kernel/flash_sdpa_bwd_cudnn/cuda.cc"
+            "kernel/flash_sdpa_fwd_cudnn/cuda.cu"
+            "kernel/flash_sdpa_bwd_cudnn/cuda.cu"
         )
     endif(NNTILE_USE_CUDA)
 endif(NOT HAVE_STARPU_SIMGRID)
