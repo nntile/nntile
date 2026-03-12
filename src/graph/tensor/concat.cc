@@ -14,6 +14,7 @@
 
 #include "nntile/graph/tensor/concat.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/tensor/clear.hh"
 #include "nntile/tensor/copy_intersection.hh"
 
 #include <stdexcept>
@@ -46,6 +47,10 @@ void run_concat(TensorGraph::Runtime& runtime,
         throw std::invalid_argument(
             "concat: axis out of range");
     }
+
+    // Clear output before filling: copy_intersection uses STARPU_RW for edge
+    // tiles when doing partial copies; uninitialized handles cause assert.
+    nntile::tensor::clear<T>(out_t);
 
     // Copy a to output[0:a.shape[axis], ...]
     std::vector<Index> src_offset(n_dim, 0);

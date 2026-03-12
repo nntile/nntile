@@ -58,6 +58,36 @@ using namespace nntile::graph;
 using namespace nntile::model::llama;
 using json = nlohmann::json;
 
+// ── Example constants ────────────────────────────────────────────────────
+
+constexpr const char* DEFAULT_OUTPUT_DIR = "/tmp/nntile_llama";
+constexpr int DEFAULT_MAX_TOKENS = 32;
+
+// StarPU context: 1 CPU worker, 1 CUDA worker, OOC disabled
+constexpr int CONTEXT_NUM_CPU = 1;
+constexpr int CONTEXT_NUM_CUDA = 1;
+constexpr int CONTEXT_OOC = 0;       // OOC disabled
+constexpr int CONTEXT_OOC_SIZE = 16777216;  // 16 MiB OOC buffer (unused when OOC=0)
+constexpr int CONTEXT_LOGGER = 0;    // logger disabled
+constexpr int CONTEXT_VERBOSE = 0;
+constexpr int CONTEXT_LOGGER_PORT = 5001;
+
+// Llama config defaults (used when config.json omits fields)
+constexpr int DEFAULT_VOCAB_SIZE = 32000;
+constexpr int DEFAULT_HIDDEN_SIZE = 4096;
+constexpr int DEFAULT_INTERMEDIATE_SIZE = 11008;
+constexpr int DEFAULT_NUM_HIDDEN_LAYERS = 32;
+constexpr int DEFAULT_NUM_ATTENTION_HEADS = 32;
+constexpr int DEFAULT_NUM_KEY_VALUE_HEADS = 32;
+constexpr float DEFAULT_RMS_NORM_EPS = 1e-6f;
+constexpr int DEFAULT_EOS_TOKEN_ID = 2;
+constexpr int DEFAULT_BOS_TOKEN_ID = 1;
+
+constexpr int BATCH_SIZE = 1;  // single-sequence generation
+
+constexpr int EXIT_OK = 0;
+constexpr int EXIT_ERROR = 1;
+
 // ── CLI helpers ──────────────────────────────────────────────────────────
 
 struct Args
@@ -67,8 +97,8 @@ struct Args
     std::string prompt_ids_str;
     std::string model;
     std::string prompt;
-    std::string output_dir = "/tmp/nntile_llama";
-    int max_tokens = 32;
+    std::string output_dir = DEFAULT_OUTPUT_DIR;
+    int max_tokens = DEFAULT_MAX_TOKENS;
 };
 
 static Args parse_args(int argc, char** argv)
@@ -103,10 +133,11 @@ static Args parse_args(int argc, char** argv)
                 << "  --model <name|path>   HF model name or local path\n"
                 << "  --prompt <text>       text prompt\n"
                 << "  --output-dir <path>   scratch directory "
-                   "(default: /tmp/nntile_llama)\n\n"
+                   "(default: " << DEFAULT_OUTPUT_DIR << ")\n\n"
                 << "Common:\n"
-                << "  --max-tokens <N>      tokens to generate (default: 32)\n";
-            std::exit(0);
+                << "  --max-tokens <N>      tokens to generate (default: "
+                   << DEFAULT_MAX_TOKENS << ")\n";
+            std::exit(EXIT_OK);
         }
     }
     return a;
@@ -142,6 +173,36 @@ static std::vector<std::int64_t> parse_ids(const std::string& s)
 
 // ── Config loader ────────────────────────────────────────────────────────
 
+// Extract int from JSON; accepts both number and string (e.g. "32000").
+static int config_get_int(const json& j, const char* key, int default_val)
+{
+    if(!j.contains(key))
+        return default_val;
+    const auto& v = j[key];
+    if(v.is_number_integer())
+        return v.get<int>();
+    if(v.is_number_float())
+        return static_cast<int>(v.get<double>());
+    if(v.is_string())
+        return std::stoi(v.get<std::string>());
+    throw std::runtime_error(std::string("config: '") + key +
+                            "' must be int or string, got " + v.type_name());
+}
+
+// Extract float from JSON; accepts both number and string.
+static float config_get_float(const json& j, const char* key, float default_val)
+{
+    if(!j.contains(key))
+        return default_val;
+    const auto& v = j[key];
+    if(v.is_number_integer() || v.is_number_float())
+        return static_cast<float>(v.get<double>());
+    if(v.is_string())
+        return std::stof(v.get<std::string>());
+    throw std::runtime_error(std::string("config: '") + key +
+                            "' must be number or string, got " + v.type_name());
+}
+
 static LlamaConfig load_config(const std::string& path)
 {
     std::ifstream f(path);
@@ -152,15 +213,15 @@ static LlamaConfig load_config(const std::string& path)
     json j = json::parse(f);
 
     LlamaConfig cfg;
-    cfg.vocab_size           = j.value("vocab_size", 32000);
-    cfg.hidden_size          = j.value("hidden_size", 4096);
-    cfg.intermediate_size    = j.value("intermediate_size", 11008);
-    cfg.num_hidden_layers    = j.value("num_hidden_layers", 32);
-    cfg.num_attention_heads  = j.value("num_attention_heads", 32);
-    cfg.num_key_value_heads  = j.value("num_key_value_heads", 32);
-    cfg.rms_norm_eps         = j.value("rms_norm_eps", 1e-6f);
-    cfg.eos_token_id         = j.value("eos_token_id", 2);
-    cfg.bos_token_id         = j.value("bos_token_id", 1);
+    cfg.vocab_size           = config_get_int(j, "vocab_size", DEFAULT_VOCAB_SIZE);
+    cfg.hidden_size          = config_get_int(j, "hidden_size", DEFAULT_HIDDEN_SIZE);
+    cfg.intermediate_size    = config_get_int(j, "intermediate_size", DEFAULT_INTERMEDIATE_SIZE);
+    cfg.num_hidden_layers    = config_get_int(j, "num_hidden_layers", DEFAULT_NUM_HIDDEN_LAYERS);
+    cfg.num_attention_heads = config_get_int(j, "num_attention_heads", DEFAULT_NUM_ATTENTION_HEADS);
+    cfg.num_key_value_heads = config_get_int(j, "num_key_value_heads", DEFAULT_NUM_KEY_VALUE_HEADS);
+    cfg.rms_norm_eps         = config_get_float(j, "rms_norm_eps", DEFAULT_RMS_NORM_EPS);
+    cfg.eos_token_id         = config_get_int(j, "eos_token_id", DEFAULT_EOS_TOKEN_ID);
+    cfg.bos_token_id         = config_get_int(j, "bos_token_id", DEFAULT_BOS_TOKEN_ID);
     cfg.compute_head_dim();
     cfg.validate();
     return cfg;
@@ -237,15 +298,15 @@ static bool run_python_conversion(const Args& args)
     {
         execvp("python3", argv.data());
         std::cerr << "execvp(python3) failed\n";
-        _exit(127);
+        _exit(127);  // exec failed: conventional "command not found"
     }
     int status;
-    if(waitpid(pid, &status, 0) != pid)
+    if(waitpid(pid, &status, 0) != pid)  // 0 = no options (blocking wait)
     {
         std::cerr << "waitpid() failed\n";
         return false;
     }
-    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    return WIFEXITED(status) && WEXITSTATUS(status) == 0;  // 0 = success
 }
 
 // ── Read prompt_ids.txt ──────────────────────────────────────────────────
@@ -291,7 +352,7 @@ int main(int argc, char** argv)
         if(!run_python_conversion(args))
         {
             std::cerr << "Python conversion failed.\n";
-            return 1;
+            return EXIT_ERROR;
         }
         args.config_path  = args.output_dir + "/config.json";
         args.weights_path = args.output_dir + "/weights.safetensors";
@@ -310,7 +371,7 @@ int main(int argc, char** argv)
             << "Error: provide either (--model + --prompt) or "
                "(--config + --weights + --prompt-ids).\n"
                "Run with --help for usage.\n";
-        return 1;
+        return EXIT_ERROR;
     }
 
     // ── Load config ──────────────────────────────────────────────────
@@ -326,7 +387,7 @@ int main(int argc, char** argv)
     if(tokens.empty())
     {
         std::cerr << "Error: prompt token list is empty.\n";
-        return 1;
+        return EXIT_ERROR;
     }
     std::cout << "Prompt: " << tokens.size() << " tokens\n";
 
@@ -336,15 +397,17 @@ int main(int argc, char** argv)
     std::cout << "Cached " << weights.size() << " parameter tensors\n";
 
     // ── StarPU context ───────────────────────────────────────────────
-    Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0,
-                    "localhost", 5001, 0);
+    Context context(CONTEXT_NUM_CPU, CONTEXT_NUM_CUDA, CONTEXT_OOC, "/tmp/nntile_ooc",
+                    CONTEXT_OOC_SIZE, CONTEXT_LOGGER, "localhost", CONTEXT_LOGGER_PORT,
+                    CONTEXT_VERBOSE);
+    context.restrict_cuda();
 
     // ── KV cache setup ───────────────────────────────────────────────
     KVCache kv_cache(config.num_hidden_layers,
                      config.head_dim,
                      config.num_key_value_heads,
                      static_cast<Index>(tokens.size()) + args.max_tokens,
-                     1);
+                     BATCH_SIZE);
     kv_cache.reset();
 
     // ── Autoregressive generation loop (with KV cache) ────────────────
@@ -354,13 +417,13 @@ int main(int argc, char** argv)
         const bool is_prefill = (step == 0);
         Index seq_len = is_prefill
             ? static_cast<Index>(tokens.size())
-            : 1;
+            : 1;  // decode: one token at a time
 
         // Build a fresh graph for the current step.
         NNGraph graph("llama_step");
 
         auto* input_ids = graph.tensor(
-            {seq_len, 1}, "input_ids", DataType::INT64, false);
+            {seq_len, BATCH_SIZE}, "input_ids", DataType::INT64, false);
         input_ids->mark_input(true);
 
         kv_cache.create_tensors(&graph, "kv_cache");
@@ -432,5 +495,5 @@ int main(int argc, char** argv)
     }
     std::cout << "]))\"\n";
 
-    return 0;
+    return EXIT_OK;
 }
