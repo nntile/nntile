@@ -242,10 +242,9 @@ void validate()
     // Order: head_size, n_seq, n_seq_tile, n_batch, batch_tile,
     //        kv_group_size, kv_group_tile, n_head_kv, head_kv_tile.
     // head_size_tile must be equal to head_size (no parallelism across head_size)
-    // check<T>({32, 64, 64, 1, 1, 1, 1, 1, 1});
-    // check<T>({128, 256, 128, 2, 1, 2, 1, 2, 1});
-    check<T>({128, 256, 128, 1, 1, 1, 1, 1, 1});
-    // check<T>({32, 512, 64, 4, 1, 3, 1, 4, 2});
+    check<T>({32, 64, 64, 1, 1, 1, 1, 1, 1});
+    check<T>({128, 256, 128, 2, 1, 2, 1, 2, 1});
+    check<T>({32, 512, 64, 4, 1, 3, 1, 4, 2});
 
     // TODO: Add exception testing later
     // For now, just check that the basic functionality works
@@ -261,7 +260,6 @@ int main(int argc, char **argv)
     const char *ooc_path = "/tmp/nntile_ooc";
     size_t ooc_size = 16777216;
     auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
-    context.restrict_cpu();
 
     // Only test FP16 and BF16 as per cuDNN limitations
     validate<fp16_t>();
