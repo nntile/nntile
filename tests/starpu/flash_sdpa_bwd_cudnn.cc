@@ -100,7 +100,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     CUDNN_CHECK(cudnnSetStream(handle, stream), "cudnnSetStream");
 
     T *dev_K = nullptr, *dev_Q = nullptr, *dev_V = nullptr;
-    T *dev_A = nullptr, *dev_dA = nullptr, *dev_mask = nullptr;
+    T *dev_A = nullptr, *dev_dA = nullptr, *dev_mask = nullptr, *dev_mask_scratch = nullptr;
     T *dev_dK = nullptr, *dev_dQ = nullptr, *dev_dV = nullptr;
     T *dev_scratch_dK = nullptr, *dev_scratch_dQ = nullptr, *dev_scratch_dV = nullptr;
     fp32_t *dev_lse = nullptr;
@@ -113,6 +113,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     CUDA_CHECK(cudaMalloc(&dev_A, sizeof(T) * total), "malloc A");
     CUDA_CHECK(cudaMalloc(&dev_dA, sizeof(T) * total), "malloc dA");
     CUDA_CHECK(cudaMalloc(&dev_mask, sizeof(T) * seq * seq), "malloc mask");
+    CUDA_CHECK(cudaMalloc(&dev_mask_scratch, sizeof(T) * seq * seq), "malloc mask scratch");
     CUDA_CHECK(cudaMalloc(&dev_dK, sizeof(T) * total), "malloc dK");
     CUDA_CHECK(cudaMalloc(&dev_dQ, sizeof(T) * total), "malloc dQ");
     CUDA_CHECK(cudaMalloc(&dev_dV, sizeof(T) * total), "malloc dV");
@@ -152,7 +153,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     kernel::flash_sdpa_bwd_cudnn::execute_graph<T>(
         handle, bwd_graph, seq, head, batch,
         dev_K, dev_Q, dev_V, dev_A, dev_dA,
-        dev_mask, dev_lse,
+        dev_mask, dev_mask_scratch, dev_lse,
         dev_scratch_dK, dev_scratch_dQ, dev_scratch_dV,
         dev_dK, dev_dQ, dev_dV, workspace);
     CUDA_CHECK(cudaStreamSynchronize(stream), "sync delta bwd");
@@ -168,7 +169,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     kernel::flash_sdpa_bwd_cudnn::execute_graph<T>(
         handle, bwd_graph, seq, head, batch,
         dev_K, dev_Q, dev_V, dev_A, dev_dA,
-        dev_mask, dev_lse,
+        dev_mask, dev_mask_scratch, dev_lse,
         dev_scratch_dK, dev_scratch_dQ, dev_scratch_dV,
         dev_dK, dev_dQ, dev_dV, workspace);
     CUDA_CHECK(cudaStreamSynchronize(stream), "sync bwd");
@@ -318,6 +319,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     CUDA_CHECK(cudaFree(dev_A), "free A");
     CUDA_CHECK(cudaFree(dev_dA), "free dA");
     CUDA_CHECK(cudaFree(dev_mask), "free mask");
+    CUDA_CHECK(cudaFree(dev_mask_scratch), "free mask scratch");
     CUDA_CHECK(cudaFree(dev_dK), "free dK");
     CUDA_CHECK(cudaFree(dev_dQ), "free dQ");
     CUDA_CHECK(cudaFree(dev_dV), "free dV");

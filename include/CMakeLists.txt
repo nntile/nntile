@@ -579,8 +579,14 @@ set(GRAPH_MODEL_HDR
     "nntile/graph/model/llama/llama_attention.hh"
     "nntile/graph/model/llama/llama_decoder.hh"
     "nntile/graph/model/llama/llama_model.hh"
-    "nntile/graph/model/llama/llama.hh"
     "nntile/graph/model/llama/llama_causal.hh"
+    "nntile/graph/model/gpt2.hh"
+    "nntile/graph/model/gpt2/gpt2_config.hh"
+    "nntile/graph/model/gpt2/gpt2_attention.hh"
+    "nntile/graph/model/gpt2/gpt2_mlp.hh"
+    "nntile/graph/model/gpt2/gpt2_block.hh"
+    "nntile/graph/model/gpt2/gpt2_model.hh"
+    "nntile/graph/model/gpt2/gpt2_causal.hh"
     )
 
 set(GRAPH_OPTIM_HDR

@@ -156,8 +156,8 @@ if(NOT HAVE_STARPU_SIMGRID)
             "kernel/sumprod_slice/cuda.cu"
             "kernel/total_sum_accum/cuda.cu"
             "kernel/transpose/cuda.cu"
-            "kernel/flash_sdpa_fwd_cudnn/cuda.cc"
-            "kernel/flash_sdpa_bwd_cudnn/cuda.cc"
+            "kernel/flash_sdpa_fwd_cudnn/cuda.cu"
+            "kernel/flash_sdpa_bwd_cudnn/cuda.cu"
         )
     endif(NNTILE_USE_CUDA)
 endif(NOT HAVE_STARPU_SIMGRID)
@@ -508,6 +508,7 @@ set(GRAPH_NN_SRC
     "graph/nn/norm_slice.cc"
     "graph/nn/relu.cc"
     "graph/nn/rms_norm.cc"
+    "graph/nn/layer_norm.cc"
     "graph/nn/rope.cc"
     "graph/nn/sdpa_eager.cc"
     "graph/nn/scale.cc"
@@ -540,6 +541,7 @@ set(GRAPH_MODULE_SRC
     "graph/module/linear.cc"
     "graph/module/embedding.cc"
     "graph/module/rms_norm.cc"
+    "graph/module/layer_norm.cc"
 )
 
 set(GRAPH_MODEL_SRC
@@ -548,6 +550,11 @@ set(GRAPH_MODEL_SRC
     "graph/model/llama/llama_decoder.cc"
     "graph/model/llama/llama_model.cc"
     "graph/model/llama/llama_causal.cc"
+    "graph/model/gpt2/gpt2_attention.cc"
+    "graph/model/gpt2/gpt2_mlp.cc"
+    "graph/model/gpt2/gpt2_block.cc"
+    "graph/model/gpt2/gpt2_model.cc"
+    "graph/model/gpt2/gpt2_causal.cc"
     )
 
 set(GRAPH_OPTIM_SRC

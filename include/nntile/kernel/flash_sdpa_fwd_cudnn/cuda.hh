@@ -44,6 +44,7 @@ FlashSdpaFwdGraph prepare_graph(
 
 //! Execute prepared cuDNN graph for flash attention
 /*! Executes a previously prepared cuDNN graph with provided data pointers.
+ * cuDNN writes to scratch buffers; accumulate_attn_output merges to logsumexp and A.
  * @param[in] handle: cuDNN handle (with stream already set)
  * @param[in] prepared_graph: Previously prepared graph structure
  * @param[in] seq: Sequence length
@@ -51,12 +52,14 @@ FlashSdpaFwdGraph prepare_graph(
  * @param[in] batch: Batch size
  * @param[in] K: Key tensor [batch, seq, head]
  * @param[in] Q: Query tensor [batch, seq, head]
- * @param[in] mask: Mask tensor [seq, seq]
+ * @param[in] mask: Mask tensor [seq, seq] (may contain -inf for masked positions)
+ * @param[in,out] mask_scratch: Scratch buffer [seq, seq] for mask with -inf replaced by lowest()
  * @param[out] scratch_logsumexp: Temporary log-sum-exp buffer [batch, seq]
  * @param[in] V: Value tensor [batch, seq, head]
  * @param[out] scratch_A: Temporary attention output buffer [batch, seq, head]
  * @param[in,out] logsumexp: Destination log-sum-exp statistics [batch, seq]
  * @param[in,out] A: Destination attention output tensor [batch, seq, head]
+ * @param[in] workspace: Workspace buffer (from get_workspace_size), or nullptr if size is 0
  * */
 template<typename T>
 void execute_graph(
@@ -68,11 +71,13 @@ void execute_graph(
     const T *K,
     const T *Q,
     const T *mask,
+    T *mask_scratch,
     fp32_t *scratch_logsumexp,
     const T *V,
     T *scratch_A,
     fp32_t *logsumexp,
-    T *A
+    T *A,
+    void *workspace = nullptr
 ) noexcept;
 
 } // namespace nntile::kernel::flash_sdpa_fwd_cudnn

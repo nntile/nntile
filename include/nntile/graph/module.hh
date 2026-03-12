@@ -21,3 +21,4 @@
 #include <nntile/graph/module/gated_mlp.hh>
 #include <nntile/graph/module/mlp.hh>
 #include <nntile/graph/module/rms_norm.hh>
+#include <nntile/graph/module/layer_norm.hh>

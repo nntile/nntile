@@ -91,7 +91,7 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
 
     const uint32_t hash = hash_parameters(args->seq, args->head, args->batch);
 
-    auto prepared_graph = owner->find_cached_graph(
+    auto *cache_entry = owner->find_cached_graph(
         worker_cache,
         hash,
         args->seq,
@@ -99,29 +99,34 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         args->batch
     );
 
-    if (!prepared_graph)
+    if (cache_entry == nullptr)
     {
-        prepared_graph = kernel::flash_sdpa_fwd_cudnn::prepare_graph<T>(
+        auto graph = kernel::flash_sdpa_fwd_cudnn::prepare_graph<T>(
             handle,
             args->seq,
             args->head,
             args->batch
         );
 
-        if (!prepared_graph)
+        if (!graph)
         {
             std::cerr << "CUDA Worker: Failed to prepare cuDNN graph" << std::endl;
             return;
         }
 
-        prepared_graph = owner->store_graph(
+        cache_entry = owner->store_graph(
             worker_cache,
             hash,
             args->seq,
             args->head,
             args->batch,
-            prepared_graph
+            std::move(graph)
         );
+        if (cache_entry == nullptr)
+        {
+            std::cerr << "CUDA Worker: Failed to store cuDNN graph" << std::endl;
+            return;
+        }
     }
 
     // Get interfaces
@@ -135,21 +140,23 @@ void FlashSdpaFwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     fp32_t *scratch_logsumexp = interfaces[6]->get_ptr<fp32_t>(); // Scratch log-sum-exp
     T *scratch_A = interfaces[7]->get_ptr<T>();         // Scratch attention output
 
-    // Execute the prepared graph - mask is already nullptr when not used
+    // Execute the prepared graph - mask -inf is replaced by lowest() for cuDNN compatibility
     kernel::flash_sdpa_fwd_cudnn::execute_graph<T>(
         handle,
-        prepared_graph,
+        cache_entry->graph,
         args->seq,
         args->head,
         args->batch,
         K,
         Q,
         mask,
+        cache_entry->mask_scratch,
         scratch_logsumexp,
         V,
         scratch_A,
         logsumexp,
-        A
+        A,
+        cache_entry->workspace
     );
 #endif // STARPU_SIMGRID
 }
@@ -225,7 +232,7 @@ FlashSdpaFwdCudnn<std::tuple<T>>::get_or_create_worker_cache(int worker_id)
 }
 
 template<typename T>
-    kernel::flash_sdpa_fwd_cudnn::FlashSdpaFwdGraph
+typename FlashSdpaFwdCudnn<std::tuple<T>>::CacheEntry *
 FlashSdpaFwdCudnn<std::tuple<T>>::find_cached_graph(
     WorkerCache &cache,
     uint32_t hash,
@@ -237,7 +244,7 @@ FlashSdpaFwdCudnn<std::tuple<T>>::find_cached_graph(
     auto it = cache.graphs.find(hash);
     if (it == cache.graphs.end())
     {
-        return {};
+        return nullptr;
     }
 
     const auto match = std::find_if(
@@ -251,14 +258,14 @@ FlashSdpaFwdCudnn<std::tuple<T>>::find_cached_graph(
 
     if (match == it->second.end())
     {
-        return {};
+        return nullptr;
     }
 
-    return match->graph;
+    return &*match;
 }
 
 template<typename T>
-    kernel::flash_sdpa_fwd_cudnn::FlashSdpaFwdGraph
+typename FlashSdpaFwdCudnn<std::tuple<T>>::CacheEntry *
 FlashSdpaFwdCudnn<std::tuple<T>>::store_graph(
     WorkerCache &cache,
     uint32_t hash,
@@ -280,11 +287,47 @@ FlashSdpaFwdCudnn<std::tuple<T>>::store_graph(
 
     if (match != bucket.end())
     {
-        return match->graph;
+        return &*match;
     }
 
-    bucket.push_back(CacheEntry{graph, seq, head, batch});
-    return bucket.back().graph;
+    CacheEntry entry;
+    entry.graph = std::move(graph);
+    entry.seq = seq;
+    entry.head = head;
+    entry.batch = batch;
+
+    ::int64_t workspace_size = 0;
+    auto status = entry.graph->get_workspace_size(workspace_size);
+    if (!status.is_good())
+    {
+        std::cerr << "CUDA Worker: Failed to query forward workspace size" << std::endl;
+        return nullptr;
+    }
+    entry.workspace_size = workspace_size;
+    if (entry.workspace_size > 0)
+    {
+        auto cuda_status = cudaMalloc(&entry.workspace,
+                                      static_cast<size_t>(entry.workspace_size));
+        if (cuda_status != cudaSuccess)
+        {
+            std::cerr << "CUDA Worker: Failed to allocate forward workspace" << std::endl;
+            return nullptr;
+        }
+    }
+
+    const size_t mask_size = static_cast<size_t>(seq) * seq * sizeof(T);
+    if (mask_size > 0)
+    {
+        auto cuda_status = cudaMalloc(&entry.mask_scratch, mask_size);
+        if (cuda_status != cudaSuccess)
+        {
+            std::cerr << "CUDA Worker: Failed to allocate mask scratch" << std::endl;
+            return nullptr;
+        }
+    }
+
+    bucket.push_back(std::move(entry));
+    return &bucket.back();
 }
 #endif // NNTILE_USE_CUDA
 
