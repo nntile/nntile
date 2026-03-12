@@ -68,11 +68,17 @@ public:
     //! @param sin RoPE sin tensor (head_size/2, seq, batch), may be nullptr to skip RoPE
     //! @param cos RoPE cos tensor (head_size/2, seq, batch), may be nullptr to skip RoPE
     //! @param mask Optional attention mask (k_seq, q_seq), may be nullptr
+    //! @param k_cache Optional KV cache for K (head_size, max_seq, batch, n_head_kv)
+    //! @param v_cache Optional KV cache for V (head_size, max_seq, batch, n_head_kv)
+    //! @param cache_len Current valid length in cache (0 = prefill, >0 = decode)
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* x,
         graph::NNGraph::TensorNode* sin = nullptr,
         graph::NNGraph::TensorNode* cos = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr);
+        graph::NNGraph::TensorNode* mask = nullptr,
+        graph::NNGraph::TensorNode* k_cache = nullptr,
+        graph::NNGraph::TensorNode* v_cache = nullptr,
+        Index cache_len = 0);
 
     //! Get string representation
     std::string repr() const override;

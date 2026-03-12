@@ -49,7 +49,8 @@ graph::NNGraph::TensorNode* LlamaModel::forward(
     graph::NNGraph::TensorNode* input_ids,
     graph::NNGraph::TensorNode* sin,
     graph::NNGraph::TensorNode* cos,
-    graph::NNGraph::TensorNode* mask)
+    graph::NNGraph::TensorNode* mask,
+    graph::KVCache* kv_cache)
 {
     if(input_ids == nullptr)
     {
@@ -57,15 +58,25 @@ graph::NNGraph::TensorNode* LlamaModel::forward(
             "LlamaModel::forward: input_ids must be non-null");
     }
 
+    const auto* kv_caches = kv_cache ? kv_cache->get_cache() : nullptr;
+    Index cache_len = kv_cache ? kv_cache->len() : 0;
+
     // Embedding: (seq, batch) -> (seq, batch, hidden)
     graph::NNGraph::TensorNode* embed = embed_tokens_.forward(input_ids);
     // Transpose to (hidden, seq, batch) for decoder layers (ndim=2)
     graph::NNGraph::TensorNode* x =
         graph::transpose(embed, tensor_name("embed_out"), 2);
 
-    for(auto& layer : layers_)
+    for(size_t i = 0; i < layers_.size(); ++i)
     {
-        x = layer->forward(x, sin, cos, mask);
+        graph::NNGraph::TensorNode* k_cache = nullptr;
+        graph::NNGraph::TensorNode* v_cache = nullptr;
+        if(kv_caches != nullptr && i < kv_caches->size())
+        {
+            k_cache = (*kv_caches)[i].first;
+            v_cache = (*kv_caches)[i].second;
+        }
+        x = layers_[i]->forward(x, sin, cos, mask, k_cache, v_cache, cache_len);
     }
 
     return norm_.forward(x);

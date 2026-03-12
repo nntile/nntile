@@ -17,9 +17,12 @@
 // Include standard headers
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 // NNTile headers
 #include <nntile/graph.hh>
+#include <nntile/graph/kv_cache.hh>
 #include <nntile/graph/model/llama/llama_config.hh>
 #include <nntile/graph/model/llama/llama_model.hh>
 #include <nntile/graph/module/linear.hh>
@@ -46,11 +49,13 @@ public:
                 graph::DataType dtype = graph::DataType::FP32);
 
     //! Forward pass
+    //! @param kv_cache Optional KV cache; when non-null, use_cache is implied
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* input_ids,
         graph::NNGraph::TensorNode* sin = nullptr,
         graph::NNGraph::TensorNode* cos = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr);
+        graph::NNGraph::TensorNode* mask = nullptr,
+        graph::KVCache* kv_cache = nullptr);
 
     std::string repr() const override;
 

@@ -13,11 +13,13 @@
  * */
 
 #include "nntile/graph/model/llama/llama_attention.hh"
+#include "nntile/graph/nn/concat.hh"
 #include "nntile/graph/nn/gemm.hh"
-#include "nntile/graph/nn/scale_slice.hh"
 #include "nntile/graph/nn/rope.hh"
+#include "nntile/graph/nn/scale_slice.hh"
 #include "nntile/graph/nn/sdpa_eager.hh"
 #include "nntile/graph/nn/transpose.hh"
+#include "nntile/graph/tensor/copy_intersection.hh"
 
 #include <cmath>
 #include <cstring>
@@ -104,7 +106,10 @@ graph::NNGraph::TensorNode* LlamaAttention::forward(
     graph::NNGraph::TensorNode* x,
     graph::NNGraph::TensorNode* sin,
     graph::NNGraph::TensorNode* cos,
-    graph::NNGraph::TensorNode* mask)
+    graph::NNGraph::TensorNode* mask,
+    graph::NNGraph::TensorNode* k_cache,
+    graph::NNGraph::TensorNode* v_cache,
+    Index cache_len)
 {
     if(x == nullptr)
     {
@@ -168,19 +173,57 @@ graph::NNGraph::TensorNode* LlamaAttention::forward(
         k_rope = graph::rope(sin, cos, k, tensor_name("k_rope"));
     }
 
+    // KV cache: use cached K,V when available, update cache with new K,V
+    graph::NNGraph::TensorNode* k_for_sdpa = k_rope;
+    graph::NNGraph::TensorNode* v_for_sdpa = v;
+    if(k_cache != nullptr && v_cache != nullptr)
+    {
+        if(cache_len > 0)
+        {
+            // Decode: concat cached prefix with new K,V
+            graph::NNGraph::TensorNode* k_cache_slice = graph_->tensor(
+                {head_size_, cache_len, n_batch, n_head_kv_},
+                tensor_name("k_cache_slice"),
+                dtype_,
+                false);
+            graph::NNGraph::TensorNode* v_cache_slice = graph_->tensor(
+                {head_size_, cache_len, n_batch, n_head_kv_},
+                tensor_name("v_cache_slice"),
+                dtype_,
+                false);
+            graph::tensor::copy_intersection(
+                k_cache->data(), {0, 0, 0, 0},
+                k_cache_slice->data(), {0, 0, 0, 0});
+            graph::tensor::copy_intersection(
+                v_cache->data(), {0, 0, 0, 0},
+                v_cache_slice->data(), {0, 0, 0, 0});
+            k_for_sdpa = graph::concat(
+                k_cache_slice, k_rope, 1, tensor_name("k_full"));
+            v_for_sdpa = graph::concat(
+                v_cache_slice, v, 1, tensor_name("v_full"));
+        }
+        // Update cache: write new K,V at position cache_len
+        graph::tensor::copy_intersection(
+            k_rope->data(), {0, 0, 0, 0},
+            k_cache->data(), {0, cache_len, 0, 0});
+        graph::tensor::copy_intersection(
+            v->data(), {0, 0, 0, 0},
+            v_cache->data(), {0, cache_len, 0, 0});
+    }
+
     // For GQA: repeat K and V to match Q's head count
-    graph::NNGraph::TensorNode* k_rep = k_rope;
-    graph::NNGraph::TensorNode* v_rep = v;
+    graph::NNGraph::TensorNode* k_rep = k_for_sdpa;
+    graph::NNGraph::TensorNode* v_rep = v_for_sdpa;
     if(use_gqa_)
     {
-        // k_rope: (head_size, seq, batch, n_head_kv) - 4D
+        // k_for_sdpa: (head_size, seq, batch, n_head_kv) - 4D
         // k_rep: (head_size, seq, batch, kv_group_size, n_head_kv) - 5D
         // scale_slice broadcasts k along axis 3
         k_rep = graph::scale_slice(
-            1.0, k_rope, tensor_name("k_rep"), 3, kv_group_size_);
+            1.0, k_for_sdpa, tensor_name("k_rep"), 3, kv_group_size_);
 
         v_rep = graph::scale_slice(
-            1.0, v, tensor_name("v_rep"), 3, kv_group_size_);
+            1.0, v_for_sdpa, tensor_name("v_rep"), 3, kv_group_size_);
     }
 
     // SDPA: q, k, v layout (head_size, seq, batch, ...)

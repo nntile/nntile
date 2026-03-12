@@ -17,10 +17,12 @@
 // Include standard headers
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 // NNTile headers
 #include <nntile/graph.hh>
+#include <nntile/graph/kv_cache.hh>
 #include <nntile/graph/model/llama/llama_config.hh>
 #include <nntile/graph/model/llama/llama_decoder.hh>
 #include <nntile/graph/module/embedding.hh>
@@ -53,11 +55,13 @@ public:
     //! @param sin RoPE sin per layer (optional)
     //! @param cos RoPE cos per layer (optional)
     //! @param mask Attention mask (optional)
+    //! @param kv_cache Optional KV cache; when non-null, uses cache for decode
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* input_ids,
         graph::NNGraph::TensorNode* sin = nullptr,
         graph::NNGraph::TensorNode* cos = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr);
+        graph::NNGraph::TensorNode* mask = nullptr,
+        graph::KVCache* kv_cache = nullptr);
 
     std::string repr() const override;
 

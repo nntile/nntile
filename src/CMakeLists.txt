@@ -420,6 +420,7 @@ set(GRAPH_TENSOR_SRC
     "graph/tensor/conv2d_bwd_input_inplace.cc"
     "graph/tensor/conv2d_bwd_weight_inplace.cc"
     "graph/tensor/conv2d_inplace.cc"
+    "graph/tensor/concat.cc"
     "graph/tensor/copy.cc"
     "graph/tensor/copy_intersection.cc"
     "graph/tensor/embedding.cc"
@@ -493,6 +494,7 @@ set(GRAPH_NN_SRC
     "graph/nn/add.cc"
     "graph/nn/add_fiber.cc"
     "graph/nn/add_slice.cc"
+    "graph/nn/concat.cc"
     "graph/nn/embedding.cc"
     "graph/nn/gemm.cc"
     "graph/nn/gelu.cc"
@@ -526,6 +528,10 @@ set(GRAPH_IO_SRC
     "graph/io/safetensors.cc"
 )
 
+set(GRAPH_UTIL_SRC
+    "graph/kv_cache.cc"
+)
+
 set(GRAPH_MODULE_SRC
     "graph/module/module.cc"
     "graph/module/activation.cc"
@@ -555,6 +561,7 @@ set(GRAPH_SRC
     ${GRAPH_TENSOR_SRC}
     ${GRAPH_NN_SRC}
     ${GRAPH_IO_SRC}
+    ${GRAPH_UTIL_SRC}
     ${GRAPH_MODULE_SRC}
     ${GRAPH_MODEL_SRC}
     ${GRAPH_OPTIM_SRC}
