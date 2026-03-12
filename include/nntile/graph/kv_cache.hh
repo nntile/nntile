@@ -101,11 +101,13 @@ public:
 
     // ── Buffer access (for custom flows) ─────────────────────────────────
 
-    //! Get K buffer for layer (read/write)
+    //! Get K buffer for layer (read/write).
+    //! Only supported when dtype is FP32 or FP32_FAST_*; throws otherwise.
     std::vector<float>& k_buffer(Index layer);
     const std::vector<float>& k_buffer(Index layer) const;
 
-    //! Get V buffer for layer (read/write)
+    //! Get V buffer for layer (read/write).
+    //! Only supported when dtype is FP32 or FP32_FAST_*; throws otherwise.
     std::vector<float>& v_buffer(Index layer);
     const std::vector<float>& v_buffer(Index layer) const;
 
@@ -115,11 +117,21 @@ public:
     //! Cache shape per layer
     std::vector<Index> cache_shape() const;
 
+    //! Data type of cache buffers
+    DataType dtype() const { return config_.dtype; }
+
 private:
+    //! True if buffers use float storage (FP32, FP32_FAST_*)
+    bool uses_float_buffers_() const;
+
     Config config_;
     Index cache_len_ = 0;
-    std::vector<std::vector<float>> k_buffers_;
-    std::vector<std::vector<float>> v_buffers_;
+    // Float storage for FP32 and FP32_FAST_* (4 bytes per element)
+    std::vector<std::vector<float>> k_buffers_f32_;
+    std::vector<std::vector<float>> v_buffers_f32_;
+    // Byte storage for FP16, BF16, FP64 (dtype-specific size per element)
+    std::vector<std::vector<std::byte>> k_buffers_bytes_;
+    std::vector<std::vector<std::byte>> v_buffers_bytes_;
     std::vector<std::pair<NNGraph::TensorNode*, NNGraph::TensorNode*>>
         tensors_;
 };
