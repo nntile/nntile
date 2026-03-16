@@ -548,6 +548,11 @@ set(GRAPH_MODEL_SRC
     "graph/model/llama/llama_decoder.cc"
     "graph/model/llama/llama_model.cc"
     "graph/model/llama/llama_causal.cc"
+    "graph/model/gptneo/gptneo_mlp.cc"
+    "graph/model/gptneo/gptneo_attention.cc"
+    "graph/model/gptneo/gptneo_decoder.cc"
+    "graph/model/gptneo/gptneo_model.cc"
+    "graph/model/gptneo/gptneo_causal.cc"
     )
 
 set(GRAPH_OPTIM_SRC
