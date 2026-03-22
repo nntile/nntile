@@ -75,6 +75,8 @@ parser.add_argument("--dataset-file", default="")
 
 parser.add_argument("--lr", type=float, default=1e-4)
 parser.add_argument("--nepochs", type=int, default=1)
+parser.add_argument("--seed", type=int, default=None,
+                    help="If set, seed PyTorch and NumPy for reproducibility.")
 
 parser.add_argument("--logger", action="store_true")
 parser.add_argument("--logger-server-addr", type=str,
@@ -146,6 +148,12 @@ assert args.force_offload_ram_portion_temporaries >= 0.0
 assert args.force_offload_ram_portion_temporaries <= 1.0
 assert args.force_offload_ram_portion_optimizer >= 0.0
 assert args.force_offload_ram_portion_optimizer <= 1.0
+
+if args.seed is not None:
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+    np.random.seed(args.seed)
 
 # Load named pretrained PyTorch model
 if args.pretrained == "remote":
