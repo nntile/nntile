@@ -40,22 +40,25 @@ class Pipeline(object):
 
     def train_async(self, log_loss=True):
         for i_epoch in range(self.n_epochs):
-            # Provide epoch number to the FXT trace
-            iteration_push(i_epoch)
-            # print("Epoch ", i_epoch)
             num_batches = len(self.x)
             for i_batch, (x_batch, y_batch) in enumerate(zip(self.x, self.y)):
                 # Provide batch number to the FXT trace
                 iteration_push(i_batch)
                 # Start graph recording
                 graph_recording_begin()
+                # Minibatch number 0 clears parameters gradients and output loss
+                i_minibatch = 0
+                iteration_push(i_minibatch)
                 # Zero out gradients of all weights
                 self.model.clear_parameters_grads()
                 clear_async(self.loss.val)
+                # Mark end of minibatch number 0
+                iteration_pop()
                 # Accumulate gradients from subbatches
                 for x_minibatch, y_minibatch in zip(x_batch, y_batch):
-                    # Clear gradients of inter-layer activations
-                    self.model.clear_activations_grads()
+                    # Increment minibatch number and mark start of the forward pass
+                    i_minibatch += 1
+                    iteration_push(i_minibatch)
                     # Copy input batch into activation[0] of the model
                     copy_async(x_minibatch, self.model.activations[0].value)
                     # Perform forward pass
@@ -65,8 +68,16 @@ class Pipeline(object):
                     # Loss function shall be instatiated to read X from
                     # activations[-1].value of the model and write gradient
                     # into activations[-1].grad
+                    # Mark end of the forward pass
+                    iteration_pop()
+                    # Mark start of the backward pass
+                    i_minibatch += 1
+                    iteration_push(i_minibatch)
+                    # Clear gradients of inter-layer activations
+                    self.model.clear_activations_grads()
+                    # We cound loss as backward operation
                     self.loss.calc_async()
-                    # Now do the backward pass
+                    # Perform backward pass
                     self.model.backward_async()
                     # Invalidate activations[2:]. We have to keep
                     # activations[1] as it holds positional embedding indices,
@@ -82,6 +93,12 @@ class Pipeline(object):
                     for t in self.model.activations:
                         if t.grad_required:
                             t.grad.invalidate_submit()
+                    # Mark end of the backward pass
+                    iteration_pop()
+                # Define optimizer step as minibatch number 4,294,967,295
+                # (maximal unsigned 32-bit integer)
+                i_minibatch = 4_294_967_295
+                iteration_push(i_minibatch)
                 # Apply optimizer after gradients for entire batch are
                 # accumulated
                 self.opt.step()
@@ -102,14 +119,10 @@ class Pipeline(object):
                 print("Batch={}/{} Epoch={}/{} Loss={}".format(
                         i_batch + 1, num_batches, i_epoch + 1, self.n_epochs,
                         loss_np[0]), flush=True)
-                # Finish current batch in the FXT trace
+                # Mark end of optimizer step
                 iteration_pop()
-            # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
-            # self.loss.get_val(nntile_xentropy_np)
-            # print("Last batch loss after in {} epoch = {}".format(
-            #       i_epoch, nntile_xentropy_np[0]))
-            # Finish current epoch in the FXT trace
-            iteration_pop()
+                # Mark end of batch
+                iteration_pop()
 
     def print_meminfo(self):
         params_nbytes = 0

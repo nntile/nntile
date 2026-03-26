@@ -14,6 +14,7 @@ NNTILE_BUILD    ?= $(NNTILE_ROOT)/build
 
 STARPU_SRC      ?= $(abspath $(NNTILE_ROOT)/../starpu-sched)
 STARPU_BUILD    ?= $(STARPU_SRC)/build
+STARPU_LD       ?= $$(pkg-config --variable=libdir starpu-1.4 2>/dev/null)
 GRAPH_SCHED_DIR ?= $(STARPU_SRC)/new_sched
 
 CMAKE           ?= cmake
@@ -25,16 +26,17 @@ NNTILE_PYTHON   := $(NNTILE_BUILD)/wrappers/python
 TRAIN_SEED      ?= 0
 
 # Env vars from notebooks/gpt2_lmhead.ipynb (single line for one shell)
-STARPU_ENV := CUDA_VISIBLE_DEVICES=0 OMP_NUM_THREADS=1 \
+STARPU_ENV := OMP_NUM_THREADS=1 \
+	LD_LIBRARY_PATH=$(STARPU_LD):$(GRAPH_SCHED_LD):$$LD_LIBRARY_PATH \
 	PYTHONPATH=$(NNTILE_PYTHON) \
-	STARPU_NCPU=1 STARPU_NCUDA=0 STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1 \
+	STARPU_NCPU=1 STARPU_NCUDA=1 STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1 \
 	STARPU_PROFILING=1 STARPU_BUS_STATS=1 \
 	STARPU_HOME=$(NOTEBOOK_DIR)/starpu \
 	STARPU_PERF_MODEL_DIR=$(NOTEBOOK_DIR)/starpu/sampling \
 	STARPU_PERF_MODEL_HOMOGENEOUS_CPU=1 STARPU_PERF_MODEL_HOMOGENEOUS_CUDA=1 \
 	STARPU_HOSTNAME=GPT2_LMHead_example \
 	STARPU_FXT_PREFIX=$(NOTEBOOK_DIR)/starpu/fxt \
-	STARPU_GRAPH_SCHED_VERBOSE=5 \
+	STARPU_GRAPH_SCHED_VERBOSE=3 \
 	STARPU_GRAPH_SCHED_CHECKPOINT_MAX=1000
 
 # Training invocation from notebook §3.1, with requested hyperparameters
@@ -46,8 +48,8 @@ GPT2_TRAIN := python ../wrappers/python/examples/gpt2_lmhead_training.py \
 	--optimizer=adam \
 	--lr=1e-4 \
 	--dtype=fp32 \
-	--nepochs=5 \
-	--seq-len=32 \
+	--nepochs=1 \
+	--seq-len=1024 \
 	--batch-size=4 \
 	--minibatch-size=4 \
 	--dataset-file=tinystories/train.bin \
@@ -55,7 +57,7 @@ GPT2_TRAIN := python ../wrappers/python/examples/gpt2_lmhead_training.py \
 
 .PHONY: build build_starpu install_starpu build_graph_sched configure_nntile \
 	nntile_python nntile_core nntile_graph \
-	data run run_dmdasd run_graph run_grpah
+	data run run_dmdasd run_graph
 
 # ---------------------------------------------------------------------------
 # build: StarPU (compile + install) -> graph scheduler (in-tree, no install)
@@ -73,7 +75,10 @@ build_graph_sched:
 	$(MAKE) -C $(GRAPH_SCHED_DIR)
 
 configure_nntile:
-	$(CMAKE) -S $(NNTILE_ROOT) -B $(NNTILE_BUILD)
+	$(CMAKE) -S $(NNTILE_ROOT) -B $(NNTILE_BUILD) -GNinja \
+		-DCMAKE_CUDA_ARCHITECTURES=90 \
+		-DCMAKE_PREFIX_PATH=$$(python3 -c 'import torch;print(torch.utils.cmake_prefix_path)') \
+		-DCMAKE_BUILD_TYPE=Release
 
 # Pybind extensions into $(NNTILE_PYTHON)/nntile/ (core ops + graph API)
 nntile_python: configure_nntile
@@ -91,9 +96,9 @@ nntile_graph: configure_nntile
 data:
 	cd $(NOTEBOOK_DIR) && python ../wrappers/python/examples/causal_lm_data_preparation.py \
 		--hf-tokenizer=openai-community/gpt2 \
-		--seq-len=32 \
+		--seq-len=1024 \
 		--batch-size=4 \
-		--dataset-select=1
+		--dataset-select=1000
 
 # PYTHONPATH -> $(NNTILE_BUILD)/wrappers/python (via STARPU_ENV); default: graph scheduler
 run: run_graph
@@ -101,11 +106,12 @@ run: run_graph
 run_dmdasd:
 	cd $(NOTEBOOK_DIR) && $(STARPU_ENV) STARPU_SCHED=dmdasd $(GPT2_TRAIN)
 
-# Loadable graph_recorder policy from $(GRAPH_SCHED_DIR) (see that tree's Makefile)
+# Loadable graph_recorder policy from $(GRAPH_SCHED_DIR) (see that tree's Makefile).
+# graph_recorder pins recorded replay using STARPU_GRAPH_SCHED_WORKER (see starpu-sched new_sched).
+# An inherited value (e.g. CPU:0 from your shell) is fatal if this StarPU run has no CPU workers
+# (STARPU_NCPU=0, CPU driver disabled, etc.). STARPU_GRAPH_SCHED_WORKER= in STARPU_ENV clears that
+# so the policy uses its default (CUDA:0 if a GPU exists, else CPU:0). Override on the make line if needed.
 run_graph:
 	cd $(NOTEBOOK_DIR) && $(STARPU_ENV) STARPU_SCHED=graph_recorder \
 		STARPU_SCHED_LIB=$(GRAPH_SCHED_SO) \
-		LD_LIBRARY_PATH=$(GRAPH_SCHED_LD):$$LD_LIBRARY_PATH \
 		$(GPT2_TRAIN)
-
-run_grpah: run_graph
