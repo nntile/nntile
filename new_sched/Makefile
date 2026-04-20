@@ -37,7 +37,7 @@ STARPU_ENV := OMP_NUM_THREADS=1 \
 	STARPU_HOSTNAME=GPT2_LMHead_example \
 	STARPU_FXT_PREFIX=$(NOTEBOOK_DIR)/starpu/fxt \
 	STARPU_GRAPH_SCHED_VERBOSE=3 \
-	STARPU_GRAPH_SCHED_CHECKPOINT_MAX=1000
+	STARPU_GRAPH_SCHED_CHECKPOINT_MAX=0
 
 # Training invocation from notebook §3.1, with requested hyperparameters
 GPT2_TRAIN := python ../wrappers/python/examples/gpt2_lmhead_training.py \
@@ -51,7 +51,7 @@ GPT2_TRAIN := python ../wrappers/python/examples/gpt2_lmhead_training.py \
 	--nepochs=1 \
 	--seq-len=1024 \
 	--batch-size=4 \
-	--minibatch-size=4 \
+	--minibatch-size=2 \
 	--dataset-file=tinystories/train.bin \
 	--seed=$(TRAIN_SEED)
 
@@ -98,7 +98,7 @@ data:
 		--hf-tokenizer=openai-community/gpt2 \
 		--seq-len=1024 \
 		--batch-size=4 \
-		--dataset-select=1000
+		--dataset-select=100
 
 # PYTHONPATH -> $(NNTILE_BUILD)/wrappers/python (via STARPU_ENV); default: graph scheduler
 run: run_graph
