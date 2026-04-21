@@ -55,6 +55,7 @@ TensorGraph::TensorNode* sqrt(
         std::move(output_shape),
         output_name,
         src->dtype());
+    output->set_axes(src->axes());
 
     auto op = std::make_shared<TensorSqrtOp>(src, output);
     src->graph()->add_op(op);
@@ -80,16 +81,12 @@ void sqrt(
         throw std::invalid_argument(
             "sqrt: input tensors must have the same dtype");
     }
-    if(src->shape() != dst->shape())
-    {
-        throw std::invalid_argument(
-            "sqrt: output must have the same shape as input");
-    }
     if(src == dst)
     {
         throw std::invalid_argument(
             "sqrt: src and dst must be distinct tensors");
     }
+    validate_same_shape_and_merge(src, dst, "sqrt");
 
     auto op = std::make_shared<TensorSqrtOp>(src, dst);
     src->graph()->add_op(op);

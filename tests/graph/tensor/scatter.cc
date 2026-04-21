@@ -19,6 +19,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/scatter.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/tensor.hh"
@@ -162,3 +163,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     check_scatter_vs_tensor_api<nntile::fp32_t>(shape);
 }
+
+// scatter requires src to be single-tiled; tiling all shared axes would
+// violate that constraint, so no tiled-vs-untiled test is added here.

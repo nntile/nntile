@@ -21,6 +21,7 @@
 
 #include "nntile/graph/tensor/add_inplace.hh"
 #include "nntile/graph/tensor/add_slice.hh"
+#include "nntile/graph/tensor/add_slice_inplace.hh"
 #include "nntile/graph/tensor/gemm.hh"
 #include "nntile/graph/tensor/mask_scalar.hh"
 #include "nntile/graph/tensor/maxsumexp.hh"
@@ -142,22 +143,22 @@ void NNSdpaEagerOp::backward() const
             batch_ndim);
     }
 
-    TensorGraph::TensorNode* d_attn_data = grad_temp->data();
+    // d_attn = V^T @ grad_out, stored in grad_temp buffer
     graph::tensor::gemm(
         v->data(),
         grad_out->data(),
-        d_attn_data,
+        grad_temp->data(),
         1.0, 0.0,
         true, false,
         q_ndim - batch_ndim - ndim_contraction,
         batch_ndim);
 
+    // grad_temp = (grad_temp - sumprod(attn, grad_temp)) * attn
     graph::tensor::sumprod_slice(
-        attn->data(), d_attn_data, sumprod_buf->data(),
+        attn->data(), grad_temp->data(), sumprod_buf->data(),
         0, redux, 1.0, 0.0);
-    graph::tensor::add_slice(
-        -1.0, sumprod_buf->data(), 1.0, d_attn_data,
-        grad_temp->data(), 0);
+    graph::tensor::add_slice_inplace(
+        -1.0, sumprod_buf->data(), 1.0, grad_temp->data(), 0);
     graph::tensor::multiply_inplace(1.0, attn->data(), grad_temp->data());
 
     if(q != nullptr && q->requires_grad())

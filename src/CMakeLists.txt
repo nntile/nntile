@@ -420,6 +420,7 @@ set(GRAPH_TENSOR_SRC
     "graph/tensor/conv2d_bwd_input_inplace.cc"
     "graph/tensor/conv2d_bwd_weight_inplace.cc"
     "graph/tensor/conv2d_inplace.cc"
+    "graph/tensor/concat.cc"
     "graph/tensor/copy.cc"
     "graph/tensor/copy_intersection.cc"
     "graph/tensor/embedding.cc"
@@ -435,6 +436,7 @@ set(GRAPH_TENSOR_SRC
     "graph/tensor/gelutanh.cc"
     "graph/tensor/gelutanh_backward.cc"
     "graph/tensor/gelutanh_inplace.cc"
+    "graph/tensor/axis_descriptor.cc"
     "graph/tensor/graph_data_node.cc"
     "graph/tensor/graph_runtime.cc"
     "graph/tensor/hypot.cc"
@@ -492,6 +494,7 @@ set(GRAPH_NN_SRC
     "graph/nn/add.cc"
     "graph/nn/add_fiber.cc"
     "graph/nn/add_slice.cc"
+    "graph/nn/concat.cc"
     "graph/nn/embedding.cc"
     "graph/nn/gemm.cc"
     "graph/nn/gelu.cc"
@@ -518,10 +521,15 @@ set(GRAPH_NN_SRC
     "graph/nn/adamw_step.cc"
     "graph/nn/sum_fiber.cc"
     "graph/nn/sum_slice.cc"
+    "graph/nn/transpose.cc"
 )
 
 set(GRAPH_IO_SRC
     "graph/io/safetensors.cc"
+)
+
+set(GRAPH_UTIL_SRC
+    "graph/kv_cache.cc"
 )
 
 set(GRAPH_MODULE_SRC
@@ -531,7 +539,16 @@ set(GRAPH_MODULE_SRC
     "graph/module/mlp.cc"
     "graph/module/linear.cc"
     "graph/module/embedding.cc"
+    "graph/module/rms_norm.cc"
 )
+
+set(GRAPH_MODEL_SRC
+    "graph/model/llama/llama_mlp.cc"
+    "graph/model/llama/llama_attention.cc"
+    "graph/model/llama/llama_decoder.cc"
+    "graph/model/llama/llama_model.cc"
+    "graph/model/llama/llama_causal.cc"
+    )
 
 set(GRAPH_OPTIM_SRC
     "graph/optim/optimizer.cc"
@@ -554,7 +571,9 @@ set(GRAPH_SRC
     ${GRAPH_TENSOR_SRC}
     ${GRAPH_NN_SRC}
     ${GRAPH_IO_SRC}
+    ${GRAPH_UTIL_SRC}
     ${GRAPH_MODULE_SRC}
+    ${GRAPH_MODEL_SRC}
     ${GRAPH_OPTIM_SRC}
     ${GRAPH_TILE_SRC}
 )

@@ -72,6 +72,8 @@ void norm_fiber_inplace(
         throw std::invalid_argument(
             "norm_fiber_inplace: src and dst must be distinct tensors");
     }
+    validate_fiber_shape_and_merge(dst, src, axis, batch_ndim,
+                                   "norm_fiber_inplace");
 
     auto op = std::make_shared<TensorNormFiberInplaceOp>(
         alpha, beta, src, dst, axis, batch_ndim, redux);

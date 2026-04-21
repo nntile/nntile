@@ -16,6 +16,7 @@ set(TESTS_TENSOR_CATCH2
     "adam_step"
     "adamw_step"
     "add_fiber"
+    "axis_descriptor"
     "add_fiber_inplace"
     "add_slice"
     "add_slice_inplace"

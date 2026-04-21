@@ -20,7 +20,7 @@ jobs:
       matrix:
         python-version: ['3.10', '3.11', '3.12']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Pull all PR commits
         if: github.event.pull_request
         run: |
@@ -33,7 +33,7 @@ jobs:
           # Fetch main for common origin.
           git fetch origin main:main --depth=100
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           cache: 'pip'
           python-version: ${{ matrix.python-version }}
@@ -48,8 +48,6 @@ jobs:
         uses: pre-commit/action@v3.0.0
         if: '!github.event.pull_request'
 
-  # TODO(@daskol): We need rework this stage: pre-build images, build StarPU
-  # in-tree, rework layout and defaults, etc.
   build:
     name: Build a CPU-only extension for Python ${{ matrix.python-version }}
     needs: 'lint'
@@ -59,10 +57,12 @@ jobs:
         python-version: ['3.12']
     container:
       image: ubuntu:24.04
+    env:
+      CCACHE_DIR: /tmp/ccache
     steps:
       - name: Cache system packages
         id: cache-apt
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         env:
           cache-name: cache-apt-packages
         with:
@@ -78,19 +78,18 @@ jobs:
           apt update
           apt install -y --no-install-recommends \
               autoconf automake binutils build-essential ca-certificates \
-              clang cmake curl fxt-tools gdb git lcov libfxt-dev libhwloc-dev \
-              libopenblas-dev libopenmpi-dev libopenmpi3 libtool-bin \
-              lsb-release ninja-build openmpi-bin pkg-config
-      - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+              ccache clang cmake curl fxt-tools gdb git lcov libfxt-dev \
+              libhwloc-dev libopenblas-dev libopenmpi-dev libopenmpi3 \
+              libtool-bin lsb-release ninja-build openmpi-bin pkg-config \
+              sqlite3
+      - name: Cache StarPU
+        id: cache-starpu
+        uses: actions/cache@v5
         with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install PyTorch for LibTorch
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          $HOME/.local/bin/uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
-      - name: Build StarPU
+          path: /opt/starpu
+          key: starpu-1.4.8-${{ runner.os }}-v2
+      - name: Build StarPU from source
+        if: steps.cache-starpu.outputs.cache-hit != 'true'
         run: |
           export STARPU_VERSION=starpu-1.4.8
           export STARPU_LABEL=$STARPU_VERSION
@@ -112,28 +111,75 @@ jobs:
               --enable-maxcudadev=8 \
               --enable-maxbuffers=16 \
               --with-fxt \
-              --prefix=/usr
+              --prefix=/opt/starpu \
+              --libdir=/opt/starpu/lib
           make -j 4 install
           rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
-      - name: Upload StarPU libraries (*.so)
-        uses: actions/upload-artifact@v4.3.4
+      - name: Verify StarPU installation
+        run: |
+          echo ":: StarPU tree"
+          find /opt/starpu -name '*.pc' -o -name 'libstarpu*' | head -20
+          PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig pkg-config --modversion starpu-1.4
+      - uses: actions/checkout@v6
+      - name: Pull all PR commits
+        if: github.event.pull_request
+        run: |
+          git config --global --add safe.directory ${GITHUB_WORKSPACE}
+          git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+          git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
+            --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
+          git checkout ${{ github.event.pull_request.head.ref }}
+          git fetch origin main:main --depth=100
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
         with:
-          name: starpu-${{ matrix.python-version }}
-          path: /usr/lib/libstarpu*.so*
-          retention-days: 7
+          python-version: ${{ matrix.python-version }}
+      - name: Install Python dependencies
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          $HOME/.local/bin/uv pip install --system \
+            torch --index-url https://download.pytorch.org/whl/cpu
+          $HOME/.local/bin/uv pip install --system \
+            numpy safetensors "transformers<4.53"
+      - name: Restore ccache
+        uses: actions/cache@v5
+        with:
+          path: /tmp/ccache
+          key: ccache-${{ runner.os }}-${{ matrix.python-version }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ matrix.python-version }}-
+      - name: Configure ccache
+        run: |
+          ccache --set-config=max_size=500M
+          ccache --set-config=compression=true
+          ccache --zero-stats
       - name: Build NNTile native libraries
         run: |
+          export PKG_CONFIG_PATH=/opt/starpu/lib/pkgconfig
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_PREFIX_PATH=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
           cmake --build build -j
+      - name: Show ccache stats
+        if: always()
+        run: ccache --show-stats
       - name: Upload all shared objects (*.so)
-        uses: actions/upload-artifact@v4.3.4
+        uses: actions/upload-artifact@v7
         with:
           name: shared-objects-${{ matrix.python-version }}
           path: build/**/*.so
           retention-days: 7
-      - name: Test CPU-only C++ tests
+      - name: Run dirty C++ tests
+        if: github.event.pull_request
         run: |
+          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+          .github/scripts/run-dirty-cpp-tests.sh \
+            ${{ github.event.pull_request.head.ref }}
+      - name: Run all C++ tests
+        if: '!github.event.pull_request'
+        run: |
+          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           ctest --test-dir build -E wrappers -LE "(MPI|NotImplemented)" --output-on-failure
 
   test-python:
@@ -147,7 +193,7 @@ jobs:
       image: 'ubuntu:24.04'
     steps:
       - name: Cache system packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: cache-apt
         env:
           cache-name: cache-apt-packages
@@ -167,7 +213,7 @@ jobs:
       # installation in container precedes repo checkout.
       # NOTE Values of ${GITHUB_WORKSPACE} and ${{ github.workspace }} differ
       # (see https://github.com/actions/checkout/issues/785 for details).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Pull all PR commits
         if: github.event.pull_request
         run: |
@@ -187,21 +233,21 @@ jobs:
           rm -rfv /etc/apt/apt.conf.d/docker*
           apt update
           apt install -y --no-install-recommends \
-              autoconf automake binutils build-essential ca-certificates \
-              clang cmake curl fxt-tools git lcov libfxt-dev libhwloc-dev \
-              libopenblas-dev libopenmpi-dev libopenmpi3 libtool-bin \
+              binutils build-essential ca-certificates \
+              clang cmake curl libfxt-dev git lcov libhwloc-dev \
+              libopenblas-dev libopenmpi-dev libopenmpi3 \
               lsb-release ninja-build openmpi-bin pkg-config sqlite3
-      - name: Download StarPU libraries (*.so)
-        uses: actions/download-artifact@v4
+      - name: Restore StarPU cache
+        uses: actions/cache@v5
         with:
-          name: starpu-${{ matrix.python-version }}
-          path: /usr/lib
+          path: /opt/starpu
+          key: starpu-1.4.8-${{ runner.os }}-v2
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - name: Download all shared objects (*.so)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: shared-objects-${{ matrix.python-version }}
           path: build
@@ -212,6 +258,9 @@ jobs:
           ln -rs \
             build/wrappers/python/nntile/nntile_core.so \
             wrappers/python/nntile/nntile_core.so
+          ln -rs \
+            build/wrappers/python/nntile/nntile_graph.so \
+            wrappers/python/nntile/nntile_graph.so
       # TODO(@daskol): We should rely on `uv` or any other package managing
       # utility here.
       - name: Install Python dependencies
@@ -229,16 +278,18 @@ jobs:
         if: 'github.event.pull_request'
         run: |
           . .venv/bin/activate
+          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           export PYTHON_TAG=$(
             python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
-          .github/scripts/run-dirty-tests.sh \
+          .github/scripts/run-dirty-py-tests.sh \
             ${{ github.event.pull_request.head.ref }}
       # Full testing is temporary enabled even for PRs, as dirty testing is broken
       - name: Run all tests with PyTest
         if: '!github.event.pull_request'
         run: |
           . .venv/bin/activate
+          export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           export PYTHON_TAG=$(
             python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
@@ -248,7 +299,7 @@ jobs:
             --cov-report=xml:coverage/xml/report.${PYTHON_TAG}.xml \
             --junitxml=pytest/report.${PYTHON_TAG}.xml
       - name: Upload PyTest report for Python ${{ matrix.python-version }}
-        uses: actions/upload-artifact@v4.3.4
+        uses: actions/upload-artifact@v7
         with:
           name: pytest-report
           path: |

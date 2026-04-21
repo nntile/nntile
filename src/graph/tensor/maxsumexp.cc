@@ -75,7 +75,10 @@ TensorGraph::TensorNode* maxsumexp(
         output_name,
         src->dtype());
 
-    maxsumexp(src, dst, axis, redux);
+    validate_maxsumexp_shape_and_merge(src, dst, axis, "maxsumexp");
+
+    auto op = std::make_shared<TensorMaxsumexpOp>(src, dst, axis, redux);
+    src->graph()->add_op(op);
 
     return dst;
 }
@@ -101,6 +104,7 @@ void maxsumexp(
         throw std::invalid_argument(
             "maxsumexp: input tensors must have the same dtype");
     }
+    validate_maxsumexp_shape_and_merge(src, dst, axis, "maxsumexp");
 
     auto op = std::make_shared<TensorMaxsumexpOp>(src, dst, axis, redux);
     src->graph()->add_op(op);

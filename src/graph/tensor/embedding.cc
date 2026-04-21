@@ -59,6 +59,7 @@ TensorGraph::TensorNode* embedding(TensorGraph::TensorNode* index,
     embed_shape.push_back(vocab->dim(0));
     TensorGraph::TensorNode* embed = vocab->graph()->data(
         std::move(embed_shape), output_name, vocab->dtype());
+
     embedding(index, vocab, embed, axis);
     return embed;
 }
@@ -76,6 +77,8 @@ void embedding(TensorGraph::TensorNode* index,
         throw std::invalid_argument("embedding: index must have INT64 dtype");
     if(vocab->dtype() != embed->dtype())
         throw std::invalid_argument("embedding: vocab and embed must have same dtype");
+    validate_embedding_shape_and_merge(embed, index, vocab, "embedding");
+
     auto op = std::make_shared<TensorEmbeddingOp>(index, vocab, embed, axis);
     embed->graph()->add_op(op);
 }

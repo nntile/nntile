@@ -19,6 +19,7 @@
 
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/relu_backward.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/relu_backward.hh"
 #include "nntile/tensor/tensor.hh"
@@ -160,4 +161,79 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::vector<Index>{1, 10});
 
     check_relu_backward_vs_tensor_api<nntile::fp32_t>(shape);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TensorGraph relu_backward tiled matches untiled", "[graph][tensor]")
+{
+    const auto shape = GENERATE(
+        std::vector<Index>{4, 6},
+        std::vector<Index>{6},
+        std::vector<Index>{2, 4});
+
+    using T = nntile::fp32_t;
+    using Y = T::repr_t;
+    const Index nelems = std::accumulate(
+        shape.begin(), shape.end(), Index(1), std::multiplies<>());
+
+    std::vector<float> x_data(nelems), dy_data(nelems), dx_data(nelems);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        x_data[i] = static_cast<float>(Y(i - nelems / 2));
+        dy_data[i] = static_cast<float>(Y(i % 7 + 1));
+        dx_data[i] = 0.0f;
+    }
+
+    std::vector<float> untiled_result;
+    {
+        TensorGraph graph("relu_backward_untiled");
+        auto* x_node = graph.data(shape, "x", DataType::FP32);
+        auto* dy_node = graph.data(shape, "dy", DataType::FP32);
+        auto* dx_node = graph.data(shape, "dx", DataType::FP32);
+        x_node->mark_input(true);
+        dy_node->mark_input(true);
+        dx_node->mark_input(true);
+        dx_node->mark_output(true);
+        gt::relu_backward(x_node, dy_node, dx_node);
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+        runtime.bind_data("x", x_data);
+        runtime.bind_data("dy", dy_data);
+        runtime.bind_data("dx", dx_data);
+        runtime.execute();
+        runtime.wait();
+        untiled_result = runtime.get_output<float>("dx");
+    }
+
+    std::vector<float> tiled_result;
+    {
+        TensorGraph graph("relu_backward_tiled");
+        auto* x_node = graph.data(shape, "x", DataType::FP32);
+        auto* dy_node = graph.data(shape, "dy", DataType::FP32);
+        auto* dx_node = graph.data(shape, "dx", DataType::FP32);
+        x_node->mark_input(true);
+        dy_node->mark_input(true);
+        dx_node->mark_input(true);
+        dx_node->mark_output(true);
+        gt::relu_backward(x_node, dy_node, dx_node);
+        for(auto* ag : graph.axis_groups())
+        {
+            ag->set_tiling((ag->extent + 1) / 2);
+        }
+        TensorGraph::Runtime runtime(graph);
+        runtime.compile();
+        runtime.bind_data("x", x_data);
+        runtime.bind_data("dy", dy_data);
+        runtime.bind_data("dx", dx_data);
+        runtime.execute();
+        runtime.wait();
+        tiled_result = runtime.get_output<float>("dx");
+    }
+
+    constexpr float tol = 1e-5f;
+    REQUIRE(tiled_result.size() == untiled_result.size());
+    for(size_t i = 0; i < tiled_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
+    }
 }

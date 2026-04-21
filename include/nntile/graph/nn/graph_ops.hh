@@ -22,6 +22,7 @@
 #include <nntile/graph/nn/add_fiber.hh>
 #include <nntile/graph/nn/add_slice.hh>
 #include <nntile/graph/nn/clear.hh>
+#include <nntile/graph/nn/concat.hh>
 #include <nntile/graph/nn/cross_entropy.hh>
 #include <nntile/graph/nn/embedding.hh>
 #include <nntile/graph/nn/fill.hh>
@@ -49,3 +50,4 @@
 #include <nntile/graph/nn/adamw_step.hh>
 #include <nntile/graph/nn/sum_fiber.hh>
 #include <nntile/graph/nn/sum_slice.hh>
+#include <nntile/graph/nn/transpose.hh>

@@ -17,8 +17,10 @@
  * @version 1.1.0
  * */
 
+#include <cmath>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include <nntile/context.hh>
 #include <nntile/graph.hh>
@@ -76,6 +78,15 @@ int main(int argc, char** argv)
 
     std::cout << "\n=== NNGraph structure ===" << std::endl;
     std::cout << g.to_string() << std::endl;
+
+    // --- Name axis groups and set tiling (TensorGraph::to_string shows them) ---
+    x->data()->axis(0)->name = "rows";
+    x->data()->axis(1)->name = "cols";
+    x->data()->axis(0)->set_tiling(1);
+    x->data()->axis(1)->set_tiling(2);
+
+    std::cout << "\n=== TensorGraph structure ===" << std::endl;
+    std::cout << g.tensor_graph().to_string() << std::endl;
 
     // --- Mark inputs and outputs on TensorGraph for execution ---
     x->data()->mark_input(true);

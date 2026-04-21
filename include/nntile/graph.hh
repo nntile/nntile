@@ -19,5 +19,6 @@
 #include <nntile/graph/tile.hh>
 #include <nntile/graph/nn.hh>
 #include <nntile/graph/io.hh>
+#include <nntile/graph/kv_cache.hh>
 #include <nntile/graph/module.hh>
 #include <nntile/graph/optim.hh>

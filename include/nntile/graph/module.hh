@@ -20,3 +20,4 @@
 #include <nntile/graph/module/embedding.hh>
 #include <nntile/graph/module/gated_mlp.hh>
 #include <nntile/graph/module/mlp.hh>
+#include <nntile/graph/module/rms_norm.hh>

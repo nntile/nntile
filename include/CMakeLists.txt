@@ -447,6 +447,7 @@ set(GRAPH_TENSOR_HDR
     "nntile/graph/tensor/conv2d_bwd_input_inplace.hh"
     "nntile/graph/tensor/conv2d_bwd_weight_inplace.hh"
     "nntile/graph/tensor/conv2d_inplace.hh"
+    "nntile/graph/tensor/concat.hh"
     "nntile/graph/tensor/copy.hh"
     "nntile/graph/tensor/copy_intersection.hh"
     "nntile/graph/tensor/embedding.hh"
@@ -541,7 +542,9 @@ set(GRAPH_NN_HDR
     "nntile/graph/nn/softmax.hh"
     "nntile/graph/nn/sum_fiber.hh"
     "nntile/graph/nn/sum_slice.hh"
+    "nntile/graph/nn/transpose.hh"
     "nntile/graph/nn/clear.hh"
+    "nntile/graph/nn/concat.hh"
     "nntile/graph/nn/cross_entropy.hh"
     "nntile/graph/nn/fill.hh"
     "nntile/graph/nn/sgd_step.hh"
@@ -554,6 +557,10 @@ set(GRAPH_IO_HDR
     "nntile/graph/io/safetensors.hh"
     )
 
+set(GRAPH_UTIL_HDR
+    "nntile/graph/kv_cache.hh"
+    )
+
 set(GRAPH_MODULE_HDR
     "nntile/graph/module.hh"
     "nntile/graph/module/module.hh"
@@ -562,6 +569,18 @@ set(GRAPH_MODULE_HDR
     "nntile/graph/module/linear.hh"
     "nntile/graph/module/embedding.hh"
     "nntile/graph/module/mlp.hh"
+    "nntile/graph/module/rms_norm.hh"
+    )
+
+set(GRAPH_MODEL_HDR
+    "nntile/graph/model/llama.hh"
+    "nntile/graph/model/llama/llama_config.hh"
+    "nntile/graph/model/llama/llama_mlp.hh"
+    "nntile/graph/model/llama/llama_attention.hh"
+    "nntile/graph/model/llama/llama_decoder.hh"
+    "nntile/graph/model/llama/llama_model.hh"
+    "nntile/graph/model/llama/llama.hh"
+    "nntile/graph/model/llama/llama_causal.hh"
     )
 
 set(GRAPH_OPTIM_HDR
@@ -577,7 +596,9 @@ set(GRAPH_HDR
     ${GRAPH_TENSOR_HDR}
     ${GRAPH_NN_HDR}
     ${GRAPH_IO_HDR}
+    ${GRAPH_UTIL_HDR}
     ${GRAPH_MODULE_HDR}
+    ${GRAPH_MODEL_HDR}
     ${GRAPH_OPTIM_HDR}
     )
 

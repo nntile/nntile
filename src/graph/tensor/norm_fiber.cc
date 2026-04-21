@@ -78,7 +78,12 @@ TensorGraph::TensorNode* norm_fiber(
         output_name,
         src1->dtype());
 
-    norm_fiber(alpha, src1, beta, src2, dst, axis, batch_ndim, redux);
+    validate_fiber_shape_and_merge(dst, src1, axis, batch_ndim, "norm_fiber");
+    validate_same_shape_and_merge(src2, dst, "norm_fiber");
+
+    auto op = std::make_shared<TensorNormFiberOp>(
+        alpha, beta, src1, src2, dst, axis, batch_ndim, redux);
+    src1->graph()->add_op(op);
 
     return dst;
 }
@@ -108,16 +113,14 @@ void norm_fiber(
         throw std::invalid_argument(
             "norm_fiber: input tensors must have the same dtype");
     }
-    if(src2->shape() != dst->shape())
-    {
-        throw std::invalid_argument(
-            "norm_fiber: dst shape must match src2 shape");
-    }
     if(src1 == src2 || src1 == dst || src2 == dst)
     {
         throw std::invalid_argument(
             "norm_fiber: src1, src2, and dst must be distinct tensors");
     }
+
+    validate_fiber_shape_and_merge(dst, src1, axis, batch_ndim, "norm_fiber");
+    validate_same_shape_and_merge(src2, dst, "norm_fiber");
 
     auto op = std::make_shared<TensorNormFiberOp>(
         alpha, beta, src1, src2, dst, axis, batch_ndim, redux);
