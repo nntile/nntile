@@ -14,12 +14,14 @@
 
 #pragma once
 
+// NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph::tile_graph
 {
 
+//! Pow in-place: A = alpha * A^exp
 struct TilePowOp : TileGraph::OpNode
 {
     Scalar alpha = Scalar{1.0};

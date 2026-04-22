@@ -14,11 +14,13 @@
 
 #pragma once
 
+// NNTile headers
 #include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph::tile_graph
 {
 
+//! Sqrt operation at tile level: dst = sqrt(src)
 struct TileSqrtOp : TileGraph::OpNode
 {
     TileGraph::TileNode* src = nullptr;
@@ -42,6 +44,7 @@ struct TileSqrtOp : TileGraph::OpNode
     }
 };
 
+//! Sqrt: dst = sqrt(src) (uses existing output)
 void sqrt(TileGraph::TileNode* src, TileGraph::TileNode* dst);
 
 } // namespace nntile::graph::tile_graph

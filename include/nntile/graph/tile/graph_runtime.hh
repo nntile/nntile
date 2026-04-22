@@ -14,6 +14,7 @@
 
 #pragma once
 
+// Standard library headers
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -24,8 +25,10 @@
 #include <unordered_set>
 #include <vector>
 
+// Third-party headers
 #include <starpu.h>
 
+// NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tile/graph_decl.hh>

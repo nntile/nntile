@@ -14,8 +14,10 @@
 
 #pragma once
 
+// Standard library headers
 #include <memory>
 
+// NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/tile/graph.hh>
 
@@ -56,6 +58,7 @@ struct TileAdamStepOp : TileGraph::OpNode
     }
 };
 
+//! Adam step
 void adam_step(const std::shared_ptr<Index>& step_iter, bool bump_after,
     Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
     TileGraph::TileNode* grad, TileGraph::TileNode* first_moment,

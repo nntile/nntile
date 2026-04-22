@@ -14,9 +14,11 @@
 
 #pragma once
 
+// Standard library headers
 #include <string>
 #include <vector>
 
+// NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/tile/graph.hh>
 
@@ -55,6 +57,12 @@ struct TileAddOp : TileGraph::OpNode
 };
 
 //! Add operation: z = alpha * x + beta * y (creates output)
+//! @param alpha Scaling factor for x
+//! @param x First input tile
+//! @param beta Scaling factor for y
+//! @param y Second input tile
+//! @param output_name Name for the output tile
+//! @return Pointer to the output tile
 TileGraph::TileNode* add(
     Scalar alpha,
     TileGraph::TileNode* x,

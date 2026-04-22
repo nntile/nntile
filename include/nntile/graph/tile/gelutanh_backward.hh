@@ -14,11 +14,13 @@
 
 #pragma once
 
+// NNTile headers
 #include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph::tile_graph
 {
 
+//! GeLUTanh backward operation: dx = gelutanh_backward(x, dy)
 struct TileGelutanhBackwardOp : TileGraph::OpNode
 {
     TileGraph::TileNode* x = nullptr;

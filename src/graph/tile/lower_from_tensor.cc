@@ -7,6 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/graph/tile/lower_from_tensor.cc
+ * TileGraph lower from tensor operation implementation.
  *
  * @version 1.1.0
  * */

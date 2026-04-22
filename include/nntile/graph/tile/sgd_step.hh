@@ -14,14 +14,17 @@
 
 #pragma once
 
+// Standard library headers
 #include <memory>
 
+// NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph::tile_graph
 {
 
+//! SGD step: p = p - lr*grad (with momentum, weight decay, etc.)
 struct TileSgdStepOp : TileGraph::OpNode
 {
     std::shared_ptr<Index> step_iter;
@@ -51,6 +54,7 @@ struct TileSgdStepOp : TileGraph::OpNode
     }
 };
 
+//! SGD step
 void sgd_step(const std::shared_ptr<Index>& step_iter, bool bump_after,
     Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening,
     bool nesterov, TileGraph::TileNode* grad, TileGraph::TileNode* velocity,

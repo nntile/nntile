@@ -14,10 +14,14 @@
 
 #pragma once
 
+// Standard library headers
 #include <cmath>
 #include <vector>
 
+// Third-party headers
 #include <catch2/catch_test_macros.hpp>
+
+// NNTile headers
 #include <nntile/graph.hh>
 
 namespace nntile::graph::tile_tests

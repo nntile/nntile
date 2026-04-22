@@ -14,14 +14,17 @@
 
 #pragma once
 
+// Standard library headers
 #include <memory>
 
+// NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph::tile_graph
 {
 
+//! AdamW step: Adam with decoupled weight decay
 struct TileAdamwStepOp : TileGraph::OpNode
 {
     std::shared_ptr<Index> step_iter;
@@ -53,6 +56,7 @@ struct TileAdamwStepOp : TileGraph::OpNode
     }
 };
 
+//! AdamW step
 void adamw_step(const std::shared_ptr<Index>& step_iter, bool bump_after,
     Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
     TileGraph::TileNode* grad, TileGraph::TileNode* first_moment,

@@ -14,11 +14,13 @@
 
 #pragma once
 
+// NNTile headers
 #include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph::tile_graph
 {
 
+//! ReLU operation at tile level: dst = relu(src)
 struct TileReluOp : TileGraph::OpNode
 {
     TileGraph::TileNode* src = nullptr;
@@ -42,6 +44,7 @@ struct TileReluOp : TileGraph::OpNode
     }
 };
 
+//! ReLU: dst = relu(src) (uses existing output)
 void relu(TileGraph::TileNode* src, TileGraph::TileNode* dst);
 
 } // namespace nntile::graph::tile_graph

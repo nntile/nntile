@@ -14,11 +14,13 @@
 
 #pragma once
 
+// NNTile headers
 #include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph::tile_graph
 {
 
+//! GeLUTanh in-place operation: dst = gelutanh(dst)
 struct TileGelutanhInplaceOp : TileGraph::OpNode
 {
     TileGraph::TileNode* dst = nullptr;

@@ -14,11 +14,12 @@
 
 #pragma once
 
-//! Full tile graph before <map> (libc++ can otherwise instantiate TileGraph too early).
-#include <nntile/graph/tile/graph.hh>
-
+// Standard library headers
 #include <map>
 #include <vector>
+
+// NNTile headers
+#include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph
 {

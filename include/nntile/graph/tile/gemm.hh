@@ -14,9 +14,11 @@
 
 #pragma once
 
+// Standard library headers
 #include <string>
 #include <vector>
 
+// NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/tile/graph.hh>
 

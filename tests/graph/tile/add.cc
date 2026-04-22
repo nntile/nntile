@@ -27,6 +27,7 @@ using namespace nntile;
 using namespace nntile::graph;
 namespace tg = nntile::graph::tile_graph;
 
+//! Run add via TileGraph (compile + execute) and via tile API, compare
 template<typename T>
 void check_tile_add_vs_tile_api(
     const std::vector<Index>& shape,

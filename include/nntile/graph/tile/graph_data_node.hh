@@ -14,6 +14,7 @@
 
 #pragma once
 
+// Standard library headers
 #include <cstdint>
 #include <functional>
 #include <numeric>
@@ -22,12 +23,14 @@
 #include <string>
 #include <vector>
 
+// NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
 
 namespace nntile::graph
 {
 
+// Forward declaration
 class TileGraph;
 
 //! Data node for TileGraph - represents a single tile.

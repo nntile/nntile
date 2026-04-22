@@ -14,11 +14,13 @@
 
 #pragma once
 
+// NNTile headers
 #include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph::tile_graph
 {
 
+//! SiLU backward operation: dx = silu_backward(x, dy)
 struct TileSiluBackwardOp : TileGraph::OpNode
 {
     TileGraph::TileNode* x = nullptr;

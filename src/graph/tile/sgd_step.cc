@@ -7,6 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/graph/tile/sgd_step.cc
+ * TileGraph sgd step operation implementation.
  *
  * @version 1.1.0
  * */

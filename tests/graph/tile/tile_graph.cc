@@ -356,11 +356,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     x->mark_output(true);
 
     tg::fill(Scalar(42.0), x);
+    tg::clear(x);
 
     TileGraph::Runtime runtime(graph);
     runtime.compile();
 
-    std::vector<float> x_data = {0, 0, 0};
+    std::vector<float> x_data = {7.0f, 8.0f, 9.0f};
     runtime.bind_data("x", x_data);
     runtime.execute();
     runtime.wait();
@@ -370,7 +371,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(result.size() == 3);
     for(auto v : result)
     {
-        REQUIRE(std::abs(v - 42.0f) < tol);
+        REQUIRE(std::abs(v) < tol);
     }
 }
 

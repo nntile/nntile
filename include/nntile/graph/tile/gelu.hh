@@ -14,11 +14,13 @@
 
 #pragma once
 
+// NNTile headers
 #include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph::tile_graph
 {
 
+//! GeLU operation at tile level: dst = gelu(src)
 struct TileGeluOp : TileGraph::OpNode
 {
     TileGraph::TileNode* src = nullptr;
@@ -42,6 +44,9 @@ struct TileGeluOp : TileGraph::OpNode
     }
 };
 
+//! GeLU activation into pre-created output: dst = gelu(src)
+//! @param src Input tile
+//! @param dst Output tile (must already exist, same shape as src)
 void gelu(TileGraph::TileNode* src, TileGraph::TileNode* dst);
 
 } // namespace nntile::graph::tile_graph

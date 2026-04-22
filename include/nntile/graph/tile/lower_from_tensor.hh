@@ -14,12 +14,17 @@
 
 #pragma once
 
+// NNTile headers
 #include <nntile/graph/tile/lowering_context.hh>
 
 namespace nntile::graph
 {
 
-//! Append tile-level ops for all tensor ops in tg. out must already contain tiles.
+//! Append tile-level ops for all tensor ops in \p tg. \p out must already
+//! contain per-tile storage (see \c lower_to_tile and tensor-to-tile mapping).
+//! @param tg Source tensor graph
+//! @param out Output tile graph (tile nodes must already exist in \p tile_map)
+//! @param tile_map Mapping from each tensor data node to its tile nodes
 void lower_tensor_ops_to_tile_graph(
     const TensorGraph& tg,
     TileGraph& out,

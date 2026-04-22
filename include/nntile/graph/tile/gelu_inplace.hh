@@ -14,11 +14,13 @@
 
 #pragma once
 
+// NNTile headers
 #include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph::tile_graph
 {
 
+//! GeLU in-place operation: dst = gelu(dst)
 struct TileGeluInplaceOp : TileGraph::OpNode
 {
     TileGraph::TileNode* dst = nullptr;

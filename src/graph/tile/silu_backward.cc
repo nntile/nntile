@@ -7,6 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/graph/tile/silu_backward.cc
+ * TileGraph silu backward operation implementation.
  *
  * @version 1.1.0
  * */

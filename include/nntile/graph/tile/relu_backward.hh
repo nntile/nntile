@@ -14,11 +14,13 @@
 
 #pragma once
 
+// NNTile headers
 #include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph::tile_graph
 {
 
+//! ReLU backward operation: dx = relu_backward(x, dy)
 struct TileReluBackwardOp : TileGraph::OpNode
 {
     TileGraph::TileNode* x = nullptr;
@@ -44,6 +46,7 @@ struct TileReluBackwardOp : TileGraph::OpNode
     }
 };
 
+//! ReLU backward: dx = relu_backward(x, dy) (uses existing output)
 void relu_backward(
     TileGraph::TileNode* x, TileGraph::TileNode* dy, TileGraph::TileNode* dx);
 

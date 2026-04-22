@@ -14,11 +14,13 @@
 
 #pragma once
 
+// NNTile headers
 #include <nntile/graph/tile/graph.hh>
 
 namespace nntile::graph::tile_graph
 {
 
+//! GeLU backward operation at tile level: dx += gelu_backward(x, dy)
 struct TileGeluBackwardOp : TileGraph::OpNode
 {
     TileGraph::TileNode* x = nullptr;
@@ -44,6 +46,10 @@ struct TileGeluBackwardOp : TileGraph::OpNode
     }
 };
 
+//! GeLU backward: dx += gelu_backward(x, dy)
+//! @param x Input tile (forward pass activation)
+//! @param dy Gradient of output (upstream gradient)
+//! @param dx Gradient tensor to accumulate into (gradient of input)
 void gelu_backward(
     TileGraph::TileNode* x, TileGraph::TileNode* dy, TileGraph::TileNode* dx);
 

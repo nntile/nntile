@@ -7,6 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/graph/tile/silu.cc
+ * TileGraph silu operation implementation.
  *
  * @version 1.1.0
  * */
