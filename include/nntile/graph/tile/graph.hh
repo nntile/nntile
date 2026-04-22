@@ -166,25 +166,90 @@ inline std::string TileGraph::to_string() const
     return ss.str();
 }
 
+//! Mermaid TD graph: tiles as D*, ops as O* (same wiring pattern as
+//! TensorGraph::to_mermaid). Tile labels include dtype, logical tensor
+//! shape / tile / grid, axis names with tiling when source_node is set, and
+//! grid coordinate + local tile shape.
 inline std::string TileGraph::to_mermaid() const
 {
+    //! Bracketed index list for Mermaid labels, e.g. [1,2,3].
+    auto index_list = [](const std::vector<Index>& v) {
+        std::string s = "[";
+        for(size_t i = 0; i < v.size(); ++i)
+        {
+            if(i > 0)
+            {
+                s += ",";
+            }
+            s += std::to_string(static_cast<long long>(v[i]));
+        }
+        return s + "]";
+    };
+
     std::stringstream ss;
     ss << "graph TD\n";
 
     for(const auto& node : data_)
     {
-        std::string node_id = "D" + std::to_string(node->id());
-        std::string label = node->name();
-        if(label.empty()) label = "Data" + std::to_string(node->id());
-
-        std::string shape_str = "[";
-        for(size_t i = 0; i < node->shape().size(); ++i)
+        const TileNode* tile = node.get();
+        std::string node_id = "D" + std::to_string(tile->id());
+        std::string label = tile->name();
+        if(label.empty())
         {
-            if(i > 0) shape_str += ",";
-            shape_str += std::to_string(node->shape()[i]);
+            label = "Tile" + std::to_string(tile->id());
         }
-        shape_str += "]";
-        label += "\\n" + dtype_to_string(node->dtype()) + "\\n" + shape_str;
+
+        label += "\\n" + dtype_to_string(tile->dtype());
+
+        const TensorDescriptor* td = tile->tensor_descriptor();
+        if(td != nullptr)
+        {
+            label += "\\n" + td->tensor_name + " full" + index_list(td->tensor_shape);
+            label += "\\n tile" + index_list(td->tile_shape) + " grid"
+                + index_list(td->grid_shape);
+            const TensorGraph::TensorNode* src = td->source_node;
+            if(src != nullptr)
+            {
+                // Same axis annotation style as TensorGraph::to_mermaid().
+                std::string axes_str = "[";
+                for(size_t i = 0; i < src->axes().size(); ++i)
+                {
+                    if(i > 0)
+                    {
+                        axes_str += ",";
+                    }
+                    const auto& ax = src->axes()[i];
+                    if(!ax->name.empty())
+                    {
+                        axes_str += ax->name;
+                    }
+                    else
+                    {
+                        axes_str +=
+                            std::to_string(static_cast<long long>(ax->extent));
+                    }
+                    if(ax->is_tiled())
+                    {
+                        axes_str += "/" + ax->tile_sizes_to_string();
+                    }
+                }
+                axes_str += "]";
+                label += "\\n" + axes_str;
+            }
+            if(!tile->tile_coord().empty())
+            {
+                label += "\\n@" + index_list(tile->tile_coord()) + " local"
+                    + index_list(tile->shape());
+            }
+            else
+            {
+                label += "\\n local" + index_list(tile->shape());
+            }
+        }
+        else
+        {
+            label += "\\n local" + index_list(tile->shape());
+        }
 
         ss << "    " << node_id << "[\"" << label << "\"]\n";
     }
@@ -193,7 +258,10 @@ inline std::string TileGraph::to_mermaid() const
     {
         std::string op_id = "O" + std::to_string(op->id());
         std::string label = op->op_name();
-        if(!op->name().empty()) label += "\\n" + op->name();
+        if(!op->name().empty())
+        {
+            label += "\\n" + op->name();
+        }
         ss << "    " << op_id << "{{\"" << label << "\"}}\n";
     }
 

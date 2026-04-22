@@ -25,13 +25,13 @@
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tensor/graph_decl.hh>
 #include <nntile/graph/tensor/graph_data_node.hh>
+#include <nntile/graph/tensor/tensor_graph_tiling.hh>
 
 namespace nntile::graph
 {
 
-//! Tile graph - defines computation at tile level.
-//! Constructed from a TensorGraph by splitting tensors into tiles.
-//! For now each tensor maps to a single tile.
+//! Tile graph - defines computation at tiles; layout comes from TensorGraph
+//! axis descriptors (see TensorGraphTiling).
 class TileGraph
 {
 public:
@@ -72,8 +72,23 @@ public:
     //! Register a TensorDescriptor (returns non-owning pointer)
     TensorDescriptor* add_tensor_descriptor(TensorDescriptor desc);
 
-    //! Build a TileGraph from a TensorGraph (1 tile per tensor)
+    //! Build a TileGraph using axis tiling from the tensor graph.
     static TileGraph from_tensor_graph(const TensorGraph& tg);
+
+    //! Build a TileGraph with an explicit tiling scheme (must match tg axes).
+    static TileGraph from_tensor_graph(
+        const TensorGraph& tg, const TensorGraphTiling& tiling);
+
+    //! Tiling used for logical bind/get_output (set by from_tensor_graph).
+    const TensorGraphTiling* tiling_scheme() const
+    {
+        return tiling_scheme_.get();
+    }
+
+    void set_tiling_scheme(std::shared_ptr<const TensorGraphTiling> scheme)
+    {
+        tiling_scheme_ = std::move(scheme);
+    }
 
     const std::string& name() const { return name_; }
     size_t num_data() const { return data_.size(); }
@@ -118,6 +133,7 @@ public:
     std::string to_mermaid() const;
 
 private:
+    std::shared_ptr<const TensorGraphTiling> tiling_scheme_;
     std::string name_;
     std::vector<std::unique_ptr<TileNode>> data_;
     std::vector<std::shared_ptr<TileGraph::OpNode>> ops_;

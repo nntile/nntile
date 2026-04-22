@@ -20,6 +20,9 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/relu_backward.hh"
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
@@ -96,6 +99,25 @@ void TensorReluBackwardOp::execute(TensorGraph::Runtime& runtime) const
             throw std::runtime_error(std::string(dtype_to_string(dtype)) +
                 " not supported for relu_backward");
         default: throw std::runtime_error("Unsupported data type for relu_backward");
+    }
+}
+
+void TensorReluBackwardOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    const auto& m = ctx.tile_map;
+    const auto& vx = tile_lower::tiles_of(m, x);
+    const auto& vdy = tile_lower::tiles_of(m, dy);
+    const auto& vdx = tile_lower::tiles_of(m, dx);
+    if(vx.size() != vdy.size() || vx.size() != vdx.size())
+    {
+        throw std::runtime_error(
+            "lower_to_tile RELU_BACKWARD: tile count mismatch");
+    }
+    tile_lower::assert_same_elementwise_layout(x, dy, "RELU_BACKWARD x/dy");
+    tile_lower::assert_same_elementwise_layout(x, dx, "RELU_BACKWARD x/dx");
+    for(size_t i = 0; i < vx.size(); ++i)
+    {
+        tile_graph::relu_backward(vx[i], vdy[i], vdx[i]);
     }
 }
 

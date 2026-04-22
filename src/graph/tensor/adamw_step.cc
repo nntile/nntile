@@ -14,10 +14,14 @@
 
 #include "nntile/graph/tensor/adamw_step.hh"
 
+#include <memory>
 #include <stdexcept>
+#include <vector>
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile/graph_ops.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/tensor/adamw_step.hh"
 
 namespace nntile::graph::tensor
@@ -115,6 +119,30 @@ void TensorAdamwStepOp::execute(TensorGraph::Runtime& runtime) const
             throw std::runtime_error("Unsupported data type for adamw_step");
     }
     ++num_iter;
+}
+
+void TensorAdamwStepOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    const auto& m = ctx.tile_map;
+    const auto& vg = tile_lower::tiles_of(m, grad);
+    const auto& vm = tile_lower::tiles_of(m, first_moment);
+    const auto& vv = tile_lower::tiles_of(m, second_moment);
+    const auto& vp = tile_lower::tiles_of(m, p);
+    if(vg.size() != vm.size() || vg.size() != vv.size() || vg.size() != vp.size())
+    {
+        throw std::runtime_error(
+            "lower_to_tile ADAMW_STEP: tile count mismatch");
+    }
+    tile_lower::assert_same_elementwise_layout(grad, first_moment, "ADAMW_STEP");
+    tile_lower::assert_same_elementwise_layout(grad, second_moment, "ADAMW_STEP");
+    tile_lower::assert_same_elementwise_layout(grad, p, "ADAMW_STEP");
+    auto step_iter = std::make_shared<Index>(num_iter);
+    const size_t n = vg.size();
+    for(size_t i = 0; i < n; ++i)
+    {
+        tile_graph::adamw_step(step_iter, (i + 1 == n), beta_1, beta_2, eps, lr,
+            weight_decay, vg[i], vm[i], vv[i], vp[i]);
+    }
 }
 
 } // namespace nntile::graph::tensor

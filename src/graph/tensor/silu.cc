@@ -21,6 +21,9 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/silu.hh"
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
@@ -126,6 +129,12 @@ void TensorSiluOp::execute(
         default:
             throw std::runtime_error("Unsupported data type for silu");
     }
+}
+
+void TensorSiluOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    tile_lower::lower_unary2(
+        src, dst, ctx.tile_map, "SILU", tile_graph::silu);
 }
 
 } // namespace nntile::graph::tensor

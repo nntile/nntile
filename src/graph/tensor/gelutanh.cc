@@ -21,6 +21,9 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gelutanh.hh"
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
@@ -127,6 +130,12 @@ void TensorGelutanhOp::execute(
         default:
             throw std::runtime_error("Unsupported data type for gelutanh");
     }
+}
+
+void TensorGelutanhOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    tile_lower::lower_unary2(
+        src, dst, ctx.tile_map, "GELUTANH", tile_graph::gelutanh);
 }
 
 } // namespace nntile::graph::tensor

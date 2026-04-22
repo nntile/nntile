@@ -21,6 +21,9 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/clear.hh"
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
@@ -85,6 +88,14 @@ void TensorClearOp::execute(
             break;
         default:
             throw std::runtime_error("Unsupported data type for clear");
+    }
+}
+
+void TensorClearOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    for(TileGraph::TileNode* t : tile_lower::tiles_of(ctx.tile_map, x))
+    {
+        tile_graph::clear(t);
     }
 }
 

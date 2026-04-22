@@ -22,6 +22,9 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/sqrt.hh"
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
@@ -129,6 +132,12 @@ void TensorSqrtOp::execute(
         default:
             throw std::runtime_error("Unsupported data type for sqrt");
     }
+}
+
+void TensorSqrtOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    tile_lower::lower_unary2(
+        src, dst, ctx.tile_map, "SQRT", tile_graph::sqrt);
 }
 
 } // namespace nntile::graph::tensor

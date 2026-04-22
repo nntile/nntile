@@ -13,13 +13,13 @@
  * */
 
 #include "nntile/graph/tile/graph.hh"
-#include "nntile/graph/tile/graph_ops.hh"
+
+#include <sstream>
+#include <stdexcept>
 
 #include "nntile/graph/tensor/graph.hh"
-#include "nntile/graph/tensor/graph_ops.hh"
-
-#include <map>
-#include <stdexcept>
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tile/lower_from_tensor.hh"
 
 namespace nntile::graph
 {
@@ -27,108 +27,95 @@ namespace nntile::graph
 namespace
 {
 
-using TNodeMap = std::map<const TensorGraph::TensorNode*, TileGraph::TileNode*>;
-
-void lower_add(const TensorGraph::OpNode& op, TileGraph& tg, const TNodeMap& m)
+std::string internal_tile_name(const std::string& tensor_name, Index linear,
+                                Index grid_volume)
 {
-    const auto& add_op = static_cast<const tensor::TensorAddOp&>(op);
-    tile_graph::add(add_op.alpha, m.at(add_op.x), add_op.beta,
-                    m.at(add_op.y), m.at(add_op.z));
-}
-
-void lower_add_inplace(const TensorGraph::OpNode& op, TileGraph& tg,
-                       const TNodeMap& m)
-{
-    const auto& aip = static_cast<const tensor::TensorAddInplaceOp&>(op);
-    tile_graph::add_inplace(aip.alpha, m.at(aip.x), aip.beta, m.at(aip.y));
-}
-
-void lower_fill(const TensorGraph::OpNode& op, TileGraph& tg,
-                const TNodeMap& m)
-{
-    const auto& fop = static_cast<const tensor::TensorFillOp&>(op);
-    tile_graph::fill(fop.val, m.at(fop.x));
-}
-
-void lower_clear(const TensorGraph::OpNode& op, TileGraph& tg,
-                 const TNodeMap& m)
-{
-    const auto& cop = static_cast<const tensor::TensorClearOp&>(op);
-    tile_graph::clear(m.at(cop.x));
+    if(grid_volume == 1)
+    {
+        return tensor_name;
+    }
+    return tensor_name + "__t" + std::to_string(static_cast<long long>(linear));
 }
 
 } // namespace
 
 TileGraph TileGraph::from_tensor_graph(const TensorGraph& tg)
 {
-    TileGraph tile_graph(tg.name() + "_tile");
+    TensorGraphTiling tiling = TensorGraphTiling::from_tensor_graph(tg);
+    return from_tensor_graph(tg, tiling);
+}
 
-    TNodeMap node_map;
+TileGraph TileGraph::from_tensor_graph(
+    const TensorGraph& tg, const TensorGraphTiling& tiling)
+{
+    auto scheme = std::make_shared<TensorGraphTiling>(tiling);
+    TileGraph tile_graph(tg.name() + "_tile");
+    tile_graph.set_tiling_scheme(scheme);
+
+    TensorNodeToTileMap node_map;
 
     for(const auto& tensor_node : tg.tensor_nodes())
     {
-        const std::vector<Index>& tensor_shape = tensor_node->shape();
-
-        // For now: 1 tile per tensor, tile_shape == tensor_shape
-        TileNode* tile_node = tile_graph.data(
-            tensor_shape,
-            tensor_node->name(),
-            tensor_node->dtype());
-
-        if(tensor_node->is_input())
-        {
-            tile_node->mark_input(true);
-        }
-        if(tensor_node->is_output())
-        {
-            tile_node->mark_output(true);
-        }
-
-        TensorDescriptor desc;
-        desc.tensor_name = tensor_node->name();
-        desc.tensor_shape = tensor_shape;
-        desc.tile_shape = tensor_shape;
-        desc.grid_shape.assign(tensor_shape.size(), 1);
-        desc.dtype = tensor_node->dtype();
-        desc.tiles = {tile_node};
-        desc.source_node = tensor_node.get();
-
-        TensorDescriptor* desc_ptr = tile_graph.add_tensor_descriptor(
-            std::move(desc));
-
-        std::vector<Index> coord(tensor_shape.size(), 0);
-        tile_node->set_tensor_info(desc_ptr, std::move(coord));
-
-        node_map[tensor_node.get()] = tile_node;
-    }
-
-    for(const auto& op : tg.ops())
-    {
-        const std::string& oname = op->op_name();
-
-        if(oname == "ADD")
-        {
-            lower_add(*op, tile_graph, node_map);
-        }
-        else if(oname == "ADD_INPLACE")
-        {
-            lower_add_inplace(*op, tile_graph, node_map);
-        }
-        else if(oname == "FILL")
-        {
-            lower_fill(*op, tile_graph, node_map);
-        }
-        else if(oname == "CLEAR")
-        {
-            lower_clear(*op, tile_graph, node_map);
-        }
-        else
+        const TensorAxisLayout* lay = scheme->find(tensor_node.get());
+        if(lay == nullptr)
         {
             throw std::runtime_error(
-                "TileGraph::from_tensor_graph: unsupported op '" + oname +
-                "'; add a lowering rule for this operation");
+                "TileGraph::from_tensor_graph: missing tiling for tensor '" +
+                tensor_node->name() + "'");
         }
+
+        const Index vol = lay->grid_volume();
+        std::vector<TileGraph::TileNode*> tiles;
+        tiles.reserve(static_cast<size_t>(vol));
+
+        std::vector<Index> grid_coord;
+        for(Index lin = 0; lin < vol; ++lin)
+        {
+            lay->grid_coord_from_linear(lin, grid_coord);
+            const std::vector<Index> tile_shape = lay->tile_shape_at(grid_coord);
+            const std::string tname =
+                internal_tile_name(tensor_node->name(), lin, vol);
+
+            TileNode* tile_node = tile_graph.data(
+                tile_shape,
+                tname,
+                tensor_node->dtype());
+
+            if(tensor_node->is_input())
+            {
+                tile_node->mark_input(true);
+            }
+            if(tensor_node->is_output())
+            {
+                tile_node->mark_output(true);
+            }
+
+            tiles.push_back(tile_node);
+        }
+
+        TileGraph::TensorDescriptor desc;
+        desc.tensor_name = tensor_node->name();
+        desc.tensor_shape = tensor_node->shape();
+        desc.tile_shape = lay->max_tile_extents();
+        desc.grid_shape = lay->grid_shape();
+        desc.dtype = tensor_node->dtype();
+        desc.tiles = tiles;
+        desc.source_node = tensor_node.get();
+
+        TileGraph::TensorDescriptor* desc_ptr =
+            tile_graph.add_tensor_descriptor(std::move(desc));
+
+        for(Index lin = 0; lin < vol; ++lin)
+        {
+            lay->grid_coord_from_linear(lin, grid_coord);
+            tiles[static_cast<size_t>(lin)]->set_tensor_info(
+                desc_ptr, grid_coord);
+        }
+
+        node_map[tensor_node.get()] = std::move(tiles);
     }
+
+    lower_tensor_ops_to_tile_graph(tg, tile_graph, node_map);
 
     return tile_graph;
 }

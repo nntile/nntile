@@ -17,6 +17,11 @@
 // NNTile headers
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -41,6 +46,8 @@ struct TensorGeluInplaceOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorGeluInplaceOp>(*this);
     }
+    void lower_to_tile(const LoweringContext& ctx) const override;
+
 };
 
 void gelu_inplace(TensorGraph::TensorNode* dst);

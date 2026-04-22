@@ -13,6 +13,16 @@
 
 set(TESTS_TILE_CATCH2
     "add"
+    "add_mixed_tile"
+    "adam_step"
+    "adamw_step"
+    "gelu"
+    "gelu_inplace"
+    "mlp"
+    "multiply"
+    "pow"
+    "sgd_step"
+    "sqrt"
     "tile_graph"
 )
 

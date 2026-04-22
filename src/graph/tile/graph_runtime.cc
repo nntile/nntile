@@ -19,6 +19,7 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
 #include "nntile/graph/tile/graph_data_node.hh"
 #include "nntile/graph/tile/graph_op_node.hh"
 #include "nntile/graph/tensor/graph_data_node.hh"
@@ -42,6 +43,117 @@ void allocate_tile_and_register(
     runtime_data[node->name()] = t;
     data_dtypes[node->name()] = node->dtype();
     tile_map[node] = t;
+}
+
+void apply_multitile_bind_hint_from_source(
+    const TensorGraphTiling& tsch,
+    const TileGraph::TensorDescriptor& td,
+    TileGraph::Runtime& rt)
+{
+    const TensorGraph::TensorNode* src = td.source_node;
+    if(src == nullptr)
+    {
+        return;
+    }
+    const std::vector<std::uint8_t>* hint = src->get_bind_hint();
+    if(hint == nullptr)
+    {
+        return;
+    }
+    const TensorAxisLayout* lay = tsch.find(src);
+    if(lay == nullptr)
+    {
+        throw std::runtime_error(
+            "TileGraph::Runtime::compile: missing tiling for multitile bind "
+            "hint");
+    }
+    switch(td.dtype)
+    {
+        case DataType::FP32:
+            tile_graph_layout_io::scatter_logical_tensor<float, nntile::fp32_t,
+                                                         float>(
+                *lay,
+                td.tiles,
+                reinterpret_cast<const float*>(hint->data()),
+                hint->size() / sizeof(float),
+                rt);
+            break;
+        case DataType::FP32_FAST_TF32:
+            tile_graph_layout_io::scatter_logical_tensor<
+                float, nntile::fp32_fast_tf32_t, float>(
+                *lay,
+                td.tiles,
+                reinterpret_cast<const float*>(hint->data()),
+                hint->size() / sizeof(nntile::fp32_fast_tf32_t),
+                rt);
+            break;
+        case DataType::FP32_FAST_FP16:
+            tile_graph_layout_io::scatter_logical_tensor<
+                float, nntile::fp32_fast_fp16_t, float>(
+                *lay,
+                td.tiles,
+                reinterpret_cast<const float*>(hint->data()),
+                hint->size() / sizeof(nntile::fp32_fast_fp16_t),
+                rt);
+            break;
+        case DataType::FP32_FAST_BF16:
+            tile_graph_layout_io::scatter_logical_tensor<
+                float, nntile::fp32_fast_bf16_t, float>(
+                *lay,
+                td.tiles,
+                reinterpret_cast<const float*>(hint->data()),
+                hint->size() / sizeof(nntile::fp32_fast_bf16_t),
+                rt);
+            break;
+        case DataType::FP64:
+            tile_graph_layout_io::scatter_logical_tensor<
+                double, nntile::fp64_t, double>(
+                *lay,
+                td.tiles,
+                reinterpret_cast<const double*>(hint->data()),
+                hint->size() / sizeof(double),
+                rt);
+            break;
+        case DataType::FP16:
+            tile_graph_layout_io::scatter_logical_tensor<float, nntile::fp16_t,
+                                                         float>(
+                *lay,
+                td.tiles,
+                reinterpret_cast<const float*>(hint->data()),
+                hint->size() / sizeof(nntile::fp16_t),
+                rt);
+            break;
+        case DataType::BF16:
+            tile_graph_layout_io::scatter_logical_tensor<float, nntile::bf16_t,
+                                                         float>(
+                *lay,
+                td.tiles,
+                reinterpret_cast<const float*>(hint->data()),
+                hint->size() / sizeof(nntile::bf16_t),
+                rt);
+            break;
+        case DataType::INT64:
+            tile_graph_layout_io::scatter_logical_tensor<
+                std::int64_t, nntile::int64_t, std::int64_t>(
+                *lay,
+                td.tiles,
+                reinterpret_cast<const std::int64_t*>(hint->data()),
+                hint->size() / sizeof(std::int64_t),
+                rt);
+            break;
+        case DataType::BOOL:
+            tile_graph_layout_io::scatter_logical_tensor<bool, nntile::bool_t,
+                                                         bool>(
+                *lay,
+                td.tiles,
+                reinterpret_cast<const bool*>(hint->data()),
+                hint->size() / sizeof(bool),
+                rt);
+            break;
+        default:
+            throw std::runtime_error(
+                "apply_multitile_bind_hint_from_source: unsupported dtype");
+    }
 }
 
 template<typename T>
@@ -77,9 +189,13 @@ void TileGraph::Runtime::compile()
 
     for(const auto& node : graph_.tile_nodes())
     {
+        const auto* td = node->tensor_descriptor();
+        if(td != nullptr && td->tiles.size() > static_cast<size_t>(1))
+        {
+            continue;
+        }
         // Resolve bind hint: prefer source TensorNode, fall back to TileNode
         const std::vector<std::uint8_t>* hint = nullptr;
-        const auto* td = node->tensor_descriptor();
         if(td != nullptr && td->source_node != nullptr)
         {
             hint = td->source_node->get_bind_hint();
@@ -132,6 +248,24 @@ void TileGraph::Runtime::compile()
         }
     }
 
+    if(const TensorGraphTiling* tsch = graph_.tiling_scheme())
+    {
+        for(const auto& uptr : graph_.tensor_descriptors())
+        {
+            const TileGraph::TensorDescriptor& td = *uptr;
+            if(td.tiles.size() <= static_cast<size_t>(1))
+            {
+                continue;
+            }
+            if(td.source_node == nullptr ||
+               td.source_node->get_bind_hint() == nullptr)
+            {
+                continue;
+            }
+            apply_multitile_bind_hint_from_source(*tsch, td, *this);
+        }
+    }
+
     execution_order_.clear();
     execution_order_.reserve(graph_.ops().size());
     for(const auto& op : graph_.ops())
@@ -150,6 +284,32 @@ void TileGraph::Runtime::compile()
         if(node->is_output())
         {
             data_is_output_.insert(node->name());
+        }
+    }
+
+    for(const auto& uptr : graph_.tensor_descriptors())
+    {
+        const TileGraph::TensorDescriptor* td = uptr.get();
+        bool any_in = false;
+        bool any_out = false;
+        for(TileGraph::TileNode* t : td->tiles)
+        {
+            if(t->is_input())
+            {
+                any_in = true;
+            }
+            if(t->is_output())
+            {
+                any_out = true;
+            }
+        }
+        if(any_in)
+        {
+            data_is_input_.insert(td->tensor_name);
+        }
+        if(any_out)
+        {
+            data_is_output_.insert(td->tensor_name);
         }
     }
 

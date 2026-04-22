@@ -17,6 +17,11 @@
 // NNTile headers
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -46,6 +51,8 @@ struct TensorGeluBackwardOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorGeluBackwardOp>(*this);
     }
+    void lower_to_tile(const LoweringContext& ctx) const override;
+
 };
 
 //! GeLU backward: dx += gelu_backward(x, dy)

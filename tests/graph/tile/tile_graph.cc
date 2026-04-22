@@ -118,6 +118,7 @@ TEST_CASE("TileGraph to_mermaid", "[graph][tile]")
 
     std::string m = graph.to_mermaid();
     REQUIRE(m.find("graph TD") != std::string::npos);
+    REQUIRE(m.find("local[2]") != std::string::npos);
 }
 
 TEST_CASE("TileGraph from_tensor_graph structure", "[graph][tile]")
@@ -370,5 +371,66 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for(auto v : result)
     {
         REQUIRE(std::abs(v - 42.0f) < tol);
+    }
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "TileGraph multitile execute matches TensorGraph",
+    "[graph][tile]")
+{
+    constexpr Scalar alpha = 1.0;
+    constexpr Scalar beta = 1.0;
+    std::vector<Index> shape = {6, 5};
+    const Index nelems = 30;
+
+    TensorGraph tensor_graph("mixed_tile_tg");
+    auto* tx = tensor_graph.data(shape, "x", DataType::FP32);
+    auto* ty = tensor_graph.data(shape, "y", DataType::FP32);
+    tx->mark_input(true);
+    ty->mark_input(true);
+
+    // 2x2 tile grid: dim0 uniform (3+3), dim1 base+remainder (3+2) so
+    // TensorGraph::Runtime accepts the axis tiling while tiles differ in size.
+    tx->axis(0)->set_tiling(Index{3});
+    tx->axis(1)->set_tiling(std::vector<Index>{3, 2});
+
+    auto* tz = gt::add(alpha, tx, beta, ty, "z");
+    tz->mark_output(true);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(tensor_graph);
+    REQUIRE(tile_graph.tiling_scheme() != nullptr);
+    REQUIRE(tile_graph.num_data() == 12);
+    REQUIRE(tile_graph.num_ops() == 4);
+    REQUIRE(tile_graph.get_tile_node("x") == nullptr);
+    REQUIRE(tile_graph.get_tile_node("x__t0") != nullptr);
+
+    std::vector<float> x_data(nelems), y_data(nelems);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        x_data[static_cast<size_t>(i)] = static_cast<float>(i + 1);
+        y_data[static_cast<size_t>(i)] = static_cast<float>(i * 2);
+    }
+
+    TensorGraph::Runtime tensor_rt(tensor_graph);
+    tensor_rt.compile();
+    tensor_rt.bind_data("x", x_data);
+    tensor_rt.bind_data("y", y_data);
+    tensor_rt.execute();
+    tensor_rt.wait();
+    auto tensor_result = tensor_rt.get_output<float>("z");
+
+    TileGraph::Runtime tile_rt(tile_graph);
+    tile_rt.compile();
+    tile_rt.bind_data("x", x_data);
+    tile_rt.bind_data("y", y_data);
+    tile_rt.execute();
+    tile_rt.wait();
+    auto tile_result = tile_rt.get_output<float>("z");
+
+    REQUIRE(tensor_result.size() == tile_result.size());
+    constexpr float tol = 1e-5f;
+    for(size_t i = 0; i < tensor_result.size(); ++i)
+    {
+        REQUIRE(std::abs(tensor_result[i] - tile_result[i]) < tol);
     }
 }

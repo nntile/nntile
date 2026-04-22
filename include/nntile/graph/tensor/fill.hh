@@ -18,6 +18,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -43,6 +48,8 @@ struct TensorFillOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorFillOp>(*this);
     }
+    void lower_to_tile(const LoweringContext& ctx) const override;
+
 };
 
 //! Fill tensor: x = val

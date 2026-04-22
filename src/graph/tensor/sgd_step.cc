@@ -14,10 +14,14 @@
 
 #include "nntile/graph/tensor/sgd_step.hh"
 
+#include <memory>
 #include <stdexcept>
+#include <vector>
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile/graph_ops.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
 #include "nntile/tensor/sgd_step.hh"
 
 namespace nntile::graph::tensor
@@ -105,6 +109,27 @@ void TensorSgdStepOp::execute(TensorGraph::Runtime& runtime) const
             throw std::runtime_error("Unsupported data type for sgd_step");
     }
     ++num_iter;
+}
+
+void TensorSgdStepOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    const auto& m = ctx.tile_map;
+    const auto& vg = tile_lower::tiles_of(m, grad);
+    const auto& vv = tile_lower::tiles_of(m, velocity);
+    const auto& vp = tile_lower::tiles_of(m, p);
+    if(vg.size() != vv.size() || vg.size() != vp.size())
+    {
+        throw std::runtime_error("lower_to_tile SGD_STEP: tile count mismatch");
+    }
+    tile_lower::assert_same_elementwise_layout(grad, velocity, "SGD_STEP");
+    tile_lower::assert_same_elementwise_layout(grad, p, "SGD_STEP");
+    auto step_iter = std::make_shared<Index>(num_iter);
+    const size_t n = vg.size();
+    for(size_t i = 0; i < n; ++i)
+    {
+        tile_graph::sgd_step(step_iter, (i + 1 == n), momentum, lr, weight_decay,
+            dampening, nesterov, vg[i], vv[i], vp[i]);
+    }
 }
 
 } // namespace nntile::graph::tensor

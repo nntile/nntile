@@ -21,6 +21,9 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/pow.hh"
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
@@ -87,6 +90,14 @@ void TensorPowOp::execute(
             break;
         default:
             throw std::runtime_error("Unsupported data type for pow");
+    }
+}
+
+void TensorPowOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    for(TileGraph::TileNode* t : tile_lower::tiles_of(ctx.tile_map, A))
+    {
+        tile_graph::pow(alpha, exp, t);
     }
 }
 

@@ -21,6 +21,9 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/fill.hh"
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
@@ -84,6 +87,14 @@ void TensorFillOp::execute(
                 "INT64/BOOL data type not supported for fill operation");
         default:
             throw std::runtime_error("Unsupported data type for fill");
+    }
+}
+
+void TensorFillOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    for(TileGraph::TileNode* t : tile_lower::tiles_of(ctx.tile_map, x))
+    {
+        tile_graph::fill(val, t);
     }
 }
 

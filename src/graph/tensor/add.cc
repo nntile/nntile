@@ -24,6 +24,9 @@
 #include <nntile/graph/tensor.hh>
 #include <nntile/tensor/add.hh>
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
@@ -152,6 +155,25 @@ void TensorAddOp::execute(TensorGraph::Runtime& runtime) const
                 " data type not supported for add operation");
         default:
             throw std::runtime_error("Unsupported data type for add");
+    }
+}
+
+void TensorAddOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    const auto& m = ctx.tile_map;
+    const auto& vx = tile_lower::tiles_of(m, x);
+    const auto& vy = tile_lower::tiles_of(m, y);
+    const auto& vz = tile_lower::tiles_of(m, z);
+    if(vx.size() != vy.size() || vx.size() != vz.size())
+    {
+        throw std::runtime_error(
+            "lower_to_tile ADD: tile count mismatch for operands");
+    }
+    tile_lower::assert_same_elementwise_layout(x, y, "ADD x/y");
+    tile_lower::assert_same_elementwise_layout(x, z, "ADD x/z");
+    for(size_t i = 0; i < vx.size(); ++i)
+    {
+        tile_graph::add(alpha, vx[i], beta, vy[i], vz[i]);
     }
 }
 

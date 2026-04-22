@@ -20,6 +20,9 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/silu_inplace.hh"
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
@@ -85,6 +88,12 @@ void TensorSiluInplaceOp::execute(
         default:
             throw std::runtime_error("Unsupported data type for silu_inplace");
     }
+}
+
+void TensorSiluInplaceOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    tile_lower::lower_inplace1(
+        dst, ctx.tile_map, "SILU_INPLACE", tile_graph::silu_inplace);
 }
 
 } // namespace nntile::graph::tensor

@@ -22,6 +22,9 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/multiply.hh"
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
@@ -119,6 +122,25 @@ void TensorMultiplyOp::execute(
                 "INT64/BOOL data type not supported for multiply operation");
         default:
             throw std::runtime_error("Unsupported data type for multiply");
+    }
+}
+
+void TensorMultiplyOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    const auto& m = ctx.tile_map;
+    const auto& vx = tile_lower::tiles_of(m, x);
+    const auto& vy = tile_lower::tiles_of(m, y);
+    const auto& vz = tile_lower::tiles_of(m, z);
+    if(vx.size() != vy.size() || vx.size() != vz.size())
+    {
+        throw std::runtime_error(
+            "lower_to_tile MULTIPLY: tile count mismatch for operands");
+    }
+    tile_lower::assert_same_elementwise_layout(x, y, "MULTIPLY x/y");
+    tile_lower::assert_same_elementwise_layout(x, z, "MULTIPLY x/z");
+    for(size_t i = 0; i < vx.size(); ++i)
+    {
+        tile_graph::multiply(alpha, vx[i], vy[i], vz[i]);
     }
 }
 

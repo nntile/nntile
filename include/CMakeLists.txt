@@ -431,6 +431,10 @@ set(TENSOR_HDR
 set(GRAPH_TENSOR_HDR
     "nntile/graph/dtype.hh"
     "nntile/graph/tensor.hh"
+    "nntile/graph/tensor/axis_descriptor.hh"
+    "nntile/graph/tensor/basetile.hh"
+    "nntile/graph/tensor/tensor_graph_tiling.hh"
+    "nntile/graph/tensor/tile_lowering_helpers.hh"
     "nntile/graph/tensor/graph.hh"
     "nntile/graph/tensor/graph_decl.hh"
     "nntile/graph/tensor/graph_runtime.hh"
@@ -510,6 +514,40 @@ set(GRAPH_TENSOR_HDR
     "nntile/graph/tensor/sumprod_slice.hh"
     "nntile/graph/tensor/total_sum_accum.hh"
     "nntile/graph/tensor/transpose.hh"
+    )
+
+set(GRAPH_TILE_HDR
+    "nntile/graph/tile.hh"
+    "nntile/graph/tile/graph.hh"
+    "nntile/graph/tile/graph_decl.hh"
+    "nntile/graph/tile/graph_runtime.hh"
+    "nntile/graph/tile/graph_op_node.hh"
+    "nntile/graph/tile/graph_data_node.hh"
+    "nntile/graph/tile/graph_ops.hh"
+    "nntile/graph/tile/lower_from_tensor.hh"
+    "nntile/graph/tile/lowering_context.hh"
+    "nntile/graph/tile/adam_step.hh"
+    "nntile/graph/tile/adamw_step.hh"
+    "nntile/graph/tile/sgd_step.hh"
+    "nntile/graph/tile/gemm.hh"
+    "nntile/graph/tile/relu.hh"
+    "nntile/graph/tile/relu_backward.hh"
+    "nntile/graph/tile/gelu.hh"
+    "nntile/graph/tile/gelu_inplace.hh"
+    "nntile/graph/tile/gelu_backward.hh"
+    "nntile/graph/tile/silu.hh"
+    "nntile/graph/tile/silu_inplace.hh"
+    "nntile/graph/tile/silu_backward.hh"
+    "nntile/graph/tile/gelutanh.hh"
+    "nntile/graph/tile/gelutanh_inplace.hh"
+    "nntile/graph/tile/gelutanh_backward.hh"
+    "nntile/graph/tile/sqrt.hh"
+    "nntile/graph/tile/multiply.hh"
+    "nntile/graph/tile/pow.hh"
+    "nntile/graph/tile/add.hh"
+    "nntile/graph/tile/add_inplace.hh"
+    "nntile/graph/tile/fill.hh"
+    "nntile/graph/tile/clear.hh"
     )
 
 set(GRAPH_NN_HDR
@@ -594,6 +632,7 @@ set(GRAPH_OPTIM_HDR
 set(GRAPH_HDR
     "nntile/graph.hh"
     ${GRAPH_TENSOR_HDR}
+    ${GRAPH_TILE_HDR}
     ${GRAPH_NN_HDR}
     ${GRAPH_IO_HDR}
     ${GRAPH_UTIL_HDR}

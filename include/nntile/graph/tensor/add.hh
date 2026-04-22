@@ -22,6 +22,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -54,6 +59,8 @@ struct TensorAddOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorAddOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Add operation: z = alpha * x + beta * y (creates output)

@@ -22,6 +22,9 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/relu.hh"
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
@@ -127,6 +130,22 @@ void TensorReluOp::execute(
                 " data type not supported for relu operation");
         default:
             throw std::runtime_error("Unsupported data type for relu");
+    }
+}
+
+void TensorReluOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    const auto& m = ctx.tile_map;
+    const auto& vs = tile_lower::tiles_of(m, src);
+    const auto& vd = tile_lower::tiles_of(m, dst);
+    if(vs.size() != vd.size())
+    {
+        throw std::runtime_error("lower_to_tile RELU: tile count mismatch");
+    }
+    tile_lower::assert_same_elementwise_layout(src, dst, "RELU src/dst");
+    for(size_t i = 0; i < vs.size(); ++i)
+    {
+        tile_graph::relu(vs[i], vd[i]);
     }
 }
 

@@ -20,6 +20,9 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gelu_backward.hh"
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
@@ -109,6 +112,12 @@ void TensorGeluBackwardOp::execute(
         default:
             throw std::runtime_error("Unsupported data type for gelu_backward");
     }
+}
+
+void TensorGeluBackwardOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    tile_lower::lower_backward3(x, dy, dx, ctx.tile_map, "GELU_BACKWARD",
+        tile_graph::gelu_backward);
 }
 
 } // namespace nntile::graph::tensor

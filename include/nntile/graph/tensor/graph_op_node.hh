@@ -26,6 +26,8 @@
 namespace nntile::graph
 {
 
+struct LoweringContext;
+
 //! Base class for TensorGraph operations. Each op stores inputs, outputs, id.
 //! Dispatch is via virtual execute(); no OpType enum.
 class TensorGraph::OpNode
@@ -51,6 +53,10 @@ public:
 
     virtual void execute(TensorGraph::Runtime& runtime) const = 0;
     virtual std::shared_ptr<TensorGraph::OpNode> clone() const = 0;
+
+    //! Lower this op into tile ops on ctx.out. Default throws; ops that support
+    //! tile lowering override (same pattern as execute()).
+    virtual void lower_to_tile(const LoweringContext& ctx) const;
 
 protected:
     OpNode() = default;
