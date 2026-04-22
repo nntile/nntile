@@ -29,7 +29,7 @@ TRAIN_SEED      ?= 0
 STARPU_ENV := OMP_NUM_THREADS=1 \
 	LD_LIBRARY_PATH=$(STARPU_LD):$(GRAPH_SCHED_LD):$$LD_LIBRARY_PATH \
 	PYTHONPATH=$(NNTILE_PYTHON) \
-	STARPU_NCPU=1 STARPU_NCUDA=1 STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1 \
+	STARPU_NCPU=0 STARPU_NCUDA=1 STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1 \
 	STARPU_PROFILING=1 STARPU_BUS_STATS=1 \
 	STARPU_HOME=$(NOTEBOOK_DIR)/starpu \
 	STARPU_PERF_MODEL_DIR=$(NOTEBOOK_DIR)/starpu/sampling \
@@ -37,7 +37,8 @@ STARPU_ENV := OMP_NUM_THREADS=1 \
 	STARPU_HOSTNAME=GPT2_LMHead_example \
 	STARPU_FXT_PREFIX=$(NOTEBOOK_DIR)/starpu/fxt \
 	STARPU_GRAPH_SCHED_VERBOSE=3 \
-	STARPU_GRAPH_SCHED_CHECKPOINT_MAX=2
+	STARPU_GRAPH_SCHED_CHECKPOINT_MAX=0 \
+	STARPU_LIMIT_CUDA_MEM=50000
 
 # Training invocation from notebook §3.1, with requested hyperparameters
 GPT2_TRAIN := python ../wrappers/python/examples/gpt2_lmhead_training.py \
@@ -112,6 +113,7 @@ run_dmdasd:
 # (STARPU_NCPU=0, CPU driver disabled, etc.). STARPU_GRAPH_SCHED_WORKER= in STARPU_ENV clears that
 # so the policy uses its default (CUDA:0 if a GPU exists, else CPU:0). Override on the make line if needed.
 run_graph:
+	@echo "nntile/new_sched: STARPU_SCHED_LIB=$(GRAPH_SCHED_SO) (rebuild with: make -C $(GRAPH_SCHED_DIR))" >&2
 	cd $(NOTEBOOK_DIR) && $(STARPU_ENV) STARPU_SCHED=graph_recorder \
 		STARPU_SCHED_LIB=$(GRAPH_SCHED_SO) \
 		$(GPT2_TRAIN)
