@@ -20,6 +20,11 @@
 // NNTile headers
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -45,6 +50,8 @@ struct TensorCopyOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorCopyOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Copy: dst = src (creates output)

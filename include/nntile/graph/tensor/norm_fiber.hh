@@ -18,6 +18,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -56,6 +61,8 @@ struct TensorNormFiberOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorNormFiberOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 TensorGraph::TensorNode* norm_fiber(

@@ -17,6 +17,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -86,6 +87,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 using nntile::test::broadcast_fiber;
 using nntile::test::compare_float_vectors;
 using nntile::test::colmajor_to_rowmajor;
+using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
+using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
+using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -97,11 +101,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(2.0), Index(0)},
         std::tuple{Scalar(0.5), Index(1)});
 
+    constexpr Index dim_m = 6;
+    constexpr Index dim_n = 7;
     std::vector<Index> fiber_shape = (axis == 0) ?
-        std::vector<Index>{dim_2} : std::vector<Index>{dim_4};
+        std::vector<Index>{dim_m} : std::vector<Index>{dim_n};
     const Index fiber_nelems = static_cast<Index>(fiber_shape[0]);
-    constexpr Index nelems = dim_2 * dim_4;
-    const std::vector<Index> dst_shape = {dim_2, dim_4};
+    constexpr Index nelems = dim_m * dim_n;
+    const std::vector<Index> dst_shape = {dim_m, dim_n};
 
     std::vector<float> src1_data(fiber_nelems);
     std::vector<float> src2_data(nelems);
@@ -116,11 +122,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* src2 = g.tensor(dst_shape, "src2", DataType::FP32, true);
     auto* out = multiply_fiber(alpha, src1, src2, "out", axis);
 
+    nn_pytorch_tile_heterogeneous_rank2_6x7(src2);
+    if(axis == 0)
+        nn_pytorch_tile_heterogeneous_1d_len6(src1);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len7(src1);
+
     src1->mark_input(true);
     src2->mark_input(true);
     out->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("src1", src1_data);
     runtime.bind_data("src2", src2_data);
@@ -134,10 +147,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto src1_pt = torch::from_blob(src1_data.data(),
         {static_cast<long>(fiber_nelems)},
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(false);
-    auto src2_pt = torch::from_blob(src2_rowmajor.data(), {dim_2, dim_4},
+    auto src2_pt = torch::from_blob(src2_rowmajor.data(), {dim_m, dim_n},
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(false);
 
-    auto src1_bc = broadcast_fiber(src1_pt, {dim_2, dim_4}, axis);
+    auto src1_bc = broadcast_fiber(src1_pt, {dim_m, dim_n}, axis);
     auto out_pt = (alpha * src1_bc * src2_pt).contiguous();
     std::vector<float> pytorch_out(out_pt.data_ptr<float>(),
                                    out_pt.data_ptr<float>() + nelems);
@@ -156,11 +169,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(2.0), Index(0), Scalar(0.5)},
         std::tuple{Scalar(0.5), Index(1), Scalar(2.0)});
 
+    constexpr Index dim_m = 6;
+    constexpr Index dim_n = 7;
     std::vector<Index> fiber_shape = (axis == 0) ?
-        std::vector<Index>{dim_2} : std::vector<Index>{dim_4};
+        std::vector<Index>{dim_m} : std::vector<Index>{dim_n};
     const Index fiber_nelems = static_cast<Index>(fiber_shape[0]);
-    constexpr Index nelems = dim_2 * dim_4;
-    const std::vector<Index> dst_shape = {dim_2, dim_4};
+    constexpr Index nelems = dim_m * dim_n;
+    const std::vector<Index> dst_shape = {dim_m, dim_n};
 
     std::vector<float> src1_data(fiber_nelems);
     std::vector<float> src2_data(nelems);
@@ -175,6 +190,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* src2 = g.tensor(dst_shape, "src2", DataType::FP32, true);
     auto* out = multiply_fiber(alpha, src1, src2, "out", axis);
 
+    nn_pytorch_tile_heterogeneous_rank2_6x7(src2);
+    if(axis == 0)
+        nn_pytorch_tile_heterogeneous_1d_len6(src1);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len7(src1);
+
     src1->mark_input(true);
     src2->mark_input(true);
 
@@ -185,7 +206,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     src1->grad()->mark_output(true);
     src2->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("src1", src1_data);
     runtime.bind_data("src2", src2_data);
@@ -202,13 +224,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto src1_pt = torch::from_blob(src1_data.data(),
         {static_cast<long>(fiber_nelems)},
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(true);
-    auto src2_pt = torch::from_blob(src2_rowmajor.data(), {dim_2, dim_4},
+    auto src2_pt = torch::from_blob(src2_rowmajor.data(), {dim_m, dim_n},
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(true);
 
-    auto src1_bc = broadcast_fiber(src1_pt, {dim_2, dim_4}, axis);
+    auto src1_bc = broadcast_fiber(src1_pt, {dim_m, dim_n}, axis);
     auto out_pt = alpha * src1_bc * src2_pt;
     auto grad_output = torch::full(
-        {dim_2, dim_4}, static_cast<float>(grad_fill_val),
+        {dim_m, dim_n}, static_cast<float>(grad_fill_val),
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     out_pt.backward(grad_output);
 

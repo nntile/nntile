@@ -18,6 +18,9 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/multiply_inplace.hh"
 #include "nntile/tensor/multiply_inplace.hh"
 
 namespace nntile::graph::tensor
@@ -106,6 +109,23 @@ void TensorMultiplyInplaceOp::execute(
                 " not supported for multiply_inplace");
         default:
             throw std::runtime_error("Unsupported data type for multiply_inplace");
+    }
+}
+
+void TensorMultiplyInplaceOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    const auto& tiles_src = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto& tiles_dst = tile_lower::tiles_of(ctx.tile_map, dst);
+    if(tiles_src.size() != tiles_dst.size())
+    {
+        throw std::runtime_error(
+            "lower_to_tile MULTIPLY_INPLACE: tile count mismatch");
+    }
+    tile_lower::assert_same_elementwise_layout(
+        src, dst, "MULTIPLY_INPLACE src/dst");
+    for(size_t i = 0; i < tiles_src.size(); ++i)
+    {
+        tile_graph::multiply_inplace(alpha, tiles_src[i], tiles_dst[i]);
     }
 }
 

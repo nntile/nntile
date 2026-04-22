@@ -18,6 +18,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -52,6 +57,8 @@ struct TensorScaleFiberOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorScaleFiberOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 TensorGraph::TensorNode* scale_fiber(

@@ -21,6 +21,10 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/norm.hh"
 
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/norm.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+
 namespace nntile::graph::tensor
 {
 
@@ -107,6 +111,29 @@ void TensorNormOp::execute(
                 "INT64/BOOL data type not supported for norm operation");
         default:
             throw std::runtime_error("Unsupported data type for norm");
+    }
+}
+
+void TensorNormOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    // Match nntile::tensor::norm_async (src/tensor/norm.cc).
+    const auto& tiles_x = tile_lower::tiles_of(ctx.tile_map, x);
+    const auto& tiles_y = tile_lower::tiles_of(ctx.tile_map, y);
+    if(tiles_y.size() != 1)
+    {
+        throw std::runtime_error("lower_to_tile NORM: scalar output must be one tile");
+    }
+    constexpr Scalar one = 1.0;
+    for(size_t i = 0; i < tiles_x.size(); ++i)
+    {
+        if(i == 0)
+        {
+            tile_graph::norm(alpha, tiles_x[i], beta, tiles_y[0]);
+        }
+        else
+        {
+            tile_graph::norm(alpha, tiles_x[i], one, tiles_y[0]);
+        }
     }
 }
 

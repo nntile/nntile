@@ -21,6 +21,11 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/rope.hh"
 
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/rope.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+
 namespace nntile::graph::tensor
 {
 
@@ -141,6 +146,45 @@ void TensorRopeOp::execute(
                 " data type not supported for rope operation");
         default:
             throw std::runtime_error("Unsupported data type for rope");
+    }
+}
+
+void TensorRopeOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    // Match nntile::tensor::rope_async (src/tensor/rope.cc).
+    tile_lower::assert_same_elementwise_layout(src, dst, "ROPE src/dst");
+
+    const TensorAxisLayout* lay_src = ctx.tiling.find(src);
+    const TensorAxisLayout* lay_sin = ctx.tiling.find(sin);
+    if(lay_src == nullptr || lay_sin == nullptr)
+    {
+        throw std::runtime_error(
+            "lower_to_tile ROPE: missing tiling for src and/or sin");
+    }
+
+    const auto& tiles_sin = tile_lower::tiles_of(ctx.tile_map, sin);
+    const auto& tiles_cos = tile_lower::tiles_of(ctx.tile_map, cos);
+    const auto& tiles_src = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto& tiles_dst = tile_lower::tiles_of(ctx.tile_map, dst);
+
+    const Index sin_ndim = sin->ndim();
+    std::vector<Index> src_coord;
+    std::vector<Index> sincos_coord(static_cast<size_t>(sin_ndim));
+
+    for(Index lin = 0; lin < lay_src->grid_volume(); ++lin)
+    {
+        lay_src->grid_coord_from_linear(lin, src_coord);
+        for(Index d = 0; d < sin_ndim; ++d)
+        {
+            sincos_coord[static_cast<size_t>(d)] =
+                src_coord[static_cast<size_t>(d)];
+        }
+        const Index j = lay_sin->grid_linear(sincos_coord);
+        tile_graph::rope(
+            tiles_sin[static_cast<size_t>(j)],
+            tiles_cos[static_cast<size_t>(j)],
+            tiles_src[static_cast<size_t>(lin)],
+            tiles_dst[static_cast<size_t>(lin)]);
     }
 }
 

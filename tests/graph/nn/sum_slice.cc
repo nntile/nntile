@@ -17,6 +17,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -91,6 +92,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 using nntile::test::compare_float_vectors;
 using nntile::test::colmajor_to_rowmajor;
+using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
+using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
+using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -102,9 +106,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(2.0), Index(0)},
         std::tuple{Scalar(0.5), Index(1)});
 
-    std::vector<Index> x_shape = (axis == 0) ?
-        std::vector<Index>{dim_4, dim_2} : std::vector<Index>{dim_2, dim_4};
-    const Index x_nelems = dim_2 * dim_4;
+    constexpr Index dim_m = 6;
+    constexpr Index dim_n = 7;
+    const std::vector<Index> x_shape = {dim_m, dim_n};
+    const Index x_nelems = dim_m * dim_n;
 
     std::vector<float> x_data(x_nelems);
     for(Index i = 0; i < x_nelems; ++i)
@@ -115,10 +120,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
     auto* y = sum_slice(x, "y", axis, redux_none, alpha);
 
+    nn_pytorch_tile_heterogeneous_rank2_6x7(x);
+    if(axis == 0)
+        nn_pytorch_tile_heterogeneous_1d_len7(y);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len6(y);
+
     x->mark_input(true);
     y->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("x", x_data);
     runtime.execute();
@@ -148,9 +160,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(2.0), Index(0), Scalar(0.5)},
         std::tuple{Scalar(0.5), Index(1), Scalar(2.0)});
 
-    std::vector<Index> x_shape = (axis == 0) ?
-        std::vector<Index>{dim_4, dim_2} : std::vector<Index>{dim_2, dim_4};
-    const Index x_nelems = dim_2 * dim_4;
+    constexpr Index dim_m = 6;
+    constexpr Index dim_n = 7;
+    const std::vector<Index> x_shape = {dim_m, dim_n};
+    const Index x_nelems = dim_m * dim_n;
 
     std::vector<float> x_data(x_nelems);
     for(Index i = 0; i < x_nelems; ++i)
@@ -161,6 +174,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
     auto* y = sum_slice(x, "y", axis, redux_none, alpha);
 
+    nn_pytorch_tile_heterogeneous_rank2_6x7(x);
+    if(axis == 0)
+        nn_pytorch_tile_heterogeneous_1d_len7(y);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len6(y);
+
     x->mark_input(true);
 
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");
@@ -169,7 +188,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     x->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("x", x_data);
     runtime.execute();

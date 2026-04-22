@@ -21,6 +21,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -58,6 +63,8 @@ struct TensorAddFiberOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorAddFiberOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Add along fibers: output = alpha * fiber + beta * tensor (creates output)

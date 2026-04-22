@@ -21,6 +21,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -56,6 +61,8 @@ struct TensorAddSliceOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorAddSliceOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Add slice: dst = alpha * src1 + beta * src2 (creates output)

@@ -22,6 +22,12 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/norm_fiber.hh"
 
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/norm_fiber.hh"
+#include "nntile/graph/tile/norm_fiber_inplace.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+
 namespace nntile::graph::tensor
 {
 
@@ -166,6 +172,78 @@ void TensorNormFiberOp::execute(
             break;
         default:
             throw std::runtime_error("Unsupported data type for norm_fiber");
+    }
+}
+
+void TensorNormFiberOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    // Match nntile::tensor::norm_fiber_async (src/tensor/norm_fiber.cc).
+    const TensorAxisLayout* lay1 = ctx.tiling.find(src1);
+    if(lay1 == nullptr)
+    {
+        throw std::runtime_error("lower_to_tile NORM_FIBER: missing tiling for src1");
+    }
+
+    tile_lower::assert_same_elementwise_layout(src2, dst, "NORM_FIBER src2/dst");
+
+    const TensorAxisLayout* lay_d = ctx.tiling.find(dst);
+    if(lay_d == nullptr)
+    {
+        throw std::runtime_error("lower_to_tile NORM_FIBER: missing tiling for dst");
+    }
+
+    const auto& tiles_s1 = tile_lower::tiles_of(ctx.tile_map, src1);
+    const auto& tiles_s2 = tile_lower::tiles_of(ctx.tile_map, src2);
+    const auto& tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
+
+    constexpr Scalar one = 1.0;
+    std::vector<Index> s1_coord;
+    std::vector<Index> dst_coord(static_cast<size_t>(dst->ndim()));
+
+    for(Index lin1 = 0; lin1 < lay1->grid_volume(); ++lin1)
+    {
+        lay1->grid_coord_from_linear(lin1, s1_coord);
+        bool init_first = true;
+        for(Index j = 0; j < src1->ndim() - batch_ndim; ++j)
+        {
+            if(j != axis && s1_coord[static_cast<size_t>(j)] != 0)
+            {
+                init_first = false;
+                break;
+            }
+        }
+
+        dst_coord[0] = s1_coord[static_cast<size_t>(axis)];
+        for(Index b = 0; b < batch_ndim; ++b)
+        {
+            dst_coord[static_cast<size_t>(b + 1)] =
+                s1_coord[static_cast<size_t>(src1->ndim() - batch_ndim + b)];
+        }
+        const Index lin_d = lay_d->grid_linear(dst_coord);
+
+        if(init_first)
+        {
+            tile_graph::norm_fiber(
+                alpha,
+                tiles_s1[static_cast<size_t>(lin1)],
+                beta,
+                tiles_s2[static_cast<size_t>(lin_d)],
+                tiles_d[static_cast<size_t>(lin_d)],
+                axis,
+                batch_ndim,
+                redux);
+        }
+        else
+        {
+            tile_graph::norm_fiber_inplace(
+                alpha,
+                tiles_s1[static_cast<size_t>(lin1)],
+                one,
+                tiles_d[static_cast<size_t>(lin_d)],
+                axis,
+                batch_ndim,
+                redux);
+        }
     }
 }
 

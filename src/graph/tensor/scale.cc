@@ -22,6 +22,11 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/scale.hh"
 
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/scale.hh"
+
 namespace nntile::graph::tensor
 {
 
@@ -104,6 +109,21 @@ void TensorScaleOp::execute(
                 " not supported for scale");
         default:
             throw std::runtime_error("Unsupported data type for scale");
+    }
+}
+
+void TensorScaleOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    const auto& tiles_src = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto& tiles_dst = tile_lower::tiles_of(ctx.tile_map, dst);
+    if(tiles_src.size() != tiles_dst.size())
+    {
+        throw std::runtime_error("lower_to_tile SCALE: tile count mismatch");
+    }
+    tile_lower::assert_same_elementwise_layout(src, dst, "SCALE src/dst");
+    for(size_t i = 0; i < tiles_src.size(); ++i)
+    {
+        tile_graph::scale(alpha, tiles_src[i], tiles_dst[i]);
     }
 }
 

@@ -22,6 +22,11 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/sum_slice.hh"
 
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/sum_slice.hh"
+
 namespace nntile::graph::tensor
 {
 
@@ -176,6 +181,66 @@ void TensorSumSliceOp::execute(
                 " data type not supported for sum_slice operation");
         default:
             throw std::runtime_error("Unsupported data type for sum_slice");
+    }
+}
+
+void TensorSumSliceOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    // Match nntile::tensor::sum_slice_async (src/tensor/sum_slice.cc).
+    const TensorAxisLayout* lay_s = ctx.tiling.find(src);
+    const TensorAxisLayout* lay_d = ctx.tiling.find(dst);
+    if(lay_s == nullptr || lay_d == nullptr)
+    {
+        throw std::runtime_error(
+            "lower_to_tile SUM_SLICE: missing tiling for src and/or dst");
+    }
+
+    const auto& tiles_s = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto& tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
+
+    std::vector<Index> dst_coord;
+    std::vector<Index> s_coord(static_cast<size_t>(src->ndim()));
+
+    for(Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
+    {
+        lay_d->grid_coord_from_linear(lin_d, dst_coord);
+        TileGraph::TileNode* dst_tile = tiles_d[static_cast<size_t>(lin_d)];
+
+        for(Index j = 0, k = 0; j < src->ndim(); ++j)
+        {
+            if(j == axis)
+            {
+                continue;
+            }
+            s_coord[static_cast<size_t>(j)] = dst_coord[static_cast<size_t>(k)];
+            ++k;
+        }
+
+        const Index nseg_along_axis =
+            lay_s->grid_shape()[static_cast<size_t>(axis)];
+
+        s_coord[static_cast<size_t>(axis)] = 0;
+        Index lin_s0 = lay_s->grid_linear(s_coord);
+        tile_graph::sum_slice(
+            alpha,
+            tiles_s[static_cast<size_t>(lin_s0)],
+            beta,
+            dst_tile,
+            axis,
+            redux);
+
+        for(Index jj = 1; jj < nseg_along_axis; ++jj)
+        {
+            s_coord[static_cast<size_t>(axis)] = jj;
+            const Index lin_s = lay_s->grid_linear(s_coord);
+            tile_graph::sum_slice(
+                alpha,
+                tiles_s[static_cast<size_t>(lin_s)],
+                Scalar(1.0),
+                dst_tile,
+                axis,
+                redux);
+        }
     }
 }
 

@@ -21,6 +21,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -53,6 +58,8 @@ struct TensorScaleSliceOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorScaleSliceOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 TensorGraph::TensorNode* scale_slice(

@@ -24,7 +24,51 @@ using namespace nntile::graph;
 namespace
 {
 constexpr float float_tolerance = 1e-5f;
+
+void set_rope_heterogeneous_tiling(
+    NNGraph::TensorNode* sin,
+    NNGraph::TensorNode* cos,
+    NNGraph::TensorNode* src)
+{
+    for(Index d = 0; d < sin->ndim(); ++d)
+    {
+        const Index Ls = sin->shape()[static_cast<size_t>(d)];
+        std::vector<Index> sin_seg;
+        if(Ls >= 4)
+        {
+            sin_seg = {1, Ls - 1};
+        }
+        else if(Ls == 3)
+        {
+            sin_seg = {1, 2};
+        }
+        else if(Ls == 2)
+        {
+            sin_seg = {1, 1};
+        }
+        else
+        {
+            sin_seg = {Ls};
+        }
+        sin->data()->axis(d)->set_tiling(sin_seg);
+        cos->data()->axis(d)->set_tiling(sin_seg);
+        if(d == 0)
+        {
+            std::vector<Index> src_seg;
+            src_seg.reserve(sin_seg.size());
+            for(Index v : sin_seg)
+            {
+                src_seg.push_back(2 * v);
+            }
+            src->data()->axis(0)->set_tiling(std::move(src_seg));
+        }
+        else
+        {
+            src->data()->axis(d)->set_tiling(sin_seg);
+        }
+    }
 }
+} // namespace
 
 // RoPE requires src.shape[0] == 2*sin.shape[0]
 static std::vector<Index> make_src_shape(const std::vector<Index>& sin_shape)
@@ -183,7 +227,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     x->mark_input(true);
     y->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    set_rope_heterogeneous_tiling(sin, cos, x);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("sin", sin_data);
     runtime.bind_data("cos", cos_data);
@@ -244,7 +291,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     x->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    set_rope_heterogeneous_tiling(sin, cos, x);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("sin", sin_data);
     runtime.bind_data("cos", cos_data);

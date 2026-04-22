@@ -21,6 +21,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -55,6 +60,8 @@ struct TensorSumSliceOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorSumSliceOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Sum over fibers into slice: dst = alpha * sum_slice(src) + beta * dst (creates output)

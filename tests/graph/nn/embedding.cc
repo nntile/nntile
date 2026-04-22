@@ -17,6 +17,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -110,6 +111,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
+using nntile::test::nn_pytorch_tile_index_4x5;
+using nntile::test::nn_pytorch_tile_index_len3;
+using nntile::test::nn_pytorch_tile_vocab_10x10;
+using nntile::test::nn_pytorch_tile_vocab_8x8;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -150,11 +155,23 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* vocab = g.tensor(vocab_shape, "vocab", DataType::FP32, true);
     auto* embed = embedding(index, vocab, "embed", axis);
 
+    if(index_shape.size() == 2)
+    {
+        nn_pytorch_tile_index_4x5(index);
+        nn_pytorch_tile_vocab_10x10(vocab);
+    }
+    else
+    {
+        nn_pytorch_tile_index_len3(index);
+        nn_pytorch_tile_vocab_8x8(vocab);
+    }
+
     index->mark_input(true);
     vocab->mark_input(true);
     embed->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("index", index_data);
     runtime.bind_data("vocab", vocab_data);
@@ -219,6 +236,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* vocab = g.tensor(vocab_shape, "vocab", DataType::FP32, true);
     auto* embed = embedding(index, vocab, "embed", axis);
 
+    if(index_shape.size() == 2)
+    {
+        nn_pytorch_tile_index_4x5(index);
+        nn_pytorch_tile_vocab_10x10(vocab);
+    }
+    else
+    {
+        nn_pytorch_tile_index_len3(index);
+        nn_pytorch_tile_vocab_8x8(vocab);
+    }
+
     index->mark_input(true);
     vocab->mark_input(true);
 
@@ -228,7 +256,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     vocab->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("index", index_data);
     runtime.bind_data("vocab", vocab_data);

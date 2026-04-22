@@ -22,6 +22,11 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/multiply_fiber.hh"
 
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/multiply_fiber.hh"
+
 namespace nntile::graph::tensor
 {
 
@@ -181,6 +186,37 @@ void TensorMultiplyFiberOp::execute(
                 " data type not supported for multiply_fiber operation");
         default:
             throw std::runtime_error("Unsupported data type for multiply_fiber");
+    }
+}
+
+void TensorMultiplyFiberOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    // Match nntile::tensor::multiply_fiber_async (src/tensor/multiply_fiber.cc).
+    const TensorAxisLayout* lay_d = ctx.tiling.find(dst);
+    if(lay_d == nullptr)
+    {
+        throw std::runtime_error(
+            "lower_to_tile MULTIPLY_FIBER: missing tiling for dst");
+    }
+
+    tile_lower::assert_same_elementwise_layout(src2, dst, "MULTIPLY_FIBER src2/dst");
+
+    const auto& tiles_s1 = tile_lower::tiles_of(ctx.tile_map, src1);
+    const auto& tiles_s2 = tile_lower::tiles_of(ctx.tile_map, src2);
+    const auto& tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
+
+    std::vector<Index> dst_coord;
+
+    for(Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
+    {
+        lay_d->grid_coord_from_linear(lin_d, dst_coord);
+        const Index j = dst_coord[static_cast<size_t>(axis)];
+        tile_graph::multiply_fiber(
+            alpha,
+            tiles_s1[static_cast<size_t>(j)],
+            tiles_s2[static_cast<size_t>(lin_d)],
+            tiles_d[static_cast<size_t>(lin_d)],
+            axis);
     }
 }
 

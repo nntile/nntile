@@ -17,6 +17,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -299,18 +300,83 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
+namespace
+{
+
+//! Heterogeneous splits for each extent (>=2 axes get multi-tile layouts).
+std::vector<Index> nn_gemm_het_axis(Index extent)
+{
+    if(extent <= 1)
+    {
+        return {extent};
+    }
+    if(extent == 2)
+    {
+        return {1, 1};
+    }
+    if(extent == 3)
+    {
+        return {1, 2};
+    }
+    if(extent == 4)
+    {
+        return {1, 3};
+    }
+    if(extent == 5)
+    {
+        return {2, 3};
+    }
+    return {2, 3, extent - 5};
+}
+
+void nn_pytorch_tile_gemm_4d_operands(
+    NNGraph::TensorNode* a,
+    NNGraph::TensorNode* b,
+    Index m1,
+    Index m2,
+    Index k1,
+    Index k2,
+    Index n1,
+    Index n2)
+{
+    a->data()->axis(0)->set_tiling(nn_gemm_het_axis(m1));
+    a->data()->axis(1)->set_tiling(nn_gemm_het_axis(m2));
+    a->data()->axis(2)->set_tiling(nn_gemm_het_axis(k1));
+    a->data()->axis(3)->set_tiling(nn_gemm_het_axis(k2));
+    b->data()->axis(2)->set_tiling(nn_gemm_het_axis(n1));
+    b->data()->axis(3)->set_tiling(nn_gemm_het_axis(n2));
+}
+
+void nn_pytorch_tile_gemm_batched_operands(
+    NNGraph::TensorNode* a,
+    NNGraph::TensorNode* b,
+    Index M,
+    Index K,
+    Index N,
+    Index B)
+{
+    a->data()->axis(0)->set_tiling(nn_gemm_het_axis(M));
+    a->data()->axis(1)->set_tiling(nn_gemm_het_axis(K));
+    a->data()->axis(2)->set_tiling(nn_gemm_het_axis(B));
+    b->data()->axis(1)->set_tiling(nn_gemm_het_axis(N));
+    b->data()->axis(2)->set_tiling(nn_gemm_het_axis(B));
+}
+
+} // namespace
+
 using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
+using nntile::test::nn_pytorch_tile_gemm_operands_6_7_6;
 using nntile::test::permute_rowmajor;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph gemm forward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
-    const auto [M, K, N, gemm_alpha] = GENERATE(
-        std::tuple{Index(2), Index(3), Index(4), Scalar(1.0)},
-        std::tuple{Index(3), Index(4), Index(3), Scalar(0.5)},
-        std::tuple{Index(4), Index(5), Index(6), Scalar(2.0)});
+    const auto gemm_alpha = GENERATE(Scalar(1.0), Scalar(0.5), Scalar(2.0));
+    constexpr Index M = 6;
+    constexpr Index K = 7;
+    constexpr Index N = 6;
 
     const Index a_nelems = M * K;
     const Index b_nelems = K * N;
@@ -332,11 +398,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* c = gemm(a, b, "c", gemm_alpha, trans_a_default, trans_b_default,
                    ndim_one, batch_ndim_none);
 
+    nn_pytorch_tile_gemm_operands_6_7_6(a, b);
+
     a->mark_input(true);
     b->mark_input(true);
     c->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("a", a_data);
     runtime.bind_data("b", b_data);
@@ -353,21 +422,19 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(false);
     auto out_pt = (gemm_alpha * torch::mm(a_pt, b_pt)).contiguous();
 
-    std::vector<float> pytorch_out(out_pt.data_ptr<float>(),
-                                   out_pt.data_ptr<float>() + c_nelems);
-
-    REQUIRE(nntile_out.size() == pytorch_out.size());
-    for(size_t i = 0; i < nntile_out.size(); ++i)
-        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
+    compare_float_vectors(nntile_out, out_pt);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph gemm backward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
-    const auto [M, K, N, gemm_alpha, grad_fill_val] = GENERATE(
-        std::tuple{Index(2), Index(3), Index(4), Scalar(1.0), Scalar(1.0)},
-        std::tuple{Index(3), Index(4), Index(3), Scalar(0.5), Scalar(1.0)},
-        std::tuple{Index(4), Index(5), Index(6), Scalar(2.0), Scalar(-1.0)});
+    const auto [gemm_alpha, grad_fill_val] = GENERATE(
+        std::tuple{Scalar(1.0), Scalar(1.0)},
+        std::tuple{Scalar(0.5), Scalar(1.0)},
+        std::tuple{Scalar(2.0), Scalar(-1.0)});
+    constexpr Index M = 6;
+    constexpr Index K = 7;
+    constexpr Index N = 6;
 
     const Index a_nelems = M * K;
     const Index b_nelems = K * N;
@@ -388,6 +455,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* c = gemm(a, b, "c", gemm_alpha, trans_a_default, trans_b_default,
                    ndim_one, batch_ndim_none);
 
+    nn_pytorch_tile_gemm_operands_6_7_6(a, b);
+
     a->mark_input(true);
     b->mark_input(true);
 
@@ -398,7 +467,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     a->grad()->mark_output(true);
     b->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("a", a_data);
     runtime.bind_data("b", b_data);
@@ -455,11 +525,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* c = gemm(a, b, "c", gemm_alpha, trans_a_default, trans_b_default,
                    ndim_two, batch_ndim_none);
 
+    nn_pytorch_tile_gemm_4d_operands(a, b, M1, M2, K1, K2, N1, N2);
+
     a->mark_input(true);
     b->mark_input(true);
     c->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("a", a_data);
     runtime.bind_data("b", b_data);
@@ -478,13 +551,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto b_2d = b_pt.reshape({K1 * K2, N1 * N2});
     auto out_pt = (gemm_alpha * torch::mm(a_2d, b_2d)).reshape({M1, M2, N1, N2}).contiguous();
 
-    std::vector<float> pytorch_out(out_pt.data_ptr<float>(),
-                                   out_pt.data_ptr<float>() + c_nelems);
-
-    REQUIRE(nntile_out.size() == pytorch_out.size());
-    const float tol_4d = 2e-5f;
-    for(size_t i = 0; i < nntile_out.size(); ++i)
-        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < tol_4d);
+    compare_float_vectors(nntile_out, out_pt, 2e-5f);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -514,11 +581,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* c = gemm(a, b, "c", gemm_alpha, trans_a_default, trans_b_default,
                    ndim_one, batch_ndim_one);
 
+    nn_pytorch_tile_gemm_batched_operands(a, b, M, K, N, B);
+
     a->mark_input(true);
     b->mark_input(true);
     c->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("a", a_data);
     runtime.bind_data("b", b_data);
@@ -539,12 +609,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto b_batched = b_pt.permute({2, 0, 1});
     auto out_pt = (gemm_alpha * torch::bmm(a_batched, b_batched)).contiguous();
 
-    std::vector<float> pytorch_out(out_pt.data_ptr<float>(),
-                                   out_pt.data_ptr<float>() + c_nelems);
-
-    REQUIRE(nntile_out.size() == pytorch_out.size());
-    for(size_t i = 0; i < nntile_out.size(); ++i)
-        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
+    compare_float_vectors(nntile_out, out_pt);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -575,6 +640,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* c = gemm(a, b, "c", gemm_alpha, trans_a_default, trans_b_default,
                    ndim_two, batch_ndim_none);
 
+    nn_pytorch_tile_gemm_4d_operands(a, b, M1, M2, K1, K2, N1, N2);
+
     a->mark_input(true);
     b->mark_input(true);
 
@@ -585,7 +652,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     a->grad()->mark_output(true);
     b->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("a", a_data);
     runtime.bind_data("b", b_data);
@@ -641,6 +709,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* c = gemm(a, b, "c", gemm_alpha, trans_a_default, trans_b_default,
                    ndim_one, batch_ndim_one);
 
+    nn_pytorch_tile_gemm_batched_operands(a, b, M, K, N, B);
+
     a->mark_input(true);
     b->mark_input(true);
 
@@ -651,7 +721,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     a->grad()->mark_output(true);
     b->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("a", a_data);
     runtime.bind_data("b", b_data);

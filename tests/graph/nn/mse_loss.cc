@@ -17,6 +17,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -92,19 +93,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 #ifdef NNTILE_HAVE_TORCH
 
 using nntile::test::colmajor_to_rowmajor;
+using nntile::test::compare_float_vectors;
+using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph mse_loss forward and backward match PyTorch", "[graph][nn_graph][pytorch]")
 {
-    const auto [x_shape, scale] = GENERATE(
-        std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
-        std::tuple{std::vector<Index>{3, 5}, Scalar(0.5)},
-        std::tuple{std::vector<Index>{2, 3, 4}, Scalar(1.0 / 24.0)});
-
-    Index x_nelems = 1;
-    for(auto s : x_shape)
-        x_nelems *= s;
+    const auto scale = GENERATE(Scalar(1.0), Scalar(0.5), Scalar(1.0 / 42.0));
+    const std::vector<Index> x_shape = {6, 7};
+    constexpr Index x_nelems = 6 * 7;
 
     std::vector<float> x_data(x_nelems);
     for(Index i = 0; i < x_nelems; ++i)
@@ -113,6 +111,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     NNGraph g("mse_loss_pytorch");
     auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
     auto* loss = mse_loss(x, "loss", scale);
+
+    nn_pytorch_tile_heterogeneous_rank2_6x7(x);
 
     x->mark_input(true);
     loss->mark_output(true);
@@ -124,7 +124,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     x->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("x", x_data);
     runtime.execute();
@@ -149,16 +150,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     loss_pt.backward();  // scalar default grad is 1.0
 
     float pytorch_loss = loss_pt.item<float>();
-    auto grad_x_pt = x_pt.grad().contiguous();
-    std::vector<float> pytorch_grad_x(grad_x_pt.data_ptr<float>(),
-                                      grad_x_pt.data_ptr<float>() + x_nelems);
 
     REQUIRE(nntile_loss.size() == 1);
     REQUIRE(std::abs(nntile_loss[0] - pytorch_loss) < pytorch_tolerance);
 
-    REQUIRE(nntile_grad_x.size() == pytorch_grad_x.size());
-    for(size_t i = 0; i < nntile_grad_x.size(); ++i)
-        REQUIRE(std::abs(nntile_grad_x[i] - pytorch_grad_x[i]) < pytorch_tolerance);
+    compare_float_vectors(nntile_grad_x, x_pt.grad().contiguous());
 }
 
 #endif // NNTILE_HAVE_TORCH

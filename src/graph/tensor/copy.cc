@@ -18,6 +18,8 @@
 #include <utility>
 
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/copy.hh"
 #include "nntile/tensor/copy.hh"
 
 namespace nntile::graph::tensor
@@ -83,6 +85,23 @@ void TensorCopyOp::execute(TensorGraph::Runtime& runtime) const
             throw std::runtime_error(std::string(dtype_to_string(dtype)) +
                 " not supported for copy");
         default: throw std::runtime_error("Unsupported data type for copy");
+    }
+}
+
+void TensorCopyOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    const auto& m = ctx.tile_map;
+    const auto& v_src = tile_lower::tiles_of(m, src);
+    const auto& v_dst = tile_lower::tiles_of(m, dst);
+    if(v_src.size() != v_dst.size())
+    {
+        throw std::runtime_error(
+            "lower_to_tile COPY: tile count mismatch for src/dst");
+    }
+    tile_lower::assert_same_elementwise_layout(src, dst, "COPY src/dst");
+    for(size_t i = 0; i < v_src.size(); ++i)
+    {
+        tile_graph::copy(v_src[i], v_dst[i]);
     }
 }
 

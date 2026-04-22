@@ -17,6 +17,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #   include <torch/nn/functional/activation.h>
 #endif
 
@@ -92,18 +93,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 #ifdef NNTILE_HAVE_TORCH
 
 using nntile::test::compare_float_vectors;
-using nntile::test::pytorch_tolerance;
+using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph silu forward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
-    const auto shape = GENERATE(
-        std::vector<Index>{4, 6},
-        std::vector<Index>{2, 3, 4});
-
-    Index nelems = 1;
-    for(auto s : shape)
-        nelems *= s;
+    const std::vector<Index> shape = {6, 7};
+    Index nelems = 6 * 7;
 
     std::vector<float> x_data(nelems);
     for(Index i = 0; i < nelems; ++i)
@@ -113,10 +109,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* x = g.tensor(shape, "x", DataType::FP32, true);
     auto* y = silu(x, "y");
 
+    nn_pytorch_tile_heterogeneous_rank2_6x7(x);
+
     x->mark_input(true);
     y->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("x", x_data);
     runtime.execute();
@@ -130,24 +129,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                     .clone()
                     .set_requires_grad(false);
     auto y_pt = torch::nn::functional::silu(x_pt);
-    std::vector<float> pytorch_out(y_pt.data_ptr<float>(),
-                                   y_pt.data_ptr<float>() + nelems);
-
-    REQUIRE(nntile_out.size() == pytorch_out.size());
-    for(size_t i = 0; i < nntile_out.size(); ++i)
-        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
+    compare_float_vectors(nntile_out, y_pt);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph silu backward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
-    const auto [shape, grad_fill_val] = GENERATE(
-        std::tuple{std::vector<Index>{3, 5}, Scalar(1.0)},
-        std::tuple{std::vector<Index>{2, 4}, Scalar(-1.0)});
-
-    Index nelems = 1;
-    for(auto s : shape)
-        nelems *= s;
+    const auto grad_fill_val = GENERATE(Scalar(1.0), Scalar(-1.0));
+    const std::vector<Index> shape = {6, 7};
+    Index nelems = 6 * 7;
 
     std::vector<float> x_data(nelems);
     for(Index i = 0; i < nelems; ++i)
@@ -157,6 +147,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* x = g.tensor(shape, "x", DataType::FP32, true);
     auto* y = silu(x, "y");
 
+    nn_pytorch_tile_heterogeneous_rank2_6x7(x);
+
     x->mark_input(true);
 
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");
@@ -165,7 +157,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     x->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("x", x_data);
     runtime.execute();
