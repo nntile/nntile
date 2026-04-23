@@ -14,12 +14,13 @@ from typing import Any
 
 
 def disable_hf_llama_tensor_parallel(config: Any) -> None:
-    """Clear tensor- and pipeline-parallel plans on a Hugging Face ``LlamaConfig``.
+    """Clear tp and pp plans on a Hugging Face LlamaConfig.
 
-    Recent ``transformers`` attaches default ``base_model_tp_plan`` / ``base_model_pp_plan``
-    to ``LlamaConfig``. ``PreTrainedModel.post_init`` then validates TP styles; with some
-    PyTorch builds ``ALL_PARALLEL_STYLES`` is ``None``, and ``v not in None`` raises
-    ``TypeError``. NNTile round-trips build single-process reference models without TP/PP.
+    Recent ``transformers`` attaches default ``base_model_tp_plan`` and
+    ``base_model_pp_plan`` to ``LlamaConfig``. ``PreTrainedModel.post_init``
+    then validates TP styles; with some PyTorch builds ``ALL_PARALLEL_STYLES``
+    is ``None``, and ``v not in None`` raises ``TypeError``. NNTile round-trips
+    build single-process reference models without TP/PP.
     """
     if hasattr(config, "base_model_tp_plan"):
         config.base_model_tp_plan = None

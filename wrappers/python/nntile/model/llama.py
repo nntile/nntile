@@ -19,11 +19,11 @@ from transformers.models.llama.modeling_llama import (
     LlamaModel as LlamaModel_torch)
 
 from nntile.layer.cache_utils import KVCacheStorage
-from nntile.utils.hf_llama_parallel import disable_hf_llama_tensor_parallel
 from nntile.tensor import (
     Tensor_bf16, Tensor_fp16, Tensor_fp32, Tensor_fp32_fast_bf16,
     Tensor_fp32_fast_fp16, Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments,
     TensorTraits)
+from nntile.utils.hf_llama_parallel import disable_hf_llama_tensor_parallel
 
 from ..layer import Embedding, RMSNorm
 from .base_model import BaseModel

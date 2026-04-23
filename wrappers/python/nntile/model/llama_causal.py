@@ -20,9 +20,9 @@ from transformers.models.llama.modeling_llama import (
 
 import nntile
 from nntile.layer.cache_utils import KVCacheStorage
-from nntile.utils.hf_llama_parallel import disable_hf_llama_tensor_parallel
 from nntile.model.generation.llm import LLMGenerationMixin
 from nntile.types import TensorMoments
+from nntile.utils.hf_llama_parallel import disable_hf_llama_tensor_parallel
 
 from ..layer import Linear
 from .base_model import BaseModel

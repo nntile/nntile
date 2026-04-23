@@ -313,7 +313,7 @@ def _run_nntile_llama_attention_reference(
         import nntile  # noqa: F401
         from nntile.model.llama_attention import LlamaAttention
         from nntile.model.llama_config import LlamaConfigNNTile
-        from nntile.tensor import TensorMoments, TensorTraits, Tensor_fp32
+        from nntile.tensor import Tensor_fp32, TensorMoments, TensorTraits
         from nntile.utils.constructors import to_numpy
     except ImportError:
         return None
@@ -383,7 +383,10 @@ def _run_nntile_llama_attention_reference(
         layer.backward_async()
         nntile.starpu.wait_for_all()
         grad_out = fortran_order(g_f)
-        grad_in = fortran_order(np.asarray(to_numpy(x_m.grad), dtype=np.float32))
+        grad_in = fortran_order(
+            np.asarray(to_numpy(x_m.grad),
+            dtype=np.float32)
+        )
         layer.unregister()
     finally:
         ctx.shutdown()
