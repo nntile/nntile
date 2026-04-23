@@ -62,6 +62,8 @@ foreach(test_path IN LISTS TESTS_MODEL)
             set_tests_properties(tests_graph_model_${test_name}_data_setup
                 PROPERTIES
                     FIXTURES_SETUP "tests_graph_model_${test_name}_data"
+                    ENVIRONMENT
+                        "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
             )
             set(required_fixtures "tests_graph_model_${test_name}_data")
 
@@ -78,6 +80,8 @@ foreach(test_path IN LISTS TESTS_MODEL)
                     PROPERTIES
                         FIXTURES_SETUP
                             "tests_graph_model_${test_name}_gqa_data"
+                        ENVIRONMENT
+                            "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_${test_name}_gqa_data")

@@ -53,6 +53,73 @@ static LlamaConfig test_config_gqa()
     return config;
 }
 
+namespace
+{
+
+//! Optional RoPE tensors from safetensors (same layout as Python LlamaAttention).
+struct LlamaRopeInputs
+{
+    NNGraph::TensorNode* sin = nullptr;
+    NNGraph::TensorNode* cos = nullptr;
+    std::vector<float> sin_data;
+    std::vector<float> cos_data;
+};
+
+inline bool load_llama_rope_inputs(
+    NNGraph& g,
+    const SafeTensorsReader& reader,
+    const LlamaConfig& config,
+    Index n_seq,
+    Index n_batch,
+    LlamaRopeInputs& out)
+{
+    out = {};
+    if(!reader.has_tensor("rope_sin") || !reader.has_tensor("rope_cos"))
+    {
+        return false;
+    }
+    const Index head_dim = config.head_dim;
+    if(head_dim % 2 != 0)
+    {
+        return false;
+    }
+    const Index half = head_dim / 2;
+    out.sin = g.tensor({half, n_seq, n_batch}, "rope_sin", DataType::FP32);
+    out.cos = g.tensor({half, n_seq, n_batch}, "rope_cos", DataType::FP32);
+    auto read_f = [&](const char* name, std::vector<float>& dst)
+    {
+        std::vector<std::uint8_t> b = reader.read_tensor(name);
+        dst.resize(b.size() / sizeof(float));
+        std::memcpy(dst.data(), b.data(), b.size());
+    };
+    read_f("rope_sin", out.sin_data);
+    read_f("rope_cos", out.cos_data);
+    return true;
+}
+
+inline void mark_rope_inputs(const LlamaRopeInputs& rope)
+{
+    if(rope.sin == nullptr)
+    {
+        return;
+    }
+    rope.sin->mark_input(true);
+    rope.cos->mark_input(true);
+}
+
+inline void bind_rope_inputs(
+    TensorGraph::Runtime& runtime, const LlamaRopeInputs& rope)
+{
+    if(rope.sin == nullptr)
+    {
+        return;
+    }
+    runtime.bind_data("rope_sin", rope.sin_data);
+    runtime.bind_data("rope_cos", rope.cos_data);
+}
+
+} // namespace
+
 TEST_CASE("LlamaAttention forward builds output", "[model][llama]")
 {
     NNGraph g("llama_attn");
@@ -142,10 +209,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("attn_ref");
         auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
+        LlamaRopeInputs rope;
+        load_llama_rope_inputs(g, reader, config, 4, 2, rope);
         LlamaAttention attn(&g, "attn", config);
-        auto* output = attn.forward(input, nullptr, nullptr, nullptr);
+        auto* output = attn.forward(input, rope.sin, rope.cos, nullptr);
         input->mark_input(true);
         output->mark_output(true);
+        mark_rope_inputs(rope);
 
         attn.load(full_path);
 
@@ -153,6 +223,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TensorGraph::Runtime runtime(tg);
         runtime.compile();
         runtime.bind_data("input", input_data);
+        bind_rope_inputs(runtime, rope);
         runtime.execute();
         runtime.wait();
 
@@ -191,10 +262,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("llama_attn_untiled");
         auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
+        LlamaRopeInputs rope;
+        load_llama_rope_inputs(g, reader, config, 4, 2, rope);
         LlamaAttention attn(&g, "attn", config);
-        auto* output = attn.forward(input, nullptr, nullptr, nullptr);
+        auto* output = attn.forward(input, rope.sin, rope.cos, nullptr);
         input->mark_input(true);
         output->mark_output(true);
+        mark_rope_inputs(rope);
 
         attn.load(full_path);
 
@@ -202,6 +276,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TensorGraph::Runtime runtime(tg);
         runtime.compile();
         runtime.bind_data("input", input_data);
+        bind_rope_inputs(runtime, rope);
         runtime.execute();
         runtime.wait();
 
@@ -212,10 +287,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("llama_attn_tiled");
         auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
+        LlamaRopeInputs rope;
+        load_llama_rope_inputs(g, reader, config, 4, 2, rope);
         LlamaAttention attn(&g, "attn", config);
-        auto* output = attn.forward(input, nullptr, nullptr, nullptr);
+        auto* output = attn.forward(input, rope.sin, rope.cos, nullptr);
         input->mark_input(true);
         output->mark_output(true);
+        mark_rope_inputs(rope);
 
         attn.load(full_path);
 
@@ -233,6 +311,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TensorGraph::Runtime runtime(tg);
         runtime.compile();
         runtime.bind_data("input", input_data);
+        bind_rope_inputs(runtime, rope);
         runtime.execute();
         runtime.wait();
 
@@ -279,11 +358,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("attn_bwd");
         auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32, true);
+        LlamaRopeInputs rope;
+        load_llama_rope_inputs(g, reader, config, 4, 2, rope);
         LlamaAttention attn(&g, "attn", config);
-        auto* output = attn.forward(input, nullptr, nullptr, nullptr);
+        auto* output = attn.forward(input, rope.sin, rope.cos, nullptr);
 
         input->mark_input(true);
         output->mark_output(true);
+        mark_rope_inputs(rope);
 
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
@@ -298,6 +380,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         runtime.compile();
         runtime.bind_data("input", input_data);
         runtime.bind_data("grad_output", grad_out_data);
+        bind_rope_inputs(runtime, rope);
         runtime.execute();
         runtime.wait();
 
@@ -341,11 +424,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("attn_bwd_untiled");
         auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32, true);
+        LlamaRopeInputs rope;
+        load_llama_rope_inputs(g, reader, config, 4, 2, rope);
         LlamaAttention attn(&g, "attn", config);
-        auto* output = attn.forward(input, nullptr, nullptr, nullptr);
+        auto* output = attn.forward(input, rope.sin, rope.cos, nullptr);
 
         input->mark_input(true);
         output->mark_output(true);
+        mark_rope_inputs(rope);
 
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
@@ -360,6 +446,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         runtime.compile();
         runtime.bind_data("input", input_data);
         runtime.bind_data("grad_output", grad_out_data);
+        bind_rope_inputs(runtime, rope);
         runtime.execute();
         runtime.wait();
 
@@ -371,11 +458,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("attn_bwd_tiled");
         auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32, true);
+        LlamaRopeInputs rope;
+        load_llama_rope_inputs(g, reader, config, 4, 2, rope);
         LlamaAttention attn(&g, "attn", config);
-        auto* output = attn.forward(input, nullptr, nullptr, nullptr);
+        auto* output = attn.forward(input, rope.sin, rope.cos, nullptr);
 
         input->mark_input(true);
         output->mark_output(true);
+        mark_rope_inputs(rope);
 
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
@@ -398,6 +488,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         runtime.compile();
         runtime.bind_data("input", input_data);
         runtime.bind_data("grad_output", grad_out_data);
+        bind_rope_inputs(runtime, rope);
         runtime.execute();
         runtime.wait();
 
@@ -439,10 +530,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("attn_gqa_ref");
         auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
+        LlamaRopeInputs rope;
+        load_llama_rope_inputs(g, reader, config, 4, 2, rope);
         LlamaAttention attn(&g, "attn", config);
-        auto* output = attn.forward(input, nullptr, nullptr, nullptr);
+        auto* output = attn.forward(input, rope.sin, rope.cos, nullptr);
         input->mark_input(true);
         output->mark_output(true);
+        mark_rope_inputs(rope);
 
         attn.load(full_path);
 
@@ -450,6 +544,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TensorGraph::Runtime runtime(tg);
         runtime.compile();
         runtime.bind_data("input", input_data);
+        bind_rope_inputs(runtime, rope);
         runtime.execute();
         runtime.wait();
 
@@ -495,11 +590,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         NNGraph g("attn_gqa_bwd");
         auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32, true);
+        LlamaRopeInputs rope;
+        load_llama_rope_inputs(g, reader, config, 4, 2, rope);
         LlamaAttention attn(&g, "attn", config);
-        auto* output = attn.forward(input, nullptr, nullptr, nullptr);
+        auto* output = attn.forward(input, rope.sin, rope.cos, nullptr);
 
         input->mark_input(true);
         output->mark_output(true);
+        mark_rope_inputs(rope);
 
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
@@ -514,6 +612,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         runtime.compile();
         runtime.bind_data("input", input_data);
         runtime.bind_data("grad_output", grad_out_data);
+        bind_rope_inputs(runtime, rope);
         runtime.execute();
         runtime.wait();
 
