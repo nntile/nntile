@@ -40,7 +40,6 @@ struct TensorSqrtInplaceOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "SQRT_INPLACE"; }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorSqrtInplaceOp>(*this);

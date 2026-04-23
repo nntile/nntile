@@ -40,7 +40,6 @@ struct TensorReluInplaceOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "RELU_INPLACE"; }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorReluInplaceOp>(*this);

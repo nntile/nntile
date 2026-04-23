@@ -47,13 +47,12 @@ struct TensorReluBackwardOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "RELU_BACKWARD"; }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorReluBackwardOp>(*this);
     }
-    void lower_to_tile(const LoweringContext& ctx) const override;
 
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! ReLU backward: dx = relu_backward(x, dy) (creates output)

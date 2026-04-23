@@ -14,8 +14,8 @@
 
 #include "nntile/tile/copy_intersection.hh"
 #include "nntile/starpu/copy.hh"
-#include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/config.hh"
+#include "nntile/starpu/subcopy.hh"
 
 namespace nntile::tile
 {
@@ -118,13 +118,26 @@ void copy_intersection_async(const Tile<T> &src,
             dst_tile_mode = STARPU_RW;
         }
     }
-    // Insert task
     src.mpi_transfer(dst_rank, mpi_rank);
     if(mpi_rank == dst_rank)
     {
-        starpu::subcopy.submit<std::tuple<T>>(src.ndim, src_start, src.stride,
-                dst_start, dst.stride, copy_shape, src, dst, scratch,
-                dst_tile_mode);
+        for(Index i = 0; i < ndim; ++i)
+        {
+            if(copy_shape[i] == 0)
+            {
+                return;
+            }
+            if(src_start[i] + copy_shape[i] > src.shape[i])
+            {
+                throw std::runtime_error("copy_intersection: source region out of bounds");
+            }
+            if(dst_start[i] + copy_shape[i] > dst.shape[i])
+            {
+                throw std::runtime_error("copy_intersection: destination region out of bounds");
+            }
+        }
+        starpu::subcopy.submit<std::tuple<T>>(ndim, src_start, src.stride, dst_start,
+            dst.stride, copy_shape, src, dst, scratch, dst_tile_mode);
     }
 }
 

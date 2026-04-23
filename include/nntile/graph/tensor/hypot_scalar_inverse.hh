@@ -47,7 +47,6 @@ struct TensorHypotScalarInverseOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "HYPOT_SCALAR_INVERSE"; }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorHypotScalarInverseOp>(*this);

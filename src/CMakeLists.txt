@@ -437,7 +437,6 @@ set(GRAPH_TENSOR_SRC
     "graph/tensor/gelutanh_backward.cc"
     "graph/tensor/gelutanh_inplace.cc"
     "graph/tensor/axis_descriptor.cc"
-    "graph/tensor/basetile.cc"
     "graph/tensor/tensor_graph_tiling.cc"
     "graph/tensor/graph_data_node.cc"
     "graph/tensor/graph_op_node.cc"

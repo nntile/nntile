@@ -64,6 +64,9 @@ public:
     void tile_axis_global_range(const std::vector<Index>& grid_coord, Index dim,
         Index& global_lo, Index& global_hi_inclusive) const;
 
+    //! Segment index on axis dim that contains global_index in [0, shape(dim)).
+    Index tile_index_containing(Index dim, Index global_index) const;
+
 private:
     std::vector<Index> shape_;
     //! segments_[d][k] is k-th tile length along axis d.

@@ -44,13 +44,12 @@ struct TensorReluOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "RELU"; }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorReluOp>(*this);
     }
-    void lower_to_tile(const LoweringContext& ctx) const override;
 
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! ReLU: dst = relu(src) (creates output)

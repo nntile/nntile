@@ -57,8 +57,8 @@ void TensorGatherOp::lower_to_tile(const LoweringContext& ctx) const
         std::to_string(reinterpret_cast<std::uintptr_t>(this));
     TileGraph::TileNode* scratch = ctx.out.data(
         std::vector<Index>{2 * ndim}, scratch_name, DataType::INT64);
-    std::vector<Index> src_corner(static_cast<size_t>(ndim), 0);
-    std::vector<Index> dst_corner(static_cast<size_t>(ndim));
+    std::vector<Index> src_corner(static_cast<size_t>(ndim));
+    std::vector<Index> dst_corner(static_cast<size_t>(ndim), 0);
     std::vector<Index> grid_coord;
     for(Index lin = 0; lin < lay_src->grid_volume(); ++lin)
     {
@@ -68,7 +68,7 @@ void TensorGatherOp::lower_to_tile(const LoweringContext& ctx) const
             Index lo = 0;
             Index hi = 0;
             lay_src->tile_axis_global_range(grid_coord, k, lo, hi);
-            dst_corner[static_cast<size_t>(k)] = lo;
+            src_corner[static_cast<size_t>(k)] = lo;
         }
         tile_graph::copy_intersection(tsrc[static_cast<size_t>(lin)], src_corner,
             dst_tile, dst_corner, scratch);

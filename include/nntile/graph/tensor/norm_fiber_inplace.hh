@@ -53,7 +53,6 @@ struct TensorNormFiberInplaceOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "NORM_FIBER_INPLACE"; }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorNormFiberInplaceOp>(*this);

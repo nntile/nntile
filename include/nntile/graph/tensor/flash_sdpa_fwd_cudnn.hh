@@ -50,7 +50,6 @@ struct TensorFlashSdpaFwdCudnnOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "FLASH_SDPA_FWD_CUDNN"; }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorFlashSdpaFwdCudnnOp>(*this);

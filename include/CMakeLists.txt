@@ -432,7 +432,6 @@ set(GRAPH_TENSOR_HDR
     "nntile/graph/dtype.hh"
     "nntile/graph/tensor.hh"
     "nntile/graph/tensor/axis_descriptor.hh"
-    "nntile/graph/tensor/basetile.hh"
     "nntile/graph/tensor/tensor_graph_tiling.hh"
     "nntile/graph/tensor/tile_lowering_helpers.hh"
     "nntile/graph/tensor/graph.hh"

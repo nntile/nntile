@@ -44,7 +44,6 @@ struct TensorCopyOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "COPY"; }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorCopyOp>(*this);

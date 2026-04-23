@@ -62,7 +62,6 @@ struct TensorConv2dBwdInputInplaceOp : TensorGraph::OpNode
         return "CONV2D_BWD_INPUT_INPLACE";
     }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorConv2dBwdInputInplaceOp>(*this);

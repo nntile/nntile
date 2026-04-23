@@ -45,13 +45,12 @@ struct TensorMultiplyOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "MULTIPLY"; }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorMultiplyOp>(*this);
     }
-    void lower_to_tile(const LoweringContext& ctx) const override;
 
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Multiply: z = alpha * x * y

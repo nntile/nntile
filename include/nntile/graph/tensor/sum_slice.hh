@@ -54,7 +54,6 @@ struct TensorSumSliceOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "SUM_SLICE"; }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorSumSliceOp>(*this);

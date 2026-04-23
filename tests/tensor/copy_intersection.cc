@@ -13,7 +13,6 @@
  * */
 
 #include "nntile/tensor/copy_intersection.hh"
-#include "nntile/starpu/subcopy.hh"
 #include "nntile/context.hh"
 #include "nntile/starpu/config.hh"
 #include "../testing.hh"

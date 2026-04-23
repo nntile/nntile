@@ -47,7 +47,6 @@ struct TensorSubtractIndexedOutputsOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "SUBTRACT_INDEXED_OUTPUTS"; }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorSubtractIndexedOutputsOp>(*this);

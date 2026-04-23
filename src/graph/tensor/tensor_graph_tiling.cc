@@ -196,6 +196,23 @@ std::vector<Index> TensorAxisLayout::max_tile_extents() const
     return m;
 }
 
+Index TensorAxisLayout::tile_index_containing(
+    Index dim, Index global_index) const
+{
+    if(dim < 0 || static_cast<size_t>(dim) >= shape_.size())
+    {
+        throw std::out_of_range("TensorAxisLayout::tile_index_containing: dim");
+    }
+    if(global_index < 0 || global_index >= shape_[static_cast<size_t>(dim)])
+    {
+        throw std::out_of_range(
+            "TensorAxisLayout::tile_index_containing: global_index");
+    }
+    const auto& origin = axis_origin_[static_cast<size_t>(dim)];
+    auto it = std::lower_bound(origin.begin(), origin.end(), global_index + 1);
+    return static_cast<Index>((it - origin.begin()) - 1);
+}
+
 void TensorAxisLayout::tile_axis_global_range(
     const std::vector<Index>& grid_coord,
     Index dim,

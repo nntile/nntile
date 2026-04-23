@@ -51,7 +51,6 @@ struct TensorMultiplyFiberOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "MULTIPLY_FIBER"; }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorMultiplyFiberOp>(*this);

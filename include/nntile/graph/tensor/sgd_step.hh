@@ -55,13 +55,12 @@ struct TensorSgdStepOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "SGD_STEP"; }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorSgdStepOp>(*this);
     }
-    void lower_to_tile(const LoweringContext& ctx) const override;
 
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! SGD step

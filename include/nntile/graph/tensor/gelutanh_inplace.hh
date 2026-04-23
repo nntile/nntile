@@ -40,13 +40,12 @@ struct TensorGelutanhInplaceOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "GELUTANH_INPLACE"; }
 
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorGelutanhInplaceOp>(*this);
     }
-    void lower_to_tile(const LoweringContext& ctx) const override;
 
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 void gelutanh_inplace(TensorGraph::TensorNode* dst);
