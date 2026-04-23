@@ -517,31 +517,31 @@ void TileGraph::Runtime::invalidate_data(const std::string& name)
     switch(dtype)
     {
         case DataType::FP32:
-            get_data<nntile::fp32_t>(name).unregister();
+            get_data<nntile::fp32_t>(name).invalidate_submit();
             break;
         case DataType::FP32_FAST_TF32:
-            get_data<nntile::fp32_fast_tf32_t>(name).unregister();
+            get_data<nntile::fp32_fast_tf32_t>(name).invalidate_submit();
             break;
         case DataType::FP32_FAST_FP16:
-            get_data<nntile::fp32_fast_fp16_t>(name).unregister();
+            get_data<nntile::fp32_fast_fp16_t>(name).invalidate_submit();
             break;
         case DataType::FP32_FAST_BF16:
-            get_data<nntile::fp32_fast_bf16_t>(name).unregister();
+            get_data<nntile::fp32_fast_bf16_t>(name).invalidate_submit();
             break;
         case DataType::FP64:
-            get_data<nntile::fp64_t>(name).unregister();
+            get_data<nntile::fp64_t>(name).invalidate_submit();
             break;
         case DataType::FP16:
-            get_data<nntile::fp16_t>(name).unregister();
+            get_data<nntile::fp16_t>(name).invalidate_submit();
             break;
         case DataType::BF16:
-            get_data<nntile::bf16_t>(name).unregister();
+            get_data<nntile::bf16_t>(name).invalidate_submit();
             break;
         case DataType::INT64:
-            get_data<nntile::int64_t>(name).unregister();
+            get_data<nntile::int64_t>(name).invalidate_submit();
             break;
         case DataType::BOOL:
-            get_data<nntile::bool_t>(name).unregister();
+            get_data<nntile::bool_t>(name).invalidate_submit();
             break;
         default:
             throw std::runtime_error(
