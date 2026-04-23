@@ -33,7 +33,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph softmax_inplace axis0"
     r.compile();
     std::vector<float> mv(nms), dd(n);
     for(Index j=0;j<nms;j+=2){ mv[static_cast<size_t>(j)]=static_cast<float>(j+1);
-      mv[static_cast<size_t>(j+1)]=std::exp(static_cast<float>(j+2)/10.f);} 
+      mv[static_cast<size_t>(j+1)]=std::exp(static_cast<float>(j+2)/10.f);}
     for(Index i=0;i<n;++i) dd[static_cast<size_t>(i)]=static_cast<float>(i+1);
     r.bind_data("m", mv); r.bind_data("d", dd);
     r.execute(); r.wait();

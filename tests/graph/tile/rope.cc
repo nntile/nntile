@@ -34,7 +34,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope", "[graph][tile]"
     r.compile();
     std::vector<float> sv(2), cv(2), src(20,0.03f);
     for(int i=0;i<2;++i) { sv[static_cast<size_t>(i)]=0.1f*static_cast<float>(i+1);
-      cv[static_cast<size_t>(i)]=0.2f*static_cast<float>(i+1);} 
+      cv[static_cast<size_t>(i)]=0.2f*static_cast<float>(i+1);}
     for(int i=0;i<20;++i) src[static_cast<size_t>(i)]=0.03f*static_cast<float>(i+1);
     std::vector<float> dv(20,0.f);
     r.bind_data("si", sv);

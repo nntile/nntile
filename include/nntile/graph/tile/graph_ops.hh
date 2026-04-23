@@ -37,4 +37,3 @@
 #include <nntile/graph/tile/silu_backward.hh>
 #include <nntile/graph/tile/silu_inplace.hh>
 #include <nntile/graph/tile/sqrt.hh>
-
