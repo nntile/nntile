@@ -13,9 +13,11 @@
 
 #ifdef NNTILE_HAVE_TORCH
 
+#   include <stdexcept>
 #   include <vector>
 
 #   include <nntile/graph/nn/graph.hh>
+#   include <nntile/graph/tensor/graph.hh>
 
 namespace nntile::test
 {
@@ -214,6 +216,64 @@ inline void nn_pytorch_tile_rope_sin_cos_src(
         {
             src->data()->axis(d)->set_tiling(sin_seg);
         }
+    }
+}
+
+//! Segment sizes for AxisDescriptor::set_tiling: positive, sum to `extent`.
+//! Unequal tile sizes when extent >= 3 (extent 2 only allows 1+1).
+inline std::vector<Index> module_heterogeneous_tile_sizes(Index extent)
+{
+    if(extent < 1)
+    {
+        throw std::invalid_argument("module_heterogeneous_tile_sizes: extent >= 1");
+    }
+    if(extent == 1)
+    {
+        return {1};
+    }
+    if(extent == 2)
+    {
+        return {1, 1};
+    }
+    if(extent == 3)
+    {
+        return {1, 2};
+    }
+    if(extent == 4)
+    {
+        return {1, 1, 2};
+    }
+    return {1, 2, static_cast<Index>(extent - 3)};
+}
+
+//! Heterogeneous split on every axis group that is still untiled (module / PyTorch tests).
+inline void module_tile_all_untiled_axis_groups_heterogeneous(graph::TensorGraph& tg)
+{
+    for(graph::AxisDescriptor* ag : tg.axis_groups())
+    {
+        if(!ag->is_tiled())
+        {
+            ag->set_tiling(module_heterogeneous_tile_sizes(ag->extent));
+        }
+    }
+}
+
+//! Embedding weight layout [embed_dim, num_embeddings]: axis 1 must stay one tile; axis 0
+//! must use a uniform basetile extent (see `lower_to_tile EMBEDDING` and
+//! `kernel::embedding`). Uses two equal row tiles when embed_dim is even and >= 2;
+//! otherwise a single full row tile.
+inline void module_apply_embedding_vocab_tiling(graph::NNGraph::TensorNode* vocab)
+{
+    const Index ed = vocab->shape()[0];
+    const Index ne = vocab->shape()[1];
+    vocab->data()->axis(1)->set_tiling(std::vector<Index>{ne});
+    if(ed >= 2 && (ed % 2) == 0)
+    {
+        vocab->data()->axis(0)->set_tiling(std::vector<Index>{ed / 2, ed / 2});
+    }
+    else
+    {
+        vocab->data()->axis(0)->set_tiling(std::vector<Index>{ed});
     }
 }
 

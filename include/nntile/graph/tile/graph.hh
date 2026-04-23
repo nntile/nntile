@@ -7,8 +7,8 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/tile/graph.hh
- * TileGraph - graph operating on tiles. Purely symbolic; use Runtime
- * for execution.
+ * TileGraph - graph operating on tiles. Purely symbolic; use
+ * TileGraph::Runtime for execution.
  *
  * @version 1.1.0
  * */

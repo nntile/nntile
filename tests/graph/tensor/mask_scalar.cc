@@ -74,10 +74,10 @@ void check_mask_scalar_vs_tensor_api(
 
     gt::mask_scalar(mask_node, val, A_node, batch_ndim);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     runtime.bind_data("mask", mask_data);
@@ -260,10 +260,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         gt::mask_scalar(mask_node, val, A_node, batch_ndim);
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("mask", mask_data);
@@ -290,10 +290,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("mask", mask_data);

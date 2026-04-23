@@ -78,10 +78,10 @@ void check_softmax_vs_tensor_api(
     auto* dst_node = gt::softmax(maxsumexp_node, src_node, "dst", alpha, axis);
     dst_node->mark_output(true);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(src_nelems);
@@ -229,10 +229,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto* dst_node = gt::softmax(maxsumexp_node, src_node, "dst", alpha, axis);
         dst_node->mark_output(true);
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("src", src_data);
@@ -265,10 +265,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             }
         }
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("src", src_data);

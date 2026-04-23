@@ -73,10 +73,10 @@ void check_rope_backward_vs_tensor_api(const std::vector<Index>& sin_shape)
     auto* dx_node = gt::rope_backward(sin_node, cos_node, dy_node, "dx");
     dx_node->mark_output(true);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     runtime.bind_data("sin", sin_data);
@@ -239,10 +239,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto* dx_node = gt::rope_backward(sin_node, cos_node, dy_node, "dx");
         dx_node->mark_output(true);
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("sin", sin_data);
@@ -272,10 +272,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("sin", sin_data);

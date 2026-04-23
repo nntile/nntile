@@ -51,10 +51,10 @@ void check_gather_vs_tensor_api(const std::vector<Index>& shape)
     auto* dst_node = gt::gather(src_node, "dst");
     dst_node->mark_output(true);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(nelems);

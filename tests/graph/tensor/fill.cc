@@ -52,10 +52,10 @@ void check_fill_vs_tensor_api(
 
     gt::fill(val, dst_node);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     // Bind with arbitrary initial data (will be overwritten by fill)
@@ -147,10 +147,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         gt::fill(val, dst_node);
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.execute();
@@ -172,10 +172,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.execute();

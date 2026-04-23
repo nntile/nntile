@@ -67,10 +67,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     gt::log_scalar("test_value", value_node);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> value_data = {3.14f};

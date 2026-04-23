@@ -88,10 +88,10 @@ void check_add_fiber_inplace_vs_tensor_api(
 
     gt::add_fiber_inplace(alpha, fiber_node, beta, tensor_node, axis, batch_ndim);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> fiber_data(fiber_nelems);
@@ -233,9 +233,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         tensor_node->mark_input(true);
         tensor_node->mark_output(true);
         gt::add_fiber_inplace(alpha, fiber_node, beta, tensor_node, axis, batch_ndim);
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data("fiber", fiber_data);
         runtime.bind_data("tensor", tensor_data);
@@ -257,9 +257,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data("fiber", fiber_data);
         runtime.bind_data("tensor", tensor_data);

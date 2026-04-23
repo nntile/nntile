@@ -66,10 +66,10 @@ void check_sgd_step_vs_tensor_api(
     gt::sgd_step(num_iter, momentum, lr, weight_decay, dampening, nesterov,
              grad_node, velocity_node, p_node);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> grad_data(nelems);
@@ -235,10 +235,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         gt::sgd_step(num_iter, momentum, lr, weight_decay, dampening, nesterov,
                  grad_node, velocity_node, p_node);
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("grad", grad_data);
@@ -271,10 +271,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("grad", grad_data);

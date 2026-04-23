@@ -435,10 +435,10 @@ int main(int argc, char** argv)
 
         apply_weight_cache(model, weights);
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph.tensor_graph());
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph.tensor_graph());
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         if(is_prefill)

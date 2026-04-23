@@ -53,10 +53,10 @@ void check_randn_vs_tensor_api(const std::vector<Index>& shape)
 
     gt::randn(dst_node, start, shape, seed, mean, stddev);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     runtime.execute();

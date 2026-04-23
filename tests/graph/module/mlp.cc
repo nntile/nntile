@@ -34,6 +34,7 @@
 #ifdef NNTILE_HAVE_TORCH
 #   include "context_fixture.hh"
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #endif
 
 using namespace nntile;
@@ -230,10 +231,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
     input->grad()->mark_output(true);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(g.tensor_graph());
+    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+        g.tensor_graph());
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("input", input_data);
     runtime.execute();
@@ -339,10 +343,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         input->grad()->mark_output(true);
     }
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(g.tensor_graph());
+    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+        g.tensor_graph());
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("input", input_data);
     runtime.execute();

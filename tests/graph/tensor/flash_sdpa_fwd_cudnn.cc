@@ -132,10 +132,10 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
                                         "logsumexp", "A");
     A_node->mark_output(true);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> K_data(kv_nelems);
@@ -297,10 +297,10 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
             }
         }
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data("K", K_data);
         runtime.bind_data("Q", Q_data);

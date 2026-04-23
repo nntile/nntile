@@ -74,10 +74,10 @@ void check_subtract_indexed_outputs_vs_tensor_api(
 
     gt::subtract_indexed_outputs(val, labels_node, dst_node, ignore_index);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     runtime.bind_data("labels", labels_data);
@@ -244,10 +244,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         gt::subtract_indexed_outputs(val, labels_node, dst_node, ignore_index);
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("labels", labels_data);
@@ -282,10 +282,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             }
         }
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("labels", labels_data);

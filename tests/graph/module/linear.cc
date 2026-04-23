@@ -32,6 +32,7 @@
 #ifdef NNTILE_HAVE_TORCH
 #   include "context_fixture.hh"
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #endif
 
 using namespace nntile;
@@ -201,10 +202,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         weight_data[i] = 0.1f * static_cast<float>(i + 1);
     linear.bind_weight(weight_data);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(g.tensor_graph());
+    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+        g.tensor_graph());
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> input_data(2 * 3);
@@ -244,10 +248,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         bias_data[i] = static_cast<float>(i + 1);
     linear.bind_bias(bias_data);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(g.tensor_graph());
+    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+        g.tensor_graph());
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> input_data(2 * 3, 1.0f);
@@ -291,10 +298,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for(Index i = 0; i < batch * in_dim; ++i)
         input_data[i] = 0.1f * static_cast<float>(i + 1);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(g.tensor_graph());
+    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+        g.tensor_graph());
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();  // bind hints applied from constructor
     runtime.bind_data("input", input_data);
     runtime.execute();
@@ -356,10 +366,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     linear.weight_tensor()->grad()->mark_output(true);
     input->grad()->mark_output(true);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(g.tensor_graph());
+    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+        g.tensor_graph());
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("input", input_data);
     runtime.execute();
@@ -434,10 +447,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     linear.bias_tensor()->grad()->mark_output(true);
     input->grad()->mark_output(true);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(g.tensor_graph());
+    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+        g.tensor_graph());
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("input", input_data);
     runtime.execute();
@@ -517,10 +533,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         input->grad()->mark_output(true);
     }
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(g.tensor_graph());
+    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+        g.tensor_graph());
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("input", input_data);
     runtime.execute();

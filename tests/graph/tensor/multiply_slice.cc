@@ -89,10 +89,10 @@ void check_multiply_slice_vs_tensor_api(
 
     gt::multiply_slice(alpha, src_node, dst_node, axis);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(src_nelems);
@@ -236,9 +236,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         dst_node->mark_input(true);
         dst_node->mark_output(true);
         gt::multiply_slice(alpha, src_node, dst_node, axis);
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data("src", src_data);
         runtime.bind_data("dst", dst_data);
@@ -260,9 +260,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data("src", src_data);
         runtime.bind_data("dst", dst_data);

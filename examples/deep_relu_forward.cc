@@ -196,9 +196,9 @@ int main(int argc, char** argv)
     model.load(weights_path);
 
     // ---- Compile ----
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph.tensor_graph());
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     // ---- Prepare input ----

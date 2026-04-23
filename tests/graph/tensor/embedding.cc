@@ -86,10 +86,10 @@ void check_embedding_vs_tensor_api(
 
     gt::embedding(index_node, vocab_node, embed_node, axis);
 
-    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-    TileGraph::Runtime runtime(runtime_tile);
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<std::int64_t> index_data(index_nelems);
@@ -267,10 +267,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto* embed_node = gt::embedding(index_node, vocab_node, "embed", axis);
         embed_node->mark_output(true);
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("index", index_data);
@@ -305,10 +305,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             }
         }
 
-        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
 
-        TileGraph::Runtime runtime(runtime_tile);
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("index", index_data);
