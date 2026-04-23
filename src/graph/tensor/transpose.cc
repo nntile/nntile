@@ -24,21 +24,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_transpose(TensorGraph::Runtime& runtime, Scalar alpha,
-                  Index ndim,
-                  TensorGraph::TensorNode* src,
-                  TensorGraph::TensorNode* dst)
-{
-    auto& src_t = runtime.get_tensor<T>(src);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::transpose<T>(alpha, src_t, dst_t, ndim);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* transpose(
     Scalar alpha,
@@ -111,26 +97,6 @@ void transpose(
     }
     auto op = std::make_shared<TensorTransposeOp>(src, dst, ndim, alpha);
     src->graph()->add_op(op);
-}
-
-void TensorTransposeOp::execute(TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src);
-    switch(dtype)
-    {
-        case DataType::FP32: run_transpose<nntile::fp32_t>(runtime, alpha, ndim, src, dst); break;
-        case DataType::FP32_FAST_TF32: run_transpose<nntile::fp32_fast_tf32_t>(runtime, alpha, ndim, src, dst); break;
-        case DataType::FP32_FAST_FP16: run_transpose<nntile::fp32_fast_fp16_t>(runtime, alpha, ndim, src, dst); break;
-        case DataType::FP32_FAST_BF16: run_transpose<nntile::fp32_fast_bf16_t>(runtime, alpha, ndim, src, dst); break;
-        case DataType::FP64: run_transpose<nntile::fp64_t>(runtime, alpha, ndim, src, dst); break;
-        case DataType::FP16: run_transpose<nntile::fp16_t>(runtime, alpha, ndim, src, dst); break;
-        case DataType::BF16: run_transpose<nntile::bf16_t>(runtime, alpha, ndim, src, dst); break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(std::string(dtype_to_string(dtype)) +
-                " not supported for transpose");
-        default: throw std::runtime_error("Unsupported data type for transpose");
-    }
 }
 
 } // namespace nntile::graph::tensor

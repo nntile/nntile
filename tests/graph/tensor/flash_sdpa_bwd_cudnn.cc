@@ -154,7 +154,10 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     gt::flash_sdpa_bwd_cudnn(K_node, Q_node, V_node, A_node, dA_node,
                          mask_node, logsumexp_node, dK_node, dQ_node, dV_node);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     std::vector<float> K_data(kv_nelems);
@@ -391,7 +394,10 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
             }
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("K", K_data);
         runtime.bind_data("Q", Q_data);

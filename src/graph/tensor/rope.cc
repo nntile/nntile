@@ -29,25 +29,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_rope(
-    TensorGraph::Runtime& runtime,
-    TensorGraph::TensorNode* sin,
-    TensorGraph::TensorNode* cos,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst)
-{
-    auto& sin_t = runtime.get_tensor<T>(sin);
-    auto& cos_t = runtime.get_tensor<T>(cos);
-    auto& src_t = runtime.get_tensor<T>(src);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::rope<T>(sin_t, cos_t, src_t, dst_t);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* rope(
     TensorGraph::TensorNode* sin,
@@ -109,44 +91,6 @@ void rope(
 
     auto op = std::make_shared<TensorRopeOp>(sin, cos, src, dst);
     src->graph()->add_op(op);
-}
-
-void TensorRopeOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_rope<nntile::fp32_t>(runtime, sin, cos, src, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_rope<nntile::fp32_fast_tf32_t>(runtime, sin, cos, src, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_rope<nntile::fp32_fast_fp16_t>(runtime, sin, cos, src, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_rope<nntile::fp32_fast_bf16_t>(runtime, sin, cos, src, dst);
-            break;
-        case DataType::FP64:
-            run_rope<nntile::fp64_t>(runtime, sin, cos, src, dst);
-            break;
-        case DataType::FP16:
-            run_rope<nntile::fp16_t>(runtime, sin, cos, src, dst);
-            break;
-        case DataType::BF16:
-            run_rope<nntile::bf16_t>(runtime, sin, cos, src, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for rope operation");
-        default:
-            throw std::runtime_error("Unsupported data type for rope");
-    }
 }
 
 void TensorRopeOp::lower_to_tile(const LoweringContext& ctx) const

@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/optim/optimizer.hh"
+#include "nntile/graph/tile/graph.hh"
 
 #include <cstring>
 #include <iostream>
@@ -131,7 +132,7 @@ namespace
 {
 
 template<typename T>
-std::vector<std::uint8_t> get_output_bytes(TensorGraph::Runtime& runtime,
+std::vector<std::uint8_t> get_output_bytes(TileGraph::Runtime& runtime,
                                            const std::string& name)
 {
     auto data = runtime.get_output<T>(name);
@@ -140,7 +141,7 @@ std::vector<std::uint8_t> get_output_bytes(TensorGraph::Runtime& runtime,
     return bytes;
 }
 
-std::vector<std::uint8_t> sync_tensor_bytes(TensorGraph::Runtime& runtime,
+std::vector<std::uint8_t> sync_tensor_bytes(TileGraph::Runtime& runtime,
                                             const std::string& name,
                                             DataType dtype)
 {
@@ -164,7 +165,7 @@ std::vector<std::uint8_t> sync_tensor_bytes(TensorGraph::Runtime& runtime,
 
 } // anonymous namespace
 
-void Optimizer::sync_from_runtime(TensorGraph::Runtime& runtime)
+void Optimizer::sync_from_runtime(TileGraph::Runtime& runtime)
 {
     for(auto& ps : param_states_)
     {

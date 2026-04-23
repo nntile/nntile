@@ -31,26 +31,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_norm_slice(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Scalar beta,
-    Index axis, int redux,
-    TensorGraph::TensorNode* src1,
-    TensorGraph::TensorNode* src2,
-    TensorGraph::TensorNode* dst)
-{
-    auto& src1_t = runtime.get_tensor<T>(src1);
-    auto& src2_t = runtime.get_tensor<T>(src2);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::norm_slice<T>(
-        alpha, src1_t, beta, src2_t, dst_t, axis, redux);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* norm_slice(
     Scalar alpha,
@@ -128,48 +109,6 @@ void norm_slice(
     auto op = std::make_shared<TensorNormSliceOp>(
         alpha, beta, src1, src2, dst, axis, redux);
     src1->graph()->add_op(op);
-}
-
-void TensorNormSliceOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src1);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_norm_slice<nntile::fp32_t>(
-                runtime, alpha, beta, axis, redux, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_norm_slice<nntile::fp32_fast_tf32_t>(
-                runtime, alpha, beta, axis, redux, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_norm_slice<nntile::fp32_fast_fp16_t>(
-                runtime, alpha, beta, axis, redux, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_norm_slice<nntile::fp32_fast_bf16_t>(
-                runtime, alpha, beta, axis, redux, src1, src2, dst);
-            break;
-        case DataType::FP64:
-            run_norm_slice<nntile::fp64_t>(
-                runtime, alpha, beta, axis, redux, src1, src2, dst);
-            break;
-        case DataType::FP16:
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for norm_slice operation");
-        case DataType::BF16:
-            run_norm_slice<nntile::bf16_t>(
-                runtime, alpha, beta, axis, redux, src1, src2, dst);
-            break;
-        default:
-            throw std::runtime_error("Unsupported data type for norm_slice");
-    }
 }
 
 void TensorNormSliceOp::lower_to_tile(const LoweringContext& ctx) const

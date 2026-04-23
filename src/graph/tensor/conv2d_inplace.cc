@@ -23,26 +23,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_conv2d_inplace(TensorGraph::Runtime& runtime,
-                       Scalar alpha, TensorGraph::TensorNode* X,
-                       TensorGraph::TensorNode* C, Scalar beta,
-                       TensorGraph::TensorNode* Y,
-                       const std::array<Index, 2>& padding,
-                       const std::array<Index, 2>& stride,
-                       const std::array<Index, 2>& dilation)
-{
-    auto& X_t = runtime.get_tensor<T>(X);
-    auto& C_t = runtime.get_tensor<T>(C);
-    auto& Y_t = runtime.get_tensor<T>(Y);
-    nntile::tensor::conv2d_inplace<T>(
-        alpha, X_t, C_t, beta, Y_t, padding, stride, dilation);
-}
-
-} // namespace
 
 void conv2d_inplace(Scalar alpha,
                     TensorGraph::TensorNode* X,
@@ -64,51 +45,6 @@ void conv2d_inplace(Scalar alpha,
     auto op = std::make_shared<TensorConv2dInplaceOp>(
         alpha, X, C, beta, Y, padding, stride, dilation);
     Y->graph()->add_op(op);
-}
-
-void TensorConv2dInplaceOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(X);
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_conv2d_inplace<nntile::fp32_t>(
-                runtime, alpha, X, C, beta, Y, padding, stride, dilation);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_conv2d_inplace<nntile::fp32_fast_tf32_t>(
-                runtime, alpha, X, C, beta, Y, padding, stride, dilation);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_conv2d_inplace<nntile::fp32_fast_fp16_t>(
-                runtime, alpha, X, C, beta, Y, padding, stride, dilation);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_conv2d_inplace<nntile::fp32_fast_bf16_t>(
-                runtime, alpha, X, C, beta, Y, padding, stride, dilation);
-            break;
-        case DataType::FP64:
-            run_conv2d_inplace<nntile::fp64_t>(
-                runtime, alpha, X, C, beta, Y, padding, stride, dilation);
-            break;
-        case DataType::FP16:
-            throw std::runtime_error(
-                "FP16 not supported for conv2d_inplace (use FP32_FAST_FP16)");
-            break;
-        case DataType::BF16:
-            run_conv2d_inplace<nntile::bf16_t>(
-                runtime, alpha, X, C, beta, Y, padding, stride, dilation);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " not supported for conv2d_inplace");
-        default:
-            throw std::runtime_error(
-                "Unsupported data type for conv2d_inplace");
-    }
 }
 
 } // namespace nntile::graph::tensor

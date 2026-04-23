@@ -52,7 +52,10 @@ void check_scale_vs_tensor_api(
     auto* dst_node = gt::scale(alpha, src_node, "dst");
     dst_node->mark_output(true);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     // Generate input data once
@@ -181,7 +184,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto* dst_node = gt::scale(alpha, src_node, "dst");
         dst_node->mark_output(true);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
 
         runtime.bind_data("src", src_data);
@@ -205,7 +211,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
 
         runtime.bind_data("src", src_data);

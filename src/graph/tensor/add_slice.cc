@@ -28,25 +28,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_add_slice(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Scalar beta,
-    Index axis,
-    TensorGraph::TensorNode* src1,
-    TensorGraph::TensorNode* src2,
-    TensorGraph::TensorNode* dst)
-{
-    auto& src1_t = runtime.get_tensor<T>(src1);
-    auto& src2_t = runtime.get_tensor<T>(src2);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::add_slice<T>(alpha, src1_t, beta, src2_t, dst_t, axis);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* add_slice(
     Scalar alpha,
@@ -122,51 +104,6 @@ void add_slice(
     auto op = std::make_shared<TensorAddSliceOp>(
         src1, src2, dst, alpha, beta, axis);
     src1->graph()->add_op(op);
-}
-
-void TensorAddSliceOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src1);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_add_slice<nntile::fp32_t>(
-                runtime, alpha, beta, axis, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_add_slice<nntile::fp32_fast_tf32_t>(
-                runtime, alpha, beta, axis, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_add_slice<nntile::fp32_fast_fp16_t>(
-                runtime, alpha, beta, axis, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_add_slice<nntile::fp32_fast_bf16_t>(
-                runtime, alpha, beta, axis, src1, src2, dst);
-            break;
-        case DataType::FP64:
-            run_add_slice<nntile::fp64_t>(
-                runtime, alpha, beta, axis, src1, src2, dst);
-            break;
-        case DataType::FP16:
-            run_add_slice<nntile::fp16_t>(
-                runtime, alpha, beta, axis, src1, src2, dst);
-            break;
-        case DataType::BF16:
-            run_add_slice<nntile::bf16_t>(
-                runtime, alpha, beta, axis, src1, src2, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for add_slice operation");
-        default:
-            throw std::runtime_error("Unsupported data type for add_slice");
-    }
 }
 
 void TensorAddSliceOp::lower_to_tile(const LoweringContext& ctx) const

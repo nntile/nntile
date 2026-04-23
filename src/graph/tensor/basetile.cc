@@ -54,7 +54,7 @@ std::vector<Index> compute_basetile_shape_for_tensor(
             if(ts[t] != base)
             {
                 throw std::invalid_argument(
-                    "TensorGraph::Runtime: axis " + std::to_string(i) +
+                    "compute_basetile_shape_for_tensor: axis " + std::to_string(i) +
                     " of '" + node->name() +
                     "' has unsupported tiling: all tile sizes except the last "
                     "must be equal (got heterogeneous sizes); NNTile supports "
@@ -65,7 +65,7 @@ std::vector<Index> compute_basetile_shape_for_tensor(
         if(last <= 0 || last > base)
         {
             throw std::invalid_argument(
-                "TensorGraph::Runtime: axis " + std::to_string(i) +
+                "compute_basetile_shape_for_tensor: axis " + std::to_string(i) +
                 " of '" + node->name() +
                 "' has unsupported tiling: last tile size must be positive "
                 "and not greater than the base tile size (got last=" +

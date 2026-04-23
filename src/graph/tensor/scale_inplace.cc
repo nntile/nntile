@@ -23,18 +23,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_scale_inplace(TensorGraph::Runtime& runtime, Scalar alpha,
-                      TensorGraph::TensorNode* dst)
-{
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::scale_inplace<T>(alpha, dst_t);
-}
-
-} // namespace
 
 void scale_inplace(Scalar alpha, TensorGraph::TensorNode* dst)
 {
@@ -42,44 +31,6 @@ void scale_inplace(Scalar alpha, TensorGraph::TensorNode* dst)
         throw std::invalid_argument("scale_inplace: tensor must be non-null");
     auto op = std::make_shared<TensorScaleInplaceOp>(alpha, dst);
     dst->graph()->add_op(op);
-}
-
-void TensorScaleInplaceOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(dst);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_scale_inplace<nntile::fp32_t>(runtime, alpha, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_scale_inplace<nntile::fp32_fast_tf32_t>(runtime, alpha, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_scale_inplace<nntile::fp32_fast_fp16_t>(runtime, alpha, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_scale_inplace<nntile::fp32_fast_bf16_t>(runtime, alpha, dst);
-            break;
-        case DataType::FP64:
-            run_scale_inplace<nntile::fp64_t>(runtime, alpha, dst);
-            break;
-        case DataType::FP16:
-            run_scale_inplace<nntile::fp16_t>(runtime, alpha, dst);
-            break;
-        case DataType::BF16:
-            run_scale_inplace<nntile::bf16_t>(runtime, alpha, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " not supported for scale_inplace");
-        default:
-            throw std::runtime_error("Unsupported data type for scale_inplace");
-    }
 }
 
 } // namespace nntile::graph::tensor

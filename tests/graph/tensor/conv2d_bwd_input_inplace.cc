@@ -85,7 +85,10 @@ void check_conv2d_bwd_input_inplace_vs_tensor_api(
     gt::conv2d_bwd_input_inplace(alpha, dy_node, kernel_node, beta, dx_node,
                              padding, stride, dilation);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     std::vector<float> dy_data(dy_nelems);

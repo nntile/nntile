@@ -19,28 +19,12 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
-#include "nntile/tensor/fill.hh"
 
 #include <nntile/graph/tile/graph_ops.hh>
 #include <nntile/graph/tensor/tile_lowering_helpers.hh>
 
 namespace nntile::graph::tensor
 {
-
-namespace
-{
-
-template<typename T>
-void run_fill(
-    TensorGraph::Runtime& runtime,
-    Scalar val,
-    TensorGraph::TensorNode* x)
-{
-    auto& x_t = runtime.get_tensor<T>(x);
-    nntile::tensor::fill<T>(val, x_t);
-}
-
-} // namespace
 
 void fill(Scalar val, TensorGraph::TensorNode* x)
 {
@@ -51,43 +35,6 @@ void fill(Scalar val, TensorGraph::TensorNode* x)
 
     auto op = std::make_shared<TensorFillOp>(x, val);
     x->graph()->add_op(op);
-}
-
-void TensorFillOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(x);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_fill<nntile::fp32_t>(runtime, val, x);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_fill<nntile::fp32_fast_tf32_t>(runtime, val, x);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_fill<nntile::fp32_fast_fp16_t>(runtime, val, x);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_fill<nntile::fp32_fast_bf16_t>(runtime, val, x);
-            break;
-        case DataType::FP64:
-            run_fill<nntile::fp64_t>(runtime, val, x);
-            break;
-        case DataType::FP16:
-            run_fill<nntile::fp16_t>(runtime, val, x);
-            break;
-        case DataType::BF16:
-            run_fill<nntile::bf16_t>(runtime, val, x);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                "INT64/BOOL data type not supported for fill operation");
-        default:
-            throw std::runtime_error("Unsupported data type for fill");
-    }
 }
 
 void TensorFillOp::lower_to_tile(const LoweringContext& ctx) const

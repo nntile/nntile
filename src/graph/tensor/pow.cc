@@ -27,20 +27,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_pow(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Scalar exp,
-    TensorGraph::TensorNode* A)
-{
-    auto& A_t = runtime.get_tensor<T>(A);
-    nntile::tensor::pow<T>(alpha, exp, A_t);
-}
-
-} // namespace
 
 void pow(
     Scalar alpha,
@@ -55,42 +42,6 @@ void pow(
 
     auto op = std::make_shared<TensorPowOp>(alpha, exp, A);
     A->graph()->add_op(op);
-}
-
-void TensorPowOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(A);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_pow<nntile::fp32_t>(runtime, alpha, exp, A);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_pow<nntile::fp32_fast_tf32_t>(runtime, alpha, exp, A);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_pow<nntile::fp32_fast_fp16_t>(runtime, alpha, exp, A);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_pow<nntile::fp32_fast_bf16_t>(runtime, alpha, exp, A);
-            break;
-        case DataType::FP64:
-            run_pow<nntile::fp64_t>(runtime, alpha, exp, A);
-            break;
-        case DataType::FP16:
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for pow operation");
-        case DataType::BF16:
-            run_pow<nntile::bf16_t>(runtime, alpha, exp, A);
-            break;
-        default:
-            throw std::runtime_error("Unsupported data type for pow");
-    }
 }
 
 void TensorPowOp::lower_to_tile(const LoweringContext& ctx) const

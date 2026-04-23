@@ -56,7 +56,10 @@ void check_add_inplace_vs_tensor_api(
 
     gt::add_inplace(alpha, x_node, beta, y_node);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     std::vector<float> x_data(nelems), y_data(nelems);
@@ -190,7 +193,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         gt::add_inplace(alpha, x_node, beta, y_node);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
 
         runtime.bind_data("x", x_data);
@@ -217,7 +223,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
 
         runtime.bind_data("x", x_data);

@@ -201,7 +201,7 @@ inline void fortran_tile_linear_to_index(
     index[0] = rem;
 }
 
-//! Dense offset matching TensorGraph::Runtime bind_data / get_output flat
+//! Dense offset matching logical bind_data / get_output flat layout
 //! order (same as nntile tile/tensor Fortran linearization).
 inline Index fortran_dense_linear_index(
     const std::vector<Index>& shape,

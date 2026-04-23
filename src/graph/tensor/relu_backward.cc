@@ -26,21 +26,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_relu_backward(TensorGraph::Runtime& runtime,
-                      TensorGraph::TensorNode* x, TensorGraph::TensorNode* dy,
-                      TensorGraph::TensorNode* dx)
-{
-    auto& x_t = runtime.get_tensor<T>(x);
-    auto& dy_t = runtime.get_tensor<T>(dy);
-    auto& dx_t = runtime.get_tensor<T>(dx);
-    nntile::tensor::relu_backward<T>(x_t, dy_t, dx_t);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* relu_backward(TensorGraph::TensorNode* x,
                                        TensorGraph::TensorNode* dy,
@@ -77,29 +63,6 @@ void relu_backward(TensorGraph::TensorNode* x, TensorGraph::TensorNode* dy,
     validate_same_shape_and_merge(x, dx, "relu_backward");
     auto op = std::make_shared<TensorReluBackwardOp>(x, dy, dx);
     x->graph()->add_op(op);
-}
-
-void TensorReluBackwardOp::execute(TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(x);
-    switch(dtype)
-    {
-        case DataType::FP32: run_relu_backward<nntile::fp32_t>(runtime, x, dy, dx); break;
-        case DataType::FP32_FAST_TF32: run_relu_backward<nntile::fp32_fast_tf32_t>(runtime, x, dy, dx); break;
-        case DataType::FP32_FAST_FP16: run_relu_backward<nntile::fp32_fast_fp16_t>(runtime, x, dy, dx); break;
-        case DataType::FP32_FAST_BF16: run_relu_backward<nntile::fp32_fast_bf16_t>(runtime, x, dy, dx); break;
-        case DataType::FP64: run_relu_backward<nntile::fp64_t>(runtime, x, dy, dx); break;
-        case DataType::FP16:
-            throw std::runtime_error(
-                "FP16 not supported for relu_backward (use FP32_FAST_FP16)");
-            break;
-        case DataType::BF16: run_relu_backward<nntile::bf16_t>(runtime, x, dy, dx); break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(std::string(dtype_to_string(dtype)) +
-                " not supported for relu_backward");
-        default: throw std::runtime_error("Unsupported data type for relu_backward");
-    }
 }
 
 void TensorReluBackwardOp::lower_to_tile(const LoweringContext& ctx) const

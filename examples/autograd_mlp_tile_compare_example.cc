@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file examples/autograd_mlp_tile_compare_example.cc
- * ReLU MLP: TensorGraph::Runtime (untiled) vs TileGraph::Runtime with
+ * ReLU MLP: TensorGraph reference run vs TileGraph::Runtime with
  * heterogeneous tiling on every tensor axis equivalence group, on one NNGraph
  * tensor graph. Dumps TensorGraph::to_string() (before/after tiling) and
  * TileGraph::to_string(). Compares forward output and weight gradients.
@@ -159,17 +159,6 @@ static float frob_per_tensor_rel_error(
 }
 
 static void bind_same_weights(
-    nntile::graph::TensorGraph::Runtime& rt,
-    const std::string& w1,
-    const std::string& w2,
-    const std::vector<float>& w1_data,
-    const std::vector<float>& w2_data)
-{
-    rt.bind_data(w1, w1_data);
-    rt.bind_data(w2, w2_data);
-}
-
-static void bind_same_weights(
     nntile::graph::TileGraph::Runtime& rt,
     const std::string& w1,
     const std::string& w2,
@@ -251,7 +240,7 @@ int main()
     inp->grad()->mark_output(true);
 
     // String keys for weight gradient tensors in this graph (for
-    // TensorGraph::Runtime::get_output after execute). Module::grad_name is
+    // Runtime::get_output after execute). Module::grad_name is
     // a pure naming helper: it returns "<module>_<local_param>_grad" (here
     // local param is "weight") and does not compute any derivatives.
     const std::string dW1_grad_tensor_name = mlp.fc1().grad_name("weight");
@@ -261,8 +250,10 @@ int main()
     name_mlp_axis_groups_from_extents(
         tensor_g, batch, in_dim, hid_dim, out_dim);
 
-    // --- Reference (untiled TensorGraph::Runtime) ---
-    TensorGraph::Runtime rt_tensor(tensor_g);
+    // --- Reference (from_tensor_graph, default tiling) ---
+    TileGraph rt_tensor_tile = TileGraph::from_tensor_graph(tensor_g);
+
+    TileGraph::Runtime rt_tensor(rt_tensor_tile);
     rt_tensor.compile();
     rt_tensor.bind_data("in", in_data);
     bind_same_weights(

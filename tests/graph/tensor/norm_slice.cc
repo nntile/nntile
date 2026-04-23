@@ -96,7 +96,10 @@ void check_norm_slice_vs_tensor_api(
     auto* out_node = gt::norm_slice(alpha, src_node, beta, dst_node, "out", axis, redux);
     out_node->mark_output(true);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     std::vector<float> src_data(src_nelems);
@@ -268,7 +271,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto* out_node = gt::norm_slice(alpha, src_node, beta, dst_node, "out", axis, redux);
         out_node->mark_output(true);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
 
         runtime.bind_data("src", src_data);
@@ -295,7 +301,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
 
         runtime.bind_data("src", src_data);

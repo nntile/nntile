@@ -87,7 +87,10 @@ void check_embedding_backward_vs_tensor_api(
 
     gt::embedding_backward(index_node, embed_node, vocab_node, axis, redux);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     std::vector<std::int64_t> index_data(index_nelems);
@@ -265,7 +268,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         gt::embedding_backward(index_node, embed_node, vocab_node, axis, redux);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
 
         runtime.bind_data("index", index_data);
@@ -303,7 +309,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             }
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
 
         runtime.bind_data("index", index_data);

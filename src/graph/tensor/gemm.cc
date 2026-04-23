@@ -176,32 +176,6 @@ void validate_gemm_shape_and_merge(
     }
 }
 
-template<typename T>
-void run_gemm(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Scalar beta,
-    bool trans_a, bool trans_b,
-    Index ndim, Index batch_ndim,
-    TensorGraph::TensorNode* a,
-    TensorGraph::TensorNode* b,
-    TensorGraph::TensorNode* c)
-{
-    auto& a_t = runtime.get_tensor<T>(a);
-    auto& b_t = runtime.get_tensor<T>(b);
-    auto& c_t = runtime.get_tensor<T>(c);
-
-    const auto trans_a_op = trans_a ?
-        nntile::TransOp(nntile::TransOp::Trans) :
-        nntile::TransOp(nntile::TransOp::NoTrans);
-    const auto trans_b_op = trans_b ?
-        nntile::TransOp(nntile::TransOp::Trans) :
-        nntile::TransOp(nntile::TransOp::NoTrans);
-
-    nntile::tensor::gemm<T>(
-        alpha, trans_a_op, a_t, trans_b_op, b_t,
-        beta, c_t, ndim, batch_ndim, 0);
-}
-
 } // namespace
 
 TensorGraph::TensorNode* gemm(
@@ -289,58 +263,6 @@ void gemm(
         a, b, c, alpha, beta, trans_a, trans_b, ndim, batch_ndim);
 
     a->graph()->add_op(op);
-}
-
-void TensorGemmOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(a);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_gemm<nntile::fp32_t>(
-                runtime, alpha, beta, trans_a, trans_b, ndim, batch_ndim,
-                a, b, c);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_gemm<nntile::fp32_fast_tf32_t>(
-                runtime, alpha, beta, trans_a, trans_b, ndim, batch_ndim,
-                a, b, c);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_gemm<nntile::fp32_fast_fp16_t>(
-                runtime, alpha, beta, trans_a, trans_b, ndim, batch_ndim,
-                a, b, c);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_gemm<nntile::fp32_fast_bf16_t>(
-                runtime, alpha, beta, trans_a, trans_b, ndim, batch_ndim,
-                a, b, c);
-            break;
-        case DataType::FP64:
-            run_gemm<nntile::fp64_t>(
-                runtime, alpha, beta, trans_a, trans_b, ndim, batch_ndim,
-                a, b, c);
-            break;
-        case DataType::FP16:
-            run_gemm<nntile::fp16_t>(
-                runtime, alpha, beta, trans_a, trans_b, ndim, batch_ndim,
-                a, b, c);
-            break;
-        case DataType::BF16:
-            run_gemm<nntile::bf16_t>(
-                runtime, alpha, beta, trans_a, trans_b, ndim, batch_ndim,
-                a, b, c);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for gemm operation");
-        default:
-            throw std::runtime_error("Unsupported data type for gemm");
-    }
 }
 
 namespace

@@ -79,7 +79,10 @@ void check_multiply_fiber_inplace_vs_tensor_api(
 
     gt::multiply_fiber_inplace(alpha, fiber_node, tensor_node, axis);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     std::vector<float> fiber_data(fiber_nelems);
@@ -238,7 +241,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         tensor_node->mark_input(true);
         tensor_node->mark_output(true);
         gt::multiply_fiber_inplace(alpha, fiber_node, tensor_node, axis);
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("fiber", fiber_data);
         runtime.bind_data("tensor", tensor_data);
@@ -260,7 +265,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("fiber", fiber_data);
         runtime.bind_data("tensor", tensor_data);

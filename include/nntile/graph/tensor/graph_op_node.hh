@@ -21,7 +21,6 @@
 
 // NNTile headers
 #include <nntile/graph/tensor/graph_data_node.hh>
-#include <nntile/graph/tensor/graph_runtime.hh>
 
 namespace nntile::graph
 {
@@ -51,7 +50,6 @@ public:
         return outputs_;
     }
 
-    virtual void execute(TensorGraph::Runtime& runtime) const = 0;
     virtual std::shared_ptr<TensorGraph::OpNode> clone() const = 0;
 
     //! Lower this op into tile ops on ctx.out. Default throws; ops that support

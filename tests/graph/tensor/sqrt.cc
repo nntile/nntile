@@ -44,7 +44,10 @@ void check_sqrt_vs_tensor_api(
     auto* dst_node = gt::sqrt(src_node, "dst");
     dst_node->mark_output(true);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     // Use positive values only (sqrt of negative gives NaN)
@@ -168,7 +171,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         src_node->mark_input(true);
         auto* dst_node = gt::sqrt(src_node, "dst");
         dst_node->mark_output(true);
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("src", src_data);
         runtime.execute();
@@ -187,7 +192,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("src", src_data);
         runtime.execute();

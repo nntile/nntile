@@ -57,7 +57,6 @@ struct TensorConv2dBwdWeightInplaceOp : TensorGraph::OpNode
         return "CONV2D_BWD_WEIGHT_INPLACE";
     }
 
-    void execute(TensorGraph::Runtime& runtime) const override;
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {

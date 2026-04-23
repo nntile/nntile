@@ -63,7 +63,10 @@ void check_transpose_vs_tensor_api(
     auto* dst_node = gt::transpose(alpha, src_node, "dst", ndim);
     dst_node->mark_output(true);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     std::vector<float> src_data(nelems);
@@ -191,7 +194,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto* dst_node = gt::transpose(alpha, src_node, "dst", ndim_val);
         dst_node->mark_output(true);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
 
         runtime.bind_data("src", src_data);
@@ -215,7 +221,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
 
         runtime.bind_data("src", src_data);

@@ -246,7 +246,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         y_data[i] = static_cast<float>(-i - 1);
     }
 
-    TensorGraph::Runtime tensor_rt(tensor_graph);
+    TileGraph tensor_rt_tile = TileGraph::from_tensor_graph(tensor_graph);
+
+
+    TileGraph::Runtime tensor_rt(tensor_rt_tile);
     tensor_rt.compile();
     tensor_rt.bind_data("x", x_data);
     tensor_rt.bind_data("y", y_data);
@@ -391,7 +394,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     ty->mark_input(true);
 
     // 2x2 tile grid: dim0 uniform (3+3), dim1 base+remainder (3+2) so
-    // TensorGraph::Runtime accepts the axis tiling while tiles differ in size.
+    // Lowering uses axis tiling; tile sizes may differ per grid position.
     tx->axis(0)->set_tiling(Index{3});
     tx->axis(1)->set_tiling(std::vector<Index>{3, 2});
 
@@ -412,7 +415,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         y_data[static_cast<size_t>(i)] = static_cast<float>(i * 2);
     }
 
-    TensorGraph::Runtime tensor_rt(tensor_graph);
+    TileGraph tensor_rt_tile = TileGraph::from_tensor_graph(tensor_graph);
+
+
+    TileGraph::Runtime tensor_rt(tensor_rt_tile);
     tensor_rt.compile();
     tensor_rt.bind_data("x", x_data);
     tensor_rt.bind_data("y", y_data);

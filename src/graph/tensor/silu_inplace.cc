@@ -26,19 +26,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_silu_inplace(
-    TensorGraph::Runtime& runtime,
-    TensorGraph::TensorNode* dst)
-{
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::silu_inplace<T>(dst_t);
-}
-
-} // namespace
 
 void silu_inplace(TensorGraph::TensorNode* dst)
 {
@@ -50,44 +38,6 @@ void silu_inplace(TensorGraph::TensorNode* dst)
 
     auto op = std::make_shared<TensorSiluInplaceOp>(dst);
     dst->graph()->add_op(op);
-}
-
-void TensorSiluInplaceOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(dst);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_silu_inplace<nntile::fp32_t>(runtime, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_silu_inplace<nntile::fp32_fast_tf32_t>(runtime, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_silu_inplace<nntile::fp32_fast_fp16_t>(runtime, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_silu_inplace<nntile::fp32_fast_bf16_t>(runtime, dst);
-            break;
-        case DataType::FP64:
-            run_silu_inplace<nntile::fp64_t>(runtime, dst);
-            break;
-        case DataType::FP16:
-            run_silu_inplace<nntile::fp16_t>(runtime, dst);
-            break;
-        case DataType::BF16:
-            run_silu_inplace<nntile::bf16_t>(runtime, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for silu_inplace operation");
-        default:
-            throw std::runtime_error("Unsupported data type for silu_inplace");
-    }
 }
 
 void TensorSiluInplaceOp::lower_to_tile(const LoweringContext& ctx) const

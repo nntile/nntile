@@ -17,3 +17,5 @@
 // NNTile headers
 #include <nntile/graph/tensor/graph.hh>
 #include <nntile/graph/tensor/graph_ops.hh>
+// Tile graph (lowering / execution) — used after building a TensorGraph.
+#include <nntile/graph/tile.hh>

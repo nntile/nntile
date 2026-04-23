@@ -28,21 +28,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_gelu(
-    TensorGraph::Runtime& runtime,
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* y)
-{
-    auto& x_t = runtime.get_tensor<T>(x);
-    auto& y_t = runtime.get_tensor<T>(y);
-    nntile::tensor::gelu<T>(x_t, y_t);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* gelu(
     TensorGraph::TensorNode* x,
@@ -93,44 +79,6 @@ void gelu(
 
     auto op = std::make_shared<TensorGeluOp>(x, y);
     x->graph()->add_op(op);
-}
-
-void TensorGeluOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(x);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_gelu<nntile::fp32_t>(runtime, x, y);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_gelu<nntile::fp32_fast_tf32_t>(runtime, x, y);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_gelu<nntile::fp32_fast_fp16_t>(runtime, x, y);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_gelu<nntile::fp32_fast_bf16_t>(runtime, x, y);
-            break;
-        case DataType::FP64:
-            run_gelu<nntile::fp64_t>(runtime, x, y);
-            break;
-        case DataType::FP16:
-            run_gelu<nntile::fp16_t>(runtime, x, y);
-            break;
-        case DataType::BF16:
-            run_gelu<nntile::bf16_t>(runtime, x, y);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for gelu operation");
-        default:
-            throw std::runtime_error("Unsupported data type for gelu");
-    }
 }
 
 void TensorGeluOp::lower_to_tile(const LoweringContext& ctx) const

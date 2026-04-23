@@ -21,6 +21,7 @@
 
 #include <nntile/graph/nn.hh>
 #include <nntile/graph/tensor.hh>
+#include <nntile/graph/tile/graph_runtime.hh>
 #include <nntile/graph/io/safetensors.hh>
 #include <nntile/graph/module/module.hh>
 
@@ -88,7 +89,7 @@ public:
     //! Sync optimizer state tensors from the runtime back to bind_hints
     //! so that save() / export_hf() can access the trained state.
     //! Must be called after runtime.wait() and before save().
-    void sync_from_runtime(TensorGraph::Runtime& runtime);
+    void sync_from_runtime(TileGraph::Runtime& runtime);
 
     Index num_iter() const { return num_iter_; }
     void set_num_iter(Index n) { num_iter_ = n; }

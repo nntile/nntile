@@ -27,22 +27,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_softmax_inplace(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Index axis,
-    TensorGraph::TensorNode* maxsumexp,
-    TensorGraph::TensorNode* dst)
-{
-    auto& maxsumexp_t = runtime.get_tensor<T>(maxsumexp);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::softmax_inplace<T>(maxsumexp_t, alpha, dst_t, axis);
-}
-
-} // namespace
 
 void softmax_inplace(
     TensorGraph::TensorNode* maxsumexp,
@@ -70,52 +55,6 @@ void softmax_inplace(
     auto op = std::make_shared<TensorSoftmaxInplaceOp>(
         maxsumexp, dst, alpha, axis);
     maxsumexp->graph()->add_op(op);
-}
-
-void TensorSoftmaxInplaceOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(maxsumexp);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_softmax_inplace<nntile::fp32_t>(
-                runtime, alpha, axis, maxsumexp, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_softmax_inplace<nntile::fp32_fast_tf32_t>(
-                runtime, alpha, axis, maxsumexp, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_softmax_inplace<nntile::fp32_fast_fp16_t>(
-                runtime, alpha, axis, maxsumexp, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_softmax_inplace<nntile::fp32_fast_bf16_t>(
-                runtime, alpha, axis, maxsumexp, dst);
-            break;
-        case DataType::FP64:
-            run_softmax_inplace<nntile::fp64_t>(
-                runtime, alpha, axis, maxsumexp, dst);
-            break;
-        case DataType::FP16:
-            run_softmax_inplace<nntile::fp16_t>(
-                runtime, alpha, axis, maxsumexp, dst);
-            break;
-        case DataType::BF16:
-            run_softmax_inplace<nntile::bf16_t>(
-                runtime, alpha, axis, maxsumexp, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for softmax_inplace operation");
-        default:
-            throw std::runtime_error(
-                "Unsupported data type for softmax_inplace");
-    }
 }
 
 void TensorSoftmaxInplaceOp::lower_to_tile(const LoweringContext& ctx) const

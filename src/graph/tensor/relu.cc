@@ -20,29 +20,12 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
-#include "nntile/tensor/relu.hh"
 
 #include <nntile/graph/tile/graph_ops.hh>
 #include <nntile/graph/tensor/tile_lowering_helpers.hh>
 
 namespace nntile::graph::tensor
 {
-
-namespace
-{
-
-template<typename T>
-void run_relu(
-    TensorGraph::Runtime& runtime,
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* y)
-{
-    auto& x_t = runtime.get_tensor<T>(x);
-    auto& y_t = runtime.get_tensor<T>(y);
-    nntile::tensor::relu<T>(x_t, y_t);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* relu(
     TensorGraph::TensorNode* x,
@@ -93,44 +76,6 @@ void relu(
 
     auto op = std::make_shared<TensorReluOp>(x, y);
     x->graph()->add_op(op);
-}
-
-void TensorReluOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_relu<nntile::fp32_t>(runtime, src, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_relu<nntile::fp32_fast_tf32_t>(runtime, src, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_relu<nntile::fp32_fast_fp16_t>(runtime, src, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_relu<nntile::fp32_fast_bf16_t>(runtime, src, dst);
-            break;
-        case DataType::FP64:
-            run_relu<nntile::fp64_t>(runtime, src, dst);
-            break;
-        case DataType::FP16:
-            run_relu<nntile::fp16_t>(runtime, src, dst);
-            break;
-        case DataType::BF16:
-            run_relu<nntile::bf16_t>(runtime, src, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for relu operation");
-        default:
-            throw std::runtime_error("Unsupported data type for relu");
-    }
 }
 
 void TensorReluOp::lower_to_tile(const LoweringContext& ctx) const

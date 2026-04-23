@@ -30,23 +30,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_maxsumexp(
-    TensorGraph::Runtime& runtime,
-    Index axis, int redux,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst)
-{
-    auto& src_t = runtime.get_tensor<T>(src);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::clear<T>(dst_t);
-    nntile::tensor::maxsumexp<T>(src_t, dst_t, axis, redux);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* maxsumexp(
     TensorGraph::TensorNode* src,
@@ -112,44 +96,6 @@ void maxsumexp(
 
     auto op = std::make_shared<TensorMaxsumexpOp>(src, dst, axis, redux);
     src->graph()->add_op(op);
-}
-
-void TensorMaxsumexpOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_maxsumexp<nntile::fp32_t>(runtime, axis, redux, src, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_maxsumexp<nntile::fp32_fast_tf32_t>(runtime, axis, redux, src, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_maxsumexp<nntile::fp32_fast_fp16_t>(runtime, axis, redux, src, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_maxsumexp<nntile::fp32_fast_bf16_t>(runtime, axis, redux, src, dst);
-            break;
-        case DataType::FP64:
-            run_maxsumexp<nntile::fp64_t>(runtime, axis, redux, src, dst);
-            break;
-        case DataType::FP16:
-            run_maxsumexp<nntile::fp16_t>(runtime, axis, redux, src, dst);
-            break;
-        case DataType::BF16:
-            run_maxsumexp<nntile::bf16_t>(runtime, axis, redux, src, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for maxsumexp operation");
-        default:
-            throw std::runtime_error("Unsupported data type for maxsumexp");
-    }
 }
 
 void TensorMaxsumexpOp::lower_to_tile(const LoweringContext& ctx) const

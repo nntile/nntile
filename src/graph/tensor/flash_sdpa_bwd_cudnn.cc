@@ -23,38 +23,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_flash_sdpa_bwd_cudnn(TensorGraph::Runtime& runtime,
-                              TensorGraph::TensorNode* K,
-                              TensorGraph::TensorNode* Q,
-                              TensorGraph::TensorNode* V,
-                              TensorGraph::TensorNode* A,
-                              TensorGraph::TensorNode* dA,
-                              TensorGraph::TensorNode* mask,
-                              TensorGraph::TensorNode* logsumexp,
-                              TensorGraph::TensorNode* dK,
-                              TensorGraph::TensorNode* dQ,
-                              TensorGraph::TensorNode* dV)
-{
-    auto& K_t = runtime.get_tensor<T>(K);
-    auto& Q_t = runtime.get_tensor<T>(Q);
-    auto& V_t = runtime.get_tensor<T>(V);
-    auto& A_t = runtime.get_tensor<T>(A);
-    auto& dA_t = runtime.get_tensor<T>(dA);
-    auto& mask_t = runtime.get_tensor<T>(mask);
-    auto& logsumexp_t = runtime.get_tensor<nntile::fp32_t>(logsumexp);
-    auto& dK_t = runtime.get_tensor<T>(dK);
-    auto& dQ_t = runtime.get_tensor<T>(dQ);
-    auto& dV_t = runtime.get_tensor<T>(dV);
-    nntile::tensor::flash_sdpa_bwd_cudnn<T>(
-        K_t, Q_t, V_t, A_t, dA_t, mask_t, logsumexp_t,
-        dK_t, dQ_t, dV_t);
-}
-
-} // namespace
 
 void flash_sdpa_bwd_cudnn(TensorGraph::TensorNode* K,
                           TensorGraph::TensorNode* Q,
@@ -107,39 +76,6 @@ void flash_sdpa_bwd_cudnn(TensorGraph::TensorNode* K,
     auto op = std::make_shared<TensorFlashSdpaBwdCudnnOp>(
         K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
     dK->graph()->add_op(op);
-}
-
-void TensorFlashSdpaBwdCudnnOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(K);
-    switch(dtype)
-    {
-        case DataType::FP16:
-            run_flash_sdpa_bwd_cudnn<nntile::fp16_t>(
-                runtime, K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
-            break;
-        case DataType::BF16:
-            run_flash_sdpa_bwd_cudnn<nntile::bf16_t>(
-                runtime, K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
-            break;
-        case DataType::FP32:
-        case DataType::FP32_FAST_TF32:
-        case DataType::FP32_FAST_FP16:
-        case DataType::FP32_FAST_BF16:
-        case DataType::FP64:
-            throw std::runtime_error(
-                "flash_sdpa_bwd_cudnn requires FP16 or BF16 (CUDA only)");
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " not supported for flash_sdpa_bwd_cudnn");
-        default:
-            throw std::runtime_error(
-                "Unsupported data type for flash_sdpa_bwd_cudnn");
-    }
 }
 
 } // namespace nntile::graph::tensor

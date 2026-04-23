@@ -442,7 +442,6 @@ set(GRAPH_TENSOR_SRC
     "graph/tensor/graph_data_node.cc"
     "graph/tensor/graph_op_node.cc"
     "graph/tensor/tile_lowering_helpers.cc"
-    "graph/tensor/graph_runtime.cc"
     "graph/tensor/hypot.cc"
     "graph/tensor/hypot_inplace.cc"
     "graph/tensor/hypot_scalar_inverse.cc"

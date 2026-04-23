@@ -23,26 +23,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_conv2d_bwd_input_inplace(TensorGraph::Runtime& runtime,
-                                 Scalar alpha, TensorGraph::TensorNode* dY,
-                                 TensorGraph::TensorNode* kernel, Scalar beta,
-                                 TensorGraph::TensorNode* dX,
-                                 const std::array<Index, 2>& padding,
-                                 const std::array<Index, 2>& stride,
-                                 const std::array<Index, 2>& dilation)
-{
-    auto& dY_t = runtime.get_tensor<T>(dY);
-    auto& kernel_t = runtime.get_tensor<T>(kernel);
-    auto& dX_t = runtime.get_tensor<T>(dX);
-    nntile::tensor::conv2d_bwd_input_inplace<T>(
-        alpha, dY_t, kernel_t, beta, dX_t, padding, stride, dilation);
-}
-
-} // namespace
 
 void conv2d_bwd_input_inplace(Scalar alpha,
                               TensorGraph::TensorNode* dY,
@@ -65,52 +46,6 @@ void conv2d_bwd_input_inplace(Scalar alpha,
     auto op = std::make_shared<TensorConv2dBwdInputInplaceOp>(
         alpha, dY, kernel, beta, dX, padding, stride, dilation);
     dX->graph()->add_op(op);
-}
-
-void TensorConv2dBwdInputInplaceOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(dY);
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_conv2d_bwd_input_inplace<nntile::fp32_t>(
-                runtime, alpha, dY, kernel, beta, dX, padding, stride, dilation);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_conv2d_bwd_input_inplace<nntile::fp32_fast_tf32_t>(
-                runtime, alpha, dY, kernel, beta, dX, padding, stride, dilation);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_conv2d_bwd_input_inplace<nntile::fp32_fast_fp16_t>(
-                runtime, alpha, dY, kernel, beta, dX, padding, stride, dilation);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_conv2d_bwd_input_inplace<nntile::fp32_fast_bf16_t>(
-                runtime, alpha, dY, kernel, beta, dX, padding, stride, dilation);
-            break;
-        case DataType::FP64:
-            run_conv2d_bwd_input_inplace<nntile::fp64_t>(
-                runtime, alpha, dY, kernel, beta, dX, padding, stride, dilation);
-            break;
-        case DataType::FP16:
-            throw std::runtime_error(
-                "FP16 not supported for conv2d_bwd_input_inplace "
-                "(use FP32_FAST_FP16)");
-            break;
-        case DataType::BF16:
-            run_conv2d_bwd_input_inplace<nntile::bf16_t>(
-                runtime, alpha, dY, kernel, beta, dX, padding, stride, dilation);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " not supported for conv2d_bwd_input_inplace");
-        default:
-            throw std::runtime_error(
-                "Unsupported data type for conv2d_bwd_input_inplace");
-    }
 }
 
 } // namespace nntile::graph::tensor

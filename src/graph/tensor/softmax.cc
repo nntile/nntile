@@ -25,24 +25,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_softmax(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Index axis,
-    TensorGraph::TensorNode* maxsumexp,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst)
-{
-    auto& maxsumexp_t = runtime.get_tensor<T>(maxsumexp);
-    auto& src_t = runtime.get_tensor<T>(src);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::softmax<T>(maxsumexp_t, src_t, alpha, dst_t, axis);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* softmax(
     TensorGraph::TensorNode* maxsumexp,
@@ -107,51 +90,6 @@ void softmax(
     auto op = std::make_shared<TensorSoftmaxOp>(
         maxsumexp, src, dst, alpha, axis);
     src->graph()->add_op(op);
-}
-
-void TensorSoftmaxOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_softmax<nntile::fp32_t>(
-                runtime, alpha, axis, maxsumexp, src, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_softmax<nntile::fp32_fast_tf32_t>(
-                runtime, alpha, axis, maxsumexp, src, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_softmax<nntile::fp32_fast_fp16_t>(
-                runtime, alpha, axis, maxsumexp, src, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_softmax<nntile::fp32_fast_bf16_t>(
-                runtime, alpha, axis, maxsumexp, src, dst);
-            break;
-        case DataType::FP64:
-            run_softmax<nntile::fp64_t>(
-                runtime, alpha, axis, maxsumexp, src, dst);
-            break;
-        case DataType::FP16:
-            run_softmax<nntile::fp16_t>(
-                runtime, alpha, axis, maxsumexp, src, dst);
-            break;
-        case DataType::BF16:
-            run_softmax<nntile::bf16_t>(
-                runtime, alpha, axis, maxsumexp, src, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for softmax operation");
-        default:
-            throw std::runtime_error("Unsupported data type for softmax");
-    }
 }
 
 } // namespace nntile::graph::tensor

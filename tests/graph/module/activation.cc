@@ -148,7 +148,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     input->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(g.tensor_graph());
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
     runtime.bind_data("input", input_data);
     runtime.execute();

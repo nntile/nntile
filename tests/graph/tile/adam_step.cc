@@ -70,7 +70,10 @@ TEST_CASE("Adam step mixed tile parity", "[graph][tile]")
         p[static_cast<size_t>(i)] = 0.1f * static_cast<float>(i);
     }
 
-    TensorGraph::Runtime rt_ref(g_ref);
+    TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref);
+
+
+    TileGraph::Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();
     rt_ref.bind_data("grad", grad);
     rt_ref.bind_data("m", m);

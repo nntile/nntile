@@ -45,7 +45,10 @@ TEST_CASE("sqrt mixed tile parity", "[graph][tile]")
 
     std::vector<float> x_data(10 * 12, 0.25f);
 
-    TensorGraph::Runtime rt_ref(g_ref);
+    TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref);
+
+
+    TileGraph::Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();
     rt_ref.bind_data("x", x_data);
     rt_ref.execute();

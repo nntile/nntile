@@ -44,7 +44,10 @@ void check_gelu_inplace_vs_tensor_api(
 
     gt::gelu_inplace(dst_node);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     std::vector<float> dst_data(nelems);
@@ -156,7 +159,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         dst_node->mark_output(true);
         gt::gelu_inplace(dst_node);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("dst", dst_data);
         runtime.execute();
@@ -177,7 +183,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("dst", dst_data);
         runtime.execute();

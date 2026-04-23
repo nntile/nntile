@@ -437,7 +437,6 @@ set(GRAPH_TENSOR_HDR
     "nntile/graph/tensor/tile_lowering_helpers.hh"
     "nntile/graph/tensor/graph.hh"
     "nntile/graph/tensor/graph_decl.hh"
-    "nntile/graph/tensor/graph_runtime.hh"
     "nntile/graph/tensor/graph_op_node.hh"
     "nntile/graph/tensor/graph_data_node.hh"
     "nntile/graph/tensor/graph_ops.hh"

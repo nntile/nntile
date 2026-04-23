@@ -29,7 +29,7 @@ while IFS= read -r file; do
             run_all=true; break ;;
         src/kernel/cblas.cc | src/kernel/cublas.cc)
             run_all=true; break ;;
-        src/graph/tensor/graph_runtime.cc | src/graph/tensor/graph_data_node.cc)
+        src/graph/tile/graph_runtime.cc | src/graph/tensor/graph_data_node.cc)
             run_all=true; break ;;
         tests/graph/model/llama/generate_test_data.py)
             run_all=true; break ;;

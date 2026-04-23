@@ -26,19 +26,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_gelutanh_inplace(
-    TensorGraph::Runtime& runtime,
-    TensorGraph::TensorNode* dst)
-{
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::gelutanh_inplace<T>(dst_t);
-}
-
-} // namespace
 
 void gelutanh_inplace(TensorGraph::TensorNode* dst)
 {
@@ -50,45 +38,6 @@ void gelutanh_inplace(TensorGraph::TensorNode* dst)
 
     auto op = std::make_shared<TensorGelutanhInplaceOp>(dst);
     dst->graph()->add_op(op);
-}
-
-void TensorGelutanhInplaceOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(dst);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_gelutanh_inplace<nntile::fp32_t>(runtime, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_gelutanh_inplace<nntile::fp32_fast_tf32_t>(runtime, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_gelutanh_inplace<nntile::fp32_fast_fp16_t>(runtime, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_gelutanh_inplace<nntile::fp32_fast_bf16_t>(runtime, dst);
-            break;
-        case DataType::FP64:
-            run_gelutanh_inplace<nntile::fp64_t>(runtime, dst);
-            break;
-        case DataType::FP16:
-            throw std::runtime_error(
-                "FP16 data type not supported for gelutanh_inplace operation");
-        case DataType::BF16:
-            run_gelutanh_inplace<nntile::bf16_t>(runtime, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for gelutanh_inplace operation");
-        default:
-            throw std::runtime_error(
-                "Unsupported data type for gelutanh_inplace");
-    }
 }
 
 void TensorGelutanhInplaceOp::lower_to_tile(const LoweringContext& ctx) const

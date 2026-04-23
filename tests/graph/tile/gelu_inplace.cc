@@ -46,7 +46,10 @@ TEST_CASE("GeLU inplace mixed tile parity", "[graph][tile]")
     std::vector<float> data_ref(10 * 12, 0.3f);
     std::vector<float> data_tile = data_ref;
 
-    TensorGraph::Runtime rt_ref(g_ref);
+    TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref);
+
+
+    TileGraph::Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();
     rt_ref.bind_data("x", data_ref);
     rt_ref.execute();

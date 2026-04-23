@@ -91,7 +91,10 @@ void check_add_slice_inplace_vs_tensor_api(
 
     gt::add_slice_inplace(alpha, src_node, beta, dst_node, axis);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     std::vector<float> src_data(src_nelems);
@@ -236,7 +239,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         dst_node->mark_input(true);
         dst_node->mark_output(true);
         gt::add_slice_inplace(alpha, src_node, beta, dst_node, axis);
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("src", src_data);
         runtime.bind_data("dst", dst_data);
@@ -258,7 +263,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("src", src_data);
         runtime.bind_data("dst", dst_data);

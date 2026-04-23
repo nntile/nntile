@@ -52,7 +52,6 @@ struct TensorConv2dInplaceOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "CONV2D_INPLACE"; }
 
-    void execute(TensorGraph::Runtime& runtime) const override;
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {

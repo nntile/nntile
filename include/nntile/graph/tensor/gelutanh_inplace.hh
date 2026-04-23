@@ -40,7 +40,6 @@ struct TensorGelutanhInplaceOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "GELUTANH_INPLACE"; }
 
-    void execute(TensorGraph::Runtime& runtime) const override;
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {

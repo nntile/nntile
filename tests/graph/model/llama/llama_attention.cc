@@ -150,7 +150,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         attn.load(full_path);
 
         TensorGraph& tg = g.tensor_graph();
-        TensorGraph::Runtime runtime(tg);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(tg);
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("input", input_data);
         runtime.execute();
@@ -199,7 +201,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         attn.load(full_path);
 
         TensorGraph& tg = g.tensor_graph();
-        TensorGraph::Runtime runtime(tg);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(tg);
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("input", input_data);
         runtime.execute();
@@ -230,7 +234,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             }
         }
 
-        TensorGraph::Runtime runtime(tg);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(tg);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("input", input_data);
         runtime.execute();
@@ -294,7 +301,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         attn.load(full_path);
 
         TensorGraph& tg = g.tensor_graph();
-        TensorGraph::Runtime runtime(tg);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(tg);
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("input", input_data);
         runtime.bind_data("grad_output", grad_out_data);
@@ -356,7 +365,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         attn.load(full_path);
 
         TensorGraph& tg = g.tensor_graph();
-        TensorGraph::Runtime runtime(tg);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(tg);
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("input", input_data);
         runtime.bind_data("grad_output", grad_out_data);
@@ -394,7 +405,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             }
         }
 
-        TensorGraph::Runtime runtime(tg);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(tg);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("input", input_data);
         runtime.bind_data("grad_output", grad_out_data);
@@ -447,7 +461,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         attn.load(full_path);
 
         TensorGraph& tg = g.tensor_graph();
-        TensorGraph::Runtime runtime(tg);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(tg);
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("input", input_data);
         runtime.execute();
@@ -510,7 +526,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         attn.load(full_path);
 
         TensorGraph& tg = g.tensor_graph();
-        TensorGraph::Runtime runtime(tg);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(tg);
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
         runtime.bind_data("input", input_data);
         runtime.bind_data("grad_output", grad_out_data);

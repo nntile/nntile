@@ -29,22 +29,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_multiply_slice(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Index axis,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst)
-{
-    auto& src_t = runtime.get_tensor<T>(src);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::multiply_slice<T>(alpha, src_t, dst_t, axis);
-}
-
-} // namespace
 
 void multiply_slice(
     Scalar alpha,
@@ -76,44 +61,6 @@ void multiply_slice(
 
     auto op = std::make_shared<TensorMultiplySliceOp>(alpha, src, dst, axis);
     src->graph()->add_op(op);
-}
-
-void TensorMultiplySliceOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_multiply_slice<nntile::fp32_t>(runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_multiply_slice<nntile::fp32_fast_tf32_t>(runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_multiply_slice<nntile::fp32_fast_fp16_t>(runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_multiply_slice<nntile::fp32_fast_bf16_t>(runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP64:
-            run_multiply_slice<nntile::fp64_t>(runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP16:
-            run_multiply_slice<nntile::fp16_t>(runtime, alpha, axis, src, dst);
-            break;
-        case DataType::BF16:
-            run_multiply_slice<nntile::bf16_t>(runtime, alpha, axis, src, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for multiply_slice operation");
-        default:
-            throw std::runtime_error("Unsupported data type for multiply_slice");
-    }
 }
 
 void TensorMultiplySliceOp::lower_to_tile(const LoweringContext& ctx) const

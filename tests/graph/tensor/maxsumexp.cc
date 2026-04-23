@@ -75,7 +75,10 @@ void check_maxsumexp_vs_tensor_api(
     auto* dst_node = gt::maxsumexp(src_node, "dst", axis, redux);
     dst_node->mark_output(true);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     std::vector<float> src_data(src_nelems);
@@ -200,7 +203,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto* dst_node = gt::maxsumexp(src_node, "dst", axis, 0);
         dst_node->mark_output(true);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
 
         runtime.bind_data("src", src_data);
@@ -232,7 +238,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             }
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(runtime_tile);
         runtime.compile();
 
         runtime.bind_data("src", src_data);

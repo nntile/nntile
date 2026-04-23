@@ -52,7 +52,6 @@ struct TensorScaleSliceOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "SCALE_SLICE"; }
 
-    void execute(TensorGraph::Runtime& runtime) const override;
 
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {

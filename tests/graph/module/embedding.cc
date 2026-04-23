@@ -166,7 +166,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         vocab_data[i] = 0.1f * static_cast<float>(i + 1);
     emb.bind_weight(vocab_data);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(g.tensor_graph());
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     std::vector<std::int64_t> index_data(4 * 5);
@@ -212,7 +215,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for(Index i = 0; i < batch * seq_len; ++i)
         index_data[i] = static_cast<std::int64_t>(i % num_embeddings);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(g.tensor_graph());
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
     runtime.bind_data("index", index_data);
     runtime.execute();
@@ -266,7 +272,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     emb.vocab_tensor()->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(g.tensor_graph());
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
     runtime.bind_data("index", index_data);
     runtime.execute();

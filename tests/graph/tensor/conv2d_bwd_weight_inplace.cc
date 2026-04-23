@@ -120,7 +120,10 @@ void check_conv2d_bwd_weight_inplace_vs_tensor_api(
     gt::conv2d_bwd_weight_inplace(alpha, x_node, dy_node, beta, dc_node,
                              padding, stride, dilation);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     std::vector<float> x_data(x_nelems);

@@ -53,7 +53,10 @@ void check_scatter_vs_tensor_api(const std::vector<Index>& shape)
 
     gt::scatter(src_node, dst_node);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph runtime_tile = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(runtime_tile);
     runtime.compile();
 
     std::vector<float> src_data(nelems);

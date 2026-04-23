@@ -27,26 +27,7 @@
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_sumprod_slice(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Scalar beta,
-    Index axis, int redux,
-    TensorGraph::TensorNode* src1,
-    TensorGraph::TensorNode* src2,
-    TensorGraph::TensorNode* dst)
-{
-    auto& src1_t = runtime.get_tensor<T>(src1);
-    auto& src2_t = runtime.get_tensor<T>(src2);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::sumprod_slice<T>(
-        alpha, src1_t, src2_t, beta, dst_t, axis, redux);
-}
-
-} // namespace
 
 void sumprod_slice(
     TensorGraph::TensorNode* src1,
@@ -89,51 +70,6 @@ void sumprod_slice(
     auto op = std::make_shared<TensorSumprodSliceOp>(
         src1, src2, dst, axis, redux, alpha, beta);
     src1->graph()->add_op(op);
-}
-
-void TensorSumprodSliceOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src1);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_sumprod_slice<nntile::fp32_t>(
-                runtime, alpha, beta, axis, redux, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_sumprod_slice<nntile::fp32_fast_tf32_t>(
-                runtime, alpha, beta, axis, redux, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_sumprod_slice<nntile::fp32_fast_fp16_t>(
-                runtime, alpha, beta, axis, redux, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_sumprod_slice<nntile::fp32_fast_bf16_t>(
-                runtime, alpha, beta, axis, redux, src1, src2, dst);
-            break;
-        case DataType::FP64:
-            run_sumprod_slice<nntile::fp64_t>(
-                runtime, alpha, beta, axis, redux, src1, src2, dst);
-            break;
-        case DataType::FP16:
-            run_sumprod_slice<nntile::fp16_t>(
-                runtime, alpha, beta, axis, redux, src1, src2, dst);
-            break;
-        case DataType::BF16:
-            run_sumprod_slice<nntile::bf16_t>(
-                runtime, alpha, beta, axis, redux, src1, src2, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for sumprod_slice operation");
-        default:
-            throw std::runtime_error("Unsupported data type for sumprod_slice");
-    }
 }
 
 void TensorSumprodSliceOp::lower_to_tile(const LoweringContext& ctx) const
