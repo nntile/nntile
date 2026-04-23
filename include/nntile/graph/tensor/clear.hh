@@ -34,7 +34,7 @@ struct TensorClearOp : TensorGraph::OpNode
     explicit TensorClearOp(TensorGraph::TensorNode* x_)
         : x(x_)
     {
-        inputs_ = {x};
+        inputs_ = {};
         outputs_ = {x};
     }
 

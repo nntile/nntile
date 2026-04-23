@@ -36,7 +36,7 @@ struct TensorFillOp : TensorGraph::OpNode
     TensorFillOp(TensorGraph::TensorNode* x_, Scalar val_)
         : val(val_), x(x_)
     {
-        inputs_ = {x};
+        inputs_ = {};
         outputs_ = {x};
     }
 

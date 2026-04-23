@@ -85,8 +85,6 @@ public:
 private:
     void allocate_impl();
     void eliminate_dead_ops();
-    void invalidate_data(const std::string& name);
-    void invalidate_unused_tiles(size_t op_idx);
 
     template<typename T, typename NntileT, typename CastT>
     void bind_data_impl(const std::string& name, const T* data, size_t count);
@@ -100,7 +98,6 @@ private:
     std::vector<std::shared_ptr<OpNode>> execution_order_;
     std::set<std::string> data_is_input_;
     std::set<std::string> data_is_output_;
-    std::map<std::string, size_t> data_last_use_;
     bool compiled_ = false;
 };
 
@@ -538,9 +535,9 @@ std::vector<T> TileGraph::Runtime::get_output(const std::string& name)
                 {
                     throw std::runtime_error(
                         "get_output: data '" + name +
-                        "' is not marked as output; intermediate tiles are "
-                        "invalidated during execution; call mark_output(true) on "
-                        "the tensor data node");
+                        "' is not marked as output; only tensors marked with "
+                        "mark_output(true) can be read via get_output; call "
+                        "mark_output(true) on the tensor data node");
                 }
                 std::vector<T> result;
                 switch(desc->dtype)
@@ -610,8 +607,8 @@ std::vector<T> TileGraph::Runtime::get_output(const std::string& name)
     {
         throw std::runtime_error(
             "get_output: data '" + name +
-            "' is not marked as output; intermediate tiles are invalidated "
-            "during execution; call mark_output(true) on the data node");
+            "' is not marked as output; only data marked with mark_output(true) "
+            "can be read via get_output; call mark_output(true) on the data node");
     }
     auto dtype_it = data_dtypes_.find(name);
     if(dtype_it == data_dtypes_.end())

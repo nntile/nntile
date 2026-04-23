@@ -315,15 +315,6 @@ void TileGraph::Runtime::compile()
 
     eliminate_dead_ops();
 
-    data_last_use_.clear();
-    for(size_t i = 0; i < execution_order_.size(); ++i)
-    {
-        for(const auto* input : execution_order_[i]->inputs())
-        {
-            data_last_use_[input->name()] = i;
-        }
-    }
-
     compiled_ = true;
 }
 
@@ -496,115 +487,14 @@ void TileGraph::Runtime::execute()
     for(size_t i = 0; i < execution_order_.size(); ++i)
     {
         execution_order_[i]->execute(*this);
-        invalidate_unused_tiles(i);
+        // Global sync between ops (revisit when last-use invalidation returns).
+        starpu_task_wait_for_all();
     }
 }
 
 void TileGraph::Runtime::wait()
 {
     starpu_task_wait_for_all();
-}
-
-void TileGraph::Runtime::invalidate_data(const std::string& name)
-{
-    auto dtype_it = data_dtypes_.find(name);
-    if(dtype_it == data_dtypes_.end())
-    {
-        return;
-    }
-    DataType dtype = dtype_it->second;
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            get_data<nntile::fp32_t>(name).invalidate_submit();
-            break;
-        case DataType::FP32_FAST_TF32:
-            get_data<nntile::fp32_fast_tf32_t>(name).invalidate_submit();
-            break;
-        case DataType::FP32_FAST_FP16:
-            get_data<nntile::fp32_fast_fp16_t>(name).invalidate_submit();
-            break;
-        case DataType::FP32_FAST_BF16:
-            get_data<nntile::fp32_fast_bf16_t>(name).invalidate_submit();
-            break;
-        case DataType::FP64:
-            get_data<nntile::fp64_t>(name).invalidate_submit();
-            break;
-        case DataType::FP16:
-            get_data<nntile::fp16_t>(name).invalidate_submit();
-            break;
-        case DataType::BF16:
-            get_data<nntile::bf16_t>(name).invalidate_submit();
-            break;
-        case DataType::INT64:
-            get_data<nntile::int64_t>(name).invalidate_submit();
-            break;
-        case DataType::BOOL:
-            get_data<nntile::bool_t>(name).invalidate_submit();
-            break;
-        default:
-            throw std::runtime_error(
-                "invalidate_data: unsupported data type " +
-                dtype_to_string(dtype) + " for data '" + name + "'");
-    }
-}
-
-void TileGraph::Runtime::invalidate_unused_tiles(size_t op_idx)
-{
-    const auto& op = execution_order_.at(op_idx);
-    std::unordered_set<std::string> seen;
-
-    for(const auto* input : op->inputs())
-    {
-        const std::string& input_name = input->name();
-        if(!seen.insert(input_name).second)
-        {
-            continue;
-        }
-        if(data_is_input_.count(input_name) ||
-           data_is_output_.count(input_name))
-        {
-            continue;
-        }
-        bool is_inplace = false;
-        for(const auto* out : op->outputs())
-        {
-            if(out->name() == input_name)
-            {
-                is_inplace = true;
-                break;
-            }
-        }
-        if(is_inplace)
-        {
-            continue;
-        }
-        auto it = data_last_use_.find(input_name);
-        if(it != data_last_use_.end() && it->second == op_idx)
-        {
-            invalidate_data(input_name);
-        }
-    }
-
-    for(const auto* output : op->outputs())
-    {
-        const std::string& output_name = output->name();
-        if(!seen.insert(output_name).second)
-        {
-            continue;
-        }
-        if(data_is_input_.count(output_name) ||
-           data_is_output_.count(output_name))
-        {
-            continue;
-        }
-        auto it = data_last_use_.find(output_name);
-        if(it == data_last_use_.end() || it->second == op_idx)
-        {
-            invalidate_data(output_name);
-        }
-    }
 }
 
 } // namespace nntile::graph

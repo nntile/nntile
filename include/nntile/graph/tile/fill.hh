@@ -31,6 +31,7 @@ struct TileFillOp : TileGraph::OpNode
     TileFillOp(TileGraph::TileNode* x_, Scalar val_)
         : val(val_), x(x_)
     {
+        inputs_ = {};
         outputs_ = {x};
     }
 

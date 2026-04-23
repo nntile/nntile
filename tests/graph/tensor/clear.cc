@@ -116,7 +116,7 @@ TEST_CASE("TensorGraph clear structure", "[graph][tensor]")
 
     const auto& ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "CLEAR");
-    REQUIRE(ops[0]->inputs().size() == 1);
+    REQUIRE(ops[0]->inputs().size() == 0);
     REQUIRE(ops[0]->outputs().size() == 1);
     REQUIRE(ops[0]->outputs()[0] == src);
 }
