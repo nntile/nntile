@@ -18,6 +18,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -42,6 +47,8 @@ struct TensorScaleInplaceOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorScaleInplaceOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Scale in-place: dst = alpha * dst

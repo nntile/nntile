@@ -17,6 +17,11 @@
 // NNTile headers
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -50,6 +55,8 @@ struct TensorFlashSdpaFwdCudnnOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorFlashSdpaFwdCudnnOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Flash SDPA forward (CUDA only)

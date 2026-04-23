@@ -19,12 +19,42 @@
 
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/logsumexp.hh"
+#include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/tensor/logsumexp.hh"
 
 namespace nntile::graph::tensor
 {
 
-
+void TensorLogsumexpOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    // Match nntile::tensor::logsumexp_async (src/tensor/logsumexp.cc).
+    const TensorAxisLayout* lay_src = ctx.tiling.find(src);
+    const TensorAxisLayout* lay_dst = ctx.tiling.find(dst);
+    if(lay_src == nullptr || lay_dst == nullptr)
+    {
+        throw std::runtime_error(
+            "lower_to_tile LOGSUMEXP: missing tiling for src and/or dst");
+    }
+    if(lay_src->grid_volume() != lay_dst->grid_volume())
+    {
+        throw std::runtime_error(
+            "lower_to_tile LOGSUMEXP: src/dst grid volume mismatch");
+    }
+    const auto& tiles_src = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto& tiles_dst = tile_lower::tiles_of(ctx.tile_map, dst);
+    if(tiles_src.size() != tiles_dst.size())
+    {
+        throw std::runtime_error(
+            "lower_to_tile LOGSUMEXP: tile count mismatch");
+    }
+    for(size_t i = 0; i < tiles_src.size(); ++i)
+    {
+        tile_graph::logsumexp(tiles_src[i], tiles_dst[i]);
+    }
+}
 
 TensorGraph::TensorNode* logsumexp(
     TensorGraph::TensorNode* src,

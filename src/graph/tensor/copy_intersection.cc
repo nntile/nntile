@@ -17,12 +17,38 @@
 #include <stdexcept>
 
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/copy.hh"
+#include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/tensor/copy_intersection.hh"
 
 namespace nntile::graph::tensor
 {
 
-
+void TensorCopyIntersectionOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    // Fast path: same tensor-level offsets and identical tiling as tensor
+    // copy_intersection easy case (src/tensor/copy_intersection.cc).
+    const auto& vs = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto& vd = tile_lower::tiles_of(ctx.tile_map, dst);
+    if(vs.size() != vd.size())
+    {
+        throw std::runtime_error(
+            "lower_to_tile COPY_INTERSECTION: tile count mismatch");
+    }
+    tile_lower::assert_same_elementwise_layout(
+        src, dst, "COPY_INTERSECTION src/dst");
+    if(src_offset != dst_offset)
+    {
+        throw std::runtime_error(
+            "lower_to_tile COPY_INTERSECTION: mismatched src/dst offsets "
+            "not implemented");
+    }
+    for(size_t i = 0; i < vs.size(); ++i)
+    {
+        tile_graph::copy(vs[i], vd[i]);
+    }
+}
 
 void copy_intersection(TensorGraph::TensorNode* src,
                        const std::vector<Index>& src_offset,

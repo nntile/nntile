@@ -21,6 +21,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -62,6 +67,8 @@ struct TensorConv2dBwdWeightInplaceOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorConv2dBwdWeightInplaceOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Conv2D backward weight: dC = alpha*conv_bwd(X,dY) + beta*dC

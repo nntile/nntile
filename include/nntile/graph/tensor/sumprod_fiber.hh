@@ -18,6 +18,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -53,6 +58,8 @@ struct TensorSumprodFiberOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorSumprodFiberOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Sumprod over fibers: dst = alpha * sumprod_fiber(src1, src2) + beta * dst

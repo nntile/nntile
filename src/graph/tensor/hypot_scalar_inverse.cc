@@ -19,12 +19,21 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/hypot_scalar_inverse.hh"
+#include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/tensor/hypot_scalar_inverse.hh"
 
 namespace nntile::graph::tensor
 {
 
-
+void TensorHypotScalarInverseOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    for(TileGraph::TileNode* t : tile_lower::tiles_of(ctx.tile_map, dst))
+    {
+        tile_graph::hypot_scalar_inverse(eps, alpha, t);
+    }
+}
 
 void hypot_scalar_inverse(
     Scalar eps,

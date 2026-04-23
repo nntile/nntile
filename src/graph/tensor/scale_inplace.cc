@@ -18,12 +18,21 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/scale_inplace.hh"
 #include "nntile/tensor/scale_inplace.hh"
 
 namespace nntile::graph::tensor
 {
 
-
+void TensorScaleInplaceOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    for(TileGraph::TileNode* t : tile_lower::tiles_of(ctx.tile_map, dst))
+    {
+        tile_graph::scale_inplace(alpha, t);
+    }
+}
 
 void scale_inplace(Scalar alpha, TensorGraph::TensorNode* dst)
 {

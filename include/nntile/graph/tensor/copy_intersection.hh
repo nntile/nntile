@@ -20,6 +20,11 @@
 // NNTile headers
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -50,6 +55,8 @@ struct TensorCopyIntersectionOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorCopyIntersectionOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Copy intersection: copy overlapping region from src to dst

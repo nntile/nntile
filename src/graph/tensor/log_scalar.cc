@@ -17,12 +17,25 @@
 #include <stdexcept>
 
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/log_scalar.hh"
+#include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/tensor/log_scalar.hh"
 
 namespace nntile::graph::tensor
 {
 
-
+void TensorLogScalarOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    // Match nntile::tensor::log_scalar_async (src/tensor/log_scalar.cc).
+    const auto& tiles = tile_lower::tiles_of(ctx.tile_map, value);
+    if(tiles.size() != 1)
+    {
+        throw std::runtime_error(
+            "lower_to_tile LOG_SCALAR: value must be single-tile scalar tensor");
+    }
+    tile_graph::log_scalar(name, tiles[0]);
+}
 
 void log_scalar(const std::string& name,
                 TensorGraph::TensorNode* value)

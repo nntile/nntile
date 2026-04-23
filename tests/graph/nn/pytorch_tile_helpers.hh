@@ -46,9 +46,12 @@ inline void nn_pytorch_tile_heterogeneous_1d_len4(graph::NNGraph::TensorNode* t)
 }
 
 //! Logits (nclasses, batch) = (5, 7) for cross_entropy.
+//! Class axis (0) is a single tile: `subtract_indexed_outputs` / its kernel use
+//! global class ids as row indices with `n_labels = dst.shape[0]` per tile
+//! (see `src/tensor/subtract_indexed_outputs.cc` / `dst.shape[0] == basetile_shape[0]`).
 inline void nn_pytorch_tile_logits_5x7(graph::NNGraph::TensorNode* x)
 {
-    x->data()->axis(0)->set_tiling(std::vector<Index>{2, 3});
+    x->data()->axis(0)->set_tiling(std::vector<Index>{5});
     x->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
 }
 
@@ -62,10 +65,17 @@ inline void nn_pytorch_tile_gemm_operands_6_7_6(
 }
 
 //! Vocab matrix (embed_dim, num_embeddings) = (10, 10).
+//! Axis 0 (embed_dim) must use a uniform tile extent: tensor `embedding` /
+//! `lower_to_tile EMBEDDING` require the same basetile height on every vocab
+//! row tile and `embed.basetile_shape[axis] % vocab.basetile_shape[0] == 0`.
+//! Axis 1 must not be split: `kernel::embedding::cpu` indexes columns by
+//! global token id into each vocab tile buffer `(k_size, local_width)`; tiles
+//! must span all `num_embeddings` (same pattern as `tests/graph/tensor/embedding.cc`
+//! tiled case, which sets axis 1 to a single segment).
 inline void nn_pytorch_tile_vocab_10x10(graph::NNGraph::TensorNode* vocab)
 {
-    vocab->data()->axis(0)->set_tiling(std::vector<Index>{4, 3, 3});
-    vocab->data()->axis(1)->set_tiling(std::vector<Index>{4, 6});
+    vocab->data()->axis(0)->set_tiling(std::vector<Index>{5, 5});
+    vocab->data()->axis(1)->set_tiling(std::vector<Index>{10});
 }
 
 //! Index tensor (4, 5).
@@ -81,11 +91,12 @@ inline void nn_pytorch_tile_index_len3(graph::NNGraph::TensorNode* index)
     index->data()->axis(0)->set_tiling(std::vector<Index>{1, 2});
 }
 
-//! Vocab (8, 8).
+//! Vocab (8, 8). Same axis-0 uniform and axis-1 unsplit constraints as
+//! `nn_pytorch_tile_vocab_10x10`.
 inline void nn_pytorch_tile_vocab_8x8(graph::NNGraph::TensorNode* vocab)
 {
-    vocab->data()->axis(0)->set_tiling(std::vector<Index>{3, 2, 3});
-    vocab->data()->axis(1)->set_tiling(std::vector<Index>{3, 5});
+    vocab->data()->axis(0)->set_tiling(std::vector<Index>{4, 4});
+    vocab->data()->axis(1)->set_tiling(std::vector<Index>{8});
 }
 
 //! Softmax along axis 0 on (6, 7): heterogeneous on axis 1 only; axis 0 unsplit.

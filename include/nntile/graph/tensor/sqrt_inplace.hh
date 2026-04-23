@@ -17,6 +17,11 @@
 // NNTile headers
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -40,6 +45,8 @@ struct TensorSqrtInplaceOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorSqrtInplaceOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! ReLU in-place: dst = sqrt(dst)

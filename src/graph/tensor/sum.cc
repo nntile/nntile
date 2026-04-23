@@ -18,12 +18,37 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/sum.hh"
 #include "nntile/tensor/sum.hh"
 
 namespace nntile::graph::tensor
 {
 
-
+void TensorSumOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    // Match nntile::tensor::sum_async (src/tensor/sum.cc).
+    const auto& tiles_src = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto& tiles_dst = tile_lower::tiles_of(ctx.tile_map, dst);
+    if(tiles_dst.size() != 1)
+    {
+        throw std::runtime_error(
+            "lower_to_tile SUM: scalar output must be one tile");
+    }
+    constexpr Scalar one = 1.0;
+    for(size_t i = 0; i < tiles_src.size(); ++i)
+    {
+        if(i == 0)
+        {
+            tile_graph::sum(alpha, tiles_src[i], beta, tiles_dst[0]);
+        }
+        else
+        {
+            tile_graph::sum(alpha, tiles_src[i], one, tiles_dst[0]);
+        }
+    }
+}
 
 void sum(
     TensorGraph::TensorNode* src,

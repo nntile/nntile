@@ -19,12 +19,30 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/hypot_inplace.hh"
+#include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/tensor/hypot_inplace.hh"
 
 namespace nntile::graph::tensor
 {
 
-
+void TensorHypotInplaceOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    const auto& m = ctx.tile_map;
+    const auto& vs = tile_lower::tiles_of(m, src);
+    const auto& vd = tile_lower::tiles_of(m, dst);
+    if(vs.size() != vd.size())
+    {
+        throw std::runtime_error(
+            "lower_to_tile HYPOT_INPLACE: tile count mismatch");
+    }
+    tile_lower::assert_same_elementwise_layout(src, dst, "HYPOT_INPLACE");
+    for(size_t i = 0; i < vs.size(); ++i)
+    {
+        tile_graph::hypot_inplace(alpha, vs[i], beta, vd[i]);
+    }
+}
 
 void hypot_inplace(
     Scalar alpha,

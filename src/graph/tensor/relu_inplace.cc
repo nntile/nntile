@@ -19,12 +19,19 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/relu_inplace.hh"
 #include "nntile/tensor/relu_inplace.hh"
 
 namespace nntile::graph::tensor
 {
 
-
+void TensorReluInplaceOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    tile_lower::lower_inplace1(
+        dst, ctx.tile_map, "RELU_INPLACE", tile_graph::relu_inplace);
+}
 
 void relu_inplace(TensorGraph::TensorNode* dst)
 {

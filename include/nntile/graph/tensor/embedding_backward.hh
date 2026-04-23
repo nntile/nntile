@@ -17,6 +17,11 @@
 // NNTile headers
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -48,6 +53,8 @@ struct TensorEmbeddingBackwardOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorEmbeddingBackwardOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Embedding backward: vocab += scatter(embed, index)

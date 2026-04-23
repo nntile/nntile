@@ -19,12 +19,19 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/sqrt_inplace.hh"
 #include "nntile/tensor/sqrt_inplace.hh"
 
 namespace nntile::graph::tensor
 {
 
-
+void TensorSqrtInplaceOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    tile_lower::lower_inplace1(
+        dst, ctx.tile_map, "SQRT_INPLACE", tile_graph::sqrt_inplace);
+}
 
 void sqrt_inplace(TensorGraph::TensorNode* dst)
 {

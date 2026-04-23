@@ -121,8 +121,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph embedding forward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
     // NNTile tensor embedding requires embed.shape[axis]==vocab.shape[0];
-    // NNGraph creates embed with shape index_shape + [vocab.shape[1]].
-    // So we need vocab.shape[0]==vocab.shape[1] (square vocab).
+    // NNGraph creates embed with shape index_shape + [vocab.shape[0]] at the
+    // last dim (axis == index.ndim). Square vocab keeps embed_dim ==
+    // num_embeddings for a simple PyTorch `nn.Embedding` weight layout.
     const auto [index_shape, vocab_shape, axis] = GENERATE(
         std::tuple{std::vector<Index>{4, 5}, std::vector<Index>{10, 10},
                    Index(2)},

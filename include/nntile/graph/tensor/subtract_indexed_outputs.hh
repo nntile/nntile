@@ -18,6 +18,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -47,6 +52,8 @@ struct TensorSubtractIndexedOutputsOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorSubtractIndexedOutputsOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Subtract indexed outputs: dst[labels[i]] -= val

@@ -21,6 +21,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -57,6 +62,8 @@ struct TensorConv2dInplaceOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorConv2dInplaceOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Conv2D forward: Y = alpha*conv(X,C) + beta*Y

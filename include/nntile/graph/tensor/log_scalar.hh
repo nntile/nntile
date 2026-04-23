@@ -20,6 +20,11 @@
 // NNTile headers
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -45,6 +50,8 @@ struct TensorLogScalarOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorLogScalarOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Log scalar: log scalar value from tensor

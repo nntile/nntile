@@ -17,9 +17,14 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <vector>
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/flash_sdpa_fwd_cudnn.hh"
+#include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/tensor/clear.hh"
 #include "nntile/tensor/fill.hh"
 #include "nntile/tensor/flash_sdpa_fwd_cudnn.hh"
@@ -113,6 +118,97 @@ void flash_sdpa_fwd_cudnn(TensorGraph::TensorNode* K,
     auto op = std::make_shared<TensorFlashSdpaFwdCudnnOp>(
         K, Q, mask, logsumexp, V, A);
     A->graph()->add_op(op);
+}
+
+void TensorFlashSdpaFwdCudnnOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    constexpr const char* op = "FLASH_SDPA_FWD_CUDNN";
+    const TensorAxisLayout* lay_k = ctx.tiling.find(K);
+    const TensorAxisLayout* lay_q = ctx.tiling.find(Q);
+    const TensorAxisLayout* lay_v = ctx.tiling.find(V);
+    const TensorAxisLayout* lay_a = ctx.tiling.find(A);
+    const TensorAxisLayout* lay_mask = ctx.tiling.find(mask);
+    const TensorAxisLayout* lay_lse = ctx.tiling.find(logsumexp);
+    if(lay_k == nullptr || lay_q == nullptr || lay_v == nullptr
+        || lay_a == nullptr || lay_mask == nullptr || lay_lse == nullptr)
+    {
+        throw std::runtime_error(std::string("lower_to_tile ") + op +
+            ": missing tiling for K/Q/V/A/mask/logsumexp");
+    }
+    if(lay_q->grid_shape() != lay_k->grid_shape()
+        || lay_q->grid_shape() != lay_v->grid_shape()
+        || lay_q->grid_shape() != lay_a->grid_shape())
+    {
+        throw std::runtime_error(std::string("lower_to_tile ") + op +
+            ": K/Q/V/A must share the same per-axis tile grid");
+    }
+    if(lay_k->grid_shape()[0] != 1)
+    {
+        throw std::runtime_error(std::string("lower_to_tile ") + op +
+            ": head dimension must not be tiled (grid_shape[0] != 1)");
+    }
+    if(lay_mask->grid_shape()[0] != lay_k->grid_shape()[1]
+        || lay_mask->grid_shape()[1] != lay_q->grid_shape()[1])
+    {
+        throw std::runtime_error(std::string("lower_to_tile ") + op +
+            ": mask tile grid must align with K dim1 and Q dim1");
+    }
+    if(lay_lse->grid_shape().size() != 4)
+    {
+        throw std::runtime_error(std::string("lower_to_tile ") + op +
+            ": logsumexp must be 4D");
+    }
+    for(int i = 0; i < 4; ++i)
+    {
+        if(lay_lse->grid_shape()[static_cast<size_t>(i)]
+            != lay_q->grid_shape()[static_cast<size_t>(i + 1)])
+        {
+            throw std::runtime_error(std::string("lower_to_tile ") + op +
+                ": logsumexp tile grid must match Q on tail axes");
+        }
+    }
+
+    const Index num_k_seq_tiles = lay_k->grid_shape()[1];
+    const auto& tiles_k = tile_lower::tiles_of(ctx.tile_map, K);
+    const auto& tiles_q = tile_lower::tiles_of(ctx.tile_map, Q);
+    const auto& tiles_v = tile_lower::tiles_of(ctx.tile_map, V);
+    const auto& tiles_a = tile_lower::tiles_of(ctx.tile_map, A);
+    const auto& tiles_mask = tile_lower::tiles_of(ctx.tile_map, mask);
+    const auto& tiles_lse = tile_lower::tiles_of(ctx.tile_map, logsumexp);
+
+    std::vector<Index> a_coord(5);
+    std::vector<Index> kv_coord(5);
+    std::vector<Index> mask_coord(2);
+    std::vector<Index> lse_coord(4);
+
+    for(Index lin_a = 0; lin_a < lay_a->grid_volume(); ++lin_a)
+    {
+        lay_a->grid_coord_from_linear(lin_a, a_coord);
+        for(Index i = 0; i < 4; ++i)
+        {
+            lse_coord[static_cast<size_t>(i)] =
+                a_coord[static_cast<size_t>(i + 1)];
+        }
+        const Index lin_lse = lay_lse->grid_linear(lse_coord);
+
+        for(Index k_seq_idx = 0; k_seq_idx < num_k_seq_tiles; ++k_seq_idx)
+        {
+            kv_coord = a_coord;
+            kv_coord[1] = k_seq_idx;
+            const Index lin_kv = lay_k->grid_linear(kv_coord);
+            mask_coord[0] = k_seq_idx;
+            mask_coord[1] = a_coord[1];
+            const Index lin_mask = lay_mask->grid_linear(mask_coord);
+
+            tile_graph::flash_sdpa_fwd_cudnn(
+                tiles_k[static_cast<size_t>(lin_kv)],
+                tiles_q[static_cast<size_t>(lin_a)],
+                tiles_mask[static_cast<size_t>(lin_mask)],
+                tiles_lse[static_cast<size_t>(lin_lse)],
+                tiles_v[static_cast<size_t>(lin_kv)],
+                tiles_a[static_cast<size_t>(lin_a)]);
+        }
+    }
 }
 
 } // namespace nntile::graph::tensor

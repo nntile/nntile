@@ -365,10 +365,32 @@ void nn_pytorch_tile_gemm_batched_operands(
 } // namespace
 
 using nntile::test::colmajor_to_rowmajor;
-using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_gemm_operands_6_7_6;
 using nntile::test::permute_rowmajor;
 using nntile::test::pytorch_tolerance;
+
+namespace
+{
+
+//! ||got - ref||_F / max(||ref||_F, eps) against a flattened PyTorch reference tensor.
+inline void require_frobenius_relative_error(const std::vector<float>& got,
+    const torch::Tensor& ref,
+    float tol = pytorch_tolerance)
+{
+    REQUIRE(ref.defined());
+    REQUIRE(ref.dtype() == torch::kFloat32);
+    REQUIRE(static_cast<size_t>(ref.numel()) == got.size());
+    torch::Tensor const ref_flat = ref.contiguous().view(-1);
+    torch::Tensor const got_t =
+        torch::tensor(got, torch::TensorOptions().dtype(torch::kFloat32));
+    float const diff_norm = (got_t - ref_flat).norm().item<float>();
+    float const ref_norm = ref_flat.norm().item<float>();
+    float const denom = ref_norm > 0.f ? ref_norm : 1e-20f;
+    float const rel = diff_norm / denom;
+    REQUIRE(rel < tol);
+}
+
+} // namespace
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph gemm forward matches PyTorch", "[graph][nn_graph][pytorch]")
@@ -422,7 +444,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(false);
     auto out_pt = (gemm_alpha * torch::mm(a_pt, b_pt)).contiguous();
 
-    compare_float_vectors(nntile_out, out_pt);
+    require_frobenius_relative_error(nntile_out, out_pt);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -494,8 +516,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     out_pt.backward(grad_output);
 
-    compare_float_vectors(nntile_grad_a, a_pt.grad());
-    compare_float_vectors(nntile_grad_b, b_pt.grad());
+    require_frobenius_relative_error(nntile_grad_a, a_pt.grad());
+    require_frobenius_relative_error(nntile_grad_b, b_pt.grad());
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -551,7 +573,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto b_2d = b_pt.reshape({K1 * K2, N1 * N2});
     auto out_pt = (gemm_alpha * torch::mm(a_2d, b_2d)).reshape({M1, M2, N1, N2}).contiguous();
 
-    compare_float_vectors(nntile_out, out_pt, 2e-5f);
+    require_frobenius_relative_error(nntile_out, out_pt, 2e-5f);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -609,7 +631,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto b_batched = b_pt.permute({2, 0, 1});
     auto out_pt = (gemm_alpha * torch::bmm(a_batched, b_batched)).contiguous();
 
-    compare_float_vectors(nntile_out, out_pt);
+    require_frobenius_relative_error(nntile_out, out_pt);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -679,8 +701,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     out_pt.backward(grad_2d);
 
-    compare_float_vectors(nntile_grad_a, a_pt.grad().reshape({M1, M2, K1, K2}));
-    compare_float_vectors(nntile_grad_b, b_pt.grad().reshape({K1, K2, N1, N2}));
+    require_frobenius_relative_error(nntile_grad_a, a_pt.grad().reshape({M1, M2, K1, K2}));
+    require_frobenius_relative_error(nntile_grad_b, b_pt.grad().reshape({K1, K2, N1, N2}));
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -752,8 +774,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     out_pt.backward(grad_output);
 
-    compare_float_vectors(nntile_grad_a, a_pt.grad().permute({2, 0, 1}));
-    compare_float_vectors(nntile_grad_b, b_pt.grad().permute({2, 0, 1}));
+    require_frobenius_relative_error(nntile_grad_a, a_pt.grad().permute({2, 0, 1}));
+    require_frobenius_relative_error(nntile_grad_b, b_pt.grad().permute({2, 0, 1}));
 }
 
 #endif // NNTILE_HAVE_TORCH

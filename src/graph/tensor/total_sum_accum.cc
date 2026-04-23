@@ -19,12 +19,44 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/total_sum_accum.hh"
 #include "nntile/tensor/total_sum_accum.hh"
 
 namespace nntile::graph::tensor
 {
 
-
+void TensorTotalSumAccumOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    // Match nntile::tensor::total_sum_accum_async (src/tensor/total_sum_accum.cc).
+    const TensorAxisLayout* lay_l = ctx.tiling.find(class_labels);
+    if(lay_l == nullptr)
+    {
+        throw std::runtime_error(
+            "lower_to_tile TOTAL_SUM_ACCUM: missing tiling for class_labels");
+    }
+    const auto& t_lse = tile_lower::tiles_of(ctx.tile_map, logsumexp);
+    const auto& t_src = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto& t_lab = tile_lower::tiles_of(ctx.tile_map, class_labels);
+    const auto& t_val = tile_lower::tiles_of(ctx.tile_map, val);
+    if(t_val.size() != 1)
+    {
+        throw std::runtime_error(
+            "lower_to_tile TOTAL_SUM_ACCUM: val must be single-tile");
+    }
+    for(Index lin = 0; lin < lay_l->grid_volume(); ++lin)
+    {
+        tile_graph::total_sum_accum(
+            alpha,
+            t_lse[static_cast<size_t>(lin)],
+            t_src[static_cast<size_t>(lin)],
+            t_lab[static_cast<size_t>(lin)],
+            t_val[0],
+            ignore_index);
+    }
+}
 
 void total_sum_accum(
     Scalar alpha,

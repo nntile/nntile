@@ -18,6 +18,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -54,6 +59,8 @@ struct TensorTotalSumAccumOp : TensorGraph::OpNode
     {
         return std::make_shared<TensorTotalSumAccumOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 void total_sum_accum(
