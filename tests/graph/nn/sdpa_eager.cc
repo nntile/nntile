@@ -240,11 +240,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                                    out_pt.data_ptr<float>() + nelems);
 
     REQUIRE(nntile_out.size() == pytorch_out.size());
-    float max_fwd_diff = 0;
-    for(size_t i = 0; i < nntile_out.size(); ++i)
-        max_fwd_diff = std::max(max_fwd_diff,
-            std::abs(nntile_out[i] - pytorch_out[i]));
-    REQUIRE(max_fwd_diff < pytorch_tolerance);
+    compare_float_vectors(nntile_out, out_pt);
 
     // --- Backward comparison ---
     auto grad_output_pt = torch::full(shape_pt,

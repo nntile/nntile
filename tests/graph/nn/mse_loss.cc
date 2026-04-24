@@ -94,30 +94,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 using nntile::test::colmajor_to_rowmajor;
 using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
-using nntile::test::pytorch_tolerance;
-
-namespace
-{
-
-//! ||got - ref||_F / max(||ref||_F, eps) against a flattened PyTorch reference tensor.
-inline void require_frobenius_relative_error(const std::vector<float>& got,
-    const torch::Tensor& ref,
-    float tol = pytorch_tolerance)
-{
-    REQUIRE(ref.defined());
-    REQUIRE(ref.dtype() == torch::kFloat32);
-    REQUIRE(static_cast<size_t>(ref.numel()) == got.size());
-    torch::Tensor const ref_flat = ref.contiguous().view(-1);
-    torch::Tensor const got_t =
-        torch::tensor(got, torch::TensorOptions().dtype(torch::kFloat32));
-    float const diff_norm = (got_t - ref_flat).norm().item<float>();
-    float const ref_norm = ref_flat.norm().item<float>();
-    float const denom = ref_norm > 0.f ? ref_norm : 1e-20f;
-    float const rel = diff_norm / denom;
-    REQUIRE(rel < tol);
-}
-
-} // namespace
+using nntile::test::require_relative_frobenius_error;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph mse_loss forward and backward match PyTorch", "[graph][nn_graph][pytorch]")
@@ -176,9 +153,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(nntile_loss.size() == 1);
     auto loss_ref = torch::tensor({pytorch_loss},
         torch::TensorOptions().dtype(torch::kFloat32));
-    require_frobenius_relative_error(nntile_loss, loss_ref);
+    require_relative_frobenius_error(nntile_loss, loss_ref);
 
-    require_frobenius_relative_error(nntile_grad_x, x_pt.grad().contiguous());
+    require_relative_frobenius_error(nntile_grad_x, x_pt.grad().contiguous());
 }
 
 #endif // NNTILE_HAVE_TORCH

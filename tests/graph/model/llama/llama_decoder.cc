@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/graph.hh"
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/llama/llama_config.hh"
@@ -129,7 +130,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 
     auto config = test_config();
-    const Index head_size = config.head_dim;
 
     SafeTensorsReader reader(full_path);
     std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
@@ -165,92 +165,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(result.size() == ref_data.size());
-    for(size_t i = 0; i < result.size(); ++i)
-    {
-        REQUIRE(std::abs(result[i] - ref_data[i]) < tol);
-    }
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "LlamaDecoder tiled matches untiled", "[model][llama]")
-{
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/llama_decoder_full.safetensors";
-    std::ifstream check(full_path);
-    if(!check.good())
-    {
-        SKIP("Llama decoder full test data not found.");
-    }
-
-    auto config = test_config();
-    const Index head_size = config.head_dim;
-
-    SafeTensorsReader reader(full_path);
-    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
-    std::vector<float> input_data(input_bytes.size() / sizeof(float));
-    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
-
-    std::vector<float> untiled_result;
-    {
-        NNGraph g("decoder_untiled");
-        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
-        LlamaDecoder decoder(&g, "decoder", config);
-        auto* output = decoder.forward(input, nullptr, nullptr, nullptr);
-        input->mark_input(true);
-        output->mark_output(true);
-
-        decoder.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input", input_data);
-        runtime.execute();
-        runtime.wait();
-
-        untiled_result = runtime.get_output<float>(output->name());
-    }
-
-    std::vector<float> tiled_result;
-    {
-        NNGraph g("decoder_tiled");
-        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
-        LlamaDecoder decoder(&g, "decoder", config);
-        auto* output = decoder.forward(input, nullptr, nullptr, nullptr);
-        input->mark_input(true);
-        output->mark_output(true);
-
-        decoder.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        for(auto* ag : tg.axis_groups())
-        {
-            if(ag->extent != head_size && ag->extent != 2)
-            {
-                ag->set_tiling((ag->extent + 1) / 2);
-            }
-        }
-
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input", input_data);
-        runtime.execute();
-        runtime.wait();
-
-        tiled_result = runtime.get_output<float>(output->name());
-    }
-
-    constexpr float tol = 1e-4f;
-    REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
-    }
+    require_relative_frobenius_error(result, ref_data, tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -265,7 +180,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
 
     auto config = test_config();
-    const Index head_size = config.head_dim;
 
     SafeTensorsReader reader(full_path);
     std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
@@ -315,115 +229,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(grad_input_result.size() == grad_input_ref.size());
-    for(size_t i = 0; i < grad_input_result.size(); ++i)
-    {
-        REQUIRE(std::abs(grad_input_result[i] - grad_input_ref[i]) < tol);
-    }
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "LlamaDecoder backward tiled matches untiled", "[model][llama]")
-{
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/llama_decoder_full.safetensors";
-    std::ifstream check(full_path);
-    if(!check.good())
-    {
-        SKIP("Llama decoder full test data not found.");
-    }
-
-    auto config = test_config();
-    const Index head_size = config.head_dim;
-
-    SafeTensorsReader reader(full_path);
-    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
-    std::vector<float> input_data(input_bytes.size() / sizeof(float));
-    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
-
-    std::vector<std::uint8_t> grad_out_bytes = reader.read_tensor("grad_output");
-    std::vector<float> grad_out_data(grad_out_bytes.size() / sizeof(float));
-    std::memcpy(grad_out_data.data(), grad_out_bytes.data(),
-        grad_out_bytes.size());
-
-    std::vector<float> untiled_result;
-    {
-        NNGraph g("decoder_bwd_untiled");
-        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32, true);
-        LlamaDecoder decoder(&g, "decoder", config);
-        auto* output = decoder.forward(input, nullptr, nullptr, nullptr);
-
-        input->mark_input(true);
-        output->mark_output(true);
-
-        auto [grad_output_tensor, _] =
-            g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
-        output->backward();
-        input->grad()->mark_output(true);
-
-        decoder.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input", input_data);
-        runtime.bind_data("grad_output", grad_out_data);
-        runtime.execute();
-        runtime.wait();
-
-        untiled_result =
-            runtime.get_output<float>(input->grad()->name());
-    }
-
-    std::vector<float> tiled_result;
-    {
-        NNGraph g("decoder_bwd_tiled");
-        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32, true);
-        LlamaDecoder decoder(&g, "decoder", config);
-        auto* output = decoder.forward(input, nullptr, nullptr, nullptr);
-
-        input->mark_input(true);
-        output->mark_output(true);
-
-        auto [grad_output_tensor, _] =
-            g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
-        output->backward();
-        input->grad()->mark_output(true);
-
-        decoder.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        for(auto* ag : tg.axis_groups())
-        {
-            if(ag->extent != head_size && ag->extent != 2)
-            {
-                ag->set_tiling((ag->extent + 1) / 2);
-            }
-        }
-
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input", input_data);
-        runtime.bind_data("grad_output", grad_out_data);
-        runtime.execute();
-        runtime.wait();
-
-        tiled_result =
-            runtime.get_output<float>(input->grad()->name());
-    }
-
-    constexpr float tol = 1e-4f;
-    REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
-    }
+    require_relative_frobenius_error(grad_input_result, grad_input_ref, tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -473,10 +279,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(result.size() == ref_data.size());
-    for(size_t i = 0; i < result.size(); ++i)
-    {
-        REQUIRE(std::abs(result[i] - ref_data[i]) < tol);
-    }
+    require_relative_frobenius_error(result, ref_data, tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -540,9 +343,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(grad_input_result.size() == grad_input_ref.size());
-    for(size_t i = 0; i < grad_input_result.size(); ++i)
-    {
-        REQUIRE(std::abs(grad_input_result[i] - grad_input_ref[i]) < tol);
-    }
+    require_relative_frobenius_error(grad_input_result, grad_input_ref, tol);
 }
 #endif

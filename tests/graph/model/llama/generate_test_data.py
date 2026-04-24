@@ -13,12 +13,37 @@
 """Generate reference test data for NNTile Llama C++ tests.
 
 For each block the script creates a ``llama_<block>_full.safetensors`` file
-that stores NNTile-layout weights, input tensor(s), the PyTorch reference
-forward output, and backward reference gradients (upstream gradient,
-input gradient).  Both NNTile and PyTorch are configured identically:
+that stores NNTile-layout weights, input tensor(s), reference forward output,
+and backward reference gradients.
 
-  * RoPE is replaced with identity (cos=1, sin=0).
-  * Causal attention mask is disabled (full attention).
+Uses **HuggingFace Transformers** (``modeling_llama``) plus NumPy layout
+wrangling only — no NNTile Python runtime or StarPU.
+
+``mlp`` / ``decoder`` / ``model`` / ``causal`` (and ``decoder_gqa`` /
+``model_gqa`` / ``causal_gqa``) use ``MHA_DIMS`` (hidden=8) or ``GQA_DIMS``
+(8-wide GQA). ``attention`` / ``attention_gqa`` use ``ATTENTION_MHA_DIMS`` /
+``ATTENTION_GQA_DIMS`` (larger, ``test_llama_attention`` ``single_tile`` + the
+C++ graph attention tests).
+
+For ``attention`` / ``attention_gqa`` blocks, ``rope_sin`` / ``rope_cos`` are
+the first half-channels of ``LlamaRotaryEmbedding`` cos/sin, reshaped to
+``(head_dim/2, seq, batch)`` and passed through :func:`fortran_order` so the
+byte layout matches the C++ graph ``bind_data`` convention. RoPE is built like
+``test_llama_attention.generate_inputs``: first argument
+``v_proj.weight``, ``position_ids`` in ``(batch, seq)`` from a NumPy RNG. Forward
+and backward use ``LlamaAttention`` with ``_attn_implementation="eager"`` and
+the same ``(cos, sin)`` tensors.
+
+Optional causal self-attention matches ``test_llama_attention``: additive
+``attention_mask`` from the upper-triangular bool pattern; the graph tests load
+``attn_mask`` as float32 ``(seq, seq)`` in Fortran layout (1 = keep logits),
+converted to BOOL in C++ for ``sdpa_eager`` masking.
+
+Extra MHA/GQA safetensors (no RoPE / causal / both) are written by
+``--write-attention-rope-mask-variants`` (CTest fixture for ``llama_attention``).
+
+The ``decoder`` and ``model`` / ``causal`` (and GQA) blocks use
+``LlamaRotaryEmbedding`` the same way as full-model inference, not a no-op.
 """
 
 from __future__ import annotations
@@ -33,8 +58,13 @@ import torch
 from safetensors.numpy import save_file
 from transformers import LlamaConfig
 from transformers.models.llama.modeling_llama import (
-    LlamaAttention as PtAttention, LlamaDecoderLayer as PtDecoderLayer,
-    LlamaForCausalLM as PtCausalLM, LlamaMLP as PtMLP, LlamaModel as PtModel)
+    LlamaAttention as PtAttention,
+    LlamaDecoderLayer as PtDecoderLayer,
+    LlamaForCausalLM as PtCausalLM,
+    LlamaMLP as PtMLP,
+    LlamaModel as PtModel,
+    LlamaRotaryEmbedding,
+)
 
 # ── Test dimension bundles ────────────────────────────────────────────────
 
@@ -64,6 +94,10 @@ class TestDims:
         return self.n_heads // self.kv_heads
 
 
+# Small bundles for ``mlp`` / ``decoder`` / ``model`` / ``causal`` and for
+# ``decoder_gqa`` / ``model_gqa`` / ``causal_gqa`` (keeps these safetensors light).
+# Not used for ``attention`` or ``attention_gqa``; those use
+# ``ATTENTION_MHA_DIMS`` / ``ATTENTION_GQA_DIMS`` (graph + PyTorch test).
 MHA_DIMS = TestDims(
     hidden=8, intermediate=16, n_heads=1, kv_heads=1,
     seq=4, batch=2, vocab=100, num_layers=2,
@@ -73,6 +107,21 @@ GQA_DIMS = TestDims(
     hidden=8, intermediate=16, n_heads=4, kv_heads=2,
     seq=4, batch=2, vocab=100, num_layers=2,
 )
+
+# ``wrappers/python/tests/model/test_llama_attention.py`` (``single_tile``):
+# head_size=64, n_head=8, n_head_kv=4, seq=64, batch=3. True MHA uses one head
+# (hidden=64) for the ``attention`` block; GQA uses 8/4 and hidden=512.
+ATTENTION_MHA_DIMS = TestDims(
+    hidden=64, intermediate=256, n_heads=1, kv_heads=1,
+    seq=64, batch=3, vocab=32000, num_layers=1,
+)
+ATTENTION_GQA_DIMS = TestDims(
+    hidden=512, intermediate=2048, n_heads=8, kv_heads=4,
+    seq=64, batch=3, vocab=32000, num_layers=1,
+)
+
+# Set to True from CLI ``--print-rope`` in :func:`main` (HuggingFace cos/sin).
+_print_rope: bool = False
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
@@ -100,39 +149,13 @@ def _make_config(dims: TestDims) -> LlamaConfig:
         vocab_size=dims.vocab,
         rms_norm_eps=dims.rms_eps,
         max_position_embeddings=2048,
+        rope_theta=1.0,
         _attn_implementation="eager",
         base_model_tp_plan=None,
+        # Parity with ``wrappers/python/tests/model/test_llama_attention.py``
+        attention_bias=False,
+        pretraining_tp=1,
     )
-
-
-def _identity_pos_emb(dims: TestDims):
-    """Return ``(cos, sin)`` that make RoPE an identity transform."""
-    cos = torch.ones(dims.batch, dims.seq, dims.head_size)
-    sin = torch.zeros_like(cos)
-    return cos, sin
-
-
-class _IdentityRoPE(torch.nn.Module):
-    """Drop-in replacement for ``LlamaRotaryEmbedding`` (identity)."""
-
-    def __init__(self, dim: int):
-        super().__init__()
-        self.dim = dim
-
-    def forward(self, x, position_ids):
-        bs, seq_len = x.shape[0], x.shape[1]
-        cos = torch.ones(bs, seq_len, self.dim, device=x.device, dtype=x.dtype)
-        sin = torch.zeros_like(cos)
-        return cos, sin
-
-
-def _patch_model(model, dims: TestDims):
-    """Disable RoPE and causal mask for NNTile (no-RoPE, no-mask) match."""
-    target = getattr(model, "model", model)
-    if hasattr(target, "rotary_emb"):
-        target.rotary_emb = _IdentityRoPE(dims.head_size)
-    if hasattr(target, "_update_causal_mask"):
-        target._update_causal_mask = lambda *a, **kw: None
 
 
 # ── Weight-extraction (PyTorch → NNTile layout) ─────────────────────────
@@ -254,11 +277,101 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
     return fortran_order(pt_out.detach().numpy().transpose(2, 1, 0))
 
 
-# ── Block generators ─────────────────────────────────────────────────────
+def _rope_half_from_hf(
+    cos: torch.Tensor, sin: torch.Tensor, dims: TestDims,
+) -> tuple[np.ndarray, np.ndarray]:
+    """HF ``(B,S,D)`` cos/sin → NNTile-graph ``(half,S,B)`` float32 (C layout)."""
+    half = dims.head_size // 2
+    cos_half = cos[:, :, :half].to(torch.float32).detach().cpu().numpy()
+    sin_half = sin[:, :, :half].to(torch.float32).detach().cpu().numpy()
+    # (B, S, half) → (half, S, B)
+    cos_np = np.transpose(cos_half, (2, 1, 0))
+    sin_np = np.transpose(sin_half, (2, 1, 0))
+    return cos_np, sin_np
+
+
+def _causal_additive_mask_torch(
+    batch: int, seq: int, device: torch.device, dtype: torch.dtype,
+) -> torch.Tensor:
+    """HF additive mask (4D), same construction as ``test_llama_attention``."""
+    mask = np.array(np.triu(np.ones((seq, seq))), dtype=bool, order="F")
+    mask_torch = torch.tensor(
+        np.array(1 - mask, dtype=np.float32),
+    ).T * torch.finfo(torch.float32).min
+    mask_torch = mask_torch.to(device=device, dtype=torch.float32)
+    return mask_torch[None, None, :, :].expand(batch, 1, -1, -1).to(dtype=dtype)
+
+
+def _sdpa_causal_mask_fortran(seq: int) -> np.ndarray:
+    """``(k_seq, q_seq)`` mask for graph ``sdpa_eager`` (1 = keep, 0 = mask).
+
+    Stored as float32 because ``safetensors.numpy.save_file`` upgrades numpy
+    bool to F32; the C++ test converts back to BOOL for ``mask_scalar``.
+    """
+    kk = np.arange(seq, dtype=np.int64)[:, None]
+    qq = np.arange(seq, dtype=np.int64)[None, :]
+    allowed = (kk <= qq).astype(np.float32)
+    return fortran_order(allowed)
+
+
+def _maybe_print_rope_hf(
+    cos: torch.Tensor, sin: torch.Tensor, where: str,
+) -> None:
+    """If ``_print_rope`` is on, show full cos/sin from ``LlamaRotaryEmbedding``."""
+    if not _print_rope:
+        return
+    c, s = cos.detach(), sin.detach()
+    is_identity = bool(
+        torch.allclose(c, torch.ones_like(c), atol=1e-5)
+        and torch.allclose(s, torch.zeros_like(s), atol=1e-5)
+    )
+    c00 = c[0, 0, :8].to(torch.float32).cpu().numpy()
+    s00 = s[0, 0, :8].to(torch.float32).cpu().numpy()
+    c01 = c[0, 1, :8].to(torch.float32).cpu().numpy() if c.shape[1] > 1 else c00
+    print(
+        f"[{where}] RoPE: shape (B, S, D) = {tuple(cos.shape)}; "
+        f"all cos=1, sin=0 (identity) would be: {is_identity}",
+        file=sys.stderr,
+    )
+    print(
+        f"[{where}]   cos[0,0,:8] = {np.array2string(c00, precision=4)}",
+        file=sys.stderr,
+    )
+    print(
+        f"[{where}]   sin[0,0,:8] = {np.array2string(s00, precision=4)}",
+        file=sys.stderr,
+    )
+    print(
+        f"[{where}]   cos[0,1,:8] = {np.array2string(c01, precision=4)}",
+        file=sys.stderr,
+    )
+
+
+# ── Block generators ─────────────────────────────────────────────────----
 
 
 def generate_attention(
-    seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
+    seed: int,
+    dims: TestDims = ATTENTION_MHA_DIMS,
+    *,
+    use_rope: bool = True,
+    use_causal_mask: bool = False,
+) -> dict[str, np.ndarray]:
+    """HuggingFace path aligned with ``test_llama_attention.generate_inputs``.
+
+    Uses ``ATTENTION_MHA_DIMS`` / ``ATTENTION_GQA_DIMS`` (``single_tile``-style
+    shapes). RoPE matches the Python test: first argument to
+    ``LlamaRotaryEmbedding`` is ``v_proj.weight``; position ids are drawn with
+    ``integers(0, seq, size=(batch, seq))`` (same as ``rng`` there).
+
+    When ``use_rope`` is False, cos/sin are replaced with ones/zeros (identity
+    RoPE) and ``rope_cos`` / ``rope_sin`` are omitted so the C++ graph skips
+    RoPE (nullptr sin/cos).
+
+    When ``use_causal_mask`` is True, ``attention_mask`` matches
+    ``test_llama_attention`` and ``attn_mask`` stores the BOOL causal pattern
+    for ``sdpa_eager`` in the graph.
+    """
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -270,8 +383,33 @@ def generate_attention(
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
 
-    pos = _identity_pos_emb(dims)
-    out = pt(x_pt, position_embeddings=pos, attention_mask=None)[0]
+    pos_ids = rng.integers(
+        0, dims.seq, size=(dims.batch, dims.seq), dtype=np.int64,
+    )
+    pos_ids_pt = torch.tensor(pos_ids, device=x_pt.device, dtype=torch.long)
+    rotary = LlamaRotaryEmbedding(config, device=x_pt.device)
+    cos, sin = rotary(pt.v_proj.weight, pos_ids_pt)
+    _maybe_print_rope_hf(cos, sin, "generate_attention / LlamaRotaryEmbedding")
+    if not use_rope:
+        cos = torch.ones_like(cos)
+        sin = torch.zeros_like(sin)
+    else:
+        cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
+        data["rope_cos"] = fortran_order(cos_np)
+        data["rope_sin"] = fortran_order(sin_np)
+
+    attn_mask_torch: torch.Tensor | None = None
+    if use_causal_mask:
+        attn_mask_torch = _causal_additive_mask_torch(
+            dims.batch, dims.seq, x_pt.device, x_pt.dtype,
+        )
+        data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
+
+    out = pt(
+        x_pt,
+        position_embeddings=(cos, sin),
+        attention_mask=attn_mask_torch,
+    )[0]
     data["output_ref"] = _out_to_nntile(out)
 
     g_nt, g_pt = _grad_output(rng, out)
@@ -279,6 +417,25 @@ def generate_attention(
     out.backward(g_pt)
     data["grad_input"] = _out_to_nntile(x_pt.grad)
     return data
+
+
+def write_attention_rope_mask_variant_files(out: Path, seed: int) -> None:
+    """Write extra attention safetensors for RoPE / causal-mask combinations."""
+    specs: list[tuple[str, TestDims, bool, bool]] = [
+        ("llama_attention_no_rope_full.safetensors", ATTENTION_MHA_DIMS, False, False),
+        ("llama_attention_causal_full.safetensors", ATTENTION_MHA_DIMS, True, True),
+        ("llama_attention_no_rope_causal_full.safetensors", ATTENTION_MHA_DIMS, False, True),
+        ("llama_attention_gqa_no_rope_full.safetensors", ATTENTION_GQA_DIMS, False, False),
+        ("llama_attention_gqa_causal_full.safetensors", ATTENTION_GQA_DIMS, True, True),
+        ("llama_attention_gqa_no_rope_causal_full.safetensors", ATTENTION_GQA_DIMS, False, True),
+    ]
+    for fname, dims, rope, causal in specs:
+        payload = generate_attention(
+            seed, dims, use_rope=rope, use_causal_mask=causal,
+        )
+        path = str(out / fname)
+        save_file(payload, path)
+        print(f"Saved {path}")
 
 
 def generate_mlp(
@@ -317,8 +474,13 @@ def generate_decoder(
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
 
-    pos = _identity_pos_emb(dims)
-    out = pt(x_pt, position_embeddings=pos)[0]
+    position_ids = torch.arange(
+        dims.seq, device=x_pt.device, dtype=torch.long,
+    ).unsqueeze(0).expand(dims.batch, -1)
+    rotary = LlamaRotaryEmbedding(config, device=x_pt.device)
+    cos, sin = rotary(x_pt, position_ids)
+    _maybe_print_rope_hf(cos, sin, "generate_decoder / LlamaRotaryEmbedding")
+    out = pt(x_pt, position_embeddings=(cos, sin))[0]
     data["output_ref"] = _out_to_nntile(out)
 
     g_nt, g_pt = _grad_output(rng, out)
@@ -335,7 +497,6 @@ def generate_model(
     config = _make_config(dims)
 
     pt = PtModel(config)
-    _patch_model(pt, dims)
 
     data = _model_weights(pt, "model", dims)
     ids_nt, ids_pt = _ids_input(rng, dims)
@@ -357,7 +518,6 @@ def generate_causal(
     config = _make_config(dims)
 
     pt = PtCausalLM(config)
-    _patch_model(pt, dims)
 
     data = _model_weights(pt.model, "model.model", dims)
     data["model.lm_head.weight"] = _linear(pt.lm_head)
@@ -379,7 +539,7 @@ GENERATORS = {
     "decoder": generate_decoder,
     "model": generate_model,
     "causal": generate_causal,
-    "attention_gqa": lambda seed: generate_attention(seed, GQA_DIMS),
+    "attention_gqa": lambda seed: generate_attention(seed, ATTENTION_GQA_DIMS),
     "decoder_gqa": lambda seed: generate_decoder(seed, GQA_DIMS),
     "model_gqa": lambda seed: generate_model(seed, GQA_DIMS),
     "causal_gqa": lambda seed: generate_causal(seed, GQA_DIMS),
@@ -392,11 +552,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Generate Llama block test data (safetensors)",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument(
         "--block",
-        required=True,
         choices=GENERATORS,
         help="Llama block to generate data for",
+    )
+    mode.add_argument(
+        "--write-attention-rope-mask-variants",
+        action="store_true",
+        help=(
+            "Write six extra attention safetensors (MHA/GQA × no-RoPE / causal / "
+            "both) for C++ graph tests; does not overwrite default "
+            "llama_attention(_gqa)_full.safetensors."
+        ),
     )
     parser.add_argument(
         "--output", "-o", required=True, help="Output directory",
@@ -404,10 +573,25 @@ def main() -> int:
     parser.add_argument(
         "--seed", "-s", type=int, default=42, help="Random seed",
     )
+    parser.add_argument(
+        "--print-rope",
+        action="store_true",
+        help=(
+            "Print a sample of HuggingFace RoPE cos/sin (B,S,D) for attention "
+            "or decoder (GQA) blocks. Identity RoPE would be all cos=1, sin=0."
+        ),
+    )
     args = parser.parse_args()
+
+    global _print_rope
+    _print_rope = args.print_rope
 
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
+
+    if args.write_attention_rope_mask_variants:
+        write_attention_rope_mask_variant_files(out, args.seed)
+        return 0
 
     data = GENERATORS[args.block](args.seed)
 
