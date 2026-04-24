@@ -93,6 +93,8 @@ while IFS= read -r file; do
             affected["tests_tensor_$(basename "$file" .cc)"]=1 ;;
         tests/graph/tensor/*.cc)
             affected["tests_graph_tensor_$(basename "$file" .cc)"]=1 ;;
+        tests/graph/tile/*.cc)
+            affected["tests_graph_tile_$(basename "$file" .cc)"]=1 ;;
         tests/graph/nn/*.cc)
             affected["tests_graph_nn_$(basename "$file" .cc)"]=1 ;;
         tests/graph/module/*.cc)
@@ -135,6 +137,10 @@ while IFS= read -r file; do
             affected["tests_graph_tensor_$(basename "$file" .cc)"]=1 ;;
         include/nntile/graph/tensor/*.hh)
             affected["tests_graph_tensor_$(basename "$file" .hh)"]=1 ;;
+        src/graph/tile/*.cc)
+            affected["tests_graph_tile_$(basename "$file" .cc)"]=1 ;;
+        include/nntile/graph/tile/*.hh)
+            affected["tests_graph_tile_$(basename "$file" .hh)"]=1 ;;
         src/graph/nn/*.cc)
             affected["tests_graph_nn_$(basename "$file" .cc)"]=1 ;;
         include/nntile/graph/nn/*.hh)
