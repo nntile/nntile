@@ -1,0 +1,30 @@
+# Canonical profile for this repository. Matches
+# .cursor/skills/cpp-coding-style/ — adjust here if team rules change.
+#
+# Optional east const (clang-format 14+; remove if unsupported):
+# QualifierAlignment: Custom
+# QualifierOrder: ['static', 'constexpr', 'type', 'const', 'volatile']
+
+BasedOnStyle: LLVM
+Language: Cpp
+ColumnLimit: 79
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+BreakBeforeBraces: Allman
+AllowShortBlocksOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+BinPackArguments: false
+BinPackParameters: false
+ExperimentalAutoDetectBinPacking: false
+AlignAfterOpenBracket: DontAlign
+BreakConstructorInitializers: AfterColon
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ReflowComments: true
+SortIncludes: true
+IncludeBlocks: Regroup
+PointerAlignment: Right
+ReferenceAlignment: Pointer
+SpaceAfterCStyleCast: true
+SpacesInParentheses: false

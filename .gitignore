@@ -1,8 +1,12 @@
-.cursor/
 build/
 .vscode
 __pycache__
 .venv/
+
+# Cursor: ignore machine-local state; track only shared skills under .cursor/skills/
+.cursor/*
+!.cursor/skills/
+!.cursor/skills/**
 
 # Binary test data (generated at test time via CTest fixture)
 *.safetensors
