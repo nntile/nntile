@@ -21,8 +21,10 @@ For ``attention`` / ``attention_gqa`` blocks, RoPE tensors ``rope_sin`` and
 ``wrappers/python/nntile/model/llama_attention.py::_fill_sin_cos``.  Forward
 and backward references are produced with the **Python NNTile LlamaAttention**
 implementation (same ``rope_async`` path as the C++ graph) when the built
-``nntile`` package is importable (``PYTHONPATH`` should include
-``<build>/wrappers/python``).  If import fails, the script falls back to
+``nntile`` package is importable.  Prefer ``PYTHONPATH=<build>/wrappers/python``
+(and do not put the source ``wrappers/python`` tree *before* that path, or
+``import nntile`` will miss ``nntile_core``).  The script also prepends the
+detected build tree when present.  If import fails, the script falls back to
 HuggingFace attention with identity position embeddings and omits ``rope_*``
 tensors so legacy C++ tests still run without RoPE.
 """
@@ -263,7 +265,14 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
 
 
 def _prepend_nntile_sys_path() -> None:
-    """Prefer built extension under ``<repo>/build/.../wrappers/python``."""
+    """Put the **built** NNTile package first on ``sys.path``.
+
+    The compiled extension ``nntile_core`` lives under
+    ``<repo>/build/.../wrappers/python/nntile``.  The source tree
+    ``<repo>/wrappers/python`` must **not** be prepended ahead of that path,
+    otherwise ``import nntile`` resolves to pure Python and fails to load
+    ``nntile_core`` (CTest already sets ``PYTHONPATH`` to the build tree).
+    """
     root = Path(__file__).resolve().parents[4]
     for rel in (
         "build/wrappers/python",
@@ -271,12 +280,12 @@ def _prepend_nntile_sys_path() -> None:
         "build/Debug/wrappers/python",
     ):
         p = root / rel.replace("/", os.sep)
-        if p.is_dir():
+        if (p / "nntile").is_dir():
             sys.path.insert(0, str(p))
             break
     src_py = root / "wrappers" / "python"
     if src_py.is_dir():
-        sys.path.insert(0, str(src_py))
+        sys.path.append(str(src_py))
 
 
 def _rope_sin_cos_numpy(
@@ -298,12 +307,17 @@ def _rope_sin_cos_numpy(
 
 
 def _run_nntile_llama_attention_reference(
+    pt_attn: PtAttention,
     dims: TestDims,
     data: dict[str, np.ndarray],
     rng: np.random.Generator,
     rope_theta: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
     """Forward + backward using Python ``LlamaAttention`` (non-flash SDPA).
+
+    Uses ``LlamaAttention.from_torch`` with the same HF ``LlamaAttention`` used
+    to populate ``data`` (weight layout must match NNTile, not the flattened
+    ``attn.*_weight`` safetensors layout).
 
     Returns ``(output_ref, grad_output, grad_input)`` as Fortran float32
     arrays, or ``None`` if the ``nntile`` package cannot be loaded.
@@ -315,7 +329,15 @@ def _run_nntile_llama_attention_reference(
         from nntile.model.llama_config import LlamaConfigNNTile
         from nntile.tensor import Tensor_fp32, TensorMoments, TensorTraits
         from nntile.utils.constructors import to_numpy
-    except ImportError:
+    except ImportError as exc:
+        print(
+            "WARNING: could not import nntile for attention reference "
+            f"({exc}).\n"
+            "  Build the Python wrappers and ensure "
+            "<build>/wrappers/python is on PYTHONPATH **before** the source "
+            "wrappers/python tree (CTest sets this automatically).",
+            file=sys.stderr,
+        )
         return None
 
     n_emb = dims.hidden
@@ -343,32 +365,21 @@ def _run_nntile_llama_attention_reference(
 
     pos_ids = np.tile(np.arange(seq, dtype=np.int64), (batch, 1))
 
-    x_traits = TensorTraits(
-        [n_emb, seq, batch],
-        [n_emb_tile, n_seq_tile, n_batch_tile],
-    )
-    x_distr = [0] * x_traits.grid.nelems
-    x_value = Tensor_fp32(x_traits, x_distr)
-    x_grad = Tensor_fp32(x_traits, x_distr)
-    x_m = TensorMoments(x_value, x_grad, grad_required=True)
-    x_value.from_array(np.asarray(data["input"], dtype=np.float32))
-
     ctx = nntile.Context(ncpu=1, ncuda=0, ooc=0, logger=0, verbose=0)
     ctx.restrict_cpu()
     try:
-        layer = LlamaAttention(x_m, pos_ids, None, nntile_config)
-        layer.q_proj.w.value.from_array(
-            np.asarray(data["attn.q_weight"], dtype=np.float32)
+        x_traits = TensorTraits(
+            [n_emb, seq, batch],
+            [n_emb_tile, n_seq_tile, n_batch_tile],
         )
-        layer.k_proj.w.value.from_array(
-            np.asarray(data["attn.k_weight"], dtype=np.float32)
-        )
-        layer.v_proj.w.value.from_array(
-            np.asarray(data["attn.v_weight"], dtype=np.float32)
-        )
-        layer.out_proj.w.value.from_array(
-            np.asarray(data["attn.o_weight"], dtype=np.float32)
-        )
+        x_distr = [0] * x_traits.grid.nelems
+        x_value = Tensor_fp32(x_traits, x_distr)
+        x_grad = Tensor_fp32(x_traits, x_distr)
+        x_m = TensorMoments(x_value, x_grad, grad_required=True)
+        x_value.from_array(np.asarray(data["input"], dtype=np.float32))
+
+        layer = LlamaAttention.from_torch(
+            pt_attn, x_m, pos_ids, None, nntile_config)
 
         layer.clear_gradients()
         layer.forward_async()
@@ -416,15 +427,15 @@ def generate_attention(
     data["rope_sin"] = fortran_order(sin_np)
 
     nnt_ref = _run_nntile_llama_attention_reference(
-        dims, data, rng, rope_theta,
+        pt, dims, data, rng, rope_theta,
     )
     if nnt_ref is not None:
         data["output_ref"], data["grad_output"], data["grad_input"] = nnt_ref
         return data
 
     print(
-        "WARNING: nntile Python module not available; using identity-RoPE "
-        "HuggingFace reference and omitting rope_sin/rope_cos.",
+        "WARNING: using identity-RoPE HuggingFace reference and omitting "
+        "rope_sin/rope_cos (see nntile import warning above if any).",
         file=sys.stderr,
     )
     del data["rope_cos"]

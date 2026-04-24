@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/graph.hh"
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/llama/llama_attention.hh"
@@ -232,10 +233,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(result.size() == ref_data.size());
-    for(size_t i = 0; i < result.size(); ++i)
-    {
-        REQUIRE(std::abs(result[i] - ref_data[i]) < tol);
-    }
+    REQUIRE(relative_frobenius_error(result, ref_data) < tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -298,13 +296,19 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         attn.load(full_path);
 
         TensorGraph& tg = g.tensor_graph();
-        for(auto* ag : tg.axis_groups())
+        // RoPE requires src.basetile_shape[0] == 2*sin.basetile_shape[0]; the
+        // generic axis tiling below can break that pairing, so skip it when
+        // sin/cos tensors are wired in.
+        if(rope.sin == nullptr)
         {
-            // Do not tile head_size (breaks attention). Do not tile extent 2
-            // (maxsumexp/logsumexp require dst.basetile_shape[0]==2).
-            if(ag->extent != head_size && ag->extent != 2)
+            for(auto* ag : tg.axis_groups())
             {
-                ag->set_tiling((ag->extent + 1) / 2);
+                // Do not tile head_size (breaks attention). Do not tile extent 2
+                // (maxsumexp/logsumexp require dst.basetile_shape[0]==2).
+                if(ag->extent != head_size && ag->extent != 2)
+                {
+                    ag->set_tiling((ag->extent + 1) / 2);
+                }
             }
         }
 
@@ -320,10 +324,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
-    }
+    REQUIRE(relative_frobenius_error(tiled_result, untiled_result) < tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -390,10 +391,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(grad_input_result.size() == grad_input_ref.size());
-    for(size_t i = 0; i < grad_input_result.size(); ++i)
-    {
-        REQUIRE(std::abs(grad_input_result[i] - grad_input_ref[i]) < tol);
-    }
+    REQUIRE(
+        relative_frobenius_error(grad_input_result, grad_input_ref) < tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -476,11 +475,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         attn.load(full_path);
 
         TensorGraph& tg = g.tensor_graph();
-        for(auto* ag : tg.axis_groups())
+        if(rope.sin == nullptr)
         {
-            if(ag->extent != head_size && ag->extent != 2)
+            for(auto* ag : tg.axis_groups())
             {
-                ag->set_tiling((ag->extent + 1) / 2);
+                if(ag->extent != head_size && ag->extent != 2)
+                {
+                    ag->set_tiling((ag->extent + 1) / 2);
+                }
             }
         }
 
@@ -498,10 +500,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
-    }
+    REQUIRE(relative_frobenius_error(tiled_result, untiled_result) < tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -553,10 +552,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(result.size() == ref_data.size());
-    for(size_t i = 0; i < result.size(); ++i)
-    {
-        REQUIRE(std::abs(result[i] - ref_data[i]) < tol);
-    }
+    REQUIRE(relative_frobenius_error(result, ref_data) < tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -622,9 +618,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(grad_input_result.size() == grad_input_ref.size());
-    for(size_t i = 0; i < grad_input_result.size(); ++i)
-    {
-        REQUIRE(std::abs(grad_input_result[i] - grad_input_ref[i]) < tol);
-    }
+    REQUIRE(
+        relative_frobenius_error(grad_input_result, grad_input_ref) < tol);
 }
 #endif

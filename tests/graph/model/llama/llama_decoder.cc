@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
 #include "nntile/graph.hh"
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/llama/llama_config.hh"
@@ -163,10 +164,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(result.size() == ref_data.size());
-    for(size_t i = 0; i < result.size(); ++i)
-    {
-        REQUIRE(std::abs(result[i] - ref_data[i]) < tol);
-    }
+    REQUIRE(relative_frobenius_error(result, ref_data) < tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -240,10 +238,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
-    }
+    REQUIRE(relative_frobenius_error(tiled_result, untiled_result) < tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -306,10 +301,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(grad_input_result.size() == grad_input_ref.size());
-    for(size_t i = 0; i < grad_input_result.size(); ++i)
-    {
-        REQUIRE(std::abs(grad_input_result[i] - grad_input_ref[i]) < tol);
-    }
+    REQUIRE(
+        relative_frobenius_error(grad_input_result, grad_input_ref) < tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -406,10 +399,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
-    }
+    REQUIRE(relative_frobenius_error(tiled_result, untiled_result) < tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -457,10 +447,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(result.size() == ref_data.size());
-    for(size_t i = 0; i < result.size(); ++i)
-    {
-        REQUIRE(std::abs(result[i] - ref_data[i]) < tol);
-    }
+    REQUIRE(relative_frobenius_error(result, ref_data) < tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -522,9 +509,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-4f;
     REQUIRE(grad_input_result.size() == grad_input_ref.size());
-    for(size_t i = 0; i < grad_input_result.size(); ++i)
-    {
-        REQUIRE(std::abs(grad_input_result[i] - grad_input_ref[i]) < tol);
-    }
+    REQUIRE(
+        relative_frobenius_error(grad_input_result, grad_input_ref) < tol);
 }
 #endif
