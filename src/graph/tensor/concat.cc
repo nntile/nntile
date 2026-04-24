@@ -14,17 +14,37 @@
 
 #include "nntile/graph/tensor/concat.hh"
 #include "nntile/graph/tensor.hh"
-#include "nntile/tensor/clear.hh"
-#include "nntile/tensor/copy_intersection.hh"
+#include "nntile/graph/tensor/clear.hh"
+#include "nntile/graph/tensor/copy_intersection.hh"
 
 #include <stdexcept>
+#include <vector>
 
 #include "nntile/graph/dtype.hh"
+#include "nntile/graph/tile/lowering_context.hh"
 
 namespace nntile::graph::tensor
 {
 
+void TensorConcatOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    // Same decomposition as tensor-level concat: zero dst, then copy each
+    // operand into its slice of the output (reuse virtual lowering of CLEAR
+    // and COPY_INTERSECTION).
+    TensorClearOp clear_op(output);
+    clear_op.lower_to_tile(ctx);
 
+    const Index ndim = output->ndim();
+    std::vector<Index> zero(static_cast<size_t>(ndim), 0);
+    TensorCopyIntersectionOp copy_a(a, zero, output, zero);
+    copy_a.lower_to_tile(ctx);
+
+    std::vector<Index> src_b_off(zero);
+    src_b_off[static_cast<size_t>(axis)] =
+        a->shape()[static_cast<size_t>(axis)];
+    TensorCopyIntersectionOp copy_b(b, src_b_off, output, zero);
+    copy_b.lower_to_tile(ctx);
+}
 
 TensorGraph::TensorNode* concat(
     TensorGraph::TensorNode* a,
