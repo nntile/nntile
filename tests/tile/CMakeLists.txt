@@ -10,6 +10,12 @@
 # Tests for nntile::tile functions
 #
 # @version 1.1.0
+#
+# Test layout: each src/tile/<name>.cc should have a matching tests/tile/<name>.cc
+# registered in TESTS below (or in TESTS_CATCH2 when using Catch2/CUDA-only).
+# tests/tile/tile.cc is the exception (Tile class tests; there is no src/tile/tile.cc).
+# When adding a new tile op: add the implementation under src/tile/, add the test
+# file under tests/tile/, and append the basename to TESTS or TESTS_CATCH2.
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -86,36 +92,6 @@ set(TESTS
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
-    "add"
-    "add_fiber_inplace"
-    "add_fiber"
-    "gelu"
-    "gelu_backward"
-    "gelutanh"
-    "gelutanh_backward"
-    "logsumexp"
-    "mask_scalar"
-    "pow"
-    "multiply_fiber_inplace"
-    "multiply_slice"
-    "relu_backward"
-    "relu"
-    "rope"
-    "sgd_step"
-    "silu_backward"
-    "silu"
-    "silu_inplace"
-    "subtract_indexed_outputs"
-    "sum_fiber"
-    "sumprod_fiber"
-    "total_sum_accum"
-    "sqrt"
-    "scale"
-    "scale_fiber"
-    "softmax"
-    "hypot_inplace"
-    "add_slice"
-    "multiply_fiber"
 )
 
 # Add target for local coverage

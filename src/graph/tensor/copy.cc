@@ -18,24 +18,14 @@
 #include <utility>
 
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/copy.hh"
 #include "nntile/tensor/copy.hh"
 
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_copy(TensorGraph::Runtime& runtime,
-              TensorGraph::TensorNode* src, TensorGraph::TensorNode* dst)
-{
-    auto& src_t = runtime.get_tensor<T>(src);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::copy<T>(src_t, dst_t);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* copy(TensorGraph::TensorNode* src,
                               const std::string& output_name)
@@ -66,23 +56,20 @@ void copy(TensorGraph::TensorNode* src, TensorGraph::TensorNode* dst)
     src->graph()->add_op(op);
 }
 
-void TensorCopyOp::execute(TensorGraph::Runtime& runtime) const
+void TensorCopyOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    DataType dtype = runtime.get_dtype(src);
-    switch(dtype)
+    const auto& m = ctx.tile_map;
+    const auto& v_src = tile_lower::tiles_of(m, src);
+    const auto& v_dst = tile_lower::tiles_of(m, dst);
+    if(v_src.size() != v_dst.size())
     {
-        case DataType::FP32: run_copy<nntile::fp32_t>(runtime, src, dst); break;
-        case DataType::FP32_FAST_TF32: run_copy<nntile::fp32_fast_tf32_t>(runtime, src, dst); break;
-        case DataType::FP32_FAST_FP16: run_copy<nntile::fp32_fast_fp16_t>(runtime, src, dst); break;
-        case DataType::FP32_FAST_BF16: run_copy<nntile::fp32_fast_bf16_t>(runtime, src, dst); break;
-        case DataType::FP64: run_copy<nntile::fp64_t>(runtime, src, dst); break;
-        case DataType::FP16: run_copy<nntile::fp16_t>(runtime, src, dst); break;
-        case DataType::BF16: run_copy<nntile::bf16_t>(runtime, src, dst); break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(std::string(dtype_to_string(dtype)) +
-                " not supported for copy");
-        default: throw std::runtime_error("Unsupported data type for copy");
+        throw std::runtime_error(
+            "lower_to_tile COPY: tile count mismatch for src/dst");
+    }
+    tile_lower::assert_same_elementwise_layout(src, dst, "COPY src/dst");
+    for(size_t i = 0; i < v_src.size(); ++i)
+    {
+        tile_graph::copy(v_src[i], v_dst[i]);
     }
 }
 

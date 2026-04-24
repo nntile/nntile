@@ -22,6 +22,7 @@
 #include "nntile/graph/tensor/total_sum_accum.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/total_sum_accum.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -84,7 +85,10 @@ void check_total_sum_accum_vs_tensor_api(
     gt::total_sum_accum(alpha_one, logsumexp_node, src_node, labels_node,
                    val_node, ignore_index);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     runtime.bind_data("logsumexp", logsumexp_data);
@@ -279,7 +283,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         gt::total_sum_accum(alpha_one, logsumexp_node, src_node, labels_node,
                        val_node, ignore_index);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("logsumexp", logsumexp_data);
@@ -321,7 +328,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             }
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("logsumexp", logsumexp_data);

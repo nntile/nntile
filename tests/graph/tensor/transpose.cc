@@ -20,6 +20,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/transpose.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/transpose.hh"
 #include "nntile/tensor/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
@@ -63,7 +64,10 @@ void check_transpose_vs_tensor_api(
     auto* dst_node = gt::transpose(alpha, src_node, "dst", ndim);
     dst_node->mark_output(true);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(nelems);
@@ -191,7 +195,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto* dst_node = gt::transpose(alpha, src_node, "dst", ndim_val);
         dst_node->mark_output(true);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("src", src_data);
@@ -215,7 +222,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("src", src_data);

@@ -21,6 +21,7 @@
 #include "nntile/graph/tensor/clear.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/clear.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -44,7 +45,10 @@ void check_clear_vs_tensor_api(
 
     gt::clear(dst_node);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     // Bind with non-zero data (will be overwritten by clear)
@@ -113,7 +117,7 @@ TEST_CASE("TensorGraph clear structure", "[graph][tensor]")
 
     const auto& ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "CLEAR");
-    REQUIRE(ops[0]->inputs().size() == 1);
+    REQUIRE(ops[0]->inputs().size() == 0);
     REQUIRE(ops[0]->outputs().size() == 1);
     REQUIRE(ops[0]->outputs()[0] == src);
 }
@@ -159,7 +163,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         gt::clear(dst_node);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("dst", init_data);
@@ -183,7 +190,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("dst", init_data);

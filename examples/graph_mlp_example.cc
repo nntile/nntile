@@ -82,7 +82,9 @@ int main(int argc, char** argv) {
     std::cout << graph.to_string() << std::endl;
 
     // Compile the graph for execution
-    nntile::graph::TensorGraph::Runtime runtime(graph.tensor_graph());
+    nntile::graph::TileGraph tile_graph =
+        nntile::graph::TileGraph::from_tensor_graph(graph.tensor_graph());
+    nntile::graph::TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     // Generate random input data (4 batches x 8 features)

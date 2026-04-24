@@ -17,6 +17,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/log_scalar.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/log_scalar.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -67,7 +68,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     gt::log_scalar("test_value", value_node);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> value_data = {3.14f};

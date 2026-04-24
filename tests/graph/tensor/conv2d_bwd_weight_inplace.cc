@@ -22,6 +22,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/conv2d_bwd_weight_inplace.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/conv2d_bwd_weight_inplace.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -120,7 +121,10 @@ void check_conv2d_bwd_weight_inplace_vs_tensor_api(
     gt::conv2d_bwd_weight_inplace(alpha, x_node, dy_node, beta, dc_node,
                              padding, stride, dilation);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> x_data(x_nelems);

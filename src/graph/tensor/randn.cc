@@ -19,28 +19,44 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/randn.hh"
 #include "nntile/tensor/randn.hh"
 
 namespace nntile::graph::tensor
 {
 
-namespace
+void TensorRandnOp::lower_to_tile(const LoweringContext& ctx) const
 {
-
-template<typename T>
-void run_randn(
-    TensorGraph::Runtime& runtime,
-    const std::vector<Index>& start,
-    const std::vector<Index>& underlying_shape,
-    unsigned long long seed,
-    Scalar mean, Scalar stddev,
-    TensorGraph::TensorNode* dst)
-{
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::randn<T>(dst_t, start, underlying_shape, seed, mean, stddev);
+    // Match nntile::tensor::randn_async tile loop (src/tensor/randn.cc).
+    const TensorAxisLayout* lay = ctx.tiling.find(dst);
+    if(lay == nullptr)
+    {
+        throw std::runtime_error("lower_to_tile RANDN: missing tiling for dst");
+    }
+    const auto& tiles = tile_lower::tiles_of(ctx.tile_map, dst);
+    if(static_cast<size_t>(lay->grid_volume()) != tiles.size())
+    {
+        throw std::runtime_error("lower_to_tile RANDN: tile count mismatch");
+    }
+    std::vector<Index> grid_coord;
+    std::vector<Index> tile_start(static_cast<size_t>(dst->ndim()));
+    for(Index lin = 0; lin < lay->grid_volume(); ++lin)
+    {
+        lay->grid_coord_from_linear(lin, grid_coord);
+        for(Index d = 0; d < dst->ndim(); ++d)
+        {
+            Index glo = 0;
+            Index ghi = 0;
+            lay->tile_axis_global_range(grid_coord, d, glo, ghi);
+            tile_start[static_cast<size_t>(d)] = glo;
+        }
+        tile_graph::randn(tiles[static_cast<size_t>(lin)], tile_start,
+            underlying_shape, seed, mean, stddev);
+    }
 }
-
-} // namespace
 
 void randn(
     TensorGraph::TensorNode* dst,
@@ -69,50 +85,6 @@ void randn(
     auto op = std::make_shared<TensorRandnOp>(
         dst, start, underlying_shape, seed, mean, stddev);
     dst->graph()->add_op(op);
-}
-
-void TensorRandnOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(dst);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_randn<nntile::fp32_t>(
-                runtime, start, underlying_shape, seed, mean, stddev, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_randn<nntile::fp32_fast_tf32_t>(
-                runtime, start, underlying_shape, seed, mean, stddev, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_randn<nntile::fp32_fast_fp16_t>(
-                runtime, start, underlying_shape, seed, mean, stddev, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_randn<nntile::fp32_fast_bf16_t>(
-                runtime, start, underlying_shape, seed, mean, stddev, dst);
-            break;
-        case DataType::FP64:
-            run_randn<nntile::fp64_t>(
-                runtime, start, underlying_shape, seed, mean, stddev, dst);
-            break;
-        case DataType::FP16:
-            throw std::runtime_error(
-                "FP16 data type not supported for randn operation");
-        case DataType::BF16:
-            run_randn<nntile::bf16_t>(
-                runtime, start, underlying_shape, seed, mean, stddev, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for randn operation");
-        default:
-            throw std::runtime_error("Unsupported data type for randn");
-    }
 }
 
 } // namespace nntile::graph::tensor

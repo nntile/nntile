@@ -21,6 +21,7 @@
 #include "nntile/graph/tensor/gather.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -51,7 +52,10 @@ void check_gather_vs_tensor_api(const std::vector<Index>& shape)
     auto* dst_node = gt::gather(src_node, "dst");
     dst_node->mark_output(true);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(nelems);

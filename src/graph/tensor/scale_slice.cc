@@ -22,25 +22,15 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/scale_slice.hh"
 
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/scale_slice.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_scale_slice(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Index axis,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst)
-{
-    auto& src_t = runtime.get_tensor<T>(src);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::scale_slice<T>(alpha, src_t, dst_t, axis);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* scale_slice(
     Scalar alpha,
@@ -114,41 +104,49 @@ void scale_slice(
     src->graph()->add_op(op);
 }
 
-void TensorScaleSliceOp::execute(
-    TensorGraph::Runtime& runtime) const
+void TensorScaleSliceOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    DataType dtype = runtime.get_dtype(src);
-
-    switch(dtype)
+    // Match nntile::tensor::scale_slice_async (src/tensor/scale_slice.cc).
+    const TensorAxisLayout* lay_s = ctx.tiling.find(src);
+    const TensorAxisLayout* lay_d = ctx.tiling.find(dst);
+    if(lay_s == nullptr || lay_d == nullptr)
     {
-        case DataType::FP32:
-            run_scale_slice<nntile::fp32_t>(runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_scale_slice<nntile::fp32_fast_tf32_t>(runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_scale_slice<nntile::fp32_fast_fp16_t>(runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_scale_slice<nntile::fp32_fast_bf16_t>(runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP64:
-            run_scale_slice<nntile::fp64_t>(runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP16:
-            run_scale_slice<nntile::fp16_t>(runtime, alpha, axis, src, dst);
-            break;
-        case DataType::BF16:
-            run_scale_slice<nntile::bf16_t>(runtime, alpha, axis, src, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for scale_slice operation");
-        default:
-            throw std::runtime_error("Unsupported data type for scale_slice");
+        throw std::runtime_error(
+            "lower_to_tile SCALE_SLICE: missing tiling for src and/or dst");
+    }
+
+    const auto& tiles_s = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto& tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
+
+    std::vector<Index> s_coord;
+    std::vector<Index> d_coord(static_cast<size_t>(dst->ndim()));
+
+    for(Index lin_s = 0; lin_s < lay_s->grid_volume(); ++lin_s)
+    {
+        lay_s->grid_coord_from_linear(lin_s, s_coord);
+        for(Index j = 0; j < axis; ++j)
+        {
+            d_coord[static_cast<size_t>(j)] =
+                s_coord[static_cast<size_t>(j)];
+        }
+        for(Index j = axis + 1; j < dst->ndim(); ++j)
+        {
+            d_coord[static_cast<size_t>(j)] =
+                s_coord[static_cast<size_t>(j - 1)];
+        }
+
+        const Index nseg_along_axis =
+            lay_d->grid_shape()[static_cast<size_t>(axis)];
+        for(Index jj = 0; jj < nseg_along_axis; ++jj)
+        {
+            d_coord[static_cast<size_t>(axis)] = jj;
+            const Index lin_d = lay_d->grid_linear(d_coord);
+            tile_graph::scale_slice(
+                alpha,
+                tiles_s[static_cast<size_t>(lin_s)],
+                tiles_d[static_cast<size_t>(lin_d)],
+                axis);
+        }
     }
 }
 

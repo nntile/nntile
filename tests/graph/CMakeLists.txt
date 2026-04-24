@@ -17,6 +17,7 @@ set(TESTS_CATCH2 "nn")
 # Include nn and tensor operation tests
 add_subdirectory(nn)
 add_subdirectory(tensor)
+add_subdirectory(tile)
 add_subdirectory(module)
 add_subdirectory(io)
 add_subdirectory(model)

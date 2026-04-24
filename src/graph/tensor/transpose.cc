@@ -19,7 +19,12 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/transpose.hh"
 #include "nntile/tensor/transpose.hh"
+#include "nntile/tile/traits.hh"
 
 namespace nntile::graph::tensor
 {
@@ -27,18 +32,60 @@ namespace nntile::graph::tensor
 namespace
 {
 
-template<typename T>
-void run_transpose(TensorGraph::Runtime& runtime, Scalar alpha,
-                  Index ndim,
-                  TensorGraph::TensorNode* src,
-                  TensorGraph::TensorNode* dst)
+//! Tensor tile grids use Fortran-order linear indices (dim 0 varies fastest);
+//! TensorAxisLayout / tile_map use `grid_linear` (dim 0 slowest). Convert
+//! between the two for a given axis layout.
+Index fortran_tile_linear_to_layout_linear(
+    Index fort_lin, const TensorAxisLayout& lay)
 {
-    auto& src_t = runtime.get_tensor<T>(src);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::transpose<T>(alpha, src_t, dst_t, ndim);
+    const auto& gsh = lay.grid_shape();
+    const Index nd = static_cast<Index>(gsh.size());
+    std::vector<Index> coord(static_cast<size_t>(nd), 0);
+    Index rem = fort_lin;
+    for(Index d = 0; d < nd; ++d)
+    {
+        const Index gs = gsh[static_cast<size_t>(d)];
+        coord[static_cast<size_t>(d)] = rem % gs;
+        rem /= gs;
+    }
+    return lay.grid_linear(coord);
 }
 
 } // namespace
+
+void TensorTransposeOp::lower_to_tile(const LoweringContext& ctx) const
+{
+    // Match nntile::tensor::transpose_async (src/tensor/transpose.cc).
+    const TensorAxisLayout* lay_s = ctx.tiling.find(src);
+    const TensorAxisLayout* lay_d = ctx.tiling.find(dst);
+    if(lay_s == nullptr || lay_d == nullptr)
+    {
+        throw std::runtime_error(
+            "lower_to_tile TRANSPOSE: missing tiling for src or dst");
+    }
+    const nntile::tile::TileTraits grid_src(lay_s->grid_shape());
+    const Index grid_m = grid_src.matrix_shape[static_cast<size_t>(ndim)][0];
+    const Index grid_n = grid_src.matrix_shape[static_cast<size_t>(ndim)][1];
+    const auto& tiles_s = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto& tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
+    for(Index j = 0; j < grid_n; ++j)
+    {
+        for(Index i = 0; i < grid_m; ++i)
+        {
+            const Index lin_src_f = i + j * grid_m;
+            const Index lin_dst_f = i * grid_n + j;
+            const Index lin_s =
+                fortran_tile_linear_to_layout_linear(lin_src_f, *lay_s);
+            const Index lin_d =
+                fortran_tile_linear_to_layout_linear(lin_dst_f, *lay_d);
+            tile_graph::transpose(
+                alpha,
+                tiles_s[static_cast<size_t>(lin_s)],
+                tiles_d[static_cast<size_t>(lin_d)],
+                ndim);
+        }
+    }
+}
 
 TensorGraph::TensorNode* transpose(
     Scalar alpha,
@@ -111,26 +158,6 @@ void transpose(
     }
     auto op = std::make_shared<TensorTransposeOp>(src, dst, ndim, alpha);
     src->graph()->add_op(op);
-}
-
-void TensorTransposeOp::execute(TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src);
-    switch(dtype)
-    {
-        case DataType::FP32: run_transpose<nntile::fp32_t>(runtime, alpha, ndim, src, dst); break;
-        case DataType::FP32_FAST_TF32: run_transpose<nntile::fp32_fast_tf32_t>(runtime, alpha, ndim, src, dst); break;
-        case DataType::FP32_FAST_FP16: run_transpose<nntile::fp32_fast_fp16_t>(runtime, alpha, ndim, src, dst); break;
-        case DataType::FP32_FAST_BF16: run_transpose<nntile::fp32_fast_bf16_t>(runtime, alpha, ndim, src, dst); break;
-        case DataType::FP64: run_transpose<nntile::fp64_t>(runtime, alpha, ndim, src, dst); break;
-        case DataType::FP16: run_transpose<nntile::fp16_t>(runtime, alpha, ndim, src, dst); break;
-        case DataType::BF16: run_transpose<nntile::bf16_t>(runtime, alpha, ndim, src, dst); break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(std::string(dtype_to_string(dtype)) +
-                " not supported for transpose");
-        default: throw std::runtime_error("Unsupported data type for transpose");
-    }
 }
 
 } // namespace nntile::graph::tensor

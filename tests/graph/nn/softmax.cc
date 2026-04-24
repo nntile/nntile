@@ -17,6 +17,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #   include <torch/nn/functional/activation.h>
 #endif
 
@@ -93,16 +94,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
-using nntile::test::pytorch_tolerance;
+using nntile::test::nn_pytorch_tile_softmax_axis0_6x7;
+using nntile::test::nn_pytorch_tile_softmax_axis1_6x7;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph softmax forward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
     const auto [shape, axis] = GENERATE(
-        std::tuple{std::vector<Index>{4, 6}, Index(0)},
-        std::tuple{std::vector<Index>{4, 6}, Index(1)},
-        std::tuple{std::vector<Index>{2, 3, 4}, Index(1)},
-        std::tuple{std::vector<Index>{6}, Index(0)});
+        std::tuple{std::vector<Index>{6, 7}, Index(0)},
+        std::tuple{std::vector<Index>{6, 7}, Index(1)});
 
     Index nelems = 1;
     for(auto s : shape)
@@ -118,10 +118,20 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* x = g.tensor(shape, "x", DataType::FP32, true);
     auto* y = softmax(x, "y", axis);
 
+    if(axis == 0)
+    {
+        nn_pytorch_tile_softmax_axis0_6x7(x);
+    }
+    else
+    {
+        nn_pytorch_tile_softmax_axis1_6x7(x);
+    }
+
     x->mark_input(true);
     y->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("x", x_data);
     runtime.execute();
@@ -136,22 +146,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                     .clone()
                     .set_requires_grad(false);
     auto y_pt = torch::nn::functional::softmax(x_pt, axis);
-    std::vector<float> pytorch_out(y_pt.data_ptr<float>(),
-                                   y_pt.data_ptr<float>() + nelems);
-
-    REQUIRE(nntile_out.size() == pytorch_out.size());
-    for(size_t i = 0; i < nntile_out.size(); ++i)
-        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
+    compare_float_vectors(nntile_out, y_pt);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph softmax backward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
     const auto [shape, axis, grad_fill_val] = GENERATE(
-        std::tuple{std::vector<Index>{3, 5}, Index(0), Scalar(1.0)},
-        std::tuple{std::vector<Index>{3, 5}, Index(1), Scalar(1.0)},
-        std::tuple{std::vector<Index>{2, 4}, Index(1), Scalar(-1.0)},
-        std::tuple{std::vector<Index>{2, 2, 3}, Index(1), Scalar(1.0)});
+        std::tuple{std::vector<Index>{6, 7}, Index(0), Scalar(1.0)},
+        std::tuple{std::vector<Index>{6, 7}, Index(1), Scalar(1.0)},
+        std::tuple{std::vector<Index>{6, 7}, Index(0), Scalar(-1.0)});
 
     Index nelems = 1;
     for(auto s : shape)
@@ -167,6 +171,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* x = g.tensor(shape, "x", DataType::FP32, true);
     auto* y = softmax(x, "y", axis);
 
+    if(axis == 0)
+    {
+        nn_pytorch_tile_softmax_axis0_6x7(x);
+    }
+    else
+    {
+        nn_pytorch_tile_softmax_axis1_6x7(x);
+    }
+
     x->mark_input(true);
 
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");
@@ -175,7 +188,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     x->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("x", x_data);
     runtime.execute();

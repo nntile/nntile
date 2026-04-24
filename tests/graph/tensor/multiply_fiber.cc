@@ -20,6 +20,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/multiply_fiber.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/multiply_fiber.hh"
 #include "nntile/tensor/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
@@ -79,7 +80,10 @@ void check_multiply_fiber_vs_tensor_api(
     auto* out_node = gt::multiply_fiber(alpha, fiber_node, tensor_node, "out", axis);
     out_node->mark_output(true);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> fiber_data(fiber_nelems);
@@ -225,7 +229,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto* out_node = gt::multiply_fiber(alpha, fiber_node, tensor_node,
                                             "out", axis);
         out_node->mark_output(true);
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data("fiber", fiber_data);
         runtime.bind_data("tensor", tensor_data);
@@ -248,7 +254,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data("fiber", fiber_data);
         runtime.bind_data("tensor", tensor_data);
