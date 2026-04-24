@@ -21,6 +21,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/conv2d_inplace.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/conv2d_inplace.hh"
 #include "nntile/tensor/tensor.hh"
 

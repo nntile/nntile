@@ -21,6 +21,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/concat.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/graph/tile/graph_runtime.hh"
 
 using namespace nntile;

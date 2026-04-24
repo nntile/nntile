@@ -14,7 +14,6 @@
 #include "nntile/graph/tensor/tensor_graph_tiling.hh"
 
 #include <algorithm>
-#include <numeric>
 
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor/graph.hh"
@@ -75,17 +74,6 @@ TensorAxisLayout::TensorAxisLayout(const TensorGraph::TensorNode* node)
             origin[k + 1] = origin[k] + seg[k];
         }
         axis_origin_[static_cast<size_t>(d)] = std::move(origin);
-    }
-
-    dense_stride_.assign(static_cast<size_t>(ndim), 1);
-    if(ndim > 0)
-    {
-        for(Index i = ndim - 2; i >= 0; --i)
-        {
-            dense_stride_[static_cast<size_t>(i)] =
-                dense_stride_[static_cast<size_t>(i + 1)] *
-                shape_[static_cast<size_t>(i + 1)];
-        }
     }
 }
 
@@ -228,27 +216,6 @@ void TensorAxisLayout::tile_axis_global_range(
     global_hi_inclusive =
         global_lo + segments_[static_cast<size_t>(dim)][static_cast<size_t>(seg)] -
         1;
-}
-
-Index TensorAxisLayout::dense_linear_index(
-    const std::vector<Index>& global_coord) const
-{
-    if(global_coord.size() != shape_.size())
-    {
-        throw std::invalid_argument(
-            "TensorAxisLayout::dense_linear_index: bad coord");
-    }
-    Index idx = 0;
-    for(size_t d = 0; d < shape_.size(); ++d)
-    {
-        if(global_coord[d] < 0 || global_coord[d] >= shape_[d])
-        {
-            throw std::out_of_range(
-                "TensorAxisLayout::dense_linear_index: global OOB");
-        }
-        idx += global_coord[d] * dense_stride_[d];
-    }
-    return idx;
 }
 
 TensorGraphTiling TensorGraphTiling::from_tensor_graph(const TensorGraph& tg)

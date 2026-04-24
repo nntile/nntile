@@ -22,6 +22,7 @@
 #include "nntile/graph/tensor/maxsumexp.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/clear.hh"
 #include "nntile/tensor/logsumexp.hh"
 #include "nntile/tensor/maxsumexp.hh"

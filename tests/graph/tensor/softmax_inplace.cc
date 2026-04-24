@@ -21,6 +21,7 @@
 #include "nntile/graph/tensor/maxsumexp.hh"
 #include "nntile/graph/tensor/softmax_inplace.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/clear.hh"
 #include "nntile/tensor/maxsumexp.hh"
 #include "nntile/tensor/softmax_inplace.hh"

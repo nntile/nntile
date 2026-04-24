@@ -54,9 +54,6 @@ public:
                       const std::vector<Index>& local_within_tile,
                       std::vector<Index>& global_out) const;
 
-    //! Row-major linear index into full dense tensor (shape_ slowest dim first).
-    Index dense_linear_index(const std::vector<Index>& global_coord) const;
-
     //! Max segment length per axis (for TensorDescriptor::tile_shape summary).
     std::vector<Index> max_tile_extents() const;
 
@@ -75,7 +72,6 @@ private:
     std::vector<std::vector<Index>> axis_origin_;
     std::vector<Index> grid_shape_;
     Index grid_volume_ = 1;
-    std::vector<Index> dense_stride_;
 };
 
 //! Maps each tensor data node to its axis layout (from merged AxisDescriptors).

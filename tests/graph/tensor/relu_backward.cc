@@ -21,6 +21,7 @@
 #include "nntile/graph/tensor/relu_backward.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/relu_backward.hh"
 #include "nntile/tensor/tensor.hh"
 

@@ -21,6 +21,7 @@
 #include "nntile/constants.hh"
 #include "nntile/graph/tensor/gemm.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/clear.hh"
 #include "nntile/tensor/gemm.hh"
 #include "nntile/tensor/tensor.hh"

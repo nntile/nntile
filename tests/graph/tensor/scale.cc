@@ -21,6 +21,7 @@
 #include "nntile/graph/tensor/scale.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/scale.hh"
 #include "nntile/tensor/tensor.hh"
 

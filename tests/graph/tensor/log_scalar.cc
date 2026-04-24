@@ -17,6 +17,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/log_scalar.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/log_scalar.hh"
 #include "nntile/tensor/tensor.hh"
 

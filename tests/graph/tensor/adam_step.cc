@@ -21,6 +21,7 @@
 #include "nntile/graph/tensor/adam_step.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/adam_step.hh"
 #include "nntile/tensor/tensor.hh"
 

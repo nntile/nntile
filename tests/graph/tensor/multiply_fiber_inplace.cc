@@ -20,6 +20,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/multiply_fiber_inplace.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/multiply_fiber_inplace.hh"
 #include "nntile/tensor/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"

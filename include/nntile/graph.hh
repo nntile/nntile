@@ -8,13 +8,15 @@
  *
  * @file include/nntile/graph.hh
  * Convenience header for the entire NNTile graph API:
- * TensorGraph, NNGraph, I/O, Modules, and Optimizers.
+ * TensorGraph, TileGraph, NNGraph, I/O, Modules, and Optimizers.
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
+// Tensor-level and tile-level graph headers (nntile/graph/tensor.hh has no
+// tile dependency; include both here for a full stack entry point).
 #include <nntile/graph/tensor.hh>
 #include <nntile/graph/tile.hh>
 #include <nntile/graph/nn.hh>

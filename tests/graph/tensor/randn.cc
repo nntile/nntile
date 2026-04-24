@@ -20,6 +20,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/randn.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/randn.hh"
 #include "nntile/tensor/tensor.hh"
 

@@ -22,6 +22,7 @@
 #include "nntile/graph/tensor/subtract_indexed_outputs.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/subtract_indexed_outputs.hh"
 #include "nntile/tensor/tensor.hh"
 

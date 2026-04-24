@@ -20,6 +20,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/gelu_backward.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/gelu_backward.hh"
 #include "nntile/tensor/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"

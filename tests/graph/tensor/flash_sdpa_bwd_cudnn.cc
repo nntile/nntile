@@ -26,6 +26,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/flash_sdpa_bwd_cudnn.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/tensor/clear.hh"
 #include "nntile/tensor/flash_sdpa_bwd_cudnn.hh"
