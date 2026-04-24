@@ -14,6 +14,7 @@
 
 #include "nntile/context.hh"
 #include "nntile/tile/copy.hh"
+#include "nntile/starpu/copy.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -55,12 +56,27 @@ void validate()
     }
     tile2_copy_local.release();
     copy<T>(tile2, tile2_copy);
-    tile2_copy_local.acquire(STARPU_R);
-    for(Index i = 0; i < tile2.nelems; ++i)
     {
-        TEST_ASSERT(Y(tile2_copy_local[i]) == Y(i+1));
+        auto loc = tile2_copy.acquire(STARPU_R);
+        for(Index i = 0; i < tile2.nelems; ++i)
+        {
+            TEST_ASSERT(Y(loc[i]) == Y(i+1));
+        }
+        loc.release();
     }
-    tile2_copy_local.release();
+    Tile<T> tile3_star(tile3.shape);
+    starpu::copy.submit(tile3, tile3_star);
+    starpu_task_wait_for_all();
+    Tile<T> tile3_tilecopy(tile3.shape);
+    copy<T>(tile3, tile3_tilecopy);
+    auto sl = tile3_star.acquire(STARPU_R);
+    auto tl = tile3_tilecopy.acquire(STARPU_R);
+    for(Index i = 0; i < tile3.nelems; ++i)
+    {
+        TEST_ASSERT(Y(sl[i]) == Y(tl[i]));
+    }
+    sl.release();
+    tl.release();
     // Checking throwing exceptions
     TEST_THROW(copy<T>(Tile<T>({1}), Tile<T>({2})));
     TEST_THROW(copy<T>(Tile<T>({1}), Tile<T>({})));

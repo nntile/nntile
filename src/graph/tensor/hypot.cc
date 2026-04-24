@@ -20,29 +20,31 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/hypot.hh"
+#include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/tensor/hypot.hh"
 
 namespace nntile::graph::tensor
 {
 
-namespace
+void TensorHypotOp::lower_to_tile(const LoweringContext& ctx) const
 {
-
-template<typename T>
-void run_hypot(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Scalar beta,
-    TensorGraph::TensorNode* src1,
-    TensorGraph::TensorNode* src2,
-    TensorGraph::TensorNode* dst)
-{
-    auto& src1_t = runtime.get_tensor<T>(src1);
-    auto& src2_t = runtime.get_tensor<T>(src2);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::hypot<T>(alpha, src1_t, beta, src2_t, dst_t);
+    const auto& m = ctx.tile_map;
+    const auto& v1 = tile_lower::tiles_of(m, src1);
+    const auto& v2 = tile_lower::tiles_of(m, src2);
+    const auto& vd = tile_lower::tiles_of(m, dst);
+    if(v1.size() != v2.size() || v1.size() != vd.size())
+    {
+        throw std::runtime_error("lower_to_tile HYPOT: tile count mismatch");
+    }
+    tile_lower::assert_same_elementwise_layout(src1, src2, "HYPOT src1/src2");
+    tile_lower::assert_same_elementwise_layout(src1, dst, "HYPOT src1/dst");
+    for(size_t i = 0; i < v1.size(); ++i)
+    {
+        tile_graph::hypot(alpha, v1[i], beta, v2[i], vd[i]);
+    }
 }
-
-} // namespace
 
 TensorGraph::TensorNode* hypot(
     Scalar alpha,
@@ -118,44 +120,6 @@ void hypot(
     auto op = std::make_shared<TensorHypotOp>(
         alpha, beta, src1, src2, dst);
     src1->graph()->add_op(op);
-}
-
-void TensorHypotOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src1);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_hypot<nntile::fp32_t>(runtime, alpha, beta, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_hypot<nntile::fp32_fast_tf32_t>(runtime, alpha, beta, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_hypot<nntile::fp32_fast_fp16_t>(runtime, alpha, beta, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_hypot<nntile::fp32_fast_bf16_t>(runtime, alpha, beta, src1, src2, dst);
-            break;
-        case DataType::FP64:
-            run_hypot<nntile::fp64_t>(runtime, alpha, beta, src1, src2, dst);
-            break;
-        case DataType::FP16:
-            run_hypot<nntile::fp16_t>(runtime, alpha, beta, src1, src2, dst);
-            break;
-        case DataType::BF16:
-            run_hypot<nntile::bf16_t>(runtime, alpha, beta, src1, src2, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for hypot operation");
-        default:
-            throw std::runtime_error("Unsupported data type for hypot");
-    }
 }
 
 } // namespace nntile::graph::tensor

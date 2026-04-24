@@ -21,6 +21,7 @@
 #include "nntile/graph/tensor/scale_inplace.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/scale_inplace.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -52,7 +53,10 @@ void check_scale_inplace_vs_tensor_api(
 
     gt::scale_inplace(alpha, dst_node);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> dst_data(nelems);
@@ -166,7 +170,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         gt::scale_inplace(alpha, dst_node);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("dst", dst_data);
@@ -190,7 +197,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("dst", dst_data);

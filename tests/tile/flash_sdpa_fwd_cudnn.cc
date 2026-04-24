@@ -234,13 +234,39 @@ void check()
 }
 
 template<typename T>
+void check_exceptions()
+{
+    Index head_size = 32;
+    Index n_seq = 64;
+    Index n_batch = 2;
+    Index kv_group_size = 1;
+    Index n_head_kv = 1;
+    Tile<T> K({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> Q({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> V({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> A({head_size, n_seq, n_batch, kv_group_size, n_head_kv});
+    Tile<T> mask({n_seq, n_seq});
+    Tile<fp32_t> logsumexp({n_seq, n_batch, kv_group_size, n_head_kv});
+
+    Tile<T> K_4d({head_size, n_seq, n_batch, kv_group_size});
+    TEST_THROW(flash_sdpa_fwd_cudnn<T>(K_4d, Q, mask, logsumexp, V, A));
+
+    Tile<T> mask_1d({n_seq});
+    TEST_THROW(flash_sdpa_fwd_cudnn<T>(K, Q, mask_1d, logsumexp, V, A));
+
+    Tile<T> Q_bad_head({head_size / 2, n_seq, n_batch, kv_group_size, n_head_kv});
+    TEST_THROW(flash_sdpa_fwd_cudnn<T>(K, Q_bad_head, mask, logsumexp, V, A));
+
+    Tile<fp32_t> logsumexp_bad({n_seq, n_batch, kv_group_size, n_head_kv + 1});
+    TEST_THROW(flash_sdpa_fwd_cudnn<T>(K, Q, mask, logsumexp_bad, V, A));
+}
+
+template<typename T>
 void validate()
 {
     // Check normal execution
     check<T>();
-
-    // TODO: Add exception testing later
-    // For now, just check that the basic functionality works
+    check_exceptions<T>();
 
     // Tell the user that the test passed
     std::cout << "flash_sdpa_fwd_cudnn<" << T::short_name << "> passed\n";

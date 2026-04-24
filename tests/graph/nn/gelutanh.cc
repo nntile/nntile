@@ -17,6 +17,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #   include <torch/nn/functional/activation.h>
 #endif
 
@@ -92,13 +93,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 #ifdef NNTILE_HAVE_TORCH
 
 using nntile::test::compare_float_vectors;
+using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
+using nntile::test::nn_pytorch_tile_heterogeneous_rank3_2x3x4;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph gelutanh forward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
     const auto shape = GENERATE(
-        std::vector<Index>{4, 6},
+        std::vector<Index>{6, 7},
         std::vector<Index>{2, 3, 4});
 
     Index nelems = 1;
@@ -113,10 +116,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* x = g.tensor(shape, "x", DataType::FP32, true);
     auto* y = gelutanh(x, "y");
 
+    if(shape.size() == 2 && shape[0] == 6 && shape[1] == 7)
+        nn_pytorch_tile_heterogeneous_rank2_6x7(x);
+    else
+        nn_pytorch_tile_heterogeneous_rank3_2x3x4(x);
+
     x->mark_input(true);
     y->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("x", x_data);
     runtime.execute();
@@ -143,8 +152,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph gelutanh backward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
     const auto [shape, grad_fill_val] = GENERATE(
-        std::tuple{std::vector<Index>{3, 5}, Scalar(1.0)},
-        std::tuple{std::vector<Index>{2, 4}, Scalar(-1.0)});
+        std::tuple{std::vector<Index>{6, 7}, Scalar(1.0)},
+        std::tuple{std::vector<Index>{2, 3, 4}, Scalar(-1.0)});
 
     Index nelems = 1;
     for(auto s : shape)
@@ -158,6 +167,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* x = g.tensor(shape, "x", DataType::FP32, true);
     auto* y = gelutanh(x, "y");
 
+    if(shape.size() == 2 && shape[0] == 6 && shape[1] == 7)
+        nn_pytorch_tile_heterogeneous_rank2_6x7(x);
+    else
+        nn_pytorch_tile_heterogeneous_rank3_2x3x4(x);
+
     x->mark_input(true);
 
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");
@@ -166,7 +180,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     x->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("x", x_data);
     runtime.execute();

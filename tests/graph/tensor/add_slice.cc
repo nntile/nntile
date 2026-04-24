@@ -20,6 +20,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/add_slice.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/add_slice.hh"
 #include "nntile/tensor/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
@@ -91,7 +92,10 @@ void check_add_slice_vs_tensor_api(
     auto* out_node = gt::add_slice(alpha, src1_node, beta, src2_node, "out", axis);
     out_node->mark_output(true);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src1_data(src1_nelems);
@@ -237,7 +241,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         src2_node->mark_input(true);
         auto* out_node = gt::add_slice(alpha, src1_node, beta, src2_node, "out", axis);
         out_node->mark_output(true);
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data("src1", src1_data);
         runtime.bind_data("src2", src2_data);
@@ -259,7 +265,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data("src1", src1_data);
         runtime.bind_data("src2", src2_data);

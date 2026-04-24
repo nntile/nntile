@@ -20,24 +20,13 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/relu_backward.hh"
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_relu_backward(TensorGraph::Runtime& runtime,
-                      TensorGraph::TensorNode* x, TensorGraph::TensorNode* dy,
-                      TensorGraph::TensorNode* dx)
-{
-    auto& x_t = runtime.get_tensor<T>(x);
-    auto& dy_t = runtime.get_tensor<T>(dy);
-    auto& dx_t = runtime.get_tensor<T>(dx);
-    nntile::tensor::relu_backward<T>(x_t, dy_t, dx_t);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* relu_backward(TensorGraph::TensorNode* x,
                                        TensorGraph::TensorNode* dy,
@@ -76,26 +65,22 @@ void relu_backward(TensorGraph::TensorNode* x, TensorGraph::TensorNode* dy,
     x->graph()->add_op(op);
 }
 
-void TensorReluBackwardOp::execute(TensorGraph::Runtime& runtime) const
+void TensorReluBackwardOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    DataType dtype = runtime.get_dtype(x);
-    switch(dtype)
+    const auto& m = ctx.tile_map;
+    const auto& vx = tile_lower::tiles_of(m, x);
+    const auto& vdy = tile_lower::tiles_of(m, dy);
+    const auto& vdx = tile_lower::tiles_of(m, dx);
+    if(vx.size() != vdy.size() || vx.size() != vdx.size())
     {
-        case DataType::FP32: run_relu_backward<nntile::fp32_t>(runtime, x, dy, dx); break;
-        case DataType::FP32_FAST_TF32: run_relu_backward<nntile::fp32_fast_tf32_t>(runtime, x, dy, dx); break;
-        case DataType::FP32_FAST_FP16: run_relu_backward<nntile::fp32_fast_fp16_t>(runtime, x, dy, dx); break;
-        case DataType::FP32_FAST_BF16: run_relu_backward<nntile::fp32_fast_bf16_t>(runtime, x, dy, dx); break;
-        case DataType::FP64: run_relu_backward<nntile::fp64_t>(runtime, x, dy, dx); break;
-        case DataType::FP16:
-            throw std::runtime_error(
-                "FP16 not supported for relu_backward (use FP32_FAST_FP16)");
-            break;
-        case DataType::BF16: run_relu_backward<nntile::bf16_t>(runtime, x, dy, dx); break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(std::string(dtype_to_string(dtype)) +
-                " not supported for relu_backward");
-        default: throw std::runtime_error("Unsupported data type for relu_backward");
+        throw std::runtime_error(
+            "lower_to_tile RELU_BACKWARD: tile count mismatch");
+    }
+    tile_lower::assert_same_elementwise_layout(x, dy, "RELU_BACKWARD x/dy");
+    tile_lower::assert_same_elementwise_layout(x, dx, "RELU_BACKWARD x/dx");
+    for(size_t i = 0; i < vx.size(); ++i)
+    {
+        tile_graph::relu_backward(vx[i], vdy[i], vdx[i]);
     }
 }
 

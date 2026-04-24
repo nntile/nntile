@@ -21,6 +21,7 @@
 #include "nntile/graph/tensor/silu_inplace.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/silu_inplace.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -44,7 +45,10 @@ void check_silu_inplace_vs_tensor_api(
 
     gt::silu_inplace(dst_node);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> dst_data(nelems);
@@ -155,7 +159,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         dst_node->mark_input(true);
         dst_node->mark_output(true);
         gt::silu_inplace(dst_node);
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data("dst", dst_data);
         runtime.execute();
@@ -174,7 +180,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data("dst", dst_data);
         runtime.execute();

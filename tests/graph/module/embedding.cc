@@ -32,6 +32,7 @@
 #ifdef NNTILE_HAVE_TORCH
 #   include "context_fixture.hh"
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #endif
 
 using namespace nntile;
@@ -166,7 +167,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         vocab_data[i] = 0.1f * static_cast<float>(i + 1);
     emb.bind_weight(vocab_data);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    nntile::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
+    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+        g.tensor_graph());
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<std::int64_t> index_data(4 * 5);
@@ -212,7 +220,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for(Index i = 0; i < batch * seq_len; ++i)
         index_data[i] = static_cast<std::int64_t>(i % num_embeddings);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    nntile::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
+    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+        g.tensor_graph());
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("index", index_data);
     runtime.execute();
@@ -266,7 +281,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     emb.vocab_tensor()->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    nntile::test::module_apply_embedding_vocab_tiling(emb.vocab_tensor());
+    nntile::test::module_tile_all_untiled_axis_groups_heterogeneous(
+        g.tensor_graph());
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("index", index_data);
     runtime.execute();

@@ -357,7 +357,9 @@ int main(int argc, char** argv)
     }
 
     // ---- Compile the graph ----
-    TensorGraph::Runtime runtime(graph.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph.tensor_graph());
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     // ---- Bind initial data ----

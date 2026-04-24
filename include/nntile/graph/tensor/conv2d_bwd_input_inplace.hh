@@ -21,6 +21,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -57,12 +62,12 @@ struct TensorConv2dBwdInputInplaceOp : TensorGraph::OpNode
         return "CONV2D_BWD_INPUT_INPLACE";
     }
 
-    void execute(TensorGraph::Runtime& runtime) const override;
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorConv2dBwdInputInplaceOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Conv2D backward input: dX = alpha*conv_bwd(dY,kernel) + beta*dX

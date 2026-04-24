@@ -21,6 +21,7 @@
 #include "nntile/graph/tensor/adam_step.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/adam_step.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -69,7 +70,10 @@ void check_adam_step_vs_tensor_api(
     gt::adam_step(num_iter, beta_1, beta_2, eps, lr, weight_decay,
               grad_node, first_moment_node, second_moment_node, p_node);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> grad_data(nelems);
@@ -253,7 +257,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         gt::adam_step(num_iter, beta_1, beta_2, eps, lr, weight_decay,
                   grad_node, first_moment_node, second_moment_node, p_node);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("grad", grad_data);
@@ -291,7 +298,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("grad", grad_data);

@@ -17,6 +17,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -96,6 +97,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 using nntile::test::compare_float_vectors;
 using nntile::test::colmajor_to_rowmajor;
+using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
+using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
+using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -107,12 +111,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(0.5), Index(0)},
         std::tuple{Scalar(-1.0), Index(1)});
 
-    std::vector<Index> src_shape = slice_shape({dim_2, dim_4}, axis);
-    Index axis_size = (axis == 0) ? dim_2 : dim_4;
+    constexpr Index dim_m = 6;
+    constexpr Index dim_n = 7;
+    std::vector<Index> dst_shape = {dim_m, dim_n};
+    std::vector<Index> src_shape = slice_shape(dst_shape, axis);
+    Index axis_size = (axis == 0) ? dim_m : dim_n;
     Index src_nelems = 1;
     for(Index d : src_shape)
         src_nelems *= d;
-    const Index dst_nelems = dim_2 * dim_4;
+    const Index dst_nelems = dim_m * dim_n;
 
     std::vector<float> src_data(static_cast<size_t>(src_nelems));
     for(Index i = 0; i < src_nelems; ++i)
@@ -122,10 +129,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* src = g.tensor(src_shape, "src", DataType::FP32, true);
     auto* out = scale_slice(alpha, src, "out", axis, axis_size);
 
+    nn_pytorch_tile_heterogeneous_rank2_6x7(out);
+    if(axis == 0)
+        nn_pytorch_tile_heterogeneous_1d_len7(src);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len6(src);
+
     src->mark_input(true);
     out->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("src", src_data);
     runtime.execute();
@@ -133,13 +147,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> nntile_out_colmajor = runtime.get_output<float>("out");
     std::vector<float> nntile_out =
-        colmajor_to_rowmajor(nntile_out_colmajor, {dim_2, dim_4});
+        colmajor_to_rowmajor(nntile_out_colmajor, dst_shape);
 
     std::vector<::int64_t> src_shape_pt(src_shape.begin(), src_shape.end());
     auto src_pt = torch::from_blob(src_data.data(), src_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(false);
     auto out_pt = (alpha * src_pt.unsqueeze(static_cast<std::int64_t>(axis))
-                       .expand({dim_2, dim_4})).contiguous();
+                       .expand({dim_m, dim_n})).contiguous();
 
     std::vector<float> pytorch_out(out_pt.data_ptr<float>(),
                                    out_pt.data_ptr<float>() + dst_nelems);
@@ -158,8 +172,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(1.0), Index(0), Scalar(0.5)},
         std::tuple{Scalar(-1.0), Index(1), Scalar(2.0)});
 
-    std::vector<Index> src_shape = slice_shape({dim_2, dim_4}, axis);
-    Index axis_size = (axis == 0) ? dim_2 : dim_4;
+    constexpr Index dim_m = 6;
+    constexpr Index dim_n = 7;
+    std::vector<Index> dst_shape = {dim_m, dim_n};
+    std::vector<Index> src_shape = slice_shape(dst_shape, axis);
+    Index axis_size = (axis == 0) ? dim_m : dim_n;
     Index src_nelems = 1;
     for(Index d : src_shape)
         src_nelems *= d;
@@ -172,6 +189,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* src = g.tensor(src_shape, "src", DataType::FP32, true);
     auto* out = scale_slice(alpha, src, "out", axis, axis_size);
 
+    nn_pytorch_tile_heterogeneous_rank2_6x7(out);
+    if(axis == 0)
+        nn_pytorch_tile_heterogeneous_1d_len7(src);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len6(src);
+
     src->mark_input(true);
 
     auto [out_grad, _] = g.get_or_create_grad(out, "out_grad");
@@ -180,7 +203,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     src->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("src", src_data);
     runtime.execute();
@@ -193,9 +217,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto src_pt = torch::from_blob(src_data.data(), src_shape_pt,
         torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(true);
     auto out_pt = alpha * src_pt.unsqueeze(static_cast<std::int64_t>(axis))
-                      .expand({dim_2, dim_4});
+                      .expand({dim_m, dim_n});
 
-    auto grad_output = torch::full({dim_2, dim_4}, static_cast<float>(grad_fill_val),
+    auto grad_output = torch::full({dim_m, dim_n}, static_cast<float>(grad_fill_val),
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     out_pt.backward(grad_output);
 

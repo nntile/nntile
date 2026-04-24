@@ -20,6 +20,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/randn.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/randn.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -53,7 +54,10 @@ void check_randn_vs_tensor_api(const std::vector<Index>& shape)
 
     gt::randn(dst_node, start, shape, seed, mean, stddev);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     runtime.execute();

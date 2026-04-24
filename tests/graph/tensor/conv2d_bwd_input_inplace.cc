@@ -22,6 +22,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/conv2d_bwd_input_inplace.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/conv2d_bwd_input_inplace.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -85,7 +86,10 @@ void check_conv2d_bwd_input_inplace_vs_tensor_api(
     gt::conv2d_bwd_input_inplace(alpha, dy_node, kernel_node, beta, dx_node,
                              padding, stride, dilation);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> dy_data(dy_nelems);

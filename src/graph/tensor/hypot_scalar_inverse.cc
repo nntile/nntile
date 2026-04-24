@@ -19,25 +19,21 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/hypot_scalar_inverse.hh"
+#include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/tensor/hypot_scalar_inverse.hh"
 
 namespace nntile::graph::tensor
 {
 
-namespace
+void TensorHypotScalarInverseOp::lower_to_tile(const LoweringContext& ctx) const
 {
-
-template<typename T>
-void run_hypot_scalar_inverse(
-    TensorGraph::Runtime& runtime,
-    Scalar eps, Scalar alpha,
-    TensorGraph::TensorNode* dst)
-{
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::hypot_scalar_inverse<T>(eps, alpha, dst_t);
+    for(TileGraph::TileNode* t : tile_lower::tiles_of(ctx.tile_map, dst))
+    {
+        tile_graph::hypot_scalar_inverse(eps, alpha, t);
+    }
 }
-
-} // namespace
 
 void hypot_scalar_inverse(
     Scalar eps,
@@ -52,45 +48,6 @@ void hypot_scalar_inverse(
 
     auto op = std::make_shared<TensorHypotScalarInverseOp>(eps, alpha, dst);
     dst->graph()->add_op(op);
-}
-
-void TensorHypotScalarInverseOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(dst);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_hypot_scalar_inverse<nntile::fp32_t>(runtime, eps, alpha, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_hypot_scalar_inverse<nntile::fp32_fast_tf32_t>(runtime, eps, alpha, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_hypot_scalar_inverse<nntile::fp32_fast_fp16_t>(runtime, eps, alpha, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_hypot_scalar_inverse<nntile::fp32_fast_bf16_t>(runtime, eps, alpha, dst);
-            break;
-        case DataType::FP64:
-            run_hypot_scalar_inverse<nntile::fp64_t>(runtime, eps, alpha, dst);
-            break;
-        case DataType::FP16:
-            run_hypot_scalar_inverse<nntile::fp16_t>(runtime, eps, alpha, dst);
-            break;
-        case DataType::BF16:
-            run_hypot_scalar_inverse<nntile::bf16_t>(runtime, eps, alpha, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for hypot_scalar_inverse operation");
-        default:
-            throw std::runtime_error(
-                "Unsupported data type for hypot_scalar_inverse");
-    }
 }
 
 } // namespace nntile::graph::tensor

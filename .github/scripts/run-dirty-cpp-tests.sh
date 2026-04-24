@@ -29,7 +29,7 @@ while IFS= read -r file; do
             run_all=true; break ;;
         src/kernel/cblas.cc | src/kernel/cublas.cc)
             run_all=true; break ;;
-        src/graph/tensor/graph_runtime.cc | src/graph/tensor/graph_data_node.cc)
+        src/graph/tile/graph_runtime.cc | src/graph/tensor/graph_data_node.cc)
             run_all=true; break ;;
         tests/graph/model/llama/generate_test_data.py)
             run_all=true; break ;;
@@ -93,12 +93,14 @@ while IFS= read -r file; do
             affected["tests_tensor_$(basename "$file" .cc)"]=1 ;;
         tests/graph/tensor/*.cc)
             affected["tests_graph_tensor_$(basename "$file" .cc)"]=1 ;;
+        tests/graph/tile/*.cc)
+            affected["tests_graph_tile_$(basename "$file" .cc)"]=1 ;;
         tests/graph/nn/*.cc)
             affected["tests_graph_nn_$(basename "$file" .cc)"]=1 ;;
         tests/graph/module/*.cc)
-            affected["tests_module_$(basename "$file" .cc)"]=1 ;;
+            affected["tests_graph_module_$(basename "$file" .cc)"]=1 ;;
         tests/graph/io/*.cc)
-            affected["tests_io_$(basename "$file" .cc)"]=1 ;;
+            affected["tests_graph_io_$(basename "$file" .cc)"]=1 ;;
         tests/graph/model/llama/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         tests/graph/*.cc)
@@ -135,18 +137,22 @@ while IFS= read -r file; do
             affected["tests_graph_tensor_$(basename "$file" .cc)"]=1 ;;
         include/nntile/graph/tensor/*.hh)
             affected["tests_graph_tensor_$(basename "$file" .hh)"]=1 ;;
+        src/graph/tile/*.cc)
+            affected["tests_graph_tile_$(basename "$file" .cc)"]=1 ;;
+        include/nntile/graph/tile/*.hh)
+            affected["tests_graph_tile_$(basename "$file" .hh)"]=1 ;;
         src/graph/nn/*.cc)
             affected["tests_graph_nn_$(basename "$file" .cc)"]=1 ;;
         include/nntile/graph/nn/*.hh)
             affected["tests_graph_nn_$(basename "$file" .hh)"]=1 ;;
         src/graph/module/*.cc)
-            affected["tests_module_$(basename "$file" .cc)"]=1 ;;
+            affected["tests_graph_module_$(basename "$file" .cc)"]=1 ;;
         include/nntile/graph/module/*.hh)
-            affected["tests_module_$(basename "$file" .hh)"]=1 ;;
+            affected["tests_graph_module_$(basename "$file" .hh)"]=1 ;;
         src/graph/io/*.cc)
-            affected["tests_io_$(basename "$file" .cc)"]=1 ;;
+            affected["tests_graph_io_$(basename "$file" .cc)"]=1 ;;
         include/nntile/graph/io/*.hh)
-            affected["tests_io_$(basename "$file" .hh)"]=1 ;;
+            affected["tests_graph_io_$(basename "$file" .hh)"]=1 ;;
         src/graph/model/llama/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         include/nntile/graph/model/llama/*.hh)

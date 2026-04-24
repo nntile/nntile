@@ -1,0 +1,78 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/graph/tile/norm.cc
+ * TileGraph norm operation implementation.
+ *
+ * @version 1.1.0
+ * */
+
+#include "nntile/graph/tile/norm.hh"
+#include <stdexcept>
+#include <nntile/base_types.hh>
+#include <nntile/graph/dtype.hh>
+#include <nntile/graph/tile.hh>
+#include <nntile/tile/norm.hh>
+namespace nntile::graph::tile_graph
+{
+namespace
+{
+template<typename T>
+void run_norm(
+    TileGraph::Runtime& runtime, Scalar a, Scalar b, TileGraph::TileNode* s, TileGraph::TileNode* d)
+{
+    nntile::tile::norm<T>(a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d));
+}
+} // namespace
+void norm(Scalar alpha, TileGraph::TileNode* src, Scalar beta, TileGraph::TileNode* dst)
+{
+    if(!src || !dst)
+        throw std::invalid_argument("tile norm: null");
+    if(src->graph() != dst->graph())
+        throw std::invalid_argument("tile norm: same graph");
+    if(src->dtype() != dst->dtype())
+        throw std::invalid_argument("tile norm: dtype");
+    if(src == dst)
+        throw std::invalid_argument("tile norm: distinct");
+    src->graph()->add_op(std::make_shared<TileNormOp>(alpha, beta, src, dst));
+}
+void TileNormOp::execute(TileGraph::Runtime& runtime) const
+{
+    DataType dtype = runtime.get_dtype(src);
+    switch(dtype)
+    {
+        case DataType::FP32:
+            run_norm<nntile::fp32_t>(runtime, alpha, beta, src, dst);
+            break;
+        case DataType::FP32_FAST_TF32:
+            run_norm<nntile::fp32_fast_tf32_t>(runtime, alpha, beta, src, dst);
+            break;
+        case DataType::FP32_FAST_FP16:
+            run_norm<nntile::fp32_fast_fp16_t>(runtime, alpha, beta, src, dst);
+            break;
+        case DataType::FP32_FAST_BF16:
+            run_norm<nntile::fp32_fast_bf16_t>(runtime, alpha, beta, src, dst);
+            break;
+        case DataType::FP64:
+            run_norm<nntile::fp64_t>(runtime, alpha, beta, src, dst);
+            break;
+        case DataType::FP16:
+            run_norm<nntile::fp16_t>(runtime, alpha, beta, src, dst);
+            break;
+        case DataType::BF16:
+            run_norm<nntile::bf16_t>(runtime, alpha, beta, src, dst);
+            break;
+        case DataType::INT64:
+        case DataType::BOOL:
+            throw std::runtime_error(
+                std::string(dtype_to_string(dtype)) + " not supported for tile norm");
+        default:
+            throw std::runtime_error("Unsupported data type for tile norm");
+    }
+}
+} // namespace nntile::graph::tile_graph
