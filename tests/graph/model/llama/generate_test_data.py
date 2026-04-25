@@ -39,8 +39,10 @@ Optional causal self-attention matches ``test_llama_attention``: additive
 ``attn_mask`` as float32 ``(seq, seq)`` in Fortran layout (1 = keep logits),
 converted to BOOL in C++ for ``sdpa_eager`` masking.
 
-Extra MHA/GQA safetensors (no RoPE / causal / both) are written by
+Extra MHA/GQA safetensors (identity RoPE / causal / both) are written by
 ``--write-attention-rope-mask-variants`` (CTest fixture for ``llama_attention``).
+Identity RoPE still stores ``rope_cos`` / ``rope_sin`` so the C++ graph matches
+the PyTorch path (no null RoPE tensors).
 
 The ``decoder`` and ``model`` / ``causal`` (and GQA) blocks use
 ``LlamaRotaryEmbedding`` the same way as full-model inference, not a no-op.
@@ -365,8 +367,10 @@ def generate_attention(
     ``integers(0, seq, size=(batch, seq))`` (same as ``rng`` there).
 
     When ``use_rope`` is False, cos/sin are replaced with ones/zeros (identity
-    RoPE) and ``rope_cos`` / ``rope_sin`` are omitted so the C++ graph skips
-    RoPE (nullptr sin/cos).
+    RoPE) in PyTorch, and the same identity tensors are still written as
+    ``rope_cos`` / ``rope_sin`` (first half-channels, NNTile layout) so the C++
+    graph runs the RoPE op like HuggingFace instead of skipping it with null
+    pointers.
 
     When ``use_causal_mask`` is True, ``attention_mask`` matches
     ``test_llama_attention`` and ``attn_mask`` stores the BOOL causal pattern
@@ -393,10 +397,9 @@ def generate_attention(
     if not use_rope:
         cos = torch.ones_like(cos)
         sin = torch.zeros_like(sin)
-    else:
-        cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
-        data["rope_cos"] = fortran_order(cos_np)
-        data["rope_sin"] = fortran_order(sin_np)
+    cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
+    data["rope_cos"] = fortran_order(cos_np)
+    data["rope_sin"] = fortran_order(sin_np)
 
     attn_mask_torch: torch.Tensor | None = None
     if use_causal_mask:
