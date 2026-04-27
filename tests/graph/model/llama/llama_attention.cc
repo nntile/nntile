@@ -9,23 +9,18 @@
  * @file tests/graph/model/llama/llama_attention.cc
  * Tests for LlamaAttention (sdpa_eager-based).
  *
- * Tensor shapes (hidden, seq, batch) and head geometry match
- * ``wrappers/python/tests/model/test_llama_attention.py`` (``single_tile``):
- * head size 64, ``seq_len`` 64, ``n_batch`` 3; MHA (1,1) uses ``hidden=64``;
- * GQA (8,4) uses ``hidden=512``. Safetensors from
- * ``tests/graph/model/llama/generate_test_data.py`` (``ATTENTION_*_DIMS``).
- * RoPE/causal-mask reference bundles: default ``llama_attention(_gqa)_full`` plus
- * six extras from ``--write-attention-rope-mask-variants``. Catch tags:
+ * Each reference bundle is a **pair**: ``<stem>.json`` (``Llama`` attention
+ * geometry, ``sequence_length``, ``batch``, tolerances) and ``<stem>.safetensors``
+ * (weights and reference tensors). Tests load the JSON, build ``LlamaConfig``,
+ * construct ``LlamaAttention``, then ``load()`` the sibling safetensors.
+ * Pairs are produced by ``generate_test_data.py``. Catch tags:
  * ``[nomask]`` — no causal ``attn_mask`` (RoPE and no-RoPE bundles);
  * ``[causal_mask]`` — causal ``attn_mask``;
  * ``[norope]`` — no-RoPE bundles only (with or without causal mask);
  * ``[norope_nomask]`` — no-RoPE and no causal mask (subset of ``[nomask]``).
- * Run e.g. ``./test_llama_attention '[nomask]'`` or ``'[norope_nomask]'``.
  *
  * NNTile tensor **storage** is Fortran (column-major) everywhere, including
  * ``bind_hint`` bytes from safetensors (see ``generate_test_data.fortran_order``).
- * Attention linear weights in the fixtures are HuggingFace numerics reshaped to
- * the graph's 3D/4D layouts (no ``rotate_tensor_in`` step in the generator).
  *
  * @version 1.1.0
  * */
@@ -34,6 +29,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -41,55 +37,139 @@
 #include <string>
 #include <vector>
 
+#include <nlohmann/json.hpp>
+
 #include "context_fixture.hh"
 #include "test_frobenius.hh"
 #include "nntile/graph.hh"
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/llama/llama_attention.hh"
 #include "nntile/graph/model/llama/llama_config.hh"
-#include "nntile/graph/tensor/fill.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::model::llama;
 using namespace nntile::graph::io;
-namespace gt = nntile::graph::tensor;
 
-// Matches test_llama_attention.LlamaAttentionTestParams (single_tile).
-static constexpr Index kAttnHeadSize = 64;
-static constexpr Index kAttnSeq = 64;
-static constexpr Index kAttnBatch = 3;
+#ifndef LLAMA_DATA_DIR
 
-// MHA: 1 Q head, 1 KV head -> hidden = head_size.
-static constexpr Index kMhaHidden = kAttnHeadSize;
-
-// GQA: 8 Q heads, 4 KV heads -> hidden = 8 * head_size.
-static constexpr Index kGqaNumHeads = 8;
-static constexpr Index kGqaNumKv = 4;
-static constexpr Index kGqaHidden = kAttnHeadSize * kGqaNumHeads;
-
-static LlamaConfig test_config()
+TEST_CASE("LlamaAttention tests skipped (LLAMA_DATA_DIR undefined)", "[model][llama]")
 {
-    LlamaConfig config;
-    config.hidden_size = kMhaHidden;
-    config.num_attention_heads = 1;
-    config.num_key_value_heads = 1;
-    config.compute_head_dim();
-    return config;
+    SKIP("LLAMA_DATA_DIR not defined at compile time.");
 }
 
-static LlamaConfig test_config_gqa()
+#else
+
+//! Basenames (no extension) for paired ``.json`` / ``.safetensors`` in
+//! ``LLAMA_DATA_DIR`` — must match ``generate_test_data.py`` output.
+namespace attn_fixture_stem
 {
-    LlamaConfig config;
-    config.hidden_size = kGqaHidden;
-    config.num_attention_heads = kGqaNumHeads;
-    config.num_key_value_heads = kGqaNumKv;
-    config.compute_head_dim();
-    return config;
-}
+
+constexpr char llama_attention_full[] = "llama_attention_full";
+constexpr char llama_attention_no_rope_full[] = "llama_attention_no_rope_full";
+constexpr char llama_attention_causal_full[] = "llama_attention_causal_full";
+constexpr char llama_attention_no_rope_causal_full[] =
+    "llama_attention_no_rope_causal_full";
+constexpr char llama_attention_gqa_full[] = "llama_attention_gqa_full";
+constexpr char llama_attention_gqa_no_rope_full[] =
+    "llama_attention_gqa_no_rope_full";
+constexpr char llama_attention_gqa_causal_full[] =
+    "llama_attention_gqa_causal_full";
+constexpr char llama_attention_gqa_no_rope_causal_full[] =
+    "llama_attention_gqa_no_rope_causal_full";
+
+} // namespace attn_fixture_stem
 
 namespace
 {
+
+//! Parsed ``<stem>.json`` (``version`` 2) next to ``<stem>.safetensors``.
+struct AttentionFixtureSpec
+{
+    LlamaConfig config{};
+    Index seq = 0;
+    Index batch = 0;
+    Index hidden = 0;
+    float forward_tol = 0.f;
+    float backward_tol = 0.f;
+    std::string stem;
+};
+
+inline Index json_index(const nlohmann::json& o, const char* key)
+{
+    return static_cast<Index>(o.at(key).get<std::int64_t>());
+}
+
+inline bool try_load_attention_fixture_spec(
+    const std::string& data_dir,
+    const char* stem_cstr,
+    AttentionFixtureSpec& out)
+{
+    out = {};
+    out.stem = stem_cstr;
+    const std::string jpath = data_dir + "/" + out.stem + ".json";
+    std::ifstream jf(jpath);
+    if(!jf)
+    {
+        return false;
+    }
+    nlohmann::json j;
+    try
+    {
+        jf >> j;
+        if(j.at("version").get<int>() != 2)
+        {
+            return false;
+        }
+        if(j.at("stem").get<std::string>() != out.stem)
+        {
+            return false;
+        }
+        const std::string expected_st = out.stem + ".safetensors";
+        if(j.at("safetensors").get<std::string>() != expected_st)
+        {
+            return false;
+        }
+        const auto& L = j.at("llama");
+        out.config.hidden_size = json_index(L, "hidden_size");
+        out.config.num_attention_heads = json_index(L, "num_attention_heads");
+        out.config.num_key_value_heads = json_index(L, "num_key_value_heads");
+        out.config.compute_head_dim();
+        out.hidden = out.config.hidden_size;
+        out.seq = json_index(j, "sequence_length");
+        out.batch = json_index(j, "batch");
+        out.forward_tol = static_cast<float>(
+            j.at("tolerances").at("forward").get<double>());
+        out.backward_tol = static_cast<float>(
+            j.at("tolerances").at("backward").get<double>());
+    }
+    catch(...)
+    {
+        return false;
+    }
+    return true;
+}
+
+inline std::string attention_fixture_safetensors_path(
+    const std::string& data_dir,
+    const AttentionFixtureSpec& spec)
+{
+    return data_dir + "/" + spec.stem + ".safetensors";
+}
+
+//! SKIP helper: JSON + safetensors must both exist and JSON must parse.
+inline bool skip_unless_fixture_ready(
+    const char* stem,
+    AttentionFixtureSpec& fx)
+{
+    const std::string dir = std::string(LLAMA_DATA_DIR);
+    if(!try_load_attention_fixture_spec(dir, stem, fx))
+    {
+        return false;
+    }
+    std::ifstream st(attention_fixture_safetensors_path(dir, fx));
+    return st.good();
+}
 
 //! Optional RoPE tensors from safetensors (same layout as Python LlamaAttention).
 struct LlamaRopeInputs
@@ -154,8 +234,6 @@ inline void bind_rope_inputs(
 }
 
 //! Optional causal mask ``(seq, seq)`` for ``sdpa_eager`` (1 = keep logit).
-//! Safetensors store float32 0/1 (``save_file`` maps numpy bool to F32); BOOL
-//! is also accepted. Bytes bound to the graph are BOOL layout (1 byte/elem).
 inline bool load_attn_mask_bool(
     NNGraph& g,
     const SafeTensorsReader& reader,
@@ -229,53 +307,186 @@ inline void bind_mask_input(
     runtime.bind_data(mask->name(), mask_bytes);
 }
 
+void llama_attention_forward_compare_ref(const AttentionFixtureSpec& fx)
+{
+    const std::string data_dir = std::string(LLAMA_DATA_DIR);
+    const std::string full_path = attention_fixture_safetensors_path(data_dir, fx);
+    const float tol = fx.forward_tol;
+    const LlamaConfig& config = fx.config;
+    const Index n_seq = fx.seq;
+    const Index n_batch = fx.batch;
+    const Index hidden = fx.hidden;
+
+    SafeTensorsReader reader(full_path);
+    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
+    std::vector<float> input_data(input_bytes.size() / sizeof(float));
+    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
+
+    std::vector<std::uint8_t> ref_bytes = reader.read_tensor("output_ref");
+    std::vector<float> ref_data(ref_bytes.size() / sizeof(float));
+    std::memcpy(ref_data.data(), ref_bytes.data(), ref_bytes.size());
+
+    std::vector<float> result;
+    {
+        const std::string gname = std::string("attn_ref_") + fx.stem;
+        NNGraph g(gname);
+        auto* input = g.tensor(
+            {hidden, n_seq, n_batch}, "input", DataType::FP32);
+        LlamaRopeInputs rope;
+        load_llama_rope_inputs(
+            g, reader, config, n_seq, n_batch, rope);
+        NNGraph::TensorNode* mask = nullptr;
+        std::vector<std::uint8_t> mask_bytes;
+        load_attn_mask_bool(g, reader, n_seq, mask, mask_bytes);
+        LlamaAttention attn(&g, "attn", config);
+        auto* output = attn.forward(input, rope.sin, rope.cos, mask);
+        input->mark_input(true);
+        output->mark_output(true);
+        mark_rope_inputs(rope);
+        mark_mask_input(mask);
+
+        attn.load(full_path);
+
+        TensorGraph& tg = g.tensor_graph();
+        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
+
+        TileGraph::Runtime runtime(tile_graph);
+        runtime.compile();
+        runtime.bind_data("input", input_data);
+        bind_rope_inputs(runtime, rope);
+        bind_mask_input(runtime, mask, mask_bytes);
+        runtime.execute();
+        runtime.wait();
+
+        result = runtime.get_output<float>(output->name());
+    }
+
+    REQUIRE(result.size() == ref_data.size());
+    require_relative_frobenius_error(result, ref_data, tol);
+}
+
+void llama_attention_backward_compare_ref(const AttentionFixtureSpec& fx)
+{
+    const std::string data_dir = std::string(LLAMA_DATA_DIR);
+    const std::string full_path = attention_fixture_safetensors_path(data_dir, fx);
+    const float tol = fx.backward_tol;
+    const LlamaConfig& config = fx.config;
+    const Index n_seq = fx.seq;
+    const Index n_batch = fx.batch;
+    const Index hidden = fx.hidden;
+
+    SafeTensorsReader reader(full_path);
+    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
+    std::vector<float> input_data(input_bytes.size() / sizeof(float));
+    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
+
+    std::vector<std::uint8_t> grad_out_bytes = reader.read_tensor("grad_output");
+    std::vector<float> grad_out_data(grad_out_bytes.size() / sizeof(float));
+    std::memcpy(grad_out_data.data(), grad_out_bytes.data(),
+        grad_out_bytes.size());
+
+    std::vector<std::uint8_t> ref_bytes = reader.read_tensor("grad_input");
+    std::vector<float> grad_input_ref(ref_bytes.size() / sizeof(float));
+    std::memcpy(grad_input_ref.data(), ref_bytes.data(), ref_bytes.size());
+
+    std::vector<float> grad_input_result;
+    {
+        const std::string gname = std::string("attn_bwd_") + fx.stem;
+        NNGraph g(gname);
+        auto* input = g.tensor(
+            {hidden, n_seq, n_batch}, "input", DataType::FP32, true);
+        LlamaRopeInputs rope;
+        load_llama_rope_inputs(
+            g, reader, config, n_seq, n_batch, rope);
+        NNGraph::TensorNode* mask = nullptr;
+        std::vector<std::uint8_t> mask_bytes;
+        load_attn_mask_bool(g, reader, n_seq, mask, mask_bytes);
+        LlamaAttention attn(&g, "attn", config);
+        auto* output = attn.forward(input, rope.sin, rope.cos, mask);
+
+        input->mark_input(true);
+        output->mark_output(true);
+        mark_rope_inputs(rope);
+        mark_mask_input(mask);
+
+        auto [grad_output_tensor, _] =
+            g.get_or_create_grad(output, "grad_output");
+        grad_output_tensor->mark_input(true);
+        output->backward();
+        input->grad()->mark_output(true);
+
+        attn.load(full_path);
+
+        TensorGraph& tg = g.tensor_graph();
+        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
+
+        TileGraph::Runtime runtime(tile_graph);
+        runtime.compile();
+        runtime.bind_data("input", input_data);
+        runtime.bind_data("grad_output", grad_out_data);
+        bind_rope_inputs(runtime, rope);
+        bind_mask_input(runtime, mask, mask_bytes);
+        runtime.execute();
+        runtime.wait();
+
+        grad_input_result =
+            runtime.get_output<float>(input->grad()->name());
+    }
+
+    REQUIRE(grad_input_result.size() == grad_input_ref.size());
+    require_relative_frobenius_error(grad_input_result, grad_input_ref, tol);
+}
+
 } // namespace
 
 TEST_CASE("LlamaAttention forward builds output", "[model][llama]")
 {
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_full, fx))
+    {
+        SKIP("Missing or invalid llama_attention_full.json / .safetensors.");
+    }
     NNGraph g("llama_attn");
-    auto config = test_config();
-
+    LlamaAttention attn(&g, "attn", fx.config);
     auto* input = g.tensor(
-        {kMhaHidden, kAttnSeq, kAttnBatch}, "input", DataType::FP32);
-    LlamaAttention attn(&g, "attn", config);
+        {fx.hidden, fx.seq, fx.batch}, "input", DataType::FP32);
     auto* output = attn.forward(input);
 
     REQUIRE(output != nullptr);
-    REQUIRE(output->shape() == std::vector<Index>({
-        kMhaHidden, kAttnSeq, kAttnBatch}));
+    REQUIRE(output->shape()
+        == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
 }
 
 TEST_CASE("LlamaAttention GQA forward builds output", "[model][llama][gqa]")
 {
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_gqa_full, fx))
+    {
+        SKIP("Missing or invalid llama_attention_gqa_full.json / .safetensors.");
+    }
     NNGraph g("llama_attn_gqa");
-    auto config = test_config_gqa();
-
+    LlamaAttention attn(&g, "attn", fx.config);
     auto* input = g.tensor(
-        {kGqaHidden, kAttnSeq, kAttnBatch}, "input", DataType::FP32);
-    LlamaAttention attn(&g, "attn", config);
+        {fx.hidden, fx.seq, fx.batch}, "input", DataType::FP32);
     auto* output = attn.forward(input);
 
     REQUIRE(output != nullptr);
-    REQUIRE(output->shape() == std::vector<Index>({
-        kGqaHidden, kAttnSeq, kAttnBatch}));
+    REQUIRE(output->shape()
+        == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
 }
 
-#ifdef LLAMA_DATA_DIR
 TEST_CASE("LlamaAttention load from safetensors roundtrip", "[model][llama][io]")
 {
-    const std::string data_path =
-        std::string(LLAMA_DATA_DIR) + "/llama_attention_full.safetensors";
-    std::ifstream check(data_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_full, fx))
     {
-        SKIP("Llama attention test data not found.");
+        SKIP("Missing or invalid llama_attention_full.json / .safetensors.");
     }
-
-    auto config = test_config();
+    const std::string data_path =
+        attention_fixture_safetensors_path(std::string(LLAMA_DATA_DIR), fx);
 
     NNGraph g1("load_graph");
-    LlamaAttention attn1(&g1, "attn", config);
+    LlamaAttention attn1(&g1, "attn", fx.config);
     attn1.load(data_path);
 
     const std::string save_path =
@@ -297,529 +508,204 @@ TEST_CASE("LlamaAttention load from safetensors roundtrip", "[model][llama][io]"
     std::remove(save_path.c_str());
 }
 
-namespace
-{
-
-//! MHA forward vs ``output_ref`` in ``full_path`` (must exist); ``fname`` names the graph.
-void llama_mha_forward_compare_ref(
-    const std::string& full_path,
-    const char* fname,
-    float tol)
-{
-    auto config = test_config();
-
-    SafeTensorsReader reader(full_path);
-    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
-    std::vector<float> input_data(input_bytes.size() / sizeof(float));
-    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
-
-    std::vector<std::uint8_t> ref_bytes = reader.read_tensor("output_ref");
-    std::vector<float> ref_data(ref_bytes.size() / sizeof(float));
-    std::memcpy(ref_data.data(), ref_bytes.data(), ref_bytes.size());
-
-    std::vector<float> result;
-    {
-        const std::string gname = std::string("attn_ref_") + fname;
-        NNGraph g(gname);
-        auto* input = g.tensor(
-            {kMhaHidden, kAttnSeq, kAttnBatch}, "input", DataType::FP32);
-        LlamaRopeInputs rope;
-        load_llama_rope_inputs(
-            g, reader, config, kAttnSeq, kAttnBatch, rope);
-        NNGraph::TensorNode* mask = nullptr;
-        std::vector<std::uint8_t> mask_bytes;
-        load_attn_mask_bool(g, reader, kAttnSeq, mask, mask_bytes);
-        LlamaAttention attn(&g, "attn", config);
-        auto* output = attn.forward(input, rope.sin, rope.cos, mask);
-        input->mark_input(true);
-        output->mark_output(true);
-        mark_rope_inputs(rope);
-        mark_mask_input(mask);
-
-        attn.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input", input_data);
-        bind_rope_inputs(runtime, rope);
-        bind_mask_input(runtime, mask, mask_bytes);
-        runtime.execute();
-        runtime.wait();
-
-        result = runtime.get_output<float>(output->name());
-    }
-
-    REQUIRE(result.size() == ref_data.size());
-    require_relative_frobenius_error(result, ref_data, tol);
-}
-
-void llama_mha_backward_vs_ref(
-    const std::string& full_path,
-    const char* fname,
-    float tol)
-{
-    auto config = test_config();
-
-    SafeTensorsReader reader(full_path);
-    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
-    std::vector<float> input_data(input_bytes.size() / sizeof(float));
-    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
-
-    std::vector<std::uint8_t> grad_out_bytes = reader.read_tensor("grad_output");
-    std::vector<float> grad_out_data(grad_out_bytes.size() / sizeof(float));
-    std::memcpy(grad_out_data.data(), grad_out_bytes.data(),
-        grad_out_bytes.size());
-
-    std::vector<std::uint8_t> ref_bytes = reader.read_tensor("grad_input");
-    std::vector<float> grad_input_ref(ref_bytes.size() / sizeof(float));
-    std::memcpy(grad_input_ref.data(), ref_bytes.data(), ref_bytes.size());
-
-    std::vector<float> grad_input_result;
-    {
-        const std::string gname = std::string("attn_bwd_") + fname;
-        NNGraph g(gname);
-        auto* input = g.tensor(
-            {kMhaHidden, kAttnSeq, kAttnBatch}, "input", DataType::FP32, true);
-        LlamaRopeInputs rope;
-        load_llama_rope_inputs(
-            g, reader, config, kAttnSeq, kAttnBatch, rope);
-        NNGraph::TensorNode* mask = nullptr;
-        std::vector<std::uint8_t> mask_bytes;
-        load_attn_mask_bool(g, reader, kAttnSeq, mask, mask_bytes);
-        LlamaAttention attn(&g, "attn", config);
-        auto* output = attn.forward(input, rope.sin, rope.cos, mask);
-
-        input->mark_input(true);
-        output->mark_output(true);
-        mark_rope_inputs(rope);
-        mark_mask_input(mask);
-
-        auto [grad_output_tensor, _] =
-            g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
-        output->backward();
-        input->grad()->mark_output(true);
-
-        attn.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input", input_data);
-        runtime.bind_data("grad_output", grad_out_data);
-        bind_rope_inputs(runtime, rope);
-        bind_mask_input(runtime, mask, mask_bytes);
-        runtime.execute();
-        runtime.wait();
-
-        grad_input_result =
-            runtime.get_output<float>(input->grad()->name());
-    }
-
-    REQUIRE(grad_input_result.size() == grad_input_ref.size());
-    require_relative_frobenius_error(grad_input_result, grad_input_ref, tol);
-}
-
-void llama_gqa_forward_compare_ref(
-    const std::string& full_path,
-    const char* fname,
-    float tol)
-{
-    auto config = test_config_gqa();
-
-    SafeTensorsReader reader(full_path);
-    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
-    std::vector<float> input_data(input_bytes.size() / sizeof(float));
-    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
-
-    std::vector<std::uint8_t> ref_bytes = reader.read_tensor("output_ref");
-    std::vector<float> ref_data(ref_bytes.size() / sizeof(float));
-    std::memcpy(ref_data.data(), ref_bytes.data(), ref_bytes.size());
-
-    std::vector<float> result;
-    {
-        const std::string gname = std::string("attn_gqa_ref_") + fname;
-        NNGraph g(gname);
-        auto* input = g.tensor(
-            {kGqaHidden, kAttnSeq, kAttnBatch}, "input", DataType::FP32);
-        LlamaRopeInputs rope;
-        load_llama_rope_inputs(
-            g, reader, config, kAttnSeq, kAttnBatch, rope);
-        NNGraph::TensorNode* mask = nullptr;
-        std::vector<std::uint8_t> mask_bytes;
-        load_attn_mask_bool(g, reader, kAttnSeq, mask, mask_bytes);
-        LlamaAttention attn(&g, "attn", config);
-        auto* output = attn.forward(input, rope.sin, rope.cos, mask);
-        input->mark_input(true);
-        output->mark_output(true);
-        mark_rope_inputs(rope);
-        mark_mask_input(mask);
-
-        attn.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input", input_data);
-        bind_rope_inputs(runtime, rope);
-        bind_mask_input(runtime, mask, mask_bytes);
-        runtime.execute();
-        runtime.wait();
-
-        result = runtime.get_output<float>(output->name());
-    }
-
-    REQUIRE(result.size() == ref_data.size());
-    require_relative_frobenius_error(result, ref_data, tol);
-}
-
-void llama_gqa_backward_compare_ref(
-    const std::string& full_path,
-    const char* fname,
-    float tol)
-{
-    auto config = test_config_gqa();
-
-    SafeTensorsReader reader(full_path);
-    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
-    std::vector<float> input_data(input_bytes.size() / sizeof(float));
-    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
-
-    std::vector<std::uint8_t> grad_out_bytes = reader.read_tensor("grad_output");
-    std::vector<float> grad_out_data(grad_out_bytes.size() / sizeof(float));
-    std::memcpy(grad_out_data.data(), grad_out_bytes.data(),
-        grad_out_bytes.size());
-
-    std::vector<std::uint8_t> ref_bytes = reader.read_tensor("grad_input");
-    std::vector<float> grad_input_ref(ref_bytes.size() / sizeof(float));
-    std::memcpy(grad_input_ref.data(), ref_bytes.data(), ref_bytes.size());
-
-    std::vector<float> grad_input_result;
-    {
-        const std::string gname = std::string("attn_gqa_bwd_") + fname;
-        NNGraph g(gname);
-        auto* input = g.tensor(
-            {kGqaHidden, kAttnSeq, kAttnBatch}, "input", DataType::FP32, true);
-        LlamaRopeInputs rope;
-        load_llama_rope_inputs(
-            g, reader, config, kAttnSeq, kAttnBatch, rope);
-        NNGraph::TensorNode* mask = nullptr;
-        std::vector<std::uint8_t> mask_bytes;
-        load_attn_mask_bool(g, reader, kAttnSeq, mask, mask_bytes);
-        LlamaAttention attn(&g, "attn", config);
-        auto* output = attn.forward(input, rope.sin, rope.cos, mask);
-
-        input->mark_input(true);
-        output->mark_output(true);
-        mark_rope_inputs(rope);
-        mark_mask_input(mask);
-
-        auto [grad_output_tensor, _] =
-            g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
-        output->backward();
-        input->grad()->mark_output(true);
-
-        attn.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input", input_data);
-        runtime.bind_data("grad_output", grad_out_data);
-        bind_rope_inputs(runtime, rope);
-        bind_mask_input(runtime, mask, mask_bytes);
-        runtime.execute();
-        runtime.wait();
-
-        grad_input_result =
-            runtime.get_output<float>(input->grad()->name());
-    }
-
-    REQUIRE(grad_input_result.size() == grad_input_ref.size());
-    require_relative_frobenius_error(grad_input_result, grad_input_ref, tol);
-}
-
-} // namespace
-
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention MHA forward vs PyTorch (no causal mask, RoPE)",
     "[model][llama][nomask]")
 {
-    const char* fname = "llama_attention_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_full, fx))
     {
-        SKIP("Llama attention test data not found.");
+        SKIP("Llama attention fixture pair not found.");
     }
-
-    constexpr float tol = 1e-6f;
-    llama_mha_forward_compare_ref(full_path, fname, tol);
+    llama_attention_forward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention MHA forward vs PyTorch (no causal mask, no RoPE)",
     "[model][llama][nomask][norope][norope_nomask]")
 {
-    const char* fname = "llama_attention_no_rope_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_no_rope_full, fx))
     {
-        SKIP("Llama attention test data not found.");
+        SKIP("Llama attention fixture pair not found.");
     }
-
-    constexpr float tol = 1e-6f;
-    llama_mha_forward_compare_ref(full_path, fname, tol);
+    llama_attention_forward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention MHA forward vs PyTorch (causal mask, RoPE)",
     "[model][llama][causal_mask]")
 {
-    const char* fname = "llama_attention_causal_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_causal_full, fx))
     {
-        SKIP("Llama attention test data not found.");
+        SKIP("Llama attention fixture pair not found.");
     }
-
-    constexpr float tol = 5e-3f;
-    llama_mha_forward_compare_ref(full_path, fname, tol);
+    llama_attention_forward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention MHA forward vs PyTorch (causal mask, no RoPE)",
     "[model][llama][causal_mask][norope]")
 {
-    const char* fname = "llama_attention_no_rope_causal_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(
+           attn_fixture_stem::llama_attention_no_rope_causal_full, fx))
     {
-        SKIP("Llama attention test data not found.");
+        SKIP("Llama attention fixture pair not found.");
     }
-
-    constexpr float tol = 1e-6f;
-    llama_mha_forward_compare_ref(full_path, fname, tol);
+    llama_attention_forward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention MHA backward vs PyTorch (no causal mask, RoPE)",
     "[model][llama][nomask]")
 {
-    const char* fname = "llama_attention_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_full, fx))
     {
-        SKIP("Llama attention test data not found.");
+        SKIP("Llama attention fixture pair not found.");
     }
-
-    constexpr float tol = 9e-3f;
-    llama_mha_backward_vs_ref(full_path, fname, tol);
+    llama_attention_backward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention MHA backward vs PyTorch (no causal mask, no RoPE)",
     "[model][llama][nomask][norope][norope_nomask]")
 {
-    const char* fname = "llama_attention_no_rope_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_no_rope_full, fx))
     {
-        SKIP("Llama attention test data not found.");
+        SKIP("Llama attention fixture pair not found.");
     }
-
-    constexpr float tol = 1e-6f;
-    llama_mha_backward_vs_ref(full_path, fname, tol);
+    llama_attention_backward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention MHA backward vs PyTorch (causal mask, RoPE)",
     "[model][llama][causal_mask]")
 {
-    const char* fname = "llama_attention_causal_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_causal_full, fx))
     {
-        SKIP("Llama attention test data not found.");
+        SKIP("Llama attention fixture pair not found.");
     }
-
-    constexpr float tol = 9e-3f;
-    llama_mha_backward_vs_ref(full_path, fname, tol);
+    llama_attention_backward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention MHA backward vs PyTorch (causal mask, no RoPE)",
     "[model][llama][causal_mask][norope]")
 {
-    const char* fname = "llama_attention_no_rope_causal_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(
+           attn_fixture_stem::llama_attention_no_rope_causal_full, fx))
     {
-        SKIP("Llama attention test data not found.");
+        SKIP("Llama attention fixture pair not found.");
     }
-
-    constexpr float tol = 1e-6f;
-    llama_mha_backward_vs_ref(full_path, fname, tol);
+    llama_attention_backward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention GQA forward vs PyTorch (no causal mask, RoPE)",
     "[model][llama][gqa][nomask]")
 {
-    const char* fname = "llama_attention_gqa_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_gqa_full, fx))
     {
-        SKIP("Llama attention GQA test data not found.");
+        SKIP("Llama attention GQA fixture pair not found.");
     }
-
-    constexpr float tol = 5e-3f;
-    llama_gqa_forward_compare_ref(full_path, fname, tol);
+    llama_attention_forward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention GQA forward vs PyTorch (no causal mask, no RoPE)",
     "[model][llama][gqa][nomask][norope][norope_nomask]")
 {
-    const char* fname = "llama_attention_gqa_no_rope_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(
+           attn_fixture_stem::llama_attention_gqa_no_rope_full, fx))
     {
-        SKIP("Llama attention GQA test data not found.");
+        SKIP("Llama attention GQA fixture pair not found.");
     }
-
-    constexpr float tol = 1e-6f;
-    llama_gqa_forward_compare_ref(full_path, fname, tol);
+    llama_attention_forward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention GQA forward vs PyTorch (causal mask, RoPE)",
     "[model][llama][gqa][causal_mask]")
 {
-    const char* fname = "llama_attention_gqa_causal_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(
+           attn_fixture_stem::llama_attention_gqa_causal_full, fx))
     {
-        SKIP("Llama attention GQA test data not found.");
+        SKIP("Llama attention GQA fixture pair not found.");
     }
-
-    constexpr float tol = 5e-3f;
-    llama_gqa_forward_compare_ref(full_path, fname, tol);
+    llama_attention_forward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention GQA forward vs PyTorch (causal mask, no RoPE)",
     "[model][llama][gqa][causal_mask][norope]")
 {
-    const char* fname = "llama_attention_gqa_no_rope_causal_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(
+           attn_fixture_stem::llama_attention_gqa_no_rope_causal_full, fx))
     {
-        SKIP("Llama attention GQA test data not found.");
+        SKIP("Llama attention GQA fixture pair not found.");
     }
-
-    constexpr float tol = 1e-6f;
-    llama_gqa_forward_compare_ref(full_path, fname, tol);
+    llama_attention_forward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention GQA backward vs PyTorch (no causal mask, RoPE)",
     "[model][llama][gqa][nomask]")
 {
-    const char* fname = "llama_attention_gqa_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_gqa_full, fx))
     {
-        SKIP("Llama attention GQA backward test data not found.");
+        SKIP("Llama attention GQA fixture pair not found.");
     }
-
-    constexpr float tol = 9e-3f;
-    llama_gqa_backward_compare_ref(full_path, fname, tol);
+    llama_attention_backward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention GQA backward vs PyTorch (no causal mask, no RoPE)",
     "[model][llama][gqa][nomask][norope][norope_nomask]")
 {
-    const char* fname = "llama_attention_gqa_no_rope_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(
+           attn_fixture_stem::llama_attention_gqa_no_rope_full, fx))
     {
-        SKIP("Llama attention GQA backward test data not found.");
+        SKIP("Llama attention GQA fixture pair not found.");
     }
-
-    constexpr float tol = 1e-6f;
-    llama_gqa_backward_compare_ref(full_path, fname, tol);
+    llama_attention_backward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention GQA backward vs PyTorch (causal mask, RoPE)",
     "[model][llama][gqa][causal_mask]")
 {
-    const char* fname = "llama_attention_gqa_causal_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(
+           attn_fixture_stem::llama_attention_gqa_causal_full, fx))
     {
-        SKIP("Llama attention GQA backward test data not found.");
+        SKIP("Llama attention GQA fixture pair not found.");
     }
-
-    constexpr float tol = 9e-3f;
-    llama_gqa_backward_compare_ref(full_path, fname, tol);
+    llama_attention_backward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaAttention GQA backward vs PyTorch (causal mask, no RoPE)",
     "[model][llama][gqa][causal_mask][norope]")
 {
-    const char* fname = "llama_attention_gqa_no_rope_causal_full.safetensors";
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/" + fname;
-    std::ifstream check(full_path);
-    if(!check.good())
+    AttentionFixtureSpec fx;
+    if(!skip_unless_fixture_ready(
+           attn_fixture_stem::llama_attention_gqa_no_rope_causal_full, fx))
     {
-        SKIP("Llama attention GQA backward test data not found.");
+        SKIP("Llama attention GQA fixture pair not found.");
     }
-
-    constexpr float tol = 1e-6f;
-    llama_gqa_backward_compare_ref(full_path, fname, tol);
+    llama_attention_backward_compare_ref(fx);
 }
+
 #endif

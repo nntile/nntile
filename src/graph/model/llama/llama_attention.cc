@@ -269,28 +269,6 @@ inline void copy_elem(const std::uint8_t* src, std::uint8_t* dst, size_t es)
     std::memcpy(dst, src, es);
 }
 
-// HF (out, in) row-major -> NNTile (n_heads, head_size, n_emb) col-major
-void hf_linear_to_3d(const std::vector<std::uint8_t>& hf_data,
-                    Index n_heads, Index head_size, Index n_emb,
-                    std::vector<std::uint8_t>& out, size_t es)
-{
-    const auto* src = hf_data.data();
-    auto* dst = out.data();
-    for(Index h = 0; h < n_heads; ++h)
-    {
-        for(Index s = 0; s < head_size; ++s)
-        {
-            Index row = h * head_size + s;
-            for(Index e = 0; e < n_emb; ++e)
-            {
-                Index dst_idx = h + s * n_heads + e * n_heads * head_size;
-                Index src_idx = row * n_emb + e;
-                copy_elem(src + src_idx * es, dst + dst_idx * es, es);
-            }
-        }
-    }
-}
-
 // NNTile (n_heads, head_size, n_emb) -> HF (out, in) row-major for q,k,v
 void nntile_qkv_to_hf(const std::vector<std::uint8_t>& nntile_data,
                       Index n_heads, Index head_size, Index n_emb,
@@ -335,54 +313,6 @@ void nntile_o_to_hf(const std::vector<std::uint8_t>& nntile_data,
     }
 }
 
-// HF (n_emb, n_emb) -> NNTile (n_emb, n_heads, head_size) for o_proj (non-GQA)
-void hf_to_nntile_o(const std::vector<std::uint8_t>& hf_data,
-                    Index n_emb, Index n_heads, Index head_size,
-                    std::vector<std::uint8_t>& out, size_t es)
-{
-    const auto* src = hf_data.data();
-    auto* dst = out.data();
-    for(Index e = 0; e < n_emb; ++e)
-    {
-        for(Index h = 0; h < n_heads; ++h)
-        {
-            for(Index s = 0; s < head_size; ++s)
-            {
-                Index col = h * head_size + s;
-                Index dst_idx = e + h * n_emb + s * n_emb * n_heads;
-                Index src_idx = e * n_emb + col;
-                copy_elem(src + src_idx * es, dst + dst_idx * es, es);
-            }
-        }
-    }
-}
-
-// HF (n_emb, n_emb) -> NNTile (n_emb, kv_group_size, n_head_kv, head_size) for o_proj (GQA)
-void hf_to_nntile_o_4d(const std::vector<std::uint8_t>& hf_data,
-                       Index n_emb, Index kv_group_size, Index n_head_kv, Index head_size,
-                       std::vector<std::uint8_t>& out, size_t es)
-{
-    const auto* src = hf_data.data();
-    auto* dst = out.data();
-    for(Index e = 0; e < n_emb; ++e)
-    {
-        for(Index g = 0; g < kv_group_size; ++g)
-        {
-            for(Index h = 0; h < n_head_kv; ++h)
-            {
-                for(Index s = 0; s < head_size; ++s)
-                {
-                    Index col = (h * kv_group_size + g) * head_size + s;
-                    Index dst_idx = e + g * n_emb + h * n_emb * kv_group_size +
-                               s * n_emb * kv_group_size * n_head_kv;
-                    Index src_idx = e * n_emb + col;
-                    copy_elem(src + src_idx * es, dst + dst_idx * es, es);
-                }
-            }
-        }
-    }
-}
-
 // NNTile (n_emb, kv_group_size, n_head_kv, head_size) -> HF (n_emb, n_emb) for o_proj (GQA)
 void nntile_o_to_hf_4d(const std::vector<std::uint8_t>& nntile_data,
                        Index n_emb, Index kv_group_size, Index n_head_kv, Index head_size,
@@ -409,40 +339,7 @@ void nntile_o_to_hf_4d(const std::vector<std::uint8_t>& nntile_data,
     }
 }
 
-//! Reorder head_size axis: s -> s/2 (even s), head_size/2 + (s-1)/2 (odd s). Layout matches
-//! hf_linear_to_3d / nntile_qkv_to_hf: idx = h + s * n_heads + e * n_heads * head_size.
-void rotate_qkv_head_dim_even_odd(const std::vector<std::uint8_t>& src,
-                                  Index n_heads, Index head_size, Index n_emb,
-                                  std::vector<std::uint8_t>& dst, size_t es)
-{
-    if(head_size % 2 != 0)
-    {
-        throw std::runtime_error(
-            "rotate_qkv_head_dim_even_odd: head_size must be even");
-    }
-    dst.resize(src.size());
-    const auto* p = src.data();
-    auto* q = dst.data();
-    for(Index h = 0; h < n_heads; ++h)
-    {
-        for(Index s_old = 0; s_old < head_size; ++s_old)
-        {
-            const Index s_new = (s_old % 2 == 0) ? (s_old / 2)
-                                                 : (head_size / 2 + (s_old - 1) / 2);
-            for(Index e = 0; e < n_emb; ++e)
-            {
-                // const Index src_idx = h + s_old * n_heads + e * n_heads * head_size;
-                // const Index dst_idx = h + s_new * n_heads + e * n_heads * head_size;
-                const Index src_idx = s_old + h * head_size + e * n_heads * head_size;
-                const Index dst_idx = s_new + h * head_size + e * n_heads * head_size;
-                copy_elem(p + src_idx * es, q + dst_idx * es, es);
-            }
-        }
-    }
-    std::cerr << "rotated " << std::endl;
-}
-
-//! Inverse of rotate_qkv_head_dim_even_odd (restore canonical head index order).
+//! Inverse of head_dim even/odd interleaving used in NNTile Q/K storage (export_hf).
 void unrotate_qkv_head_dim_even_odd(const std::vector<std::uint8_t>& src,
                                     Index n_heads, Index head_size, Index n_emb,
                                     std::vector<std::uint8_t>& dst, size_t es)
@@ -472,117 +369,6 @@ void unrotate_qkv_head_dim_even_odd(const std::vector<std::uint8_t>& src,
 }
 
 } // anonymous namespace
-
-void LlamaAttention::import_hf(const graph::io::SafeTensorsReader& reader,
-                              const std::string& hf_prefix)
-{
-    Index n_emb = config_.hidden_size;
-    const size_t es = graph::dtype_size(dtype_);
-    const std::string prefix = hf_prefix.empty() ? "" : hf_prefix + ".";
-
-    auto validate_dtype = [&](const std::string& key,
-                              const graph::io::TensorInfo& info)
-    {
-        if(!graph::io::is_safetensors_dtype_compatible(
-               graph::io::dtype_to_safetensors(info.dtype), dtype_))
-        {
-            throw std::runtime_error(
-                "LlamaAttention::import_hf: dtype mismatch for '" + key +
-                "': file has " + graph::io::dtype_to_safetensors(info.dtype) +
-                ", module expects " + graph::io::dtype_to_safetensors(dtype_));
-        }
-    };
-
-    auto load_qkv = [&](const std::string& name, graph::NNGraph::TensorNode* param,
-                       Index out_rows, Index out_cols)
-    {
-        const std::string key = prefix + name + ".weight";
-        if(!reader.has_tensor(key))
-        {
-            throw std::runtime_error("LlamaAttention::import_hf: '" + key + "' not found");
-        }
-        const auto& info = reader.tensor_info(key);
-        validate_dtype(key, info);
-        if(info.shape.size() != 2 || info.shape[0] != static_cast<std::int64_t>(out_rows) ||
-           info.shape[1] != static_cast<std::int64_t>(out_cols))
-        {
-            throw std::runtime_error("LlamaAttention::import_hf: shape mismatch for " + key);
-        }
-        auto data = reader.read_tensor(key);
-        const auto& param_shape = param->shape();
-        Index n_elems = 1;
-        for(const auto& d : param_shape)
-        {
-            n_elems *= static_cast<Index>(d);
-        }
-        std::vector<std::uint8_t> nntile_data(n_elems * es);
-        Index n_heads_dim, head_size_dim, n_emb_dim;
-        if(param_shape.size() == 3)
-        {
-            n_heads_dim = param_shape[0];
-            head_size_dim = param_shape[1];
-            n_emb_dim = param_shape[2];
-        }
-        else if(param_shape.size() == 4)
-        {
-            n_heads_dim = param_shape[0] * param_shape[1];
-            head_size_dim = param_shape[2];
-            n_emb_dim = param_shape[3];
-        }
-        else
-        {
-            throw std::runtime_error("LlamaAttention::import_hf: QKV param must be 3D or 4D");
-        }
-        hf_linear_to_3d(data, n_heads_dim, head_size_dim, n_emb_dim, nntile_data, es);
-        const bool is_q_or_k =
-            (name == "q_weight" || name == "k_weight");
-        if(is_q_or_k)
-        {
-            std::vector<std::uint8_t> nntile_data_rotated;
-            rotate_qkv_head_dim_even_odd(nntile_data, n_heads_dim, head_size_dim, n_emb_dim,
-                                         nntile_data_rotated, es);
-            param->data()->set_bind_hint(std::move(nntile_data_rotated));
-            std::cerr << "rotated " << name << std::endl;
-        }
-        else
-        {
-            param->data()->set_bind_hint(std::move(nntile_data));
-            std::cerr << "not rotated " << name << std::endl;
-        }
-        param->mark_input(true);
-    };
-
-    load_qkv("q_proj", w_q_, n_emb, n_emb);
-    load_qkv("k_proj", w_k_, n_head_kv_ * head_size_, n_emb);
-    load_qkv("v_proj", w_v_, n_head_kv_ * head_size_, n_emb);
-
-    const std::string o_key = prefix + "o_proj.weight";
-    if(!reader.has_tensor(o_key))
-    {
-        throw std::runtime_error("LlamaAttention::import_hf: '" + o_key + "' not found");
-    }
-    const auto& o_info = reader.tensor_info(o_key);
-    validate_dtype(o_key, o_info);
-    if(o_info.shape.size() != 2 || o_info.shape[0] != static_cast<std::int64_t>(n_emb) ||
-       o_info.shape[1] != static_cast<std::int64_t>(n_emb))
-    {
-        throw std::runtime_error("LlamaAttention::import_hf: shape mismatch for " + o_key);
-    }
-    auto o_data = reader.read_tensor(o_key);
-    if(use_gqa_)
-    {
-        std::vector<std::uint8_t> o_nntile(n_emb * kv_group_size_ * n_head_kv_ * head_size_ * es);
-        hf_to_nntile_o_4d(o_data, n_emb, kv_group_size_, n_head_kv_, head_size_, o_nntile, es);
-        w_o_->data()->set_bind_hint(std::move(o_nntile));
-    }
-    else
-    {
-        std::vector<std::uint8_t> o_nntile(n_emb * n_heads_ * head_size_ * es);
-        hf_to_nntile_o(o_data, n_emb, n_heads_, head_size_, o_nntile, es);
-        w_o_->data()->set_bind_hint(std::move(o_nntile));
-    }
-    w_o_->mark_input(true);
-}
 
 void LlamaAttention::export_hf(graph::io::SafeTensorsWriter& writer,
                                const std::string& hf_prefix) const
