@@ -22,7 +22,6 @@
 #include <nntile/graph/nn.hh>
 #include <nntile/graph/tensor.hh>
 #include <nntile/graph/tile/graph_runtime.hh>
-#include <nntile/graph/io/safetensors.hh>
 #include <nntile/graph/module/module.hh>
 
 namespace nntile::graph::optim
@@ -78,16 +77,8 @@ public:
     //! Load optimizer config from a JSON file.
     virtual void load_config(const std::string& path) = 0;
 
-    //! Import optimizer state from HuggingFace-style SafeTensors.
-    void import_hf(const io::SafeTensorsReader& reader,
-                   const std::string& prefix);
-
-    //! Export optimizer state to HuggingFace-style SafeTensors.
-    void export_hf(io::SafeTensorsWriter& writer,
-                   const std::string& prefix) const;
-
     //! Sync optimizer state tensors from the runtime back to bind_hints
-    //! so that save() / export_hf() can access the trained state.
+    //! so that save() can access the trained state.
     //! Must be called after runtime.wait() and before save().
     void sync_from_runtime(TileGraph::Runtime& runtime);
 

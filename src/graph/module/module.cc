@@ -345,34 +345,6 @@ void Module::load(const std::string& path, bool strict)
 }
 
 // -----------------------------------------------------------------
-// HuggingFace Import/Export
-// -----------------------------------------------------------------
-
-void Module::import_hf(const io::SafeTensorsReader& reader,
-                       const std::string& hf_prefix)
-{
-    for(const auto& [child_name, child] : submodules_)
-    {
-        std::string child_prefix = hf_prefix.empty()
-            ? child_name
-            : hf_prefix + "." + child_name;
-        child->import_hf(reader, child_prefix);
-    }
-}
-
-void Module::export_hf(io::SafeTensorsWriter& writer,
-                       const std::string& hf_prefix) const
-{
-    for(const auto& [child_name, child] : submodules_)
-    {
-        std::string child_prefix = hf_prefix.empty()
-            ? child_name
-            : hf_prefix + "." + child_name;
-        child->export_hf(writer, child_prefix);
-    }
-}
-
-// -----------------------------------------------------------------
 // Name Helpers
 // -----------------------------------------------------------------
 

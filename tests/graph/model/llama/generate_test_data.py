@@ -12,18 +12,22 @@
 
 """Generate reference test data for NNTile Llama C++ tests.
 
-For each block the script creates a ``llama_<block>_full.safetensors`` file
+For each block the script creates a ``llama_<block>.safetensors`` file
 that stores NNTile-layout weights, input tensor(s), reference forward output,
-and backward reference gradients.
+and backward reference gradients. The ``mlp`` / ``decoder`` / ``decoder_gqa``
+/ ``model`` / ``model_gqa`` / ``causal`` / ``causal_gqa`` blocks also write
+paired ``.json`` sidecars (geometry, tolerances) read by the corresponding C++
+graph tests.
 
 Uses **HuggingFace Transformers** (``modeling_llama``) plus NumPy layout
 wrangling only — no NNTile Python runtime or StarPU.
 
-``mlp`` / ``decoder`` / ``model`` / ``causal`` (and ``decoder_gqa`` /
-``model_gqa`` / ``causal_gqa``) use ``MHA_DIMS`` (hidden=8) or ``GQA_DIMS``
-(8-wide GQA). ``attention`` / ``attention_gqa`` use ``ATTENTION_MHA_DIMS`` /
-``ATTENTION_GQA_DIMS`` (larger, ``test_llama_attention`` ``single_tile`` + the
-C++ graph attention tests).
+``mlp`` uses ``MHA_DIMS`` (hidden=8). ``decoder`` / ``decoder_gqa`` /
+``model`` / ``model_gqa`` / ``causal`` / ``causal_gqa`` use
+``DECODER_MHA_DIMS`` / ``DECODER_GQA_DIMS`` (aliases of the graph attention
+reference bundles). ``attention`` / ``attention_gqa`` use
+``ATTENTION_MHA_DIMS`` / ``ATTENTION_GQA_DIMS`` (``test_llama_attention``
+``single_tile`` + C++ graph attention tests).
 
 Attention ``q_weight`` / ``k_weight`` / ``v_weight`` / ``o_weight`` are the
 same numeric values as HuggingFace ``Linear`` weights, reshaped to the 3D/4D
@@ -38,30 +42,46 @@ head_size axis; GQA ``o_weight`` uses the ``from_torch`` reshape plus
 the first half-channels of ``LlamaRotaryEmbedding`` cos/sin, reshaped to
 ``(head_dim/2, seq, batch)`` and passed through :func:`fortran_order` so the
 byte layout matches the C++ graph ``bind_data`` convention. RoPE is built like
-``test_llama_attention.generate_inputs``: first argument
-``v_proj.weight``, ``position_ids`` in ``(batch, seq)`` from a NumPy RNG. Forward
-and backward use ``LlamaAttention`` with ``_attn_implementation="eager"`` and
-the same ``(cos, sin)`` tensors.
+``test_llama_attention.generate_inputs``: first argument ``v_proj.weight``,
+``position_ids`` in ``(batch, seq)`` from a NumPy RNG.Forward and backward use
+``LlamaAttention`` with ``_attn_implementation="eager"`` and the same
+``(cos, sin)`` tensors as in the Python test.
 
 Optional causal self-attention matches ``test_llama_attention``: additive
-``attention_mask`` from the upper-triangular bool pattern; the graph tests load
-``attn_mask`` as float32 ``(seq, seq)`` in Fortran layout (1 = keep logits),
-converted to BOOL in C++ for ``sdpa_eager`` masking.
+``attention_mask`` from the upper-triangular bool pattern; the graph tests
+load ``attn_mask`` as float32 ``(seq, seq)`` in Fortran layout (1 = keep
+logits), converted to BOOL in C++ for ``sdpa_eager`` masking.
 
 Extra MHA/GQA safetensors (identity RoPE / causal / both) are written by
-``--write-attention-rope-mask-variants`` (CTest fixture for ``llama_attention``).
+``--write-attention-rope-mask-variants`` (CTest fixture for
+``llama_attention``).
 Identity RoPE still stores ``rope_cos`` / ``rope_sin`` so the C++ graph matches
 the PyTorch path (no null RoPE tensors).
 
 Each graph attention safetensors bundle has a **paired** JSON sidecar with the
-same basename (e.g. ``llama_attention_full.json`` next to
-``llama_attention_full.safetensors``): ``Llama`` attention geometry, tensor
+same basename (e.g. ``llama_attention.json`` next to
+``llama_attention.safetensors``): ``Llama`` attention geometry, tensor
 layout (``sequence_length``, ``batch``), and forward/backward tolerances.
 C++ tests load the JSON to build ``LlamaConfig``, construct ``LlamaAttention``,
 then ``load()`` the sibling ``.safetensors``.
 
-The ``decoder`` and ``model`` / ``causal`` (and GQA) blocks use
-``LlamaRotaryEmbedding`` the same way as full-model inference, not a no-op.
+The ``mlp`` block likewise writes ``llama_mlp.json`` next to
+``llama_mlp.safetensors`` (``hidden_size``, ``intermediate_size``, head
+counts, ``sequence_length``, ``batch``, tolerances) for ``test_llama_mlp``.
+
+The ``decoder`` / ``decoder_gqa`` bundles add ``rope_cos`` / ``rope_sin`` in
+the same layout as the attention tests (first half-channels, Fortran layout),
+plus ``llama_decoder.json`` / ``llama_decoder_gqa.json`` for
+``test_llama_decoder``.
+
+The ``model`` / ``model_gqa`` bundles add the same RoPE tensors (from
+``LlamaModel.rotary_emb`` on token embeddings, matching HF), ``attn_mask`` for
+causal ``sdpa_eager`` (as in the attention tests), and ``llama_model.json`` /
+``llama_model_gqa.json`` for ``test_llama_model``.
+
+The ``causal`` / ``causal_gqa`` bundles do the same for ``LlamaForCausalLM``
+(logits reference) plus ``llama_causal.json`` / ``llama_causal_gqa.json`` for
+``test_llama_causal`` (JSON schema matches ``model`` fixtures).
 """
 
 from __future__ import annotations
@@ -77,13 +97,9 @@ import torch
 from safetensors.numpy import save_file
 from transformers import LlamaConfig
 from transformers.models.llama.modeling_llama import (
-    LlamaAttention as PtAttention,
-    LlamaDecoderLayer as PtDecoderLayer,
-    LlamaForCausalLM as PtCausalLM,
-    LlamaMLP as PtMLP,
-    LlamaModel as PtModel,
-    LlamaRotaryEmbedding,
-)
+    LlamaAttention as PtAttention, LlamaDecoderLayer as PtDecoderLayer,
+    LlamaForCausalLM as PtCausalLM, LlamaMLP as PtMLP, LlamaModel as PtModel,
+    LlamaRotaryEmbedding)
 
 # ── Test dimension bundles ────────────────────────────────────────────────
 
@@ -113,10 +129,8 @@ class TestDims:
         return self.n_heads // self.kv_heads
 
 
-# Small bundles for ``mlp`` / ``decoder`` / ``model`` / ``causal`` and for
-# ``decoder_gqa`` / ``model_gqa`` / ``causal_gqa`` (keeps these safetensors light).
-# Not used for ``attention`` or ``attention_gqa``; those use
-# ``ATTENTION_MHA_DIMS`` / ``ATTENTION_GQA_DIMS`` (graph + PyTorch test).
+# Small bundles for ``mlp`` / ``causal`` and for ``causal_gqa`` (keeps these
+# safetensors light).
 MHA_DIMS = TestDims(
     hidden=8, intermediate=16, n_heads=1, kv_heads=1,
     seq=4, batch=2, vocab=100, num_layers=2,
@@ -132,12 +146,21 @@ GQA_DIMS = TestDims(
 # (hidden=64) for the ``attention`` block; GQA uses 8/4 and hidden=512.
 ATTENTION_MHA_DIMS = TestDims(
     hidden=64, intermediate=256, n_heads=1, kv_heads=1,
-    seq=64, batch=3, vocab=32000, num_layers=1,
+    seq=64, batch=3, vocab=100, num_layers=1,
 )
 ATTENTION_GQA_DIMS = TestDims(
     hidden=512, intermediate=2048, n_heads=8, kv_heads=4,
-    seq=64, batch=3, vocab=32000, num_layers=1,
+    seq=64, batch=3, vocab=100, num_layers=1,
 )
+
+# Graph ``test_llama_decoder`` / ``test_llama_model`` use the same geometry as
+# the attention bundles.
+DECODER_MHA_DIMS = ATTENTION_MHA_DIMS
+DECODER_GQA_DIMS = ATTENTION_GQA_DIMS
+MODEL_MHA_DIMS = DECODER_MHA_DIMS
+MODEL_GQA_DIMS = DECODER_GQA_DIMS
+CAUSAL_MHA_DIMS = MODEL_MHA_DIMS
+CAUSAL_GQA_DIMS = MODEL_GQA_DIMS
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -184,13 +207,14 @@ def _linear(linear: torch.nn.Linear) -> np.ndarray:
 def _attention_weight_arrays(
     attn: PtAttention, dims: TestDims,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """HF ``(out,in)`` Q/K/V/O reshaped to graph ``LlamaAttention`` weight layouts.
+    """HF ``(out,in)`` Q/K/V/O reshaped to graph ``LlamaAttention``
+    weight layouts.
 
-    No RoPE-related half-dim interleaving; values match ``q_proj`` / ``k_proj``
-    / ``v_proj`` / ``o_proj`` as initialized by HuggingFace.
+    No RoPE-related half-dim interleaving; values match ``q_proj`` /
+    ``k_proj`` / ``v_proj`` / ``o_proj`` as initialized by HuggingFace.
 
-    Returns ``(q_arr, k_arr, v, o, o_arr)`` — ``v`` / ``o`` are raw torch arrays;
-    ``o_arr`` is the NNTile-shaped ``o`` view used for ``o_weight``.
+    Returns ``(q_arr, k_arr, v, o, o_arr)`` — ``v`` / ``o`` are raw torch
+    arrays; ``o_arr`` is the NNTile-shaped ``o`` view used for ``o_weight``.
     """
     q = attn.q_proj.weight.detach().numpy()
     k = attn.k_proj.weight.detach().numpy()
@@ -202,8 +226,10 @@ def _attention_weight_arrays(
         q_arr = q.reshape(
             dims.kv_heads, dims.kv_group_size, dims.head_size, n_emb,
         ).transpose(1, 0, 2, 3)
-        # Match ``from_torch``: reshape to ``(n_emb, n_head_kv, kv_group, head)``
-        # then ``moveaxis(1, 2)`` → NNTile ``(n_emb, kv_group, n_head_kv, head)``.
+        # Match ``from_torch``: reshape to
+        # ``(n_emb, n_head_kv, kv_group, head)``
+        # then ``moveaxis(1, 2)`` → NNTile
+        # ``(n_emb, kv_group, n_head_kv, head)``.
         o_tmp = o.reshape(
             n_emb, dims.kv_heads, dims.kv_group_size, dims.head_size,
         )
@@ -218,7 +244,8 @@ def _attention_weight_arrays(
     return q_arr, k_arr, v, o, o_arr
 
 
-def _attn(attn: PtAttention, prefix: str, dims: TestDims) -> dict[str, np.ndarray]:
+def _attn(attn: PtAttention, prefix: str, dims: TestDims) -> \
+    dict[str, np.ndarray]:
     q_arr, k_arr, v, _o, o_arr = _attention_weight_arrays(attn, dims)
 
     def rotate_tensor_in(x: np.ndarray, axis: int) -> np.ndarray:
@@ -244,7 +271,9 @@ def _attn(attn: PtAttention, prefix: str, dims: TestDims) -> dict[str, np.ndarra
     # matching ``LlamaAttention_nntile.from_torch`` (rotate_tensor_in(..., 2)).
     q_rot_axis = q_arr.ndim - 2
     return {
-        f"{prefix}.q_weight": fortran_order(rotate_tensor_in(q_arr, q_rot_axis)),
+        f"{prefix}.q_weight": fortran_order(
+            rotate_tensor_in(q_arr, q_rot_axis),
+        ),
         f"{prefix}.k_weight": fortran_order(rotate_tensor_in(k_arr, 1)),
         f"{prefix}.v_weight": fortran_order(
             v.reshape(dims.kv_heads, dims.head_size, n_emb)
@@ -335,7 +364,8 @@ def _out_to_nntile(pt_out: torch.Tensor) -> np.ndarray:
 def _rope_half_from_hf(
     cos: torch.Tensor, sin: torch.Tensor, dims: TestDims,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """HF ``(B,S,D)`` cos/sin → NNTile-graph ``(half,S,B)`` float32 (C layout)."""
+    """HF ``(B,S,D)`` cos/sin → NNTile-graph ``(half,S,B)``
+    float32 (C layout)."""
     half = dims.head_size // 2
     cos_half = cos[:, :, :half].to(torch.float32).detach().cpu().numpy()
     sin_half = sin[:, :, :half].to(torch.float32).detach().cpu().numpy()
@@ -354,7 +384,8 @@ def _causal_additive_mask_torch(
         np.array(1 - mask, dtype=np.float32),
     ).T * torch.finfo(torch.float32).min
     mask_torch = mask_torch.to(device=device, dtype=torch.float32)
-    return mask_torch[None, None, :, :].expand(batch, 1, -1, -1).to(dtype=dtype)
+    return mask_torch[None, None, :, :].expand(batch, 1, -1, -1). \
+        to(dtype=dtype)
 
 
 def _sdpa_causal_mask_fortran(seq: int) -> np.ndarray:
@@ -447,7 +478,8 @@ def attention_fixture_json_payload(
     forward_tol: float,
     backward_tol: float,
 ) -> dict:
-    """Sidecar for C++ graph tests (``version`` must match reader in ``llama_attention.cc``)."""
+    """Sidecar for C++ graph tests (``version`` must match reader in
+    ``llama_attention.cc``)."""
     st_name = f"{stem}.safetensors"
     return {
         "version": 2,
@@ -487,30 +519,192 @@ def write_attention_fixture_json(
     print(f"Saved {path}")
 
 
+def mlp_fixture_json_payload(
+    stem: str,
+    dims: TestDims,
+    forward_tol: float,
+    backward_tol: float,
+) -> dict:
+    """Sidecar for C++ graph tests (``version`` must match reader in
+    ``llama_mlp.cc``)."""
+    st_name = f"{stem}.safetensors"
+    return {
+        "version": 2,
+        "stem": stem,
+        "safetensors": st_name,
+        "sequence_length": dims.seq,
+        "batch": dims.batch,
+        "llama": {
+            "hidden_size": dims.hidden,
+            "intermediate_size": dims.intermediate,
+            "num_attention_heads": dims.n_heads,
+            "num_key_value_heads": dims.kv_heads,
+        },
+        "tolerances": {
+            "forward": forward_tol,
+            "backward": backward_tol,
+        },
+    }
+
+
+def write_mlp_fixture_json(
+    out: Path,
+    stem: str,
+    dims: TestDims,
+    forward_tol: float,
+    backward_tol: float,
+) -> None:
+    path = out / f"{stem}.json"
+    path.write_text(
+        json.dumps(
+            mlp_fixture_json_payload(stem, dims, forward_tol, backward_tol),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    print(f"Saved {path}")
+
+
+def decoder_fixture_json_payload(
+    stem: str,
+    dims: TestDims,
+    forward_tol: float,
+    backward_tol: float,
+) -> dict:
+    """Sidecar for C++ graph ``test_llama_decoder``
+    (``version`` must match reader)."""
+    st_name = f"{stem}.safetensors"
+    return {
+        "version": 2,
+        "stem": stem,
+        "safetensors": st_name,
+        "sequence_length": dims.seq,
+        "batch": dims.batch,
+        "llama": {
+            "hidden_size": dims.hidden,
+            "intermediate_size": dims.intermediate,
+            "num_attention_heads": dims.n_heads,
+            "num_key_value_heads": dims.kv_heads,
+        },
+        "tolerances": {
+            "forward": forward_tol,
+            "backward": backward_tol,
+        },
+    }
+
+
+def write_decoder_fixture_json(
+    out: Path,
+    stem: str,
+    dims: TestDims,
+    forward_tol: float,
+    backward_tol: float,
+) -> None:
+    path = out / f"{stem}.json"
+    path.write_text(
+        json.dumps(
+            decoder_fixture_json_payload(
+                stem, dims, forward_tol, backward_tol,
+            ),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    print(f"Saved {path}")
+
+
+def model_fixture_json_payload(
+    stem: str,
+    dims: TestDims,
+    forward_tol: float,
+    backward_tol: float,
+) -> dict:
+    """Sidecar for C++ graph ``test_llama_model``
+    (``version`` must match reader)."""
+    st_name = f"{stem}.safetensors"
+    return {
+        "version": 2,
+        "stem": stem,
+        "safetensors": st_name,
+        "sequence_length": dims.seq,
+        "batch": dims.batch,
+        "llama": {
+            "vocab_size": dims.vocab,
+            "hidden_size": dims.hidden,
+            "intermediate_size": dims.intermediate,
+            "num_hidden_layers": dims.num_layers,
+            "num_attention_heads": dims.n_heads,
+            "num_key_value_heads": dims.kv_heads,
+        },
+        "tolerances": {
+            "forward": forward_tol,
+            "backward": backward_tol,
+        },
+    }
+
+
+def write_model_fixture_json(
+    out: Path,
+    stem: str,
+    dims: TestDims,
+    forward_tol: float,
+    backward_tol: float,
+) -> None:
+    path = out / f"{stem}.json"
+    path.write_text(
+        json.dumps(
+            model_fixture_json_payload(stem, dims, forward_tol, backward_tol),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    print(f"Saved {path}")
+
+
+def write_causal_fixture_json(
+    out: Path,
+    stem: str,
+    dims: TestDims,
+    forward_tol: float,
+    backward_tol: float,
+) -> None:
+    """Same JSON schema as ``write_model_fixture_json``
+    (``test_llama_causal``)."""
+    path = out / f"{stem}.json"
+    path.write_text(
+        json.dumps(
+            model_fixture_json_payload(stem, dims, forward_tol, backward_tol),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    print(f"Saved {path}")
+
+
 def write_attention_rope_mask_variant_files(out: Path, seed: int) -> None:
-    """Write extra attention safetensors for RoPE / causal-mask combinations."""
+    """Write extra attn safetensors for RoPE / causal-mask combinations."""
     specs: list[tuple[str, TestDims, bool, bool, float, float]] = [
-        ("llama_attention_no_rope_full.safetensors", ATTENTION_MHA_DIMS,
+        ("llama_attention_no_rope", ATTENTION_MHA_DIMS,
          False, False, 1e-6, 1e-6),
-        ("llama_attention_causal_full.safetensors", ATTENTION_MHA_DIMS,
-         True, True, 5e-3, 9e-3),
-        ("llama_attention_no_rope_causal_full.safetensors", ATTENTION_MHA_DIMS,
+        ("llama_attention_causal", ATTENTION_MHA_DIMS,
+         True, True, 1e-6, 1e-6),
+        ("llama_attention_no_rope_causal", ATTENTION_MHA_DIMS,
          False, True, 1e-6, 1e-6),
-        ("llama_attention_gqa_no_rope_full.safetensors", ATTENTION_GQA_DIMS,
+        ("llama_attention_gqa_no_rope", ATTENTION_GQA_DIMS,
          False, False, 1e-6, 1e-6),
-        ("llama_attention_gqa_causal_full.safetensors", ATTENTION_GQA_DIMS,
-         True, True, 5e-3, 9e-3),
-        ("llama_attention_gqa_no_rope_causal_full.safetensors", ATTENTION_GQA_DIMS,
+        ("llama_attention_gqa_causal", ATTENTION_GQA_DIMS,
+         True, True, 1e-6, 1e-6),
+        ("llama_attention_gqa_no_rope_causal", ATTENTION_GQA_DIMS,
          False, True, 1e-6, 1e-6),
     ]
-    for fname, dims, rope, causal, fwd_tol, bwd_tol in specs:
+    for stem, dims, rope, causal, fwd_tol, bwd_tol in specs:
         payload = generate_attention(
             seed, dims, use_rope=rope, use_causal_mask=causal,
         )
+        fname = f"{stem}.safetensors"
         path = str(out / fname)
         save_file(payload, path)
         print(f"Saved {path}")
-        stem = Path(fname).stem
         write_attention_fixture_json(out, stem, dims, fwd_tol, bwd_tol)
 
 
@@ -538,7 +732,7 @@ def generate_mlp(
 
 
 def generate_decoder(
-    seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
+    seed: int, dims: TestDims = DECODER_MHA_DIMS) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
@@ -555,6 +749,9 @@ def generate_decoder(
     ).unsqueeze(0).expand(dims.batch, -1)
     rotary = LlamaRotaryEmbedding(config, device=x_pt.device)
     cos, sin = rotary(x_pt, position_ids)
+    cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
+    data["rope_cos"] = fortran_order(cos_np)
+    data["rope_sin"] = fortran_order(sin_np)
     out = pt(x_pt, position_embeddings=(cos, sin))[0]
     data["output_ref"] = _out_to_nntile(out)
 
@@ -566,16 +763,31 @@ def generate_decoder(
 
 
 def generate_model(
-    seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
+    seed: int, dims: TestDims = MODEL_MHA_DIMS) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
 
     pt = PtModel(config)
+    pt.eval()
 
     data = _model_weights(pt, "model", dims)
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
+
+    inputs_embeds = pt.embed_tokens(ids_pt)
+    # Match HF ``LlamaModel`` prefill: ``position_ids`` must include the batch
+    # dimension so ``rotary_emb`` returns ``(B,S,...)`` like
+    # ``generate_decoder``.
+    position_ids = torch.arange(
+        0, inputs_embeds.shape[1],
+        device=inputs_embeds.device, dtype=torch.long,
+    ).unsqueeze(0).expand(inputs_embeds.shape[0], -1)
+    cos, sin = pt.rotary_emb(inputs_embeds, position_ids)
+    cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
+    data["rope_cos"] = fortran_order(cos_np)
+    data["rope_sin"] = fortran_order(sin_np)
+    data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
 
     out = pt(ids_pt).last_hidden_state
     data["output_ref"] = _out_to_nntile(out)
@@ -587,17 +799,29 @@ def generate_model(
 
 
 def generate_causal(
-    seed: int, dims: TestDims = MHA_DIMS) -> dict[str, np.ndarray]:
+    seed: int, dims: TestDims = CAUSAL_MHA_DIMS) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     config = _make_config(dims)
 
     pt = PtCausalLM(config)
+    pt.eval()
 
     data = _model_weights(pt.model, "model.model", dims)
     data["model.lm_head.weight"] = _linear(pt.lm_head)
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
+
+    inputs_embeds = pt.model.embed_tokens(ids_pt)
+    position_ids = torch.arange(
+        0, inputs_embeds.shape[1],
+        device=inputs_embeds.device, dtype=torch.long,
+    ).unsqueeze(0).expand(inputs_embeds.shape[0], -1)
+    cos, sin = pt.model.rotary_emb(inputs_embeds, position_ids)
+    cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
+    data["rope_cos"] = fortran_order(cos_np)
+    data["rope_sin"] = fortran_order(sin_np)
+    data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
 
     out = pt(ids_pt).logits
     data["output_ref"] = _out_to_nntile(out)
@@ -615,9 +839,9 @@ GENERATORS = {
     "model": generate_model,
     "causal": generate_causal,
     "attention_gqa": lambda seed: generate_attention(seed, ATTENTION_GQA_DIMS),
-    "decoder_gqa": lambda seed: generate_decoder(seed, GQA_DIMS),
-    "model_gqa": lambda seed: generate_model(seed, GQA_DIMS),
-    "causal_gqa": lambda seed: generate_causal(seed, GQA_DIMS),
+    "decoder_gqa": lambda seed: generate_decoder(seed, DECODER_GQA_DIMS),
+    "model_gqa": lambda seed: generate_model(seed, MODEL_GQA_DIMS),
+    "causal_gqa": lambda seed: generate_causal(seed, CAUSAL_GQA_DIMS),
 }
 
 # ── CLI ──────────────────────────────────────────────────────────────────
@@ -637,9 +861,9 @@ def main() -> int:
         "--write-attention-rope-mask-variants",
         action="store_true",
         help=(
-            "Write six extra attention safetensors (MHA/GQA × no-RoPE / causal / "
-            "both) for C++ graph tests; does not overwrite default "
-            "llama_attention(_gqa)_full.safetensors."
+            "Write six extra attention safetensors (MHA/GQA × no-RoPE / "
+            "causal / both) for C++ graph tests; does not overwrite default "
+            "llama_attention.safetensors or llama_attention_gqa.safetensors."
         ),
     )
     parser.add_argument(
@@ -659,16 +883,44 @@ def main() -> int:
 
     data = GENERATORS[args.block](args.seed)
 
-    full_path = str(out / f"llama_{args.block}_full.safetensors")
-    save_file(data, full_path)
-    print(f"Saved {full_path}")
+    bundle_path = str(out / f"llama_{args.block}.safetensors")
+    save_file(data, bundle_path)
+    print(f"Saved {bundle_path}")
     if args.block == "attention":
         write_attention_fixture_json(
-            out, "llama_attention_full", ATTENTION_MHA_DIMS, 1e-6, 9e-3,
+            out, "llama_attention", ATTENTION_MHA_DIMS, 1e-6, 1e-6,
         )
     elif args.block == "attention_gqa":
         write_attention_fixture_json(
-            out, "llama_attention_gqa_full", ATTENTION_GQA_DIMS, 5e-3, 9e-3,
+            out, "llama_attention_gqa", ATTENTION_GQA_DIMS, 1e-6, 1e-6,
+        )
+    elif args.block == "mlp":
+        write_mlp_fixture_json(out, "llama_mlp", MHA_DIMS, 1e-6, 1e-6)
+    elif args.block == "decoder":
+        write_decoder_fixture_json(
+            out, "llama_decoder", DECODER_MHA_DIMS, 1e-6, 1e-6,
+        )
+    elif args.block == "decoder_gqa":
+        write_decoder_fixture_json(
+            out, "llama_decoder_gqa", DECODER_GQA_DIMS, 1.3e-6, 1.3e-6,
+        )
+    elif args.block == "model":
+        write_model_fixture_json(
+            out, "llama_model", MODEL_MHA_DIMS, 1e-6, 1e-6,
+        )
+    elif args.block == "model_gqa":
+        # GQA full-model float32 vs PyTorch ~1.1e-6 relative Frobenius here.
+        write_model_fixture_json(
+            out, "llama_model_gqa", MODEL_GQA_DIMS, 1.3e-6, 1.3e-6,
+        )
+    elif args.block == "causal":
+        write_causal_fixture_json(
+            out, "llama_causal", CAUSAL_MHA_DIMS, 1e-6, 1e-6,
+        )
+    elif args.block == "causal_gqa":
+        # Same margin as ``model_gqa`` (logits + lm_head).
+        write_causal_fixture_json(
+            out, "llama_causal_gqa", CAUSAL_GQA_DIMS, 1.3e-6, 1.3e-6,
         )
 
     return 0

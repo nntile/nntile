@@ -65,18 +65,18 @@ TEST_CASE("LlamaAttention tests skipped (LLAMA_DATA_DIR undefined)", "[model][ll
 namespace attn_fixture_stem
 {
 
-constexpr char llama_attention_full[] = "llama_attention_full";
-constexpr char llama_attention_no_rope_full[] = "llama_attention_no_rope_full";
-constexpr char llama_attention_causal_full[] = "llama_attention_causal_full";
-constexpr char llama_attention_no_rope_causal_full[] =
-    "llama_attention_no_rope_causal_full";
-constexpr char llama_attention_gqa_full[] = "llama_attention_gqa_full";
-constexpr char llama_attention_gqa_no_rope_full[] =
-    "llama_attention_gqa_no_rope_full";
-constexpr char llama_attention_gqa_causal_full[] =
-    "llama_attention_gqa_causal_full";
-constexpr char llama_attention_gqa_no_rope_causal_full[] =
-    "llama_attention_gqa_no_rope_causal_full";
+constexpr char llama_attention[] = "llama_attention";
+constexpr char llama_attention_no_rope[] = "llama_attention_no_rope";
+constexpr char llama_attention_causal[] = "llama_attention_causal";
+constexpr char llama_attention_no_rope_causal[] =
+    "llama_attention_no_rope_causal";
+constexpr char llama_attention_gqa[] = "llama_attention_gqa";
+constexpr char llama_attention_gqa_no_rope[] =
+    "llama_attention_gqa_no_rope";
+constexpr char llama_attention_gqa_causal[] =
+    "llama_attention_gqa_causal";
+constexpr char llama_attention_gqa_no_rope_causal[] =
+    "llama_attention_gqa_no_rope_causal";
 
 } // namespace attn_fixture_stem
 
@@ -84,6 +84,8 @@ namespace
 {
 
 //! Parsed ``<stem>.json`` (``version`` 2) next to ``<stem>.safetensors``.
+//! ``forward_tol`` / ``backward_tol`` come from JSON ``tolerances`` and are
+//! the thresholds in ``llama_attention_*_compare_ref`` (including RoPE variants).
 struct AttentionFixtureSpec
 {
     LlamaConfig config{};
@@ -442,9 +444,9 @@ void llama_attention_backward_compare_ref(const AttentionFixtureSpec& fx)
 TEST_CASE("LlamaAttention forward builds output", "[model][llama]")
 {
     AttentionFixtureSpec fx;
-    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_full, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention, fx))
     {
-        SKIP("Missing or invalid llama_attention_full.json / .safetensors.");
+        SKIP("Missing or invalid llama_attention.json / .safetensors.");
     }
     NNGraph g("llama_attn");
     LlamaAttention attn(&g, "attn", fx.config);
@@ -460,9 +462,9 @@ TEST_CASE("LlamaAttention forward builds output", "[model][llama]")
 TEST_CASE("LlamaAttention GQA forward builds output", "[model][llama][gqa]")
 {
     AttentionFixtureSpec fx;
-    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_gqa_full, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_gqa, fx))
     {
-        SKIP("Missing or invalid llama_attention_gqa_full.json / .safetensors.");
+        SKIP("Missing or invalid llama_attention_gqa.json / .safetensors.");
     }
     NNGraph g("llama_attn_gqa");
     LlamaAttention attn(&g, "attn", fx.config);
@@ -478,9 +480,9 @@ TEST_CASE("LlamaAttention GQA forward builds output", "[model][llama][gqa]")
 TEST_CASE("LlamaAttention load from safetensors roundtrip", "[model][llama][io]")
 {
     AttentionFixtureSpec fx;
-    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_full, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention, fx))
     {
-        SKIP("Missing or invalid llama_attention_full.json / .safetensors.");
+        SKIP("Missing or invalid llama_attention.json / .safetensors.");
     }
     const std::string data_path =
         attention_fixture_safetensors_path(std::string(LLAMA_DATA_DIR), fx);
@@ -513,7 +515,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[model][llama][nomask]")
 {
     AttentionFixtureSpec fx;
-    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_full, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention, fx))
     {
         SKIP("Llama attention fixture pair not found.");
     }
@@ -525,7 +527,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[model][llama][nomask][norope][norope_nomask]")
 {
     AttentionFixtureSpec fx;
-    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_no_rope_full, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_no_rope, fx))
     {
         SKIP("Llama attention fixture pair not found.");
     }
@@ -537,7 +539,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[model][llama][causal_mask]")
 {
     AttentionFixtureSpec fx;
-    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_causal_full, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_causal, fx))
     {
         SKIP("Llama attention fixture pair not found.");
     }
@@ -550,7 +552,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     AttentionFixtureSpec fx;
     if(!skip_unless_fixture_ready(
-           attn_fixture_stem::llama_attention_no_rope_causal_full, fx))
+           attn_fixture_stem::llama_attention_no_rope_causal, fx))
     {
         SKIP("Llama attention fixture pair not found.");
     }
@@ -562,7 +564,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[model][llama][nomask]")
 {
     AttentionFixtureSpec fx;
-    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_full, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention, fx))
     {
         SKIP("Llama attention fixture pair not found.");
     }
@@ -574,7 +576,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[model][llama][nomask][norope][norope_nomask]")
 {
     AttentionFixtureSpec fx;
-    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_no_rope_full, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_no_rope, fx))
     {
         SKIP("Llama attention fixture pair not found.");
     }
@@ -586,7 +588,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[model][llama][causal_mask]")
 {
     AttentionFixtureSpec fx;
-    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_causal_full, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_causal, fx))
     {
         SKIP("Llama attention fixture pair not found.");
     }
@@ -599,7 +601,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     AttentionFixtureSpec fx;
     if(!skip_unless_fixture_ready(
-           attn_fixture_stem::llama_attention_no_rope_causal_full, fx))
+           attn_fixture_stem::llama_attention_no_rope_causal, fx))
     {
         SKIP("Llama attention fixture pair not found.");
     }
@@ -611,7 +613,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[model][llama][gqa][nomask]")
 {
     AttentionFixtureSpec fx;
-    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_gqa_full, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_gqa, fx))
     {
         SKIP("Llama attention GQA fixture pair not found.");
     }
@@ -624,7 +626,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     AttentionFixtureSpec fx;
     if(!skip_unless_fixture_ready(
-           attn_fixture_stem::llama_attention_gqa_no_rope_full, fx))
+           attn_fixture_stem::llama_attention_gqa_no_rope, fx))
     {
         SKIP("Llama attention GQA fixture pair not found.");
     }
@@ -637,7 +639,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     AttentionFixtureSpec fx;
     if(!skip_unless_fixture_ready(
-           attn_fixture_stem::llama_attention_gqa_causal_full, fx))
+           attn_fixture_stem::llama_attention_gqa_causal, fx))
     {
         SKIP("Llama attention GQA fixture pair not found.");
     }
@@ -650,7 +652,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     AttentionFixtureSpec fx;
     if(!skip_unless_fixture_ready(
-           attn_fixture_stem::llama_attention_gqa_no_rope_causal_full, fx))
+           attn_fixture_stem::llama_attention_gqa_no_rope_causal, fx))
     {
         SKIP("Llama attention GQA fixture pair not found.");
     }
@@ -662,7 +664,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[model][llama][gqa][nomask]")
 {
     AttentionFixtureSpec fx;
-    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_gqa_full, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::llama_attention_gqa, fx))
     {
         SKIP("Llama attention GQA fixture pair not found.");
     }
@@ -675,7 +677,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     AttentionFixtureSpec fx;
     if(!skip_unless_fixture_ready(
-           attn_fixture_stem::llama_attention_gqa_no_rope_full, fx))
+           attn_fixture_stem::llama_attention_gqa_no_rope, fx))
     {
         SKIP("Llama attention GQA fixture pair not found.");
     }
@@ -688,7 +690,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     AttentionFixtureSpec fx;
     if(!skip_unless_fixture_ready(
-           attn_fixture_stem::llama_attention_gqa_causal_full, fx))
+           attn_fixture_stem::llama_attention_gqa_causal, fx))
     {
         SKIP("Llama attention GQA fixture pair not found.");
     }
@@ -701,7 +703,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 {
     AttentionFixtureSpec fx;
     if(!skip_unless_fixture_ready(
-           attn_fixture_stem::llama_attention_gqa_no_rope_causal_full, fx))
+           attn_fixture_stem::llama_attention_gqa_no_rope_causal, fx))
     {
         SKIP("Llama attention GQA fixture pair not found.");
     }
