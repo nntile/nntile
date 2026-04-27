@@ -25,11 +25,11 @@ wrangling only — no NNTile Python runtime or StarPU.
 ``ATTENTION_GQA_DIMS`` (larger, ``test_llama_attention`` ``single_tile`` + the
 C++ graph attention tests).
 
-Attention ``q_weight`` / ``k_weight`` in safetensors apply :func:`rotate_tensor_in`
-(on **copies** of the reshaped HF matrices) to match ``LlamaAttention.from_torch``
-before :func:`fortran_order`. PyTorch references then use ``copy_`` to load the
-same rotated values into ``q_proj`` / ``k_proj`` (HF ``(out,in)`` flat shape)
-before forward / backward.
+Attention ``q_weight`` / ``k_weight`` / ``v_weight`` / ``o_weight`` are the
+same numeric values as HuggingFace ``Linear`` weights, reshaped to the 3D/4D
+layouts expected by the graph module, then passed through :func:`fortran_order`
+so byte layout matches NNTile Fortran tiles. PyTorch runs forward and backward
+with the **original** HF weights (no in-place Q/K rewrite).
 
 For ``attention`` / ``attention_gqa`` blocks, ``rope_sin`` / ``rope_cos`` are
 the first half-channels of ``LlamaRotaryEmbedding`` cos/sin, reshaped to
@@ -135,30 +135,6 @@ _print_rope: bool = False
 # ── Helpers ──────────────────────────────────────────────────────────────
 
 
-def rotate_tensor_in(x: np.ndarray, axis: int) -> np.ndarray:
-    """Same half-dim interleave as ``LlamaAttention.rotate_tensor_in`` (NumPy).
-
-    Operates on a **copy** of the input buffer so ``x`` is never modified.
-    """
-    work = np.asarray(x, dtype=np.float32).copy()
-    if axis == 0:
-        new_shape = (1, work.shape[0], int(np.prod(work.shape[1:])))
-    elif axis == work.ndim - 1:
-        new_shape = (int(np.prod(work.shape[:-1])), work.shape[-1], 1)
-    else:
-        new_shape = (
-            int(np.prod(work.shape[:axis])),
-            work.shape[axis],
-            int(np.prod(work.shape[axis + 1 :])),
-        )
-    x_reshaped = work.reshape(new_shape)
-    mid = work.shape[axis] // 2
-    y_reshaped = np.empty_like(x_reshaped)
-    y_reshaped[:, 0::2, :] = x_reshaped[:, :mid, :]
-    y_reshaped[:, 1::2, :] = x_reshaped[:, mid:, :]
-    return y_reshaped.reshape(work.shape)
-
-
 def fortran_order(arr: np.ndarray) -> np.ndarray:
     """Return C-contiguous array matching NNTile column-major layout.
 
@@ -181,7 +157,7 @@ def _make_config(dims: TestDims) -> LlamaConfig:
         vocab_size=dims.vocab,
         rms_norm_eps=dims.rms_eps,
         max_position_embeddings=2048,
-        rope_theta=1.0,
+        rope_theta=10000.0,
         _attn_implementation="eager",
         base_model_tp_plan=None,
         # Parity with ``wrappers/python/tests/model/test_llama_attention.py``
@@ -198,15 +174,15 @@ def _linear(linear: torch.nn.Linear) -> np.ndarray:
     return fortran_order(linear.weight.detach().numpy().T)
 
 
-def _attention_weight_arrays_nntile_rotated(
+def _attention_weight_arrays(
     attn: PtAttention, dims: TestDims,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """HF ``(out,in)`` Q/K/V/O → NNTile-shaped Q/K with ``rotate_tensor_in``.
+    """HF ``(out,in)`` Q/K/V/O reshaped to graph ``LlamaAttention`` weight layouts.
 
-    Assumes ``attn`` still holds **HuggingFace** ``q_proj`` / ``k_proj`` weights
-    (see :func:`_sync_pt_attention_qk_to_nntile_saved_layout`).
+    No RoPE-related half-dim interleaving; values match ``q_proj`` / ``k_proj``
+    / ``v_proj`` / ``o_proj`` as initialized by HuggingFace.
 
-    Returns ``(q_rot, k_rot, v, o, o_arr)`` — ``v`` / ``o`` are raw torch arrays;
+    Returns ``(q_arr, k_arr, v, o, o_arr)`` — ``v`` / ``o`` are raw torch arrays;
     ``o_arr`` is the NNTile-shaped ``o`` view used for ``o_weight``.
     """
     q = attn.q_proj.weight.detach().numpy()
@@ -220,48 +196,43 @@ def _attention_weight_arrays_nntile_rotated(
             dims.kv_heads, dims.kv_group_size, dims.head_size, n_emb,
         ).transpose(1, 0, 2, 3)
         o_arr = o.reshape(
-            n_emb, dims.kv_heads, dims.kv_group_size, dims.head_size,
-        ).transpose(0, 2, 1, 3)
-        q_rot_axis = 2
+            n_emb, dims.kv_group_size, dims.kv_heads, dims.head_size,
+        )
     else:
         q_arr = q.reshape(dims.n_heads, dims.head_size, n_emb)
         o_arr = o.reshape(n_emb, dims.n_heads, dims.head_size)
-        q_rot_axis = 1
 
     k_arr = k.reshape(dims.kv_heads, dims.head_size, n_emb)
-    q_rot = rotate_tensor_in(np.asarray(q_arr, dtype=np.float32).copy(), q_rot_axis)
-    k_rot = rotate_tensor_in(np.asarray(k_arr, dtype=np.float32).copy(), 1)
-    return q_rot, k_rot, v, o, o_arr
-
-
-def _sync_pt_attention_qk_to_nntile_saved_layout(
-    attn: PtAttention, dims: TestDims,
-) -> None:
-    """Set ``attn`` Q/K linear weights to the same values written by :func:`_attn`.
-
-    Call **once** per layer while Q/K are still HF-shaped (before any forward).
-    """
-    q_rot, k_rot, _, _, _ = _attention_weight_arrays_nntile_rotated(attn, dims)
-    with torch.no_grad():
-        qw, kw = attn.q_proj.weight, attn.k_proj.weight
-        qw.copy_(
-            torch.from_numpy(
-                np.asarray(q_rot, dtype=np.float32).reshape(qw.shape),
-            ).to(device=qw.device, dtype=qw.dtype),
-        )
-        kw.copy_(
-            torch.from_numpy(
-                np.asarray(k_rot, dtype=np.float32).reshape(kw.shape),
-            ).to(device=kw.device, dtype=kw.dtype),
-        )
+    q_arr = np.asarray(q_arr, dtype=np.float32).copy()
+    k_arr = np.asarray(k_arr, dtype=np.float32).copy()
+    return q_arr, k_arr, v, o, o_arr
 
 
 def _attn(attn: PtAttention, prefix: str, dims: TestDims) -> dict[str, np.ndarray]:
-    q_rot, k_rot, v, _o, o_arr = _attention_weight_arrays_nntile_rotated(attn, dims)
+    q_arr, k_arr, v, _o, o_arr = _attention_weight_arrays(attn, dims)
+
+    def rotate_tensor_in(x: np.ndarray, axis: int) -> np.ndarray:
+        if axis == 0:
+            new_shape = (1, x.shape[0], np.prod(x.shape[1:]))
+        elif axis == x.ndim - 1:
+            new_shape = (np.prod(x.shape[:-1]), x.shape[-1], 1)
+        else:
+            new_shape = (
+                np.prod(x.shape[:axis]),
+                x.shape[axis],
+                np.prod(x.shape[axis + 1 :]),
+            )
+        x_reshaped = x.reshape(new_shape)
+        mid = x.shape[axis] // 2
+        y_reshaped = np.empty_like(x_reshaped)
+        y_reshaped[:, 0::2, :] = x_reshaped[:, :mid, :]
+        y_reshaped[:, 1::2, :] = x_reshaped[:, mid:, :]
+        return y_reshaped.reshape(x.shape)
+
     n_emb = int(attn.q_proj.weight.shape[1])
     return {
-        f"{prefix}.q_weight": fortran_order(q_rot),
-        f"{prefix}.k_weight": fortran_order(k_rot),
+        f"{prefix}.q_weight": fortran_order(rotate_tensor_in(q_arr, 1)),
+        f"{prefix}.k_weight": fortran_order(rotate_tensor_in(k_arr, 1)),
         f"{prefix}.v_weight": fortran_order(
             v.reshape(dims.kv_heads, dims.head_size, n_emb)
         ),
@@ -453,7 +424,6 @@ def generate_attention(
     pt.eval()
 
     data = _attn(pt, "attn", dims)
-    _sync_pt_attention_qk_to_nntile_saved_layout(pt, dims)
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
 
@@ -544,7 +514,6 @@ def generate_decoder(
     pt.eval()
 
     data = _decoder_layer(pt, "decoder", dims)
-    _sync_pt_attention_qk_to_nntile_saved_layout(pt.self_attn, dims)
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
 
@@ -573,8 +542,6 @@ def generate_model(
     pt = PtModel(config)
 
     data = _model_weights(pt, "model", dims)
-    for dec_layer in pt.layers:
-        _sync_pt_attention_qk_to_nntile_saved_layout(dec_layer.self_attn, dims)
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
 
@@ -596,8 +563,6 @@ def generate_causal(
     pt = PtCausalLM(config)
 
     data = _model_weights(pt.model, "model.model", dims)
-    for dec_layer in pt.model.layers:
-        _sync_pt_attention_qk_to_nntile_saved_layout(dec_layer.self_attn, dims)
     data["model.lm_head.weight"] = _linear(pt.lm_head)
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt

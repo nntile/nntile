@@ -43,6 +43,11 @@ struct LlamaConfig
     bool attention_bias = false;
     bool mlp_bias = false;
 
+    //! If true, Q/K projection weights use head_dim order [0,2,4,...,1,3,...] in NNTile
+    //! storage after HF import (inverse applied on export). V is unchanged. Requires even
+    //! head_dim.
+    bool rotate_qk_weight_head_dim = false;
+
     int eos_token_id = 2;
     int bos_token_id = 1;
 

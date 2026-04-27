@@ -409,6 +409,68 @@ void nntile_o_to_hf_4d(const std::vector<std::uint8_t>& nntile_data,
     }
 }
 
+//! Reorder head_size axis: s -> s/2 (even s), head_size/2 + (s-1)/2 (odd s). Layout matches
+//! hf_linear_to_3d / nntile_qkv_to_hf: idx = h + s * n_heads + e * n_heads * head_size.
+void rotate_qkv_head_dim_even_odd(const std::vector<std::uint8_t>& src,
+                                  Index n_heads, Index head_size, Index n_emb,
+                                  std::vector<std::uint8_t>& dst, size_t es)
+{
+    if(head_size % 2 != 0)
+    {
+        throw std::runtime_error(
+            "rotate_qkv_head_dim_even_odd: head_size must be even");
+    }
+    dst.resize(src.size());
+    const auto* p = src.data();
+    auto* q = dst.data();
+    for(Index h = 0; h < n_heads; ++h)
+    {
+        for(Index s_old = 0; s_old < head_size; ++s_old)
+        {
+            const Index s_new = (s_old % 2 == 0) ? (s_old / 2)
+                                                 : (head_size / 2 + (s_old - 1) / 2);
+            for(Index e = 0; e < n_emb; ++e)
+            {
+                // const Index src_idx = h + s_old * n_heads + e * n_heads * head_size;
+                // const Index dst_idx = h + s_new * n_heads + e * n_heads * head_size;
+                const Index src_idx = s_old + h * head_size + e * n_heads * head_size;
+                const Index dst_idx = s_new + h * head_size + e * n_heads * head_size;
+                copy_elem(p + src_idx * es, q + dst_idx * es, es);
+            }
+        }
+    }
+    std::cerr << "rotated " << std::endl;
+}
+
+//! Inverse of rotate_qkv_head_dim_even_odd (restore canonical head index order).
+void unrotate_qkv_head_dim_even_odd(const std::vector<std::uint8_t>& src,
+                                    Index n_heads, Index head_size, Index n_emb,
+                                    std::vector<std::uint8_t>& dst, size_t es)
+{
+    if(head_size % 2 != 0)
+    {
+        throw std::runtime_error(
+            "unrotate_qkv_head_dim_even_odd: head_size must be even");
+    }
+    dst.resize(src.size());
+    const auto* p = src.data();
+    auto* q = dst.data();
+    for(Index h = 0; h < n_heads; ++h)
+    {
+        for(Index s_old = 0; s_old < head_size; ++s_old)
+        {
+            const Index s_rot = (s_old % 2 == 0) ? (s_old / 2)
+                                                 : (head_size / 2 + (s_old - 1) / 2);
+            for(Index e = 0; e < n_emb; ++e)
+            {
+                const Index src_idx = h + s_rot * n_heads + e * n_heads * head_size;
+                const Index dst_idx = h + s_old * n_heads + e * n_heads * head_size;
+                copy_elem(p + src_idx * es, q + dst_idx * es, es);
+            }
+        }
+    }
+}
+
 } // anonymous namespace
 
 void LlamaAttention::import_hf(const graph::io::SafeTensorsReader& reader,
@@ -472,7 +534,21 @@ void LlamaAttention::import_hf(const graph::io::SafeTensorsReader& reader,
             throw std::runtime_error("LlamaAttention::import_hf: QKV param must be 3D or 4D");
         }
         hf_linear_to_3d(data, n_heads_dim, head_size_dim, n_emb_dim, nntile_data, es);
-        param->data()->set_bind_hint(std::move(nntile_data));
+        const bool is_q_or_k =
+            (name == "q_weight" || name == "k_weight");
+        if(is_q_or_k)
+        {
+            std::vector<std::uint8_t> nntile_data_rotated;
+            rotate_qkv_head_dim_even_odd(nntile_data, n_heads_dim, head_size_dim, n_emb_dim,
+                                         nntile_data_rotated, es);
+            param->data()->set_bind_hint(std::move(nntile_data_rotated));
+            std::cerr << "rotated " << name << std::endl;
+        }
+        else
+        {
+            param->data()->set_bind_hint(std::move(nntile_data));
+            std::cerr << "not rotated " << name << std::endl;
+        }
         param->mark_input(true);
     };
 
@@ -543,7 +619,20 @@ void LlamaAttention::export_hf(graph::io::SafeTensorsWriter& writer,
             throw std::runtime_error("LlamaAttention::export_hf: QKV param must be 3D or 4D");
         }
         std::vector<std::uint8_t> hf_data(out_rows * out_cols * es);
-        nntile_qkv_to_hf(*hint, n_heads_dim, head_size_dim, n_emb_dim, hf_data, es);
+        const bool is_q_or_k =
+            (name == "q_proj" || name == "k_proj");
+        if(config_.rotate_qk_weight_head_dim && is_q_or_k)
+        {
+            std::vector<std::uint8_t> nntile_canonical;
+            unrotate_qkv_head_dim_even_odd(*hint, n_heads_dim, head_size_dim, n_emb_dim,
+                                           nntile_canonical, es);
+            nntile_qkv_to_hf(nntile_canonical, n_heads_dim, head_size_dim, n_emb_dim, hf_data,
+                             es);
+        }
+        else
+        {
+            nntile_qkv_to_hf(*hint, n_heads_dim, head_size_dim, n_emb_dim, hf_data, es);
+        }
         writer.add_tensor(prefix + name + ".weight", dtype_,
                          {static_cast<std::int64_t>(out_rows),
                           static_cast<std::int64_t>(out_cols)},

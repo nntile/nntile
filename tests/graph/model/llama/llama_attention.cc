@@ -24,6 +24,8 @@
  *
  * NNTile tensor **storage** is Fortran (column-major) everywhere, including
  * ``bind_hint`` bytes from safetensors (see ``generate_test_data.fortran_order``).
+ * Attention linear weights in the fixtures are HuggingFace numerics reshaped to
+ * the graph's 3D/4D layouts (no ``rotate_tensor_in`` step in the generator).
  *
  * @version 1.1.0
  * */
