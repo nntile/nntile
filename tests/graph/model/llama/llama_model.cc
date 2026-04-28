@@ -68,6 +68,11 @@ constexpr char llama_model_gqa[] = "llama_model_gqa";
 namespace
 {
 
+inline Index json_index(const nlohmann::json& o, const char* key)
+{
+    return static_cast<Index>(o.at(key).get<std::int64_t>());
+}
+
 //! Parsed ``<stem>.json`` (``version`` 2) next to ``<stem>.safetensors``.
 struct ModelFixtureSpec
 {
@@ -79,11 +84,6 @@ struct ModelFixtureSpec
     float backward_tol = 0.f;
     std::string stem;
 };
-
-inline Index json_index(const nlohmann::json& o, const char* key)
-{
-    return static_cast<Index>(o.at(key).get<std::int64_t>());
-}
 
 inline bool try_load_model_fixture_spec(
     const std::string& data_dir,

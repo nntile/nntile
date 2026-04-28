@@ -35,6 +35,7 @@
 
 #include "context_fixture.hh"
 #include "test_frobenius.hh"
+#include "test_llama_fixture_helpers.hh"
 #include "nntile/graph.hh"
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/llama/llama_causal.hh"
@@ -65,6 +66,8 @@ constexpr char llama_causal_gqa[] = "llama_causal_gqa";
 namespace
 {
 
+using namespace nntile::test::llama_fixture;
+
 //! Parsed ``<stem>.json`` (``version`` 2) — same fields as ``llama_model*.json``.
 struct CausalFixtureSpec
 {
@@ -76,11 +79,6 @@ struct CausalFixtureSpec
     float backward_tol = 0.f;
     std::string stem;
 };
-
-inline Index json_index(const nlohmann::json& o, const char* key)
-{
-    return static_cast<Index>(o.at(key).get<std::int64_t>());
-}
 
 inline bool try_load_causal_fixture_spec(
     const std::string& data_dir,
@@ -151,141 +149,6 @@ inline bool skip_unless_fixture_ready(const char* stem, CausalFixtureSpec& fx)
     }
     std::ifstream st(causal_fixture_safetensors_path(dir, fx));
     return st.good();
-}
-
-struct LlamaRopeInputs
-{
-    NNGraph::TensorNode* sin = nullptr;
-    NNGraph::TensorNode* cos = nullptr;
-    std::vector<float> sin_data;
-    std::vector<float> cos_data;
-};
-
-inline bool load_llama_rope_inputs(
-    NNGraph& g,
-    const SafeTensorsReader& reader,
-    const LlamaConfig& config,
-    Index n_seq,
-    Index n_batch,
-    LlamaRopeInputs& out)
-{
-    out = {};
-    if(!reader.has_tensor("rope_sin") || !reader.has_tensor("rope_cos"))
-    {
-        return false;
-    }
-    const Index head_dim = config.head_dim;
-    if(head_dim % 2 != 0)
-    {
-        return false;
-    }
-    const Index half = head_dim / 2;
-    out.sin = g.tensor({half, n_seq, n_batch}, "rope_sin", DataType::FP32);
-    out.cos = g.tensor({half, n_seq, n_batch}, "rope_cos", DataType::FP32);
-    auto read_f = [&](const char* name, std::vector<float>& dst)
-    {
-        std::vector<std::uint8_t> b = reader.read_tensor(name);
-        dst.resize(b.size() / sizeof(float));
-        std::memcpy(dst.data(), b.data(), b.size());
-    };
-    read_f("rope_sin", out.sin_data);
-    read_f("rope_cos", out.cos_data);
-    return true;
-}
-
-inline void mark_rope_inputs(const LlamaRopeInputs& rope)
-{
-    if(rope.sin == nullptr)
-    {
-        return;
-    }
-    rope.sin->mark_input(true);
-    rope.cos->mark_input(true);
-}
-
-inline void bind_rope_inputs(
-    TileGraph::Runtime& runtime, const LlamaRopeInputs& rope)
-{
-    if(rope.sin == nullptr)
-    {
-        return;
-    }
-    runtime.bind_data("rope_sin", rope.sin_data);
-    runtime.bind_data("rope_cos", rope.cos_data);
-}
-
-inline bool load_attn_mask_bool(
-    NNGraph& g,
-    const SafeTensorsReader& reader,
-    Index n_seq,
-    NNGraph::TensorNode*& out_mask,
-    std::vector<std::uint8_t>& mask_bytes)
-{
-    out_mask = nullptr;
-    mask_bytes.clear();
-    if(!reader.has_tensor("attn_mask"))
-    {
-        return false;
-    }
-    const auto& info = reader.tensor_info("attn_mask");
-    if(info.shape.size() != 2 || info.shape[0] != n_seq
-        || info.shape[1] != n_seq)
-    {
-        throw std::runtime_error(
-            "Llama causal test: attn_mask shape mismatch");
-    }
-    const auto n_el = static_cast<size_t>(n_seq * n_seq);
-    out_mask = g.tensor({n_seq, n_seq}, "attn_mask", DataType::BOOL, false);
-    auto raw = reader.read_tensor("attn_mask");
-    if(info.dtype == DataType::BOOL)
-    {
-        if(raw.size() != n_el)
-        {
-            throw std::runtime_error(
-                "Llama causal test: BOOL attn_mask byte size mismatch");
-        }
-        mask_bytes = std::move(raw);
-        return true;
-    }
-    if(info.dtype == DataType::FP32)
-    {
-        if(raw.size() != n_el * sizeof(float))
-        {
-            throw std::runtime_error(
-                "Llama causal test: F32 attn_mask byte size mismatch");
-        }
-        mask_bytes.resize(n_el);
-        const auto* p = reinterpret_cast<const float*>(raw.data());
-        for(size_t i = 0; i < n_el; ++i)
-        {
-            mask_bytes[i] =
-                (p[i] > 0.5f) ? static_cast<std::uint8_t>(1)
-                              : static_cast<std::uint8_t>(0);
-        }
-        return true;
-    }
-    throw std::runtime_error(
-        "Llama causal test: attn_mask must be BOOL or F32");
-}
-
-inline void mark_mask_input(NNGraph::TensorNode* mask)
-{
-    if(mask != nullptr)
-    {
-        mask->mark_input(true);
-    }
-}
-
-inline void bind_mask_input(
-    TileGraph::Runtime& runtime,
-    NNGraph::TensorNode* mask,
-    const std::vector<std::uint8_t>& mask_bytes)
-{
-    if(mask == nullptr)
-    {
-        return;
-    }
-    runtime.bind_data(mask->name(), mask_bytes);
 }
 
 void causal_forward_compare_ref(const CausalFixtureSpec& fx)

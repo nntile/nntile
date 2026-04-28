@@ -35,6 +35,7 @@
 
 #include "context_fixture.hh"
 #include "test_frobenius.hh"
+#include "test_llama_fixture_helpers.hh"
 #include "nntile/graph.hh"
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/llama/llama_config.hh"
@@ -67,6 +68,8 @@ constexpr char llama_decoder_gqa[] = "llama_decoder_gqa";
 namespace
 {
 
+using namespace nntile::test::llama_fixture;
+
 //! Parsed ``<stem>.json`` (``version`` 2) next to ``<stem>.safetensors``.
 struct DecoderFixtureSpec
 {
@@ -78,11 +81,6 @@ struct DecoderFixtureSpec
     float backward_tol = 0.f;
     std::string stem;
 };
-
-inline Index json_index(const nlohmann::json& o, const char* key)
-{
-    return static_cast<Index>(o.at(key).get<std::int64_t>());
-}
 
 inline bool try_load_decoder_fixture_spec(
     const std::string& data_dir,
@@ -152,68 +150,6 @@ inline bool skip_unless_fixture_ready(const char* stem, DecoderFixtureSpec& fx)
     }
     std::ifstream st(decoder_fixture_safetensors_path(dir, fx));
     return st.good();
-}
-
-//! RoPE tensors from safetensors (same layout as ``llama_attention`` tests).
-struct LlamaRopeInputs
-{
-    NNGraph::TensorNode* sin = nullptr;
-    NNGraph::TensorNode* cos = nullptr;
-    std::vector<float> sin_data;
-    std::vector<float> cos_data;
-};
-
-inline bool load_llama_rope_inputs(
-    NNGraph& g,
-    const SafeTensorsReader& reader,
-    const LlamaConfig& config,
-    Index n_seq,
-    Index n_batch,
-    LlamaRopeInputs& out)
-{
-    out = {};
-    if(!reader.has_tensor("rope_sin") || !reader.has_tensor("rope_cos"))
-    {
-        return false;
-    }
-    const Index head_dim = config.head_dim;
-    if(head_dim % 2 != 0)
-    {
-        return false;
-    }
-    const Index half = head_dim / 2;
-    out.sin = g.tensor({half, n_seq, n_batch}, "rope_sin", DataType::FP32);
-    out.cos = g.tensor({half, n_seq, n_batch}, "rope_cos", DataType::FP32);
-    auto read_f = [&](const char* name, std::vector<float>& dst)
-    {
-        std::vector<std::uint8_t> b = reader.read_tensor(name);
-        dst.resize(b.size() / sizeof(float));
-        std::memcpy(dst.data(), b.data(), b.size());
-    };
-    read_f("rope_sin", out.sin_data);
-    read_f("rope_cos", out.cos_data);
-    return true;
-}
-
-inline void mark_rope_inputs(const LlamaRopeInputs& rope)
-{
-    if(rope.sin == nullptr)
-    {
-        return;
-    }
-    rope.sin->mark_input(true);
-    rope.cos->mark_input(true);
-}
-
-inline void bind_rope_inputs(
-    TileGraph::Runtime& runtime, const LlamaRopeInputs& rope)
-{
-    if(rope.sin == nullptr)
-    {
-        return;
-    }
-    runtime.bind_data("rope_sin", rope.sin_data);
-    runtime.bind_data("rope_cos", rope.cos_data);
 }
 
 void decoder_forward_compare_ref(const DecoderFixtureSpec& fx)

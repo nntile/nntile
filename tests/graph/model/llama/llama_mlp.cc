@@ -33,6 +33,7 @@
 
 #include "context_fixture.hh"
 #include "test_frobenius.hh"
+#include "test_llama_fixture_helpers.hh"
 #include "nntile/graph.hh"
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/llama/llama_config.hh"
@@ -64,6 +65,8 @@ constexpr char llama_mlp[] = "llama_mlp";
 namespace
 {
 
+using namespace nntile::test::llama_fixture;
+
 //! Parsed ``<stem>.json`` (``version`` 2) next to ``<stem>.safetensors``.
 struct MlpFixtureSpec
 {
@@ -75,11 +78,6 @@ struct MlpFixtureSpec
     float backward_tol = 0.f;
     std::string stem;
 };
-
-inline Index json_index(const nlohmann::json& o, const char* key)
-{
-    return static_cast<Index>(o.at(key).get<std::int64_t>());
-}
 
 inline bool try_load_mlp_fixture_spec(
     const std::string& data_dir,
