@@ -80,6 +80,9 @@ namespace nntile::test
 //! Default relative tolerance for float comparison with PyTorch (element and Frobenius).
 constexpr float pytorch_tolerance = 1e-5f;
 
+//! Extra relative slack for element-wise checks (autograd / reordering vs ``atol``).
+constexpr float pytorch_element_rtol = 5e-4f;
+
 inline float relative_frobenius_error(
     const std::vector<float>& a,
     const torch::Tensor& b,
@@ -120,11 +123,16 @@ inline void require_relative_frobenius_error(const std::vector<float>& got,
     REQUIRE(relative_frobenius_error(got, ref, epsilon) < tol);
 }
 
-//! Per-element relative check: \f$|a_i-b_i| / \max(|a_i|,|b_i|,\epsilon) < \texttt{tol}\f$.
+//! Per-element check: \f$|a_i-b_i| \le \texttt{tol} + \texttt{rtol}\cdot\max(|a_i|,|b_i|,\epsilon)\f$.
+//!
+//! Pure relative error with a tiny floor blows up when both sides are near zero (only
+//! numerical noise differs). The absolute term ``tol`` matches the legacy absolute test
+//! for that regime; ``rtol`` covers normal float32 Jacobian noise.
 inline void compare_float_vectors(const std::vector<float>& a,
                                   const torch::Tensor& b,
                                   float tol = pytorch_tolerance,
-                                  float epsilon = relative_tolerance_floor)
+                                  float epsilon = relative_tolerance_floor,
+                                  float rtol = pytorch_element_rtol)
 {
     REQUIRE(b.defined());
     REQUIRE(b.dtype() == torch::kFloat32);
@@ -136,9 +144,12 @@ inline void compare_float_vectors(const std::vector<float>& a,
     {
         const double ai = static_cast<double>(a[i]);
         const double bi = static_cast<double>(b_acc[static_cast<long>(i)]);
+        const double abs_diff = std::fabs(ai - bi);
         const double scale = std::max(
             std::fabs(ai), std::max(std::fabs(bi), static_cast<double>(epsilon)));
-        REQUIRE(std::fabs(ai - bi) / scale < static_cast<double>(tol));
+        const double bound =
+            static_cast<double>(tol) + static_cast<double>(rtol) * scale;
+        REQUIRE(abs_diff <= bound);
     }
 }
 
