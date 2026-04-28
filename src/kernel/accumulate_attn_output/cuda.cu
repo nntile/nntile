@@ -132,6 +132,12 @@ void cuda(cudaStream_t stream, Index head, Index seq, Index batch,
             (nelems + threads - 1) / threads));
     (cuda_kernel<T>)<<<grid_dim, block_dim, 0, stream>>>(
             head, nelems, src_lse, src_attn, dst_lse, dst_attn);
+    cudaError_t error = cudaGetLastError();
+    if(error != cudaSuccess)
+    {
+        std::cerr << "accumulate_attn_output kernel launch failed: " << cudaGetErrorString(error) << std::endl;
+        return;
+    }
 }
 
 // Explicit instantiation

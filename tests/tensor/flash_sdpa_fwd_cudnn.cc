@@ -176,7 +176,8 @@ void check(const FlashTensorCase &cfg)
                                     mask_single.get_tile(0), logsumexp_single.get_tile(0),
                                     V_single.get_tile(0), A_single.get_tile(0));
 
-    // Call tensor-level operation
+
+    // Call tensor-level operation (logsumexp_multi already has -inf from scatter)
     flash_sdpa_fwd_cudnn<T>(K_multi, Q_multi, mask_multi, logsumexp_multi,
                            V_multi, A_multi);
 

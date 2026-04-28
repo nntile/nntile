@@ -48,6 +48,7 @@ void execute_graph(
     const T *A,
     const T *dA,
     const T *mask,
+    T *mask_scratch,
     const fp32_t *logsumexp,
     T *scratch_dK,
     T *scratch_dQ,

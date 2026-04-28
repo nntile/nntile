@@ -126,6 +126,7 @@ void FlashSdpaBwdCudnn<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
         A,
         dA,
         mask,
+        cache_entry->mask_scratch,
         logsumexp,
         scratch_dK,
         scratch_dQ,
@@ -283,6 +284,15 @@ FlashSdpaBwdCudnn<std::tuple<T>>::store_graph(
                                       static_cast<size_t>(entry.workspace_size));
         if (cuda_status != cudaSuccess) {
             std::cerr << "CUDA Worker: Failed to allocate backward workspace" << std::endl;
+            return nullptr;
+        }
+    }
+
+    const size_t mask_size = static_cast<size_t>(seq) * seq * sizeof(T);
+    if (mask_size > 0) {
+        auto cuda_status = cudaMalloc(&entry.mask_scratch, mask_size);
+        if (cuda_status != cudaSuccess) {
+            std::cerr << "CUDA Worker: Failed to allocate backward mask scratch" << std::endl;
             return nullptr;
         }
     }

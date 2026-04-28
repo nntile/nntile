@@ -20,6 +20,7 @@
 #   include <cuda_runtime.h>
 #   include <cudnn_frontend.h>
 #endif // NNTILE_USE_CUDA
+#include <cstdint>
 #include <vector>
 #include <stdexcept>
 #include <iostream>
@@ -89,7 +90,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     }
 
     // Allocate device memory for kernel test
-    T *dev_K, *dev_Q, *dev_V, *dev_A_kernel, *dev_mask;
+    T *dev_K, *dev_Q, *dev_V, *dev_A_kernel, *dev_mask, *dev_mask_scratch;
     T *dev_scratch_A_kernel;
     fp32_t *dev_logsumexp_kernel;
     fp32_t *dev_scratch_lse_kernel;
@@ -108,6 +109,8 @@ void validate_cuda(Index seq, Index head, Index batch)
     cuda_err = cudaMalloc(&dev_scratch_lse_kernel, sizeof(fp32_t) * actual_batch * seq);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_mask, sizeof(T) * seq * seq);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaMalloc(&dev_mask_scratch, sizeof(T) * seq * seq);
     TEST_ASSERT(cuda_err == cudaSuccess);
 
     // Copy inputs to device
@@ -140,6 +143,16 @@ void validate_cuda(Index seq, Index head, Index batch)
     );
     TEST_ASSERT(kernel_graph != nullptr);
 
+    std::int64_t workspace_size = 0;
+    auto ws_status = kernel_graph->get_workspace_size(workspace_size);
+    TEST_ASSERT(ws_status.is_good());
+    void *workspace = nullptr;
+    if (workspace_size > 0)
+    {
+        cuda_err = cudaMalloc(&workspace, static_cast<size_t>(workspace_size));
+        TEST_ASSERT(cuda_err == cudaSuccess);
+    }
+
     // Run kernel directly through the prepared graph
     kernel::flash_sdpa_fwd_cudnn::execute_graph<T>(
         handle,
@@ -150,12 +163,19 @@ void validate_cuda(Index seq, Index head, Index batch)
         dev_K,
         dev_Q,
         dev_mask,
+        dev_mask_scratch,
         dev_scratch_lse_kernel,
         dev_V,
         dev_scratch_A_kernel,
         dev_logsumexp_kernel,
-        dev_A_kernel
+        dev_A_kernel,
+        workspace
     );
+
+    if (workspace != nullptr)
+    {
+        cudaFree(workspace);
+    }
 
     // Synchronize
     cuda_err = cudaStreamSynchronize(stream);
@@ -243,6 +263,7 @@ void validate_cuda(Index seq, Index head, Index batch)
     cudaFree(dev_scratch_A_kernel);
     cudaFree(dev_scratch_lse_kernel);
     cudaFree(dev_mask);
+    cudaFree(dev_mask_scratch);
     cudnnDestroy(handle);
     cudaStreamDestroy(stream);
 }

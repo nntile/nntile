@@ -16,6 +16,7 @@
 #include "nntile/kernel/flash_sdpa_fwd_cudnn.hh"
 
 // Standard libraries
+#include <cstdint>
 #include <vector>
 #include <stdexcept>
 #include <limits>
@@ -370,6 +371,8 @@ void run_cuda_test(TestData<T>& data)
     T *dev_scratch_A;
     fp32_t *dev_lse;
     fp32_t *dev_scratch_lse;
+    void *workspace = nullptr;
+    std::int64_t workspace_size = 0;
 
     // Allocate device memory
     CUDA_CHECK(cudaMalloc(&dev_K, sizeof(T) * data.batch * data.seq * data.head),
@@ -386,6 +389,9 @@ void run_cuda_test(TestData<T>& data)
                "cudaMalloc dev_scratch_A");
     CUDA_CHECK(cudaMalloc(&dev_mask, sizeof(T) * data.seq * data.seq),
                "cudaMalloc dev_mask");
+    T *dev_mask_scratch = nullptr;
+    CUDA_CHECK(cudaMalloc(&dev_mask_scratch, sizeof(T) * data.seq * data.seq),
+               "cudaMalloc dev_mask_scratch");
     CUDA_CHECK(cudaMalloc(&dev_scratch_lse, sizeof(fp32_t) * data.batch * data.seq),
                "cudaMalloc dev_scratch_lse");
 
@@ -452,7 +458,31 @@ void run_cuda_test(TestData<T>& data)
         CUDA_CHECK(cudaFree(dev_A), "cudaFree dev_A (prepare_graph failed)");
         CUDA_CHECK(cudaFree(dev_scratch_A), "cudaFree dev_scratch_A (prepare_graph failed)");
         CUDA_CHECK(cudaFree(dev_mask), "cudaFree dev_mask (prepare_graph failed)");
+        CUDA_CHECK(cudaFree(dev_mask_scratch), "cudaFree dev_mask_scratch (prepare_graph failed)");
         return;
+    }
+
+    auto ws_status = prepared_graph->get_workspace_size(workspace_size);
+    if(!ws_status.is_good())
+    {
+        WARN("cuDNN Flash Attention forward workspace query failed — skipping test.");
+        CUDNN_CHECK(cudnnDestroy(handle), "cudnnDestroy");
+        CUDA_CHECK(cudaStreamDestroy(stream), "cudaStreamDestroy");
+        CUDA_CHECK(cudaFree(dev_K), "cudaFree dev_K");
+        CUDA_CHECK(cudaFree(dev_Q), "cudaFree dev_Q");
+        CUDA_CHECK(cudaFree(dev_lse), "cudaFree dev_lse");
+        CUDA_CHECK(cudaFree(dev_scratch_lse), "cudaFree dev_scratch_lse");
+        CUDA_CHECK(cudaFree(dev_V), "cudaFree dev_V");
+        CUDA_CHECK(cudaFree(dev_A), "cudaFree dev_A");
+        CUDA_CHECK(cudaFree(dev_scratch_A), "cudaFree dev_scratch_A");
+        CUDA_CHECK(cudaFree(dev_mask), "cudaFree dev_mask");
+        CUDA_CHECK(cudaFree(dev_mask_scratch), "cudaFree dev_mask_scratch");
+        return;
+    }
+    if(workspace_size > 0)
+    {
+        CUDA_CHECK(cudaMalloc(&workspace, static_cast<size_t>(workspace_size)),
+                   "cudaMalloc workspace");
     }
 
     if constexpr (run_bench)
@@ -482,11 +512,13 @@ void run_cuda_test(TestData<T>& data)
                 dev_K,
                 dev_Q,
                 dev_mask,
+                dev_mask_scratch,
                 dev_scratch_lse,
                 dev_V,
                 dev_scratch_A,
                 dev_lse,
-                dev_A
+                dev_A,
+                workspace
             );
             cudaStreamSynchronize(stream);
         };
@@ -502,11 +534,13 @@ void run_cuda_test(TestData<T>& data)
             dev_K,
             dev_Q,
             dev_mask,
+            dev_mask_scratch,
             dev_scratch_lse,
             dev_V,
             dev_scratch_A,
             dev_lse,
-            dev_A
+            dev_A,
+            workspace
         );
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
 
@@ -559,6 +593,11 @@ void run_cuda_test(TestData<T>& data)
     CUDA_CHECK(cudaFree(dev_A), "cudaFree dev_A");
     CUDA_CHECK(cudaFree(dev_scratch_A), "cudaFree dev_scratch_A");
     CUDA_CHECK(cudaFree(dev_mask), "cudaFree dev_mask");
+    CUDA_CHECK(cudaFree(dev_mask_scratch), "cudaFree dev_mask_scratch");
+    if(workspace != nullptr)
+    {
+        CUDA_CHECK(cudaFree(workspace), "cudaFree workspace");
+    }
 }
 
 // Catch2-based tests (only CUDA is supported)

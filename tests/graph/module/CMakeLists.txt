@@ -16,9 +16,11 @@ set(TESTS_CATCH2
     "activation"
     "embedding"
     "gated_mlp"
+    "layer_norm"
     "linear"
     "mlp"
     "module"
+    "rms_norm"
 )
 
 # Module tests with PyTorch comparison

@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/flash_sdpa_fwd_cudnn/cuda.cc
+ * @file src/kernel/flash_sdpa_fwd_cudnn/cuda.cu
  * Flash attention scaled dot-product attention forward pass using cuDNN Frontend API
  *
  * @version 1.1.0
@@ -16,6 +16,8 @@
 #include "nntile/kernel/accumulate_attn_output.hh"
 #include <cudnn_frontend.h>
 #include <cuda_runtime.h>
+#include <cuda_fp16.h>
+#include <cuda_bf16.h>
 #include <stdexcept>
 #include <cmath>
 #include <unordered_map>
@@ -25,6 +27,31 @@ namespace fe = cudnn_frontend;
 
 namespace nntile::kernel::flash_sdpa_fwd_cudnn
 {
+
+namespace
+{
+
+// Minimal representable value for mask (cuDNN SDPA is broken with -inf when all inputs are masked)
+// It returns LSE = 0 instead of -inf. While this is Ok for standard use, it breaks tiled approach.
+template<typename T> struct mask_lowest;
+template<> struct mask_lowest<fp16_t> { static constexpr float value = -10000.0f; };
+// Small finite bf16, such that addition with this value does not become -inf
+template<> struct mask_lowest<bf16_t> { static constexpr float value = -1e+30f; };
+
+template<typename T>
+__global__ void prepare_mask_kernel(Index nelems, const T* src, T* dst)
+{
+    using Y = typename T::repr_t;
+    const Index idx = static_cast<Index>(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (idx >= nelems) return;
+    Y val = static_cast<Y>(src[idx]);
+    Y out = (__isinff(val) && val < Y(0))
+        ? static_cast<Y>(mask_lowest<T>::value)
+        : val;
+    dst[idx] = static_cast<T>(out);
+}
+
+} // namespace
 
 // Tensor UIDs for the graph (use standard int64_t for cuDNN frontend)
 constexpr ::int64_t Q_UID = 1;
@@ -97,7 +124,8 @@ FlashSdpaFwdGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
         // Create SDPA options - always use bias (mask)
         auto sdpa_options = fe::graph::SDPA_attributes()
                                 .set_name("flash_attention")
-                                .set_is_inference(false)  // We want statistics
+                                // .set_is_inference(false)  // We want statistics
+                                .set_generate_stats(true)  // Stats needed for backward pass
                                 .set_attn_scale(attn_scale);
 
         auto Mask_tensor = graph->tensor(fe::graph::Tensor_attributes()
@@ -121,6 +149,8 @@ FlashSdpaFwdGraph prepare_graph(cudnnHandle_t handle, Index seq, Index head,
             .set_uid(A_UID);
 
         Stats_tensor->set_output(true)
+            .set_dim({b, num_heads, s, 1})
+            .set_stride({num_heads * s, s, 1, 1})
             .set_data_type(fe::DataType_t::FLOAT)
             .set_uid(STATS_UID);
 
@@ -146,20 +176,24 @@ template<typename T>
 void execute_graph(cudnnHandle_t handle, const FlashSdpaFwdGraph &prepared_graph,
                    Index seq, Index head, Index batch,
                    const T* K, const T* Q, const T* mask,
+                   T* mask_scratch,
                    fp32_t* scratch_logsumexp,
                    const T* V, T* scratch_A,
-                   fp32_t* logsumexp, T* A)
+                   fp32_t* logsumexp, T* A,
+                   void* workspace)
     noexcept
 //! Execute prepared cuDNN graph for flash attention
 /*!
  * Executes a previously prepared cuDNN graph with provided data pointers.
  * The mask tensor is virtually reshaped from [seq, seq] to [1, 1, seq, seq] for cuDNN.
+ * Mask values of -inf are replaced with minimal representable value (cuDNN SDPA is broken with -inf).
  *
  * @param[in] handle: cuDNN handle (with stream already set)
  * @param[in] prepared_graph: Previously prepared graph structure
  * @param[in] K: Key tensor [batch, seq, head]
  * @param[in] Q: Query tensor [batch, seq, head]
  * @param[in] mask: Mask tensor [seq, seq]
+ * @param[in,out] mask_scratch: Scratch buffer for mask with -inf replaced by lowest()
  * @param[out] scratch_logsumexp: Log-sum-exp statistics [batch, seq] (temporary)
  * @param[in] V: Value tensor [batch, seq, head]
  * @param[out] scratch_A: Attention output tensor [batch, seq, head] (temporary)
@@ -167,25 +201,35 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaFwdGraph &prepared_graph
  * @param[in,out] A: Accumulated attention output tensor [batch, seq, head]
  * */
 {
-    // Create variant pack
+    cudaStream_t stream = nullptr;
+    if (cudnnGetStream(handle, &stream) != CUDNN_STATUS_SUCCESS || stream == nullptr)
+    {
+        std::cerr << "cuDNN forward: failed to query stream" << std::endl;
+        return;
+    }
+
+    // Prepare mask: replace -inf with minimal representable value (cuDNN SDPA is broken with -inf)
+    const Index mask_nelems = seq * seq;
+    constexpr int threads = 256;
+    const dim3 block_dim(threads);
+    const dim3 grid_dim(static_cast<unsigned int>((mask_nelems + threads - 1) / threads));
+    prepare_mask_kernel<T> <<<grid_dim, block_dim, 0, stream>>>(mask_nelems, mask, mask_scratch);
+
+    // Create variant pack - cuDNN writes to scratch, accumulate merges to output
     std::unordered_map<::int64_t, void*> variant_pack = {
         {Q_UID, const_cast<T*>(Q)},
         {K_UID, const_cast<T*>(K)},
         {V_UID, const_cast<T*>(V)},
         {A_UID, scratch_A},
-        {MASK_UID, const_cast<T*>(mask)},
+        {MASK_UID, mask_scratch},
         {STATS_UID, scratch_logsumexp}
     };
 
-    // Execute the graph
-    auto exec_status = prepared_graph->execute(handle, variant_pack, nullptr);
-    (void)exec_status;
-
-    cudaStream_t stream = nullptr;
-    if (cudnnGetStream(handle, &stream) != CUDNN_STATUS_SUCCESS || stream == nullptr)
+    auto exec_status = prepared_graph->execute(handle, variant_pack, workspace);
+    if(!exec_status.is_good())
     {
-        std::cerr << "cuDNN forward graph execution: failed to query CUDA stream"
-                  << std::endl;
+        std::cerr << "cuDNN forward graph execution failed: "
+                  << exec_status.get_message() << std::endl;
         return;
     }
 
@@ -219,16 +263,18 @@ template
 void execute_graph<fp16_t>(cudnnHandle_t handle, const FlashSdpaFwdGraph &prepared_graph,
                            Index seq, Index head, Index batch,
                            const fp16_t* K, const fp16_t* Q, const fp16_t* mask,
+                           fp16_t* mask_scratch,
                            fp32_t* scratch_logsumexp, const fp16_t* V, fp16_t* scratch_A,
-                           fp32_t* logsumexp, fp16_t* A)
+                           fp32_t* logsumexp, fp16_t* A, void* workspace)
     noexcept;
 
 template
 void execute_graph<bf16_t>(cudnnHandle_t handle, const FlashSdpaFwdGraph &prepared_graph,
                            Index seq, Index head, Index batch,
                            const bf16_t* K, const bf16_t* Q, const bf16_t* mask,
+                           bf16_t* mask_scratch,
                            fp32_t* scratch_logsumexp, const bf16_t* V, bf16_t* scratch_A,
-                           fp32_t* logsumexp, bf16_t* A)
+                           fp32_t* logsumexp, bf16_t* A, void* workspace)
     noexcept;
 
 } // namespace nntile::kernel::flash_sdpa_fwd_cudnn

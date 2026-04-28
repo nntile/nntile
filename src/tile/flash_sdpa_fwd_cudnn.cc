@@ -167,10 +167,10 @@ void flash_sdpa_fwd_cudnn_async(const Tile<T> &K, const Tile<T> &Q,
     flash_sdpa_fwd_cudnn_check(K, Q, mask, logsumexp, V, A);
 
     // Extract dimensions for starpu call
-    Index seq = K.shape[1];
-    Index head = K.shape[0];
+    Index seq = Q.shape[1];
+    Index head = Q.shape[0];
     // Combine batch dimensions: n_batch * kv_group_size * n_head_kv -> batch
-    Index batch = K.shape[2] * K.shape[3] * K.shape[4];
+    Index batch = Q.shape[2] * Q.shape[3] * Q.shape[4];
     int mpi_rank = starpu_mpi_world_rank();
     int a_rank = A.mpi_get_rank();
     K.mpi_transfer(a_rank, mpi_rank);

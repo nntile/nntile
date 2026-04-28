@@ -362,6 +362,8 @@ void run_cuda_test(TestData<T> &data)
     CUDA_CHECK(cudaMalloc(&dev_A, sizeof(T) * total), "cudaMalloc dev_A");
     CUDA_CHECK(cudaMalloc(&dev_dA, sizeof(T) * total), "cudaMalloc dev_dA");
     CUDA_CHECK(cudaMalloc(&dev_mask, sizeof(T) * data.seq * data.seq), "cudaMalloc dev_mask");
+    T *dev_mask_scratch = nullptr;
+    CUDA_CHECK(cudaMalloc(&dev_mask_scratch, sizeof(T) * data.seq * data.seq), "cudaMalloc dev_mask_scratch");
     CUDA_CHECK(cudaMalloc(&dev_dK, sizeof(T) * total), "cudaMalloc dev_dK");
     CUDA_CHECK(cudaMalloc(&dev_dQ, sizeof(T) * total), "cudaMalloc dev_dQ");
     CUDA_CHECK(cudaMalloc(&dev_dV, sizeof(T) * total), "cudaMalloc dev_dV");
@@ -429,6 +431,7 @@ void run_cuda_test(TestData<T> &data)
         CUDA_CHECK(cudaFree(dev_A), "cudaFree dev_A");
         CUDA_CHECK(cudaFree(dev_dA), "cudaFree dev_dA");
         CUDA_CHECK(cudaFree(dev_mask), "cudaFree dev_mask");
+        CUDA_CHECK(cudaFree(dev_mask_scratch), "cudaFree dev_mask_scratch");
         CUDA_CHECK(cudaFree(dev_dK), "cudaFree dev_dK");
         CUDA_CHECK(cudaFree(dev_dQ), "cudaFree dev_dQ");
         CUDA_CHECK(cudaFree(dev_dV), "cudaFree dev_dV");
@@ -484,7 +487,7 @@ void run_cuda_test(TestData<T> &data)
             kernel::flash_sdpa_bwd_cudnn::execute_graph<T>(
                 handle, bwd_graph, data.seq, data.head, data.batch,
                 dev_K, dev_Q, dev_V, dev_A, dev_dA,
-                dev_mask, dev_lse,
+                dev_mask, dev_mask_scratch, dev_lse,
                 dev_scratch_dK, dev_scratch_dQ, dev_scratch_dV,
                 dev_dK, dev_dQ, dev_dV, workspace);
             cudaStreamSynchronize(stream);
@@ -501,7 +504,7 @@ void run_cuda_test(TestData<T> &data)
         kernel::flash_sdpa_bwd_cudnn::execute_graph<T>(
             handle, bwd_graph, data.seq, data.head, data.batch,
             dev_K, dev_Q, dev_V, dev_A, dev_dA,
-            dev_mask, dev_lse,
+            dev_mask, dev_mask_scratch, dev_lse,
             dev_scratch_dK, dev_scratch_dQ, dev_scratch_dV,
             dev_dK, dev_dQ, dev_dV, workspace);
         CUDA_CHECK(cudaStreamSynchronize(stream), "cudaStreamSynchronize backward");

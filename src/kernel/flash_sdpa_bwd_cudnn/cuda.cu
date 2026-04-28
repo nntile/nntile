@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/flash_sdpa_bwd_cudnn/cuda.cc
+ * @file src/kernel/flash_sdpa_bwd_cudnn/cuda.cu
  * Flash attention scaled dot-product attention backward pass using cuDNN
  * Frontend API
  *
@@ -17,6 +17,8 @@
 #include "nntile/kernel/add_inplace.hh"
 #include <cudnn_frontend.h>
 #include <cuda_runtime.h>
+#include <cuda_fp16.h>
+#include <cuda_bf16.h>
 #include <stdexcept>
 #include <cmath>
 #include <unordered_map>
@@ -26,6 +28,31 @@ namespace fe = cudnn_frontend;
 
 namespace nntile::kernel::flash_sdpa_bwd_cudnn
 {
+
+namespace
+{
+
+// Minimal representable value for mask (cuDNN SDPA is broken with -inf when all inputs are masked)
+// It returns LSE = 0 instead of -inf. While this is Ok for standard use, it breaks tiled approach.
+template<typename T> struct mask_lowest;
+template<> struct mask_lowest<fp16_t> { static constexpr float value = -10000.0f; };
+// Small finite bf16, such that addition with this value does not become -inf
+template<> struct mask_lowest<bf16_t> { static constexpr float value = -1e+30f; };
+
+template<typename T>
+__global__ void prepare_mask_kernel(Index nelems, const T* src, T* dst)
+{
+    using Y = typename T::repr_t;
+    const Index idx = static_cast<Index>(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (idx >= nelems) return;
+    Y val = static_cast<Y>(src[idx]);
+    Y out = (__isinff(val) && val < Y(0))
+        ? static_cast<Y>(mask_lowest<T>::value)
+        : val;
+    dst[idx] = static_cast<T>(out);
+}
+
+} // namespace
 
 // Tensor UIDs for the graph (use standard int64_t for cuDNN frontend)
 constexpr ::int64_t Q_UID = 1;
@@ -172,19 +199,34 @@ template<typename T>
 void execute_graph(cudnnHandle_t handle, const FlashSdpaBwdGraph &prepared_graph,
                    Index seq, Index head, Index batch,
                    const T *K, const T *Q, const T *V, const T *A,
-                   const T *dA, const T *mask, const fp32_t *logsumexp,
+                   const T *dA, const T *mask, T *mask_scratch,
+                   const fp32_t *logsumexp,
                    T *scratch_dK, T *scratch_dQ, T *scratch_dV,
                    T *dK, T *dQ, T *dV, void *workspace)
     noexcept
 //! Execute prepared cuDNN graph for flash attention backward pass
 {
+    cudaStream_t stream = nullptr;
+    if (cudnnGetStream(handle, &stream) != CUDNN_STATUS_SUCCESS || stream == nullptr)
+    {
+        std::cerr << "cuDNN backward: failed to query stream" << std::endl;
+        return;
+    }
+
+    // Prepare mask: replace -inf with minimal representable value (cuDNN SDPA is broken with -inf)
+    const Index mask_nelems = seq * seq;
+    constexpr int threads = 256;
+    const dim3 block_dim(threads);
+    const dim3 grid_dim(static_cast<unsigned int>((mask_nelems + threads - 1) / threads));
+    prepare_mask_kernel<T> <<<grid_dim, block_dim, 0, stream>>>(mask_nelems, mask, mask_scratch);
+
     std::unordered_map<::int64_t, void*> variant_pack = {
         {Q_UID, const_cast<T*>(Q)},
         {K_UID, const_cast<T*>(K)},
         {V_UID, const_cast<T*>(V)},
         {A_UID, const_cast<T*>(A)},
         {DA_UID, const_cast<T*>(dA)},
-        {MASK_UID, const_cast<T*>(mask)},
+        {MASK_UID, mask_scratch},
         {STATS_UID, const_cast<fp32_t*>(logsumexp)},
         {DQ_UID, scratch_dQ},
         {DK_UID, scratch_dK},
@@ -202,14 +244,6 @@ void execute_graph(cudnnHandle_t handle, const FlashSdpaBwdGraph &prepared_graph
                     << exec_status.get_message() << std::endl;
     }
     (void)exec_status;
-
-    cudaStream_t stream = nullptr;
-    if (cudnnGetStream(handle, &stream) != CUDNN_STATUS_SUCCESS || stream == nullptr)
-    {
-        std::cerr << "cuDNN backward graph execution: failed to query CUDA stream"
-                  << std::endl;
-        return;
-    }
 
     const Index total = seq * head * batch;
     kernel::add_inplace::cuda<T>(stream, total, 1.0, scratch_dQ, 1.0, dQ);
@@ -238,6 +272,7 @@ void execute_graph<fp16_t>(cudnnHandle_t handle,
                            const fp16_t *A,
                            const fp16_t *dA,
                            const fp16_t *mask,
+                           fp16_t *mask_scratch,
                            const fp32_t *logsumexp,
                            fp16_t *scratch_dK,
                            fp16_t *scratch_dQ,
@@ -259,6 +294,7 @@ void execute_graph<bf16_t>(cudnnHandle_t handle,
                            const bf16_t *A,
                            const bf16_t *dA,
                            const bf16_t *mask,
+                           bf16_t *mask_scratch,
                            const fp32_t *logsumexp,
                            bf16_t *scratch_dK,
                            bf16_t *scratch_dQ,

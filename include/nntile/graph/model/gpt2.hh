@@ -6,17 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/model/llama.hh
- * Convenience header for Llama model components.
+ * @file include/nntile/graph/model/gpt2.hh
+ * Convenience header for GPT-2 model components.
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/graph/model/llama/llama_config.hh>
-#include <nntile/graph/model/llama/llama_mlp.hh>
-#include <nntile/graph/model/llama/llama_attention.hh>
-#include <nntile/graph/model/llama/llama_decoder.hh>
-#include <nntile/graph/model/llama/llama_model.hh>
-#include <nntile/graph/model/llama/llama_causal.hh>
+#include <nntile/graph/model/gpt2/gpt2_attention.hh>
+#include <nntile/graph/model/gpt2/gpt2_block.hh>
+#include <nntile/graph/model/gpt2/gpt2_causal.hh>
+#include <nntile/graph/model/gpt2/gpt2_config.hh>
+#include <nntile/graph/model/gpt2/gpt2_model.hh>
+#include <nntile/graph/model/gpt2/gpt2_mlp.hh>
