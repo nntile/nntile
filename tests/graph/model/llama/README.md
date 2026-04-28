@@ -31,11 +31,9 @@ python tests/graph/model/llama/generate_test_data.py --block causal --output /tm
 
 Both NNTile and PyTorch are configured identically: RoPE is replaced with identity and causal masking is disabled so that outputs match exactly.
 
-## Save/Load and HF Import/Export
+## Save/Load
 
-Llama building blocks support:
-- **save/load**: NNTile-native safetensors via `Module::save()` / `Module::load()`
-- **import_hf/export_hf**: HuggingFace format conversion for `LlamaAttention`, `RMSNorm`, and submodules (`Linear`, `Embedding`, `GatedMlp`)
+Llama building blocks use NNTile-native safetensors via `Module::save()` / `Module::load()`.
 
 ## Running Tests
 

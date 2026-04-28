@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/model/llama/llama_model.hh"
+#include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/nn/transpose.hh"
 
 #include <stdexcept>

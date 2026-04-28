@@ -19,7 +19,6 @@
 
 // NNTile headers
 #include <nntile/graph.hh>
-#include <nntile/graph/io/safetensors.hh>
 #include <nntile/graph/module/module.hh>
 
 namespace nntile::graph::module
@@ -52,12 +51,6 @@ public:
 
     //! Get string representation
     std::string repr() const override;
-
-    void import_hf(const graph::io::SafeTensorsReader& reader,
-                   const std::string& hf_prefix) override;
-
-    void export_hf(graph::io::SafeTensorsWriter& writer,
-                   const std::string& hf_prefix) const override;
 
     graph::NNGraph::TensorNode* gamma_tensor() const { return gamma_tensor_; }
 };

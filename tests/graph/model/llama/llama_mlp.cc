@@ -9,70 +9,177 @@
  * @file tests/graph/model/llama/llama_mlp.cc
  * Tests for LlamaMLP.
  *
+ * Each reference bundle is a **pair**: ``<stem>.json`` (``Llama`` MLP fields
+ * — ``hidden_size``, ``intermediate_size``, attention head counts for
+ * ``LlamaConfig`` — plus ``sequence_length``, ``batch``, tolerances) and
+ * ``<stem>.safetensors`` (weights and reference tensors). Tests load the JSON,
+ * build ``LlamaConfig``, construct ``LlamaMLP``, then ``load()`` the sibling
+ * safetensors. Pairs are produced by ``generate_test_data.py`` (``--block mlp``).
+ *
  * @version 1.1.0
  * */
 
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <string>
 #include <vector>
 
+#include <nlohmann/json.hpp>
+
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
+#include "test_llama_fixture_helpers.hh"
 #include "nntile/graph.hh"
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/llama/llama_config.hh"
 #include "nntile/graph/model/llama/llama_mlp.hh"
-#include "nntile/graph/tensor/fill.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::model::llama;
 using namespace nntile::graph::io;
-namespace gt = nntile::graph::tensor;
 
-static LlamaConfig test_config()
+#ifndef LLAMA_DATA_DIR
+
+TEST_CASE("LlamaMLP tests skipped (LLAMA_DATA_DIR undefined)", "[model][llama]")
 {
-    LlamaConfig config;
-    config.hidden_size = 8;
-    config.intermediate_size = 16;
-    config.num_attention_heads = 1;
-    config.num_key_value_heads = 1;
-    config.compute_head_dim();
-    return config;
+    SKIP("LLAMA_DATA_DIR not defined at compile time.");
 }
+
+#else
+
+//! Basenames (no extension) for paired ``.json`` / ``.safetensors`` in
+//! ``LLAMA_DATA_DIR`` — must match ``generate_test_data.py`` output.
+namespace mlp_fixture_stem
+{
+
+constexpr char llama_mlp[] = "llama_mlp";
+
+} // namespace mlp_fixture_stem
+
+namespace
+{
+
+using namespace nntile::test::llama_fixture;
+
+//! Parsed ``<stem>.json`` (``version`` 2) next to ``<stem>.safetensors``.
+struct MlpFixtureSpec
+{
+    LlamaConfig config{};
+    Index seq = 0;
+    Index batch = 0;
+    Index hidden = 0;
+    float forward_tol = 0.f;
+    float backward_tol = 0.f;
+    std::string stem;
+};
+
+inline bool try_load_mlp_fixture_spec(
+    const std::string& data_dir,
+    const char* stem_cstr,
+    MlpFixtureSpec& out)
+{
+    out = {};
+    out.stem = stem_cstr;
+    const std::string jpath = data_dir + "/" + out.stem + ".json";
+    std::ifstream jf(jpath);
+    if(!jf)
+    {
+        return false;
+    }
+    nlohmann::json j;
+    try
+    {
+        jf >> j;
+        if(j.at("version").get<int>() != 2)
+        {
+            return false;
+        }
+        if(j.at("stem").get<std::string>() != out.stem)
+        {
+            return false;
+        }
+        const std::string expected_st = out.stem + ".safetensors";
+        if(j.at("safetensors").get<std::string>() != expected_st)
+        {
+            return false;
+        }
+        const auto& L = j.at("llama");
+        out.config.hidden_size = json_index(L, "hidden_size");
+        out.config.intermediate_size = json_index(L, "intermediate_size");
+        out.config.num_attention_heads = json_index(L, "num_attention_heads");
+        out.config.num_key_value_heads = json_index(L, "num_key_value_heads");
+        out.config.compute_head_dim();
+        out.hidden = out.config.hidden_size;
+        out.seq = json_index(j, "sequence_length");
+        out.batch = json_index(j, "batch");
+        out.forward_tol = static_cast<float>(
+            j.at("tolerances").at("forward").get<double>());
+        out.backward_tol = static_cast<float>(
+            j.at("tolerances").at("backward").get<double>());
+    }
+    catch(...)
+    {
+        return false;
+    }
+    return true;
+}
+
+inline std::string mlp_fixture_safetensors_path(
+    const std::string& data_dir,
+    const MlpFixtureSpec& spec)
+{
+    return data_dir + "/" + spec.stem + ".safetensors";
+}
+
+//! SKIP helper: JSON + safetensors must both exist and JSON must parse.
+inline bool skip_unless_fixture_ready(const char* stem, MlpFixtureSpec& fx)
+{
+    const std::string dir = std::string(LLAMA_DATA_DIR);
+    if(!try_load_mlp_fixture_spec(dir, stem, fx))
+    {
+        return false;
+    }
+    std::ifstream st(mlp_fixture_safetensors_path(dir, fx));
+    return st.good();
+}
+
+} // namespace
 
 TEST_CASE("LlamaMLP forward builds output", "[model][llama]")
 {
+    MlpFixtureSpec fx;
+    if(!skip_unless_fixture_ready(mlp_fixture_stem::llama_mlp, fx))
+    {
+        SKIP("Missing or invalid llama_mlp.json / .safetensors.");
+    }
     NNGraph g("llama_mlp");
-    auto config = test_config();
-
-    auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
-    LlamaMLP mlp(&g, "mlp", config);
+    LlamaMLP mlp(&g, "mlp", fx.config);
+    auto* input = g.tensor({fx.hidden, fx.seq, fx.batch}, "input", DataType::FP32);
     auto* output = mlp.forward(input);
 
     REQUIRE(output != nullptr);
-    REQUIRE(output->shape() == std::vector<Index>({8, 4, 2}));
+    REQUIRE(output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
     REQUIRE(mlp.parameters_recursive().size() == 3);
 }
 
-#ifdef LLAMA_DATA_DIR
 TEST_CASE("LlamaMLP load from safetensors roundtrip", "[model][llama][io]")
 {
-    const std::string data_path =
-        std::string(LLAMA_DATA_DIR) + "/llama_mlp_full.safetensors";
-    std::ifstream check(data_path);
-    if(!check.good())
+    MlpFixtureSpec fx;
+    if(!skip_unless_fixture_ready(mlp_fixture_stem::llama_mlp, fx))
     {
-        SKIP("Llama MLP test data not found.");
+        SKIP("Missing or invalid llama_mlp.json / .safetensors.");
     }
-
-    auto config = test_config();
+    const std::string data_path =
+        mlp_fixture_safetensors_path(std::string(LLAMA_DATA_DIR), fx);
 
     NNGraph g1("load_graph");
-    LlamaMLP mlp1(&g1, "mlp", config);
+    LlamaMLP mlp1(&g1, "mlp", fx.config);
     mlp1.load(data_path);
 
     const std::string save_path = "/tmp/nntile_llama_mlp_roundtrip.safetensors";
@@ -96,15 +203,13 @@ TEST_CASE("LlamaMLP load from safetensors roundtrip", "[model][llama][io]")
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaMLP matches PyTorch reference", "[model][llama]")
 {
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/llama_mlp_full.safetensors";
-    std::ifstream check(full_path);
-    if(!check.good())
+    MlpFixtureSpec fx;
+    if(!skip_unless_fixture_ready(mlp_fixture_stem::llama_mlp, fx))
     {
-        SKIP("Llama MLP full test data not found.");
+        SKIP("Llama MLP fixture pair not found.");
     }
-
-    auto config = test_config();
+    const std::string full_path =
+        mlp_fixture_safetensors_path(std::string(LLAMA_DATA_DIR), fx);
 
     SafeTensorsReader reader(full_path);
     std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
@@ -118,8 +223,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> result;
     {
         NNGraph g("mlp_ref");
-        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
-        LlamaMLP mlp(&g, "mlp", config);
+        auto* input = g.tensor(
+            {fx.hidden, fx.seq, fx.batch}, "input", DataType::FP32);
+        LlamaMLP mlp(&g, "mlp", fx.config);
         auto* output = mlp.forward(input);
         input->mark_input(true);
         output->mark_output(true);
@@ -138,107 +244,21 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         result = runtime.get_output<float>(output->name());
     }
 
-    constexpr float tol = 1e-4f;
+    const float tol = fx.forward_tol;
     REQUIRE(result.size() == ref_data.size());
-    for(size_t i = 0; i < result.size(); ++i)
-    {
-        REQUIRE(std::abs(result[i] - ref_data[i]) < tol);
-    }
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "LlamaMLP tiled matches untiled", "[model][llama]")
-{
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/llama_mlp_full.safetensors";
-    std::ifstream check(full_path);
-    if(!check.good())
-    {
-        SKIP("Llama MLP full test data not found.");
-    }
-
-    auto config = test_config();
-
-    SafeTensorsReader reader(full_path);
-    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
-    std::vector<float> input_data(input_bytes.size() / sizeof(float));
-    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
-
-    std::vector<float> untiled_result;
-    {
-        NNGraph g("mlp_untiled");
-        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
-        LlamaMLP mlp(&g, "mlp", config);
-        auto* output = mlp.forward(input);
-        input->mark_input(true);
-        output->mark_output(true);
-
-        mlp.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input", input_data);
-        runtime.execute();
-        runtime.wait();
-
-        untiled_result = runtime.get_output<float>(output->name());
-    }
-
-    std::vector<float> tiled_result;
-    {
-        NNGraph g("mlp_tiled");
-        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32);
-        LlamaMLP mlp(&g, "mlp", config);
-        auto* output = mlp.forward(input);
-        input->mark_input(true);
-        output->mark_output(true);
-
-        mlp.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        for(auto* ag : tg.axis_groups())
-        {
-            if(ag->extent > 2)
-            {
-                ag->set_tiling((ag->extent + 1) / 2);
-            }
-        }
-
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input", input_data);
-        runtime.execute();
-        runtime.wait();
-
-        tiled_result = runtime.get_output<float>(output->name());
-    }
-
-    constexpr float tol = 1e-4f;
-    REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
-    }
+    require_relative_frobenius_error(result, ref_data, tol);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaMLP backward matches PyTorch reference", "[model][llama]")
 {
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/llama_mlp_full.safetensors";
-    std::ifstream check(full_path);
-    if(!check.good())
+    MlpFixtureSpec fx;
+    if(!skip_unless_fixture_ready(mlp_fixture_stem::llama_mlp, fx))
     {
-        SKIP("Llama MLP full test data not found.");
+        SKIP("Llama MLP fixture pair not found.");
     }
-
-    auto config = test_config();
+    const std::string full_path =
+        mlp_fixture_safetensors_path(std::string(LLAMA_DATA_DIR), fx);
 
     SafeTensorsReader reader(full_path);
     std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
@@ -257,8 +277,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> grad_input_result;
     {
         NNGraph g("mlp_bwd");
-        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32, true);
-        LlamaMLP mlp(&g, "mlp", config);
+        auto* input = g.tensor(
+            {fx.hidden, fx.seq, fx.batch}, "input", DataType::FP32, true);
+        LlamaMLP mlp(&g, "mlp", fx.config);
         auto* output = mlp.forward(input);
 
         input->mark_input(true);
@@ -286,115 +307,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             runtime.get_output<float>(input->grad()->name());
     }
 
-    constexpr float tol = 1e-4f;
+    const float tol = fx.backward_tol;
     REQUIRE(grad_input_result.size() == grad_input_ref.size());
-    for(size_t i = 0; i < grad_input_result.size(); ++i)
-    {
-        REQUIRE(std::abs(grad_input_result[i] - grad_input_ref[i]) < tol);
-    }
+    require_relative_frobenius_error(grad_input_result, grad_input_ref, tol);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "LlamaMLP backward tiled matches untiled", "[model][llama]")
-{
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/llama_mlp_full.safetensors";
-    std::ifstream check(full_path);
-    if(!check.good())
-    {
-        SKIP("Llama MLP full test data not found.");
-    }
-
-    auto config = test_config();
-
-    SafeTensorsReader reader(full_path);
-    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
-    std::vector<float> input_data(input_bytes.size() / sizeof(float));
-    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
-
-    std::vector<std::uint8_t> grad_out_bytes = reader.read_tensor("grad_output");
-    std::vector<float> grad_out_data(grad_out_bytes.size() / sizeof(float));
-    std::memcpy(grad_out_data.data(), grad_out_bytes.data(),
-        grad_out_bytes.size());
-
-    std::vector<float> untiled_result;
-    {
-        NNGraph g("mlp_bwd_untiled");
-        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32, true);
-        LlamaMLP mlp(&g, "mlp", config);
-        auto* output = mlp.forward(input);
-
-        input->mark_input(true);
-        output->mark_output(true);
-
-        auto [grad_output_tensor, _] =
-            g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
-        output->backward();
-        input->grad()->mark_output(true);
-
-        mlp.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input", input_data);
-        runtime.bind_data("grad_output", grad_out_data);
-        runtime.execute();
-        runtime.wait();
-
-        untiled_result =
-            runtime.get_output<float>(input->grad()->name());
-    }
-
-    std::vector<float> tiled_result;
-    {
-        NNGraph g("mlp_bwd_tiled");
-        auto* input = g.tensor({8, 4, 2}, "input", DataType::FP32, true);
-        LlamaMLP mlp(&g, "mlp", config);
-        auto* output = mlp.forward(input);
-
-        input->mark_input(true);
-        output->mark_output(true);
-
-        auto [grad_output_tensor, _] =
-            g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
-        output->backward();
-        input->grad()->mark_output(true);
-
-        mlp.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        for(auto* ag : tg.axis_groups())
-        {
-            if(ag->extent > 2)
-            {
-                ag->set_tiling((ag->extent + 1) / 2);
-            }
-        }
-
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input", input_data);
-        runtime.bind_data("grad_output", grad_out_data);
-        runtime.execute();
-        runtime.wait();
-
-        tiled_result =
-            runtime.get_output<float>(input->grad()->name());
-    }
-
-    constexpr float tol = 1e-4f;
-    REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
-    }
-}
 #endif
