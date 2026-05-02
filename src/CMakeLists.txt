@@ -547,6 +547,8 @@ set(GRAPH_MODULE_SRC
 set(GRAPH_MODEL_SRC
     "graph/model/llama/llama_mlp.cc"
     "graph/model/llama/llama_attention.cc"
+    "graph/model/llama/llama_rope.cc"
+    "graph/model/llama/llama_causal_mask.cc"
     "graph/model/llama/llama_decoder.cc"
     "graph/model/llama/llama_model.cc"
     "graph/model/llama/llama_causal.cc"

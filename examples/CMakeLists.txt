@@ -90,3 +90,8 @@ add_example(TARGET_NAME examples_llama_generate
     EXEC_NAME "llama_generate"
     SOURCES "llama_generate.cc"
     LINK_LIBRARIES nntile)
+
+add_example(TARGET_NAME examples_llama_graph_training
+    EXEC_NAME "llama_graph_training"
+    SOURCES "llama_graph_training.cc"
+    LINK_LIBRARIES nntile)

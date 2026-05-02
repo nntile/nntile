@@ -661,6 +661,8 @@ set(GRAPH_MODEL_HDR
     "nntile/graph/model/llama/llama_config.hh"
     "nntile/graph/model/llama/llama_mlp.hh"
     "nntile/graph/model/llama/llama_attention.hh"
+    "nntile/graph/model/llama/llama_rope.hh"
+    "nntile/graph/model/llama/llama_causal_mask.hh"
     "nntile/graph/model/llama/llama_decoder.hh"
     "nntile/graph/model/llama/llama_model.hh"
     "nntile/graph/model/llama/llama.hh"

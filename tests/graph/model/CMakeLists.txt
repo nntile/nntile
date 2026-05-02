@@ -21,6 +21,7 @@ set(TESTS_MODEL
     "llama/llama_config"
     "llama/llama_mlp"
     "llama/llama_attention"
+    "llama/llama_rope"
     "llama/llama_decoder"
     "llama/llama_model"
     "llama/llama_causal"
@@ -49,6 +50,9 @@ foreach(test_path IN LISTS TESTS_MODEL)
     if(NOT test_name STREQUAL "llama_config")
         # block name = test_name without "llama_" prefix (e.g. "mlp")
         string(REPLACE "llama_" "" block_name "${test_name}")
+        if(block_name STREQUAL "rope")
+            set(block_name "attention")
+        endif()
         target_compile_definitions(tests_graph_model_${test_name} PRIVATE
             LLAMA_DATA_DIR="${LLAMA_DATA_DIR}"
         )
