@@ -57,12 +57,12 @@ void check_tile_add_vs_tile_api(
         y_data[i] = static_cast<float>(Y(-i - 1));
     }
 
-    runtime.bind_data("x", x_data);
-    runtime.bind_data("y", y_data);
+    runtime.bind_data(x_node, x_data);
+    runtime.bind_data(y_node, y_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("z");
+    std::vector<float> graph_result = runtime.get_output<float>(z_node);
 
     nntile::tile::Tile<T> src1(shape);
     nntile::tile::Tile<T> src2(shape);

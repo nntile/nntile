@@ -32,8 +32,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph log_scalar runs", "[gr
     TileGraph::Runtime r(g);
     r.compile();
     std::vector<float> x(1, 1.f);
-    r.bind_data("v", x);
+    r.bind_data(v, x);
     r.execute();
     r.wait();
-    REQUIRE(r.get_output<float>("v").size() == 1u);
+    REQUIRE(r.get_output<float>(v).size() == 1u);
 }

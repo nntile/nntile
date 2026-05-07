@@ -41,12 +41,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_slice (axis=0)", 
     rt.compile();
     std::vector<float> u1(n1), u2(n2, 0.f), o(n3, 0.f);
     for(Index i = 0; i < n1; ++i) { u1[static_cast<size_t>(i)] = static_cast<float>(i + 1); }
-    rt.bind_data("t1", u1);
-    rt.bind_data("t2", u2);
-    rt.bind_data("d", o);
+    rt.bind_data(t1, u1);
+    rt.bind_data(t2, u2);
+    rt.bind_data(d, o);
     rt.execute();
     rt.wait();
-    const std::vector<float> gout = rt.get_output<float>("d");
+    const std::vector<float> gout = rt.get_output<float>(d);
     nntile::tile::Tile<fp32_t> T1(t1h), T2(t2h), D(dh);
     using Y = typename nntile::fp32_t::repr_t;
     { auto A = T1.acquire(STARPU_W), B = T2.acquire(STARPU_W), C = D.acquire(STARPU_W);

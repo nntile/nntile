@@ -7,7 +7,8 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/tile/graph_decl.hh
- * TileGraph class declaration (included by graph.hh).
+ * TileGraph: symbolic tiled graph from a ``TensorGraph`` + ``TensorGraphTiling``.
+ * Execution placement hints (device, worker, …) may attach here later.
  *
  * @version 1.1.0
  * */
@@ -32,13 +33,15 @@
 namespace nntile::graph
 {
 
-//! Tile graph - defines computation at tiles; layout comes from TensorGraph
-//! axis descriptors (see TensorGraphTiling).
+class TileGraphExecutor;
+
+//! Tile graph from tensor IR + tiling; optional execution hints later.
 class TileGraph
 {
 public:
     class TileNode;
-    class Runtime;
+    //! Executor (StarPU compile/run); type alias keeps ``TileGraph::Runtime``.
+    using Runtime = TileGraphExecutor;
     class OpNode;
     using NodeId = uint64_t;
 
@@ -100,9 +103,10 @@ public:
     TileNode* get_tile_node(const std::string& name);
     const TileNode* get_tile_node(const std::string& name) const;
 
-    TensorDescriptor* get_tensor_descriptor(const std::string& tensor_name);
+    TensorDescriptor* get_tensor_descriptor(
+        TensorGraph::TensorNode const* source);
     const TensorDescriptor* get_tensor_descriptor(
-        const std::string& tensor_name) const;
+        TensorGraph::TensorNode const* source) const;
 
     const std::vector<std::unique_ptr<TensorDescriptor>>& tensor_descriptors()
         const
@@ -141,7 +145,8 @@ private:
     std::vector<std::shared_ptr<TileGraph::OpNode>> ops_;
     std::vector<std::unique_ptr<TensorDescriptor>> tensors_;
     std::map<std::string, TileNode*> data_by_name_;
-    std::map<std::string, TensorDescriptor*> tensors_by_name_;
+    std::map<TensorGraph::TensorNode const*, TensorDescriptor*>
+        tensors_by_source_;
 
     NodeId next_data_id_ = 0;
     NodeId next_op_id_ = 0;

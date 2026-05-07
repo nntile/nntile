@@ -17,6 +17,7 @@
 #pragma once
 
 // Standard library headers
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -27,6 +28,8 @@
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/nn/graph_decl.hh>
 #include <nntile/graph/tensor/graph.hh>
+
+#include <stdexcept>
 
 namespace nntile::graph
 {
@@ -100,6 +103,11 @@ public:
     {
         if(data_) data_->mark_output(v);
     }
+
+    //! Host bytes for load/save and compile-time tile init (delegates to data
+    //! node).
+    void set_bind_hint(std::vector<std::uint8_t> data);
+    const std::vector<std::uint8_t>* get_bind_hint() const;
 
     // String representation
     std::string to_string() const;

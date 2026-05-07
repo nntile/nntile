@@ -132,11 +132,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("src", src_data);
+    runtime.bind_data(src,  src_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>("out");
+    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(out);
     std::vector<float> nntile_out =
         colmajor_to_rowmajor(nntile_out_colmajor, dst_shape);
 
@@ -196,12 +196,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("src", src_data);
+    runtime.bind_data(src,  src_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_grad_src =
-        runtime.get_output<float>(src->grad()->name());
+        runtime.get_output<float>(src->grad());
 
     std::vector<::int64_t> dst_shape_pt(dst_shape.begin(), dst_shape.end());
     auto src_pt = torch::from_blob(src_data.data(),

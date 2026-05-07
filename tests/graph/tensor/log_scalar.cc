@@ -75,11 +75,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.compile();
 
     std::vector<float> value_data = {3.14f};
-    runtime.bind_data("value", value_data);
+    runtime.bind_data(value_node,  value_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> result = runtime.get_output<float>("value");
+    std::vector<float> result = runtime.get_output<float>(value_node);
     REQUIRE(result.size() == 1);
     REQUIRE(std::abs(result[0] - 3.14f) < tolerance);
 }

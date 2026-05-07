@@ -208,7 +208,7 @@ int main(int argc, char** argv)
         static_cast<std::size_t>(batch_size * input_dim));
     for(auto& v : input_data) v = dist(gen);
 
-    runtime.bind_data("input", input_data);
+    runtime.bind_data(input, input_data);
 
     // ---- Execute forward pass ----
     auto t0 = std::chrono::high_resolution_clock::now();
@@ -221,7 +221,7 @@ int main(int argc, char** argv)
     std::cout << "\nForward pass: " << us << " us\n";
 
     // ---- Print output ----
-    auto out_data = runtime.get_output<float>(output->name());
+    auto out_data = runtime.get_output<float>(output);
     std::cout << "Output shape: [" << batch_size << ", " << output_dim << "]\n";
 
     // Show first few output values (first sample, all outputs)

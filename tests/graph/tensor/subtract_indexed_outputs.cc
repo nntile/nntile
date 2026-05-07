@@ -81,12 +81,12 @@ void check_subtract_indexed_outputs_vs_tensor_api(
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
-    runtime.bind_data("labels", labels_data);
-    runtime.bind_data("dst", dst_data);
+    runtime.bind_data(labels_node,  labels_data);
+    runtime.bind_data(dst_node,  dst_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("dst");
+    std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits labels_traits(labels_shape, labels_shape);
@@ -251,12 +251,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("labels", labels_data);
-        runtime.bind_data("dst", dst_data);
+        runtime.bind_data(labels_node,  labels_data);
+        runtime.bind_data(dst_node,  dst_data);
         runtime.execute();
         runtime.wait();
 
-        untiled_result = runtime.get_output<float>("dst");
+        untiled_result = runtime.get_output<float>(dst_node);
     }
 
     // --- Tiled run ---
@@ -289,12 +289,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("labels", labels_data);
-        runtime.bind_data("dst", dst_data);
+        runtime.bind_data(labels_node,  labels_data);
+        runtime.bind_data(dst_node,  dst_data);
         runtime.execute();
         runtime.wait();
 
-        tiled_result = runtime.get_output<float>("dst");
+        tiled_result = runtime.get_output<float>(dst_node);
     }
 
     // --- Compare ---

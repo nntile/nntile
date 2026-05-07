@@ -43,12 +43,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph relu_backward matches 
         xv[static_cast<size_t>(i)] = 0.3f * static_cast<float>(i) - 0.4f;
         dyv[static_cast<size_t>(i)] = 0.1f * static_cast<float>(i) + 0.05f;
     }
-    runtime.bind_data("x", xv);
-    runtime.bind_data("dy", dyv);
-    runtime.bind_data("dx", dxv);
+    runtime.bind_data(x, xv);
+    runtime.bind_data(dy, dyv);
+    runtime.bind_data(dx, dxv);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>("dx");
+    const std::vector<float> gout = runtime.get_output<float>(dx);
     nntile::tile::Tile<fp32_t> tx(sh), tdy(sh), tdx(sh);
     using Y = typename nntile::fp32_t::repr_t;
     {

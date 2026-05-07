@@ -43,13 +43,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph hypot matches tile", "
         v1[static_cast<size_t>(i)] = 0.2f * static_cast<float>(i) + 0.1f;
         v2[static_cast<size_t>(i)] = 0.15f * static_cast<float>(i) + 0.2f;
     }
-    runtime.bind_data("s1", v1);
-    runtime.bind_data("s2", v2);
+    runtime.bind_data(s1, v1);
+    runtime.bind_data(s2, v2);
     std::vector<float> dv(nelems, 0.f);
-    runtime.bind_data("d", dv);
+    runtime.bind_data(d, dv);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>("d");
+    const std::vector<float> gout = runtime.get_output<float>(d);
     nntile::tile::Tile<fp32_t> t1(sh), t2(sh), td(sh);
     using Y = typename nntile::fp32_t::repr_t;
     {

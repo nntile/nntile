@@ -33,10 +33,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph randn", "[graph][tile]
     TileGraph::Runtime r(g);
     r.compile();
     std::vector<float> dv(60, 0.f);
-    r.bind_data("d", dv);
+    r.bind_data(d, dv);
     r.execute();
     r.wait();
-    const auto gout = r.get_output<float>("d");
+    const auto gout = r.get_output<float>(d);
     nntile::tile::Tile<fp32_t> Td(sh);
     nntile::tile::randn<fp32_t>(Td, st, us, seed, mean, std);
     starpu_task_wait_for_all();

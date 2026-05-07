@@ -80,13 +80,13 @@ void check_rope_backward_vs_tensor_api(const std::vector<Index>& sin_shape)
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
-    runtime.bind_data("sin", sin_data);
-    runtime.bind_data("cos", cos_data);
-    runtime.bind_data("dy", dy_data);
+    runtime.bind_data(sin_node,  sin_data);
+    runtime.bind_data(cos_node,  cos_data);
+    runtime.bind_data(dy_node,  dy_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("dx");
+    std::vector<float> graph_result = runtime.get_output<float>(dx_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits sin_traits(sin_shape, sin_shape);
@@ -246,13 +246,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("sin", sin_data);
-        runtime.bind_data("cos", cos_data);
-        runtime.bind_data("dy", dy_data);
+        runtime.bind_data(sin_node,  sin_data);
+        runtime.bind_data(cos_node,  cos_data);
+        runtime.bind_data(dy_node,  dy_data);
         runtime.execute();
         runtime.wait();
 
-        untiled_result = runtime.get_output<float>("dx");
+        untiled_result = runtime.get_output<float>(dx_node);
     }
 
     // --- Tiled run ---
@@ -279,13 +279,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("sin", sin_data);
-        runtime.bind_data("cos", cos_data);
-        runtime.bind_data("dy", dy_data);
+        runtime.bind_data(sin_node,  sin_data);
+        runtime.bind_data(cos_node,  cos_data);
+        runtime.bind_data(dy_node,  dy_data);
         runtime.execute();
         runtime.wait();
 
-        tiled_result = runtime.get_output<float>("dx");
+        tiled_result = runtime.get_output<float>(dx_node);
     }
 
     // --- Compare ---

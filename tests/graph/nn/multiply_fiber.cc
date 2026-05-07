@@ -135,12 +135,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("src1", src1_data);
-    runtime.bind_data("src2", src2_data);
+    runtime.bind_data(src1,  src1_data);
+    runtime.bind_data(src2,  src2_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>("out");
+    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(out);
     std::vector<float> nntile_out =
         colmajor_to_rowmajor(nntile_out_colmajor, dst_shape);
 
@@ -209,15 +209,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("src1", src1_data);
-    runtime.bind_data("src2", src2_data);
+    runtime.bind_data(src1,  src1_data);
+    runtime.bind_data(src2,  src2_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_grad_src1 =
-        runtime.get_output<float>(src1->grad()->name());
+        runtime.get_output<float>(src1->grad());
     std::vector<float> nntile_grad_src2_colmajor =
-        runtime.get_output<float>(src2->grad()->name());
+        runtime.get_output<float>(src2->grad());
     std::vector<float> nntile_grad_src2 =
         colmajor_to_rowmajor(nntile_grad_src2_colmajor, dst_shape);
 

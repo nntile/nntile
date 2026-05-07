@@ -442,11 +442,11 @@ int main(int argc, char** argv)
 
         if(is_prefill)
         {
-            runtime.bind_data("input_ids", tokens);
+            runtime.bind_data(input_ids, tokens);
         }
         else
         {
-            runtime.bind_data("input_ids",
+            runtime.bind_data(input_ids,
                 std::vector<std::int64_t>{tokens.back()});
         }
 
@@ -457,7 +457,7 @@ int main(int argc, char** argv)
 
         kv_cache.update_from(runtime, "kv_cache");
 
-        auto logits = runtime.get_output<float>(output->name());
+        auto logits = runtime.get_output<float>(output);
 
         std::int64_t next_id = argmax_last_position(
             logits, config.vocab_size, seq_len);

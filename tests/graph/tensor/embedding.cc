@@ -105,13 +105,13 @@ void check_embedding_vs_tensor_api(
         vocab_data[i] = 0.1f * static_cast<float>(i % 7);
     }
 
-    runtime.bind_data("index", index_data);
-    runtime.bind_data("vocab", vocab_data);
-    runtime.bind_data("embed", embed_data);
+    runtime.bind_data(index_node,  index_data);
+    runtime.bind_data(vocab_node,  vocab_data);
+    runtime.bind_data(embed_node,  embed_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("embed");
+    std::vector<float> graph_result = runtime.get_output<float>(embed_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits index_traits(index_shape, index_shape);
@@ -274,12 +274,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("index", index_data);
-        runtime.bind_data("vocab", vocab_data);
+        runtime.bind_data(index_node,  index_data);
+        runtime.bind_data(vocab_node,  vocab_data);
         runtime.execute();
         runtime.wait();
 
-        untiled_result = runtime.get_output<float>("embed");
+        untiled_result = runtime.get_output<float>(embed_node);
     }
 
     // --- Tiled run ---
@@ -312,12 +312,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("index", index_data);
-        runtime.bind_data("vocab", vocab_data);
+        runtime.bind_data(index_node,  index_data);
+        runtime.bind_data(vocab_node,  vocab_data);
         runtime.execute();
         runtime.wait();
 
-        tiled_result = runtime.get_output<float>("embed");
+        tiled_result = runtime.get_output<float>(embed_node);
     }
 
     // --- Compare ---

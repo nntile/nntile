@@ -14,6 +14,7 @@
 #include "nntile/graph/tensor/tensor_graph_tiling.hh"
 
 #include <algorithm>
+#include <sstream>
 
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor/graph.hh"
@@ -199,6 +200,25 @@ Index TensorAxisLayout::tile_index_containing(
     const auto& origin = axis_origin_[static_cast<size_t>(dim)];
     auto it = std::lower_bound(origin.begin(), origin.end(), global_index + 1);
     return static_cast<Index>((it - origin.begin()) - 1);
+}
+
+std::string TensorAxisLayout::layout_fingerprint() const
+{
+    std::ostringstream o;
+    for(Index g : grid_shape_)
+    {
+        o << static_cast<long long>(g) << ',';
+    }
+    o << '|';
+    for(const auto& seg : segments_)
+    {
+        for(Index s : seg)
+        {
+            o << static_cast<long long>(s) << ',';
+        }
+        o << ';';
+    }
+    return o.str();
 }
 
 void TensorAxisLayout::tile_axis_global_range(

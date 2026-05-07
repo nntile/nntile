@@ -14,7 +14,6 @@
 
 #include "nntile/graph/tensor/sgd_step.hh"
 
-#include <memory>
 #include <stdexcept>
 #include <vector>
 
@@ -61,12 +60,11 @@ void TensorSgdStepOp::lower_to_tile(const LoweringContext& ctx) const
     }
     tile_lower::assert_same_elementwise_layout(grad, velocity, "SGD_STEP");
     tile_lower::assert_same_elementwise_layout(grad, p, "SGD_STEP");
-    auto step_iter = std::make_shared<Index>(num_iter);
     const size_t n = vg.size();
     for(size_t i = 0; i < n; ++i)
     {
-        tile_graph::sgd_step(step_iter, (i + 1 == n), momentum, lr, weight_decay,
-            dampening, nesterov, vg[i], vv[i], vp[i]);
+        tile_graph::sgd_step(num_iter, momentum, lr, weight_decay, dampening,
+            nesterov, vg[i], vv[i], vp[i]);
     }
 }
 

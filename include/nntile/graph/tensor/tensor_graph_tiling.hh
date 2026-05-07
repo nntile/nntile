@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include <sstream>
+
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/tensor/graph_decl.hh>
@@ -63,6 +65,10 @@ public:
 
     //! Segment index on axis dim that contains global_index in [0, shape(dim)).
     Index tile_index_containing(Index dim, Index global_index) const;
+
+    //! Stable string for comparing tiling of the same logical tensor across
+    //! phases (grid shape + segment lengths per axis).
+    std::string layout_fingerprint() const;
 
 private:
     std::vector<Index> shape_;

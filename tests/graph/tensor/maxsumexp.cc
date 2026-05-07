@@ -88,11 +88,11 @@ void check_maxsumexp_vs_tensor_api(
         src_data[i] = static_cast<float>(Y(i % 10 - 2));  // small values
     }
 
-    runtime.bind_data("src", src_data);
+    runtime.bind_data(src_node,  src_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("dst");
+    std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits src_traits(src_shape, src_shape);
@@ -210,11 +210,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("src", src_data);
+        runtime.bind_data(src_node,  src_data);
         runtime.execute();
         runtime.wait();
 
-        untiled_result = runtime.get_output<float>("dst");
+        untiled_result = runtime.get_output<float>(dst_node);
     }
 
     // --- Tiled run ---
@@ -245,11 +245,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("src", src_data);
+        runtime.bind_data(src_node,  src_data);
         runtime.execute();
         runtime.wait();
 
-        tiled_result = runtime.get_output<float>("dst");
+        tiled_result = runtime.get_output<float>(dst_node);
     }
 
     // --- Compare ---

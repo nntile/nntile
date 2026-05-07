@@ -34,9 +34,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph conv2d_inplace", "[gra
     std::vector<float> xv(nx), cv(nc), yv(ny,0.f);
     for(Index i=0;i<nx;++i) xv[static_cast<size_t>(i)]=static_cast<float>(i+1);
     for(Index i=0;i<nc;++i) cv[static_cast<size_t>(i)]=static_cast<float>(i+1);
-    r.bind_data("X", xv); r.bind_data("C", cv); r.bind_data("Y", yv);
+    r.bind_data(X, xv); r.bind_data(C, cv); r.bind_data(Y, yv);
     r.execute(); r.wait();
-    const auto gout = r.get_output<float>("Y");
+    const auto gout = r.get_output<float>(Y);
     nntile::tile::Tile<fp32_t> TX(xh), TC(ch), TY(yh);
     using Yf = typename fp32_t::repr_t;
     { auto a=TX.acquire(STARPU_W),b=TC.acquire(STARPU_W),c=TY.acquire(STARPU_W);

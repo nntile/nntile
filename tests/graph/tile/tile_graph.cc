@@ -87,6 +87,9 @@ TEST_CASE("TileGraph to_string", "[graph][tile]")
 
 TEST_CASE("TileGraph add_tensor_descriptor manual", "[graph][tile]")
 {
+    TensorGraph tg_src("src_for_desc");
+    auto* t_src = tg_src.data({4}, "T", DataType::FP32);
+
     TileGraph graph("manual_desc_test");
     auto* t0 = graph.data({4}, "t0");
 
@@ -97,13 +100,16 @@ TEST_CASE("TileGraph add_tensor_descriptor manual", "[graph][tile]")
     desc.grid_shape = {1};
     desc.dtype = DataType::FP32;
     desc.tiles = {t0};
+    desc.source_node = t_src;
 
     auto* dp = graph.add_tensor_descriptor(std::move(desc));
     t0->set_tensor_info(dp, {0});
 
     REQUIRE(graph.num_tensors() == 1);
-    REQUIRE(graph.get_tensor_descriptor("T") == dp);
-    REQUIRE(graph.get_tensor_descriptor("missing") == nullptr);
+    REQUIRE(graph.get_tensor_descriptor(t_src) == dp);
+    REQUIRE(graph.get_tensor_descriptor(nullptr) == nullptr);
+    auto* other = tg_src.data({1}, "other", DataType::FP32);
+    REQUIRE(graph.get_tensor_descriptor(other) == nullptr);
     REQUIRE(t0->tensor_descriptor() == dp);
     REQUIRE(t0->tile_coord() == std::vector<Index>{0});
     REQUIRE(dp->tiles[0] == t0);
@@ -156,7 +162,7 @@ TEST_CASE("TileGraph from_tensor_graph structure", "[graph][tile]")
     REQUIRE(tile_graph.ops()[0]->op_name() == "TILE_ADD");
 
     // Verify tensor descriptors
-    auto* xd = tile_graph.get_tensor_descriptor("x");
+    auto* xd = tile_graph.get_tensor_descriptor(x);
     REQUIRE(xd != nullptr);
     REQUIRE(xd->tensor_name == "x");
     REQUIRE(xd->tensor_shape == std::vector<Index>{2, 3});
@@ -191,7 +197,7 @@ TEST_CASE("TileGraph from_tensor_graph links source TensorNode",
     REQUIRE(tx->get_bind_hint() == nullptr);
 
     // Instead the TensorDescriptor references the source TensorNode
-    auto* td = tile_graph.get_tensor_descriptor("x");
+    auto* td = tile_graph.get_tensor_descriptor(x);
     REQUIRE(td != nullptr);
     REQUIRE(td->source_node == x);
     REQUIRE(td->source_node->get_bind_hint() != nullptr);
@@ -251,19 +257,19 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph::Runtime tensor_rt(tensor_rt_tile);
     tensor_rt.compile();
-    tensor_rt.bind_data("x", x_data);
-    tensor_rt.bind_data("y", y_data);
+    tensor_rt.bind_data(tx, x_data);
+    tensor_rt.bind_data(ty, y_data);
     tensor_rt.execute();
     tensor_rt.wait();
-    auto tensor_result = tensor_rt.get_output<float>("z");
+    auto tensor_result = tensor_rt.get_output<float>(tz);
 
     TileGraph::Runtime tile_rt(tile_graph);
     tile_rt.compile();
-    tile_rt.bind_data("x", x_data);
-    tile_rt.bind_data("y", y_data);
+    tile_rt.bind_data(tx, x_data);
+    tile_rt.bind_data(ty, y_data);
     tile_rt.execute();
     tile_rt.wait();
-    auto tile_result = tile_rt.get_output<float>("z");
+    auto tile_result = tile_rt.get_output<float>(tz);
 
     REQUIRE(tensor_result.size() == tile_result.size());
     constexpr float tol = 1e-5f;
@@ -294,12 +300,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> x_data = {1, 2, 3, 4};
     std::vector<float> y_data = {10, 20, 30, 40};
 
-    runtime.bind_data("x", x_data);
-    runtime.bind_data("y", y_data);
+    runtime.bind_data(x, x_data);
+    runtime.bind_data(y, y_data);
     runtime.execute();
     runtime.wait();
 
-    auto result = runtime.get_output<float>("y");
+    auto result = runtime.get_output<float>(y);
     REQUIRE(result.size() == 4);
     constexpr float tol = 1e-5f;
     REQUIRE(std::abs(result[0] - 12.0f) < tol);
@@ -337,11 +343,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     // x was initialized from the source TensorNode's bind hint;
     // we only need to bind y
     std::vector<float> y_data = {1.0f, 2.0f};
-    tile_rt.bind_data("y", y_data);
+    tile_rt.bind_data(ty, y_data);
     tile_rt.execute();
     tile_rt.wait();
 
-    auto result = tile_rt.get_output<float>("z");
+    auto result = tile_rt.get_output<float>(tz);
     constexpr float tol = 1e-5f;
     REQUIRE(result.size() == 2);
     REQUIRE(std::abs(result[0] - 11.0f) < tol);
@@ -365,11 +371,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     runtime.compile();
 
     std::vector<float> x_data = {7.0f, 8.0f, 9.0f};
-    runtime.bind_data("x", x_data);
+    runtime.bind_data(x, x_data);
     runtime.execute();
     runtime.wait();
 
-    auto result = runtime.get_output<float>("x");
+    auto result = runtime.get_output<float>(x);
     constexpr float tol = 1e-5f;
     REQUIRE(result.size() == 3);
     for(auto v : result)
@@ -420,19 +426,19 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph::Runtime tensor_rt(tensor_rt_tile);
     tensor_rt.compile();
-    tensor_rt.bind_data("x", x_data);
-    tensor_rt.bind_data("y", y_data);
+    tensor_rt.bind_data(tx, x_data);
+    tensor_rt.bind_data(ty, y_data);
     tensor_rt.execute();
     tensor_rt.wait();
-    auto tensor_result = tensor_rt.get_output<float>("z");
+    auto tensor_result = tensor_rt.get_output<float>(tz);
 
     TileGraph::Runtime tile_rt(tile_graph);
     tile_rt.compile();
-    tile_rt.bind_data("x", x_data);
-    tile_rt.bind_data("y", y_data);
+    tile_rt.bind_data(tx, x_data);
+    tile_rt.bind_data(ty, y_data);
     tile_rt.execute();
     tile_rt.wait();
-    auto tile_result = tile_rt.get_output<float>("z");
+    auto tile_result = tile_rt.get_output<float>(tz);
 
     REQUIRE(tensor_result.size() == tile_result.size());
     constexpr float tol = 1e-5f;

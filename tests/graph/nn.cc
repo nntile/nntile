@@ -23,9 +23,12 @@
 // Include other NNTile headers
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
+#include "nntile/graph/module/linear.hh"
+#include "nntile/graph/module/module.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
+using namespace nntile::graph::module;
 namespace gt = nntile::graph::tensor;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -46,9 +49,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     REQUIRE(x->name() == "x");
     REQUIRE_FALSE(x->requires_grad());
-    REQUIRE(g.get_tensor("x") == x);
-    REQUIRE(g.get_tensor("missing") == nullptr);
-    REQUIRE(x->data() == g.tensor_graph().get_tensor_node("x"));
+    REQUIRE(g.get_tensor(x->data()) == x);
+    REQUIRE(g.get_tensor(nullptr) == nullptr);
+    bool x_data_in_tg = false;
+    for(auto const& tn : g.tensor_graph().tensor_nodes())
+    {
+        if(tn.get() == x->data())
+        {
+            x_data_in_tg = true;
+            break;
+        }
+    }
+    REQUIRE(x_data_in_tg);
 
     auto names = g.tensor_names();
     REQUIRE(names.size() == 1);
@@ -230,10 +242,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     }
     REQUIRE(add_inplace_count == 2);
 
-    // Verify grad tensor names exist
-    REQUIRE(g.get_tensor("x_grad") != nullptr);
-    REQUIRE(g.get_tensor("y_grad") != nullptr);
-    REQUIRE(g.get_tensor("z_grad") != nullptr);
+    // Verify grad tensors are registered on the NN graph
+    REQUIRE(g.get_tensor(x->grad()->data()) == x->grad());
+    REQUIRE(g.get_tensor(y->grad()->data()) == y->grad());
+    REQUIRE(g.get_tensor(z_grad->data()) == z_grad);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -312,4 +324,30 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     gt::fill(grad_fill_val, z_grad->data());
     REQUIRE_NOTHROW(z->backward());
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph ParametersLazyRebuild", "[graph]")
+{
+    NNGraph g("lazy");
+    REQUIRE(g.parameters().empty());
+    REQUIRE(g.named_parameters().empty());
+
+    Linear lin(&g, "lin", 2, 3, DataType::FP32);
+    REQUIRE(g.parameters().size() == 1);
+    REQUIRE(g.named_parameters().size() == 1);
+    REQUIRE(g.named_parameters()[0].first == "lin.weight");
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "NNGraph ParametersMultipleRoots", "[graph]")
+{
+    NNGraph g("multi");
+    Linear a(&g, "encoder", 2, 3, DataType::FP32);
+    Linear b(&g, "decoder", 2, 4, DataType::FP32);
+    auto named = g.named_parameters();
+    REQUIRE(named.size() == 2);
+    REQUIRE(named[0].first == "encoder.weight");
+    REQUIRE(named[1].first == "decoder.weight");
+    REQUIRE(g.parameters().size() == 2);
 }

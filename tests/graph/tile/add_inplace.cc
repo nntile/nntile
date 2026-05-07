@@ -42,11 +42,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_inplace matches ti
         xv[static_cast<size_t>(i)] = static_cast<float>(i);
         yv[static_cast<size_t>(i)] = static_cast<float>(10 * i);
     }
-    runtime.bind_data("x", xv);
-    runtime.bind_data("y", yv);
+    runtime.bind_data(x, xv);
+    runtime.bind_data(y, yv);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>("y");
+    const std::vector<float> gout = runtime.get_output<float>(y);
     nntile::tile::Tile<fp32_t> tx(sh), ty(sh);
     using Y = typename nntile::fp32_t::repr_t;
     {

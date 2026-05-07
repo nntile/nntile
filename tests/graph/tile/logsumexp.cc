@@ -43,12 +43,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph logsumexp matches tile
         sv[static_cast<size_t>(i)] = static_cast<float>(Y(0.5) * (Y(i / 2) + Y(1)));
         sv[static_cast<size_t>(i + 1)] = static_cast<float>(std::exp((Y(i) + Y(1)) / Y(20)));
     }
-    runtime.bind_data("s", sv);
+    runtime.bind_data(s, sv);
     std::vector<float> dv(n_dst, 0.f);
-    runtime.bind_data("d", dv);
+    runtime.bind_data(d, dv);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>("d");
+    const std::vector<float> gout = runtime.get_output<float>(d);
     nntile::tile::Tile<fp32_t> ts(sh_src), td(sh_dst);
     {
         using Y2 = typename nntile::fp32_t::repr_t;

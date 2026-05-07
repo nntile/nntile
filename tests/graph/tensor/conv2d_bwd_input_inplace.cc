@@ -108,13 +108,13 @@ void check_conv2d_bwd_input_inplace_vs_tensor_api(
         dx_data[i] = (beta != 0.0) ? 0.01f * static_cast<float>(i) : 0.0f;
     }
 
-    runtime.bind_data("dy", dy_data);
-    runtime.bind_data("kernel", kernel_data);
-    runtime.bind_data("dx", dx_data);
+    runtime.bind_data(dy_node, dy_data);
+    runtime.bind_data(kernel_node, kernel_data);
+    runtime.bind_data(dx_node, dx_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("dx");
+    std::vector<float> graph_result = runtime.get_output<float>(dx_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits dy_traits(dy_shape, dy_shape);

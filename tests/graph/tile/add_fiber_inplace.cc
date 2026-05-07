@@ -41,11 +41,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_fiber_inplace", "[
     std::vector<float> f1(nf), f2(n);
     for(Index i = 0; i < nf; ++i) { f1[static_cast<size_t>(i)] = static_cast<float>(i + 1); }
     for(Index i = 0; i < n; ++i) { f2[static_cast<size_t>(i)] = 0.25f * static_cast<float>(i + 1); }
-    runtime.bind_data("s", f1);
-    runtime.bind_data("d", f2);
+    runtime.bind_data(s, f1);
+    runtime.bind_data(d, f2);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>("d");
+    const std::vector<float> gout = runtime.get_output<float>(d);
     nntile::tile::Tile<fp32_t> ts(fib), td(full);
     using Y = typename nntile::fp32_t::repr_t;
     {

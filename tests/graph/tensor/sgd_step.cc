@@ -83,14 +83,14 @@ void check_sgd_step_vs_tensor_api(
         p_data[i] = 1.0f * static_cast<float>(i - nelems / 2);
     }
 
-    runtime.bind_data("grad", grad_data);
-    runtime.bind_data("velocity", velocity_data);
-    runtime.bind_data("p", p_data);
+    runtime.bind_data(grad_node,  grad_data);
+    runtime.bind_data(velocity_node,  velocity_data);
+    runtime.bind_data(p_node,  p_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_velocity = runtime.get_output<float>("velocity");
-    std::vector<float> graph_p = runtime.get_output<float>("p");
+    std::vector<float> graph_velocity = runtime.get_output<float>(velocity_node);
+    std::vector<float> graph_p = runtime.get_output<float>(p_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits traits(shape, shape);
@@ -242,14 +242,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("grad", grad_data);
-        runtime.bind_data("velocity", velocity_data);
-        runtime.bind_data("p", p_data);
+        runtime.bind_data(grad_node,  grad_data);
+        runtime.bind_data(velocity_node,  velocity_data);
+        runtime.bind_data(p_node,  p_data);
         runtime.execute();
         runtime.wait();
 
-        untiled_velocity = runtime.get_output<float>("velocity");
-        untiled_p = runtime.get_output<float>("p");
+        untiled_velocity = runtime.get_output<float>(velocity_node);
+        untiled_p = runtime.get_output<float>(p_node);
     }
 
     // --- Tiled run ---
@@ -278,14 +278,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("grad", grad_data);
-        runtime.bind_data("velocity", velocity_data);
-        runtime.bind_data("p", p_data);
+        runtime.bind_data(grad_node,  grad_data);
+        runtime.bind_data(velocity_node,  velocity_data);
+        runtime.bind_data(p_node,  p_data);
         runtime.execute();
         runtime.wait();
 
-        tiled_velocity = runtime.get_output<float>("velocity");
-        tiled_p = runtime.get_output<float>("p");
+        tiled_velocity = runtime.get_output<float>(velocity_node);
+        tiled_p = runtime.get_output<float>(p_node);
     }
 
     // --- Compare ---

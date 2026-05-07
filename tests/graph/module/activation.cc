@@ -157,14 +157,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("input", input_data);
+    runtime.bind_data(input,  input_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_out =
-        runtime.get_output<float>(output->name());
+        runtime.get_output<float>(output);
     std::vector<float> nntile_grad_input =
-        runtime.get_output<float>(input->grad()->name());
+        runtime.get_output<float>(input->grad());
 
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
     auto input_pt = torch::from_blob(input_data.data(), shape_pt,

@@ -37,12 +37,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope", "[graph][tile]"
       cv[static_cast<size_t>(i)]=0.2f*static_cast<float>(i+1);}
     for(int i=0;i<20;++i) src[static_cast<size_t>(i)]=0.03f*static_cast<float>(i+1);
     std::vector<float> dv(20,0.f);
-    r.bind_data("si", sv);
-    r.bind_data("co", cv);
-    r.bind_data("src", src);
-    r.bind_data("d", dv);
+    r.bind_data(si, sv);
+    r.bind_data(co, cv);
+    r.bind_data(sr, src);
+    r.bind_data(d, dv);
     r.execute(); r.wait();
-    const auto gout = r.get_output<float>("d");
+    const auto gout = r.get_output<float>(d);
     nntile::tile::Tile<fp32_t> Si(sh), Co(sh), Src(tsh), D(tsh);
     using Y = typename fp32_t::repr_t;
     { auto a=Si.acquire(STARPU_W),b=Co.acquire(STARPU_W);

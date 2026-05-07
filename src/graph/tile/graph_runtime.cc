@@ -7,12 +7,16 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/graph/tile/graph_runtime.cc
- * TileGraph::Runtime implementation.
+ * TileGraphExecutor implementation.
  *
  * @version 1.1.0
  * */
 
 #include "nntile/graph/tile/graph_runtime.hh"
+
+// TileGraph::get_tensor_descriptor is inline in graph.hh; this TU must see
+// the definition when calling it on const TileGraph&.
+#include "nntile/graph/tile/graph.hh"
 
 #include <cstring>
 #include <stdexcept>
@@ -48,7 +52,7 @@ void allocate_tile_and_register(
 void apply_multitile_bind_hint_from_source(
     const TensorGraphTiling& tsch,
     const TileGraph::TensorDescriptor& td,
-    TileGraph::Runtime& rt)
+    TileGraphExecutor& rt)
 {
     const TensorGraph::TensorNode* src = td.source_node;
     if(src == nullptr)
@@ -64,7 +68,7 @@ void apply_multitile_bind_hint_from_source(
     if(lay == nullptr)
     {
         throw std::runtime_error(
-            "TileGraph::Runtime::compile: missing tiling for multitile bind "
+            "TileGraphExecutor::compile: missing tiling for multitile bind "
             "hint");
     }
     switch(td.dtype)
@@ -173,19 +177,27 @@ void apply_bind_hint_impl(
 
 } // namespace
 
-TileGraph::Runtime::Runtime(const TileGraph& graph)
+TileGraphExecutor::TileGraphExecutor(const TileGraph& graph)
     : graph_(graph)
 {
 }
 
-void TileGraph::Runtime::compile()
+DataType TileGraphExecutor::get_dtype(
+    TensorGraph::TensorNode const* tensor) const
 {
-    if(compiled_)
+    const TileGraph::TensorDescriptor* d =
+        graph_.get_tensor_descriptor(tensor);
+    if(d != nullptr)
     {
-        return;
+        return d->dtype;
     }
+    throw std::runtime_error(
+        "TileGraphExecutor::get_dtype: unknown tensor data node");
+}
 
-    allocate_impl();
+void TileGraphExecutor::compile()
+{
+    allocate_missing_tiles();
 
     for(const auto& node : graph_.tile_nodes())
     {
@@ -210,37 +222,44 @@ void TileGraph::Runtime::compile()
         }
         const std::string& name = node->name();
         DataType dtype = node->dtype();
+        TileGraph::TileNode* tile_ptr = node.get();
         switch(dtype)
         {
             case DataType::FP32:
-                apply_bind_hint_impl<nntile::fp32_t>(get_data<nntile::fp32_t>(name), *hint);
+                apply_bind_hint_impl<nntile::fp32_t>(
+                    get_tile<nntile::fp32_t>(tile_ptr), *hint);
                 break;
             case DataType::FP32_FAST_TF32:
                 apply_bind_hint_impl<nntile::fp32_fast_tf32_t>(
-                    get_data<nntile::fp32_fast_tf32_t>(name), *hint);
+                    get_tile<nntile::fp32_fast_tf32_t>(tile_ptr), *hint);
                 break;
             case DataType::FP32_FAST_FP16:
                 apply_bind_hint_impl<nntile::fp32_fast_fp16_t>(
-                    get_data<nntile::fp32_fast_fp16_t>(name), *hint);
+                    get_tile<nntile::fp32_fast_fp16_t>(tile_ptr), *hint);
                 break;
             case DataType::FP32_FAST_BF16:
                 apply_bind_hint_impl<nntile::fp32_fast_bf16_t>(
-                    get_data<nntile::fp32_fast_bf16_t>(name), *hint);
+                    get_tile<nntile::fp32_fast_bf16_t>(tile_ptr), *hint);
                 break;
             case DataType::FP64:
-                apply_bind_hint_impl<nntile::fp64_t>(get_data<nntile::fp64_t>(name), *hint);
+                apply_bind_hint_impl<nntile::fp64_t>(
+                    get_tile<nntile::fp64_t>(tile_ptr), *hint);
                 break;
             case DataType::FP16:
-                apply_bind_hint_impl<nntile::fp16_t>(get_data<nntile::fp16_t>(name), *hint);
+                apply_bind_hint_impl<nntile::fp16_t>(
+                    get_tile<nntile::fp16_t>(tile_ptr), *hint);
                 break;
             case DataType::BF16:
-                apply_bind_hint_impl<nntile::bf16_t>(get_data<nntile::bf16_t>(name), *hint);
+                apply_bind_hint_impl<nntile::bf16_t>(
+                    get_tile<nntile::bf16_t>(tile_ptr), *hint);
                 break;
             case DataType::INT64:
-                apply_bind_hint_impl<nntile::int64_t>(get_data<nntile::int64_t>(name), *hint);
+                apply_bind_hint_impl<nntile::int64_t>(
+                    get_tile<nntile::int64_t>(tile_ptr), *hint);
                 break;
             case DataType::BOOL:
-                apply_bind_hint_impl<nntile::bool_t>(get_data<nntile::bool_t>(name), *hint);
+                apply_bind_hint_impl<nntile::bool_t>(
+                    get_tile<nntile::bool_t>(tile_ptr), *hint);
                 break;
             default:
                 throw std::runtime_error(
@@ -318,10 +337,14 @@ void TileGraph::Runtime::compile()
     compiled_ = true;
 }
 
-void TileGraph::Runtime::allocate_impl()
+void TileGraphExecutor::allocate_missing_tiles()
 {
     for(const auto& node : graph_.tile_nodes())
     {
+        if(tile_map_.count(node.get()) != 0)
+        {
+            continue;
+        }
         DataType dtype = node->dtype();
         std::vector<Index> shape = node->shape();
 
@@ -370,7 +393,26 @@ void TileGraph::Runtime::allocate_impl()
     }
 }
 
-void TileGraph::Runtime::eliminate_dead_ops()
+void TileGraphExecutor::execute_range(size_t op_begin, size_t op_end)
+{
+    if(!compiled_)
+    {
+        throw std::runtime_error(
+            "TileGraphExecutor::execute_range: graph not compiled");
+    }
+    if(op_begin > op_end || op_end > execution_order_.size())
+    {
+        throw std::out_of_range(
+            "TileGraphExecutor::execute_range: bad range");
+    }
+    for(size_t i = op_begin; i < op_end; ++i)
+    {
+        execution_order_[i]->execute(*this);
+        starpu_task_wait_for_all();
+    }
+}
+
+void TileGraphExecutor::eliminate_dead_ops()
 {
     const size_t n = execution_order_.size();
     if(n == 0)
@@ -477,12 +519,12 @@ void TileGraph::Runtime::eliminate_dead_ops()
     execution_order_ = std::move(filtered);
 }
 
-void TileGraph::Runtime::execute()
+void TileGraphExecutor::execute()
 {
     if(!compiled_)
     {
         throw std::runtime_error(
-            "TileGraph::Runtime::execute: graph not compiled");
+            "TileGraphExecutor::execute: graph not compiled");
     }
     for(size_t i = 0; i < execution_order_.size(); ++i)
     {
@@ -492,7 +534,7 @@ void TileGraph::Runtime::execute()
     }
 }
 
-void TileGraph::Runtime::wait()
+void TileGraphExecutor::wait()
 {
     starpu_task_wait_for_all();
 }

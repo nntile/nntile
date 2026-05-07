@@ -34,9 +34,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph maxsumexp axis0", "[gr
     r.compile();
     std::vector<float> a(n1); std::vector<float> b(n2, 0.f);
     for(Index i=0;i<n1;++i) a[static_cast<size_t>(i)] = static_cast<float>(i+1);
-    r.bind_data("s", a); r.bind_data("d", b);
+    r.bind_data(s, a); r.bind_data(d, b);
     r.execute(); r.wait();
-    const auto gout = r.get_output<float>("d");
+    const auto gout = r.get_output<float>(d);
     nntile::tile::Tile<fp32_t> S(sh), D(dh);
     using Y = typename fp32_t::repr_t;
     { auto p=S.acquire(STARPU_W), q=D.acquire(STARPU_W);

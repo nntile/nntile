@@ -340,8 +340,8 @@ int main(int argc, char** argv)
     runtime.compile();
 
     // ---- Bind initial data ----
-    runtime.bind_data("input", input_data);
-    runtime.bind_data("target", target_data);
+    runtime.bind_data(input, input_data);
+    runtime.bind_data(target, target_data);
 
     // Load or zero-initialize optimizer state
     if(!args.load_optim.empty())
@@ -358,7 +358,7 @@ int main(int argc, char** argv)
             Index n = 1;
             for(auto d : stensor->shape()) n *= d;
             std::vector<float> zeros(static_cast<std::size_t>(n), 0.0f);
-            runtime.bind_data(sname, zeros);
+            runtime.bind_data(stensor, zeros);
         }
     }
 
@@ -371,7 +371,7 @@ int main(int argc, char** argv)
         runtime.execute();
         runtime.wait();
 
-        auto loss_data = runtime.get_output<float>("loss");
+        auto loss_data = runtime.get_output<float>(loss);
         float loss_val = loss_data[0];
 
         if(iter == 0 || (iter + 1) % 10 == 0 || iter == args.num_iters - 1)
@@ -397,27 +397,26 @@ int main(int argc, char** argv)
     bool need_model_sync = !args.save_model.empty();
     bool need_optim_sync = !args.save_optim.empty();
     auto sync_tensor = [&runtime](NNGraph::TensorNode* t) {
-        const auto& tname = t->name();
         std::vector<std::uint8_t> bytes;
         switch(t->dtype())
         {
             case DataType::FP64:
             {
-                auto d = runtime.get_output<double>(tname);
+                auto d = runtime.get_output<double>(t);
                 bytes.resize(d.size() * sizeof(double));
                 std::memcpy(bytes.data(), d.data(), bytes.size());
                 break;
             }
             case DataType::INT64:
             {
-                auto d = runtime.get_output<std::int64_t>(tname);
+                auto d = runtime.get_output<std::int64_t>(t);
                 bytes.resize(d.size() * sizeof(std::int64_t));
                 std::memcpy(bytes.data(), d.data(), bytes.size());
                 break;
             }
             default:
             {
-                auto d = runtime.get_output<float>(tname);
+                auto d = runtime.get_output<float>(t);
                 bytes.resize(d.size() * sizeof(float));
                 std::memcpy(bytes.data(), d.data(), bytes.size());
                 break;

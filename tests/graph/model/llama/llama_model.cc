@@ -214,8 +214,8 @@ inline void bind_rope_inputs(
     {
         return;
     }
-    runtime.bind_data("rope_sin", rope.sin_data);
-    runtime.bind_data("rope_cos", rope.cos_data);
+    runtime.bind_data(rope.sin, rope.sin_data);
+    runtime.bind_data(rope.cos, rope.cos_data);
 }
 
 //! Causal ``attn_mask`` ``(seq, seq)`` for ``sdpa_eager`` (1 = keep logit).
@@ -290,7 +290,7 @@ inline void bind_mask_input(
     {
         return;
     }
-    runtime.bind_data(mask->name(), mask_bytes);
+    runtime.bind_data(mask, mask_bytes);
 }
 
 void model_forward_compare_ref(const ModelFixtureSpec& fx)
@@ -340,13 +340,13 @@ void model_forward_compare_ref(const ModelFixtureSpec& fx)
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("input_ids", ids_data);
+        runtime.bind_data(input_ids, ids_data);
         bind_rope_inputs(runtime, rope);
         bind_mask_input(runtime, mask, mask_bytes);
         runtime.execute();
         runtime.wait();
 
-        result = runtime.get_output<float>(output->name());
+        result = runtime.get_output<float>(output);
     }
 
     REQUIRE(result.size() == ref_data.size());

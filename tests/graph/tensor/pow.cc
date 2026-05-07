@@ -68,11 +68,11 @@ void check_pow_vs_tensor_api(
         dst_data[i] = static_cast<float>(Y(i + 1));
     }
 
-    runtime.bind_data("dst", dst_data);
+    runtime.bind_data(dst_node,  dst_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("dst");
+    std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path (same input data) ---
     nntile::tensor::TensorTraits traits(shape, shape);
@@ -182,11 +182,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("dst", dst_data);
+        runtime.bind_data(dst_node,  dst_data);
         runtime.execute();
         runtime.wait();
 
-        untiled_result = runtime.get_output<float>("dst");
+        untiled_result = runtime.get_output<float>(dst_node);
     }
 
     // --- Tiled run ---
@@ -209,11 +209,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("dst", dst_data);
+        runtime.bind_data(dst_node,  dst_data);
         runtime.execute();
         runtime.wait();
 
-        tiled_result = runtime.get_output<float>("dst");
+        tiled_result = runtime.get_output<float>(dst_node);
     }
 
     // --- Compare ---

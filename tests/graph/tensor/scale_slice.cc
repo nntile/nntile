@@ -100,11 +100,11 @@ void check_scale_slice_vs_tensor_api(
         src_data[i] = static_cast<float>(Y(i + 1));
     }
 
-    runtime.bind_data("src", src_data);
+    runtime.bind_data(src_node,  src_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("out");
+    std::vector<float> graph_result = runtime.get_output<float>(out_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits src_traits(src_sh, src_sh);
@@ -215,10 +215,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("src", src_data);
+        runtime.bind_data(src_node,  src_data);
         runtime.execute();
         runtime.wait();
-        untiled_result = runtime.get_output<float>("out");
+        untiled_result = runtime.get_output<float>(out_node);
     }
 
     std::vector<float> tiled_result;
@@ -236,10 +236,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("src", src_data);
+        runtime.bind_data(src_node,  src_data);
         runtime.execute();
         runtime.wait();
-        tiled_result = runtime.get_output<float>("out");
+        tiled_result = runtime.get_output<float>(out_node);
     }
 
     constexpr float tol = 1e-5f;

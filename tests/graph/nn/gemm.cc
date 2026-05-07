@@ -406,12 +406,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("a", a_data);
-    runtime.bind_data("b", b_data);
+    runtime.bind_data(a,  a_data);
+    runtime.bind_data(b,  b_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>("c");
+    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(c);
     std::vector<float> nntile_out =
         colmajor_to_rowmajor(nntile_out_colmajor, {M, N});
 
@@ -469,15 +469,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("a", a_data);
-    runtime.bind_data("b", b_data);
+    runtime.bind_data(a,  a_data);
+    runtime.bind_data(b,  b_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_grad_a_colmajor =
-        runtime.get_output<float>(a->grad()->name());
+        runtime.get_output<float>(a->grad());
     std::vector<float> nntile_grad_b_colmajor =
-        runtime.get_output<float>(b->grad()->name());
+        runtime.get_output<float>(b->grad());
     std::vector<float> nntile_grad_a =
         colmajor_to_rowmajor(nntile_grad_a_colmajor, {M, K});
     std::vector<float> nntile_grad_b =
@@ -533,12 +533,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("a", a_data);
-    runtime.bind_data("b", b_data);
+    runtime.bind_data(a,  a_data);
+    runtime.bind_data(b,  b_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>("c");
+    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(c);
     std::vector<float> nntile_out =
         colmajor_to_rowmajor(nntile_out_colmajor, {M1, M2, N1, N2});
 
@@ -589,12 +589,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("a", a_data);
-    runtime.bind_data("b", b_data);
+    runtime.bind_data(a,  a_data);
+    runtime.bind_data(b,  b_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>("c");
+    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(c);
     std::vector<float> nntile_out_rowmajor =
         colmajor_to_rowmajor(nntile_out_colmajor, {M, N, B});
     std::vector<float> nntile_out =
@@ -654,16 +654,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("a", a_data);
-    runtime.bind_data("b", b_data);
+    runtime.bind_data(a,  a_data);
+    runtime.bind_data(b,  b_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_grad_a =
-        colmajor_to_rowmajor(runtime.get_output<float>(a->grad()->name()),
+        colmajor_to_rowmajor(runtime.get_output<float>(a->grad()),
                              {M1, M2, K1, K2});
     std::vector<float> nntile_grad_b =
-        colmajor_to_rowmajor(runtime.get_output<float>(b->grad()->name()),
+        colmajor_to_rowmajor(runtime.get_output<float>(b->grad()),
                              {K1, K2, N1, N2});
 
     auto a_pt = torch::from_blob(a_rowmajor.data(), {M1, M2, K1, K2},
@@ -723,16 +723,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("a", a_data);
-    runtime.bind_data("b", b_data);
+    runtime.bind_data(a,  a_data);
+    runtime.bind_data(b,  b_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_grad_a_rowmajor =
-        colmajor_to_rowmajor(runtime.get_output<float>(a->grad()->name()),
+        colmajor_to_rowmajor(runtime.get_output<float>(a->grad()),
                              {M, K, B});
     std::vector<float> nntile_grad_b_rowmajor =
-        colmajor_to_rowmajor(runtime.get_output<float>(b->grad()->name()),
+        colmajor_to_rowmajor(runtime.get_output<float>(b->grad()),
                              {K, N, B});
     std::vector<float> nntile_grad_a =
         permute_rowmajor(nntile_grad_a_rowmajor, {M, K, B}, {2, 0, 1});

@@ -37,9 +37,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph softmax axis0", "[grap
     for(Index j=0;j<nms;j+=2) { mv[static_cast<size_t>(j)]=static_cast<float>(j+1);
       mv[static_cast<size_t>(j+1)]=std::exp(static_cast<float>(j+2)/10.f); }
     for(Index i=0;i<n;++i) sv[static_cast<size_t>(i)]=0.01f*static_cast<float>(i+1);
-    r.bind_data("m", mv); r.bind_data("s", sv); r.bind_data("d", dv);
+    r.bind_data(m, mv); r.bind_data(s, sv); r.bind_data(d, dv);
     r.execute(); r.wait();
-    const auto gout = r.get_output<float>("d");
+    const auto gout = r.get_output<float>(d);
     nntile::tile::Tile<fp32_t> M(mh), S(sh), D(sh);
     using Y = typename fp32_t::repr_t;
     { auto a=M.acquire(STARPU_W), b=S.acquire(STARPU_W), c=D.acquire(STARPU_W);

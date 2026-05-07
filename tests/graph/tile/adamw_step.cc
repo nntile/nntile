@@ -56,16 +56,16 @@ TEST_CASE("AdamW step mixed tile parity", "[graph][tile]")
     TensorGraph g_tile("tile");
     build(g_tile, true);
 
-    std::vector<float> grad(static_cast<size_t>(n));
-    std::vector<float> m(static_cast<size_t>(n));
-    std::vector<float> v(static_cast<size_t>(n));
-    std::vector<float> p(static_cast<size_t>(n));
+    std::vector<float> grad_h(static_cast<size_t>(n));
+    std::vector<float> m_h(static_cast<size_t>(n));
+    std::vector<float> v_h(static_cast<size_t>(n));
+    std::vector<float> p_h(static_cast<size_t>(n));
     for(Index i = 0; i < n; ++i)
     {
-        grad[static_cast<size_t>(i)] = 0.02f;
-        m[static_cast<size_t>(i)] = 0.f;
-        v[static_cast<size_t>(i)] = 0.f;
-        p[static_cast<size_t>(i)] = 1.f;
+        grad_h[static_cast<size_t>(i)] = 0.02f;
+        m_h[static_cast<size_t>(i)] = 0.f;
+        v_h[static_cast<size_t>(i)] = 0.f;
+        p_h[static_cast<size_t>(i)] = 1.f;
     }
 
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref);
@@ -73,24 +73,26 @@ TEST_CASE("AdamW step mixed tile parity", "[graph][tile]")
 
     TileGraph::Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();
-    rt_ref.bind_data("grad", grad);
-    rt_ref.bind_data("m", m);
-    rt_ref.bind_data("v", v);
-    rt_ref.bind_data("p", p);
+    rt_ref.bind_data(tt::tensor_node_named(g_ref, "grad"), grad_h);
+    rt_ref.bind_data(tt::tensor_node_named(g_ref, "m"), m_h);
+    rt_ref.bind_data(tt::tensor_node_named(g_ref, "v"), v_h);
+    rt_ref.bind_data(tt::tensor_node_named(g_ref, "p"), p_h);
     rt_ref.execute();
     rt_ref.wait();
-    const std::vector<float> p_ref = rt_ref.get_output<float>("p");
+    const std::vector<float> p_ref =
+        rt_ref.get_output<float>(tt::tensor_node_named(g_ref, "p"));
 
     TileGraph tile_g = TileGraph::from_tensor_graph(g_tile);
     TileGraph::Runtime rt_tile(tile_g);
     rt_tile.compile();
-    rt_tile.bind_data("grad", grad);
-    rt_tile.bind_data("m", m);
-    rt_tile.bind_data("v", v);
-    rt_tile.bind_data("p", p);
+    rt_tile.bind_data(tt::tensor_node_named(g_tile, "grad"), grad_h);
+    rt_tile.bind_data(tt::tensor_node_named(g_tile, "m"), m_h);
+    rt_tile.bind_data(tt::tensor_node_named(g_tile, "v"), v_h);
+    rt_tile.bind_data(tt::tensor_node_named(g_tile, "p"), p_h);
     rt_tile.execute();
     rt_tile.wait();
-    const std::vector<float> p_tile = rt_tile.get_output<float>("p");
+    const std::vector<float> p_tile =
+        rt_tile.get_output<float>(tt::tensor_node_named(g_tile, "p"));
 
     REQUIRE(tt::max_rel_err(p_ref, p_tile) < 1e-3f);
     REQUIRE(tt::frob_rel_err(p_ref, p_tile) < 1e-3f);

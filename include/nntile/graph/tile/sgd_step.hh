@@ -24,11 +24,11 @@
 namespace nntile::graph::tile_graph
 {
 
-//! SGD step: p = p - lr*grad (with momentum, weight decay, etc.)
+//! SGD step: p = p - lr*grad (with momentum, weight decay, etc.).  \p num_iter
+//! is fixed when the op is created.
 struct TileSgdStepOp : TileGraph::OpNode
 {
-    std::shared_ptr<Index> step_iter;
-    bool bump_after = false;
+    Index num_iter = 0;
     Scalar momentum{};
     Scalar lr{};
     Scalar weight_decay{};
@@ -39,9 +39,9 @@ struct TileSgdStepOp : TileGraph::OpNode
     TileGraph::TileNode* p = nullptr;
 
     TileSgdStepOp() = default;
-    TileSgdStepOp(const std::shared_ptr<Index>& step_iter_, bool bump_after_,
-        Scalar momentum_, Scalar lr_, Scalar weight_decay_, Scalar dampening_,
-        bool nesterov_, TileGraph::TileNode* grad_, TileGraph::TileNode* velocity_,
+    TileSgdStepOp(Index num_iter_, Scalar momentum_, Scalar lr_,
+        Scalar weight_decay_, Scalar dampening_, bool nesterov_,
+        TileGraph::TileNode* grad_, TileGraph::TileNode* velocity_,
         TileGraph::TileNode* p_);
 
     std::string op_name() const override { return "TILE_SGD_STEP"; }
@@ -54,10 +54,9 @@ struct TileSgdStepOp : TileGraph::OpNode
     }
 };
 
-//! SGD step
-void sgd_step(const std::shared_ptr<Index>& step_iter, bool bump_after,
-    Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening,
-    bool nesterov, TileGraph::TileNode* grad, TileGraph::TileNode* velocity,
-    TileGraph::TileNode* p);
+//! SGD step (one tile).
+void sgd_step(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay,
+    Scalar dampening, bool nesterov, TileGraph::TileNode* grad,
+    TileGraph::TileNode* velocity, TileGraph::TileNode* p);
 
 } // namespace nntile::graph::tile_graph

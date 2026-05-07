@@ -49,12 +49,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding", "[graph][t
         voc[static_cast<size_t>(i)] = static_cast<float>(i + 1);
     }
     std::vector<float> out(12, 0.f);
-    r.bind_data("index", iv);
-    r.bind_data("vocab", voc);
-    r.bind_data("embed", out);
+    r.bind_data(index, iv);
+    r.bind_data(vocab, voc);
+    r.bind_data(embed, out);
     r.execute();
     r.wait();
-    const auto gout = r.get_output<float>("embed");
+    const auto gout = r.get_output<float>(embed);
     nntile::tile::Tile<nntile::int64_t> I(ih);
     nntile::tile::Tile<fp32_t> V(vh), E(eh);
     {

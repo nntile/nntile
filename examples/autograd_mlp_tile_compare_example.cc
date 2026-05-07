@@ -160,8 +160,8 @@ static float frob_per_tensor_rel_error(
 
 static void bind_same_weights(
     nntile::graph::TileGraph::Runtime& rt,
-    const std::string& w1,
-    const std::string& w2,
+    nntile::graph::TensorGraph::TensorNode const* w1,
+    nntile::graph::TensorGraph::TensorNode const* w2,
     const std::vector<float>& w1_data,
     const std::vector<float>& w2_data)
 {
@@ -239,13 +239,6 @@ int main()
     mlp.fc2().weight_tensor()->grad()->mark_output(true);
     inp->grad()->mark_output(true);
 
-    // String keys for weight gradient tensors in this graph (for
-    // Runtime::get_output after execute). Module::grad_name is
-    // a pure naming helper: it returns "<module>_<local_param>_grad" (here
-    // local param is "weight") and does not compute any derivatives.
-    const std::string dW1_grad_tensor_name = mlp.fc1().grad_name("weight");
-    const std::string dW2_grad_tensor_name = mlp.fc2().grad_name("weight");
-
     TensorGraph& tensor_g = nn.tensor_graph();
     name_mlp_axis_groups_from_extents(
         tensor_g, batch, in_dim, hid_dim, out_dim);
@@ -255,11 +248,11 @@ int main()
 
     TileGraph::Runtime rt_tensor(rt_tensor_tile);
     rt_tensor.compile();
-    rt_tensor.bind_data("in", in_data);
+    rt_tensor.bind_data(inp,  in_data);
     bind_same_weights(
         rt_tensor,
-        mlp.fc1().weight_tensor()->name(),
-        mlp.fc2().weight_tensor()->name(),
+        mlp.fc1().weight_tensor()->data(),
+        mlp.fc2().weight_tensor()->data(),
         w1_data,
         w2_data);
     rt_tensor.execute();
@@ -269,11 +262,11 @@ int main()
               << tensor_g.to_string() << "\n";
 
     const std::vector<float> out_ref_v =
-        rt_tensor.get_output<float>(out->name());
+        rt_tensor.get_output<float>(out);
     const std::vector<float> gw1_ref =
-        rt_tensor.get_output<float>(dW1_grad_tensor_name);
+        rt_tensor.get_output<float>(mlp.fc1().weight_tensor()->grad());
     const std::vector<float> gw2_ref =
-        rt_tensor.get_output<float>(dW2_grad_tensor_name);
+        rt_tensor.get_output<float>(mlp.fc2().weight_tensor()->grad());
 
     // --- Tiled (TileGraph from the same tensor graph) ---
     // Run untiled first; then set a heterogeneous split on every axis
@@ -288,22 +281,22 @@ int main()
               << tile_g.to_string() << "\n";
     TileGraph::Runtime rt_tile(tile_g);
     rt_tile.compile();
-    rt_tile.bind_data("in", in_data);
+    rt_tile.bind_data(inp,  in_data);
     bind_same_weights(
         rt_tile,
-        mlp.fc1().weight_tensor()->name(),
-        mlp.fc2().weight_tensor()->name(),
+        mlp.fc1().weight_tensor()->data(),
+        mlp.fc2().weight_tensor()->data(),
         w1_data,
         w2_data);
     rt_tile.execute();
     rt_tile.wait();
 
     const std::vector<float> out_tile_v =
-        rt_tile.get_output<float>(out->name());
+        rt_tile.get_output<float>(out);
     const std::vector<float> gw1_tile =
-        rt_tile.get_output<float>(dW1_grad_tensor_name);
+        rt_tile.get_output<float>(mlp.fc1().weight_tensor()->grad());
     const std::vector<float> gw2_tile =
-        rt_tile.get_output<float>(dW2_grad_tensor_name);
+        rt_tile.get_output<float>(mlp.fc2().weight_tensor()->grad());
 
     constexpr float tol = 5e-4f;
     const float e_out_el = max_per_element_rel_error(out_ref_v, out_tile_v);

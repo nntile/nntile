@@ -161,12 +161,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("x", x_data);
-    runtime.bind_data("gamma", gamma_data);
+    runtime.bind_data(x,  x_data);
+    runtime.bind_data(gamma,  gamma_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>("y");
+    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(y);
     std::vector<float> nntile_out =
         colmajor_to_rowmajor(nntile_out_colmajor, shape);
 
@@ -240,17 +240,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("x", x_data);
-    runtime.bind_data("gamma", gamma_data);
+    runtime.bind_data(x,  x_data);
+    runtime.bind_data(gamma,  gamma_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_grad_x_colmajor =
-        runtime.get_output<float>(x->grad()->name());
+        runtime.get_output<float>(x->grad());
     std::vector<float> nntile_grad_x =
         colmajor_to_rowmajor(nntile_grad_x_colmajor, shape);
     std::vector<float> nntile_grad_gamma =
-        runtime.get_output<float>(gamma->grad()->name());
+        runtime.get_output<float>(gamma->grad());
 
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
     auto x_pt = torch::from_blob(x_rowmajor.data(), shape_pt,

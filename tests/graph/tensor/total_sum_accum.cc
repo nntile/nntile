@@ -91,14 +91,14 @@ void check_total_sum_accum_vs_tensor_api(
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
-    runtime.bind_data("logsumexp", logsumexp_data);
-    runtime.bind_data("src", src_data);
-    runtime.bind_data("labels", labels_data);
-    runtime.bind_data("val", val_data);
+    runtime.bind_data(logsumexp_node,  logsumexp_data);
+    runtime.bind_data(src_node,  src_data);
+    runtime.bind_data(labels_node,  labels_data);
+    runtime.bind_data(val_node,  val_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("val");
+    std::vector<float> graph_result = runtime.get_output<float>(val_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits logsumexp_traits(labels_shape, labels_shape);
@@ -289,14 +289,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("logsumexp", logsumexp_data);
-        runtime.bind_data("src", src_data);
-        runtime.bind_data("labels", labels_data);
-        runtime.bind_data("val", val_data);
+        runtime.bind_data(logsumexp_node,  logsumexp_data);
+        runtime.bind_data(src_node,  src_data);
+        runtime.bind_data(labels_node,  labels_data);
+        runtime.bind_data(val_node,  val_data);
         runtime.execute();
         runtime.wait();
 
-        untiled_result = runtime.get_output<float>("val");
+        untiled_result = runtime.get_output<float>(val_node);
     }
 
     // --- Tiled run ---
@@ -334,14 +334,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("logsumexp", logsumexp_data);
-        runtime.bind_data("src", src_data);
-        runtime.bind_data("labels", labels_data);
-        runtime.bind_data("val", val_data);
+        runtime.bind_data(logsumexp_node,  logsumexp_data);
+        runtime.bind_data(src_node,  src_data);
+        runtime.bind_data(labels_node,  labels_data);
+        runtime.bind_data(val_node,  val_data);
         runtime.execute();
         runtime.wait();
 
-        tiled_result = runtime.get_output<float>("val");
+        tiled_result = runtime.get_output<float>(val_node);
     }
 
     // --- Compare ---

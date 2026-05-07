@@ -88,16 +88,16 @@ void check_adam_step_vs_tensor_api(
         p_data[i] = 1.0f * static_cast<float>(i - nelems / 2);
     }
 
-    runtime.bind_data("grad", grad_data);
-    runtime.bind_data("first_moment", first_moment_data);
-    runtime.bind_data("second_moment", second_moment_data);
-    runtime.bind_data("p", p_data);
+    runtime.bind_data(grad_node,  grad_data);
+    runtime.bind_data(first_moment_node,  first_moment_data);
+    runtime.bind_data(second_moment_node,  second_moment_data);
+    runtime.bind_data(p_node,  p_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_first = runtime.get_output<float>("first_moment");
-    std::vector<float> graph_second = runtime.get_output<float>("second_moment");
-    std::vector<float> graph_p = runtime.get_output<float>("p");
+    std::vector<float> graph_first = runtime.get_output<float>(first_moment_node);
+    std::vector<float> graph_second = runtime.get_output<float>(second_moment_node);
+    std::vector<float> graph_p = runtime.get_output<float>(p_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits traits(shape, shape);
@@ -263,16 +263,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("grad", grad_data);
-        runtime.bind_data("first_moment", first_moment_data);
-        runtime.bind_data("second_moment", second_moment_data);
-        runtime.bind_data("p", p_data);
+        runtime.bind_data(grad_node,  grad_data);
+        runtime.bind_data(first_moment_node,  first_moment_data);
+        runtime.bind_data(second_moment_node,  second_moment_data);
+        runtime.bind_data(p_node,  p_data);
         runtime.execute();
         runtime.wait();
 
-        untiled_first = runtime.get_output<float>("first_moment");
-        untiled_second = runtime.get_output<float>("second_moment");
-        untiled_p = runtime.get_output<float>("p");
+        untiled_first = runtime.get_output<float>(first_moment_node);
+        untiled_second = runtime.get_output<float>(second_moment_node);
+        untiled_p = runtime.get_output<float>(p_node);
     }
 
     // --- Tiled run ---
@@ -304,16 +304,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("grad", grad_data);
-        runtime.bind_data("first_moment", first_moment_data);
-        runtime.bind_data("second_moment", second_moment_data);
-        runtime.bind_data("p", p_data);
+        runtime.bind_data(grad_node,  grad_data);
+        runtime.bind_data(first_moment_node,  first_moment_data);
+        runtime.bind_data(second_moment_node,  second_moment_data);
+        runtime.bind_data(p_node,  p_data);
         runtime.execute();
         runtime.wait();
 
-        tiled_first = runtime.get_output<float>("first_moment");
-        tiled_second = runtime.get_output<float>("second_moment");
-        tiled_p = runtime.get_output<float>("p");
+        tiled_first = runtime.get_output<float>(first_moment_node);
+        tiled_second = runtime.get_output<float>(second_moment_node);
+        tiled_p = runtime.get_output<float>(p_node);
     }
 
     // --- Compare ---

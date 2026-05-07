@@ -43,12 +43,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_fiber matches
     std::vector<float> f1(nfib), f2(nfull), f3(nfull, 0.f);
     for(Index i = 0; i < nfib; ++i) { f1[static_cast<size_t>(i)] = static_cast<float>(i + 1); }
     for(Index i = 0; i < nfull; ++i) { f2[static_cast<size_t>(i)] = 0.5f * static_cast<float>(i + 1); }
-    runtime.bind_data("s1", f1);
-    runtime.bind_data("s2", f2);
-    runtime.bind_data("d", f3);
+    runtime.bind_data(s1, f1);
+    runtime.bind_data(s2, f2);
+    runtime.bind_data(d, f3);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>("d");
+    const std::vector<float> gout = runtime.get_output<float>(d);
     nntile::tile::Tile<fp32_t> t1(fib), t2(full), dst(full);
     using Y = typename nntile::fp32_t::repr_t;
     {

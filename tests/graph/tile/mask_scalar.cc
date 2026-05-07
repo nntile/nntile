@@ -41,11 +41,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph mask_scalar", "[graph]
     for(Index i = 0; i < n; ++i) { mb[static_cast<size_t>(i)] = (static_cast<int>(i) % 3) != 0; }
     std::vector<float> av(n);
     for(Index i = 0; i < n; ++i) { av[static_cast<size_t>(i)] = static_cast<float>(i + 1); }
-    r.bind_data("mask", mb.data(), static_cast<size_t>(n));
-    r.bind_data("a", av);
+    r.bind_data(mask, mb.data(), static_cast<size_t>(n));
+    r.bind_data(a, av);
     r.execute();
     r.wait();
-    const std::vector<float> gout = r.get_output<float>("a");
+    const std::vector<float> gout = r.get_output<float>(a);
     nntile::tile::Tile<bool_t> Tm(sh);
     nntile::tile::Tile<fp32_t> Ta(sh);
     using Y = typename fp32_t::repr_t;

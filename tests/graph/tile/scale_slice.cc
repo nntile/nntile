@@ -38,11 +38,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_slice", "[graph]
     rt.compile();
     std::vector<float> v1(n1), v2(n2, 0.f);
     for(Index i = 0; i < n1; ++i) { v1[static_cast<size_t>(i)] = static_cast<float>(i) + 0.5f; }
-    rt.bind_data("t1", v1);
-    rt.bind_data("t2", v2);
+    rt.bind_data(t1, v1);
+    rt.bind_data(t2, v2);
     rt.execute();
     rt.wait();
-    const std::vector<float> gout = rt.get_output<float>("t2");
+    const std::vector<float> gout = rt.get_output<float>(t2);
     nntile::tile::Tile<fp32_t> T1(t1s), T2(t2s);
     using Y = typename nntile::fp32_t::repr_t;
     { auto A = T1.acquire(STARPU_W), B = T2.acquire(STARPU_W);

@@ -114,14 +114,13 @@ TEST_CASE("Axis naming propagates through group", "[graph][axis]")
     TensorGraph graph("naming");
     auto* x = graph.data({4, 5}, "x");
     auto* y = graph.data({4, 5}, "y");
-    gt::add(1.0, x, 1.0, y, "z");
+    auto* z = gt::add(1.0, x, 1.0, y, "z");
 
     // Name from one tensor is visible from all
     x->axis(0)->name = "batch";
     REQUIRE(y->axis(0)->name == "batch");
 
     x->axis(1)->name = "features";
-    auto* z = graph.get_tensor_node("z");
     REQUIRE(z->axis(1)->name == "features");
 }
 

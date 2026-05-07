@@ -54,12 +54,12 @@ TEST_CASE("SGD step mixed tile parity", "[graph][tile]")
     TensorGraph g_tile("tile");
     build(g_tile, true);
 
-    std::vector<float> grad(10 * 12), vel(10 * 12), p(10 * 12);
-    for(size_t i = 0; i < grad.size(); ++i)
+    std::vector<float> grad_h(10 * 12), vel_h(10 * 12), p_h(10 * 12);
+    for(size_t i = 0; i < grad_h.size(); ++i)
     {
-        grad[i] = 0.01f * static_cast<float>(static_cast<int>(i % 5) - 2);
-        vel[i] = 0.f;
-        p[i] = 0.2f;
+        grad_h[i] = 0.01f * static_cast<float>(static_cast<int>(i % 5) - 2);
+        vel_h[i] = 0.f;
+        p_h[i] = 0.2f;
     }
 
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref);
@@ -67,22 +67,24 @@ TEST_CASE("SGD step mixed tile parity", "[graph][tile]")
 
     TileGraph::Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();
-    rt_ref.bind_data("grad", grad);
-    rt_ref.bind_data("vel", vel);
-    rt_ref.bind_data("p", p);
+    rt_ref.bind_data(tt::tensor_node_named(g_ref, "grad"), grad_h);
+    rt_ref.bind_data(tt::tensor_node_named(g_ref, "vel"), vel_h);
+    rt_ref.bind_data(tt::tensor_node_named(g_ref, "p"), p_h);
     rt_ref.execute();
     rt_ref.wait();
-    const std::vector<float> p_ref = rt_ref.get_output<float>("p");
+    const std::vector<float> p_ref =
+        rt_ref.get_output<float>(tt::tensor_node_named(g_ref, "p"));
 
     TileGraph tile_g = TileGraph::from_tensor_graph(g_tile);
     TileGraph::Runtime rt_tile(tile_g);
     rt_tile.compile();
-    rt_tile.bind_data("grad", grad);
-    rt_tile.bind_data("vel", vel);
-    rt_tile.bind_data("p", p);
+    rt_tile.bind_data(tt::tensor_node_named(g_tile, "grad"), grad_h);
+    rt_tile.bind_data(tt::tensor_node_named(g_tile, "vel"), vel_h);
+    rt_tile.bind_data(tt::tensor_node_named(g_tile, "p"), p_h);
     rt_tile.execute();
     rt_tile.wait();
-    const std::vector<float> p_tile = rt_tile.get_output<float>("p");
+    const std::vector<float> p_tile =
+        rt_tile.get_output<float>(tt::tensor_node_named(g_tile, "p"));
 
     REQUIRE(tt::max_rel_err(p_ref, p_tile) < 1e-3f);
     REQUIRE(tt::frob_rel_err(p_ref, p_tile) < 1e-3f);

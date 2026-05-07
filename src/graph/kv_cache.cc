@@ -138,16 +138,17 @@ KVCache::create_tensors(NNGraph* graph, const std::string& prefix)
 void KVCache::bind(TileGraph::Runtime& runtime,
                    const std::string& prefix) const
 {
+    (void)prefix;
     size_t nelems = static_cast<size_t>(config_.head_size * config_.max_seq
                                          * config_.batch * config_.n_head_kv);
     for(Index i = 0; i < config_.num_layers; ++i)
     {
-        std::string k_name = prefix + "_k_" + std::to_string(i);
-        std::string v_name = prefix + "_v_" + std::to_string(i);
+        auto* k_node = tensors_[static_cast<size_t>(i)].first->data();
+        auto* v_node = tensors_[static_cast<size_t>(i)].second->data();
         if(uses_float_buffers_())
         {
-            runtime.bind_data(k_name, k_buffers_f32_[i]);
-            runtime.bind_data(v_name, v_buffers_f32_[i]);
+            runtime.bind_data(k_node, k_buffers_f32_[static_cast<size_t>(i)]);
+            runtime.bind_data(v_node, v_buffers_f32_[static_cast<size_t>(i)]);
         }
         else
         {
@@ -161,17 +162,17 @@ void KVCache::bind(TileGraph::Runtime& runtime,
                     std::vector<float> v_tmp(nelems);
                     const nntile::fp16_t* k_src =
                         reinterpret_cast<const nntile::fp16_t*>(
-                            k_buffers_bytes_[i].data());
+                            k_buffers_bytes_[static_cast<size_t>(i)].data());
                     const nntile::fp16_t* v_src =
                         reinterpret_cast<const nntile::fp16_t*>(
-                            v_buffers_bytes_[i].data());
+                            v_buffers_bytes_[static_cast<size_t>(i)].data());
                     for(size_t j = 0; j < nelems; ++j)
                     {
                         k_tmp[j] = static_cast<float>(k_src[j]);
                         v_tmp[j] = static_cast<float>(v_src[j]);
                     }
-                    runtime.bind_data(k_name, k_tmp);
-                    runtime.bind_data(v_name, v_tmp);
+                    runtime.bind_data(k_node, k_tmp);
+                    runtime.bind_data(v_node, v_tmp);
                     break;
                 }
                 case DataType::BF16:
@@ -180,26 +181,28 @@ void KVCache::bind(TileGraph::Runtime& runtime,
                     std::vector<float> v_tmp(nelems);
                     const nntile::bf16_t* k_src =
                         reinterpret_cast<const nntile::bf16_t*>(
-                            k_buffers_bytes_[i].data());
+                            k_buffers_bytes_[static_cast<size_t>(i)].data());
                     const nntile::bf16_t* v_src =
                         reinterpret_cast<const nntile::bf16_t*>(
-                            v_buffers_bytes_[i].data());
+                            v_buffers_bytes_[static_cast<size_t>(i)].data());
                     for(size_t j = 0; j < nelems; ++j)
                     {
                         k_tmp[j] = static_cast<float>(k_src[j]);
                         v_tmp[j] = static_cast<float>(v_src[j]);
                     }
-                    runtime.bind_data(k_name, k_tmp);
-                    runtime.bind_data(v_name, v_tmp);
+                    runtime.bind_data(k_node, k_tmp);
+                    runtime.bind_data(v_node, v_tmp);
                     break;
                 }
                 case DataType::FP64:
-                    runtime.bind_data(k_name,
+                    runtime.bind_data(k_node,
                         reinterpret_cast<const double*>(
-                            k_buffers_bytes_[i].data()), nelems);
-                    runtime.bind_data(v_name,
+                            k_buffers_bytes_[static_cast<size_t>(i)].data()),
+                        nelems);
+                    runtime.bind_data(v_node,
                         reinterpret_cast<const double*>(
-                            v_buffers_bytes_[i].data()), nelems);
+                            v_buffers_bytes_[static_cast<size_t>(i)].data()),
+                        nelems);
                     break;
                 default:
                     throw std::invalid_argument(
@@ -213,16 +216,19 @@ void KVCache::bind(TileGraph::Runtime& runtime,
 void KVCache::update_from(TileGraph::Runtime& runtime,
                          const std::string& prefix)
 {
+    (void)prefix;
     size_t nelems = static_cast<size_t>(config_.head_size * config_.max_seq
                                          * config_.batch * config_.n_head_kv);
     for(Index i = 0; i < config_.num_layers; ++i)
     {
-        std::string k_name = prefix + "_k_" + std::to_string(i);
-        std::string v_name = prefix + "_v_" + std::to_string(i);
+        auto* k_node = tensors_[static_cast<size_t>(i)].first->data();
+        auto* v_node = tensors_[static_cast<size_t>(i)].second->data();
         if(uses_float_buffers_())
         {
-            k_buffers_f32_[i] = runtime.get_output<float>(k_name);
-            v_buffers_f32_[i] = runtime.get_output<float>(v_name);
+            k_buffers_f32_[static_cast<size_t>(i)] =
+                runtime.get_output<float>(k_node);
+            v_buffers_f32_[static_cast<size_t>(i)] =
+                runtime.get_output<float>(v_node);
         }
         else
         {
@@ -232,14 +238,14 @@ void KVCache::update_from(TileGraph::Runtime& runtime,
             {
                 case DataType::FP16:
                 {
-                    auto k_out = runtime.get_output<float>(k_name);
-                    auto v_out = runtime.get_output<float>(v_name);
+                    auto k_out = runtime.get_output<float>(k_node);
+                    auto v_out = runtime.get_output<float>(v_node);
                     nntile::fp16_t* k_dst =
                         reinterpret_cast<nntile::fp16_t*>(
-                            k_buffers_bytes_[i].data());
+                            k_buffers_bytes_[static_cast<size_t>(i)].data());
                     nntile::fp16_t* v_dst =
                         reinterpret_cast<nntile::fp16_t*>(
-                            v_buffers_bytes_[i].data());
+                            v_buffers_bytes_[static_cast<size_t>(i)].data());
                     for(size_t j = 0; j < nelems; ++j)
                     {
                         k_dst[j] = nntile::fp16_t(k_out[j]);
@@ -249,14 +255,14 @@ void KVCache::update_from(TileGraph::Runtime& runtime,
                 }
                 case DataType::BF16:
                 {
-                    auto k_out = runtime.get_output<float>(k_name);
-                    auto v_out = runtime.get_output<float>(v_name);
+                    auto k_out = runtime.get_output<float>(k_node);
+                    auto v_out = runtime.get_output<float>(v_node);
                     nntile::bf16_t* k_dst =
                         reinterpret_cast<nntile::bf16_t*>(
-                            k_buffers_bytes_[i].data());
+                            k_buffers_bytes_[static_cast<size_t>(i)].data());
                     nntile::bf16_t* v_dst =
                         reinterpret_cast<nntile::bf16_t*>(
-                            v_buffers_bytes_[i].data());
+                            v_buffers_bytes_[static_cast<size_t>(i)].data());
                     for(size_t j = 0; j < nelems; ++j)
                     {
                         k_dst[j] = nntile::bf16_t(k_out[j]);
@@ -266,12 +272,12 @@ void KVCache::update_from(TileGraph::Runtime& runtime,
                 }
                 case DataType::FP64:
                 {
-                    auto k_out = runtime.get_output<double>(k_name);
-                    auto v_out = runtime.get_output<double>(v_name);
-                    std::memcpy(k_buffers_bytes_[i].data(), k_out.data(),
-                        k_out.size() * sizeof(double));
-                    std::memcpy(v_buffers_bytes_[i].data(), v_out.data(),
-                        v_out.size() * sizeof(double));
+                    auto k_out = runtime.get_output<double>(k_node);
+                    auto v_out = runtime.get_output<double>(v_node);
+                    std::memcpy(k_buffers_bytes_[static_cast<size_t>(i)].data(),
+                        k_out.data(), k_out.size() * sizeof(double));
+                    std::memcpy(v_buffers_bytes_[static_cast<size_t>(i)].data(),
+                        v_out.data(), v_out.size() * sizeof(double));
                     break;
                 }
                 default:

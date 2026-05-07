@@ -38,11 +38,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph subtract_indexed_outpu
     lv[0]=0; lv[1]=1; lv[2]=2; lv[3]=0;
     std::vector<float> dv(nd);
     for(Index i=0;i<nd;++i) dv[static_cast<size_t>(i)]=1.0f+0.1f*static_cast<float>(i);
-    r.bind_data("labels", lv);
-    r.bind_data("d", dv);
+    r.bind_data(lab, lv);
+    r.bind_data(d, dv);
     r.execute();
     r.wait();
-    const auto gout = r.get_output<float>("d");
+    const auto gout = r.get_output<float>(d);
     nntile::tile::Tile<nntile::int64_t> L(lh);
     nntile::tile::Tile<fp32_t> D(dh);
     using Y = typename fp32_t::repr_t;

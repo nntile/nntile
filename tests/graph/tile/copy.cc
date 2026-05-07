@@ -37,12 +37,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph copy matches tile", "[
     runtime.compile();
     std::vector<float> sv(nelems);
     for(Index i = 0; i < nelems; ++i) { sv[static_cast<size_t>(i)] = static_cast<float>(i) * 0.1f - 0.2f; }
-    runtime.bind_data("s", sv);
+    runtime.bind_data(s, sv);
     std::vector<float> dv(nelems, 0.f);
-    runtime.bind_data("d", dv);
+    runtime.bind_data(d, dv);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>("d");
+    const std::vector<float> gout = runtime.get_output<float>(d);
     nntile::tile::Tile<fp32_t> ts(sh), td(sh);
     using Y = typename nntile::fp32_t::repr_t;
     {

@@ -29,7 +29,7 @@ namespace nntile::graph::tensor
 //! SGD step: p = p - lr*grad (with momentum, weight decay, etc.)
 struct TensorSgdStepOp : TensorGraph::OpNode
 {
-    mutable Index num_iter;
+    Index num_iter;
     Scalar momentum;
     Scalar lr;
     Scalar weight_decay;

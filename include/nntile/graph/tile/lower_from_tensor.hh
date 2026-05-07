@@ -20,11 +20,20 @@
 namespace nntile::graph
 {
 
-//! Append tile-level ops for all tensor ops in \p tg. \p out must already
-//! contain per-tile storage (see \c lower_to_tile and tensor-to-tile mapping).
+//! Append tile-level ops for tensor ops \p tg.ops()[op_begin:op_end).
 //! @param tg Source tensor graph
-//! @param out Output tile graph (tile nodes must already exist in \p tile_map)
-//! @param tile_map Mapping from each tensor data node to its tile nodes
+//! @param out Output tile graph (tile nodes must exist in \p tile_map)
+//! @param tile_map Mapping from each tensor data node to tile nodes
+//! @param op_begin First op index (inclusive)
+//! @param op_end One past last op index (exclusive)
+void lower_tensor_ops_to_tile_graph(
+    const TensorGraph& tg,
+    TileGraph& out,
+    const TensorNodeToTileMap& tile_map,
+    size_t op_begin,
+    size_t op_end);
+
+//! Lower all ops (same as op_begin=0, op_end=tg.num_ops()).
 void lower_tensor_ops_to_tile_graph(
     const TensorGraph& tg,
     TileGraph& out,

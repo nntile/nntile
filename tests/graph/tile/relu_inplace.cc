@@ -36,10 +36,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph relu_inplace matches t
     runtime.compile();
     std::vector<float> dv(nelems);
     for(Index i = 0; i < nelems; ++i) { dv[static_cast<size_t>(i)] = static_cast<float>(i) * 0.2f - 0.3f; }
-    runtime.bind_data("d", dv);
+    runtime.bind_data(d, dv);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>("d");
+    const std::vector<float> gout = runtime.get_output<float>(d);
     nntile::tile::Tile<fp32_t> td(sh);
     using Y = typename nntile::fp32_t::repr_t;
     {

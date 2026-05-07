@@ -14,6 +14,7 @@
 set(TESTS_TILE_CATCH2
     "adam_step"
     "adamw_step"
+    "append_tensor_graph_phase"
     "add"
     "add_fiber"
     "add_fiber_inplace"

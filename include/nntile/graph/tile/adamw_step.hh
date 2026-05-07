@@ -24,11 +24,11 @@
 namespace nntile::graph::tile_graph
 {
 
-//! AdamW step: Adam with decoupled weight decay
+//! AdamW step: Adam with decoupled weight decay.  \p num_iter is fixed when
+//! the op is created (graph-time); it is not updated during execution.
 struct TileAdamwStepOp : TileGraph::OpNode
 {
-    std::shared_ptr<Index> step_iter;
-    bool bump_after = false;
+    Index num_iter = 0;
     Scalar beta_1{};
     Scalar beta_2{};
     Scalar eps{};
@@ -40,11 +40,10 @@ struct TileAdamwStepOp : TileGraph::OpNode
     TileGraph::TileNode* p = nullptr;
 
     TileAdamwStepOp() = default;
-    TileAdamwStepOp(const std::shared_ptr<Index>& step_iter_, bool bump_after_,
-        Scalar beta_1_, Scalar beta_2_, Scalar eps_, Scalar lr_,
-        Scalar weight_decay_, TileGraph::TileNode* grad_,
-        TileGraph::TileNode* first_moment_, TileGraph::TileNode* second_moment_,
-        TileGraph::TileNode* p_);
+    TileAdamwStepOp(Index num_iter_, Scalar beta_1_, Scalar beta_2_,
+        Scalar eps_, Scalar lr_, Scalar weight_decay_,
+        TileGraph::TileNode* grad_, TileGraph::TileNode* first_moment_,
+        TileGraph::TileNode* second_moment_, TileGraph::TileNode* p_);
 
     std::string op_name() const override { return "TILE_ADAMW_STEP"; }
 
@@ -56,10 +55,10 @@ struct TileAdamwStepOp : TileGraph::OpNode
     }
 };
 
-//! AdamW step
-void adamw_step(const std::shared_ptr<Index>& step_iter, bool bump_after,
-    Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-    TileGraph::TileNode* grad, TileGraph::TileNode* first_moment,
-    TileGraph::TileNode* second_moment, TileGraph::TileNode* p);
+//! AdamW step (one tile).
+void adamw_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps,
+    Scalar lr, Scalar weight_decay, TileGraph::TileNode* grad,
+    TileGraph::TileNode* first_moment, TileGraph::TileNode* second_moment,
+    TileGraph::TileNode* p);
 
 } // namespace nntile::graph::tile_graph

@@ -40,8 +40,9 @@ SGD::SGD(NNGraph* graph,
 {
 }
 
-void SGD::step()
+void SGD::step_lr(std::optional<Scalar> lr_override)
 {
+    Scalar const lr_rec = lr_override.value_or(lr_);
     for(auto& ps : param_states_)
     {
         std::string vel_name = ps.name + "_velocity";
@@ -55,10 +56,12 @@ void SGD::step()
         ps.param->mark_output(true);
 
         sgd_step(ps.param, ps.grad, velocity,
-                 num_iter_ + 1, momentum_, lr_, weight_decay_, dampening_, nesterov_);
+                 num_iter_ + 1, momentum_, lr_rec, weight_decay_, dampening_,
+                 nesterov_);
 
         ps.buffers.emplace_back(vel_name, velocity);
     }
+    ++num_iter_;
 }
 
 void SGD::save_config(const std::string& path) const

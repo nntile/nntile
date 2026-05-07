@@ -29,7 +29,7 @@ namespace nntile::graph::tensor
 //! AdamW step: Adam with decoupled weight decay
 struct TensorAdamwStepOp : TensorGraph::OpNode
 {
-    mutable Index num_iter;
+    Index num_iter;
     Scalar beta_1;
     Scalar beta_2;
     Scalar eps;
@@ -66,7 +66,7 @@ struct TensorAdamwStepOp : TensorGraph::OpNode
     void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
-//! AdamW step
+//! AdamW step (\p lr is a graph-time scalar, fixed when the op is created).
 void adamw_step(Index num_iter, Scalar beta_1, Scalar beta_2,
                 Scalar eps, Scalar lr, Scalar weight_decay,
                 TensorGraph::TensorNode* grad,

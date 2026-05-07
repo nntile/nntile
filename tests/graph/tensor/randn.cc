@@ -63,7 +63,7 @@ void check_randn_vs_tensor_api(const std::vector<Index>& shape)
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("dst");
+    std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits traits(shape, shape);

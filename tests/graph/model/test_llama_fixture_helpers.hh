@@ -92,8 +92,8 @@ inline void bind_rope_inputs(
     {
         return;
     }
-    runtime.bind_data("rope_sin", rope.sin_data);
-    runtime.bind_data("rope_cos", rope.cos_data);
+    runtime.bind_data(rope.sin, rope.sin_data);
+    runtime.bind_data(rope.cos, rope.cos_data);
 }
 
 //! Optional causal mask ``(seq, seq)`` (1 = keep logit).
@@ -169,7 +169,7 @@ inline void bind_mask_input(
     {
         return;
     }
-    runtime.bind_data(mask->name(), mask_bytes);
+    runtime.bind_data(mask, mask_bytes);
 }
 
 } // namespace nntile::test::llama_fixture

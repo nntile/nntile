@@ -143,13 +143,13 @@ void check_conv2d_bwd_weight_inplace_vs_tensor_api(
         dc_data[i] = (beta != 0.0) ? 0.01f * static_cast<float>(i) : 0.0f;
     }
 
-    runtime.bind_data("x", x_data);
-    runtime.bind_data("dy", dy_data);
-    runtime.bind_data("dc", dc_data);
+    runtime.bind_data(x_node,  x_data);
+    runtime.bind_data(dy_node,  dy_data);
+    runtime.bind_data(dc_node,  dc_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("dc");
+    std::vector<float> graph_result = runtime.get_output<float>(dc_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits x_traits(x_shape, x_shape);

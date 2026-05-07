@@ -232,12 +232,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("input", input_data);
+    runtime.bind_data(input,  input_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_out_colmajor =
-        runtime.get_output<float>(output->name());
+        runtime.get_output<float>(output);
     std::vector<float> nntile_out =
         colmajor_to_rowmajor(nntile_out_colmajor, {batch, out_dim});
 
@@ -250,7 +250,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     out_pt.backward(grad_output);
 
     std::vector<float> nntile_grad_gate =
-        runtime.get_output<float>(gated_mlp.gate_proj().grad_name("weight"));
+        runtime.get_output<float>(gated_mlp.gate_proj().weight_tensor()->grad());
     std::vector<float> nntile_grad_gate_rowmajor =
         colmajor_to_rowmajor(nntile_grad_gate, {in_dim, inter_dim});
     auto pt_grad_gate = gate_proj->weight.grad().accessor<float, 2>();
@@ -260,7 +260,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 pt_grad_gate[static_cast<long>(j)][static_cast<long>(i)]) < tol);
 
     std::vector<float> nntile_grad_up =
-        runtime.get_output<float>(gated_mlp.up_proj().grad_name("weight"));
+        runtime.get_output<float>(gated_mlp.up_proj().weight_tensor()->grad());
     std::vector<float> nntile_grad_up_rowmajor =
         colmajor_to_rowmajor(nntile_grad_up, {in_dim, inter_dim});
     auto pt_grad_up = up_proj->weight.grad().accessor<float, 2>();
@@ -270,7 +270,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 pt_grad_up[static_cast<long>(j)][static_cast<long>(i)]) < tol);
 
     std::vector<float> nntile_grad_down =
-        runtime.get_output<float>(gated_mlp.down_proj().grad_name("weight"));
+        runtime.get_output<float>(gated_mlp.down_proj().weight_tensor()->grad());
     std::vector<float> nntile_grad_down_rowmajor =
         colmajor_to_rowmajor(nntile_grad_down, {inter_dim, out_dim});
     auto pt_grad_down = down_proj->weight.grad().accessor<float, 2>();
@@ -282,24 +282,24 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     if(gated_mlp.gate_proj().bias_tensor())
     {
         std::vector<float> nntile_grad_b =
-            runtime.get_output<float>(gated_mlp.gate_proj().grad_name("bias"));
+            runtime.get_output<float>(gated_mlp.gate_proj().bias_tensor()->grad());
         nntile::test::compare_float_vectors(nntile_grad_b, gate_proj->bias.grad(), tol);
     }
     if(gated_mlp.up_proj().bias_tensor())
     {
         std::vector<float> nntile_grad_b =
-            runtime.get_output<float>(gated_mlp.up_proj().grad_name("bias"));
+            runtime.get_output<float>(gated_mlp.up_proj().bias_tensor()->grad());
         nntile::test::compare_float_vectors(nntile_grad_b, up_proj->bias.grad(), tol);
     }
     if(gated_mlp.down_proj().bias_tensor())
     {
         std::vector<float> nntile_grad_b =
-            runtime.get_output<float>(gated_mlp.down_proj().grad_name("bias"));
+            runtime.get_output<float>(gated_mlp.down_proj().bias_tensor()->grad());
         nntile::test::compare_float_vectors(nntile_grad_b, down_proj->bias.grad(), tol);
     }
 
     std::vector<float> nntile_grad_input =
-        runtime.get_output<float>(input->grad()->name());
+        runtime.get_output<float>(input->grad());
     std::vector<float> nntile_grad_input_rowmajor =
         colmajor_to_rowmajor(nntile_grad_input, {batch, in_dim});
     nntile::test::compare_float_vectors(nntile_grad_input_rowmajor, input_pt.grad(),
@@ -368,40 +368,40 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("input", input_data);
+    runtime.bind_data(input,  input_data);
     runtime.execute();
     runtime.wait();
 
-    auto out = runtime.get_output<float>(output->name());
+    auto out = runtime.get_output<float>(output);
     REQUIRE(out.size() == static_cast<size_t>(batch * out_dim));
 
-    auto grad_gate = runtime.get_output<float>(gated_mlp.gate_proj().grad_name("weight"));
+    auto grad_gate = runtime.get_output<float>(gated_mlp.gate_proj().weight_tensor()->grad());
     REQUIRE(grad_gate.size() == static_cast<size_t>(in_dim * inter_dim));
 
-    auto grad_up = runtime.get_output<float>(gated_mlp.up_proj().grad_name("weight"));
+    auto grad_up = runtime.get_output<float>(gated_mlp.up_proj().weight_tensor()->grad());
     REQUIRE(grad_up.size() == static_cast<size_t>(in_dim * inter_dim));
 
-    auto grad_down = runtime.get_output<float>(gated_mlp.down_proj().grad_name("weight"));
+    auto grad_down = runtime.get_output<float>(gated_mlp.down_proj().weight_tensor()->grad());
     REQUIRE(grad_down.size() == static_cast<size_t>(inter_dim * out_dim));
 
     if(gated_mlp.gate_proj().bias_tensor())
     {
-        auto grad_b = runtime.get_output<float>(gated_mlp.gate_proj().grad_name("bias"));
+        auto grad_b = runtime.get_output<float>(gated_mlp.gate_proj().bias_tensor()->grad());
         REQUIRE(grad_b.size() == static_cast<size_t>(inter_dim));
     }
     if(gated_mlp.up_proj().bias_tensor())
     {
-        auto grad_b = runtime.get_output<float>(gated_mlp.up_proj().grad_name("bias"));
+        auto grad_b = runtime.get_output<float>(gated_mlp.up_proj().bias_tensor()->grad());
         REQUIRE(grad_b.size() == static_cast<size_t>(inter_dim));
     }
     if(gated_mlp.down_proj().bias_tensor())
     {
-        auto grad_b = runtime.get_output<float>(gated_mlp.down_proj().grad_name("bias"));
+        auto grad_b = runtime.get_output<float>(gated_mlp.down_proj().bias_tensor()->grad());
         REQUIRE(grad_b.size() == static_cast<size_t>(out_dim));
     }
     if(input->has_grad())
     {
-        auto grad_input = runtime.get_output<float>(input->grad()->name());
+        auto grad_input = runtime.get_output<float>(input->grad());
         REQUIRE(grad_input.size() == static_cast<size_t>(batch * in_dim));
     }
 }

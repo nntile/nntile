@@ -239,12 +239,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("input", input_data);
+    runtime.bind_data(input,  input_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_out_colmajor =
-        runtime.get_output<float>(output->name());
+        runtime.get_output<float>(output);
     std::vector<float> nntile_out =
         colmajor_to_rowmajor(nntile_out_colmajor, {batch, out_dim});
 
@@ -257,7 +257,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     out_pt.backward(grad_output);
 
     std::vector<float> nntile_grad_w1 =
-        runtime.get_output<float>(mlp.fc1().grad_name("weight"));
+        runtime.get_output<float>(mlp.fc1().weight_tensor()->grad());
     std::vector<float> nntile_grad_w1_rowmajor =
         colmajor_to_rowmajor(nntile_grad_w1, {in_dim, inter_dim});
     auto pt_grad_w1 = fc1->weight.grad().accessor<float, 2>();
@@ -267,7 +267,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                 pt_grad_w1[static_cast<long>(j)][static_cast<long>(i)]) < tol);
 
     std::vector<float> nntile_grad_w2 =
-        runtime.get_output<float>(mlp.fc2().grad_name("weight"));
+        runtime.get_output<float>(mlp.fc2().weight_tensor()->grad());
     std::vector<float> nntile_grad_w2_rowmajor =
         colmajor_to_rowmajor(nntile_grad_w2, {inter_dim, out_dim});
     auto pt_grad_w2 = fc2->weight.grad().accessor<float, 2>();
@@ -279,18 +279,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     if(mlp.fc1().bias_tensor())
     {
         std::vector<float> nntile_grad_b1 =
-            runtime.get_output<float>(mlp.fc1().grad_name("bias"));
+            runtime.get_output<float>(mlp.fc1().bias_tensor()->grad());
         nntile::test::compare_float_vectors(nntile_grad_b1, fc1->bias.grad(), tol);
     }
     if(mlp.fc2().bias_tensor())
     {
         std::vector<float> nntile_grad_b2 =
-            runtime.get_output<float>(mlp.fc2().grad_name("bias"));
+            runtime.get_output<float>(mlp.fc2().bias_tensor()->grad());
         nntile::test::compare_float_vectors(nntile_grad_b2, fc2->bias.grad(), tol);
     }
 
     std::vector<float> nntile_grad_input =
-        runtime.get_output<float>(input->grad()->name());
+        runtime.get_output<float>(input->grad());
     std::vector<float> nntile_grad_input_rowmajor =
         colmajor_to_rowmajor(nntile_grad_input, {batch, in_dim});
     nntile::test::compare_float_vectors(nntile_grad_input_rowmajor, input_pt.grad(),
@@ -351,32 +351,32 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("input", input_data);
+    runtime.bind_data(input,  input_data);
     runtime.execute();
     runtime.wait();
 
-    auto out = runtime.get_output<float>(output->name());
+    auto out = runtime.get_output<float>(output);
     REQUIRE(out.size() == static_cast<size_t>(batch * out_dim));
 
-    auto grad_w1 = runtime.get_output<float>(mlp.fc1().grad_name("weight"));
+    auto grad_w1 = runtime.get_output<float>(mlp.fc1().weight_tensor()->grad());
     REQUIRE(grad_w1.size() == static_cast<size_t>(in_dim * inter_dim));
 
-    auto grad_w2 = runtime.get_output<float>(mlp.fc2().grad_name("weight"));
+    auto grad_w2 = runtime.get_output<float>(mlp.fc2().weight_tensor()->grad());
     REQUIRE(grad_w2.size() == static_cast<size_t>(inter_dim * out_dim));
 
     if(mlp.fc1().bias_tensor())
     {
-        auto grad_b1 = runtime.get_output<float>(mlp.fc1().grad_name("bias"));
+        auto grad_b1 = runtime.get_output<float>(mlp.fc1().bias_tensor()->grad());
         REQUIRE(grad_b1.size() == static_cast<size_t>(inter_dim));
     }
     if(mlp.fc2().bias_tensor())
     {
-        auto grad_b2 = runtime.get_output<float>(mlp.fc2().grad_name("bias"));
+        auto grad_b2 = runtime.get_output<float>(mlp.fc2().bias_tensor()->grad());
         REQUIRE(grad_b2.size() == static_cast<size_t>(out_dim));
     }
     if(input->has_grad())
     {
-        auto grad_input = runtime.get_output<float>(input->grad()->name());
+        auto grad_input = runtime.get_output<float>(input->grad());
         REQUIRE(grad_input.size() == static_cast<size_t>(batch * in_dim));
     }
 }

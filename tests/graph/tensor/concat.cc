@@ -167,12 +167,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         b_data[static_cast<size_t>(i)] = static_cast<float>(100 + i);
     }
 
-    runtime.bind_data("a", a_data);
-    runtime.bind_data("b", b_data);
+    runtime.bind_data(a_node,  a_data);
+    runtime.bind_data(b_node,  b_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> got = runtime.get_output<float>("out");
+    std::vector<float> got = runtime.get_output<float>(out_node);
     std::vector<float> expect =
         reference_concat_fortran(a_shape, b_shape, axis, a_data, b_data);
 
@@ -215,11 +215,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("a", a_data);
-        runtime.bind_data("b", b_data);
+        runtime.bind_data(a_node,  a_data);
+        runtime.bind_data(b_node,  b_data);
         runtime.execute();
         runtime.wait();
-        untiled_result = runtime.get_output<float>("out");
+        untiled_result = runtime.get_output<float>(out_node);
     }
 
     std::vector<float> tiled_result;
@@ -240,11 +240,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("a", a_data);
-        runtime.bind_data("b", b_data);
+        runtime.bind_data(a_node,  a_data);
+        runtime.bind_data(b_node,  b_data);
         runtime.execute();
         runtime.wait();
-        tiled_result = runtime.get_output<float>("out");
+        tiled_result = runtime.get_output<float>(out_node);
     }
 
     constexpr float tol = 1e-5f;

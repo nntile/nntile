@@ -544,6 +544,10 @@ set(GRAPH_MODULE_SRC
     "graph/module/rms_norm.cc"
 )
 
+set(GRAPH_DATASET_SRC
+    "graph/dataset/causal_lm_mmap.cc"
+    )
+
 set(GRAPH_MODEL_SRC
     "graph/model/llama/llama_mlp.cc"
     "graph/model/llama/llama_attention.cc"
@@ -564,6 +568,7 @@ set(GRAPH_OPTIM_SRC
 set(GRAPH_TILE_SRC
     "graph/tile/adam_step.cc"
     "graph/tile/adamw_step.cc"
+    "graph/tile/append_tensor_graph_phase.cc"
     "graph/tile/sgd_step.cc"
     "graph/tile/add.cc"
     "graph/tile/add_fiber.cc"
@@ -644,6 +649,7 @@ set(GRAPH_SRC
     ${GRAPH_IO_SRC}
     ${GRAPH_UTIL_SRC}
     ${GRAPH_MODULE_SRC}
+    ${GRAPH_DATASET_SRC}
     ${GRAPH_MODEL_SRC}
     ${GRAPH_OPTIM_SRC}
     ${GRAPH_TILE_SRC}

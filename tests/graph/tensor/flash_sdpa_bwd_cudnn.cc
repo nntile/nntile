@@ -194,22 +194,22 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
         logsumexp_data[i] = 0.1f * static_cast<float>((i % 10) - 5);
     }
 
-    runtime.bind_data("K", K_data);
-    runtime.bind_data("Q", Q_data);
-    runtime.bind_data("V", V_data);
-    runtime.bind_data("A", A_data);
-    runtime.bind_data("dA", dA_data);
-    runtime.bind_data("mask", mask_data);
-    runtime.bind_data("logsumexp", logsumexp_data);
-    runtime.bind_data("dK", dK_data);
-    runtime.bind_data("dQ", dQ_data);
-    runtime.bind_data("dV", dV_data);
+    runtime.bind_data(K_node,  K_data);
+    runtime.bind_data(Q_node,  Q_data);
+    runtime.bind_data(V_node,  V_data);
+    runtime.bind_data(A_node,  A_data);
+    runtime.bind_data(dA_node,  dA_data);
+    runtime.bind_data(mask_node,  mask_data);
+    runtime.bind_data(logsumexp_node,  logsumexp_data);
+    runtime.bind_data(dK_node,  dK_data);
+    runtime.bind_data(dQ_node,  dQ_data);
+    runtime.bind_data(dV_node,  dV_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_dK = runtime.get_output<float>("dK");
-    std::vector<float> graph_dQ = runtime.get_output<float>("dQ");
-    std::vector<float> graph_dV = runtime.get_output<float>("dV");
+    std::vector<float> graph_dK = runtime.get_output<float>(dK_node);
+    std::vector<float> graph_dQ = runtime.get_output<float>(dQ_node);
+    std::vector<float> graph_dV = runtime.get_output<float>(dV_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits kv_traits(kv_shape, kv_shape);
@@ -400,21 +400,21 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("K", K_data);
-        runtime.bind_data("Q", Q_data);
-        runtime.bind_data("V", V_data);
-        runtime.bind_data("A", A_data);
-        runtime.bind_data("dA", dA_data);
-        runtime.bind_data("mask", mask_data);
-        runtime.bind_data("logsumexp", logsumexp_data);
-        runtime.bind_data("dK", dK_data);
-        runtime.bind_data("dQ", dQ_data);
-        runtime.bind_data("dV", dV_data);
+        runtime.bind_data(K_node,  K_data);
+        runtime.bind_data(Q_node,  Q_data);
+        runtime.bind_data(V_node,  V_data);
+        runtime.bind_data(A_node,  A_data);
+        runtime.bind_data(dA_node,  dA_data);
+        runtime.bind_data(mask_node,  mask_data);
+        runtime.bind_data(logsumexp_node,  logsumexp_data);
+        runtime.bind_data(dK_node,  dK_data);
+        runtime.bind_data(dQ_node,  dQ_data);
+        runtime.bind_data(dV_node,  dV_data);
         runtime.execute();
         runtime.wait();
-        return {runtime.get_output<float>("dK"),
-                runtime.get_output<float>("dQ"),
-                runtime.get_output<float>("dV")};
+        return {runtime.get_output<float>(dK_node),
+                runtime.get_output<float>(dQ_node),
+                runtime.get_output<float>(dV_node)};
     };
 
     auto [untiled_dK, untiled_dQ, untiled_dV] = run_graph(false);

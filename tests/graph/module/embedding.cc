@@ -180,11 +180,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<std::int64_t> index_data(4 * 5);
     for(Index i = 0; i < 20; ++i)
         index_data[i] = static_cast<std::int64_t>(i % num_embeddings);
-    runtime.bind_data(index->name(), index_data);
+    runtime.bind_data(index, index_data);
     runtime.execute();
     runtime.wait();
 
-    auto out = runtime.get_output<float>(output->name());
+    auto out = runtime.get_output<float>(output);
     REQUIRE(out.size() == 4 * 5 * embed_dim);
     // output[0,0,:] = vocab[:, index[0,0]]. index[0,0]=0, so first column of vocab
     // In col-major vocab, column 0 is vocab[0:embed_dim]
@@ -229,12 +229,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("index", index_data);
+    runtime.bind_data(index,  index_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_out_colmajor =
-        runtime.get_output<float>(output->name());
+        runtime.get_output<float>(output);
     std::vector<float> nntile_out =
         colmajor_to_rowmajor(nntile_out_colmajor, {batch, seq_len, embed_dim});
 
@@ -290,14 +290,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("index", index_data);
+    runtime.bind_data(index,  index_data);
     runtime.execute();
     runtime.wait();
 
-    auto out = runtime.get_output<float>(output->name());
+    auto out = runtime.get_output<float>(output);
     REQUIRE(out.size() == static_cast<size_t>(batch * seq_len * embed_dim));
 
-    auto grad_vocab = runtime.get_output<float>(emb.grad_name("vocab"));
+    auto grad_vocab = runtime.get_output<float>(emb.vocab_tensor()->grad());
     REQUIRE(grad_vocab.size() ==
         static_cast<size_t>(embed_dim * num_embeddings));
 }

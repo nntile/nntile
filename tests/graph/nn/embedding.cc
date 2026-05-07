@@ -174,12 +174,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("index", index_data);
-    runtime.bind_data("vocab", vocab_data);
+    runtime.bind_data(index,  index_data);
+    runtime.bind_data(vocab,  vocab_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>("embed");
+    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(embed);
     std::vector<float> nntile_out =
         colmajor_to_rowmajor(nntile_out_colmajor, embed_shape);
 
@@ -260,13 +260,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("index", index_data);
-    runtime.bind_data("vocab", vocab_data);
+    runtime.bind_data(index,  index_data);
+    runtime.bind_data(vocab,  vocab_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_grad_vocab_colmajor =
-        runtime.get_output<float>(vocab->grad()->name());
+        runtime.get_output<float>(vocab->grad());
     std::vector<float> nntile_grad_vocab =
         colmajor_to_rowmajor(nntile_grad_vocab_colmajor, vocab_shape);
 

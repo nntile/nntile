@@ -127,6 +127,24 @@ TEST_CASE("Module RegisterNullPointers", "[module]")
         std::invalid_argument);
 }
 
+TEST_CASE("Module RegisterModuleValidation", "[module]")
+{
+    NNGraph g("g");
+    DummyModule root(&g, "root");
+    DummyModule a(&g, "a");
+    DummyModule b(&g, "b");
+
+    REQUIRE_THROWS_AS(root.register_module("", &a), std::invalid_argument);
+    REQUIRE_THROWS_AS(root.register_module("a", &root), std::invalid_argument);
+
+    root.register_module("a", &a);
+    REQUIRE_THROWS_AS(root.register_module("a", &b), std::invalid_argument);
+    REQUIRE_THROWS_AS(root.register_module("b", &a), std::invalid_argument);
+
+    DummyModule other(&g, "other");
+    REQUIRE_THROWS_AS(other.register_module("x", &a), std::invalid_argument);
+}
+
 TEST_CASE("Module RecursiveParametersAndModules", "[module]")
 {
     NNGraph g("module");
@@ -162,6 +180,10 @@ TEST_CASE("Module RecursiveParametersAndModules", "[module]")
             return entry.first == "parent.child.w" &&
                 entry.second == child_param;
         }));
+
+    REQUIRE(g.parameters() == params);
+    REQUIRE(g.named_parameters() == named_params);
+    REQUIRE(g.parameters() == params);
 
     auto children = parent.children();
     REQUIRE(children.size() == 1);

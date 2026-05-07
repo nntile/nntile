@@ -86,12 +86,12 @@ void check_gemm_vs_tensor_api(
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
-    runtime.bind_data("a", a_data);
-    runtime.bind_data("b", b_data);
+    runtime.bind_data(a_node,  a_data);
+    runtime.bind_data(b_node,  b_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("c");
+    std::vector<float> graph_result = runtime.get_output<float>(c_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits a_traits(a_shape, a_shape);
@@ -238,12 +238,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("a", a_data);
-        runtime.bind_data("b", b_data);
+        runtime.bind_data(a_node,  a_data);
+        runtime.bind_data(b_node,  b_data);
         runtime.execute();
         runtime.wait();
 
-        untiled_result = runtime.get_output<float>("c");
+        untiled_result = runtime.get_output<float>(c_node);
     }
 
     // --- Tiled run ---
@@ -269,12 +269,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("a", a_data);
-        runtime.bind_data("b", b_data);
+        runtime.bind_data(a_node,  a_data);
+        runtime.bind_data(b_node,  b_data);
         runtime.execute();
         runtime.wait();
 
-        tiled_result = runtime.get_output<float>("c");
+        tiled_result = runtime.get_output<float>(c_node);
     }
 
     // --- Compare ---

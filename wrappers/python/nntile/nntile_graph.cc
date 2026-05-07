@@ -31,7 +31,7 @@ using pybind11::literals::operator""_a;
 using namespace nntile;
 using namespace nntile::graph;
 
-//! Owns a TileGraph (heap) and TileGraph::Runtime (runtime references the graph).
+//! Owns a TileGraph and its executor (``TileGraph::Runtime`` / TileGraphExecutor).
 struct PyGraphRuntime
 {
     std::shared_ptr<TileGraph> tile_graph;
@@ -56,11 +56,12 @@ struct is_copy_constructible<PyGraphRuntime> : std::false_type {};
 // Helpers for numpy <-> Runtime data transfer
 // ---------------------------------------------------------------------------
 
+template<typename TensorPtr>
 static void runtime_bind_numpy(TileGraph::Runtime& rt,
-                               const std::string& name,
+                               TensorPtr tensor,
                                py::array arr)
 {
-    DataType dt = rt.get_dtype(name);
+    DataType dt = rt.get_dtype(tensor);
     arr = py::array::ensure(arr);
     if(!arr)
         throw std::runtime_error("bind_data: cannot convert to numpy array");
@@ -80,7 +81,7 @@ static void runtime_bind_numpy(TileGraph::Runtime& rt,
             if(!f)
                 throw std::runtime_error(
                     "bind_data: cannot convert to float32 array");
-            rt.bind_data<float>(name, f.data(), count);
+            rt.bind_data<float>(tensor, f.data(), count);
             break;
         }
         case DataType::FP64:
@@ -89,7 +90,7 @@ static void runtime_bind_numpy(TileGraph::Runtime& rt,
             if(!d)
                 throw std::runtime_error(
                     "bind_data: cannot convert to float64 array");
-            rt.bind_data<double>(name, d.data(), count);
+            rt.bind_data<double>(tensor, d.data(), count);
             break;
         }
         case DataType::INT64:
@@ -98,7 +99,7 @@ static void runtime_bind_numpy(TileGraph::Runtime& rt,
             if(!i)
                 throw std::runtime_error(
                     "bind_data: cannot convert to int64 array");
-            rt.bind_data<std::int64_t>(name, i.data(), count);
+            rt.bind_data<std::int64_t>(tensor, i.data(), count);
             break;
         }
         case DataType::BOOL:
@@ -107,7 +108,7 @@ static void runtime_bind_numpy(TileGraph::Runtime& rt,
             if(!b)
                 throw std::runtime_error(
                     "bind_data: cannot convert to bool/uint8 array");
-            rt.bind_data<std::uint8_t>(name, b.data(), count);
+            rt.bind_data<std::uint8_t>(tensor, b.data(), count);
             break;
         }
         default:
@@ -115,10 +116,18 @@ static void runtime_bind_numpy(TileGraph::Runtime& rt,
     }
 }
 
-static py::array runtime_get_numpy(TileGraph::Runtime& rt,
-                                   const std::string& name)
+static void runtime_bind_numpy_nn(PyGraphRuntime& s,
+                                  NNGraph::TensorNode const* tensor,
+                                  py::array arr)
 {
-    DataType dt = rt.get_dtype(name);
+    runtime_bind_numpy(s.runtime, tensor, arr);
+}
+
+template<typename TensorPtr>
+static py::array runtime_get_numpy(TileGraph::Runtime& rt,
+                                   TensorPtr tensor)
+{
+    DataType dt = rt.get_dtype(tensor);
     switch(dt)
     {
         case DataType::FP32:
@@ -128,7 +137,7 @@ static py::array runtime_get_numpy(TileGraph::Runtime& rt,
         case DataType::FP16:
         case DataType::BF16:
         {
-            auto v = rt.get_output<float>(name);
+            auto v = rt.get_output<float>(tensor);
             auto arr = py::array_t<float>(v.size());
             std::memcpy(arr.mutable_data(), v.data(),
                         v.size() * sizeof(float));
@@ -136,7 +145,7 @@ static py::array runtime_get_numpy(TileGraph::Runtime& rt,
         }
         case DataType::FP64:
         {
-            auto v = rt.get_output<double>(name);
+            auto v = rt.get_output<double>(tensor);
             auto arr = py::array_t<double>(v.size());
             std::memcpy(arr.mutable_data(), v.data(),
                         v.size() * sizeof(double));
@@ -144,7 +153,7 @@ static py::array runtime_get_numpy(TileGraph::Runtime& rt,
         }
         case DataType::INT64:
         {
-            auto v = rt.get_output<std::int64_t>(name);
+            auto v = rt.get_output<std::int64_t>(tensor);
             auto arr = py::array_t<std::int64_t>(v.size());
             std::memcpy(arr.mutable_data(), v.data(),
                         v.size() * sizeof(std::int64_t));
@@ -152,7 +161,7 @@ static py::array runtime_get_numpy(TileGraph::Runtime& rt,
         }
         case DataType::BOOL:
         {
-            auto v = rt.get_output<std::uint8_t>(name);
+            auto v = rt.get_output<std::uint8_t>(tensor);
             auto arr = py::array_t<std::uint8_t>(v.size());
             std::memcpy(arr.mutable_data(), v.data(), v.size());
             return arr;
@@ -160,6 +169,12 @@ static py::array runtime_get_numpy(TileGraph::Runtime& rt,
         default:
             throw std::runtime_error("get_output: unsupported dtype");
     }
+}
+
+static py::array runtime_get_numpy_nn(PyGraphRuntime& s,
+                                     NNGraph::TensorNode const* tensor)
+{
+    return runtime_get_numpy(s.runtime, tensor);
 }
 
 // ---------------------------------------------------------------------------
@@ -214,10 +229,6 @@ PYBIND11_MODULE(nntile_graph, m)
         .def_property_readonly("num_data", &TensorGraph::num_data)
         .def_property_readonly("num_ops", &TensorGraph::num_ops)
         .def("data_names", &TensorGraph::data_names)
-        .def("get_tensor_node",
-             static_cast<TensorGraph::TensorNode* (TensorGraph::*)(
-                 const std::string&)>(&TensorGraph::get_tensor_node),
-             "name"_a, py::return_value_policy::reference)
         .def("__repr__", &TensorGraph::to_string)
         .def("to_mermaid", &TensorGraph::to_mermaid);
 
@@ -242,28 +253,38 @@ PYBIND11_MODULE(nntile_graph, m)
         .def("to_mermaid", &TileGraph::to_mermaid);
 
     // -----------------------------------------------------------------------
-    // Graph execution: TileGraph::Runtime (owns TileGraph + runtime)
+    // Graph execution: TileGraphExecutor (Python name ``Runtime``).
     // -----------------------------------------------------------------------
     py::class_<PyGraphRuntime>(
         m,
         "Runtime",
-        "Tile graph executor (C++ TileGraph::Runtime). "
+        "Tile graph executor (C++ TileGraphExecutor, alias TileGraph::Runtime). "
         "Build: TileGraph.from_tensor_graph(nn_graph.tensor_graph()), then Runtime(tile_graph).")
         .def(py::init<std::shared_ptr<TileGraph>>(), "tile_graph"_a)
         .def("compile",
              [](PyGraphRuntime& s) { s.runtime.compile(); })
         .def("bind_data",
-             [](PyGraphRuntime& s, const std::string& n, py::array a) {
-                 runtime_bind_numpy(s.runtime, n, a);
+             [](PyGraphRuntime& s, TensorGraph::TensorNode const* t, py::array a) {
+                 runtime_bind_numpy(s.runtime, t, a);
              },
-             "name"_a, "data"_a)
+             "tensor"_a, "data"_a)
+        .def("bind_data",
+             [](PyGraphRuntime& s, NNGraph::TensorNode const* t, py::array a) {
+                 runtime_bind_numpy_nn(s, t, a);
+             },
+             "tensor"_a, "data"_a)
         .def("execute", [](PyGraphRuntime& s) { s.runtime.execute(); })
         .def("wait", [](PyGraphRuntime& s) { s.runtime.wait(); })
         .def("get_output",
-             [](PyGraphRuntime& s, const std::string& n) {
-                 return runtime_get_numpy(s.runtime, n);
+             [](PyGraphRuntime& s, TensorGraph::TensorNode const* t) {
+                 return runtime_get_numpy(s.runtime, t);
              },
-             "name"_a)
+             "tensor"_a)
+        .def("get_output",
+             [](PyGraphRuntime& s, NNGraph::TensorNode const* t) {
+                 return runtime_get_numpy_nn(s, t);
+             },
+             "tensor"_a)
         .def_property_readonly("is_compiled", [](const PyGraphRuntime& s) {
             return s.runtime.is_compiled();
         });
@@ -316,9 +337,11 @@ PYBIND11_MODULE(nntile_graph, m)
              py::return_value_policy::reference)
         .def("get_tensor",
              static_cast<NNGraph::TensorNode* (NNGraph::*)(
-                 const std::string&)>(&NNGraph::get_tensor),
-             "name"_a, py::return_value_policy::reference)
+                 TensorGraph::TensorNode const*)>(&NNGraph::get_tensor),
+             "tensor_data"_a, py::return_value_policy::reference)
         .def("tensor_names", &NNGraph::tensor_names)
+        .def("parameters", &NNGraph::parameters)
+        .def("named_parameters", &NNGraph::named_parameters)
         .def("tensor_graph",
              [](NNGraph& g) -> TensorGraph* {
                  return &g.tensor_graph();

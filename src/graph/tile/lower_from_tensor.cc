@@ -26,6 +26,16 @@ void lower_tensor_ops_to_tile_graph(
     TileGraph& out,
     const TensorNodeToTileMap& tile_map)
 {
+    lower_tensor_ops_to_tile_graph(tg, out, tile_map, 0, tg.ops().size());
+}
+
+void lower_tensor_ops_to_tile_graph(
+    const TensorGraph& tg,
+    TileGraph& out,
+    const TensorNodeToTileMap& tile_map,
+    size_t op_begin,
+    size_t op_end)
+{
     const TensorGraphTiling* tsch = out.tiling_scheme();
     if(tsch == nullptr)
     {
@@ -33,10 +43,22 @@ void lower_tensor_ops_to_tile_graph(
             "lower_tensor_ops_to_tile_graph: TileGraph has no tiling_scheme");
     }
 
-    const LoweringContext ctx{out, tile_map, *tsch};
-    for(const auto& op : tg.ops())
+    const auto& ops = tg.ops();
+    if(op_end > ops.size())
     {
-        op->lower_to_tile(ctx);
+        throw std::out_of_range(
+            "lower_tensor_ops_to_tile_graph: op_end > num_ops");
+    }
+    if(op_begin > op_end)
+    {
+        throw std::invalid_argument(
+            "lower_tensor_ops_to_tile_graph: op_begin > op_end");
+    }
+
+    const LoweringContext ctx{out, tile_map, *tsch};
+    for(size_t i = op_begin; i < op_end; ++i)
+    {
+        ops[i]->lower_to_tile(ctx);
     }
 }
 

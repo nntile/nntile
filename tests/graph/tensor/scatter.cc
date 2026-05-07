@@ -67,12 +67,12 @@ void check_scatter_vs_tensor_api(const std::vector<Index>& shape)
         src_data[i] = static_cast<float>(Y(i * 2 - 3));
     }
 
-    runtime.bind_data("src", src_data);
-    runtime.bind_data("dst", dst_data);
+    runtime.bind_data(src_node, src_data);
+    runtime.bind_data(dst_node, dst_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("dst");
+    std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path (single-tile: scatter = copy) ---
     nntile::tensor::TensorTraits traits(shape, shape);

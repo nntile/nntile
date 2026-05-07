@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
     std::cout << "=== Linear Layer Forward/Backward Pass ===" << std::endl;
 
     // Bind input data to the external input tensor
-    runtime.bind_data("external_input", input_data);
+    runtime.bind_data(input_tensor, input_data);
 
     // Execute the graph (contains both forward and backward operations)
     auto start = std::chrono::high_resolution_clock::now();
@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
     std::cout << "Output shape: [4, 4] (batch, features)" << std::endl;
 
     // Get output data from the output tensor
-    auto output_data = runtime.get_output<float>(output_tensor->name());
+    auto output_data = runtime.get_output<float>(output_tensor);
     std::cout << "Sample output values: ";
     for (size_t i = 0; i < std::min(size_t(8), output_data.size()); ++i) {
         std::cout << output_data[i] << " ";
@@ -125,11 +125,11 @@ int main(int argc, char** argv) {
 
     // Get gradients (weight is a parameter; input gradient is optional)
     auto grad_weight = runtime.get_output<float>(
-        linear.grad_name("weight"));
+        linear.weight_tensor()->grad());
     std::cout << "Weight grad size: " << grad_weight.size() << std::endl;
     if (input_tensor->has_grad()) {
         auto grad_input = runtime.get_output<float>(
-            input_tensor->grad()->name());
+            input_tensor->grad());
         std::cout << "Input grad size: " << grad_input.size() << std::endl;
     }
 

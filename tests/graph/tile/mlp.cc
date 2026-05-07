@@ -44,8 +44,8 @@ float max_abs_diff(const std::vector<float>& a, const std::vector<float>& b)
 
 void bind_same_weights(
     TileGraph::Runtime& rt,
-    const std::string& w1,
-    const std::string& w2,
+    TensorGraph::TensorNode const* w1,
+    TensorGraph::TensorNode const* w2,
     const std::vector<float>& w1_data,
     const std::vector<float>& w2_data)
 {
@@ -116,22 +116,22 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
 
     TileGraph::Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();
-    rt_ref.bind_data("in", in_data);
+    rt_ref.bind_data(inp_ref, in_data);
     bind_same_weights(
         rt_ref,
-        mlp_ref.fc1().weight_tensor()->name(),
-        mlp_ref.fc2().weight_tensor()->name(),
+        mlp_ref.fc1().weight_tensor()->data(),
+        mlp_ref.fc2().weight_tensor()->data(),
         w1_data,
         w2_data);
     rt_ref.execute();
     rt_ref.wait();
 
     const std::vector<float> out_ref_v =
-        rt_ref.get_output<float>(out_ref->name());
+        rt_ref.get_output<float>(out_ref);
     const std::vector<float> gw1_ref = rt_ref.get_output<float>(
-        mlp_ref.fc1().grad_name("weight"));
+        mlp_ref.fc1().weight_tensor()->grad());
     const std::vector<float> gw2_ref = rt_ref.get_output<float>(
-        mlp_ref.fc2().grad_name("weight"));
+        mlp_ref.fc2().weight_tensor()->grad());
 
     NNGraph g_tile("mlp_tile");
     mod::Mlp mlp_tile(
@@ -165,22 +165,22 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
     TileGraph tile_g = TileGraph::from_tensor_graph(g_tile.tensor_graph());
     TileGraph::Runtime rt_tile(tile_g);
     rt_tile.compile();
-    rt_tile.bind_data("in", in_data);
+    rt_tile.bind_data(inp_tile, in_data);
     bind_same_weights(
         rt_tile,
-        mlp_tile.fc1().weight_tensor()->name(),
-        mlp_tile.fc2().weight_tensor()->name(),
+        mlp_tile.fc1().weight_tensor()->data(),
+        mlp_tile.fc2().weight_tensor()->data(),
         w1_data,
         w2_data);
     rt_tile.execute();
     rt_tile.wait();
 
     const std::vector<float> out_tile_v =
-        rt_tile.get_output<float>(out_tile->name());
+        rt_tile.get_output<float>(out_tile);
     const std::vector<float> gw1_tile = rt_tile.get_output<float>(
-        mlp_tile.fc1().grad_name("weight"));
+        mlp_tile.fc1().weight_tensor()->grad());
     const std::vector<float> gw2_tile = rt_tile.get_output<float>(
-        mlp_tile.fc2().grad_name("weight"));
+        mlp_tile.fc2().weight_tensor()->grad());
 
     constexpr float tol = 1e-4f;
     REQUIRE(max_abs_diff(out_ref_v, out_tile_v) < tol);

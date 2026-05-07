@@ -105,13 +105,13 @@ int main(int argc, char** argv)
 
     std::vector<float> x_data = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
     std::vector<float> y_data = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f};
-    tile_runtime.bind_data("x", x_data);
-    tile_runtime.bind_data("y", y_data);
+    tile_runtime.bind_data(x,  x_data);
+    tile_runtime.bind_data(y,  y_data);
 
     tile_runtime.execute();
     tile_runtime.wait();
 
-    auto z_result = tile_runtime.get_output<float>("z");
+    auto z_result = tile_runtime.get_output<float>(z);
 
     std::cout << "\n=== TileGraph execution results ===" << std::endl;
     std::cout << "  x = [";

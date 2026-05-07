@@ -50,18 +50,18 @@ TEST_CASE("sqrt mixed tile parity", "[graph][tile]")
 
     TileGraph::Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();
-    rt_ref.bind_data("x", x_data);
+    rt_ref.bind_data(x_ref, x_data);
     rt_ref.execute();
     rt_ref.wait();
-    const std::vector<float> out_ref = rt_ref.get_output<float>("s");
+    const std::vector<float> out_ref = rt_ref.get_output<float>(s_ref);
 
     TileGraph tile_g = TileGraph::from_tensor_graph(g_tile);
     TileGraph::Runtime rt_tile(tile_g);
     rt_tile.compile();
-    rt_tile.bind_data("x", x_data);
+    rt_tile.bind_data(x_tile, x_data);
     rt_tile.execute();
     rt_tile.wait();
-    const std::vector<float> out_tile = rt_tile.get_output<float>("s");
+    const std::vector<float> out_tile = rt_tile.get_output<float>(s_tile);
 
     REQUIRE(tt::max_rel_err(out_ref, out_tile) < 5e-4f);
     REQUIRE(tt::frob_rel_err(out_ref, out_tile) < 5e-4f);

@@ -232,13 +232,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("sin", sin_data);
-    runtime.bind_data("cos", cos_data);
-    runtime.bind_data("x", src_data);
+    runtime.bind_data(sin,  sin_data);
+    runtime.bind_data(cos,  cos_data);
+    runtime.bind_data(x,  src_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out = runtime.get_output<float>("y");
+    std::vector<float> nntile_out = runtime.get_output<float>(y);
 
     Index m = sin_nelems;
     Index n = rope_n_for_graph(src_shape, static_cast<Index>(sin_shape.size()));
@@ -296,14 +296,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("sin", sin_data);
-    runtime.bind_data("cos", cos_data);
-    runtime.bind_data("x", src_data);
+    runtime.bind_data(sin,  sin_data);
+    runtime.bind_data(cos,  cos_data);
+    runtime.bind_data(x,  src_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_grad_x =
-        runtime.get_output<float>(x->grad()->name());
+        runtime.get_output<float>(x->grad());
 
     Index m = sin_nelems;
     Index n = rope_n_for_graph(src_shape, static_cast<Index>(sin_shape.size()));

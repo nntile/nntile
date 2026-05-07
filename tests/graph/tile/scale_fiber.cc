@@ -40,11 +40,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_fiber", "[graph]
     std::vector<float> f1(nf);
     std::vector<float> f2(n, 0.f);
     for(Index i = 0; i < nf; ++i) { f1[static_cast<size_t>(i)] = 0.5f + static_cast<float>(i); }
-    rt.bind_data("s", f1);
-    rt.bind_data("d", f2);
+    rt.bind_data(s, f1);
+    rt.bind_data(d, f2);
     rt.execute();
     rt.wait();
-    const std::vector<float> gout = rt.get_output<float>("d");
+    const std::vector<float> gout = rt.get_output<float>(d);
     nntile::tile::Tile<fp32_t> ts(fib), td(full);
     using Y = typename nntile::fp32_t::repr_t;
     { auto A = ts.acquire(STARPU_W), B = td.acquire(STARPU_W);

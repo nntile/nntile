@@ -61,11 +61,11 @@ void check_fill_vs_tensor_api(
 
     // Bind with arbitrary initial data (will be overwritten by fill)
     std::vector<float> init_data(nelems, 0.0f);
-    runtime.bind_data("dst", init_data);
+    runtime.bind_data(dst_node,  init_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("dst");
+    std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits traits(shape, shape);
@@ -157,7 +157,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         runtime.execute();
         runtime.wait();
 
-        untiled_result = runtime.get_output<float>("dst");
+        untiled_result = runtime.get_output<float>(dst_node);
     }
 
     // --- Tiled run ---
@@ -182,7 +182,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         runtime.execute();
         runtime.wait();
 
-        tiled_result = runtime.get_output<float>("dst");
+        tiled_result = runtime.get_output<float>(dst_node);
     }
 
     // --- Compare ---

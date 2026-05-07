@@ -8,7 +8,7 @@
  *
  * @file include/nntile/graph/tile/graph.hh
  * TileGraph - graph operating on tiles. Purely symbolic; use
- * TileGraph::Runtime for execution.
+ * TileGraphExecutor (``TileGraph::Runtime``) for execution.
  *
  * @version 1.1.0
  * */
@@ -86,7 +86,10 @@ inline TileGraph::TensorDescriptor* TileGraph::add_tensor_descriptor(
 {
     auto ptr = std::make_unique<TensorDescriptor>(std::move(desc));
     TensorDescriptor* raw = ptr.get();
-    tensors_by_name_[raw->tensor_name] = raw;
+    if(raw->source_node != nullptr)
+    {
+        tensors_by_source_[raw->source_node] = raw;
+    }
     tensors_.push_back(std::move(ptr));
     return raw;
 }
@@ -106,17 +109,25 @@ inline const TileGraph::TileNode* TileGraph::get_tile_node(
 }
 
 inline TileGraph::TensorDescriptor* TileGraph::get_tensor_descriptor(
-    const std::string& tensor_name)
+    TensorGraph::TensorNode const* source)
 {
-    auto it = tensors_by_name_.find(tensor_name);
-    return it != tensors_by_name_.end() ? it->second : nullptr;
+    if(source == nullptr)
+    {
+        return nullptr;
+    }
+    auto it = tensors_by_source_.find(source);
+    return it != tensors_by_source_.end() ? it->second : nullptr;
 }
 
 inline const TileGraph::TensorDescriptor* TileGraph::get_tensor_descriptor(
-    const std::string& tensor_name) const
+    TensorGraph::TensorNode const* source) const
 {
-    auto it = tensors_by_name_.find(tensor_name);
-    return it != tensors_by_name_.end() ? it->second : nullptr;
+    if(source == nullptr)
+    {
+        return nullptr;
+    }
+    auto it = tensors_by_source_.find(source);
+    return it != tensors_by_source_.end() ? it->second : nullptr;
 }
 
 inline std::string TileGraph::to_string() const

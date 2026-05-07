@@ -37,13 +37,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[gr
     for(Index i=0;i<4;++i) lse[static_cast<size_t>(i)]=0.1f*static_cast<float>(i+1);
     for(Index i=0;i<3*2*2;++i) src[static_cast<size_t>(i)]=0.05f*static_cast<float>(i+1);
     cl[0]=0; cl[1]=1; cl[2]=2; cl[3]=0;
-    r.bind_data("lse", lse);
-    r.bind_data("src", src);
-    r.bind_data("cl", cl);
-    r.bind_data("val", v0);
+    r.bind_data(l, lse);
+    r.bind_data(s, src);
+    r.bind_data(c, cl);
+    r.bind_data(v, v0);
     r.execute();
     r.wait();
-    const auto gout = r.get_output<float>("val");
+    const auto gout = r.get_output<float>(v);
     nntile::tile::Tile<fp32_t> L(leh), S(srh), Vref(vh);
     nntile::tile::Tile<nntile::int64_t> C(clh);
     using Y = typename fp32_t::repr_t;

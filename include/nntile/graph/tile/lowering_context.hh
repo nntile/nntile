@@ -19,7 +19,8 @@
 #include <vector>
 
 // NNTile headers
-#include <nntile/graph/tile/graph.hh>
+#include <nntile/graph/tile/graph_decl.hh>
+#include <nntile/graph/tile/graph_data_node.hh>
 
 namespace nntile::graph
 {

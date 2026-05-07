@@ -197,13 +197,13 @@ void causal_forward_compare_ref(const CausalFixtureSpec& fx)
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("input_ids", ids_data);
+        runtime.bind_data(input_ids,  ids_data);
         bind_rope_inputs(runtime, rope);
         bind_mask_input(runtime, mask, mask_bytes);
         runtime.execute();
         runtime.wait();
 
-        result = runtime.get_output<float>(output->name());
+        result = runtime.get_output<float>(output);
     }
 
     REQUIRE(result.size() == ref_data.size());

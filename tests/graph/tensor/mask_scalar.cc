@@ -81,12 +81,12 @@ void check_mask_scalar_vs_tensor_api(
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
-    runtime.bind_data("mask", mask_data);
-    runtime.bind_data("A", A_data);
+    runtime.bind_data(mask_node,  mask_data);
+    runtime.bind_data(A_node,  A_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("A");
+    std::vector<float> graph_result = runtime.get_output<float>(A_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits A_traits(A_shape, A_shape);
@@ -267,12 +267,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("mask", mask_data);
-        runtime.bind_data("A", A_data);
+        runtime.bind_data(mask_node,  mask_data);
+        runtime.bind_data(A_node,  A_data);
         runtime.execute();
         runtime.wait();
 
-        untiled_result = runtime.get_output<float>("A");
+        untiled_result = runtime.get_output<float>(A_node);
     }
 
     // --- Tiled run ---
@@ -297,12 +297,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("mask", mask_data);
-        runtime.bind_data("A", A_data);
+        runtime.bind_data(mask_node,  mask_data);
+        runtime.bind_data(A_node,  A_data);
         runtime.execute();
         runtime.wait();
 
-        tiled_result = runtime.get_output<float>("A");
+        tiled_result = runtime.get_output<float>(A_node);
     }
 
     // --- Compare ---

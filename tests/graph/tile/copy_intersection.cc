@@ -38,12 +38,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph copy_intersection", "[
     std::vector<float> sv(n), dv(n, 0.f);
     for(Index i=0;i<n;++i) sv[static_cast<size_t>(i)]=static_cast<float>(i+1);
     std::vector<std::int64_t> scv(6, 0);
-    r.bind_data("s", sv);
-    r.bind_data("d", dv);
-    r.bind_data("scratch", scv);
+    r.bind_data(s, sv);
+    r.bind_data(d, dv);
+    r.bind_data(scra, scv);
     r.execute();
     r.wait();
-    const auto gout = r.get_output<float>("d");
+    const auto gout = r.get_output<float>(d);
     nntile::tile::Tile<fp32_t> S(sh), D(sh);
     nntile::tile::Tile<nntile::int64_t> Sc(sc);
     using Y = typename fp32_t::repr_t;

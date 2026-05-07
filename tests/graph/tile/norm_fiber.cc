@@ -45,12 +45,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_fiber", "[graph][
     std::vector<float> v3(n3, 0.f);
     for(Index i = 0; i < n1; ++i) { v1[static_cast<size_t>(i)] = -1.0f; }
     for(Index i = 0; i < n2; ++i) { v2[static_cast<size_t>(i)] = 0.f; }
-    rt.bind_data("s1", v1);
-    rt.bind_data("s2", v2);
-    rt.bind_data("d", v3);
+    rt.bind_data(t1, v1);
+    rt.bind_data(t2, v2);
+    rt.bind_data(d, v3);
     rt.execute();
     rt.wait();
-    const std::vector<float> gout = rt.get_output<float>("d");
+    const std::vector<float> gout = rt.get_output<float>(d);
     nntile::tile::Tile<fp32_t> T1(s1h), T2(s2h), D(dh);
     using Y = typename nntile::fp32_t::repr_t;
     { auto a1 = T1.acquire(STARPU_W), a2 = T2.acquire(STARPU_W), a3 = D.acquire(STARPU_W);

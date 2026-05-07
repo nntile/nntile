@@ -35,10 +35,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph fill matches tile", "[
     TileGraph::Runtime runtime(g);
     runtime.compile();
     std::vector<float> xv(nelems, 0.f);
-    runtime.bind_data("x", xv);
+    runtime.bind_data(x, xv);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>("x");
+    const std::vector<float> gout = runtime.get_output<float>(x);
     nntile::tile::Tile<fp32_t> tx(sh);
     nntile::tile::fill<fp32_t>(v, tx);
     starpu_task_wait_for_all();

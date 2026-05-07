@@ -14,7 +14,6 @@
 
 #include "nntile/graph/tensor/adam_step.hh"
 
-#include <memory>
 #include <stdexcept>
 #include <vector>
 
@@ -71,12 +70,11 @@ void TensorAdamStepOp::lower_to_tile(const LoweringContext& ctx) const
     tile_lower::assert_same_elementwise_layout(grad, first_moment, "ADAM_STEP");
     tile_lower::assert_same_elementwise_layout(grad, second_moment, "ADAM_STEP");
     tile_lower::assert_same_elementwise_layout(grad, p, "ADAM_STEP");
-    auto step_iter = std::make_shared<Index>(num_iter);
     const size_t n = vg.size();
     for(size_t i = 0; i < n; ++i)
     {
-        tile_graph::adam_step(step_iter, (i + 1 == n), beta_1, beta_2, eps, lr,
-            weight_decay, vg[i], vm[i], vv[i], vp[i]);
+        tile_graph::adam_step(num_iter, beta_1, beta_2, eps, lr, weight_decay,
+            vg[i], vm[i], vv[i], vp[i]);
     }
 }
 

@@ -29,7 +29,7 @@ namespace nntile::graph::tensor
 //! Adam step: p = p - lr * m_hat / (sqrt(v_hat) + eps)
 struct TensorAdamStepOp : TensorGraph::OpNode
 {
-    mutable Index num_iter;
+    Index num_iter;
     Scalar beta_1;
     Scalar beta_2;
     Scalar eps;

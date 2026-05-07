@@ -41,11 +41,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum_slice (axis=0)", "
     std::vector<float> sv(nelems);
     for(Index i = 0; i < nelems; ++i) { sv[static_cast<size_t>(i)] = static_cast<float>(i + 1); }
     std::vector<float> dd(nd, 0.f);
-    runtime.bind_data("s", sv);
-    runtime.bind_data("d", dd);
+    runtime.bind_data(s, sv);
+    runtime.bind_data(d, dd);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>("d");
+    const std::vector<float> gout = runtime.get_output<float>(d);
     nntile::tile::Tile<fp32_t> ts(sh), td(dh);
     using Y = typename nntile::fp32_t::repr_t;
     {

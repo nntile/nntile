@@ -35,9 +35,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope_backward", "[grap
     std::vector<float> siv(2), cev(2), dyy(20), dxx(20, 0.01f);
     for(int i=0;i<2;++i){siv[static_cast<size_t>(i)]=0.1f; cev[static_cast<size_t>(i)]=0.2f;}
     for(int i=0;i<20;++i) dyy[static_cast<size_t>(i)]=0.05f*static_cast<float>(i+1);
-    r.bind_data("si", siv); r.bind_data("co", cev); r.bind_data("dy", dyy); r.bind_data("dx", dxx);
+    r.bind_data(si, siv); r.bind_data(co, cev); r.bind_data(dy, dyy); r.bind_data(dx, dxx);
     r.execute(); r.wait();
-    const auto gout = r.get_output<float>("dx");
+    const auto gout = r.get_output<float>(dx);
     nntile::tile::Tile<fp32_t> Si(sh), Co(sh), DY(tsh), DX(tsh);
     using Y = typename fp32_t::repr_t;
     { auto a=Si.acquire(STARPU_W),b=Co.acquire(STARPU_W);

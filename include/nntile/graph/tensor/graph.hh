@@ -8,7 +8,8 @@
  *
  * @file include/nntile/graph/tensor/graph.hh
  * TensorGraph - graph operating on tensors. Purely symbolic; lower to
- * TileGraph and use TileGraph::Runtime for execution.
+ * TileGraph and use TileGraphExecutor (``TileGraph::Runtime``) for execution.
+ * Autograd is handled by ``NNGraph``, not by this class.
  *
  * @version 1.1.0
  * */
@@ -31,12 +32,6 @@ inline TensorGraph::TensorNode* TensorGraph::data(
     const std::string& name,
     DataType dtype)
 {
-    if(data_by_name_.count(name) > 0)
-    {
-        throw std::invalid_argument(
-            "TensorGraph::data: data '" + name + "' already exists");
-    }
-
     auto node = std::make_unique<TensorNode>(
         next_data_id_,
         this,
@@ -47,7 +42,6 @@ inline TensorGraph::TensorNode* TensorGraph::data(
     TensorNode* node_ptr = node.get();
 
     data_.push_back(std::move(node));
-    data_by_name_[name] = node_ptr;
 
     return node_ptr;
 }
@@ -83,18 +77,60 @@ inline void TensorGraph::add_op(std::shared_ptr<OpNode> op_node,
     ops_.push_back(std::move(op_node));
 }
 
-inline TensorGraph::TensorNode* TensorGraph::get_tensor_node(
-    const std::string& name)
+inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase()
 {
-    auto it = data_by_name_.find(name);
-    return it != data_by_name_.end() ? it->second : nullptr;
+    std::vector<TensorNode const*> carried;
+    carried.reserve(data_.size());
+    for(auto const& node : data_)
+    {
+        TensorNode const* t = node.get();
+        if(t->is_input() || t->is_output())
+        {
+            carried.push_back(t);
+        }
+    }
+    return seal_phase(std::move(carried));
 }
 
-inline const TensorGraph::TensorNode* TensorGraph::get_tensor_node(
-    const std::string& name) const
+inline TensorGraph::PhaseSnapshot TensorGraph::seal_phase(
+    std::vector<TensorNode const*> carried)
 {
-    auto it = data_by_name_.find(name);
-    return it != data_by_name_.end() ? it->second : nullptr;
+    PhaseSnapshot snap;
+    snap.op_begin = phase_seal_cursor_;
+    snap.op_end = ops_.size();
+    snap.carried_tensors = std::move(carried);
+    phase_seal_cursor_ = snap.op_end;
+    return snap;
+}
+
+inline void TensorGraph::reset_phase_seal_cursor()
+{
+    phase_seal_cursor_ = 0;
+}
+
+inline void TensorGraph::rename_data_node(TensorNode* node, std::string new_name)
+{
+    if(node == nullptr || node->graph() != this)
+    {
+        throw std::invalid_argument(
+            "TensorGraph::rename_data_node: invalid node");
+    }
+    if(new_name == node->name_)
+    {
+        return;
+    }
+    node->name_ = std::move(new_name);
+}
+
+inline std::vector<std::string> TensorGraph::data_names() const
+{
+    std::vector<std::string> names;
+    names.reserve(data_.size());
+    for(auto const& node : data_)
+    {
+        names.push_back(node->name());
+    }
+    return names;
 }
 
 inline std::vector<AxisDescriptor*> TensorGraph::axis_groups() const

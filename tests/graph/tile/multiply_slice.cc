@@ -40,11 +40,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_slice", "[gra
     std::vector<float> sv(ns), dv(n);
     for(Index i = 0; i < ns; ++i) { sv[static_cast<size_t>(i)] = 0.1f * static_cast<float>(i + 1); }
     for(Index i = 0; i < n; ++i) { dv[static_cast<size_t>(i)] = 0.2f * static_cast<float>(i + 1); }
-    rt.bind_data("s", sv);
-    rt.bind_data("d", dv);
+    rt.bind_data(s, sv);
+    rt.bind_data(d, dv);
     rt.execute();
     rt.wait();
-    const std::vector<float> gout = rt.get_output<float>("d");
+    const std::vector<float> gout = rt.get_output<float>(d);
     nntile::tile::Tile<fp32_t> ts(shs), td(shd);
     using Y = typename nntile::fp32_t::repr_t;
     { auto A = ts.acquire(STARPU_W), B = td.acquire(STARPU_W);

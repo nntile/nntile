@@ -46,12 +46,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sumprod_fiber (axis=0)
         v1[static_cast<size_t>(i)] = static_cast<float>(i + 1);
         v2[static_cast<size_t>(i)] = 0.5f * static_cast<float>(i + 1);
     }
-    runtime.bind_data("s1", v1);
-    runtime.bind_data("s2", v2);
-    runtime.bind_data("d", dd);
+    runtime.bind_data(s1, v1);
+    runtime.bind_data(s2, v2);
+    runtime.bind_data(d, dd);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>("d");
+    const std::vector<float> gout = runtime.get_output<float>(d);
     nntile::tile::Tile<fp32_t> t1(sh), t2(sh), td(dh);
     using Y = typename nntile::fp32_t::repr_t;
     {

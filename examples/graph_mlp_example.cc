@@ -97,7 +97,7 @@ int main(int argc, char** argv) {
     }
 
     // Bind input data to the external input tensor
-    runtime.bind_data("external_input", input_data);
+    runtime.bind_data(input_tensor, input_data);
 
     // Initialize weights (reuse gen from input data generation)
     std::vector<float> w1_data(8 * 16);
@@ -110,8 +110,8 @@ int main(int argc, char** argv) {
         val = dist2(gen);
     }
 
-    runtime.bind_data(mlp.fc1().weight_tensor()->name(), w1_data);
-    runtime.bind_data(mlp.fc2().weight_tensor()->name(), w2_data);
+    runtime.bind_data(mlp.fc1().weight_tensor()->data(), w1_data);
+    runtime.bind_data(mlp.fc2().weight_tensor()->data(), w2_data);
 
     std::cout << "=== MLP Forward/Backward Pass ===" << std::endl;
 
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
     std::cout << "Graph execution time: " << duration << " microseconds" << std::endl;
 
     // Get output data
-    auto output_data = runtime.get_output<float>(output_tensor->name());
+    auto output_data = runtime.get_output<float>(output_tensor);
     std::cout << "Sample output values: ";
     for (size_t i = 0; i < std::min(size_t(8), output_data.size()); ++i) {
         std::cout << output_data[i] << " ";
@@ -135,14 +135,14 @@ int main(int argc, char** argv) {
 
     // Get gradients
     auto grad_w1 = runtime.get_output<float>(
-        mlp.fc1().grad_name("weight"));
+        mlp.fc1().weight_tensor()->grad());
     auto grad_w2 = runtime.get_output<float>(
-        mlp.fc2().grad_name("weight"));
+        mlp.fc2().weight_tensor()->grad());
     std::cout << "Weight1 grad size: " << grad_w1.size() << std::endl;
     std::cout << "Weight2 grad size: " << grad_w2.size() << std::endl;
     if (input_tensor->has_grad()) {
         auto grad_input = runtime.get_output<float>(
-            input_tensor->grad()->name());
+            input_tensor->grad());
         std::cout << "Input grad size: " << grad_input.size() << std::endl;
     } else {
         std::cout << "Input grad not available." << std::endl;

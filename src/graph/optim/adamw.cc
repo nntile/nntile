@@ -40,34 +40,54 @@ AdamW::AdamW(NNGraph* graph,
 {
 }
 
-void AdamW::step()
+void AdamW::step_lr(std::optional<Scalar> lr_override)
 {
+    Scalar const lr_rec = lr_override.value_or(lr_);
     for(auto& ps : param_states_)
     {
+        ps.grad = ps.param->grad();
+        if(ps.grad == nullptr)
+        {
+            throw std::runtime_error(
+                "AdamW::step: parameter '" + ps.name +
+                "' has no gradient tensor; call backward() before step()");
+        }
+
+        NNGraph::TensorNode* first_moment = nullptr;
+        NNGraph::TensorNode* second_moment = nullptr;
         std::string m1_name = ps.name + "_first_moment";
         std::string m2_name = ps.name + "_second_moment";
 
-        auto* first_moment = graph_->tensor(
-            ps.param->shape(), m1_name,
-            ps.param->dtype(), false);
-        first_moment->mark_input(true);
-        first_moment->mark_output(true);
+        if(ps.buffers.empty())
+        {
+            first_moment = graph_->tensor(
+                ps.param->shape(), m1_name,
+                ps.param->dtype(), false);
+            first_moment->mark_input(true);
+            first_moment->mark_output(true);
 
-        auto* second_moment = graph_->tensor(
-            ps.param->shape(), m2_name,
-            ps.param->dtype(), false);
-        second_moment->mark_input(true);
-        second_moment->mark_output(true);
+            second_moment = graph_->tensor(
+                ps.param->shape(), m2_name,
+                ps.param->dtype(), false);
+            second_moment->mark_input(true);
+            second_moment->mark_output(true);
+
+            ps.buffers.emplace_back(m1_name, first_moment);
+            ps.buffers.emplace_back(m2_name, second_moment);
+        }
+        else
+        {
+            first_moment = ps.buffers[0].second;
+            second_moment = ps.buffers[1].second;
+        }
 
         ps.param->mark_input(true);
         ps.param->mark_output(true);
 
         adamw_step(ps.param, ps.grad, first_moment, second_moment,
-                   num_iter_ + 1, beta_1_, beta_2_, eps_, lr_, weight_decay_);
-
-        ps.buffers.emplace_back(m1_name, first_moment);
-        ps.buffers.emplace_back(m2_name, second_moment);
+                   num_iter_ + 1, beta_1_, beta_2_, eps_, lr_rec, weight_decay_);
     }
+    ++num_iter_;
 }
 
 void AdamW::save_config(const std::string& path) const

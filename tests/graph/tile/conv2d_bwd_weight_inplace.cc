@@ -34,9 +34,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph conv2d_bwd_weight_inpl
     std::vector<float> xv(nx), dyd(4), dcd(4,0.f);
     for(Index i=0;i<nx;++i) xv[static_cast<size_t>(i)]=static_cast<float>(i+1);
     for(Index i=0;i<4;++i) dyd[static_cast<size_t>(i)]=static_cast<float>(i+1);
-    r.bind_data("X", xv); r.bind_data("dY", dyd); r.bind_data("dC", dcd);
+    r.bind_data(X, xv); r.bind_data(dY, dyd); r.bind_data(dC, dcd);
     r.execute(); r.wait();
-    const auto gout = r.get_output<float>("dC");
+    const auto gout = r.get_output<float>(dC);
     nntile::tile::Tile<fp32_t> TX(xh), DY(dyh), DC(dch);
     using Yf = typename fp32_t::repr_t;
     { auto a=TX.acquire(STARPU_W),b=DY.acquire(STARPU_W),c=DC.acquire(STARPU_W);

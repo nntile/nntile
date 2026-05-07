@@ -158,14 +158,14 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
         }
     }
 
-    runtime.bind_data("K", K_data);
-    runtime.bind_data("Q", Q_data);
-    runtime.bind_data("mask", mask_data);
-    runtime.bind_data("V", V_data);
+    runtime.bind_data(K_node,  K_data);
+    runtime.bind_data(Q_node,  Q_data);
+    runtime.bind_data(mask_node,  mask_data);
+    runtime.bind_data(V_node,  V_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_A = runtime.get_output<float>("A");
+    std::vector<float> graph_A = runtime.get_output<float>(A_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits K_traits(K_shape, K_shape);
@@ -303,13 +303,13 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("K", K_data);
-        runtime.bind_data("Q", Q_data);
-        runtime.bind_data("mask", mask_data);
-        runtime.bind_data("V", V_data);
+        runtime.bind_data(K_node,  K_data);
+        runtime.bind_data(Q_node,  Q_data);
+        runtime.bind_data(mask_node,  mask_data);
+        runtime.bind_data(V_node,  V_data);
         runtime.execute();
         runtime.wait();
-        return runtime.get_output<float>("A");
+        return runtime.get_output<float>(A_node);
     };
 
     auto untiled_A = run_graph(false);

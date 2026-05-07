@@ -106,12 +106,12 @@ void check_add_fiber_inplace_vs_tensor_api(
         tensor_data[i] = static_cast<float>(Y(-i - 1));
     }
 
-    runtime.bind_data("fiber", fiber_data);
-    runtime.bind_data("tensor", tensor_data);
+    runtime.bind_data(fiber_node,  fiber_data);
+    runtime.bind_data(tensor_node,  tensor_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("tensor");
+    std::vector<float> graph_result = runtime.get_output<float>(tensor_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits fiber_traits(fiber_sh, fiber_sh);
@@ -238,11 +238,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("fiber", fiber_data);
-        runtime.bind_data("tensor", tensor_data);
+        runtime.bind_data(fiber_node,  fiber_data);
+        runtime.bind_data(tensor_node,  tensor_data);
         runtime.execute();
         runtime.wait();
-        untiled_result = runtime.get_output<float>("tensor");
+        untiled_result = runtime.get_output<float>(tensor_node);
     }
 
     std::vector<float> tiled_result;
@@ -262,11 +262,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("fiber", fiber_data);
-        runtime.bind_data("tensor", tensor_data);
+        runtime.bind_data(fiber_node,  fiber_data);
+        runtime.bind_data(tensor_node,  tensor_data);
         runtime.execute();
         runtime.wait();
-        tiled_result = runtime.get_output<float>("tensor");
+        tiled_result = runtime.get_output<float>(tensor_node);
     }
 
     constexpr float tol = 1e-5f;

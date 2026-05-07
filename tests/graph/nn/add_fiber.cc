@@ -180,12 +180,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("fiber", fiber_data);
-    runtime.bind_data("tensor", tensor_data);
+    runtime.bind_data(fiber,  fiber_data);
+    runtime.bind_data(tensor,  tensor_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_out_colmajor = runtime.get_output<float>("out");
+    std::vector<float> nntile_out_colmajor = runtime.get_output<float>(out);
     std::vector<float> nntile_out =
         colmajor_to_rowmajor(nntile_out_colmajor, tensor_shape);
 
@@ -260,15 +260,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("fiber", fiber_data);
-    runtime.bind_data("tensor", tensor_data);
+    runtime.bind_data(fiber,  fiber_data);
+    runtime.bind_data(tensor,  tensor_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_grad_fiber =
-        runtime.get_output<float>(fiber->grad()->name());
+        runtime.get_output<float>(fiber->grad());
     std::vector<float> nntile_grad_tensor_colmajor =
-        runtime.get_output<float>(tensor->grad()->name());
+        runtime.get_output<float>(tensor->grad());
     std::vector<float> nntile_grad_tensor =
         colmajor_to_rowmajor(nntile_grad_tensor_colmajor, tensor_shape);
 

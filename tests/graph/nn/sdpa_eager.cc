@@ -188,17 +188,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("q", q_data);
-    runtime.bind_data("k", k_data);
-    runtime.bind_data("v", v_data);
+    runtime.bind_data(q,  q_data);
+    runtime.bind_data(k,  k_data);
+    runtime.bind_data(v,  v_data);
     if(mask)
-        runtime.bind_data("mask", mask_data);
+        runtime.bind_data(mask,  mask_data);
     runtime.execute();
     runtime.wait();
 
     // --- Forward comparison ---
     std::vector<float> nntile_out_colmajor =
-        runtime.get_output<float>(output->name());
+        runtime.get_output<float>(output);
     std::vector<float> nntile_out_rowmajor =
         colmajor_to_rowmajor(nntile_out_colmajor, shape);
     std::vector<float> nntile_out =
@@ -251,14 +251,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     out_pt.backward(grad_output_pt);
 
     std::vector<float> nntile_grad_q =
-        colmajor_to_rowmajor(
-            runtime.get_output<float>(q->grad()->name()), shape);
+        colmajor_to_rowmajor(runtime.get_output<float>(q->grad()), shape);
     std::vector<float> nntile_grad_k =
-        colmajor_to_rowmajor(
-            runtime.get_output<float>(k->grad()->name()), shape);
+        colmajor_to_rowmajor(runtime.get_output<float>(k->grad()), shape);
     std::vector<float> nntile_grad_v =
-        colmajor_to_rowmajor(
-            runtime.get_output<float>(v->grad()->name()), shape);
+        colmajor_to_rowmajor(runtime.get_output<float>(v->grad()), shape);
 
     compare_float_vectors(nntile_grad_q, q_pt.grad());
     compare_float_vectors(nntile_grad_k, k_pt.grad());

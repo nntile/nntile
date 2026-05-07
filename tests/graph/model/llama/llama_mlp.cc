@@ -237,11 +237,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("input", input_data);
+        runtime.bind_data(input, input_data);
         runtime.execute();
         runtime.wait();
 
-        result = runtime.get_output<float>(output->name());
+        result = runtime.get_output<float>(output);
     }
 
     const float tol = fx.forward_tol;
@@ -298,13 +298,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("input", input_data);
-        runtime.bind_data("grad_output", grad_out_data);
+        runtime.bind_data(input, input_data);
+        runtime.bind_data(grad_output_tensor, grad_out_data);
         runtime.execute();
         runtime.wait();
 
         grad_input_result =
-            runtime.get_output<float>(input->grad()->name());
+            runtime.get_output<float>(input->grad());
     }
 
     const float tol = fx.backward_tol;

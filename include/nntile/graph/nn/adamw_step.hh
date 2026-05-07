@@ -58,7 +58,7 @@ struct NNAdamwStepOp : NNGraph::OpNode
 };
 
 //! AdamW optimizer step. Automatically uses no_grad scope.
-//! Adam with decoupled weight decay.
+//! \p lr is a graph-time scalar (fixed when this op is recorded).
 void adamw_step(
     NNGraph::TensorNode* param,
     NNGraph::TensorNode* grad,

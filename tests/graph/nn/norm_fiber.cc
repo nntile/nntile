@@ -84,11 +84,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data("x", x_data);
+    runtime.bind_data(x,  x_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> out = runtime.get_output<float>("y");
+    std::vector<float> out = runtime.get_output<float>(y);
     const Index expected_size = (axis == 0) ? Index(6) : Index(7);
     REQUIRE(out.size() == static_cast<size_t>(expected_size));
     for(float v : out)

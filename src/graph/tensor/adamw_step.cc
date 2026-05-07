@@ -14,7 +14,6 @@
 
 #include "nntile/graph/tensor/adamw_step.hh"
 
-#include <memory>
 #include <stdexcept>
 #include <vector>
 
@@ -27,8 +26,6 @@
 namespace nntile::graph::tensor
 {
 
-
-
 void adamw_step(Index num_iter, Scalar beta_1, Scalar beta_2,
                 Scalar eps, Scalar lr, Scalar weight_decay,
                 TensorGraph::TensorNode* grad,
@@ -38,15 +35,23 @@ void adamw_step(Index num_iter, Scalar beta_1, Scalar beta_2,
 {
     if(grad == nullptr || first_moment == nullptr ||
        second_moment == nullptr || p == nullptr)
+    {
         throw std::invalid_argument("adamw_step: tensors must be non-null");
+    }
     if(grad->graph() != first_moment->graph() ||
        first_moment->graph() != second_moment->graph() ||
        second_moment->graph() != p->graph())
-        throw std::invalid_argument("adamw_step: tensors must belong to same graph");
+    {
+        throw std::invalid_argument(
+            "adamw_step: tensors must belong to same graph");
+    }
     if(grad->dtype() != first_moment->dtype() ||
        first_moment->dtype() != second_moment->dtype() ||
        second_moment->dtype() != p->dtype())
-        throw std::invalid_argument("adamw_step: tensors must have same dtype");
+    {
+        throw std::invalid_argument(
+            "adamw_step: tensors must have same dtype");
+    }
     validate_same_shape_and_merge(grad, first_moment, "adamw_step");
     validate_same_shape_and_merge(grad, second_moment, "adamw_step");
     validate_same_shape_and_merge(grad, p, "adamw_step");
@@ -71,12 +76,11 @@ void TensorAdamwStepOp::lower_to_tile(const LoweringContext& ctx) const
     tile_lower::assert_same_elementwise_layout(grad, first_moment, "ADAMW_STEP");
     tile_lower::assert_same_elementwise_layout(grad, second_moment, "ADAMW_STEP");
     tile_lower::assert_same_elementwise_layout(grad, p, "ADAMW_STEP");
-    auto step_iter = std::make_shared<Index>(num_iter);
     const size_t n = vg.size();
     for(size_t i = 0; i < n; ++i)
     {
-        tile_graph::adamw_step(step_iter, (i + 1 == n), beta_1, beta_2, eps, lr,
-            weight_decay, vg[i], vm[i], vv[i], vp[i]);
+        tile_graph::adamw_step(num_iter, beta_1, beta_2, eps, lr, weight_decay,
+            vg[i], vm[i], vv[i], vp[i]);
     }
 }
 

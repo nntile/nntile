@@ -436,6 +436,7 @@ set(GRAPH_TENSOR_HDR
     "nntile/graph/tensor/tile_lowering_helpers.hh"
     "nntile/graph/tensor/graph.hh"
     "nntile/graph/tensor/graph_decl.hh"
+    "nntile/graph/tensor/tensor_graph_phase_transform.hh"
     "nntile/graph/tensor/graph_op_node.hh"
     "nntile/graph/tensor/graph_data_node.hh"
     "nntile/graph/tensor/graph_ops.hh"
@@ -518,6 +519,7 @@ set(GRAPH_TILE_HDR
     "nntile/graph/tile.hh"
     "nntile/graph/tile/adam_step.hh"
     "nntile/graph/tile/adamw_step.hh"
+    "nntile/graph/tile/append_tensor_graph_phase.hh"
     "nntile/graph/tile/sgd_step.hh"
     "nntile/graph/tile/add.hh"
     "nntile/graph/tile/add_fiber.hh"
@@ -656,6 +658,10 @@ set(GRAPH_MODULE_HDR
     "nntile/graph/module/rms_norm.hh"
     )
 
+set(GRAPH_DATASET_HDR
+    "nntile/graph/dataset/causal_lm_mmap.hh"
+    )
+
 set(GRAPH_MODEL_HDR
     "nntile/graph/model/llama.hh"
     "nntile/graph/model/llama/llama_config.hh"
@@ -685,6 +691,7 @@ set(GRAPH_HDR
     ${GRAPH_IO_HDR}
     ${GRAPH_UTIL_HDR}
     ${GRAPH_MODULE_HDR}
+    ${GRAPH_DATASET_HDR}
     ${GRAPH_MODEL_HDR}
     ${GRAPH_OPTIM_HDR}
     )

@@ -42,12 +42,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph relu matches tile", "[
     runtime.compile();
     std::vector<float> sv(nelems);
     for(Index i = 0; i < nelems; ++i) { sv[static_cast<size_t>(i)] = static_cast<float>(i) * 0.1f - 0.2f; }
-    runtime.bind_data("s", sv);
+    runtime.bind_data(s, sv);
     std::vector<float> dv(nelems, 0.f);
-    runtime.bind_data("d", dv);
+    runtime.bind_data(d, dv);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>("d");
+    const std::vector<float> gout = runtime.get_output<float>(d);
     nntile::tile::Tile<fp32_t> ts(sh), td(sh);
     using Y = typename nntile::fp32_t::repr_t;
     {
@@ -95,18 +95,18 @@ TEST_CASE("ReLU mixed tile parity (TensorGraph ref vs TileGraph tile)", "[graph]
 
     TileGraph::Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();
-    rt_ref.bind_data("x", x_data);
+    rt_ref.bind_data(x_ref, x_data);
     rt_ref.execute();
     rt_ref.wait();
-    const std::vector<float> y_out_ref = rt_ref.get_output<float>("y");
+    const std::vector<float> y_out_ref = rt_ref.get_output<float>(y_ref_node);
 
     TileGraph tgraph = TileGraph::from_tensor_graph(g_tile);
     TileGraph::Runtime rt_tile(tgraph);
     rt_tile.compile();
-    rt_tile.bind_data("x", x_data);
+    rt_tile.bind_data(x_tile, x_data);
     rt_tile.execute();
     rt_tile.wait();
-    const std::vector<float> y_out_tile = rt_tile.get_output<float>("y");
+    const std::vector<float> y_out_tile = rt_tile.get_output<float>(y_tile_node);
 
     REQUIRE(tt::max_rel_err(y_out_ref, y_out_tile) < 1e-3f);
     REQUIRE(tt::frob_rel_err(y_out_ref, y_out_tile) < 1e-3f);

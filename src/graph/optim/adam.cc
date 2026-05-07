@@ -40,8 +40,9 @@ Adam::Adam(NNGraph* graph,
 {
 }
 
-void Adam::step()
+void Adam::step_lr(std::optional<Scalar> lr_override)
 {
+    Scalar const lr_rec = lr_override.value_or(lr_);
     for(auto& ps : param_states_)
     {
         std::string m1_name = ps.name + "_first_moment";
@@ -63,11 +64,12 @@ void Adam::step()
         ps.param->mark_output(true);
 
         adam_step(ps.param, ps.grad, first_moment, second_moment,
-                  num_iter_ + 1, beta_1_, beta_2_, eps_, lr_, weight_decay_);
+                  num_iter_ + 1, beta_1_, beta_2_, eps_, lr_rec, weight_decay_);
 
         ps.buffers.emplace_back(m1_name, first_moment);
         ps.buffers.emplace_back(m2_name, second_moment);
     }
+    ++num_iter_;
 }
 
 void Adam::save_config(const std::string& path) const

@@ -35,10 +35,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph clear matches tile", "
     runtime.compile();
     std::vector<float> xv(nelems);
     for(Index i = 0; i < nelems; ++i) { xv[static_cast<size_t>(i)] = static_cast<float>(i) + 1.5f; }
-    runtime.bind_data("x", xv);
+    runtime.bind_data(x, xv);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>("x");
+    const std::vector<float> gout = runtime.get_output<float>(x);
     nntile::tile::Tile<fp32_t> tx(sh);
     {
         using Y = typename nntile::fp32_t::repr_t;

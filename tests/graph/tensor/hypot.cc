@@ -70,12 +70,12 @@ void check_hypot_vs_tensor_api(
         src2_data[i] = static_cast<float>(Y(-i - 1));
     }
 
-    runtime.bind_data("src1", src1_data);
-    runtime.bind_data("src2", src2_data);
+    runtime.bind_data(src1_node, src1_data);
+    runtime.bind_data(src2_node, src2_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("dst");
+    std::vector<float> graph_result = runtime.get_output<float>(dst_node);
 
     // --- Direct tensor API path (same input data) ---
     nntile::tensor::TensorTraits traits(shape, shape);
@@ -204,12 +204,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("x", x_data);
-        runtime.bind_data("y", y_data);
+        runtime.bind_data(x_node,  x_data);
+        runtime.bind_data(y_node,  y_data);
         runtime.execute();
         runtime.wait();
 
-        untiled_result = runtime.get_output<float>("dst");
+        untiled_result = runtime.get_output<float>(dst_node);
     }
 
     // --- Tiled run ---
@@ -234,12 +234,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("x", x_data);
-        runtime.bind_data("y", y_data);
+        runtime.bind_data(x_node,  x_data);
+        runtime.bind_data(y_node,  y_data);
         runtime.execute();
         runtime.wait();
 
-        tiled_result = runtime.get_output<float>("dst");
+        tiled_result = runtime.get_output<float>(dst_node);
     }
 
     // --- Compare ---

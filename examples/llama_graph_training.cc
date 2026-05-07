@@ -7,13 +7,33 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file examples/llama_graph_training.cc
- * Llama causal LM on the graph API: random batch data, RoPE, causal mask,
- * optional load/save of config (JSON) and weights (SafeTensors).
+ * Llama causal LM on the graph API: mmap token batches (uint16 stream), RoPE,
+ * causal mask, cross-entropy loss, backward, and AdamW optimizer step.
+ * The training loop records one iteration on ``NNGraph``: forward, loss,
+ * ``backward(retain_graph=true)``, ``optimizer->step()``, then
+ * ``finish_phase()`` and ``lower_and_compile()`` (tiles, compiles, archives).
+ * Persistent tensors use input/output marks; ``finish_phase`` clears NN
+ * autograd by default.
+ * The optimizer advances its internal step count inside
+ * ``step()``; each recorded phase bakes a fixed ``Index`` timestep into tensor
+ * and tile ops (no shared pointer to the counter).  Use ``step(lr)`` for a
+ * per-phase learning rate without changing the optimizer's default LR (e.g.
+ * warmup below).  Auto module tensor suffixes tag repeated forwards so
+ * ``TensorGraph`` names stay unique (see ``enable_auto_tensor_name_phase_suffix``).
+ * Parameters and Adam state reuse tiles when tiling matches (incremental
+ * lowering reuses tile nodes when ``layout_fingerprint`` matches).
+ * ``LlamaCausal`` is a ``Module`` root on the graph (distinct ``name_``);
+ * multiple roots are allowed; ``NNGraph::parameters()`` merges every root tree.
+ * Weights: ``Module::load`` and random init call ``mark_parameters_input_recursive``
+ * so parameters are runtime inputs without a manual loop.
  *
  * Usage:
- *   ./llama_graph_training --output-dir /tmp/out --seq 8 --batch 2
- *   ./llama_graph_training --config cfg.json --load-weights w.safetensors \
- *       --output-dir /tmp/out
+ *   ./llama_graph_training --train-bin /path/train.bin --seq 8 --batch 2
+ *   ./llama_graph_training --train-bin data.bin --tiny --output-dir /tmp/out
+ *   ./llama_graph_training --train-bin data.bin --config cfg.json \
+ *       --load-weights w.safetensors --output-dir /tmp/out
+ *   ./llama_graph_training --train-bin data.bin --tiny --max-batches 100 \
+ *       --warmup-steps 10 --lr 3e-4
  *
  * @version 1.1.0
  * */
@@ -28,19 +48,24 @@
 #include <random>
 #include <stdexcept>
 #include <string>
-#include <vector>
+#include <memory>
 
 #include <nntile.hh>
+#include <nntile/graph/dataset/causal_lm_mmap.hh>
 #include <nntile/graph/model/llama/llama_causal.hh>
 #include <nntile/graph/model/llama/llama_causal_mask.hh>
 #include <nntile/graph/model/llama/llama_config.hh>
 #include <nntile/graph/model/llama/llama_rope.hh>
+#include <nntile/graph/tensor/clear.hh>
 #include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::model::llama;
-using json = nlohmann::json;
+using namespace nntile::graph::dataset;
+using namespace nntile::graph::optim;
 
 namespace
 {
@@ -61,10 +86,21 @@ struct Args
     std::string config_path;
     std::string load_weights;
     std::string output_dir;
+    std::string train_bin;
     Index seq_len = 8;
     Index batch = 2;
     unsigned seed = 42;
     bool use_tiny = false;
+    bool shuffle = false;
+    //! 0 = run all full batches from ``train_bin``.
+    std::size_t max_batches = 0;
+    float learning_rate = 0.001f;
+    float weight_decay = 0.0f;
+    float beta1 = 0.9f;
+    float beta2 = 0.999f;
+    //! Linear LR warmup: ramp from 0 to ``learning_rate`` over this many
+    //! recorded steps (0 = disabled).
+    int warmup_steps = 0;
 };
 
 static int config_get_int(const json& j, const char* key, int default_val)
@@ -228,6 +264,40 @@ static Args parse_args(int argc, char** argv)
         {
             continue;
         }
+        if(take_string_opt(argc, argv, i, "--train-bin", a.train_bin))
+        {
+            continue;
+        }
+        if(take_string_opt(argc, argv, i, "--max-batches", s))
+        {
+            a.max_batches = static_cast<std::size_t>(std::stoull(s));
+            continue;
+        }
+        if(take_string_opt(argc, argv, i, "--lr", s))
+        {
+            a.learning_rate = std::stof(s);
+            continue;
+        }
+        if(take_string_opt(argc, argv, i, "--weight-decay", s))
+        {
+            a.weight_decay = std::stof(s);
+            continue;
+        }
+        if(take_string_opt(argc, argv, i, "--beta1", s))
+        {
+            a.beta1 = std::stof(s);
+            continue;
+        }
+        if(take_string_opt(argc, argv, i, "--beta2", s))
+        {
+            a.beta2 = std::stof(s);
+            continue;
+        }
+        if(take_string_opt(argc, argv, i, "--warmup-steps", s))
+        {
+            a.warmup_steps = std::stoi(s);
+            continue;
+        }
         if(take_string_opt(argc, argv, i, "--seq", s))
         {
             a.seq_len = static_cast<Index>(std::stoll(s));
@@ -248,6 +318,11 @@ static Args parse_args(int argc, char** argv)
             a.use_tiny = true;
             continue;
         }
+        if(arg == "--shuffle")
+        {
+            a.shuffle = true;
+            continue;
+        }
         if(arg == "--help" || arg == "-h")
         {
             std::cout
@@ -257,6 +332,14 @@ static Args parse_args(int argc, char** argv)
                 << "  --load-weights <path> SafeTensors checkpoint\n"
                 << "  --output-dir <path>   write config.json + "
                    "model.safetensors\n"
+                << "  --train-bin <path>    required: uint16 token file\n"
+                << "  --shuffle             shuffle sequence starts\n"
+                << "  --max-batches <N>     cap batches (0 = all)\n"
+                << "  --lr <rate>         AdamW learning rate (default 0.001)\n"
+                << "  --weight-decay <v>  AdamW (default 0)\n"
+                << "  --beta1 / --beta2   AdamW (defaults 0.9 / 0.999)\n"
+                << "  --warmup-steps <N>  linear LR warmup steps "
+                   "(0 = off)\n"
                 << "  --seq <N>             sequence length (default 8)\n"
                 << "  --batch <N>           batch size (default 2)\n"
                 << "  --seed <N>            RNG seed (default 42)\n"
@@ -265,7 +348,11 @@ static Args parse_args(int argc, char** argv)
             std::exit(EXIT_OK);
         }
         if(arg == "--config" || arg == "--load-weights" || arg == "--output-dir"
-            || arg == "--seq" || arg == "--batch" || arg == "--seed")
+            || arg == "--train-bin" || arg == "--seq" || arg == "--batch"
+            || arg == "--seed" || arg == "--max-batches"
+            || arg == "--lr" || arg == "--weight-decay"
+            || arg == "--beta1" || arg == "--beta2"
+            || arg == "--warmup-steps")
         {
             std::cerr << "llama_graph_training: " << arg
                       << " requires a value\n";
@@ -283,17 +370,22 @@ static Args parse_args(int argc, char** argv)
     return a;
 }
 
-static void fill_random_input_ids(
-    std::vector<std::int64_t>& ids,
-    Index vocab_size,
-    std::mt19937_64& gen)
+//! LR for this recorded step: linear warmup from 0 to ``learning_rate`` over
+//! ``warmup_steps`` iterations, then constant ``learning_rate``.
+static Scalar scheduled_lr(Index train_step, Args const& args)
 {
-    std::uniform_int_distribution<std::int64_t> dist(
-        0, static_cast<std::int64_t>(vocab_size - 1));
-    for(auto& v : ids)
+    Scalar const peak = static_cast<Scalar>(args.learning_rate);
+    if(args.warmup_steps <= 0)
     {
-        v = dist(gen);
+        return peak;
     }
+    Index const w = static_cast<Index>(args.warmup_steps);
+    if(train_step + 1 <= w)
+    {
+        return peak * static_cast<Scalar>(train_step + 1)
+            / static_cast<Scalar>(w);
+    }
+    return peak;
 }
 
 //! Standard prefill positions: ``(s, b)`` → ``s`` (HF-style arange per row).
@@ -315,8 +407,7 @@ static void init_random_parameter_hints(
     LlamaCausal& model,
     std::mt19937& gen)
 {
-    auto params = model.named_parameters_recursive();
-    for(const auto& [name, tensor] : params)
+    for(NNGraph::TensorNode* tensor : model.parameters_recursive())
     {
         const auto& shape = tensor->shape();
         Index nelems = 1;
@@ -341,6 +432,40 @@ static void init_random_parameter_hints(
         std::memcpy(bytes.data(), data.data(), bytes.size());
         tensor->data()->set_bind_hint(std::move(bytes));
     }
+    model.mark_parameters_input_recursive();
+}
+
+//! Copy parameter tensor from runtime tiles back into bind hints (for save).
+static void sync_param_hint_from_runtime(
+    TileGraph::Runtime& runtime,
+    NNGraph::TensorNode* t)
+{
+    std::vector<std::uint8_t> bytes;
+    switch(t->dtype())
+    {
+    case DataType::FP64:
+    {
+        auto d = runtime.get_output<double>(t);
+        bytes.resize(d.size() * sizeof(double));
+        std::memcpy(bytes.data(), d.data(), bytes.size());
+        break;
+    }
+    case DataType::INT64:
+    {
+        auto d = runtime.get_output<std::int64_t>(t);
+        bytes.resize(d.size() * sizeof(std::int64_t));
+        std::memcpy(bytes.data(), d.data(), bytes.size());
+        break;
+    }
+    default:
+    {
+        auto d = runtime.get_output<float>(t);
+        bytes.resize(d.size() * sizeof(float));
+        std::memcpy(bytes.data(), d.data(), bytes.size());
+        break;
+    }
+    }
+    t->data()->set_bind_hint(std::move(bytes));
 }
 
 } // namespace
@@ -348,6 +473,12 @@ static void init_random_parameter_hints(
 int main(int argc, char** argv)
 {
     Args args = parse_args(argc, argv);
+
+    if(args.train_bin.empty())
+    {
+        std::cerr << "llama_graph_training: --train-bin <path> is required\n";
+        return EXIT_ERROR;
+    }
 
     LlamaConfig config;
     if(args.use_tiny)
@@ -366,6 +497,12 @@ int main(int argc, char** argv)
     if(args.seq_len > config.max_position_embeddings)
     {
         std::cerr << "Warning: seq_len > max_position_embeddings.\n";
+    }
+
+    if(args.warmup_steps < 0)
+    {
+        std::cerr << "llama_graph_training: --warmup-steps must be >= 0\n";
+        return EXIT_ERROR;
     }
 
     const Index n_seq = args.seq_len;
@@ -413,26 +550,17 @@ int main(int argc, char** argv)
         "attn_mask",
         DataType::BOOL,
         false);
-
-    model.forward(
-        input_ids,
-        rope_sin,
-        rope_cos,
-        attn_mask,
-        nullptr);
-
-    NNGraph::TensorNode* logits = graph.get_tensor("model_logits");
-    if(logits == nullptr)
-    {
-        throw std::runtime_error(
-            "llama_graph_training: missing tensor model_logits");
-    }
-    logits->mark_output(true);
-
     input_ids->mark_input(true);
     rope_sin->mark_input(true);
     rope_cos->mark_input(true);
     attn_mask->mark_input(true);
+
+    auto* labels = graph.tensor(
+        {n_seq, n_batch},
+        "labels",
+        DataType::INT64,
+        false);
+    labels->mark_input(true);
 
     if(!args.load_weights.empty())
     {
@@ -444,16 +572,21 @@ int main(int argc, char** argv)
         init_random_parameter_hints(model, gen);
     }
 
-    for(const auto& [pname, ptensor] : model.named_parameters_recursive())
-    {
-        (void)pname;
-        ptensor->mark_input(true);
-    }
+    auto optimizer = std::make_unique<AdamW>(
+        &graph,
+        &model,
+        static_cast<Scalar>(args.learning_rate),
+        static_cast<Scalar>(args.beta1),
+        static_cast<Scalar>(args.beta2),
+        1e-8,
+        static_cast<Scalar>(args.weight_decay));
 
-    std::mt19937_64 gen64(args.seed);
-    std::vector<std::int64_t> input_data(
-        static_cast<std::size_t>(n_seq * n_batch));
-    fill_random_input_ids(input_data, config.vocab_size, gen64);
+    std::cout << "Optimizer: " << optimizer->repr() << "\n";
+    if(args.warmup_steps > 0)
+    {
+        std::cout << "LR schedule: linear warmup " << args.warmup_steps
+                  << " steps to lr=" << args.learning_rate << "\n";
+    }
 
     std::vector<std::int64_t> pos_data(
         static_cast<std::size_t>(n_seq * n_batch));
@@ -478,32 +611,132 @@ int main(int argc, char** argv)
         n_seq,
         mask_data.data());
 
-    TileGraph tile_graph = TileGraph::from_tensor_graph(
-        graph.tensor_graph());
-    TileGraph::Runtime runtime(tile_graph);
-    runtime.compile();
+    graph.enable_auto_tensor_name_phase_suffix(true);
 
-    runtime.bind_data("input_ids", input_data);
-    runtime.bind_data("rope_sin", sin_data);
-    runtime.bind_data("rope_cos", cos_data);
-    runtime.bind_data("attn_mask", mask_data);
+    const Scalar ce_scale =
+        1.0f / static_cast<Scalar>(n_seq * n_batch);
 
-    auto t0 = std::chrono::high_resolution_clock::now();
-    runtime.execute();
-    runtime.wait();
-    auto t1 = std::chrono::high_resolution_clock::now();
-    auto us = std::chrono::duration_cast<std::chrono::microseconds>(
-        t1 - t0).count();
+    bool bound_optimizer_state = false;
 
-    auto logits_host =
-        runtime.get_output<float>("model_logits");
-    float sum = 0.f;
-    for(float v : logits_host)
+    TokenMemoryMap train_mmap(args.train_bin);
+    CausalLmBatchConfig lcfg;
+    lcfg.n_seq = n_seq;
+    lcfg.n_batch = n_batch;
+    lcfg.shuffle = args.shuffle;
+    lcfg.seed = args.seed;
+    CausalLmBatchIterator train_it(train_mmap, lcfg, config.vocab_size);
+
+    CausalLmBatch mmap_batch;
+    Index train_step = 0;
+
+    for(;;)
     {
-        sum += v;
+        if(!train_it.next(mmap_batch))
+        {
+            break;
+        }
+        if(args.max_batches > 0
+            && train_step >= static_cast<Index>(args.max_batches))
+        {
+            break;
+        }
+
+        for(NNGraph::TensorNode* p : graph.parameters())
+        {
+            if(p->grad() != nullptr)
+            {
+                graph::tensor::clear(p->grad()->data());
+            }
+        }
+
+        NNGraph::TensorNode* logits = model.forward(
+            input_ids,
+            rope_sin,
+            rope_cos,
+            attn_mask,
+            nullptr);
+        if(logits == nullptr)
+        {
+            throw std::runtime_error(
+                "llama_graph_training: model.forward returned null");
+        }
+
+        std::string const loss_name =
+            std::string("loss_s") + std::to_string(train_step);
+        auto* loss = cross_entropy(
+            logits, labels, loss_name, 0, ce_scale, -100);
+        loss->mark_output(true);
+
+        std::string const loss_grad_name = loss_name + "_grad";
+        auto [loss_grad, loss_grad_first] =
+            graph.get_or_create_grad(loss, loss_grad_name);
+        (void)loss_grad_first;
+        graph::tensor::fill(Scalar(1.0), loss_grad->data());
+        loss->backward(true);
+
+        Scalar const step_lr = scheduled_lr(train_step, args);
+        optimizer->step(step_lr);
+
+        graph.finish_phase();
+        graph.lower_and_compile();
+        TileGraph::Runtime& runtime = graph.runtime();
+
+        if(!bound_optimizer_state)
+        {
+            auto state_tensors = optimizer->named_state_tensors();
+            for(const auto& [sname, stensor] : state_tensors)
+            {
+                Index n = 1;
+                for(auto d : stensor->shape())
+                {
+                    n *= d;
+                }
+                std::vector<float> zeros(static_cast<std::size_t>(n), 0.0f);
+                runtime.bind_data(stensor, zeros);
+            }
+            bound_optimizer_state = true;
+        }
+
+        runtime.bind_data(input_ids, mmap_batch.input_ids);
+        runtime.bind_data(labels, mmap_batch.target_ids);
+        runtime.bind_data(rope_sin, sin_data);
+        runtime.bind_data(rope_cos, cos_data);
+        runtime.bind_data(attn_mask, mask_data);
+
+        auto t0 = std::chrono::high_resolution_clock::now();
+        runtime.execute();
+        runtime.wait();
+        auto t1 = std::chrono::high_resolution_clock::now();
+        auto us = std::chrono::duration_cast<std::chrono::microseconds>(
+            t1 - t0).count();
+
+        float loss_val = runtime.get_output<float>(loss)[0];
+        if(args.warmup_steps > 0)
+        {
+            std::cout << "Batch " << static_cast<long long>(train_step)
+                      << "  lr=" << static_cast<float>(step_lr)
+                      << "  loss=" << loss_val << "  (" << us << " us)\n";
+        }
+        else
+        {
+            std::cout << "Batch " << static_cast<long long>(train_step)
+                      << "  loss=" << loss_val << "  (" << us << " us)\n";
+        }
+
+        ++train_step;
     }
-    std::cout << "Forward ok (" << us << " us). Logits checksum (sum): "
-              << sum << "\n";
+
+    if(train_step == 0)
+    {
+        std::cerr
+            << "Warning: no full batches from --train-bin (need at least "
+            << "((seq+1)*batch) uint16 tokens).\n";
+    }
+    else
+    {
+        std::cout << "Processed " << static_cast<long long>(train_step)
+                  << " batch(es) from " << args.train_bin << "\n";
+    }
 
     if(!args.output_dir.empty())
     {
@@ -513,6 +746,10 @@ int main(int argc, char** argv)
         const std::string w_path =
             args.output_dir + "/model.safetensors";
         save_llama_config_json(config, cfg_path);
+        for(NNGraph::TensorNode* ptensor : graph.parameters())
+        {
+            sync_param_hint_from_runtime(graph.runtime(), ptensor);
+        }
         model.save(w_path);
         std::cout << "Wrote " << cfg_path << "\n"
                   << "Wrote " << w_path << "\n";

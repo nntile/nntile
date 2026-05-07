@@ -47,25 +47,20 @@ void run_sgd(
 
 } // namespace
 
-TileSgdStepOp::TileSgdStepOp(const std::shared_ptr<Index>& step_iter_,
-    bool bump_after_, Scalar momentum_, Scalar lr_, Scalar weight_decay_,
-    Scalar dampening_, bool nesterov_, TileGraph::TileNode* grad_,
-    TileGraph::TileNode* velocity_, TileGraph::TileNode* p_)
-    : step_iter(step_iter_),
-      bump_after(bump_after_),
-      momentum(momentum_),
-      lr(lr_),
-      weight_decay(weight_decay_),
-      dampening(dampening_),
-      nesterov(nesterov_),
-      grad(grad_),
-      velocity(velocity_),
-      p(p_)
+TileSgdStepOp::TileSgdStepOp(Index num_iter_, Scalar momentum_, Scalar lr_,
+    Scalar weight_decay_, Scalar dampening_, bool nesterov_,
+    TileGraph::TileNode* grad_, TileGraph::TileNode* velocity_,
+    TileGraph::TileNode* p_)
+    : num_iter(num_iter_)
+    , momentum(momentum_)
+    , lr(lr_)
+    , weight_decay(weight_decay_)
+    , dampening(dampening_)
+    , nesterov(nesterov_)
+    , grad(grad_)
+    , velocity(velocity_)
+    , p(p_)
 {
-    if(!step_iter)
-    {
-        throw std::invalid_argument("TileSgdStepOp: step_iter must be non-null");
-    }
     if(grad == nullptr || velocity == nullptr || p == nullptr)
     {
         throw std::invalid_argument("TileSgdStepOp: tile pointers must be non-null");
@@ -87,48 +82,46 @@ TileSgdStepOp::TileSgdStepOp(const std::shared_ptr<Index>& step_iter_,
     outputs_ = {velocity, p};
 }
 
-void sgd_step(const std::shared_ptr<Index>& step_iter, bool bump_after,
-    Scalar momentum, Scalar lr, Scalar weight_decay, Scalar dampening,
-    bool nesterov, TileGraph::TileNode* grad, TileGraph::TileNode* velocity,
-    TileGraph::TileNode* p)
+void sgd_step(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay,
+    Scalar dampening, bool nesterov, TileGraph::TileNode* grad,
+    TileGraph::TileNode* velocity, TileGraph::TileNode* p)
 {
-    auto op = std::make_shared<TileSgdStepOp>(step_iter, bump_after, momentum,
-        lr, weight_decay, dampening, nesterov, grad, velocity, p);
+    auto op = std::make_shared<TileSgdStepOp>(num_iter, momentum, lr, weight_decay,
+        dampening, nesterov, grad, velocity, p);
     grad->graph()->add_op(op);
 }
 
 void TileSgdStepOp::execute(TileGraph::Runtime& runtime) const
 {
-    const Index cur = *step_iter;
     const DataType dtype = runtime.get_dtype(grad);
     switch(dtype)
     {
         case DataType::FP32:
-            run_sgd<nntile::fp32_t>(runtime, cur, momentum, lr, weight_decay,
+            run_sgd<nntile::fp32_t>(runtime, num_iter, momentum, lr, weight_decay,
                 dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP32_FAST_TF32:
-            run_sgd<nntile::fp32_fast_tf32_t>(runtime, cur, momentum, lr,
+            run_sgd<nntile::fp32_fast_tf32_t>(runtime, num_iter, momentum, lr,
                 weight_decay, dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP32_FAST_FP16:
-            run_sgd<nntile::fp32_fast_fp16_t>(runtime, cur, momentum, lr,
+            run_sgd<nntile::fp32_fast_fp16_t>(runtime, num_iter, momentum, lr,
                 weight_decay, dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP32_FAST_BF16:
-            run_sgd<nntile::fp32_fast_bf16_t>(runtime, cur, momentum, lr,
+            run_sgd<nntile::fp32_fast_bf16_t>(runtime, num_iter, momentum, lr,
                 weight_decay, dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP64:
-            run_sgd<nntile::fp64_t>(runtime, cur, momentum, lr, weight_decay,
+            run_sgd<nntile::fp64_t>(runtime, num_iter, momentum, lr, weight_decay,
                 dampening, nesterov, grad, velocity, p);
             break;
         case DataType::FP16:
-            run_sgd<nntile::fp16_t>(runtime, cur, momentum, lr, weight_decay,
+            run_sgd<nntile::fp16_t>(runtime, num_iter, momentum, lr, weight_decay,
                 dampening, nesterov, grad, velocity, p);
             break;
         case DataType::BF16:
-            run_sgd<nntile::bf16_t>(runtime, cur, momentum, lr, weight_decay,
+            run_sgd<nntile::bf16_t>(runtime, num_iter, momentum, lr, weight_decay,
                 dampening, nesterov, grad, velocity, p);
             break;
         case DataType::INT64:
@@ -138,10 +131,6 @@ void TileSgdStepOp::execute(TileGraph::Runtime& runtime) const
                 " not supported for TileSgdStepOp");
         default:
             throw std::runtime_error("Unsupported data type for TileSgdStepOp");
-    }
-    if(bump_after)
-    {
-        ++(*step_iter);
     }
 }
 

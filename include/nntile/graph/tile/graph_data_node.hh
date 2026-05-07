@@ -76,6 +76,9 @@ public:
     void set_tensor_info(TileGraph::TensorDescriptor* desc,
                          std::vector<Index> coord);
 
+    //! Drop logical-tensor association (retired tiles after relayout).
+    void clear_tensor_info();
+
     void set_bind_hint(std::vector<std::uint8_t> data);
     const std::vector<std::uint8_t>* get_bind_hint() const;
 

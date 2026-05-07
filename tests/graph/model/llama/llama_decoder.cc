@@ -194,12 +194,12 @@ void decoder_forward_compare_ref(const DecoderFixtureSpec& fx)
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("input", input_data);
+        runtime.bind_data(input, input_data);
         bind_rope_inputs(runtime, rope);
         runtime.execute();
         runtime.wait();
 
-        result = runtime.get_output<float>(output->name());
+        result = runtime.get_output<float>(output);
     }
 
     REQUIRE(result.size() == ref_data.size());
@@ -260,14 +260,14 @@ void decoder_backward_compare_ref(const DecoderFixtureSpec& fx)
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("input", input_data);
-        runtime.bind_data("grad_output", grad_out_data);
+        runtime.bind_data(input, input_data);
+        runtime.bind_data(grad_output_tensor, grad_out_data);
         bind_rope_inputs(runtime, rope);
         runtime.execute();
         runtime.wait();
 
         grad_input_result =
-            runtime.get_output<float>(input->grad()->name());
+            runtime.get_output<float>(input->grad());
     }
 
     REQUIRE(grad_input_result.size() == grad_input_ref.size());

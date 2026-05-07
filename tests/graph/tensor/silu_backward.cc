@@ -63,13 +63,13 @@ void check_silu_backward_vs_tensor_api(
         dx_data[i] = 0.0f;
     }
 
-    runtime.bind_data("x", x_data);
-    runtime.bind_data("dy", dy_data);
-    runtime.bind_data("dx", dx_data);
+    runtime.bind_data(x_node,  x_data);
+    runtime.bind_data(dy_node,  dy_data);
+    runtime.bind_data(dx_node, dx_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("dx");
+    std::vector<float> graph_result = runtime.get_output<float>(dx_node);
 
     // --- Direct tensor API path (same input data) ---
     nntile::tensor::TensorTraits traits(shape, shape);
@@ -203,12 +203,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("x", x_data);
-        runtime.bind_data("dy", dy_data);
-        runtime.bind_data("dx", dx_data);
+        runtime.bind_data(x_node,  x_data);
+        runtime.bind_data(dy_node,  dy_data);
+        runtime.bind_data(dx_node, dx_data);
         runtime.execute();
         runtime.wait();
-        untiled_result = runtime.get_output<float>("dx");
+        untiled_result = runtime.get_output<float>(dx_node);
     }
 
     std::vector<float> tiled_result;
@@ -230,12 +230,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("x", x_data);
-        runtime.bind_data("dy", dy_data);
-        runtime.bind_data("dx", dx_data);
+        runtime.bind_data(x_node,  x_data);
+        runtime.bind_data(dy_node,  dy_data);
+        runtime.bind_data(dx_node, dx_data);
         runtime.execute();
         runtime.wait();
-        tiled_result = runtime.get_output<float>("dx");
+        tiled_result = runtime.get_output<float>(dx_node);
     }
 
     constexpr float tol = 1e-5f;

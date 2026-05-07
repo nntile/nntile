@@ -36,11 +36,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding_backward", "
     std::vector<float> ega(12), vga(15);
     for(int i=0;i<12;++i) ega[static_cast<size_t>(i)]=0.5f*static_cast<float>(i+1);
     for(int j=0;j<15;++j) vga[static_cast<size_t>(j)]=0.1f*static_cast<float>(j+1);
-    r.bind_data("index", iv);
-    r.bind_data("eg", ega);
-    r.bind_data("vg", vga);
+    r.bind_data(index, iv);
+    r.bind_data(eg, ega);
+    r.bind_data(vg, vga);
     r.execute(); r.wait();
-    const auto gout = r.get_output<float>("vg");
+    const auto gout = r.get_output<float>(vg);
     nntile::tile::Tile<nntile::int64_t> I(ih);
     nntile::tile::Tile<fp32_t> Eg(egh), Vg(vh);
     using Y = typename fp32_t::repr_t;

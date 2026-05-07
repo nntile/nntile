@@ -49,12 +49,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gemm matches tile", "[
         bv[static_cast<size_t>(i)] = 0.2f * static_cast<float>(i + 1);
     }
     std::vector<float> cv(nelems, 0.f);
-    runtime.bind_data("a", av);
-    runtime.bind_data("b", bv);
-    runtime.bind_data("c", cv);
+    runtime.bind_data(a, av);
+    runtime.bind_data(b, bv);
+    runtime.bind_data(c, cv);
     runtime.execute();
     runtime.wait();
-    const std::vector<float> gout = runtime.get_output<float>("c");
+    const std::vector<float> gout = runtime.get_output<float>(c);
     nntile::tile::Tile<fp32_t> ta(sh), tb(sh), tc(sh);
     using Y = typename nntile::fp32_t::repr_t;
     {

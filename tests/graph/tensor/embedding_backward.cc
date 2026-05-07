@@ -106,13 +106,13 @@ void check_embedding_backward_vs_tensor_api(
         embed_data[i] = 0.1f * static_cast<float>(i % 5);
     }
 
-    runtime.bind_data("index", index_data);
-    runtime.bind_data("embed", embed_data);
-    runtime.bind_data("vocab", vocab_data);
+    runtime.bind_data(index_node,  index_data);
+    runtime.bind_data(embed_node,  embed_data);
+    runtime.bind_data(vocab_node,  vocab_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_result = runtime.get_output<float>("vocab");
+    std::vector<float> graph_result = runtime.get_output<float>(vocab_node);
 
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits index_traits(index_shape, index_shape);
@@ -275,13 +275,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("index", index_data);
-        runtime.bind_data("embed", embed_data);
-        runtime.bind_data("vocab", vocab_data);
+        runtime.bind_data(index_node,  index_data);
+        runtime.bind_data(embed_node,  embed_data);
+        runtime.bind_data(vocab_node,  vocab_data);
         runtime.execute();
         runtime.wait();
 
-        untiled_result = runtime.get_output<float>("vocab");
+        untiled_result = runtime.get_output<float>(vocab_node);
     }
 
     // --- Tiled run ---
@@ -316,13 +316,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data("index", index_data);
-        runtime.bind_data("embed", embed_data);
-        runtime.bind_data("vocab", vocab_data);
+        runtime.bind_data(index_node,  index_data);
+        runtime.bind_data(embed_node,  embed_data);
+        runtime.bind_data(vocab_node,  vocab_data);
         runtime.execute();
         runtime.wait();
 
-        tiled_result = runtime.get_output<float>("vocab");
+        tiled_result = runtime.get_output<float>(vocab_node);
     }
 
     // --- Compare ---
