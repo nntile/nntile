@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/model/llama/llama_decoder.hh"
-#include "nntile/graph/nn/add.hh"
+#include "nntile/graph/nn/ops/add.hh"
 
 #include <stdexcept>
 

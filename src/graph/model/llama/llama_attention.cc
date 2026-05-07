@@ -13,13 +13,13 @@
  * */
 
 #include "nntile/graph/model/llama/llama_attention.hh"
-#include "nntile/graph/nn/concat.hh"
-#include "nntile/graph/nn/gemm.hh"
-#include "nntile/graph/nn/rope.hh"
-#include "nntile/graph/nn/scale_slice.hh"
-#include "nntile/graph/nn/sdpa_eager.hh"
-#include "nntile/graph/nn/transpose.hh"
-#include "nntile/graph/tensor/copy_intersection.hh"
+#include "nntile/graph/nn/ops/concat.hh"
+#include "nntile/graph/nn/ops/gemm.hh"
+#include "nntile/graph/nn/ops/rope.hh"
+#include "nntile/graph/nn/ops/scale_slice.hh"
+#include "nntile/graph/nn/ops/sdpa_eager.hh"
+#include "nntile/graph/nn/ops/transpose.hh"
+#include "nntile/graph/tensor/ops/copy_intersection.hh"
 
 #include <cmath>
 #include <stdexcept>

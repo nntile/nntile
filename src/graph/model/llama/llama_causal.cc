@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/model/llama/llama_causal.hh"
-#include "nntile/graph/nn/transpose.hh"
+#include "nntile/graph/nn/ops/transpose.hh"
 
 #include <stdexcept>
 

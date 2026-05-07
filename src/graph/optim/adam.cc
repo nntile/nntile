@@ -19,7 +19,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "nntile/graph/nn/adam_step.hh"
+#include "nntile/graph/nn/ops/adam_step.hh"
 
 namespace nntile::graph::optim
 {

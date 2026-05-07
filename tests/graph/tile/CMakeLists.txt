@@ -14,12 +14,10 @@
 set(TESTS_TILE_CATCH2
     "adam_step"
     "adamw_step"
-    "append_tensor_graph_phase"
     "add"
     "add_fiber"
     "add_fiber_inplace"
     "add_inplace"
-    "add_mixed_tile"
     "add_slice"
     "add_slice_inplace"
     "clear"
@@ -45,7 +43,6 @@ set(TESTS_TILE_CATCH2
     "logsumexp"
     "mask_scalar"
     "maxsumexp"
-    "mlp"
     "multiply"
     "multiply_fiber"
     "multiply_fiber_inplace"
@@ -81,12 +78,32 @@ set(TESTS_TILE_CATCH2
     "sum_slice"
     "sumprod_fiber"
     "sumprod_slice"
-    "tile_graph"
     "total_sum_accum"
     "transpose"
 )
 
+set(TESTS_TILE_ROOT_CATCH2
+    "append_tensor_graph_phase"
+    "add_mixed_tile"
+    "mlp"
+    "tile_graph"
+)
+
 foreach(test IN LISTS TESTS_TILE_CATCH2)
+    add_test_set(TARGET_NAME tests_graph_tile_ops_${test}
+        EXEC_NAME test_${test}
+        SOURCES ops/${test}.cc
+        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_graph_tile_ops_${test}
+        COV_GLOBAL coverage_graph coverage
+    )
+    target_include_directories(tests_graph_tile_ops_${test} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..)
+endforeach()
+
+foreach(test IN LISTS TESTS_TILE_ROOT_CATCH2)
     add_test_set(TARGET_NAME tests_graph_tile_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
@@ -96,23 +113,25 @@ foreach(test IN LISTS TESTS_TILE_CATCH2)
         COV_GLOBAL coverage_graph coverage
     )
     target_include_directories(tests_graph_tile_${test} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/..)
 endforeach()
 
 if(NNTILE_USE_CUDA)
     foreach(test IN ITEMS flash_sdpa_fwd_cudnn flash_sdpa_bwd_cudnn)
-        add_test_set(TARGET_NAME tests_graph_tile_${test}
+        add_test_set(TARGET_NAME tests_graph_tile_ops_${test}
             EXEC_NAME test_${test}
-            SOURCES ${test}.cc
+            SOURCES ops/${test}.cc
             LINK_LIBRARIES
                 nntile
                 Catch2::Catch2WithMain
                 $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
             COV_ENABLE ${BUILD_COVERAGE}
-            COV_NAME coverage_graph_tile_${test}
+            COV_NAME coverage_graph_tile_ops_${test}
             COV_GLOBAL coverage_graph coverage
         )
-        target_include_directories(tests_graph_tile_${test} PRIVATE
+        target_include_directories(tests_graph_tile_ops_${test} PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}
             ${CMAKE_CURRENT_SOURCE_DIR}/..)
     endforeach()
 endif()

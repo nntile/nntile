@@ -19,7 +19,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "nntile/graph/nn/sgd_step.hh"
+#include "nntile/graph/nn/ops/sgd_step.hh"
 
 namespace nntile::graph::optim
 {

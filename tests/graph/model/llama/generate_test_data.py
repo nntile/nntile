@@ -178,7 +178,7 @@ def fortran_order(arr: np.ndarray) -> np.ndarray:
 
 
 def fortran_order_int64(arr: np.ndarray) -> np.ndarray:
-    """Same layout remap as :func:`fortran_order` for int64 position indices."""
+    """Same layout remap as :func:`fortran_order` for int64 position indices"""
     a = np.asarray(arr, dtype=np.int64)
     return a.ravel("F").reshape(a.shape)
 

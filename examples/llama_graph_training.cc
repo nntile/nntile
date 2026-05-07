@@ -56,7 +56,7 @@
 #include <nntile/graph/model/llama/llama_causal_mask.hh>
 #include <nntile/graph/model/llama/llama_config.hh>
 #include <nntile/graph/model/llama/llama_rope.hh>
-#include <nntile/graph/tensor/clear.hh>
+#include <nntile/graph/tensor/ops/clear.hh>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;

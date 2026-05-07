@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/module/rms_norm.hh"
-#include "nntile/graph/nn/rms_norm.hh"
+#include "nntile/graph/nn/ops/rms_norm.hh"
 
 #include <stdexcept>
 
