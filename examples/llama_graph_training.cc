@@ -36,6 +36,7 @@
  *       --load-weights w.safetensors --output-dir /tmp/out
  *   ./llama_graph_training --train-bin data.bin --tiny --max-batches 100 \
  *       --warmup-steps 10 --lr 3e-4
+ *   ./llama_graph_training --train-bin data.bin --tiny --epochs 3
  *
  * @version 1.1.0
  * */
@@ -95,6 +96,8 @@ struct Args
     bool shuffle = false;
     //! 0 = run all full batches from ``train_bin``.
     std::size_t max_batches = 0;
+    //! Number of passes over ``train_bin`` (iterator reset each epoch).
+    std::size_t epochs = 1;
     float learning_rate = 0.001f;
     float weight_decay = 0.0f;
     float beta1 = 0.9f;
@@ -265,6 +268,11 @@ static Args parse_args(int argc, char **argv)
             a.max_batches = static_cast<std::size_t>(std::stoull(s));
             continue;
         }
+        if (take_string_opt(argc, argv, i, "--epochs", s))
+        {
+            a.epochs = static_cast<std::size_t>(std::stoull(s));
+            continue;
+        }
         if (take_string_opt(argc, argv, i, "--lr", s))
         {
             a.learning_rate = std::stof(s);
@@ -327,6 +335,8 @@ static Args parse_args(int argc, char **argv)
                 << "  --train-bin <path>    required: uint16 token file\n"
                 << "  --shuffle             shuffle sequence starts\n"
                 << "  --max-batches <N>     cap batches (0 = all)\n"
+                << "  --epochs <N>          repeat mmap data this many times "
+                   "(default 1)\n"
                 << "  --lr <rate>         AdamW learning rate (default "
                    "0.001)\n"
                 << "  --weight-decay <v>  AdamW (default 0)\n"
@@ -344,7 +354,7 @@ static Args parse_args(int argc, char **argv)
             arg == "--output-dir" || arg == "--train-bin" || arg == "--seq" ||
             arg == "--batch" || arg == "--seed" || arg == "--max-batches" ||
             arg == "--lr" || arg == "--weight-decay" || arg == "--beta1" ||
-            arg == "--beta2" || arg == "--warmup-steps")
+            arg == "--beta2" || arg == "--warmup-steps" || arg == "--epochs")
         {
             std::cerr << "llama_graph_training: " << arg
                       << " requires a value\n";
@@ -492,6 +502,11 @@ int main(int argc, char **argv)
         std::cerr << "llama_graph_training: --warmup-steps must be >= 0\n";
         return EXIT_ERROR;
     }
+    if (args.epochs == 0)
+    {
+        std::cerr << "llama_graph_training: --epochs must be >= 1\n";
+        return EXIT_ERROR;
+    }
 
     const Index n_seq = args.seq_len;
     const Index n_batch = args.batch;
@@ -502,7 +517,8 @@ int main(int argc, char **argv)
               << "  layers=" << config.num_hidden_layers
               << "  heads=" << config.num_attention_heads
               << "  kv_heads=" << config.num_key_value_heads
-              << "  seq=" << n_seq << "  batch=" << n_batch << "\n";
+              << "  seq=" << n_seq << "  batch=" << n_batch
+              << "  epochs=" << args.epochs << "\n";
 
     Context context(CONTEXT_NUM_CPU,
         CONTEXT_NUM_CUDA,
@@ -592,103 +608,131 @@ int main(int argc, char **argv)
     lcfg.n_batch = n_batch;
     lcfg.shuffle = args.shuffle;
     lcfg.seed = args.seed;
-    CausalLmBatchIterator train_it(train_mmap, lcfg, config.vocab_size);
-
     CausalLmBatch mmap_batch;
     Index train_step = 0;
 
-    for (;;)
+    for (std::size_t epoch = 0; epoch < args.epochs; ++epoch)
     {
-        if (!train_it.next(mmap_batch))
+        if (args.max_batches > 0 &&
+            train_step >= static_cast<Index>(args.max_batches))
         {
             break;
+        }
+        CausalLmBatchIterator train_it(train_mmap, lcfg, config.vocab_size);
+        for (;;)
+        {
+            if (!train_it.next(mmap_batch))
+            {
+                break;
+            }
+            if (args.max_batches > 0 &&
+                train_step >= static_cast<Index>(args.max_batches))
+            {
+                break;
+            }
+
+            if (train_step > 0)
+            {
+                graph.reset_incremental_tile_state();
+            }
+
+            for (NNGraph::TensorNode *p : graph.parameters())
+            {
+                if (p->grad() != nullptr)
+                {
+                    graph::tensor::clear(p->grad()->data());
+                }
+            }
+
+            NNGraph::TensorNode *logits =
+                model.forward(input_ids, rope_sin, rope_cos, attn_mask, nullptr);
+            if (logits == nullptr)
+            {
+                throw std::runtime_error(
+                    "llama_graph_training: model.forward returned null");
+            }
+
+            std::string const loss_name =
+                std::string("loss_s") + std::to_string(train_step);
+            auto *loss = cross_entropy(logits, labels, 0, ce_scale, -100)
+                             ->set_name(loss_name);
+            loss->mark_output(true);
+
+            std::string const loss_grad_name = loss_name + "_grad";
+            auto [loss_grad, loss_grad_first] =
+                graph.get_or_create_grad(loss, loss_grad_name);
+            (void) loss_grad_first;
+            graph::tensor::fill(Scalar(1.0), loss_grad->data());
+            loss->backward(true);
+
+            Scalar const step_lr = scheduled_lr(train_step, args);
+            optimizer->step(step_lr);
+
+            graph.finish_phase();
+            graph.lower_and_compile();
+            Runtime &runtime = graph.runtime();
+
+            if (!bound_optimizer_state)
+            {
+                auto state_tensors = optimizer->named_state_tensors();
+                for (const auto &[sname, stensor] : state_tensors)
+                {
+                    Index n = 1;
+                    for (auto d : stensor->shape())
+                    {
+                        n *= d;
+                    }
+                    std::vector<float> zeros(static_cast<std::size_t>(n), 0.0f);
+                    runtime.bind_data(stensor, zeros);
+                }
+                bound_optimizer_state = true;
+            }
+
+            runtime.bind_data(input_ids, mmap_batch.input_ids);
+            runtime.bind_data(labels, mmap_batch.target_ids);
+            runtime.bind_data(rope_sin, sin_data);
+            runtime.bind_data(rope_cos, cos_data);
+            runtime.bind_data(attn_mask, mask_data);
+
+            auto t0 = std::chrono::high_resolution_clock::now();
+            runtime.execute();
+            runtime.wait();
+            auto t1 = std::chrono::high_resolution_clock::now();
+            auto us =
+                std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0)
+                    .count();
+
+            float loss_val = runtime.get_output<float>(loss)[0];
+            if (args.warmup_steps > 0)
+            {
+                std::cout << "Batch " << static_cast<long long>(train_step)
+                          << "  lr=" << static_cast<float>(step_lr)
+                          << "  loss=" << loss_val << "  (" << us << " us)\n";
+            }
+            else
+            {
+                std::cout << "Batch " << static_cast<long long>(train_step)
+                          << "  loss=" << loss_val << "  (" << us << " us)\n";
+            }
+
+            for (NNGraph::TensorNode *ptensor : graph.parameters())
+            {
+                sync_param_hint_from_runtime(runtime, ptensor);
+            }
+            for (const auto &[sname, stensor] :
+                optimizer->named_state_tensors())
+            {
+                (void) sname;
+                sync_param_hint_from_runtime(runtime, stensor);
+            }
+
+            ++train_step;
         }
         if (args.max_batches > 0 &&
             train_step >= static_cast<Index>(args.max_batches))
         {
             break;
         }
-
-        for (NNGraph::TensorNode *p : graph.parameters())
-        {
-            if (p->grad() != nullptr)
-            {
-                graph::tensor::clear(p->grad()->data());
-            }
-        }
-
-        NNGraph::TensorNode *logits =
-            model.forward(input_ids, rope_sin, rope_cos, attn_mask, nullptr);
-        if (logits == nullptr)
-        {
-            throw std::runtime_error(
-                "llama_graph_training: model.forward returned null");
-        }
-
-        std::string const loss_name =
-            std::string("loss_s") + std::to_string(train_step);
-        auto *loss = cross_entropy(logits, labels, 0, ce_scale, -100)
-                         ->set_name(loss_name);
-        loss->mark_output(true);
-
-        std::string const loss_grad_name = loss_name + "_grad";
-        auto [loss_grad, loss_grad_first] =
-            graph.get_or_create_grad(loss, loss_grad_name);
-        (void) loss_grad_first;
-        graph::tensor::fill(Scalar(1.0), loss_grad->data());
-        loss->backward(true);
-
-        Scalar const step_lr = scheduled_lr(train_step, args);
-        optimizer->step(step_lr);
-
-        graph.finish_phase();
-        graph.lower_and_compile();
-        Runtime &runtime = graph.runtime();
-
-        if (!bound_optimizer_state)
-        {
-            auto state_tensors = optimizer->named_state_tensors();
-            for (const auto &[sname, stensor] : state_tensors)
-            {
-                Index n = 1;
-                for (auto d : stensor->shape())
-                {
-                    n *= d;
-                }
-                std::vector<float> zeros(static_cast<std::size_t>(n), 0.0f);
-                runtime.bind_data(stensor, zeros);
-            }
-            bound_optimizer_state = true;
-        }
-
-        runtime.bind_data(input_ids, mmap_batch.input_ids);
-        runtime.bind_data(labels, mmap_batch.target_ids);
-        runtime.bind_data(rope_sin, sin_data);
-        runtime.bind_data(rope_cos, cos_data);
-        runtime.bind_data(attn_mask, mask_data);
-
-        auto t0 = std::chrono::high_resolution_clock::now();
-        runtime.execute();
-        runtime.wait();
-        auto t1 = std::chrono::high_resolution_clock::now();
-        auto us =
-            std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0)
-                .count();
-
-        float loss_val = runtime.get_output<float>(loss)[0];
-        if (args.warmup_steps > 0)
-        {
-            std::cout << "Batch " << static_cast<long long>(train_step)
-                      << "  lr=" << static_cast<float>(step_lr)
-                      << "  loss=" << loss_val << "  (" << us << " us)\n";
-        }
-        else
-        {
-            std::cout << "Batch " << static_cast<long long>(train_step)
-                      << "  loss=" << loss_val << "  (" << us << " us)\n";
-        }
-
-        ++train_step;
     }
 
     if (train_step == 0)
