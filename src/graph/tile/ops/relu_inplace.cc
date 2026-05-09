@@ -24,7 +24,7 @@ namespace nntile::graph::tile_graph
 namespace
 {
 template<typename T>
-void run(TileGraph::Runtime& runtime, TileGraph::TileNode* d)
+void run(Runtime& runtime, TileGraph::TileNode* d)
 {
     auto& t = runtime.get_tile<T>(d);
     nntile::tile::relu_inplace<T>(t);
@@ -38,7 +38,7 @@ void relu_inplace(TileGraph::TileNode* dst)
     }
     dst->graph()->add_op(std::make_shared<TileReluInplaceOp>(dst));
 }
-void TileReluInplaceOp::execute(TileGraph::Runtime& runtime) const
+void TileReluInplaceOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(dst);
     switch(dtype)

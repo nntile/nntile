@@ -23,7 +23,7 @@ namespace nntile::graph::tile_graph
 namespace
 {
 template<typename T>
-void run(TileGraph::Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax, Index bd)
+void run(Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax, Index bd)
 {
     nntile::tile::scale_fiber<T>(a, rt.get_tile<T>(s), rt.get_tile<T>(d), ax, bd);
 }
@@ -36,7 +36,7 @@ void scale_fiber(Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index
         throw std::invalid_argument("scale_fiber");
     s->graph()->add_op(std::make_shared<TileScaleFiberOp>(a, s, d, axis, batch_ndim));
 }
-void TileScaleFiberOp::execute(TileGraph::Runtime& runtime) const
+void TileScaleFiberOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

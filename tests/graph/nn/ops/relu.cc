@@ -116,7 +116,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     y->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data(x, x_data);
     runtime.execute();
@@ -160,7 +160,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     x->grad()->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data(x, x_data);
     runtime.execute();

@@ -81,7 +81,7 @@ void check_adam_step_vs_tensor_api(const std::vector<Index> &shape,
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> grad_data(nelems);
@@ -316,7 +316,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data(grad_node, grad_data);
@@ -366,7 +366,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data(grad_node, grad_data);

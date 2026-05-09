@@ -73,7 +73,7 @@ TEST_CASE("SGD step mixed tile parity", "[graph][tile]")
 
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref);
 
-    TileGraph::Runtime rt_ref(rt_ref_tile);
+    Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();
     rt_ref.bind_data(tt::tensor_node_named(g_ref, "grad"), grad_h);
     rt_ref.bind_data(tt::tensor_node_named(g_ref, "vel"), vel_h);
@@ -84,7 +84,7 @@ TEST_CASE("SGD step mixed tile parity", "[graph][tile]")
         rt_ref.get_output<float>(tt::tensor_node_named(g_ref, "p"));
 
     TileGraph tile_g = TileGraph::from_tensor_graph(g_tile);
-    TileGraph::Runtime rt_tile(tile_g);
+    Runtime rt_tile(tile_g);
     rt_tile.compile();
     rt_tile.bind_data(tt::tensor_node_named(g_tile, "grad"), grad_h);
     rt_tile.bind_data(tt::tensor_node_named(g_tile, "vel"), vel_h);

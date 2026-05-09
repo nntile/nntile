@@ -29,7 +29,7 @@ namespace
 
 template<typename T>
 void run_pow(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     Scalar alpha,
     Scalar exp,
     TileGraph::TileNode* A)
@@ -50,7 +50,7 @@ void pow(Scalar alpha, Scalar exp, TileGraph::TileNode* A)
     A->graph()->add_op(op);
 }
 
-void TilePowOp::execute(TileGraph::Runtime& runtime) const
+void TilePowOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(A);
 

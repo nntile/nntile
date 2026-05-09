@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run_scale(
-    TileGraph::Runtime& runtime, Scalar alpha, TileGraph::TileNode* s, TileGraph::TileNode* d)
+    Runtime& runtime, Scalar alpha, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
     nntile::tile::scale<T>(alpha, runtime.get_tile<T>(s), runtime.get_tile<T>(d));
 }
@@ -44,7 +44,7 @@ void scale(Scalar alpha, TileGraph::TileNode* src, TileGraph::TileNode* dst)
     auto op = std::make_shared<TileScaleOp>(alpha, src, dst);
     src->graph()->add_op(op);
 }
-void TileScaleOp::execute(TileGraph::Runtime& runtime) const
+void TileScaleOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

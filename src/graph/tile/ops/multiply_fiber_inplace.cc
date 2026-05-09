@@ -23,7 +23,7 @@ namespace nntile::graph::tile_graph
 namespace
 {
 template<typename T>
-void run(TileGraph::Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax)
+void run(Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax)
 {
     nntile::tile::multiply_fiber_inplace<T>(a, rt.get_tile<T>(s), rt.get_tile<T>(d), ax);
 }
@@ -36,7 +36,7 @@ void multiply_fiber_inplace(Scalar a, TileGraph::TileNode* s, TileGraph::TileNod
         throw std::invalid_argument("multiply_fiber_inplace");
     s->graph()->add_op(std::make_shared<TileMultiplyFiberInplaceOp>(a, s, d, axis));
 }
-void TileMultiplyFiberInplaceOp::execute(TileGraph::Runtime& runtime) const
+void TileMultiplyFiberInplaceOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     Scalar a,
     TileGraph::TileNode* lse,
     TileGraph::TileNode* s,
@@ -49,7 +49,7 @@ void total_sum_accum(Scalar a, TileGraph::TileNode* lse, TileGraph::TileNode* sr
     lse->graph()->add_op(
         std::make_shared<TileTotalSumAccumOp>(a, lse, src, labels, val, ignore_index));
 }
-void TileTotalSumAccumOp::execute(TileGraph::Runtime& runtime) const
+void TileTotalSumAccumOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

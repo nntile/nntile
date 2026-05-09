@@ -8,7 +8,7 @@
  *
  * @file include/nntile/graph/dataset/causal_lm_mmap.hh
  * Memory-mapped uint16 token stream and causal LM batch iterator (Fortran
- * ``(seq, batch)`` layout for ``TileGraph::Runtime::bind_data``).
+ * ``(seq, batch)`` layout for ``Runtime::bind_data``).
  *
  * Token files match ``wrappers/python/examples/llama_training.py`` (raw
  * ``uint16``, one token per element). Training windows use ``seq_len + 1``

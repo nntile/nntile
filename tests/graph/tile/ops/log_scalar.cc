@@ -29,7 +29,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph log_scalar runs", "[gr
     v->mark_input(true);
     v->mark_output(true);
     tg::log_scalar("test", v);
-    TileGraph::Runtime r(g);
+    Runtime r(g);
     r.compile();
     std::vector<float> x(1, 1.f);
     r.bind_data(v, x);

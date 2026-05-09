@@ -20,7 +20,7 @@
 #include "nntile/graph/tile/append_tensor_graph_phase.hh"
 
 #include <algorithm>
-#include <nntile/graph/tile/graph_runtime.hh>
+#include <nntile/graph/runtime.hh>
 #include <optional>
 #include <set>
 #include <sstream>
@@ -35,7 +35,7 @@ struct NNGraphExecState
     std::optional<TileGraph> tile_graph;
     TileGraphIncrementalState inc_state;
     TensorNodeToTileMap tile_map;
-    std::optional<TileGraphExecutor> runtime;
+    std::optional<Runtime> runtime;
 };
 
 NNGraph::~NNGraph() = default;
@@ -114,7 +114,7 @@ void NNGraph::lower_and_compile()
     lower_and_compile(TensorGraphTiling::from_tensor_graph(tensor_graph_));
 }
 
-TileGraph::Runtime &NNGraph::runtime()
+Runtime &NNGraph::runtime()
 {
     if (!exec_ || !exec_->runtime.has_value())
     {

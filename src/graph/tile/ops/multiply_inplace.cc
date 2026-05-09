@@ -23,7 +23,7 @@ namespace nntile::graph::tile_graph
 namespace
 {
 template<typename T>
-void run(TileGraph::Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d)
+void run(Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
     nntile::tile::multiply_inplace<T>(a, rt.get_tile<T>(s), rt.get_tile<T>(d));
 }
@@ -40,7 +40,7 @@ void multiply_inplace(Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d)
         throw std::invalid_argument("multiply_inplace: distinct");
     s->graph()->add_op(std::make_shared<TileMultiplyInplaceOp>(a, s, d));
 }
-void TileMultiplyInplaceOp::execute(TileGraph::Runtime& runtime) const
+void TileMultiplyInplaceOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

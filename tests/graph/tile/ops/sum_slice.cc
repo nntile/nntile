@@ -36,7 +36,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum_slice (axis=0)", "
     s->mark_input(true);
     d->mark_output(true);
     tg::sum_slice(a, s, b, d, axis, redux);
-    TileGraph::Runtime runtime(g);
+    Runtime runtime(g);
     runtime.compile();
     std::vector<float> sv(nelems);
     for(Index i = 0; i < nelems; ++i) { sv[static_cast<size_t>(i)] = static_cast<float>(i + 1); }

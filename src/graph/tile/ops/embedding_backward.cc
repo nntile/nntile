@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& runtime, Index a, Index b, Index c, Index ks, Index kz, TileGraph::TileNode* i, TileGraph::TileNode* e, TileGraph::TileNode* v, int r)
+    Runtime& runtime, Index a, Index b, Index c, Index ks, Index kz, TileGraph::TileNode* i, TileGraph::TileNode* e, TileGraph::TileNode* v, int r)
 {
     nntile::tile::embedding_backward<T>(a, b, c, ks, kz, runtime.get_tile<nntile::int64_t>(i), runtime.get_tile<T>(e), runtime.get_tile<T>(v), r);
 }
@@ -43,7 +43,7 @@ void embedding_backward(
     index->graph()->add_op(std::make_shared<TileEmbeddingBackwardOp>(
         m, n, k, k_start, k_size, index, embed, vocab, redux));
 }
-void TileEmbeddingBackwardOp::execute(TileGraph::Runtime& runtime) const
+void TileEmbeddingBackwardOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(vocab);
     switch(dtype)

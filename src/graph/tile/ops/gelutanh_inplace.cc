@@ -28,7 +28,7 @@ namespace
 {
 
 template<typename T>
-void run_gelutanh_inplace(TileGraph::Runtime& runtime, TileGraph::TileNode* d)
+void run_gelutanh_inplace(Runtime& runtime, TileGraph::TileNode* d)
 {
     auto& t = runtime.get_tile<T>(d);
     nntile::tile::gelutanh_inplace<T>(t);
@@ -47,7 +47,7 @@ void gelutanh_inplace(TileGraph::TileNode* dst)
     dst->graph()->add_op(op);
 }
 
-void TileGelutanhInplaceOp::execute(TileGraph::Runtime& runtime) const
+void TileGelutanhInplaceOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(dst);
 

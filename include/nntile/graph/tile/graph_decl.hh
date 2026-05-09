@@ -27,22 +27,18 @@
 // NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/dtype.hh>
-#include <nntile/graph/tensor/graph_data_node.hh>
 #include <nntile/graph/tensor/graph_decl.hh>
+#include <nntile/graph/tensor/graph_data_node.hh>
 #include <nntile/graph/tensor/tensor_graph_tiling.hh>
 
 namespace nntile::graph
 {
-
-class TileGraphExecutor;
 
 //! Tile graph from tensor IR + tiling; optional execution hints later.
 class TileGraph
 {
   public:
     class TileNode;
-    //! Executor (StarPU compile/run); type alias keeps ``TileGraph::Runtime``.
-    using Runtime = TileGraphExecutor;
     class OpNode;
     using NodeId = uint64_t;
 

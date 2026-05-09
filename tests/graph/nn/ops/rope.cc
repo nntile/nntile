@@ -238,7 +238,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     set_rope_heterogeneous_tiling(sin, cos, x);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data(sin, sin_data);
     runtime.bind_data(cos, cos_data);
@@ -308,7 +308,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     set_rope_heterogeneous_tiling(sin, cos, x);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data(sin, sin_data);
     runtime.bind_data(cos, cos_data);

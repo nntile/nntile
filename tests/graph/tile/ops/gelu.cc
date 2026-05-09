@@ -58,7 +58,7 @@ TEST_CASE("GeLU mixed tile parity", "[graph][tile]")
 
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref);
 
-    TileGraph::Runtime rt_ref(rt_ref_tile);
+    Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();
     rt_ref.bind_data(x_ref, x_data);
     rt_ref.execute();
@@ -66,7 +66,7 @@ TEST_CASE("GeLU mixed tile parity", "[graph][tile]")
     const std::vector<float> y_ref = rt_ref.get_output<float>(y_ref_node);
 
     TileGraph tile_g = TileGraph::from_tensor_graph(g_tile);
-    TileGraph::Runtime rt_tile(tile_g);
+    Runtime rt_tile(tile_g);
     rt_tile.compile();
     rt_tile.bind_data(x_tile, x_data);
     rt_tile.execute();

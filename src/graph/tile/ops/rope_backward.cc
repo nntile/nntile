@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& runtime, TileGraph::TileNode* si, TileGraph::TileNode* co, TileGraph::TileNode* y, TileGraph::TileNode* x)
+    Runtime& runtime, TileGraph::TileNode* si, TileGraph::TileNode* co, TileGraph::TileNode* y, TileGraph::TileNode* x)
 {
     nntile::tile::rope_backward<T>(runtime.get_tile<T>(si), runtime.get_tile<T>(co), runtime.get_tile<T>(y), runtime.get_tile<T>(x));
 }
@@ -41,7 +41,7 @@ void rope_backward(TileGraph::TileNode* s1, TileGraph::TileNode* c, TileGraph::T
         throw std::invalid_argument("rope_backward");
     s1->graph()->add_op(std::make_shared<TileRopeBackwardOp>(s1, c, y, x));
 }
-void TileRopeBackwardOp::execute(TileGraph::Runtime& runtime) const
+void TileRopeBackwardOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(dy);
     switch(dtype)

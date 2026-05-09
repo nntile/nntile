@@ -23,7 +23,7 @@ namespace nntile::graph::tile_graph
 namespace
 {
 template<typename T>
-void run_ls(TileGraph::Runtime& runtime, const std::string& n, TileGraph::TileNode* v)
+void run_ls(Runtime& runtime, const std::string& n, TileGraph::TileNode* v)
 {
     nntile::tile::log_scalar<T>(n, runtime.get_tile<T>(v));
 }
@@ -34,7 +34,7 @@ void log_scalar(const std::string& name, TileGraph::TileNode* value)
         throw std::invalid_argument("tile log_scalar: null");
     value->graph()->add_op(std::make_shared<TileLogScalarOp>(name, value));
 }
-void TileLogScalarOp::execute(TileGraph::Runtime& runtime) const
+void TileLogScalarOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(value);
     switch(dtype)

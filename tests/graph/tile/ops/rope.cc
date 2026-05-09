@@ -30,7 +30,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope", "[graph][tile]"
     auto* d = g.data(tsh, "d", DataType::FP32);
     si->mark_input(true); co->mark_input(true); sr->mark_input(true); d->mark_output(true);
     tg::rope(si, co, sr, d);
-    TileGraph::Runtime r(g);
+    Runtime r(g);
     r.compile();
     std::vector<float> sv(2), cv(2), src(20,0.03f);
     for(int i=0;i<2;++i) { sv[static_cast<size_t>(i)]=0.1f*static_cast<float>(i+1);

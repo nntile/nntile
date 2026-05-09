@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& rt, Scalar a, TileGraph::TileNode* t1, Scalar b, TileGraph::TileNode* t2, TileGraph::TileNode* d, Index ax, Index bd, int r)
+    Runtime& rt, Scalar a, TileGraph::TileNode* t1, Scalar b, TileGraph::TileNode* t2, TileGraph::TileNode* d, Index ax, Index bd, int r)
 {
     nntile::tile::norm_fiber<T>(a, rt.get_tile<T>(t1), b, rt.get_tile<T>(t2), rt.get_tile<T>(d), ax, bd, r);
 }
@@ -40,7 +40,7 @@ void norm_fiber(
         throw std::invalid_argument("norm_fiber");
     t1->graph()->add_op(std::make_shared<TileNormFiberOp>(a, t1, b, t2, d, ax, bd, r));
 }
-void TileNormFiberOp::execute(TileGraph::Runtime& runtime) const
+void TileNormFiberOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(s1);
     switch(dtype)

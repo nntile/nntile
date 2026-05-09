@@ -54,7 +54,7 @@ void check_gather_vs_tensor_api(const std::vector<Index> &shape)
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(nelems);

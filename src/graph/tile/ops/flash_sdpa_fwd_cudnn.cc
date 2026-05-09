@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& runtime, TileGraph::TileNode* K_, TileGraph::TileNode* Q_, TileGraph::TileNode* m, TileGraph::TileNode* l, TileGraph::TileNode* V_, TileGraph::TileNode* A_)
+    Runtime& runtime, TileGraph::TileNode* K_, TileGraph::TileNode* Q_, TileGraph::TileNode* m, TileGraph::TileNode* l, TileGraph::TileNode* V_, TileGraph::TileNode* A_)
 {
     nntile::tile::flash_sdpa_fwd_cudnn<T>(runtime.get_tile<T>(K_), runtime.get_tile<T>(Q_), runtime.get_tile<T>(m), runtime.get_tile<nntile::fp32_t>(l), runtime.get_tile<T>(V_), runtime.get_tile<T>(A_));
 }
@@ -42,7 +42,7 @@ void flash_sdpa_fwd_cudnn(
         throw std::invalid_argument("flash_sdpa_fwd_cudnn: logsumexp FP32");
     K->graph()->add_op(std::make_shared<TileFlashSdpaFwdCudnnOp>(K, Q, mask, logsumexp, V, A));
 }
-void TileFlashSdpaFwdCudnnOp::execute(TileGraph::Runtime& runtime) const
+void TileFlashSdpaFwdCudnnOp::execute(Runtime& runtime) const
 {
     // nntile::tile::flash_sdpa_fwd_cudnn is only explicitly instantiated for
     // fp16_t and bf16_t (see src/tile/flash_sdpa_fwd_cudnn.cc).

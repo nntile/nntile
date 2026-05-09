@@ -29,7 +29,7 @@ namespace
 
 template<typename T>
 void run_transpose(
-    TileGraph::Runtime& runtime, Scalar alpha, Index ndim, TileGraph::TileNode* src, TileGraph::TileNode* dst)
+    Runtime& runtime, Scalar alpha, Index ndim, TileGraph::TileNode* src, TileGraph::TileNode* dst)
 {
     auto& s = runtime.get_tile<T>(src);
     auto& d = runtime.get_tile<T>(dst);
@@ -60,7 +60,7 @@ void transpose(Scalar alpha, TileGraph::TileNode* src, TileGraph::TileNode* dst,
     src->graph()->add_op(op);
 }
 
-void TileTransposeOp::execute(TileGraph::Runtime& runtime) const
+void TileTransposeOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

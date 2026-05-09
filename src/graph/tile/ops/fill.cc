@@ -29,7 +29,7 @@ namespace
 
 template<typename T>
 void run_fill(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     Scalar val,
     TileGraph::TileNode* x)
 {
@@ -51,7 +51,7 @@ void fill(Scalar val, TileGraph::TileNode* x)
 }
 
 void TileFillOp::execute(
-    TileGraph::Runtime& runtime) const
+    Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(x);
 

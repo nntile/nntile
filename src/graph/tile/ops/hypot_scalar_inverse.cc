@@ -23,7 +23,7 @@ namespace nntile::graph::tile_graph
 namespace
 {
 template<typename T>
-void run(TileGraph::Runtime& runtime, Scalar e, Scalar a, TileGraph::TileNode* d)
+void run(Runtime& runtime, Scalar e, Scalar a, TileGraph::TileNode* d)
 {
     nntile::tile::hypot_scalar_inverse<T>(e, a, runtime.get_tile<T>(d));
 }
@@ -34,7 +34,7 @@ void hypot_scalar_inverse(Scalar eps, Scalar alpha, TileGraph::TileNode* dst)
         throw std::invalid_argument("tile hypot_scalar_inverse: null");
     dst->graph()->add_op(std::make_shared<TileHypotScalarInverseOp>(eps, alpha, dst));
 }
-void TileHypotScalarInverseOp::execute(TileGraph::Runtime& runtime) const
+void TileHypotScalarInverseOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(dst);
     switch(dtype)

@@ -6,9 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/tile/graph_runtime.hh
- * TileGraphExecutor - compile/execute a TileGraph (alias
- * ``TileGraph::Runtime``).
+ * @file include/nntile/graph/runtime.hh
+ * ``nntile::graph::Runtime`` — compile/execute a ``TileGraph`` (IR only).
  *
  * @version 1.1.0
  * */
@@ -42,13 +41,13 @@ namespace nntile::graph
 {
 
 //! StarPU-backed executor for a TileGraph (IR is separate).
-class TileGraphExecutor
+class Runtime
 {
   public:
     using TileNode = TileGraph::TileNode;
     using OpNode = TileGraph::OpNode;
 
-    explicit TileGraphExecutor(const TileGraph &graph);
+    explicit Runtime(const TileGraph &graph);
 
     void compile();
 
@@ -129,7 +128,7 @@ namespace nntile::graph
 {
 
 // ---------------------------------------------------------------------------
-// TileGraphExecutor template implementation
+// Runtime template implementation
 // ---------------------------------------------------------------------------
 
 namespace tile_graph_bind_detail
@@ -284,7 +283,7 @@ void scatter_logical_tensor(const TensorAxisLayout &lay,
     const std::vector<TileGraph::TileNode *> &tiles,
     const T *host,
     size_t count,
-    TileGraphExecutor &rt)
+    Runtime &rt)
 {
     Index nelems = 1;
     for (Index s : lay.tensor_shape())
@@ -294,14 +293,14 @@ void scatter_logical_tensor(const TensorAxisLayout &lay,
     if (count != static_cast<size_t>(nelems))
     {
         throw std::runtime_error(
-            "TileGraphExecutor::bind_data: dense size mismatch for logical "
+            "Runtime::bind_data: dense size mismatch for logical "
             "tensor");
     }
     const Index vol = lay.grid_volume();
     if (static_cast<Index>(tiles.size()) != vol)
     {
         throw std::runtime_error(
-            "TileGraphExecutor::bind_data: tile vector size mismatch");
+            "Runtime::bind_data: tile vector size mismatch");
     }
     std::vector<Index> gc;
     std::vector<Index> local;
@@ -335,7 +334,7 @@ template <typename T, typename NntileT, typename CastT>
 void gather_logical_tensor(const TensorAxisLayout &lay,
     const std::vector<TileGraph::TileNode *> &tiles,
     std::vector<T> &out,
-    TileGraphExecutor &rt)
+    Runtime &rt)
 {
     Index nelems = 1;
     for (Index s : lay.tensor_shape())
@@ -375,18 +374,18 @@ void gather_logical_tensor(const TensorAxisLayout &lay,
 } // namespace tile_graph_layout_io
 
 template <typename T>
-nntile::tile::Tile<T> &TileGraphExecutor::get_tile(const TileNode *node)
+nntile::tile::Tile<T> &Runtime::get_tile(const TileNode *node)
 {
     auto it = tile_map_.find(node);
     if (it == tile_map_.end())
     {
         throw std::runtime_error(
-            "TileGraphExecutor::get_tile: node not found");
+            "Runtime::get_tile: node not found");
     }
     if (node->dtype() != tile_detail::dtype_for<T>::value)
     {
         throw std::runtime_error(
-            "TileGraphExecutor::get_tile: wrong type (requested type does "
+            "Runtime::get_tile: wrong type (requested type does "
             "not match tile dtype)");
     }
     auto ptr = std::static_pointer_cast<nntile::tile::Tile<T>>(it->second);
@@ -394,20 +393,20 @@ nntile::tile::Tile<T> &TileGraphExecutor::get_tile(const TileNode *node)
 }
 
 template <typename T>
-void TileGraphExecutor::bind_data(
+void Runtime::bind_data(
     TensorGraph::TensorNode const *tensor, const T *data, size_t count)
 {
     if (tensor == nullptr)
     {
         throw std::invalid_argument(
-            "TileGraphExecutor::bind_data: tensor must be non-null");
+            "Runtime::bind_data: tensor must be non-null");
     }
     const TileGraph::TensorDescriptor *desc =
         graph_.get_tensor_descriptor(tensor);
     if (desc == nullptr || desc->source_node != tensor)
     {
         throw std::runtime_error(
-            "TileGraphExecutor::bind_data: tensor has no TileGraph "
+            "Runtime::bind_data: tensor has no TileGraph "
             "descriptor (lower with source_node set)");
     }
     const TensorGraphTiling *tsch = graph_.tiling_scheme();
@@ -420,7 +419,7 @@ void TileGraphExecutor::bind_data(
         if (lay == nullptr)
         {
             throw std::runtime_error(
-                "TileGraphExecutor::bind_data: missing tiling for tensor '" +
+                "Runtime::bind_data: missing tiling for tensor '" +
                 tensor->name() + "'");
         }
         if (!tile_graph_bind_detail::tensor_desc_has_input_tile(*desc) &&
@@ -479,7 +478,7 @@ void TileGraphExecutor::bind_data(
             break;
         default:
             throw std::runtime_error(
-                "TileGraphExecutor::bind_data: unsupported dtype for "
+                "Runtime::bind_data: unsupported dtype for "
                 "logical tensor '" +
                 tensor->name() + "'");
         }
@@ -488,13 +487,13 @@ void TileGraphExecutor::bind_data(
     if (desc->tiles.empty())
     {
         throw std::runtime_error(
-            "TileGraphExecutor::bind_data: descriptor has no tiles");
+            "Runtime::bind_data: descriptor has no tiles");
     }
     TileNode const *tnode = desc->tiles[0];
     if (tile_map_.count(tnode) == 0)
     {
         throw std::runtime_error(
-            "TileGraphExecutor::bind_data: tile storage not allocated");
+            "Runtime::bind_data: tile storage not allocated");
     }
     if (!tnode->is_input() && !tnode->is_output())
     {
@@ -538,49 +537,49 @@ void TileGraphExecutor::bind_data(
 }
 
 template <typename T>
-void TileGraphExecutor::bind_data(
+void Runtime::bind_data(
     TensorGraph::TensorNode const *tensor, const std::vector<T> &data)
 {
     bind_data(tensor, data.data(), data.size());
 }
 
 template <typename T>
-void TileGraphExecutor::bind_data(
+void Runtime::bind_data(
     NNGraph::TensorNode const *tensor, const T *data, size_t count)
 {
     if (tensor == nullptr)
     {
         throw std::invalid_argument(
-            "TileGraphExecutor::bind_data: NN tensor must be non-null");
+            "Runtime::bind_data: NN tensor must be non-null");
     }
     bind_data(tensor->data(), data, count);
 }
 
 template <typename T>
-void TileGraphExecutor::bind_data(
+void Runtime::bind_data(
     NNGraph::TensorNode const *tensor, const std::vector<T> &data)
 {
     if (tensor == nullptr)
     {
         throw std::invalid_argument(
-            "TileGraphExecutor::bind_data: NN tensor must be non-null");
+            "Runtime::bind_data: NN tensor must be non-null");
     }
     bind_data(tensor->data(), data);
 }
 
 template <typename T>
-void TileGraphExecutor::bind_data(
+void Runtime::bind_data(
     TileNode const *tile, const T *data, size_t count)
 {
     if (tile == nullptr)
     {
         throw std::invalid_argument(
-            "TileGraphExecutor::bind_data: tile must be non-null");
+            "Runtime::bind_data: tile must be non-null");
     }
     if (tile_map_.count(tile) == 0)
     {
         throw std::runtime_error(
-            "TileGraphExecutor::bind_data: tile storage not allocated");
+            "Runtime::bind_data: tile storage not allocated");
     }
     if (!tile->is_input() && !tile->is_output())
     {
@@ -624,14 +623,14 @@ void TileGraphExecutor::bind_data(
 }
 
 template <typename T>
-void TileGraphExecutor::bind_data(
+void Runtime::bind_data(
     TileNode const *tile, const std::vector<T> &data)
 {
     bind_data(tile, data.data(), data.size());
 }
 
 template <typename T, typename NntileT, typename CastT>
-void TileGraphExecutor::bind_data_impl(
+void Runtime::bind_data_impl(
     const TileNode *node, const T *data, size_t count)
 {
     auto &tile = get_tile<NntileT>(node);
@@ -649,20 +648,20 @@ void TileGraphExecutor::bind_data_impl(
 }
 
 template <typename T>
-std::vector<T> TileGraphExecutor::get_output(
+std::vector<T> Runtime::get_output(
     TensorGraph::TensorNode const *tensor)
 {
     if (tensor == nullptr)
     {
         throw std::invalid_argument(
-            "TileGraphExecutor::get_output: tensor must be non-null");
+            "Runtime::get_output: tensor must be non-null");
     }
     const TileGraph::TensorDescriptor *desc =
         graph_.get_tensor_descriptor(tensor);
     if (desc == nullptr || desc->source_node != tensor)
     {
         throw std::runtime_error(
-            "TileGraphExecutor::get_output: tensor has no TileGraph "
+            "Runtime::get_output: tensor has no TileGraph "
             "descriptor (lower with source_node set)");
     }
     const TensorGraphTiling *tsch = graph_.tiling_scheme();
@@ -675,7 +674,7 @@ std::vector<T> TileGraphExecutor::get_output(
         if (lay == nullptr)
         {
             throw std::runtime_error(
-                "TileGraphExecutor::get_output: missing tiling for tensor '" +
+                "Runtime::get_output: missing tiling for tensor '" +
                 tensor->name() + "'");
         }
         if (!tile_graph_bind_detail::tensor_desc_has_output_tile(*desc))
@@ -735,7 +734,7 @@ std::vector<T> TileGraphExecutor::get_output(
             break;
         default:
             throw std::runtime_error(
-                "TileGraphExecutor::get_output: unsupported dtype for "
+                "Runtime::get_output: unsupported dtype for "
                 "logical tensor '" +
                 tensor->name() + "'");
         }
@@ -744,13 +743,13 @@ std::vector<T> TileGraphExecutor::get_output(
     if (desc->tiles.empty())
     {
         throw std::runtime_error(
-            "TileGraphExecutor::get_output: descriptor has no tiles");
+            "Runtime::get_output: descriptor has no tiles");
     }
     TileNode const *tnode = desc->tiles[0];
     if (tile_map_.count(tnode) == 0)
     {
         throw std::runtime_error(
-            "TileGraphExecutor::get_output: tile storage not allocated");
+            "Runtime::get_output: tile storage not allocated");
     }
     if (!tnode->is_output())
     {
@@ -797,23 +796,23 @@ std::vector<T> TileGraphExecutor::get_output(
 }
 
 template <typename T>
-std::vector<T> TileGraphExecutor::get_output(NNGraph::TensorNode const *tensor)
+std::vector<T> Runtime::get_output(NNGraph::TensorNode const *tensor)
 {
     if (tensor == nullptr)
     {
         throw std::invalid_argument(
-            "TileGraphExecutor::get_output: NN tensor must be non-null");
+            "Runtime::get_output: NN tensor must be non-null");
     }
     return get_output<T>(tensor->data());
 }
 
 template <typename T>
-std::vector<T> TileGraphExecutor::get_output(TileNode const *tile)
+std::vector<T> Runtime::get_output(TileNode const *tile)
 {
     if (tile == nullptr)
     {
         throw std::invalid_argument(
-            "TileGraphExecutor::get_output: tile must be non-null");
+            "Runtime::get_output: tile must be non-null");
     }
     if (!tile->is_output())
     {
@@ -823,7 +822,7 @@ std::vector<T> TileGraphExecutor::get_output(TileNode const *tile)
     if (tile_map_.count(tile) == 0)
     {
         throw std::runtime_error(
-            "TileGraphExecutor::get_output: tile storage not allocated");
+            "Runtime::get_output: tile storage not allocated");
     }
     DataType dtype = tile->dtype();
     std::vector<T> result;
@@ -863,7 +862,7 @@ std::vector<T> TileGraphExecutor::get_output(TileNode const *tile)
 }
 
 template <typename T, typename NntileT, typename CastT>
-void TileGraphExecutor::get_output_impl(
+void Runtime::get_output_impl(
     const TileNode *node, std::vector<T> &result)
 {
     auto &tile_buf = get_tile<NntileT>(node);
@@ -876,13 +875,13 @@ void TileGraphExecutor::get_output_impl(
     tile_local.release();
 }
 
-inline DataType TileGraphExecutor::get_dtype(
+inline DataType Runtime::get_dtype(
     NNGraph::TensorNode const *tensor) const
 {
     if (tensor == nullptr)
     {
         throw std::invalid_argument(
-            "TileGraphExecutor::get_dtype: NN tensor must be non-null");
+            "Runtime::get_dtype: NN tensor must be non-null");
     }
     return get_dtype(tensor->data());
 }

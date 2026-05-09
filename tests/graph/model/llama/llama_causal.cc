@@ -197,7 +197,7 @@ void causal_forward_compare_ref(const CausalFixtureSpec &fx)
         TensorGraph &tg = g.tensor_graph();
         TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data(input_ids, ids_data);
         bind_rope_inputs(runtime, rope);

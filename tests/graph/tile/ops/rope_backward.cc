@@ -30,7 +30,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph rope_backward", "[grap
     si->mark_input(true); co->mark_input(true); dy->mark_input(true);
     dx->mark_input(true); dx->mark_output(true);
     tg::rope_backward(si, co, dy, dx);
-    TileGraph::Runtime r(g);
+    Runtime r(g);
     r.compile();
     std::vector<float> siv(2), cev(2), dyy(20), dxx(20, 0.01f);
     for(int i=0;i<2;++i){siv[static_cast<size_t>(i)]=0.1f; cev[static_cast<size_t>(i)]=0.2f;}

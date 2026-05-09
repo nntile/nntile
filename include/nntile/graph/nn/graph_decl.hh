@@ -34,6 +34,8 @@
 namespace nntile::graph
 {
 
+class Runtime;
+
 namespace module
 {
 class Module;
@@ -133,7 +135,7 @@ class NNGraph
     void lower_and_compile();
 
     //! StarPU executor after ``lower_and_compile`` (bind / execute / outputs).
-    TileGraph::Runtime &runtime();
+    Runtime &runtime();
 
     //! Whether ``lower_and_compile`` has run at least once.
     bool has_runtime() const;
@@ -143,7 +145,7 @@ class NNGraph
         NNGraph &nn_graph_for_suffix,
         TensorGraphTiling const &tiling,
         TileGraph &tile_graph,
-        TileGraph::Runtime &runtime,
+        Runtime &runtime,
         TileGraphIncrementalState &state,
         TensorNodeToTileMap &tile_map,
         bool archive_phase);

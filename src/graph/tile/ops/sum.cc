@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run_sum(
-    TileGraph::Runtime& runtime, Scalar a, Scalar b, TileGraph::TileNode* s, TileGraph::TileNode* d)
+    Runtime& runtime, Scalar a, Scalar b, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
     nntile::tile::sum<T>(a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d));
 }
@@ -41,7 +41,7 @@ void sum(Scalar alpha, TileGraph::TileNode* src, Scalar beta, TileGraph::TileNod
         throw std::invalid_argument("tile sum: distinct");
     src->graph()->add_op(std::make_shared<TileSumOp>(alpha, beta, src, dst));
 }
-void TileSumOp::execute(TileGraph::Runtime& runtime) const
+void TileSumOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

@@ -6,13 +6,13 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/graph/tile/graph_runtime.cc
- * TileGraphExecutor implementation.
+ * @file src/graph/runtime.cc
+ * Runtime implementation.
  *
  * @version 1.1.0
  * */
 
-#include "nntile/graph/tile/graph_runtime.hh"
+#include "nntile/graph/runtime.hh"
 
 // TileGraph::get_tensor_descriptor is inline in graph.hh; this TU must see
 // the definition when calling it on const TileGraph&.
@@ -48,7 +48,7 @@ void allocate_tile_and_register(const TileGraph::TileNode *node,
 
 void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
     const TileGraph::TensorDescriptor &td,
-    TileGraphExecutor &rt)
+    Runtime &rt)
 {
     const TensorGraph::TensorNode *src = td.source_node;
     if (src == nullptr)
@@ -64,7 +64,7 @@ void apply_multitile_bind_hint_from_source(const TensorGraphTiling &tsch,
     if (lay == nullptr)
     {
         throw std::runtime_error(
-            "TileGraphExecutor::compile: missing tiling for multitile bind "
+            "Runtime::compile: missing tiling for multitile bind "
             "hint");
     }
     switch (td.dtype)
@@ -188,9 +188,9 @@ void insert_op_io_into_live(const TileGraph::OpNode &op,
 
 } // namespace
 
-TileGraphExecutor::TileGraphExecutor(const TileGraph &graph) : graph_(graph) {}
+Runtime::Runtime(const TileGraph &graph) : graph_(graph) {}
 
-DataType TileGraphExecutor::get_dtype(
+DataType Runtime::get_dtype(
     TensorGraph::TensorNode const *tensor) const
 {
     const TileGraph::TensorDescriptor *d =
@@ -200,10 +200,10 @@ DataType TileGraphExecutor::get_dtype(
         return d->dtype;
     }
     throw std::runtime_error(
-        "TileGraphExecutor::get_dtype: unknown tensor data node");
+        "Runtime::get_dtype: unknown tensor data node");
 }
 
-void TileGraphExecutor::compile()
+void Runtime::compile()
 {
     allocate_missing_tiles();
 
@@ -305,7 +305,7 @@ void TileGraphExecutor::compile()
     compiled_ = true;
 }
 
-void TileGraphExecutor::allocate_missing_tiles()
+void Runtime::allocate_missing_tiles()
 {
     for (const auto &node : graph_.tile_nodes())
     {
@@ -361,16 +361,16 @@ void TileGraphExecutor::allocate_missing_tiles()
     }
 }
 
-void TileGraphExecutor::execute_range(size_t op_begin, size_t op_end)
+void Runtime::execute_range(size_t op_begin, size_t op_end)
 {
     if (!compiled_)
     {
         throw std::runtime_error(
-            "TileGraphExecutor::execute_range: graph not compiled");
+            "Runtime::execute_range: graph not compiled");
     }
     if (op_begin > op_end || op_end > execution_order_.size())
     {
-        throw std::out_of_range("TileGraphExecutor::execute_range: bad range");
+        throw std::out_of_range("Runtime::execute_range: bad range");
     }
     for (size_t i = op_begin; i < op_end; ++i)
     {
@@ -379,7 +379,7 @@ void TileGraphExecutor::execute_range(size_t op_begin, size_t op_end)
     }
 }
 
-void TileGraphExecutor::eliminate_dead_ops()
+void Runtime::eliminate_dead_ops()
 {
     const size_t n = execution_order_.size();
     if (n == 0)
@@ -504,12 +504,12 @@ void TileGraphExecutor::eliminate_dead_ops()
     execution_order_ = std::move(filtered);
 }
 
-void TileGraphExecutor::execute()
+void Runtime::execute()
 {
     if (!compiled_)
     {
         throw std::runtime_error(
-            "TileGraphExecutor::execute: graph not compiled");
+            "Runtime::execute: graph not compiled");
     }
     for (size_t i = 0; i < execution_order_.size(); ++i)
     {
@@ -520,6 +520,6 @@ void TileGraphExecutor::execute()
     }
 }
 
-void TileGraphExecutor::wait() { starpu_task_wait_for_all(); }
+void Runtime::wait() { starpu_task_wait_for_all(); }
 
 } // namespace nntile::graph

@@ -23,7 +23,7 @@ namespace nntile::graph::tile_graph
 namespace
 {
 template<typename T>
-void run(TileGraph::Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax)
+void run(Runtime& rt, Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax)
 {
     nntile::tile::multiply_slice<T>(a, rt.get_tile<T>(s), rt.get_tile<T>(d), ax);
 }
@@ -36,7 +36,7 @@ void multiply_slice(Scalar a, TileGraph::TileNode* s, TileGraph::TileNode* d, In
         throw std::invalid_argument("multiply_slice");
     s->graph()->add_op(std::make_shared<TileMultiplySliceOp>(a, s, d, axis));
 }
-void TileMultiplySliceOp::execute(TileGraph::Runtime& runtime) const
+void TileMultiplySliceOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

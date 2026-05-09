@@ -160,7 +160,7 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_PREFIX_PATH=$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')
-          cmake --build build -j
+          cmake --build build -j 3
       - name: Show ccache stats
         if: always()
         run: ccache --show-stats

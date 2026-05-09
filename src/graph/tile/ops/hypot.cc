@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run_hy(
-    TileGraph::Runtime& runtime, Scalar a, TileGraph::TileNode* s1, Scalar b, TileGraph::TileNode* s2, TileGraph::TileNode* d)
+    Runtime& runtime, Scalar a, TileGraph::TileNode* s1, Scalar b, TileGraph::TileNode* s2, TileGraph::TileNode* d)
 {
     nntile::tile::hypot<T>(a, runtime.get_tile<T>(s1), b, runtime.get_tile<T>(s2), runtime.get_tile<T>(d));
 }
@@ -44,7 +44,7 @@ void hypot(
         throw std::invalid_argument("tile hypot: distinct");
     src1->graph()->add_op(std::make_shared<TileHypotOp>(alpha, src1, beta, src2, dst));
 }
-void TileHypotOp::execute(TileGraph::Runtime& runtime) const
+void TileHypotOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src1);
     switch(dtype)

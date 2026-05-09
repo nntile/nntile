@@ -21,10 +21,11 @@
 
 // NNTile headers
 #include <nntile/graph/tile/graph_data_node.hh>
-#include <nntile/graph/tile/graph_runtime.hh>
 
 namespace nntile::graph
 {
+
+class Runtime;
 
 //! Base class for TileGraph operations.
 class TileGraph::OpNode
@@ -48,7 +49,7 @@ public:
         return outputs_;
     }
 
-    virtual void execute(TileGraph::Runtime& runtime) const = 0;
+    virtual void execute(Runtime &runtime) const = 0;
     virtual std::shared_ptr<TileGraph::OpNode> clone() const = 0;
 
 protected:

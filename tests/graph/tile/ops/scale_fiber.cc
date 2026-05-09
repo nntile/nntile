@@ -35,7 +35,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_fiber", "[graph]
     s->mark_input(true);
     d->mark_output(true);
     tg::scale_fiber(a, s, d, axis, batch);
-    TileGraph::Runtime rt(g);
+    Runtime rt(g);
     rt.compile();
     std::vector<float> f1(nf);
     std::vector<float> f2(n, 0.f);

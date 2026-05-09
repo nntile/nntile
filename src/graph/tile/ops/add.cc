@@ -27,7 +27,7 @@ namespace
 {
 
 template <typename T>
-void run_add(TileGraph::Runtime &runtime,
+void run_add(Runtime &runtime,
     Scalar alpha,
     Scalar beta,
     TileGraph::TileNode *x,
@@ -109,7 +109,7 @@ void add(Scalar alpha,
     x->graph()->add_op(op);
 }
 
-void TileAddOp::execute(TileGraph::Runtime &runtime) const
+void TileAddOp::execute(Runtime &runtime) const
 {
     DataType dtype = x->dtype();
 

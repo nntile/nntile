@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     Scalar a,
     TileGraph::TileNode* t1,
     Scalar b,
@@ -49,7 +49,7 @@ void add_fiber(
     s1->graph()->add_op(
         std::make_shared<TileAddFiberOp>(a, s1, b, s2, dst, axis, batch_ndim));
 }
-void TileAddFiberOp::execute(TileGraph::Runtime& runtime) const
+void TileAddFiberOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(s1);
     switch(dtype)

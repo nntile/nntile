@@ -474,7 +474,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     c->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data(a, a_data);
     runtime.bind_data(b, b_data);
@@ -549,7 +549,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     b->grad()->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data(a, a_data);
     runtime.bind_data(b, b_data);
@@ -640,7 +640,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     c->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data(a, a_data);
     runtime.bind_data(b, b_data);
@@ -710,7 +710,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     c->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data(a, a_data);
     runtime.bind_data(b, b_data);
@@ -799,7 +799,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     b->grad()->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data(a, a_data);
     runtime.bind_data(b, b_data);
@@ -887,7 +887,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     b->grad()->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data(a, a_data);
     runtime.bind_data(b, b_data);

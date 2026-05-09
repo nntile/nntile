@@ -29,7 +29,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph conv2d_bwd_input_inpla
     auto* dX = g.data(dXh, "dX", DataType::FP32);
     dY->mark_input(true); Cg->mark_input(true); dX->mark_input(true); dX->mark_output(true);
     tg::conv2d_bwd_input_inplace(2,2,1,1,1,1,2,2,1,1,1,0,0,1.0,dY,Cg,3,3,0.0,dX);
-    TileGraph::Runtime r(g);
+    Runtime r(g);
     r.compile();
     std::vector<float> a(n), b(nc), c(nx,0.f);
     for(Index i=0;i<4;++i) a[static_cast<size_t>(i)]=static_cast<float>(i+1);

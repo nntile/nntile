@@ -29,7 +29,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph softmax_inplace axis0"
     auto* d = g.data(dh, "d", DataType::FP32);
     m->mark_input(true); d->mark_input(true); d->mark_output(true);
     tg::softmax_inplace(m, al, d, axis);
-    TileGraph::Runtime r(g);
+    Runtime r(g);
     r.compile();
     std::vector<float> mv(nms), dd(n);
     for(Index j=0;j<nms;j+=2){ mv[static_cast<size_t>(j)]=static_cast<float>(j+1);

@@ -200,7 +200,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> input_data(2 * 3);
@@ -247,7 +247,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> input_data(2 * 3, 1.0f);
@@ -299,7 +299,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile(); // bind hints applied from constructor
     runtime.bind_data(input, input_data);
     runtime.execute();
@@ -372,7 +372,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data(input, input_data);
     runtime.execute();
@@ -462,7 +462,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data(input, input_data);
     runtime.execute();
@@ -555,7 +555,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data(input, input_data);
     runtime.execute();

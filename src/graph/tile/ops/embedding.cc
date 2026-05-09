@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& runtime, Index a, Index b, Index c, Index ks, Index kz, TileGraph::TileNode* ix, TileGraph::TileNode* v, TileGraph::TileNode* e)
+    Runtime& runtime, Index a, Index b, Index c, Index ks, Index kz, TileGraph::TileNode* ix, TileGraph::TileNode* v, TileGraph::TileNode* e)
 {
     nntile::tile::embedding<T>(a, b, c, ks, kz, runtime.get_tile<nntile::int64_t>(ix), runtime.get_tile<T>(v), runtime.get_tile<T>(e));
 }
@@ -43,7 +43,7 @@ void embedding(
     index->graph()->add_op(
         std::make_shared<TileEmbeddingOp>(m, n, k, k_start, k_size, index, vocab, embed));
 }
-void TileEmbeddingOp::execute(TileGraph::Runtime& runtime) const
+void TileEmbeddingOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(vocab);
     switch(dtype)

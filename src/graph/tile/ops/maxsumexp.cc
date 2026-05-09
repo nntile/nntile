@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run_me(
-    TileGraph::Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax, int r)
+    Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d, Index ax, int r)
 {
     nntile::tile::maxsumexp<T>(runtime.get_tile<T>(s), runtime.get_tile<T>(d), ax, r);
 }
@@ -41,7 +41,7 @@ void maxsumexp(TileGraph::TileNode* src, TileGraph::TileNode* dst, Index axis, i
         throw std::invalid_argument("tile maxsumexp: distinct");
     src->graph()->add_op(std::make_shared<TileMaxsumexpOp>(src, dst, axis, redux));
 }
-void TileMaxsumexpOp::execute(TileGraph::Runtime& runtime) const
+void TileMaxsumexpOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

@@ -92,7 +92,7 @@ void check_embedding_backward_vs_tensor_api(
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<std::int64_t> index_data(index_nelems);
@@ -284,7 +284,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data(index_node, index_data);
@@ -328,7 +328,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data(index_node, index_data);

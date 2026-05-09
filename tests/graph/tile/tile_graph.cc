@@ -257,7 +257,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph tensor_rt_tile = TileGraph::from_tensor_graph(tensor_graph);
 
-    TileGraph::Runtime tensor_rt(tensor_rt_tile);
+    Runtime tensor_rt(tensor_rt_tile);
     tensor_rt.compile();
     tensor_rt.bind_data(tx, x_data);
     tensor_rt.bind_data(ty, y_data);
@@ -265,7 +265,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     tensor_rt.wait();
     auto tensor_result = tensor_rt.get_output<float>(tz);
 
-    TileGraph::Runtime tile_rt(tile_graph);
+    Runtime tile_rt(tile_graph);
     tile_rt.compile();
     tile_rt.bind_data(tx, x_data);
     tile_rt.bind_data(ty, y_data);
@@ -297,7 +297,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     tg::add_inplace(Scalar(2.0), x, Scalar(1.0), y);
 
-    TileGraph::Runtime runtime(graph);
+    Runtime runtime(graph);
     runtime.compile();
 
     std::vector<float> x_data = {1, 2, 3, 4};
@@ -340,7 +340,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(tg_graph);
 
-    TileGraph::Runtime tile_rt(tile_graph);
+    Runtime tile_rt(tile_graph);
     tile_rt.compile();
 
     // x was initialized from the source TensorNode's bind hint;
@@ -371,7 +371,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     tg::fill(Scalar(42.0), x);
     tg::clear(x);
 
-    TileGraph::Runtime runtime(graph);
+    Runtime runtime(graph);
     runtime.compile();
 
     std::vector<float> x_data = {7.0f, 8.0f, 9.0f};
@@ -427,7 +427,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph tensor_rt_tile = TileGraph::from_tensor_graph(tensor_graph);
 
-    TileGraph::Runtime tensor_rt(tensor_rt_tile);
+    Runtime tensor_rt(tensor_rt_tile);
     tensor_rt.compile();
     tensor_rt.bind_data(tx, x_data);
     tensor_rt.bind_data(ty, y_data);
@@ -435,7 +435,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     tensor_rt.wait();
     auto tensor_result = tensor_rt.get_output<float>(tz);
 
-    TileGraph::Runtime tile_rt(tile_graph);
+    Runtime tile_rt(tile_graph);
     tile_rt.compile();
     tile_rt.bind_data(tx, x_data);
     tile_rt.bind_data(ty, y_data);

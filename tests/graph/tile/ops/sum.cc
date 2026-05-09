@@ -34,7 +34,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph sum matches tile", "[g
     const Scalar alpha = 0.5;
     const Scalar beta = 0.0;
     tg::sum(alpha, s, beta, d);
-    TileGraph::Runtime runtime(g);
+    Runtime runtime(g);
     runtime.compile();
     std::vector<float> sv(nelems);
     for(Index i = 0; i < nelems; ++i) { sv[static_cast<size_t>(i)] = static_cast<float>(i) * 0.01f; }

@@ -96,7 +96,7 @@ void check_conv2d_bwd_input_inplace_vs_tensor_api(
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> dy_data(dy_nelems);

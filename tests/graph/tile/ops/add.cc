@@ -45,7 +45,7 @@ void check_tile_add_vs_tile_api(
     auto *z_node = tg::add(alpha, x_node, beta, y_node)->set_name("z");
     z_node->mark_output(true);
 
-    TileGraph::Runtime runtime(graph);
+    Runtime runtime(graph);
     runtime.compile();
 
     std::vector<float> x_data(nelems), y_data(nelems);

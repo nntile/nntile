@@ -30,7 +30,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph randn", "[graph][tile]
     d->mark_input(true);
     d->mark_output(true);
     tg::randn(d, st, us, seed, mean, std);
-    TileGraph::Runtime r(g);
+    Runtime r(g);
     r.compile();
     std::vector<float> dv(60, 0.f);
     r.bind_data(d, dv);

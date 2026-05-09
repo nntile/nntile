@@ -29,7 +29,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph embedding_backward", "
     auto* vg = g.data(vh, "vg", DataType::FP32);
     index->mark_input(true); eg->mark_input(true); vg->mark_input(true); vg->mark_output(true);
     tg::embedding_backward(m,n,k,k0,ks,index,eg,vg,redux);
-    TileGraph::Runtime r(g);
+    Runtime r(g);
     r.compile();
     std::vector<std::int64_t> iv(4);
     iv[0]=0; iv[1]=2; iv[2]=4; iv[3]=1;

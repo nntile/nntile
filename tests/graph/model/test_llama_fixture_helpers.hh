@@ -85,7 +85,7 @@ inline void mark_rope_inputs(const LlamaRopeInputs &rope)
 }
 
 inline void bind_rope_inputs(
-    nntile::graph::TileGraph::Runtime &runtime, const LlamaRopeInputs &rope)
+    nntile::graph::Runtime &runtime, const LlamaRopeInputs &rope)
 {
     if (rope.sin == nullptr)
     {
@@ -157,7 +157,7 @@ inline void mark_mask_input(nntile::graph::NNGraph::TensorNode *mask)
     }
 }
 
-inline void bind_mask_input(nntile::graph::TileGraph::Runtime &runtime,
+inline void bind_mask_input(nntile::graph::Runtime &runtime,
     nntile::graph::NNGraph::TensorNode *mask,
     const std::vector<std::uint8_t> &mask_bytes)
 {

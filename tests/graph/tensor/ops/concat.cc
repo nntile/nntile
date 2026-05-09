@@ -17,7 +17,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/graph/tile/graph_runtime.hh"
+#include "nntile/graph/runtime.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators_all.hpp>
@@ -148,7 +148,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     out_node->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     const Index na = shape_prod(a_shape);
@@ -211,7 +211,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         out_node->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data(a_node, a_data);
         runtime.bind_data(b_node, b_data);
@@ -236,7 +236,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         }
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data(a_node, a_data);
         runtime.bind_data(b_node, b_data);

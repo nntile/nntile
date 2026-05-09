@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run_mask(
-    TileGraph::Runtime& runtime, TileGraph::TileNode* m, Scalar v, TileGraph::TileNode* A, Index bnd)
+    Runtime& runtime, TileGraph::TileNode* m, Scalar v, TileGraph::TileNode* A, Index bnd)
 {
     nntile::tile::mask_scalar<T>(runtime.get_tile<nntile::bool_t>(m), v, runtime.get_tile<T>(A), bnd);
 }
@@ -39,7 +39,7 @@ void mask_scalar(TileGraph::TileNode* mask, Scalar val, TileGraph::TileNode* a, 
         throw std::invalid_argument("tile mask_scalar: mask must be BOOL");
     a->graph()->add_op(std::make_shared<TileMaskScalarOp>(mask, val, a, batch_ndim));
 }
-void TileMaskScalarOp::execute(TileGraph::Runtime& runtime) const
+void TileMaskScalarOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(a);
     switch(dtype)

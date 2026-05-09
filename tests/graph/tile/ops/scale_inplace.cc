@@ -33,7 +33,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph scale_inplace matches 
     d->mark_input(true);
     d->mark_output(true);
     tg::scale_inplace(alpha, d);
-    TileGraph::Runtime runtime(g);
+    Runtime runtime(g);
     runtime.compile();
     std::vector<float> dv(nelems);
     for(Index i = 0; i < nelems; ++i) { dv[static_cast<size_t>(i)] = static_cast<float>(i) * 0.2f - 0.3f; }

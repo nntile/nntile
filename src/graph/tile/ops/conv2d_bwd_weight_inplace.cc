@@ -23,7 +23,7 @@ namespace nntile::graph::tile_graph
 namespace
 {
 template<typename T>
-void run(const TileConv2dBwdWeightInplaceOp& o, TileGraph::Runtime& runtime)
+void run(const TileConv2dBwdWeightInplaceOp& o, Runtime& runtime)
 {
     nntile::tile::conv2d_bwd_weight_inplace<T>(o.src1_m, o.src1_n, o.src1_channels, o.batch, o.src2_m, o.src2_n, o.stride_m, o.stride_n, o.src2_channels, o.offset_m, o.offset_n, o.alpha, runtime.get_tile<T>(o.s1), runtime.get_tile<T>(o.s2), o.dst_m, o.dst_n, o.dilation_m, o.dilation_n, o.beta, runtime.get_tile<T>(o.dst));
 }
@@ -38,7 +38,7 @@ void conv2d_bwd_weight_inplace(
     s1->graph()->add_op(
         std::make_shared<TileConv2dBwdWeightInplaceOp>(src1_m, src1_n, src1_channels, batch, src2_m, src2_n, stride_m, stride_n, src2_channels, offset_m, offset_n, alpha, s1, s2, dst_m, dst_n, dilation_m, dilation_n, beta, dst));
 }
-void TileConv2dBwdWeightInplaceOp::execute(TileGraph::Runtime& runtime) const
+void TileConv2dBwdWeightInplaceOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(s1);
     switch(dtype)

@@ -50,7 +50,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TensorGraphTiling til2 = TensorGraphTiling::from_tensor_graph(tg);
     append_tensor_graph_phase(tg, p2, til2, tile, st, tm);
 
-    TileGraph::Runtime rt(tile);
+    Runtime rt(tile);
     rt.compile();
 
     std::vector<float> av = {1.f, 2.f, 3.f};
@@ -68,7 +68,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TileGraph::Runtime compile incremental",
+    "Runtime compile incremental",
     "[graph][tile]")
 {
     TensorGraph tg("rt_inc");
@@ -82,7 +82,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     append_tensor_graph_phase(
         tg, p1, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
 
-    TileGraph::Runtime rt(tile);
+    Runtime rt(tile);
     rt.compile();
     const size_t n1 = rt.execution_op_count();
     REQUIRE(n1 > 0);
@@ -155,7 +155,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile("tile_phase_arch");
     TileGraphIncrementalState st;
     TensorNodeToTileMap tm;
-    TileGraph::Runtime rt(tile);
+    Runtime rt(tile);
     compile_incremental_nn_phase(fp,
         nn,
         TensorGraphTiling::from_tensor_graph(tg),

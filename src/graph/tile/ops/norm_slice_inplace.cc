@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& rt, Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::TileNode* d, Index ax, int r)
+    Runtime& rt, Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::TileNode* d, Index ax, int r)
 {
     nntile::tile::norm_slice_inplace<T>(a, rt.get_tile<T>(s), b, rt.get_tile<T>(d), ax, r);
 }
@@ -37,7 +37,7 @@ void norm_slice_inplace(Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::T
         throw std::invalid_argument("norm_slice_inplace");
     s->graph()->add_op(std::make_shared<TileNormSliceInplaceOp>(a, s, b, d, ax, r));
 }
-void TileNormSliceInplaceOp::execute(TileGraph::Runtime& runtime) const
+void TileNormSliceInplaceOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

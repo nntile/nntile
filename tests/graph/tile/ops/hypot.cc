@@ -35,7 +35,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph hypot matches tile", "
     s2->mark_input(true);
     d->mark_output(true);
     tg::hypot(alpha, s1, beta, s2, d);
-    TileGraph::Runtime runtime(g);
+    Runtime runtime(g);
     runtime.compile();
     std::vector<float> v1(nelems), v2(nelems);
     for(Index i = 0; i < nelems; ++i)

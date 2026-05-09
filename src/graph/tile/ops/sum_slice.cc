@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d, Scalar a, Scalar b, Index ax, int r)
+    Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d, Scalar a, Scalar b, Index ax, int r)
 {
     nntile::tile::sum_slice<T>(a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d), ax, r);
 }
@@ -39,7 +39,7 @@ void sum_slice(
     src->graph()->add_op(
         std::make_shared<TileSumSliceOp>(alpha, src, beta, dst, axis, redux));
 }
-void TileSumSliceOp::execute(TileGraph::Runtime& runtime) const
+void TileSumSliceOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

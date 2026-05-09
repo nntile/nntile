@@ -84,7 +84,7 @@ class TensorGraph::TensorNode
     void mark_output(bool v = true) { is_output_ = v; }
 
     // Bind hint: data copied into the lowered tile when
-    // TileGraph::Runtime::compile() runs.
+    // Runtime::compile() runs.
     void set_bind_hint(std::vector<std::uint8_t> data);
     const std::vector<std::uint8_t> *get_bind_hint() const;
 

@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& rt, Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::TileNode* d, Index ax, Index bd)
+    Runtime& rt, Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::TileNode* d, Index ax, Index bd)
 {
     nntile::tile::add_fiber_inplace<T>(a, rt.get_tile<T>(s), b, rt.get_tile<T>(d), ax, bd);
 }
@@ -37,7 +37,7 @@ void add_fiber_inplace(Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::Ti
         throw std::invalid_argument("add_fiber_inplace");
     s->graph()->add_op(std::make_shared<TileAddFiberInplaceOp>(a, s, b, d, axis, batch_ndim));
 }
-void TileAddFiberInplaceOp::execute(TileGraph::Runtime& runtime) const
+void TileAddFiberInplaceOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

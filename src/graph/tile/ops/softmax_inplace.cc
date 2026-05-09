@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run_smi(
-    TileGraph::Runtime& runtime, TileGraph::TileNode* m, Scalar a, TileGraph::TileNode* d, Index ax)
+    Runtime& runtime, TileGraph::TileNode* m, Scalar a, TileGraph::TileNode* d, Index ax)
 {
     nntile::tile::softmax_inplace<T>(runtime.get_tile<T>(m), a, runtime.get_tile<T>(d), ax);
 }
@@ -42,7 +42,7 @@ void softmax_inplace(TileGraph::TileNode* mse, Scalar alpha, TileGraph::TileNode
     // Shape compatibility follows nntile::tile::softmax_inplace
     mse->graph()->add_op(std::make_shared<TileSoftmaxInplaceOp>(mse, alpha, dst, axis));
 }
-void TileSoftmaxInplaceOp::execute(TileGraph::Runtime& runtime) const
+void TileSoftmaxInplaceOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(dst);
     switch(dtype)

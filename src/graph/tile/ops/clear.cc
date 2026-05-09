@@ -29,7 +29,7 @@ namespace
 
 template<typename T>
 void run_clear(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     TileGraph::TileNode* x)
 {
     auto& x_t = runtime.get_tile<T>(x);
@@ -50,7 +50,7 @@ void clear(TileGraph::TileNode* x)
 }
 
 void TileClearOp::execute(
-    TileGraph::Runtime& runtime) const
+    Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(x);
 

@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& rt, Scalar a, TileGraph::TileNode* t1, TileGraph::TileNode* t2, TileGraph::TileNode* d, Index ax)
+    Runtime& rt, Scalar a, TileGraph::TileNode* t1, TileGraph::TileNode* t2, TileGraph::TileNode* d, Index ax)
 {
     nntile::tile::multiply_fiber<T>(a, rt.get_tile<T>(t1), rt.get_tile<T>(t2), rt.get_tile<T>(d), ax);
 }
@@ -39,7 +39,7 @@ void multiply_fiber(Scalar a, TileGraph::TileNode* t1, TileGraph::TileNode* t2, 
         throw std::invalid_argument("multiply_fiber");
     t1->graph()->add_op(std::make_shared<TileMultiplyFiberOp>(a, t1, t2, d, axis));
 }
-void TileMultiplyFiberOp::execute(TileGraph::Runtime& runtime) const
+void TileMultiplyFiberOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(s1);
     switch(dtype)

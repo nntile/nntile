@@ -29,7 +29,7 @@ namespace
 
 template<typename T>
 void run_adam(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     Index num_iter,
     Scalar beta_1,
     Scalar beta_2,
@@ -98,7 +98,7 @@ void adam_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps,
     grad->graph()->add_op(op);
 }
 
-void TileAdamStepOp::execute(TileGraph::Runtime& runtime) const
+void TileAdamStepOp::execute(Runtime& runtime) const
 {
     const DataType dtype = runtime.get_dtype(grad);
     switch(dtype)

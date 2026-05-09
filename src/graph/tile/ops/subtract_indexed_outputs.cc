@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& runtime, Scalar vl, TileGraph::TileNode* l, TileGraph::TileNode* d, Index ig)
+    Runtime& runtime, Scalar vl, TileGraph::TileNode* l, TileGraph::TileNode* d, Index ig)
 {
     nntile::tile::subtract_indexed_outputs<T>(vl, runtime.get_tile<nntile::int64_t>(l), runtime.get_tile<T>(d), ig);
 }
@@ -38,7 +38,7 @@ void subtract_indexed_outputs(Scalar v, TileGraph::TileNode* labels, TileGraph::
     dst->graph()->add_op(
         std::make_shared<TileSubtractIndexedOutputsOp>(v, labels, dst, ignore_index));
 }
-void TileSubtractIndexedOutputsOp::execute(TileGraph::Runtime& runtime) const
+void TileSubtractIndexedOutputsOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(dst);
     switch(dtype)

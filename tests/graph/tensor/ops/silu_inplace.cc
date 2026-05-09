@@ -47,7 +47,7 @@ void check_silu_inplace_vs_tensor_api(const std::vector<Index> &shape)
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> dst_data(nelems);
@@ -160,7 +160,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         gt::silu_inplace(dst_node);
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data(dst_node, dst_data);
         runtime.execute();
@@ -181,7 +181,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         }
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data(dst_node, dst_data);
         runtime.execute();

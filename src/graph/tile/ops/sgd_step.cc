@@ -29,7 +29,7 @@ namespace
 
 template<typename T>
 void run_sgd(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     Index num_iter,
     Scalar momentum,
     Scalar lr,
@@ -91,7 +91,7 @@ void sgd_step(Index num_iter, Scalar momentum, Scalar lr, Scalar weight_decay,
     grad->graph()->add_op(op);
 }
 
-void TileSgdStepOp::execute(TileGraph::Runtime& runtime) const
+void TileSgdStepOp::execute(Runtime& runtime) const
 {
     const DataType dtype = runtime.get_dtype(grad);
     switch(dtype)

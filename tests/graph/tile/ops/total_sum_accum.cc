@@ -30,7 +30,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph total_sum_accum", "[gr
     auto* v = g.data(vh, "val", DataType::FP32);
     l->mark_input(true); s->mark_input(true); c->mark_input(true); v->mark_input(true); v->mark_output(true);
     tg::total_sum_accum(a, l, s, c, v, ign);
-    TileGraph::Runtime r(g);
+    Runtime r(g);
     r.compile();
     std::vector<float> lse(4), src(3*2*2), v0(1,0.f);
     std::vector<std::int64_t> cl(4);

@@ -39,7 +39,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm_fiber", "[graph][
     t2->mark_input(true);
     d->mark_output(true);
     tg::norm_fiber(a, t1, b, t2, d, ax, bd, redux);
-    TileGraph::Runtime rt(g);
+    Runtime rt(g);
     rt.compile();
     std::vector<float> v1(n1), v2(n2);
     std::vector<float> v3(n3, 0.f);

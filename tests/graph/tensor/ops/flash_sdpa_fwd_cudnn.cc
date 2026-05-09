@@ -142,7 +142,7 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> K_data(kv_nelems);
@@ -315,7 +315,7 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data(K_node, K_data);
         runtime.bind_data(Q_node, Q_data);

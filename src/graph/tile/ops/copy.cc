@@ -23,7 +23,7 @@ namespace nntile::graph::tile_graph
 namespace
 {
 template<typename T>
-void run_cp(TileGraph::Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d)
+void run_cp(Runtime& runtime, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
     nntile::tile::copy<T>(runtime.get_tile<T>(s), runtime.get_tile<T>(d));
 }
@@ -40,7 +40,7 @@ void copy(TileGraph::TileNode* src, TileGraph::TileNode* dst)
         throw std::invalid_argument("tile copy: distinct");
     src->graph()->add_op(std::make_shared<TileCopyOp>(src, dst));
 }
-void TileCopyOp::execute(TileGraph::Runtime& runtime) const
+void TileCopyOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

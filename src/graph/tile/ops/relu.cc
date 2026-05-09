@@ -28,7 +28,7 @@ namespace
 {
 
 template<typename T>
-void run_relu(TileGraph::Runtime& runtime,
+void run_relu(Runtime& runtime,
               TileGraph::TileNode* src,
               TileGraph::TileNode* dst)
 {
@@ -63,7 +63,7 @@ void relu(TileGraph::TileNode* src, TileGraph::TileNode* dst)
     src->graph()->add_op(op);
 }
 
-void TileReluOp::execute(TileGraph::Runtime& runtime) const
+void TileReluOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
 

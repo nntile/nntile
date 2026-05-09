@@ -28,7 +28,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     const std::vector<Index>& so,
     const std::vector<Index>& df,
     TileGraph::TileNode* s,
@@ -53,7 +53,7 @@ void copy_intersection(
     src->graph()->add_op(
         std::make_shared<TileCopyIntersectionOp>(src_offset, dst_offset, src, dst, scratch));
 }
-void TileCopyIntersectionOp::execute(TileGraph::Runtime& runtime) const
+void TileCopyIntersectionOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

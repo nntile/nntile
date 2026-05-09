@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run_norm(
-    TileGraph::Runtime& runtime, Scalar a, Scalar b, TileGraph::TileNode* s, TileGraph::TileNode* d)
+    Runtime& runtime, Scalar a, Scalar b, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
     nntile::tile::norm<T>(a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d));
 }
@@ -41,7 +41,7 @@ void norm(Scalar alpha, TileGraph::TileNode* src, Scalar beta, TileGraph::TileNo
         throw std::invalid_argument("tile norm: distinct");
     src->graph()->add_op(std::make_shared<TileNormOp>(alpha, beta, src, dst));
 }
-void TileNormOp::execute(TileGraph::Runtime& runtime) const
+void TileNormOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

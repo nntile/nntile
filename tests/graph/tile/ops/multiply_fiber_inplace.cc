@@ -36,7 +36,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_fiber_inplace
     d->mark_input(true);
     d->mark_output(true);
     tg::multiply_fiber_inplace(a, s, d, axis);
-    TileGraph::Runtime rt(g);
+    Runtime rt(g);
     rt.compile();
     std::vector<float> f1(nf), f2(n);
     for(Index i = 0; i < nf; ++i) { f1[static_cast<size_t>(i)] = 0.3f * static_cast<float>(i + 1); }

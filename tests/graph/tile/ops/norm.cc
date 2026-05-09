@@ -33,7 +33,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph norm matches tile", "[
     s->mark_input(true);
     d->mark_output(true);
     tg::norm(alpha, s, beta, d);
-    TileGraph::Runtime runtime(g);
+    Runtime runtime(g);
     runtime.compile();
     std::vector<float> sv(nelems);
     for(Index i = 0; i < nelems; ++i) { sv[static_cast<size_t>(i)] = 0.1f * static_cast<float>(i) - 0.1f; }

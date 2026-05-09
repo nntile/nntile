@@ -565,11 +565,14 @@ set(GRAPH_OPTIM_SRC
     "graph/optim/adamw.cc"
 )
 
+set(GRAPH_RUNTIME_SRC
+    "graph/runtime.cc"
+    )
+
 set(GRAPH_TILE_SRC
     "graph/tile/append_tensor_graph_phase.cc"
     "graph/tile/from_tensor_graph.cc"
     "graph/tile/graph_data_node.cc"
-    "graph/tile/graph_runtime.cc"
     "graph/tile/lower_from_tensor.cc"
     "graph/tile/ops/adam_step.cc"
     "graph/tile/ops/adamw_step.cc"
@@ -652,6 +655,7 @@ set(GRAPH_SRC
     ${GRAPH_DATASET_SRC}
     ${GRAPH_MODEL_SRC}
     ${GRAPH_OPTIM_SRC}
+    ${GRAPH_RUNTIME_SRC}
     ${GRAPH_TILE_SRC}
 )
 

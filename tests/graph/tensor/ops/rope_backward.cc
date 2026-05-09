@@ -78,7 +78,7 @@ void check_rope_backward_vs_tensor_api(const std::vector<Index> &sin_shape)
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     runtime.bind_data(sin_node, sin_data);
@@ -243,7 +243,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data(sin_node, sin_data);
@@ -278,7 +278,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data(sin_node, sin_data);

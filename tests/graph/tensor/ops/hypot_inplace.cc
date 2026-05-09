@@ -60,7 +60,7 @@ void check_hypot_inplace_vs_tensor_api(
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(nelems);
@@ -199,7 +199,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data(src_node, src_data);
@@ -228,7 +228,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data(src_node, src_data);

@@ -76,7 +76,7 @@ void compile_incremental_nn_phase(
     NNGraph& nn_graph_for_suffix,
     TensorGraphTiling const& tiling,
     TileGraph& tile_graph,
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     TileGraphIncrementalState& state,
     TensorNodeToTileMap& tile_map,
     bool archive_phase = true);

@@ -207,7 +207,7 @@ inline void mark_rope_inputs(const LlamaRopeInputs &rope)
 }
 
 inline void bind_rope_inputs(
-    TileGraph::Runtime &runtime, const LlamaRopeInputs &rope)
+    Runtime &runtime, const LlamaRopeInputs &rope)
 {
     if (rope.sin == nullptr)
     {
@@ -278,7 +278,7 @@ inline void mark_mask_input(NNGraph::TensorNode *mask)
     }
 }
 
-inline void bind_mask_input(TileGraph::Runtime &runtime,
+inline void bind_mask_input(Runtime &runtime,
     NNGraph::TensorNode *mask,
     const std::vector<std::uint8_t> &mask_bytes)
 {
@@ -335,7 +335,7 @@ void model_forward_compare_ref(const ModelFixtureSpec &fx)
         TensorGraph &tg = g.tensor_graph();
         TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data(input_ids, ids_data);
         bind_rope_inputs(runtime, rope);

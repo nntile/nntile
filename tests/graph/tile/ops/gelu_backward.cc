@@ -35,7 +35,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gelu_backward matches 
     dx->mark_input(true);
     dx->mark_output(true);
     tg::gelu_backward(x, dy, dx);
-    TileGraph::Runtime runtime(g);
+    Runtime runtime(g);
     runtime.compile();
     std::vector<float> xv(nelems), dyv(nelems), dxv(nelems, 0.f);
     for(Index i = 0; i < nelems; ++i)

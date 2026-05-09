@@ -41,7 +41,7 @@ float max_abs_diff(const std::vector<float> &a, const std::vector<float> &b)
     return m;
 }
 
-void bind_same_weights(TileGraph::Runtime &rt,
+void bind_same_weights(Runtime &rt,
     TensorGraph::TensorNode const *w1,
     TensorGraph::TensorNode const *w2,
     const std::vector<float> &w1_data,
@@ -110,7 +110,7 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
 
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref.tensor_graph());
 
-    TileGraph::Runtime rt_ref(rt_ref_tile);
+    Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();
     rt_ref.bind_data(inp_ref, in_data);
     bind_same_weights(rt_ref,
@@ -156,7 +156,7 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
     inp_tile->data()->axis(0)->set_tiling(std::vector<Index>{2, 1, 1});
 
     TileGraph tile_g = TileGraph::from_tensor_graph(g_tile.tensor_graph());
-    TileGraph::Runtime rt_tile(tile_g);
+    Runtime rt_tile(tile_g);
     rt_tile.compile();
     rt_tile.bind_data(inp_tile, in_data);
     bind_same_weights(rt_tile,

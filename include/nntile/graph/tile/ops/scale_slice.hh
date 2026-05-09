@@ -34,7 +34,7 @@ struct TileScaleSliceOp : TileGraph::OpNode
         outputs_ = {dst};
     }
     std::string op_name() const override { return "TILE_SCALE_SLICE"; }
-    void execute(TileGraph::Runtime& runtime) const override;
+    void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
         return std::make_shared<TileScaleSliceOp>(*this);

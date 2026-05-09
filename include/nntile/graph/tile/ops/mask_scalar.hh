@@ -36,7 +36,7 @@ struct TileMaskScalarOp : TileGraph::OpNode
         outputs_ = {a};
     }
     std::string op_name() const override { return "TILE_MASK_SCALAR"; }
-    void execute(TileGraph::Runtime& runtime) const override;
+    void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
         return std::make_shared<TileMaskScalarOp>(*this);

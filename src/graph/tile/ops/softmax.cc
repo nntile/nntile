@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run_sm(
-    TileGraph::Runtime& runtime, TileGraph::TileNode* m, TileGraph::TileNode* s, Scalar a, TileGraph::TileNode* d, Index ax)
+    Runtime& runtime, TileGraph::TileNode* m, TileGraph::TileNode* s, Scalar a, TileGraph::TileNode* d, Index ax)
 {
     nntile::tile::softmax<T>(runtime.get_tile<T>(m), runtime.get_tile<T>(s), a, runtime.get_tile<T>(d), ax);
 }
@@ -47,7 +47,7 @@ void softmax(
     maxsumexp_n->graph()->add_op(
         std::make_shared<TileSoftmaxOp>(maxsumexp_n, src, alpha, dst, axis));
 }
-void TileSoftmaxOp::execute(TileGraph::Runtime& runtime) const
+void TileSoftmaxOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

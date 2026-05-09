@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file examples/autograd_mlp_tile_compare_example.cc
- * ReLU MLP: TensorGraph reference run vs TileGraph::Runtime with
+ * ReLU MLP: TensorGraph reference run vs Runtime with
  * heterogeneous tiling on every tensor axis equivalence group, on one NNGraph
  * tensor graph. Dumps TensorGraph::to_string() (before/after tiling) and
  * TileGraph::to_string(). Compares forward output and weight gradients.
@@ -157,7 +157,7 @@ static float frob_per_tensor_rel_error(
     return static_cast<float>(diff_norm / denom);
 }
 
-static void bind_same_weights(nntile::graph::TileGraph::Runtime &rt,
+static void bind_same_weights(nntile::graph::Runtime &rt,
     nntile::graph::TensorGraph::TensorNode const *w1,
     nntile::graph::TensorGraph::TensorNode const *w2,
     const std::vector<float> &w1_data,
@@ -243,7 +243,7 @@ int main()
     // --- Reference (from_tensor_graph, default tiling) ---
     TileGraph rt_tensor_tile = TileGraph::from_tensor_graph(tensor_g);
 
-    TileGraph::Runtime rt_tensor(rt_tensor_tile);
+    Runtime rt_tensor(rt_tensor_tile);
     rt_tensor.compile();
     rt_tensor.bind_data(inp, in_data);
     bind_same_weights(rt_tensor,
@@ -274,7 +274,7 @@ int main()
     TileGraph tile_g = TileGraph::from_tensor_graph(tensor_g);
     std::cout << "=== TileGraph::to_string() ===\n"
               << tile_g.to_string() << "\n";
-    TileGraph::Runtime rt_tile(tile_g);
+    Runtime rt_tile(tile_g);
     rt_tile.compile();
     rt_tile.bind_data(inp, in_data);
     bind_same_weights(rt_tile,

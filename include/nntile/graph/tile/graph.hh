@@ -8,7 +8,7 @@
  *
  * @file include/nntile/graph/tile/graph.hh
  * TileGraph - graph operating on tiles. Purely symbolic; use
- * TileGraphExecutor (``TileGraph::Runtime``) for execution.
+ * ``nntile::graph::Runtime`` (``#include <nntile/graph/runtime.hh>``) to run.
  *
  * @version 1.1.0
  * */
@@ -16,10 +16,9 @@
 #pragma once
 
 // NNTile headers
-#include <nntile/graph/tile/graph_data_node.hh>
 #include <nntile/graph/tile/graph_decl.hh>
+#include <nntile/graph/tile/graph_data_node.hh>
 #include <nntile/graph/tile/graph_op_node.hh>
-#include <nntile/graph/tile/graph_runtime.hh>
 
 namespace nntile::graph
 {

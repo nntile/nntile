@@ -51,7 +51,7 @@ void check_gelu_backward_vs_tensor_api(const std::vector<Index> &shape)
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> x_data(nelems), dy_data(nelems), dx_data(nelems);
@@ -201,7 +201,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data(x_node, x_data);
         runtime.bind_data(dy_node, dy_data);
@@ -230,7 +230,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data(x_node, x_data);
         runtime.bind_data(dy_node, dy_data);

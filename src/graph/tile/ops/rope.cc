@@ -27,7 +27,7 @@ namespace
 
 template<typename T>
 void run(
-    TileGraph::Runtime& runtime, TileGraph::TileNode* si, TileGraph::TileNode* co, TileGraph::TileNode* s, TileGraph::TileNode* d)
+    Runtime& runtime, TileGraph::TileNode* si, TileGraph::TileNode* co, TileGraph::TileNode* s, TileGraph::TileNode* d)
 {
     nntile::tile::rope<T>(runtime.get_tile<T>(si), runtime.get_tile<T>(co), runtime.get_tile<T>(s), runtime.get_tile<T>(d));
 }
@@ -47,7 +47,7 @@ void rope(TileGraph::TileNode* s1, TileGraph::TileNode* c, TileGraph::TileNode* 
     s1->graph()->add_op(std::make_shared<TileRopeOp>(s1, c, s, d));
 }
 
-void TileRopeOp::execute(TileGraph::Runtime& runtime) const
+void TileRopeOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

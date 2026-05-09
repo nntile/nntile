@@ -8,7 +8,8 @@
  *
  * @file include/nntile/graph/tensor/graph.hh
  * TensorGraph - graph operating on tensors. Purely symbolic; lower to
- * TileGraph and use TileGraphExecutor (``TileGraph::Runtime``) for execution.
+ * ``TileGraph`` and use ``nntile::graph::Runtime`` (``#include
+ * <nntile/graph/runtime.hh>``) for execution.
  * Autograd is handled by ``NNGraph``, not by this class.
  *
  * @version 1.1.0
@@ -20,8 +21,8 @@
 #include <set>
 
 // NNTile headers
-#include <nntile/graph/tensor/graph_data_node.hh>
 #include <nntile/graph/tensor/graph_decl.hh>
+#include <nntile/graph/tensor/graph_data_node.hh>
 #include <nntile/graph/tensor/graph_op_node.hh>
 
 namespace nntile::graph

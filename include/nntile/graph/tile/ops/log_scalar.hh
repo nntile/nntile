@@ -35,7 +35,7 @@ struct TileLogScalarOp : TileGraph::OpNode
         outputs_ = {};
     }
     std::string op_name() const override { return "TILE_LOG_SCALAR"; }
-    void execute(TileGraph::Runtime& runtime) const override;
+    void execute(Runtime& runtime) const override;
     std::shared_ptr<TileGraph::OpNode> clone() const override
     {
         return std::make_shared<TileLogScalarOp>(*this);

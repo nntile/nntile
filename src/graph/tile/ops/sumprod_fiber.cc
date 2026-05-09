@@ -23,7 +23,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& rt, Scalar a, TileGraph::TileNode* t1, TileGraph::TileNode* t2, Scalar b, TileGraph::TileNode* d, Index ax, int r)
+    Runtime& rt, Scalar a, TileGraph::TileNode* t1, TileGraph::TileNode* t2, Scalar b, TileGraph::TileNode* d, Index ax, int r)
 {
     nntile::tile::sumprod_fiber<T>(a, rt.get_tile<T>(t1), rt.get_tile<T>(t2), b, rt.get_tile<T>(d), ax, r);
 }
@@ -38,7 +38,7 @@ void sumprod_fiber(Scalar a, TileGraph::TileNode* t1, TileGraph::TileNode* t2, S
         throw std::invalid_argument("sumprod_fiber: distinct");
     t1->graph()->add_op(std::make_shared<TileSumprodFiberOp>(a, t1, t2, b, dst, ax, r));
 }
-void TileSumprodFiberOp::execute(TileGraph::Runtime& runtime) const
+void TileSumprodFiberOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(s1);
     switch(dtype)

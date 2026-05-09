@@ -29,7 +29,7 @@ namespace
 
 template<typename T>
 void run_silu(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     TileGraph::TileNode* src,
     TileGraph::TileNode* dst)
 {
@@ -64,7 +64,7 @@ void silu(TileGraph::TileNode* src, TileGraph::TileNode* dst)
     src->graph()->add_op(op);
 }
 
-void TileSiluOp::execute(TileGraph::Runtime& runtime) const
+void TileSiluOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
 

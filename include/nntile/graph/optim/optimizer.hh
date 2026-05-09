@@ -24,7 +24,7 @@
 
 #include <nntile/graph/nn.hh>
 #include <nntile/graph/tensor.hh>
-#include <nntile/graph/tile/graph_runtime.hh>
+#include <nntile/graph/runtime.hh>
 #include <nntile/graph/module/module.hh>
 
 namespace nntile::graph::optim
@@ -95,7 +95,7 @@ public:
     //! Sync optimizer state tensors from the runtime back to bind_hints
     //! so that save() can access the trained state.
     //! Must be called after runtime.wait() and before save().
-    void sync_from_runtime(TileGraph::Runtime& runtime);
+    void sync_from_runtime(Runtime& runtime);
 
     Index num_iter() const { return num_iter_; }
     //! Override the internal step count (e.g. after ``load_config``).

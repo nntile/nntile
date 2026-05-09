@@ -35,7 +35,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph multiply_slice", "[gra
     d->mark_input(true);
     d->mark_output(true);
     tg::multiply_slice(a, s, d, axis);
-    TileGraph::Runtime rt(g);
+    Runtime rt(g);
     rt.compile();
     std::vector<float> sv(ns), dv(n);
     for(Index i = 0; i < ns; ++i) { sv[static_cast<size_t>(i)] = 0.1f * static_cast<float>(i + 1); }

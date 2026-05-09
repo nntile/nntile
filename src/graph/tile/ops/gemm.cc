@@ -30,7 +30,7 @@ namespace
 
 template<typename T>
 void run_gemm(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     Scalar alpha,
     Scalar beta,
     bool trans_a,
@@ -87,7 +87,7 @@ void gemm(
     a->graph()->add_op(op);
 }
 
-void TileGemmOp::execute(TileGraph::Runtime& runtime) const
+void TileGemmOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(a);
 

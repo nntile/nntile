@@ -42,7 +42,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     s->mark_input(true);
     d->mark_output(true);
     tg::relu(s, d);
-    TileGraph::Runtime runtime(g);
+    Runtime runtime(g);
     runtime.compile();
     std::vector<float> sv(nelems);
     for (Index i = 0; i < nelems; ++i)
@@ -116,7 +116,7 @@ TEST_CASE("ReLU mixed tile parity (TensorGraph ref vs TileGraph tile)",
 
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref);
 
-    TileGraph::Runtime rt_ref(rt_ref_tile);
+    Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();
     rt_ref.bind_data(x_ref, x_data);
     rt_ref.execute();
@@ -124,7 +124,7 @@ TEST_CASE("ReLU mixed tile parity (TensorGraph ref vs TileGraph tile)",
     const std::vector<float> y_out_ref = rt_ref.get_output<float>(y_ref_node);
 
     TileGraph tgraph = TileGraph::from_tensor_graph(g_tile);
-    TileGraph::Runtime rt_tile(tgraph);
+    Runtime rt_tile(tgraph);
     rt_tile.compile();
     rt_tile.bind_data(x_tile, x_data);
     rt_tile.execute();

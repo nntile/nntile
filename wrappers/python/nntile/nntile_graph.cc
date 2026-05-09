@@ -29,12 +29,11 @@ using pybind11::literals::operator""_a;
 using namespace nntile;
 using namespace nntile::graph;
 
-//! Owns a TileGraph and its executor (``TileGraph::Runtime`` /
-//! TileGraphExecutor).
+//! Owns a TileGraph and its ``nntile::graph::Runtime`` executor.
 struct PyGraphRuntime
 {
     std::shared_ptr<TileGraph> tile_graph;
-    TileGraph::Runtime runtime;
+    Runtime runtime;
     explicit PyGraphRuntime(std::shared_ptr<TileGraph> g) :
         tile_graph(std::move(g)), runtime(*tile_graph)
     {
@@ -63,7 +62,7 @@ template <> struct is_copy_constructible<PyGraphRuntime> : std::false_type
 
 template <typename TensorPtr>
 static void runtime_bind_numpy(
-    TileGraph::Runtime &rt, TensorPtr tensor, py::array arr)
+    Runtime &rt, TensorPtr tensor, py::array arr)
 {
     DataType dt = rt.get_dtype(tensor);
     arr = py::array::ensure(arr);
@@ -127,7 +126,7 @@ static void runtime_bind_numpy_nn(
 }
 
 template <typename TensorPtr>
-static py::array runtime_get_numpy(TileGraph::Runtime &rt, TensorPtr tensor)
+static py::array runtime_get_numpy(Runtime &rt, TensorPtr tensor)
 {
     DataType dt = rt.get_dtype(tensor);
     switch (dt)
@@ -258,12 +257,11 @@ PYBIND11_MODULE(nntile_graph, m)
         .def("to_mermaid", &TileGraph::to_mermaid);
 
     // -----------------------------------------------------------------------
-    // Graph execution: TileGraphExecutor (Python name ``Runtime``).
+    // Graph execution: nntile::graph::Runtime (Python class name ``Runtime``).
     // -----------------------------------------------------------------------
     py::class_<PyGraphRuntime>(m,
         "Runtime",
-        "Tile graph executor (C++ TileGraphExecutor, alias "
-        "TileGraph::Runtime). "
+        "Tile graph executor (C++ ``nntile::graph::Runtime``). "
         "Build: TileGraph.from_tensor_graph(nn_graph.tensor_graph()), then "
         "Runtime(tile_graph).")
         .def(py::init<std::shared_ptr<TileGraph>>(), "tile_graph"_a)

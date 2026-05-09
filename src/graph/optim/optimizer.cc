@@ -132,7 +132,7 @@ namespace
 
 template<typename T>
 std::vector<std::uint8_t> get_output_bytes(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     TensorGraph::TensorNode const* node)
 {
     auto data = runtime.get_output<T>(node);
@@ -142,7 +142,7 @@ std::vector<std::uint8_t> get_output_bytes(
 }
 
 std::vector<std::uint8_t> sync_tensor_bytes(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     TensorGraph::TensorNode const* node,
     DataType dtype)
 {
@@ -165,7 +165,7 @@ std::vector<std::uint8_t> sync_tensor_bytes(
 
 } // anonymous namespace
 
-void Optimizer::sync_from_runtime(TileGraph::Runtime& runtime)
+void Optimizer::sync_from_runtime(Runtime& runtime)
 {
     for(auto& ps : param_states_)
     {

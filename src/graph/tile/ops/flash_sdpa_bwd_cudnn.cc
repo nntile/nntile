@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     TileGraph::TileNode* K_,
     TileGraph::TileNode* Q_,
     TileGraph::TileNode* V_,
@@ -62,7 +62,7 @@ void flash_sdpa_bwd_cudnn(
     K->graph()->add_op(
         std::make_shared<TileFlashSdpaBwdCudnnOp>(K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV));
 }
-void TileFlashSdpaBwdCudnnOp::execute(TileGraph::Runtime& runtime) const
+void TileFlashSdpaBwdCudnnOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(K);
     switch(dtype)

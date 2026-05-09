@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run_rd(
-    TileGraph::Runtime& runtime, TileGraph::TileNode* d, const std::vector<Index>& st, const std::vector<Index>& us, unsigned long long sd, Scalar m, Scalar s)
+    Runtime& runtime, TileGraph::TileNode* d, const std::vector<Index>& st, const std::vector<Index>& us, unsigned long long sd, Scalar m, Scalar s)
 {
     nntile::tile::randn<T>(runtime.get_tile<T>(d), st, us, sd, m, s);
 }
@@ -42,7 +42,7 @@ void randn(
     dst->graph()->add_op(
         std::make_shared<TileRandnOp>(start, underlying_shape, seed, mean, stddev, dst));
 }
-void TileRandnOp::execute(TileGraph::Runtime& runtime) const
+void TileRandnOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(dst);
     switch(dtype)

@@ -15,8 +15,7 @@ from ..nntile_graph import (
     DataType, Module, NNGraph, Runtime, TensorDataNode, TensorGraph,
     TensorNode, TileGraph, dtype_to_string, nn)
 
-# Alias for C++ TileGraphExecutor (Python name ``Runtime``; same as
-# ``TileGraph::Runtime`` in C++).
+# Alias for backward compatibility (same object as Runtime).
 TileGraphRuntime = Runtime
 
 __all__ = [

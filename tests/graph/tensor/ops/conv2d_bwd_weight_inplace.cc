@@ -129,7 +129,7 @@ void check_conv2d_bwd_weight_inplace_vs_tensor_api(
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> x_data(x_nelems);

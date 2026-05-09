@@ -28,7 +28,7 @@ namespace
 {
 
 template<typename T>
-void run_silu_inplace(TileGraph::Runtime& runtime, TileGraph::TileNode* d)
+void run_silu_inplace(Runtime& runtime, TileGraph::TileNode* d)
 {
     auto& t = runtime.get_tile<T>(d);
     nntile::tile::silu_inplace<T>(t);
@@ -46,7 +46,7 @@ void silu_inplace(TileGraph::TileNode* dst)
     dst->graph()->add_op(op);
 }
 
-void TileSiluInplaceOp::execute(TileGraph::Runtime& runtime) const
+void TileSiluInplaceOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(dst);
 

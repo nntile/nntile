@@ -40,7 +40,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph gemm matches tile", "[
     const Index ndim = 1;
     const Index batch_ndim = 0;
     tg::gemm(a, b, c, alpha, beta, trans_a, trans_b, ndim, batch_ndim);
-    TileGraph::Runtime runtime(g);
+    Runtime runtime(g);
     runtime.compile();
     std::vector<float> av(nelems), bv(nelems);
     for(Index i = 0; i < nelems; ++i)

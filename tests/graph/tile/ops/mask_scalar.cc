@@ -35,7 +35,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph mask_scalar", "[graph]
     a->mark_input(true);
     a->mark_output(true);
     tg::mask_scalar(mask, val, a, batch);
-    TileGraph::Runtime r(g);
+    Runtime r(g);
     r.compile();
     std::array<bool, 6> mb{};
     for(Index i = 0; i < n; ++i) { mb[static_cast<size_t>(i)] = (static_cast<int>(i) % 3) != 0; }

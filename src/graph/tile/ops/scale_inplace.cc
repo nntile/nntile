@@ -23,7 +23,7 @@ namespace nntile::graph::tile_graph
 namespace
 {
 template<typename T>
-void run_si(TileGraph::Runtime& runtime, Scalar a, TileGraph::TileNode* d)
+void run_si(Runtime& runtime, Scalar a, TileGraph::TileNode* d)
 {
     nntile::tile::scale_inplace<T>(a, runtime.get_tile<T>(d));
 }
@@ -34,7 +34,7 @@ void scale_inplace(Scalar alpha, TileGraph::TileNode* dst)
         throw std::invalid_argument("tile scale_inplace: dst must be non-null");
     dst->graph()->add_op(std::make_shared<TileScaleInplaceOp>(alpha, dst));
 }
-void TileScaleInplaceOp::execute(TileGraph::Runtime& runtime) const
+void TileScaleInplaceOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(dst);
     switch(dtype)

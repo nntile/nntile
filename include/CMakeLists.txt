@@ -550,7 +550,6 @@ set(GRAPH_TILE_HDR
     "nntile/graph/tile/graph_decl.hh"
     "nntile/graph/tile/graph_op_node.hh"
     "nntile/graph/tile/graph_ops.hh"
-    "nntile/graph/tile/graph_runtime.hh"
     "nntile/graph/tile/ops/hypot.hh"
     "nntile/graph/tile/ops/hypot_inplace.hh"
     "nntile/graph/tile/ops/hypot_scalar_inverse.hh"
@@ -596,6 +595,10 @@ set(GRAPH_TILE_HDR
     "nntile/graph/tile/ops/sumprod_slice.hh"
     "nntile/graph/tile/ops/total_sum_accum.hh"
     "nntile/graph/tile/ops/transpose.hh"
+    )
+
+set(GRAPH_RUNTIME_HDR
+    "nntile/graph/runtime.hh"
     )
 
 set(GRAPH_NN_HDR
@@ -689,6 +692,7 @@ set(GRAPH_HDR
     "nntile/graph.hh"
     ${GRAPH_TENSOR_HDR}
     ${GRAPH_TILE_HDR}
+    ${GRAPH_RUNTIME_HDR}
     ${GRAPH_NN_HDR}
     ${GRAPH_IO_HDR}
     ${GRAPH_UTIL_HDR}

@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& runtime, Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::TileNode* d)
+    Runtime& runtime, Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::TileNode* d)
 {
     nntile::tile::hypot_inplace<T>(a, runtime.get_tile<T>(s), b, runtime.get_tile<T>(d));
 }
@@ -43,7 +43,7 @@ void hypot_inplace(Scalar alpha, TileGraph::TileNode* src, Scalar beta, TileGrap
         throw std::invalid_argument("tile hypot_inplace: src and dst must be distinct");
     src->graph()->add_op(std::make_shared<TileHypotInplaceOp>(alpha, src, beta, dst));
 }
-void TileHypotInplaceOp::execute(TileGraph::Runtime& runtime) const
+void TileHypotInplaceOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

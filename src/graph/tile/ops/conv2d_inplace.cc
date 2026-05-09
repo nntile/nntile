@@ -23,7 +23,7 @@ namespace nntile::graph::tile_graph
 namespace
 {
 template<typename T>
-void run(const TileConv2dInplaceOp& o, TileGraph::Runtime& runtime)
+void run(const TileConv2dInplaceOp& o, Runtime& runtime)
 {
     nntile::tile::conv2d_inplace<T>(o.src1_m, o.src1_n, o.src1_channels, o.batch, o.src2_m, o.src2_n, o.dilation_m, o.dilation_n, o.dst_channels, o.offset_m, o.offset_n, o.alpha, runtime.get_tile<T>(o.s1), runtime.get_tile<T>(o.s2), o.dst_m, o.dst_n, o.stride_m, o.stride_n, o.beta, runtime.get_tile<T>(o.dst));
 }
@@ -38,7 +38,7 @@ void conv2d_inplace(
     auto op = std::make_shared<TileConv2dInplaceOp>(src1_m, src1_n, src1_channels, batch, src2_m, src2_n, dilation_m, dilation_n, dst_channels, offset_m, offset_n, alpha, src1, src2, dst_m, dst_n, stride_m, stride_n, beta, dst);
     src1->graph()->add_op(std::move(op));
 }
-void TileConv2dInplaceOp::execute(TileGraph::Runtime& runtime) const
+void TileConv2dInplaceOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(s1);
     switch(dtype)

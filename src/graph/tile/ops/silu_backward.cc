@@ -29,7 +29,7 @@ namespace
 
 template<typename T>
 void run_silu_backward(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     TileGraph::TileNode* x,
     TileGraph::TileNode* dy,
     TileGraph::TileNode* dx)
@@ -68,7 +68,7 @@ void silu_backward(
     x->graph()->add_op(op);
 }
 
-void TileSiluBackwardOp::execute(TileGraph::Runtime& runtime) const
+void TileSiluBackwardOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(x);
 

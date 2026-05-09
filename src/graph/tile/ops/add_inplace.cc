@@ -28,7 +28,7 @@ namespace
 
 template<typename T>
 void run_add_inplace(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     Scalar alpha, Scalar beta,
     TileGraph::TileNode* x,
     TileGraph::TileNode* y)
@@ -77,7 +77,7 @@ void add_inplace(
 }
 
 void TileAddInplaceOp::execute(
-    TileGraph::Runtime& runtime) const
+    Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(x);
 

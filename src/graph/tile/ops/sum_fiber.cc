@@ -24,7 +24,7 @@ namespace
 {
 template<typename T>
 void run(
-    TileGraph::Runtime& rt, Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::TileNode* d, Index ax, Index bnd, int r)
+    Runtime& rt, Scalar a, TileGraph::TileNode* s, Scalar b, TileGraph::TileNode* d, Index ax, Index bnd, int r)
 {
     nntile::tile::sum_fiber<T>(a, rt.get_tile<T>(s), b, rt.get_tile<T>(d), ax, bnd, r);
 }
@@ -39,7 +39,7 @@ void sum_fiber(
     src->graph()->add_op(
         std::make_shared<TileSumFiberOp>(alpha, src, beta, dst, axis, batch_ndim, redux));
 }
-void TileSumFiberOp::execute(TileGraph::Runtime& runtime) const
+void TileSumFiberOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
     switch(dtype)

@@ -426,7 +426,7 @@ static void init_random_parameter_hints(LlamaCausal &model, std::mt19937 &gen)
 
 //! Copy parameter tensor from runtime tiles back into bind hints (for save).
 static void sync_param_hint_from_runtime(
-    TileGraph::Runtime &runtime, NNGraph::TensorNode *t)
+    Runtime &runtime, NNGraph::TensorNode *t)
 {
     std::vector<std::uint8_t> bytes;
     switch (t->dtype())
@@ -643,7 +643,7 @@ int main(int argc, char **argv)
 
         graph.finish_phase();
         graph.lower_and_compile();
-        TileGraph::Runtime &runtime = graph.runtime();
+        Runtime &runtime = graph.runtime();
 
         if (!bound_optimizer_state)
         {

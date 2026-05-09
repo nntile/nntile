@@ -39,7 +39,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph add_fiber matches tile
     s2->mark_input(true);
     d->mark_output(true);
     tg::add_fiber(alpha, s1, beta, s2, d, axis, batch);
-    TileGraph::Runtime runtime(g);
+    Runtime runtime(g);
     runtime.compile();
     std::vector<float> f1(nfib), f2(nfull), f3(nfull, 0.f);
     for(Index i = 0; i < nfib; ++i) { f1[static_cast<size_t>(i)] = static_cast<float>(i + 1); }

@@ -29,7 +29,7 @@ namespace
 
 template<typename T>
 void run_multiply(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     Scalar alpha,
     TileGraph::TileNode* x,
     TileGraph::TileNode* y,
@@ -77,7 +77,7 @@ void multiply(
     x->graph()->add_op(op);
 }
 
-void TileMultiplyOp::execute(TileGraph::Runtime& runtime) const
+void TileMultiplyOp::execute(Runtime& runtime) const
 {
     DataType dtype = x->dtype();
 

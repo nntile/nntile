@@ -33,7 +33,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture, "TileGraph copy_intersection", "[
     d->mark_output(true);
     scra->mark_input(true);
     tg::copy_intersection(s, {0,0,0}, d, {0,0,0}, scra);
-    TileGraph::Runtime r(g);
+    Runtime r(g);
     r.compile();
     std::vector<float> sv(n), dv(n, 0.f);
     for(Index i=0;i<n;++i) sv[static_cast<size_t>(i)]=static_cast<float>(i+1);

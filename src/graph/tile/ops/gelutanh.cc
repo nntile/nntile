@@ -29,7 +29,7 @@ namespace
 
 template<typename T>
 void run_gelutanh(
-    TileGraph::Runtime& runtime,
+    Runtime& runtime,
     TileGraph::TileNode* src,
     TileGraph::TileNode* dst)
 {
@@ -65,7 +65,7 @@ void gelutanh(TileGraph::TileNode* src, TileGraph::TileNode* dst)
     src->graph()->add_op(op);
 }
 
-void TileGelutanhOp::execute(TileGraph::Runtime& runtime) const
+void TileGelutanhOp::execute(Runtime& runtime) const
 {
     DataType dtype = runtime.get_dtype(src);
 
