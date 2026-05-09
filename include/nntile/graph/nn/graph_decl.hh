@@ -140,6 +140,14 @@ class NNGraph
     //! Whether ``lower_and_compile`` has run at least once.
     bool has_runtime() const;
 
+    //! Discard TileGraph / Runtime / incremental lowering state produced by
+    //! prior ``lower_and_compile`` calls so the next one lowers only the
+    //! pending sealed phase into a fresh tile program. Use between repeated
+    //! identical training steps on one ``NNGraph``. Sync persistent tensor
+    //! bind_hints from ``Runtime`` first (weights, optimizer buffers). Throws
+    //! if ``finish_phase()`` has not been matched by ``lower_and_compile()``.
+    void reset_incremental_tile_state();
+
     friend void compile_incremental_nn_phase(
         FinishedTensorPhase const &exec_phase,
         NNGraph &nn_graph_for_suffix,

@@ -129,6 +129,25 @@ bool NNGraph::has_runtime() const
     return exec_ && exec_->runtime.has_value();
 }
 
+void NNGraph::reset_incremental_tile_state()
+{
+    if (pending_compile_phase_.has_value())
+    {
+        throw std::runtime_error(
+            "NNGraph::reset_incremental_tile_state: pending phase not "
+            "compiled; call lower_and_compile() first");
+    }
+    if (!exec_)
+    {
+        return;
+    }
+    clear_tensor_phase_archives();
+    exec_->tile_graph.emplace(name_ + "_tile");
+    exec_->inc_state = TileGraphIncrementalState{};
+    exec_->tile_map.clear();
+    exec_->runtime.emplace(*exec_->tile_graph);
+}
+
 void NNGraph::set_tensor_name_suffix_tag(std::string tag)
 {
     auto_tensor_name_phase_suffix_ = false;
