@@ -12,14 +12,15 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
+#include "nntile/graph/tensor/ops/log_scalar.hh"
 
 #include "context_fixture.hh"
-#include "nntile/graph/tensor/ops/log_scalar.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tile.hh"
 #include "nntile/tensor/log_scalar.hh"
 #include "nntile/tensor/tensor.hh"
+
+#include <catch2/catch_test_macros.hpp>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -37,13 +38,13 @@ TEST_CASE("TensorGraph log_scalar structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto* value = graph.data({}, "value");
+    auto *value = graph.data({})->set_name("value");
     gt::log_scalar("test_scalar", value);
 
     REQUIRE(graph.num_data() == 1);
     REQUIRE(graph.num_ops() == 1);
 
-    const auto& ops = graph.ops();
+    const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "LOG_SCALAR");
     REQUIRE(ops[0]->inputs().size() == 1);
     REQUIRE(ops[0]->outputs().empty());
@@ -57,12 +58,13 @@ TEST_CASE("TensorGraph log_scalar rejects null", "[graph][tensor]")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph log_scalar executes and preserves value", "[graph][tensor]")
+    "TensorGraph log_scalar executes and preserves value",
+    "[graph][tensor]")
 {
     // log_scalar logs the value to the logger; we verify the tensor
     // is unchanged after execution (log_scalar is read-only on the tensor)
     TensorGraph graph("log_scalar_test");
-    auto* value_node = graph.data({}, "value", DataType::FP32);
+    auto *value_node = graph.data({}, DataType::FP32)->set_name("value");
     value_node->mark_input(true);
     value_node->mark_output(true);
 
@@ -70,12 +72,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> value_data = {3.14f};
-    runtime.bind_data(value_node,  value_data);
+    runtime.bind_data(value_node, value_data);
     runtime.execute();
     runtime.wait();
 

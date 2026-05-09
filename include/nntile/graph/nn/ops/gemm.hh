@@ -27,7 +27,8 @@
 namespace nntile::graph
 {
 
-//! GEMM op: C = alpha * op(A) @ op(B). PyTorch-style: outputs created in forward().
+//! GEMM op: C = alpha * op(A) @ op(B). PyTorch-style: outputs created in
+//! forward().
 struct NNGemmOp : NNGraph::OpNode
 {
     Scalar alpha;
@@ -35,31 +36,33 @@ struct NNGemmOp : NNGraph::OpNode
     bool trans_b;
     Index ndim;
     Index batch_ndim;
-    NNGraph::TensorNode* a = nullptr;
-    NNGraph::TensorNode* b = nullptr;
+    NNGraph::TensorNode *a = nullptr;
+    NNGraph::TensorNode *b = nullptr;
 
-    NNGemmOp(NNGraph::TensorNode* a_,
-            NNGraph::TensorNode* b_,
-            Scalar alpha_,
-            bool trans_a_,
-            bool trans_b_,
-            Index ndim_,
-            Index batch_ndim_)
-        : alpha(alpha_), trans_a(trans_a_), trans_b(trans_b_)
-        , ndim(ndim_), batch_ndim(batch_ndim_)
-        , a(a_), b(b_)
+    NNGemmOp(NNGraph::TensorNode *a_,
+        NNGraph::TensorNode *b_,
+        Scalar alpha_,
+        bool trans_a_,
+        bool trans_b_,
+        Index ndim_,
+        Index batch_ndim_) :
+        alpha(alpha_),
+        trans_a(trans_a_),
+        trans_b(trans_b_),
+        ndim(ndim_),
+        batch_ndim(batch_ndim_),
+        a(a_),
+        b(b_)
     {
         inputs_ = {a, b};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* gemm(
-    NNGraph::TensorNode* a,
-    NNGraph::TensorNode* b,
-    const std::string& output_name,
+NNGraph::TensorNode *gemm(NNGraph::TensorNode *a,
+    NNGraph::TensorNode *b,
     Scalar alpha,
     bool trans_a,
     bool trans_b,

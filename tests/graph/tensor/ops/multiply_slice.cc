@@ -7,23 +7,24 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/multiply_slice.cc
- * Test TensorGraph multiply_slice operation against nntile::tensor::multiply_slice.
+ * Test TensorGraph multiply_slice operation against
+ * nntile::tensor::multiply_slice.
  *
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-
-#include <numeric>
+#include "nntile/graph/tensor/ops/multiply_slice.hh"
 
 #include "context_fixture.hh"
-#include "nntile/graph/tensor/ops/multiply_slice.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
 #include "nntile/tensor/multiply_slice.hh"
 #include "nntile/tensor/tensor.hh"
-#include "nntile/graph/tensor/axis_descriptor.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
+#include <numeric>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -50,14 +51,13 @@ constexpr Index dim_5 = 5;
 
 //! Slice shape: dst shape with axis removed
 static std::vector<Index> slice_shape(
-    const std::vector<Index>& dst_shape,
-    Index axis)
+    const std::vector<Index> &dst_shape, Index axis)
 {
     std::vector<Index> out;
     out.reserve(dst_shape.size() - 1);
-    for(Index i = 0; i < static_cast<Index>(dst_shape.size()); ++i)
+    for (Index i = 0; i < static_cast<Index>(dst_shape.size()); ++i)
     {
-        if(i != axis)
+        if (i != axis)
         {
             out.push_back(dst_shape[i]);
         }
@@ -65,11 +65,9 @@ static std::vector<Index> slice_shape(
     return out;
 }
 
-template<typename T>
+template <typename T>
 void check_multiply_slice_vs_tensor_api(
-    const std::vector<Index>& dst_shape,
-    Index axis,
-    Scalar alpha)
+    const std::vector<Index> &dst_shape, Index axis, Scalar alpha)
 {
     using Y = typename T::repr_t;
     const Index dst_nelems = std::accumulate(
@@ -82,8 +80,8 @@ void check_multiply_slice_vs_tensor_api(
 
     // --- TensorGraph path ---
     TensorGraph graph("multiply_slice_test");
-    auto* src_node = graph.data(src_sh, "src", DataType::FP32);
-    auto* dst_node = graph.data(dst_shape, "dst", DataType::FP32);
+    auto *src_node = graph.data(src_sh, DataType::FP32)->set_name("src");
+    auto *dst_node = graph.data(dst_shape, DataType::FP32)->set_name("dst");
     src_node->mark_input(true);
     dst_node->mark_input(true);
     dst_node->mark_output(true);
@@ -92,23 +90,22 @@ void check_multiply_slice_vs_tensor_api(
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(src_nelems);
     std::vector<float> dst_data(dst_nelems);
-    for(Index i = 0; i < src_nelems; ++i)
+    for (Index i = 0; i < src_nelems; ++i)
     {
         src_data[i] = static_cast<float>(Y(i + 1));
     }
-    for(Index i = 0; i < dst_nelems; ++i)
+    for (Index i = 0; i < dst_nelems; ++i)
     {
         dst_data[i] = static_cast<float>(Y(-i - 1));
     }
 
-    runtime.bind_data(src_node,  src_data);
-    runtime.bind_data(dst_node,  dst_data);
+    runtime.bind_data(src_node, src_data);
+    runtime.bind_data(dst_node, dst_data);
     runtime.execute();
     runtime.wait();
 
@@ -125,7 +122,7 @@ void check_multiply_slice_vs_tensor_api(
     {
         auto tile = src_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < src_nelems; ++i)
+        for (Index i = 0; i < src_nelems; ++i)
         {
             loc[i] = static_cast<Y>(src_data[i]);
         }
@@ -134,7 +131,7 @@ void check_multiply_slice_vs_tensor_api(
     {
         auto tile = dst_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < dst_nelems; ++i)
+        for (Index i = 0; i < dst_nelems; ++i)
         {
             loc[i] = static_cast<Y>(dst_data[i]);
         }
@@ -148,7 +145,7 @@ void check_multiply_slice_vs_tensor_api(
     {
         auto tile = dst_t.get_tile(0);
         auto loc = tile.acquire(STARPU_R);
-        for(Index i = 0; i < dst_nelems; ++i)
+        for (Index i = 0; i < dst_nelems; ++i)
         {
             tensor_result[i] = static_cast<float>(loc[i]);
         }
@@ -156,7 +153,7 @@ void check_multiply_slice_vs_tensor_api(
     }
 
     REQUIRE(graph_result.size() == tensor_result.size());
-    for(size_t i = 0; i < graph_result.size(); ++i)
+    for (size_t i = 0; i < graph_result.size(); ++i)
     {
         REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tolerance);
     }
@@ -166,8 +163,9 @@ TEST_CASE("TensorGraph multiply_slice structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto* src = graph.data({dim_2}, "src");  // slice for dst [dim_2, dim_4], axis=1
-    auto* dst = graph.data({dim_2, dim_4}, "dst");
+    auto *src = graph.data({dim_2})->set_name(
+        "src"); // slice for dst [dim_2, dim_4], axis=1
+    auto *dst = graph.data({dim_2, dim_4})->set_name("dst");
 
     gt::multiply_slice(alpha_one, src, dst, axis_1);
 
@@ -175,43 +173,47 @@ TEST_CASE("TensorGraph multiply_slice structure", "[graph][tensor]")
     REQUIRE(graph.num_ops() == 1);
     REQUIRE(dst->shape() == (std::vector<Index>{dim_2, dim_4}));
 
-    const auto& ops = graph.ops();
+    const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "MULTIPLY_SLICE");
     REQUIRE(ops[0]->inputs().size() == 2);
     REQUIRE(ops[0]->outputs().size() == 1);
     REQUIRE(ops[0]->outputs()[0] == dst);
 }
 
-TEST_CASE("TensorGraph multiply_slice rejects duplicate tensors", "[graph][tensor]")
+TEST_CASE(
+    "TensorGraph multiply_slice rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto* src = graph.data({dim_2}, "src");
-    auto* dst = graph.data({dim_2, dim_4}, "dst");
+    auto *src = graph.data({dim_2})->set_name("src");
+    auto *dst = graph.data({dim_2, dim_4})->set_name("dst");
 
-    REQUIRE_THROWS_AS(
-        gt::multiply_slice(alpha_one, src, src, axis_1),
+    REQUIRE_THROWS_AS(gt::multiply_slice(alpha_one, src, src, axis_1),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph multiply_slice matches nntile::tensor::multiply_slice", "[graph][tensor]")
+    "TensorGraph multiply_slice matches nntile::tensor::multiply_slice",
+    "[graph][tensor]")
 {
     const auto [dst_shape, axis, alpha] = GENERATE(
         std::tuple{std::vector<Index>{dim_2, dim_4}, axis_1, alpha_one},
         std::tuple{std::vector<Index>{dim_2, dim_4}, axis_0, alpha_one},
         std::tuple{std::vector<Index>{dim_2, dim_3, dim_4}, axis_0, alpha_one},
-        std::tuple{std::vector<Index>{dim_2, dim_3, dim_4}, axis_1, alpha_half},
-        std::tuple{std::vector<Index>{dim_2, dim_3, dim_4}, axis_2, alpha_two});
+        std::tuple{
+            std::vector<Index>{dim_2, dim_3, dim_4}, axis_1, alpha_half},
+        std::tuple{
+            std::vector<Index>{dim_2, dim_3, dim_4}, axis_2, alpha_two});
 
     check_multiply_slice_vs_tensor_api<nntile::fp32_t>(dst_shape, axis, alpha);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph multiply_slice tiled matches untiled", "[graph][tensor]")
+    "TensorGraph multiply_slice tiled matches untiled",
+    "[graph][tensor]")
 {
-    const auto [dst_shape, axis, alpha] = GENERATE(
-        std::tuple{std::vector<Index>{2, 4}, Index(1), 1.0},
-        std::tuple{std::vector<Index>{2, 4}, Index(0), 1.0});
+    const auto [dst_shape, axis, alpha] =
+        GENERATE(std::tuple{std::vector<Index>{2, 4}, Index(1), 1.0},
+            std::tuple{std::vector<Index>{2, 4}, Index(0), 1.0});
 
     using T = nntile::fp32_t;
     using Y = T::repr_t;
@@ -223,16 +225,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> src_data(src_nelems);
     std::vector<float> dst_data(dst_nelems);
-    for(Index i = 0; i < src_nelems; ++i)
+    for (Index i = 0; i < src_nelems; ++i)
         src_data[i] = static_cast<float>(Y(i + 1));
-    for(Index i = 0; i < dst_nelems; ++i)
+    for (Index i = 0; i < dst_nelems; ++i)
         dst_data[i] = static_cast<float>(Y(-i - 1));
 
     std::vector<float> untiled_result;
     {
         TensorGraph graph("multiply_slice_untiled");
-        auto* src_node = graph.data(src_sh, "src", DataType::FP32);
-        auto* dst_node = graph.data(dst_shape, "dst", DataType::FP32);
+        auto *src_node = graph.data(src_sh, DataType::FP32)->set_name("src");
+        auto *dst_node =
+            graph.data(dst_shape, DataType::FP32)->set_name("dst");
         src_node->mark_input(true);
         dst_node->mark_input(true);
         dst_node->mark_output(true);
@@ -241,8 +244,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data(src_node,  src_data);
-        runtime.bind_data(dst_node,  dst_data);
+        runtime.bind_data(src_node, src_data);
+        runtime.bind_data(dst_node, dst_data);
         runtime.execute();
         runtime.wait();
         untiled_result = runtime.get_output<float>(dst_node);
@@ -251,13 +254,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("multiply_slice_tiled");
-        auto* src_node = graph.data(src_sh, "src", DataType::FP32);
-        auto* dst_node = graph.data(dst_shape, "dst", DataType::FP32);
+        auto *src_node = graph.data(src_sh, DataType::FP32)->set_name("src");
+        auto *dst_node =
+            graph.data(dst_shape, DataType::FP32)->set_name("dst");
         src_node->mark_input(true);
         dst_node->mark_input(true);
         dst_node->mark_output(true);
         gt::multiply_slice(alpha, src_node, dst_node, axis);
-        for(auto* ag : graph.axis_groups())
+        for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
@@ -265,8 +269,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data(src_node,  src_data);
-        runtime.bind_data(dst_node,  dst_data);
+        runtime.bind_data(src_node, src_data);
+        runtime.bind_data(dst_node, dst_data);
         runtime.execute();
         runtime.wait();
         tiled_result = runtime.get_output<float>(dst_node);
@@ -274,7 +278,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-5f;
     REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
+    for (size_t i = 0; i < tiled_result.size(); ++i)
     {
         REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
     }

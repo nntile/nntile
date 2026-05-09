@@ -16,21 +16,20 @@
 
 #ifdef NNTILE_USE_CUDA
 
-#include <catch2/catch_test_macros.hpp>
+#include "context_fixture.hh"
+#include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
+#include "nntile/graph/tensor/ops/flash_sdpa_bwd_cudnn.hh"
+#include "nntile/graph/tile.hh"
+#include "nntile/tensor/clear.hh"
+#include "nntile/tensor/flash_sdpa_bwd_cudnn.hh"
+#include "nntile/tensor/tensor.hh"
 
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <limits>
 #include <numeric>
 #include <vector>
-
-#include "context_fixture.hh"
-#include "nntile/graph/tensor/ops/flash_sdpa_bwd_cudnn.hh"
-#include "nntile/graph/tensor.hh"
-#include "nntile/graph/tile.hh"
-#include "nntile/graph/tensor/axis_descriptor.hh"
-#include "nntile/tensor/clear.hh"
-#include "nntile/tensor/flash_sdpa_bwd_cudnn.hh"
-#include "nntile/tensor/tensor.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -44,7 +43,8 @@ constexpr int distr_rank_single = 0;
 
 } // anonymous namespace
 
-TEST_CASE("TensorGraph flash_sdpa_bwd_cudnn structure", "[graph][tensor][cuda]")
+TEST_CASE(
+    "TensorGraph flash_sdpa_bwd_cudnn structure", "[graph][tensor][cuda]")
 {
     TensorGraph graph("test");
 
@@ -52,59 +52,63 @@ TEST_CASE("TensorGraph flash_sdpa_bwd_cudnn structure", "[graph][tensor][cuda]")
     std::vector<Index> logsumexp_shape{64, 2, 1, 1};
     std::vector<Index> mask_shape{64, 64};
 
-    auto* K = graph.data(kv_shape, "K", DataType::FP16);
-    auto* Q = graph.data(kv_shape, "Q", DataType::FP16);
-    auto* V = graph.data(kv_shape, "V", DataType::FP16);
-    auto* A = graph.data(kv_shape, "A", DataType::FP16);
-    auto* dA = graph.data(kv_shape, "dA", DataType::FP16);
-    auto* mask = graph.data(mask_shape, "mask", DataType::FP16);
-    auto* logsumexp = graph.data(logsumexp_shape, "logsumexp", DataType::FP32);
-    auto* dK = graph.data(kv_shape, "dK", DataType::FP16);
-    auto* dQ = graph.data(kv_shape, "dQ", DataType::FP16);
-    auto* dV = graph.data(kv_shape, "dV", DataType::FP16);
+    auto *K = graph.data(kv_shape, DataType::FP16)->set_name("K");
+    auto *Q = graph.data(kv_shape, DataType::FP16)->set_name("Q");
+    auto *V = graph.data(kv_shape, DataType::FP16)->set_name("V");
+    auto *A = graph.data(kv_shape, DataType::FP16)->set_name("A");
+    auto *dA = graph.data(kv_shape, DataType::FP16)->set_name("dA");
+    auto *mask = graph.data(mask_shape, DataType::FP16)->set_name("mask");
+    auto *logsumexp =
+        graph.data(logsumexp_shape, DataType::FP32)->set_name("logsumexp");
+    auto *dK = graph.data(kv_shape, DataType::FP16)->set_name("dK");
+    auto *dQ = graph.data(kv_shape, DataType::FP16)->set_name("dQ");
+    auto *dV = graph.data(kv_shape, DataType::FP16)->set_name("dV");
 
     gt::flash_sdpa_bwd_cudnn(K, Q, V, A, dA, mask, logsumexp, dK, dQ, dV);
 
     REQUIRE(graph.num_data() == 10);
     REQUIRE(graph.num_ops() == 1);
 
-    const auto& ops = graph.ops();
+    const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "FLASH_SDPA_BWD_CUDNN");
     REQUIRE(ops[0]->inputs().size() == 10);
     REQUIRE(ops[0]->outputs().size() == 3);
 }
 
-TEST_CASE("TensorGraph flash_sdpa_bwd_cudnn rejects null tensors", "[graph][tensor][cuda]")
+TEST_CASE("TensorGraph flash_sdpa_bwd_cudnn rejects null tensors",
+    "[graph][tensor][cuda]")
 {
     TensorGraph graph("test");
     std::vector<Index> kv_shape{32, 64, 2, 1, 1};
     std::vector<Index> logsumexp_shape{64, 2, 1, 1};
     std::vector<Index> mask_shape{64, 64};
 
-    auto* K = graph.data(kv_shape, "K", DataType::FP16);
-    auto* Q = graph.data(kv_shape, "Q", DataType::FP16);
-    auto* V = graph.data(kv_shape, "V", DataType::FP16);
-    auto* A = graph.data(kv_shape, "A", DataType::FP16);
-    auto* dA = graph.data(kv_shape, "dA", DataType::FP16);
-    auto* mask = graph.data(mask_shape, "mask", DataType::FP16);
-    auto* logsumexp = graph.data(logsumexp_shape, "logsumexp", DataType::FP32);
-    auto* dK = graph.data(kv_shape, "dK", DataType::FP16);
-    auto* dQ = graph.data(kv_shape, "dQ", DataType::FP16);
-    auto* dV = graph.data(kv_shape, "dV", DataType::FP16);
+    auto *K = graph.data(kv_shape, DataType::FP16)->set_name("K");
+    auto *Q = graph.data(kv_shape, DataType::FP16)->set_name("Q");
+    auto *V = graph.data(kv_shape, DataType::FP16)->set_name("V");
+    auto *A = graph.data(kv_shape, DataType::FP16)->set_name("A");
+    auto *dA = graph.data(kv_shape, DataType::FP16)->set_name("dA");
+    auto *mask = graph.data(mask_shape, DataType::FP16)->set_name("mask");
+    auto *logsumexp =
+        graph.data(logsumexp_shape, DataType::FP32)->set_name("logsumexp");
+    auto *dK = graph.data(kv_shape, DataType::FP16)->set_name("dK");
+    auto *dQ = graph.data(kv_shape, DataType::FP16)->set_name("dQ");
+    auto *dV = graph.data(kv_shape, DataType::FP16)->set_name("dV");
 
-    REQUIRE_THROWS_AS(
-        gt::flash_sdpa_bwd_cudnn(nullptr, Q, V, A, dA, mask, logsumexp, dK, dQ, dV),
+    REQUIRE_THROWS_AS(gt::flash_sdpa_bwd_cudnn(
+                          nullptr, Q, V, A, dA, mask, logsumexp, dK, dQ, dV),
         std::invalid_argument);
-    REQUIRE_THROWS_AS(
-        gt::flash_sdpa_bwd_cudnn(K, nullptr, V, A, dA, mask, logsumexp, dK, dQ, dV),
+    REQUIRE_THROWS_AS(gt::flash_sdpa_bwd_cudnn(
+                          K, nullptr, V, A, dA, mask, logsumexp, dK, dQ, dV),
         std::invalid_argument);
-    REQUIRE_THROWS_AS(
-        gt::flash_sdpa_bwd_cudnn(K, Q, V, A, dA, mask, logsumexp, nullptr, dQ, dV),
+    REQUIRE_THROWS_AS(gt::flash_sdpa_bwd_cudnn(
+                          K, Q, V, A, dA, mask, logsumexp, nullptr, dQ, dV),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::CudaContextFixture,
-    "TensorGraph flash_sdpa_bwd_cudnn matches tensor API", "[graph][tensor][cuda]")
+    "TensorGraph flash_sdpa_bwd_cudnn matches tensor API",
+    "[graph][tensor][cuda]")
 {
     using T = nntile::fp16_t;
     using Y = typename T::repr_t;
@@ -115,28 +119,33 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     Index kv_group_size = 1;
     Index n_head_kv = 1;
 
-    std::vector<Index> kv_shape = {head_size, n_seq, n_batch, kv_group_size, n_head_kv};
-    std::vector<Index> logsumexp_shape = {n_seq, n_batch, kv_group_size, n_head_kv};
+    std::vector<Index> kv_shape = {
+        head_size, n_seq, n_batch, kv_group_size, n_head_kv};
+    std::vector<Index> logsumexp_shape = {
+        n_seq, n_batch, kv_group_size, n_head_kv};
     std::vector<Index> mask_shape = {n_seq, n_seq};
 
     const Index kv_nelems = std::accumulate(
         kv_shape.begin(), kv_shape.end(), Index(1), std::multiplies<>());
-    const Index logsumexp_nelems = std::accumulate(
-        logsumexp_shape.begin(), logsumexp_shape.end(), Index(1), std::multiplies<>());
+    const Index logsumexp_nelems = std::accumulate(logsumexp_shape.begin(),
+        logsumexp_shape.end(),
+        Index(1),
+        std::multiplies<>());
     const Index mask_nelems = n_seq * n_seq;
 
     // --- TensorGraph path ---
     TensorGraph graph("flash_sdpa_bwd_test");
-    auto* K_node = graph.data(kv_shape, "K", DataType::FP16);
-    auto* Q_node = graph.data(kv_shape, "Q", DataType::FP16);
-    auto* V_node = graph.data(kv_shape, "V", DataType::FP16);
-    auto* A_node = graph.data(kv_shape, "A", DataType::FP16);
-    auto* dA_node = graph.data(kv_shape, "dA", DataType::FP16);
-    auto* mask_node = graph.data(mask_shape, "mask", DataType::FP16);
-    auto* logsumexp_node = graph.data(logsumexp_shape, "logsumexp", DataType::FP32);
-    auto* dK_node = graph.data(kv_shape, "dK", DataType::FP16);
-    auto* dQ_node = graph.data(kv_shape, "dQ", DataType::FP16);
-    auto* dV_node = graph.data(kv_shape, "dV", DataType::FP16);
+    auto *K_node = graph.data(kv_shape, DataType::FP16)->set_name("K");
+    auto *Q_node = graph.data(kv_shape, DataType::FP16)->set_name("Q");
+    auto *V_node = graph.data(kv_shape, DataType::FP16)->set_name("V");
+    auto *A_node = graph.data(kv_shape, DataType::FP16)->set_name("A");
+    auto *dA_node = graph.data(kv_shape, DataType::FP16)->set_name("dA");
+    auto *mask_node = graph.data(mask_shape, DataType::FP16)->set_name("mask");
+    auto *logsumexp_node =
+        graph.data(logsumexp_shape, DataType::FP32)->set_name("logsumexp");
+    auto *dK_node = graph.data(kv_shape, DataType::FP16)->set_name("dK");
+    auto *dQ_node = graph.data(kv_shape, DataType::FP16)->set_name("dQ");
+    auto *dV_node = graph.data(kv_shape, DataType::FP16)->set_name("dV");
 
     K_node->mark_input(true);
     Q_node->mark_input(true);
@@ -152,11 +161,18 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     dQ_node->mark_output(true);
     dV_node->mark_output(true);
 
-    gt::flash_sdpa_bwd_cudnn(K_node, Q_node, V_node, A_node, dA_node,
-                         mask_node, logsumexp_node, dK_node, dQ_node, dV_node);
+    gt::flash_sdpa_bwd_cudnn(K_node,
+        Q_node,
+        V_node,
+        A_node,
+        dA_node,
+        mask_node,
+        logsumexp_node,
+        dK_node,
+        dQ_node,
+        dV_node);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
 
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
@@ -172,7 +188,7 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     std::vector<float> dQ_data(kv_nelems, 0.0f);
     std::vector<float> dV_data(kv_nelems, 0.0f);
 
-    for(Index i = 0; i < kv_nelems; ++i)
+    for (Index i = 0; i < kv_nelems; ++i)
     {
         K_data[i] = 0.1f * static_cast<float>((i % 10) - 5);
         Q_data[i] = 0.1f * static_cast<float>(((i + 1) % 10) - 5);
@@ -180,30 +196,32 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
         A_data[i] = 0.1f * static_cast<float>(((i + 3) % 10) - 5);
         dA_data[i] = 0.1f * static_cast<float>(((i + 4) % 10) - 5);
     }
-    for(Index i = 0; i < n_seq; ++i)
+    for (Index i = 0; i < n_seq; ++i)
     {
-        for(Index j = 0; j < n_seq; ++j)
+        for (Index j = 0; j < n_seq; ++j)
         {
             Index idx = i * n_seq + j;
-            mask_data[idx] = (std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 32)
-                ? 0.0f : -std::numeric_limits<float>::infinity();
+            mask_data[idx] =
+                (std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 32)
+                    ? 0.0f
+                    : -std::numeric_limits<float>::infinity();
         }
     }
-    for(Index i = 0; i < logsumexp_nelems; ++i)
+    for (Index i = 0; i < logsumexp_nelems; ++i)
     {
         logsumexp_data[i] = 0.1f * static_cast<float>((i % 10) - 5);
     }
 
-    runtime.bind_data(K_node,  K_data);
-    runtime.bind_data(Q_node,  Q_data);
-    runtime.bind_data(V_node,  V_data);
-    runtime.bind_data(A_node,  A_data);
-    runtime.bind_data(dA_node,  dA_data);
-    runtime.bind_data(mask_node,  mask_data);
-    runtime.bind_data(logsumexp_node,  logsumexp_data);
-    runtime.bind_data(dK_node,  dK_data);
-    runtime.bind_data(dQ_node,  dQ_data);
-    runtime.bind_data(dV_node,  dV_data);
+    runtime.bind_data(K_node, K_data);
+    runtime.bind_data(Q_node, Q_data);
+    runtime.bind_data(V_node, V_data);
+    runtime.bind_data(A_node, A_data);
+    runtime.bind_data(dA_node, dA_data);
+    runtime.bind_data(mask_node, mask_data);
+    runtime.bind_data(logsumexp_node, logsumexp_data);
+    runtime.bind_data(dK_node, dK_data);
+    runtime.bind_data(dQ_node, dQ_data);
+    runtime.bind_data(dV_node, dV_data);
     runtime.execute();
     runtime.wait();
 
@@ -214,7 +232,8 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     // --- Direct tensor API path ---
     nntile::tensor::TensorTraits kv_traits(kv_shape, kv_shape);
     nntile::tensor::TensorTraits mask_traits(mask_shape, mask_shape);
-    nntile::tensor::TensorTraits logsumexp_traits(logsumexp_shape, logsumexp_shape);
+    nntile::tensor::TensorTraits logsumexp_traits(
+        logsumexp_shape, logsumexp_shape);
     std::vector<int> distr(1, distr_rank_single);
 
     nntile::tensor::Tensor<T> K_t(kv_traits, distr);
@@ -223,27 +242,29 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     nntile::tensor::Tensor<T> A_t(kv_traits, distr);
     nntile::tensor::Tensor<T> dA_t(kv_traits, distr);
     nntile::tensor::Tensor<T> mask_t(mask_traits, distr);
-    nntile::tensor::Tensor<nntile::fp32_t> logsumexp_t(logsumexp_traits, distr);
+    nntile::tensor::Tensor<nntile::fp32_t> logsumexp_t(
+        logsumexp_traits, distr);
     nntile::tensor::Tensor<T> dK_t(kv_traits, distr);
     nntile::tensor::Tensor<T> dQ_t(kv_traits, distr);
     nntile::tensor::Tensor<T> dV_t(kv_traits, distr);
 
-    auto init_tile = [](nntile::tensor::Tensor<T>& t, const std::vector<float>& data)
+    auto init_tile =
+        [](nntile::tensor::Tensor<T> &t, const std::vector<float> &data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < static_cast<Index>(data.size()); ++i)
+        for (Index i = 0; i < static_cast<Index>(data.size()); ++i)
         {
             loc[i] = static_cast<Y>(data[i]);
         }
         loc.release();
     };
-    auto init_logsumexp = [](nntile::tensor::Tensor<nntile::fp32_t>& t,
-                            const std::vector<float>& data)
+    auto init_logsumexp = [](nntile::tensor::Tensor<nntile::fp32_t> &t,
+                              const std::vector<float> &data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < static_cast<Index>(data.size()); ++i)
+        for (Index i = 0; i < static_cast<Index>(data.size()); ++i)
         {
             loc[i] = data[i];
         }
@@ -261,18 +282,19 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     nntile::tensor::clear<T>(dQ_t);
     nntile::tensor::clear<T>(dV_t);
 
-    nntile::tensor::flash_sdpa_bwd_cudnn<T>(K_t, Q_t, V_t, A_t, dA_t, mask_t, logsumexp_t,
-                                    dK_t, dQ_t, dV_t);
+    nntile::tensor::flash_sdpa_bwd_cudnn<T>(
+        K_t, Q_t, V_t, A_t, dA_t, mask_t, logsumexp_t, dK_t, dQ_t, dV_t);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_dK(kv_nelems);
     std::vector<float> tensor_dQ(kv_nelems);
     std::vector<float> tensor_dV(kv_nelems);
-    auto read_tensor = [&](nntile::tensor::Tensor<T>& t, std::vector<float>& out)
+    auto read_tensor =
+        [&](nntile::tensor::Tensor<T> &t, std::vector<float> &out)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_R);
-        for(Index i = 0; i < kv_nelems; ++i)
+        for (Index i = 0; i < kv_nelems; ++i)
         {
             out[i] = static_cast<float>(loc[i]);
         }
@@ -285,7 +307,7 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     REQUIRE(graph_dK.size() == tensor_dK.size());
     REQUIRE(graph_dQ.size() == tensor_dQ.size());
     REQUIRE(graph_dV.size() == tensor_dV.size());
-    for(size_t i = 0; i < graph_dK.size(); ++i)
+    for (size_t i = 0; i < graph_dK.size(); ++i)
     {
         REQUIRE(std::abs(graph_dK[i] - tensor_dK[i]) < tolerance);
         REQUIRE(std::abs(graph_dQ[i] - tensor_dQ[i]) < tolerance);
@@ -294,7 +316,8 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::CudaContextFixture,
-    "TensorGraph flash_sdpa_bwd_cudnn tiled matches untiled", "[graph][tensor][cuda]")
+    "TensorGraph flash_sdpa_bwd_cudnn tiled matches untiled",
+    "[graph][tensor][cuda]")
 {
     Index head_size = 32;
     Index n_seq = 64;
@@ -302,14 +325,18 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     Index kv_group_size = 1;
     Index n_head_kv = 1;
 
-    std::vector<Index> kv_shape = {head_size, n_seq, n_batch, kv_group_size, n_head_kv};
-    std::vector<Index> logsumexp_shape = {n_seq, n_batch, kv_group_size, n_head_kv};
+    std::vector<Index> kv_shape = {
+        head_size, n_seq, n_batch, kv_group_size, n_head_kv};
+    std::vector<Index> logsumexp_shape = {
+        n_seq, n_batch, kv_group_size, n_head_kv};
     std::vector<Index> mask_shape = {n_seq, n_seq};
 
     const Index kv_nelems = std::accumulate(
         kv_shape.begin(), kv_shape.end(), Index(1), std::multiplies<>());
-    const Index logsumexp_nelems = std::accumulate(
-        logsumexp_shape.begin(), logsumexp_shape.end(), Index(1), std::multiplies<>());
+    const Index logsumexp_nelems = std::accumulate(logsumexp_shape.begin(),
+        logsumexp_shape.end(),
+        Index(1),
+        std::multiplies<>());
     const Index mask_nelems = n_seq * n_seq;
 
     std::vector<float> K_data(kv_nelems);
@@ -323,7 +350,7 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     std::vector<float> dQ_data(kv_nelems, 0.0f);
     std::vector<float> dV_data(kv_nelems, 0.0f);
 
-    for(Index i = 0; i < kv_nelems; ++i)
+    for (Index i = 0; i < kv_nelems; ++i)
     {
         K_data[i] = 0.1f * static_cast<float>((i % 10) - 5);
         Q_data[i] = 0.1f * static_cast<float>(((i + 1) % 10) - 5);
@@ -331,35 +358,38 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
         A_data[i] = 0.1f * static_cast<float>(((i + 3) % 10) - 5);
         dA_data[i] = 0.1f * static_cast<float>(((i + 4) % 10) - 5);
     }
-    for(Index i = 0; i < n_seq; ++i)
+    for (Index i = 0; i < n_seq; ++i)
     {
-        for(Index j = 0; j < n_seq; ++j)
+        for (Index j = 0; j < n_seq; ++j)
         {
             mask_data[i * n_seq + j] =
                 (std::abs(static_cast<long>(i) - static_cast<long>(j)) <= 32)
-                    ? 0.0f : -std::numeric_limits<float>::infinity();
+                    ? 0.0f
+                    : -std::numeric_limits<float>::infinity();
         }
     }
-    for(Index i = 0; i < logsumexp_nelems; ++i)
+    for (Index i = 0; i < logsumexp_nelems; ++i)
     {
         logsumexp_data[i] = 0.1f * static_cast<float>((i % 10) - 5);
     }
 
-    auto run_graph = [&](bool tiled)
-        -> std::tuple<std::vector<float>, std::vector<float>, std::vector<float>>
+    auto run_graph = [&](bool tiled) -> std::tuple<std::vector<float>,
+                                         std::vector<float>,
+                                         std::vector<float>>
     {
         TensorGraph graph(tiled ? "bwd_tiled" : "bwd_untiled");
-        auto* K_node = graph.data(kv_shape, "K", DataType::FP16);
-        auto* Q_node = graph.data(kv_shape, "Q", DataType::FP16);
-        auto* V_node = graph.data(kv_shape, "V", DataType::FP16);
-        auto* A_node = graph.data(kv_shape, "A", DataType::FP16);
-        auto* dA_node = graph.data(kv_shape, "dA", DataType::FP16);
-        auto* mask_node = graph.data(mask_shape, "mask", DataType::FP16);
-        auto* logsumexp_node = graph.data(logsumexp_shape, "logsumexp",
-                                          DataType::FP32);
-        auto* dK_node = graph.data(kv_shape, "dK", DataType::FP16);
-        auto* dQ_node = graph.data(kv_shape, "dQ", DataType::FP16);
-        auto* dV_node = graph.data(kv_shape, "dV", DataType::FP16);
+        auto *K_node = graph.data(kv_shape, DataType::FP16)->set_name("K");
+        auto *Q_node = graph.data(kv_shape, DataType::FP16)->set_name("Q");
+        auto *V_node = graph.data(kv_shape, DataType::FP16)->set_name("V");
+        auto *A_node = graph.data(kv_shape, DataType::FP16)->set_name("A");
+        auto *dA_node = graph.data(kv_shape, DataType::FP16)->set_name("dA");
+        auto *mask_node =
+            graph.data(mask_shape, DataType::FP16)->set_name("mask");
+        auto *logsumexp_node =
+            graph.data(logsumexp_shape, DataType::FP32)->set_name("logsumexp");
+        auto *dK_node = graph.data(kv_shape, DataType::FP16)->set_name("dK");
+        auto *dQ_node = graph.data(kv_shape, DataType::FP16)->set_name("dQ");
+        auto *dV_node = graph.data(kv_shape, DataType::FP16)->set_name("dV");
 
         K_node->mark_input(true);
         Q_node->mark_input(true);
@@ -375,16 +405,23 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
         dQ_node->mark_output(true);
         dV_node->mark_output(true);
 
-        gt::flash_sdpa_bwd_cudnn(K_node, Q_node, V_node, A_node, dA_node,
-                                 mask_node, logsumexp_node,
-                                 dK_node, dQ_node, dV_node);
+        gt::flash_sdpa_bwd_cudnn(K_node,
+            Q_node,
+            V_node,
+            A_node,
+            dA_node,
+            mask_node,
+            logsumexp_node,
+            dK_node,
+            dQ_node,
+            dV_node);
 
-        if(tiled)
+        if (tiled)
         {
-            auto* head_axis = K_node->axis(0);
-            for(auto* ag : graph.axis_groups())
+            auto *head_axis = K_node->axis(0);
+            for (auto *ag : graph.axis_groups())
             {
-                if(ag == head_axis)
+                if (ag == head_axis)
                 {
                     ag->set_tiling(ag->extent);
                 }
@@ -397,24 +434,23 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data(K_node,  K_data);
-        runtime.bind_data(Q_node,  Q_data);
-        runtime.bind_data(V_node,  V_data);
-        runtime.bind_data(A_node,  A_data);
-        runtime.bind_data(dA_node,  dA_data);
-        runtime.bind_data(mask_node,  mask_data);
-        runtime.bind_data(logsumexp_node,  logsumexp_data);
-        runtime.bind_data(dK_node,  dK_data);
-        runtime.bind_data(dQ_node,  dQ_data);
-        runtime.bind_data(dV_node,  dV_data);
+        runtime.bind_data(K_node, K_data);
+        runtime.bind_data(Q_node, Q_data);
+        runtime.bind_data(V_node, V_data);
+        runtime.bind_data(A_node, A_data);
+        runtime.bind_data(dA_node, dA_data);
+        runtime.bind_data(mask_node, mask_data);
+        runtime.bind_data(logsumexp_node, logsumexp_data);
+        runtime.bind_data(dK_node, dK_data);
+        runtime.bind_data(dQ_node, dQ_data);
+        runtime.bind_data(dV_node, dV_data);
         runtime.execute();
         runtime.wait();
         return {runtime.get_output<float>(dK_node),
-                runtime.get_output<float>(dQ_node),
-                runtime.get_output<float>(dV_node)};
+            runtime.get_output<float>(dQ_node),
+            runtime.get_output<float>(dV_node)};
     };
 
     auto [untiled_dK, untiled_dQ, untiled_dV] = run_graph(false);
@@ -423,7 +459,7 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
     REQUIRE(tiled_dK.size() == untiled_dK.size());
     REQUIRE(tiled_dQ.size() == untiled_dQ.size());
     REQUIRE(tiled_dV.size() == untiled_dV.size());
-    for(size_t i = 0; i < tiled_dK.size(); ++i)
+    for (size_t i = 0; i < tiled_dK.size(); ++i)
     {
         REQUIRE(std::abs(tiled_dK[i] - untiled_dK[i]) < tolerance);
         REQUIRE(std::abs(tiled_dQ[i] - untiled_dQ[i]) < tolerance);

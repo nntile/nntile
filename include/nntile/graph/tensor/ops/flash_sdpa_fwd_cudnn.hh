@@ -28,21 +28,21 @@ namespace nntile::graph::tensor
 //! Flash SDPA forward: A = attention(K, Q, V, mask)
 struct TensorFlashSdpaFwdCudnnOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* K = nullptr;
-    TensorGraph::TensorNode* Q = nullptr;
-    TensorGraph::TensorNode* mask = nullptr;
-    TensorGraph::TensorNode* logsumexp = nullptr;  // FP32
-    TensorGraph::TensorNode* V = nullptr;
-    TensorGraph::TensorNode* A = nullptr;
+    TensorGraph::TensorNode *K = nullptr;
+    TensorGraph::TensorNode *Q = nullptr;
+    TensorGraph::TensorNode *mask = nullptr;
+    TensorGraph::TensorNode *logsumexp = nullptr; // FP32
+    TensorGraph::TensorNode *V = nullptr;
+    TensorGraph::TensorNode *A = nullptr;
 
     TensorFlashSdpaFwdCudnnOp() = default;
-    TensorFlashSdpaFwdCudnnOp(TensorGraph::TensorNode* K_,
-                              TensorGraph::TensorNode* Q_,
-                              TensorGraph::TensorNode* mask_,
-                              TensorGraph::TensorNode* logsumexp_,
-                              TensorGraph::TensorNode* V_,
-                              TensorGraph::TensorNode* A_)
-        : K(K_), Q(Q_), mask(mask_), logsumexp(logsumexp_), V(V_), A(A_)
+    TensorFlashSdpaFwdCudnnOp(TensorGraph::TensorNode *K_,
+        TensorGraph::TensorNode *Q_,
+        TensorGraph::TensorNode *mask_,
+        TensorGraph::TensorNode *logsumexp_,
+        TensorGraph::TensorNode *V_,
+        TensorGraph::TensorNode *A_) :
+        K(K_), Q(Q_), mask(mask_), logsumexp(logsumexp_), V(V_), A(A_)
     {
         inputs_ = {K, Q, mask, V};
         outputs_ = {logsumexp, A};
@@ -55,23 +55,21 @@ struct TensorFlashSdpaFwdCudnnOp : TensorGraph::OpNode
         return std::make_shared<TensorFlashSdpaFwdCudnnOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! Flash SDPA forward (CUDA only)
-TensorGraph::TensorNode* flash_sdpa_fwd_cudnn(
-    TensorGraph::TensorNode* K,
-    TensorGraph::TensorNode* Q,
-    TensorGraph::TensorNode* mask,
-    TensorGraph::TensorNode* V,
-    const std::string& logsumexp_name,
-    const std::string& output_name);
+TensorGraph::TensorNode *flash_sdpa_fwd_cudnn(TensorGraph::TensorNode *K,
+    TensorGraph::TensorNode *Q,
+    TensorGraph::TensorNode *mask,
+    TensorGraph::TensorNode *V,
+    const std::string &logsumexp_name);
 
-void flash_sdpa_fwd_cudnn(TensorGraph::TensorNode* K,
-                          TensorGraph::TensorNode* Q,
-                          TensorGraph::TensorNode* mask,
-                          TensorGraph::TensorNode* logsumexp,
-                          TensorGraph::TensorNode* V,
-                          TensorGraph::TensorNode* A);
+void flash_sdpa_fwd_cudnn(TensorGraph::TensorNode *K,
+    TensorGraph::TensorNode *Q,
+    TensorGraph::TensorNode *mask,
+    TensorGraph::TensorNode *logsumexp,
+    TensorGraph::TensorNode *V,
+    TensorGraph::TensorNode *A);
 
 } // namespace nntile::graph::tensor

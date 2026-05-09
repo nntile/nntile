@@ -31,12 +31,13 @@ namespace nntile::graph::tensor
 //! Sqrt operation at tensor level: dst = sqrt(src)
 struct TensorSqrtOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorSqrtOp() = default;
-    TensorSqrtOp(TensorGraph::TensorNode* src_, TensorGraph::TensorNode* dst_)
-        : src(src_), dst(dst_)
+    TensorSqrtOp(
+        TensorGraph::TensorNode *src_, TensorGraph::TensorNode *dst_) :
+        src(src_), dst(dst_)
     {
         inputs_ = {src};
         outputs_ = {dst};
@@ -49,17 +50,13 @@ struct TensorSqrtOp : TensorGraph::OpNode
         return std::make_shared<TensorSqrtOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! Sqrt: dst = sqrt(src) (creates output)
-TensorGraph::TensorNode* sqrt(
-    TensorGraph::TensorNode* src,
-    const std::string& output_name);
+TensorGraph::TensorNode *sqrt(TensorGraph::TensorNode *src);
 
 //! Sqrt: dst = sqrt(src) (uses existing output)
-void sqrt(
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst);
+void sqrt(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst);
 
 } // namespace nntile::graph::tensor

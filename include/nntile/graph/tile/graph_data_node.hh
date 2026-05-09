@@ -36,27 +36,26 @@ class TileGraph;
 //! Data node for TileGraph - represents a single tile.
 class TileGraph::TileNode
 {
-public:
+  public:
     using NodeId = uint64_t;
 
-    TileNode(
-        NodeId id,
-        TileGraph* graph,
+    TileNode(NodeId id,
+        TileGraph *graph,
         std::vector<Index> shape,
         DataType dtype,
-        const std::string& name = "");
+        const std::string &name = "");
 
     NodeId id() const { return id_; }
-    const std::string& name() const { return name_; }
+    const std::string &name() const { return name_; }
     DataType dtype() const { return dtype_; }
-    const std::vector<Index>& shape() const { return shape_; }
+    const std::vector<Index> &shape() const { return shape_; }
     Index ndim() const { return static_cast<Index>(shape_.size()); }
     Index dim(int idx) const;
     Index nelems() const;
     size_t size_bytes() const;
 
-    TileGraph* graph();
-    const TileGraph* graph() const;
+    TileGraph *graph();
+    const TileGraph *graph() const;
 
     bool is_input() const { return is_input_; }
     bool is_output() const { return is_output_; }
@@ -64,36 +63,38 @@ public:
     void mark_output(bool v = true) { is_output_ = v; }
 
     //! Parent tensor descriptor (nullptr if not part of a tensor tiling)
-    const TileGraph::TensorDescriptor* tensor_descriptor() const
+    const TileGraph::TensorDescriptor *tensor_descriptor() const
     {
         return tensor_desc_;
     }
 
     //! Tile coordinate within the tensor's grid (empty if no descriptor)
-    const std::vector<Index>& tile_coord() const { return tile_coord_; }
+    const std::vector<Index> &tile_coord() const { return tile_coord_; }
 
     //! Set tensor descriptor and tile coordinate
-    void set_tensor_info(TileGraph::TensorDescriptor* desc,
-                         std::vector<Index> coord);
+    void set_tensor_info(
+        TileGraph::TensorDescriptor *desc, std::vector<Index> coord);
 
     //! Drop logical-tensor association (retired tiles after relayout).
     void clear_tensor_info();
 
     void set_bind_hint(std::vector<std::uint8_t> data);
-    const std::vector<std::uint8_t>* get_bind_hint() const;
+    const std::vector<std::uint8_t> *get_bind_hint() const;
+
+    TileNode *set_name(std::string new_name);
 
     std::string to_string() const;
 
-private:
+  private:
     NodeId id_;
-    TileGraph* graph_;
+    TileGraph *graph_;
     std::vector<Index> shape_;
     DataType dtype_;
     std::string name_;
     bool is_input_ = false;
     bool is_output_ = false;
     std::optional<std::vector<std::uint8_t>> bind_hint_;
-    TileGraph::TensorDescriptor* tensor_desc_ = nullptr;
+    TileGraph::TensorDescriptor *tensor_desc_ = nullptr;
     std::vector<Index> tile_coord_;
 
     friend class TileGraph;

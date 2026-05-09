@@ -10,7 +10,8 @@
  * NNGraph multiply_fiber autograd operation.
  *
  * Forward: output = alpha * src1 * src2 (element-wise along fiber)
- * Backward: grad_src1 += alpha * grad_out * src2, grad_src2 += alpha * grad_out * src1
+ * Backward: grad_src1 += alpha * grad_out * src2, grad_src2 += alpha *
+ * grad_out * src1
  *
  * @version 1.1.0
  * */
@@ -32,27 +33,25 @@ struct NNMultiplyFiberOp : NNGraph::OpNode
 {
     Scalar alpha;
     Index axis;
-    NNGraph::TensorNode* src1 = nullptr;
-    NNGraph::TensorNode* src2 = nullptr;
+    NNGraph::TensorNode *src1 = nullptr;
+    NNGraph::TensorNode *src2 = nullptr;
 
-    NNMultiplyFiberOp(NNGraph::TensorNode* src1_,
-                     NNGraph::TensorNode* src2_,
-                     Scalar alpha_,
-                     Index axis_)
-        : alpha(alpha_), axis(axis_), src1(src1_), src2(src2_)
+    NNMultiplyFiberOp(NNGraph::TensorNode *src1_,
+        NNGraph::TensorNode *src2_,
+        Scalar alpha_,
+        Index axis_) :
+        alpha(alpha_), axis(axis_), src1(src1_), src2(src2_)
     {
         inputs_ = {src1, src2};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* multiply_fiber(
-    Scalar alpha,
-    NNGraph::TensorNode* src1,
-    NNGraph::TensorNode* src2,
-    const std::string& output_name,
+NNGraph::TensorNode *multiply_fiber(Scalar alpha,
+    NNGraph::TensorNode *src1,
+    NNGraph::TensorNode *src2,
     Index axis);
 
 } // namespace nntile::graph

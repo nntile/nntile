@@ -12,18 +12,18 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-
-#include <numeric>
+#include "nntile/graph/tensor/ops/sum.hh"
 
 #include "context_fixture.hh"
-#include "nntile/graph/tensor/ops/sum.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
 #include "nntile/tensor/sum.hh"
 #include "nntile/tensor/tensor.hh"
-#include "nntile/graph/tensor/axis_descriptor.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
+#include <numeric>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -40,11 +40,9 @@ constexpr int distr_rank_single = 0;
 
 } // anonymous namespace
 
-template<typename T>
+template <typename T>
 void check_sum_vs_tensor_api(
-    const std::vector<Index>& src_shape,
-    Scalar alpha,
-    Scalar beta)
+    const std::vector<Index> &src_shape, Scalar alpha, Scalar beta)
 {
     using Y = typename T::repr_t;
     const Index src_nelems = std::accumulate(
@@ -52,8 +50,8 @@ void check_sum_vs_tensor_api(
 
     // --- TensorGraph path ---
     TensorGraph graph("sum_test");
-    auto* src_node = graph.data(src_shape, "src", DataType::FP32);
-    auto* dst_node = graph.data({}, "dst", DataType::FP32);  // scalar
+    auto *src_node = graph.data(src_shape, DataType::FP32)->set_name("src");
+    auto *dst_node = graph.data({}, DataType::FP32)->set_name("dst"); // scalar
     src_node->mark_input(true);
     dst_node->mark_input(true);
     dst_node->mark_output(true);
@@ -62,20 +60,19 @@ void check_sum_vs_tensor_api(
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(src_nelems);
     std::vector<float> dst_data(1);
-    for(Index i = 0; i < src_nelems; ++i)
+    for (Index i = 0; i < src_nelems; ++i)
     {
         src_data[i] = static_cast<float>(Y(i + 1));
     }
     dst_data[0] = (beta != beta_zero) ? 1.0f : 0.0f;
 
-    runtime.bind_data(src_node,  src_data);
-    runtime.bind_data(dst_node,  dst_data);
+    runtime.bind_data(src_node, src_data);
+    runtime.bind_data(dst_node, dst_data);
     runtime.execute();
     runtime.wait();
 
@@ -92,7 +89,7 @@ void check_sum_vs_tensor_api(
     {
         auto tile = src_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < src_nelems; ++i)
+        for (Index i = 0; i < src_nelems; ++i)
         {
             loc[i] = static_cast<Y>(src_data[i]);
         }
@@ -128,8 +125,8 @@ TEST_CASE("TensorGraph sum structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto* src = graph.data({dim0, dim1}, "src");
-    auto* dst = graph.data({}, "dst");
+    auto *src = graph.data({dim0, dim1})->set_name("src");
+    auto *dst = graph.data({})->set_name("dst");
 
     gt::sum(src, dst, alpha_one, beta_zero);
 
@@ -137,7 +134,7 @@ TEST_CASE("TensorGraph sum structure", "[graph][tensor]")
     REQUIRE(graph.num_ops() == 1);
     REQUIRE(dst->shape().empty());
 
-    const auto& ops = graph.ops();
+    const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "SUM");
     REQUIRE(ops[0]->inputs().size() == 2);
     REQUIRE(ops[0]->outputs().size() == 1);
@@ -147,28 +144,31 @@ TEST_CASE("TensorGraph sum structure", "[graph][tensor]")
 TEST_CASE("TensorGraph sum rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto* t = graph.data({4, 5}, "t");
+    auto *t = graph.data({4, 5})->set_name("t");
 
-    REQUIRE_THROWS_AS(gt::sum(t, t, alpha_one, beta_zero), std::invalid_argument);
+    REQUIRE_THROWS_AS(
+        gt::sum(t, t, alpha_one, beta_zero), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sum matches nntile::tensor::sum", "[graph][tensor]")
+    "TensorGraph sum matches nntile::tensor::sum",
+    "[graph][tensor]")
 {
-    const auto [alpha, beta, shape] = GENERATE(
-        std::tuple{1.0, 0.0, std::vector<Index>{4, 5}},
-        std::tuple{2.0, 0.0, std::vector<Index>{6}},
-        std::tuple{1.0, 1.0, std::vector<Index>{3, 4}});
+    const auto [alpha, beta, shape] =
+        GENERATE(std::tuple{1.0, 0.0, std::vector<Index>{4, 5}},
+            std::tuple{2.0, 0.0, std::vector<Index>{6}},
+            std::tuple{1.0, 1.0, std::vector<Index>{3, 4}});
 
     check_sum_vs_tensor_api<nntile::fp32_t>(shape, alpha, beta);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sum tiled matches untiled", "[graph][tensor]")
+    "TensorGraph sum tiled matches untiled",
+    "[graph][tensor]")
 {
-    const auto [alpha, beta, src_shape] = GENERATE(
-        std::tuple{1.0, 0.0, std::vector<Index>{4, 6}},
-        std::tuple{1.0, 1.0, std::vector<Index>{6}});
+    const auto [alpha, beta, src_shape] =
+        GENERATE(std::tuple{1.0, 0.0, std::vector<Index>{4, 6}},
+            std::tuple{1.0, 1.0, std::vector<Index>{6}});
 
     using T = nntile::fp32_t;
     using Y = typename T::repr_t;
@@ -176,7 +176,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         src_shape.begin(), src_shape.end(), Index(1), std::multiplies<>());
 
     std::vector<float> src_data(src_nelems);
-    for(Index i = 0; i < src_nelems; ++i)
+    for (Index i = 0; i < src_nelems; ++i)
     {
         src_data[i] = static_cast<float>(Y(i + 1));
     }
@@ -187,8 +187,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("sum_untiled");
-        auto* src_node = graph.data(src_shape, "src", DataType::FP32);
-        auto* dst_node = graph.data({}, "dst", DataType::FP32);
+        auto *src_node =
+            graph.data(src_shape, DataType::FP32)->set_name("src");
+        auto *dst_node = graph.data({}, DataType::FP32)->set_name("dst");
         src_node->mark_input(true);
         dst_node->mark_input(true);
         dst_node->mark_output(true);
@@ -197,12 +198,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data(src_node,  src_data);
-        runtime.bind_data(dst_node,  dst_data);
+        runtime.bind_data(src_node, src_data);
+        runtime.bind_data(dst_node, dst_data);
         runtime.execute();
         runtime.wait();
 
@@ -213,26 +213,26 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("sum_tiled");
-        auto* src_node = graph.data(src_shape, "src", DataType::FP32);
-        auto* dst_node = graph.data({}, "dst", DataType::FP32);
+        auto *src_node =
+            graph.data(src_shape, DataType::FP32)->set_name("src");
+        auto *dst_node = graph.data({}, DataType::FP32)->set_name("dst");
         src_node->mark_input(true);
         dst_node->mark_input(true);
         dst_node->mark_output(true);
 
         gt::sum(src_node, dst_node, alpha, beta);
-        for(auto* ag : graph.axis_groups())
+        for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data(src_node,  src_data);
-        runtime.bind_data(dst_node,  dst_data);
+        runtime.bind_data(src_node, src_data);
+        runtime.bind_data(dst_node, dst_data);
         runtime.execute();
         runtime.wait();
 
@@ -242,7 +242,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     // --- Compare ---
     constexpr float tol = 1e-5f;
     REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
+    for (size_t i = 0; i < tiled_result.size(); ++i)
     {
         REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
     }

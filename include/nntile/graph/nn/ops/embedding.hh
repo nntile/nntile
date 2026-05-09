@@ -27,33 +27,31 @@
 namespace nntile::graph
 {
 
-//! Embedding op: embed = vocab[index]. PyTorch-style: outputs created in forward().
-//! index is INT64 (typically no grad); only vocab gets grad.
+//! Embedding op: embed = vocab[index]. PyTorch-style: outputs created in
+//! forward(). index is INT64 (typically no grad); only vocab gets grad.
 struct NNEmbeddingOp : NNGraph::OpNode
 {
     Index axis;
     int redux;
-    NNGraph::TensorNode* index = nullptr;
-    NNGraph::TensorNode* vocab = nullptr;
+    NNGraph::TensorNode *index = nullptr;
+    NNGraph::TensorNode *vocab = nullptr;
 
     NNEmbeddingOp() = default;
-    NNEmbeddingOp(NNGraph::TensorNode* index_,
-                 NNGraph::TensorNode* vocab_,
-                 Index axis_ = 0,
-                 int redux_ = 0)
-        : axis(axis_), redux(redux_), index(index_), vocab(vocab_)
+    NNEmbeddingOp(NNGraph::TensorNode *index_,
+        NNGraph::TensorNode *vocab_,
+        Index axis_ = 0,
+        int redux_ = 0) :
+        axis(axis_), redux(redux_), index(index_), vocab(vocab_)
     {
         inputs_ = {index, vocab};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* embedding(
-    NNGraph::TensorNode* index,
-    NNGraph::TensorNode* vocab,
-    const std::string& output_name,
+NNGraph::TensorNode *embedding(NNGraph::TensorNode *index,
+    NNGraph::TensorNode *vocab,
     Index axis = 0,
     int redux = 0);
 

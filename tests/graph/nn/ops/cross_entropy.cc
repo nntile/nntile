@@ -16,9 +16,10 @@
 #include <catch2/generators/catch_generators_all.hpp>
 
 #ifdef NNTILE_HAVE_TORCH
-#   include "pytorch_helper.hh"
-#   include "pytorch_tile_helpers.hh"
-#   include <torch/nn/functional/loss.h>
+#include "pytorch_helper.hh"
+#include "pytorch_tile_helpers.hh"
+
+#include <torch/nn/functional/loss.h>
 #endif
 
 #include "context_fixture.hh"
@@ -28,16 +29,18 @@ using namespace nntile;
 using namespace nntile::graph;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph cross_entropy structure", "[graph][nn_graph]")
+    "NNGraph cross_entropy structure",
+    "[graph][nn_graph]")
 {
-    const auto [x_shape, labels_shape] = GENERATE(
-        std::tuple{std::vector<Index>{5, 7}, std::vector<Index>{7}},
-        std::tuple{std::vector<Index>{4, 3, 2}, std::vector<Index>{3, 2}});
+    const auto [x_shape, labels_shape] =
+        GENERATE(std::tuple{std::vector<Index>{5, 7}, std::vector<Index>{7}},
+            std::tuple{std::vector<Index>{4, 3, 2}, std::vector<Index>{3, 2}});
 
     NNGraph g("cross_entropy_structure");
-    auto* x = g.tensor(x_shape, "x", DataType::FP32);
-    auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
-    auto* loss = cross_entropy(x, labels, "loss");
+    auto *x = g.tensor(x_shape, DataType::FP32)->set_name("x");
+    auto *labels =
+        g.tensor(labels_shape, DataType::INT64, false)->set_name("labels");
+    auto *loss = cross_entropy(x, labels)->set_name("loss");
 
     REQUIRE(loss != nullptr);
     REQUIRE(loss->has_producer());
@@ -47,15 +50,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph cross_entropy backward", "[graph][nn_graph]")
+    "NNGraph cross_entropy backward",
+    "[graph][nn_graph]")
 {
     std::vector<Index> x_shape{5, 7};
     std::vector<Index> labels_shape{7};
 
     NNGraph g("cross_entropy_backward");
-    auto* x = g.tensor(x_shape, "x", DataType::FP32);
-    auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
-    auto* loss = cross_entropy(x, labels, "loss");
+    auto *x = g.tensor(x_shape, DataType::FP32)->set_name("x");
+    auto *labels =
+        g.tensor(labels_shape, DataType::INT64, false)->set_name("labels");
+    auto *loss = cross_entropy(x, labels)->set_name("loss");
 
     auto [loss_grad, _] = g.get_or_create_grad(loss, "loss_grad");
     fill(1.0, loss_grad);
@@ -66,15 +71,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph cross_entropy forward and backward", "[graph][nn_graph]")
+    "NNGraph cross_entropy forward and backward",
+    "[graph][nn_graph]")
 {
     std::vector<Index> x_shape{5, 7};
     std::vector<Index> labels_shape{7};
 
     NNGraph g("cross_entropy");
-    auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
-    auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
-    auto* loss = cross_entropy(x, labels, "loss");
+    auto *x = g.tensor(x_shape, DataType::FP32, true)->set_name("x");
+    auto *labels =
+        g.tensor(labels_shape, DataType::INT64, false)->set_name("labels");
+    auto *loss = cross_entropy(x, labels)->set_name("loss");
 
     REQUIRE(loss != nullptr);
     REQUIRE(loss->has_producer());
@@ -98,7 +105,8 @@ using nntile::test::permute_rowmajor;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph cross_entropy matches PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph cross_entropy matches PyTorch",
+    "[graph][nn_graph][pytorch]")
 {
     // NNTile requires axis=0: x [nclasses, batch], labels [batch]
     // PyTorch expects [N, C] = [batch, nclasses], target [N]
@@ -109,13 +117,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     Index x_nelems = nclasses * batch_size;
     std::vector<float> x_data(x_nelems);
-    for(Index i = 0; i < x_nelems; ++i)
+    for (Index i = 0; i < x_nelems; ++i)
     {
         x_data[i] = 0.15f * static_cast<float>(i - x_nelems / 3);
     }
 
     std::vector<std::int64_t> labels_data(batch_size);
-    for(Index i = 0; i < batch_size; ++i)
+    for (Index i = 0; i < batch_size; ++i)
     {
         labels_data[i] = i % nclasses;
     }
@@ -125,9 +133,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         permute_rowmajor(x_rowmajor_57, x_shape, {1, 0});
 
     NNGraph g("cross_entropy_pytorch");
-    auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
-    auto* labels = g.tensor(labels_shape, "labels", DataType::INT64, false);
-    auto* loss = cross_entropy(x, labels, "loss");
+    auto *x = g.tensor(x_shape, DataType::FP32, true)->set_name("x");
+    auto *labels =
+        g.tensor(labels_shape, DataType::INT64, false)->set_name("labels");
+    auto *loss = cross_entropy(x, labels)->set_name("loss");
 
     nn_pytorch_tile_logits_5x7(x);
     nn_pytorch_tile_heterogeneous_1d_len7(labels);
@@ -146,8 +155,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data(x,  x_data);
-    runtime.bind_data(labels,  labels_data);
+    runtime.bind_data(x, x_data);
+    runtime.bind_data(labels, labels_data);
     runtime.execute();
     runtime.wait();
 
@@ -162,15 +171,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         permute_rowmajor(nntile_grad_x_57, x_shape, {1, 0});
 
     std::vector<::int64_t> shape_pt{batch_size, nclasses};
-    auto x_pt = torch::from_blob(x_rowmajor_75.data(), shape_pt,
-                                 torch::TensorOptions().dtype(torch::kFloat32))
+    auto x_pt = torch::from_blob(x_rowmajor_75.data(),
+        shape_pt,
+        torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);
     auto labels_pt = torch::from_blob(labels_data.data(),
         {static_cast<::int64_t>(batch_size)},
         torch::TensorOptions().dtype(torch::kLong));
-    auto loss_pt = torch::nn::functional::cross_entropy(
-        x_pt, labels_pt, torch::nn::functional::CrossEntropyFuncOptions().reduction(torch::kSum));
+    auto loss_pt = torch::nn::functional::cross_entropy(x_pt,
+        labels_pt,
+        torch::nn::functional::CrossEntropyFuncOptions().reduction(
+            torch::kSum));
 
     REQUIRE(std::abs(nntile_loss[0] - loss_pt.item<float>()) <
             pytorch_tolerance * (std::abs(loss_pt.item<float>()) + 1e-6f));

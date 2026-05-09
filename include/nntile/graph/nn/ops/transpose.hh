@@ -31,22 +31,19 @@ namespace nntile::graph
 struct NNTransposeOp : NNGraph::OpNode
 {
     Index ndim;
-    NNGraph::TensorNode* src = nullptr;
+    NNGraph::TensorNode *src = nullptr;
 
-    NNTransposeOp(NNGraph::TensorNode* src_, Index ndim_)
-        : ndim(ndim_), src(src_)
+    NNTransposeOp(NNGraph::TensorNode *src_, Index ndim_) :
+        ndim(ndim_), src(src_)
     {
         inputs_ = {src};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
 //! Transpose: cyclic shift by ndim dimensions
-NNGraph::TensorNode* transpose(
-    NNGraph::TensorNode* src,
-    const std::string& output_name,
-    Index ndim);
+NNGraph::TensorNode *transpose(NNGraph::TensorNode *src, Index ndim);
 
 } // namespace nntile::graph

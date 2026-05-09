@@ -12,18 +12,18 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-
-#include <numeric>
+#include "nntile/graph/tensor/ops/gather.hh"
 
 #include "context_fixture.hh"
-#include "nntile/graph/tensor/ops/gather.hh"
-#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/tensor/tensor.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
+#include <numeric>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -37,8 +37,8 @@ constexpr int distr_rank_single = 0;
 
 } // anonymous namespace
 
-template<typename T>
-void check_gather_vs_tensor_api(const std::vector<Index>& shape)
+template <typename T>
+void check_gather_vs_tensor_api(const std::vector<Index> &shape)
 {
     using Y = typename T::repr_t;
     const Index nelems = std::accumulate(
@@ -46,20 +46,19 @@ void check_gather_vs_tensor_api(const std::vector<Index>& shape)
 
     // --- TensorGraph path ---
     TensorGraph graph("gather_test");
-    auto* src_node = graph.data(shape, "src", DataType::FP32);
+    auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
     src_node->mark_input(true);
 
-    auto* dst_node = gt::gather(src_node, "dst");
+    auto *dst_node = gt::gather(src_node)->set_name("dst");
     dst_node->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
 
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         src_data[i] = static_cast<float>(Y(i * 2 - 3));
     }
@@ -79,7 +78,7 @@ void check_gather_vs_tensor_api(const std::vector<Index>& shape)
     {
         auto tile = src_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
         {
             loc[i] = static_cast<Y>(src_data[i]);
         }
@@ -93,7 +92,7 @@ void check_gather_vs_tensor_api(const std::vector<Index>& shape)
     {
         auto tile = dst_t.get_tile(0);
         auto loc = tile.acquire(STARPU_R);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
         {
             tensor_result[i] = static_cast<float>(loc[i]);
         }
@@ -101,7 +100,7 @@ void check_gather_vs_tensor_api(const std::vector<Index>& shape)
     }
 
     REQUIRE(graph_result.size() == tensor_result.size());
-    for(size_t i = 0; i < graph_result.size(); ++i)
+    for (size_t i = 0; i < graph_result.size(); ++i)
     {
         REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tolerance);
     }
@@ -111,14 +110,14 @@ TEST_CASE("TensorGraph gather structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto* src = graph.data({4, 5}, "src");
-    auto* dst = gt::gather(src, "dst");
+    auto *src = graph.data({4, 5})->set_name("src");
+    auto *dst = gt::gather(src)->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
     REQUIRE(dst->shape() == src->shape());
 
-    const auto& ops = graph.ops();
+    const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "GATHER");
     REQUIRE(ops[0]->inputs().size() == 1);
     REQUIRE(ops[0]->outputs().size() == 1);
@@ -129,14 +128,14 @@ TEST_CASE("TensorGraph gather rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    REQUIRE_THROWS_AS(gt::gather(nullptr, "dst"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::gather(nullptr), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph gather matches nntile::tensor::gather", "[graph][tensor]")
+    "TensorGraph gather matches nntile::tensor::gather",
+    "[graph][tensor]")
 {
-    const auto shape = GENERATE(
-        std::vector<Index>{4, 5},
+    const auto shape = GENERATE(std::vector<Index>{4, 5},
         std::vector<Index>{6},
         std::vector<Index>{2, 3});
 

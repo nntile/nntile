@@ -28,14 +28,13 @@ namespace nntile::graph::tensor
 //! LogSumExp operation: dst = logsumexp(src)
 struct TensorLogsumexpOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorLogsumexpOp() = default;
     TensorLogsumexpOp(
-        TensorGraph::TensorNode* src_,
-        TensorGraph::TensorNode* dst_)
-        : src(src_), dst(dst_)
+        TensorGraph::TensorNode *src_, TensorGraph::TensorNode *dst_) :
+        src(src_), dst(dst_)
     {
         inputs_ = {src};
         outputs_ = {dst};
@@ -48,15 +47,11 @@ struct TensorLogsumexpOp : TensorGraph::OpNode
         return std::make_shared<TensorLogsumexpOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-TensorGraph::TensorNode* logsumexp(
-    TensorGraph::TensorNode* src,
-    const std::string& output_name);
+TensorGraph::TensorNode *logsumexp(TensorGraph::TensorNode *src);
 
-void logsumexp(
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst);
+void logsumexp(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst);
 
 } // namespace nntile::graph::tensor

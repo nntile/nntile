@@ -12,17 +12,17 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-
-#include <numeric>
+#include "nntile/graph/tensor/ops/randn.hh"
 
 #include "context_fixture.hh"
-#include "nntile/graph/tensor/ops/randn.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tile.hh"
 #include "nntile/tensor/randn.hh"
 #include "nntile/tensor/tensor.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
+#include <numeric>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -39,8 +39,8 @@ constexpr int distr_rank_single = 0;
 
 } // anonymous namespace
 
-template<typename T>
-void check_randn_vs_tensor_api(const std::vector<Index>& shape)
+template <typename T>
+void check_randn_vs_tensor_api(const std::vector<Index> &shape)
 {
     using Y = typename T::repr_t;
     const Index nelems = std::accumulate(
@@ -49,13 +49,12 @@ void check_randn_vs_tensor_api(const std::vector<Index>& shape)
 
     // --- TensorGraph path ---
     TensorGraph graph("randn_test");
-    auto* dst_node = graph.data(shape, "dst", DataType::FP32);
+    auto *dst_node = graph.data(shape, DataType::FP32)->set_name("dst");
     dst_node->mark_output(true);
 
     gt::randn(dst_node, start, shape, seed, mean, stddev);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
 
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
@@ -77,7 +76,7 @@ void check_randn_vs_tensor_api(const std::vector<Index>& shape)
     {
         auto tile = dst_t.get_tile(0);
         auto loc = tile.acquire(STARPU_R);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
         {
             tensor_result[i] = static_cast<float>(loc[i]);
         }
@@ -85,7 +84,7 @@ void check_randn_vs_tensor_api(const std::vector<Index>& shape)
     }
 
     REQUIRE(graph_result.size() == tensor_result.size());
-    for(size_t i = 0; i < graph_result.size(); ++i)
+    for (size_t i = 0; i < graph_result.size(); ++i)
     {
         REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tolerance);
     }
@@ -95,13 +94,13 @@ TEST_CASE("TensorGraph randn structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto* dst = graph.data({4, 5}, "dst");
+    auto *dst = graph.data({4, 5})->set_name("dst");
     gt::randn(dst, {0, 0}, {4, 5}, seed, mean, stddev);
 
     REQUIRE(graph.num_data() == 1);
     REQUIRE(graph.num_ops() == 1);
 
-    const auto& ops = graph.ops();
+    const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "RANDN");
     REQUIRE(ops[0]->inputs().size() == 1);
     REQUIRE(ops[0]->outputs().size() == 1);
@@ -112,8 +111,7 @@ TEST_CASE("TensorGraph randn rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    REQUIRE_THROWS_AS(
-        gt::randn(nullptr, {0, 0}, {4, 5}, seed, mean, stddev),
+    REQUIRE_THROWS_AS(gt::randn(nullptr, {0, 0}, {4, 5}, seed, mean, stddev),
         std::invalid_argument);
 }
 
@@ -121,21 +119,19 @@ TEST_CASE("TensorGraph randn rejects mismatched start/underlying_shape",
     "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto* dst = graph.data({4, 5}, "dst");
+    auto *dst = graph.data({4, 5})->set_name("dst");
 
-    REQUIRE_THROWS_AS(
-        gt::randn(dst, {0}, {4, 5}, seed, mean, stddev),
+    REQUIRE_THROWS_AS(gt::randn(dst, {0}, {4, 5}, seed, mean, stddev),
         std::invalid_argument);
-    REQUIRE_THROWS_AS(
-        gt::randn(dst, {0, 0}, {4}, seed, mean, stddev),
+    REQUIRE_THROWS_AS(gt::randn(dst, {0, 0}, {4}, seed, mean, stddev),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph randn matches nntile::tensor::randn", "[graph][tensor]")
+    "TensorGraph randn matches nntile::tensor::randn",
+    "[graph][tensor]")
 {
-    const auto shape = GENERATE(
-        std::vector<Index>{4, 5},
+    const auto shape = GENERATE(std::vector<Index>{4, 5},
         std::vector<Index>{6},
         std::vector<Index>{2, 3, 4});
 

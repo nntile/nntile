@@ -35,28 +35,29 @@ struct NNScaleFiberOp : NNGraph::OpNode
     Index axis;
     Index batch_ndim;
     std::vector<Index> dst_shape;
-    NNGraph::TensorNode* src = nullptr;
+    NNGraph::TensorNode *src = nullptr;
 
-    NNScaleFiberOp(NNGraph::TensorNode* src_,
-                   Scalar alpha_,
-                   Index axis_,
-                   Index batch_ndim_,
-                   std::vector<Index> dst_shape_)
-        : alpha(alpha_), axis(axis_), batch_ndim(batch_ndim_)
-        , dst_shape(std::move(dst_shape_)), src(src_)
+    NNScaleFiberOp(NNGraph::TensorNode *src_,
+        Scalar alpha_,
+        Index axis_,
+        Index batch_ndim_,
+        std::vector<Index> dst_shape_) :
+        alpha(alpha_),
+        axis(axis_),
+        batch_ndim(batch_ndim_),
+        dst_shape(std::move(dst_shape_)),
+        src(src_)
     {
         inputs_ = {src};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* scale_fiber(
-    Scalar alpha,
-    NNGraph::TensorNode* src,
-    const std::string& output_name,
-    const std::vector<Index>& dst_shape,
+NNGraph::TensorNode *scale_fiber(Scalar alpha,
+    NNGraph::TensorNode *src,
+    const std::vector<Index> &dst_shape,
     Index axis,
     Index batch_ndim);
 

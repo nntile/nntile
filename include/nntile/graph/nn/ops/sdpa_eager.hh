@@ -35,28 +35,33 @@ struct NNSdpaEagerOp : NNGraph::OpNode
     Scalar scale;
     Index batch_ndim;
     int redux;
-    NNGraph::TensorNode* q = nullptr;
-    NNGraph::TensorNode* k = nullptr;
-    NNGraph::TensorNode* v = nullptr;
-    NNGraph::TensorNode* mask = nullptr;
+    NNGraph::TensorNode *q = nullptr;
+    NNGraph::TensorNode *k = nullptr;
+    NNGraph::TensorNode *v = nullptr;
+    NNGraph::TensorNode *mask = nullptr;
 
     NNSdpaEagerOp() = default;
-    NNSdpaEagerOp(NNGraph::TensorNode* q_,
-                  NNGraph::TensorNode* k_,
-                  NNGraph::TensorNode* v_,
-                  Scalar scale_,
-                  Index batch_ndim_,
-                  int redux_,
-                  NNGraph::TensorNode* mask_ = nullptr)
-        : scale(scale_), batch_ndim(batch_ndim_), redux(redux_)
-        , q(q_), k(k_), v(v_), mask(mask_)
+    NNSdpaEagerOp(NNGraph::TensorNode *q_,
+        NNGraph::TensorNode *k_,
+        NNGraph::TensorNode *v_,
+        Scalar scale_,
+        Index batch_ndim_,
+        int redux_,
+        NNGraph::TensorNode *mask_ = nullptr) :
+        scale(scale_),
+        batch_ndim(batch_ndim_),
+        redux(redux_),
+        q(q_),
+        k(k_),
+        v(v_),
+        mask(mask_)
     {
         inputs_ = {q, k, v};
-        if(mask)
+        if (mask)
             inputs_.push_back(mask);
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
@@ -69,12 +74,10 @@ struct NNSdpaEagerOp : NNGraph::OpNode
 //! @param batch_ndim Number of trailing batch dimensions
 //! @param redux Reduction mode for distributed training
 //! @return Output [head_size, q_seq, batch...]
-NNGraph::TensorNode* sdpa_eager(
-    NNGraph::TensorNode* q,
-    NNGraph::TensorNode* k,
-    NNGraph::TensorNode* v,
-    const std::string& output_name,
-    NNGraph::TensorNode* mask = nullptr,
+NNGraph::TensorNode *sdpa_eager(NNGraph::TensorNode *q,
+    NNGraph::TensorNode *k,
+    NNGraph::TensorNode *v,
+    NNGraph::TensorNode *mask = nullptr,
     Index batch_ndim = 2,
     int redux = 0);
 

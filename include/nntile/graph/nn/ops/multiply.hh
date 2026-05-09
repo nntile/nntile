@@ -31,25 +31,22 @@ namespace nntile::graph
 struct NNMultiplyOp : NNGraph::OpNode
 {
     Scalar alpha;
-    NNGraph::TensorNode* x = nullptr;
-    NNGraph::TensorNode* y = nullptr;
+    NNGraph::TensorNode *x = nullptr;
+    NNGraph::TensorNode *y = nullptr;
 
-    NNMultiplyOp(NNGraph::TensorNode* x_,
-                 NNGraph::TensorNode* y_,
-                 Scalar alpha_ = 1.0)
-        : alpha(alpha_), x(x_), y(y_)
+    NNMultiplyOp(NNGraph::TensorNode *x_,
+        NNGraph::TensorNode *y_,
+        Scalar alpha_ = 1.0) :
+        alpha(alpha_), x(x_), y(y_)
     {
         inputs_ = {x, y};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* multiply(
-    NNGraph::TensorNode* x,
-    NNGraph::TensorNode* y,
-    const std::string& output_name,
-    Scalar alpha = 1.0);
+NNGraph::TensorNode *multiply(
+    NNGraph::TensorNode *x, NNGraph::TensorNode *y, Scalar alpha = 1.0);
 
 } // namespace nntile::graph

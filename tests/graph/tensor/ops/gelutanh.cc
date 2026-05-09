@@ -12,26 +12,25 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-
-#include <numeric>
+#include "nntile/graph/tensor/ops/gelutanh.hh"
 
 #include "context_fixture.hh"
-#include "nntile/graph/tensor/ops/gelutanh.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
 #include "nntile/tensor/gelutanh.hh"
 #include "nntile/tensor/tensor.hh"
-#include "nntile/graph/tensor/axis_descriptor.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
+#include <numeric>
 
 using namespace nntile;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
-template<typename T>
-void check_gelutanh_vs_tensor_api(
-    const std::vector<Index>& shape)
+template <typename T>
+void check_gelutanh_vs_tensor_api(const std::vector<Index> &shape)
 {
     using Y = typename T::repr_t;
     const Index nelems = std::accumulate(
@@ -39,25 +38,26 @@ void check_gelutanh_vs_tensor_api(
 
     // --- TensorGraph path ---
     TensorGraph graph("gelutanh_test");
-    auto* src_node = graph.data(shape, "src", DataType::FP32);
+    auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
     src_node->mark_input(true);
 
-    auto* dst_node = gt::gelutanh(src_node, "dst");
+    auto *dst_node = gt::gelutanh(src_node);
+
+    dst_node->set_name("dst");
     dst_node->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
 
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         src_data[i] = static_cast<float>(Y(i - nelems / 2));
     }
 
-    runtime.bind_data(src_node,  src_data);
+    runtime.bind_data(src_node, src_data);
     runtime.execute();
     runtime.wait();
 
@@ -72,7 +72,7 @@ void check_gelutanh_vs_tensor_api(
     {
         auto tile = src.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
         {
             loc[i] = static_cast<Y>(src_data[i]);
         }
@@ -86,7 +86,7 @@ void check_gelutanh_vs_tensor_api(
     {
         auto tile = dst.get_tile(0);
         auto loc = tile.acquire(STARPU_R);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
         {
             tensor_result[i] = static_cast<float>(loc[i]);
         }
@@ -96,7 +96,7 @@ void check_gelutanh_vs_tensor_api(
     // --- Compare ---
     constexpr float tol = 1e-5f;
     REQUIRE(graph_result.size() == tensor_result.size());
-    for(size_t i = 0; i < graph_result.size(); ++i)
+    for (size_t i = 0; i < graph_result.size(); ++i)
     {
         REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tol);
     }
@@ -109,16 +109,18 @@ TEST_CASE("TensorGraph gelutanh structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto* src = graph.data({dim0, dim1}, "src");
+    auto *src = graph.data({dim0, dim1})->set_name("src");
 
-    auto* dst = gt::gelutanh(src, "dst");
+    auto *dst = gt::gelutanh(src);
+
+    dst->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
     REQUIRE(dst->shape()[0] == dim0);
     REQUIRE(dst->shape()[1] == dim1);
 
-    const auto& ops = graph.ops();
+    const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "GELUTANH");
     REQUIRE(ops[0]->inputs().size() == 1);
     REQUIRE(ops[0]->outputs().size() == 1);
@@ -128,16 +130,16 @@ TEST_CASE("TensorGraph gelutanh structure", "[graph][tensor]")
 TEST_CASE("TensorGraph gelutanh rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto* src = graph.data({4, 5}, "src");
+    auto *src = graph.data({4, 5})->set_name("src");
 
     REQUIRE_THROWS_AS(gt::gelutanh(src, src), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph gelutanh matches nntile::tensor::gelutanh", "[graph][tensor]")
+    "TensorGraph gelutanh matches nntile::tensor::gelutanh",
+    "[graph][tensor]")
 {
-    const auto shape = GENERATE(
-        std::vector<Index>{4, 5},
+    const auto shape = GENERATE(std::vector<Index>{4, 5},
         std::vector<Index>{6},
         std::vector<Index>{2, 3},
         std::vector<Index>{1, 10});
@@ -146,10 +148,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph gelutanh tiled matches untiled", "[graph][tensor]")
+    "TensorGraph gelutanh tiled matches untiled",
+    "[graph][tensor]")
 {
-    const auto shape = GENERATE(
-        std::vector<Index>{4, 6},
+    const auto shape = GENERATE(std::vector<Index>{4, 6},
         std::vector<Index>{6},
         std::vector<Index>{2, 4});
 
@@ -159,7 +161,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
 
     std::vector<float> src_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         src_data[i] = static_cast<float>(Y(i - nelems / 2));
     }
@@ -167,17 +169,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("gelutanh_untiled");
-        auto* src_node = graph.data(shape, "src", DataType::FP32);
+        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
         src_node->mark_input(true);
-        auto* dst_node = gt::gelutanh(src_node, "dst");
+        auto *dst_node = gt::gelutanh(src_node);
+
+        dst_node->set_name("dst");
         dst_node->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data(src_node,  src_data);
+        runtime.bind_data(src_node, src_data);
         runtime.execute();
         runtime.wait();
         untiled_result = runtime.get_output<float>(dst_node);
@@ -186,22 +189,23 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("gelutanh_tiled");
-        auto* src_node = graph.data(shape, "src", DataType::FP32);
+        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
         src_node->mark_input(true);
-        auto* dst_node = gt::gelutanh(src_node, "dst");
+        auto *dst_node = gt::gelutanh(src_node);
+
+        dst_node->set_name("dst");
         dst_node->mark_output(true);
 
-        for(auto* ag : graph.axis_groups())
+        for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data(src_node,  src_data);
+        runtime.bind_data(src_node, src_data);
         runtime.execute();
         runtime.wait();
         tiled_result = runtime.get_output<float>(dst_node);
@@ -209,7 +213,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-5f;
     REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
+    for (size_t i = 0; i < tiled_result.size(); ++i)
     {
         REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
     }

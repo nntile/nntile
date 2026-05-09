@@ -39,30 +39,31 @@ struct NNCrossEntropyOp : NNGraph::OpNode
     int redux;
     Scalar scale;
     Index ignore_index;
-    NNGraph::TensorNode* x = nullptr;
-    NNGraph::TensorNode* labels = nullptr;
-    TensorGraph::TensorNode* maxsumexp_data_ = nullptr;
+    NNGraph::TensorNode *x = nullptr;
+    NNGraph::TensorNode *labels = nullptr;
+    TensorGraph::TensorNode *maxsumexp_data_ = nullptr;
 
     NNCrossEntropyOp() = default;
-    NNCrossEntropyOp(NNGraph::TensorNode* x_,
-                    NNGraph::TensorNode* labels_,
-                    int redux_ = 0,
-                    Scalar scale_ = 1.0,
-                    Index ignore_index_ = -100)
-        : redux(redux_), scale(scale_), ignore_index(ignore_index_)
-        , x(x_), labels(labels_)
+    NNCrossEntropyOp(NNGraph::TensorNode *x_,
+        NNGraph::TensorNode *labels_,
+        int redux_ = 0,
+        Scalar scale_ = 1.0,
+        Index ignore_index_ = -100) :
+        redux(redux_),
+        scale(scale_),
+        ignore_index(ignore_index_),
+        x(x_),
+        labels(labels_)
     {
         inputs_ = {x, labels};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* cross_entropy(
-    NNGraph::TensorNode* x,
-    NNGraph::TensorNode* labels,
-    const std::string& output_name,
+NNGraph::TensorNode *cross_entropy(NNGraph::TensorNode *x,
+    NNGraph::TensorNode *labels,
     int redux = 0,
     Scalar scale = 1.0,
     Index ignore_index = -100);

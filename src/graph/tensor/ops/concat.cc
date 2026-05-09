@@ -13,20 +13,20 @@
  * */
 
 #include "nntile/graph/tensor/ops/concat.hh"
+
+#include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tensor/ops/clear.hh"
 #include "nntile/graph/tensor/ops/copy_intersection.hh"
+#include "nntile/graph/tile/lowering_context.hh"
 
 #include <stdexcept>
 #include <vector>
 
-#include "nntile/graph/dtype.hh"
-#include "nntile/graph/tile/lowering_context.hh"
-
 namespace nntile::graph::tensor
 {
 
-void TensorConcatOp::lower_to_tile(const LoweringContext& ctx) const
+void TensorConcatOp::lower_to_tile(const LoweringContext &ctx) const
 {
     // Same decomposition as tensor-level concat: zero dst, then copy each
     // operand into its slice of the output (reuse virtual lowering of CLEAR
@@ -46,46 +46,41 @@ void TensorConcatOp::lower_to_tile(const LoweringContext& ctx) const
     copy_b.lower_to_tile(ctx);
 }
 
-TensorGraph::TensorNode* concat(
-    TensorGraph::TensorNode* a,
-    TensorGraph::TensorNode* b,
-    Index axis,
-    const std::string& output_name)
+TensorGraph::TensorNode *concat(
+    TensorGraph::TensorNode *a, TensorGraph::TensorNode *b, Index axis)
 {
-    if(a == nullptr || b == nullptr)
+    if (a == nullptr || b == nullptr)
         throw std::invalid_argument("concat: input tensors must be non-null");
-    if(a->graph() != b->graph())
+    if (a->graph() != b->graph())
         throw std::invalid_argument(
             "concat: tensors must belong to same graph");
-    if(a->dtype() != b->dtype())
-        throw std::invalid_argument(
-            "concat: tensors must have same dtype");
-    if(a->ndim() != b->ndim())
+    if (a->dtype() != b->dtype())
+        throw std::invalid_argument("concat: tensors must have same dtype");
+    if (a->ndim() != b->ndim())
         throw std::invalid_argument(
             "concat: tensors must have same number of dimensions");
 
-    const auto& a_shape = a->shape();
-    const auto& b_shape = b->shape();
+    const auto &a_shape = a->shape();
+    const auto &b_shape = b->shape();
     Index n_dim = static_cast<Index>(a_shape.size());
 
-    if(axis < 0 || axis >= n_dim)
+    if (axis < 0 || axis >= n_dim)
         throw std::invalid_argument("concat: axis out of range");
 
     // Output shape: same as a and b except on axis
     std::vector<Index> output_shape = a_shape;
     output_shape[axis] = a_shape[axis] + b_shape[axis];
-    for(Index i = 0; i < n_dim; ++i)
+    for (Index i = 0; i < n_dim; ++i)
     {
-        if(i != axis && a_shape[i] != b_shape[i])
+        if (i != axis && a_shape[i] != b_shape[i])
         {
             throw std::invalid_argument(
                 "concat: non-concat dimensions must match");
         }
     }
 
-    TensorGraph* graph = a->graph();
-    TensorGraph::TensorNode* output = graph->data(
-        output_shape, output_name, a->dtype());
+    TensorGraph *graph = a->graph();
+    TensorGraph::TensorNode *output = graph->data(output_shape, a->dtype());
 
     auto op = std::make_shared<TensorConcatOp>(a, b, output, axis);
     graph->add_op(op);

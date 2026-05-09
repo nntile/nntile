@@ -31,12 +31,13 @@ namespace nntile::graph::tensor
 //! ReLU operation at tensor level: dst = relu(src)
 struct TensorReluOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorReluOp() = default;
-    TensorReluOp(TensorGraph::TensorNode* src_, TensorGraph::TensorNode* dst_)
-        : src(src_), dst(dst_)
+    TensorReluOp(
+        TensorGraph::TensorNode *src_, TensorGraph::TensorNode *dst_) :
+        src(src_), dst(dst_)
     {
         inputs_ = {src};
         outputs_ = {dst};
@@ -49,17 +50,13 @@ struct TensorReluOp : TensorGraph::OpNode
         return std::make_shared<TensorReluOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! ReLU: dst = relu(src) (creates output)
-TensorGraph::TensorNode* relu(
-    TensorGraph::TensorNode* src,
-    const std::string& output_name);
+TensorGraph::TensorNode *relu(TensorGraph::TensorNode *src);
 
 //! ReLU: dst = relu(src) (uses existing output)
-void relu(
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst);
+void relu(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst);
 
 } // namespace nntile::graph::tensor

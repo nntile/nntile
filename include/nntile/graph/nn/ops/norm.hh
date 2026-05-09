@@ -27,26 +27,22 @@
 namespace nntile::graph
 {
 
-//! Norm op: output = alpha * norm(x) (scalar). PyTorch-style. Always fresh output.
+//! Norm op: output = alpha * norm(x) (scalar). PyTorch-style. Always fresh
+//! output.
 struct NNNormOp : NNGraph::OpNode
 {
     Scalar alpha;
-    NNGraph::TensorNode* x = nullptr;
+    NNGraph::TensorNode *x = nullptr;
 
-    NNNormOp(NNGraph::TensorNode* x_,
-             Scalar alpha_)
-        : alpha(alpha_), x(x_)
+    NNNormOp(NNGraph::TensorNode *x_, Scalar alpha_) : alpha(alpha_), x(x_)
     {
         inputs_ = {x};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* norm(
-    NNGraph::TensorNode* x,
-    const std::string& output_name,
-    Scalar alpha = 1.0);
+NNGraph::TensorNode *norm(NNGraph::TensorNode *x, Scalar alpha = 1.0);
 
 } // namespace nntile::graph

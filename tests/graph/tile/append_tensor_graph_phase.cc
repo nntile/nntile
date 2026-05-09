@@ -7,16 +7,16 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-
-#include <stdexcept>
-#include <vector>
+#include "nntile/graph/tile/append_tensor_graph_phase.hh"
 
 #include "context_fixture.hh"
 #include "nntile/graph/nn/graph.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/graph/tile.hh"
-#include "nntile/graph/tile/append_tensor_graph_phase.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <stdexcept>
+#include <vector>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -27,11 +27,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tile]")
 {
     TensorGraph tg("inc_add");
-    TensorGraph::TensorNode* a = tg.data({3}, "a", DataType::FP32);
-    TensorGraph::TensorNode* b = tg.data({3}, "b", DataType::FP32);
+    TensorGraph::TensorNode *a = tg.data({3}, DataType::FP32)->set_name("a");
+    TensorGraph::TensorNode *b = tg.data({3}, DataType::FP32)->set_name("b");
     a->mark_input(true);
     b->mark_input(true);
-    TensorGraph::TensorNode* c = gt::add(1.0f, a, 1.0f, b, "c");
+    TensorGraph::TensorNode *c = gt::add(1.0f, a, 1.0f, b)->set_name("c");
 
     TensorGraph::PhaseSnapshot p1 = tg.seal_phase();
     TensorGraphTiling til1 = TensorGraphTiling::from_tensor_graph(tg);
@@ -42,7 +42,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     append_tensor_graph_phase(tg, p1, til1, tile, st, tm);
 
     REQUIRE(c != nullptr);
-    TensorGraph::TensorNode* d = gt::add(1.0f, c, 1.0f, a, "d");
+    TensorGraph::TensorNode *d = gt::add(1.0f, c, 1.0f, a)->set_name("d");
     REQUIRE(d != nullptr);
     d->mark_output(true);
 
@@ -72,20 +72,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tile]")
 {
     TensorGraph tg("rt_inc");
-    TensorGraph::TensorNode* x = tg.data({2}, "x", DataType::FP32);
+    TensorGraph::TensorNode *x = tg.data({2}, DataType::FP32)->set_name("x");
     x->mark_input(true);
-    TensorGraph::TensorNode* y = gt::scale(2.0f, x, "y");
+    TensorGraph::TensorNode *y = gt::scale(2.0f, x)->set_name("y");
     TensorGraph::PhaseSnapshot p1 = tg.seal_phase();
     TileGraph tile("t2");
     TileGraphIncrementalState st;
     TensorNodeToTileMap tm;
     append_tensor_graph_phase(
-        tg,
-        p1,
-        TensorGraphTiling::from_tensor_graph(tg),
-        tile,
-        st,
-        tm);
+        tg, p1, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
 
     TileGraph::Runtime rt(tile);
     rt.compile();
@@ -93,16 +88,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(n1 > 0);
 
     REQUIRE(y != nullptr);
-    TensorGraph::TensorNode* z = gt::add(1.0f, y, 1.0f, x, "z");
+    TensorGraph::TensorNode *z = gt::add(1.0f, y, 1.0f, x)->set_name("z");
     z->mark_output(true);
     TensorGraph::PhaseSnapshot p2 = tg.seal_phase();
     append_tensor_graph_phase(
-        tg,
-        p2,
-        TensorGraphTiling::from_tensor_graph(tg),
-        tile,
-        st,
-        tm);
+        tg, p2, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
 
     rt.compile();
     REQUIRE(rt.execution_op_count() > n1);
@@ -121,38 +111,28 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tile]")
 {
     TensorGraph tg("tiling_change");
-    TensorGraph::TensorNode* a = tg.data({6}, "a", DataType::FP32);
-    TensorGraph::TensorNode* b = tg.data({6}, "b", DataType::FP32);
+    TensorGraph::TensorNode *a = tg.data({6}, DataType::FP32)->set_name("a");
+    TensorGraph::TensorNode *b = tg.data({6}, DataType::FP32)->set_name("b");
     a->mark_input(true);
     b->mark_input(true);
-    TensorGraph::TensorNode* c = gt::add(1.0f, a, 1.0f, b, "c");
+    TensorGraph::TensorNode *c = gt::add(1.0f, a, 1.0f, b)->set_name("c");
 
     TensorGraph::PhaseSnapshot p1 = tg.seal_phase();
     TileGraph tile("tile_tc");
     TileGraphIncrementalState st;
     TensorNodeToTileMap tm;
     append_tensor_graph_phase(
-        tg,
-        p1,
-        TensorGraphTiling::from_tensor_graph(tg),
-        tile,
-        st,
-        tm);
+        tg, p1, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm);
 
     a->mutable_axes()[0]->set_tiling(std::vector<Index>{3, 3});
 
     REQUIRE(c != nullptr);
-    gt::add(1.0f, c, 1.0f, a, "d");
+    gt::add(1.0f, c, 1.0f, a)->set_name("d");
     TensorGraph::PhaseSnapshot p2 = tg.seal_phase();
 
     REQUIRE_THROWS_AS(
         append_tensor_graph_phase(
-            tg,
-            p2,
-            TensorGraphTiling::from_tensor_graph(tg),
-            tile,
-            st,
-            tm),
+            tg, p2, TensorGraphTiling::from_tensor_graph(tg), tile, st, tm),
         std::runtime_error);
 }
 
@@ -161,12 +141,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     "[graph][tile]")
 {
     NNGraph nn("phase_arch");
-    TensorGraph& tg = nn.tensor_graph();
-    TensorGraph::TensorNode* a = tg.data({3}, "a", DataType::FP32);
-    TensorGraph::TensorNode* b = tg.data({3}, "b", DataType::FP32);
+    TensorGraph &tg = nn.tensor_graph();
+    TensorGraph::TensorNode *a = tg.data({3}, DataType::FP32)->set_name("a");
+    TensorGraph::TensorNode *b = tg.data({3}, DataType::FP32)->set_name("b");
     a->mark_input(true);
     b->mark_input(true);
-    gt::add(1.0f, a, 1.0f, b, "c");
+    gt::add(1.0f, a, 1.0f, b)->set_name("c");
 
     FinishedTensorPhase fp = nn.finish_phase(false);
     REQUIRE(fp.tensor_graph == &tg);
@@ -176,8 +156,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraphIncrementalState st;
     TensorNodeToTileMap tm;
     TileGraph::Runtime rt(tile);
-    compile_incremental_nn_phase(
-        fp,
+    compile_incremental_nn_phase(fp,
         nn,
         TensorGraphTiling::from_tensor_graph(tg),
         tile,
@@ -186,7 +165,6 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         tm,
         true);
     REQUIRE(nn.tensor_phase_archives().size() == 1);
-    REQUIRE(
-        nn.tensor_phase_archives()[0].tile_op_end
-        > nn.tensor_phase_archives()[0].tile_op_begin);
+    REQUIRE(nn.tensor_phase_archives()[0].tile_op_end >
+            nn.tensor_phase_archives()[0].tile_op_begin);
 }

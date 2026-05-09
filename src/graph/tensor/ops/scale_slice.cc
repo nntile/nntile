@@ -14,86 +14,75 @@
 
 #include "nntile/graph/tensor/ops/scale_slice.hh"
 
-#include <stdexcept>
-#include <utility>
-
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
-#include "nntile/tensor/scale_slice.hh"
-
-#include "nntile/graph/tile/lowering_context.hh"
-#include "nntile/graph/tile/ops/scale_slice.hh"
 #include "nntile/graph/tensor/tensor_graph_tiling.hh"
 #include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/ops/scale_slice.hh"
+#include "nntile/tensor/scale_slice.hh"
+
+#include <stdexcept>
+#include <utility>
 
 namespace nntile::graph::tensor
 {
 
-
-
-TensorGraph::TensorNode* scale_slice(
-    Scalar alpha,
-    TensorGraph::TensorNode* src,
-    const std::string& output_name,
-    Index axis,
-    Index axis_size)
+TensorGraph::TensorNode *scale_slice(
+    Scalar alpha, TensorGraph::TensorNode *src, Index axis, Index axis_size)
 {
-    if(src == nullptr)
+    if (src == nullptr)
     {
         throw std::invalid_argument(
             "scale_slice: input tensor must be non-null");
     }
-    if(axis < 0 || axis > src->shape().size())
+    if (axis < 0 || axis > src->shape().size())
     {
-        throw std::invalid_argument(
-            "scale_slice: axis out of range");
+        throw std::invalid_argument("scale_slice: axis out of range");
     }
 
     std::vector<Index> output_shape;
     output_shape.reserve(src->shape().size() + 1);
-    for(Index i = 0; i < axis; ++i)
+    for (Index i = 0; i < axis; ++i)
     {
         output_shape.push_back(src->shape()[i]);
     }
     output_shape.push_back(axis_size);
-    for(Index i = axis; i < src->shape().size(); ++i)
+    for (Index i = axis; i < src->shape().size(); ++i)
     {
         output_shape.push_back(src->shape()[i]);
     }
 
-    TensorGraph::TensorNode* dst = src->graph()->data(
-        std::move(output_shape),
-        output_name,
-        src->dtype());
+    TensorGraph::TensorNode *dst =
+        src->graph()->data(std::move(output_shape), src->dtype());
 
     scale_slice(alpha, src, dst, axis);
 
     return dst;
 }
 
-void scale_slice(
-    Scalar alpha,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst,
+void scale_slice(Scalar alpha,
+    TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst,
     Index axis)
 {
-    if(src == nullptr || dst == nullptr)
+    if (src == nullptr || dst == nullptr)
     {
         throw std::invalid_argument(
             "scale_slice: input tensors must be non-null");
     }
-    if(src == dst)
+    if (src == dst)
     {
         throw std::invalid_argument(
             "scale_slice: src and dst must be distinct tensors");
     }
-    if(src->graph() != dst->graph())
+    if (src->graph() != dst->graph())
     {
         throw std::invalid_argument(
             "scale_slice: input tensors must belong to the same graph");
     }
-    if(src->dtype() != dst->dtype())
+    if (src->dtype() != dst->dtype())
     {
         throw std::invalid_argument(
             "scale_slice: input tensors must have the same dtype");
@@ -104,32 +93,31 @@ void scale_slice(
     src->graph()->add_op(op);
 }
 
-void TensorScaleSliceOp::lower_to_tile(const LoweringContext& ctx) const
+void TensorScaleSliceOp::lower_to_tile(const LoweringContext &ctx) const
 {
     // Match nntile::tensor::scale_slice_async (src/tensor/scale_slice.cc).
-    const TensorAxisLayout* lay_s = ctx.tiling.find(src);
-    const TensorAxisLayout* lay_d = ctx.tiling.find(dst);
-    if(lay_s == nullptr || lay_d == nullptr)
+    const TensorAxisLayout *lay_s = ctx.tiling.find(src);
+    const TensorAxisLayout *lay_d = ctx.tiling.find(dst);
+    if (lay_s == nullptr || lay_d == nullptr)
     {
         throw std::runtime_error(
             "lower_to_tile SCALE_SLICE: missing tiling for src and/or dst");
     }
 
-    const auto& tiles_s = tile_lower::tiles_of(ctx.tile_map, src);
-    const auto& tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
+    const auto &tiles_s = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto &tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
 
     std::vector<Index> s_coord;
     std::vector<Index> d_coord(static_cast<size_t>(dst->ndim()));
 
-    for(Index lin_s = 0; lin_s < lay_s->grid_volume(); ++lin_s)
+    for (Index lin_s = 0; lin_s < lay_s->grid_volume(); ++lin_s)
     {
         lay_s->grid_coord_from_linear(lin_s, s_coord);
-        for(Index j = 0; j < axis; ++j)
+        for (Index j = 0; j < axis; ++j)
         {
-            d_coord[static_cast<size_t>(j)] =
-                s_coord[static_cast<size_t>(j)];
+            d_coord[static_cast<size_t>(j)] = s_coord[static_cast<size_t>(j)];
         }
-        for(Index j = axis + 1; j < dst->ndim(); ++j)
+        for (Index j = axis + 1; j < dst->ndim(); ++j)
         {
             d_coord[static_cast<size_t>(j)] =
                 s_coord[static_cast<size_t>(j - 1)];
@@ -137,12 +125,11 @@ void TensorScaleSliceOp::lower_to_tile(const LoweringContext& ctx) const
 
         const Index nseg_along_axis =
             lay_d->grid_shape()[static_cast<size_t>(axis)];
-        for(Index jj = 0; jj < nseg_along_axis; ++jj)
+        for (Index jj = 0; jj < nseg_along_axis; ++jj)
         {
             d_coord[static_cast<size_t>(axis)] = jj;
             const Index lin_d = lay_d->grid_linear(d_coord);
-            tile_graph::scale_slice(
-                alpha,
+            tile_graph::scale_slice(alpha,
                 tiles_s[static_cast<size_t>(lin_s)],
                 tiles_d[static_cast<size_t>(lin_d)],
                 axis);

@@ -12,18 +12,18 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-
-#include <numeric>
+#include "nntile/graph/tensor/ops/sgd_step.hh"
 
 #include "context_fixture.hh"
-#include "nntile/graph/tensor/ops/sgd_step.hh"
-#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
 #include "nntile/tensor/sgd_step.hh"
 #include "nntile/tensor/tensor.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
+#include <numeric>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -39,9 +39,8 @@ constexpr int distr_rank_single = 0;
 
 } // anonymous namespace
 
-template<typename T>
-void check_sgd_step_vs_tensor_api(
-    const std::vector<Index>& shape,
+template <typename T>
+void check_sgd_step_vs_tensor_api(const std::vector<Index> &shape,
     Index num_iter,
     Scalar momentum,
     Scalar lr,
@@ -55,20 +54,27 @@ void check_sgd_step_vs_tensor_api(
 
     // --- TensorGraph path ---
     TensorGraph graph("sgd_step_test");
-    auto* grad_node = graph.data(shape, "grad", DataType::FP32);
-    auto* velocity_node = graph.data(shape, "velocity", DataType::FP32);
-    auto* p_node = graph.data(shape, "p", DataType::FP32);
+    auto *grad_node = graph.data(shape, DataType::FP32)->set_name("grad");
+    auto *velocity_node =
+        graph.data(shape, DataType::FP32)->set_name("velocity");
+    auto *p_node = graph.data(shape, DataType::FP32)->set_name("p");
     grad_node->mark_input(true);
     velocity_node->mark_input(true);
     p_node->mark_input(true);
     velocity_node->mark_output(true);
     p_node->mark_output(true);
 
-    gt::sgd_step(num_iter, momentum, lr, weight_decay, dampening, nesterov,
-             grad_node, velocity_node, p_node);
+    gt::sgd_step(num_iter,
+        momentum,
+        lr,
+        weight_decay,
+        dampening,
+        nesterov,
+        grad_node,
+        velocity_node,
+        p_node);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
 
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
@@ -76,20 +82,21 @@ void check_sgd_step_vs_tensor_api(
     std::vector<float> grad_data(nelems);
     std::vector<float> velocity_data(nelems);
     std::vector<float> p_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         grad_data[i] = 0.1f * static_cast<float>(i + 1);
         velocity_data[i] = 0.01f * static_cast<float>(i);
         p_data[i] = 1.0f * static_cast<float>(i - nelems / 2);
     }
 
-    runtime.bind_data(grad_node,  grad_data);
-    runtime.bind_data(velocity_node,  velocity_data);
-    runtime.bind_data(p_node,  p_data);
+    runtime.bind_data(grad_node, grad_data);
+    runtime.bind_data(velocity_node, velocity_data);
+    runtime.bind_data(p_node, p_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> graph_velocity = runtime.get_output<float>(velocity_node);
+    std::vector<float> graph_velocity =
+        runtime.get_output<float>(velocity_node);
     std::vector<float> graph_p = runtime.get_output<float>(p_node);
 
     // --- Direct tensor API path ---
@@ -99,11 +106,12 @@ void check_sgd_step_vs_tensor_api(
     nntile::tensor::Tensor<T> velocity_t(traits, distr);
     nntile::tensor::Tensor<T> p_t(traits, distr);
 
-    auto init_tile = [&](nntile::tensor::Tensor<T>& t, const std::vector<float>& data)
+    auto init_tile =
+        [&](nntile::tensor::Tensor<T> &t, const std::vector<float> &data)
     {
         auto tile = t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
         {
             loc[i] = static_cast<Y>(data[i]);
         }
@@ -113,8 +121,15 @@ void check_sgd_step_vs_tensor_api(
     init_tile(velocity_t, velocity_data);
     init_tile(p_t, p_data);
 
-    nntile::tensor::sgd_step<T>(num_iter, momentum, lr, weight_decay, dampening,
-                        nesterov, grad_t, velocity_t, p_t);
+    nntile::tensor::sgd_step<T>(num_iter,
+        momentum,
+        lr,
+        weight_decay,
+        dampening,
+        nesterov,
+        grad_t,
+        velocity_t,
+        p_t);
     starpu_task_wait_for_all();
 
     std::vector<float> tensor_velocity(nelems);
@@ -124,7 +139,7 @@ void check_sgd_step_vs_tensor_api(
         auto tile_p = p_t.get_tile(0);
         auto loc_v = tile_v.acquire(STARPU_R);
         auto loc_p = tile_p.acquire(STARPU_R);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
         {
             tensor_velocity[i] = static_cast<float>(loc_v[i]);
             tensor_p[i] = static_cast<float>(loc_p[i]);
@@ -135,7 +150,7 @@ void check_sgd_step_vs_tensor_api(
 
     REQUIRE(graph_velocity.size() == tensor_velocity.size());
     REQUIRE(graph_p.size() == tensor_p.size());
-    for(size_t i = 0; i < graph_p.size(); ++i)
+    for (size_t i = 0; i < graph_p.size(); ++i)
     {
         REQUIRE(std::abs(graph_velocity[i] - tensor_velocity[i]) < tolerance);
         REQUIRE(std::abs(graph_p[i] - tensor_p[i]) < tolerance);
@@ -146,17 +161,16 @@ TEST_CASE("TensorGraph sgd_step structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto* grad = graph.data({dim_4, dim_5}, "grad");
-    auto* velocity = graph.data({dim_4, dim_5}, "velocity");
-    auto* p = graph.data({dim_4, dim_5}, "p");
+    auto *grad = graph.data({dim_4, dim_5})->set_name("grad");
+    auto *velocity = graph.data({dim_4, dim_5})->set_name("velocity");
+    auto *p = graph.data({dim_4, dim_5})->set_name("p");
 
-    gt::sgd_step(1, 0.9, 0.001, 0.0, 0.0, false,
-             grad, velocity, p);
+    gt::sgd_step(1, 0.9, 0.001, 0.0, 0.0, false, grad, velocity, p);
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
 
-    const auto& ops = graph.ops();
+    const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "SGD_STEP");
     REQUIRE(ops[0]->inputs().size() == 3);
     REQUIRE(ops[0]->outputs().size() == 2);
@@ -165,47 +179,65 @@ TEST_CASE("TensorGraph sgd_step structure", "[graph][tensor]")
 TEST_CASE("TensorGraph sgd_step rejects null tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto* grad = graph.data({4, 5}, "grad");
-    auto* velocity = graph.data({4, 5}, "velocity");
-    auto* p = graph.data({4, 5}, "p");
+    auto *grad = graph.data({4, 5})->set_name("grad");
+    auto *velocity = graph.data({4, 5})->set_name("velocity");
+    auto *p = graph.data({4, 5})->set_name("p");
 
     REQUIRE_THROWS_AS(
-        gt::sgd_step(1, 0.9, 0.001, 0.0, 0.0, false,
-                 nullptr, velocity, p),
+        gt::sgd_step(1, 0.9, 0.001, 0.0, 0.0, false, nullptr, velocity, p),
         std::invalid_argument);
     REQUIRE_THROWS_AS(
-        gt::sgd_step(1, 0.9, 0.001, 0.0, 0.0, false,
-                 grad, nullptr, p),
+        gt::sgd_step(1, 0.9, 0.001, 0.0, 0.0, false, grad, nullptr, p),
         std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sgd_step matches nntile::tensor::sgd_step", "[graph][tensor]")
+    "TensorGraph sgd_step matches nntile::tensor::sgd_step",
+    "[graph][tensor]")
 {
-    const auto [shape, num_iter, momentum, lr, weight_decay, dampening, nesterov] =
-        GENERATE(
-            std::tuple{std::vector<Index>{dim_4, dim_5}, Index(1), 0.9, 0.001,
-                       0.0, 0.0, false},
-            std::tuple{std::vector<Index>{6}, Index(2), 0.0, 0.01,
-                       0.0, 0.0, false},
-            std::tuple{std::vector<Index>{2, 3}, Index(1), 0.9, 0.001,
-                       0.01, 0.0, false},
-            std::tuple{std::vector<Index>{4, 5}, Index(1), 0.9, 0.001,
-                       0.0, 0.0, true});
+    const auto [shape,
+        num_iter,
+        momentum,
+        lr,
+        weight_decay,
+        dampening,
+        nesterov] = GENERATE(std::tuple{std::vector<Index>{dim_4, dim_5},
+                                 Index(1),
+                                 0.9,
+                                 0.001,
+                                 0.0,
+                                 0.0,
+                                 false},
+        std::tuple{
+            std::vector<Index>{6}, Index(2), 0.0, 0.01, 0.0, 0.0, false},
+        std::tuple{
+            std::vector<Index>{2, 3}, Index(1), 0.9, 0.001, 0.01, 0.0, false},
+        std::tuple{
+            std::vector<Index>{4, 5}, Index(1), 0.9, 0.001, 0.0, 0.0, true});
 
     check_sgd_step_vs_tensor_api<nntile::fp32_t>(
         shape, num_iter, momentum, lr, weight_decay, dampening, nesterov);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph sgd_step tiled matches untiled", "[graph][tensor]")
+    "TensorGraph sgd_step tiled matches untiled",
+    "[graph][tensor]")
 {
-    const auto [shape, num_iter, momentum, lr, weight_decay, dampening, nesterov] =
-        GENERATE(
-            std::tuple{std::vector<Index>{4, 6}, Index(1), 0.9, 0.001,
-                       0.0, 0.0, false},
-            std::tuple{std::vector<Index>{2, 4}, Index(1), 0.9, 0.001,
-                       0.01, 0.0, false});
+    const auto [shape,
+        num_iter,
+        momentum,
+        lr,
+        weight_decay,
+        dampening,
+        nesterov] = GENERATE(std::tuple{std::vector<Index>{4, 6},
+                                 Index(1),
+                                 0.9,
+                                 0.001,
+                                 0.0,
+                                 0.0,
+                                 false},
+        std::tuple{
+            std::vector<Index>{2, 4}, Index(1), 0.9, 0.001, 0.01, 0.0, false});
 
     const Index nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
@@ -213,7 +245,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> grad_data(nelems);
     std::vector<float> velocity_data(nelems);
     std::vector<float> p_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         grad_data[i] = 0.1f * static_cast<float>(i + 1);
         velocity_data[i] = 0.01f * static_cast<float>(i);
@@ -224,27 +256,34 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_velocity, untiled_p;
     {
         TensorGraph graph("sgd_step_untiled");
-        auto* grad_node = graph.data(shape, "grad", DataType::FP32);
-        auto* velocity_node = graph.data(shape, "velocity", DataType::FP32);
-        auto* p_node = graph.data(shape, "p", DataType::FP32);
+        auto *grad_node = graph.data(shape, DataType::FP32)->set_name("grad");
+        auto *velocity_node =
+            graph.data(shape, DataType::FP32)->set_name("velocity");
+        auto *p_node = graph.data(shape, DataType::FP32)->set_name("p");
         grad_node->mark_input(true);
         velocity_node->mark_input(true);
         p_node->mark_input(true);
         velocity_node->mark_output(true);
         p_node->mark_output(true);
 
-        gt::sgd_step(num_iter, momentum, lr, weight_decay, dampening, nesterov,
-                 grad_node, velocity_node, p_node);
+        gt::sgd_step(num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad_node,
+            velocity_node,
+            p_node);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data(grad_node,  grad_data);
-        runtime.bind_data(velocity_node,  velocity_data);
-        runtime.bind_data(p_node,  p_data);
+        runtime.bind_data(grad_node, grad_data);
+        runtime.bind_data(velocity_node, velocity_data);
+        runtime.bind_data(p_node, p_data);
         runtime.execute();
         runtime.wait();
 
@@ -256,31 +295,38 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_velocity, tiled_p;
     {
         TensorGraph graph("sgd_step_tiled");
-        auto* grad_node = graph.data(shape, "grad", DataType::FP32);
-        auto* velocity_node = graph.data(shape, "velocity", DataType::FP32);
-        auto* p_node = graph.data(shape, "p", DataType::FP32);
+        auto *grad_node = graph.data(shape, DataType::FP32)->set_name("grad");
+        auto *velocity_node =
+            graph.data(shape, DataType::FP32)->set_name("velocity");
+        auto *p_node = graph.data(shape, DataType::FP32)->set_name("p");
         grad_node->mark_input(true);
         velocity_node->mark_input(true);
         p_node->mark_input(true);
         velocity_node->mark_output(true);
         p_node->mark_output(true);
 
-        gt::sgd_step(num_iter, momentum, lr, weight_decay, dampening, nesterov,
-                 grad_node, velocity_node, p_node);
-        for(auto* ag : graph.axis_groups())
+        gt::sgd_step(num_iter,
+            momentum,
+            lr,
+            weight_decay,
+            dampening,
+            nesterov,
+            grad_node,
+            velocity_node,
+            p_node);
+        for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data(grad_node,  grad_data);
-        runtime.bind_data(velocity_node,  velocity_data);
-        runtime.bind_data(p_node,  p_data);
+        runtime.bind_data(grad_node, grad_data);
+        runtime.bind_data(velocity_node, velocity_data);
+        runtime.bind_data(p_node, p_data);
         runtime.execute();
         runtime.wait();
 
@@ -292,7 +338,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     constexpr float tol = 1e-5f;
     REQUIRE(tiled_velocity.size() == untiled_velocity.size());
     REQUIRE(tiled_p.size() == untiled_p.size());
-    for(size_t i = 0; i < tiled_p.size(); ++i)
+    for (size_t i = 0; i < tiled_p.size(); ++i)
     {
         REQUIRE(std::abs(tiled_velocity[i] - untiled_velocity[i]) < tol);
         REQUIRE(std::abs(tiled_p[i] - untiled_p[i]) < tol);

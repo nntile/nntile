@@ -12,18 +12,18 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-
-#include <numeric>
+#include "nntile/graph/tensor/ops/transpose.hh"
 
 #include "context_fixture.hh"
-#include "nntile/graph/tensor/ops/transpose.hh"
 #include "nntile/graph/tensor.hh"
-#include "nntile/graph/tile.hh"
-#include "nntile/tensor/transpose.hh"
-#include "nntile/tensor/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
+#include "nntile/graph/tile.hh"
+#include "nntile/tensor/tensor.hh"
+#include "nntile/tensor/transpose.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
+#include <numeric>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -37,11 +37,9 @@ constexpr Index ndim = 1;
 
 } // anonymous namespace
 
-template<typename T>
+template <typename T>
 void check_transpose_vs_tensor_api(
-    const std::vector<Index>& shape,
-    Scalar alpha,
-    Index ndim)
+    const std::vector<Index> &shape, Scalar alpha, Index ndim)
 {
     using Y = typename T::repr_t;
     const Index nelems = std::accumulate(
@@ -49,7 +47,7 @@ void check_transpose_vs_tensor_api(
 
     // Output shape: output_shape[i] = src_shape[(i + ndim) % ndim]
     std::vector<Index> dst_shape(shape.size());
-    for(size_t i = 0; i < shape.size(); ++i)
+    for (size_t i = 0; i < shape.size(); ++i)
     {
         dst_shape[i] = shape[(i + ndim) % shape.size()];
     }
@@ -58,25 +56,26 @@ void check_transpose_vs_tensor_api(
 
     // --- TensorGraph path ---
     TensorGraph graph("transpose_test");
-    auto* src_node = graph.data(shape, "src", DataType::FP32);
+    auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
     src_node->mark_input(true);
 
-    auto* dst_node = gt::transpose(alpha, src_node, "dst", ndim);
+    auto *dst_node = gt::transpose(alpha, src_node, ndim);
+
+    dst_node->set_name("dst");
     dst_node->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
 
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         src_data[i] = static_cast<float>(Y(i));
     }
 
-    runtime.bind_data(src_node,  src_data);
+    runtime.bind_data(src_node, src_data);
     runtime.execute();
     runtime.wait();
 
@@ -93,7 +92,7 @@ void check_transpose_vs_tensor_api(
     {
         auto tile = src.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
         {
             loc[i] = static_cast<Y>(src_data[i]);
         }
@@ -107,7 +106,7 @@ void check_transpose_vs_tensor_api(
     {
         auto tile = dst.get_tile(0);
         auto loc = tile.acquire(STARPU_R);
-        for(Index i = 0; i < dst_nelems; ++i)
+        for (Index i = 0; i < dst_nelems; ++i)
         {
             tensor_result[i] = static_cast<float>(loc[i]);
         }
@@ -116,7 +115,7 @@ void check_transpose_vs_tensor_api(
 
     constexpr float tol = 1e-5f;
     REQUIRE(graph_result.size() == tensor_result.size());
-    for(size_t i = 0; i < graph_result.size(); ++i)
+    for (size_t i = 0; i < graph_result.size(); ++i)
     {
         REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tol);
     }
@@ -129,16 +128,18 @@ TEST_CASE("TensorGraph transpose structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto* src = graph.data({dim0, dim1}, "src");
+    auto *src = graph.data({dim0, dim1})->set_name("src");
 
-    auto* dst = gt::transpose(alpha, src, "dst", ndim);
+    auto *dst = gt::transpose(alpha, src, ndim);
+
+    dst->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
     REQUIRE(dst->shape()[0] == dim1);
     REQUIRE(dst->shape()[1] == dim0);
 
-    const auto& ops = graph.ops();
+    const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "TRANSPOSE");
     REQUIRE(ops[0]->inputs().size() == 1);
     REQUIRE(ops[0]->outputs().size() == 1);
@@ -150,37 +151,40 @@ TEST_CASE("TensorGraph transpose rejects duplicate tensors", "[graph][tensor]")
     constexpr Index dim0 = 4;
     constexpr Index dim1 = 5;
     TensorGraph graph("test");
-    auto* src = graph.data({dim0, dim1}, "src");
+    auto *src = graph.data({dim0, dim1})->set_name("src");
 
-    REQUIRE_THROWS_AS(gt::transpose(alpha, src, src, Index(1)), std::invalid_argument);
+    REQUIRE_THROWS_AS(
+        gt::transpose(alpha, src, src, Index(1)), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph transpose matches nntile::tensor::transpose", "[graph][tensor]")
+    "TensorGraph transpose matches nntile::tensor::transpose",
+    "[graph][tensor]")
 {
-    const auto [alpha, ndim, shape] = GENERATE(
-        std::tuple{1.0, Index(1), std::vector<Index>{4, 5}},
-        std::tuple{2.0, Index(1), std::vector<Index>{4, 5}},
-        std::tuple{1.0, Index(1), std::vector<Index>{3, 6}},
-        std::tuple{1.0, Index(1), std::vector<Index>{2, 3, 4}},
-        std::tuple{1.0, Index(2), std::vector<Index>{2, 3, 4}});
+    const auto [alpha, ndim, shape] =
+        GENERATE(std::tuple{1.0, Index(1), std::vector<Index>{4, 5}},
+            std::tuple{2.0, Index(1), std::vector<Index>{4, 5}},
+            std::tuple{1.0, Index(1), std::vector<Index>{3, 6}},
+            std::tuple{1.0, Index(1), std::vector<Index>{2, 3, 4}},
+            std::tuple{1.0, Index(2), std::vector<Index>{2, 3, 4}});
 
     check_transpose_vs_tensor_api<nntile::fp32_t>(shape, alpha, ndim);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph transpose tiled matches untiled", "[graph][tensor]")
+    "TensorGraph transpose tiled matches untiled",
+    "[graph][tensor]")
 {
-    const auto [shape, ndim_val] = GENERATE(
-        std::tuple{std::vector<Index>{4, 6}, Index(1)},
-        std::tuple{std::vector<Index>{2, 4, 6}, Index(1)});
+    const auto [shape, ndim_val] =
+        GENERATE(std::tuple{std::vector<Index>{4, 6}, Index(1)},
+            std::tuple{std::vector<Index>{2, 4, 6}, Index(1)});
 
     using Y = nntile::fp32_t::repr_t;
     const Index nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
 
     std::vector<float> src_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         src_data[i] = static_cast<float>(Y(i));
     }
@@ -189,19 +193,20 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("transpose_untiled");
-        auto* src_node = graph.data(shape, "src", DataType::FP32);
+        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
         src_node->mark_input(true);
 
-        auto* dst_node = gt::transpose(alpha, src_node, "dst", ndim_val);
+        auto *dst_node = gt::transpose(alpha, src_node, ndim_val);
+
+        dst_node->set_name("dst");
         dst_node->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data(src_node,  src_data);
+        runtime.bind_data(src_node, src_data);
         runtime.execute();
         runtime.wait();
 
@@ -212,23 +217,24 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("transpose_tiled");
-        auto* src_node = graph.data(shape, "src", DataType::FP32);
+        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
         src_node->mark_input(true);
 
-        auto* dst_node = gt::transpose(alpha, src_node, "dst", ndim_val);
+        auto *dst_node = gt::transpose(alpha, src_node, ndim_val);
+
+        dst_node->set_name("dst");
         dst_node->mark_output(true);
-        for(auto* ag : graph.axis_groups())
+        for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data(src_node,  src_data);
+        runtime.bind_data(src_node, src_data);
         runtime.execute();
         runtime.wait();
 
@@ -238,7 +244,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     // --- Compare ---
     constexpr float tol = 1e-5f;
     REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
+    for (size_t i = 0; i < tiled_result.size(); ++i)
     {
         REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
     }

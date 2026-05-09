@@ -14,52 +14,44 @@
 
 #include "nntile/graph/tensor/ops/gelutanh_backward.hh"
 
-#include <stdexcept>
-#include <utility>
-
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gelutanh_backward.hh"
 
-#include <nntile/graph/tile/graph_ops.hh>
 #include <nntile/graph/tensor/tile_lowering_helpers.hh>
+#include <nntile/graph/tile/graph_ops.hh>
+#include <stdexcept>
+#include <utility>
 
 namespace nntile::graph::tensor
 {
 
-
-
-TensorGraph::TensorNode* gelutanh_backward(
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* dy,
-    const std::string& output_name)
+TensorGraph::TensorNode *gelutanh_backward(
+    TensorGraph::TensorNode *x, TensorGraph::TensorNode *dy)
 {
-    if(x == nullptr || dy == nullptr)
+    if (x == nullptr || dy == nullptr)
     {
         throw std::invalid_argument(
             "gelutanh_backward: input tensors must be non-null");
     }
-    if(x->graph() != dy->graph())
+    if (x->graph() != dy->graph())
     {
         throw std::invalid_argument(
             "gelutanh_backward: input tensors must belong to the same graph");
     }
-    if(x->dtype() != dy->dtype())
+    if (x->dtype() != dy->dtype())
     {
         throw std::invalid_argument(
             "gelutanh_backward: input tensors must have the same dtype");
     }
-    if(x == dy)
+    if (x == dy)
     {
         throw std::invalid_argument(
             "gelutanh_backward: x and dy must be distinct tensors");
     }
     validate_same_shape_and_merge(x, dy, "gelutanh_backward");
 
-    TensorGraph::TensorNode* dx = x->graph()->data(
-        x->shape(),
-        output_name,
-        x->dtype());
+    TensorGraph::TensorNode *dx = x->graph()->data(x->shape(), x->dtype());
     dx->set_axes(x->axes());
 
     gelutanh_backward(x, dy, dx);
@@ -67,27 +59,26 @@ TensorGraph::TensorNode* gelutanh_backward(
     return dx;
 }
 
-void gelutanh_backward(
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* dy,
-    TensorGraph::TensorNode* dx)
+void gelutanh_backward(TensorGraph::TensorNode *x,
+    TensorGraph::TensorNode *dy,
+    TensorGraph::TensorNode *dx)
 {
-    if(x == nullptr || dy == nullptr || dx == nullptr)
+    if (x == nullptr || dy == nullptr || dx == nullptr)
     {
         throw std::invalid_argument(
             "gelutanh_backward: input tensors must be non-null");
     }
-    if(x->graph() != dy->graph() || x->graph() != dx->graph())
+    if (x->graph() != dy->graph() || x->graph() != dx->graph())
     {
         throw std::invalid_argument(
             "gelutanh_backward: input tensors must belong to the same graph");
     }
-    if(x->dtype() != dy->dtype() || x->dtype() != dx->dtype())
+    if (x->dtype() != dy->dtype() || x->dtype() != dx->dtype())
     {
         throw std::invalid_argument(
             "gelutanh_backward: input tensors must have the same dtype");
     }
-    if(x == dy || x == dx || dy == dx)
+    if (x == dy || x == dx || dy == dx)
     {
         throw std::invalid_argument(
             "gelutanh_backward: x, dy, and dx must be distinct tensors");
@@ -99,9 +90,13 @@ void gelutanh_backward(
     x->graph()->add_op(op);
 }
 
-void TensorGelutanhBackwardOp::lower_to_tile(const LoweringContext& ctx) const
+void TensorGelutanhBackwardOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    tile_lower::lower_backward3(x, dy, dx, ctx.tile_map, "GELUTANH_BACKWARD",
+    tile_lower::lower_backward3(x,
+        dy,
+        dx,
+        ctx.tile_map,
+        "GELUTANH_BACKWARD",
         tile_graph::gelutanh_backward);
 }
 

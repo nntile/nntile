@@ -14,36 +14,29 @@
 
 #include "nntile/graph/tensor/ops/sqrt.hh"
 
-#include <stdexcept>
-#include <utility>
-
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/sqrt.hh"
 
-#include <nntile/graph/tile/graph_ops.hh>
 #include <nntile/graph/tensor/tile_lowering_helpers.hh>
+#include <nntile/graph/tile/graph_ops.hh>
+#include <stdexcept>
+#include <utility>
 
 namespace nntile::graph::tensor
 {
 
-
-
-TensorGraph::TensorNode* sqrt(
-    TensorGraph::TensorNode* src,
-    const std::string& output_name)
+TensorGraph::TensorNode *sqrt(TensorGraph::TensorNode *src)
 {
-    if(src == nullptr)
+    if (src == nullptr)
     {
         throw std::invalid_argument("sqrt: input tensor must be non-null");
     }
 
     std::vector<Index> output_shape = src->shape();
-    TensorGraph::TensorNode* output = src->graph()->data(
-        std::move(output_shape),
-        output_name,
-        src->dtype());
+    TensorGraph::TensorNode *output =
+        src->graph()->data(std::move(output_shape), src->dtype());
     output->set_axes(src->axes());
 
     auto op = std::make_shared<TensorSqrtOp>(src, output);
@@ -52,25 +45,23 @@ TensorGraph::TensorNode* sqrt(
     return output;
 }
 
-void sqrt(
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst)
+void sqrt(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst)
 {
-    if(src == nullptr || dst == nullptr)
+    if (src == nullptr || dst == nullptr)
     {
         throw std::invalid_argument("sqrt: input tensors must be non-null");
     }
-    if(src->graph() != dst->graph())
+    if (src->graph() != dst->graph())
     {
         throw std::invalid_argument(
             "sqrt: input tensors must belong to the same graph");
     }
-    if(src->dtype() != dst->dtype())
+    if (src->dtype() != dst->dtype())
     {
         throw std::invalid_argument(
             "sqrt: input tensors must have the same dtype");
     }
-    if(src == dst)
+    if (src == dst)
     {
         throw std::invalid_argument(
             "sqrt: src and dst must be distinct tensors");
@@ -81,10 +72,9 @@ void sqrt(
     src->graph()->add_op(op);
 }
 
-void TensorSqrtOp::lower_to_tile(const LoweringContext& ctx) const
+void TensorSqrtOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    tile_lower::lower_unary2(
-        src, dst, ctx.tile_map, "SQRT", tile_graph::sqrt);
+    tile_lower::lower_unary2(src, dst, ctx.tile_map, "SQRT", tile_graph::sqrt);
 }
 
 } // namespace nntile::graph::tensor

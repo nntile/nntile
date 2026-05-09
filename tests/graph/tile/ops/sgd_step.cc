@@ -12,12 +12,12 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <vector>
-
 #include "context_fixture.hh"
 #include "mixed_tile_common.hh"
+
+#include <catch2/catch_test_macros.hpp>
 #include <nntile/graph.hh>
+#include <vector>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -28,23 +28,32 @@ TEST_CASE("SGD step mixed tile parity", "[graph][tile]")
 {
     test::ContextFixture fx;
 
-    auto build = [](TensorGraph& g, bool tile_inputs) {
-        TensorGraph::TensorNode* grad =
-            g.data({10, 12}, "grad", DataType::FP32);
-        TensorGraph::TensorNode* vel =
-            g.data({10, 12}, "vel", DataType::FP32);
-        TensorGraph::TensorNode* p = g.data({10, 12}, "p", DataType::FP32);
+    auto build = [](TensorGraph &g, bool tile_inputs)
+    {
+        TensorGraph::TensorNode *grad =
+            g.data({10, 12}, DataType::FP32)->set_name("grad");
+        TensorGraph::TensorNode *vel =
+            g.data({10, 12}, DataType::FP32)->set_name("vel");
+        TensorGraph::TensorNode *p =
+            g.data({10, 12}, DataType::FP32)->set_name("p");
         grad->mark_input(true);
         vel->mark_input(true);
         p->mark_input(true);
-        if(tile_inputs)
+        if (tile_inputs)
         {
             tt::apply_mixed_tile_sizes_2d(grad);
             tt::apply_mixed_tile_sizes_2d(vel);
             tt::apply_mixed_tile_sizes_2d(p);
         }
-        gt::sgd_step(0, Scalar{0.9f}, Scalar{0.05f}, Scalar{0.f},
-            Scalar{0.f}, false, grad, vel, p);
+        gt::sgd_step(0,
+            Scalar{0.9f},
+            Scalar{0.05f},
+            Scalar{0.f},
+            Scalar{0.f},
+            false,
+            grad,
+            vel,
+            p);
         p->mark_output(true);
         vel->mark_output(true);
     };
@@ -55,7 +64,7 @@ TEST_CASE("SGD step mixed tile parity", "[graph][tile]")
     build(g_tile, true);
 
     std::vector<float> grad_h(10 * 12), vel_h(10 * 12), p_h(10 * 12);
-    for(size_t i = 0; i < grad_h.size(); ++i)
+    for (size_t i = 0; i < grad_h.size(); ++i)
     {
         grad_h[i] = 0.01f * static_cast<float>(static_cast<int>(i % 5) - 2);
         vel_h[i] = 0.f;
@@ -63,7 +72,6 @@ TEST_CASE("SGD step mixed tile parity", "[graph][tile]")
     }
 
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref);
-
 
     TileGraph::Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();

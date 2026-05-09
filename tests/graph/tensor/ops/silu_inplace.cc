@@ -7,31 +7,31 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/silu_inplace.cc
- * Test TensorGraph silu_inplace operation against nntile::tensor::silu_inplace.
+ * Test TensorGraph silu_inplace operation against
+ * nntile::tensor::silu_inplace.
  *
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-
-#include <numeric>
+#include "nntile/graph/tensor/ops/silu_inplace.hh"
 
 #include "context_fixture.hh"
-#include "nntile/graph/tensor/ops/silu_inplace.hh"
-#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
 #include "nntile/tensor/silu_inplace.hh"
 #include "nntile/tensor/tensor.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
+#include <numeric>
 
 using namespace nntile;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
-template<typename T>
-void check_silu_inplace_vs_tensor_api(
-    const std::vector<Index>& shape)
+template <typename T>
+void check_silu_inplace_vs_tensor_api(const std::vector<Index> &shape)
 {
     using Y = typename T::repr_t;
     const Index nelems = std::accumulate(
@@ -39,7 +39,7 @@ void check_silu_inplace_vs_tensor_api(
 
     // --- TensorGraph path ---
     TensorGraph graph("silu_inplace_test");
-    auto* dst_node = graph.data(shape, "dst", DataType::FP32);
+    auto *dst_node = graph.data(shape, DataType::FP32)->set_name("dst");
     dst_node->mark_input(true);
     dst_node->mark_output(true);
 
@@ -47,17 +47,16 @@ void check_silu_inplace_vs_tensor_api(
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> dst_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         dst_data[i] = static_cast<float>(Y(i - nelems / 2));
     }
 
-    runtime.bind_data(dst_node,  dst_data);
+    runtime.bind_data(dst_node, dst_data);
     runtime.execute();
     runtime.wait();
 
@@ -71,7 +70,7 @@ void check_silu_inplace_vs_tensor_api(
     {
         auto tile = dst.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
         {
             loc[i] = static_cast<Y>(dst_data[i]);
         }
@@ -85,7 +84,7 @@ void check_silu_inplace_vs_tensor_api(
     {
         auto tile = dst.get_tile(0);
         auto loc = tile.acquire(STARPU_R);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
         {
             tensor_result[i] = static_cast<float>(loc[i]);
         }
@@ -94,7 +93,7 @@ void check_silu_inplace_vs_tensor_api(
 
     constexpr float tol = 1e-5f;
     REQUIRE(graph_result.size() == tensor_result.size());
-    for(size_t i = 0; i < graph_result.size(); ++i)
+    for (size_t i = 0; i < graph_result.size(); ++i)
     {
         REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tol);
     }
@@ -107,14 +106,14 @@ TEST_CASE("TensorGraph silu_inplace structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto* dst = graph.data({dim0, dim1}, "dst");
+    auto *dst = graph.data({dim0, dim1})->set_name("dst");
 
     gt::silu_inplace(dst);
 
     REQUIRE(graph.num_data() == 1);
     REQUIRE(graph.num_ops() == 1);
 
-    const auto& ops = graph.ops();
+    const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "SILU_INPLACE");
     REQUIRE(ops[0]->inputs().size() == 1);
     REQUIRE(ops[0]->outputs().size() == 1);
@@ -122,10 +121,10 @@ TEST_CASE("TensorGraph silu_inplace structure", "[graph][tensor]")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph silu_inplace matches nntile::tensor::silu_inplace", "[graph][tensor]")
+    "TensorGraph silu_inplace matches nntile::tensor::silu_inplace",
+    "[graph][tensor]")
 {
-    const auto shape = GENERATE(
-        std::vector<Index>{4, 5},
+    const auto shape = GENERATE(std::vector<Index>{4, 5},
         std::vector<Index>{6},
         std::vector<Index>{2, 3},
         std::vector<Index>{1, 10});
@@ -134,10 +133,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph silu_inplace tiled matches untiled", "[graph][tensor]")
+    "TensorGraph silu_inplace tiled matches untiled",
+    "[graph][tensor]")
 {
-    const auto shape = GENERATE(
-        std::vector<Index>{4, 6},
+    const auto shape = GENERATE(std::vector<Index>{4, 6},
         std::vector<Index>{6},
         std::vector<Index>{2, 4});
 
@@ -147,7 +146,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
 
     std::vector<float> dst_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         dst_data[i] = static_cast<float>(Y(i - nelems / 2));
     }
@@ -155,7 +154,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("silu_inplace_untiled");
-        auto* dst_node = graph.data(shape, "dst", DataType::FP32);
+        auto *dst_node = graph.data(shape, DataType::FP32)->set_name("dst");
         dst_node->mark_input(true);
         dst_node->mark_output(true);
         gt::silu_inplace(dst_node);
@@ -163,7 +162,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data(dst_node,  dst_data);
+        runtime.bind_data(dst_node, dst_data);
         runtime.execute();
         runtime.wait();
         untiled_result = runtime.get_output<float>(dst_node);
@@ -172,11 +171,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("silu_inplace_tiled");
-        auto* dst_node = graph.data(shape, "dst", DataType::FP32);
+        auto *dst_node = graph.data(shape, DataType::FP32)->set_name("dst");
         dst_node->mark_input(true);
         dst_node->mark_output(true);
         gt::silu_inplace(dst_node);
-        for(auto* ag : graph.axis_groups())
+        for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
@@ -184,7 +183,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data(dst_node,  dst_data);
+        runtime.bind_data(dst_node, dst_data);
         runtime.execute();
         runtime.wait();
         tiled_result = runtime.get_output<float>(dst_node);
@@ -192,7 +191,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-5f;
     REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
+    for (size_t i = 0; i < tiled_result.size(); ++i)
     {
         REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
     }

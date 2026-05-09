@@ -28,18 +28,17 @@ namespace nntile::graph::tensor
 //! RoPE backward operation: dx = rope_backward(sin, cos, dy)
 struct TensorRopeBackwardOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* sin = nullptr;
-    TensorGraph::TensorNode* cos = nullptr;
-    TensorGraph::TensorNode* dy = nullptr;
-    TensorGraph::TensorNode* dx = nullptr;
+    TensorGraph::TensorNode *sin = nullptr;
+    TensorGraph::TensorNode *cos = nullptr;
+    TensorGraph::TensorNode *dy = nullptr;
+    TensorGraph::TensorNode *dx = nullptr;
 
     TensorRopeBackwardOp() = default;
-    TensorRopeBackwardOp(
-        TensorGraph::TensorNode* sin_,
-        TensorGraph::TensorNode* cos_,
-        TensorGraph::TensorNode* dy_,
-        TensorGraph::TensorNode* dx_)
-        : sin(sin_), cos(cos_), dy(dy_), dx(dx_)
+    TensorRopeBackwardOp(TensorGraph::TensorNode *sin_,
+        TensorGraph::TensorNode *cos_,
+        TensorGraph::TensorNode *dy_,
+        TensorGraph::TensorNode *dx_) :
+        sin(sin_), cos(cos_), dy(dy_), dx(dx_)
     {
         inputs_ = {sin, cos, dy, dx};
         outputs_ = {dx};
@@ -52,19 +51,16 @@ struct TensorRopeBackwardOp : TensorGraph::OpNode
         return std::make_shared<TensorRopeBackwardOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-TensorGraph::TensorNode* rope_backward(
-    TensorGraph::TensorNode* sin,
-    TensorGraph::TensorNode* cos,
-    TensorGraph::TensorNode* dy,
-    const std::string& output_name);
+TensorGraph::TensorNode *rope_backward(TensorGraph::TensorNode *sin,
+    TensorGraph::TensorNode *cos,
+    TensorGraph::TensorNode *dy);
 
-void rope_backward(
-    TensorGraph::TensorNode* sin,
-    TensorGraph::TensorNode* cos,
-    TensorGraph::TensorNode* dy,
-    TensorGraph::TensorNode* dx);
+void rope_backward(TensorGraph::TensorNode *sin,
+    TensorGraph::TensorNode *cos,
+    TensorGraph::TensorNode *dy,
+    TensorGraph::TensorNode *dx);
 
 } // namespace nntile::graph::tensor

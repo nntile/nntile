@@ -33,26 +33,22 @@ struct NNScaleSliceOp : NNGraph::OpNode
     Scalar alpha;
     Index axis;
     Index axis_size;
-    NNGraph::TensorNode* src = nullptr;
+    NNGraph::TensorNode *src = nullptr;
 
-    NNScaleSliceOp(NNGraph::TensorNode* src_,
-                   Scalar alpha_,
-                   Index axis_,
-                   Index axis_size_)
-        : alpha(alpha_), axis(axis_), axis_size(axis_size_), src(src_)
+    NNScaleSliceOp(NNGraph::TensorNode *src_,
+        Scalar alpha_,
+        Index axis_,
+        Index axis_size_) :
+        alpha(alpha_), axis(axis_), axis_size(axis_size_), src(src_)
     {
         inputs_ = {src};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* scale_slice(
-    Scalar alpha,
-    NNGraph::TensorNode* src,
-    const std::string& output_name,
-    Index axis,
-    Index axis_size);
+NNGraph::TensorNode *scale_slice(
+    Scalar alpha, NNGraph::TensorNode *src, Index axis, Index axis_size);
 
 } // namespace nntile::graph

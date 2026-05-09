@@ -30,14 +30,16 @@ namespace nntile::graph::tensor
 struct TensorMultiplyOp : TensorGraph::OpNode
 {
     Scalar alpha;
-    TensorGraph::TensorNode* x = nullptr;
-    TensorGraph::TensorNode* y = nullptr;
-    TensorGraph::TensorNode* z = nullptr;
+    TensorGraph::TensorNode *x = nullptr;
+    TensorGraph::TensorNode *y = nullptr;
+    TensorGraph::TensorNode *z = nullptr;
 
     TensorMultiplyOp() = default;
-    TensorMultiplyOp(TensorGraph::TensorNode* x_, TensorGraph::TensorNode* y_,
-                    TensorGraph::TensorNode* z_, Scalar alpha_)
-        : alpha(alpha_), x(x_), y(y_), z(z_)
+    TensorMultiplyOp(TensorGraph::TensorNode *x_,
+        TensorGraph::TensorNode *y_,
+        TensorGraph::TensorNode *z_,
+        Scalar alpha_) :
+        alpha(alpha_), x(x_), y(y_), z(z_)
     {
         inputs_ = {x, y};
         outputs_ = {z};
@@ -50,19 +52,15 @@ struct TensorMultiplyOp : TensorGraph::OpNode
         return std::make_shared<TensorMultiplyOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! Multiply: z = alpha * x * y
 //! @param x First input tensor
 //! @param y Second input tensor
-//! @param output_name Name for the output tensor
 //! @param alpha Scalar multiplier (default: 1.0)
 //! @return Pointer to the output tensor
-TensorGraph::TensorNode* multiply(
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* y,
-    const std::string& output_name,
-    Scalar alpha);
+TensorGraph::TensorNode *multiply(
+    TensorGraph::TensorNode *x, TensorGraph::TensorNode *y, Scalar alpha);
 
 } // namespace nntile::graph::tensor

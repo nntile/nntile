@@ -12,12 +12,12 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <vector>
-
 #include "context_fixture.hh"
 #include "mixed_tile_common.hh"
+
+#include <catch2/catch_test_macros.hpp>
 #include <nntile/graph.hh>
+#include <vector>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -29,24 +29,23 @@ TEST_CASE("sqrt mixed tile parity", "[graph][tile]")
     test::ContextFixture fx;
 
     TensorGraph g_ref("ref");
-    TensorGraph::TensorNode* x_ref =
-        g_ref.data({10, 12}, "x", DataType::FP32);
+    TensorGraph::TensorNode *x_ref =
+        g_ref.data({10, 12}, DataType::FP32)->set_name("x");
     x_ref->mark_input(true);
-    TensorGraph::TensorNode* s_ref = gt::sqrt(x_ref, "s");
+    TensorGraph::TensorNode *s_ref = gt::sqrt(x_ref)->set_name("s");
     s_ref->mark_output(true);
 
     TensorGraph g_tile("tile");
-    TensorGraph::TensorNode* x_tile =
-        g_tile.data({10, 12}, "x", DataType::FP32);
+    TensorGraph::TensorNode *x_tile =
+        g_tile.data({10, 12}, DataType::FP32)->set_name("x");
     x_tile->mark_input(true);
     tt::apply_mixed_tile_sizes_2d(x_tile);
-    TensorGraph::TensorNode* s_tile = gt::sqrt(x_tile, "s");
+    TensorGraph::TensorNode *s_tile = gt::sqrt(x_tile)->set_name("s");
     s_tile->mark_output(true);
 
     std::vector<float> x_data(10 * 12, 0.25f);
 
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref);
-
 
     TileGraph::Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();

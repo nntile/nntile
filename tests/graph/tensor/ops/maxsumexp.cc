@@ -12,19 +12,19 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-
-#include <numeric>
+#include "nntile/graph/tensor/ops/maxsumexp.hh"
 
 #include "context_fixture.hh"
-#include "nntile/graph/tensor/ops/maxsumexp.hh"
-#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
 #include "nntile/tensor/clear.hh"
 #include "nntile/tensor/maxsumexp.hh"
 #include "nntile/tensor/tensor.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
+#include <numeric>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -42,13 +42,12 @@ constexpr int distr_rank_single = 0;
 
 // dst shape for tensor API: [2] + src.shape without axis
 static std::vector<Index> maxsumexp_dst_shape(
-    const std::vector<Index>& src_shape,
-    Index axis)
+    const std::vector<Index> &src_shape, Index axis)
 {
     std::vector<Index> dst = {2};
-    for(Index i = 0; i < static_cast<Index>(src_shape.size()); ++i)
+    for (Index i = 0; i < static_cast<Index>(src_shape.size()); ++i)
     {
-        if(i != axis)
+        if (i != axis)
         {
             dst.push_back(src_shape[i]);
         }
@@ -56,10 +55,9 @@ static std::vector<Index> maxsumexp_dst_shape(
     return dst;
 }
 
-template<typename T>
+template <typename T>
 void check_maxsumexp_vs_tensor_api(
-    const std::vector<Index>& src_shape,
-    Index axis)
+    const std::vector<Index> &src_shape, Index axis)
 {
     using Y = typename T::repr_t;
     const Index src_nelems = std::accumulate(
@@ -70,25 +68,24 @@ void check_maxsumexp_vs_tensor_api(
 
     // --- TensorGraph path ---
     TensorGraph graph("maxsumexp_test");
-    auto* src_node = graph.data(src_shape, "src", DataType::FP32);
+    auto *src_node = graph.data(src_shape, DataType::FP32)->set_name("src");
     src_node->mark_input(true);
 
-    auto* dst_node = gt::maxsumexp(src_node, "dst", axis, redux);
+    auto *dst_node = gt::maxsumexp(src_node, axis, redux)->set_name("dst");
     dst_node->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
-
 
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(src_nelems);
-    for(Index i = 0; i < src_nelems; ++i)
+    for (Index i = 0; i < src_nelems; ++i)
     {
-        src_data[i] = static_cast<float>(Y(i % 10 - 2));  // small values
+        src_data[i] = static_cast<float>(Y(i % 10 - 2)); // small values
     }
 
-    runtime.bind_data(src_node,  src_data);
+    runtime.bind_data(src_node, src_data);
     runtime.execute();
     runtime.wait();
 
@@ -105,7 +102,7 @@ void check_maxsumexp_vs_tensor_api(
     {
         auto tile = src_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < src_nelems; ++i)
+        for (Index i = 0; i < src_nelems; ++i)
         {
             loc[i] = static_cast<Y>(src_data[i]);
         }
@@ -119,7 +116,7 @@ void check_maxsumexp_vs_tensor_api(
     {
         auto tile = dst_t.get_tile(0);
         auto loc = tile.acquire(STARPU_R);
-        for(Index i = 0; i < dst_nelems; ++i)
+        for (Index i = 0; i < dst_nelems; ++i)
         {
             tensor_result[i] = static_cast<float>(loc[i]);
         }
@@ -127,7 +124,7 @@ void check_maxsumexp_vs_tensor_api(
     }
 
     REQUIRE(graph_result.size() == tensor_result.size());
-    for(size_t i = 0; i < graph_result.size(); ++i)
+    for (size_t i = 0; i < graph_result.size(); ++i)
     {
         float diff = std::abs(graph_result[i] - tensor_result[i]);
         float ref = std::abs(tensor_result[i]) + 1e-10f;
@@ -142,16 +139,16 @@ TEST_CASE("TensorGraph maxsumexp structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto* src = graph.data({dim0, dim1}, "src");
-    auto* dst = gt::maxsumexp(src, "dst", axis_0, redux);
+    auto *src = graph.data({dim0, dim1})->set_name("src");
+    auto *dst = gt::maxsumexp(src, axis_0, redux)->set_name("dst");
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
     REQUIRE(dst->shape().size() == 2);
     REQUIRE(dst->shape()[0] == 2);
-    REQUIRE(dst->shape()[1] == dim1);  // axis 0: drop dim0, keep dim1
+    REQUIRE(dst->shape()[1] == dim1); // axis 0: drop dim0, keep dim1
 
-    const auto& ops = graph.ops();
+    const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "MAXSUMEXP");
     REQUIRE(ops[0]->inputs().size() == 1);
     REQUIRE(ops[0]->outputs().size() == 1);
@@ -163,33 +160,34 @@ TEST_CASE("TensorGraph maxsumexp rejects null", "[graph][tensor]")
     TensorGraph graph("test");
 
     REQUIRE_THROWS_AS(
-        gt::maxsumexp(nullptr, "dst", axis_0, redux),
-        std::invalid_argument);
+        gt::maxsumexp(nullptr, axis_0, redux), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph maxsumexp matches nntile::tensor::maxsumexp", "[graph][tensor]")
+    "TensorGraph maxsumexp matches nntile::tensor::maxsumexp",
+    "[graph][tensor]")
 {
-    const auto [shape, axis] = GENERATE(
-        std::tuple{std::vector<Index>{4, 5}, Index(0)},
-        std::tuple{std::vector<Index>{6}, Index(0)},
-        std::tuple{std::vector<Index>{3, 4}, Index(0)});
+    const auto [shape, axis] =
+        GENERATE(std::tuple{std::vector<Index>{4, 5}, Index(0)},
+            std::tuple{std::vector<Index>{6}, Index(0)},
+            std::tuple{std::vector<Index>{3, 4}, Index(0)});
 
     check_maxsumexp_vs_tensor_api<nntile::fp32_t>(shape, axis);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph maxsumexp tiled matches untiled", "[graph][tensor]")
+    "TensorGraph maxsumexp tiled matches untiled",
+    "[graph][tensor]")
 {
-    const auto [shape, axis] = GENERATE(
-        std::tuple{std::vector<Index>{4, 6}, Index(0)},
-        std::tuple{std::vector<Index>{3, 4}, Index(0)});
+    const auto [shape, axis] =
+        GENERATE(std::tuple{std::vector<Index>{4, 6}, Index(0)},
+            std::tuple{std::vector<Index>{3, 4}, Index(0)});
 
     const Index src_nelems = std::accumulate(
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
 
     std::vector<float> src_data(src_nelems);
-    for(Index i = 0; i < src_nelems; ++i)
+    for (Index i = 0; i < src_nelems; ++i)
     {
         src_data[i] = static_cast<float>(i % 10 - 2);
     }
@@ -198,19 +196,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("maxsumexp_untiled");
-        auto* src_node = graph.data(shape, "src", DataType::FP32);
+        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
         src_node->mark_input(true);
 
-        auto* dst_node = gt::maxsumexp(src_node, "dst", axis, 0);
+        auto *dst_node = gt::maxsumexp(src_node, axis, 0)->set_name("dst");
         dst_node->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data(src_node,  src_data);
+        runtime.bind_data(src_node, src_data);
         runtime.execute();
         runtime.wait();
 
@@ -221,15 +218,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("maxsumexp_tiled");
-        auto* src_node = graph.data(shape, "src", DataType::FP32);
+        auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
         src_node->mark_input(true);
 
-        auto* dst_node = gt::maxsumexp(src_node, "dst", axis, 0);
+        auto *dst_node = gt::maxsumexp(src_node, axis, 0)->set_name("dst");
         dst_node->mark_output(true);
-        auto* maxsumexp_dim0 = dst_node->axis(0);
-        for(auto* ag : graph.axis_groups())
+        auto *maxsumexp_dim0 = dst_node->axis(0);
+        for (auto *ag : graph.axis_groups())
         {
-            if(ag == maxsumexp_dim0)
+            if (ag == maxsumexp_dim0)
             {
                 ag->set_tiling(ag->extent);
             }
@@ -241,11 +238,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data(src_node,  src_data);
+        runtime.bind_data(src_node, src_data);
         runtime.execute();
         runtime.wait();
 
@@ -255,7 +251,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     // --- Compare ---
     constexpr float tol = 1e-4f;
     REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
+    for (size_t i = 0; i < tiled_result.size(); ++i)
     {
         REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
     }

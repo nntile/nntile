@@ -31,16 +31,15 @@ struct TensorMaxsumexpOp : TensorGraph::OpNode
 {
     Index axis;
     int redux;
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorMaxsumexpOp() = default;
-    TensorMaxsumexpOp(
-        TensorGraph::TensorNode* src_,
-        TensorGraph::TensorNode* dst_,
-        Index axis_, int redux_)
-        : axis(axis_), redux(redux_)
-        , src(src_), dst(dst_)
+    TensorMaxsumexpOp(TensorGraph::TensorNode *src_,
+        TensorGraph::TensorNode *dst_,
+        Index axis_,
+        int redux_) :
+        axis(axis_), redux(redux_), src(src_), dst(dst_)
     {
         inputs_ = {src};
         outputs_ = {dst};
@@ -53,18 +52,14 @@ struct TensorMaxsumexpOp : TensorGraph::OpNode
         return std::make_shared<TensorMaxsumexpOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-TensorGraph::TensorNode* maxsumexp(
-    TensorGraph::TensorNode* src,
-    const std::string& output_name,
-    Index axis,
-    int redux);
+TensorGraph::TensorNode *maxsumexp(
+    TensorGraph::TensorNode *src, Index axis, int redux);
 
-void maxsumexp(
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst,
+void maxsumexp(TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst,
     Index axis,
     int redux);
 

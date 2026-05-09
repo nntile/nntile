@@ -28,14 +28,13 @@ namespace nntile::graph::tensor
 //! Gather operation: dst = gather(src)
 struct TensorGatherOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorGatherOp() = default;
     TensorGatherOp(
-        TensorGraph::TensorNode* src_,
-        TensorGraph::TensorNode* dst_)
-        : src(src_), dst(dst_)
+        TensorGraph::TensorNode *src_, TensorGraph::TensorNode *dst_) :
+        src(src_), dst(dst_)
     {
         inputs_ = {src};
         outputs_ = {dst};
@@ -48,15 +47,11 @@ struct TensorGatherOp : TensorGraph::OpNode
         return std::make_shared<TensorGatherOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-TensorGraph::TensorNode* gather(
-    TensorGraph::TensorNode* src,
-    const std::string& output_name);
+TensorGraph::TensorNode *gather(TensorGraph::TensorNode *src);
 
-void gather(
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst);
+void gather(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst);
 
 } // namespace nntile::graph::tensor

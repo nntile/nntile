@@ -30,14 +30,14 @@ namespace nntile::graph::tensor
 struct TensorScaleOp : TensorGraph::OpNode
 {
     Scalar alpha;
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorScaleOp() = default;
-    TensorScaleOp(TensorGraph::TensorNode* src_,
-                 TensorGraph::TensorNode* dst_,
-                 Scalar alpha_)
-        : alpha(alpha_), src(src_), dst(dst_)
+    TensorScaleOp(TensorGraph::TensorNode *src_,
+        TensorGraph::TensorNode *dst_,
+        Scalar alpha_) :
+        alpha(alpha_), src(src_), dst(dst_)
     {
         inputs_ = {src};
         outputs_ = {dst};
@@ -50,23 +50,17 @@ struct TensorScaleOp : TensorGraph::OpNode
         return std::make_shared<TensorScaleOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! Scale operation: dst = alpha * src (creates output)
 //! @param alpha Scaling factor
 //! @param src Input tensor
-//! @param output_name Name for the output tensor
 //! @return Pointer to the output tensor
-TensorGraph::TensorNode* scale(
-    Scalar alpha,
-    TensorGraph::TensorNode* src,
-    const std::string& output_name);
+TensorGraph::TensorNode *scale(Scalar alpha, TensorGraph::TensorNode *src);
 
 //! Scale operation: dst = alpha * src (uses existing output)
 void scale(
-    Scalar alpha,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst);
+    Scalar alpha, TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst);
 
 } // namespace nntile::graph::tensor

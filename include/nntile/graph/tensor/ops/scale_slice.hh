@@ -34,17 +34,15 @@ struct TensorScaleSliceOp : TensorGraph::OpNode
 {
     Scalar alpha;
     Index axis;
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorScaleSliceOp() = default;
-    TensorScaleSliceOp(
-        Scalar alpha_,
-        TensorGraph::TensorNode* src_,
-        TensorGraph::TensorNode* dst_,
-        Index axis_)
-        : alpha(alpha_), axis(axis_)
-        , src(src_), dst(dst_)
+    TensorScaleSliceOp(Scalar alpha_,
+        TensorGraph::TensorNode *src_,
+        TensorGraph::TensorNode *dst_,
+        Index axis_) :
+        alpha(alpha_), axis(axis_), src(src_), dst(dst_)
     {
         inputs_ = {src};
         outputs_ = {dst};
@@ -57,20 +55,15 @@ struct TensorScaleSliceOp : TensorGraph::OpNode
         return std::make_shared<TensorScaleSliceOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-TensorGraph::TensorNode* scale_slice(
-    Scalar alpha,
-    TensorGraph::TensorNode* src,
-    const std::string& output_name,
-    Index axis,
-    Index axis_size);
+TensorGraph::TensorNode *scale_slice(
+    Scalar alpha, TensorGraph::TensorNode *src, Index axis, Index axis_size);
 
-void scale_slice(
-    Scalar alpha,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst,
+void scale_slice(Scalar alpha,
+    TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst,
     Index axis);
 
 } // namespace nntile::graph::tensor

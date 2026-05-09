@@ -12,12 +12,12 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <vector>
-
 #include "context_fixture.hh"
 #include "mixed_tile_common.hh"
+
+#include <catch2/catch_test_macros.hpp>
 #include <nntile/graph.hh>
+#include <vector>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -30,24 +30,37 @@ TEST_CASE("Adam step mixed tile parity", "[graph][tile]")
 
     constexpr Index n = 10;
 
-    auto build = [=](TensorGraph& g, bool tile_inputs) {
-        TensorGraph::TensorNode* grad = g.data({n}, "grad", DataType::FP32);
-        TensorGraph::TensorNode* m = g.data({n}, "m", DataType::FP32);
-        TensorGraph::TensorNode* v = g.data({n}, "v", DataType::FP32);
-        TensorGraph::TensorNode* p = g.data({n}, "p", DataType::FP32);
+    auto build = [=](TensorGraph &g, bool tile_inputs)
+    {
+        TensorGraph::TensorNode *grad =
+            g.data({n}, DataType::FP32)->set_name("grad");
+        TensorGraph::TensorNode *m =
+            g.data({n}, DataType::FP32)->set_name("m");
+        TensorGraph::TensorNode *v =
+            g.data({n}, DataType::FP32)->set_name("v");
+        TensorGraph::TensorNode *p =
+            g.data({n}, DataType::FP32)->set_name("p");
         grad->mark_input(true);
         m->mark_input(true);
         v->mark_input(true);
         p->mark_input(true);
-        if(tile_inputs)
+        if (tile_inputs)
         {
             tt::apply_mixed_tile_sizes_1d(grad);
             tt::apply_mixed_tile_sizes_1d(m);
             tt::apply_mixed_tile_sizes_1d(v);
             tt::apply_mixed_tile_sizes_1d(p);
         }
-        gt::adam_step(100, Scalar{0.9f}, Scalar{0.99f}, Scalar{1e-6f},
-            Scalar{0.001f}, Scalar{0.f}, grad, m, v, p);
+        gt::adam_step(100,
+            Scalar{0.9f},
+            Scalar{0.99f},
+            Scalar{1e-6f},
+            Scalar{0.001f},
+            Scalar{0.f},
+            grad,
+            m,
+            v,
+            p);
         p->mark_output(true);
         m->mark_output(true);
         v->mark_output(true);
@@ -62,7 +75,7 @@ TEST_CASE("Adam step mixed tile parity", "[graph][tile]")
     std::vector<float> m_h(static_cast<size_t>(n));
     std::vector<float> v_h(static_cast<size_t>(n));
     std::vector<float> p_h(static_cast<size_t>(n));
-    for(Index i = 0; i < n; ++i)
+    for (Index i = 0; i < n; ++i)
     {
         grad_h[static_cast<size_t>(i)] = 0.01f * static_cast<float>(i + 1);
         m_h[static_cast<size_t>(i)] = 0.f;
@@ -71,7 +84,6 @@ TEST_CASE("Adam step mixed tile parity", "[graph][tile]")
     }
 
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref);
-
 
     TileGraph::Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();

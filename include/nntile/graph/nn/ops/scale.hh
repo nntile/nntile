@@ -31,22 +31,18 @@ namespace nntile::graph
 struct NNScaleOp : NNGraph::OpNode
 {
     Scalar alpha;
-    NNGraph::TensorNode* src = nullptr;
+    NNGraph::TensorNode *src = nullptr;
 
-    NNScaleOp(NNGraph::TensorNode* src_,
-              Scalar alpha_)
-        : alpha(alpha_), src(src_)
+    NNScaleOp(NNGraph::TensorNode *src_, Scalar alpha_) :
+        alpha(alpha_), src(src_)
     {
         inputs_ = {src};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* scale(
-    Scalar alpha,
-    NNGraph::TensorNode* src,
-    const std::string& output_name);
+NNGraph::TensorNode *scale(Scalar alpha, NNGraph::TensorNode *src);
 
 } // namespace nntile::graph

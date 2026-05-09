@@ -31,19 +31,17 @@ struct TensorMultiplyFiberOp : TensorGraph::OpNode
 {
     Scalar alpha;
     Index axis;
-    TensorGraph::TensorNode* src1 = nullptr;
-    TensorGraph::TensorNode* src2 = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src1 = nullptr;
+    TensorGraph::TensorNode *src2 = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorMultiplyFiberOp() = default;
-    TensorMultiplyFiberOp(
-        Scalar alpha_,
-        TensorGraph::TensorNode* src1_,
-        TensorGraph::TensorNode* src2_,
-        TensorGraph::TensorNode* dst_,
-        Index axis_)
-        : alpha(alpha_), axis(axis_)
-        , src1(src1_), src2(src2_), dst(dst_)
+    TensorMultiplyFiberOp(Scalar alpha_,
+        TensorGraph::TensorNode *src1_,
+        TensorGraph::TensorNode *src2_,
+        TensorGraph::TensorNode *dst_,
+        Index axis_) :
+        alpha(alpha_), axis(axis_), src1(src1_), src2(src2_), dst(dst_)
     {
         inputs_ = {src1, src2};
         outputs_ = {dst};
@@ -56,21 +54,18 @@ struct TensorMultiplyFiberOp : TensorGraph::OpNode
         return std::make_shared<TensorMultiplyFiberOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-TensorGraph::TensorNode* multiply_fiber(
-    Scalar alpha,
-    TensorGraph::TensorNode* src1,
-    TensorGraph::TensorNode* src2,
-    const std::string& output_name,
+TensorGraph::TensorNode *multiply_fiber(Scalar alpha,
+    TensorGraph::TensorNode *src1,
+    TensorGraph::TensorNode *src2,
     Index axis);
 
-void multiply_fiber(
-    Scalar alpha,
-    TensorGraph::TensorNode* src1,
-    TensorGraph::TensorNode* src2,
-    TensorGraph::TensorNode* dst,
+void multiply_fiber(Scalar alpha,
+    TensorGraph::TensorNode *src1,
+    TensorGraph::TensorNode *src2,
+    TensorGraph::TensorNode *dst,
     Index axis);
 
 } // namespace nntile::graph::tensor

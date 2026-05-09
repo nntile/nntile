@@ -12,18 +12,18 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-
-#include <numeric>
+#include "nntile/graph/tensor/ops/rope.hh"
 
 #include "context_fixture.hh"
-#include "nntile/graph/tensor/ops/rope.hh"
-#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
 #include "nntile/tensor/rope.hh"
 #include "nntile/tensor/tensor.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
+#include <numeric>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -38,8 +38,8 @@ constexpr int distr_rank_single = 0;
 } // anonymous namespace
 
 // src.shape[0] = 2*sin.shape[0] (head_size)
-template<typename T>
-void check_rope_vs_tensor_api(const std::vector<Index>& sin_shape)
+template <typename T>
+void check_rope_vs_tensor_api(const std::vector<Index> &sin_shape)
 {
     using Y = typename T::repr_t;
     std::vector<Index> src_shape = {sin_shape[0] * 2};
@@ -53,37 +53,36 @@ void check_rope_vs_tensor_api(const std::vector<Index>& sin_shape)
     std::vector<float> sin_data(sin_nelems);
     std::vector<float> cos_data(sin_nelems);
     std::vector<float> src_data(src_nelems);
-    for(Index i = 0; i < sin_nelems; ++i)
+    for (Index i = 0; i < sin_nelems; ++i)
     {
         sin_data[i] = static_cast<float>(Y(i % 10) * 0.1);
         cos_data[i] = static_cast<float>(Y((i + 1) % 10) * 0.1);
     }
-    for(Index i = 0; i < src_nelems; ++i)
+    for (Index i = 0; i < src_nelems; ++i)
     {
         src_data[i] = static_cast<float>(Y(i % 10));
     }
 
     // --- TensorGraph path ---
     TensorGraph graph("rope_test");
-    auto* sin_node = graph.data(sin_shape, "sin", DataType::FP32);
-    auto* cos_node = graph.data(sin_shape, "cos", DataType::FP32);
-    auto* src_node = graph.data(src_shape, "src", DataType::FP32);
+    auto *sin_node = graph.data(sin_shape, DataType::FP32)->set_name("sin");
+    auto *cos_node = graph.data(sin_shape, DataType::FP32)->set_name("cos");
+    auto *src_node = graph.data(src_shape, DataType::FP32)->set_name("src");
     sin_node->mark_input(true);
     cos_node->mark_input(true);
     src_node->mark_input(true);
 
-    auto* dst_node = gt::rope(sin_node, cos_node, src_node, "dst");
+    auto *dst_node = gt::rope(sin_node, cos_node, src_node);
     dst_node->mark_output(true);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
-    runtime.bind_data(sin_node,  sin_data);
-    runtime.bind_data(cos_node,  cos_data);
-    runtime.bind_data(src_node,  src_data);
+    runtime.bind_data(sin_node, sin_data);
+    runtime.bind_data(cos_node, cos_data);
+    runtime.bind_data(src_node, src_data);
     runtime.execute();
     runtime.wait();
 
@@ -104,7 +103,7 @@ void check_rope_vs_tensor_api(const std::vector<Index>& sin_shape)
     {
         auto tile = sin_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < sin_nelems; ++i)
+        for (Index i = 0; i < sin_nelems; ++i)
         {
             loc[i] = static_cast<Y>(sin_data[i]);
         }
@@ -113,7 +112,7 @@ void check_rope_vs_tensor_api(const std::vector<Index>& sin_shape)
     {
         auto tile = cos_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < sin_nelems; ++i)
+        for (Index i = 0; i < sin_nelems; ++i)
         {
             loc[i] = static_cast<Y>(cos_data[i]);
         }
@@ -122,7 +121,7 @@ void check_rope_vs_tensor_api(const std::vector<Index>& sin_shape)
     {
         auto tile = src_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < src_nelems; ++i)
+        for (Index i = 0; i < src_nelems; ++i)
         {
             loc[i] = static_cast<Y>(src_data[i]);
         }
@@ -136,7 +135,7 @@ void check_rope_vs_tensor_api(const std::vector<Index>& sin_shape)
     {
         auto tile = dst_t.get_tile(0);
         auto loc = tile.acquire(STARPU_R);
-        for(Index i = 0; i < src_nelems; ++i)
+        for (Index i = 0; i < src_nelems; ++i)
         {
             tensor_result[i] = static_cast<float>(loc[i]);
         }
@@ -144,7 +143,7 @@ void check_rope_vs_tensor_api(const std::vector<Index>& sin_shape)
     }
 
     REQUIRE(graph_result.size() == tensor_result.size());
-    for(size_t i = 0; i < graph_result.size(); ++i)
+    for (size_t i = 0; i < graph_result.size(); ++i)
     {
         float diff = std::abs(graph_result[i] - tensor_result[i]);
         float ref = std::abs(tensor_result[i]) + 1e-10f;
@@ -156,16 +155,16 @@ TEST_CASE("TensorGraph rope structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto* sin = graph.data({2, 4}, "sin");
-    auto* cos = graph.data({2, 4}, "cos");
-    auto* src = graph.data({4, 4}, "src");
-    auto* dst = gt::rope(sin, cos, src, "dst");
+    auto *sin = graph.data({2, 4})->set_name("sin");
+    auto *cos = graph.data({2, 4})->set_name("cos");
+    auto *src = graph.data({4, 4})->set_name("src");
+    auto *dst = gt::rope(sin, cos, src);
 
     REQUIRE(graph.num_data() == 4);
     REQUIRE(graph.num_ops() == 1);
     REQUIRE(dst->shape() == src->shape());
 
-    const auto& ops = graph.ops();
+    const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "ROPE");
     REQUIRE(ops[0]->inputs().size() == 3);
     REQUIRE(ops[0]->outputs().size() == 1);
@@ -175,31 +174,31 @@ TEST_CASE("TensorGraph rope structure", "[graph][tensor]")
 TEST_CASE("TensorGraph rope rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto* sin = graph.data({2, 4}, "sin");
-    auto* cos = graph.data({2, 4}, "cos");
-    auto* src = graph.data({4, 4}, "src");
+    auto *sin = graph.data({2, 4})->set_name("sin");
+    auto *cos = graph.data({2, 4})->set_name("cos");
+    auto *src = graph.data({4, 4})->set_name("src");
 
-    REQUIRE_THROWS_AS(gt::rope(nullptr, cos, src, "dst"), std::invalid_argument);
-    REQUIRE_THROWS_AS(gt::rope(sin, nullptr, src, "dst"), std::invalid_argument);
-    REQUIRE_THROWS_AS(gt::rope(sin, cos, nullptr, "dst"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::rope(nullptr, cos, src), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::rope(sin, nullptr, src), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::rope(sin, cos, nullptr), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph rope matches nntile::tensor::rope", "[graph][tensor]")
+    "TensorGraph rope matches nntile::tensor::rope",
+    "[graph][tensor]")
 {
-    const auto sin_shape = GENERATE(
-        std::vector<Index>{2, 4},
-        std::vector<Index>{4, 3, 2});
+    const auto sin_shape =
+        GENERATE(std::vector<Index>{2, 4}, std::vector<Index>{4, 3, 2});
 
     check_rope_vs_tensor_api<nntile::fp32_t>(sin_shape);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph rope tiled matches untiled", "[graph][tensor]")
+    "TensorGraph rope tiled matches untiled",
+    "[graph][tensor]")
 {
-    const auto sin_shape = GENERATE(
-        std::vector<Index>{2, 4},
-        std::vector<Index>{4, 3, 2});
+    const auto sin_shape =
+        GENERATE(std::vector<Index>{2, 4}, std::vector<Index>{4, 3, 2});
 
     std::vector<Index> src_shape = {sin_shape[0] * 2};
     src_shape.insert(src_shape.end(), sin_shape.begin() + 1, sin_shape.end());
@@ -212,12 +211,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> sin_data(sin_nelems);
     std::vector<float> cos_data(sin_nelems);
     std::vector<float> src_data(src_nelems);
-    for(Index i = 0; i < sin_nelems; ++i)
+    for (Index i = 0; i < sin_nelems; ++i)
     {
         sin_data[i] = static_cast<float>(float(i % 10) * 0.1f);
         cos_data[i] = static_cast<float>(float((i + 1) % 10) * 0.1f);
     }
-    for(Index i = 0; i < src_nelems; ++i)
+    for (Index i = 0; i < src_nelems; ++i)
     {
         src_data[i] = static_cast<float>(i % 10);
     }
@@ -226,25 +225,27 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("rope_untiled");
-        auto* sin_node = graph.data(sin_shape, "sin", DataType::FP32);
-        auto* cos_node = graph.data(sin_shape, "cos", DataType::FP32);
-        auto* src_node = graph.data(src_shape, "src", DataType::FP32);
+        auto *sin_node =
+            graph.data(sin_shape, DataType::FP32)->set_name("sin");
+        auto *cos_node =
+            graph.data(sin_shape, DataType::FP32)->set_name("cos");
+        auto *src_node =
+            graph.data(src_shape, DataType::FP32)->set_name("src");
         sin_node->mark_input(true);
         cos_node->mark_input(true);
         src_node->mark_input(true);
 
-        auto* dst_node = gt::rope(sin_node, cos_node, src_node, "dst");
+        auto *dst_node = gt::rope(sin_node, cos_node, src_node);
         dst_node->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data(sin_node,  sin_data);
-        runtime.bind_data(cos_node,  cos_data);
-        runtime.bind_data(src_node,  src_data);
+        runtime.bind_data(sin_node, sin_data);
+        runtime.bind_data(cos_node, cos_data);
+        runtime.bind_data(src_node, src_data);
         runtime.execute();
         runtime.wait();
 
@@ -255,29 +256,31 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("rope_tiled");
-        auto* sin_node = graph.data(sin_shape, "sin", DataType::FP32);
-        auto* cos_node = graph.data(sin_shape, "cos", DataType::FP32);
-        auto* src_node = graph.data(src_shape, "src", DataType::FP32);
+        auto *sin_node =
+            graph.data(sin_shape, DataType::FP32)->set_name("sin");
+        auto *cos_node =
+            graph.data(sin_shape, DataType::FP32)->set_name("cos");
+        auto *src_node =
+            graph.data(src_shape, DataType::FP32)->set_name("src");
         sin_node->mark_input(true);
         cos_node->mark_input(true);
         src_node->mark_input(true);
 
-        auto* dst_node = gt::rope(sin_node, cos_node, src_node, "dst");
+        auto *dst_node = gt::rope(sin_node, cos_node, src_node);
         dst_node->mark_output(true);
-        for(auto* ag : graph.axis_groups())
+        for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
-        runtime.bind_data(sin_node,  sin_data);
-        runtime.bind_data(cos_node,  cos_data);
-        runtime.bind_data(src_node,  src_data);
+        runtime.bind_data(sin_node, sin_data);
+        runtime.bind_data(cos_node, cos_data);
+        runtime.bind_data(src_node, src_data);
         runtime.execute();
         runtime.wait();
 
@@ -287,7 +290,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     // --- Compare ---
     constexpr float tol = 1e-5f;
     REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
+    for (size_t i = 0; i < tiled_result.size(); ++i)
     {
         REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
     }

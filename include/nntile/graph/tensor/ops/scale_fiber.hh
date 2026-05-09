@@ -32,18 +32,20 @@ struct TensorScaleFiberOp : TensorGraph::OpNode
     Scalar alpha;
     Index axis;
     Index batch_ndim;
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorScaleFiberOp() = default;
-    TensorScaleFiberOp(
-        Scalar alpha_,
-        TensorGraph::TensorNode* src_,
-        TensorGraph::TensorNode* dst_,
+    TensorScaleFiberOp(Scalar alpha_,
+        TensorGraph::TensorNode *src_,
+        TensorGraph::TensorNode *dst_,
         Index axis_,
-        Index batch_ndim_)
-        : alpha(alpha_), axis(axis_), batch_ndim(batch_ndim_)
-        , src(src_), dst(dst_)
+        Index batch_ndim_) :
+        alpha(alpha_),
+        axis(axis_),
+        batch_ndim(batch_ndim_),
+        src(src_),
+        dst(dst_)
     {
         inputs_ = {src};
         outputs_ = {dst};
@@ -56,21 +58,18 @@ struct TensorScaleFiberOp : TensorGraph::OpNode
         return std::make_shared<TensorScaleFiberOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-TensorGraph::TensorNode* scale_fiber(
-    Scalar alpha,
-    TensorGraph::TensorNode* src,
-    const std::string& output_name,
-    const std::vector<Index>& dst_shape,
+TensorGraph::TensorNode *scale_fiber(Scalar alpha,
+    TensorGraph::TensorNode *src,
+    const std::vector<Index> &dst_shape,
     Index axis,
     Index batch_ndim);
 
-void scale_fiber(
-    Scalar alpha,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst,
+void scale_fiber(Scalar alpha,
+    TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst,
     Index axis,
     Index batch_ndim);
 

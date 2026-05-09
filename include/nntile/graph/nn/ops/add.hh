@@ -32,27 +32,25 @@ struct NNAddOp : NNGraph::OpNode
 {
     Scalar alpha;
     Scalar beta;
-    NNGraph::TensorNode* x = nullptr;
-    NNGraph::TensorNode* y = nullptr;
+    NNGraph::TensorNode *x = nullptr;
+    NNGraph::TensorNode *y = nullptr;
 
-    NNAddOp(NNGraph::TensorNode* x_,
-            NNGraph::TensorNode* y_,
-            Scalar alpha_, Scalar beta_)
-        : alpha(alpha_), beta(beta_), x(x_), y(y_)
+    NNAddOp(NNGraph::TensorNode *x_,
+        NNGraph::TensorNode *y_,
+        Scalar alpha_,
+        Scalar beta_) :
+        alpha(alpha_), beta(beta_), x(x_), y(y_)
     {
         inputs_ = {x, y};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-//! Add: z = alpha*x + beta*y. Creates op, adds to graph, registers for backward.
-NNGraph::TensorNode* add(
-    Scalar alpha,
-    NNGraph::TensorNode* x,
-    Scalar beta,
-    NNGraph::TensorNode* y,
-    const std::string& output_name);
+//! Add: z = alpha*x + beta*y. Creates op, adds to graph, registers for
+//! backward.
+NNGraph::TensorNode *add(
+    Scalar alpha, NNGraph::TensorNode *x, Scalar beta, NNGraph::TensorNode *y);
 
 } // namespace nntile::graph

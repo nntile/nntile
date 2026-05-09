@@ -12,11 +12,11 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -31,22 +31,23 @@ constexpr Index dim_3 = 3;
 } // anonymous namespace
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph norm structure", "[graph][nn_graph]")
+    "NNGraph norm structure",
+    "[graph][nn_graph]")
 {
     const auto alpha = GENERATE(Scalar(1.0), Scalar(2.0), Scalar(0.5));
 
     NNGraph g("norm_structure");
-    auto* x = g.tensor({dim_2, dim_3}, "x", DataType::FP32);
-    auto* y = norm(x, "y", alpha);
+    auto *x = g.tensor({dim_2, dim_3}, DataType::FP32)->set_name("x");
+    auto *y = norm(x, alpha)->set_name("y");
 
     REQUIRE(y != nullptr);
     REQUIRE(y->has_producer());
     REQUIRE(y->shape() == std::vector<Index>{});
     REQUIRE(g.num_ops() == 1);
     bool has_norm = false;
-    for(const auto& op : g.tensor_graph().ops())
+    for (const auto &op : g.tensor_graph().ops())
     {
-        if(op->op_name() == "NORM")
+        if (op->op_name() == "NORM")
         {
             has_norm = true;
             break;
@@ -55,14 +56,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(has_norm);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph norm forward", "[graph][nn_graph]")
+TEST_CASE_METHOD(
+    nntile::test::ContextFixture, "NNGraph norm forward", "[graph][nn_graph]")
 {
     const auto alpha = GENERATE(Scalar(1.0), Scalar(2.0), Scalar(0.5));
 
     NNGraph g("norm_forward");
-    auto* x = g.tensor({6, 7}, "x", DataType::FP32, false);
-    auto* y = norm(x, "y", alpha);
+    auto *x = g.tensor({6, 7}, DataType::FP32, false)->set_name("x");
+    auto *y = norm(x, alpha)->set_name("y");
 
     x->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
     x->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
@@ -71,13 +72,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     y->mark_output(true);
 
     std::vector<float> x_data(6 * 7);
-    for(Index i = 0; i < 6 * 7; ++i)
+    for (Index i = 0; i < 6 * 7; ++i)
         x_data[i] = static_cast<float>(i + 1);
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data(x,  x_data);
+    runtime.bind_data(x, x_data);
     runtime.execute();
     runtime.wait();
 
@@ -87,16 +88,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph norm backward throws", "[graph][nn_graph]")
+    "NNGraph norm backward throws",
+    "[graph][nn_graph]")
 {
-    const auto [alpha, grad_fill_val] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0)},
-        std::tuple{Scalar(2.0), Scalar(-1.0)},
-        std::tuple{Scalar(0.5), Scalar(0.5)});
+    const auto [alpha, grad_fill_val] =
+        GENERATE(std::tuple{Scalar(1.0), Scalar(1.0)},
+            std::tuple{Scalar(2.0), Scalar(-1.0)},
+            std::tuple{Scalar(0.5), Scalar(0.5)});
 
     NNGraph g("norm_backward_throws");
-    auto* x = g.tensor({dim_2, dim_3}, "x", DataType::FP32, true);
-    auto* y = norm(x, "y", alpha);
+    auto *x = g.tensor({dim_2, dim_3}, DataType::FP32, true)->set_name("x");
+    auto *y = norm(x, alpha)->set_name("y");
 
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");
     gt::fill(grad_fill_val, y_grad->data());

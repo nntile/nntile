@@ -28,18 +28,17 @@ namespace nntile::graph::tensor
 //! RoPE operation: dst = rope(sin, cos, src)
 struct TensorRopeOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* sin = nullptr;
-    TensorGraph::TensorNode* cos = nullptr;
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *sin = nullptr;
+    TensorGraph::TensorNode *cos = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorRopeOp() = default;
-    TensorRopeOp(
-        TensorGraph::TensorNode* sin_,
-        TensorGraph::TensorNode* cos_,
-        TensorGraph::TensorNode* src_,
-        TensorGraph::TensorNode* dst_)
-        : sin(sin_), cos(cos_), src(src_), dst(dst_)
+    TensorRopeOp(TensorGraph::TensorNode *sin_,
+        TensorGraph::TensorNode *cos_,
+        TensorGraph::TensorNode *src_,
+        TensorGraph::TensorNode *dst_) :
+        sin(sin_), cos(cos_), src(src_), dst(dst_)
     {
         inputs_ = {sin, cos, src};
         outputs_ = {dst};
@@ -52,19 +51,16 @@ struct TensorRopeOp : TensorGraph::OpNode
         return std::make_shared<TensorRopeOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-TensorGraph::TensorNode* rope(
-    TensorGraph::TensorNode* sin,
-    TensorGraph::TensorNode* cos,
-    TensorGraph::TensorNode* src,
-    const std::string& output_name);
+TensorGraph::TensorNode *rope(TensorGraph::TensorNode *sin,
+    TensorGraph::TensorNode *cos,
+    TensorGraph::TensorNode *src);
 
-void rope(
-    TensorGraph::TensorNode* sin,
-    TensorGraph::TensorNode* cos,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst);
+void rope(TensorGraph::TensorNode *sin,
+    TensorGraph::TensorNode *cos,
+    TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst);
 
 } // namespace nntile::graph::tensor

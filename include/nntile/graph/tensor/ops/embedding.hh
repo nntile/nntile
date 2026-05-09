@@ -28,17 +28,17 @@ namespace nntile::graph::tensor
 //! Embedding operation: embed = vocab[index]
 struct TensorEmbeddingOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* index = nullptr;
-    TensorGraph::TensorNode* vocab = nullptr;
-    TensorGraph::TensorNode* embed = nullptr;
+    TensorGraph::TensorNode *index = nullptr;
+    TensorGraph::TensorNode *vocab = nullptr;
+    TensorGraph::TensorNode *embed = nullptr;
     Index axis;
 
     TensorEmbeddingOp() = default;
-    TensorEmbeddingOp(TensorGraph::TensorNode* index_,
-                     TensorGraph::TensorNode* vocab_,
-                     TensorGraph::TensorNode* embed_,
-                     Index axis_)
-        : index(index_), vocab(vocab_), embed(embed_), axis(axis_)
+    TensorEmbeddingOp(TensorGraph::TensorNode *index_,
+        TensorGraph::TensorNode *vocab_,
+        TensorGraph::TensorNode *embed_,
+        Index axis_) :
+        index(index_), vocab(vocab_), embed(embed_), axis(axis_)
     {
         inputs_ = {index, vocab};
         outputs_ = {embed};
@@ -51,19 +51,17 @@ struct TensorEmbeddingOp : TensorGraph::OpNode
         return std::make_shared<TensorEmbeddingOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! Embedding: embed = vocab[index]
-TensorGraph::TensorNode* embedding(
-    TensorGraph::TensorNode* index,
-    TensorGraph::TensorNode* vocab,
-    const std::string& output_name,
+TensorGraph::TensorNode *embedding(TensorGraph::TensorNode *index,
+    TensorGraph::TensorNode *vocab,
     Index axis);
 
-void embedding(TensorGraph::TensorNode* index,
-               TensorGraph::TensorNode* vocab,
-               TensorGraph::TensorNode* embed,
-               Index axis);
+void embedding(TensorGraph::TensorNode *index,
+    TensorGraph::TensorNode *vocab,
+    TensorGraph::TensorNode *embed,
+    Index axis);
 
 } // namespace nntile::graph::tensor

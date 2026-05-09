@@ -28,7 +28,6 @@
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/nn/graph_decl.hh>
 #include <nntile/graph/tensor/graph.hh>
-
 #include <stdexcept>
 
 namespace nntile::graph
@@ -40,31 +39,38 @@ class NNGraph::TensorNode
 {
     friend class NNGraph;
 
-private:
-    NNGraph* graph_ = nullptr;
-    TensorGraph::TensorNode* data_ = nullptr;
-    TensorNode* grad_ = nullptr;
+  private:
+    NNGraph *graph_ = nullptr;
+    TensorGraph::TensorNode *data_ = nullptr;
+    TensorNode *grad_ = nullptr;
     bool requires_grad_ = true;
-    OpNode* producer_ = nullptr;
+    OpNode *producer_ = nullptr;
 
-public:
-    TensorNode(
-        NNGraph* graph,
-        TensorGraph::TensorNode* data,
+  public:
+    TensorNode(NNGraph *graph,
+        TensorGraph::TensorNode *data,
         bool requires_grad = true);
 
     // Shape/dtype/name delegate to underlying data node
-    const std::vector<Index>& shape() const { return data_->shape(); }
+    const std::vector<Index> &shape() const { return data_->shape(); }
     Index ndim() const { return static_cast<Index>(data_->shape().size()); }
     DataType dtype() const { return data_->dtype(); }
-    const std::string& name() const { return data_->name(); }
+    const std::string &name() const { return data_->name(); }
+
+    //! Label for debugging/bind keys (delegates to underlying tensor node).
+    TensorNode *set_name(std::string new_name);
+
+    //! z = alpha * this + beta * rhs (same as free ``graph::add``).
+    TensorNode *add(TensorNode *rhs,
+        Scalar alpha = Scalar{1.0f},
+        Scalar beta = Scalar{1.0f}) const;
 
     // Accessors for underlying data node
-    TensorGraph::TensorNode* data() { return data_; }
-    const TensorGraph::TensorNode* data() const { return data_; }
+    TensorGraph::TensorNode *data() { return data_; }
+    const TensorGraph::TensorNode *data() const { return data_; }
 
-    TensorNode* grad() { return grad_; }
-    const TensorNode* grad() const { return grad_; }
+    TensorNode *grad() { return grad_; }
+    const TensorNode *grad() const { return grad_; }
     bool has_grad() const { return grad_ != nullptr; }
 
     // Gradient requirement
@@ -74,11 +80,12 @@ public:
     // Autograd: NNGraph-level producer (not TensorGraph)
     bool is_leaf() const { return producer_ == nullptr; }
     bool has_producer() const { return producer_ != nullptr; }
-    OpNode* producer() { return producer_; }
-    const OpNode* producer() const { return producer_; }
+    OpNode *producer() { return producer_; }
+    const OpNode *producer() const { return producer_; }
 
-    // Set by NNGraph op that created this tensor (may use multiple TensorGraph ops)
-    void set_producer(OpNode* op);
+    // Set by NNGraph op that created this tensor (may use multiple TensorGraph
+    // ops)
+    void set_producer(OpNode *op);
 
     //! Autograd: propagate upstream gradient through the computation graph.
     //! Grad must be set beforehand (get_or_create_grad + fill/bind).
@@ -90,30 +97,38 @@ public:
     void backward(bool retain_graph = false);
 
     // Graph access (for operations that deduce graph from tensor)
-    NNGraph* graph();
+    NNGraph *graph();
 
     // Input/output marking (forwarded to data tensor for TensorGraph ops)
     bool is_input() const { return data_ ? data_->is_input() : false; }
     void mark_input(bool v = true)
     {
-        if(data_) data_->mark_input(v);
+        if (data_)
+            data_->mark_input(v);
     }
     bool is_output() const { return data_ ? data_->is_output() : false; }
     void mark_output(bool v = true)
     {
-        if(data_) data_->mark_output(v);
+        if (data_)
+            data_->mark_output(v);
     }
 
     //! Host bytes for load/save and compile-time tile init (delegates to data
     //! node).
     void set_bind_hint(std::vector<std::uint8_t> data);
-    const std::vector<std::uint8_t>* get_bind_hint() const;
+    const std::vector<std::uint8_t> *get_bind_hint() const;
 
     // String representation
     std::string to_string() const;
 
-private:
-    void set_grad(TensorNode* grad) { grad_ = grad; }
+  private:
+    void set_grad(TensorNode *grad) { grad_ = grad; }
 };
+
+inline NNGraph::TensorNode *NNGraph::TensorNode::set_name(std::string new_name)
+{
+    graph_->tensor_graph().rename_data_node(data_, std::move(new_name));
+    return this;
+}
 
 } // namespace nntile::graph

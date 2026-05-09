@@ -27,29 +27,27 @@
 namespace nntile::graph
 {
 
-//! Softmax op: y = softmax(x, axis). PyTorch-style: outputs created in forward().
+//! Softmax op: y = softmax(x, axis). PyTorch-style: outputs created in
+//! forward().
 struct NNSoftmaxOp : NNGraph::OpNode
 {
     Index axis;
     int redux;
-    NNGraph::TensorNode* x = nullptr;
+    NNGraph::TensorNode *x = nullptr;
 
     NNSoftmaxOp() = default;
-    explicit NNSoftmaxOp(NNGraph::TensorNode* x_, Index axis_ = 0,
-                        int redux_ = 0)
-        : axis(axis_), redux(redux_), x(x_)
+    explicit NNSoftmaxOp(
+        NNGraph::TensorNode *x_, Index axis_ = 0, int redux_ = 0) :
+        axis(axis_), redux(redux_), x(x_)
     {
         inputs_ = {x};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* softmax(
-    NNGraph::TensorNode* x,
-    const std::string& output_name,
-    Index axis = 0,
-    int redux = 0);
+NNGraph::TensorNode *softmax(
+    NNGraph::TensorNode *x, Index axis = 0, int redux = 0);
 
 } // namespace nntile::graph

@@ -14,35 +14,28 @@
 
 #include "nntile/graph/tensor/ops/gelutanh.hh"
 
-#include <stdexcept>
-#include <utility>
-
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gelutanh.hh"
 
-#include <nntile/graph/tile/graph_ops.hh>
 #include <nntile/graph/tensor/tile_lowering_helpers.hh>
+#include <nntile/graph/tile/graph_ops.hh>
+#include <stdexcept>
+#include <utility>
 
 namespace nntile::graph::tensor
 {
 
-
-
-TensorGraph::TensorNode* gelutanh(
-    TensorGraph::TensorNode* src,
-    const std::string& output_name)
+TensorGraph::TensorNode *gelutanh(TensorGraph::TensorNode *src)
 {
-    if(src == nullptr)
+    if (src == nullptr)
     {
         throw std::invalid_argument("gelutanh: input tensor must be non-null");
     }
 
     std::vector<Index> output_shape = src->shape();
-    TensorGraph::TensorNode* dst = src->graph()->data(
-        std::move(output_shape),
-        output_name,
-        src->dtype());
+    TensorGraph::TensorNode *dst =
+        src->graph()->data(std::move(output_shape), src->dtype());
     dst->set_axes(src->axes());
 
     gelutanh(src, dst);
@@ -50,26 +43,24 @@ TensorGraph::TensorNode* gelutanh(
     return dst;
 }
 
-void gelutanh(
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst)
+void gelutanh(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst)
 {
-    if(src == nullptr || dst == nullptr)
+    if (src == nullptr || dst == nullptr)
     {
         throw std::invalid_argument(
             "gelutanh: input tensors must be non-null");
     }
-    if(src->graph() != dst->graph())
+    if (src->graph() != dst->graph())
     {
         throw std::invalid_argument(
             "gelutanh: input tensors must belong to the same graph");
     }
-    if(src->dtype() != dst->dtype())
+    if (src->dtype() != dst->dtype())
     {
         throw std::invalid_argument(
             "gelutanh: input tensors must have the same dtype");
     }
-    if(src == dst)
+    if (src == dst)
     {
         throw std::invalid_argument(
             "gelutanh: src and dst must be distinct tensors");
@@ -80,7 +71,7 @@ void gelutanh(
     src->graph()->add_op(op);
 }
 
-void TensorGelutanhOp::lower_to_tile(const LoweringContext& ctx) const
+void TensorGelutanhOp::lower_to_tile(const LoweringContext &ctx) const
 {
     tile_lower::lower_unary2(
         src, dst, ctx.tile_map, "GELUTANH", tile_graph::gelutanh);

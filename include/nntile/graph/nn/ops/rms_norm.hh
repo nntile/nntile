@@ -34,28 +34,26 @@ struct NNRmsNormOp : NNGraph::OpNode
     Index axis;
     Scalar eps;
     int redux;
-    NNGraph::TensorNode* x = nullptr;
-    NNGraph::TensorNode* gamma = nullptr;
+    NNGraph::TensorNode *x = nullptr;
+    NNGraph::TensorNode *gamma = nullptr;
 
     NNRmsNormOp() = default;
-    NNRmsNormOp(NNGraph::TensorNode* x_,
-                NNGraph::TensorNode* gamma_,
-                Index axis_ = 0,
-                Scalar eps_ = 1e-6,
-                int redux_ = 0)
-        : axis(axis_), eps(eps_), redux(redux_), x(x_), gamma(gamma_)
+    NNRmsNormOp(NNGraph::TensorNode *x_,
+        NNGraph::TensorNode *gamma_,
+        Index axis_ = 0,
+        Scalar eps_ = 1e-6,
+        int redux_ = 0) :
+        axis(axis_), eps(eps_), redux(redux_), x(x_), gamma(gamma_)
     {
         inputs_ = {x, gamma};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* rms_norm(
-    NNGraph::TensorNode* x,
-    NNGraph::TensorNode* gamma,
-    const std::string& output_name,
+NNGraph::TensorNode *rms_norm(NNGraph::TensorNode *x,
+    NNGraph::TensorNode *gamma,
     Index axis = 0,
     Scalar eps = 1e-6,
     int redux = 0);

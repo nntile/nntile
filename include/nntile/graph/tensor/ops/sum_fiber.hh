@@ -37,18 +37,24 @@ struct TensorSumFiberOp : TensorGraph::OpNode
     int redux;
     Scalar alpha;
     Scalar beta;
-    TensorGraph::TensorNode* x = nullptr;
-    TensorGraph::TensorNode* y = nullptr;
+    TensorGraph::TensorNode *x = nullptr;
+    TensorGraph::TensorNode *y = nullptr;
 
     TensorSumFiberOp() = default;
-    TensorSumFiberOp(
-        TensorGraph::TensorNode* x_,
-        TensorGraph::TensorNode* y_,
-        Index axis_, Index batch_ndim_,
-        int redux_, Scalar alpha_, Scalar beta_)
-        : axis(axis_), batch_ndim(batch_ndim_)
-        , redux(redux_), alpha(alpha_), beta(beta_)
-        , x(x_), y(y_)
+    TensorSumFiberOp(TensorGraph::TensorNode *x_,
+        TensorGraph::TensorNode *y_,
+        Index axis_,
+        Index batch_ndim_,
+        int redux_,
+        Scalar alpha_,
+        Scalar beta_) :
+        axis(axis_),
+        batch_ndim(batch_ndim_),
+        redux(redux_),
+        alpha(alpha_),
+        beta(beta_),
+        x(x_),
+        y(y_)
     {
         inputs_ = {x, y};
         outputs_ = {y};
@@ -61,23 +67,21 @@ struct TensorSumFiberOp : TensorGraph::OpNode
         return std::make_shared<TensorSumFiberOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! Sum along fibers: y = alpha * sum_fiber(x) + beta * y (creates output)
-TensorGraph::TensorNode* sum_fiber(
-    TensorGraph::TensorNode* x,
-    const std::string& output_name,
+TensorGraph::TensorNode *sum_fiber(TensorGraph::TensorNode *x,
     Index axis,
     Index batch_ndim,
     int redux,
     Scalar alpha,
     Scalar beta);
 
-//! Sum along fibers: y = alpha * sum_fiber(x) + beta * y (uses existing output)
-void sum_fiber(
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* y,
+//! Sum along fibers: y = alpha * sum_fiber(x) + beta * y (uses existing
+//! output)
+void sum_fiber(TensorGraph::TensorNode *x,
+    TensorGraph::TensorNode *y,
     Index axis,
     Index batch_ndim,
     int redux,

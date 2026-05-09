@@ -19,23 +19,25 @@
 
 #include <cmath>
 #include <iostream>
+#include <nntile/context.hh>
+#include <nntile/graph.hh>
 #include <string>
 #include <vector>
 
-#include <nntile/context.hh>
-#include <nntile/graph.hh>
-
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
     using namespace nntile::graph;
     namespace gt = nntile::graph::tensor;
 
-    if(argc > 1 && (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help"))
+    if (argc > 1 &&
+        (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help"))
     {
-        std::cout << "Usage: autograd_add_example [x_requires_grad] [y_requires_grad]\n"
-                     "  Diamond graph: w=x+y, v=w+y, z=v+w. Run z.backward().\n"
-                     "  Converts TensorGraph to TileGraph and executes.\n"
-                     "  Each arg: 0 or 1 (default 0 if omitted).\n";
+        std::cout
+            << "Usage: autograd_add_example [x_requires_grad] "
+               "[y_requires_grad]\n"
+               "  Diamond graph: w=x+y, v=w+y, z=v+w. Run z.backward().\n"
+               "  Converts TensorGraph to TileGraph and executes.\n"
+               "  Each arg: 0 or 1 (default 0 if omitted).\n";
         return 0;
     }
 
@@ -46,12 +48,15 @@ int main(int argc, char** argv)
 
     NNGraph g("autograd_add_example");
 
-    auto* x = g.tensor({2, 3}, "x", DataType::FP32, x_requires_grad);
-    auto* y = g.tensor({2, 3}, "y", DataType::FP32, y_requires_grad);
+    auto *x = g.tensor({2, 3}, DataType::FP32, x_requires_grad)->set_name("x");
+    auto *y = g.tensor({2, 3}, DataType::FP32, y_requires_grad)->set_name("y");
 
-    auto* w = add(nntile::Scalar(1.0), x, nntile::Scalar(1.0), y, "w");
-    auto* v = add(nntile::Scalar(1.0), w, nntile::Scalar(1.0), y, "v");
-    auto* z = add(nntile::Scalar(1.0), v, nntile::Scalar(1.0), w, "z");
+    auto *w =
+        add(nntile::Scalar(1.0), x, nntile::Scalar(1.0), y)->set_name("w");
+    auto *v =
+        add(nntile::Scalar(1.0), w, nntile::Scalar(1.0), y)->set_name("v");
+    auto *z =
+        add(nntile::Scalar(1.0), v, nntile::Scalar(1.0), w)->set_name("z");
 
     std::cout << "=== Forward (diamond) ===" << std::endl;
     std::cout << "  w = x + y,  v = w + y,  z = v + w" << std::endl;
@@ -67,9 +72,9 @@ int main(int argc, char** argv)
               << ", y.has_grad()=" << y->has_grad() << std::endl;
 
     size_t add_inplace_count = 0;
-    for(const auto& op : g.tensor_graph().ops())
+    for (const auto &op : g.tensor_graph().ops())
     {
-        if(op->op_name() == "ADD_INPLACE")
+        if (op->op_name() == "ADD_INPLACE")
         {
             ++add_inplace_count;
         }
@@ -79,7 +84,8 @@ int main(int argc, char** argv)
     std::cout << "\n=== NNGraph structure ===" << std::endl;
     std::cout << g.to_string() << std::endl;
 
-    // --- Name axis groups and set tiling (TensorGraph::to_string shows them) ---
+    // --- Name axis groups and set tiling (TensorGraph::to_string shows them)
+    // ---
     x->data()->axis(0)->name = "rows";
     x->data()->axis(1)->name = "cols";
     x->data()->axis(0)->set_tiling(1);
@@ -105,8 +111,8 @@ int main(int argc, char** argv)
 
     std::vector<float> x_data = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
     std::vector<float> y_data = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f};
-    tile_runtime.bind_data(x,  x_data);
-    tile_runtime.bind_data(y,  y_data);
+    tile_runtime.bind_data(x, x_data);
+    tile_runtime.bind_data(y, y_data);
 
     tile_runtime.execute();
     tile_runtime.wait();
@@ -115,25 +121,28 @@ int main(int argc, char** argv)
 
     std::cout << "\n=== TileGraph execution results ===" << std::endl;
     std::cout << "  x = [";
-    for(size_t i = 0; i < x_data.size(); ++i)
+    for (size_t i = 0; i < x_data.size(); ++i)
     {
-        if(i > 0) std::cout << ", ";
+        if (i > 0)
+            std::cout << ", ";
         std::cout << x_data[i];
     }
     std::cout << "]" << std::endl;
 
     std::cout << "  y = [";
-    for(size_t i = 0; i < y_data.size(); ++i)
+    for (size_t i = 0; i < y_data.size(); ++i)
     {
-        if(i > 0) std::cout << ", ";
+        if (i > 0)
+            std::cout << ", ";
         std::cout << y_data[i];
     }
     std::cout << "]" << std::endl;
 
     std::cout << "  z = v + w = (w + y) + (x + y) = [";
-    for(size_t i = 0; i < z_result.size(); ++i)
+    for (size_t i = 0; i < z_result.size(); ++i)
     {
-        if(i > 0) std::cout << ", ";
+        if (i > 0)
+            std::cout << ", ";
         std::cout << z_result[i];
     }
     std::cout << "]" << std::endl;
@@ -141,17 +150,17 @@ int main(int argc, char** argv)
     // Verify: w = x+y, v = w+y = x+2y, z = v+w = 2x+3y
     std::cout << "\n=== Verification (z = 2x + 3y) ===" << std::endl;
     bool correct = true;
-    for(size_t i = 0; i < z_result.size(); ++i)
+    for (size_t i = 0; i < z_result.size(); ++i)
     {
         float expected = 2.0f * x_data[i] + 3.0f * y_data[i];
-        if(std::abs(z_result[i] - expected) > 1e-5f)
+        if (std::abs(z_result[i] - expected) > 1e-5f)
         {
             std::cout << "  MISMATCH at " << i << ": got " << z_result[i]
                       << ", expected " << expected << std::endl;
             correct = false;
         }
     }
-    if(correct)
+    if (correct)
     {
         std::cout << "  All values correct!" << std::endl;
     }

@@ -14,10 +14,11 @@
 
 #include "nntile/graph/nn/ops/scale.hh"
 
-#include <stdexcept>
-
+#include "nntile/graph/nn/nn_grad_slot_name.hh"
 #include "nntile/graph/tensor/ops/add_inplace.hh"
 #include "nntile/graph/tensor/ops/scale.hh"
+
+#include <stdexcept>
 
 namespace nntile::graph
 {
@@ -28,57 +29,55 @@ constexpr Scalar grad_overwrite = 0.0;
 constexpr Scalar grad_accumulate = 1.0;
 } // anonymous namespace
 
-NNGraph::TensorNode* NNScaleOp::forward(const std::string& output_name)
+NNGraph::TensorNode *NNScaleOp::forward()
 {
-    if(src == nullptr)
+    if (src == nullptr)
     {
         throw std::invalid_argument(
             "NNScaleOp::forward: src must be non-null");
     }
-    NNGraph* graph = src->graph();
+    NNGraph *graph = src->graph();
     bool out_requires_grad = any_input_requires_grad({src});
-    TensorGraph::TensorNode* output_data = graph::tensor::scale(
-        alpha, src->data(), output_name);
-    NNGraph::TensorNode* output = graph->tensor(output_data, out_requires_grad);
+    TensorGraph::TensorNode *output_data =
+        graph::tensor::scale(alpha, src->data());
+    NNGraph::TensorNode *output =
+        graph->tensor(output_data, out_requires_grad);
     outputs_ = {output};
     return output;
 }
 
 void NNScaleOp::backward() const
 {
-    NNGraph::TensorNode* out = output();
-    if(out == nullptr)
+    NNGraph::TensorNode *out = output();
+    if (out == nullptr)
     {
         return;
     }
-    NNGraph* graph = out->graph();
-    NNGraph::TensorNode* grad_out = out->grad();
-    if(grad_out == nullptr)
+    NNGraph *graph = out->graph();
+    NNGraph::TensorNode *grad_out = out->grad();
+    if (grad_out == nullptr)
     {
         return;
     }
-    if(src != nullptr && src->requires_grad())
+    if (src != nullptr && src->requires_grad())
     {
         auto [grad_src, is_first] =
-            graph->get_or_create_grad(src, src->name() + "_grad");
+            graph->get_or_create_grad(src, nn_grad_slot_name(src));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        graph::tensor::add_inplace(alpha, grad_out->data(), grad_beta,
-                          grad_src->data());
+        graph::tensor::add_inplace(
+            alpha, grad_out->data(), grad_beta, grad_src->data());
     }
 }
 
-NNGraph::TensorNode* scale(
-    Scalar alpha,
-    NNGraph::TensorNode* src,
-    const std::string& output_name)
+NNGraph::TensorNode *scale(Scalar alpha, NNGraph::TensorNode *src)
 {
-    if(src == nullptr)
+    if (src == nullptr)
     {
         throw std::invalid_argument("scale: src must be non-null");
     }
-    NNGraph* graph = src->graph();
+    NNGraph *graph = src->graph();
     auto op = std::make_shared<NNScaleOp>(src, alpha);
-    NNGraph::TensorNode* output = op->forward(output_name);
+    NNGraph::TensorNode *output = op->forward();
     graph->register_op(std::move(op));
     return output;
 }

@@ -31,15 +31,15 @@ namespace nntile::graph::tensor
 //! ReLU backward operation: dx = relu_backward(x, dy)
 struct TensorReluBackwardOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* x = nullptr;
-    TensorGraph::TensorNode* dy = nullptr;
-    TensorGraph::TensorNode* dx = nullptr;
+    TensorGraph::TensorNode *x = nullptr;
+    TensorGraph::TensorNode *dy = nullptr;
+    TensorGraph::TensorNode *dx = nullptr;
 
     TensorReluBackwardOp() = default;
-    TensorReluBackwardOp(TensorGraph::TensorNode* x_,
-                         TensorGraph::TensorNode* dy_,
-                         TensorGraph::TensorNode* dx_)
-        : x(x_), dy(dy_), dx(dx_)
+    TensorReluBackwardOp(TensorGraph::TensorNode *x_,
+        TensorGraph::TensorNode *dy_,
+        TensorGraph::TensorNode *dx_) :
+        x(x_), dy(dy_), dx(dx_)
     {
         inputs_ = {x, dy, dx};
         outputs_ = {dx};
@@ -52,19 +52,16 @@ struct TensorReluBackwardOp : TensorGraph::OpNode
         return std::make_shared<TensorReluBackwardOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! ReLU backward: dx = relu_backward(x, dy) (creates output)
-TensorGraph::TensorNode* relu_backward(
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* dy,
-    const std::string& output_name);
+TensorGraph::TensorNode *relu_backward(
+    TensorGraph::TensorNode *x, TensorGraph::TensorNode *dy);
 
 //! ReLU backward: dx = relu_backward(x, dy) (uses existing output)
-void relu_backward(
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* dy,
-    TensorGraph::TensorNode* dx);
+void relu_backward(TensorGraph::TensorNode *x,
+    TensorGraph::TensorNode *dy,
+    TensorGraph::TensorNode *dx);
 
 } // namespace nntile::graph::tensor

@@ -35,19 +35,23 @@ struct TensorAddSliceOp : TensorGraph::OpNode
     Index axis;
     Scalar alpha;
     Scalar beta;
-    TensorGraph::TensorNode* src1 = nullptr;
-    TensorGraph::TensorNode* src2 = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src1 = nullptr;
+    TensorGraph::TensorNode *src2 = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorAddSliceOp() = default;
-    TensorAddSliceOp(
-        TensorGraph::TensorNode* src1_,
-        TensorGraph::TensorNode* src2_,
-        TensorGraph::TensorNode* dst_,
-        Scalar alpha_, Scalar beta_,
-        Index axis_)
-        : axis(axis_), alpha(alpha_), beta(beta_)
-        , src1(src1_), src2(src2_), dst(dst_)
+    TensorAddSliceOp(TensorGraph::TensorNode *src1_,
+        TensorGraph::TensorNode *src2_,
+        TensorGraph::TensorNode *dst_,
+        Scalar alpha_,
+        Scalar beta_,
+        Index axis_) :
+        axis(axis_),
+        alpha(alpha_),
+        beta(beta_),
+        src1(src1_),
+        src2(src2_),
+        dst(dst_)
     {
         inputs_ = {src1, src2};
         outputs_ = {dst};
@@ -60,25 +64,22 @@ struct TensorAddSliceOp : TensorGraph::OpNode
         return std::make_shared<TensorAddSliceOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! Add slice: dst = alpha * src1 + beta * src2 (creates output)
-TensorGraph::TensorNode* add_slice(
-    Scalar alpha,
-    TensorGraph::TensorNode* src1,
+TensorGraph::TensorNode *add_slice(Scalar alpha,
+    TensorGraph::TensorNode *src1,
     Scalar beta,
-    TensorGraph::TensorNode* src2,
-    const std::string& output_name,
+    TensorGraph::TensorNode *src2,
     Index axis);
 
 //! Add slice: dst = alpha * src1 + beta * src2 (uses existing output)
-void add_slice(
-    Scalar alpha,
-    TensorGraph::TensorNode* src1,
+void add_slice(Scalar alpha,
+    TensorGraph::TensorNode *src1,
     Scalar beta,
-    TensorGraph::TensorNode* src2,
-    TensorGraph::TensorNode* dst,
+    TensorGraph::TensorNode *src2,
+    TensorGraph::TensorNode *dst,
     Index axis);
 
 } // namespace nntile::graph::tensor

@@ -15,25 +15,24 @@
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+#include <nntile.hh>
 #include <random>
 #include <vector>
 
-#include <nntile.hh>
-
 namespace gt = nntile::graph::tensor;
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv)
+{
     // Initialize NNTile context (this initializes StarPU)
-    nntile::Context context(
-        1, // ncpu: number of CPU workers
-        0, // ncuda: number of CUDA workers
-        0, // ooc: enable Out-of-Core (0=disabled)
-        "/tmp/nntile_ooc", // ooc_path: path for OOC disk
-        16777216, // ooc_size: OOC disk size in bytes
-        0, // logger: enable logger (0=disabled)
-        "localhost", // logger_addr: logger server address
-        5001, // logger_port: logger server port
-        0 // verbose: verbosity level (0=quiet)
+    nntile::Context context(1, // ncpu: number of CPU workers
+        0,                     // ncuda: number of CUDA workers
+        0,                     // ooc: enable Out-of-Core (0=disabled)
+        "/tmp/nntile_ooc",     // ooc_path: path for OOC disk
+        16777216,              // ooc_size: OOC disk size in bytes
+        0,                     // logger: enable logger (0=disabled)
+        "localhost",           // logger_addr: logger server address
+        5001,                  // logger_port: logger server port
+        0                      // verbose: verbosity level (0=quiet)
     );
 
     // Create a neural network graph for forward and backward
@@ -45,39 +44,39 @@ int main(int argc, char** argv) {
 
     // Create input tensor (requires_grad to compute input gradients)
     // Shape is [batch, features] (last dim = features): 4 batches, 8 features
-    auto* input_tensor = graph.tensor(
-        {4, 8},
-        "external_input",
-        nntile::graph::DataType::FP32,
-        true);
-    input_tensor->mark_input(true);  // bind_data() requires input marking
+    auto *input_tensor =
+        graph.tensor({4, 8}, nntile::graph::DataType::FP32, true)
+            ->set_name("external_input");
+    input_tensor->mark_input(true); // bind_data() requires input marking
 
     // Build forward operation and get output tensor
-    auto* output_tensor = linear.forward(input_tensor);
-    output_tensor->mark_output(true);  // get_output() requires output marking
+    auto *output_tensor = linear.forward(input_tensor);
+    output_tensor->mark_output(true); // get_output() requires output marking
 
     // Attach an external gradient to the output (e.g., loss gradient)
-    auto [grad_output_tensor, _] = graph.get_or_create_grad(
-        output_tensor,
-        "external_grad_output");
+    auto [grad_output_tensor, _] =
+        graph.get_or_create_grad(output_tensor, "external_grad_output");
     gt::fill(nntile::Scalar(1.0f), grad_output_tensor->data());
 
-    // Bind weight data early (before compile); Runtime::compile() will apply it
+    // Bind weight data early (before compile); Runtime::compile() will apply
+    // it
     std::vector<float> weight_data(linear.input_dim() * linear.output_dim());
     std::random_device rd;
     std::mt19937 gen(rd());
     std::normal_distribution<float> dist2(0.0f, 0.1f);
-    for (auto& val : weight_data) {
+    for (auto &val : weight_data)
+    {
         val = dist2(gen);
     }
-    linear.bind_weight(weight_data);  // mark_input(true) done by bind_weight
+    linear.bind_weight(weight_data); // mark_input(true) done by bind_weight
 
     // Build backward via autograd (output.backward())
     output_tensor->backward();
 
     // Mark gradient tensors for get_output (created during backward)
     linear.weight_tensor()->grad()->mark_output(true);
-    if (input_tensor->has_grad()) {
+    if (input_tensor->has_grad())
+    {
         input_tensor->grad()->mark_output(true);
     }
 
@@ -94,7 +93,8 @@ int main(int argc, char** argv) {
     // Generate random input data (4 batches x 8 features)
     std::vector<float> input_data(4 * 8);
     std::normal_distribution<float> dist(0.0f, 1.0f);
-    for (auto& val : input_data) {
+    for (auto &val : input_data)
+    {
         val = dist(gen);
     }
 
@@ -108,32 +108,36 @@ int main(int argc, char** argv) {
     runtime.execute();
     runtime.wait();
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
-        end - start).count();
+    auto duration =
+        std::chrono::duration_cast<std::chrono::microseconds>(end - start)
+            .count();
 
-    std::cout << "Graph execution time: " << duration << " microseconds" << std::endl;
+    std::cout << "Graph execution time: " << duration << " microseconds"
+              << std::endl;
     std::cout << "Input shape: [4, 8] (batch, features)" << std::endl;
     std::cout << "Output shape: [4, 4] (batch, features)" << std::endl;
 
     // Get output data from the output tensor
     auto output_data = runtime.get_output<float>(output_tensor);
     std::cout << "Sample output values: ";
-    for (size_t i = 0; i < std::min(size_t(8), output_data.size()); ++i) {
+    for (size_t i = 0; i < std::min(size_t(8), output_data.size()); ++i)
+    {
         std::cout << output_data[i] << " ";
     }
     std::cout << "..." << std::endl;
 
     // Get gradients (weight is a parameter; input gradient is optional)
-    auto grad_weight = runtime.get_output<float>(
-        linear.weight_tensor()->grad());
+    auto grad_weight =
+        runtime.get_output<float>(linear.weight_tensor()->grad());
     std::cout << "Weight grad size: " << grad_weight.size() << std::endl;
-    if (input_tensor->has_grad()) {
-        auto grad_input = runtime.get_output<float>(
-            input_tensor->grad());
+    if (input_tensor->has_grad())
+    {
+        auto grad_input = runtime.get_output<float>(input_tensor->grad());
         std::cout << "Input grad size: " << grad_input.size() << std::endl;
     }
 
-    std::cout << "\nLinear module successfully created and graphs built!" << std::endl;
+    std::cout << "\nLinear module successfully created and graphs built!"
+              << std::endl;
 
     return 0;
 }

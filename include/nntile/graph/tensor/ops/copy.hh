@@ -31,12 +31,13 @@ namespace nntile::graph::tensor
 //! Copy operation at tensor level: dst = src
 struct TensorCopyOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorCopyOp() = default;
-    TensorCopyOp(TensorGraph::TensorNode* src_, TensorGraph::TensorNode* dst_)
-        : src(src_), dst(dst_)
+    TensorCopyOp(
+        TensorGraph::TensorNode *src_, TensorGraph::TensorNode *dst_) :
+        src(src_), dst(dst_)
     {
         inputs_ = {src};
         outputs_ = {dst};
@@ -49,17 +50,13 @@ struct TensorCopyOp : TensorGraph::OpNode
         return std::make_shared<TensorCopyOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! Copy: dst = src (creates output)
-TensorGraph::TensorNode* copy(
-    TensorGraph::TensorNode* src,
-    const std::string& output_name);
+TensorGraph::TensorNode *copy(TensorGraph::TensorNode *src);
 
 //! Copy: dst = src (uses existing output)
-void copy(
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst);
+void copy(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst);
 
 } // namespace nntile::graph::tensor

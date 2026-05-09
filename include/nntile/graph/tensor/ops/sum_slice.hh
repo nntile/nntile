@@ -29,24 +29,30 @@ struct LoweringContext;
 namespace nntile::graph::tensor
 {
 
-//! Sum slice operation at tensor level: dst = alpha * sum_slice(src) + beta * dst
+//! Sum slice operation at tensor level: dst = alpha * sum_slice(src) + beta *
+//! dst
 struct TensorSumSliceOp : TensorGraph::OpNode
 {
     Index axis;
     int redux;
     Scalar alpha;
     Scalar beta;
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorSumSliceOp() = default;
-    TensorSumSliceOp(
-        TensorGraph::TensorNode* src_,
-        TensorGraph::TensorNode* dst_,
-        Index axis_, int redux_,
-        Scalar alpha_, Scalar beta_)
-        : axis(axis_), redux(redux_), alpha(alpha_), beta(beta_)
-        , src(src_), dst(dst_)
+    TensorSumSliceOp(TensorGraph::TensorNode *src_,
+        TensorGraph::TensorNode *dst_,
+        Index axis_,
+        int redux_,
+        Scalar alpha_,
+        Scalar beta_) :
+        axis(axis_),
+        redux(redux_),
+        alpha(alpha_),
+        beta(beta_),
+        src(src_),
+        dst(dst_)
     {
         inputs_ = {src, dst};
         outputs_ = {dst};
@@ -59,22 +65,21 @@ struct TensorSumSliceOp : TensorGraph::OpNode
         return std::make_shared<TensorSumSliceOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-//! Sum over fibers into slice: dst = alpha * sum_slice(src) + beta * dst (creates output)
-TensorGraph::TensorNode* sum_slice(
-    TensorGraph::TensorNode* src,
-    const std::string& output_name,
+//! Sum over fibers into slice: dst = alpha * sum_slice(src) + beta * dst
+//! (creates output)
+TensorGraph::TensorNode *sum_slice(TensorGraph::TensorNode *src,
     Index axis,
     int redux,
     Scalar alpha,
     Scalar beta);
 
-//! Sum over fibers into slice: dst = alpha * sum_slice(src) + beta * dst (uses existing output)
-void sum_slice(
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst,
+//! Sum over fibers into slice: dst = alpha * sum_slice(src) + beta * dst (uses
+//! existing output)
+void sum_slice(TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst,
     Index axis,
     int redux,
     Scalar alpha,

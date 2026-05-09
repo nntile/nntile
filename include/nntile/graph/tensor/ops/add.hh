@@ -35,17 +35,17 @@ struct TensorAddOp : TensorGraph::OpNode
 {
     Scalar alpha;
     Scalar beta;
-    TensorGraph::TensorNode* x = nullptr;
-    TensorGraph::TensorNode* y = nullptr;
-    TensorGraph::TensorNode* z = nullptr;
+    TensorGraph::TensorNode *x = nullptr;
+    TensorGraph::TensorNode *y = nullptr;
+    TensorGraph::TensorNode *z = nullptr;
 
     TensorAddOp() = default;
-    TensorAddOp(
-        TensorGraph::TensorNode* x_,
-        TensorGraph::TensorNode* y_,
-        TensorGraph::TensorNode* z_,
-        Scalar alpha_, Scalar beta_)
-        : alpha(alpha_), beta(beta_), x(x_), y(y_), z(z_)
+    TensorAddOp(TensorGraph::TensorNode *x_,
+        TensorGraph::TensorNode *y_,
+        TensorGraph::TensorNode *z_,
+        Scalar alpha_,
+        Scalar beta_) :
+        alpha(alpha_), beta(beta_), x(x_), y(y_), z(z_)
     {
         inputs_ = {x, y};
         outputs_ = {z};
@@ -58,7 +58,7 @@ struct TensorAddOp : TensorGraph::OpNode
         return std::make_shared<TensorAddOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! Add operation: z = alpha * x + beta * y (creates output)
@@ -66,21 +66,17 @@ struct TensorAddOp : TensorGraph::OpNode
 //! @param x First input tensor
 //! @param beta Scaling factor for y
 //! @param y Second input tensor
-//! @param output_name Name for the output tensor
 //! @return Pointer to the output tensor
-TensorGraph::TensorNode* add(
-    Scalar alpha,
-    TensorGraph::TensorNode* x,
+TensorGraph::TensorNode *add(Scalar alpha,
+    TensorGraph::TensorNode *x,
     Scalar beta,
-    TensorGraph::TensorNode* y,
-    const std::string& output_name);
+    TensorGraph::TensorNode *y);
 
 //! Add operation: z = alpha * x + beta * y (uses existing output)
-void add(
-    Scalar alpha,
-    TensorGraph::TensorNode* x,
+void add(Scalar alpha,
+    TensorGraph::TensorNode *x,
     Scalar beta,
-    TensorGraph::TensorNode* y,
-    TensorGraph::TensorNode* z);
+    TensorGraph::TensorNode *y,
+    TensorGraph::TensorNode *z);
 
 } // namespace nntile::graph::tensor

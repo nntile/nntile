@@ -36,21 +36,18 @@ namespace nntile::graph
 struct NNMseLossOp : NNGraph::OpNode
 {
     Scalar scale;
-    NNGraph::TensorNode* x = nullptr;
+    NNGraph::TensorNode *x = nullptr;
 
-    NNMseLossOp(NNGraph::TensorNode* x_, Scalar scale_ = 1.0)
-        : scale(scale_), x(x_)
+    NNMseLossOp(NNGraph::TensorNode *x_, Scalar scale_ = 1.0) :
+        scale(scale_), x(x_)
     {
         inputs_ = {x};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* mse_loss(
-    NNGraph::TensorNode* x,
-    const std::string& output_name,
-    Scalar scale = 1.0);
+NNGraph::TensorNode *mse_loss(NNGraph::TensorNode *x, Scalar scale = 1.0);
 
 } // namespace nntile::graph

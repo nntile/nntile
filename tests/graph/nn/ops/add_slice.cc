@@ -16,8 +16,8 @@
 #include <catch2/generators/catch_generators_all.hpp>
 
 #ifdef NNTILE_HAVE_TORCH
-#   include "pytorch_helper.hh"
-#   include "pytorch_tile_helpers.hh"
+#include "pytorch_helper.hh"
+#include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -31,14 +31,13 @@ namespace
 {
 
 static std::vector<Index> slice_shape(
-    const std::vector<Index>& dst_shape,
-    Index axis)
+    const std::vector<Index> &dst_shape, Index axis)
 {
     std::vector<Index> out;
     out.reserve(dst_shape.size() - 1);
-    for(Index i = 0; i < static_cast<Index>(dst_shape.size()); ++i)
+    for (Index i = 0; i < static_cast<Index>(dst_shape.size()); ++i)
     {
-        if(i != axis)
+        if (i != axis)
         {
             out.push_back(dst_shape[i]);
         }
@@ -53,24 +52,26 @@ constexpr Index dim_4 = 4;
 } // anonymous namespace
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph add_slice structure", "[graph][nn_graph]")
+    "NNGraph add_slice structure",
+    "[graph][nn_graph]")
 {
-    const auto [alpha, beta, axis] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0), Index(1)},
-        std::tuple{Scalar(0.5), Scalar(2.0), Index(0)},
-        std::tuple{Scalar(0.0), Scalar(1.0), Index(0)},
-        std::tuple{Scalar(2.5), Scalar(0.5), Index(1)},
-        std::tuple{Scalar(0.25), Scalar(3.0), Index(0)},
-        std::tuple{Scalar(1.0), Scalar(0.0), Index(1)});
+    const auto [alpha, beta, axis] =
+        GENERATE(std::tuple{Scalar(1.0), Scalar(1.0), Index(1)},
+            std::tuple{Scalar(0.5), Scalar(2.0), Index(0)},
+            std::tuple{Scalar(0.0), Scalar(1.0), Index(0)},
+            std::tuple{Scalar(2.5), Scalar(0.5), Index(1)},
+            std::tuple{Scalar(0.25), Scalar(3.0), Index(0)},
+            std::tuple{Scalar(1.0), Scalar(0.0), Index(1)});
 
-    std::vector<Index> dst_shape = (axis == 0) ?
-        std::vector<Index>{dim_4, dim_2, dim_3} : std::vector<Index>{dim_2, dim_4, dim_3};
+    std::vector<Index> dst_shape =
+        (axis == 0) ? std::vector<Index>{dim_4, dim_2, dim_3}
+                    : std::vector<Index>{dim_2, dim_4, dim_3};
     std::vector<Index> src1_shape = slice_shape(dst_shape, axis);
 
     NNGraph g("add_slice_structure");
-    auto* src1 = g.tensor(src1_shape, "src1", DataType::FP32);
-    auto* src2 = g.tensor(dst_shape, "src2", DataType::FP32);
-    auto* out = add_slice(alpha, src1, beta, src2, "out", axis);
+    auto *src1 = g.tensor(src1_shape, DataType::FP32)->set_name("src1");
+    auto *src2 = g.tensor(dst_shape, DataType::FP32)->set_name("src2");
+    auto *out = add_slice(alpha, src1, beta, src2, axis);
 
     REQUIRE(out != nullptr);
     REQUIRE(out->has_producer());
@@ -80,23 +81,25 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph add_slice backward", "[graph][nn_graph]")
+    "NNGraph add_slice backward",
+    "[graph][nn_graph]")
 {
-    const auto [alpha, beta, axis, grad_fill_val] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0), Index(1), Scalar(1.0)},
-        std::tuple{Scalar(2.0), Scalar(0.0), Index(0), Scalar(-1.0)},
-        std::tuple{Scalar(0.5), Scalar(2.0), Index(0), Scalar(0.5)},
-        std::tuple{Scalar(1.0), Scalar(0.0), Index(1), Scalar(2.0)},
-        std::tuple{Scalar(0.25), Scalar(1.0), Index(0), Scalar(-2.0)});
+    const auto [alpha, beta, axis, grad_fill_val] =
+        GENERATE(std::tuple{Scalar(1.0), Scalar(1.0), Index(1), Scalar(1.0)},
+            std::tuple{Scalar(2.0), Scalar(0.0), Index(0), Scalar(-1.0)},
+            std::tuple{Scalar(0.5), Scalar(2.0), Index(0), Scalar(0.5)},
+            std::tuple{Scalar(1.0), Scalar(0.0), Index(1), Scalar(2.0)},
+            std::tuple{Scalar(0.25), Scalar(1.0), Index(0), Scalar(-2.0)});
 
-    std::vector<Index> dst_shape = (axis == 0) ?
-        std::vector<Index>{dim_4, dim_2} : std::vector<Index>{dim_2, dim_4};
+    std::vector<Index> dst_shape = (axis == 0)
+                                       ? std::vector<Index>{dim_4, dim_2}
+                                       : std::vector<Index>{dim_2, dim_4};
     std::vector<Index> src1_shape = slice_shape(dst_shape, axis);
 
     NNGraph g("add_slice_backward");
-    auto* src1 = g.tensor(src1_shape, "src1", DataType::FP32);
-    auto* src2 = g.tensor(dst_shape, "src2", DataType::FP32);
-    auto* out = add_slice(alpha, src1, beta, src2, "out", axis);
+    auto *src1 = g.tensor(src1_shape, DataType::FP32)->set_name("src1");
+    auto *src2 = g.tensor(dst_shape, DataType::FP32)->set_name("src2");
+    auto *out = add_slice(alpha, src1, beta, src2, axis);
 
     auto [out_grad, _] = g.get_or_create_grad(out, "out_grad");
     gt::fill(grad_fill_val, out_grad->data());
@@ -118,13 +121,14 @@ using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph add_slice forward matches PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph add_slice forward matches PyTorch",
+    "[graph][nn_graph][pytorch]")
 {
-    const auto [alpha, beta, axis] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0), Index(1)},
-        std::tuple{Scalar(0.5), Scalar(2.0), Index(0)},
-        std::tuple{Scalar(0.0), Scalar(1.0), Index(0)},
-        std::tuple{Scalar(2.5), Scalar(0.5), Index(1)});
+    const auto [alpha, beta, axis] =
+        GENERATE(std::tuple{Scalar(1.0), Scalar(1.0), Index(1)},
+            std::tuple{Scalar(0.5), Scalar(2.0), Index(0)},
+            std::tuple{Scalar(0.0), Scalar(1.0), Index(0)},
+            std::tuple{Scalar(2.5), Scalar(0.5), Index(1)});
 
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
@@ -133,24 +137,25 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     const Index dst_nelems = dim_m * dim_n;
     Index src1_nelems = 1;
-    for(Index d : src1_shape)
+    for (Index d : src1_shape)
         src1_nelems *= d;
 
     std::vector<float> src1_data(static_cast<size_t>(src1_nelems));
     std::vector<float> src2_data(static_cast<size_t>(dst_nelems));
-    for(Index i = 0; i < src1_nelems; ++i)
+    for (Index i = 0; i < src1_nelems; ++i)
         src1_data[i] = static_cast<float>(i + 1);
-    for(Index i = 0; i < dst_nelems; ++i)
+    for (Index i = 0; i < dst_nelems; ++i)
         src2_data[i] = static_cast<float>(-i - 1);
-    std::vector<float> src2_rowmajor = colmajor_to_rowmajor(src2_data, dst_shape);
+    std::vector<float> src2_rowmajor =
+        colmajor_to_rowmajor(src2_data, dst_shape);
 
     NNGraph g("add_slice_pytorch");
-    auto* src1 = g.tensor(src1_shape, "src1", DataType::FP32, true);
-    auto* src2 = g.tensor(dst_shape, "src2", DataType::FP32, true);
-    auto* out = add_slice(alpha, src1, beta, src2, "out", axis);
+    auto *src1 = g.tensor(src1_shape, DataType::FP32, true)->set_name("src1");
+    auto *src2 = g.tensor(dst_shape, DataType::FP32, true)->set_name("src2");
+    auto *out = add_slice(alpha, src1, beta, src2, axis);
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(src2);
-    if(axis == 0)
+    if (axis == 0)
         nn_pytorch_tile_heterogeneous_1d_len7(src1);
     else
         nn_pytorch_tile_heterogeneous_1d_len6(src1);
@@ -162,42 +167,49 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data(src1,  src1_data);
-    runtime.bind_data(src2,  src2_data);
+    runtime.bind_data(src1, src1_data);
+    runtime.bind_data(src2, src2_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_out_colmajor = runtime.get_output<float>(out);
-    std::vector<float> nntile_out = colmajor_to_rowmajor(nntile_out_colmajor, dst_shape);
+    std::vector<float> nntile_out =
+        colmajor_to_rowmajor(nntile_out_colmajor, dst_shape);
 
     std::vector<::int64_t> dst_shape_pt(dst_shape.begin(), dst_shape.end());
     std::vector<::int64_t> src1_shape_pt(src1_shape.begin(), src1_shape.end());
     auto src1_pt = torch::from_blob(src1_data.data(),
         src1_shape_pt,
-        torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(false);
-    auto src2_pt = torch::from_blob(src2_rowmajor.data(), dst_shape_pt,
-        torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(false);
+        torch::TensorOptions().dtype(torch::kFloat32))
+                       .clone()
+                       .set_requires_grad(false);
+    auto src2_pt = torch::from_blob(src2_rowmajor.data(),
+        dst_shape_pt,
+        torch::TensorOptions().dtype(torch::kFloat32))
+                       .clone()
+                       .set_requires_grad(false);
 
     auto src1_bc = src1_pt.unsqueeze(static_cast<std::int64_t>(axis))
                        .expand(dst_shape_pt);
     auto out_pt = (alpha * src1_bc + beta * src2_pt).contiguous();
 
-    std::vector<float> pytorch_out(out_pt.data_ptr<float>(),
-                                   out_pt.data_ptr<float>() + dst_nelems);
+    std::vector<float> pytorch_out(
+        out_pt.data_ptr<float>(), out_pt.data_ptr<float>() + dst_nelems);
 
     REQUIRE(nntile_out.size() == pytorch_out.size());
-    for(size_t i = 0; i < nntile_out.size(); ++i)
+    for (size_t i = 0; i < nntile_out.size(); ++i)
         REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph add_slice backward matches PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph add_slice backward matches PyTorch",
+    "[graph][nn_graph][pytorch]")
 {
-    const auto [alpha, beta, axis, grad_fill_val] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0), Index(1), Scalar(1.0)},
-        std::tuple{Scalar(2.0), Scalar(0.0), Index(0), Scalar(-1.0)},
-        std::tuple{Scalar(0.5), Scalar(2.0), Index(0), Scalar(0.5)},
-        std::tuple{Scalar(1.0), Scalar(0.0), Index(1), Scalar(2.0)});
+    const auto [alpha, beta, axis, grad_fill_val] =
+        GENERATE(std::tuple{Scalar(1.0), Scalar(1.0), Index(1), Scalar(1.0)},
+            std::tuple{Scalar(2.0), Scalar(0.0), Index(0), Scalar(-1.0)},
+            std::tuple{Scalar(0.5), Scalar(2.0), Index(0), Scalar(0.5)},
+            std::tuple{Scalar(1.0), Scalar(0.0), Index(1), Scalar(2.0)});
 
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
@@ -206,24 +218,25 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     const Index dst_nelems = dim_m * dim_n;
     Index src1_nelems = 1;
-    for(Index d : src1_shape)
+    for (Index d : src1_shape)
         src1_nelems *= d;
 
     std::vector<float> src1_data(static_cast<size_t>(src1_nelems));
     std::vector<float> src2_data(dst_nelems);
-    for(Index i = 0; i < src1_nelems; ++i)
+    for (Index i = 0; i < src1_nelems; ++i)
         src1_data[i] = 0.1f * static_cast<float>(i);
-    for(Index i = 0; i < dst_nelems; ++i)
+    for (Index i = 0; i < dst_nelems; ++i)
         src2_data[i] = 0.15f * static_cast<float>(i + 5);
-    std::vector<float> src2_rowmajor = colmajor_to_rowmajor(src2_data, dst_shape);
+    std::vector<float> src2_rowmajor =
+        colmajor_to_rowmajor(src2_data, dst_shape);
 
     NNGraph g("add_slice_bwd_pytorch");
-    auto* src1 = g.tensor(src1_shape, "src1", DataType::FP32, true);
-    auto* src2 = g.tensor(dst_shape, "src2", DataType::FP32, true);
-    auto* out = add_slice(alpha, src1, beta, src2, "out", axis);
+    auto *src1 = g.tensor(src1_shape, DataType::FP32, true)->set_name("src1");
+    auto *src2 = g.tensor(dst_shape, DataType::FP32, true)->set_name("src2");
+    auto *out = add_slice(alpha, src1, beta, src2, axis);
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(src2);
-    if(axis == 0)
+    if (axis == 0)
         nn_pytorch_tile_heterogeneous_1d_len7(src1);
     else
         nn_pytorch_tile_heterogeneous_1d_len6(src1);
@@ -241,8 +254,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data(src1,  src1_data);
-    runtime.bind_data(src2,  src2_data);
+    runtime.bind_data(src1, src1_data);
+    runtime.bind_data(src2, src2_data);
     runtime.execute();
     runtime.wait();
 
@@ -257,9 +270,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<::int64_t> src1_shape_pt(src1_shape.begin(), src1_shape.end());
     auto src1_pt = torch::from_blob(src1_data.data(),
         src1_shape_pt,
-        torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(true);
-    auto src2_pt = torch::from_blob(src2_rowmajor.data(), dst_shape_pt,
-        torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(true);
+        torch::TensorOptions().dtype(torch::kFloat32))
+                       .clone()
+                       .set_requires_grad(true);
+    auto src2_pt = torch::from_blob(src2_rowmajor.data(),
+        dst_shape_pt,
+        torch::TensorOptions().dtype(torch::kFloat32))
+                       .clone()
+                       .set_requires_grad(true);
 
     auto src1_bc = src1_pt.unsqueeze(static_cast<std::int64_t>(axis))
                        .expand(dst_shape_pt);

@@ -30,21 +30,15 @@ namespace nntile::graph
 //! GeLUTanh op: y = gelutanh(x). PyTorch-style: outputs created in forward().
 struct NNGelutanhOp : NNGraph::OpNode
 {
-    NNGraph::TensorNode* x = nullptr;
+    NNGraph::TensorNode *x = nullptr;
 
     NNGelutanhOp() = default;
-    explicit NNGelutanhOp(NNGraph::TensorNode* x_)
-        : x(x_)
-    {
-        inputs_ = {x};
-    }
+    explicit NNGelutanhOp(NNGraph::TensorNode *x_) : x(x_) { inputs_ = {x}; }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* gelutanh(
-    NNGraph::TensorNode* x,
-    const std::string& output_name);
+NNGraph::TensorNode *gelutanh(NNGraph::TensorNode *x);
 
 } // namespace nntile::graph

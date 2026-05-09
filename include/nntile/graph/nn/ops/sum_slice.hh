@@ -27,31 +27,27 @@
 namespace nntile::graph
 {
 
-//! SumSlice op: output = alpha * sum_slice(x). PyTorch-style. Always fresh output.
+//! SumSlice op: output = alpha * sum_slice(x). PyTorch-style. Always fresh
+//! output.
 struct NNSumSliceOp : NNGraph::OpNode
 {
     Scalar alpha;
     Index axis;
     int redux;
-    NNGraph::TensorNode* x = nullptr;
+    NNGraph::TensorNode *x = nullptr;
 
-    NNSumSliceOp(NNGraph::TensorNode* x_,
-                 Index axis_, int redux_,
-                 Scalar alpha_)
-        : alpha(alpha_), axis(axis_), redux(redux_), x(x_)
+    NNSumSliceOp(
+        NNGraph::TensorNode *x_, Index axis_, int redux_, Scalar alpha_) :
+        alpha(alpha_), axis(axis_), redux(redux_), x(x_)
     {
         inputs_ = {x};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* sum_slice(
-    NNGraph::TensorNode* x,
-    const std::string& output_name,
-    Index axis,
-    int redux,
-    Scalar alpha);
+NNGraph::TensorNode *sum_slice(
+    NNGraph::TensorNode *x, Index axis, int redux, Scalar alpha);
 
 } // namespace nntile::graph

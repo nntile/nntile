@@ -36,20 +36,25 @@ struct TensorAddFiberOp : TensorGraph::OpNode
     Index batch_ndim;
     Scalar alpha;
     Scalar beta;
-    TensorGraph::TensorNode* fiber = nullptr;
-    TensorGraph::TensorNode* tensor = nullptr;
-    TensorGraph::TensorNode* output = nullptr;
+    TensorGraph::TensorNode *fiber = nullptr;
+    TensorGraph::TensorNode *tensor = nullptr;
+    TensorGraph::TensorNode *output = nullptr;
 
     TensorAddFiberOp() = default;
-    TensorAddFiberOp(
-        TensorGraph::TensorNode* fiber_,
-        TensorGraph::TensorNode* tensor_,
-        TensorGraph::TensorNode* output_,
-        Scalar alpha_, Scalar beta_,
-        Index axis_, Index batch_ndim_)
-        : axis(axis_), batch_ndim(batch_ndim_)
-        , alpha(alpha_), beta(beta_)
-        , fiber(fiber_), tensor(tensor_), output(output_)
+    TensorAddFiberOp(TensorGraph::TensorNode *fiber_,
+        TensorGraph::TensorNode *tensor_,
+        TensorGraph::TensorNode *output_,
+        Scalar alpha_,
+        Scalar beta_,
+        Index axis_,
+        Index batch_ndim_) :
+        axis(axis_),
+        batch_ndim(batch_ndim_),
+        alpha(alpha_),
+        beta(beta_),
+        fiber(fiber_),
+        tensor(tensor_),
+        output(output_)
     {
         inputs_ = {fiber, tensor};
         outputs_ = {output};
@@ -62,26 +67,24 @@ struct TensorAddFiberOp : TensorGraph::OpNode
         return std::make_shared<TensorAddFiberOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! Add along fibers: output = alpha * fiber + beta * tensor (creates output)
-TensorGraph::TensorNode* add_fiber(
-    Scalar alpha,
-    TensorGraph::TensorNode* fiber,
+TensorGraph::TensorNode *add_fiber(Scalar alpha,
+    TensorGraph::TensorNode *fiber,
     Scalar beta,
-    TensorGraph::TensorNode* tensor,
-    const std::string& output_name,
+    TensorGraph::TensorNode *tensor,
     Index axis,
     Index batch_ndim);
 
-//! Add along fibers: output = alpha * fiber + beta * tensor (uses existing output)
-void add_fiber(
-    Scalar alpha,
-    TensorGraph::TensorNode* fiber,
+//! Add along fibers: output = alpha * fiber + beta * tensor (uses existing
+//! output)
+void add_fiber(Scalar alpha,
+    TensorGraph::TensorNode *fiber,
     Scalar beta,
-    TensorGraph::TensorNode* tensor,
-    TensorGraph::TensorNode* output,
+    TensorGraph::TensorNode *tensor,
+    TensorGraph::TensorNode *output,
     Index axis,
     Index batch_ndim);
 

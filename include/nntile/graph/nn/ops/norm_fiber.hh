@@ -27,31 +27,35 @@
 namespace nntile::graph
 {
 
-//! NormFiber op: output = alpha * norm_fiber(x). PyTorch-style. Always fresh output.
+//! NormFiber op: output = alpha * norm_fiber(x). PyTorch-style. Always fresh
+//! output.
 struct NNNormFiberOp : NNGraph::OpNode
 {
     Scalar alpha;
     Index axis;
     Index batch_ndim;
     int redux;
-    NNGraph::TensorNode* x = nullptr;
+    NNGraph::TensorNode *x = nullptr;
 
-    NNNormFiberOp(NNGraph::TensorNode* x_,
-                  Index axis_, Index batch_ndim_, int redux_,
-                  Scalar alpha_)
-        : alpha(alpha_), axis(axis_), batch_ndim(batch_ndim_)
-        , redux(redux_), x(x_)
+    NNNormFiberOp(NNGraph::TensorNode *x_,
+        Index axis_,
+        Index batch_ndim_,
+        int redux_,
+        Scalar alpha_) :
+        alpha(alpha_),
+        axis(axis_),
+        batch_ndim(batch_ndim_),
+        redux(redux_),
+        x(x_)
     {
         inputs_ = {x};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* norm_fiber(
-    NNGraph::TensorNode* x,
-    const std::string& output_name,
+NNGraph::TensorNode *norm_fiber(NNGraph::TensorNode *x,
     Index axis,
     Index batch_ndim,
     int redux,

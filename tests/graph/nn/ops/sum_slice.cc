@@ -16,8 +16,8 @@
 #include <catch2/generators/catch_generators_all.hpp>
 
 #ifdef NNTILE_HAVE_TORCH
-#   include "pytorch_helper.hh"
-#   include "pytorch_tile_helpers.hh"
+#include "pytorch_helper.hh"
+#include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -38,24 +38,25 @@ constexpr int redux_none = 0;
 } // anonymous namespace
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph sum_slice structure", "[graph][nn_graph]")
+    "NNGraph sum_slice structure",
+    "[graph][nn_graph]")
 {
-    const auto [alpha, axis] = GENERATE(
-        std::tuple{Scalar(1.0), Index(0)},
+    const auto [alpha, axis] = GENERATE(std::tuple{Scalar(1.0), Index(0)},
         std::tuple{Scalar(1.0), Index(1)},
         std::tuple{Scalar(2.0), Index(0)},
         std::tuple{Scalar(0.5), Index(1)});
 
-    std::vector<Index> x_shape = (axis == 0) ?
-        std::vector<Index>{dim_4, dim_2, dim_3} : std::vector<Index>{dim_2, dim_4, dim_3};
+    std::vector<Index> x_shape = (axis == 0)
+                                     ? std::vector<Index>{dim_4, dim_2, dim_3}
+                                     : std::vector<Index>{dim_2, dim_4, dim_3};
     std::vector<Index> out_shape;
-    for(Index i = 0; i < static_cast<Index>(x_shape.size()); ++i)
-        if(i != axis)
+    for (Index i = 0; i < static_cast<Index>(x_shape.size()); ++i)
+        if (i != axis)
             out_shape.push_back(x_shape[i]);
 
     NNGraph g("sum_slice_structure");
-    auto* x = g.tensor(x_shape, "x", DataType::FP32);
-    auto* y = sum_slice(x, "y", axis, redux_none, alpha);
+    auto *x = g.tensor(x_shape, DataType::FP32)->set_name("x");
+    auto *y = sum_slice(x, axis, redux_none, alpha)->set_name("y");
 
     REQUIRE(y != nullptr);
     REQUIRE(y->has_producer());
@@ -65,20 +66,22 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph sum_slice backward", "[graph][nn_graph]")
+    "NNGraph sum_slice backward",
+    "[graph][nn_graph]")
 {
-    const auto [alpha, axis, grad_fill_val] = GENERATE(
-        std::tuple{Scalar(1.0), Index(1), Scalar(1.0)},
-        std::tuple{Scalar(1.0), Index(0), Scalar(-1.0)},
-        std::tuple{Scalar(2.0), Index(0), Scalar(0.5)},
-        std::tuple{Scalar(0.5), Index(1), Scalar(2.0)});
+    const auto [alpha, axis, grad_fill_val] =
+        GENERATE(std::tuple{Scalar(1.0), Index(1), Scalar(1.0)},
+            std::tuple{Scalar(1.0), Index(0), Scalar(-1.0)},
+            std::tuple{Scalar(2.0), Index(0), Scalar(0.5)},
+            std::tuple{Scalar(0.5), Index(1), Scalar(2.0)});
 
-    std::vector<Index> x_shape = (axis == 0) ?
-        std::vector<Index>{dim_4, dim_2} : std::vector<Index>{dim_2, dim_4};
+    std::vector<Index> x_shape = (axis == 0)
+                                     ? std::vector<Index>{dim_4, dim_2}
+                                     : std::vector<Index>{dim_2, dim_4};
 
     NNGraph g("sum_slice_backward");
-    auto* x = g.tensor(x_shape, "x", DataType::FP32);
-    auto* y = sum_slice(x, "y", axis, redux_none, alpha);
+    auto *x = g.tensor(x_shape, DataType::FP32)->set_name("x");
+    auto *y = sum_slice(x, axis, redux_none, alpha)->set_name("y");
 
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");
     gt::fill(grad_fill_val, y_grad->data());
@@ -90,18 +93,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 #ifdef NNTILE_HAVE_TORCH
 
-using nntile::test::compare_float_vectors;
 using nntile::test::colmajor_to_rowmajor;
-using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
+using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
 using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
+using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph sum_slice forward matches PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph sum_slice forward matches PyTorch",
+    "[graph][nn_graph][pytorch]")
 {
-    const auto [alpha, axis] = GENERATE(
-        std::tuple{Scalar(1.0), Index(0)},
+    const auto [alpha, axis] = GENERATE(std::tuple{Scalar(1.0), Index(0)},
         std::tuple{Scalar(1.0), Index(1)},
         std::tuple{Scalar(2.0), Index(0)},
         std::tuple{Scalar(0.5), Index(1)});
@@ -112,16 +115,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const Index x_nelems = dim_m * dim_n;
 
     std::vector<float> x_data(x_nelems);
-    for(Index i = 0; i < x_nelems; ++i)
+    for (Index i = 0; i < x_nelems; ++i)
         x_data[i] = 0.1f * static_cast<float>(i + 1);
     std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, x_shape);
 
     NNGraph g("sum_slice_pytorch");
-    auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
-    auto* y = sum_slice(x, "y", axis, redux_none, alpha);
+    auto *x = g.tensor(x_shape, DataType::FP32, true)->set_name("x");
+    auto *y = sum_slice(x, axis, redux_none, alpha)->set_name("y");
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
-    if(axis == 0)
+    if (axis == 0)
         nn_pytorch_tile_heterogeneous_1d_len7(y);
     else
         nn_pytorch_tile_heterogeneous_1d_len6(y);
@@ -132,33 +135,38 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data(x,  x_data);
+    runtime.bind_data(x, x_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_out = runtime.get_output<float>(y);
 
     std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());
-    auto x_pt = torch::from_blob(x_rowmajor.data(), x_shape_pt,
-        torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(false);
-    auto y_pt = (alpha * x_pt.sum(static_cast<std::int64_t>(axis), false)).contiguous();
+    auto x_pt = torch::from_blob(x_rowmajor.data(),
+        x_shape_pt,
+        torch::TensorOptions().dtype(torch::kFloat32))
+                    .clone()
+                    .set_requires_grad(false);
+    auto y_pt = (alpha * x_pt.sum(static_cast<std::int64_t>(axis), false))
+                    .contiguous();
 
-    std::vector<float> pytorch_out(y_pt.data_ptr<float>(),
-                                   y_pt.data_ptr<float>() + y_pt.numel());
+    std::vector<float> pytorch_out(
+        y_pt.data_ptr<float>(), y_pt.data_ptr<float>() + y_pt.numel());
 
     REQUIRE(nntile_out.size() == pytorch_out.size());
-    for(size_t i = 0; i < nntile_out.size(); ++i)
+    for (size_t i = 0; i < nntile_out.size(); ++i)
         REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph sum_slice backward matches PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph sum_slice backward matches PyTorch",
+    "[graph][nn_graph][pytorch]")
 {
-    const auto [alpha, axis, grad_fill_val] = GENERATE(
-        std::tuple{Scalar(1.0), Index(1), Scalar(1.0)},
-        std::tuple{Scalar(1.0), Index(0), Scalar(-1.0)},
-        std::tuple{Scalar(2.0), Index(0), Scalar(0.5)},
-        std::tuple{Scalar(0.5), Index(1), Scalar(2.0)});
+    const auto [alpha, axis, grad_fill_val] =
+        GENERATE(std::tuple{Scalar(1.0), Index(1), Scalar(1.0)},
+            std::tuple{Scalar(1.0), Index(0), Scalar(-1.0)},
+            std::tuple{Scalar(2.0), Index(0), Scalar(0.5)},
+            std::tuple{Scalar(0.5), Index(1), Scalar(2.0)});
 
     constexpr Index dim_m = 6;
     constexpr Index dim_n = 7;
@@ -166,16 +174,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const Index x_nelems = dim_m * dim_n;
 
     std::vector<float> x_data(x_nelems);
-    for(Index i = 0; i < x_nelems; ++i)
+    for (Index i = 0; i < x_nelems; ++i)
         x_data[i] = 0.1f * static_cast<float>(i);
     std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, x_shape);
 
     NNGraph g("sum_slice_bwd_pytorch");
-    auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
-    auto* y = sum_slice(x, "y", axis, redux_none, alpha);
+    auto *x = g.tensor(x_shape, DataType::FP32, true)->set_name("x");
+    auto *y = sum_slice(x, axis, redux_none, alpha)->set_name("y");
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
-    if(axis == 0)
+    if (axis == 0)
         nn_pytorch_tile_heterogeneous_1d_len7(y);
     else
         nn_pytorch_tile_heterogeneous_1d_len6(y);
@@ -191,7 +199,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data(x,  x_data);
+    runtime.bind_data(x, x_data);
     runtime.execute();
     runtime.wait();
 
@@ -201,11 +209,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         colmajor_to_rowmajor(nntile_grad_x_colmajor, x_shape);
 
     std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());
-    auto x_pt = torch::from_blob(x_rowmajor.data(), x_shape_pt,
-        torch::TensorOptions().dtype(torch::kFloat32)).clone().set_requires_grad(true);
+    auto x_pt = torch::from_blob(x_rowmajor.data(),
+        x_shape_pt,
+        torch::TensorOptions().dtype(torch::kFloat32))
+                    .clone()
+                    .set_requires_grad(true);
     auto y_pt = alpha * x_pt.sum(static_cast<std::int64_t>(axis), false);
 
-    auto grad_y = torch::full({y_pt.numel()}, static_cast<float>(grad_fill_val),
+    auto grad_y = torch::full({y_pt.numel()},
+        static_cast<float>(grad_fill_val),
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     y_pt.backward(grad_y);
 

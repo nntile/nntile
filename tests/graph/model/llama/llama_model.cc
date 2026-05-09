@@ -22,24 +22,24 @@
  * @version 1.1.0
  * */
 
+#include "nntile/graph/model/llama/llama_model.hh"
+
+#include "context_fixture.hh"
+#include "nntile/graph.hh"
+#include "nntile/graph/io/safetensors.hh"
+#include "nntile/graph/model/llama/llama_config.hh"
+#include "test_frobenius.hh"
+
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
-
-#include "context_fixture.hh"
-#include "test_frobenius.hh"
-#include "nntile/graph.hh"
-#include "nntile/graph/io/safetensors.hh"
-#include "nntile/graph/model/llama/llama_config.hh"
-#include "nntile/graph/model/llama/llama_model.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -48,7 +48,8 @@ using namespace nntile::graph::io;
 
 #ifndef LLAMA_DATA_DIR
 
-TEST_CASE("LlamaModel tests skipped (LLAMA_DATA_DIR undefined)", "[model][llama]")
+TEST_CASE(
+    "LlamaModel tests skipped (LLAMA_DATA_DIR undefined)", "[model][llama]")
 {
     SKIP("LLAMA_DATA_DIR not defined at compile time.");
 }
@@ -68,7 +69,7 @@ constexpr char llama_model_gqa[] = "llama_model_gqa";
 namespace
 {
 
-inline Index json_index(const nlohmann::json& o, const char* key)
+inline Index json_index(const nlohmann::json &o, const char *key)
 {
     return static_cast<Index>(o.at(key).get<std::int64_t>());
 }
@@ -86,15 +87,13 @@ struct ModelFixtureSpec
 };
 
 inline bool try_load_model_fixture_spec(
-    const std::string& data_dir,
-    const char* stem_cstr,
-    ModelFixtureSpec& out)
+    const std::string &data_dir, const char *stem_cstr, ModelFixtureSpec &out)
 {
     out = {};
     out.stem = stem_cstr;
     const std::string jpath = data_dir + "/" + out.stem + ".json";
     std::ifstream jf(jpath);
-    if(!jf)
+    if (!jf)
     {
         return false;
     }
@@ -102,20 +101,20 @@ inline bool try_load_model_fixture_spec(
     try
     {
         jf >> j;
-        if(j.at("version").get<int>() != 2)
+        if (j.at("version").get<int>() != 2)
         {
             return false;
         }
-        if(j.at("stem").get<std::string>() != out.stem)
+        if (j.at("stem").get<std::string>() != out.stem)
         {
             return false;
         }
         const std::string expected_st = out.stem + ".safetensors";
-        if(j.at("safetensors").get<std::string>() != expected_st)
+        if (j.at("safetensors").get<std::string>() != expected_st)
         {
             return false;
         }
-        const auto& L = j.at("llama");
+        const auto &L = j.at("llama");
         out.config.vocab_size = json_index(L, "vocab_size");
         out.config.hidden_size = json_index(L, "hidden_size");
         out.config.intermediate_size = json_index(L, "intermediate_size");
@@ -126,12 +125,12 @@ inline bool try_load_model_fixture_spec(
         out.hidden = out.config.hidden_size;
         out.seq = json_index(j, "sequence_length");
         out.batch = json_index(j, "batch");
-        out.forward_tol = static_cast<float>(
-            j.at("tolerances").at("forward").get<double>());
+        out.forward_tol =
+            static_cast<float>(j.at("tolerances").at("forward").get<double>());
         out.backward_tol = static_cast<float>(
             j.at("tolerances").at("backward").get<double>());
     }
-    catch(...)
+    catch (...)
     {
         return false;
     }
@@ -139,17 +138,16 @@ inline bool try_load_model_fixture_spec(
 }
 
 inline std::string model_fixture_safetensors_path(
-    const std::string& data_dir,
-    const ModelFixtureSpec& spec)
+    const std::string &data_dir, const ModelFixtureSpec &spec)
 {
     return data_dir + "/" + spec.stem + ".safetensors";
 }
 
 //! SKIP helper: JSON + safetensors must both exist and JSON must parse.
-inline bool skip_unless_fixture_ready(const char* stem, ModelFixtureSpec& fx)
+inline bool skip_unless_fixture_ready(const char *stem, ModelFixtureSpec &fx)
 {
     const std::string dir = std::string(LLAMA_DATA_DIR);
-    if(!try_load_model_fixture_spec(dir, stem, fx))
+    if (!try_load_model_fixture_spec(dir, stem, fx))
     {
         return false;
     }
@@ -159,34 +157,35 @@ inline bool skip_unless_fixture_ready(const char* stem, ModelFixtureSpec& fx)
 
 struct LlamaRopeInputs
 {
-    NNGraph::TensorNode* sin = nullptr;
-    NNGraph::TensorNode* cos = nullptr;
+    NNGraph::TensorNode *sin = nullptr;
+    NNGraph::TensorNode *cos = nullptr;
     std::vector<float> sin_data;
     std::vector<float> cos_data;
 };
 
-inline bool load_llama_rope_inputs(
-    NNGraph& g,
-    const SafeTensorsReader& reader,
-    const LlamaConfig& config,
+inline bool load_llama_rope_inputs(NNGraph &g,
+    const SafeTensorsReader &reader,
+    const LlamaConfig &config,
     Index n_seq,
     Index n_batch,
-    LlamaRopeInputs& out)
+    LlamaRopeInputs &out)
 {
     out = {};
-    if(!reader.has_tensor("rope_sin") || !reader.has_tensor("rope_cos"))
+    if (!reader.has_tensor("rope_sin") || !reader.has_tensor("rope_cos"))
     {
         return false;
     }
     const Index head_dim = config.head_dim;
-    if(head_dim % 2 != 0)
+    if (head_dim % 2 != 0)
     {
         return false;
     }
     const Index half = head_dim / 2;
-    out.sin = g.tensor({half, n_seq, n_batch}, "rope_sin", DataType::FP32);
-    out.cos = g.tensor({half, n_seq, n_batch}, "rope_cos", DataType::FP32);
-    auto read_f = [&](const char* name, std::vector<float>& dst)
+    out.sin =
+        g.tensor({half, n_seq, n_batch}, DataType::FP32)->set_name("rope_sin");
+    out.cos =
+        g.tensor({half, n_seq, n_batch}, DataType::FP32)->set_name("rope_cos");
+    auto read_f = [&](const char *name, std::vector<float> &dst)
     {
         std::vector<std::uint8_t> b = reader.read_tensor(name);
         dst.resize(b.size() / sizeof(float));
@@ -197,9 +196,9 @@ inline bool load_llama_rope_inputs(
     return true;
 }
 
-inline void mark_rope_inputs(const LlamaRopeInputs& rope)
+inline void mark_rope_inputs(const LlamaRopeInputs &rope)
 {
-    if(rope.sin == nullptr)
+    if (rope.sin == nullptr)
     {
         return;
     }
@@ -208,9 +207,9 @@ inline void mark_rope_inputs(const LlamaRopeInputs& rope)
 }
 
 inline void bind_rope_inputs(
-    TileGraph::Runtime& runtime, const LlamaRopeInputs& rope)
+    TileGraph::Runtime &runtime, const LlamaRopeInputs &rope)
 {
-    if(rope.sin == nullptr)
+    if (rope.sin == nullptr)
     {
         return;
     }
@@ -219,32 +218,31 @@ inline void bind_rope_inputs(
 }
 
 //! Causal ``attn_mask`` ``(seq, seq)`` for ``sdpa_eager`` (1 = keep logit).
-inline bool load_attn_mask_bool(
-    NNGraph& g,
-    const SafeTensorsReader& reader,
+inline bool load_attn_mask_bool(NNGraph &g,
+    const SafeTensorsReader &reader,
     Index n_seq,
-    NNGraph::TensorNode*& out_mask,
-    std::vector<std::uint8_t>& mask_bytes)
+    NNGraph::TensorNode *&out_mask,
+    std::vector<std::uint8_t> &mask_bytes)
 {
     out_mask = nullptr;
     mask_bytes.clear();
-    if(!reader.has_tensor("attn_mask"))
+    if (!reader.has_tensor("attn_mask"))
     {
         return false;
     }
-    const auto& info = reader.tensor_info("attn_mask");
-    if(info.shape.size() != 2 || info.shape[0] != n_seq
-        || info.shape[1] != n_seq)
+    const auto &info = reader.tensor_info("attn_mask");
+    if (info.shape.size() != 2 || info.shape[0] != n_seq ||
+        info.shape[1] != n_seq)
     {
-        throw std::runtime_error(
-            "Llama model test: attn_mask shape mismatch");
+        throw std::runtime_error("Llama model test: attn_mask shape mismatch");
     }
     const auto n_el = static_cast<size_t>(n_seq * n_seq);
-    out_mask = g.tensor({n_seq, n_seq}, "attn_mask", DataType::BOOL, false);
+    out_mask =
+        g.tensor({n_seq, n_seq}, DataType::BOOL, false)->set_name("attn_mask");
     auto raw = reader.read_tensor("attn_mask");
-    if(info.dtype == DataType::BOOL)
+    if (info.dtype == DataType::BOOL)
     {
-        if(raw.size() != n_el)
+        if (raw.size() != n_el)
         {
             throw std::runtime_error(
                 "Llama model test: BOOL attn_mask byte size mismatch");
@@ -252,20 +250,19 @@ inline bool load_attn_mask_bool(
         mask_bytes = std::move(raw);
         return true;
     }
-    if(info.dtype == DataType::FP32)
+    if (info.dtype == DataType::FP32)
     {
-        if(raw.size() != n_el * sizeof(float))
+        if (raw.size() != n_el * sizeof(float))
         {
             throw std::runtime_error(
                 "Llama model test: F32 attn_mask byte size mismatch");
         }
         mask_bytes.resize(n_el);
-        const auto* p = reinterpret_cast<const float*>(raw.data());
-        for(size_t i = 0; i < n_el; ++i)
+        const auto *p = reinterpret_cast<const float *>(raw.data());
+        for (size_t i = 0; i < n_el; ++i)
         {
-            mask_bytes[i] =
-                (p[i] > 0.5f) ? static_cast<std::uint8_t>(1)
-                              : static_cast<std::uint8_t>(0);
+            mask_bytes[i] = (p[i] > 0.5f) ? static_cast<std::uint8_t>(1)
+                                          : static_cast<std::uint8_t>(0);
         }
         return true;
     }
@@ -273,32 +270,31 @@ inline bool load_attn_mask_bool(
         "Llama model test: attn_mask must be BOOL or F32");
 }
 
-inline void mark_mask_input(NNGraph::TensorNode* mask)
+inline void mark_mask_input(NNGraph::TensorNode *mask)
 {
-    if(mask != nullptr)
+    if (mask != nullptr)
     {
         mask->mark_input(true);
     }
 }
 
-inline void bind_mask_input(
-    TileGraph::Runtime& runtime,
-    NNGraph::TensorNode* mask,
-    const std::vector<std::uint8_t>& mask_bytes)
+inline void bind_mask_input(TileGraph::Runtime &runtime,
+    NNGraph::TensorNode *mask,
+    const std::vector<std::uint8_t> &mask_bytes)
 {
-    if(mask == nullptr)
+    if (mask == nullptr)
     {
         return;
     }
     runtime.bind_data(mask, mask_bytes);
 }
 
-void model_forward_compare_ref(const ModelFixtureSpec& fx)
+void model_forward_compare_ref(const ModelFixtureSpec &fx)
 {
     const std::string data_dir = std::string(LLAMA_DATA_DIR);
     const std::string full_path = model_fixture_safetensors_path(data_dir, fx);
     const float tol = fx.forward_tol;
-    const LlamaConfig& config = fx.config;
+    const LlamaConfig &config = fx.config;
     const Index n_seq = fx.seq;
     const Index n_batch = fx.batch;
     const Index hidden = fx.hidden;
@@ -306,7 +302,8 @@ void model_forward_compare_ref(const ModelFixtureSpec& fx)
     SafeTensorsReader reader(full_path);
 
     std::vector<std::uint8_t> ids_bytes = reader.read_tensor("input_ids");
-    std::vector<std::int64_t> ids_data(ids_bytes.size() / sizeof(std::int64_t));
+    std::vector<std::int64_t> ids_data(
+        ids_bytes.size() / sizeof(std::int64_t));
     std::memcpy(ids_data.data(), ids_bytes.data(), ids_bytes.size());
 
     std::vector<std::uint8_t> ref_bytes = reader.read_tensor("output_ref");
@@ -317,17 +314,17 @@ void model_forward_compare_ref(const ModelFixtureSpec& fx)
     {
         const std::string gname = std::string("model_ref_") + fx.stem;
         NNGraph g(gname);
-        auto* input_ids = g.tensor({n_seq, n_batch}, "input_ids", DataType::INT64);
+        auto *input_ids =
+            g.tensor({n_seq, n_batch}, DataType::INT64)->set_name("input_ids");
         LlamaRopeInputs rope;
-        REQUIRE(load_llama_rope_inputs(
-            g, reader, config, n_seq, n_batch, rope));
-        NNGraph::TensorNode* mask = nullptr;
+        REQUIRE(
+            load_llama_rope_inputs(g, reader, config, n_seq, n_batch, rope));
+        NNGraph::TensorNode *mask = nullptr;
         std::vector<std::uint8_t> mask_bytes;
         REQUIRE(load_attn_mask_bool(g, reader, n_seq, mask, mask_bytes));
 
         LlamaModel model(&g, "model", config);
-        auto* output =
-            model.forward(input_ids, rope.sin, rope.cos, mask);
+        auto *output = model.forward(input_ids, rope.sin, rope.cos, mask);
         input_ids->mark_input(true);
         output->mark_output(true);
         mark_rope_inputs(rope);
@@ -335,7 +332,7 @@ void model_forward_compare_ref(const ModelFixtureSpec& fx)
 
         model.load(full_path);
 
-        TensorGraph& tg = g.tensor_graph();
+        TensorGraph &tg = g.tensor_graph();
         TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
 
         TileGraph::Runtime runtime(tile_graph);
@@ -358,41 +355,43 @@ void model_forward_compare_ref(const ModelFixtureSpec& fx)
 TEST_CASE("LlamaModel forward builds output", "[model][llama]")
 {
     ModelFixtureSpec fx;
-    if(!skip_unless_fixture_ready(model_fixture_stem::llama_model, fx))
+    if (!skip_unless_fixture_ready(model_fixture_stem::llama_model, fx))
     {
         SKIP("Missing or invalid llama_model.json / .safetensors.");
     }
     NNGraph g("llama_model");
     LlamaModel model(&g, "model", fx.config);
-    auto* input_ids = g.tensor({fx.seq, fx.batch}, "input_ids", DataType::INT64);
-    auto* output = model.forward(input_ids);
+    auto *input_ids =
+        g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
+    auto *output = model.forward(input_ids);
 
     REQUIRE(output != nullptr);
-    REQUIRE(output->shape()
-        == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+    REQUIRE(
+        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
 }
 
 TEST_CASE("LlamaModel GQA forward builds output", "[model][llama][gqa]")
 {
     ModelFixtureSpec fx;
-    if(!skip_unless_fixture_ready(model_fixture_stem::llama_model_gqa, fx))
+    if (!skip_unless_fixture_ready(model_fixture_stem::llama_model_gqa, fx))
     {
         SKIP("Missing or invalid llama_model_gqa.json / .safetensors.");
     }
     NNGraph g("llama_model_gqa");
     LlamaModel model(&g, "model", fx.config);
-    auto* input_ids = g.tensor({fx.seq, fx.batch}, "input_ids", DataType::INT64);
-    auto* output = model.forward(input_ids);
+    auto *input_ids =
+        g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
+    auto *output = model.forward(input_ids);
 
     REQUIRE(output != nullptr);
-    REQUIRE(output->shape()
-        == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+    REQUIRE(
+        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
 }
 
 TEST_CASE("LlamaModel load from safetensors roundtrip", "[model][llama][io]")
 {
     ModelFixtureSpec fx;
-    if(!skip_unless_fixture_ready(model_fixture_stem::llama_model, fx))
+    if (!skip_unless_fixture_ready(model_fixture_stem::llama_model, fx))
     {
         SKIP("Missing or invalid llama_model.json / .safetensors.");
     }
@@ -403,13 +402,14 @@ TEST_CASE("LlamaModel load from safetensors roundtrip", "[model][llama][io]")
     LlamaModel model1(&g1, "model", fx.config);
     model1.load(data_path);
 
-    const std::string save_path = "/tmp/nntile_llama_model_roundtrip.safetensors";
+    const std::string save_path =
+        "/tmp/nntile_llama_model_roundtrip.safetensors";
     model1.save(save_path);
 
     SafeTensorsReader reader(data_path);
     SafeTensorsReader reader2(save_path);
 
-    for(const auto& name : reader2.tensor_names())
+    for (const auto &name : reader2.tensor_names())
     {
         REQUIRE(reader.has_tensor(name));
         auto orig = reader.read_tensor(name);
@@ -422,10 +422,11 @@ TEST_CASE("LlamaModel load from safetensors roundtrip", "[model][llama][io]")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "LlamaModel matches PyTorch reference", "[model][llama]")
+    "LlamaModel matches PyTorch reference",
+    "[model][llama]")
 {
     ModelFixtureSpec fx;
-    if(!skip_unless_fixture_ready(model_fixture_stem::llama_model, fx))
+    if (!skip_unless_fixture_ready(model_fixture_stem::llama_model, fx))
     {
         SKIP("Llama model fixture pair not found.");
     }
@@ -433,10 +434,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "LlamaModel GQA matches PyTorch reference", "[model][llama][gqa]")
+    "LlamaModel GQA matches PyTorch reference",
+    "[model][llama][gqa]")
 {
     ModelFixtureSpec fx;
-    if(!skip_unless_fixture_ready(model_fixture_stem::llama_model_gqa, fx))
+    if (!skip_unless_fixture_ready(model_fixture_stem::llama_model_gqa, fx))
     {
         SKIP("Llama model GQA fixture pair not found.");
     }

@@ -28,12 +28,13 @@ namespace nntile::graph::tensor
 //! GeLUTanh operation: dst = gelutanh(src)
 struct TensorGelutanhOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorGelutanhOp() = default;
-    TensorGelutanhOp(TensorGraph::TensorNode* src_, TensorGraph::TensorNode* dst_)
-        : src(src_), dst(dst_)
+    TensorGelutanhOp(
+        TensorGraph::TensorNode *src_, TensorGraph::TensorNode *dst_) :
+        src(src_), dst(dst_)
     {
         inputs_ = {src};
         outputs_ = {dst};
@@ -46,15 +47,11 @@ struct TensorGelutanhOp : TensorGraph::OpNode
         return std::make_shared<TensorGelutanhOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-TensorGraph::TensorNode* gelutanh(
-    TensorGraph::TensorNode* src,
-    const std::string& output_name);
+TensorGraph::TensorNode *gelutanh(TensorGraph::TensorNode *src);
 
-void gelutanh(
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst);
+void gelutanh(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst);
 
 } // namespace nntile::graph::tensor

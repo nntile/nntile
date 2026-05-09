@@ -14,25 +14,24 @@
 
 #include "nntile/graph/tensor/ops/gemm.hh"
 
+#include "nntile/base_types.hh"
+#include "nntile/constants.hh"
+#include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/graph_ops.hh"
+#include "nntile/tensor/gemm.hh"
+
 #include <sstream>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 
-#include "nntile/base_types.hh"
-#include "nntile/constants.hh"
-#include "nntile/graph/tensor.hh"
-#include "nntile/graph/tensor/tensor_graph_tiling.hh"
-#include "nntile/graph/tile/graph_ops.hh"
-#include "nntile/graph/tensor/tile_lowering_helpers.hh"
-#include "nntile/tensor/gemm.hh"
-
 namespace nntile::graph::tensor
 {
 
-std::vector<Index> gemm_output_shape(
-    const std::vector<Index>& a_shape,
-    const std::vector<Index>& b_shape,
+std::vector<Index> gemm_output_shape(const std::vector<Index> &a_shape,
+    const std::vector<Index> &b_shape,
     bool trans_a,
     bool trans_b,
     Index ndim,
@@ -53,14 +52,13 @@ std::vector<Index> gemm_output_shape(
     Index b_n_end = trans_b ? b_batch_start - ndim : b_batch_start;
 
     output_shape.insert(output_shape.end(),
-                        a_shape.begin() + a_m_begin,
-                        a_shape.begin() + a_m_end);
+        a_shape.begin() + a_m_begin,
+        a_shape.begin() + a_m_end);
     output_shape.insert(output_shape.end(),
-                        b_shape.begin() + b_n_begin,
-                        b_shape.begin() + b_n_end);
-    output_shape.insert(output_shape.end(),
-                        a_shape.begin() + a_batch_start,
-                        a_shape.end());
+        b_shape.begin() + b_n_begin,
+        b_shape.begin() + b_n_end);
+    output_shape.insert(
+        output_shape.end(), a_shape.begin() + a_batch_start, a_shape.end());
 
     return output_shape;
 }
@@ -69,11 +67,11 @@ namespace
 {
 constexpr Scalar gemm_new_output_beta = 0.0;
 
-//! Validate A-B, A-C, B-C shapes and merge axes (inline check+merge per dimension).
-void validate_gemm_shape_and_merge(
-    TensorGraph::TensorNode* a,
-    TensorGraph::TensorNode* b,
-    TensorGraph::TensorNode* c,
+//! Validate A-B, A-C, B-C shapes and merge axes (inline check+merge per
+//! dimension).
+void validate_gemm_shape_and_merge(TensorGraph::TensorNode *a,
+    TensorGraph::TensorNode *b,
+    TensorGraph::TensorNode *c,
     bool trans_a,
     bool trans_b,
     Index ndim,
@@ -82,14 +80,14 @@ void validate_gemm_shape_and_merge(
     Index a_ndim = a->ndim();
     Index b_ndim = b->ndim();
     Index c_ndim = c->ndim();
-    if(a_ndim < ndim + batch_ndim)
+    if (a_ndim < ndim + batch_ndim)
     {
         throw std::invalid_argument(
             "gemm: A must have ndim >= ndim + batch_ndim (" +
             std::to_string(a_ndim) + " vs " +
             std::to_string(ndim + batch_ndim) + ")");
     }
-    if(b_ndim < ndim + batch_ndim)
+    if (b_ndim < ndim + batch_ndim)
     {
         throw std::invalid_argument(
             "gemm: B must have ndim >= ndim + batch_ndim (" +
@@ -107,7 +105,7 @@ void validate_gemm_shape_and_merge(
     Index num_m = a_m_end - a_m_begin;
     Index num_n = b_n_end - b_n_begin;
     Index c_batch_start = num_m + num_n;
-    if(c_ndim != c_batch_start + batch_ndim)
+    if (c_ndim != c_batch_start + batch_ndim)
     {
         throw std::invalid_argument(
             "gemm: C ndim must equal num_m + num_n + batch_ndim (" +
@@ -115,101 +113,102 @@ void validate_gemm_shape_and_merge(
             std::to_string(c_batch_start + batch_ndim) + ")");
     }
     // A-B: contracted (K) dimensions
-    for(Index i = 0; i < ndim; ++i)
+    for (Index i = 0; i < ndim; ++i)
     {
-        if(a->shape()[a_k_begin + i] != b->shape()[b_k_begin + i])
+        if (a->shape()[a_k_begin + i] != b->shape()[b_k_begin + i])
         {
             throw std::invalid_argument(
                 "gemm: contracted dimension " + std::to_string(i) +
-                " must match (A: " + std::to_string(a->shape()[a_k_begin + i]) +
+                " must match (A: " +
+                std::to_string(a->shape()[a_k_begin + i]) +
                 " vs B: " + std::to_string(b->shape()[b_k_begin + i]) + ")");
         }
         merge_axis(a->mutable_axes()[a_k_begin + i],
-                   b->mutable_axes()[b_k_begin + i]);
+            b->mutable_axes()[b_k_begin + i]);
     }
     // A-C: M dimensions
-    for(Index i = 0; i < num_m; ++i)
+    for (Index i = 0; i < num_m; ++i)
     {
-        if(a->shape()[a_m_begin + i] != c->shape()[i])
+        if (a->shape()[a_m_begin + i] != c->shape()[i])
         {
             throw std::invalid_argument(
-                "gemm: M dimension " + std::to_string(i) +
-                " must match (A: " + std::to_string(a->shape()[a_m_begin + i]) +
+                "gemm: M dimension " + std::to_string(i) + " must match (A: " +
+                std::to_string(a->shape()[a_m_begin + i]) +
                 " vs C: " + std::to_string(c->shape()[i]) + ")");
         }
         merge_axis(a->mutable_axes()[a_m_begin + i], c->mutable_axes()[i]);
     }
     // B-C: N dimensions
-    for(Index i = 0; i < num_n; ++i)
+    for (Index i = 0; i < num_n; ++i)
     {
-        if(b->shape()[b_n_begin + i] != c->shape()[num_m + i])
+        if (b->shape()[b_n_begin + i] != c->shape()[num_m + i])
         {
             throw std::invalid_argument(
-                "gemm: N dimension " + std::to_string(i) +
-                " must match (B: " + std::to_string(b->shape()[b_n_begin + i]) +
+                "gemm: N dimension " + std::to_string(i) + " must match (B: " +
+                std::to_string(b->shape()[b_n_begin + i]) +
                 " vs C: " + std::to_string(c->shape()[num_m + i]) + ")");
         }
-        merge_axis(b->mutable_axes()[b_n_begin + i],
-                   c->mutable_axes()[num_m + i]);
+        merge_axis(
+            b->mutable_axes()[b_n_begin + i], c->mutable_axes()[num_m + i]);
     }
     // A-B-C: batch dimensions
-    for(Index i = 0; i < batch_ndim; ++i)
+    for (Index i = 0; i < batch_ndim; ++i)
     {
-        if(a->shape()[a_batch_start + i] != c->shape()[c_batch_start + i])
+        if (a->shape()[a_batch_start + i] != c->shape()[c_batch_start + i])
         {
             throw std::invalid_argument(
                 "gemm: batch dimension " + std::to_string(i) +
-                " must match (A: " + std::to_string(a->shape()[a_batch_start + i]) +
-                " vs C: " + std::to_string(c->shape()[c_batch_start + i]) + ")");
+                " must match (A: " +
+                std::to_string(a->shape()[a_batch_start + i]) + " vs C: " +
+                std::to_string(c->shape()[c_batch_start + i]) + ")");
         }
         merge_axis(a->mutable_axes()[a_batch_start + i],
-                   c->mutable_axes()[c_batch_start + i]);
-        if(b->shape()[b_batch_start + i] != c->shape()[c_batch_start + i])
+            c->mutable_axes()[c_batch_start + i]);
+        if (b->shape()[b_batch_start + i] != c->shape()[c_batch_start + i])
         {
             throw std::invalid_argument(
                 "gemm: batch dimension " + std::to_string(i) +
-                " must match (B: " + std::to_string(b->shape()[b_batch_start + i]) +
-                " vs C: " + std::to_string(c->shape()[c_batch_start + i]) + ")");
+                " must match (B: " +
+                std::to_string(b->shape()[b_batch_start + i]) + " vs C: " +
+                std::to_string(c->shape()[c_batch_start + i]) + ")");
         }
         merge_axis(b->mutable_axes()[b_batch_start + i],
-                   c->mutable_axes()[c_batch_start + i]);
+            c->mutable_axes()[c_batch_start + i]);
     }
 }
 
 } // namespace
 
-TensorGraph::TensorNode* gemm(
-    TensorGraph::TensorNode* a,
-    TensorGraph::TensorNode* b,
-    const std::string& output_name,
+TensorGraph::TensorNode *gemm(TensorGraph::TensorNode *a,
+    TensorGraph::TensorNode *b,
     Scalar alpha,
     bool trans_a,
     bool trans_b,
     Index ndim,
     Index batch_ndim)
 {
-    if(a == nullptr || b == nullptr)
+    if (a == nullptr || b == nullptr)
     {
         throw std::invalid_argument("gemm: input tensors must be non-null");
     }
-    if(a->graph() != b->graph())
+    if (a->graph() != b->graph())
     {
         throw std::invalid_argument(
             "gemm: input tensors must belong to the same graph");
     }
-    if(a->dtype() != b->dtype())
+    if (a->dtype() != b->dtype())
     {
         throw std::invalid_argument(
             "gemm: input tensors must have the same dtype");
     }
-    if(a->ndim() < ndim + batch_ndim)
+    if (a->ndim() < ndim + batch_ndim)
     {
         throw std::invalid_argument(
             "gemm: A must have ndim >= ndim + batch_ndim (" +
             std::to_string(a->ndim()) + " vs " +
             std::to_string(ndim + batch_ndim) + ")");
     }
-    if(b->ndim() < ndim + batch_ndim)
+    if (b->ndim() < ndim + batch_ndim)
     {
         throw std::invalid_argument(
             "gemm: B must have ndim >= ndim + batch_ndim (" +
@@ -220,21 +219,25 @@ TensorGraph::TensorNode* gemm(
     std::vector<Index> output_shape = gemm_output_shape(
         a->shape(), b->shape(), trans_a, trans_b, ndim, batch_ndim);
 
-    TensorGraph::TensorNode* output = a->graph()->data(
-        std::move(output_shape),
-        output_name,
-        a->dtype());
+    TensorGraph::TensorNode *output =
+        a->graph()->data(std::move(output_shape), a->dtype());
 
-    gemm(a, b, output, alpha, gemm_new_output_beta, trans_a, trans_b, ndim,
-         batch_ndim);
+    gemm(a,
+        b,
+        output,
+        alpha,
+        gemm_new_output_beta,
+        trans_a,
+        trans_b,
+        ndim,
+        batch_ndim);
 
     return output;
 }
 
-void gemm(
-    TensorGraph::TensorNode* a,
-    TensorGraph::TensorNode* b,
-    TensorGraph::TensorNode* c,
+void gemm(TensorGraph::TensorNode *a,
+    TensorGraph::TensorNode *b,
+    TensorGraph::TensorNode *c,
     Scalar alpha,
     Scalar beta,
     bool trans_a,
@@ -242,16 +245,16 @@ void gemm(
     Index ndim,
     Index batch_ndim)
 {
-    if(a == nullptr || b == nullptr || c == nullptr)
+    if (a == nullptr || b == nullptr || c == nullptr)
     {
         throw std::invalid_argument("gemm: input tensors must be non-null");
     }
-    if(a->graph() != b->graph() || a->graph() != c->graph())
+    if (a->graph() != b->graph() || a->graph() != c->graph())
     {
         throw std::invalid_argument(
             "gemm: input tensors must belong to the same graph");
     }
-    if(a->dtype() != b->dtype() || a->dtype() != c->dtype())
+    if (a->dtype() != b->dtype() || a->dtype() != c->dtype())
     {
         throw std::invalid_argument(
             "gemm: input tensors must have the same dtype");
@@ -289,18 +292,14 @@ struct GemmAxisRoles
     Index ndim = 1;
     Index batch_ndim = 0;
 
-    GemmAxisRoles(
-        const TensorGraph::TensorNode* a,
-        const TensorGraph::TensorNode* b,
-        const TensorGraph::TensorNode* c,
+    GemmAxisRoles(const TensorGraph::TensorNode *a,
+        const TensorGraph::TensorNode *b,
+        const TensorGraph::TensorNode *c,
         bool ta,
         bool tb,
         Index nd,
-        Index bd)
-        : trans_a(ta)
-        , trans_b(tb)
-        , ndim(nd)
-        , batch_ndim(bd)
+        Index bd) :
+        trans_a(ta), trans_b(tb), ndim(nd), batch_ndim(bd)
     {
         a_ndim = a->ndim();
         b_ndim = b->ndim();
@@ -316,7 +315,7 @@ struct GemmAxisRoles
         num_m = a_m_end - a_m_begin;
         num_n = b_n_end - b_n_begin;
         c_batch_start = num_m + num_n;
-        if(c_ndim != c_batch_start + batch_ndim)
+        if (c_ndim != c_batch_start + batch_ndim)
         {
             throw std::invalid_argument(
                 "GEMM lowering: C ndim mismatch for GEMM layout");
@@ -336,44 +335,42 @@ struct GemmAxisRoles
     Index c_axis_batch(Index j) const { return c_batch_start + j; }
 };
 
-void tile_bbox(
-    const TensorAxisLayout& lay,
+void tile_bbox(const TensorAxisLayout &lay,
     Index linear,
-    std::vector<Index>& lo,
-    std::vector<Index>& hi)
+    std::vector<Index> &lo,
+    std::vector<Index> &hi)
 {
     std::vector<Index> gc;
     lay.grid_coord_from_linear(linear, gc);
     const Index nd = static_cast<Index>(lay.tensor_shape().size());
     lo.resize(static_cast<size_t>(nd));
     hi.resize(static_cast<size_t>(nd));
-    for(Index d = 0; d < nd; ++d)
+    for (Index d = 0; d < nd; ++d)
     {
-        lay.tile_axis_global_range(gc, d, lo[static_cast<size_t>(d)],
-            hi[static_cast<size_t>(d)]);
+        lay.tile_axis_global_range(
+            gc, d, lo[static_cast<size_t>(d)], hi[static_cast<size_t>(d)]);
     }
 }
 
-Index find_exact_tile(
-    const TensorAxisLayout& lay,
-    const std::vector<Index>& req_lo,
-    const std::vector<Index>& req_hi,
-    const std::string& tensor_name)
+Index find_exact_tile(const TensorAxisLayout &lay,
+    const std::vector<Index> &req_lo,
+    const std::vector<Index> &req_hi,
+    const std::string &tensor_name)
 {
     std::vector<Index> lo, hi;
-    for(Index lin = 0; lin < lay.grid_volume(); ++lin)
+    for (Index lin = 0; lin < lay.grid_volume(); ++lin)
     {
         tile_bbox(lay, lin, lo, hi);
         bool ok = true;
-        for(size_t d = 0; d < lo.size(); ++d)
+        for (size_t d = 0; d < lo.size(); ++d)
         {
-            if(lo[d] != req_lo[d] || hi[d] != req_hi[d])
+            if (lo[d] != req_lo[d] || hi[d] != req_hi[d])
             {
                 ok = false;
                 break;
             }
         }
-        if(ok)
+        if (ok)
         {
             return lin;
         }
@@ -384,24 +381,22 @@ Index find_exact_tile(
     throw std::runtime_error(oss.str());
 }
 
-void set_full_range(
-    const TensorGraph::TensorNode* t,
-    std::vector<Index>& lo,
-    std::vector<Index>& hi)
+void set_full_range(const TensorGraph::TensorNode *t,
+    std::vector<Index> &lo,
+    std::vector<Index> &hi)
 {
     const Index nd = t->ndim();
     lo.resize(static_cast<size_t>(nd));
     hi.resize(static_cast<size_t>(nd));
-    for(Index d = 0; d < nd; ++d)
+    for (Index d = 0; d < nd; ++d)
     {
         lo[static_cast<size_t>(d)] = 0;
         hi[static_cast<size_t>(d)] = t->shape()[static_cast<size_t>(d)] - 1;
     }
 }
 
-void narrow_axis(
-    std::vector<Index>& lo,
-    std::vector<Index>& hi,
+void narrow_axis(std::vector<Index> &lo,
+    std::vector<Index> &hi,
     Index axis,
     Index new_lo,
     Index new_hi)
@@ -410,28 +405,27 @@ void narrow_axis(
     hi[static_cast<size_t>(axis)] = new_hi;
 }
 
-Index k_index_volume(const TensorAxisLayout& La, const GemmAxisRoles& geom)
+Index k_index_volume(const TensorAxisLayout &La, const GemmAxisRoles &geom)
 {
     Index v = 1;
-    for(Index i = 0; i < geom.ndim; ++i)
+    for (Index i = 0; i < geom.ndim; ++i)
     {
         v *= La.grid_shape()[static_cast<size_t>(geom.a_axis_k(i))];
     }
     return v;
 }
 
-void decode_k_index(
-    const TensorAxisLayout& La,
-    const GemmAxisRoles& geom,
+void decode_k_index(const TensorAxisLayout &La,
+    const GemmAxisRoles &geom,
     Index kk,
-    std::vector<Index>& k_coord)
+    std::vector<Index> &k_coord)
 {
     k_coord.assign(static_cast<size_t>(geom.ndim), 0);
     Index rem = kk;
-    for(Index i = 0; i < geom.ndim; ++i)
+    for (Index i = 0; i < geom.ndim; ++i)
     {
         Index stride = 1;
-        for(Index j = i + 1; j < geom.ndim; ++j)
+        for (Index j = i + 1; j < geom.ndim; ++j)
         {
             stride *= La.grid_shape()[static_cast<size_t>(geom.a_axis_k(j))];
         }
@@ -442,24 +436,24 @@ void decode_k_index(
 
 } // namespace
 
-void TensorGemmOp::lower_to_tile(const LoweringContext& ctx) const
+void TensorGemmOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    const TensorAxisLayout* La = ctx.tiling.find(a);
-    const TensorAxisLayout* Lb = ctx.tiling.find(b);
-    const TensorAxisLayout* Lc = ctx.tiling.find(c);
-    if(La == nullptr || Lb == nullptr || Lc == nullptr)
+    const TensorAxisLayout *La = ctx.tiling.find(a);
+    const TensorAxisLayout *Lb = ctx.tiling.find(b);
+    const TensorAxisLayout *Lc = ctx.tiling.find(c);
+    if (La == nullptr || Lb == nullptr || Lc == nullptr)
     {
         throw std::runtime_error("GEMM lowering: missing TensorAxisLayout");
     }
 
-    const std::vector<TileGraph::TileNode*>& va =
+    const std::vector<TileGraph::TileNode *> &va =
         tile_lower::tiles_of(ctx.tile_map, a);
-    const std::vector<TileGraph::TileNode*>& vb =
+    const std::vector<TileGraph::TileNode *> &vb =
         tile_lower::tiles_of(ctx.tile_map, b);
-    const std::vector<TileGraph::TileNode*>& vc =
+    const std::vector<TileGraph::TileNode *> &vc =
         tile_lower::tiles_of(ctx.tile_map, c);
 
-    if(!va.empty() && va[0]->graph() != &ctx.out)
+    if (!va.empty() && va[0]->graph() != &ctx.out)
     {
         throw std::runtime_error(
             "GEMM lowering: tile map tensors are not from ctx.out");
@@ -473,42 +467,40 @@ void TensorGemmOp::lower_to_tile(const LoweringContext& ctx) const
     std::vector<Index> req_a_lo, req_a_hi, req_b_lo, req_b_hi;
     std::vector<Index> k_coord;
 
-    for(Index lin_c = 0; lin_c < Lc->grid_volume(); ++lin_c)
+    for (Index lin_c = 0; lin_c < Lc->grid_volume(); ++lin_c)
     {
         tile_bbox(*Lc, lin_c, c_lo, c_hi);
 
-        for(Index kk = 0; kk < k_vol; ++kk)
+        for (Index kk = 0; kk < k_vol; ++kk)
         {
             decode_k_index(*La, geom, kk, k_coord);
 
             set_full_range(a, req_a_lo, req_a_hi);
-            for(Index i = 0; i < geom.num_m; ++i)
+            for (Index i = 0; i < geom.num_m; ++i)
             {
                 const Index ax = geom.a_axis_m(i);
                 const Index cx = geom.c_axis_m(i);
-                narrow_axis(
-                    req_a_lo,
+                narrow_axis(req_a_lo,
                     req_a_hi,
                     ax,
                     c_lo[static_cast<size_t>(cx)],
                     c_hi[static_cast<size_t>(cx)]);
             }
-            for(Index i = 0; i < geom.ndim; ++i)
+            for (Index i = 0; i < geom.ndim; ++i)
             {
                 const Index ax = geom.a_axis_k(i);
                 std::vector<Index> gtmp(La->tensor_shape().size(), 0);
-                gtmp[static_cast<size_t>(ax)] = k_coord[static_cast<size_t>(i)];
+                gtmp[static_cast<size_t>(ax)] =
+                    k_coord[static_cast<size_t>(i)];
                 Index kl = 0, kh = 0;
-                La->tile_axis_global_range(
-                    gtmp, ax, kl, kh);
+                La->tile_axis_global_range(gtmp, ax, kl, kh);
                 narrow_axis(req_a_lo, req_a_hi, ax, kl, kh);
             }
-            for(Index j = 0; j < geom.batch_ndim; ++j)
+            for (Index j = 0; j < geom.batch_ndim; ++j)
             {
                 const Index ax = geom.a_axis_batch(j);
                 const Index cx = geom.c_axis_batch(j);
-                narrow_axis(
-                    req_a_lo,
+                narrow_axis(req_a_lo,
                     req_a_hi,
                     ax,
                     c_lo[static_cast<size_t>(cx)],
@@ -516,51 +508,50 @@ void TensorGemmOp::lower_to_tile(const LoweringContext& ctx) const
             }
 
             set_full_range(b, req_b_lo, req_b_hi);
-            for(Index i = 0; i < geom.ndim; ++i)
+            for (Index i = 0; i < geom.ndim; ++i)
             {
                 const Index bx = geom.b_axis_k(i);
                 std::vector<Index> gtmp(Lb->tensor_shape().size(), 0);
-                gtmp[static_cast<size_t>(bx)] = k_coord[static_cast<size_t>(i)];
+                gtmp[static_cast<size_t>(bx)] =
+                    k_coord[static_cast<size_t>(i)];
                 Index kl = 0, kh = 0;
-                Lb->tile_axis_global_range(
-                    gtmp, bx, kl, kh);
+                Lb->tile_axis_global_range(gtmp, bx, kl, kh);
                 narrow_axis(req_b_lo, req_b_hi, bx, kl, kh);
             }
-            for(Index i = 0; i < geom.num_n; ++i)
+            for (Index i = 0; i < geom.num_n; ++i)
             {
                 const Index bx = geom.b_axis_n(i);
                 const Index cx = geom.c_axis_n(i);
-                narrow_axis(
-                    req_b_lo,
+                narrow_axis(req_b_lo,
                     req_b_hi,
                     bx,
                     c_lo[static_cast<size_t>(cx)],
                     c_hi[static_cast<size_t>(cx)]);
             }
-            for(Index j = 0; j < geom.batch_ndim; ++j)
+            for (Index j = 0; j < geom.batch_ndim; ++j)
             {
                 const Index bx = geom.b_axis_batch(j);
                 const Index cx = geom.c_axis_batch(j);
-                narrow_axis(
-                    req_b_lo,
+                narrow_axis(req_b_lo,
                     req_b_hi,
                     bx,
                     c_lo[static_cast<size_t>(cx)],
                     c_hi[static_cast<size_t>(cx)]);
             }
 
-            const Index lin_a = find_exact_tile(*La, req_a_lo, req_a_hi, a->name());
-            const Index lin_b = find_exact_tile(*Lb, req_b_lo, req_b_hi, b->name());
+            const Index lin_a =
+                find_exact_tile(*La, req_a_lo, req_a_hi, a->name());
+            const Index lin_b =
+                find_exact_tile(*Lb, req_b_lo, req_b_hi, b->name());
 
-            TileGraph::TileNode* ta = va[static_cast<size_t>(lin_a)];
-            TileGraph::TileNode* tb = vb[static_cast<size_t>(lin_b)];
-            TileGraph::TileNode* tc = vc[static_cast<size_t>(lin_c)];
+            TileGraph::TileNode *ta = va[static_cast<size_t>(lin_a)];
+            TileGraph::TileNode *tb = vb[static_cast<size_t>(lin_b)];
+            TileGraph::TileNode *tc = vc[static_cast<size_t>(lin_c)];
 
             const bool first_k = (kk == 0);
             const Scalar beta_use = (first_k ? beta : Scalar(1.0));
 
-            tile_graph::gemm(
-                ta,
+            tile_graph::gemm(ta,
                 tb,
                 tc,
                 alpha,

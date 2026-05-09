@@ -30,21 +30,15 @@ namespace nntile::graph
 //! GELU op: y = gelu(x). PyTorch-style: outputs created in forward().
 struct NNGeluOp : NNGraph::OpNode
 {
-    NNGraph::TensorNode* x = nullptr;
+    NNGraph::TensorNode *x = nullptr;
 
     NNGeluOp() = default;
-    explicit NNGeluOp(NNGraph::TensorNode* x_)
-        : x(x_)
-    {
-        inputs_ = {x};
-    }
+    explicit NNGeluOp(NNGraph::TensorNode *x_) : x(x_) { inputs_ = {x}; }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* gelu(
-    NNGraph::TensorNode* x,
-    const std::string& output_name);
+NNGraph::TensorNode *gelu(NNGraph::TensorNode *x);
 
 } // namespace nntile::graph

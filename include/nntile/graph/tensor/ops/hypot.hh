@@ -31,18 +31,17 @@ struct TensorHypotOp : TensorGraph::OpNode
 {
     Scalar alpha;
     Scalar beta;
-    TensorGraph::TensorNode* src1 = nullptr;
-    TensorGraph::TensorNode* src2 = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src1 = nullptr;
+    TensorGraph::TensorNode *src2 = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorHypotOp() = default;
-    TensorHypotOp(
-        Scalar alpha_, Scalar beta_,
-        TensorGraph::TensorNode* src1_,
-        TensorGraph::TensorNode* src2_,
-        TensorGraph::TensorNode* dst_)
-        : alpha(alpha_), beta(beta_)
-        , src1(src1_), src2(src2_), dst(dst_)
+    TensorHypotOp(Scalar alpha_,
+        Scalar beta_,
+        TensorGraph::TensorNode *src1_,
+        TensorGraph::TensorNode *src2_,
+        TensorGraph::TensorNode *dst_) :
+        alpha(alpha_), beta(beta_), src1(src1_), src2(src2_), dst(dst_)
     {
         inputs_ = {src1, src2};
         outputs_ = {dst};
@@ -55,21 +54,18 @@ struct TensorHypotOp : TensorGraph::OpNode
         return std::make_shared<TensorHypotOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-TensorGraph::TensorNode* hypot(
-    Scalar alpha,
-    TensorGraph::TensorNode* src1,
+TensorGraph::TensorNode *hypot(Scalar alpha,
+    TensorGraph::TensorNode *src1,
     Scalar beta,
-    TensorGraph::TensorNode* src2,
-    const std::string& output_name);
+    TensorGraph::TensorNode *src2);
 
-void hypot(
-    Scalar alpha,
-    TensorGraph::TensorNode* src1,
+void hypot(Scalar alpha,
+    TensorGraph::TensorNode *src1,
     Scalar beta,
-    TensorGraph::TensorNode* src2,
-    TensorGraph::TensorNode* dst);
+    TensorGraph::TensorNode *src2,
+    TensorGraph::TensorNode *dst);
 
 } // namespace nntile::graph::tensor

@@ -14,10 +14,11 @@
 
 #include "nntile/graph/nn/ops/scale_fiber.hh"
 
-#include <stdexcept>
-
+#include "nntile/graph/nn/nn_grad_slot_name.hh"
 #include "nntile/graph/tensor/ops/scale_fiber.hh"
 #include "nntile/graph/tensor/ops/sum_fiber.hh"
+
+#include <stdexcept>
 
 namespace nntile::graph
 {
@@ -29,61 +30,65 @@ constexpr Scalar grad_accumulate = 1.0;
 constexpr int sum_fiber_redux = 0;
 } // anonymous namespace
 
-NNGraph::TensorNode* NNScaleFiberOp::forward(const std::string& output_name)
+NNGraph::TensorNode *NNScaleFiberOp::forward()
 {
-    if(src == nullptr)
+    if (src == nullptr)
     {
         throw std::invalid_argument(
             "NNScaleFiberOp::forward: src must be non-null");
     }
-    NNGraph* graph = src->graph();
+    NNGraph *graph = src->graph();
     bool out_requires_grad = any_input_requires_grad({src});
-    TensorGraph::TensorNode* output_data = graph::tensor::scale_fiber(
-        alpha, src->data(), output_name, dst_shape, axis, batch_ndim);
-    NNGraph::TensorNode* output = graph->tensor(output_data, out_requires_grad);
+    TensorGraph::TensorNode *output_data = graph::tensor::scale_fiber(
+        alpha, src->data(), dst_shape, axis, batch_ndim);
+    NNGraph::TensorNode *output =
+        graph->tensor(output_data, out_requires_grad);
     outputs_ = {output};
     return output;
 }
 
 void NNScaleFiberOp::backward() const
 {
-    NNGraph::TensorNode* out = output();
-    if(out == nullptr)
+    NNGraph::TensorNode *out = output();
+    if (out == nullptr)
     {
         return;
     }
-    NNGraph* graph = out->graph();
-    NNGraph::TensorNode* grad_out = out->grad();
-    if(grad_out == nullptr)
+    NNGraph *graph = out->graph();
+    NNGraph::TensorNode *grad_out = out->grad();
+    if (grad_out == nullptr)
     {
         return;
     }
-    if(src != nullptr && src->requires_grad())
+    if (src != nullptr && src->requires_grad())
     {
         auto [grad_src, is_first] =
-            graph->get_or_create_grad(src, src->name() + "_grad");
+            graph->get_or_create_grad(src, nn_grad_slot_name(src));
         Scalar grad_beta = is_first ? grad_overwrite : grad_accumulate;
-        graph::tensor::sum_fiber(grad_out->data(), grad_src->data(),
-                        axis, batch_ndim, sum_fiber_redux, alpha, grad_beta);
+        graph::tensor::sum_fiber(grad_out->data(),
+            grad_src->data(),
+            axis,
+            batch_ndim,
+            sum_fiber_redux,
+            alpha,
+            grad_beta);
     }
 }
 
-NNGraph::TensorNode* scale_fiber(
-    Scalar alpha,
-    NNGraph::TensorNode* src,
-    const std::string& output_name,
-    const std::vector<Index>& dst_shape,
+NNGraph::TensorNode *scale_fiber(Scalar alpha,
+    NNGraph::TensorNode *src,
+    const std::vector<Index> &dst_shape,
     Index axis,
     Index batch_ndim)
 {
-    if(src == nullptr)
+    if (src == nullptr)
     {
         throw std::invalid_argument("scale_fiber: src must be non-null");
     }
-    NNGraph* graph = src->graph();
+    NNGraph *graph = src->graph();
     auto op = std::make_shared<NNScaleFiberOp>(
         src, alpha, axis, batch_ndim, dst_shape);
-    NNGraph::TensorNode* output = op->forward(output_name);
+    NNGraph::TensorNode *output = op->forward();
     graph->register_op(std::move(op));
     return output;
 }

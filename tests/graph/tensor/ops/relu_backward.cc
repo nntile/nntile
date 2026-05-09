@@ -7,31 +7,31 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/graph/tensor/relu_backward.cc
- * Test TensorGraph relu_backward operation against nntile::tensor::relu_backward.
+ * Test TensorGraph relu_backward operation against
+ * nntile::tensor::relu_backward.
  *
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-
-#include <numeric>
+#include "nntile/graph/tensor/ops/relu_backward.hh"
 
 #include "context_fixture.hh"
-#include "nntile/graph/tensor/ops/relu_backward.hh"
-#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
 #include "nntile/tensor/relu_backward.hh"
 #include "nntile/tensor/tensor.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
+#include <numeric>
 
 using namespace nntile;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
-template<typename T>
-void check_relu_backward_vs_tensor_api(
-    const std::vector<Index>& shape)
+template <typename T>
+void check_relu_backward_vs_tensor_api(const std::vector<Index> &shape)
 {
     using Y = typename T::repr_t;
     const Index nelems = std::accumulate(
@@ -39,9 +39,9 @@ void check_relu_backward_vs_tensor_api(
 
     // --- TensorGraph path ---
     TensorGraph graph("relu_backward_test");
-    auto* x_node = graph.data(shape, "x", DataType::FP32);
-    auto* dy_node = graph.data(shape, "dy", DataType::FP32);
-    auto* dx_node = graph.data(shape, "dx", DataType::FP32);
+    auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
+    auto *dy_node = graph.data(shape, DataType::FP32)->set_name("dy");
+    auto *dx_node = graph.data(shape, DataType::FP32)->set_name("dx");
     x_node->mark_input(true);
     dy_node->mark_input(true);
     dx_node->mark_input(true);
@@ -51,20 +51,19 @@ void check_relu_backward_vs_tensor_api(
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> x_data(nelems), dy_data(nelems), dx_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         x_data[i] = static_cast<float>(Y(i - nelems / 2));
         dy_data[i] = static_cast<float>(Y(i % 7 + 1));
         dx_data[i] = 0.0f;
     }
 
-    runtime.bind_data(x_node,  x_data);
-    runtime.bind_data(dy_node,  dy_data);
+    runtime.bind_data(x_node, x_data);
+    runtime.bind_data(dy_node, dy_data);
     runtime.bind_data(dx_node, dx_data);
     runtime.execute();
     runtime.wait();
@@ -81,21 +80,21 @@ void check_relu_backward_vs_tensor_api(
     {
         auto tile = x_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
             loc[i] = static_cast<Y>(x_data[i]);
         loc.release();
     }
     {
         auto tile = dy_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
             loc[i] = static_cast<Y>(dy_data[i]);
         loc.release();
     }
     {
         auto tile = dx_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
             loc[i] = static_cast<Y>(dx_data[i]);
         loc.release();
     }
@@ -107,14 +106,14 @@ void check_relu_backward_vs_tensor_api(
     {
         auto tile = dx_t.get_tile(0);
         auto loc = tile.acquire(STARPU_R);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
             tensor_result[i] = static_cast<float>(loc[i]);
         loc.release();
     }
 
     constexpr float tol = 1e-5f;
     REQUIRE(graph_result.size() == tensor_result.size());
-    for(size_t i = 0; i < graph_result.size(); ++i)
+    for (size_t i = 0; i < graph_result.size(); ++i)
     {
         REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tol);
     }
@@ -127,39 +126,40 @@ TEST_CASE("TensorGraph relu_backward structure", "[graph][tensor]")
 
     TensorGraph graph("test");
 
-    auto* x = graph.data({dim0, dim1}, "x");
-    auto* dy = graph.data({dim0, dim1}, "dy");
+    auto *x = graph.data({dim0, dim1})->set_name("x");
+    auto *dy = graph.data({dim0, dim1})->set_name("dy");
 
-    auto* dx = gt::relu_backward(x, dy, "dx");
+    auto *dx = gt::relu_backward(x, dy)->set_name("dx");
 
     REQUIRE(graph.num_data() == 3);
     REQUIRE(graph.num_ops() == 1);
     REQUIRE(dx->shape()[0] == dim0);
     REQUIRE(dx->shape()[1] == dim1);
 
-    const auto& ops = graph.ops();
+    const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "RELU_BACKWARD");
     REQUIRE(ops[0]->inputs().size() == 3);
     REQUIRE(ops[0]->outputs().size() == 1);
     REQUIRE(ops[0]->outputs()[0] == dx);
 }
 
-TEST_CASE("TensorGraph relu_backward rejects duplicate tensors", "[graph][tensor]")
+TEST_CASE(
+    "TensorGraph relu_backward rejects duplicate tensors", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto* x = graph.data({4, 5}, "x");
-    auto* dy = graph.data({4, 5}, "dy");
+    auto *x = graph.data({4, 5})->set_name("x");
+    auto *dy = graph.data({4, 5})->set_name("dy");
 
-    REQUIRE_THROWS_AS(gt::relu_backward(x, x, "dx"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::relu_backward(x, x), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::relu_backward(x, dy, x), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::relu_backward(x, dy, dy), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph relu_backward matches nntile::tensor::relu_backward", "[graph][tensor]")
+    "TensorGraph relu_backward matches nntile::tensor::relu_backward",
+    "[graph][tensor]")
 {
-    const auto shape = GENERATE(
-        std::vector<Index>{4, 5},
+    const auto shape = GENERATE(std::vector<Index>{4, 5},
         std::vector<Index>{6},
         std::vector<Index>{2, 3},
         std::vector<Index>{1, 10});
@@ -168,10 +168,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph relu_backward tiled matches untiled", "[graph][tensor]")
+    "TensorGraph relu_backward tiled matches untiled",
+    "[graph][tensor]")
 {
-    const auto shape = GENERATE(
-        std::vector<Index>{4, 6},
+    const auto shape = GENERATE(std::vector<Index>{4, 6},
         std::vector<Index>{6},
         std::vector<Index>{2, 4});
 
@@ -181,7 +181,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         shape.begin(), shape.end(), Index(1), std::multiplies<>());
 
     std::vector<float> x_data(nelems), dy_data(nelems), dx_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         x_data[i] = static_cast<float>(Y(i - nelems / 2));
         dy_data[i] = static_cast<float>(Y(i % 7 + 1));
@@ -191,9 +191,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> untiled_result;
     {
         TensorGraph graph("relu_backward_untiled");
-        auto* x_node = graph.data(shape, "x", DataType::FP32);
-        auto* dy_node = graph.data(shape, "dy", DataType::FP32);
-        auto* dx_node = graph.data(shape, "dx", DataType::FP32);
+        auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
+        auto *dy_node = graph.data(shape, DataType::FP32)->set_name("dy");
+        auto *dx_node = graph.data(shape, DataType::FP32)->set_name("dx");
         x_node->mark_input(true);
         dy_node->mark_input(true);
         dx_node->mark_input(true);
@@ -203,8 +203,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data(x_node,  x_data);
-        runtime.bind_data(dy_node,  dy_data);
+        runtime.bind_data(x_node, x_data);
+        runtime.bind_data(dy_node, dy_data);
         runtime.bind_data(dx_node, dx_data);
         runtime.execute();
         runtime.wait();
@@ -214,15 +214,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> tiled_result;
     {
         TensorGraph graph("relu_backward_tiled");
-        auto* x_node = graph.data(shape, "x", DataType::FP32);
-        auto* dy_node = graph.data(shape, "dy", DataType::FP32);
-        auto* dx_node = graph.data(shape, "dx", DataType::FP32);
+        auto *x_node = graph.data(shape, DataType::FP32)->set_name("x");
+        auto *dy_node = graph.data(shape, DataType::FP32)->set_name("dy");
+        auto *dx_node = graph.data(shape, DataType::FP32)->set_name("dx");
         x_node->mark_input(true);
         dy_node->mark_input(true);
         dx_node->mark_input(true);
         dx_node->mark_output(true);
         gt::relu_backward(x_node, dy_node, dx_node);
-        for(auto* ag : graph.axis_groups())
+        for (auto *ag : graph.axis_groups())
         {
             ag->set_tiling((ag->extent + 1) / 2);
         }
@@ -230,8 +230,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data(x_node,  x_data);
-        runtime.bind_data(dy_node,  dy_data);
+        runtime.bind_data(x_node, x_data);
+        runtime.bind_data(dy_node, dy_data);
         runtime.bind_data(dx_node, dx_data);
         runtime.execute();
         runtime.wait();
@@ -240,7 +240,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     constexpr float tol = 1e-5f;
     REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
+    for (size_t i = 0; i < tiled_result.size(); ++i)
     {
         REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
     }

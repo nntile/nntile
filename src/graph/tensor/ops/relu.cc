@@ -14,33 +14,28 @@
 
 #include "nntile/graph/tensor/ops/relu.hh"
 
-#include <stdexcept>
-#include <utility>
-
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
 
-#include <nntile/graph/tile/graph_ops.hh>
 #include <nntile/graph/tensor/tile_lowering_helpers.hh>
+#include <nntile/graph/tile/graph_ops.hh>
+#include <stdexcept>
+#include <utility>
 
 namespace nntile::graph::tensor
 {
 
-TensorGraph::TensorNode* relu(
-    TensorGraph::TensorNode* x,
-    const std::string& output_name)
+TensorGraph::TensorNode *relu(TensorGraph::TensorNode *x)
 {
-    if(x == nullptr)
+    if (x == nullptr)
     {
         throw std::invalid_argument("relu: input tensor must be non-null");
     }
 
     std::vector<Index> output_shape = x->shape();
-    TensorGraph::TensorNode* output = x->graph()->data(
-        std::move(output_shape),
-        output_name,
-        x->dtype());
+    TensorGraph::TensorNode *output =
+        x->graph()->data(std::move(output_shape), x->dtype());
     output->set_axes(x->axes());
 
     auto op = std::make_shared<TensorReluOp>(x, output);
@@ -49,28 +44,25 @@ TensorGraph::TensorNode* relu(
     return output;
 }
 
-void relu(
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* y)
+void relu(TensorGraph::TensorNode *x, TensorGraph::TensorNode *y)
 {
-    if(x == nullptr || y == nullptr)
+    if (x == nullptr || y == nullptr)
     {
         throw std::invalid_argument("relu: input tensors must be non-null");
     }
-    if(x->graph() != y->graph())
+    if (x->graph() != y->graph())
     {
         throw std::invalid_argument(
             "relu: input tensors must belong to the same graph");
     }
-    if(x->dtype() != y->dtype())
+    if (x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "relu: input tensors must have the same dtype");
     }
-    if(x == y)
+    if (x == y)
     {
-        throw std::invalid_argument(
-            "relu: x and y must be distinct tensors");
+        throw std::invalid_argument("relu: x and y must be distinct tensors");
     }
     validate_same_shape_and_merge(x, y, "relu");
 
@@ -78,17 +70,17 @@ void relu(
     x->graph()->add_op(op);
 }
 
-void TensorReluOp::lower_to_tile(const LoweringContext& ctx) const
+void TensorReluOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    const auto& m = ctx.tile_map;
-    const auto& vs = tile_lower::tiles_of(m, src);
-    const auto& vd = tile_lower::tiles_of(m, dst);
-    if(vs.size() != vd.size())
+    const auto &m = ctx.tile_map;
+    const auto &vs = tile_lower::tiles_of(m, src);
+    const auto &vd = tile_lower::tiles_of(m, dst);
+    if (vs.size() != vd.size())
     {
         throw std::runtime_error("lower_to_tile RELU: tile count mismatch");
     }
     tile_lower::assert_same_elementwise_layout(src, dst, "RELU src/dst");
-    for(size_t i = 0; i < vs.size(); ++i)
+    for (size_t i = 0; i < vs.size(); ++i)
     {
         tile_graph::relu(vs[i], vd[i]);
     }

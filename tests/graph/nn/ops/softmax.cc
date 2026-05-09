@@ -16,9 +16,10 @@
 #include <catch2/generators/catch_generators_all.hpp>
 
 #ifdef NNTILE_HAVE_TORCH
-#   include "pytorch_helper.hh"
-#   include "pytorch_tile_helpers.hh"
-#   include <torch/nn/functional/activation.h>
+#include "pytorch_helper.hh"
+#include "pytorch_tile_helpers.hh"
+
+#include <torch/nn/functional/activation.h>
 #endif
 
 #include "context_fixture.hh"
@@ -28,34 +29,37 @@ using namespace nntile;
 using namespace nntile::graph;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph softmax structure", "[graph][nn_graph]")
+    "NNGraph softmax structure",
+    "[graph][nn_graph]")
 {
-    const auto [shape, axis] = GENERATE(
-        std::tuple{std::vector<Index>{2, 3}, Index(0)},
-        std::tuple{std::vector<Index>{4, 5}, Index(1)},
-        std::tuple{std::vector<Index>{2, 3, 4}, Index(1)});
+    const auto [shape, axis] =
+        GENERATE(std::tuple{std::vector<Index>{2, 3}, Index(0)},
+            std::tuple{std::vector<Index>{4, 5}, Index(1)},
+            std::tuple{std::vector<Index>{2, 3, 4}, Index(1)});
 
     NNGraph g("softmax_structure");
-    auto* x = g.tensor(shape, "x", DataType::FP32);
-    auto* y = softmax(x, "y", axis);
+    auto *x = g.tensor(shape, DataType::FP32)->set_name("x");
+    auto *y = softmax(x, axis)->set_name("y");
 
     REQUIRE(y != nullptr);
     REQUIRE(y->has_producer());
     REQUIRE(y->shape() == shape);
-    REQUIRE(g.num_ops() == 1);  // one NN-level softmax op
-    REQUIRE(g.tensor_graph().num_ops() > 1);  // softmax expands to multiple tensor ops
+    REQUIRE(g.num_ops() == 1); // one NN-level softmax op
+    REQUIRE(g.tensor_graph().num_ops() >
+            1); // softmax expands to multiple tensor ops
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph softmax backward", "[graph][nn_graph]")
+    "NNGraph softmax backward",
+    "[graph][nn_graph]")
 {
-    const auto [shape, axis, grad_fill_val] = GENERATE(
-        std::tuple{std::vector<Index>{2, 3}, Index(0), Scalar(1.0)},
-        std::tuple{std::vector<Index>{4, 5}, Index(1), Scalar(-1.0)});
+    const auto [shape, axis, grad_fill_val] =
+        GENERATE(std::tuple{std::vector<Index>{2, 3}, Index(0), Scalar(1.0)},
+            std::tuple{std::vector<Index>{4, 5}, Index(1), Scalar(-1.0)});
 
     NNGraph g("softmax_backward");
-    auto* x = g.tensor(shape, "x", DataType::FP32);
-    auto* y = softmax(x, "y", axis);
+    auto *x = g.tensor(shape, DataType::FP32)->set_name("x");
+    auto *y = softmax(x, axis)->set_name("y");
 
     auto [y_grad, _] = g.get_or_create_grad(y, "y_grad");
     fill(grad_fill_val, y_grad);
@@ -66,17 +70,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph softmax forward and backward", "[graph][nn_graph]")
+    "NNGraph softmax forward and backward",
+    "[graph][nn_graph]")
 {
-    const auto [shape, axis, grad_fill_val] = GENERATE(
-        std::tuple{std::vector<Index>{2, 3}, Index(0), Scalar(1.0)},
-        std::tuple{std::vector<Index>{4, 5}, Index(1), Scalar(1.0)},
-        std::tuple{std::vector<Index>{6}, Index(0), Scalar(2.0)},
-        std::tuple{std::vector<Index>{2, 2, 3}, Index(1), Scalar(-1.0)});
+    const auto [shape, axis, grad_fill_val] =
+        GENERATE(std::tuple{std::vector<Index>{2, 3}, Index(0), Scalar(1.0)},
+            std::tuple{std::vector<Index>{4, 5}, Index(1), Scalar(1.0)},
+            std::tuple{std::vector<Index>{6}, Index(0), Scalar(2.0)},
+            std::tuple{std::vector<Index>{2, 2, 3}, Index(1), Scalar(-1.0)});
 
     NNGraph g("softmax");
-    auto* x = g.tensor(shape, "x", DataType::FP32, true);
-    auto* y = softmax(x, "y", axis);
+    auto *x = g.tensor(shape, DataType::FP32, true)->set_name("x");
+    auto *y = softmax(x, axis)->set_name("y");
 
     REQUIRE(y != nullptr);
     REQUIRE(y->has_producer());
@@ -98,27 +103,28 @@ using nntile::test::nn_pytorch_tile_softmax_axis0_6x7;
 using nntile::test::nn_pytorch_tile_softmax_axis1_6x7;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph softmax forward matches PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph softmax forward matches PyTorch",
+    "[graph][nn_graph][pytorch]")
 {
-    const auto [shape, axis] = GENERATE(
-        std::tuple{std::vector<Index>{6, 7}, Index(0)},
-        std::tuple{std::vector<Index>{6, 7}, Index(1)});
+    const auto [shape, axis] =
+        GENERATE(std::tuple{std::vector<Index>{6, 7}, Index(0)},
+            std::tuple{std::vector<Index>{6, 7}, Index(1)});
 
     Index nelems = 1;
-    for(auto s : shape)
+    for (auto s : shape)
         nelems *= s;
 
     std::vector<float> x_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
         x_data[i] = 0.1f * static_cast<float>(i - nelems / 2);
 
     std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, shape);
 
     NNGraph g("softmax_pytorch");
-    auto* x = g.tensor(shape, "x", DataType::FP32, true);
-    auto* y = softmax(x, "y", axis);
+    auto *x = g.tensor(shape, DataType::FP32, true)->set_name("x");
+    auto *y = softmax(x, axis)->set_name("y");
 
-    if(axis == 0)
+    if (axis == 0)
     {
         nn_pytorch_tile_softmax_axis0_6x7(x);
     }
@@ -133,16 +139,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data(x,  x_data);
+    runtime.bind_data(x, x_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_out_colmajor = runtime.get_output<float>(y);
-    std::vector<float> nntile_out = colmajor_to_rowmajor(nntile_out_colmajor, shape);
+    std::vector<float> nntile_out =
+        colmajor_to_rowmajor(nntile_out_colmajor, shape);
 
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
-    auto x_pt = torch::from_blob(x_rowmajor.data(), shape_pt,
-                                 torch::TensorOptions().dtype(torch::kFloat32))
+    auto x_pt = torch::from_blob(x_rowmajor.data(),
+        shape_pt,
+        torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(false);
     auto y_pt = torch::nn::functional::softmax(x_pt, axis);
@@ -150,28 +158,29 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph softmax backward matches PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph softmax backward matches PyTorch",
+    "[graph][nn_graph][pytorch]")
 {
-    const auto [shape, axis, grad_fill_val] = GENERATE(
-        std::tuple{std::vector<Index>{6, 7}, Index(0), Scalar(1.0)},
-        std::tuple{std::vector<Index>{6, 7}, Index(1), Scalar(1.0)},
-        std::tuple{std::vector<Index>{6, 7}, Index(0), Scalar(-1.0)});
+    const auto [shape, axis, grad_fill_val] =
+        GENERATE(std::tuple{std::vector<Index>{6, 7}, Index(0), Scalar(1.0)},
+            std::tuple{std::vector<Index>{6, 7}, Index(1), Scalar(1.0)},
+            std::tuple{std::vector<Index>{6, 7}, Index(0), Scalar(-1.0)});
 
     Index nelems = 1;
-    for(auto s : shape)
+    for (auto s : shape)
         nelems *= s;
 
     std::vector<float> x_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
         x_data[i] = 0.15f * static_cast<float>(i - nelems / 3);
 
     std::vector<float> x_rowmajor = colmajor_to_rowmajor(x_data, shape);
 
     NNGraph g("softmax_bwd_pytorch");
-    auto* x = g.tensor(shape, "x", DataType::FP32, true);
-    auto* y = softmax(x, "y", axis);
+    auto *x = g.tensor(shape, DataType::FP32, true)->set_name("x");
+    auto *y = softmax(x, axis)->set_name("y");
 
-    if(axis == 0)
+    if (axis == 0)
     {
         nn_pytorch_tile_softmax_axis0_6x7(x);
     }
@@ -191,7 +200,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data(x,  x_data);
+    runtime.bind_data(x, x_data);
     runtime.execute();
     runtime.wait();
 
@@ -201,12 +210,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         colmajor_to_rowmajor(nntile_grad_x_colmajor, shape);
 
     std::vector<::int64_t> shape_pt(shape.begin(), shape.end());
-    auto x_pt = torch::from_blob(x_rowmajor.data(), shape_pt,
-                                 torch::TensorOptions().dtype(torch::kFloat32))
+    auto x_pt = torch::from_blob(x_rowmajor.data(),
+        shape_pt,
+        torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);
     auto y_pt = torch::nn::functional::softmax(x_pt, axis);
-    auto grad_output = torch::full(shape_pt, static_cast<float>(grad_fill_val),
+    auto grad_output = torch::full(shape_pt,
+        static_cast<float>(grad_fill_val),
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     y_pt.backward(grad_output);
 

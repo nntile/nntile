@@ -33,17 +33,17 @@ namespace nntile::graph::tensor
 //! Concat operation: output = concat(a, b, axis)
 struct TensorConcatOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* a = nullptr;
-    TensorGraph::TensorNode* b = nullptr;
-    TensorGraph::TensorNode* output = nullptr;
+    TensorGraph::TensorNode *a = nullptr;
+    TensorGraph::TensorNode *b = nullptr;
+    TensorGraph::TensorNode *output = nullptr;
     Index axis = 0;
 
     TensorConcatOp() = default;
-    TensorConcatOp(TensorGraph::TensorNode* a_,
-                   TensorGraph::TensorNode* b_,
-                   TensorGraph::TensorNode* output_,
-                   Index axis_)
-        : a(a_), b(b_), output(output_), axis(axis_)
+    TensorConcatOp(TensorGraph::TensorNode *a_,
+        TensorGraph::TensorNode *b_,
+        TensorGraph::TensorNode *output_,
+        Index axis_) :
+        a(a_), b(b_), output(output_), axis(axis_)
     {
         inputs_ = {a, b};
         outputs_ = {output};
@@ -56,14 +56,11 @@ struct TensorConcatOp : TensorGraph::OpNode
         return std::make_shared<TensorConcatOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! Concat: output = concat(a, b, axis). Creates output tensor.
-TensorGraph::TensorNode* concat(
-    TensorGraph::TensorNode* a,
-    TensorGraph::TensorNode* b,
-    Index axis,
-    const std::string& output_name);
+TensorGraph::TensorNode *concat(
+    TensorGraph::TensorNode *a, TensorGraph::TensorNode *b, Index axis);
 
 } // namespace nntile::graph::tensor

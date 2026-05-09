@@ -31,19 +31,17 @@ struct TensorSoftmaxOp : TensorGraph::OpNode
 {
     Scalar alpha;
     Index axis;
-    TensorGraph::TensorNode* maxsumexp = nullptr;
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *maxsumexp = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorSoftmaxOp() = default;
-    TensorSoftmaxOp(
-        TensorGraph::TensorNode* maxsumexp_,
-        TensorGraph::TensorNode* src_,
-        TensorGraph::TensorNode* dst_,
+    TensorSoftmaxOp(TensorGraph::TensorNode *maxsumexp_,
+        TensorGraph::TensorNode *src_,
+        TensorGraph::TensorNode *dst_,
         Scalar alpha_,
-        Index axis_)
-        : alpha(alpha_), axis(axis_)
-        , maxsumexp(maxsumexp_), src(src_), dst(dst_)
+        Index axis_) :
+        alpha(alpha_), axis(axis_), maxsumexp(maxsumexp_), src(src_), dst(dst_)
     {
         inputs_ = {maxsumexp, src};
         outputs_ = {dst};
@@ -56,20 +54,17 @@ struct TensorSoftmaxOp : TensorGraph::OpNode
         return std::make_shared<TensorSoftmaxOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-TensorGraph::TensorNode* softmax(
-    TensorGraph::TensorNode* maxsumexp,
-    TensorGraph::TensorNode* src,
-    const std::string& output_name,
+TensorGraph::TensorNode *softmax(TensorGraph::TensorNode *maxsumexp,
+    TensorGraph::TensorNode *src,
     Scalar alpha,
     Index axis);
 
-void softmax(
-    TensorGraph::TensorNode* maxsumexp,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst,
+void softmax(TensorGraph::TensorNode *maxsumexp,
+    TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst,
     Scalar alpha,
     Index axis);
 

@@ -13,12 +13,10 @@
  * */
 
 #include "nntile/graph/nn/ops/sdpa_eager.hh"
-#include "nntile/graph/nn/ops/clear.hh"
+
 #include "nntile/graph/nn/graph_data_node.hh"
-
-#include <cmath>
-#include <stdexcept>
-
+#include "nntile/graph/nn/nn_grad_slot_name.hh"
+#include "nntile/graph/nn/ops/clear.hh"
 #include "nntile/graph/tensor/ops/add_inplace.hh"
 #include "nntile/graph/tensor/ops/add_slice.hh"
 #include "nntile/graph/tensor/ops/add_slice_inplace.hh"
@@ -28,6 +26,9 @@
 #include "nntile/graph/tensor/ops/multiply_inplace.hh"
 #include "nntile/graph/tensor/ops/softmax_inplace.hh"
 #include "nntile/graph/tensor/ops/sumprod_slice.hh"
+
+#include <cmath>
+#include <stdexcept>
 
 namespace nntile::graph
 {
@@ -39,36 +40,41 @@ constexpr Scalar grad_accumulate = 1.0;
 constexpr Scalar mask_val = -std::numeric_limits<Scalar>::infinity();
 } // anonymous namespace
 
-NNGraph::TensorNode* NNSdpaEagerOp::forward(const std::string& output_name)
+NNGraph::TensorNode *NNSdpaEagerOp::forward()
 {
-    if(q == nullptr || k == nullptr || v == nullptr)
+    if (q == nullptr || k == nullptr || v == nullptr)
     {
         throw std::invalid_argument(
             "NNSdpaEagerOp::forward: Q, K, V must be non-null");
     }
-    NNGraph* graph = q->graph();
+    NNGraph *graph = q->graph();
     bool out_requires_grad = any_input_requires_grad({q, k, v});
 
-    const auto& q_shape = q->shape();
-    const auto& k_shape = k->shape();
+    const auto &q_shape = q->shape();
+    const auto &k_shape = k->shape();
     Index q_seq = q_shape[1];
     Index k_seq = k_shape[1];
 
-    std::vector<Index> batch_shape(
-        q_shape.begin() + 2,
+    std::vector<Index> batch_shape(q_shape.begin() + 2,
         q_shape.begin() + 2 + static_cast<ptrdiff_t>(batch_ndim));
 
     std::vector<Index> attn_shape = {k_seq, q_seq};
-    attn_shape.insert(attn_shape.end(), batch_shape.begin(), batch_shape.end());
+    attn_shape.insert(
+        attn_shape.end(), batch_shape.begin(), batch_shape.end());
 
-    std::string attn_name = output_name + "_attn";
-    NNGraph::TensorNode* attn = graph->tensor(
-        attn_shape, attn_name, q->dtype(), out_requires_grad);
-    graph::tensor::gemm(
-        k->data(), q->data(), attn->data(),
-        scale, 0.0, true, false, 1, batch_ndim);
+    NNGraph::TensorNode *attn =
+        graph->tensor(attn_shape, q->dtype(), out_requires_grad);
+    graph::tensor::gemm(k->data(),
+        q->data(),
+        attn->data(),
+        scale,
+        0.0,
+        true,
+        false,
+        1,
+        batch_ndim);
 
-    if(mask != nullptr)
+    if (mask != nullptr)
     {
         graph::tensor::mask_scalar(
             mask->data(), mask_val, attn->data(), batch_ndim);
@@ -77,30 +83,34 @@ NNGraph::TensorNode* NNSdpaEagerOp::forward(const std::string& output_name)
     std::vector<Index> attn_max_shape = {2, q_seq};
     attn_max_shape.insert(
         attn_max_shape.end(), batch_shape.begin(), batch_shape.end());
-    std::string mse_name = output_name + "_mse";
-    NNGraph::TensorNode* maxsumexp_buf = graph->tensor(
-        attn_max_shape, mse_name, q->dtype(), false);
+    NNGraph::TensorNode *maxsumexp_buf =
+        graph->tensor(attn_max_shape, q->dtype(), false);
     graph::clear(maxsumexp_buf);
-    graph::tensor::maxsumexp(
-        attn->data(), maxsumexp_buf->data(), 0, redux);
+    graph::tensor::maxsumexp(attn->data(), maxsumexp_buf->data(), 0, redux);
     graph::tensor::softmax_inplace(
         maxsumexp_buf->data(), attn->data(), 1.0, 0);
 
     std::vector<Index> sumprod_shape = {q_seq};
     sumprod_shape.insert(
         sumprod_shape.end(), batch_shape.begin(), batch_shape.end());
-    NNGraph::TensorNode* sumprod_buf = graph->tensor(
-        sumprod_shape, output_name + "_sps", q->dtype(), false);
-    NNGraph::TensorNode* grad_temp = graph->tensor(
-        attn_shape, output_name + "_gt", q->dtype(), false);
+    NNGraph::TensorNode *sumprod_buf =
+        graph->tensor(sumprod_shape, q->dtype(), false);
+    NNGraph::TensorNode *grad_temp =
+        graph->tensor(attn_shape, q->dtype(), false);
     buffers_ = {attn, sumprod_buf, grad_temp};
 
     std::vector<Index> y_shape = q_shape;
-    NNGraph::TensorNode* out = graph->tensor(
-        y_shape, output_name, q->dtype(), out_requires_grad);
-    graph::tensor::gemm(
-        v->data(), attn->data(), out->data(),
-        1.0, 0.0, false, false, 1, batch_ndim);
+    NNGraph::TensorNode *out =
+        graph->tensor(y_shape, q->dtype(), out_requires_grad);
+    graph::tensor::gemm(v->data(),
+        attn->data(),
+        out->data(),
+        1.0,
+        0.0,
+        false,
+        false,
+        1,
+        batch_ndim);
     outputs_ = {out};
 
     return out;
@@ -108,135 +118,138 @@ NNGraph::TensorNode* NNSdpaEagerOp::forward(const std::string& output_name)
 
 void NNSdpaEagerOp::backward() const
 {
-    NNGraph::TensorNode* out = output();
-    if(out == nullptr)
+    NNGraph::TensorNode *out = output();
+    if (out == nullptr)
         return;
-    NNGraph* graph = out->graph();
-    NNGraph::TensorNode* grad_out = out->grad();
-    if(grad_out == nullptr)
+    NNGraph *graph = out->graph();
+    NNGraph::TensorNode *grad_out = out->grad();
+    if (grad_out == nullptr)
         return;
 
-    if(buffers_.size() < 3)
+    if (buffers_.size() < 3)
     {
         throw std::runtime_error(
             "NNSdpaEagerOp::backward: buffers are missing");
     }
-    NNGraph::TensorNode* attn = buffers_[0];
-    NNGraph::TensorNode* sumprod_buf = buffers_[1];
-    NNGraph::TensorNode* grad_temp = buffers_[2];
+    NNGraph::TensorNode *attn = buffers_[0];
+    NNGraph::TensorNode *sumprod_buf = buffers_[1];
+    NNGraph::TensorNode *grad_temp = buffers_[2];
 
     Index ndim_contraction = 1;
     Index q_ndim = static_cast<Index>(q->shape().size());
 
-    if(v != nullptr && v->requires_grad())
+    if (v != nullptr && v->requires_grad())
     {
         auto [grad_v, is_first] =
-            graph->get_or_create_grad(v, v->name() + "_grad");
+            graph->get_or_create_grad(v, nn_grad_slot_name(v));
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
-        graph::tensor::gemm(
-            grad_out->data(),
+        graph::tensor::gemm(grad_out->data(),
             attn->data(),
             grad_v->data(),
-            1.0, beta,
-            false, true,
+            1.0,
+            beta,
+            false,
+            true,
             q_ndim - batch_ndim - ndim_contraction,
             batch_ndim);
     }
 
     // d_attn = V^T @ grad_out, stored in grad_temp buffer
-    graph::tensor::gemm(
-        v->data(),
+    graph::tensor::gemm(v->data(),
         grad_out->data(),
         grad_temp->data(),
-        1.0, 0.0,
-        true, false,
+        1.0,
+        0.0,
+        true,
+        false,
         q_ndim - batch_ndim - ndim_contraction,
         batch_ndim);
 
     // grad_temp = (grad_temp - sumprod(attn, grad_temp)) * attn
-    graph::tensor::sumprod_slice(
-        attn->data(), grad_temp->data(), sumprod_buf->data(),
-        0, redux, 1.0, 0.0);
+    graph::tensor::sumprod_slice(attn->data(),
+        grad_temp->data(),
+        sumprod_buf->data(),
+        0,
+        redux,
+        1.0,
+        0.0);
     graph::tensor::add_slice_inplace(
         -1.0, sumprod_buf->data(), 1.0, grad_temp->data(), 0);
     graph::tensor::multiply_inplace(1.0, attn->data(), grad_temp->data());
 
-    if(q != nullptr && q->requires_grad())
+    if (q != nullptr && q->requires_grad())
     {
         auto [grad_q, is_first] =
-            graph->get_or_create_grad(q, q->name() + "_grad");
+            graph->get_or_create_grad(q, nn_grad_slot_name(q));
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
-        graph::tensor::gemm(
-            k->data(),
+        graph::tensor::gemm(k->data(),
             grad_temp->data(),
             grad_q->data(),
-            scale, beta,
-            false, false,
+            scale,
+            beta,
+            false,
+            false,
             q_ndim - batch_ndim - ndim_contraction,
             batch_ndim);
     }
 
-    if(k != nullptr && k->requires_grad())
+    if (k != nullptr && k->requires_grad())
     {
         auto [grad_k, is_first] =
-            graph->get_or_create_grad(k, k->name() + "_grad");
+            graph->get_or_create_grad(k, nn_grad_slot_name(k));
         Scalar beta = is_first ? grad_overwrite : grad_accumulate;
-        graph::tensor::gemm(
-            q->data(),
+        graph::tensor::gemm(q->data(),
             grad_temp->data(),
             grad_k->data(),
-            scale, beta,
-            false, true,
+            scale,
+            beta,
+            false,
+            true,
             q_ndim - batch_ndim - ndim_contraction,
             batch_ndim);
     }
 }
 
-NNGraph::TensorNode* sdpa_eager(
-    NNGraph::TensorNode* q,
-    NNGraph::TensorNode* k,
-    NNGraph::TensorNode* v,
-    const std::string& output_name,
-    NNGraph::TensorNode* mask,
+NNGraph::TensorNode *sdpa_eager(NNGraph::TensorNode *q,
+    NNGraph::TensorNode *k,
+    NNGraph::TensorNode *v,
+    NNGraph::TensorNode *mask,
     Index batch_ndim,
     int redux)
 {
-    if(q == nullptr || k == nullptr || v == nullptr)
+    if (q == nullptr || k == nullptr || v == nullptr)
     {
-        throw std::invalid_argument(
-            "sdpa_eager: Q, K, V must be non-null");
+        throw std::invalid_argument("sdpa_eager: Q, K, V must be non-null");
     }
-    const auto& q_shape = q->shape();
-    const auto& k_shape = k->shape();
-    const auto& v_shape = v->shape();
+    const auto &q_shape = q->shape();
+    const auto &k_shape = k->shape();
+    const auto &v_shape = v->shape();
 
-    if(q_shape.size() != k_shape.size() || q_shape.size() != v_shape.size())
+    if (q_shape.size() != k_shape.size() || q_shape.size() != v_shape.size())
     {
-        throw std::invalid_argument(
-            "sdpa_eager: Q, K, V must have same ndim");
+        throw std::invalid_argument("sdpa_eager: Q, K, V must have same ndim");
     }
-    if(q_shape[0] != k_shape[0] || q_shape[0] != v_shape[0])
+    if (q_shape[0] != k_shape[0] || q_shape[0] != v_shape[0])
     {
         throw std::invalid_argument(
             "sdpa_eager: Q, K, V head_size must match");
     }
-    if(k_shape[1] != v_shape[1])
+    if (k_shape[1] != v_shape[1])
     {
         throw std::invalid_argument(
             "sdpa_eager: K and V seq length must match");
     }
     Index head_size = q_shape[0];
-    if(head_size <= 0)
+    if (head_size <= 0)
     {
-        throw std::invalid_argument(
-            "sdpa_eager: head_size must be positive");
+        throw std::invalid_argument("sdpa_eager: head_size must be positive");
     }
 
     Scalar scale = 1.0 / std::sqrt(static_cast<Scalar>(head_size));
-    NNGraph* graph = q->graph();
+    NNGraph *graph = q->graph();
     auto op = std::make_shared<NNSdpaEagerOp>(
         q, k, v, scale, batch_ndim, redux, mask);
-    NNGraph::TensorNode* out = op->forward(output_name);
+    NNGraph::TensorNode *out = op->forward();
     graph->register_op(std::move(op));
     return out;
 }

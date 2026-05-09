@@ -27,31 +27,27 @@
 namespace nntile::graph
 {
 
-//! NormSlice op: output = alpha * norm_slice(x). PyTorch-style. Always fresh output.
+//! NormSlice op: output = alpha * norm_slice(x). PyTorch-style. Always fresh
+//! output.
 struct NNNormSliceOp : NNGraph::OpNode
 {
     Scalar alpha;
     Index axis;
     int redux;
-    NNGraph::TensorNode* x = nullptr;
+    NNGraph::TensorNode *x = nullptr;
 
-    NNNormSliceOp(NNGraph::TensorNode* x_,
-                  Index axis_, int redux_,
-                  Scalar alpha_)
-        : alpha(alpha_), axis(axis_), redux(redux_), x(x_)
+    NNNormSliceOp(
+        NNGraph::TensorNode *x_, Index axis_, int redux_, Scalar alpha_) :
+        alpha(alpha_), axis(axis_), redux(redux_), x(x_)
     {
         inputs_ = {x};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* norm_slice(
-    NNGraph::TensorNode* x,
-    const std::string& output_name,
-    Index axis,
-    int redux,
-    Scalar alpha = 1.0);
+NNGraph::TensorNode *norm_slice(
+    NNGraph::TensorNode *x, Index axis, int redux, Scalar alpha = 1.0);
 
 } // namespace nntile::graph

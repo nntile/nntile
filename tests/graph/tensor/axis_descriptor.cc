@@ -12,20 +12,19 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-
 #include "nntile/graph/tensor.hh"
+
+#include <catch2/catch_test_macros.hpp>
 
 using namespace nntile;
 using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
-TEST_CASE("Fresh tensors have independent axis descriptors",
-          "[graph][axis]")
+TEST_CASE("Fresh tensors have independent axis descriptors", "[graph][axis]")
 {
     TensorGraph graph("fresh");
-    auto* x = graph.data({4, 5}, "x");
-    auto* y = graph.data({4, 5}, "y");
+    auto *x = graph.data({4, 5})->set_name("x");
+    auto *y = graph.data({4, 5})->set_name("y");
 
     REQUIRE(x->axis(0) != y->axis(0));
     REQUIRE(x->axis(1) != y->axis(1));
@@ -38,9 +37,9 @@ TEST_CASE("Fresh tensors have independent axis descriptors",
 TEST_CASE("add merges axis groups eagerly", "[graph][axis]")
 {
     TensorGraph graph("add_merge");
-    auto* x = graph.data({4, 5}, "x");
-    auto* y = graph.data({4, 5}, "y");
-    auto* z = gt::add(1.0, x, 1.0, y, "z");
+    auto *x = graph.data({4, 5})->set_name("x");
+    auto *y = graph.data({4, 5})->set_name("y");
+    auto *z = gt::add(1.0, x, 1.0, y)->set_name("z");
 
     // After add, all three tensors share the same axis descriptors
     REQUIRE(x->axis(0) == y->axis(0));
@@ -59,8 +58,8 @@ TEST_CASE("add merges axis groups eagerly", "[graph][axis]")
 TEST_CASE("add_inplace merges axis groups", "[graph][axis]")
 {
     TensorGraph graph("inplace_merge");
-    auto* x = graph.data({3, 4}, "x");
-    auto* y = graph.data({3, 4}, "y");
+    auto *x = graph.data({3, 4})->set_name("x");
+    auto *y = graph.data({3, 4})->set_name("y");
     gt::add_inplace(1.0, x, 1.0, y);
 
     REQUIRE(x->axis(0) == y->axis(0));
@@ -71,12 +70,14 @@ TEST_CASE("add_inplace merges axis groups", "[graph][axis]")
 TEST_CASE("Axis merging is transitive through chains", "[graph][axis]")
 {
     TensorGraph graph("chain");
-    auto* a = graph.data({4}, "a");
-    auto* b = graph.data({4}, "b");
-    auto* c = gt::add(1.0, a, 1.0, b, "c");
+    auto *a = graph.data({4})->set_name("a");
+    auto *b = graph.data({4})->set_name("b");
+    auto *c = gt::add(1.0, a, 1.0, b)->set_name("c");
 
-    auto* d = graph.data({4}, "d");
-    auto* e = gt::add(1.0, c, 1.0, d, "e");
+    auto *d = graph.data({4});
+
+    c->set_name("d");
+    auto *e = gt::add(1.0, c, 1.0, d)->set_name("e");
 
     // a, b, c were merged in first add
     // c, d, e were merged in second add
@@ -92,11 +93,11 @@ TEST_CASE("Axis merging is transitive through chains", "[graph][axis]")
 TEST_CASE("Axis merging is transitive: diamond pattern", "[graph][axis]")
 {
     TensorGraph graph("diamond");
-    auto* x = graph.data({2, 3}, "x");
-    auto* y = graph.data({2, 3}, "y");
-    auto* w = gt::add(1.0, x, 1.0, y, "w");
-    auto* v = gt::add(1.0, w, 1.0, y, "v");
-    auto* z = gt::add(1.0, v, 1.0, w, "z");
+    auto *x = graph.data({2, 3})->set_name("x");
+    auto *y = graph.data({2, 3})->set_name("y");
+    auto *w = gt::add(1.0, x, 1.0, y)->set_name("w");
+    auto *v = gt::add(1.0, w, 1.0, y)->set_name("v");
+    auto *z = gt::add(1.0, v, 1.0, w)->set_name("z");
 
     // All 5 tensors share same axis descriptors per dimension
     REQUIRE(x->axis(0) == y->axis(0));
@@ -109,12 +110,12 @@ TEST_CASE("Axis merging is transitive: diamond pattern", "[graph][axis]")
     REQUIRE(x->axis(1)->members.size() == 5);
 }
 
-TEST_CASE("Axis naming propagates through group", "[graph][axis]")
+TEST_CASE("Axis naming propagates through group")
 {
     TensorGraph graph("naming");
-    auto* x = graph.data({4, 5}, "x");
-    auto* y = graph.data({4, 5}, "y");
-    auto* z = gt::add(1.0, x, 1.0, y, "z");
+    auto *x = graph.data({4, 5})->set_name("x");
+    auto *y = graph.data({4, 5})->set_name("y");
+    auto *z = gt::add(1.0, x, 1.0, y)->set_name("z");
 
     // Name from one tensor is visible from all
     x->axis(0)->name = "batch";
@@ -124,23 +125,21 @@ TEST_CASE("Axis naming propagates through group", "[graph][axis]")
     REQUIRE(z->axis(1)->name == "features");
 }
 
-TEST_CASE("Axis merge rejects different extents", "[graph][axis]")
+TEST_CASE("Axis merge rejects different extents")
 {
     TensorGraph graph("mismatch");
-    auto* x = graph.data({4}, "x");
-    auto* y = graph.data({5}, "y");
+    auto *x = graph.data({4})->set_name("x");
+    auto *y = graph.data({5})->set_name("y");
 
-    REQUIRE_THROWS_AS(
-        gt::add(1.0, x, 1.0, y, "z"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::add(1.0, x, 1.0, y), std::invalid_argument);
 }
 
-TEST_CASE("set_axes shares axis groups with another tensor",
-          "[graph][axis]")
+TEST_CASE("set_axes shares axis groups with another tensor", "[graph][axis]")
 {
     TensorGraph graph("shared_axes");
-    auto* x = graph.data({4, 5}, "x");
+    auto *x = graph.data({4, 5})->set_name("x");
 
-    auto* y = graph.data({4, 5}, "y");
+    auto *y = graph.data({4, 5})->set_name("y");
     y->set_axes(x->axes());
     REQUIRE(x->axis(0) == y->axis(0));
     REQUIRE(x->axis(1) == y->axis(1));
@@ -151,8 +150,8 @@ TEST_CASE("set_axes shares axis groups with another tensor",
 TEST_CASE("Axis merge preserves name from replaced group", "[graph][axis]")
 {
     TensorGraph graph("name_preserve");
-    auto* x = graph.data({4}, "x");
-    auto* y = graph.data({4}, "y");
+    auto *x = graph.data({4})->set_name("x");
+    auto *y = graph.data({4})->set_name("y");
 
     y->axis(0)->name = "my_axis";
     gt::add_inplace(1.0, x, 1.0, y);
@@ -164,7 +163,7 @@ TEST_CASE("Axis merge preserves name from replaced group", "[graph][axis]")
 TEST_CASE("Self-add (x == y) is rejected", "[graph][axis]")
 {
     TensorGraph graph("self_add");
-    auto* x = graph.data({3, 4}, "x");
+    auto *x = graph.data({3, 4})->set_name("x");
 
-    REQUIRE_THROWS_AS(gt::add(2.0, x, 3.0, x, "z"), std::invalid_argument);
+    REQUIRE_THROWS_AS(gt::add(2.0, x, 3.0, x), std::invalid_argument);
 }

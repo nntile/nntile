@@ -31,12 +31,12 @@ namespace nntile::graph::tensor
 //! GeLU operation at tensor level: y = gelu(x)
 struct TensorGeluOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* x = nullptr;
-    TensorGraph::TensorNode* y = nullptr;
+    TensorGraph::TensorNode *x = nullptr;
+    TensorGraph::TensorNode *y = nullptr;
 
     TensorGeluOp() = default;
-    TensorGeluOp(TensorGraph::TensorNode* x_, TensorGraph::TensorNode* y_)
-        : x(x_), y(y_)
+    TensorGeluOp(TensorGraph::TensorNode *x_, TensorGraph::TensorNode *y_) :
+        x(x_), y(y_)
     {
         inputs_ = {x};
         outputs_ = {y};
@@ -49,22 +49,17 @@ struct TensorGeluOp : TensorGraph::OpNode
         return std::make_shared<TensorGeluOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! GeLU activation: y = gelu(x)
 //! @param x Input tensor
-//! @param output_name Name for the output tensor
 //! @return Pointer to the output tensor
-TensorGraph::TensorNode* gelu(
-    TensorGraph::TensorNode* x,
-    const std::string& output_name);
+TensorGraph::TensorNode *gelu(TensorGraph::TensorNode *x);
 
 //! GeLU activation into pre-created output: y = gelu(x)
 //! @param x Input tensor
 //! @param y Output tensor (must already exist, same shape as x)
-void gelu(
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* y);
+void gelu(TensorGraph::TensorNode *x, TensorGraph::TensorNode *y);
 
 } // namespace nntile::graph::tensor

@@ -22,46 +22,39 @@
 // Include other NNTile headers
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor.hh>
-#include <nntile/tensor/add.hh>
-
-#include <nntile/graph/tile/graph_ops.hh>
 #include <nntile/graph/tensor/tile_lowering_helpers.hh>
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/tensor/add.hh>
 
 namespace nntile::graph::tensor
 {
 
-
-
-TensorGraph::TensorNode* add(
-    Scalar alpha,
-    TensorGraph::TensorNode* x,
+TensorGraph::TensorNode *add(Scalar alpha,
+    TensorGraph::TensorNode *x,
     Scalar beta,
-    TensorGraph::TensorNode* y,
-    const std::string& output_name)
+    TensorGraph::TensorNode *y)
 {
-    if(x == nullptr || y == nullptr)
+    if (x == nullptr || y == nullptr)
     {
         throw std::invalid_argument("add: input tensors must be non-null");
     }
-    if(x->graph() != y->graph())
+    if (x->graph() != y->graph())
     {
         throw std::invalid_argument(
             "add: input tensors must belong to the same graph");
     }
-    if(x == y)
+    if (x == y)
     {
-        throw std::invalid_argument(
-            "add: x and y must be distinct tensors");
+        throw std::invalid_argument("add: x and y must be distinct tensors");
     }
-    if(x->dtype() != y->dtype())
+    if (x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "add: input tensors must have the same dtype");
     }
     validate_same_shape_and_merge(x, y, "add");
 
-    TensorGraph::TensorNode* output = x->graph()->data(
-        x->shape(), output_name, x->dtype());
+    TensorGraph::TensorNode *output = x->graph()->data(x->shape(), x->dtype());
     output->set_axes(x->axes());
 
     auto op = std::make_shared<TensorAddOp>(x, y, output, alpha, beta);
@@ -70,28 +63,27 @@ TensorGraph::TensorNode* add(
     return output;
 }
 
-void add(
-    Scalar alpha,
-    TensorGraph::TensorNode* x,
+void add(Scalar alpha,
+    TensorGraph::TensorNode *x,
     Scalar beta,
-    TensorGraph::TensorNode* y,
-    TensorGraph::TensorNode* z)
+    TensorGraph::TensorNode *y,
+    TensorGraph::TensorNode *z)
 {
-    if(x == nullptr || y == nullptr || z == nullptr)
+    if (x == nullptr || y == nullptr || z == nullptr)
     {
         throw std::invalid_argument("add: input tensors must be non-null");
     }
-    if(x == y || x == z || y == z)
+    if (x == y || x == z || y == z)
     {
         throw std::invalid_argument(
             "add: x, y, and z must be distinct tensors");
     }
-    if(x->graph() != y->graph() || x->graph() != z->graph())
+    if (x->graph() != y->graph() || x->graph() != z->graph())
     {
         throw std::invalid_argument(
             "add: input tensors must belong to the same graph");
     }
-    if(x->dtype() != y->dtype() || x->dtype() != z->dtype())
+    if (x->dtype() != y->dtype() || x->dtype() != z->dtype())
     {
         throw std::invalid_argument(
             "add: input tensors must have the same dtype");
@@ -103,20 +95,20 @@ void add(
     x->graph()->add_op(op);
 }
 
-void TensorAddOp::lower_to_tile(const LoweringContext& ctx) const
+void TensorAddOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    const auto& m = ctx.tile_map;
-    const auto& vx = tile_lower::tiles_of(m, x);
-    const auto& vy = tile_lower::tiles_of(m, y);
-    const auto& vz = tile_lower::tiles_of(m, z);
-    if(vx.size() != vy.size() || vx.size() != vz.size())
+    const auto &m = ctx.tile_map;
+    const auto &vx = tile_lower::tiles_of(m, x);
+    const auto &vy = tile_lower::tiles_of(m, y);
+    const auto &vz = tile_lower::tiles_of(m, z);
+    if (vx.size() != vy.size() || vx.size() != vz.size())
     {
         throw std::runtime_error(
             "lower_to_tile ADD: tile count mismatch for operands");
     }
     tile_lower::assert_same_elementwise_layout(x, y, "ADD x/y");
     tile_lower::assert_same_elementwise_layout(x, z, "ADD x/z");
-    for(size_t i = 0; i < vx.size(); ++i)
+    for (size_t i = 0; i < vx.size(); ++i)
     {
         tile_graph::add(alpha, vx[i], beta, vy[i], vz[i]);
     }

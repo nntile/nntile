@@ -38,81 +38,75 @@ constexpr Scalar ADD_FIBER_BETA = 1.0;
 } // anonymous namespace
 
 //! Constructor: creates new weight tensor, no bias
-Linear::Linear(NNGraph* graph,
-               const std::string& name,
-               Index input_dim, Index output_dim,
-               DataType dtype)
-    : Module(graph, name)
-    , input_dim_(input_dim)
-    , output_dim_(output_dim)
-    , dtype_(dtype)
+Linear::Linear(NNGraph *graph,
+    const std::string &name,
+    Index input_dim,
+    Index output_dim,
+    DataType dtype) :
+    Module(graph, name),
+    input_dim_(input_dim),
+    output_dim_(output_dim),
+    dtype_(dtype)
 {
     // Create weight tensor during construction
-    weight_tensor_ = graph_->tensor(
-        {input_dim_, output_dim_},
-        tensor_name("weight"),
-        dtype_,
-        true);
+    weight_tensor_ = graph_->tensor({input_dim_, output_dim_}, dtype_, true);
+    weight_tensor_->set_name(tensor_name("weight"));
     register_parameter("weight", weight_tensor_);
 }
 
 //! Constructor: creates new weight and optionally bias tensors
-Linear::Linear(NNGraph* graph,
-               const std::string& name,
-               Index input_dim, Index output_dim,
-               bool with_bias,
-               DataType dtype)
-    : Module(graph, name)
-    , input_dim_(input_dim)
-    , output_dim_(output_dim)
-    , dtype_(dtype)
+Linear::Linear(NNGraph *graph,
+    const std::string &name,
+    Index input_dim,
+    Index output_dim,
+    bool with_bias,
+    DataType dtype) :
+    Module(graph, name),
+    input_dim_(input_dim),
+    output_dim_(output_dim),
+    dtype_(dtype)
 {
     // Create weight tensor
-    weight_tensor_ = graph_->tensor(
-        {input_dim_, output_dim_},
-        tensor_name("weight"),
-        dtype_,
-        true);
+    weight_tensor_ = graph_->tensor({input_dim_, output_dim_}, dtype_, true);
+    weight_tensor_->set_name(tensor_name("weight"));
     register_parameter("weight", weight_tensor_);
 
     // Create bias tensor if requested
-    if(with_bias)
+    if (with_bias)
     {
-        bias_tensor_ = graph_->tensor(
-            {output_dim_},
-            tensor_name("bias"),
-            dtype_,
-            true);
+        bias_tensor_ = graph_->tensor({output_dim_}, dtype_, true);
+        bias_tensor_->set_name(tensor_name("bias"));
         register_parameter("bias", bias_tensor_);
     }
 }
 
 //! Constructor: uses existing weight tensor, no bias
-Linear::Linear(NNGraph* graph,
-               const std::string& name,
-               NNGraph::TensorNode* weight_tensor)
-    : Module(graph, name)
-    , weight_tensor_(weight_tensor)
-    , input_dim_(0)
-    , output_dim_(0)
-    , dtype_(weight_tensor != nullptr ? weight_tensor->dtype() : DataType::FP32)
+Linear::Linear(NNGraph *graph,
+    const std::string &name,
+    NNGraph::TensorNode *weight_tensor) :
+    Module(graph, name),
+    weight_tensor_(weight_tensor),
+    input_dim_(0),
+    output_dim_(0),
+    dtype_(weight_tensor != nullptr ? weight_tensor->dtype() : DataType::FP32)
 {
-    if(weight_tensor == nullptr)
+    if (weight_tensor == nullptr)
     {
         throw std::invalid_argument(
             "Linear::Linear: weight_tensor must be non-null");
     }
     // Validate weight tensor has at least 2 dimensions
-    if(weight_tensor->ndim() < 2)
+    if (weight_tensor->ndim() < 2)
     {
         throw std::invalid_argument(
             "Linear::Linear: weight tensor must have at least 2 dimensions, "
-            "got " + std::to_string(weight_tensor->ndim()));
+            "got " +
+            std::to_string(weight_tensor->ndim()));
     }
 
     // Extract dimensions from weight tensor shape
     // Weight shape is [input_dim, output_dim]
-    const auto& w_shape = weight_tensor->shape();
+    const auto &w_shape = weight_tensor->shape();
     input_dim_ = w_shape[0];
     output_dim_ = w_shape[1];
 
@@ -120,110 +114,111 @@ Linear::Linear(NNGraph* graph,
 }
 
 //! Constructor: uses existing weight and bias tensors
-Linear::Linear(NNGraph* graph,
-               const std::string& name,
-               NNGraph::TensorNode* weight_tensor,
-               NNGraph::TensorNode* bias_tensor)
-    : Module(graph, name)
-    , weight_tensor_(weight_tensor)
-    , bias_tensor_(bias_tensor)
-    , input_dim_(0)
-    , output_dim_(0)
-    , dtype_(weight_tensor != nullptr ? weight_tensor->dtype() : DataType::FP32)
+Linear::Linear(NNGraph *graph,
+    const std::string &name,
+    NNGraph::TensorNode *weight_tensor,
+    NNGraph::TensorNode *bias_tensor) :
+    Module(graph, name),
+    weight_tensor_(weight_tensor),
+    bias_tensor_(bias_tensor),
+    input_dim_(0),
+    output_dim_(0),
+    dtype_(weight_tensor != nullptr ? weight_tensor->dtype() : DataType::FP32)
 {
-    if(weight_tensor == nullptr || bias_tensor == nullptr)
+    if (weight_tensor == nullptr || bias_tensor == nullptr)
     {
         throw std::invalid_argument(
             "Linear::Linear: weight_tensor and bias_tensor must be non-null");
     }
     // Validate weight tensor has at least 2 dimensions
-    if(weight_tensor->ndim() < 2)
+    if (weight_tensor->ndim() < 2)
     {
         throw std::invalid_argument(
             "Linear::Linear: weight tensor must have at least 2 dimensions, "
-            "got " + std::to_string(weight_tensor->ndim()));
+            "got " +
+            std::to_string(weight_tensor->ndim()));
     }
 
     // Extract dimensions from weight tensor shape
     // Weight shape is [input_dim, output_dim]
-    const auto& w_shape = weight_tensor->shape();
+    const auto &w_shape = weight_tensor->shape();
     input_dim_ = w_shape[0];
     output_dim_ = w_shape[1];
 
     // Validate bias tensor shape
-    if(bias_tensor->ndim() != 1)
+    if (bias_tensor->ndim() != 1)
     {
         throw std::invalid_argument(
             "Linear::Linear: bias tensor must be 1-dimensional, "
-            "got " + std::to_string(bias_tensor->ndim()));
+            "got " +
+            std::to_string(bias_tensor->ndim()));
     }
-    if(bias_tensor->shape()[0] != output_dim_)
+    if (bias_tensor->shape()[0] != output_dim_)
     {
         throw std::invalid_argument(
             "Linear::Linear: bias tensor dimension mismatch. "
-            "Expected " + std::to_string(output_dim_) + ", got " +
+            "Expected " +
+            std::to_string(output_dim_) + ", got " +
             std::to_string(bias_tensor->shape()[0]));
     }
 
     // Validate data types match
-    if(bias_tensor->dtype() != dtype_)
+    if (bias_tensor->dtype() != dtype_)
     {
-        throw std::invalid_argument(
-            "Linear::Linear: bias tensor dtype must match weight tensor dtype");
+        throw std::invalid_argument("Linear::Linear: bias tensor dtype must "
+                                    "match weight tensor dtype");
     }
 
     register_parameter("weight", weight_tensor_);
     register_parameter("bias", bias_tensor_);
 }
 
-NNGraph::TensorNode* Linear::forward(
-    NNGraph::TensorNode* input)
+NNGraph::TensorNode *Linear::forward(NNGraph::TensorNode *input)
 {
-    if(input == nullptr)
+    if (input == nullptr)
     {
         throw std::invalid_argument(
             "Linear::forward: input tensor must be non-null");
     }
-    if(input->ndim() < 1)
+    if (input->ndim() < 1)
     {
         throw std::invalid_argument(
             "Linear::forward_impl: input tensor must have at least one "
             "dimension, got 0-dimensional (scalar) tensor");
     }
-    if(input->shape().back() != input_dim_)
+    if (input->shape().back() != input_dim_)
     {
         throw std::invalid_argument(
             "Linear::forward_impl: input tensor feature dimension mismatch. "
-            "Expected " + std::to_string(input_dim_) + ", got " +
+            "Expected " +
+            std::to_string(input_dim_) + ", got " +
             std::to_string(input->shape().back()));
     }
 
     input_tensor_ = input;
 
     const std::string gemm_name = bias_tensor_ != nullptr
-        ? tensor_name("gemm_output")
-        : tensor_name("output");
-    NNGraph::TensorNode* gemm_out = graph::gemm(
-        input,
+                                      ? tensor_name("gemm_output")
+                                      : tensor_name("output");
+    NNGraph::TensorNode *gemm_out = graph::gemm(input,
         weight_tensor_,
-        gemm_name,
         GEMM_ALPHA,
         NO_TRANSPOSE,
         NO_TRANSPOSE,
         GEMM_NDIM_MATRIX,
         NO_BATCH_DIM);
+    gemm_out->set_name(gemm_name);
 
-    if(bias_tensor_ != nullptr)
+    if (bias_tensor_ != nullptr)
     {
         const Index feature_axis = gemm_out->ndim() - 1;
-        output_tensor_ = graph::add_fiber(
-            ADD_FIBER_ALPHA,
+        output_tensor_ = graph::add_fiber(ADD_FIBER_ALPHA,
             bias_tensor_,
             ADD_FIBER_BETA,
             gemm_out,
-            tensor_name("output"),
             feature_axis,
             NO_BATCH_DIM);
+        output_tensor_->set_name(tensor_name("output"));
     }
     else
     {
@@ -235,19 +230,19 @@ NNGraph::TensorNode* Linear::forward(
 
 void Linear::bind_weight(std::vector<std::uint8_t> data)
 {
-    if(weight_tensor_ == nullptr)
+    if (weight_tensor_ == nullptr)
     {
-        throw std::runtime_error(
-            "Linear::bind_weight: weight tensor is null (external weight mode)");
+        throw std::runtime_error("Linear::bind_weight: weight tensor is null "
+                                 "(external weight mode)");
     }
     weight_tensor_->data()->set_bind_hint(std::move(data));
     weight_tensor_->mark_input(true);
 }
 
-void Linear::bind_weight(const std::vector<float>& data)
+void Linear::bind_weight(const std::vector<float> &data)
 {
     const size_t expected = static_cast<size_t>(input_dim_) * output_dim_;
-    if(data.size() != expected)
+    if (data.size() != expected)
     {
         throw std::invalid_argument(
             "Linear::bind_weight: size mismatch, expected " +
@@ -261,7 +256,7 @@ void Linear::bind_weight(const std::vector<float>& data)
 
 void Linear::bind_bias(std::vector<std::uint8_t> data)
 {
-    if(bias_tensor_ == nullptr)
+    if (bias_tensor_ == nullptr)
     {
         throw std::runtime_error(
             "Linear::bind_bias: bias tensor is null (no bias)");
@@ -270,10 +265,10 @@ void Linear::bind_bias(std::vector<std::uint8_t> data)
     bias_tensor_->mark_input(true);
 }
 
-void Linear::bind_bias(const std::vector<float>& data)
+void Linear::bind_bias(const std::vector<float> &data)
 {
     const size_t expected = static_cast<size_t>(output_dim_);
-    if(data.size() != expected)
+    if (data.size() != expected)
     {
         throw std::invalid_argument(
             "Linear::bind_bias: size mismatch, expected " +
@@ -289,7 +284,7 @@ std::string Linear::repr() const
 {
     std::string result = "Linear(in=" + std::to_string(input_dim_) +
                          ", out=" + std::to_string(output_dim_);
-    if(has_bias())
+    if (has_bias())
     {
         result += ", bias=true";
     }

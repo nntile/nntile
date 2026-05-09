@@ -33,20 +33,25 @@ struct TensorNormSliceOp : TensorGraph::OpNode
     Scalar beta;
     Index axis;
     int redux;
-    TensorGraph::TensorNode* src1 = nullptr;
-    TensorGraph::TensorNode* src2 = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src1 = nullptr;
+    TensorGraph::TensorNode *src2 = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorNormSliceOp() = default;
-    TensorNormSliceOp(
-        Scalar alpha_, Scalar beta_,
-        TensorGraph::TensorNode* src1_,
-        TensorGraph::TensorNode* src2_,
-        TensorGraph::TensorNode* dst_,
-        Index axis_, int redux_)
-        : alpha(alpha_), beta(beta_)
-        , axis(axis_), redux(redux_)
-        , src1(src1_), src2(src2_), dst(dst_)
+    TensorNormSliceOp(Scalar alpha_,
+        Scalar beta_,
+        TensorGraph::TensorNode *src1_,
+        TensorGraph::TensorNode *src2_,
+        TensorGraph::TensorNode *dst_,
+        Index axis_,
+        int redux_) :
+        alpha(alpha_),
+        beta(beta_),
+        axis(axis_),
+        redux(redux_),
+        src1(src1_),
+        src2(src2_),
+        dst(dst_)
     {
         inputs_ = {src1, src2};
         outputs_ = {dst};
@@ -59,24 +64,21 @@ struct TensorNormSliceOp : TensorGraph::OpNode
         return std::make_shared<TensorNormSliceOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-TensorGraph::TensorNode* norm_slice(
-    Scalar alpha,
-    TensorGraph::TensorNode* src1,
+TensorGraph::TensorNode *norm_slice(Scalar alpha,
+    TensorGraph::TensorNode *src1,
     Scalar beta,
-    TensorGraph::TensorNode* src2,
-    const std::string& output_name,
+    TensorGraph::TensorNode *src2,
     Index axis,
     int redux);
 
-void norm_slice(
-    Scalar alpha,
-    TensorGraph::TensorNode* src1,
+void norm_slice(Scalar alpha,
+    TensorGraph::TensorNode *src1,
     Scalar beta,
-    TensorGraph::TensorNode* src2,
-    TensorGraph::TensorNode* dst,
+    TensorGraph::TensorNode *src2,
+    TensorGraph::TensorNode *dst,
     Index axis,
     int redux);
 

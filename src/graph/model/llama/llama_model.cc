@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/model/llama/llama_model.hh"
+
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/nn/ops/transpose.hh"
 
@@ -21,23 +22,34 @@
 namespace nntile::model::llama
 {
 
-LlamaModel::LlamaModel(graph::NNGraph* graph,
-                       const std::string& name,
-                       const LlamaConfig& config,
-                       graph::DataType dtype)
-    : graph::module::Module(graph, name)
-    , embed_tokens_(graph, name + "_embed_tokens",
-                   config.vocab_size, config.hidden_size,
-                   2, 0, dtype)  // axis=2 for (seq,batch) -> (seq,batch,hidden)
-    , norm_(graph, name + "_norm",
-            config.hidden_size, 0, config.rms_norm_eps, 0, dtype)  // axis=0 for (hidden,seq,batch)
-    , config_(config)
-    , dtype_(dtype)
+LlamaModel::LlamaModel(graph::NNGraph *graph,
+    const std::string &name,
+    const LlamaConfig &config,
+    graph::DataType dtype) :
+    graph::module::Module(graph, name),
+    embed_tokens_(graph,
+        name + "_embed_tokens",
+        config.vocab_size,
+        config.hidden_size,
+        2,
+        0,
+        dtype) // axis=2 for (seq,batch) -> (seq,batch,hidden)
+    ,
+    norm_(graph,
+        name + "_norm",
+        config.hidden_size,
+        0,
+        config.rms_norm_eps,
+        0,
+        dtype) // axis=0 for (hidden,seq,batch)
+    ,
+    config_(config),
+    dtype_(dtype)
 {
     register_module("embed_tokens", &embed_tokens_);
     register_module("norm", &norm_);
 
-    for(Index i = 0; i < config.num_hidden_layers; ++i)
+    for (Index i = 0; i < config.num_hidden_layers; ++i)
     {
         auto layer = std::make_unique<LlamaDecoder>(
             graph, name + "_layers_" + std::to_string(i), config, dtype);
@@ -46,38 +58,39 @@ LlamaModel::LlamaModel(graph::NNGraph* graph,
     }
 }
 
-graph::NNGraph::TensorNode* LlamaModel::forward(
-    graph::NNGraph::TensorNode* input_ids,
-    graph::NNGraph::TensorNode* sin,
-    graph::NNGraph::TensorNode* cos,
-    graph::NNGraph::TensorNode* mask,
-    graph::KVCache* kv_cache)
+graph::NNGraph::TensorNode *LlamaModel::forward(
+    graph::NNGraph::TensorNode *input_ids,
+    graph::NNGraph::TensorNode *sin,
+    graph::NNGraph::TensorNode *cos,
+    graph::NNGraph::TensorNode *mask,
+    graph::KVCache *kv_cache)
 {
-    if(input_ids == nullptr)
+    if (input_ids == nullptr)
     {
         throw std::invalid_argument(
             "LlamaModel::forward: input_ids must be non-null");
     }
 
-    const auto* kv_caches = kv_cache ? kv_cache->get_cache() : nullptr;
+    const auto *kv_caches = kv_cache ? kv_cache->get_cache() : nullptr;
     Index cache_len = kv_cache ? kv_cache->len() : 0;
 
     // Embedding: (seq, batch) -> (seq, batch, hidden)
-    graph::NNGraph::TensorNode* embed = embed_tokens_.forward(input_ids);
+    graph::NNGraph::TensorNode *embed = embed_tokens_.forward(input_ids);
     // Transpose to (hidden, seq, batch) for decoder layers (ndim=2)
-    graph::NNGraph::TensorNode* x =
-        graph::transpose(embed, tensor_name("embed_out"), 2);
+    graph::NNGraph::TensorNode *x = graph::transpose(embed, 2);
+    x->set_name(tensor_name("embed_out"));
 
-    for(size_t i = 0; i < layers_.size(); ++i)
+    for (size_t i = 0; i < layers_.size(); ++i)
     {
-        graph::NNGraph::TensorNode* k_cache = nullptr;
-        graph::NNGraph::TensorNode* v_cache = nullptr;
-        if(kv_caches != nullptr && i < kv_caches->size())
+        graph::NNGraph::TensorNode *k_cache = nullptr;
+        graph::NNGraph::TensorNode *v_cache = nullptr;
+        if (kv_caches != nullptr && i < kv_caches->size())
         {
             k_cache = (*kv_caches)[i].first;
             v_cache = (*kv_caches)[i].second;
         }
-        x = layers_[i]->forward(x, sin, cos, mask, k_cache, v_cache, cache_len);
+        x = layers_[i]->forward(
+            x, sin, cos, mask, k_cache, v_cache, cache_len);
     }
 
     return norm_.forward(x);

@@ -12,13 +12,13 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <random>
-#include <vector>
-
 #include "context_fixture.hh"
 #include "mixed_tile_common.hh"
+
+#include <catch2/catch_test_macros.hpp>
 #include <nntile/graph.hh>
+#include <random>
+#include <vector>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -30,36 +30,39 @@ TEST_CASE("add mixed tile parity", "[graph][tile]")
     test::ContextFixture fx;
 
     TensorGraph g_ref("ref");
-    TensorGraph::TensorNode* a = g_ref.data({10, 12}, "a", DataType::FP32);
-    TensorGraph::TensorNode* b = g_ref.data({10, 12}, "b", DataType::FP32);
+    TensorGraph::TensorNode *a =
+        g_ref.data({10, 12}, DataType::FP32)->set_name("a");
+    TensorGraph::TensorNode *b =
+        g_ref.data({10, 12}, DataType::FP32)->set_name("b");
     a->mark_input(true);
     b->mark_input(true);
-    TensorGraph::TensorNode* out =
-        gt::add(Scalar{1.f}, a, Scalar{1.f}, b, "out");
+    TensorGraph::TensorNode *out =
+        gt::add(Scalar{1.f}, a, Scalar{1.f}, b)->set_name("out");
     out->mark_output(true);
 
     TensorGraph g_tile("tile");
-    TensorGraph::TensorNode* at = g_tile.data({10, 12}, "a", DataType::FP32);
-    TensorGraph::TensorNode* bt = g_tile.data({10, 12}, "b", DataType::FP32);
+    TensorGraph::TensorNode *at =
+        g_tile.data({10, 12}, DataType::FP32)->set_name("a");
+    TensorGraph::TensorNode *bt =
+        g_tile.data({10, 12}, DataType::FP32)->set_name("b");
     at->mark_input(true);
     bt->mark_input(true);
     tt::apply_mixed_tile_sizes_2d(at);
     tt::apply_mixed_tile_sizes_2d(bt);
-    TensorGraph::TensorNode* outt =
-        gt::add(Scalar{1.f}, at, Scalar{1.f}, bt, "out");
+    TensorGraph::TensorNode *outt =
+        gt::add(Scalar{1.f}, at, Scalar{1.f}, bt)->set_name("out");
     outt->mark_output(true);
 
     std::vector<float> ad(10 * 12), bd(10 * 12);
     std::mt19937 gen(2);
     std::uniform_real_distribution<float> u(-1.f, 1.f);
-    for(size_t i = 0; i < ad.size(); ++i)
+    for (size_t i = 0; i < ad.size(); ++i)
     {
         ad[i] = u(gen);
         bd[i] = u(gen);
     }
 
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref);
-
 
     TileGraph::Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();

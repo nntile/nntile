@@ -10,7 +10,8 @@
  * NNGraph add_fiber autograd operation.
  *
  * Forward: output = alpha * fiber + beta * tensor
- * Backward: grad_fiber += alpha * sum_fiber(grad_out), grad_tensor += beta * grad_out
+ * Backward: grad_fiber += alpha * sum_fiber(grad_out), grad_tensor += beta *
+ * grad_out
  *
  * @version 1.1.0
  * */
@@ -27,36 +28,41 @@
 namespace nntile::graph
 {
 
-//! AddFiber op: output = alpha*fiber + beta*tensor. PyTorch-style: outputs in forward().
+//! AddFiber op: output = alpha*fiber + beta*tensor. PyTorch-style: outputs in
+//! forward().
 struct NNAddFiberOp : NNGraph::OpNode
 {
     Scalar alpha;
     Scalar beta;
     Index axis;
     Index batch_ndim;
-    NNGraph::TensorNode* fiber = nullptr;
-    NNGraph::TensorNode* tensor = nullptr;
+    NNGraph::TensorNode *fiber = nullptr;
+    NNGraph::TensorNode *tensor = nullptr;
 
-    NNAddFiberOp(NNGraph::TensorNode* fiber_,
-                 NNGraph::TensorNode* tensor_,
-                 Scalar alpha_, Scalar beta_,
-                 Index axis_, Index batch_ndim_)
-        : alpha(alpha_), beta(beta_), axis(axis_), batch_ndim(batch_ndim_)
-        , fiber(fiber_), tensor(tensor_)
+    NNAddFiberOp(NNGraph::TensorNode *fiber_,
+        NNGraph::TensorNode *tensor_,
+        Scalar alpha_,
+        Scalar beta_,
+        Index axis_,
+        Index batch_ndim_) :
+        alpha(alpha_),
+        beta(beta_),
+        axis(axis_),
+        batch_ndim(batch_ndim_),
+        fiber(fiber_),
+        tensor(tensor_)
     {
         inputs_ = {fiber, tensor};
     }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* add_fiber(
-    Scalar alpha,
-    NNGraph::TensorNode* fiber,
+NNGraph::TensorNode *add_fiber(Scalar alpha,
+    NNGraph::TensorNode *fiber,
     Scalar beta,
-    NNGraph::TensorNode* tensor,
-    const std::string& output_name,
+    NNGraph::TensorNode *tensor,
     Index axis,
     Index batch_ndim);
 

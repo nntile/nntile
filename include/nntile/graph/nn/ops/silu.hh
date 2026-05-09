@@ -30,21 +30,15 @@ namespace nntile::graph
 //! SiLU op: y = silu(x). PyTorch-style: outputs created in forward().
 struct NNSiluOp : NNGraph::OpNode
 {
-    NNGraph::TensorNode* x = nullptr;
+    NNGraph::TensorNode *x = nullptr;
 
     NNSiluOp() = default;
-    explicit NNSiluOp(NNGraph::TensorNode* x_)
-        : x(x_)
-    {
-        inputs_ = {x};
-    }
+    explicit NNSiluOp(NNGraph::TensorNode *x_) : x(x_) { inputs_ = {x}; }
 
-    NNGraph::TensorNode* forward(const std::string& output_name);
+    NNGraph::TensorNode *forward();
     void backward() const override;
 };
 
-NNGraph::TensorNode* silu(
-    NNGraph::TensorNode* x,
-    const std::string& output_name);
+NNGraph::TensorNode *silu(NNGraph::TensorNode *x);
 
 } // namespace nntile::graph

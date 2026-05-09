@@ -34,14 +34,15 @@ struct TensorTransposeOp : TensorGraph::OpNode
 {
     Index ndim;
     Scalar alpha;
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorTransposeOp() = default;
-    TensorTransposeOp(TensorGraph::TensorNode* src_,
-                      TensorGraph::TensorNode* dst_,
-                      Index ndim_, Scalar alpha_)
-        : ndim(ndim_), alpha(alpha_), src(src_), dst(dst_)
+    TensorTransposeOp(TensorGraph::TensorNode *src_,
+        TensorGraph::TensorNode *dst_,
+        Index ndim_,
+        Scalar alpha_) :
+        ndim(ndim_), alpha(alpha_), src(src_), dst(dst_)
     {
         inputs_ = {src};
         outputs_ = {dst};
@@ -54,21 +55,17 @@ struct TensorTransposeOp : TensorGraph::OpNode
         return std::make_shared<TensorTransposeOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
 //! Transpose: dst = alpha * transpose(src) (creates output)
-TensorGraph::TensorNode* transpose(
-    Scalar alpha,
-    TensorGraph::TensorNode* src,
-    const std::string& output_name,
-    Index ndim);
+TensorGraph::TensorNode *transpose(
+    Scalar alpha, TensorGraph::TensorNode *src, Index ndim);
 
 //! Transpose: dst = alpha * transpose(src) (uses existing output)
-void transpose(
-    Scalar alpha,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst,
+void transpose(Scalar alpha,
+    TensorGraph::TensorNode *src,
+    TensorGraph::TensorNode *dst,
     Index ndim);
 
 } // namespace nntile::graph::tensor

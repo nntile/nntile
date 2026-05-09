@@ -12,18 +12,18 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-
-#include <numeric>
+#include "nntile/graph/tensor/ops/scatter.hh"
 
 #include "context_fixture.hh"
-#include "nntile/graph/tensor/ops/scatter.hh"
-#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tile.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/tensor.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
+#include <numeric>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -37,8 +37,8 @@ constexpr int distr_rank_single = 0;
 
 } // anonymous namespace
 
-template<typename T>
-void check_scatter_vs_tensor_api(const std::vector<Index>& shape)
+template <typename T>
+void check_scatter_vs_tensor_api(const std::vector<Index> &shape)
 {
     using Y = typename T::repr_t;
     const Index nelems = std::accumulate(
@@ -46,8 +46,8 @@ void check_scatter_vs_tensor_api(const std::vector<Index>& shape)
 
     // --- TensorGraph path ---
     TensorGraph graph("scatter_test");
-    auto* src_node = graph.data(shape, "src", DataType::FP32);
-    auto* dst_node = graph.data(shape, "dst", DataType::FP32);
+    auto *src_node = graph.data(shape, DataType::FP32)->set_name("src");
+    auto *dst_node = graph.data(shape, DataType::FP32)->set_name("dst");
     src_node->mark_input(true);
     dst_node->mark_input(true);
     dst_node->mark_output(true);
@@ -56,13 +56,12 @@ void check_scatter_vs_tensor_api(const std::vector<Index>& shape)
 
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
 
-
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(nelems);
     std::vector<float> dst_data(nelems, 0.0f);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         src_data[i] = static_cast<float>(Y(i * 2 - 3));
     }
@@ -83,7 +82,7 @@ void check_scatter_vs_tensor_api(const std::vector<Index>& shape)
     {
         auto tile = src_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
         {
             loc[i] = static_cast<Y>(src_data[i]);
         }
@@ -92,7 +91,7 @@ void check_scatter_vs_tensor_api(const std::vector<Index>& shape)
     {
         auto tile = dst_t.get_tile(0);
         auto loc = tile.acquire(STARPU_W);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
         {
             loc[i] = static_cast<Y>(dst_data[i]);
         }
@@ -106,7 +105,7 @@ void check_scatter_vs_tensor_api(const std::vector<Index>& shape)
     {
         auto tile = dst_t.get_tile(0);
         auto loc = tile.acquire(STARPU_R);
-        for(Index i = 0; i < nelems; ++i)
+        for (Index i = 0; i < nelems; ++i)
         {
             tensor_result[i] = static_cast<float>(loc[i]);
         }
@@ -114,7 +113,7 @@ void check_scatter_vs_tensor_api(const std::vector<Index>& shape)
     }
 
     REQUIRE(graph_result.size() == tensor_result.size());
-    for(size_t i = 0; i < graph_result.size(); ++i)
+    for (size_t i = 0; i < graph_result.size(); ++i)
     {
         REQUIRE(std::abs(graph_result[i] - tensor_result[i]) < tolerance);
     }
@@ -124,14 +123,14 @@ TEST_CASE("TensorGraph scatter structure", "[graph][tensor]")
 {
     TensorGraph graph("test");
 
-    auto* src = graph.data({4, 5}, "src");
-    auto* dst = graph.data({4, 5}, "dst");
+    auto *src = graph.data({4, 5})->set_name("src");
+    auto *dst = graph.data({4, 5})->set_name("dst");
     gt::scatter(src, dst);
 
     REQUIRE(graph.num_data() == 2);
     REQUIRE(graph.num_ops() == 1);
 
-    const auto& ops = graph.ops();
+    const auto &ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "SCATTER");
     REQUIRE(ops[0]->inputs().size() == 1);
     REQUIRE(ops[0]->outputs().size() == 1);
@@ -141,8 +140,8 @@ TEST_CASE("TensorGraph scatter structure", "[graph][tensor]")
 TEST_CASE("TensorGraph scatter rejects null", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto* src = graph.data({4, 5}, "src");
-    auto* dst = graph.data({4, 5}, "dst");
+    auto *src = graph.data({4, 5})->set_name("src");
+    auto *dst = graph.data({4, 5})->set_name("dst");
 
     REQUIRE_THROWS_AS(gt::scatter(nullptr, dst), std::invalid_argument);
     REQUIRE_THROWS_AS(gt::scatter(src, nullptr), std::invalid_argument);
@@ -151,17 +150,17 @@ TEST_CASE("TensorGraph scatter rejects null", "[graph][tensor]")
 TEST_CASE("TensorGraph scatter rejects shape mismatch", "[graph][tensor]")
 {
     TensorGraph graph("test");
-    auto* src = graph.data({4, 5}, "src");
-    auto* dst = graph.data({3, 4}, "dst");
+    auto *src = graph.data({4, 5})->set_name("src");
+    auto *dst = graph.data({3, 4})->set_name("dst");
 
     REQUIRE_THROWS_AS(gt::scatter(src, dst), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "TensorGraph scatter matches nntile::tensor::scatter", "[graph][tensor]")
+    "TensorGraph scatter matches nntile::tensor::scatter",
+    "[graph][tensor]")
 {
-    const auto shape = GENERATE(
-        std::vector<Index>{4, 5},
+    const auto shape = GENERATE(std::vector<Index>{4, 5},
         std::vector<Index>{6},
         std::vector<Index>{2, 3});
 

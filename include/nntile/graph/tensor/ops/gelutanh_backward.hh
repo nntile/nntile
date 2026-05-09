@@ -28,16 +28,15 @@ namespace nntile::graph::tensor
 //! GeLUTanh backward operation: dx = gelutanh_backward(x, dy)
 struct TensorGelutanhBackwardOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* x = nullptr;
-    TensorGraph::TensorNode* dy = nullptr;
-    TensorGraph::TensorNode* dx = nullptr;
+    TensorGraph::TensorNode *x = nullptr;
+    TensorGraph::TensorNode *dy = nullptr;
+    TensorGraph::TensorNode *dx = nullptr;
 
     TensorGelutanhBackwardOp() = default;
-    TensorGelutanhBackwardOp(
-        TensorGraph::TensorNode* x_,
-        TensorGraph::TensorNode* dy_,
-        TensorGraph::TensorNode* dx_)
-        : x(x_), dy(dy_), dx(dx_)
+    TensorGelutanhBackwardOp(TensorGraph::TensorNode *x_,
+        TensorGraph::TensorNode *dy_,
+        TensorGraph::TensorNode *dx_) :
+        x(x_), dy(dy_), dx(dx_)
     {
         inputs_ = {x, dy, dx};
         outputs_ = {dx};
@@ -50,17 +49,14 @@ struct TensorGelutanhBackwardOp : TensorGraph::OpNode
         return std::make_shared<TensorGelutanhBackwardOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-TensorGraph::TensorNode* gelutanh_backward(
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* dy,
-    const std::string& output_name);
+TensorGraph::TensorNode *gelutanh_backward(
+    TensorGraph::TensorNode *x, TensorGraph::TensorNode *dy);
 
-void gelutanh_backward(
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* dy,
-    TensorGraph::TensorNode* dx);
+void gelutanh_backward(TensorGraph::TensorNode *x,
+    TensorGraph::TensorNode *dy,
+    TensorGraph::TensorNode *dx);
 
 } // namespace nntile::graph::tensor

@@ -14,27 +14,26 @@
 
 #include "nntile/graph/nn/ops/norm.hh"
 
-#include <stdexcept>
-
+#include "nntile/graph/nn/nn_grad_slot_name.hh"
 #include "nntile/graph/tensor/ops/clear.hh"
 #include "nntile/graph/tensor/ops/norm.hh"
+
+#include <stdexcept>
 
 namespace nntile::graph
 {
 
-NNGraph::TensorNode* NNNormOp::forward(const std::string& output_name)
+NNGraph::TensorNode *NNNormOp::forward()
 {
-    if(x == nullptr)
+    if (x == nullptr)
     {
-        throw std::invalid_argument(
-            "NNNormOp::forward: x must be non-null");
+        throw std::invalid_argument("NNNormOp::forward: x must be non-null");
     }
-    NNGraph* graph = x->graph();
+    NNGraph *graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x});
-    NNGraph::TensorNode* y = graph->tensor({}, output_name, x->dtype(),
-                                           out_requires_grad);
+    NNGraph::TensorNode *y = graph->tensor({}, x->dtype(), out_requires_grad);
     graph::tensor::clear(y->data());
-    constexpr Scalar beta_fresh = 0.0;  // NNGraph always outputs fresh data
+    constexpr Scalar beta_fresh = 0.0; // NNGraph always outputs fresh data
     graph::tensor::norm(x->data(), y->data(), alpha, beta_fresh);
     outputs_ = {y};
     return y;
@@ -42,25 +41,21 @@ NNGraph::TensorNode* NNNormOp::forward(const std::string& output_name)
 
 void NNNormOp::backward() const
 {
-    if(x != nullptr && x->requires_grad())
+    if (x != nullptr && x->requires_grad())
     {
-        throw std::runtime_error(
-            "norm backward is not implemented");
+        throw std::runtime_error("norm backward is not implemented");
     }
 }
 
-NNGraph::TensorNode* norm(
-    NNGraph::TensorNode* x,
-    const std::string& output_name,
-    Scalar alpha)
+NNGraph::TensorNode *norm(NNGraph::TensorNode *x, Scalar alpha)
 {
-    if(x == nullptr)
+    if (x == nullptr)
     {
         throw std::invalid_argument("norm: x must be non-null");
     }
-    NNGraph* graph = x->graph();
+    NNGraph *graph = x->graph();
     auto op = std::make_shared<NNNormOp>(x, alpha);
-    NNGraph::TensorNode* y = op->forward(output_name);
+    NNGraph::TensorNode *y = op->forward();
     graph->register_op(std::move(op));
     return y;
 }

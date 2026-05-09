@@ -16,8 +16,8 @@
 #include <catch2/generators/catch_generators_all.hpp>
 
 #ifdef NNTILE_HAVE_TORCH
-#   include "pytorch_helper.hh"
-#   include "pytorch_tile_helpers.hh"
+#include "pytorch_helper.hh"
+#include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -28,16 +28,17 @@ using namespace nntile::graph;
 namespace gt = nntile::graph::tensor;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph mse_loss structure", "[graph][nn_graph]")
+    "NNGraph mse_loss structure",
+    "[graph][nn_graph]")
 {
-    const auto [x_shape, scale] = GENERATE(
-        std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
-        std::tuple{std::vector<Index>{3, 5}, Scalar(0.5)},
-        std::tuple{std::vector<Index>{2, 3, 4}, Scalar(1.0 / 24.0)});
+    const auto [x_shape, scale] =
+        GENERATE(std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{3, 5}, Scalar(0.5)},
+            std::tuple{std::vector<Index>{2, 3, 4}, Scalar(1.0 / 24.0)});
 
     NNGraph g("mse_loss_structure");
-    auto* x = g.tensor(x_shape, "x", DataType::FP32);
-    auto* loss = mse_loss(x, "loss", scale);
+    auto *x = g.tensor(x_shape, DataType::FP32)->set_name("x");
+    auto *loss = mse_loss(x, scale)->set_name("loss");
 
     REQUIRE(loss != nullptr);
     REQUIRE(loss->has_producer());
@@ -47,15 +48,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph mse_loss backward", "[graph][nn_graph]")
+    "NNGraph mse_loss backward",
+    "[graph][nn_graph]")
 {
-    const auto [x_shape, scale] = GENERATE(
-        std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
-        std::tuple{std::vector<Index>{3, 5}, Scalar(0.5)});
+    const auto [x_shape, scale] =
+        GENERATE(std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{3, 5}, Scalar(0.5)});
 
     NNGraph g("mse_loss_backward");
-    auto* x = g.tensor(x_shape, "x", DataType::FP32);
-    auto* loss = mse_loss(x, "loss", scale);
+    auto *x = g.tensor(x_shape, DataType::FP32)->set_name("x");
+    auto *loss = mse_loss(x, scale)->set_name("loss");
 
     auto [loss_grad, _] = g.get_or_create_grad(loss, "loss_grad");
     gt::fill(1.0, loss_grad->data());
@@ -66,16 +68,17 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph mse_loss forward and backward", "[graph][nn_graph]")
+    "NNGraph mse_loss forward and backward",
+    "[graph][nn_graph]")
 {
-    const auto [x_shape, scale] = GENERATE(
-        std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
-        std::tuple{std::vector<Index>{3, 6}, Scalar(0.5)},
-        std::tuple{std::vector<Index>{2, 3, 4}, Scalar(1.0 / 24.0)});
+    const auto [x_shape, scale] =
+        GENERATE(std::tuple{std::vector<Index>{2, 4}, Scalar(1.0)},
+            std::tuple{std::vector<Index>{3, 6}, Scalar(0.5)},
+            std::tuple{std::vector<Index>{2, 3, 4}, Scalar(1.0 / 24.0)});
 
     NNGraph g("mse_loss");
-    auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
-    auto* loss = mse_loss(x, "loss", scale);
+    auto *x = g.tensor(x_shape, DataType::FP32, true)->set_name("x");
+    auto *loss = mse_loss(x, scale)->set_name("loss");
 
     REQUIRE(loss != nullptr);
     REQUIRE(loss->has_producer());
@@ -97,19 +100,20 @@ using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 using nntile::test::require_relative_frobenius_error;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph mse_loss forward and backward match PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph mse_loss forward and backward match PyTorch",
+    "[graph][nn_graph][pytorch]")
 {
     const auto scale = GENERATE(Scalar(1.0), Scalar(0.5), Scalar(1.0 / 42.0));
     const std::vector<Index> x_shape = {6, 7};
     constexpr Index x_nelems = 6 * 7;
 
     std::vector<float> x_data(x_nelems);
-    for(Index i = 0; i < x_nelems; ++i)
+    for (Index i = 0; i < x_nelems; ++i)
         x_data[i] = 0.1f * static_cast<float>(i + 1);
 
     NNGraph g("mse_loss_pytorch");
-    auto* x = g.tensor(x_shape, "x", DataType::FP32, true);
-    auto* loss = mse_loss(x, "loss", scale);
+    auto *x = g.tensor(x_shape, DataType::FP32, true)->set_name("x");
+    auto *loss = mse_loss(x, scale)->set_name("loss");
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
 
@@ -126,7 +130,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data(x,  x_data);
+    runtime.bind_data(x, x_data);
     runtime.execute();
     runtime.wait();
 
@@ -139,20 +143,21 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     std::vector<float> x_row = colmajor_to_rowmajor(x_data, x_shape);
     std::vector<::int64_t> x_shape_pt(x_shape.begin(), x_shape.end());
 
-    auto x_pt = torch::from_blob(x_row.data(), x_shape_pt,
-                                 torch::TensorOptions().dtype(torch::kFloat32))
+    auto x_pt = torch::from_blob(x_row.data(),
+        x_shape_pt,
+        torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);
 
     // PyTorch: loss = scale * sum(x^2), grad_x = 2 * scale * x (grad_loss=1.0)
     auto loss_pt = scale * (x_pt * x_pt).sum();
-    loss_pt.backward();  // scalar default grad is 1.0
+    loss_pt.backward(); // scalar default grad is 1.0
 
     float pytorch_loss = loss_pt.item<float>();
 
     REQUIRE(nntile_loss.size() == 1);
-    auto loss_ref = torch::tensor({pytorch_loss},
-        torch::TensorOptions().dtype(torch::kFloat32));
+    auto loss_ref = torch::tensor(
+        {pytorch_loss}, torch::TensorOptions().dtype(torch::kFloat32));
     require_relative_frobenius_error(nntile_loss, loss_ref);
 
     require_relative_frobenius_error(nntile_grad_x, x_pt.grad().contiguous());

@@ -13,68 +13,67 @@
  * */
 
 #include "nntile/graph/nn/ops/silu.hh"
+
 #include "nntile/graph/nn/graph_data_node.hh"
-
-#include <stdexcept>
-
+#include "nntile/graph/nn/nn_grad_slot_name.hh"
 #include "nntile/graph/tensor/ops/clear.hh"
 #include "nntile/graph/tensor/ops/silu.hh"
 #include "nntile/graph/tensor/ops/silu_backward.hh"
 
+#include <stdexcept>
+
 namespace nntile::graph
 {
 
-NNGraph::TensorNode* NNSiluOp::forward(const std::string& output_name)
+NNGraph::TensorNode *NNSiluOp::forward()
 {
-    if(x == nullptr)
+    if (x == nullptr)
     {
-        throw std::invalid_argument(
-            "NNSiluOp::forward: x must be non-null");
+        throw std::invalid_argument("NNSiluOp::forward: x must be non-null");
     }
-    NNGraph* graph = x->graph();
+    NNGraph *graph = x->graph();
     bool out_requires_grad = any_input_requires_grad({x});
-    TensorGraph::TensorNode* y_data = graph::tensor::silu(x->data(), output_name);
-    NNGraph::TensorNode* y = graph->tensor(y_data, out_requires_grad);
+    TensorGraph::TensorNode *y_data = graph::tensor::silu(x->data());
+    NNGraph::TensorNode *y = graph->tensor(y_data, out_requires_grad);
     outputs_ = {y};
     return y;
 }
 
 void NNSiluOp::backward() const
 {
-    NNGraph::TensorNode* out = output();
-    if(out == nullptr)
+    NNGraph::TensorNode *out = output();
+    if (out == nullptr)
     {
         return;
     }
-    NNGraph* graph = out->graph();
-    NNGraph::TensorNode* grad_out = out->grad();
-    if(grad_out == nullptr)
+    NNGraph *graph = out->graph();
+    NNGraph::TensorNode *grad_out = out->grad();
+    if (grad_out == nullptr)
     {
         return;
     }
-    if(x != nullptr && x->requires_grad())
+    if (x != nullptr && x->requires_grad())
     {
         auto [grad_x, is_first] =
-            graph->get_or_create_grad(x, x->name() + "_grad");
-        if(is_first)
+            graph->get_or_create_grad(x, nn_grad_slot_name(x));
+        if (is_first)
         {
             graph::tensor::clear(grad_x->data());
         }
-        graph::tensor::silu_backward(x->data(), grad_out->data(), grad_x->data());
+        graph::tensor::silu_backward(
+            x->data(), grad_out->data(), grad_x->data());
     }
 }
 
-NNGraph::TensorNode* silu(
-    NNGraph::TensorNode* x,
-    const std::string& output_name)
+NNGraph::TensorNode *silu(NNGraph::TensorNode *x)
 {
-    if(x == nullptr)
+    if (x == nullptr)
     {
         throw std::invalid_argument("silu: x must be non-null");
     }
-    NNGraph* graph = x->graph();
+    NNGraph *graph = x->graph();
     auto op = std::make_shared<NNSiluOp>(x);
-    NNGraph::TensorNode* y = op->forward(output_name);
+    NNGraph::TensorNode *y = op->forward();
     graph->register_op(std::move(op));
     return y;
 }

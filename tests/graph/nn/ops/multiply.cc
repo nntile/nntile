@@ -16,8 +16,8 @@
 #include <catch2/generators/catch_generators_all.hpp>
 
 #ifdef NNTILE_HAVE_TORCH
-#   include "pytorch_helper.hh"
-#   include "pytorch_tile_helpers.hh"
+#include "pytorch_helper.hh"
+#include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -36,14 +36,16 @@ constexpr Index dim_3 = 3;
 } // anonymous namespace
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph multiply structure", "[graph][nn_graph]")
+    "NNGraph multiply structure",
+    "[graph][nn_graph]")
 {
-    const auto alpha = GENERATE(Scalar(1.0), Scalar(2.0), Scalar(0.5), Scalar(-1.0));
+    const auto alpha =
+        GENERATE(Scalar(1.0), Scalar(2.0), Scalar(0.5), Scalar(-1.0));
 
     NNGraph g("multiply_structure");
-    auto* x = g.tensor({dim_2, dim_3}, "x", DataType::FP32);
-    auto* y = g.tensor({dim_2, dim_3}, "y", DataType::FP32);
-    auto* z = multiply(x, y, "z", alpha);
+    auto *x = g.tensor({dim_2, dim_3}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({dim_2, dim_3}, DataType::FP32)->set_name("y");
+    auto *z = multiply(x, y, alpha);
 
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
@@ -53,18 +55,19 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph multiply backward", "[graph][nn_graph]")
+    "NNGraph multiply backward",
+    "[graph][nn_graph]")
 {
-    const auto [alpha, grad_fill_val] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0)},
-        std::tuple{Scalar(2.0), Scalar(-1.0)},
-        std::tuple{Scalar(0.5), Scalar(0.5)},
-        std::tuple{Scalar(-1.0), Scalar(2.0)});
+    const auto [alpha, grad_fill_val] =
+        GENERATE(std::tuple{Scalar(1.0), Scalar(1.0)},
+            std::tuple{Scalar(2.0), Scalar(-1.0)},
+            std::tuple{Scalar(0.5), Scalar(0.5)},
+            std::tuple{Scalar(-1.0), Scalar(2.0)});
 
     NNGraph g("multiply_backward");
-    auto* x = g.tensor({dim_2, dim_3}, "x", DataType::FP32);
-    auto* y = g.tensor({dim_2, dim_3}, "y", DataType::FP32);
-    auto* z = multiply(x, y, "z", alpha);
+    auto *x = g.tensor({dim_2, dim_3}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({dim_2, dim_3}, DataType::FP32)->set_name("y");
+    auto *z = multiply(x, y, alpha);
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     gt::fill(grad_fill_val, z_grad->data());
@@ -80,9 +83,11 @@ using nntile::test::compare_float_vectors;
 using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph multiply forward matches PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph multiply forward matches PyTorch",
+    "[graph][nn_graph][pytorch]")
 {
-    const auto alpha = GENERATE(Scalar(1.0), Scalar(2.0), Scalar(0.5), Scalar(-1.0));
+    const auto alpha =
+        GENERATE(Scalar(1.0), Scalar(2.0), Scalar(0.5), Scalar(-1.0));
 
     constexpr Index dim0 = 6;
     constexpr Index dim1 = 7;
@@ -90,16 +95,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> x_data(nelems);
     std::vector<float> y_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         x_data[i] = 0.1f * static_cast<float>(i + 1);
         y_data[i] = 0.2f * static_cast<float>(-i - 1);
     }
 
     NNGraph g("multiply_pytorch");
-    auto* x = g.tensor({dim0, dim1}, "x", DataType::FP32, true);
-    auto* y = g.tensor({dim0, dim1}, "y", DataType::FP32, true);
-    auto* z = multiply(x, y, "z", alpha);
+    auto *x = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("x");
+    auto *y = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("y");
+    auto *z = multiply(x, y, alpha);
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
 
@@ -110,32 +115,37 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data(x,  x_data);
-    runtime.bind_data(y,  y_data);
+    runtime.bind_data(x, x_data);
+    runtime.bind_data(y, y_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_out = runtime.get_output<float>(z);
 
-    auto x_pt = torch::from_blob(x_data.data(), {dim0, dim1},
-                                 torch::TensorOptions().dtype(torch::kFloat32))
-                    .clone().set_requires_grad(false);
-    auto y_pt = torch::from_blob(y_data.data(), {dim0, dim1},
-                                 torch::TensorOptions().dtype(torch::kFloat32))
-                    .clone().set_requires_grad(false);
+    auto x_pt = torch::from_blob(x_data.data(),
+        {dim0, dim1},
+        torch::TensorOptions().dtype(torch::kFloat32))
+                    .clone()
+                    .set_requires_grad(false);
+    auto y_pt = torch::from_blob(y_data.data(),
+        {dim0, dim1},
+        torch::TensorOptions().dtype(torch::kFloat32))
+                    .clone()
+                    .set_requires_grad(false);
 
     auto z_pt = (alpha * x_pt * y_pt).contiguous();
     compare_float_vectors(nntile_out, z_pt);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph multiply backward matches PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph multiply backward matches PyTorch",
+    "[graph][nn_graph][pytorch]")
 {
-    const auto [alpha, grad_fill_val] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0)},
-        std::tuple{Scalar(2.0), Scalar(-1.0)},
-        std::tuple{Scalar(0.5), Scalar(0.5)},
-        std::tuple{Scalar(-1.0), Scalar(2.0)});
+    const auto [alpha, grad_fill_val] =
+        GENERATE(std::tuple{Scalar(1.0), Scalar(1.0)},
+            std::tuple{Scalar(2.0), Scalar(-1.0)},
+            std::tuple{Scalar(0.5), Scalar(0.5)},
+            std::tuple{Scalar(-1.0), Scalar(2.0)});
 
     constexpr Index dim0 = 6;
     constexpr Index dim1 = 7;
@@ -143,16 +153,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> x_data(nelems);
     std::vector<float> y_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         x_data[i] = 0.1f * static_cast<float>(i);
         y_data[i] = 0.15f * static_cast<float>(i + 10);
     }
 
     NNGraph g("multiply_bwd_pytorch");
-    auto* x = g.tensor({dim0, dim1}, "x", DataType::FP32, true);
-    auto* y = g.tensor({dim0, dim1}, "y", DataType::FP32, true);
-    auto* z = multiply(x, y, "z", alpha);
+    auto *x = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("x");
+    auto *y = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("y");
+    auto *z = multiply(x, y, alpha);
 
     nn_pytorch_tile_heterogeneous_rank2_6x7(x);
 
@@ -169,26 +179,28 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data(x,  x_data);
-    runtime.bind_data(y,  y_data);
+    runtime.bind_data(x, x_data);
+    runtime.bind_data(y, y_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_grad_x =
-        runtime.get_output<float>(x->grad());
-    std::vector<float> nntile_grad_y =
-        runtime.get_output<float>(y->grad());
+    std::vector<float> nntile_grad_x = runtime.get_output<float>(x->grad());
+    std::vector<float> nntile_grad_y = runtime.get_output<float>(y->grad());
 
-    auto x_pt = torch::from_blob(x_data.data(), {dim0, dim1},
-                                 torch::TensorOptions().dtype(torch::kFloat32))
-                    .clone().set_requires_grad(true);
-    auto y_pt = torch::from_blob(y_data.data(), {dim0, dim1},
-                                 torch::TensorOptions().dtype(torch::kFloat32))
-                    .clone().set_requires_grad(true);
+    auto x_pt = torch::from_blob(x_data.data(),
+        {dim0, dim1},
+        torch::TensorOptions().dtype(torch::kFloat32))
+                    .clone()
+                    .set_requires_grad(true);
+    auto y_pt = torch::from_blob(y_data.data(),
+        {dim0, dim1},
+        torch::TensorOptions().dtype(torch::kFloat32))
+                    .clone()
+                    .set_requires_grad(true);
 
     auto z_pt = alpha * x_pt * y_pt;
-    auto grad_output = torch::full(
-        {dim0, dim1}, static_cast<float>(grad_fill_val),
+    auto grad_output = torch::full({dim0, dim1},
+        static_cast<float>(grad_fill_val),
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     z_pt.backward(grad_output);
 

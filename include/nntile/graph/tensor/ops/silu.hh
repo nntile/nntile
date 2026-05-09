@@ -28,12 +28,13 @@ namespace nntile::graph::tensor
 //! SiLU operation: dst = silu(src)
 struct TensorSiluOp : TensorGraph::OpNode
 {
-    TensorGraph::TensorNode* src = nullptr;
-    TensorGraph::TensorNode* dst = nullptr;
+    TensorGraph::TensorNode *src = nullptr;
+    TensorGraph::TensorNode *dst = nullptr;
 
     TensorSiluOp() = default;
-    TensorSiluOp(TensorGraph::TensorNode* src_, TensorGraph::TensorNode* dst_)
-        : src(src_), dst(dst_)
+    TensorSiluOp(
+        TensorGraph::TensorNode *src_, TensorGraph::TensorNode *dst_) :
+        src(src_), dst(dst_)
     {
         inputs_ = {src};
         outputs_ = {dst};
@@ -46,15 +47,11 @@ struct TensorSiluOp : TensorGraph::OpNode
         return std::make_shared<TensorSiluOp>(*this);
     }
 
-    void lower_to_tile(const LoweringContext& ctx) const override;
+    void lower_to_tile(const LoweringContext &ctx) const override;
 };
 
-TensorGraph::TensorNode* silu(
-    TensorGraph::TensorNode* src,
-    const std::string& output_name);
+TensorGraph::TensorNode *silu(TensorGraph::TensorNode *src);
 
-void silu(
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst);
+void silu(TensorGraph::TensorNode *src, TensorGraph::TensorNode *dst);
 
 } // namespace nntile::graph::tensor

@@ -14,36 +14,29 @@
 
 #include "nntile/graph/tensor/ops/gelu.hh"
 
-#include <stdexcept>
-#include <utility>
-
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gelu.hh"
 
-#include <nntile/graph/tile/graph_ops.hh>
 #include <nntile/graph/tensor/tile_lowering_helpers.hh>
+#include <nntile/graph/tile/graph_ops.hh>
+#include <stdexcept>
+#include <utility>
 
 namespace nntile::graph::tensor
 {
 
-
-
-TensorGraph::TensorNode* gelu(
-    TensorGraph::TensorNode* x,
-    const std::string& output_name)
+TensorGraph::TensorNode *gelu(TensorGraph::TensorNode *x)
 {
-    if(x == nullptr)
+    if (x == nullptr)
     {
         throw std::invalid_argument("gelu: input tensor must be non-null");
     }
 
     std::vector<Index> output_shape = x->shape();
-    TensorGraph::TensorNode* output = x->graph()->data(
-        std::move(output_shape),
-        output_name,
-        x->dtype());
+    TensorGraph::TensorNode *output =
+        x->graph()->data(std::move(output_shape), x->dtype());
     output->set_axes(x->axes());
 
     auto op = std::make_shared<TensorGeluOp>(x, output);
@@ -52,28 +45,25 @@ TensorGraph::TensorNode* gelu(
     return output;
 }
 
-void gelu(
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* y)
+void gelu(TensorGraph::TensorNode *x, TensorGraph::TensorNode *y)
 {
-    if(x == nullptr || y == nullptr)
+    if (x == nullptr || y == nullptr)
     {
         throw std::invalid_argument("gelu: input tensors must be non-null");
     }
-    if(x->graph() != y->graph())
+    if (x->graph() != y->graph())
     {
         throw std::invalid_argument(
             "gelu: input tensors must belong to the same graph");
     }
-    if(x->dtype() != y->dtype())
+    if (x->dtype() != y->dtype())
     {
         throw std::invalid_argument(
             "gelu: input tensors must have the same dtype");
     }
-    if(x == y)
+    if (x == y)
     {
-        throw std::invalid_argument(
-            "gelu: x and y must be distinct tensors");
+        throw std::invalid_argument("gelu: x and y must be distinct tensors");
     }
     validate_same_shape_and_merge(x, y, "gelu");
 
@@ -81,10 +71,9 @@ void gelu(
     x->graph()->add_op(op);
 }
 
-void TensorGeluOp::lower_to_tile(const LoweringContext& ctx) const
+void TensorGeluOp::lower_to_tile(const LoweringContext &ctx) const
 {
-    tile_lower::lower_unary2(
-        x, y, ctx.tile_map, "GELU", tile_graph::gelu);
+    tile_lower::lower_unary2(x, y, ctx.tile_map, "GELU", tile_graph::gelu);
 }
 
 } // namespace nntile::graph::tensor

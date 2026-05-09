@@ -16,7 +16,7 @@
 #include <catch2/generators/catch_generators_all.hpp>
 
 #ifdef NNTILE_HAVE_TORCH
-#   include "pytorch_helper.hh"
+#include "pytorch_helper.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -34,7 +34,7 @@ namespace
 
 //! Heterogeneous splits on both axes (sums 6 and 7); call after tensor::add
 //! merges x/y so one leaf's axes define the shared layout.
-void add_heterogeneous_tiling_6x7(NNGraph::TensorNode* x_leaf)
+void add_heterogeneous_tiling_6x7(NNGraph::TensorNode *x_leaf)
 {
     x_leaf->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
     x_leaf->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
@@ -44,20 +44,21 @@ void add_heterogeneous_tiling_6x7(NNGraph::TensorNode* x_leaf)
 #endif
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph add rejects shape mismatch", "[graph][nn_graph]")
+    "NNGraph add rejects shape mismatch",
+    "[graph][nn_graph]")
 {
     NNGraph g("add_shape_mismatch");
-    auto* x = g.tensor({2, 3}, "x", DataType::FP32);
-    auto* y = g.tensor({3, 2}, "y", DataType::FP32);  // different shape
+    auto *x = g.tensor({2, 3}, DataType::FP32)->set_name("x");
+    auto *y =
+        g.tensor({3, 2}, DataType::FP32)->set_name("y"); // different shape
 
-    REQUIRE_THROWS_AS(add(1.0, x, 1.0, y, "z"), std::invalid_argument);
+    REQUIRE_THROWS_AS(add(1.0, x, 1.0, y), std::invalid_argument);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph add structure", "[graph][nn_graph]")
+TEST_CASE_METHOD(
+    nntile::test::ContextFixture, "NNGraph add structure", "[graph][nn_graph]")
 {
-    const auto [alpha, beta] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0)},
+    const auto [alpha, beta] = GENERATE(std::tuple{Scalar(1.0), Scalar(1.0)},
         std::tuple{Scalar(2.0), Scalar(3.0)},
         std::tuple{Scalar(0.5), Scalar(-1.0)});
 
@@ -65,9 +66,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     constexpr Index dim1 = 3;
 
     NNGraph g("add_structure");
-    auto* x = g.tensor({dim0, dim1}, "x", DataType::FP32);
-    auto* y = g.tensor({dim0, dim1}, "y", DataType::FP32);
-    auto* z = add(alpha, x, beta, y, "z");
+    auto *x = g.tensor({dim0, dim1}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({dim0, dim1}, DataType::FP32)->set_name("y");
+    auto *z = add(alpha, x, beta, y)->set_name("z");
 
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
@@ -76,19 +77,19 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(g.tensor_graph().ops()[0]->op_name() == "ADD");
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph add backward", "[graph][nn_graph]")
+TEST_CASE_METHOD(
+    nntile::test::ContextFixture, "NNGraph add backward", "[graph][nn_graph]")
 {
-    const auto [alpha, beta, grad_fill_val] = GENERATE(
-        std::tuple{Scalar(2.0), Scalar(3.0), Scalar(1.0)},
-        std::tuple{Scalar(0.5), Scalar(-1.0), Scalar(2.0)},
-        std::tuple{Scalar(1.0), Scalar(0.0), Scalar(1.0)});
+    const auto [alpha, beta, grad_fill_val] =
+        GENERATE(std::tuple{Scalar(2.0), Scalar(3.0), Scalar(1.0)},
+            std::tuple{Scalar(0.5), Scalar(-1.0), Scalar(2.0)},
+            std::tuple{Scalar(1.0), Scalar(0.0), Scalar(1.0)});
 
     NNGraph g("autograd_add");
-    auto* x = g.tensor({2, 3}, "x", DataType::FP32);
-    auto* y = g.tensor({2, 3}, "y", DataType::FP32);
+    auto *x = g.tensor({2, 3}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({2, 3}, DataType::FP32)->set_name("y");
 
-    auto* z = add(alpha, x, beta, y, "z");
+    auto *z = add(alpha, x, beta, y)->set_name("z");
 
     REQUIRE(z->has_producer());
     REQUIRE_FALSE(z->is_leaf());
@@ -103,28 +104,28 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(y->has_grad());
 
     size_t add_inplace_count = 0;
-    for(const auto& op : g.tensor_graph().ops())
+    for (const auto &op : g.tensor_graph().ops())
     {
-        if(op->op_name() == "ADD_INPLACE")
+        if (op->op_name() == "ADD_INPLACE")
             ++add_inplace_count;
     }
     REQUIRE(add_inplace_count == 2);
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph add chain", "[graph][nn_graph]")
+TEST_CASE_METHOD(
+    nntile::test::ContextFixture, "NNGraph add chain", "[graph][nn_graph]")
 {
-    const auto [add_alpha, add_beta, grad_fill_val] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0), Scalar(1.0)},
-        std::tuple{Scalar(0.5), Scalar(2.0), Scalar(-1.0)});
+    const auto [add_alpha, add_beta, grad_fill_val] =
+        GENERATE(std::tuple{Scalar(1.0), Scalar(1.0), Scalar(1.0)},
+            std::tuple{Scalar(0.5), Scalar(2.0), Scalar(-1.0)});
 
     NNGraph g("add_chain");
-    auto* x = g.tensor({2, 2}, "x", DataType::FP32);
-    auto* y = g.tensor({2, 2}, "y", DataType::FP32);
-    auto* u = g.tensor({2, 2}, "u", DataType::FP32);
+    auto *x = g.tensor({2, 2}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({2, 2}, DataType::FP32)->set_name("y");
+    auto *u = g.tensor({2, 2}, DataType::FP32)->set_name("u");
 
-    auto* w = add(add_alpha, x, add_beta, y, "w");
-    auto* z = add(add_alpha, w, add_beta, u, "z");
+    auto *w = add(add_alpha, x, add_beta, y)->set_name("w");
+    auto *z = add(add_alpha, w, add_beta, u)->set_name("z");
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     gt::fill(grad_fill_val, z_grad->data());
@@ -136,20 +137,20 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     REQUIRE(w->has_grad());
 }
 
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph add diamond", "[graph][nn_graph]")
+TEST_CASE_METHOD(
+    nntile::test::ContextFixture, "NNGraph add diamond", "[graph][nn_graph]")
 {
-    const auto [add_alpha, add_beta, grad_fill_val] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0), Scalar(1.0)},
-        std::tuple{Scalar(2.0), Scalar(0.5), Scalar(1.0)});
+    const auto [add_alpha, add_beta, grad_fill_val] =
+        GENERATE(std::tuple{Scalar(1.0), Scalar(1.0), Scalar(1.0)},
+            std::tuple{Scalar(2.0), Scalar(0.5), Scalar(1.0)});
 
     NNGraph g("add_diamond");
-    auto* x = g.tensor({2, 2}, "x", DataType::FP32);
-    auto* y = g.tensor({2, 2}, "y", DataType::FP32);
+    auto *x = g.tensor({2, 2}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({2, 2}, DataType::FP32)->set_name("y");
 
-    auto* w = add(add_alpha, x, add_beta, y, "w");
-    auto* v = add(add_alpha, w, add_beta, y, "v");
-    auto* z = add(add_alpha, v, add_beta, w, "z");
+    auto *w = add(add_alpha, x, add_beta, y)->set_name("w");
+    auto *v = add(add_alpha, w, add_beta, y)->set_name("v");
+    auto *z = add(add_alpha, v, add_beta, w)->set_name("z");
 
     auto [z_grad, _] = g.get_or_create_grad(z, "z_grad");
     gt::fill(grad_fill_val, z_grad->data());
@@ -162,17 +163,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph add forward and backward", "[graph][nn_graph]")
+    "NNGraph add forward and backward",
+    "[graph][nn_graph]")
 {
-    const auto [add_alpha, add_beta, grad_fill_val] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0), Scalar(1.0)},
-        std::tuple{Scalar(2.0), Scalar(3.0), Scalar(1.0)},
-        std::tuple{Scalar(0.5), Scalar(-1.0), Scalar(2.0)});
+    const auto [add_alpha, add_beta, grad_fill_val] =
+        GENERATE(std::tuple{Scalar(1.0), Scalar(1.0), Scalar(1.0)},
+            std::tuple{Scalar(2.0), Scalar(3.0), Scalar(1.0)},
+            std::tuple{Scalar(0.5), Scalar(-1.0), Scalar(2.0)});
 
     NNGraph g("add");
-    auto* x = g.tensor({2, 3}, "x", DataType::FP32, true);
-    auto* y = g.tensor({2, 3}, "y", DataType::FP32, true);
-    auto* z = add(add_alpha, x, add_beta, y, "z");
+    auto *x = g.tensor({2, 3}, DataType::FP32, true)->set_name("x");
+    auto *y = g.tensor({2, 3}, DataType::FP32, true)->set_name("y");
+    auto *z = add(add_alpha, x, add_beta, y)->set_name("z");
 
     REQUIRE(z != nullptr);
     REQUIRE(z->has_producer());
@@ -191,10 +193,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 using nntile::test::compare_float_vectors;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph add forward matches PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph add forward matches PyTorch",
+    "[graph][nn_graph][pytorch]")
 {
-    const auto [alpha, beta] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0)},
+    const auto [alpha, beta] = GENERATE(std::tuple{Scalar(1.0), Scalar(1.0)},
         std::tuple{Scalar(2.0), Scalar(3.0)},
         std::tuple{Scalar(0.5), Scalar(-1.0)});
 
@@ -204,16 +206,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> x_data(nelems);
     std::vector<float> y_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         x_data[i] = 0.1f * static_cast<float>(i + 1);
         y_data[i] = 0.2f * static_cast<float>(-i - 1);
     }
 
     NNGraph g("add_pytorch");
-    auto* x = g.tensor({dim0, dim1}, "x", DataType::FP32, true);
-    auto* y = g.tensor({dim0, dim1}, "y", DataType::FP32, true);
-    auto* z = add(alpha, x, beta, y, "z");
+    auto *x = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("x");
+    auto *y = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("y");
+    auto *z = add(alpha, x, beta, y)->set_name("z");
 
     add_heterogeneous_tiling_6x7(x);
 
@@ -224,19 +226,21 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data(x,  x_data);
-    runtime.bind_data(y,  y_data);
+    runtime.bind_data(x, x_data);
+    runtime.bind_data(y, y_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> nntile_out = runtime.get_output<float>(z);
 
-    auto x_pt = torch::from_blob(x_data.data(), {dim0, dim1},
-                                 torch::TensorOptions().dtype(torch::kFloat32))
+    auto x_pt = torch::from_blob(x_data.data(),
+        {dim0, dim1},
+        torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(false);
-    auto y_pt = torch::from_blob(y_data.data(), {dim0, dim1},
-                                 torch::TensorOptions().dtype(torch::kFloat32))
+    auto y_pt = torch::from_blob(y_data.data(),
+        {dim0, dim1},
+        torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(false);
 
@@ -245,12 +249,13 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph add backward matches PyTorch", "[graph][nn_graph][pytorch]")
+    "NNGraph add backward matches PyTorch",
+    "[graph][nn_graph][pytorch]")
 {
-    const auto [alpha, beta, grad_fill_val] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0), Scalar(1.0)},
-        std::tuple{Scalar(2.0), Scalar(3.0), Scalar(1.0)},
-        std::tuple{Scalar(0.5), Scalar(-1.0), Scalar(2.0)});
+    const auto [alpha, beta, grad_fill_val] =
+        GENERATE(std::tuple{Scalar(1.0), Scalar(1.0), Scalar(1.0)},
+            std::tuple{Scalar(2.0), Scalar(3.0), Scalar(1.0)},
+            std::tuple{Scalar(0.5), Scalar(-1.0), Scalar(2.0)});
 
     constexpr Index dim0 = 6;
     constexpr Index dim1 = 7;
@@ -258,16 +263,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> x_data(nelems);
     std::vector<float> y_data(nelems);
-    for(Index i = 0; i < nelems; ++i)
+    for (Index i = 0; i < nelems; ++i)
     {
         x_data[i] = 0.1f * static_cast<float>(i);
         y_data[i] = 0.15f * static_cast<float>(i + 10);
     }
 
     NNGraph g("add_bwd_pytorch");
-    auto* x = g.tensor({dim0, dim1}, "x", DataType::FP32, true);
-    auto* y = g.tensor({dim0, dim1}, "y", DataType::FP32, true);
-    auto* z = add(alpha, x, beta, y, "z");
+    auto *x = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("x");
+    auto *y = g.tensor({dim0, dim1}, DataType::FP32, true)->set_name("y");
+    auto *z = add(alpha, x, beta, y)->set_name("z");
 
     add_heterogeneous_tiling_6x7(x);
 
@@ -284,28 +289,28 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
     TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
-    runtime.bind_data(x,  x_data);
-    runtime.bind_data(y,  y_data);
+    runtime.bind_data(x, x_data);
+    runtime.bind_data(y, y_data);
     runtime.execute();
     runtime.wait();
 
-    std::vector<float> nntile_grad_x =
-        runtime.get_output<float>(x->grad());
-    std::vector<float> nntile_grad_y =
-        runtime.get_output<float>(y->grad());
+    std::vector<float> nntile_grad_x = runtime.get_output<float>(x->grad());
+    std::vector<float> nntile_grad_y = runtime.get_output<float>(y->grad());
 
-    auto x_pt = torch::from_blob(x_data.data(), {dim0, dim1},
-                                 torch::TensorOptions().dtype(torch::kFloat32))
+    auto x_pt = torch::from_blob(x_data.data(),
+        {dim0, dim1},
+        torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);
-    auto y_pt = torch::from_blob(y_data.data(), {dim0, dim1},
-                                 torch::TensorOptions().dtype(torch::kFloat32))
+    auto y_pt = torch::from_blob(y_data.data(),
+        {dim0, dim1},
+        torch::TensorOptions().dtype(torch::kFloat32))
                     .clone()
                     .set_requires_grad(true);
 
     auto z_pt = x_pt.mul(alpha).add(y_pt, beta);
-    auto grad_output = torch::full(
-        {dim0, dim1}, static_cast<float>(grad_fill_val),
+    auto grad_output = torch::full({dim0, dim1},
+        static_cast<float>(grad_fill_val),
         torch::TensorOptions().dtype(torch::kFloat32).requires_grad(false));
     z_pt.backward(grad_output);
 
