@@ -33,8 +33,10 @@
  * sin/cos, and a boolean causal attention mask; logits feed a scaled scalar
  * cross-entropy vs ``labels``. ``--tiny`` selects a built-in small config;
  * ``--config`` loads JSON ``LlamaConfig``; otherwise the tiny default applies.
- * ``--load-weights`` loads SafeTensors; else parameters get a fan-in-scaled
- * uniform random bind hint and ``mark_parameters_input_recursive``.
+ * ``--load-weights`` uses ``Module::load`` (SafeTensors): per-parameter
+ * ``set_bind_hint`` for keys matching ``named_parameters_recursive`` names,
+ * then ``mark_parameters_input_recursive`` (same persistence as random init).
+ * Else: fan-in-scaled uniform random bind hints and the same mark call.
  *
  * Training loop (per batch): clear parameter grads, forward, loss,
  * ``backward(true)``, ``optimizer->step(scheduled_lr)`` (linear warmup over
