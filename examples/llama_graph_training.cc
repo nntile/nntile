@@ -785,9 +785,12 @@ int main(int argc, char **argv)
         const std::string cfg_path = args.output_dir + "/config.json";
         const std::string w_path = args.output_dir + "/model.safetensors";
         save_llama_config_json(config, cfg_path);
-        for (NNGraph::TensorNode *ptensor : graph.parameters())
+        if (graph.has_runtime())
         {
-            sync_param_hint_from_runtime(graph.runtime(), ptensor);
+            for (NNGraph::TensorNode *ptensor : graph.parameters())
+            {
+                sync_param_hint_from_runtime(graph.runtime(), ptensor);
+            }
         }
         model.save(w_path);
         std::cout << "Wrote " << cfg_path << "\n"
