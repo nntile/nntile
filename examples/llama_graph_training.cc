@@ -7,33 +7,65 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file examples/llama_graph_training.cc
- * Llama causal LM on the graph API: mmap token batches (uint16 stream), RoPE,
- * causal mask, cross-entropy loss, backward, and AdamW optimizer step.
- * The training loop records one iteration on ``NNGraph``: forward, loss,
- * ``backward(retain_graph=true)``, ``optimizer->step()``, then
- * ``finish_phase()`` and ``lower_and_compile()`` (tiles, compiles, archives).
- * Persistent tensors use input/output marks; ``finish_phase`` clears NN
- * autograd by default.
- * The optimizer advances its internal step count inside
- * ``step()``; each recorded phase bakes a fixed ``Index`` timestep into tensor
- * and tile ops (no shared pointer to the counter).  Use ``step(lr)`` for a
- * per-phase learning rate without changing the optimizer's default LR (e.g.
- * warmup below).  Auto module tensor suffixes tag repeated forwards so
- * ``TensorGraph`` names stay unique (see
- * ``enable_auto_tensor_name_phase_suffix``). Parameters and Adam state reuse
- * tiles when tiling matches (incremental lowering reuses tile nodes when
- * ``layout_fingerprint`` matches).
- * ``LlamaCausal`` is a ``Module`` root on the graph (distinct ``name_``);
- * multiple roots are allowed; ``NNGraph::parameters()`` merges every root
- * tree. Weights: ``Module::load`` and random init call
- * ``mark_parameters_input_recursive`` so parameters are runtime inputs without
- * a manual loop.
+ * Llama causal LM training on the graph API.
+ *
+ * Data path: ``--train-bin`` is a flat ``uint16`` token stream read via mmap
+ * (``TokenMemoryMap`` / ``CausalLmBatchIterator``). Each batch needs at least
+ * ``(seq_len + 1) * batch`` ids; labels are the next-token targets for the
+ * same windows. Optional ``--shuffle`` permutes sequence starts (``--seed``).
+ *
+ * Train.bin generation: ``notebooks/llama.ipynb`` shows TinyStories prep by
+ * running ``wrappers/python/examples/causal_lm_data_preparation.py`` (from
+ * ``notebooks/``, use the same ``../wrappers/python/examples/...`` paths as
+ * the cell). Example:
+ *   python ../wrappers/python/examples/causal_lm_data_preparation.py \
+ *       --seq-len=1024 --batch-size=1024 --dataset-select=25000
+ * The script loads ``--hf-dataset`` (default ``roneneldan/TinyStories``),
+ * tokenizes with ``--hf-tokenizer`` (default ``kimihailv/llama-1.3b``),
+ * concatenates ids, truncates to full windows of ``(seq_len + 1) *
+ * batch_size`` tokens, and writes raw ``uint16`` to ``--dataset-path`` /
+ * ``<dataset_name>/train.bin`` (default ``.data/tinystories/train.bin``).
+ * HF caches use ``--dataset-path`` and ``--tokenizer-path`` (``.data``,
+ * ``.model``). Point ``--train-bin`` at that file; ``LlamaConfig.vocab_size``
+ * must cover token ids (``--tiny`` uses a 256-id toy vocab).
+ *
+ * Model path: ``LlamaCausal`` forward takes ``input_ids``, precomputed RoPE
+ * sin/cos, and a boolean causal attention mask; logits feed a scaled scalar
+ * cross-entropy vs ``labels``. ``--tiny`` selects a built-in small config;
+ * ``--config`` loads JSON ``LlamaConfig``; otherwise the tiny default applies.
+ * ``--load-weights`` loads SafeTensors; else parameters get a fan-in-scaled
+ * uniform random bind hint and ``mark_parameters_input_recursive``.
+ *
+ * Training loop (per batch): clear parameter grads, forward, loss,
+ * ``backward(true)``, ``optimizer->step(scheduled_lr)`` (linear warmup over
+ * ``--warmup-steps`` to ``--lr``, then constant), ``finish_phase()``,
+ * ``lower_and_compile()``, bind mmap batch + RoPE + mask. First run binds
+ * Adam state tensors to zeros, then ``runtime.execute()``. Parameters and
+ * Adam state are copied from tiles back into bind hints for the next step
+ * (and for optional save). ``train_step > 0`` calls
+ * ``reset_incremental_tile_state()``.
+ *
+ * Graph notes: persistent tensors use input/output marks; ``finish_phase``
+ * clears NN autograd by default. The optimizer advances its internal step
+ * count inside ``step()``; each recorded phase bakes a fixed ``Index``
+ * timestep into tensor and tile ops. ``step(lr)`` supplies per-phase LR
+ * without changing the constructor default;
+ * ``enable_auto_tensor_name_phase_suffix`` keeps ``TensorGraph`` names unique
+ * across phases. Incremental lowering may reuse tile nodes when
+ * ``layout_fingerprint`` matches. ``LlamaCausal`` is a
+ * ``Module`` root; ``NNGraph::parameters()`` merges every root tree.
+ *
+ * ``--epochs`` repeats mmap passes; ``--max-batches`` caps total optimizer
+ * steps across epochs (0 = no cap). ``--output-dir`` writes ``config.json``
+ * and ``model.safetensors``. Adam extras: ``--weight-decay``, ``--beta1``,
+ * ``--beta2``.
  *
  * Usage:
  *   ./llama_graph_training --train-bin /path/train.bin --seq 8 --batch 2
  *   ./llama_graph_training --train-bin data.bin --tiny --output-dir /tmp/out
  *   ./llama_graph_training --train-bin data.bin --config cfg.json \
  *       --load-weights w.safetensors --output-dir /tmp/out
+ *   ./llama_graph_training --train-bin data.bin --tiny --shuffle --seed 1
  *   ./llama_graph_training --train-bin data.bin --tiny --max-batches 100 \
  *       --warmup-steps 10 --lr 3e-4
  *   ./llama_graph_training --train-bin data.bin --tiny --epochs 3
