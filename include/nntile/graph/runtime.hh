@@ -85,7 +85,8 @@ class Runtime
 
     void wait();
 
-    //! Read a logical tensor or one tile buffer marked as output.
+    //! Read a logical tensor or tile buffer marked for host I/O (input or
+    //! output), same visibility rules as ``bind_data``.
     template <typename T>
     std::vector<T> get_output(TensorGraph::TensorNode const *tensor);
 
@@ -677,12 +678,13 @@ std::vector<T> Runtime::get_output(
                 "Runtime::get_output: missing tiling for tensor '" +
                 tensor->name() + "'");
         }
-        if (!tile_graph_bind_detail::tensor_desc_has_output_tile(*desc))
+        if (!tile_graph_bind_detail::tensor_desc_has_output_tile(*desc) &&
+            !tile_graph_bind_detail::tensor_desc_has_input_tile(*desc))
         {
             throw std::runtime_error(
                 "get_output: tensor '" + tensor->name() +
-                "' is not marked as output; call mark_output(true) on the "
-                "tensor data node");
+                "' has no input/output tiles; call mark_input(true) or "
+                "mark_output(true) on the tensor data node");
         }
         std::vector<T> result;
         switch (desc->dtype)
@@ -751,12 +753,12 @@ std::vector<T> Runtime::get_output(
         throw std::runtime_error(
             "Runtime::get_output: tile storage not allocated");
     }
-    if (!tnode->is_output())
+    if (!tnode->is_output() && !tnode->is_input())
     {
         throw std::runtime_error(
             "get_output: tile '" + tnode->name() +
-            "' is not marked as output; call mark_output(true) on the data "
-            "node");
+            "' is not marked as input or output; call mark_input(true) or "
+            "mark_output(true) on the data node");
     }
     DataType dtype = tnode->dtype();
     std::vector<T> result;
@@ -814,10 +816,10 @@ std::vector<T> Runtime::get_output(TileNode const *tile)
         throw std::invalid_argument(
             "Runtime::get_output: tile must be non-null");
     }
-    if (!tile->is_output())
+    if (!tile->is_output() && !tile->is_input())
     {
         throw std::runtime_error(
-            "get_output: tile must be marked output on the data node");
+            "get_output: tile must be marked input or output on the data node");
     }
     if (tile_map_.count(tile) == 0)
     {
