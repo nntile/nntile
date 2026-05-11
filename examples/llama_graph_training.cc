@@ -774,6 +774,12 @@ int main(int argc, char **argv)
         std::cerr
             << "Warning: no full batches from --train-bin (need at least "
             << "((seq+1)*batch) uint16 tokens).\n";
+        if (!args.output_dir.empty())
+        {
+            std::cerr
+                << "Warning: --output-dir save uses init/load bind hints "
+                   "only (no runtime; no training steps).\n";
+        }
     }
     else
     {
@@ -787,6 +793,7 @@ int main(int argc, char **argv)
         const std::string cfg_path = args.output_dir + "/config.json";
         const std::string w_path = args.output_dir + "/model.safetensors";
         save_llama_config_json(config, cfg_path);
+        // No batches => no lower_and_compile => NNGraph::runtime() absent.
         if (graph.has_runtime())
         {
             for (NNGraph::TensorNode *ptensor : graph.parameters())
