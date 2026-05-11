@@ -35,6 +35,12 @@ Module::Module(NNGraph* graph, const std::string& name)
         throw std::invalid_argument(
             "Module::Module: graph pointer must be non-null");
     }
+    graph_->register_live_module(this);
+}
+
+Module::~Module()
+{
+    graph_->unregister_live_module(this);
 }
 
 // -----------------------------------------------------------------
@@ -50,6 +56,7 @@ void Module::register_parameter(const std::string& local_name,
             "Module::register_parameter: tensor is nullptr");
     }
     parameters_.emplace_back(local_name, tensor);
+    graph_->mark_module_parameter_cache_dirty();
 }
 
 void Module::register_buffer(const std::string& local_name,
@@ -65,14 +72,107 @@ void Module::register_buffer(const std::string& local_name,
 }
 
 void Module::register_module(const std::string& local_name,
-                                  Module* module)
+                             Module* module)
 {
+    if(local_name.empty())
+    {
+        throw std::invalid_argument(
+            "Module::register_module: local_name must be non-empty");
+    }
     if(module == nullptr)
     {
         throw std::invalid_argument(
             "Module::register_module: module is nullptr");
     }
+    if(module == this)
+    {
+        throw std::invalid_argument(
+            "Module::register_module: cannot register this module as its "
+            "own submodule");
+    }
+    if(module->graph_ != graph_)
+    {
+        throw std::invalid_argument(
+            "Module::register_module: submodule must use the same "
+            "NNGraph as the parent");
+    }
+    if(module->parent_ != nullptr)
+    {
+        throw std::invalid_argument(
+            "Module::register_module: submodule already has a parent");
+    }
+    if(graph_->find_parent_module(module) != nullptr)
+    {
+        throw std::invalid_argument(
+            "Module::register_module: submodule is already registered "
+            "under another parent");
+    }
+    Module* const owner_of_this = graph_->find_parent_module(this);
+    if(owner_of_this != nullptr)
+    {
+        if(parent_ != owner_of_this)
+        {
+            throw std::logic_error(
+                "Module::register_module: parent_ must match the module "
+                "that registered this module");
+        }
+    }
+    else
+    {
+        if(parent_ != nullptr)
+        {
+            throw std::logic_error(
+                "Module::register_module: parent_ is set but this module "
+                "is not registered as a submodule");
+        }
+    }
+    for(const auto& entry : submodules_)
+    {
+        if(entry.first == local_name)
+        {
+            throw std::invalid_argument(
+                "Module::register_module: duplicate submodule name '" +
+                local_name + "'");
+        }
+        if(entry.second == module)
+        {
+            throw std::invalid_argument(
+                "Module::register_module: submodule already registered "
+                "under this parent");
+        }
+    }
+    module->parent_ = this;
+    module->registered_as_ = local_name;
     submodules_.emplace_back(local_name, module);
+    graph_->mark_module_parameter_cache_dirty();
+}
+
+std::string Module::qualified_prefix() const
+{
+    if(parent_ == nullptr)
+    {
+        return name_;
+    }
+    return parent_->qualified_prefix() + "." + registered_as_;
+}
+
+std::string Module::qualified_parameter_name(
+    const std::string& local_name) const
+{
+    return qualified_prefix() + "." + local_name;
+}
+
+void Module::append_parameter_tree_for_lazy_graph(
+    std::vector<std::pair<std::string, NNGraph::TensorNode*>>& out) const
+{
+    for(const auto& [local_name, tensor] : parameters_)
+    {
+        out.emplace_back(qualified_parameter_name(local_name), tensor);
+    }
+    for(const auto& [sub_name, submodule] : submodules_)
+    {
+        submodule->append_parameter_tree_for_lazy_graph(out);
+    }
 }
 
 // -----------------------------------------------------------------
@@ -340,7 +440,18 @@ void Module::load(const std::string& path, bool strict)
 
         auto data = reader.read_tensor(name);
         tensor->data()->set_bind_hint(std::move(data));
-        tensor->mark_input(true);
+    }
+    mark_parameters_input_recursive();
+}
+
+void Module::mark_parameters_input_recursive()
+{
+    for(NNGraph::TensorNode* param : parameters_recursive())
+    {
+        if(param != nullptr)
+        {
+            param->mark_input(true);
+        }
     }
 }
 
@@ -350,7 +461,17 @@ void Module::load(const std::string& path, bool strict)
 
 std::string Module::tensor_name(const std::string& local_name) const
 {
-    return name_ + "_" + local_name;
+    std::string base = name_ + "_" + local_name;
+    if(graph_ == nullptr)
+    {
+        return base;
+    }
+    std::string const& tag = graph_->tensor_name_suffix_tag();
+    if(tag.empty())
+    {
+        return base;
+    }
+    return base + "_" + tag;
 }
 
 std::string Module::grad_name(const std::string& local_name) const

@@ -64,9 +64,14 @@ public:
 
     //! Forward pass
     //! @param x Input tensor (hidden_size, seq, batch)
-    //! @param sin RoPE sin tensor (head_size/2, seq, batch), may be nullptr to skip RoPE
-    //! @param cos RoPE cos tensor (head_size/2, seq, batch), may be nullptr to skip RoPE
-    //! @param mask Optional attention mask (k_seq, q_seq), may be nullptr
+    //! @param sin RoPE sin tensor (head_size/2, seq, batch), may be nullptr to
+    //! skip RoPE. Buffers can be filled with ``rope_sin_cos_from_position_ids``
+    //! (see ``llama_rope.hh``) from ``(seq, batch)`` position ids like HF.
+    //! @param cos RoPE cos tensor (head_size/2, seq, batch), may be nullptr to
+    //! skip RoPE
+    //! @param mask Optional BOOL attention mask (k_seq, q_seq), may be
+    //! nullptr. Build with ``sdpa_causal_mask_bool_fortran_fill`` for causal
+    //! LM.
     //! @param k_cache Optional KV cache for K (head_size, max_seq, batch, n_head_kv)
     //! @param v_cache Optional KV cache for V (head_size, max_seq, batch, n_head_kv)
     //! @param cache_len Current valid length in cache (0 = prefill, >0 = decode)

@@ -29,7 +29,7 @@ while IFS= read -r file; do
             run_all=true; break ;;
         src/kernel/cblas.cc | src/kernel/cublas.cc)
             run_all=true; break ;;
-        src/graph/tile/graph_runtime.cc | src/graph/tensor/graph_data_node.cc)
+        src/graph/runtime.cc | src/graph/tensor/graph_data_node.cc)
             run_all=true; break ;;
         tests/graph/model/llama/generate_test_data.py)
             run_all=true; break ;;
@@ -49,28 +49,28 @@ declare -A affected
 add_all_layers() {
     local op=$1
     for p in tests_kernel tests_starpu tests_tile tests_tensor \
-             tests_graph_tensor; do
+             tests_graph_tensor_ops; do
         affected["${p}_${op}"]=1
     done
 }
 
 add_from_starpu() {
     local op=$1
-    for p in tests_starpu tests_tile tests_tensor tests_graph_tensor; do
+    for p in tests_starpu tests_tile tests_tensor tests_graph_tensor_ops; do
         affected["${p}_${op}"]=1
     done
 }
 
 add_from_tile() {
     local op=$1
-    for p in tests_tile tests_tensor tests_graph_tensor; do
+    for p in tests_tile tests_tensor tests_graph_tensor_ops; do
         affected["${p}_${op}"]=1
     done
 }
 
 add_from_tensor() {
     local op=$1
-    for p in tests_tensor tests_graph_tensor; do
+    for p in tests_tensor tests_graph_tensor_ops; do
         affected["${p}_${op}"]=1
     done
 }
@@ -91,10 +91,16 @@ while IFS= read -r file; do
             affected["tests_tile_$(basename "$file" .cc)"]=1 ;;
         tests/tensor/*.cc)
             affected["tests_tensor_$(basename "$file" .cc)"]=1 ;;
+        tests/graph/tensor/ops/*.cc)
+            affected["tests_graph_tensor_ops_$(basename "$file" .cc)"]=1 ;;
         tests/graph/tensor/*.cc)
             affected["tests_graph_tensor_$(basename "$file" .cc)"]=1 ;;
+        tests/graph/tile/ops/*.cc)
+            affected["tests_graph_tile_ops_$(basename "$file" .cc)"]=1 ;;
         tests/graph/tile/*.cc)
             affected["tests_graph_tile_$(basename "$file" .cc)"]=1 ;;
+        tests/graph/nn/ops/*.cc)
+            affected["tests_graph_nn_ops_$(basename "$file" .cc)"]=1 ;;
         tests/graph/nn/*.cc)
             affected["tests_graph_nn_$(basename "$file" .cc)"]=1 ;;
         tests/graph/module/*.cc)
@@ -133,14 +139,26 @@ while IFS= read -r file; do
             add_from_tensor "$(basename "$file" .hh)" ;;
 
         # ---- graph-level: only the matching test --------------------------
+        src/graph/tensor/ops/*.cc)
+            affected["tests_graph_tensor_ops_$(basename "$file" .cc)"]=1 ;;
+        include/nntile/graph/tensor/ops/*.hh)
+            affected["tests_graph_tensor_ops_$(basename "$file" .hh)"]=1 ;;
         src/graph/tensor/*.cc)
             affected["tests_graph_tensor_$(basename "$file" .cc)"]=1 ;;
         include/nntile/graph/tensor/*.hh)
             affected["tests_graph_tensor_$(basename "$file" .hh)"]=1 ;;
+        src/graph/tile/ops/*.cc)
+            affected["tests_graph_tile_ops_$(basename "$file" .cc)"]=1 ;;
+        include/nntile/graph/tile/ops/*.hh)
+            affected["tests_graph_tile_ops_$(basename "$file" .hh)"]=1 ;;
         src/graph/tile/*.cc)
             affected["tests_graph_tile_$(basename "$file" .cc)"]=1 ;;
         include/nntile/graph/tile/*.hh)
             affected["tests_graph_tile_$(basename "$file" .hh)"]=1 ;;
+        src/graph/nn/ops/*.cc)
+            affected["tests_graph_nn_ops_$(basename "$file" .cc)"]=1 ;;
+        include/nntile/graph/nn/ops/*.hh)
+            affected["tests_graph_nn_ops_$(basename "$file" .hh)"]=1 ;;
         src/graph/nn/*.cc)
             affected["tests_graph_nn_$(basename "$file" .cc)"]=1 ;;
         include/nntile/graph/nn/*.hh)

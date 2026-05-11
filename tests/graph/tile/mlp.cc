@@ -12,16 +12,15 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-
-#include <cmath>
-#include <random>
-#include <vector>
-
 #include "context_fixture.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <cmath>
 #include <nntile/graph.hh>
 #include <nntile/graph/module/activation.hh>
 #include <nntile/graph/module/mlp.hh>
+#include <random>
+#include <vector>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -31,23 +30,22 @@ namespace mod = nntile::graph::module;
 namespace
 {
 
-float max_abs_diff(const std::vector<float>& a, const std::vector<float>& b)
+float max_abs_diff(const std::vector<float> &a, const std::vector<float> &b)
 {
     float m = 0.f;
     const size_t n = std::min(a.size(), b.size());
-    for(size_t i = 0; i < n; ++i)
+    for (size_t i = 0; i < n; ++i)
     {
         m = std::max(m, std::abs(a[i] - b[i]));
     }
     return m;
 }
 
-void bind_same_weights(
-    TileGraph::Runtime& rt,
-    const std::string& w1,
-    const std::string& w2,
-    const std::vector<float>& w1_data,
-    const std::vector<float>& w2_data)
+void bind_same_weights(Runtime &rt,
+    TensorGraph::TensorNode const *w1,
+    TensorGraph::TensorNode const *w2,
+    const std::vector<float> &w1_data,
+    const std::vector<float> &w2_data)
 {
     rt.bind_data(w1, w1_data);
     rt.bind_data(w2, w2_data);
@@ -71,22 +69,21 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
     std::vector<float> in_data(static_cast<size_t>(batch * in_dim));
     std::vector<float> w1_data(static_cast<size_t>(in_dim * hid_dim));
     std::vector<float> w2_data(static_cast<size_t>(hid_dim * out_dim));
-    for(auto& v : in_data)
+    for (auto &v : in_data)
     {
         v = dist(gen);
     }
-    for(auto& v : w1_data)
+    for (auto &v : w1_data)
     {
         v = dist_w(gen);
     }
-    for(auto& v : w2_data)
+    for (auto &v : w2_data)
     {
         v = dist_w(gen);
     }
 
     NNGraph g_ref("mlp_ref");
-    mod::Mlp mlp_ref(
-        &g_ref,
+    mod::Mlp mlp_ref(&g_ref,
         "mlp",
         in_dim,
         hid_dim,
@@ -94,10 +91,10 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
         mod::ActivationType::RELU,
         DataType::FP32);
 
-    auto* inp_ref =
-        g_ref.tensor({batch, in_dim}, "in", DataType::FP32, true);
+    auto *inp_ref =
+        g_ref.tensor({batch, in_dim}, DataType::FP32, true)->set_name("in");
     inp_ref->mark_input(true);
-    auto* out_ref = mlp_ref.forward(inp_ref);
+    auto *out_ref = mlp_ref.forward(inp_ref);
     out_ref->mark_output(true);
 
     auto [g_out_ref, _] = g_ref.get_or_create_grad(out_ref, "dloss");
@@ -113,29 +110,25 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
 
     TileGraph rt_ref_tile = TileGraph::from_tensor_graph(g_ref.tensor_graph());
 
-
-    TileGraph::Runtime rt_ref(rt_ref_tile);
+    Runtime rt_ref(rt_ref_tile);
     rt_ref.compile();
-    rt_ref.bind_data("in", in_data);
-    bind_same_weights(
-        rt_ref,
-        mlp_ref.fc1().weight_tensor()->name(),
-        mlp_ref.fc2().weight_tensor()->name(),
+    rt_ref.bind_data(inp_ref, in_data);
+    bind_same_weights(rt_ref,
+        mlp_ref.fc1().weight_tensor()->data(),
+        mlp_ref.fc2().weight_tensor()->data(),
         w1_data,
         w2_data);
     rt_ref.execute();
     rt_ref.wait();
 
-    const std::vector<float> out_ref_v =
-        rt_ref.get_output<float>(out_ref->name());
-    const std::vector<float> gw1_ref = rt_ref.get_output<float>(
-        mlp_ref.fc1().grad_name("weight"));
-    const std::vector<float> gw2_ref = rt_ref.get_output<float>(
-        mlp_ref.fc2().grad_name("weight"));
+    const std::vector<float> out_ref_v = rt_ref.get_output<float>(out_ref);
+    const std::vector<float> gw1_ref =
+        rt_ref.get_output<float>(mlp_ref.fc1().weight_tensor()->grad());
+    const std::vector<float> gw2_ref =
+        rt_ref.get_output<float>(mlp_ref.fc2().weight_tensor()->grad());
 
     NNGraph g_tile("mlp_tile");
-    mod::Mlp mlp_tile(
-        &g_tile,
+    mod::Mlp mlp_tile(&g_tile,
         "mlp",
         in_dim,
         hid_dim,
@@ -143,10 +136,10 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
         mod::ActivationType::RELU,
         DataType::FP32);
 
-    auto* inp_tile =
-        g_tile.tensor({batch, in_dim}, "in", DataType::FP32, true);
+    auto *inp_tile =
+        g_tile.tensor({batch, in_dim}, DataType::FP32, true)->set_name("in");
     inp_tile->mark_input(true);
-    auto* out_tile = mlp_tile.forward(inp_tile);
+    auto *out_tile = mlp_tile.forward(inp_tile);
     out_tile->mark_output(true);
 
     auto [g_out_tile, __] = g_tile.get_or_create_grad(out_tile, "dloss");
@@ -163,24 +156,22 @@ TEST_CASE("MLP tiled vs tensor runtime parity", "[graph][tile]")
     inp_tile->data()->axis(0)->set_tiling(std::vector<Index>{2, 1, 1});
 
     TileGraph tile_g = TileGraph::from_tensor_graph(g_tile.tensor_graph());
-    TileGraph::Runtime rt_tile(tile_g);
+    Runtime rt_tile(tile_g);
     rt_tile.compile();
-    rt_tile.bind_data("in", in_data);
-    bind_same_weights(
-        rt_tile,
-        mlp_tile.fc1().weight_tensor()->name(),
-        mlp_tile.fc2().weight_tensor()->name(),
+    rt_tile.bind_data(inp_tile, in_data);
+    bind_same_weights(rt_tile,
+        mlp_tile.fc1().weight_tensor()->data(),
+        mlp_tile.fc2().weight_tensor()->data(),
         w1_data,
         w2_data);
     rt_tile.execute();
     rt_tile.wait();
 
-    const std::vector<float> out_tile_v =
-        rt_tile.get_output<float>(out_tile->name());
-    const std::vector<float> gw1_tile = rt_tile.get_output<float>(
-        mlp_tile.fc1().grad_name("weight"));
-    const std::vector<float> gw2_tile = rt_tile.get_output<float>(
-        mlp_tile.fc2().grad_name("weight"));
+    const std::vector<float> out_tile_v = rt_tile.get_output<float>(out_tile);
+    const std::vector<float> gw1_tile =
+        rt_tile.get_output<float>(mlp_tile.fc1().weight_tensor()->grad());
+    const std::vector<float> gw2_tile =
+        rt_tile.get_output<float>(mlp_tile.fc2().weight_tensor()->grad());
 
     constexpr float tol = 1e-4f;
     REQUIRE(max_abs_diff(out_ref_v, out_tile_v) < tol);

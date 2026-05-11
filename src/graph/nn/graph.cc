@@ -13,9 +13,16 @@
  * */
 
 #include "nntile/graph/nn/graph.hh"
-#include "nntile/graph/nn/graph_op_node.hh"
-#include "nntile/graph/nn/graph_data_node.hh"
 
+#include "nntile/graph/module/module.hh"
+#include "nntile/graph/nn/graph_data_node.hh"
+#include "nntile/graph/nn/graph_op_node.hh"
+#include "nntile/graph/tile/append_tensor_graph_phase.hh"
+
+#include <algorithm>
+#include <nntile/graph/runtime.hh>
+#include <optional>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
@@ -23,112 +30,407 @@
 namespace nntile::graph
 {
 
+struct NNGraphExecState
+{
+    std::optional<TileGraph> tile_graph;
+    TileGraphIncrementalState inc_state;
+    TensorNodeToTileMap tile_map;
+    std::optional<Runtime> runtime;
+};
+
 NNGraph::~NNGraph() = default;
 
-NNGraph::NNGraph(const std::string& name)
-    : name_(name)
-    , tensor_graph_(name)
+NNGraph::NNGraph(const std::string &name) : name_(name), tensor_graph_(name) {}
+
+void NNGraph::clear_pending_compile_if_same(
+    FinishedTensorPhase const &compiled)
 {
+    if (!pending_compile_phase_.has_value())
+    {
+        return;
+    }
+    FinishedTensorPhase const &pend = *pending_compile_phase_;
+    if (pend.tensor_graph != compiled.tensor_graph)
+    {
+        return;
+    }
+    if (pend.snapshot.op_begin != compiled.snapshot.op_begin ||
+        pend.snapshot.op_end != compiled.snapshot.op_end)
+    {
+        return;
+    }
+    if (pend.snapshot.carried_tensors.size() !=
+        compiled.snapshot.carried_tensors.size())
+    {
+        return;
+    }
+    for (size_t i = 0; i < pend.snapshot.carried_tensors.size(); ++i)
+    {
+        if (pend.snapshot.carried_tensors[i] !=
+            compiled.snapshot.carried_tensors[i])
+        {
+            return;
+        }
+    }
+    pending_compile_phase_.reset();
 }
 
-NNGraph::TensorNode* NNGraph::tensor(
-    std::vector<Index> shape,
-    const std::string& name,
-    DataType dtype,
-    bool requires_grad
-)
+void NNGraph::ensure_exec_state()
 {
-    if(tensor_by_name_.count(name) > 0)
+    if (!exec_)
     {
-        throw std::invalid_argument("NNGraph::tensor: tensor '" + name +
-            "' already exists");
+        exec_ = std::make_unique<NNGraphExecState>();
     }
+    if (!exec_->tile_graph.has_value())
+    {
+        exec_->tile_graph.emplace(name_ + "_tile");
+    }
+    if (!exec_->runtime.has_value())
+    {
+        exec_->runtime.emplace(*exec_->tile_graph);
+    }
+}
 
-    TensorGraph::TensorNode* data =
-        tensor_graph_.data(std::move(shape), name, dtype);
+void NNGraph::lower_and_compile(TensorGraphTiling const &tiling)
+{
+    if (!pending_compile_phase_.has_value())
+    {
+        throw std::runtime_error(
+            "NNGraph::lower_and_compile: call finish_phase() first");
+    }
+    ensure_exec_state();
+    compile_incremental_nn_phase(*pending_compile_phase_,
+        *this,
+        tiling,
+        *exec_->tile_graph,
+        *exec_->runtime,
+        exec_->inc_state,
+        exec_->tile_map,
+        true);
+}
+
+void NNGraph::lower_and_compile()
+{
+    lower_and_compile(TensorGraphTiling::from_tensor_graph(tensor_graph_));
+}
+
+Runtime &NNGraph::runtime()
+{
+    if (!exec_ || !exec_->runtime.has_value())
+    {
+        throw std::runtime_error(
+            "NNGraph::runtime: call lower_and_compile() first");
+    }
+    return *exec_->runtime;
+}
+
+bool NNGraph::has_runtime() const
+{
+    return exec_ && exec_->runtime.has_value();
+}
+
+void NNGraph::reset_incremental_tile_state()
+{
+    if (pending_compile_phase_.has_value())
+    {
+        throw std::runtime_error(
+            "NNGraph::reset_incremental_tile_state: pending phase not "
+            "compiled; call lower_and_compile() first");
+    }
+    if (!exec_)
+    {
+        return;
+    }
+    clear_tensor_phase_archives();
+    exec_->tile_graph.emplace(name_ + "_tile");
+    exec_->inc_state = TileGraphIncrementalState{};
+    exec_->tile_map.clear();
+    exec_->runtime.emplace(*exec_->tile_graph);
+}
+
+void NNGraph::set_tensor_name_suffix_tag(std::string tag)
+{
+    auto_tensor_name_phase_suffix_ = false;
+    tensor_name_suffix_tag_ = std::move(tag);
+}
+
+void NNGraph::clear_tensor_name_suffix_tag()
+{
+    auto_tensor_name_phase_suffix_ = false;
+    tensor_name_suffix_tag_.clear();
+}
+
+void NNGraph::enable_auto_tensor_name_phase_suffix(bool enable)
+{
+    if (enable)
+    {
+        auto_tensor_name_phase_suffix_ = true;
+        auto_phase_suffix_seq_ = 0;
+        tensor_name_suffix_tag_ = "0";
+    }
+    else
+    {
+        auto_tensor_name_phase_suffix_ = false;
+    }
+}
+
+void NNGraph::bump_auto_tensor_name_phase_suffix_after_compile()
+{
+    if (!auto_tensor_name_phase_suffix_)
+    {
+        return;
+    }
+    ++auto_phase_suffix_seq_;
+    tensor_name_suffix_tag_ =
+        std::to_string(static_cast<long long>(auto_phase_suffix_seq_));
+}
+
+void NNGraph::push_tensor_phase_archive(TensorPhaseArchiveEntry entry)
+{
+    tensor_phase_archives_.push_back(std::move(entry));
+}
+
+void NNGraph::clear_tensor_phase_archives() { tensor_phase_archives_.clear(); }
+
+TensorGraph::PhaseSnapshot NNGraph::seal_phase()
+{
+    return tensor_graph_.seal_phase();
+}
+
+TensorGraph::PhaseSnapshot NNGraph::seal_phase(
+    std::vector<TensorNode const *> const &carried)
+{
+    std::vector<TensorGraph::TensorNode const *> data_carried;
+    data_carried.reserve(carried.size());
+    for (TensorNode const *n : carried)
+    {
+        if (n == nullptr)
+        {
+            throw std::invalid_argument(
+                "NNGraph::seal_phase: carried tensor must be non-null");
+        }
+        data_carried.push_back(n->data());
+    }
+    return tensor_graph_.seal_phase(std::move(data_carried));
+}
+
+FinishedTensorPhase NNGraph::finish_phase(bool reset_autograd_state)
+{
+    if (pending_compile_phase_.has_value())
+    {
+        throw std::runtime_error(
+            "NNGraph::finish_phase: pending slice not compiled; call "
+            "lower_and_compile() before finishing another phase");
+    }
+    TensorGraph::PhaseSnapshot snap = seal_phase();
+    ++finished_phase_serial_;
+    pending_compile_phase_.emplace(
+        FinishedTensorPhase{&tensor_graph_, std::move(snap)});
+    if (reset_autograd_state)
+    {
+        clear_op_nodes();
+        clear_producers_on_tensors();
+    }
+    return *pending_compile_phase_;
+}
+
+void NNGraph::reset_phase_seal_cursor()
+{
+    tensor_graph_.reset_phase_seal_cursor();
+}
+
+NNGraph::TensorNode *NNGraph::tensor(
+    std::vector<Index> shape, DataType dtype, bool requires_grad)
+{
+    TensorGraph::TensorNode *data =
+        tensor_graph_.data(std::move(shape), dtype);
     auto node = std::make_unique<TensorNode>(this, data, requires_grad);
-    TensorNode* node_ptr = node.get();
+    TensorNode *node_ptr = node.get();
 
     tensors_.push_back(std::move(node));
-    tensor_by_name_[name] = node_ptr;
 
     return node_ptr;
 }
 
-NNGraph::TensorNode* NNGraph::tensor(TensorGraph::TensorNode* data,
-                                     bool requires_grad)
+NNGraph::TensorNode *NNGraph::tensor(
+    TensorGraph::TensorNode *data, bool requires_grad)
 {
-    if(data == nullptr)
+    if (data == nullptr)
     {
         throw std::invalid_argument(
             "NNGraph::tensor: data tensor must be non-null");
     }
-    if(data->graph() != &tensor_graph_)
+    if (data->graph() != &tensor_graph_)
     {
-        throw std::invalid_argument(
-            "NNGraph::tensor: tensor must belong to this graph's tensor graph");
-    }
-    if(tensor_by_name_.count(data->name()) > 0)
-    {
-        throw std::invalid_argument("NNGraph::tensor: tensor '" + data->name() +
-            "' already exists");
+        throw std::invalid_argument("NNGraph::tensor: tensor must belong to "
+                                    "this graph's tensor graph");
     }
     auto node = std::make_unique<TensorNode>(this, data, requires_grad);
-    TensorNode* node_ptr = node.get();
+    TensorNode *node_ptr = node.get();
     tensors_.push_back(std::move(node));
-    tensor_by_name_[data->name()] = node_ptr;
     return node_ptr;
 }
 
-NNGraph::TensorNode* NNGraph::get_tensor(const std::string& name)
+NNGraph::TensorNode *NNGraph::get_tensor(TensorGraph::TensorNode const *data)
 {
-    auto it = tensor_by_name_.find(name);
-    return it != tensor_by_name_.end() ? it->second : nullptr;
+    if (data == nullptr)
+    {
+        return nullptr;
+    }
+    for (auto const &up : tensors_)
+    {
+        if (up->data() == data)
+        {
+            return up.get();
+        }
+    }
+    return nullptr;
 }
 
-const NNGraph::TensorNode* NNGraph::get_tensor(const std::string& name) const
+const NNGraph::TensorNode *NNGraph::get_tensor(
+    TensorGraph::TensorNode const *data) const
 {
-    auto it = tensor_by_name_.find(name);
-    return it != tensor_by_name_.end() ? it->second : nullptr;
+    if (data == nullptr)
+    {
+        return nullptr;
+    }
+    for (auto const &up : tensors_)
+    {
+        if (up->data() == data)
+        {
+            return up.get();
+        }
+    }
+    return nullptr;
 }
 
 std::vector<std::string> NNGraph::tensor_names() const
 {
     std::vector<std::string> names;
-    names.reserve(tensor_by_name_.size());
-    for(const auto& pair : tensor_by_name_)
+    names.reserve(tensors_.size());
+    for (auto const &up : tensors_)
     {
-        names.push_back(pair.first);
+        names.push_back(up->name());
     }
     return names;
 }
 
-bool NNGraph::requires_grad(const TensorNode* tensor) const
+void NNGraph::register_live_module(module::Module *mod)
+{
+    module_live_.push_back(mod);
+    mark_module_parameter_cache_dirty();
+}
+
+void NNGraph::unregister_live_module(module::Module *mod)
+{
+    auto it = std::find(module_live_.begin(), module_live_.end(), mod);
+    if (it != module_live_.end())
+    {
+        module_live_.erase(it);
+    }
+    mark_module_parameter_cache_dirty();
+}
+
+void NNGraph::mark_module_parameter_cache_dirty()
+{
+    module_parameter_cache_dirty_ = true;
+}
+
+void NNGraph::ensure_module_parameter_cache() const
+{
+    if (module_parameter_cache_dirty_)
+    {
+        rebuild_module_parameter_cache();
+    }
+}
+
+void NNGraph::rebuild_module_parameter_cache() const
+{
+    module_parameter_cache_.clear();
+    std::vector<module::Module *> roots;
+    roots.reserve(8);
+    for (module::Module *mod : module_live_)
+    {
+        if (mod->parent_ == nullptr)
+        {
+            roots.push_back(mod);
+        }
+    }
+    if (roots.empty())
+    {
+        module_parameter_cache_dirty_ = false;
+        return;
+    }
+    for (module::Module *root : roots)
+    {
+        root->append_parameter_tree_for_lazy_graph(module_parameter_cache_);
+    }
+    module_parameter_cache_dirty_ = false;
+}
+
+module::Module *NNGraph::find_parent_module(module::Module *child) const
+{
+    if (child == nullptr)
+    {
+        return nullptr;
+    }
+    for (module::Module *mod : module_live_)
+    {
+        for (const auto &entry : mod->named_children())
+        {
+            if (entry.second == child)
+            {
+                return mod;
+            }
+        }
+    }
+    return nullptr;
+}
+
+std::vector<NNGraph::TensorNode *> NNGraph::parameters() const
+{
+    ensure_module_parameter_cache();
+    std::vector<TensorNode *> result;
+    result.reserve(module_parameter_cache_.size());
+    for (const auto &entry : module_parameter_cache_)
+    {
+        result.push_back(entry.second);
+    }
+    return result;
+}
+
+std::vector<std::pair<std::string, NNGraph::TensorNode *>>
+NNGraph::named_parameters() const
+{
+    ensure_module_parameter_cache();
+    return module_parameter_cache_;
+}
+
+bool NNGraph::requires_grad(const TensorNode *tensor) const
 {
     return tensor != nullptr &&
            (tensor->requires_grad() || tensor->grad() != nullptr);
 }
 
-void NNGraph::set_requires_grad(TensorNode* tensor, bool value)
+void NNGraph::set_requires_grad(TensorNode *tensor, bool value)
 {
-    if(tensor != nullptr)
+    if (tensor != nullptr)
     {
         tensor->set_requires_grad(value);
     }
 }
 
-std::pair<NNGraph::TensorNode*, bool> NNGraph::get_or_create_grad(
-    TensorNode* tensor,
-    const std::string& grad_name)
+std::pair<NNGraph::TensorNode *, bool> NNGraph::get_or_create_grad(
+    TensorNode *tensor, const std::string &grad_name)
 {
-    if(tensor == nullptr)
+    if (tensor == nullptr)
     {
         throw std::invalid_argument(
             "NNGraph::get_or_create_grad: tensor is nullptr");
     }
-    if(tensor->grad() != nullptr)
+    if (tensor->grad() != nullptr)
     {
-        if(tensor->grad()->name() != grad_name)
+        if (tensor->grad()->name() != grad_name)
         {
             throw std::invalid_argument(
                 "NNGraph::get_or_create_grad: tensor '" + tensor->name() +
@@ -138,43 +440,37 @@ std::pair<NNGraph::TensorNode*, bool> NNGraph::get_or_create_grad(
         return {tensor->grad(), false};
     }
 
-    TensorGraph::TensorNode* grad_data = tensor_graph_.data(
-        tensor->shape(),
-        grad_name,
-        tensor->dtype());
-    // Grad axes must match the tensor's axes (same tiling, same dimension groups)
+    TensorGraph::TensorNode *grad_data =
+        tensor_graph_.data(tensor->shape(), tensor->dtype());
+    grad_data->set_name(grad_name);
+    // Grad axes must match the tensor's axes (same tiling, same dimension
+    // groups)
     grad_data->set_axes(tensor->data()->axes());
     auto grad_node = std::make_unique<TensorNode>(this, grad_data, false);
-    TensorNode* grad_ptr = grad_node.get();
+    TensorNode *grad_ptr = grad_node.get();
     tensors_.push_back(std::move(grad_node));
-    tensor_by_name_[grad_name] = grad_ptr;
-
     tensor->set_grad(grad_ptr);
     tensor->set_requires_grad(true);
     return {grad_ptr, true};
 }
 
-void NNGraph::clear_op_nodes()
-{
-    op_nodes_.clear();
-}
+void NNGraph::clear_op_nodes() { op_nodes_.clear(); }
 
 void NNGraph::clear_producers_on_tensors()
 {
-    for(auto& t : tensors_)
+    for (auto &t : tensors_)
     {
-        if(t->has_producer())
+        if (t->has_producer())
         {
             t->set_producer(nullptr);
         }
     }
 }
 
-NNGraph::NoGradGuard::NoGradGuard(NNGraph* graph)
-    : graph_(graph)
-    , prev_(graph != nullptr ? graph->grad_enabled_ : true)
+NNGraph::NoGradGuard::NoGradGuard(NNGraph *graph) :
+    graph_(graph), prev_(graph != nullptr ? graph->grad_enabled_ : true)
 {
-    if(graph_ != nullptr)
+    if (graph_ != nullptr)
     {
         graph_->grad_enabled_ = false;
     }
@@ -182,7 +478,7 @@ NNGraph::NoGradGuard::NoGradGuard(NNGraph* graph)
 
 NNGraph::NoGradGuard::~NoGradGuard()
 {
-    if(graph_ != nullptr)
+    if (graph_ != nullptr)
     {
         graph_->grad_enabled_ = prev_;
     }
@@ -195,7 +491,7 @@ std::string NNGraph::to_string() const
        << ", autograd_ops=" << num_ops() << ")\n";
 
     ss << "Tensors:\n";
-    for(const auto& t : tensors_)
+    for (const auto &t : tensors_)
     {
         ss << "  " << t->to_string() << "\n";
     }
@@ -208,29 +504,28 @@ void NNGraph::register_op(std::shared_ptr<OpNode> op)
     const bool need_backward =
         is_grad_enabled() && any_input_requires_grad(op->inputs());
 
-    if(!need_backward)
+    if (!need_backward)
     {
         return;
     }
 
-    OpNode* op_nn = op.get();
+    OpNode *op_nn = op.get();
     op_nodes_.push_back(std::move(op));
 
-    for(TensorNode* out : op_nn->outputs())
+    for (TensorNode *out : op_nn->outputs())
     {
-        if(out != nullptr)
+        if (out != nullptr)
         {
             out->set_producer(op_nn);
         }
     }
 }
 
-bool any_input_requires_grad(
-    const std::vector<NNGraph::TensorNode*>& inputs)
+bool any_input_requires_grad(const std::vector<NNGraph::TensorNode *> &inputs)
 {
-    for(const auto* in : inputs)
+    for (const auto *in : inputs)
     {
-        if(in != nullptr && in->requires_grad())
+        if (in != nullptr && in->requires_grad())
         {
             return true;
         }

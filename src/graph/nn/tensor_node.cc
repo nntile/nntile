@@ -41,6 +41,16 @@ NNGraph::TensorNode::TensorNode(
     }
 }
 
+void NNGraph::TensorNode::set_bind_hint(std::vector<std::uint8_t> data)
+{
+    data_->set_bind_hint(std::move(data));
+}
+
+const std::vector<std::uint8_t>* NNGraph::TensorNode::get_bind_hint() const
+{
+    return data_->get_bind_hint();
+}
+
 std::string NNGraph::TensorNode::to_string() const
 {
     std::stringstream ss;

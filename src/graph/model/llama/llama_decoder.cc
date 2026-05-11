@@ -13,26 +13,39 @@
  * */
 
 #include "nntile/graph/model/llama/llama_decoder.hh"
-#include "nntile/graph/nn/add.hh"
+
+#include "nntile/graph/nn/ops/add.hh"
 
 #include <stdexcept>
 
 namespace nntile::model::llama
 {
 
-LlamaDecoder::LlamaDecoder(graph::NNGraph* graph,
-                           const std::string& name,
-                           const LlamaConfig& config,
-                           graph::DataType dtype)
-    : graph::module::Module(graph, name)
-    , input_norm_(graph, name + "_input_norm",
-                  config.hidden_size, 0, config.rms_norm_eps, 0, dtype)  // axis=0 for (hidden,seq,batch)
-    , attention_(graph, name + "_self_attn", config, dtype)
-    , post_attn_norm_(graph, name + "_post_attn_norm",
-                     config.hidden_size, 0, config.rms_norm_eps, 0, dtype)  // axis=0
-    , mlp_(graph, name + "_mlp", config, dtype)
-    , config_(config)
-    , dtype_(dtype)
+LlamaDecoder::LlamaDecoder(graph::NNGraph *graph,
+    const std::string &name,
+    const LlamaConfig &config,
+    graph::DataType dtype) :
+    graph::module::Module(graph, name),
+    input_norm_(graph,
+        name + "_input_norm",
+        config.hidden_size,
+        0,
+        config.rms_norm_eps,
+        0,
+        dtype) // axis=0 for (hidden,seq,batch)
+    ,
+    attention_(graph, name + "_self_attn", config, dtype),
+    post_attn_norm_(graph,
+        name + "_post_attn_norm",
+        config.hidden_size,
+        0,
+        config.rms_norm_eps,
+        0,
+        dtype) // axis=0
+    ,
+    mlp_(graph, name + "_mlp", config, dtype),
+    config_(config),
+    dtype_(dtype)
 {
     register_module("input_norm", &input_norm_);
     register_module("attention", &attention_);
@@ -40,36 +53,39 @@ LlamaDecoder::LlamaDecoder(graph::NNGraph* graph,
     register_module("mlp", &mlp_);
 }
 
-graph::NNGraph::TensorNode* LlamaDecoder::forward(
-    graph::NNGraph::TensorNode* x,
-    graph::NNGraph::TensorNode* sin,
-    graph::NNGraph::TensorNode* cos,
-    graph::NNGraph::TensorNode* mask,
-    graph::NNGraph::TensorNode* k_cache,
-    graph::NNGraph::TensorNode* v_cache,
+graph::NNGraph::TensorNode *LlamaDecoder::forward(
+    graph::NNGraph::TensorNode *x,
+    graph::NNGraph::TensorNode *sin,
+    graph::NNGraph::TensorNode *cos,
+    graph::NNGraph::TensorNode *mask,
+    graph::NNGraph::TensorNode *k_cache,
+    graph::NNGraph::TensorNode *v_cache,
     Index cache_len)
 {
-    if(x == nullptr)
+    if (x == nullptr)
     {
         throw std::invalid_argument(
             "LlamaDecoder::forward: input tensor must be non-null");
     }
 
     // input_norm -> attention
-    graph::NNGraph::TensorNode* x_norm = input_norm_.forward(x);
-    graph::NNGraph::TensorNode* attn_out =
-        attention_.forward(x_norm, sin, cos, mask, k_cache, v_cache, cache_len);
+    graph::NNGraph::TensorNode *x_norm = input_norm_.forward(x);
+    graph::NNGraph::TensorNode *attn_out = attention_.forward(
+        x_norm, sin, cos, mask, k_cache, v_cache, cache_len);
 
     // residual: x + attn_out
-    graph::NNGraph::TensorNode* post_attn =
-        graph::add(1.0, x, 1.0, attn_out, tensor_name("post_attn"));
+    graph::NNGraph::TensorNode *post_attn = graph::add(1.0, x, 1.0, attn_out);
+    post_attn->set_name(tensor_name("post_attn"));
 
     // post_attn_norm -> mlp
-    graph::NNGraph::TensorNode* mlp_in = post_attn_norm_.forward(post_attn);
-    graph::NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
+    graph::NNGraph::TensorNode *mlp_in = post_attn_norm_.forward(post_attn);
+    graph::NNGraph::TensorNode *mlp_out = mlp_.forward(mlp_in);
 
     // residual: post_attn + mlp_out
-    return graph::add(1.0, post_attn, 1.0, mlp_out, tensor_name("decoder_out"));
+    graph::NNGraph::TensorNode *decoder_out =
+        graph::add(1.0, post_attn, 1.0, mlp_out);
+    decoder_out->set_name(tensor_name("decoder_out"));
+    return decoder_out;
 }
 
 std::string LlamaDecoder::repr() const

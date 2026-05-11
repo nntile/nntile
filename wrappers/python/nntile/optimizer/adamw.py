@@ -59,12 +59,17 @@ class AdamW:
             self.first_moments[i].unregister()
             self.second_moments[i].unregister()
 
-    def step(self):
-        cur_lr = self.lr
-        if self.start_lr is not None and self.full_lr_iter is not None:
-            if self.num_iter < self.full_lr_iter and self.full_lr_iter > 1:
-                cur_lr = (self.lr - self.start_lr) / (self.full_lr_iter - 1)
-                cur_lr = cur_lr * (self.num_iter - 1) + self.start_lr
+    def step(self, lr=None):
+        if lr is not None:
+            cur_lr = lr
+        else:
+            cur_lr = self.lr
+            if self.start_lr is not None and self.full_lr_iter is not None:
+                if self.num_iter < self.full_lr_iter and self.full_lr_iter > 1:
+                    cur_lr = (self.lr - self.start_lr) / (
+                        self.full_lr_iter - 1
+                    )
+                    cur_lr = cur_lr * (self.num_iter - 1) + self.start_lr
         for i, p in enumerate(self.params):
             nntile.tensor.fused_adamw_step(
                 p.value,

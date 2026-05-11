@@ -177,6 +177,12 @@ def fortran_order(arr: np.ndarray) -> np.ndarray:
     return a.ravel("F").reshape(a.shape)
 
 
+def fortran_order_int64(arr: np.ndarray) -> np.ndarray:
+    """Same layout remap as :func:`fortran_order` for int64 position indices"""
+    a = np.asarray(arr, dtype=np.int64)
+    return a.ravel("F").reshape(a.shape)
+
+
 def _make_config(dims: TestDims) -> LlamaConfig:
     return LlamaConfig(
         hidden_size=dims.hidden,
@@ -450,6 +456,9 @@ def generate_attention(
     cos_np, sin_np = _rope_half_from_hf(cos, sin, dims)
     data["rope_cos"] = fortran_order(cos_np)
     data["rope_sin"] = fortran_order(sin_np)
+    # NNTile (seq, batch) layout — matches ``rope_sin_cos_from_position_ids``
+    pos_nntile = pos_ids.T.astype(np.int64)
+    data["position_ids"] = fortran_order_int64(pos_nntile)
 
     attn_mask_torch: torch.Tensor | None = None
     if use_causal_mask:

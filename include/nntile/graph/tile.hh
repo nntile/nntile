@@ -15,4 +15,5 @@
 #pragma once
 
 #include <nntile/graph/tile/graph.hh>
+#include <nntile/graph/runtime.hh>
 #include <nntile/graph/tile/graph_ops.hh>

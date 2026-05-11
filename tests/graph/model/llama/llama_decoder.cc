@@ -21,6 +21,15 @@
  * @version 1.1.0
  * */
 
+#include "nntile/graph/model/llama/llama_decoder.hh"
+
+#include "context_fixture.hh"
+#include "nntile/graph.hh"
+#include "nntile/graph/io/safetensors.hh"
+#include "nntile/graph/model/llama/llama_config.hh"
+#include "test_frobenius.hh"
+#include "test_llama_fixture_helpers.hh"
+
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <cstddef>
@@ -28,18 +37,9 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
-
-#include "context_fixture.hh"
-#include "test_frobenius.hh"
-#include "test_llama_fixture_helpers.hh"
-#include "nntile/graph.hh"
-#include "nntile/graph/io/safetensors.hh"
-#include "nntile/graph/model/llama/llama_config.hh"
-#include "nntile/graph/model/llama/llama_decoder.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -48,7 +48,8 @@ using namespace nntile::graph::io;
 
 #ifndef LLAMA_DATA_DIR
 
-TEST_CASE("LlamaDecoder tests skipped (LLAMA_DATA_DIR undefined)", "[model][llama]")
+TEST_CASE(
+    "LlamaDecoder tests skipped (LLAMA_DATA_DIR undefined)", "[model][llama]")
 {
     SKIP("LLAMA_DATA_DIR not defined at compile time.");
 }
@@ -82,16 +83,15 @@ struct DecoderFixtureSpec
     std::string stem;
 };
 
-inline bool try_load_decoder_fixture_spec(
-    const std::string& data_dir,
-    const char* stem_cstr,
-    DecoderFixtureSpec& out)
+inline bool try_load_decoder_fixture_spec(const std::string &data_dir,
+    const char *stem_cstr,
+    DecoderFixtureSpec &out)
 {
     out = {};
     out.stem = stem_cstr;
     const std::string jpath = data_dir + "/" + out.stem + ".json";
     std::ifstream jf(jpath);
-    if(!jf)
+    if (!jf)
     {
         return false;
     }
@@ -99,20 +99,20 @@ inline bool try_load_decoder_fixture_spec(
     try
     {
         jf >> j;
-        if(j.at("version").get<int>() != 2)
+        if (j.at("version").get<int>() != 2)
         {
             return false;
         }
-        if(j.at("stem").get<std::string>() != out.stem)
+        if (j.at("stem").get<std::string>() != out.stem)
         {
             return false;
         }
         const std::string expected_st = out.stem + ".safetensors";
-        if(j.at("safetensors").get<std::string>() != expected_st)
+        if (j.at("safetensors").get<std::string>() != expected_st)
         {
             return false;
         }
-        const auto& L = j.at("llama");
+        const auto &L = j.at("llama");
         out.config.hidden_size = json_index(L, "hidden_size");
         out.config.intermediate_size = json_index(L, "intermediate_size");
         out.config.num_attention_heads = json_index(L, "num_attention_heads");
@@ -121,12 +121,12 @@ inline bool try_load_decoder_fixture_spec(
         out.hidden = out.config.hidden_size;
         out.seq = json_index(j, "sequence_length");
         out.batch = json_index(j, "batch");
-        out.forward_tol = static_cast<float>(
-            j.at("tolerances").at("forward").get<double>());
+        out.forward_tol =
+            static_cast<float>(j.at("tolerances").at("forward").get<double>());
         out.backward_tol = static_cast<float>(
             j.at("tolerances").at("backward").get<double>());
     }
-    catch(...)
+    catch (...)
     {
         return false;
     }
@@ -134,17 +134,16 @@ inline bool try_load_decoder_fixture_spec(
 }
 
 inline std::string decoder_fixture_safetensors_path(
-    const std::string& data_dir,
-    const DecoderFixtureSpec& spec)
+    const std::string &data_dir, const DecoderFixtureSpec &spec)
 {
     return data_dir + "/" + spec.stem + ".safetensors";
 }
 
 //! SKIP helper: JSON + safetensors must both exist and JSON must parse.
-inline bool skip_unless_fixture_ready(const char* stem, DecoderFixtureSpec& fx)
+inline bool skip_unless_fixture_ready(const char *stem, DecoderFixtureSpec &fx)
 {
     const std::string dir = std::string(LLAMA_DATA_DIR);
-    if(!try_load_decoder_fixture_spec(dir, stem, fx))
+    if (!try_load_decoder_fixture_spec(dir, stem, fx))
     {
         return false;
     }
@@ -152,12 +151,13 @@ inline bool skip_unless_fixture_ready(const char* stem, DecoderFixtureSpec& fx)
     return st.good();
 }
 
-void decoder_forward_compare_ref(const DecoderFixtureSpec& fx)
+void decoder_forward_compare_ref(const DecoderFixtureSpec &fx)
 {
     const std::string data_dir = std::string(LLAMA_DATA_DIR);
-    const std::string full_path = decoder_fixture_safetensors_path(data_dir, fx);
+    const std::string full_path =
+        decoder_fixture_safetensors_path(data_dir, fx);
     const float tol = fx.forward_tol;
-    const LlamaConfig& config = fx.config;
+    const LlamaConfig &config = fx.config;
     const Index n_seq = fx.seq;
     const Index n_batch = fx.batch;
     const Index hidden = fx.hidden;
@@ -175,43 +175,43 @@ void decoder_forward_compare_ref(const DecoderFixtureSpec& fx)
     {
         const std::string gname = std::string("decoder_ref_") + fx.stem;
         NNGraph g(gname);
-        auto* input =
-            g.tensor({hidden, n_seq, n_batch}, "input", DataType::FP32);
+        auto *input = g.tensor({hidden, n_seq, n_batch}, DataType::FP32)
+                          ->set_name("input");
         LlamaRopeInputs rope;
-        REQUIRE(load_llama_rope_inputs(
-            g, reader, config, n_seq, n_batch, rope));
+        REQUIRE(
+            load_llama_rope_inputs(g, reader, config, n_seq, n_batch, rope));
         LlamaDecoder decoder(&g, "decoder", config);
-        auto* output =
-            decoder.forward(input, rope.sin, rope.cos, nullptr);
+        auto *output = decoder.forward(input, rope.sin, rope.cos, nullptr);
         input->mark_input(true);
         output->mark_output(true);
         mark_rope_inputs(rope);
 
         decoder.load(full_path);
 
-        TensorGraph& tg = g.tensor_graph();
+        TensorGraph &tg = g.tensor_graph();
         TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("input", input_data);
+        runtime.bind_data(input, input_data);
         bind_rope_inputs(runtime, rope);
         runtime.execute();
         runtime.wait();
 
-        result = runtime.get_output<float>(output->name());
+        result = runtime.get_output<float>(output);
     }
 
     REQUIRE(result.size() == ref_data.size());
     require_relative_frobenius_error(result, ref_data, tol);
 }
 
-void decoder_backward_compare_ref(const DecoderFixtureSpec& fx)
+void decoder_backward_compare_ref(const DecoderFixtureSpec &fx)
 {
     const std::string data_dir = std::string(LLAMA_DATA_DIR);
-    const std::string full_path = decoder_fixture_safetensors_path(data_dir, fx);
+    const std::string full_path =
+        decoder_fixture_safetensors_path(data_dir, fx);
     const float tol = fx.backward_tol;
-    const LlamaConfig& config = fx.config;
+    const LlamaConfig &config = fx.config;
     const Index n_seq = fx.seq;
     const Index n_batch = fx.batch;
     const Index hidden = fx.hidden;
@@ -221,10 +221,11 @@ void decoder_backward_compare_ref(const DecoderFixtureSpec& fx)
     std::vector<float> input_data(input_bytes.size() / sizeof(float));
     std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
 
-    std::vector<std::uint8_t> grad_out_bytes = reader.read_tensor("grad_output");
+    std::vector<std::uint8_t> grad_out_bytes =
+        reader.read_tensor("grad_output");
     std::vector<float> grad_out_data(grad_out_bytes.size() / sizeof(float));
-    std::memcpy(grad_out_data.data(), grad_out_bytes.data(),
-        grad_out_bytes.size());
+    std::memcpy(
+        grad_out_data.data(), grad_out_bytes.data(), grad_out_bytes.size());
 
     std::vector<std::uint8_t> ref_bytes = reader.read_tensor("grad_input");
     std::vector<float> grad_input_ref(ref_bytes.size() / sizeof(float));
@@ -234,14 +235,13 @@ void decoder_backward_compare_ref(const DecoderFixtureSpec& fx)
     {
         const std::string gname = std::string("decoder_bwd_") + fx.stem;
         NNGraph g(gname);
-        auto* input =
-            g.tensor({hidden, n_seq, n_batch}, "input", DataType::FP32, true);
+        auto *input = g.tensor({hidden, n_seq, n_batch}, DataType::FP32, true)
+                          ->set_name("input");
         LlamaRopeInputs rope;
-        REQUIRE(load_llama_rope_inputs(
-            g, reader, config, n_seq, n_batch, rope));
+        REQUIRE(
+            load_llama_rope_inputs(g, reader, config, n_seq, n_batch, rope));
         LlamaDecoder decoder(&g, "decoder", config);
-        auto* output =
-            decoder.forward(input, rope.sin, rope.cos, nullptr);
+        auto *output = decoder.forward(input, rope.sin, rope.cos, nullptr);
 
         input->mark_input(true);
         output->mark_output(true);
@@ -255,19 +255,18 @@ void decoder_backward_compare_ref(const DecoderFixtureSpec& fx)
 
         decoder.load(full_path);
 
-        TensorGraph& tg = g.tensor_graph();
+        TensorGraph &tg = g.tensor_graph();
         TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
 
-        TileGraph::Runtime runtime(tile_graph);
+        Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("input", input_data);
-        runtime.bind_data("grad_output", grad_out_data);
+        runtime.bind_data(input, input_data);
+        runtime.bind_data(grad_output_tensor, grad_out_data);
         bind_rope_inputs(runtime, rope);
         runtime.execute();
         runtime.wait();
 
-        grad_input_result =
-            runtime.get_output<float>(input->grad()->name());
+        grad_input_result = runtime.get_output<float>(input->grad());
     }
 
     REQUIRE(grad_input_result.size() == grad_input_ref.size());
@@ -279,41 +278,44 @@ void decoder_backward_compare_ref(const DecoderFixtureSpec& fx)
 TEST_CASE("LlamaDecoder forward builds output", "[model][llama]")
 {
     DecoderFixtureSpec fx;
-    if(!skip_unless_fixture_ready(decoder_fixture_stem::llama_decoder, fx))
+    if (!skip_unless_fixture_ready(decoder_fixture_stem::llama_decoder, fx))
     {
         SKIP("Missing or invalid llama_decoder.json / .safetensors.");
     }
     NNGraph g("llama_decoder");
     LlamaDecoder decoder(&g, "decoder", fx.config);
-    auto* input = g.tensor(
-        {fx.hidden, fx.seq, fx.batch}, "input", DataType::FP32);
-    auto* output = decoder.forward(input);
+    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+                      ->set_name("input");
+    auto *output = decoder.forward(input);
 
     REQUIRE(output != nullptr);
-    REQUIRE(output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+    REQUIRE(
+        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
 }
 
 TEST_CASE("LlamaDecoder GQA forward builds output", "[model][llama][gqa]")
 {
     DecoderFixtureSpec fx;
-    if(!skip_unless_fixture_ready(decoder_fixture_stem::llama_decoder_gqa, fx))
+    if (!skip_unless_fixture_ready(
+            decoder_fixture_stem::llama_decoder_gqa, fx))
     {
         SKIP("Missing or invalid llama_decoder_gqa.json / .safetensors.");
     }
     NNGraph g("llama_decoder_gqa");
     LlamaDecoder decoder(&g, "decoder", fx.config);
-    auto* input = g.tensor(
-        {fx.hidden, fx.seq, fx.batch}, "input", DataType::FP32);
-    auto* output = decoder.forward(input);
+    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+                      ->set_name("input");
+    auto *output = decoder.forward(input);
 
     REQUIRE(output != nullptr);
-    REQUIRE(output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
+    REQUIRE(
+        output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
 }
 
 TEST_CASE("LlamaDecoder load from safetensors roundtrip", "[model][llama][io]")
 {
     DecoderFixtureSpec fx;
-    if(!skip_unless_fixture_ready(decoder_fixture_stem::llama_decoder, fx))
+    if (!skip_unless_fixture_ready(decoder_fixture_stem::llama_decoder, fx))
     {
         SKIP("Missing or invalid llama_decoder.json / .safetensors.");
     }
@@ -331,7 +333,7 @@ TEST_CASE("LlamaDecoder load from safetensors roundtrip", "[model][llama][io]")
     SafeTensorsReader reader(data_path);
     SafeTensorsReader reader2(save_path);
 
-    for(const auto& name : reader2.tensor_names())
+    for (const auto &name : reader2.tensor_names())
     {
         REQUIRE(reader.has_tensor(name));
         auto orig = reader.read_tensor(name);
@@ -344,10 +346,11 @@ TEST_CASE("LlamaDecoder load from safetensors roundtrip", "[model][llama][io]")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "LlamaDecoder matches PyTorch reference", "[model][llama]")
+    "LlamaDecoder matches PyTorch reference",
+    "[model][llama]")
 {
     DecoderFixtureSpec fx;
-    if(!skip_unless_fixture_ready(decoder_fixture_stem::llama_decoder, fx))
+    if (!skip_unless_fixture_ready(decoder_fixture_stem::llama_decoder, fx))
     {
         SKIP("Llama decoder fixture pair not found.");
     }
@@ -355,10 +358,11 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "LlamaDecoder backward matches PyTorch reference", "[model][llama]")
+    "LlamaDecoder backward matches PyTorch reference",
+    "[model][llama]")
 {
     DecoderFixtureSpec fx;
-    if(!skip_unless_fixture_ready(decoder_fixture_stem::llama_decoder, fx))
+    if (!skip_unless_fixture_ready(decoder_fixture_stem::llama_decoder, fx))
     {
         SKIP("Llama decoder fixture pair not found.");
     }
@@ -366,10 +370,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "LlamaDecoder GQA matches PyTorch reference", "[model][llama][gqa]")
+    "LlamaDecoder GQA matches PyTorch reference",
+    "[model][llama][gqa]")
 {
     DecoderFixtureSpec fx;
-    if(!skip_unless_fixture_ready(decoder_fixture_stem::llama_decoder_gqa, fx))
+    if (!skip_unless_fixture_ready(
+            decoder_fixture_stem::llama_decoder_gqa, fx))
     {
         SKIP("Llama decoder GQA fixture pair not found.");
     }
@@ -377,10 +383,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "LlamaDecoder GQA backward matches PyTorch reference", "[model][llama][gqa]")
+    "LlamaDecoder GQA backward matches PyTorch reference",
+    "[model][llama][gqa]")
 {
     DecoderFixtureSpec fx;
-    if(!skip_unless_fixture_ready(decoder_fixture_stem::llama_decoder_gqa, fx))
+    if (!skip_unless_fixture_ready(
+            decoder_fixture_stem::llama_decoder_gqa, fx))
     {
         SKIP("Llama decoder GQA fixture pair not found.");
     }

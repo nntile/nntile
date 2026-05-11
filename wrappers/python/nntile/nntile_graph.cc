@@ -12,15 +12,13 @@
  * @version 1.1.0
  * */
 
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
-#include <pybind11/stl.h>
-
-#include <nntile/graph.hh>
-#include <nntile/graph/nn/graph_ops.hh>
-
 #include <cstring>
 #include <memory>
+#include <nntile/graph.hh>
+#include <nntile/graph/nn/graph_ops.hh>
+#include <pybind11/numpy.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -31,135 +29,151 @@ using pybind11::literals::operator""_a;
 using namespace nntile;
 using namespace nntile::graph;
 
-//! Owns a TileGraph (heap) and TileGraph::Runtime (runtime references the graph).
+//! Owns a TileGraph and its ``nntile::graph::Runtime`` executor.
 struct PyGraphRuntime
 {
     std::shared_ptr<TileGraph> tile_graph;
-    TileGraph::Runtime runtime;
-    explicit PyGraphRuntime(std::shared_ptr<TileGraph> g)
-        : tile_graph(std::move(g))
-        , runtime(*tile_graph)
+    Runtime runtime;
+    explicit PyGraphRuntime(std::shared_ptr<TileGraph> g) :
+        tile_graph(std::move(g)), runtime(*tile_graph)
     {
     }
 };
 
-namespace pybind11 { namespace detail {
-template<>
-struct is_copy_constructible<TensorGraph> : std::false_type {};
-template<>
-struct is_copy_constructible<NNGraph> : std::false_type {};
-template<>
-struct is_copy_constructible<PyGraphRuntime> : std::false_type {};
-}} // namespace pybind11::detail
+namespace pybind11
+{
+namespace detail
+{
+template <> struct is_copy_constructible<TensorGraph> : std::false_type
+{
+};
+template <> struct is_copy_constructible<NNGraph> : std::false_type
+{
+};
+template <> struct is_copy_constructible<PyGraphRuntime> : std::false_type
+{
+};
+} // namespace detail
+} // namespace pybind11
 
 // ---------------------------------------------------------------------------
 // Helpers for numpy <-> Runtime data transfer
 // ---------------------------------------------------------------------------
 
-static void runtime_bind_numpy(TileGraph::Runtime& rt,
-                               const std::string& name,
-                               py::array arr)
+template <typename TensorPtr>
+static void runtime_bind_numpy(
+    Runtime &rt, TensorPtr tensor, py::array arr)
 {
-    DataType dt = rt.get_dtype(name);
+    DataType dt = rt.get_dtype(tensor);
     arr = py::array::ensure(arr);
-    if(!arr)
+    if (!arr)
         throw std::runtime_error("bind_data: cannot convert to numpy array");
     py::buffer_info buf = arr.request();
     size_t count = static_cast<size_t>(buf.size);
 
-    switch(dt)
+    switch (dt)
     {
-        case DataType::FP32:
-        case DataType::FP32_FAST_TF32:
-        case DataType::FP32_FAST_FP16:
-        case DataType::FP32_FAST_BF16:
-        case DataType::FP16:
-        case DataType::BF16:
-        {
-            auto f = py::array_t<float>::ensure(arr);
-            if(!f)
-                throw std::runtime_error(
-                    "bind_data: cannot convert to float32 array");
-            rt.bind_data<float>(name, f.data(), count);
-            break;
-        }
-        case DataType::FP64:
-        {
-            auto d = py::array_t<double>::ensure(arr);
-            if(!d)
-                throw std::runtime_error(
-                    "bind_data: cannot convert to float64 array");
-            rt.bind_data<double>(name, d.data(), count);
-            break;
-        }
-        case DataType::INT64:
-        {
-            auto i = py::array_t<std::int64_t>::ensure(arr);
-            if(!i)
-                throw std::runtime_error(
-                    "bind_data: cannot convert to int64 array");
-            rt.bind_data<std::int64_t>(name, i.data(), count);
-            break;
-        }
-        case DataType::BOOL:
-        {
-            auto b = py::array_t<std::uint8_t>::ensure(arr);
-            if(!b)
-                throw std::runtime_error(
-                    "bind_data: cannot convert to bool/uint8 array");
-            rt.bind_data<std::uint8_t>(name, b.data(), count);
-            break;
-        }
-        default:
-            throw std::runtime_error("bind_data: unsupported dtype");
+    case DataType::FP32:
+    case DataType::FP32_FAST_TF32:
+    case DataType::FP32_FAST_FP16:
+    case DataType::FP32_FAST_BF16:
+    case DataType::FP16:
+    case DataType::BF16:
+    {
+        auto f = py::array_t<float>::ensure(arr);
+        if (!f)
+            throw std::runtime_error(
+                "bind_data: cannot convert to float32 array");
+        rt.bind_data<float>(tensor, f.data(), count);
+        break;
+    }
+    case DataType::FP64:
+    {
+        auto d = py::array_t<double>::ensure(arr);
+        if (!d)
+            throw std::runtime_error(
+                "bind_data: cannot convert to float64 array");
+        rt.bind_data<double>(tensor, d.data(), count);
+        break;
+    }
+    case DataType::INT64:
+    {
+        auto i = py::array_t<std::int64_t>::ensure(arr);
+        if (!i)
+            throw std::runtime_error(
+                "bind_data: cannot convert to int64 array");
+        rt.bind_data<std::int64_t>(tensor, i.data(), count);
+        break;
+    }
+    case DataType::BOOL:
+    {
+        auto b = py::array_t<std::uint8_t>::ensure(arr);
+        if (!b)
+            throw std::runtime_error(
+                "bind_data: cannot convert to bool/uint8 array");
+        rt.bind_data<std::uint8_t>(tensor, b.data(), count);
+        break;
+    }
+    default:
+        throw std::runtime_error("bind_data: unsupported dtype");
     }
 }
 
-static py::array runtime_get_numpy(TileGraph::Runtime& rt,
-                                   const std::string& name)
+static void runtime_bind_numpy_nn(
+    PyGraphRuntime &s, NNGraph::TensorNode const *tensor, py::array arr)
 {
-    DataType dt = rt.get_dtype(name);
-    switch(dt)
+    runtime_bind_numpy(s.runtime, tensor, arr);
+}
+
+template <typename TensorPtr>
+static py::array runtime_get_numpy(Runtime &rt, TensorPtr tensor)
+{
+    DataType dt = rt.get_dtype(tensor);
+    switch (dt)
     {
-        case DataType::FP32:
-        case DataType::FP32_FAST_TF32:
-        case DataType::FP32_FAST_FP16:
-        case DataType::FP32_FAST_BF16:
-        case DataType::FP16:
-        case DataType::BF16:
-        {
-            auto v = rt.get_output<float>(name);
-            auto arr = py::array_t<float>(v.size());
-            std::memcpy(arr.mutable_data(), v.data(),
-                        v.size() * sizeof(float));
-            return arr;
-        }
-        case DataType::FP64:
-        {
-            auto v = rt.get_output<double>(name);
-            auto arr = py::array_t<double>(v.size());
-            std::memcpy(arr.mutable_data(), v.data(),
-                        v.size() * sizeof(double));
-            return arr;
-        }
-        case DataType::INT64:
-        {
-            auto v = rt.get_output<std::int64_t>(name);
-            auto arr = py::array_t<std::int64_t>(v.size());
-            std::memcpy(arr.mutable_data(), v.data(),
-                        v.size() * sizeof(std::int64_t));
-            return arr;
-        }
-        case DataType::BOOL:
-        {
-            auto v = rt.get_output<std::uint8_t>(name);
-            auto arr = py::array_t<std::uint8_t>(v.size());
-            std::memcpy(arr.mutable_data(), v.data(), v.size());
-            return arr;
-        }
-        default:
-            throw std::runtime_error("get_output: unsupported dtype");
+    case DataType::FP32:
+    case DataType::FP32_FAST_TF32:
+    case DataType::FP32_FAST_FP16:
+    case DataType::FP32_FAST_BF16:
+    case DataType::FP16:
+    case DataType::BF16:
+    {
+        auto v = rt.get_output<float>(tensor);
+        auto arr = py::array_t<float>(v.size());
+        std::memcpy(arr.mutable_data(), v.data(), v.size() * sizeof(float));
+        return arr;
     }
+    case DataType::FP64:
+    {
+        auto v = rt.get_output<double>(tensor);
+        auto arr = py::array_t<double>(v.size());
+        std::memcpy(arr.mutable_data(), v.data(), v.size() * sizeof(double));
+        return arr;
+    }
+    case DataType::INT64:
+    {
+        auto v = rt.get_output<std::int64_t>(tensor);
+        auto arr = py::array_t<std::int64_t>(v.size());
+        std::memcpy(
+            arr.mutable_data(), v.data(), v.size() * sizeof(std::int64_t));
+        return arr;
+    }
+    case DataType::BOOL:
+    {
+        auto v = rt.get_output<std::uint8_t>(tensor);
+        auto arr = py::array_t<std::uint8_t>(v.size());
+        std::memcpy(arr.mutable_data(), v.data(), v.size());
+        return arr;
+    }
+    default:
+        throw std::runtime_error("get_output: unsupported dtype");
+    }
+}
+
+static py::array runtime_get_numpy_nn(
+    PyGraphRuntime &s, NNGraph::TensorNode const *tensor)
+{
+    return runtime_get_numpy(s.runtime, tensor);
 }
 
 // ---------------------------------------------------------------------------
@@ -168,8 +182,9 @@ static py::array runtime_get_numpy(TileGraph::Runtime& rt,
 
 PYBIND11_MODULE(nntile_graph, m)
 {
-    m.doc() = "NNTile Graph API - computation graph with autograd. Execute via "
-              "NNGraph.tensor_graph() -> TileGraph.from_tensor_graph -> Runtime.";
+    m.doc() =
+        "NNTile Graph API - computation graph with autograd. Execute via "
+        "NNGraph.tensor_graph() -> TileGraph.from_tensor_graph -> Runtime.";
 
     // -----------------------------------------------------------------------
     // DataType enum
@@ -197,27 +212,26 @@ PYBIND11_MODULE(nntile_graph, m)
         .def_property_readonly("ndim", &TensorGraph::TensorNode::ndim)
         .def_property_readonly("nelems", &TensorGraph::TensorNode::nelems)
         .def_property_readonly("is_input", &TensorGraph::TensorNode::is_input)
-        .def_property_readonly("is_output",
-                               &TensorGraph::TensorNode::is_output)
-        .def("mark_input", &TensorGraph::TensorNode::mark_input,
-             "v"_a = true)
-        .def("mark_output", &TensorGraph::TensorNode::mark_output,
-             "v"_a = true)
+        .def_property_readonly(
+            "is_output", &TensorGraph::TensorNode::is_output)
+        .def("mark_input", &TensorGraph::TensorNode::mark_input, "v"_a = true)
+        .def(
+            "mark_output", &TensorGraph::TensorNode::mark_output, "v"_a = true)
+        .def("set_name",
+            &TensorGraph::TensorNode::set_name,
+            "new_name"_a,
+            py::return_value_policy::reference)
         .def("__repr__", &TensorGraph::TensorNode::to_string);
 
     // -----------------------------------------------------------------------
     // TensorGraph (low-level computation graph)
     // -----------------------------------------------------------------------
-    py::class_<TensorGraph,
-               std::unique_ptr<TensorGraph, py::nodelete>>(m, "TensorGraph")
+    py::class_<TensorGraph, std::unique_ptr<TensorGraph, py::nodelete>>(
+        m, "TensorGraph")
         .def_property_readonly("name", &TensorGraph::name)
         .def_property_readonly("num_data", &TensorGraph::num_data)
         .def_property_readonly("num_ops", &TensorGraph::num_ops)
         .def("data_names", &TensorGraph::data_names)
-        .def("get_tensor_node",
-             static_cast<TensorGraph::TensorNode* (TensorGraph::*)(
-                 const std::string&)>(&TensorGraph::get_tensor_node),
-             "name"_a, py::return_value_policy::reference)
         .def("__repr__", &TensorGraph::to_string)
         .def("to_mermaid", &TensorGraph::to_mermaid);
 
@@ -228,7 +242,8 @@ PYBIND11_MODULE(nntile_graph, m)
         .def(py::init<std::string>(), "name"_a = "")
         .def_static(
             "from_tensor_graph",
-            [](const TensorGraph& tg) {
+            [](const TensorGraph &tg)
+            {
                 return std::make_shared<TileGraph>(
                     TileGraph::from_tensor_graph(tg));
             },
@@ -242,31 +257,42 @@ PYBIND11_MODULE(nntile_graph, m)
         .def("to_mermaid", &TileGraph::to_mermaid);
 
     // -----------------------------------------------------------------------
-    // Graph execution: TileGraph::Runtime (owns TileGraph + runtime)
+    // Graph execution: nntile::graph::Runtime (Python class name ``Runtime``).
     // -----------------------------------------------------------------------
-    py::class_<PyGraphRuntime>(
-        m,
+    py::class_<PyGraphRuntime>(m,
         "Runtime",
-        "Tile graph executor (C++ TileGraph::Runtime). "
-        "Build: TileGraph.from_tensor_graph(nn_graph.tensor_graph()), then Runtime(tile_graph).")
+        "Tile graph executor (C++ ``nntile::graph::Runtime``). "
+        "Build: TileGraph.from_tensor_graph(nn_graph.tensor_graph()), then "
+        "Runtime(tile_graph).")
         .def(py::init<std::shared_ptr<TileGraph>>(), "tile_graph"_a)
-        .def("compile",
-             [](PyGraphRuntime& s) { s.runtime.compile(); })
-        .def("bind_data",
-             [](PyGraphRuntime& s, const std::string& n, py::array a) {
-                 runtime_bind_numpy(s.runtime, n, a);
-             },
-             "name"_a, "data"_a)
-        .def("execute", [](PyGraphRuntime& s) { s.runtime.execute(); })
-        .def("wait", [](PyGraphRuntime& s) { s.runtime.wait(); })
-        .def("get_output",
-             [](PyGraphRuntime& s, const std::string& n) {
-                 return runtime_get_numpy(s.runtime, n);
-             },
-             "name"_a)
-        .def_property_readonly("is_compiled", [](const PyGraphRuntime& s) {
-            return s.runtime.is_compiled();
-        });
+        .def("compile", [](PyGraphRuntime &s) { s.runtime.compile(); })
+        .def(
+            "bind_data",
+            [](PyGraphRuntime &s,
+                TensorGraph::TensorNode const *t,
+                py::array a) { runtime_bind_numpy(s.runtime, t, a); },
+            "tensor"_a,
+            "data"_a)
+        .def(
+            "bind_data",
+            [](PyGraphRuntime &s, NNGraph::TensorNode const *t, py::array a)
+            { runtime_bind_numpy_nn(s, t, a); },
+            "tensor"_a,
+            "data"_a)
+        .def("execute", [](PyGraphRuntime &s) { s.runtime.execute(); })
+        .def("wait", [](PyGraphRuntime &s) { s.runtime.wait(); })
+        .def(
+            "get_output",
+            [](PyGraphRuntime &s, TensorGraph::TensorNode const *t)
+            { return runtime_get_numpy(s.runtime, t); },
+            "tensor"_a)
+        .def(
+            "get_output",
+            [](PyGraphRuntime &s, NNGraph::TensorNode const *t)
+            { return runtime_get_numpy_nn(s, t); },
+            "tensor"_a)
+        .def_property_readonly("is_compiled",
+            [](const PyGraphRuntime &s) { return s.runtime.is_compiled(); });
 
     // -----------------------------------------------------------------------
     // NNGraph::TensorNode (autograd-aware tensor node)
@@ -276,62 +302,77 @@ PYBIND11_MODULE(nntile_graph, m)
         .def_property_readonly("shape", &NNGraph::TensorNode::shape)
         .def_property_readonly("dtype", &NNGraph::TensorNode::dtype)
         .def_property_readonly("ndim", &NNGraph::TensorNode::ndim)
-        .def_property_readonly("requires_grad",
-                               &NNGraph::TensorNode::requires_grad)
+        .def_property_readonly(
+            "requires_grad", &NNGraph::TensorNode::requires_grad)
         .def("set_requires_grad",
-             &NNGraph::TensorNode::set_requires_grad, "value"_a)
+            &NNGraph::TensorNode::set_requires_grad,
+            "value"_a)
         .def_property_readonly("has_grad", &NNGraph::TensorNode::has_grad)
-        .def_property_readonly("grad",
-             [](NNGraph::TensorNode& t) -> NNGraph::TensorNode* {
-                 return t.grad();
-             }, py::return_value_policy::reference)
-        .def_property_readonly("data",
-             [](NNGraph::TensorNode& t) -> TensorGraph::TensorNode* {
-                 return t.data();
-             }, py::return_value_policy::reference)
+        .def_property_readonly(
+            "grad",
+            [](NNGraph::TensorNode &t) -> NNGraph::TensorNode *
+            { return t.grad(); },
+            py::return_value_policy::reference)
+        .def_property_readonly(
+            "data",
+            [](NNGraph::TensorNode &t) -> TensorGraph::TensorNode *
+            { return t.data(); },
+            py::return_value_policy::reference)
         .def_property_readonly("is_leaf", &NNGraph::TensorNode::is_leaf)
         .def_property_readonly("is_input", &NNGraph::TensorNode::is_input)
         .def_property_readonly("is_output", &NNGraph::TensorNode::is_output)
         .def("mark_input", &NNGraph::TensorNode::mark_input, "v"_a = true)
         .def("mark_output", &NNGraph::TensorNode::mark_output, "v"_a = true)
-        .def("backward", &NNGraph::TensorNode::backward,
-             "retain_graph"_a = false)
+        .def("set_name",
+            &NNGraph::TensorNode::set_name,
+            "new_name"_a,
+            py::return_value_policy::reference)
+        .def("backward",
+            &NNGraph::TensorNode::backward,
+            "retain_graph"_a = false)
         .def("__repr__", &NNGraph::TensorNode::to_string);
 
     // -----------------------------------------------------------------------
     // NNGraph (autograd computation graph)
     // -----------------------------------------------------------------------
     py::class_<NNGraph>(m, "NNGraph")
-        .def(py::init<const std::string&>(), "name"_a = "")
+        .def(py::init<const std::string &>(), "name"_a = "")
         .def_property_readonly("name", &NNGraph::name)
         .def_property_readonly("num_tensors", &NNGraph::num_tensors)
         .def_property_readonly("num_ops", &NNGraph::num_ops)
         .def("tensor",
-             static_cast<NNGraph::TensorNode* (NNGraph::*)(
-                 std::vector<Index>, const std::string&, DataType, bool)>(
-                     &NNGraph::tensor),
-             "shape"_a, "name"_a,
-             "dtype"_a = DataType::FP32,
-             "requires_grad"_a = true,
-             py::return_value_policy::reference)
+            static_cast<NNGraph::TensorNode *(
+                NNGraph::*) (std::vector<Index>, DataType, bool)>(
+                &NNGraph::tensor),
+            "shape"_a,
+            "dtype"_a = DataType::FP32,
+            "requires_grad"_a = true,
+            py::return_value_policy::reference)
         .def("get_tensor",
-             static_cast<NNGraph::TensorNode* (NNGraph::*)(
-                 const std::string&)>(&NNGraph::get_tensor),
-             "name"_a, py::return_value_policy::reference)
+            static_cast<NNGraph::TensorNode *(
+                NNGraph::*) (TensorGraph::TensorNode const *)>(
+                &NNGraph::get_tensor),
+            "tensor_data"_a,
+            py::return_value_policy::reference)
         .def("tensor_names", &NNGraph::tensor_names)
-        .def("tensor_graph",
-             [](NNGraph& g) -> TensorGraph* {
-                 return &g.tensor_graph();
-             }, py::return_value_policy::reference_internal)
-        .def("get_or_create_grad",
-             [](NNGraph& g, NNGraph::TensorNode* t,
-                const std::string& grad_name) -> NNGraph::TensorNode* {
-                 auto [grad, is_first] =
-                     g.get_or_create_grad(t, grad_name);
-                 return grad;
-             },
-             "tensor"_a, "grad_name"_a,
-             py::return_value_policy::reference)
+        .def("parameters", &NNGraph::parameters)
+        .def("named_parameters", &NNGraph::named_parameters)
+        .def(
+            "tensor_graph",
+            [](NNGraph &g) -> TensorGraph * { return &g.tensor_graph(); },
+            py::return_value_policy::reference_internal)
+        .def(
+            "get_or_create_grad",
+            [](NNGraph &g,
+                NNGraph::TensorNode *t,
+                const std::string &grad_name) -> NNGraph::TensorNode *
+            {
+                auto [grad, is_first] = g.get_or_create_grad(t, grad_name);
+                return grad;
+            },
+            "tensor"_a,
+            "grad_name"_a,
+            py::return_value_policy::reference)
         .def_property_readonly("grad_enabled", &NNGraph::is_grad_enabled)
         .def("set_grad_enabled", &NNGraph::set_grad_enabled, "enabled"_a)
         .def("__repr__", &NNGraph::to_string)
@@ -342,77 +383,111 @@ PYBIND11_MODULE(nntile_graph, m)
     // -----------------------------------------------------------------------
     auto nn = m.def_submodule("nn", "Neural network graph operations");
 
-    nn.def("gemm", &graph::gemm,
-           "a"_a, "b"_a, "output_name"_a,
-           "alpha"_a = 1.0f, "trans_a"_a = false, "trans_b"_a = false,
-           "ndim"_a = 1, "batch_ndim"_a = 0,
-           py::return_value_policy::reference);
+    nn.def("gemm",
+        &graph::gemm,
+        "a"_a,
+        "b"_a,
+        "alpha"_a = 1.0f,
+        "trans_a"_a = false,
+        "trans_b"_a = false,
+        "ndim"_a = 1,
+        "batch_ndim"_a = 0,
+        py::return_value_policy::reference);
 
-    nn.def("transpose", &graph::transpose,
-           "src"_a, "output_name"_a, "ndim"_a,
-           py::return_value_policy::reference);
+    nn.def("transpose",
+        &graph::transpose,
+        "src"_a,
+        "ndim"_a,
+        py::return_value_policy::reference);
 
-    nn.def("rope", &graph::rope,
-           "sin"_a, "cos"_a, "x"_a, "output_name"_a,
-           py::return_value_policy::reference);
+    nn.def("rope",
+        &graph::rope,
+        "sin"_a,
+        "cos"_a,
+        "x"_a,
+        py::return_value_policy::reference);
 
-    nn.def("sdpa_eager", &graph::sdpa_eager,
-           "q"_a, "k"_a, "v"_a, "output_name"_a,
-           "mask"_a = nullptr, "batch_ndim"_a = 2, "redux"_a = 0,
-           py::return_value_policy::reference);
+    nn.def("sdpa_eager",
+        &graph::sdpa_eager,
+        "q"_a,
+        "k"_a,
+        "v"_a,
+        "mask"_a = nullptr,
+        "batch_ndim"_a = 2,
+        "redux"_a = 0,
+        py::return_value_policy::reference);
 
-    nn.def("scale_slice", &graph::scale_slice,
-           "alpha"_a, "src"_a, "output_name"_a, "axis"_a, "axis_size"_a,
-           py::return_value_policy::reference);
+    nn.def("scale_slice",
+        &graph::scale_slice,
+        "alpha"_a,
+        "src"_a,
+        "axis"_a,
+        "axis_size"_a,
+        py::return_value_policy::reference);
 
-    nn.def("scale", &graph::scale,
-           "alpha"_a, "src"_a, "output_name"_a,
-           py::return_value_policy::reference);
+    nn.def("scale",
+        &graph::scale,
+        "alpha"_a,
+        "src"_a,
+        py::return_value_policy::reference);
 
-    nn.def("add", &graph::add,
-           "alpha"_a, "x"_a, "beta"_a, "y"_a, "output_name"_a,
-           py::return_value_policy::reference);
+    nn.def("add",
+        &graph::add,
+        "alpha"_a,
+        "x"_a,
+        "beta"_a,
+        "y"_a,
+        py::return_value_policy::reference);
 
-    nn.def("multiply", &graph::multiply,
-           "x"_a, "y"_a, "output_name"_a, "alpha"_a = 1.0f,
-           py::return_value_policy::reference);
+    nn.def("multiply",
+        &graph::multiply,
+        "x"_a,
+        "y"_a,
+        "alpha"_a = 1.0f,
+        py::return_value_policy::reference);
 
-    nn.def("silu", &graph::silu,
-           "x"_a, "output_name"_a,
-           py::return_value_policy::reference);
+    nn.def("silu", &graph::silu, "x"_a, py::return_value_policy::reference);
 
-    nn.def("gelu", &graph::gelu,
-           "x"_a, "output_name"_a,
-           py::return_value_policy::reference);
+    nn.def("gelu", &graph::gelu, "x"_a, py::return_value_policy::reference);
 
-    nn.def("relu", &graph::relu,
-           "x"_a, "output_name"_a,
-           py::return_value_policy::reference);
+    nn.def("relu", &graph::relu, "x"_a, py::return_value_policy::reference);
 
-    nn.def("rms_norm", &graph::rms_norm,
-           "x"_a, "gamma"_a, "output_name"_a,
-           "axis"_a = 0, "eps"_a = 1e-6f, "redux"_a = 0,
-           py::return_value_policy::reference);
+    nn.def("rms_norm",
+        &graph::rms_norm,
+        "x"_a,
+        "gamma"_a,
+        "axis"_a = 0,
+        "eps"_a = 1e-6f,
+        "redux"_a = 0,
+        py::return_value_policy::reference);
 
-    nn.def("softmax", &graph::softmax,
-           "x"_a, "output_name"_a, "axis"_a = 0, "redux"_a = 0,
-           py::return_value_policy::reference);
+    nn.def("softmax",
+        &graph::softmax,
+        "x"_a,
+        "axis"_a = 0,
+        "redux"_a = 0,
+        py::return_value_policy::reference);
 
-    nn.def("embedding", &graph::embedding,
-           "index"_a, "vocab"_a, "output_name"_a,
-           "axis"_a = 0, "redux"_a = 0,
-           py::return_value_policy::reference);
+    nn.def("embedding",
+        &graph::embedding,
+        "index"_a,
+        "vocab"_a,
+        "axis"_a = 0,
+        "redux"_a = 0,
+        py::return_value_policy::reference);
 
-    nn.def("cross_entropy", &graph::cross_entropy,
-           "x"_a, "labels"_a, "output_name"_a,
-           "redux"_a = 0, "scale"_a = 1.0f, "ignore_index"_a = -100,
-           py::return_value_policy::reference);
+    nn.def("cross_entropy",
+        &graph::cross_entropy,
+        "x"_a,
+        "labels"_a,
+        "redux"_a = 0,
+        "scale"_a = 1.0f,
+        "ignore_index"_a = -100,
+        py::return_value_policy::reference);
 
-    nn.def("fill", &graph::fill,
-           "val"_a, "x"_a);
+    nn.def("fill", &graph::fill, "val"_a, "x"_a);
 
-    nn.def("clear", &graph::clear,
-           "x"_a);
+    nn.def("clear", &graph::clear, "x"_a);
 
     // -----------------------------------------------------------------------
     // Module base class
@@ -420,27 +495,28 @@ PYBIND11_MODULE(nntile_graph, m)
     py::class_<graph::module::Module>(m, "Module")
         .def_property_readonly("name", &graph::module::Module::name)
         .def("parameters",
-             static_cast<std::vector<NNGraph::TensorNode*>
-                 (graph::module::Module::*)() const>(
-                     &graph::module::Module::parameters),
-             py::return_value_policy::reference)
+            static_cast<std::vector<NNGraph::TensorNode *> (
+                graph::module::Module::*)() const>(
+                &graph::module::Module::parameters),
+            py::return_value_policy::reference)
         .def("named_parameters",
-             &graph::module::Module::named_parameters,
-             py::return_value_policy::reference)
+            &graph::module::Module::named_parameters,
+            py::return_value_policy::reference)
         .def("parameters_recursive",
-             &graph::module::Module::parameters_recursive,
-             py::return_value_policy::reference)
+            &graph::module::Module::parameters_recursive,
+            py::return_value_policy::reference)
         .def("named_parameters_recursive",
-             &graph::module::Module::named_parameters_recursive,
-             py::return_value_policy::reference)
+            &graph::module::Module::named_parameters_recursive,
+            py::return_value_policy::reference)
         .def("parameter_gradients",
-             &graph::module::Module::parameter_gradients,
-             py::return_value_policy::reference)
+            &graph::module::Module::parameter_gradients,
+            py::return_value_policy::reference)
         .def("parameter_gradients_recursive",
-             &graph::module::Module::parameter_gradients_recursive,
-             py::return_value_policy::reference)
-        .def("children", &graph::module::Module::children,
-             py::return_value_policy::reference)
+            &graph::module::Module::parameter_gradients_recursive,
+            py::return_value_policy::reference)
+        .def("children",
+            &graph::module::Module::children,
+            py::return_value_policy::reference)
         .def("repr", &graph::module::Module::repr)
         .def("__repr__", &graph::module::Module::to_string);
 }

@@ -39,11 +39,10 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <nntile.hh>
 #include <random>
 #include <string>
 #include <vector>
-
-#include <nntile.hh>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -56,18 +55,17 @@ class DeepReLU : public Module
     std::vector<std::unique_ptr<Activation>> activations_;
     Index depth_;
 
-public:
-    DeepReLU(NNGraph* graph,
-             const std::string& name,
-             Index input_dim,
-             Index hidden_dim,
-             Index output_dim,
-             Index depth,
-             DataType dtype = DataType::FP32)
-        : Module(graph, name)
-        , depth_(depth)
+  public:
+    DeepReLU(NNGraph *graph,
+        const std::string &name,
+        Index input_dim,
+        Index hidden_dim,
+        Index output_dim,
+        Index depth,
+        DataType dtype = DataType::FP32) :
+        Module(graph, name), depth_(depth)
     {
-        if(depth < 1)
+        if (depth < 1)
         {
             throw std::invalid_argument("DeepReLU: depth must be >= 1");
         }
@@ -78,10 +76,10 @@ public:
             graph, name + "_linear_0", in, out, dtype));
         register_module("linear_0", linears_.back().get());
 
-        for(Index i = 1; i < depth; ++i)
+        for (Index i = 1; i < depth; ++i)
         {
-            activations_.push_back(std::make_unique<Activation>(
-                graph, name + "_relu_" + std::to_string(i - 1),
+            activations_.push_back(std::make_unique<Activation>(graph,
+                name + "_relu_" + std::to_string(i - 1),
                 ActivationType::RELU));
             register_module(
                 "relu_" + std::to_string(i - 1), activations_.back().get());
@@ -89,17 +87,16 @@ public:
             in = hidden_dim;
             out = (i == depth - 1) ? output_dim : hidden_dim;
             linears_.push_back(std::make_unique<Linear>(
-                graph, name + "_linear_" + std::to_string(i),
-                in, out, dtype));
+                graph, name + "_linear_" + std::to_string(i), in, out, dtype));
             register_module(
                 "linear_" + std::to_string(i), linears_.back().get());
         }
     }
 
-    NNGraph::TensorNode* forward(NNGraph::TensorNode* x)
+    NNGraph::TensorNode *forward(NNGraph::TensorNode *x)
     {
         x = linears_[0]->forward(x);
-        for(Index i = 1; i < depth_; ++i)
+        for (Index i = 1; i < depth_; ++i)
         {
             x = activations_[static_cast<std::size_t>(i - 1)]->forward(x);
             x = linears_[static_cast<std::size_t>(i)]->forward(x);
@@ -113,7 +110,10 @@ public:
     }
 
     Index depth() const { return depth_; }
-    Linear& linear(Index i) { return *linears_.at(static_cast<std::size_t>(i)); }
+    Linear &linear(Index i)
+    {
+        return *linears_.at(static_cast<std::size_t>(i));
+    }
 };
 
 struct Args
@@ -133,37 +133,37 @@ struct Args
     std::string load_config;
 };
 
-Args parse_args(int argc, char** argv)
+Args parse_args(int argc, char **argv)
 {
     Args args;
-    for(int i = 1; i < argc; ++i)
+    for (int i = 1; i < argc; ++i)
     {
         std::string arg = argv[i];
-        if(arg == "--iters" && i + 1 < argc)
+        if (arg == "--iters" && i + 1 < argc)
             args.num_iters = std::atoi(argv[++i]);
-        else if(arg == "--lr" && i + 1 < argc)
+        else if (arg == "--lr" && i + 1 < argc)
             args.learning_rate = static_cast<float>(std::atof(argv[++i]));
-        else if(arg == "--optimizer" && i + 1 < argc)
+        else if (arg == "--optimizer" && i + 1 < argc)
             args.optimizer_type = argv[++i];
-        else if(arg == "--momentum" && i + 1 < argc)
+        else if (arg == "--momentum" && i + 1 < argc)
             args.momentum = static_cast<float>(std::atof(argv[++i]));
-        else if(arg == "--weight-decay" && i + 1 < argc)
+        else if (arg == "--weight-decay" && i + 1 < argc)
             args.weight_decay = static_cast<float>(std::atof(argv[++i]));
-        else if(arg == "--beta1" && i + 1 < argc)
+        else if (arg == "--beta1" && i + 1 < argc)
             args.beta1 = static_cast<float>(std::atof(argv[++i]));
-        else if(arg == "--beta2" && i + 1 < argc)
+        else if (arg == "--beta2" && i + 1 < argc)
             args.beta2 = static_cast<float>(std::atof(argv[++i]));
-        else if(arg == "--save-model" && i + 1 < argc)
+        else if (arg == "--save-model" && i + 1 < argc)
             args.save_model = argv[++i];
-        else if(arg == "--load-model" && i + 1 < argc)
+        else if (arg == "--load-model" && i + 1 < argc)
             args.load_model = argv[++i];
-        else if(arg == "--save-optim" && i + 1 < argc)
+        else if (arg == "--save-optim" && i + 1 < argc)
             args.save_optim = argv[++i];
-        else if(arg == "--load-optim" && i + 1 < argc)
+        else if (arg == "--load-optim" && i + 1 < argc)
             args.load_optim = argv[++i];
-        else if(arg == "--save-config" && i + 1 < argc)
+        else if (arg == "--save-config" && i + 1 < argc)
             args.save_config = argv[++i];
-        else if(arg == "--load-config" && i + 1 < argc)
+        else if (arg == "--load-config" && i + 1 < argc)
             args.load_config = argv[++i];
         else
         {
@@ -173,48 +173,53 @@ Args parse_args(int argc, char** argv)
     return args;
 }
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
     Args args = parse_args(argc, argv);
 
-    const Index input_dim  = 128;
+    const Index input_dim = 128;
     const Index hidden_dim = 256;
     const Index output_dim = 10;
-    const Index depth      = 5;
+    const Index depth = 5;
     const Index batch_size = 32;
 
     std::cout << "=== Deep ReLU Training Example ===\n"
-              << "Architecture: " << input_dim << " -> "
-              << hidden_dim << " (x" << (depth - 1) << " hidden) -> "
-              << output_dim << "\n"
+              << "Architecture: " << input_dim << " -> " << hidden_dim << " (x"
+              << (depth - 1) << " hidden) -> " << output_dim << "\n"
               << "Batch size: " << batch_size << "\n"
               << "Training iterations: " << args.num_iters << "\n"
               << "Optimizer: " << args.optimizer_type << "\n"
               << "Learning rate: " << args.learning_rate << "\n\n";
 
-    Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0,
-                    "localhost", 5001, 0);
+    Context context(
+        1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
 
     // ---- Build the computation graph ----
     NNGraph graph("deep_relu_training");
 
-    DeepReLU model(&graph, "net", input_dim, hidden_dim, output_dim,
-                   depth, DataType::FP32);
+    DeepReLU model(&graph,
+        "net",
+        input_dim,
+        hidden_dim,
+        output_dim,
+        depth,
+        DataType::FP32);
 
-    auto* input = graph.tensor(
-        {batch_size, input_dim}, "input", DataType::FP32, false);
+    auto *input = graph.tensor({batch_size, input_dim}, DataType::FP32, false)
+                      ->set_name("input");
     input->mark_input(true);
 
-    auto* target = graph.tensor(
-        {batch_size, output_dim}, "target", DataType::FP32, false);
+    auto *target =
+        graph.tensor({batch_size, output_dim}, DataType::FP32, false)
+            ->set_name("target");
     target->mark_input(true);
 
-    auto* output = model.forward(input);
+    auto *output = model.forward(input);
 
-    auto* residual = add(1.0, output, -1.0, target, "residual");
+    auto *residual = add(1.0, output, -1.0, target)->set_name("residual");
 
     Scalar loss_scale = 1.0 / static_cast<Scalar>(batch_size * output_dim);
-    auto* loss = mse_loss(residual, "loss", loss_scale);
+    auto *loss = mse_loss(residual, loss_scale)->set_name("loss");
     loss->mark_output(true);
 
     auto [loss_grad, loss_grad_first] =
@@ -226,28 +231,28 @@ int main(int argc, char** argv)
 
     // ---- Create optimizer ----
     std::unique_ptr<Optimizer> optimizer;
-    if(args.optimizer_type == "sgd")
+    if (args.optimizer_type == "sgd")
     {
-        optimizer = std::make_unique<SGD>(
-            &graph, &model,
+        optimizer = std::make_unique<SGD>(&graph,
+            &model,
             args.learning_rate,
             args.momentum,
             args.weight_decay);
     }
-    else if(args.optimizer_type == "adam")
+    else if (args.optimizer_type == "adam")
     {
-        optimizer = std::make_unique<Adam>(
-            &graph, &model,
+        optimizer = std::make_unique<Adam>(&graph,
+            &model,
             args.learning_rate,
             args.beta1,
             args.beta2,
             1e-8,
             args.weight_decay);
     }
-    else if(args.optimizer_type == "adamw")
+    else if (args.optimizer_type == "adamw")
     {
-        optimizer = std::make_unique<AdamW>(
-            &graph, &model,
+        optimizer = std::make_unique<AdamW>(&graph,
+            &model,
             args.learning_rate,
             args.beta1,
             args.beta2,
@@ -261,11 +266,11 @@ int main(int argc, char** argv)
     }
 
     // Load optimizer config (hyperparameters) if requested
-    if(!args.load_config.empty())
+    if (!args.load_config.empty())
     {
         optimizer->load_config(args.load_config);
-        std::cout << "Loaded optimizer config from: "
-                  << args.load_config << "\n";
+        std::cout << "Loaded optimizer config from: " << args.load_config
+                  << "\n";
     }
 
     // Add optimizer step ops to the graph
@@ -276,14 +281,15 @@ int main(int argc, char** argv)
 
     auto params = model.named_parameters_recursive();
     std::size_t total_params = 0;
-    for(const auto& [name, tensor] : params)
+    for (const auto &[name, tensor] : params)
     {
         Index n = 1;
-        for(auto d : tensor->shape()) n *= d;
+        for (auto d : tensor->shape())
+            n *= d;
         total_params += static_cast<std::size_t>(n);
     }
-    std::cout << "Parameters: " << params.size()
-              << " tensors, " << total_params << " total values\n\n";
+    std::cout << "Parameters: " << params.size() << " tensors, "
+              << total_params << " total values\n\n";
 
     // ---- Generate random input, target, and initial weights ----
     std::mt19937 gen(42);
@@ -291,15 +297,17 @@ int main(int argc, char** argv)
 
     std::vector<float> input_data(
         static_cast<std::size_t>(batch_size * input_dim));
-    for(auto& v : input_data) v = dist(gen);
+    for (auto &v : input_data)
+        v = dist(gen);
 
     std::vector<float> target_data(
         static_cast<std::size_t>(batch_size * output_dim));
     std::uniform_real_distribution<float> target_dist(-1.0f, 1.0f);
-    for(auto& v : target_data) v = target_dist(gen);
+    for (auto &v : target_data)
+        v = target_dist(gen);
 
     // Initialize weights (Kaiming uniform) unless loading from file
-    if(!args.load_model.empty())
+    if (!args.load_model.empty())
     {
         model.load(args.load_model);
         std::cout << "Loaded model weights from: " << args.load_model << "\n";
@@ -307,25 +315,27 @@ int main(int argc, char** argv)
     else
     {
         io::SafeTensorsWriter writer;
-        for(const auto& [name, tensor] : params)
+        for (const auto &[name, tensor] : params)
         {
-            const auto& shape = tensor->shape();
+            const auto &shape = tensor->shape();
             Index nelems = 1;
-            for(auto d : shape) nelems *= d;
+            for (auto d : shape)
+                nelems *= d;
 
             float fan_in = static_cast<float>(shape[0]);
             float limit = std::sqrt(1.0f / fan_in);
             std::uniform_real_distribution<float> wdist(-limit, limit);
 
             std::vector<float> data(static_cast<std::size_t>(nelems));
-            for(auto& v : data) v = wdist(gen);
+            for (auto &v : data)
+                v = wdist(gen);
 
             std::vector<std::uint8_t> bytes(data.size() * sizeof(float));
             std::memcpy(bytes.data(), data.data(), bytes.size());
 
             std::vector<std::int64_t> shape64(shape.begin(), shape.end());
-            writer.add_tensor(name, tensor->dtype(), shape64,
-                              std::move(bytes));
+            writer.add_tensor(
+                name, tensor->dtype(), shape64, std::move(bytes));
         }
         const std::string weights_path =
             "/tmp/deep_relu_training_weights.safetensors";
@@ -336,29 +346,30 @@ int main(int argc, char** argv)
     // ---- Compile the graph ----
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph.tensor_graph());
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     // ---- Bind initial data ----
-    runtime.bind_data("input", input_data);
-    runtime.bind_data("target", target_data);
+    runtime.bind_data(input, input_data);
+    runtime.bind_data(target, target_data);
 
     // Load or zero-initialize optimizer state
-    if(!args.load_optim.empty())
+    if (!args.load_optim.empty())
     {
         optimizer->load(args.load_optim);
-        std::cout << "Loaded optimizer state from: "
-                  << args.load_optim << "\n";
+        std::cout << "Loaded optimizer state from: " << args.load_optim
+                  << "\n";
     }
     else
     {
         auto state_tensors = optimizer->named_state_tensors();
-        for(const auto& [sname, stensor] : state_tensors)
+        for (const auto &[sname, stensor] : state_tensors)
         {
             Index n = 1;
-            for(auto d : stensor->shape()) n *= d;
+            for (auto d : stensor->shape())
+                n *= d;
             std::vector<float> zeros(static_cast<std::size_t>(n), 0.0f);
-            runtime.bind_data(sname, zeros);
+            runtime.bind_data(stensor, zeros);
         }
     }
 
@@ -366,28 +377,28 @@ int main(int argc, char** argv)
     std::cout << "Training...\n";
     auto t_start = std::chrono::high_resolution_clock::now();
 
-    for(int iter = 0; iter < args.num_iters; ++iter)
+    for (int iter = 0; iter < args.num_iters; ++iter)
     {
         runtime.execute();
         runtime.wait();
 
-        auto loss_data = runtime.get_output<float>("loss");
+        auto loss_data = runtime.get_output<float>(loss);
         float loss_val = loss_data[0];
 
-        if(iter == 0 || (iter + 1) % 10 == 0 || iter == args.num_iters - 1)
+        if (iter == 0 || (iter + 1) % 10 == 0 || iter == args.num_iters - 1)
         {
             std::cout << "  Iter " << (iter + 1) << "/" << args.num_iters
                       << ": loss = " << loss_val << "\n";
         }
-
     }
 
     auto t_end = std::chrono::high_resolution_clock::now();
-    auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(
-        t_end - t_start).count();
+    auto total_us =
+        std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start)
+            .count();
 
     std::cout << "\nTraining completed in " << total_us << " us";
-    if(args.num_iters > 0)
+    if (args.num_iters > 0)
     {
         std::cout << " (" << (total_us / args.num_iters) << " us/iter)";
     }
@@ -396,63 +407,63 @@ int main(int argc, char** argv)
     // ---- Sync trained data from runtime to bind_hints for saving ----
     bool need_model_sync = !args.save_model.empty();
     bool need_optim_sync = !args.save_optim.empty();
-    auto sync_tensor = [&runtime](NNGraph::TensorNode* t) {
-        const auto& tname = t->name();
+    auto sync_tensor = [&runtime](NNGraph::TensorNode *t)
+    {
         std::vector<std::uint8_t> bytes;
-        switch(t->dtype())
+        switch (t->dtype())
         {
-            case DataType::FP64:
-            {
-                auto d = runtime.get_output<double>(tname);
-                bytes.resize(d.size() * sizeof(double));
-                std::memcpy(bytes.data(), d.data(), bytes.size());
-                break;
-            }
-            case DataType::INT64:
-            {
-                auto d = runtime.get_output<std::int64_t>(tname);
-                bytes.resize(d.size() * sizeof(std::int64_t));
-                std::memcpy(bytes.data(), d.data(), bytes.size());
-                break;
-            }
-            default:
-            {
-                auto d = runtime.get_output<float>(tname);
-                bytes.resize(d.size() * sizeof(float));
-                std::memcpy(bytes.data(), d.data(), bytes.size());
-                break;
-            }
+        case DataType::FP64:
+        {
+            auto d = runtime.get_output<double>(t);
+            bytes.resize(d.size() * sizeof(double));
+            std::memcpy(bytes.data(), d.data(), bytes.size());
+            break;
+        }
+        case DataType::INT64:
+        {
+            auto d = runtime.get_output<std::int64_t>(t);
+            bytes.resize(d.size() * sizeof(std::int64_t));
+            std::memcpy(bytes.data(), d.data(), bytes.size());
+            break;
+        }
+        default:
+        {
+            auto d = runtime.get_output<float>(t);
+            bytes.resize(d.size() * sizeof(float));
+            std::memcpy(bytes.data(), d.data(), bytes.size());
+            break;
+        }
         }
         t->data()->set_bind_hint(std::move(bytes));
     };
-    if(need_model_sync)
+    if (need_model_sync)
     {
-        for(const auto& [pname, ptensor] : params)
+        for (const auto &[pname, ptensor] : params)
         {
             sync_tensor(ptensor);
         }
     }
-    if(need_optim_sync)
+    if (need_optim_sync)
     {
         optimizer->sync_from_runtime(runtime);
     }
 
     // ---- Save model weights ----
-    if(!args.save_model.empty())
+    if (!args.save_model.empty())
     {
         model.save(args.save_model);
         std::cout << "Saved model weights to: " << args.save_model << "\n";
     }
 
     // ---- Save optimizer state ----
-    if(!args.save_optim.empty())
+    if (!args.save_optim.empty())
     {
         optimizer->save(args.save_optim);
         std::cout << "Saved optimizer state to: " << args.save_optim << "\n";
     }
 
     // ---- Save optimizer config (JSON) ----
-    if(!args.save_config.empty())
+    if (!args.save_config.empty())
     {
         optimizer->save_config(args.save_config);
         std::cout << "Saved optimizer config to: " << args.save_config << "\n";

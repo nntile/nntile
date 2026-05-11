@@ -13,47 +13,43 @@
  * */
 
 #include "nntile/graph/module/rms_norm.hh"
-#include "nntile/graph/nn/rms_norm.hh"
-
-#include <stdexcept>
 
 #include "nntile/graph/io/safetensors.hh"
+#include "nntile/graph/nn/ops/rms_norm.hh"
+
+#include <stdexcept>
 
 namespace nntile::graph::module
 {
 
-RMSNorm::RMSNorm(graph::NNGraph* graph,
-                 const std::string& name,
-                 Index normalized_shape,
-                 Index axis,
-                 float eps,
-                 int redux,
-                 graph::DataType dtype)
-    : Module(graph, name)
-    , normalized_shape_(normalized_shape)
-    , axis_(axis)
-    , eps_(eps)
-    , redux_(redux)
-    , dtype_(dtype)
+RMSNorm::RMSNorm(graph::NNGraph *graph,
+    const std::string &name,
+    Index normalized_shape,
+    Index axis,
+    float eps,
+    int redux,
+    graph::DataType dtype) :
+    Module(graph, name),
+    normalized_shape_(normalized_shape),
+    axis_(axis),
+    eps_(eps),
+    redux_(redux),
+    dtype_(dtype)
 {
-    gamma_tensor_ = graph_->tensor(
-        {normalized_shape},
-        tensor_name("gamma"),
-        dtype_,
-        true);
+    gamma_tensor_ = graph_->tensor({normalized_shape}, dtype_, true);
+    gamma_tensor_->set_name(tensor_name("gamma"));
     register_parameter("gamma", gamma_tensor_);
 }
 
-graph::NNGraph::TensorNode* RMSNorm::forward(
-    graph::NNGraph::TensorNode* x)
+graph::NNGraph::TensorNode *RMSNorm::forward(graph::NNGraph::TensorNode *x)
 {
-    if(x == nullptr)
+    if (x == nullptr)
     {
         throw std::invalid_argument(
             "RMSNorm::forward: input tensor must be non-null");
     }
-    return graph::rms_norm(x, gamma_tensor_, tensor_name("out"),
-                           axis_, eps_, redux_);
+    return graph::rms_norm(x, gamma_tensor_, axis_, eps_, redux_)
+        ->set_name(tensor_name("out"));
 }
 
 std::string RMSNorm::repr() const

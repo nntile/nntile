@@ -28,7 +28,7 @@
 #include <nntile/graph/dtype.hh>
 #include <nntile/graph/nn/graph_decl.hh>
 #include <nntile/graph/tensor/graph_decl.hh>
-#include <nntile/graph/tile/graph_runtime.hh>
+#include <nntile/graph/runtime.hh>
 
 namespace nntile::graph
 {
@@ -93,11 +93,11 @@ public:
     create_tensors(NNGraph* graph, const std::string& prefix = "kv_cache");
 
     //! Bind cache buffers to runtime (call before execute)
-    void bind(TileGraph::Runtime& runtime,
+    void bind(Runtime& runtime,
              const std::string& prefix = "kv_cache") const;
 
     //! Read updated cache from runtime (call after execute)
-    void update_from(TileGraph::Runtime& runtime,
+    void update_from(Runtime& runtime,
                     const std::string& prefix = "kv_cache");
 
     // ── Buffer access (for custom flows) ─────────────────────────────────

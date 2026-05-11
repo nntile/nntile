@@ -1,0 +1,44 @@
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file include/nntile/graph/nn/ops/gelutanh.hh
+ * NNGraph GeLUTanh autograd operation.
+ *
+ * Forward: y = gelutanh(x)
+ * Backward: grad_x += gelutanh_backward(x, grad_y)
+ *
+ * @version 1.1.0
+ * */
+
+#pragma once
+
+// Standard library headers
+#include <string>
+
+// NNTile headers
+#include <nntile/graph/nn/graph_op_node.hh>
+#include <nntile/graph/tensor/ops/gelutanh.hh>
+
+namespace nntile::graph
+{
+
+//! GeLUTanh op: y = gelutanh(x). PyTorch-style: outputs created in forward().
+struct NNGelutanhOp : NNGraph::OpNode
+{
+    NNGraph::TensorNode *x = nullptr;
+
+    NNGelutanhOp() = default;
+    explicit NNGelutanhOp(NNGraph::TensorNode *x_) : x(x_) { inputs_ = {x}; }
+
+    NNGraph::TensorNode *forward();
+    void backward() const override;
+};
+
+NNGraph::TensorNode *gelutanh(NNGraph::TensorNode *x);
+
+} // namespace nntile::graph

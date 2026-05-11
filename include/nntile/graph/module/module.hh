@@ -26,12 +26,19 @@
 #include <nntile/graph/tensor.hh>
 #include <nntile/graph/io/safetensors.hh>
 
+namespace nntile::graph
+{
+class NNGraph;
+}
+
 namespace nntile::graph::module
 {
 
 //! Base class for all neural network modules (registration, parameters, etc.)
 class Module
 {
+    friend class ::nntile::graph::NNGraph;
+
 protected:
     //! Pointer to the graph this module belongs to
     NNGraph* graph_;
@@ -55,8 +62,8 @@ public:
     //! @param name Module name (used for generating unique tensor names)
     Module(NNGraph* graph, const std::string& name);
 
-    //! Virtual destructor for proper cleanup of derived classes
-    virtual ~Module() = default;
+    //! Virtual destructor unregisters this module from ``NNGraph`` live set.
+    virtual ~Module();
 
     // Disable copy (modules hold references to graph elements)
     Module(const Module&) = delete;
@@ -90,9 +97,11 @@ public:
     void register_buffer(const std::string& local_name,
                         NNGraph::TensorNode* tensor);
 
-    //! Register a child module
-    //! @param local_name Local name for the submodule
-    //! @param module Pointer to the child module (not owned)
+    //! Register a child module (at most one parent; ``local_name`` unique
+    //! among this module's submodules). The child must not already appear under
+    //! another parent. If this module is listed as someone's submodule,
+    //! ``parent_`` must match that owner; if not listed, ``parent_`` must be
+    //! null (roots and modules not yet linked by their outer parent).
     void register_module(const std::string& local_name, Module* module);
 
     // -----------------------------------------------------------------
@@ -185,6 +194,9 @@ public:
     //!        missing from the file. If false, missing tensors are skipped.
     void load(const std::string& path, bool strict = true);
 
+    //! Mark every recursive parameter as an NNGraph input (runtime bind slot).
+    void mark_parameters_input_recursive();
+
     // -----------------------------------------------------------------
     // String Representation
     // -----------------------------------------------------------------
@@ -213,6 +225,23 @@ protected:
     //! Helper for to_string with indentation
     void to_string_recursive(std::ostringstream& ss,
                              const std::string& indent) const;
+
+private:
+    //! Parent in ``register_module`` hierarchy (nullptr on root).
+    Module* parent_ = nullptr;
+
+    //! Submodule key under ``parent_`` (empty on root).
+    std::string registered_as_;
+
+    //! Prefix for ``named_parameters_recursive``-style names on this module.
+    std::string qualified_prefix() const;
+
+    //! ``qualified_prefix()`` + ``.`` + ``local_name``.
+    std::string qualified_parameter_name(const std::string& local_name) const;
+
+    //! Append parameters / subtree for ``NNGraph`` lazy cache (DFS).
+    void append_parameter_tree_for_lazy_graph(
+        std::vector<std::pair<std::string, NNGraph::TensorNode*>>& out) const;
 };
 
 } // namespace nntile::graph::module

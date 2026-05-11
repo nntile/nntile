@@ -10,18 +10,21 @@
  * Base Optimizer class for parameter optimization (like PyTorch's
  * torch.optim.Optimizer). Collects parameter-gradient pairs from a Module
  * and manages optimizer state tensors (e.g. velocity, moments).
+ * Unlike PyTorch (LR via ``param_groups`` / schedulers), graph optimizers may
+ * pass ``step(lr)`` for a per-phase learning rate without changing ``lr()``.
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
 #include <nntile/graph/nn.hh>
 #include <nntile/graph/tensor.hh>
-#include <nntile/graph/tile/graph_runtime.hh>
+#include <nntile/graph/runtime.hh>
 #include <nntile/graph/module/module.hh>
 
 namespace nntile::graph::optim
@@ -41,9 +44,20 @@ protected:
     };
     std::vector<ParamState> param_states_;
 
+    //! Completed optimizer steps before the current ``step()`` recording.
+    //! Lowered ops take ``num_iter_ + 1`` as their iteration index (Adam bias
+    //! correction and related schedules).
     Index num_iter_ = 0;
 
     void collect_params(module::Module* module);
+
+    //! Add optimizer step operations to the graph.
+    //! Must be called after backward() and before compile().
+    //! Increments ``num_iter_`` after recording (timestep passed to ops is
+    //! ``num_iter_ + 1`` before the increment).  That index is fixed in the
+    //! graph as plain ``Index`` values when lowering to tiles.
+    //! If ``lr_override`` is set, use it for this recording only.
+    virtual void step_lr(std::optional<Scalar> lr_override) = 0;
 
 public:
     Optimizer(NNGraph* graph, module::Module* module);
@@ -57,9 +71,10 @@ public:
     NNGraph* graph() { return graph_; }
     const NNGraph* graph() const { return graph_; }
 
-    //! Add optimizer step operations to the graph.
-    //! Must be called after backward() and before compile().
-    virtual void step() = 0;
+    //! Record ops using ``lr()`` from the optimizer config (unchanged).
+    void step() { step_lr(std::nullopt); }
+    //! Record this phase with \p lr only (does not update ``lr()``).
+    void step(Scalar lr) { step_lr(lr); }
 
     //! All state tensor name/pointer pairs (for binding zero data).
     std::vector<std::pair<std::string, NNGraph::TensorNode*>>
@@ -80,9 +95,10 @@ public:
     //! Sync optimizer state tensors from the runtime back to bind_hints
     //! so that save() can access the trained state.
     //! Must be called after runtime.wait() and before save().
-    void sync_from_runtime(TileGraph::Runtime& runtime);
+    void sync_from_runtime(Runtime& runtime);
 
     Index num_iter() const { return num_iter_; }
+    //! Override the internal step count (e.g. after ``load_config``).
     void set_num_iter(Index n) { num_iter_ = n; }
 
     virtual std::string repr() const;

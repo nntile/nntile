@@ -11,7 +11,8 @@
  * a forward pass. Demonstrates NNTile-native serialization.
  *
  * Usage:
- *   ./deep_relu_forward                     # generate weights, save, load, run
+ *   ./deep_relu_forward                     # generate weights, save, load,
+ * run
  *   ./deep_relu_forward model.safetensors   # load existing weights, run
  *
  * @version 1.1.0
@@ -21,12 +22,11 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <nntile.hh>
+#include <nntile/graph/io/safetensors.hh>
 #include <random>
 #include <string>
 #include <vector>
-
-#include <nntile.hh>
-#include <nntile/graph/io/safetensors.hh>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -43,18 +43,17 @@ class DeepReLU : public Module
     std::vector<std::unique_ptr<Activation>> activations_;
     Index depth_;
 
-public:
-    DeepReLU(NNGraph* graph,
-             const std::string& name,
-             Index input_dim,
-             Index hidden_dim,
-             Index output_dim,
-             Index depth,
-             DataType dtype = DataType::FP32)
-        : Module(graph, name)
-        , depth_(depth)
+  public:
+    DeepReLU(NNGraph *graph,
+        const std::string &name,
+        Index input_dim,
+        Index hidden_dim,
+        Index output_dim,
+        Index depth,
+        DataType dtype = DataType::FP32) :
+        Module(graph, name), depth_(depth)
     {
-        if(depth < 1)
+        if (depth < 1)
         {
             throw std::invalid_argument("DeepReLU: depth must be >= 1");
         }
@@ -67,10 +66,10 @@ public:
         register_module("linear_0", linears_.back().get());
 
         // Hidden layers with ReLU
-        for(Index i = 1; i < depth; ++i)
+        for (Index i = 1; i < depth; ++i)
         {
-            activations_.push_back(std::make_unique<Activation>(
-                graph, name + "_relu_" + std::to_string(i - 1),
+            activations_.push_back(std::make_unique<Activation>(graph,
+                name + "_relu_" + std::to_string(i - 1),
                 ActivationType::RELU));
             register_module(
                 "relu_" + std::to_string(i - 1), activations_.back().get());
@@ -78,17 +77,16 @@ public:
             in = hidden_dim;
             out = (i == depth - 1) ? output_dim : hidden_dim;
             linears_.push_back(std::make_unique<Linear>(
-                graph, name + "_linear_" + std::to_string(i),
-                in, out, dtype));
+                graph, name + "_linear_" + std::to_string(i), in, out, dtype));
             register_module(
                 "linear_" + std::to_string(i), linears_.back().get());
         }
     }
 
-    NNGraph::TensorNode* forward(NNGraph::TensorNode* x)
+    NNGraph::TensorNode *forward(NNGraph::TensorNode *x)
     {
         x = linears_[0]->forward(x);
-        for(Index i = 1; i < depth_; ++i)
+        for (Index i = 1; i < depth_; ++i)
         {
             x = activations_[static_cast<std::size_t>(i - 1)]->forward(x);
             x = linears_[static_cast<std::size_t>(i)]->forward(x);
@@ -102,25 +100,27 @@ public:
     }
 
     Index depth() const { return depth_; }
-    Linear& linear(Index i) { return *linears_.at(static_cast<std::size_t>(i)); }
+    Linear &linear(Index i)
+    {
+        return *linears_.at(static_cast<std::size_t>(i));
+    }
 };
 
 // Generate Kaiming-uniform-style random weights and save to SafeTensors.
 static void generate_and_save_weights(
-    const std::string& path,
-    DeepReLU& model,
-    unsigned seed = 42)
+    const std::string &path, DeepReLU &model, unsigned seed = 42)
 {
     std::mt19937 gen(seed);
 
     io::SafeTensorsWriter writer;
     auto params = model.named_parameters_recursive();
 
-    for(const auto& [name, tensor] : params)
+    for (const auto &[name, tensor] : params)
     {
-        const auto& shape = tensor->shape();
+        const auto &shape = tensor->shape();
         Index nelems = 1;
-        for(auto d : shape) nelems *= d;
+        for (auto d : shape)
+            nelems *= d;
 
         // Kaiming uniform: fan_in = shape[0] for weight
         float fan_in = static_cast<float>(shape[0]);
@@ -128,7 +128,8 @@ static void generate_and_save_weights(
         std::uniform_real_distribution<float> dist(-limit, limit);
 
         std::vector<float> data(static_cast<std::size_t>(nelems));
-        for(auto& v : data) v = dist(gen);
+        for (auto &v : data)
+            v = dist(gen);
 
         std::vector<std::uint8_t> bytes(data.size() * sizeof(float));
         std::memcpy(bytes.data(), data.data(), bytes.size());
@@ -140,34 +141,38 @@ static void generate_and_save_weights(
     writer.write(path);
 }
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
     // ---- Configuration ----
-    const Index input_dim  = 128;
+    const Index input_dim = 128;
     const Index hidden_dim = 256;
     const Index output_dim = 10;
-    const Index depth      = 5;    // 5 linear layers, 4 ReLUs
+    const Index depth = 5; // 5 linear layers, 4 ReLUs
     const Index batch_size = 32;
     const std::string default_path = "/tmp/deep_relu_weights.safetensors";
 
-    const std::string weights_path =
-        (argc > 1) ? argv[1] : default_path;
+    const std::string weights_path = (argc > 1) ? argv[1] : default_path;
 
     // ---- StarPU context ----
-    Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0,
-                    "localhost", 5001, 0);
+    Context context(
+        1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
 
     // ---- Build the graph ----
     NNGraph graph("deep_relu");
 
-    DeepReLU model(&graph, "net", input_dim, hidden_dim, output_dim,
-                   depth, DataType::FP32);
+    DeepReLU model(&graph,
+        "net",
+        input_dim,
+        hidden_dim,
+        output_dim,
+        depth,
+        DataType::FP32);
 
-    auto* input = graph.tensor(
-        {batch_size, input_dim}, "input", DataType::FP32, false);
+    auto *input = graph.tensor({batch_size, input_dim}, DataType::FP32, false)
+                      ->set_name("input");
     input->mark_input(true);
 
-    auto* output = model.forward(input);
+    auto *output = model.forward(input);
     output->mark_output(true);
 
     std::cout << "Model structure:\n" << model.to_string() << "\n";
@@ -175,17 +180,18 @@ int main(int argc, char** argv)
     // Count parameters
     auto params = model.named_parameters_recursive();
     std::size_t total_params = 0;
-    for(const auto& [name, tensor] : params)
+    for (const auto &[name, tensor] : params)
     {
         Index n = 1;
-        for(auto d : tensor->shape()) n *= d;
+        for (auto d : tensor->shape())
+            n *= d;
         total_params += static_cast<std::size_t>(n);
     }
-    std::cout << "Parameters: " << params.size()
-              << " tensors, " << total_params << " total values\n";
+    std::cout << "Parameters: " << params.size() << " tensors, "
+              << total_params << " total values\n";
 
     // ---- Generate weights if no file provided ----
-    if(argc <= 1)
+    if (argc <= 1)
     {
         std::cout << "\nGenerating random weights -> " << weights_path << "\n";
         generate_and_save_weights(weights_path, model);
@@ -198,7 +204,7 @@ int main(int argc, char** argv)
     // ---- Compile ----
     TileGraph tile_graph = TileGraph::from_tensor_graph(graph.tensor_graph());
 
-    TileGraph::Runtime runtime(tile_graph);
+    Runtime runtime(tile_graph);
     runtime.compile();
 
     // ---- Prepare input ----
@@ -206,9 +212,10 @@ int main(int argc, char** argv)
     std::normal_distribution<float> dist(0.0f, 1.0f);
     std::vector<float> input_data(
         static_cast<std::size_t>(batch_size * input_dim));
-    for(auto& v : input_data) v = dist(gen);
+    for (auto &v : input_data)
+        v = dist(gen);
 
-    runtime.bind_data("input", input_data);
+    runtime.bind_data(input, input_data);
 
     // ---- Execute forward pass ----
     auto t0 = std::chrono::high_resolution_clock::now();
@@ -216,19 +223,21 @@ int main(int argc, char** argv)
     runtime.wait();
     auto t1 = std::chrono::high_resolution_clock::now();
 
-    auto us = std::chrono::duration_cast<std::chrono::microseconds>(
-        t1 - t0).count();
+    auto us =
+        std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
     std::cout << "\nForward pass: " << us << " us\n";
 
     // ---- Print output ----
-    auto out_data = runtime.get_output<float>(output->name());
-    std::cout << "Output shape: [" << batch_size << ", " << output_dim << "]\n";
+    auto out_data = runtime.get_output<float>(output);
+    std::cout << "Output shape: [" << batch_size << ", " << output_dim
+              << "]\n";
 
     // Show first few output values (first sample, all outputs)
     std::cout << "Output[0, :] = [";
-    for(Index j = 0; j < output_dim; ++j)
+    for (Index j = 0; j < output_dim; ++j)
     {
-        if(j > 0) std::cout << ", ";
+        if (j > 0)
+            std::cout << ", ";
         // Column-major: element [b, j] at offset b + j * batch_size
         std::cout << out_data[static_cast<std::size_t>(0 + j * batch_size)];
     }
@@ -238,14 +247,16 @@ int main(int argc, char** argv)
     io::SafeTensorsReader reader(weights_path);
     std::cout << "\nSafeTensors file contains " << reader.size()
               << " tensors:\n";
-    for(const auto& tname : reader.tensor_names())
+    for (const auto &tname : reader.tensor_names())
     {
-        const auto& info = reader.tensor_info(tname);
-        std::cout << "  " << tname << "  dtype="
-                  << io::dtype_to_safetensors(info.dtype) << "  shape=[";
-        for(std::size_t i = 0; i < info.shape.size(); ++i)
+        const auto &info = reader.tensor_info(tname);
+        std::cout << "  " << tname
+                  << "  dtype=" << io::dtype_to_safetensors(info.dtype)
+                  << "  shape=[";
+        for (std::size_t i = 0; i < info.shape.size(); ++i)
         {
-            if(i > 0) std::cout << ", ";
+            if (i > 0)
+                std::cout << ", ";
             std::cout << info.shape[i];
         }
         std::cout << "]  " << info.data_size << " bytes\n";

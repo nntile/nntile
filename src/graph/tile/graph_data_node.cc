@@ -84,6 +84,12 @@ void TileGraph::TileNode::set_tensor_info(
     tile_coord_ = std::move(coord);
 }
 
+void TileGraph::TileNode::clear_tensor_info()
+{
+    tensor_desc_ = nullptr;
+    tile_coord_.clear();
+}
+
 std::string TileGraph::TileNode::to_string() const
 {
     std::string result = "TileGraph::TileNode(id=" +

@@ -16,6 +16,8 @@
 
 // Standard library headers
 #include <cmath>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 // Third-party headers
@@ -26,6 +28,20 @@
 
 namespace nntile::graph::tile_tests
 {
+
+//! Lookup by label name (unique within these parity tests).
+inline TensorGraph::TensorNode* tensor_node_named(
+    TensorGraph const& g, std::string const& name)
+{
+    for(auto const& up : g.tensor_nodes())
+    {
+        if(up->name() == name)
+        {
+            return up.get();
+        }
+    }
+    throw std::runtime_error("tensor_node_named: not found: " + name);
+}
 
 constexpr float k_rel_eps = 1e-7f;
 

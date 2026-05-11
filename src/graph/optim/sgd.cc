@@ -14,54 +14,62 @@
 
 #include "nntile/graph/optim/sgd.hh"
 
+#include "nntile/graph/nn/ops/sgd_step.hh"
+
 #include <fstream>
-#include <stdexcept>
-
 #include <nlohmann/json.hpp>
-
-#include "nntile/graph/nn/sgd_step.hh"
+#include <stdexcept>
 
 namespace nntile::graph::optim
 {
 
-SGD::SGD(NNGraph* graph,
-         module::Module* module,
-         Scalar lr,
-         Scalar momentum,
-         Scalar weight_decay,
-         Scalar dampening,
-         bool nesterov)
-    : Optimizer(graph, module)
-    , lr_(lr)
-    , momentum_(momentum)
-    , weight_decay_(weight_decay)
-    , dampening_(dampening)
-    , nesterov_(nesterov)
+SGD::SGD(NNGraph *graph,
+    module::Module *module,
+    Scalar lr,
+    Scalar momentum,
+    Scalar weight_decay,
+    Scalar dampening,
+    bool nesterov) :
+    Optimizer(graph, module),
+    lr_(lr),
+    momentum_(momentum),
+    weight_decay_(weight_decay),
+    dampening_(dampening),
+    nesterov_(nesterov)
 {
 }
 
-void SGD::step()
+void SGD::step_lr(std::optional<Scalar> lr_override)
 {
-    for(auto& ps : param_states_)
+    Scalar const lr_rec = lr_override.value_or(lr_);
+    for (auto &ps : param_states_)
     {
         std::string vel_name = ps.name + "_velocity";
-        auto* velocity = graph_->tensor(
-            ps.param->shape(), vel_name,
-            ps.param->dtype(), false);
+        auto *velocity =
+            graph_->tensor(ps.param->shape(), ps.param->dtype(), false)
+                ->set_name(vel_name);
         velocity->mark_input(true);
         velocity->mark_output(true);
 
         ps.param->mark_input(true);
         ps.param->mark_output(true);
 
-        sgd_step(ps.param, ps.grad, velocity,
-                 num_iter_ + 1, momentum_, lr_, weight_decay_, dampening_, nesterov_);
+        sgd_step(ps.param,
+            ps.grad,
+            velocity,
+            num_iter_ + 1,
+            momentum_,
+            lr_rec,
+            weight_decay_,
+            dampening_,
+            nesterov_);
 
         ps.buffers.emplace_back(vel_name, velocity);
     }
+    ++num_iter_;
 }
 
-void SGD::save_config(const std::string& path) const
+void SGD::save_config(const std::string &path) const
 {
     nlohmann::json j;
     j["optimizer"] = "SGD";
@@ -73,14 +81,14 @@ void SGD::save_config(const std::string& path) const
     j["nesterov"] = nesterov_;
 
     nlohmann::json params = nlohmann::json::array();
-    for(const auto& ps : param_states_)
+    for (const auto &ps : param_states_)
     {
         params.push_back(ps.name);
     }
     j["param_names"] = params;
 
     std::ofstream f(path);
-    if(!f.is_open())
+    if (!f.is_open())
     {
         throw std::runtime_error(
             "SGD::save_config: cannot open '" + path + "'");
@@ -88,19 +96,18 @@ void SGD::save_config(const std::string& path) const
     f << j.dump(2);
 }
 
-void SGD::load_config(const std::string& path)
+void SGD::load_config(const std::string &path)
 {
     std::ifstream f(path);
-    if(!f.is_open())
+    if (!f.is_open())
     {
         throw std::runtime_error(
             "SGD::load_config: cannot open '" + path + "'");
     }
     nlohmann::json j = nlohmann::json::parse(f);
-    if(j.at("optimizer").get<std::string>() != "SGD")
+    if (j.at("optimizer").get<std::string>() != "SGD")
     {
-        throw std::runtime_error(
-            "SGD::load_config: optimizer type mismatch");
+        throw std::runtime_error("SGD::load_config: optimizer type mismatch");
     }
     num_iter_ = j.at("num_iter").get<Index>();
     lr_ = j.at("lr").get<Scalar>();

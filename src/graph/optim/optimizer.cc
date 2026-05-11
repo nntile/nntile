@@ -47,15 +47,14 @@ void Optimizer::collect_params(module::Module* module)
     for(std::size_t i = 0; i < named_params.size(); ++i)
     {
         const auto& [pname, param] = named_params[i];
-        NNGraph::TensorNode* grad = param->grad();
-        if(grad == nullptr)
+        if(!param->requires_grad())
         {
             continue;
         }
         ParamState ps;
         ps.name = pname;
         ps.param = param;
-        ps.grad = grad;
+        ps.grad = param->grad();
         param_states_.push_back(std::move(ps));
     }
 }
@@ -132,18 +131,20 @@ namespace
 {
 
 template<typename T>
-std::vector<std::uint8_t> get_output_bytes(TileGraph::Runtime& runtime,
-                                           const std::string& name)
+std::vector<std::uint8_t> get_output_bytes(
+    Runtime& runtime,
+    TensorGraph::TensorNode const* node)
 {
-    auto data = runtime.get_output<T>(name);
+    auto data = runtime.get_output<T>(node);
     std::vector<std::uint8_t> bytes(data.size() * sizeof(T));
     std::memcpy(bytes.data(), data.data(), bytes.size());
     return bytes;
 }
 
-std::vector<std::uint8_t> sync_tensor_bytes(TileGraph::Runtime& runtime,
-                                            const std::string& name,
-                                            DataType dtype)
+std::vector<std::uint8_t> sync_tensor_bytes(
+    Runtime& runtime,
+    TensorGraph::TensorNode const* node,
+    DataType dtype)
 {
     switch(dtype)
     {
@@ -151,21 +152,20 @@ std::vector<std::uint8_t> sync_tensor_bytes(TileGraph::Runtime& runtime,
         case DataType::FP32_FAST_TF32:
         case DataType::FP32_FAST_FP16:
         case DataType::FP32_FAST_BF16:
-            return get_output_bytes<float>(runtime, name);
+            return get_output_bytes<float>(runtime, node);
         case DataType::FP64:
-            return get_output_bytes<double>(runtime, name);
+            return get_output_bytes<double>(runtime, node);
         case DataType::INT64:
-            return get_output_bytes<std::int64_t>(runtime, name);
+            return get_output_bytes<std::int64_t>(runtime, node);
         default:
             throw std::runtime_error(
-                "sync_tensor_bytes: unsupported dtype for tensor '" +
-                name + "'");
+                "sync_tensor_bytes: unsupported dtype for tensor");
     }
 }
 
 } // anonymous namespace
 
-void Optimizer::sync_from_runtime(TileGraph::Runtime& runtime)
+void Optimizer::sync_from_runtime(Runtime& runtime)
 {
     for(auto& ps : param_states_)
     {
@@ -176,7 +176,7 @@ void Optimizer::sync_from_runtime(TileGraph::Runtime& runtime)
                 continue;
             }
             auto bytes = sync_tensor_bytes(
-                runtime, buf_name, buf_tensor->dtype());
+                runtime, buf_tensor->data(), buf_tensor->dtype());
             buf_tensor->data()->set_bind_hint(std::move(bytes));
         }
     }
