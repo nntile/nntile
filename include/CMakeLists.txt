@@ -608,6 +608,8 @@ set(GRAPH_NN_HDR
     "nntile/graph/nn/graph_op_node.hh"
     "nntile/graph/nn/graph_data_node.hh"
     "nntile/graph/nn/graph_ops.hh"
+    "nntile/graph/nn/nn_grad_slot_name.hh"
+    "nntile/graph/nn/tensor_node_chain.hh"
     "nntile/graph/nn/ops/add.hh"
     "nntile/graph/nn/ops/add_fiber.hh"
     "nntile/graph/nn/ops/add_slice.hh"
