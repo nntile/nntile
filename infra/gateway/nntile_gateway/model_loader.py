@@ -148,4 +148,18 @@ class NNTileModelLoader:
                 remote_model_name=spec.hf_name,
                 dtype=spec.dtype,
             )
+        if spec.family == "t5":
+            from nntile.model.t5_model import T5ForConditionalGeneration
+
+            # T5 is seq2seq: max_seq_len is the encoder static padding;
+            # decoder seq len comes from extra.max_new_tokens (default 64).
+            dec_seq_len = int(spec.extra.get("max_new_tokens", 64))
+            return T5ForConditionalGeneration.from_pretrained(
+                model_name=spec.hf_name,
+                enc_seq_len=spec.max_seq_len,
+                dec_seq_len=dec_seq_len,
+                batch_size=spec.batch_size,
+                dtype=spec.dtype,
+                cache_dir=spec.cache_dir,
+            )
         raise ValueError(f"unsupported model family: {spec.family!r}")

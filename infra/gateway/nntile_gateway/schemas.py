@@ -3,7 +3,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-ModelFamily = Literal["llama", "gpt2", "gpt_neo", "gpt_neox"]
+ModelFamily = Literal["llama", "gpt2", "gpt_neo", "gpt_neox", "t5"]
 
 
 class ModelSpec(BaseModel):

@@ -14,6 +14,7 @@
 
 import copy
 
+import numpy as np
 from transformers.models.t5.modeling_t5 import (
     T5Config as T5ConfigTorch,
     T5ForConditionalGeneration as T5ForConditionalGenerationTorch,
@@ -21,6 +22,8 @@ from transformers.models.t5.modeling_t5 import (
     T5Model as T5ModelTorch)
 
 import nntile
+import nntile.utils.constructors as nntc
+from nntile.layer.embedding import Embedding
 from nntile.layer.linear import Linear
 from nntile.model.base_model import BaseModel
 from nntile.model.t5_block import T5Stack
@@ -28,7 +31,7 @@ from nntile.model.t5_config import T5ConfigNNTile, T5EncoderDecoderConfig
 from nntile.model.t5_lmhead import T5ClassificationHead
 from nntile.tensor import (
     Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_bf16, Tensor_fp32_fast_fp16,
-    Tensor_fp32_fast_tf32, TensorMoments)
+    Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments, TensorTraits)
 
 
 class T5Model(BaseModel):
@@ -237,6 +240,17 @@ class T5ForConditionalGeneration(BaseModel):
         self.transformer = transformer
         self.lm_head = lm_head
 
+        # Bind named handles to the int64 token-id inputs so generate()
+        # can rewrite them in place between forward passes. For the
+        # training example x and decoder_x are the same TensorMoments;
+        # for inference (see from_pretrained) they are distinct tensors.
+        self.x_enc = x
+        self.x_dec = decoder_x
+        enc_config = transformer.encoder_config
+        self.eos_token_id = enc_config.eos_token_id
+        self.decoder_start_token_id = enc_config.decoder_start_token_id
+        self.pad_token_id = enc_config.pad_token_id
+
         activations = (
             [x, decoder_x]
             + [self.embedding.activations_output[0]]
@@ -297,6 +311,225 @@ class T5ForConditionalGeneration(BaseModel):
                 transformer,
                 lm_head
             )
+
+    @classmethod
+    def from_torch_for_inference(
+        cls,
+        torch_model: T5ForConditionalGenerationTorch,
+        config: T5ConfigNNTile,
+        enc_seq_len: int,
+        dec_seq_len: int,
+        batch_size: int = 1,
+        enc_seq_len_tile: int = None,
+        dec_seq_len_tile: int = None,
+        batch_size_tile: int = None,
+    ):
+        """Build a T5ForConditionalGeneration whose encoder and decoder
+        consume independent int64 token tensors.
+
+        Unlike from_torch (which wires the same embedded tensor into both
+        the encoder and decoder for the teacher-forcing training example),
+        this wiring is what's needed to actually run seq2seq inference:
+        a fixed source sequence on the encoder side, and a growing target
+        prefix on the decoder side, both updatable independently."""
+        dtype2tensor_type = {
+            "fp32": Tensor_fp32,
+            "bf16": Tensor_bf16,
+            "fp32_fast_tf32": Tensor_fp32_fast_tf32,
+            "fp32_fast_fp16": Tensor_fp32_fast_fp16,
+            "fp32_fast_bf16": Tensor_fp32_fast_bf16,
+        }
+        tensor_type = dtype2tensor_type[config.dtype]
+        enc_seq_len_tile = enc_seq_len_tile or enc_seq_len
+        dec_seq_len_tile = dec_seq_len_tile or dec_seq_len
+        batch_size_tile = batch_size_tile or batch_size
+
+        # Encoder input: int64 tokens, pre-filled with pad so an unset
+        # generate() call sees a well-defined state.
+        enc_traits = TensorTraits(
+            [enc_seq_len, batch_size],
+            [enc_seq_len_tile, batch_size_tile],
+        )
+        enc_distr = [0] * enc_traits.grid.nelems
+        x_enc = Tensor_int64(enc_traits, enc_distr)
+        x_enc.from_array(np.full(
+            (enc_seq_len, batch_size),
+            config.pad_token_id,
+            dtype=np.int64, order='F',
+        ))
+        x_enc_tm = TensorMoments(x_enc, None, False)
+
+        # Decoder input: starts with [decoder_start_token_id, pad, pad, ...].
+        dec_traits = TensorTraits(
+            [dec_seq_len, batch_size],
+            [dec_seq_len_tile, batch_size_tile],
+        )
+        dec_distr = [0] * dec_traits.grid.nelems
+        x_dec = Tensor_int64(dec_traits, dec_distr)
+        dec_init = np.full(
+            (dec_seq_len, batch_size),
+            config.pad_token_id,
+            dtype=np.int64, order='F',
+        )
+        dec_init[0, :] = config.decoder_start_token_id
+        x_dec.from_array(dec_init)
+        x_dec_tm = TensorMoments(x_dec, None, False)
+
+        # Two embedding layers from the same shared torch weights. They
+        # share *values* but each owns its own NNTile w tensor; that's
+        # fine for inference (no gradients to accumulate).
+        enc_embedding = Embedding.from_torch(
+            torch_model.shared, x_enc_tm,
+            dtype=tensor_type,
+            embedding_tile_size=config.d_model_tile,
+        )
+        dec_embedding = Embedding.from_torch(
+            torch_model.shared, x_dec_tm,
+            dtype=tensor_type,
+            embedding_tile_size=config.d_model_tile,
+        )
+
+        transformer = T5Model.from_torch(
+            torch_model,
+            enc_embedding.activations_output[0],
+            dec_embedding.activations_output[0],
+            config,
+        )
+        lm_head = Linear.from_torch(
+            torch_model.lm_head,
+            transformer.activations[-1],
+            torch_model.lm_head.out_features,
+            config.redux,
+        )
+        return cls(
+            x_enc_tm, x_dec_tm,
+            enc_embedding, dec_embedding,
+            transformer, lm_head,
+        )
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        model_name: str,
+        enc_seq_len: int,
+        dec_seq_len: int,
+        batch_size: int = 1,
+        enc_seq_len_tile: int = None,
+        dec_seq_len_tile: int = None,
+        batch_size_tile: int = None,
+        d_model_tile: int = None,
+        d_ff_tile: int = None,
+        n_head_tile: int = None,
+        dtype: str = "fp32",
+        cache_dir: str = None,
+    ):
+        """Load a HuggingFace T5ForConditionalGeneration checkpoint and
+        convert it to NNTile with the inference-time wiring."""
+        torch_model = T5ForConditionalGenerationTorch.from_pretrained(
+            model_name, cache_dir=cache_dir, local_files_only=False,
+        )
+        torch_model.eval()
+        torch_config = torch_model.config
+
+        config = T5ConfigNNTile(
+            vocab_size=torch_config.vocab_size,
+            d_model=torch_config.d_model,
+            d_model_tile=d_model_tile or torch_config.d_model,
+            d_ff=torch_config.d_ff,
+            d_ff_tile=d_ff_tile or torch_config.d_ff,
+            d_kv=torch_config.d_kv,
+            d_kv_tile=torch_config.d_kv,
+            num_layers=torch_config.num_layers,
+            n_head=torch_config.num_heads,
+            n_head_tile=n_head_tile or torch_config.num_heads,
+            dropout_rate=0.0,
+            layer_norm_epsilon=torch_config.layer_norm_epsilon,
+            dtype=dtype,
+            eos_token_id=torch_config.eos_token_id,
+            decoder_start_token_id=torch_config.decoder_start_token_id,
+            pad_token_id=torch_config.pad_token_id,
+        )
+        return cls.from_torch_for_inference(
+            torch_model, config,
+            enc_seq_len=enc_seq_len,
+            dec_seq_len=dec_seq_len,
+            batch_size=batch_size,
+            enc_seq_len_tile=enc_seq_len_tile,
+            dec_seq_len_tile=dec_seq_len_tile,
+            batch_size_tile=batch_size_tile,
+        )
+
+    def generate(
+        self,
+        input_ids,
+        prefill_size: int,
+        params,
+        mode=None,
+    ):
+        """Static seq2seq generation. Matches the protocol expected by
+        nntile.inference.llm_sync_engine.LlmSyncInferenceEngine.
+
+        Re-runs the full encoder+decoder on every step (no KV cache).
+        That's O(max_tokens * (enc + dec) flops), so suitable for short
+        replies; KV caching would require finishing the dynamic-decode
+        path in t5_attention which is a much larger change.
+
+        Returns (output_ids, effective_size) where output_ids is a
+        Tensor_int64 of shape (effective_size, 1) containing only the
+        generated tokens (the decoder_start_token is not included)."""
+        enc_seq_len, batch_size = self.x_enc.value.shape
+        dec_seq_len = self.x_dec.value.shape[0]
+
+        # Copy the source tokens into the encoder slot. The caller may
+        # pass an already-padded tensor (need_static_padding=True) or a
+        # variable-length one; we always pad/truncate to enc_seq_len.
+        src_np = nntc.to_numpy(input_ids).astype(np.int64)
+        if src_np.ndim == 1:
+            src_np = src_np.reshape(-1, 1)
+        actual_src_len = min(src_np.shape[0], enc_seq_len)
+        src_padded = np.full(
+            (enc_seq_len, batch_size),
+            self.pad_token_id,
+            dtype=np.int64, order='F',
+        )
+        src_padded[:actual_src_len, :] = src_np[:actual_src_len, :batch_size]
+        self.x_enc.value.from_array(src_padded)
+
+        # Decoder slot: start with [decoder_start_token_id, pad, pad, ...]
+        # and grow it one token per step.
+        dec_np = np.full(
+            (dec_seq_len, batch_size),
+            self.pad_token_id,
+            dtype=np.int64, order='F',
+        )
+        dec_np[0, :] = self.decoder_start_token_id
+
+        max_tokens = min(params.max_tokens, dec_seq_len - 1)
+        generated = []
+        for p in range(max_tokens):
+            self.x_dec.value.from_array(dec_np)
+            self.forward_async()
+            # nntc.to_numpy blocks until the lm_head output is on host.
+            logits_np = nntc.to_numpy(self.activations[-1].value)
+            # Logits shape: (vocab_size, dec_seq_len, batch_size).
+            # Position p's logits predict the token at position p+1.
+            pred = int(np.argmax(logits_np[:, p, 0]))
+            if pred == self.eos_token_id:
+                break
+            dec_np[p + 1, 0] = pred
+            generated.append(pred)
+
+        if not generated:
+            out_np = np.array(
+                [[self.decoder_start_token_id]],
+                dtype=np.int64, order='F',
+            )
+            out_tensor = nntc.from_array(out_np)
+            return out_tensor, 1
+        out_np = np.asarray(generated, dtype=np.int64).reshape(-1, 1)
+        out_np = np.asfortranarray(out_np)
+        out_tensor = nntc.from_array(out_np)
+        return out_tensor, len(generated)
 
     def to_torch(self):
         """Convert NNTile T5ForConditionalGeneration

@@ -52,6 +52,17 @@ LIVE_MODELS = [
         "max_seq_len": 64,
         "batch_size": 1,
     },
+    {
+        # Static seq2seq decode path (no KV cache): re-runs encoder +
+        # decoder per generated token. Fine for short outputs.
+        "id": "t5-small",
+        "family": "t5",
+        "hf_name": "t5-small",
+        "dtype": "fp32",
+        "max_seq_len": 64,
+        "batch_size": 1,
+        "extra": {"max_new_tokens": 16},
+    },
 ]
 
 
