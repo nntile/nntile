@@ -18,8 +18,18 @@ class GenerateResult:
     finish_reason: Literal["stop", "length"] = "stop"
 
 
+@dataclass
+class EmbedResult:
+    embedding: list[float]
+    prompt_tokens: int
+
+
 class GatewayEngine(Protocol):
     def generate(self, prompt: str, options: GenerateOptions
                  ) -> GenerateResult: ...
 
     def apply_chat_template(self, messages: list[dict[str, str]]) -> str: ...
+
+
+class EmbeddingEngine(Protocol):
+    def embed(self, text: str) -> EmbedResult: ...

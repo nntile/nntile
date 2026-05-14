@@ -3,7 +3,9 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-ModelFamily = Literal["llama", "gpt2", "gpt_neo", "gpt_neox", "t5"]
+ModelFamily = Literal[
+    "llama", "gpt2", "gpt_neo", "gpt_neox", "t5", "bert", "roberta",
+]
 
 
 class ModelSpec(BaseModel):
@@ -118,3 +120,29 @@ class ChatCompletionResponse(BaseModel):
     model: str
     choices: list[ChatCompletionChoice]
     usage: CompletionUsage
+
+
+# --- embeddings ------------------------------------------------------
+
+class EmbeddingsRequest(BaseModel):
+    model: str
+    input: str | list[str]
+    encoding_format: Literal["float"] = "float"
+
+
+class EmbeddingObject(BaseModel):
+    object: Literal["embedding"] = "embedding"
+    embedding: list[float]
+    index: int = 0
+
+
+class EmbeddingsUsage(BaseModel):
+    prompt_tokens: int = 0
+    total_tokens: int = 0
+
+
+class EmbeddingsResponse(BaseModel):
+    object: Literal["list"] = "list"
+    model: str
+    data: list[EmbeddingObject]
+    usage: EmbeddingsUsage

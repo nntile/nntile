@@ -3,7 +3,8 @@ import time
 from dataclasses import dataclass
 from typing import Literal
 
-from nntile_gateway.engine import GatewayEngine
+from typing import Any
+
 from nntile_gateway.model_loader import ModelLoader
 from nntile_gateway.schemas import ModelInfo, ModelSpec
 from nntile_gateway.storage.base import ModelRecord, Storage
@@ -14,7 +15,9 @@ class LoadedModel:
     spec: ModelSpec
     status: Literal["loading", "ready", "error"]
     error: str | None = None
-    engine: GatewayEngine | None = None
+    # GatewayEngine (causal/seq2seq) or EmbeddingEngine (encoder-only).
+    # Endpoints route by hasattr(engine, "generate" | "embed").
+    engine: Any = None
     created_at: float = 0.0
 
 

@@ -24,6 +24,10 @@ from nntile_gateway.schemas import (
     CompletionUsage,
     CreateKeyRequest,
     CreateKeyResponse,
+    EmbeddingObject,
+    EmbeddingsRequest,
+    EmbeddingsResponse,
+    EmbeddingsUsage,
     KeyInfo,
     ModelInfo,
     ModelSpec,
@@ -192,6 +196,18 @@ def build_app(
             ))
         return OpenAIModelList(data=items)
 
+    def _require_generation_engine(loaded, model_id: str):
+        engine = loaded.engine
+        if not hasattr(engine, "generate"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"model {model_id!r} (family={loaded.spec.family!r}) "
+                    "does not support text generation"
+                ),
+            )
+        return engine
+
     @app.post(
         "/v1/completions",
         response_model=CompletionResponse,
@@ -199,6 +215,7 @@ def build_app(
     )
     def v1_completions(req: CompletionRequest) -> CompletionResponse:
         loaded = _ready_model(req.model)
+        engine = _require_generation_engine(loaded, req.model)
         opts = GenerateOptions(
             max_tokens=req.max_tokens,
             temperature=req.temperature,
@@ -206,7 +223,7 @@ def build_app(
             top_p=req.top_p,
         )
         with generate_lock:
-            result = loaded.engine.generate(req.prompt, opts)  # type: ignore[union-attr]
+            result = engine.generate(req.prompt, opts)
         return CompletionResponse(
             id="cmpl-" + uuid.uuid4().hex,
             created=int(time.time()),
@@ -229,8 +246,7 @@ def build_app(
         req: ChatCompletionRequest,
     ) -> ChatCompletionResponse:
         loaded = _ready_model(req.model)
-        engine = loaded.engine
-        assert engine is not None
+        engine = _require_generation_engine(loaded, req.model)
         messages = [m.model_dump() for m in req.messages]
         prompt = engine.apply_chat_template(messages)
         opts = GenerateOptions(
@@ -253,6 +269,40 @@ def build_app(
                 prompt_tokens=result.prompt_tokens,
                 completion_tokens=result.completion_tokens,
                 total_tokens=result.prompt_tokens + result.completion_tokens,
+            ),
+        )
+
+    @app.post(
+        "/v1/embeddings",
+        response_model=EmbeddingsResponse,
+        dependencies=[Depends(require_key)],
+    )
+    def v1_embeddings(req: EmbeddingsRequest) -> EmbeddingsResponse:
+        loaded = _ready_model(req.model)
+        engine = loaded.engine
+        if not hasattr(engine, "embed"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"model {req.model!r} (family={loaded.spec.family!r}) "
+                    "does not support /v1/embeddings"
+                ),
+            )
+        inputs = req.input if isinstance(req.input, list) else [req.input]
+        data: list[EmbeddingObject] = []
+        total_tokens = 0
+        for idx, text in enumerate(inputs):
+            with generate_lock:
+                res = engine.embed(text)  # type: ignore[union-attr]
+            data.append(EmbeddingObject(
+                embedding=res.embedding, index=idx))
+            total_tokens += res.prompt_tokens
+        return EmbeddingsResponse(
+            model=req.model,
+            data=data,
+            usage=EmbeddingsUsage(
+                prompt_tokens=total_tokens,
+                total_tokens=total_tokens,
             ),
         )
 

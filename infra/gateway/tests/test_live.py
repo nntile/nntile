@@ -70,6 +70,18 @@ LIVE_MODELS = [
     },
 ]
 
+# Encoder-only models -> /v1/embeddings instead of /v1/completions.
+LIVE_EMBED_MODELS = [
+    {
+        "id": "bert-base-uncased",
+        "family": "bert",
+        "hf_name": "bert-base-uncased",
+        "dtype": "fp32",
+        "max_seq_len": 16,
+        "batch_size": 1,
+    },
+]
+
 
 @pytest.fixture(scope="session")
 def nntile_context() -> Generator[object, None, None]:
@@ -110,7 +122,7 @@ def live_setup(nntile_context):
     client = TestClient(app)
     client.__enter__()
     try:
-        for spec in LIVE_MODELS:
+        for spec in LIVE_MODELS + LIVE_EMBED_MODELS:
             payload = {**spec, "cache_dir": cache_dir}
             r = client.post(
                 "/admin/models", json=payload, headers=admin_headers())
@@ -127,13 +139,15 @@ def live_setup(nntile_context):
         client.__exit__(None, None, None)
 
 
-def test_v1_models_lists_all_three(live_setup):
+def test_v1_models_lists_all(live_setup):
     client, api_key = live_setup
     r = client.get(
         "/v1/models", headers={"Authorization": f"Bearer {api_key}"})
     assert r.status_code == 200, r.text
     ids = sorted(m["id"] for m in r.json()["data"])
-    assert ids == sorted(s["id"] for s in LIVE_MODELS)
+    expected = sorted(
+        s["id"] for s in (LIVE_MODELS + LIVE_EMBED_MODELS))
+    assert ids == expected
 
 
 @pytest.mark.parametrize("model_id", [s["id"] for s in LIVE_MODELS])
@@ -156,3 +170,54 @@ def test_v1_completions_per_family(live_setup, model_id):
     assert choice["text"] != "", f"empty completion for {model_id}"
     assert body["usage"]["prompt_tokens"] > 0
     assert body["usage"]["completion_tokens"] > 0
+
+
+@pytest.mark.parametrize(
+    "model_id", [s["id"] for s in LIVE_EMBED_MODELS])
+def test_v1_embeddings_per_family(live_setup, model_id):
+    client, api_key = live_setup
+    r = client.post(
+        "/v1/embeddings",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={
+            "model": model_id,
+            "input": "The quick brown fox",
+        },
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["model"] == model_id
+    assert body["object"] == "list"
+    assert len(body["data"]) == 1
+    vec = body["data"][0]["embedding"]
+    assert isinstance(vec, list) and len(vec) > 0
+    # Should be a finite, non-zero vector.
+    import math
+    assert all(math.isfinite(x) for x in vec)
+    norm = math.sqrt(sum(x * x for x in vec))
+    assert norm > 0.0, f"zero embedding for {model_id}"
+    assert body["usage"]["prompt_tokens"] > 0
+
+
+def test_v1_completions_on_embedding_model_400(live_setup):
+    """Encoder-only families should reject /v1/completions cleanly."""
+    client, api_key = live_setup
+    embed_id = LIVE_EMBED_MODELS[0]["id"]
+    r = client.post(
+        "/v1/completions",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"model": embed_id, "prompt": "x", "max_tokens": 4},
+    )
+    assert r.status_code == 400, r.text
+
+
+def test_v1_embeddings_on_completion_model_400(live_setup):
+    """Causal-LM families should reject /v1/embeddings cleanly with 400."""
+    client, api_key = live_setup
+    gen_id = LIVE_MODELS[0]["id"]
+    r = client.post(
+        "/v1/embeddings",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"model": gen_id, "input": "x"},
+    )
+    assert r.status_code == 400, r.text

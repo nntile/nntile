@@ -70,6 +70,54 @@ class RobertaModel(BaseModel):
                                       config)
         return bert_model_nntile
 
+    @classmethod
+    def from_pretrained(
+        cls,
+        model_name: str,
+        seq_len: int,
+        batch_size: int = 1,
+        seq_len_tile: int = None,
+        batch_size_tile: int = None,
+        hidden_size_tile: int = None,
+        vocab_embed_dim_tile: int = None,
+        intermediate_size_tile: int = None,
+        n_head_tile: int = None,
+        dtype: str = "fp32",
+        cache_dir: str = None,
+    ):
+        """Load a HuggingFace RobertaModel checkpoint and convert to NNTile.
+
+        Same shape as BertModel.from_pretrained: encoder-only, outputs a
+        (hidden_size, seq_len, batch_size) hidden state at
+        self.activations[-1]. No encoder attention mask is plumbed
+        through; heavily padded inputs degrade quality."""
+        roberta_torch = RobertaModel_torch.from_pretrained(
+            model_name, cache_dir=cache_dir, local_files_only=False,
+        )
+        roberta_torch.eval()
+        tc = roberta_torch.config
+
+        config = BertConfigNNTile(
+            vocab_size=tc.vocab_size,
+            vocab_embed_dim_tile=vocab_embed_dim_tile or tc.hidden_size,
+            hidden_size=tc.hidden_size,
+            hidden_size_tile=hidden_size_tile or tc.hidden_size,
+            intermediate_size=tc.intermediate_size,
+            intermediate_size_tile=(
+                intermediate_size_tile or tc.intermediate_size),
+            num_attention_heads=tc.num_attention_heads,
+            n_head_tile=n_head_tile or tc.num_attention_heads,
+            activation_function=tc.hidden_act,
+            layer_norm_epsilon=tc.layer_norm_eps,
+            type_vocab_size=tc.type_vocab_size,
+            max_position_embeddings=tc.max_position_embeddings,
+            num_hidden_layers=tc.num_hidden_layers,
+            dtype=dtype,
+        )
+        return cls.from_torch(
+            roberta_torch, batch_size, batch_size_tile or batch_size,
+            seq_len, seq_len_tile or seq_len, config)
+
     def _make_default_torch_model(self):
         config_torch = RobertaConfig_torch()
         config_torch.vocab_size = self.config.vocab_size
