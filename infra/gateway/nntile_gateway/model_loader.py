@@ -159,12 +159,16 @@ class _NNTileEngineAdapter:
                 tokenize=False,
                 add_generation_prompt=True,
             )
-        # Fallback minimal template.
-        rendered = []
-        for m in messages:
-            rendered.append(f"<|{m['role']}|>\n{m['content']}")
-        rendered.append("<|assistant|>\n")
-        return "\n".join(rendered)
+        # No real chat template (e.g. vanilla gpt2). Treat the
+        # conversation as a raw completion prompt: just the message
+        # contents concatenated, no <|user|>/<|assistant|> role tags.
+        # Those tags are out-of-distribution for non-chat models -- they
+        # just echo the pattern instead of replying.
+        parts = [
+            m["content"].strip() for m in messages
+            if m.get("content")
+        ]
+        return "\n\n".join(parts)
 
 
 class _NNTileEmbeddingAdapter:
@@ -246,6 +250,17 @@ class _NNTileFillMaskAdapter:
 
         import nntile.utils.constructors as nntc
 
+        # Be forgiving about which mask token the user typed: accept
+        # the BERT-style "[MASK]" and the RoBERTa-style "<mask>" and
+        # rewrite to whatever the model's tokenizer actually uses, so
+        # the same prompt works against both families.
+        actual_mask = getattr(self._tokenizer, "mask_token", None)
+        if actual_mask:
+            if actual_mask not in text:
+                for alt in ("[MASK]", "<mask>"):
+                    if alt in text:
+                        text = text.replace(alt, actual_mask)
+                        break
         ids = list(self._tokenizer(text)["input_ids"])
         if len(ids) > self._seq_len:
             ids = ids[: self._seq_len]
