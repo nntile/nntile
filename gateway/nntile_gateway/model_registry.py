@@ -36,19 +36,53 @@ class ModelRegistry:
             if spec.id in self._models:
                 raise ValueError(f"model {spec.id!r} already registered")
             now = time.time()
-            loaded = LoadedModel(
-                spec=spec, status="loading", created_at=now)
-            self._models[spec.id] = loaded
+            loaded = self._load_locked(spec, created_at=now)
             try:
-                loaded.engine = self._loader.load(spec)
-                loaded.status = "ready"
                 self._storage.add_model(
                     ModelRecord(spec=spec, created_at=now))
-            except Exception as exc:  # noqa: BLE001
-                loaded.status = "error"
-                loaded.error = f"{type(exc).__name__}: {exc}"
+            except Exception:
+                # Roll back the in-memory entry so the next attempt can retry.
+                self._models.pop(spec.id, None)
                 raise
             return loaded
+
+    def rehydrate_from_storage(self) -> list[LoadedModel]:
+        """Load every persisted model into memory.
+
+        Failures are recorded on the LoadedModel (status='error') rather
+        than raised, so a bad model doesn't prevent the server from
+        starting and the admin can drop it via DELETE.
+        """
+        results: list[LoadedModel] = []
+        with self._lock:
+            for record in self._storage.list_models():
+                if record.spec.id in self._models:
+                    continue
+                results.append(self._load_locked(
+                    record.spec,
+                    created_at=record.created_at,
+                    swallow_errors=True,
+                ))
+        return results
+
+    def _load_locked(
+        self,
+        spec: ModelSpec,
+        created_at: float,
+        swallow_errors: bool = False,
+    ) -> LoadedModel:
+        loaded = LoadedModel(
+            spec=spec, status="loading", created_at=created_at)
+        self._models[spec.id] = loaded
+        try:
+            loaded.engine = self._loader.load(spec)
+            loaded.status = "ready"
+        except Exception as exc:  # noqa: BLE001
+            loaded.status = "error"
+            loaded.error = f"{type(exc).__name__}: {exc}"
+            if not swallow_errors:
+                raise
+        return loaded
 
     def unregister(self, model_id: str) -> bool:
         with self._lock:

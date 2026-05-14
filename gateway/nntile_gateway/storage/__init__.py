@@ -4,5 +4,12 @@ from nntile_gateway.storage.base import (
     Storage,
 )
 from nntile_gateway.storage.memory import InMemoryStorage
+from nntile_gateway.storage.sqlite import SqliteStorage
 
-__all__ = ["KeyRecord", "ModelRecord", "Storage", "InMemoryStorage"]
+__all__ = [
+    "KeyRecord",
+    "ModelRecord",
+    "Storage",
+    "InMemoryStorage",
+    "SqliteStorage",
+]

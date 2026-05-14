@@ -32,6 +32,13 @@ from nntile_gateway.schemas import (
 )
 from nntile_gateway.storage.base import KeyRecord, Storage
 from nntile_gateway.storage.memory import InMemoryStorage
+from nntile_gateway.storage.sqlite import SqliteStorage
+
+
+def _default_storage(config: GatewayConfig) -> Storage:
+    if config.storage == "sqlite":
+        return SqliteStorage(config.sqlite_path)
+    return InMemoryStorage()
 
 
 def build_app(
@@ -40,9 +47,10 @@ def build_app(
     loader: ModelLoader | None = None,
 ) -> FastAPI:
     config.validate()
-    storage = storage or InMemoryStorage()
+    storage = storage if storage is not None else _default_storage(config)
     loader = loader or NNTileModelLoader()
     registry = ModelRegistry(storage, loader)
+    registry.rehydrate_from_storage()
 
     require_admin = AdminAuth(config.admin_token)
     require_key = ApiKeyAuth(
