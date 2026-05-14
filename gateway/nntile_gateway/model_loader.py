@@ -101,17 +101,17 @@ class NNTileModelLoader:
         )
 
     def _build_model(self, spec: ModelSpec):
-        kwargs = {
-            "seq_len": spec.max_seq_len,
-            "batch_size": spec.batch_size,
-            "dtype": spec.dtype,
-            "cache_dir": spec.cache_dir,
-            **spec.extra,
-        }
         if spec.family == "llama":
             from nntile.model.llama_causal import LlamaForCausalLM
 
-            return LlamaForCausalLM.from_pretrained(spec.hf_name, **kwargs)
+            return LlamaForCausalLM.from_pretrained(
+                spec.hf_name,
+                seq_len=spec.max_seq_len,
+                batch_size=spec.batch_size,
+                dtype=spec.dtype,
+                cache_dir=spec.cache_dir,
+                **spec.extra,
+            )
         if spec.family == "gpt2":
             from nntile.model.gpt2 import GPT2Model
 
@@ -127,11 +127,25 @@ class NNTileModelLoader:
                 GPTNeoForCausalLM,
             )
 
-            return GPTNeoForCausalLM.from_pretrained(spec.hf_name, **kwargs)
+            return GPTNeoForCausalLM.from_pretrained(
+                spec.batch_size,
+                spec.batch_size,
+                spec.max_seq_len,
+                cache_dir=spec.cache_dir,
+                remote_model_name=spec.hf_name,
+                dtype=spec.dtype,
+            )
         if spec.family == "gpt_neox":
             from nntile.model.gpt_neox_causal import (
                 GPTNeoXForCausalLM,
             )
 
-            return GPTNeoXForCausalLM.from_pretrained(spec.hf_name, **kwargs)
+            return GPTNeoXForCausalLM.from_pretrained(
+                spec.batch_size,
+                spec.batch_size,
+                spec.max_seq_len,
+                cache_dir=spec.cache_dir,
+                remote_model_name=spec.hf_name,
+                dtype=spec.dtype,
+            )
         raise ValueError(f"unsupported model family: {spec.family!r}")
