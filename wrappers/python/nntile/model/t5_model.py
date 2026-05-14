@@ -317,11 +317,9 @@ class T5ForConditionalGeneration(BaseModel):
         cls,
         torch_model: T5ForConditionalGenerationTorch,
         config: T5ConfigNNTile,
-        enc_seq_len: int,
-        dec_seq_len: int,
+        seq_len: int,
         batch_size: int = 1,
-        enc_seq_len_tile: int = None,
-        dec_seq_len_tile: int = None,
+        seq_len_tile: int = None,
         batch_size_tile: int = None,
     ):
         """Build a T5ForConditionalGeneration whose encoder and decoder
@@ -331,7 +329,13 @@ class T5ForConditionalGeneration(BaseModel):
         the encoder and decoder for the teacher-forcing training example),
         this wiring is what's needed to actually run seq2seq inference:
         a fixed source sequence on the encoder side, and a growing target
-        prefix on the decoder side, both updatable independently."""
+        prefix on the decoder side, both updatable independently.
+
+        Note: encoder and decoder are sized to the same seq_len because
+        T5Attention.generate_simple (see layer/t5_attention.py) takes the
+        K/V output shape from x_q rather than x_k, so cross-attention
+        breaks if enc_seq_len != dec_seq_len. Pick seq_len large enough
+        to hold both the source and the longest generation."""
         dtype2tensor_type = {
             "fp32": Tensor_fp32,
             "bf16": Tensor_bf16,
@@ -340,20 +344,19 @@ class T5ForConditionalGeneration(BaseModel):
             "fp32_fast_bf16": Tensor_fp32_fast_bf16,
         }
         tensor_type = dtype2tensor_type[config.dtype]
-        enc_seq_len_tile = enc_seq_len_tile or enc_seq_len
-        dec_seq_len_tile = dec_seq_len_tile or dec_seq_len
+        seq_len_tile = seq_len_tile or seq_len
         batch_size_tile = batch_size_tile or batch_size
 
         # Encoder input: int64 tokens, pre-filled with pad so an unset
         # generate() call sees a well-defined state.
         enc_traits = TensorTraits(
-            [enc_seq_len, batch_size],
-            [enc_seq_len_tile, batch_size_tile],
+            [seq_len, batch_size],
+            [seq_len_tile, batch_size_tile],
         )
         enc_distr = [0] * enc_traits.grid.nelems
         x_enc = Tensor_int64(enc_traits, enc_distr)
         x_enc.from_array(np.full(
-            (enc_seq_len, batch_size),
+            (seq_len, batch_size),
             config.pad_token_id,
             dtype=np.int64, order='F',
         ))
@@ -361,13 +364,13 @@ class T5ForConditionalGeneration(BaseModel):
 
         # Decoder input: starts with [decoder_start_token_id, pad, pad, ...].
         dec_traits = TensorTraits(
-            [dec_seq_len, batch_size],
-            [dec_seq_len_tile, batch_size_tile],
+            [seq_len, batch_size],
+            [seq_len_tile, batch_size_tile],
         )
         dec_distr = [0] * dec_traits.grid.nelems
         x_dec = Tensor_int64(dec_traits, dec_distr)
         dec_init = np.full(
-            (dec_seq_len, batch_size),
+            (seq_len, batch_size),
             config.pad_token_id,
             dtype=np.int64, order='F',
         )
@@ -411,11 +414,9 @@ class T5ForConditionalGeneration(BaseModel):
     def from_pretrained(
         cls,
         model_name: str,
-        enc_seq_len: int,
-        dec_seq_len: int,
+        seq_len: int,
         batch_size: int = 1,
-        enc_seq_len_tile: int = None,
-        dec_seq_len_tile: int = None,
+        seq_len_tile: int = None,
         batch_size_tile: int = None,
         d_model_tile: int = None,
         d_ff_tile: int = None,
@@ -424,12 +425,44 @@ class T5ForConditionalGeneration(BaseModel):
         cache_dir: str = None,
     ):
         """Load a HuggingFace T5ForConditionalGeneration checkpoint and
-        convert it to NNTile with the inference-time wiring."""
+        convert it to NNTile with the inference-time wiring.
+
+        Constraints to be aware of (these are nntile-side limitations,
+        not fundamental to T5):
+          * Only the gated T5 FF variant is supported (T5 v1.1 /
+            Flan-T5). Vanilla t5-small / t5-base use ungated FF and
+            raise ValueError here.
+          * Encoder and decoder are both sized to `seq_len`. The cross
+            attention K/V are sized from the Q sequence (see
+            layer/t5_attention.generate_simple), so enc_seq_len must
+            equal dec_seq_len today.
+          * The encoder has no padding attention mask. If `seq_len` is
+            much larger than the actual source token count, encoder
+            self-attention attends to padding tokens uniformly and the
+            hidden states get diluted, degrading output quality. Pick
+            `seq_len` close to the actual source length, or pad the
+            input with EOS rather than PAD, for usable output.
+          * Generation is greedy argmax only (mode argument is ignored
+            in generate()); no top-k/top-p sampling and no KV cache."""
         torch_model = T5ForConditionalGenerationTorch.from_pretrained(
             model_name, cache_dir=cache_dir, local_files_only=False,
         )
         torch_model.eval()
         torch_config = torch_model.config
+
+        # nntile's T5 FF implementation (T5DenseGatedActDense, see
+        # nntile/model/t5_ff.py) only handles the gated variant used by
+        # T5 v1.1 / Flan-T5 (feed_forward_proj == 'gated-gelu' or
+        # 'gated-relu'). Vanilla t5-small / t5-base use ungated FF
+        # ('relu'), which has 2 weight matrices instead of 3, and the
+        # index-based weight copy would silently misalign.
+        ffp = getattr(torch_config, "feed_forward_proj", "relu")
+        if not ffp.startswith("gated-"):
+            raise ValueError(
+                f"{model_name!r} uses feed_forward_proj={ffp!r}, but "
+                "nntile only implements the gated T5 FF variant. Try a "
+                "T5 v1.1 / Flan-T5 checkpoint instead "
+                "(e.g. google/flan-t5-small, google/t5-v1_1-small).")
 
         config = T5ConfigNNTile(
             vocab_size=torch_config.vocab_size,
@@ -451,11 +484,9 @@ class T5ForConditionalGeneration(BaseModel):
         )
         return cls.from_torch_for_inference(
             torch_model, config,
-            enc_seq_len=enc_seq_len,
-            dec_seq_len=dec_seq_len,
+            seq_len=seq_len,
             batch_size=batch_size,
-            enc_seq_len_tile=enc_seq_len_tile,
-            dec_seq_len_tile=dec_seq_len_tile,
+            seq_len_tile=seq_len_tile,
             batch_size_tile=batch_size_tile,
         )
 

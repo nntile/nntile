@@ -54,14 +54,19 @@ LIVE_MODELS = [
     },
     {
         # Static seq2seq decode path (no KV cache): re-runs encoder +
-        # decoder per generated token. Fine for short outputs.
-        "id": "t5-small",
+        # decoder per generated token.
+        # Constraints (see nntile/model/t5_model.py docstring):
+        #   * Must be a gated T5 FF variant (T5 v1.1 / Flan-T5).
+        #   * Encoder and decoder share one seq_len (cross-attn requires
+        #     enc_seq_len == dec_seq_len in nntile today).
+        #   * No encoder padding mask -> heavy padding degrades output.
+        #     Keep max_seq_len close to the actual prompt length.
+        "id": "flan-t5-small",
         "family": "t5",
-        "hf_name": "t5-small",
+        "hf_name": "google/flan-t5-small",
         "dtype": "fp32",
-        "max_seq_len": 64,
+        "max_seq_len": 16,
         "batch_size": 1,
-        "extra": {"max_new_tokens": 16},
     },
 ]
 
