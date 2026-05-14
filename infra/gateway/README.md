@@ -21,8 +21,8 @@ See `nntile_gateway/config.py` for env vars.
 Fast (fake engine, no nntile required):
 
 ```bash
-pip install -e gateway[test]
-pytest gateway/tests
+pip install -e infra/gateway[test]
+pytest infra/gateway/tests
 ```
 
 Live integration (loads a real model via nntile, opt-in):
@@ -30,5 +30,5 @@ Live integration (loads a real model via nntile, opt-in):
 ```bash
 # Needs nntile installed for the active interpreter, plus transformers
 # and network access (or a populated HF cache).
-pytest gateway/tests/test_live.py --live
+pytest infra/gateway/tests/test_live.py --live
 ```

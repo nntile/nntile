@@ -9,7 +9,7 @@ Requires:
   - transformers + the chosen HF models available locally or via download.
 
 Opt in with:
-    pytest gateway/tests/test_live.py --live
+    pytest infra/gateway/tests/test_live.py --live
 
 The test downloads the model weights on first run. Set
 NNTILE_GATEWAY_LIVE_CACHE to control the HF cache dir

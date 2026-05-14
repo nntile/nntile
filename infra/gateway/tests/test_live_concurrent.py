@@ -13,7 +13,7 @@ Verifies under live conditions:
     device, you would either see crashes or impossibly-fast wall time.)
 
 Opt in with:
-    pytest gateway/tests/test_live_concurrent.py --live
+    pytest infra/gateway/tests/test_live_concurrent.py --live
 """
 
 from __future__ import annotations
