@@ -15,6 +15,11 @@ from threading import Lock
 @dataclass
 class ChatState:
     selected_model: str | None = None
+    # max_seq_len of the selected model, used by handlers to cap
+    # outgoing max_tokens so we don't bounce off the gateway's
+    # validation 400. Populated on /select when the gateway returns it
+    # via the /v1/models extension field; None means "unknown, don't cap".
+    selected_max_seq_len: int | None = None
     history: deque[dict[str, str]] = field(default_factory=deque)
 
 
@@ -36,13 +41,17 @@ class ChatStore:
                 self._states[chat_id] = state
             return state
 
-    def set_model(self, chat_id: int, model_id: str) -> None:
+    def set_model(
+        self, chat_id: int, model_id: str,
+        max_seq_len: int | None = None,
+    ) -> None:
         with self._lock:
             state = self._states.get(chat_id)
             if state is None:
                 state = ChatState(history=deque(maxlen=self._history_turns))
                 self._states[chat_id] = state
             state.selected_model = model_id
+            state.selected_max_seq_len = max_seq_len
             # Switching model invalidates prior assistant context.
             state.history.clear()
 

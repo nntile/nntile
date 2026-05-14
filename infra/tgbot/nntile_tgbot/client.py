@@ -22,6 +22,8 @@ class ModelInfo:
     id: str
     family: str | None
     status: str | None
+    task: str | None = None
+    max_seq_len: int | None = None
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,8 @@ class GatewayClient:
                 id=entry["id"],
                 family=entry.get("family"),
                 status=entry.get("status"),
+                task=entry.get("task"),
+                max_seq_len=entry.get("max_seq_len"),
             ))
         return out
 

@@ -90,13 +90,18 @@ async def handle_select(
             f"Unknown model {model_id!r}. "
             f"See /models for the list of available ids."
         )
-    if known[model_id].status and known[model_id].status != "ready":
+    m = known[model_id]
+    if m.status and m.status != "ready":
         return (
             f"Model {model_id!r} is in state "
-            f"{known[model_id].status!r}, not ready."
+            f"{m.status!r}, not ready."
         )
-    store.set_model(chat_id, model_id)
-    return f"Selected model: {model_id}. History cleared."
+    store.set_model(chat_id, model_id, max_seq_len=m.max_seq_len)
+    suffix = (
+        f" (max_seq_len={m.max_seq_len})"
+        if m.max_seq_len is not None else ""
+    )
+    return f"Selected model: {model_id}{suffix}. History cleared."
 
 
 def handle_current(store: ChatStore, chat_id: int) -> str:
@@ -129,11 +134,19 @@ async def handle_text(
         )
     store.append(chat_id, "user", text)
     messages = store.messages(chat_id)
+    # nntile's max_tokens is a hard cap on the static-allocation seq
+    # length, so we must not ask for more than the model's max_seq_len.
+    # The gateway will reject otherwise, and short-seq models like
+    # flan-t5-small (max_seq_len=16) would never accept the bot's
+    # default. Cap here so the user never sees that 400.
+    effective_max = max_tokens
+    if state.selected_max_seq_len is not None:
+        effective_max = min(effective_max, state.selected_max_seq_len)
     try:
         reply = await client.chat_completion(
             model=state.selected_model,
             messages=messages,
-            max_tokens=max_tokens,
+            max_tokens=effective_max,
         )
     except GatewayError as exc:
         # Roll back the user turn so retries don't pile up unanswered messages.

@@ -197,6 +197,9 @@ def build_app(
             items.append(OpenAIModelObject(
                 id=loaded.spec.id,
                 created=int(loaded.created_at),
+                family=loaded.spec.family,
+                task=loaded.spec.task,
+                max_seq_len=loaded.spec.max_seq_len,
             ))
         return OpenAIModelList(data=items)
 

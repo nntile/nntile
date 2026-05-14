@@ -66,6 +66,11 @@ class OpenAIModelObject(BaseModel):
     object: Literal["model"] = "model"
     created: int
     owned_by: str = "nntile"
+    # Non-OpenAI extensions used by the bot to size requests sensibly
+    # without round-tripping a 400 from the gateway.
+    family: ModelFamily | None = None
+    task: ModelTask | None = None
+    max_seq_len: int | None = None
 
 
 class OpenAIModelList(BaseModel):
