@@ -54,6 +54,17 @@ class BotConfig:
     request_timeout_s: float = field(
         default_factory=lambda: float(
             _env("NNTILE_TGBOT_REQUEST_TIMEOUT", "120")))
+    # HTTP(S) proxy URL for Telegram API calls. The gateway client
+    # always uses trust_env=False so this proxy never intercepts
+    # localhost traffic. Falls back to HTTPS_PROXY / HTTP_PROXY env.
+    # We use HttpxSession (in __main__) for the bot, so an `https://`
+    # proxy URL works -- TLS to the proxy is handled natively by httpx.
+    telegram_proxy: str | None = field(
+        default_factory=lambda: (
+            _env("NNTILE_TGBOT_TELEGRAM_PROXY")
+            or _env("HTTPS_PROXY")
+            or _env("HTTP_PROXY")
+        ))
 
     def validate(self) -> None:
         if not self.bot_token:
