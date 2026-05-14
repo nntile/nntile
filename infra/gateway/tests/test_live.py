@@ -84,6 +84,8 @@ LIVE_EMBED_MODELS = [
 ]
 
 # Encoder-only with masked-LM head -> /v1/fill_mask.
+# `mask_token` and `expected_top` are test-only metadata, stripped
+# before posting to /admin/models.
 LIVE_FILL_MASK_MODELS = [
     {
         "id": "bert-fill",
@@ -93,8 +95,27 @@ LIVE_FILL_MASK_MODELS = [
         "dtype": "fp32",
         "max_seq_len": 16,
         "batch_size": 1,
+        "_test_mask_token": "[MASK]",
+        "_test_expected_top": "fashion",
+    },
+    {
+        # The huggingface canonical for roberta-base fill-mask is
+        #   "Hello I'm a <mask> model." -> top 'male' (p=~0.33).
+        "id": "roberta-fill",
+        "family": "roberta",
+        "hf_name": "roberta-base",
+        "task": "fill_mask",
+        "dtype": "fp32",
+        "max_seq_len": 16,
+        "batch_size": 1,
+        "_test_mask_token": "<mask>",
+        "_test_expected_top": "male",
     },
 ]
+
+
+def _strip_test_meta(spec: dict) -> dict:
+    return {k: v for k, v in spec.items() if not k.startswith("_test_")}
 
 
 @pytest.fixture(scope="session")
@@ -139,7 +160,7 @@ def live_setup(nntile_context):
         all_specs = (
             LIVE_MODELS + LIVE_EMBED_MODELS + LIVE_FILL_MASK_MODELS)
         for spec in all_specs:
-            payload = {**spec, "cache_dir": cache_dir}
+            payload = {**_strip_test_meta(spec), "cache_dir": cache_dir}
             r = client.post(
                 "/admin/models", json=payload, headers=admin_headers())
             assert r.status_code == 200, (
@@ -241,37 +262,38 @@ def test_v1_embeddings_on_completion_model_400(live_setup):
 
 
 @pytest.mark.parametrize(
-    "model_id", [s["id"] for s in LIVE_FILL_MASK_MODELS])
-def test_v1_fill_mask_returns_fashion_for_hf_canonical(
-    live_setup, model_id,
-):
-    """The huggingface canonical demo for bert-base-uncased fill-mask is
-    'Hello I'm a [MASK] model.' -> top candidate 'fashion'. With the
-    BERT encoder padding mask plumbed through nntile, we reproduce that
-    output (modulo float32 noise)."""
+    "spec",
+    LIVE_FILL_MASK_MODELS,
+    ids=[s["id"] for s in LIVE_FILL_MASK_MODELS],
+)
+def test_v1_fill_mask_hf_canonical(live_setup, spec):
+    """The huggingface canonical demos for the encoder-LM checkpoints:
+
+      bert-base-uncased: "Hello I'm a [MASK] model." -> top 'fashion'
+      roberta-base:      "Hello I'm a <mask> model." -> top 'male'
+
+    With per-request encoder padding mask (and for roberta also the
+    HF position-id offset convention) we reproduce these tops."""
     client, api_key = live_setup
+    mask_token = spec["_test_mask_token"]
+    expected_top = spec["_test_expected_top"]
+    prompt = f"Hello I'm a {mask_token} model."
     r = client.post(
         "/v1/fill_mask",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={
-            "model": model_id,
-            "input": "Hello I'm a [MASK] model.",
-            "top_k": 5,
-        },
+        json={"model": spec["id"], "input": prompt, "top_k": 5},
     )
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["model"] == model_id
+    assert body["model"] == spec["id"]
     assert len(body["data"]) == 1
     cands = body["data"][0]
     assert len(cands) == 5
     tokens = [c["token_str"] for c in cands]
-    assert cands[0]["token_str"] == "fashion", (
-        f"expected 'fashion' top, got {tokens}")
-    # The top score should be a sane non-degenerate probability.
+    assert cands[0]["token_str"] == expected_top, (
+        f"{spec['id']}: expected top {expected_top!r}, got {tokens}")
     assert 0.05 < cands[0]["score"] < 0.5
-    # Sequence should contain the substituted word.
-    assert "fashion" in cands[0]["sequence"]
+    assert expected_top in cands[0]["sequence"]
 
 
 def test_v1_fill_mask_no_mask_returns_400(live_setup):

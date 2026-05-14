@@ -53,6 +53,59 @@ def _apply_padding_mask(model, seq_len: int, actual_len: int) -> None:
             layer.mask.from_array(mask_np)
 
 
+def _find_position_ids_tensor(model):
+    """Locate the 1D (length=seq_len) int64 tensor used as input to the
+    BertEmbeddings position-embedding layer, traversing the known module
+    paths: BertModel.bert_embed, BertForMaskedLM.bert.bert_embed,
+    RobertaModel.bert_embed, RobertaForMaskedLM.roberta.bert_embed."""
+    paths = (
+        ("bert_embed",),
+        ("bert", "bert_embed"),
+        ("roberta", "bert_embed"),
+    )
+    for path in paths:
+        obj = model
+        for part in path:
+            obj = getattr(obj, part, None)
+            if obj is None:
+                break
+        if obj is None:
+            continue
+        pos_embed = getattr(obj, "pos_embed", None)
+        if pos_embed is None:
+            continue
+        return getattr(pos_embed, "x", None)
+    return None
+
+
+def _apply_roberta_position_ids(
+    model, padded_input_ids, pad_token_id: int,
+) -> None:
+    """Rewrite the position-id tensor using RoBERTa's offset convention.
+
+    HF's RoBERTa does:
+        mask = (input_ids != pad_idx)
+        position_ids = (cumsum(mask) * mask) + pad_idx
+    so for input_ids = [0, 31414, ..., 1, 1, 1] with pad_idx=1, you get
+    positions = [2, 3, ..., 1, 1, 1] -- non-pad starts at pad_idx+1.
+
+    nntile's BertEmbeddings.from_torch initialises pos_ids to
+    arange(seq_len), which is BERT-correct but RoBERTa-incorrect. Without
+    this override the model still picks the same top token, but
+    probability mass is materially different from HF's reference."""
+    import numpy as np
+
+    pos_tensor = _find_position_ids_tensor(model)
+    if pos_tensor is None:
+        return  # nothing we can update; caller will get arange behaviour
+    seq_len = padded_input_ids.shape[0]
+    flat_ids = padded_input_ids[:, 0]
+    mask = (flat_ids != pad_token_id).astype(np.int64)
+    positions = (np.cumsum(mask) * mask) + pad_token_id
+    pos_tensor.from_array(
+        np.asarray(positions, dtype=np.int64, order='F'))
+
+
 class _NNTileEngineAdapter:
     """Wraps an LlmSyncInferenceEngine + tokenizer as a GatewayEngine."""
 
@@ -125,11 +178,15 @@ class _NNTileEmbeddingAdapter:
     positions), but pooling over non-pad positions roughly matches the
     HuggingFace reference with the same (no-mask) input."""
 
-    def __init__(self, model, tokenizer, seq_len: int, pad_token_id: int):
+    def __init__(
+        self, model, tokenizer, seq_len: int, pad_token_id: int,
+        family: str,
+    ):
         self._model = model
         self._tokenizer = tokenizer
         self._seq_len = seq_len
         self._pad_token_id = pad_token_id
+        self._family = family
 
     def embed(self, text: str) -> EmbedResult:
         import numpy as np
@@ -147,6 +204,9 @@ class _NNTileEmbeddingAdapter:
         )
         padded[:actual_len, 0] = ids
         _apply_padding_mask(self._model, self._seq_len, actual_len)
+        if self._family == "roberta":
+            _apply_roberta_position_ids(
+                self._model, padded, self._pad_token_id)
         self._model.activations[0].value.from_array(padded)
         self._model.forward_async()
         hidden = nntc.to_numpy(self._model.activations[-1].value)
@@ -166,11 +226,15 @@ class _NNTileFillMaskAdapter:
     has token id, decoded token string, softmax probability, and a
     rendered 'sequence' with the candidate substituted in."""
 
-    def __init__(self, model, tokenizer, seq_len: int, pad_token_id: int):
+    def __init__(
+        self, model, tokenizer, seq_len: int, pad_token_id: int,
+        family: str,
+    ):
         self._model = model
         self._tokenizer = tokenizer
         self._seq_len = seq_len
         self._pad_token_id = pad_token_id
+        self._family = family
         if getattr(tokenizer, "mask_token_id", None) is None:
             raise ValueError(
                 f"tokenizer {tokenizer.__class__.__name__!r} has no "
@@ -198,6 +262,9 @@ class _NNTileFillMaskAdapter:
         )
         padded[:actual_len, 0] = ids
         _apply_padding_mask(self._model, self._seq_len, actual_len)
+        if self._family == "roberta":
+            _apply_roberta_position_ids(
+                self._model, padded, self._pad_token_id)
         self._model.activations[0].value.from_array(padded)
         self._model.forward_async()
         logits = nntc.to_numpy(self._model.activations[-1].value)
@@ -253,12 +320,12 @@ class NNTileModelLoader:
                 model = self._build_encoder_model(spec)
                 pad = self._pad_token_id(tokenizer)
                 return _NNTileEmbeddingAdapter(
-                    model, tokenizer, spec.max_seq_len, pad)
+                    model, tokenizer, spec.max_seq_len, pad, spec.family)
             if task == "fill_mask":
                 model = self._build_masked_lm_model(spec)
                 pad = self._pad_token_id(tokenizer)
                 return _NNTileFillMaskAdapter(
-                    model, tokenizer, spec.max_seq_len, pad)
+                    model, tokenizer, spec.max_seq_len, pad, spec.family)
             raise ValueError(
                 f"family={spec.family!r} does not support task={task!r}")
 
