@@ -139,6 +139,13 @@ async def handle_text(
         # Roll back the user turn so retries don't pile up unanswered messages.
         _pop_last(store, chat_id, role="user")
         return f"Gateway error: {exc}"
+    except Exception as exc:  # noqa: BLE001 - surface anything to the user
+        # Transport errors (httpx.RemoteProtocolError when the gateway
+        # crashes mid-request), timeouts, etc. Without this the message
+        # handler raises and aiogram silently logs it -- the user just
+        # sees no reply.
+        _pop_last(store, chat_id, role="user")
+        return f"Bot error: {type(exc).__name__}: {exc}"
     store.append(chat_id, "assistant", reply)
     return reply
 
@@ -192,6 +199,8 @@ async def handle_fill_mask(
             model=state.selected_model, text=text, top_k=top_k)
     except GatewayError as exc:
         return f"Gateway error: {exc}"
+    except Exception as exc:  # noqa: BLE001
+        return f"Bot error: {type(exc).__name__}: {exc}"
     if not per_mask:
         return "No mask predictions returned."
     out_lines: list[str] = []

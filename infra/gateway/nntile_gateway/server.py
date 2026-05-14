@@ -212,6 +212,27 @@ def build_app(
             )
         return engine
 
+    def _validate_max_tokens(loaded, max_tokens: int) -> None:
+        """The nntile generation loop runs autoregressively up to a total
+        sequence length of `max_tokens`. The model's attention mask and
+        all tile-shaped tensors are statically allocated to
+        max_seq_len at registration time. Asking for max_tokens larger
+        than that lets the inner loop walk past the allocation and
+        triggers a StarPU "handle is not initialized" assertion that
+        aborts the process. Reject up front so a bad request can't
+        bring the gateway down."""
+        cap = loaded.spec.max_seq_len
+        if max_tokens > cap:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"max_tokens={max_tokens} exceeds model "
+                    f"{loaded.spec.id!r} max_seq_len={cap}. "
+                    "Reduce max_tokens or register the model with a "
+                    "larger max_seq_len."
+                ),
+            )
+
     @app.post(
         "/v1/completions",
         response_model=CompletionResponse,
@@ -220,6 +241,7 @@ def build_app(
     def v1_completions(req: CompletionRequest) -> CompletionResponse:
         loaded = _ready_model(req.model)
         engine = _require_generation_engine(loaded, req.model)
+        _validate_max_tokens(loaded, req.max_tokens)
         opts = GenerateOptions(
             max_tokens=req.max_tokens,
             temperature=req.temperature,
@@ -251,6 +273,7 @@ def build_app(
     ) -> ChatCompletionResponse:
         loaded = _ready_model(req.model)
         engine = _require_generation_engine(loaded, req.model)
+        _validate_max_tokens(loaded, req.max_tokens)
         messages = [m.model_dump() for m in req.messages]
         prompt = engine.apply_chat_template(messages)
         opts = GenerateOptions(
