@@ -36,3 +36,6 @@ include = ["nntile_gateway*"]
 minversion = "8.2"
 addopts = "-ra"
 testpaths = ["tests"]
+markers = [
+    "live: live integration tests requiring nntile + StarPU + model weights (opt in with --live)",
+]

@@ -18,9 +18,17 @@ See `nntile_gateway/config.py` for env vars.
 
 ## Test
 
+Fast (fake engine, no nntile required):
+
 ```bash
 pip install -e gateway[test]
 pytest gateway/tests
 ```
 
-Tests use a fake engine and do not require StarPU/CUDA or any real model weights.
+Live integration (loads a real model via nntile, opt-in):
+
+```bash
+# Needs nntile installed for the active interpreter, plus transformers
+# and network access (or a populated HF cache).
+pytest gateway/tests/test_live.py --live
+```
