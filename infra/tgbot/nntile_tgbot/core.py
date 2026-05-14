@@ -1,0 +1,175 @@
+"""
+Pure async logic for the bot, independent of aiogram.
+
+Each function takes the gateway client + chat store + chat/user identifiers
+explicitly and returns a string (the reply to send) or a structured result.
+That keeps unit tests free of Telegram primitives.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from nntile_tgbot.client import GatewayClient, GatewayError, ModelInfo
+from nntile_tgbot.state import ChatStore
+
+
+WELCOME = (
+    "Hi! I'm a thin Telegram front-end for an nntile-gateway server.\n\n"
+    "Commands:\n"
+    "  /models  — list available models with selection buttons\n"
+    "  /select <id>  — pick a model by id\n"
+    "  /current — show the currently selected model\n"
+    "  /reset   — forget conversation history\n"
+    "  /help    — show this message\n\n"
+    "After selecting a model, just send a message and you'll get a reply."
+)
+
+
+def is_authorized(user_id: int | None, allowed: set[int]) -> bool:
+    if not allowed:
+        return True
+    return user_id is not None and user_id in allowed
+
+
+@dataclass(frozen=True)
+class ModelButton:
+    label: str
+    callback_data: str
+
+
+@dataclass(frozen=True)
+class ModelListReply:
+    text: str
+    buttons: list[ModelButton]
+
+
+async def handle_models(client: GatewayClient) -> ModelListReply:
+    try:
+        models = await client.list_models()
+    except GatewayError as exc:
+        return ModelListReply(
+            text=f"Gateway error listing models: {exc}", buttons=[])
+    if not models:
+        return ModelListReply(
+            text="No models are registered on the gateway yet.", buttons=[])
+    lines = ["Available models:"]
+    buttons: list[ModelButton] = []
+    for m in models:
+        suffix = f" ({m.family})" if m.family else ""
+        if m.status and m.status != "ready":
+            suffix += f" [{m.status}]"
+        lines.append(f"  • {m.id}{suffix}")
+        if not m.status or m.status == "ready":
+            buttons.append(ModelButton(
+                label=m.id, callback_data=f"select:{m.id}"))
+    if not buttons:
+        lines.append("\nNone are in a ready state.")
+    else:
+        lines.append("\nTap a button or send /select <id>.")
+    return ModelListReply(text="\n".join(lines), buttons=buttons)
+
+
+async def handle_select(
+    client: GatewayClient,
+    store: ChatStore,
+    chat_id: int,
+    model_id: str,
+) -> str:
+    model_id = model_id.strip()
+    if not model_id:
+        return "Usage: /select <model_id>. See /models for the list."
+    try:
+        models = await client.list_models()
+    except GatewayError as exc:
+        return f"Gateway error: {exc}"
+    known = {m.id: m for m in models}
+    if model_id not in known:
+        return (
+            f"Unknown model {model_id!r}. "
+            f"See /models for the list of available ids."
+        )
+    if known[model_id].status and known[model_id].status != "ready":
+        return (
+            f"Model {model_id!r} is in state "
+            f"{known[model_id].status!r}, not ready."
+        )
+    store.set_model(chat_id, model_id)
+    return f"Selected model: {model_id}. History cleared."
+
+
+def handle_current(store: ChatStore, chat_id: int) -> str:
+    state = store.get(chat_id)
+    if not state.selected_model:
+        return "No model selected. Use /models then /select <id>."
+    return f"Current model: {state.selected_model}"
+
+
+def handle_reset(store: ChatStore, chat_id: int) -> str:
+    store.reset(chat_id)
+    return "Conversation history cleared."
+
+
+async def handle_text(
+    client: GatewayClient,
+    store: ChatStore,
+    chat_id: int,
+    text: str,
+    max_tokens: int,
+) -> str:
+    text = text.strip()
+    if not text:
+        return ""
+    state = store.get(chat_id)
+    if not state.selected_model:
+        return (
+            "No model selected. Send /models to see options, then "
+            "/select <id>."
+        )
+    store.append(chat_id, "user", text)
+    messages = store.messages(chat_id)
+    try:
+        reply = await client.chat_completion(
+            model=state.selected_model,
+            messages=messages,
+            max_tokens=max_tokens,
+        )
+    except GatewayError as exc:
+        # Roll back the user turn so retries don't pile up unanswered messages.
+        _pop_last(store, chat_id, role="user")
+        return f"Gateway error: {exc}"
+    store.append(chat_id, "assistant", reply)
+    return reply
+
+
+def _pop_last(store: ChatStore, chat_id: int, role: str) -> None:
+    """Best-effort: drop the last message if it matches `role`."""
+    msgs = store.messages(chat_id)
+    if msgs and msgs[-1]["role"] == role:
+        # Rebuild history without the trailing entry.
+        store.reset(chat_id)
+        for m in msgs[:-1]:
+            store.append(chat_id, m["role"], m["content"])
+
+
+def parse_select_callback(data: str) -> str | None:
+    """Return the model id from a 'select:<id>' callback payload, or None."""
+    prefix = "select:"
+    if not data.startswith(prefix):
+        return None
+    return data[len(prefix):]
+
+
+__all__ = [
+    "WELCOME",
+    "ModelButton",
+    "ModelListReply",
+    "ModelInfo",
+    "is_authorized",
+    "handle_models",
+    "handle_select",
+    "handle_current",
+    "handle_reset",
+    "handle_text",
+    "parse_select_callback",
+]
