@@ -28,6 +28,10 @@ from nntile_gateway.schemas import (
     EmbeddingsRequest,
     EmbeddingsResponse,
     EmbeddingsUsage,
+    FillMaskCandidate,
+    FillMaskRequest,
+    FillMaskResponse,
+    FillMaskUsage,
     KeyInfo,
     ModelInfo,
     ModelSpec,
@@ -269,6 +273,48 @@ def build_app(
                 prompt_tokens=result.prompt_tokens,
                 completion_tokens=result.completion_tokens,
                 total_tokens=result.prompt_tokens + result.completion_tokens,
+            ),
+        )
+
+    @app.post(
+        "/v1/fill_mask",
+        response_model=FillMaskResponse,
+        dependencies=[Depends(require_key)],
+    )
+    def v1_fill_mask(req: FillMaskRequest) -> FillMaskResponse:
+        loaded = _ready_model(req.model)
+        engine = loaded.engine
+        if not hasattr(engine, "fill_mask"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"model {req.model!r} (family={loaded.spec.family!r}, "
+                    f"task={loaded.spec.task!r}) does not support "
+                    "/v1/fill_mask"
+                ),
+            )
+        with generate_lock:
+            try:
+                result = engine.fill_mask(  # type: ignore[union-attr]
+                    req.input, req.top_k)
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(exc),
+                )
+        data = [
+            [FillMaskCandidate(
+                token=c.token, token_str=c.token_str,
+                score=c.score, sequence=c.sequence)
+             for c in per_mask]
+            for per_mask in result.candidates
+        ]
+        return FillMaskResponse(
+            model=req.model,
+            data=data,
+            usage=FillMaskUsage(
+                prompt_tokens=result.prompt_tokens,
+                total_tokens=result.prompt_tokens,
             ),
         )
 

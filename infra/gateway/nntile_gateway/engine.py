@@ -24,6 +24,21 @@ class EmbedResult:
     prompt_tokens: int
 
 
+@dataclass
+class FillMaskCandidate:
+    token: int
+    token_str: str
+    score: float
+    sequence: str
+
+
+@dataclass
+class FillMaskResult:
+    # One inner list per [MASK] position in the input.
+    candidates: list[list[FillMaskCandidate]]
+    prompt_tokens: int
+
+
 class GatewayEngine(Protocol):
     def generate(self, prompt: str, options: GenerateOptions
                  ) -> GenerateResult: ...
@@ -33,3 +48,7 @@ class GatewayEngine(Protocol):
 
 class EmbeddingEngine(Protocol):
     def embed(self, text: str) -> EmbedResult: ...
+
+
+class FillMaskEngine(Protocol):
+    def fill_mask(self, text: str, top_k: int) -> FillMaskResult: ...

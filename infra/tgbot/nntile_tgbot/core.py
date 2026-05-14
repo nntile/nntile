@@ -21,6 +21,7 @@ WELCOME = (
     "  /select <id>  — pick a model by id\n"
     "  /current — show the currently selected model\n"
     "  /reset   — forget conversation history\n"
+    "  /fill <text with [MASK]> — fill-mask via the selected BERT/RoBERTa\n"
     "  /help    — show this message\n\n"
     "After selecting a model, just send a message and you'll get a reply."
 )
@@ -160,6 +161,53 @@ def parse_select_callback(data: str) -> str | None:
     return data[len(prefix):]
 
 
+async def handle_fill_mask(
+    client: GatewayClient,
+    store: ChatStore,
+    chat_id: int,
+    text: str,
+    top_k: int = 5,
+) -> str:
+    """Run fill-mask on the currently selected model.
+
+    Renders the gateway's structured response into a human-readable
+    Telegram message: per-mask, a numbered list of top-k candidates
+    with score and the filled-in sequence."""
+    state = store.get(chat_id)
+    if not state.selected_model:
+        return (
+            "No model selected. Use /models then /select <id> "
+            "(pick a bert/roberta fill_mask model)."
+        )
+    text = text.strip()
+    if not text:
+        return "Usage: /fill <text with [MASK]>"
+    if "[MASK]" not in text and "<mask>" not in text.lower():
+        return (
+            "Your text contains no [MASK] token. Example:\n"
+            "  /fill Hello I'm a [MASK] model."
+        )
+    try:
+        per_mask = await client.fill_mask(
+            model=state.selected_model, text=text, top_k=top_k)
+    except GatewayError as exc:
+        return f"Gateway error: {exc}"
+    if not per_mask:
+        return "No mask predictions returned."
+    out_lines: list[str] = []
+    for mi, cands in enumerate(per_mask):
+        header = (
+            f"Mask #{mi + 1}:" if len(per_mask) > 1 else "Predictions:"
+        )
+        out_lines.append(header)
+        for ri, c in enumerate(cands, start=1):
+            out_lines.append(
+                f"  {ri}. {c.token_str!r}  "
+                f"(p={c.score:.4f})  →  {c.sequence}"
+            )
+    return "\n".join(out_lines)
+
+
 __all__ = [
     "WELCOME",
     "ModelButton",
@@ -171,5 +219,6 @@ __all__ = [
     "handle_current",
     "handle_reset",
     "handle_text",
+    "handle_fill_mask",
     "parse_select_callback",
 ]

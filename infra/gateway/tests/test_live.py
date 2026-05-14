@@ -76,6 +76,20 @@ LIVE_EMBED_MODELS = [
         "id": "bert-base-uncased",
         "family": "bert",
         "hf_name": "bert-base-uncased",
+        "task": "embeddings",
+        "dtype": "fp32",
+        "max_seq_len": 16,
+        "batch_size": 1,
+    },
+]
+
+# Encoder-only with masked-LM head -> /v1/fill_mask.
+LIVE_FILL_MASK_MODELS = [
+    {
+        "id": "bert-fill",
+        "family": "bert",
+        "hf_name": "bert-base-uncased",
+        "task": "fill_mask",
         "dtype": "fp32",
         "max_seq_len": 16,
         "batch_size": 1,
@@ -122,7 +136,9 @@ def live_setup(nntile_context):
     client = TestClient(app)
     client.__enter__()
     try:
-        for spec in LIVE_MODELS + LIVE_EMBED_MODELS:
+        all_specs = (
+            LIVE_MODELS + LIVE_EMBED_MODELS + LIVE_FILL_MASK_MODELS)
+        for spec in all_specs:
             payload = {**spec, "cache_dir": cache_dir}
             r = client.post(
                 "/admin/models", json=payload, headers=admin_headers())
@@ -146,7 +162,8 @@ def test_v1_models_lists_all(live_setup):
     assert r.status_code == 200, r.text
     ids = sorted(m["id"] for m in r.json()["data"])
     expected = sorted(
-        s["id"] for s in (LIVE_MODELS + LIVE_EMBED_MODELS))
+        s["id"] for s in (
+            LIVE_MODELS + LIVE_EMBED_MODELS + LIVE_FILL_MASK_MODELS))
     assert ids == expected
 
 
@@ -219,5 +236,62 @@ def test_v1_embeddings_on_completion_model_400(live_setup):
         "/v1/embeddings",
         headers={"Authorization": f"Bearer {api_key}"},
         json={"model": gen_id, "input": "x"},
+    )
+    assert r.status_code == 400, r.text
+
+
+@pytest.mark.parametrize(
+    "model_id", [s["id"] for s in LIVE_FILL_MASK_MODELS])
+def test_v1_fill_mask_returns_fashion_for_hf_canonical(
+    live_setup, model_id,
+):
+    """The huggingface canonical demo for bert-base-uncased fill-mask is
+    'Hello I'm a [MASK] model.' -> top candidate 'fashion'. With the
+    BERT encoder padding mask plumbed through nntile, we reproduce that
+    output (modulo float32 noise)."""
+    client, api_key = live_setup
+    r = client.post(
+        "/v1/fill_mask",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={
+            "model": model_id,
+            "input": "Hello I'm a [MASK] model.",
+            "top_k": 5,
+        },
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["model"] == model_id
+    assert len(body["data"]) == 1
+    cands = body["data"][0]
+    assert len(cands) == 5
+    tokens = [c["token_str"] for c in cands]
+    assert cands[0]["token_str"] == "fashion", (
+        f"expected 'fashion' top, got {tokens}")
+    # The top score should be a sane non-degenerate probability.
+    assert 0.05 < cands[0]["score"] < 0.5
+    # Sequence should contain the substituted word.
+    assert "fashion" in cands[0]["sequence"]
+
+
+def test_v1_fill_mask_no_mask_returns_400(live_setup):
+    client, api_key = live_setup
+    model_id = LIVE_FILL_MASK_MODELS[0]["id"]
+    r = client.post(
+        "/v1/fill_mask",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"model": model_id, "input": "no mask here", "top_k": 3},
+    )
+    assert r.status_code == 400, r.text
+
+
+def test_v1_fill_mask_on_completion_model_400(live_setup):
+    """Causal-LM families should reject /v1/fill_mask cleanly with 400."""
+    client, api_key = live_setup
+    gen_id = LIVE_MODELS[0]["id"]
+    r = client.post(
+        "/v1/fill_mask",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"model": gen_id, "input": "Hello [MASK]", "top_k": 3},
     )
     assert r.status_code == 400, r.text

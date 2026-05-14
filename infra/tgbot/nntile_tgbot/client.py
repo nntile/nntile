@@ -24,6 +24,14 @@ class ModelInfo:
     status: str | None
 
 
+@dataclass(frozen=True)
+class FillMaskCandidate:
+    token: int
+    token_str: str
+    score: float
+    sequence: str
+
+
 class GatewayClient:
     """Thin async wrapper. Owns its httpx.AsyncClient; close with `aclose()`."""
 
@@ -57,6 +65,30 @@ class GatewayClient:
                 status=entry.get("status"),
             ))
         return out
+
+    async def fill_mask(
+        self,
+        model: str,
+        text: str,
+        top_k: int = 5,
+    ) -> list[list[FillMaskCandidate]]:
+        """Returns one inner list of candidates per [MASK] position."""
+        r = await self._client.post(
+            f"{self._base_url}/v1/fill_mask",
+            headers=self._headers,
+            json={"model": model, "input": text, "top_k": top_k},
+        )
+        self._raise_for_status(r)
+        payload = r.json()
+        return [
+            [FillMaskCandidate(
+                token=c["token"],
+                token_str=c["token_str"],
+                score=c["score"],
+                sequence=c["sequence"],
+             ) for c in per_mask]
+            for per_mask in payload.get("data", [])
+        ]
 
     async def chat_completion(
         self,

@@ -4,6 +4,7 @@ import httpx
 
 from nntile_tgbot.core import (
     handle_current,
+    handle_fill_mask,
     handle_models,
     handle_reset,
     handle_select,
@@ -245,6 +246,87 @@ async def test_handle_text_empty_returns_empty(make_client):
     finally:
         await client.aclose()
     assert reply == ""
+
+
+# -- fill-mask -----------------------------------------------------
+
+def _fill_mask_handler(per_mask_candidates):
+    captured: dict = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        import json
+        if req.url.path == "/v1/fill_mask":
+            captured["body"] = json.loads(req.content)
+            return httpx.Response(200, json={
+                "object": "list",
+                "model": "bert",
+                "data": per_mask_candidates,
+                "usage": {"prompt_tokens": 9, "total_tokens": 9},
+            })
+        return httpx.Response(500, text="unexpected")
+    return handler, captured
+
+
+async def test_handle_fill_mask_no_model(make_client):
+    client = make_client(lambda req: httpx.Response(500, text="unused"))
+    store = ChatStore(history_turns=4)
+    try:
+        reply = await handle_fill_mask(client, store, 1, "Hi [MASK]")
+    finally:
+        await client.aclose()
+    assert "No model" in reply
+
+
+async def test_handle_fill_mask_no_mask_token(make_client):
+    client = make_client(lambda req: httpx.Response(500, text="unused"))
+    store = ChatStore(history_turns=4)
+    store.set_model(1, "bert")
+    try:
+        reply = await handle_fill_mask(client, store, 1, "no mask here")
+    finally:
+        await client.aclose()
+    assert "[MASK]" in reply
+
+
+async def test_handle_fill_mask_renders_topk(make_client):
+    handler, captured = _fill_mask_handler([
+        [
+            {"token": 4827, "token_str": "fashion", "score": 0.107,
+             "sequence": "[CLS] hello i'm a fashion model. [SEP]"},
+            {"token": 2535, "token_str": "role", "score": 0.087,
+             "sequence": "[CLS] hello i'm a role model. [SEP]"},
+        ]
+    ])
+    client = make_client(handler)
+    store = ChatStore(history_turns=4)
+    store.set_model(1, "bert")
+    try:
+        reply = await handle_fill_mask(
+            client, store, 1, "Hello I'm a [MASK] model.", top_k=2)
+    finally:
+        await client.aclose()
+    assert captured["body"]["model"] == "bert"
+    assert captured["body"]["top_k"] == 2
+    assert captured["body"]["input"] == "Hello I'm a [MASK] model."
+    assert "fashion" in reply and "role" in reply
+    assert "p=0.1070" in reply
+    assert "fashion model." in reply
+
+
+async def test_handle_fill_mask_multi_mask_headers(make_client):
+    handler, _ = _fill_mask_handler([
+        [{"token": 1, "token_str": "a", "score": 0.5, "sequence": "a"}],
+        [{"token": 2, "token_str": "b", "score": 0.4, "sequence": "b"}],
+    ])
+    client = make_client(handler)
+    store = ChatStore(history_turns=4)
+    store.set_model(1, "bert")
+    try:
+        reply = await handle_fill_mask(
+            client, store, 1, "[MASK] [MASK]", top_k=1)
+    finally:
+        await client.aclose()
+    assert "Mask #1" in reply and "Mask #2" in reply
 
 
 # -- callback parsing ----------------------------------------------

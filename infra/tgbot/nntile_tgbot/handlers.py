@@ -24,6 +24,7 @@ from nntile_tgbot.config import BotConfig
 from nntile_tgbot.core import (
     WELCOME,
     handle_current,
+    handle_fill_mask,
     handle_models,
     handle_reset,
     handle_select,
@@ -91,6 +92,16 @@ def build_router(
         if not _gate(message.from_user.id if message.from_user else None):
             return
         await message.answer(handle_reset(store, message.chat.id))
+
+    @router.message(Command("fill"))
+    async def cmd_fill(message: Message) -> None:
+        if not _gate(message.from_user.id if message.from_user else None):
+            return
+        text = (message.text or "").split(maxsplit=1)
+        arg = text[1] if len(text) == 2 else ""
+        reply = await handle_fill_mask(
+            client, store, message.chat.id, arg, top_k=5)
+        await message.answer(reply)
 
     @router.callback_query()
     async def on_callback(cq: CallbackQuery) -> None:

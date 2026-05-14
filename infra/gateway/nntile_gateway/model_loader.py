@@ -12,6 +12,9 @@ from typing import Protocol, Union
 from nntile_gateway.engine import (
     EmbeddingEngine,
     EmbedResult,
+    FillMaskCandidate,
+    FillMaskEngine,
+    FillMaskResult,
     GatewayEngine,
     GenerateOptions,
     GenerateResult,
@@ -22,7 +25,32 @@ from nntile_gateway.schemas import ModelSpec
 class ModelLoader(Protocol):
     def load(
         self, spec: ModelSpec
-    ) -> Union[GatewayEngine, EmbeddingEngine]: ...
+    ) -> Union[GatewayEngine, EmbeddingEngine, FillMaskEngine]: ...
+
+
+def _build_padding_mask(seq_len: int, actual_len: int):
+    """Boolean (seq_len, seq_len) F-order array suitable for the BERT
+    self-attention mask. mask[k, q] = True iff the key position k is a
+    real (non-pad) token; all queries see the same column mask."""
+    import numpy as np
+
+    keep = np.zeros(seq_len, dtype=bool)
+    keep[:actual_len] = True
+    mask = np.broadcast_to(keep[:, None], (seq_len, seq_len)).copy()
+    return np.asfortranarray(mask)
+
+
+def _apply_padding_mask(model, seq_len: int, actual_len: int) -> None:
+    """Walk the model's layers, find every BertSelfAttention, and rewrite
+    its mask tensor to mask out pad positions. Without this the encoder
+    attends to padding uniformly and output quality drops sharply for
+    short inputs (see test_live_bert results)."""
+    from nntile.layer.bert_selfattention import BertSelfAttention
+
+    mask_np = _build_padding_mask(seq_len, actual_len)
+    for layer in model.layers:
+        if isinstance(layer, BertSelfAttention):
+            layer.mask.from_array(mask_np)
 
 
 class _NNTileEngineAdapter:
@@ -118,6 +146,7 @@ class _NNTileEmbeddingAdapter:
             dtype=np.int64, order='F',
         )
         padded[:actual_len, 0] = ids
+        _apply_padding_mask(self._model, self._seq_len, actual_len)
         self._model.activations[0].value.from_array(padded)
         self._model.forward_async()
         hidden = nntc.to_numpy(self._model.activations[-1].value)
@@ -129,23 +158,120 @@ class _NNTileEmbeddingAdapter:
         )
 
 
+class _NNTileFillMaskAdapter:
+    """Wraps BertForMaskedLM / RobertaForMaskedLM for fill-mask.
+
+    Returns top-k candidates per [MASK] position. Matches the shape
+    of huggingface.transformers.pipeline('fill-mask'): each candidate
+    has token id, decoded token string, softmax probability, and a
+    rendered 'sequence' with the candidate substituted in."""
+
+    def __init__(self, model, tokenizer, seq_len: int, pad_token_id: int):
+        self._model = model
+        self._tokenizer = tokenizer
+        self._seq_len = seq_len
+        self._pad_token_id = pad_token_id
+        if getattr(tokenizer, "mask_token_id", None) is None:
+            raise ValueError(
+                f"tokenizer {tokenizer.__class__.__name__!r} has no "
+                "mask_token_id; fill_mask is unsupported")
+        self._mask_token_id = tokenizer.mask_token_id
+
+    def fill_mask(self, text: str, top_k: int) -> FillMaskResult:
+        import numpy as np
+
+        import nntile.utils.constructors as nntc
+
+        ids = list(self._tokenizer(text)["input_ids"])
+        if len(ids) > self._seq_len:
+            ids = ids[: self._seq_len]
+        actual_len = len(ids)
+        mask_positions = [
+            i for i, t in enumerate(ids) if t == self._mask_token_id]
+        if not mask_positions:
+            raise ValueError(
+                "input contains no [MASK] token; nothing to fill")
+
+        padded = np.full(
+            (self._seq_len, 1), self._pad_token_id,
+            dtype=np.int64, order='F',
+        )
+        padded[:actual_len, 0] = ids
+        _apply_padding_mask(self._model, self._seq_len, actual_len)
+        self._model.activations[0].value.from_array(padded)
+        self._model.forward_async()
+        logits = nntc.to_numpy(self._model.activations[-1].value)
+        # logits: (vocab_size, seq_len, batch).
+
+        out_per_mask: list[list[FillMaskCandidate]] = []
+        top_k = max(1, top_k)
+        for pos in mask_positions:
+            v = logits[:, pos, 0]
+            v = v - v.max()
+            probs = np.exp(v)
+            probs /= probs.sum()
+            top_idx = np.argsort(probs)[::-1][:top_k]
+            cands: list[FillMaskCandidate] = []
+            for t_id in top_idx:
+                t_int = int(t_id)
+                token_str = self._tokenizer.decode([t_int]).strip()
+                # Build the filled sequence by substituting at this pos.
+                filled = list(ids)
+                filled[pos] = t_int
+                sequence = self._tokenizer.decode(
+                    filled, skip_special_tokens=False)
+                cands.append(FillMaskCandidate(
+                    token=t_int,
+                    token_str=token_str,
+                    score=float(probs[t_int]),
+                    sequence=sequence,
+                ))
+            out_per_mask.append(cands)
+
+        return FillMaskResult(
+            candidates=out_per_mask, prompt_tokens=actual_len)
+
+
 _ENCODER_ONLY_FAMILIES = {"bert", "roberta"}
+
+
+def _resolve_task(spec: ModelSpec) -> str:
+    if spec.task is not None:
+        return spec.task
+    if spec.family in _ENCODER_ONLY_FAMILIES:
+        return "embeddings"
+    return "completions"
 
 
 class NNTileModelLoader:
     def load(self, spec: ModelSpec):
+        task = _resolve_task(spec)
         tokenizer = self._build_tokenizer(spec)
-        model = self._build_model(spec)
 
         if spec.family in _ENCODER_ONLY_FAMILIES:
-            pad = self._pad_token_id(tokenizer)
-            return _NNTileEmbeddingAdapter(
-                model, tokenizer, spec.max_seq_len, pad)
+            if task == "embeddings":
+                model = self._build_encoder_model(spec)
+                pad = self._pad_token_id(tokenizer)
+                return _NNTileEmbeddingAdapter(
+                    model, tokenizer, spec.max_seq_len, pad)
+            if task == "fill_mask":
+                model = self._build_masked_lm_model(spec)
+                pad = self._pad_token_id(tokenizer)
+                return _NNTileFillMaskAdapter(
+                    model, tokenizer, spec.max_seq_len, pad)
+            raise ValueError(
+                f"family={spec.family!r} does not support task={task!r}")
+
+        if task != "completions":
+            raise ValueError(
+                f"family={spec.family!r} only supports task='completions', "
+                f"got task={task!r}")
 
         from nntile.inference.llm_sync_engine import (
             LlmSyncInferenceEngine,
         )
 
+        model = self._build_model(spec)
         engine = LlmSyncInferenceEngine(model, tokenizer, spec.max_seq_len)
         return _NNTileEngineAdapter(engine, tokenizer)
 
@@ -222,6 +348,15 @@ class NNTileModelLoader:
                 dtype=spec.dtype,
                 cache_dir=spec.cache_dir,
             )
+        if spec.family in _ENCODER_ONLY_FAMILIES:
+            # Handled by _build_encoder_model / _build_masked_lm_model
+            # because the class depends on task, not just family.
+            raise ValueError(
+                f"call _build_encoder_model/_build_masked_lm_model for "
+                f"family={spec.family!r}")
+        raise ValueError(f"unsupported model family: {spec.family!r}")
+
+    def _build_encoder_model(self, spec: ModelSpec):
         if spec.family == "bert":
             from nntile.model.bert import BertModel
 
@@ -242,4 +377,29 @@ class NNTileModelLoader:
                 dtype=spec.dtype,
                 cache_dir=spec.cache_dir,
             )
-        raise ValueError(f"unsupported model family: {spec.family!r}")
+        raise ValueError(
+            f"_build_encoder_model: unsupported family {spec.family!r}")
+
+    def _build_masked_lm_model(self, spec: ModelSpec):
+        if spec.family == "bert":
+            from nntile.model.bert import BertForMaskedLM
+
+            return BertForMaskedLM.from_pretrained(
+                model_name=spec.hf_name,
+                seq_len=spec.max_seq_len,
+                batch_size=spec.batch_size,
+                dtype=spec.dtype,
+                cache_dir=spec.cache_dir,
+            )
+        if spec.family == "roberta":
+            from nntile.model.roberta import RobertaForMaskedLM
+
+            return RobertaForMaskedLM.from_pretrained(
+                model_name=spec.hf_name,
+                seq_len=spec.max_seq_len,
+                batch_size=spec.batch_size,
+                dtype=spec.dtype,
+                cache_dir=spec.cache_dir,
+            )
+        raise ValueError(
+            f"_build_masked_lm_model: unsupported family {spec.family!r}")

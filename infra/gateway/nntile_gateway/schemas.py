@@ -7,6 +7,12 @@ ModelFamily = Literal[
     "llama", "gpt2", "gpt_neo", "gpt_neox", "t5", "bert", "roberta",
 ]
 
+# Task = what the model is being registered to serve. For most families
+# the task is fixed by the architecture (causal LMs do "completions"),
+# but encoder-only families like bert/roberta can do either embeddings
+# or fill-mask depending on whether we load BertModel or BertForMaskedLM.
+ModelTask = Literal["completions", "embeddings", "fill_mask"]
+
 
 class ModelSpec(BaseModel):
     id: str = Field(description="Public model id, used in /v1/* requests")
@@ -15,6 +21,12 @@ class ModelSpec(BaseModel):
     dtype: str = "fp32"
     max_seq_len: int = 1024
     batch_size: int = 1
+    task: ModelTask | None = Field(
+        default=None,
+        description=(
+            "Task to serve. If None, defaults to 'embeddings' for "
+            "bert/roberta and 'completions' otherwise."),
+    )
     cache_dir: str | None = None
     extra: dict[str, Any] = Field(default_factory=dict)
 
@@ -146,3 +158,31 @@ class EmbeddingsResponse(BaseModel):
     model: str
     data: list[EmbeddingObject]
     usage: EmbeddingsUsage
+
+
+# --- fill-mask --------------------------------------------------------
+
+class FillMaskRequest(BaseModel):
+    model: str
+    input: str
+    top_k: int = 5
+
+
+class FillMaskCandidate(BaseModel):
+    token: int
+    token_str: str
+    score: float
+    sequence: str
+
+
+class FillMaskUsage(BaseModel):
+    prompt_tokens: int = 0
+    total_tokens: int = 0
+
+
+class FillMaskResponse(BaseModel):
+    object: Literal["list"] = "list"
+    model: str
+    # Outer list is per [MASK] position in the input order.
+    data: list[list[FillMaskCandidate]]
+    usage: FillMaskUsage
