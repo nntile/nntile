@@ -227,3 +227,17 @@ RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
 
 # Finally, build the NNTile inplace without installation
 RUN cmake --build build -j ${MAKE_JOBS}
+
+# Install the inference gateway and Telegram bot service packages in
+# editable mode against the same conda env that already has nntile on
+# PYTHONPATH. With this, the same image can run either
+# `python -m nntile_gateway` (HTTP gateway, needs --gpus) or
+# `python -m nntile_tgbot` (Telegram front-end, no GPU) -- or both in
+# parallel as two containers / two processes. pip pulls in the
+# missing transitive deps (cachetools for the gateway; aiogram, httpx
+# for the bot). See infra/README.md for deployment recipes.
+RUN pip install -e infra/gateway && pip install -e infra/tgbot
+
+# Default port for the gateway's HTTP API. The bot does not listen on
+# any port (it long-polls the Telegram API outbound).
+EXPOSE 8000
