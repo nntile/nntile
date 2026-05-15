@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import httpx
 import pytest
-
 from nntile_tgbot.client import GatewayError
 
 

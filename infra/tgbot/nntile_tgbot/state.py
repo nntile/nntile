@@ -24,7 +24,9 @@ class ChatState:
 
 
 class ChatStore:
-    """Maps chat_id -> ChatState. Threadsafe; aiogram dispatches concurrently."""
+    """Maps chat_id -> ChatState.
+
+    Threadsafe; aiogram dispatches handlers concurrently."""
 
     def __init__(self, history_turns: int) -> None:
         if history_turns < 1:

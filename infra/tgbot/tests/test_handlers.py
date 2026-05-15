@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from aiogram import Router
 from aiogram.types import InlineKeyboardMarkup
-
 from nntile_tgbot.config import BotConfig
 from nntile_tgbot.core import ModelButton, ModelListReply
 from nntile_tgbot.handlers import _keyboard, build_router

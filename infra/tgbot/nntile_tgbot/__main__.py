@@ -6,7 +6,6 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
-
 from nntile_tgbot.client import GatewayClient
 from nntile_tgbot.config import BotConfig
 from nntile_tgbot.handlers import build_router

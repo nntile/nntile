@@ -1,17 +1,9 @@
 from __future__ import annotations
 
 import httpx
-
 from nntile_tgbot.core import (
-    handle_current,
-    handle_fill_mask,
-    handle_models,
-    handle_reset,
-    handle_select,
-    handle_text,
-    is_authorized,
-    parse_select_callback,
-)
+    handle_current, handle_fill_mask, handle_models, handle_reset,
+    handle_select, handle_text, is_authorized, parse_select_callback)
 from nntile_tgbot.state import ChatStore
 
 

@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from nntile_tgbot.client import GatewayClient, GatewayError, ModelInfo
 from nntile_tgbot.state import ChatStore
 
-
 WELCOME = (
     "Hi! I'm a thin Telegram front-end for an nntile-gateway server.\n\n"
     "Commands:\n"

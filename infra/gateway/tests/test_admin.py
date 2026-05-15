@@ -1,6 +1,5 @@
 from tests.conftest import admin_headers
 
-
 MODEL_PAYLOAD = {
     "id": "llama-test",
     "family": "llama",

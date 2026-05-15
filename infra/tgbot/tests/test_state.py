@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from nntile_tgbot.state import ChatStore
 
 

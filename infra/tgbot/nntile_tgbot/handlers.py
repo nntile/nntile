@@ -13,25 +13,12 @@ import logging
 from aiogram import Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import (
-    CallbackQuery,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    Message,
-)
-
+    CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message)
 from nntile_tgbot.client import GatewayClient
 from nntile_tgbot.config import BotConfig
 from nntile_tgbot.core import (
-    WELCOME,
-    handle_current,
-    handle_fill_mask,
-    handle_models,
-    handle_reset,
-    handle_select,
-    handle_text,
-    is_authorized,
-    parse_select_callback,
-)
+    WELCOME, handle_current, handle_fill_mask, handle_models, handle_reset,
+    handle_select, handle_text, is_authorized, parse_select_callback)
 from nntile_tgbot.state import ChatStore
 
 log = logging.getLogger(__name__)

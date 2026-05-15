@@ -1,7 +1,6 @@
 import time
 
 import pytest
-
 from nntile_gateway.schemas import ModelSpec
 from nntile_gateway.storage.base import KeyRecord, ModelRecord
 from nntile_gateway.storage.memory import InMemoryStorage

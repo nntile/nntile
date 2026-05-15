@@ -35,7 +35,9 @@ class FillMaskCandidate:
 
 
 class GatewayClient:
-    """Thin async wrapper. Owns its httpx.AsyncClient; close with `aclose()`."""
+    """Async wrapper around the gateway HTTP API.
+
+    Owns its httpx.AsyncClient; the caller must close it via aclose()."""
 
     def __init__(
         self,

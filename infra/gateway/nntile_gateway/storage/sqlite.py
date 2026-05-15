@@ -1,10 +1,8 @@
-import json
 import sqlite3
 import threading
 
 from nntile_gateway.schemas import ModelSpec
 from nntile_gateway.storage.base import KeyRecord, ModelRecord
-
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS models (

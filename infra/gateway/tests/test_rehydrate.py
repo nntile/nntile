@@ -1,10 +1,8 @@
 from fastapi.testclient import TestClient
-
 from nntile_gateway.config import GatewayConfig
 from nntile_gateway.server import build_app
 from nntile_gateway.storage.sqlite import SqliteStorage
 from tests.conftest import ADMIN_TOKEN, FakeLoader, admin_headers
-
 
 MODEL_PAYLOAD = {
     "id": "llama-test",

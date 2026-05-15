@@ -1,5 +1,4 @@
 import uvicorn
-
 from nntile_gateway.config import GatewayConfig
 from nntile_gateway.server import build_app
 

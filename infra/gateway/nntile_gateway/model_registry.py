@@ -1,9 +1,7 @@
 import threading
 import time
 from dataclasses import dataclass
-from typing import Literal
-
-from typing import Any
+from typing import Any, Literal
 
 from nntile_gateway.model_loader import ModelLoader
 from nntile_gateway.schemas import ModelInfo, ModelSpec

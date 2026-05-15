@@ -2,13 +2,7 @@ import time
 
 import pytest
 from fastapi import HTTPException
-
-from nntile_gateway.auth import (
-    AdminAuth,
-    ApiKeyAuth,
-    generate_key,
-    hash_key,
-)
+from nntile_gateway.auth import AdminAuth, ApiKeyAuth, generate_key, hash_key
 from nntile_gateway.storage.base import KeyRecord
 from nntile_gateway.storage.memory import InMemoryStorage
 

@@ -2,20 +2,22 @@ import os
 import sys
 from pathlib import Path
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 GATEWAY_ROOT = Path(__file__).resolve().parents[1]
 if str(GATEWAY_ROOT) not in sys.path:
     sys.path.insert(0, str(GATEWAY_ROOT))
 
-from nntile_gateway.config import GatewayConfig
-from nntile_gateway.engine import GenerateOptions, GenerateResult
-from nntile_gateway.model_loader import ModelLoader
-from nntile_gateway.schemas import ModelSpec
-from nntile_gateway.server import build_app
-from nntile_gateway.storage.memory import InMemoryStorage
-
+# E402: the imports below intentionally come after the sys.path insert
+# so that running pytest from the repo root finds the in-tree package
+# instead of any installed copy.
+from nntile_gateway.config import GatewayConfig  # noqa: E402
+from nntile_gateway.engine import GenerateOptions, GenerateResult  # noqa: E402
+from nntile_gateway.model_loader import ModelLoader  # noqa: E402
+from nntile_gateway.schemas import ModelSpec  # noqa: E402
+from nntile_gateway.server import build_app  # noqa: E402
+from nntile_gateway.storage.memory import InMemoryStorage  # noqa: E402
 
 ADMIN_TOKEN = "test-admin-token-12345"
 

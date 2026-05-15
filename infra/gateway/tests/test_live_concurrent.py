@@ -245,10 +245,14 @@ def test_concurrent_completions_serialize_correctly(
     speedup = seq_wall / conc_wall if conc_wall > 0 else float("inf")
 
     with capsys.disabled():
+        n = N_CONCURRENT
+        mt = COMPLETION_MAX_TOKENS
+        sa = seq_avg * 1000
+        ca = conc_avg * 1000
         print()
-        print(f"  n={N_CONCURRENT} requests, max_tokens={COMPLETION_MAX_TOKENS}")
-        print(f"  sequential wall: {seq_wall:.3f}s ({seq_avg*1000:.1f} ms/req)")
-        print(f"  concurrent wall: {conc_wall:.3f}s ({conc_avg*1000:.1f} ms/req)")
+        print(f"  n={n} requests, max_tokens={mt}")
+        print(f"  sequential wall: {seq_wall:.3f}s ({sa:.1f} ms/req)")
+        print(f"  concurrent wall: {conc_wall:.3f}s ({ca:.1f} ms/req)")
         print(f"  ratio (conc/seq): {ratio:.3f}")
         print(f"  speedup (seq/conc): {speedup:.3f}x")
 

@@ -3,41 +3,18 @@ import time
 import uuid
 
 from fastapi import Depends, FastAPI, HTTPException, status
-
-from nntile_gateway.auth import (
-    AdminAuth,
-    ApiKeyAuth,
-    generate_key,
-)
+from nntile_gateway.auth import AdminAuth, ApiKeyAuth, generate_key
 from nntile_gateway.config import GatewayConfig
 from nntile_gateway.engine import GenerateOptions
 from nntile_gateway.model_loader import ModelLoader, NNTileModelLoader
 from nntile_gateway.model_registry import ModelRegistry
 from nntile_gateway.schemas import (
-    ChatCompletionChoice,
-    ChatCompletionRequest,
-    ChatCompletionResponse,
-    ChatMessage,
-    CompletionChoice,
-    CompletionRequest,
-    CompletionResponse,
-    CompletionUsage,
-    CreateKeyRequest,
-    CreateKeyResponse,
-    EmbeddingObject,
-    EmbeddingsRequest,
-    EmbeddingsResponse,
-    EmbeddingsUsage,
-    FillMaskCandidate,
-    FillMaskRequest,
-    FillMaskResponse,
-    FillMaskUsage,
-    KeyInfo,
-    ModelInfo,
-    ModelSpec,
-    OpenAIModelList,
-    OpenAIModelObject,
-)
+    ChatCompletionChoice, ChatCompletionRequest, ChatCompletionResponse,
+    ChatMessage, CompletionChoice, CompletionRequest, CompletionResponse,
+    CompletionUsage, CreateKeyRequest, CreateKeyResponse, EmbeddingObject,
+    EmbeddingsRequest, EmbeddingsResponse, EmbeddingsUsage, FillMaskCandidate,
+    FillMaskRequest, FillMaskResponse, FillMaskUsage, KeyInfo, ModelInfo,
+    ModelSpec, OpenAIModelList, OpenAIModelObject)
 from nntile_gateway.storage.base import KeyRecord, Storage
 from nntile_gateway.storage.memory import InMemoryStorage
 from nntile_gateway.storage.sqlite import SqliteStorage

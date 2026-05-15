@@ -14,7 +14,6 @@ etc.). File uploads aren't supported -- the bot doesn't send files.
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any, AsyncGenerator, Optional, cast
 
 import httpx

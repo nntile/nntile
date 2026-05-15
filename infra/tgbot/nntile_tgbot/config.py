@@ -40,7 +40,8 @@ class BotConfig:
     gateway_api_key: str = field(
         default_factory=lambda: _env("NNTILE_TGBOT_API_KEY", "") or "")
     # Comma-separated list of Telegram user IDs allowed to use the bot.
-    # Empty = open to anyone who can reach the bot (still gated by gateway key).
+    # Empty = open to anyone who can reach the bot (gateway key still
+    # gates the call).
     allowed_user_ids: set[int] = field(
         default_factory=lambda: _parse_int_set(
             _env("NNTILE_TGBOT_ALLOWED_USERS")))

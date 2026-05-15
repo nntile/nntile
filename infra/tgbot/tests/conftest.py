@@ -6,14 +6,13 @@ from typing import Callable
 
 import httpx
 import pytest
-
 from nntile_tgbot.client import GatewayClient
 
 
 @pytest.fixture
 def make_client() -> Callable[[Callable[[httpx.Request], httpx.Response]],
                               GatewayClient]:
-    """Returns a factory: handler -> GatewayClient that routes to that handler."""
+    """Factory: handler -> GatewayClient routed to that handler."""
 
     def _factory(
         handler: Callable[[httpx.Request], httpx.Response],

@@ -10,15 +10,8 @@ without StarPU or model weights.
 from typing import Protocol, Union
 
 from nntile_gateway.engine import (
-    EmbeddingEngine,
-    EmbedResult,
-    FillMaskCandidate,
-    FillMaskEngine,
-    FillMaskResult,
-    GatewayEngine,
-    GenerateOptions,
-    GenerateResult,
-)
+    EmbeddingEngine, EmbedResult, FillMaskCandidate, FillMaskEngine,
+    FillMaskResult, GatewayEngine, GenerateOptions, GenerateResult)
 from nntile_gateway.schemas import ModelSpec
 
 
@@ -98,7 +91,6 @@ def _apply_roberta_position_ids(
     pos_tensor = _find_position_ids_tensor(model)
     if pos_tensor is None:
         return  # nothing we can update; caller will get arange behaviour
-    seq_len = padded_input_ids.shape[0]
     flat_ids = padded_input_ids[:, 0]
     mask = (flat_ids != pad_token_id).astype(np.int64)
     positions = (np.cumsum(mask) * mask) + pad_token_id
@@ -116,9 +108,7 @@ class _NNTileEngineAdapter:
     def generate(self, prompt: str, options: GenerateOptions
                  ) -> GenerateResult:
         from nntile.model.generation.llm import (
-            GenerationMode,
-            GenerationParams,
-        )
+            GenerationMode, GenerationParams)
 
         params = GenerationParams(
             max_tokens=options.max_tokens,
@@ -137,8 +127,12 @@ class _NNTileEngineAdapter:
         prompt_tokens = len(prompt_ids)
 
         text = self._engine.generate(prompt, params=params, mode=mode)
-        completion_text = text[len(prompt):] if text.startswith(prompt) else text
-        completion_tokens = len(self._tokenizer(completion_text)["input_ids"])
+        if text.startswith(prompt):
+            completion_text = text[len(prompt):]
+        else:
+            completion_text = text
+        completion_tokens = len(
+            self._tokenizer(completion_text)["input_ids"])
         finish = (
             "length" if completion_tokens >= options.max_tokens else "stop"
         )
@@ -349,9 +343,7 @@ class NNTileModelLoader:
                 f"family={spec.family!r} only supports task='completions', "
                 f"got task={task!r}")
 
-        from nntile.inference.llm_sync_engine import (
-            LlmSyncInferenceEngine,
-        )
+        from nntile.inference.llm_sync_engine import LlmSyncInferenceEngine
 
         model = self._build_model(spec)
         engine = LlmSyncInferenceEngine(model, tokenizer, spec.max_seq_len)
@@ -391,9 +383,7 @@ class NNTileModelLoader:
                 cache_dir=spec.cache_dir,
             )
         if spec.family == "gpt_neo":
-            from nntile.model.gpt_neo_causal import (
-                GPTNeoForCausalLM,
-            )
+            from nntile.model.gpt_neo_causal import GPTNeoForCausalLM
 
             return GPTNeoForCausalLM.from_pretrained(
                 spec.batch_size,
@@ -404,9 +394,7 @@ class NNTileModelLoader:
                 dtype=spec.dtype,
             )
         if spec.family == "gpt_neox":
-            from nntile.model.gpt_neox_causal import (
-                GPTNeoXForCausalLM,
-            )
+            from nntile.model.gpt_neox_causal import GPTNeoXForCausalLM
 
             return GPTNeoXForCausalLM.from_pretrained(
                 spec.batch_size,

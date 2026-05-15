@@ -30,9 +30,8 @@ from nntile.model.t5_block import T5Stack
 from nntile.model.t5_config import T5ConfigNNTile, T5EncoderDecoderConfig
 from nntile.model.t5_lmhead import T5ClassificationHead
 from nntile.tensor import (
-    Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_bf16,
-    Tensor_fp32_fast_fp16, Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments,
-    TensorTraits)
+    Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_bf16, Tensor_fp32_fast_fp16,
+    Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments, TensorTraits)
 
 
 class T5Model(BaseModel):

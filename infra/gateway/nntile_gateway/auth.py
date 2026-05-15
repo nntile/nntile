@@ -5,7 +5,6 @@ import time
 
 from cachetools import TTLCache
 from fastapi import Header, HTTPException, status
-
 from nntile_gateway.storage.base import KeyRecord, Storage
 
 
@@ -39,7 +38,9 @@ class AdminAuth:
     def __init__(self, admin_token: str) -> None:
         self._admin_token = admin_token
 
-    def __call__(self, authorization: str | None = Header(default=None)) -> None:
+    def __call__(
+        self, authorization: str | None = Header(default=None),
+    ) -> None:
         token = _extract_bearer(authorization)
         if not hmac.compare_digest(token, self._admin_token):
             raise HTTPException(
