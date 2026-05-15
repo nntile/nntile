@@ -30,8 +30,9 @@ from nntile.model.t5_block import T5Stack
 from nntile.model.t5_config import T5ConfigNNTile, T5EncoderDecoderConfig
 from nntile.model.t5_lmhead import T5ClassificationHead
 from nntile.tensor import (
-    Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_bf16, Tensor_fp32_fast_fp16,
-    Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments, TensorTraits)
+    Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_bf16,
+    Tensor_fp32_fast_fp16, Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments,
+    TensorTraits)
 
 
 class T5Model(BaseModel):
@@ -404,11 +405,23 @@ class T5ForConditionalGeneration(BaseModel):
             torch_model.lm_head.out_features,
             config.redux,
         )
-        return cls(
+        obj = cls(
             x_enc_tm, x_dec_tm,
             enc_embedding, dec_embedding,
             transformer, lm_head,
         )
+        # Allocate per-request mutable padding masks on encoder
+        # self-attention and decoder cross-attention layers. nntile's
+        # T5Stack.from_torch only sets a mask for decoder *self*-attn
+        # (causal); encoder self-attn and cross-attn end up with
+        # self.mask=None, so attention attends to padding positions
+        # with full weight. That dilutes output sharply when seq_len
+        # >> actual prompt and is the reason naive seq_len=64 with a
+        # 13-token prompt decodes to '<unk> <unk> ...'. The masks here
+        # are initialised to all-True (mask is a no-op until generate()
+        # rewrites the columns for pad positions).
+        obj._install_padding_masks(seq_len)
+        return obj
 
     @classmethod
     def from_pretrained(
@@ -490,6 +503,45 @@ class T5ForConditionalGeneration(BaseModel):
             batch_size_tile=batch_size_tile,
         )
 
+    def _iter_padding_mask_attentions(self):
+        """Yield T5Attention layers whose mask depends on which source
+        positions are real vs pad: encoder self-attention (every block)
+        and decoder cross-attention (every decoder block). Decoder
+        self-attention has its own causal mask and is skipped."""
+        for block in self.transformer.encoder.blocks:
+            yield block.attention.attention
+        for block in self.transformer.decoder.blocks:
+            if block.cross_attention is not None:
+                yield block.cross_attention.attention
+
+    def _install_padding_masks(self, seq_len: int) -> None:
+        """Attach an all-True Tensor_bool mask of shape (seq_len, seq_len)
+        to each T5Attention that previously had self.mask=None on the
+        encoder/cross-attn paths, plus set self.val so the forward pass
+        actually fills masked positions with -inf before softmax."""
+        all_true = np.ones((seq_len, seq_len), dtype=bool, order='F')
+        for attn in self._iter_padding_mask_attentions():
+            if attn.mask is not None:
+                continue
+            mask_tensor = nntc.from_array(all_true.copy())
+            attn.mask = mask_tensor
+            attn.val = -np.float32(np.inf)
+
+    def _apply_padding_mask(self, actual_src_len: int) -> None:
+        """Rewrite the encoder/cross-attn mask columns to keep only the
+        first `actual_src_len` source positions. Mask shape is
+        (key, query); the convention used by mask_scalar_async is
+        mask[k, q]=True means 'attention from q to k is permitted'.
+        For padding we mask whole rows (per-k constant in q)."""
+        seq_len = self.x_enc.value.shape[0]
+        keep = np.zeros(seq_len, dtype=bool)
+        keep[:actual_src_len] = True
+        mask_np = np.broadcast_to(keep[:, None], (seq_len, seq_len)).copy()
+        mask_np = np.asfortranarray(mask_np)
+        for attn in self._iter_padding_mask_attentions():
+            if attn.mask is not None:
+                attn.mask.from_array(mask_np)
+
     def generate(
         self,
         input_ids,
@@ -517,7 +569,15 @@ class T5ForConditionalGeneration(BaseModel):
         src_np = nntc.to_numpy(input_ids).astype(np.int64)
         if src_np.ndim == 1:
             src_np = src_np.reshape(-1, 1)
+        # The caller (LlmSyncInferenceEngine) may already have padded
+        # the input up to enc_seq_len; if it has, `prefill_size` carries
+        # the *actual* source length, while src_np.shape[0] only tells
+        # us the padded length. Use prefill_size when it's set --
+        # without it the per-request padding mask would keep every
+        # position and the encoder would still attend to padding.
         actual_src_len = min(src_np.shape[0], enc_seq_len)
+        if prefill_size is not None and prefill_size > 0:
+            actual_src_len = min(actual_src_len, int(prefill_size))
         src_padded = np.full(
             (enc_seq_len, batch_size),
             self.pad_token_id,
@@ -525,6 +585,9 @@ class T5ForConditionalGeneration(BaseModel):
         )
         src_padded[:actual_src_len, :] = src_np[:actual_src_len, :batch_size]
         self.x_enc.value.from_array(src_padded)
+        # Stamp the encoder/cross-attn masks for this request so
+        # encoder self-attn and decoder cross-attn ignore pad columns.
+        self._apply_padding_mask(actual_src_len)
 
         # Decoder slot: start with [decoder_start_token_id, pad, pad, ...]
         # and grow it one token per step.
