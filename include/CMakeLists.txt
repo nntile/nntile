@@ -145,12 +145,14 @@ set(KERNEL_HDR
     "nntile/kernel/total_sum_accum/cpu.hh"
     "nntile/kernel/transpose.hh"
     "nntile/kernel/transpose/cpu.hh"
+    "nntile/kernel/accumulate_infnan.hh"
     )
 
 if(NNTILE_USE_CUDA)
     set(KERNEL_HDR
         ${KERNEL_HDR}
         "nntile/kernel/accumulate_maxsumexp/cuda.hh"
+        "nntile/kernel/accumulate_infnan/cuda.hh"
         "nntile/kernel/add/cuda.hh"
         "nntile/kernel/add_slice_inplace/cuda.hh"
         "nntile/kernel/add_inplace/cuda.hh"
