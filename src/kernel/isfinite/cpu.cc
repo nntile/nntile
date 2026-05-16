@@ -6,17 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/accumulate_infnan/cpu.cc
+ * @file src/kernel/isfinite/cpu.cc
  * Test whether at least one element of a buffer on CPU is NaN or Inf
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/accumulate_infnan/cpu.hh"
+#include "nntile/kernel/isfinite/cpu.hh"
 #include <cmath>
 #include "nntile/kernel/cpu.hh"
 
-namespace nntile::kernel::accumulate_infnan
+namespace nntile::kernel::isfinite
 {
 
 template<typename T>
@@ -32,22 +32,19 @@ void cpu(Index nelems, const T *src_, Index *dst)
  * NaN or Inf
  * */
 {
-    Index current_flag = 0;
+    if(dst[0] == 1)
+    {
+        return;
+    }
     using Y = typename T::repr_t;
-    Y src_val = 0;
     for(Index i = 0; i < nelems; ++i)
     {
-        src_val = static_cast<Y>(src_[i]);
+        Y src_val = static_cast<Y>(src_[i]);
         if(std::isnan(src_val) || std::isinf(src_val))
         {
-            current_flag = 1;
+            dst[0] = 1;
             break;
         }
-    }
-    // Update output value
-    if((current_flag == 1) && (dst[0] == 0))
-    {
-        dst[0] = current_flag;
     }
 }
 
@@ -72,4 +69,4 @@ void cpu<fp16_t>(Index nelems, const fp16_t *src,
         Index *dst)
     noexcept;
 
-} // namespace nntile::kernel::accumulate_infnan
+} // namespace nntile::kernel::isfinite

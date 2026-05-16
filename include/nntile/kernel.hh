@@ -77,7 +77,7 @@
 #include <nntile/kernel/norm_fiber.hh>
 #include <nntile/kernel/flash_sdpa_fwd_cudnn.hh>
 #include <nntile/kernel/flash_sdpa_bwd_cudnn.hh>
-#include <nntile/kernel/accumulate_infnan.hh>
+#include <nntile/kernel/isfinite.hh>
 
 
 //! @namespace nntile::kernel

@@ -85,7 +85,7 @@ if(NOT HAVE_STARPU_SIMGRID)
         "kernel/sumprod_slice/cpu.cc"
         "kernel/total_sum_accum/cpu.cc"
         "kernel/transpose/cpu.cc"
-        "kernel/accumulate_infnan/cpu.cc"
+        "kernel/isfinite/cpu.cc"
     )
 
     # CUDA-specific low-level kernels
@@ -159,7 +159,7 @@ if(NOT HAVE_STARPU_SIMGRID)
             "kernel/transpose/cuda.cu"
             "kernel/flash_sdpa_fwd_cudnn/cuda.cc"
             "kernel/flash_sdpa_bwd_cudnn/cuda.cc"
-            "kernel/accumulate_infnan/cuda.cu"
+            "kernel/isfinite/cuda.cu"
         )
     endif(NNTILE_USE_CUDA)
 endif(NOT HAVE_STARPU_SIMGRID)

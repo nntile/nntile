@@ -6,22 +6,24 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/accumulate_infnan/cpu.hh
- * Accumulate flags for Inf and NaN outputs on CPU
+ * @file include/nntile/kernel/isfinite.hh
+ * Accumulate flags for Inf and NaN values low-level kernel
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/base_types.hh>
+#include <nntile/kernel/isfinite/cpu.hh>
+#include <nntile/defs.h>
+#ifdef NNTILE_USE_CUDA
+#include <nntile/kernel/isfinite/cuda.hh>
+#endif // NNTILE_USE_CUDA
 
-namespace nntile::kernel::accumulate_infnan
+//! @namespace nntile::kernel::isfinite
+/*! Low-level implementations of accumulate Inf and NaN flags
+ * */
+namespace nntile::kernel::isfinite
 {
 
-// Accumulate flag for Inf and NaN values on CPU
-template<typename T>
-void cpu(Index nelems, const T *src_, Index *dst)
-    noexcept;
-
-} // namespace nntile::kernel::accumulate_infnan
+} // namespace nntile::kernel::isfinite
