@@ -285,6 +285,7 @@ set(STARPU_HDR
     "nntile/starpu/rope.hh"
     "nntile/starpu/rope_backward.hh"
     "nntile/starpu/log_scalar.hh"
+    "nntile/starpu/isfinite.hh"
     )
 
 set(TILE_HDR

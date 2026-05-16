@@ -245,6 +245,7 @@ set(STARPU_CODELET_SRC
     "starpu/sumprod_slice.cc"
     "starpu/total_sum_accum.cc"
     "starpu/transpose.cc"
+    "starpu/isfinite.cc"
 )
 
 # Basic Tile-related sources
