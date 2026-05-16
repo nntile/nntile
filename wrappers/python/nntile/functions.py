@@ -642,6 +642,32 @@ def norm_async(
     else:
         raise TypeError
 
+def isfinite_async(
+    x: Tensor,
+    flag: Tensor,
+) -> None:
+    """
+    Wrapper for multiprecision check of NaN and Inf values
+    """
+    if type(flag) is not Tensor_int64:
+        raise TypeError
+    if type(x) is ops.Tensor_fp32:
+        ops.isfinite_async_fp32(x, flag)
+    elif type(x) is ops.Tensor_fp32_fast_tf32:
+        ops.isfinite_async_fp32_fast_tf32(x, flag)
+    elif type(x) is ops.Tensor_fp32_fast_fp16:
+        ops.isfinite_async_fp32_fast_fp16(x, flag)
+    elif type(x) is ops.Tensor_fp32_fast_bf16:
+        ops.isfinite_async_fp32_fast_bf16(x, flag)
+    elif type(x) is ops.Tensor_fp64:
+        ops.isfinite_async_fp64(x, flag)
+    elif type(x) is ops.Tensor_bf16:
+        ops.isfinite_async_bf16(x, flag)
+    elif type(x) is ops.Tensor_fp16:
+        ops.isfinite_async_fp16(x, flag)
+    else:
+        raise TypeError
+
 
 def sum_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
     """

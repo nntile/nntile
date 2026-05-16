@@ -77,6 +77,9 @@ void isfinite_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A, const T
 template
 void isfinite_async<bf16_t>(const Tensor<bf16_t> &A, const Tensor<Index> &flag);
 
+template
+void isfinite_async<fp16_t>(const Tensor<fp16_t> &A, const Tensor<Index> &flag);
+
 
 // Explicit instantiation
 template
@@ -96,5 +99,8 @@ void isfinite<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A, const Tensor<
 
 template
 void isfinite<bf16_t>(const Tensor<bf16_t> &A, const Tensor<Index> &flag);
+
+template
+void isfinite<fp16_t>(const Tensor<fp16_t> &A, const Tensor<Index> &flag);
 
 } // namespace nntile::tensor

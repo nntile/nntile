@@ -57,6 +57,9 @@ template
 void isfinite_async<bf16_t>(const Tile<bf16_t> &A, const Tile<Index> &flag);
 
 template
+void isfinite_async<fp16_t>(const Tile<fp16_t> &A, const Tile<Index> &flag);
+
+template
 void isfinite_async<fp32_fast_tf32_t>(
         const Tile<fp32_fast_tf32_t> &A, const Tile<Index> &flag);
 
@@ -77,6 +80,9 @@ void isfinite<fp64_t>(const Tile<fp64_t> &A, const Tile<Index> &flag);
 
 template
 void isfinite<bf16_t>(const Tile<bf16_t> &A, const Tile<Index> &flag);
+
+template
+void isfinite<fp16_t>(const Tile<fp16_t> &A, const Tile<Index> &flag);
 
 template
 void isfinite<fp32_fast_tf32_t>(
