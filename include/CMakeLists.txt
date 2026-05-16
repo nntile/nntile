@@ -356,6 +356,7 @@ set(TILE_HDR
     "nntile/tile/transpose.hh"
     "nntile/tile/hypot_scalar_inverse.hh"
     "nntile/tile/log_scalar.hh"
+    "nntile/tile/isfinite.hh"
     )
 
 set(TENSOR_HDR

@@ -323,6 +323,7 @@ set(TILE_OPERATION_SRC
     "tile/sumprod_fiber.cc"
     "tile/sumprod_slice.cc"
     "tile/total_sum_accum.cc"
+    "tile/isfinite.cc"
 )
 
 # Tensor-related sources
