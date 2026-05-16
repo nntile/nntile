@@ -430,6 +430,7 @@ set(TENSOR_HDR
     "nntile/tensor/rope.hh"
     "nntile/tensor/log_scalar.hh"
     "nntile/tensor/rope_backward.hh"
+    "nntile/tensor/isfinite.hh"
     )
 
 set(GRAPH_TENSOR_HDR

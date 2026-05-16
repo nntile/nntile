@@ -92,6 +92,7 @@
 #include <nntile/tensor/log_scalar.hh>
 #include <nntile/tensor/flash_sdpa_fwd_cudnn.hh>
 #include <nntile/tensor/flash_sdpa_bwd_cudnn.hh>
+#include <nntile/tensor/isfinite.hh>
 
 //! @namespace nntile::tensor
 /*! This namespace holds high-level routines for Tensor<T>

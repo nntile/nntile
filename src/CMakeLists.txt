@@ -404,6 +404,7 @@ set(TENSOR_OPERATION_SRC
     "tensor/sumprod_slice.cc"
     "tensor/total_sum_accum.cc"
     "tensor/transpose.cc"
+    "tensor/isfinite.cc"
 )
 
 # Logger-related sources
