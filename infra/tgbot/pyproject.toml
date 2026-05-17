@@ -27,7 +27,7 @@ test = [
 nntile-tgbot = "nntile_tgbot.__main__:main"
 
 [tool.setuptools.packages.find]
-where = "."
+where = ["."]
 include = ["nntile_tgbot*"]
 
 [tool.pytest.ini_options]

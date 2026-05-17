@@ -29,7 +29,7 @@ test = [
 nntile-gateway = "nntile_gateway.__main__:main"
 
 [tool.setuptools.packages.find]
-where = "."
+where = ["."]
 include = ["nntile_gateway*"]
 
 [tool.pytest.ini_options]
