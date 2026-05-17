@@ -13,9 +13,14 @@
 
 from typing import Any, List
 
+import numpy as np
+
+import nntile.utils.constructors as nntc
 from nntile.model.base_model import BaseModel
 from nntile.nntile_core.starpu import iteration_pop, iteration_push
-from nntile.tensor import Tensor, clear_async, copy_async, log_scalar_async
+from nntile.tensor import (
+    Tensor, Tensor_bool, TensorTraits, clear_async, copy_async, isfinite_async,
+    log_scalar_async)
 
 
 class Pipeline(object):
@@ -79,6 +84,100 @@ class Pipeline(object):
                     for t in self.model.activations:
                         if t.grad_required:
                             t.grad.invalidate_submit()
+                # Apply optimizer after gradients for entire batch are
+                # accumulated
+                self.opt.step()
+                # Invalidate gradients of parameters and hint to offload
+                # parameters
+                for p in self.model.parameters:
+                    p.value.wont_use()
+                    if p.grad_required:
+                        p.grad.invalidate_submit()
+                # Limit parallelism through value of loss
+                if log_loss:
+                    log_scalar_async("Train loss", self.loss.val)
+                loss_np = self.loss.get_val()
+                self.loss_hist.append(loss_np[0])
+                # print("Loss in {} epoch = {}".format(i_epoch, loss_np[0]))
+                print("Batch={}/{} Epoch={}/{} Loss={}".format(
+                        i_batch + 1, num_batches, i_epoch + 1, self.n_epochs,
+                        loss_np[0]), flush=True)
+                # Finish current batch in the FXT trace
+                iteration_pop()
+            # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
+            # self.loss.get_val(nntile_xentropy_np)
+            # print("Last batch loss after in {} epoch = {}".format(
+            #       i_epoch, nntile_xentropy_np[0]))
+            # Finish current epoch in the FXT trace
+            iteration_pop()
+
+    def train_with_scaler_async(self, init_scale: float,
+                                      scaler_step: float,
+                                      log_loss: bool = True):
+        loss_scale = init_scale
+        traits_flag = TensorTraits([], [])
+        flag = Tensor_bool(traits_flag)
+        flag_init_val = 1
+        np_dst_init = np.array([flag_init_val], dtype=bool)
+        flag.from_array(np_dst_init)
+        for i_epoch in range(self.n_epochs):
+            # Provide epoch number to the FXT trace
+            iteration_push(i_epoch)
+            # print("Epoch ", i_epoch)
+            num_batches = len(self.x)
+            for i_batch, (x_batch, y_batch) in enumerate(zip(self.x, self.y)):
+                # Provide batch number to the FXT trace
+                iteration_push(i_batch)
+                while True:
+                    flag.from_array(np_dst_init)
+                    self.loss.scale = loss_scale
+                    # Zero out gradients of all weights
+                    self.model.clear_parameters_grads()
+                    clear_async(self.loss.val)
+                    # Accumulate gradients from subbatches
+                    for x_minibatch, y_minibatch in zip(x_batch, y_batch):
+                        # Clear gradients of inter-layer activations
+                        self.model.clear_activations_grads()
+                        # Copy input batch into activation[0] of the model
+                        copy_async(x_minibatch,
+                                   self.model.activations[0].value)
+                        # Perform forward pass
+                        self.model.forward_async()
+                        # Copy true result into loss function
+                        copy_async(y_minibatch, self.loss.y)
+                        # Loss function shall be instatiated to read X from
+                        # activations[-1].value of the model and write gradient
+                        # into activations[-1].grad
+                        self.loss.calc_async()
+                        # Now do the backward pass
+                        self.model.backward_async()
+                        # Invalidate activations[2:]. We have to keep
+                        # activations[1] as it holds positional embedding
+                        # indices, that are computed once
+                        if (self.model.config.name == "bert" or
+                            self.model.config.name == "roberta"):
+                            for t in self.model.activations[3:]:
+                                t.value.invalidate_submit()
+                        else:
+                            for t in self.model.activations[2:]:
+                                t.value.invalidate_submit()
+                        # Invalidate gradients of activations
+                        for t in self.model.activations:
+                            if t.grad_required:
+                                t.grad.invalidate_submit()
+                    isfinite_grads = True
+                    log_scalar_async("Train loss", self.loss.val)
+                    print("Scaler ", loss_scale)
+                    for p in self.model.parameters:
+                        if p.grad_required:
+                            isfinite_async(p.grad, flag)
+                            isfinite_grads = nntc.to_numpy(flag)[0]
+                            if not isfinite_grads:
+                                loss_scale *= scaler_step
+                                break
+                    if isfinite_grads:
+                        break
+
                 # Apply optimizer after gradients for entire batch are
                 # accumulated
                 self.opt.step()
