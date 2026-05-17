@@ -24,7 +24,7 @@ namespace nntile::tile
  *  @param[inout] flag: indicator of NaN or Inf values
  * */
 template<typename T>
-void isfinite_async(const Tile<T> &A, const Tile<Index> &flag)
+void isfinite_async(const Tile<T> &A, const Tile<bool_t> &flag)
 {
     int mpi_rank = starpu_mpi_world_rank();
     int a_rank = A.mpi_get_rank();
@@ -40,7 +40,7 @@ void isfinite_async(const Tile<T> &A, const Tile<Index> &flag)
  *  @param[inout] flag: indicator of NaN or Inf values
  * */
 template<typename T>
-void isfinite(const Tile<T> &A, const Tile<Index> &flag)
+void isfinite(const Tile<T> &A, const Tile<bool_t> &flag)
 {
     isfinite_async<T>(A, flag);
     starpu_task_wait_for_all();
@@ -48,52 +48,52 @@ void isfinite(const Tile<T> &A, const Tile<Index> &flag)
 
 // Explicit instantiation
 template
-void isfinite_async<fp32_t>(const Tile<fp32_t> &A, const Tile<Index> &flag);
+void isfinite_async<fp32_t>(const Tile<fp32_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite_async<fp64_t>(const Tile<fp64_t> &A, const Tile<Index> &flag);
+void isfinite_async<fp64_t>(const Tile<fp64_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite_async<bf16_t>(const Tile<bf16_t> &A, const Tile<Index> &flag);
+void isfinite_async<bf16_t>(const Tile<bf16_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite_async<fp16_t>(const Tile<fp16_t> &A, const Tile<Index> &flag);
+void isfinite_async<fp16_t>(const Tile<fp16_t> &A, const Tile<bool_t> &flag);
 
 template
 void isfinite_async<fp32_fast_tf32_t>(
-        const Tile<fp32_fast_tf32_t> &A, const Tile<Index> &flag);
+        const Tile<fp32_fast_tf32_t> &A, const Tile<bool_t> &flag);
 
 template
 void isfinite_async<fp32_fast_fp16_t>(
-        const Tile<fp32_fast_fp16_t> &A, const Tile<Index> &flag);
+        const Tile<fp32_fast_fp16_t> &A, const Tile<bool_t> &flag);
 
 template
 void isfinite_async<fp32_fast_bf16_t>(
-        const Tile<fp32_fast_bf16_t> &A, const Tile<Index> &flag);
+        const Tile<fp32_fast_bf16_t> &A, const Tile<bool_t> &flag);
 
 // Explicit instantiation
 template
-void isfinite<fp32_t>(const Tile<fp32_t> &A, const Tile<Index> &flag);
+void isfinite<fp32_t>(const Tile<fp32_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite<fp64_t>(const Tile<fp64_t> &A, const Tile<Index> &flag);
+void isfinite<fp64_t>(const Tile<fp64_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite<bf16_t>(const Tile<bf16_t> &A, const Tile<Index> &flag);
+void isfinite<bf16_t>(const Tile<bf16_t> &A, const Tile<bool_t> &flag);
 
 template
-void isfinite<fp16_t>(const Tile<fp16_t> &A, const Tile<Index> &flag);
+void isfinite<fp16_t>(const Tile<fp16_t> &A, const Tile<bool_t> &flag);
 
 template
 void isfinite<fp32_fast_tf32_t>(
-        const Tile<fp32_fast_tf32_t> &A, const Tile<Index> &flag);
+        const Tile<fp32_fast_tf32_t> &A, const Tile<bool_t> &flag);
 
 template
 void isfinite<fp32_fast_fp16_t>(
-        const Tile<fp32_fast_fp16_t> &A, const Tile<Index> &flag);
+        const Tile<fp32_fast_fp16_t> &A, const Tile<bool_t> &flag);
 
 template
 void isfinite<fp32_fast_bf16_t>(
-        const Tile<fp32_fast_bf16_t> &A, const Tile<Index> &flag);
+        const Tile<fp32_fast_bf16_t> &A, const Tile<bool_t> &flag);
 
 } // namespace nntile::tile

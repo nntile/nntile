@@ -649,7 +649,7 @@ def isfinite_async(
     """
     Wrapper for multiprecision check of NaN and Inf values
     """
-    if type(flag) is not Tensor_int64:
+    if type(flag) is not Tensor_bool:
         raise TypeError
     if type(x) is ops.Tensor_fp32:
         ops.isfinite_async_fp32(x, flag)

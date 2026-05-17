@@ -21,10 +21,10 @@ namespace nntile::tile
 
 // Asynchronous tile-wise power operation
 template<typename T>
-void isfinite_async(const Tile<T> &A, const Tile<Index> &flag);
+void isfinite_async(const Tile<T> &A, const Tile<bool_t> &flag);
 
 // Blocking version of tile-wise power operation
 template<typename T>
-void isfinite(const Tile<T> &A, const Tile<Index> &flag);
+void isfinite(const Tile<T> &A, const Tile<bool_t> &flag);
 
 } // namespace nntile::tile

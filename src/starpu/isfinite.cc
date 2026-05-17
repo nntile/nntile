@@ -44,7 +44,7 @@ void Isfinite<std::tuple<T>>::cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
-    Index *flag = interfaces[1]->get_ptr<Index>();
+    bool_t *flag = interfaces[1]->get_ptr<bool_t>();
     // Launch kernel
     kernel::isfinite::cpu<T>(args->nelems, data, flag);
 #endif // STARPU_SIMGRID
@@ -87,7 +87,7 @@ void Isfinite<std::tuple<T>>::cuda(void *buffers[], void *cl_args)
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
-    Index *flag = interfaces[1]->get_ptr<Index>();
+    bool_t *flag = interfaces[1]->get_ptr<bool_t>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel

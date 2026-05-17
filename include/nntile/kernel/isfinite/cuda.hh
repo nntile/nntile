@@ -22,7 +22,7 @@ namespace nntile::kernel::isfinite
 
 // Accumulate flags for Inf and NaN values on CUDA
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *src, Index *dst)
+void cuda(cudaStream_t stream, Index nelems, const T *src, bool_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::isfinite

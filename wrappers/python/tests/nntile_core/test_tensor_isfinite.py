@@ -23,7 +23,7 @@ import nntile.utils.constructors as nntc
 Tensor = {
     np.float32: nntile.tensor.Tensor_fp32,
     np.float64: nntile.tensor.Tensor_fp64,
-    np.int64: nntile.tensor.Tensor_int64
+    bool: nntile.tensor.Tensor_bool
 }
 
 # Define mapping between tested function and numpy type
@@ -56,11 +56,12 @@ def get_ref_value(src):
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
+@pytest.mark.parametrize('first_element', [1, float('inf'), -float('inf'), float('nan')])
 @pytest.mark.parametrize('params', [
     pytest.param(single_tile, id='single_tile'),
     pytest.param(multiple_tiles, id='multiple_tiles'),
 ])
-def test_norm_async(context, dtype, params):
+def test_isfinite_async(context, dtype, params, first_element):
     src_shape = params.shape
     src_tile = params.shape_tile
     flag_shape = []  # scalar tensor (empty shape)
@@ -72,12 +73,13 @@ def test_norm_async(context, dtype, params):
     traits_src = nntile.tensor.TensorTraits(src_shape, src_tile)
     src = Tensor[dtype](traits_src)
     np_src = rng.random(src_shape).astype(dtype, order='F')
+    np_src[0] = first_element
     src.from_array(np_src)
 
     traits_flag = nntile.tensor.TensorTraits(flag_shape, flag_tile)
-    flag = Tensor[np.int64](traits_flag)
+    flag = Tensor[bool](traits_flag)
     flag_init_val = 0
-    np_dst_init = np.array([flag_init_val], dtype=dtype)
+    np_dst_init = np.array([flag_init_val], dtype=bool)
     flag.from_array(np_dst_init)
 
     # actual calculations
@@ -87,4 +89,6 @@ def test_norm_async(context, dtype, params):
     ref = get_ref_value(np_src)
     nntile_result = nntc.to_numpy(flag)
 
-    assert np.allclose(nntile_result.flatten(), [ref], rtol=1e-5, atol=1e-6)
+    print(nntile_result, ref)
+
+    assert np.allclose(nntile_result.flatten(), [ref])

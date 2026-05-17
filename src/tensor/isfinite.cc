@@ -24,7 +24,7 @@ namespace nntile::tensor
 // @param[inout] A: Tensor for check NaN or Inf values
 // @param[inout] flag: Tensor to store the result of checks
 template<typename T>
-void isfinite_async(const Tensor<T> &A, const Tensor<Index> &flag)
+void isfinite_async(const Tensor<T> &A, const Tensor<bool_t> &flag)
 {
     // Check dimensions
     if(flag.ndim != 0)
@@ -51,7 +51,7 @@ void isfinite_async(const Tensor<T> &A, const Tensor<Index> &flag)
 // @param[inout] A: Tensor for the element-wise check NaN or Inf values
 // @param[inout] flag: Tensor to store the result of checks
 template<typename T>
-void isfinite(const Tensor<T> &A, const Tensor<Index> &flag)
+void isfinite(const Tensor<T> &A, const Tensor<bool_t> &flag)
 {
     isfinite_async<T>(A, flag);
     starpu_task_wait_for_all();
@@ -60,47 +60,47 @@ void isfinite(const Tensor<T> &A, const Tensor<Index> &flag)
 
 // Explicit instantiation
 template
-void isfinite_async<fp32_t>(const Tensor<fp32_t> &A, const Tensor<Index> &flag);
+void isfinite_async<fp32_t>(const Tensor<fp32_t> &A, const Tensor<bool_t> &flag);
 
 template
-void isfinite_async<fp64_t>(const Tensor<fp64_t> &A, const Tensor<Index> &flag);
+void isfinite_async<fp64_t>(const Tensor<fp64_t> &A, const Tensor<bool_t> &flag);
 
 template
-void isfinite_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A, const Tensor<Index> &flag);
+void isfinite_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A, const Tensor<bool_t> &flag);
 
 template
-void isfinite_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A, const Tensor<Index> &flag);
+void isfinite_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A, const Tensor<bool_t> &flag);
 
 template
-void isfinite_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A, const Tensor<Index> &flag);
+void isfinite_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A, const Tensor<bool_t> &flag);
 
 template
-void isfinite_async<bf16_t>(const Tensor<bf16_t> &A, const Tensor<Index> &flag);
+void isfinite_async<bf16_t>(const Tensor<bf16_t> &A, const Tensor<bool_t> &flag);
 
 template
-void isfinite_async<fp16_t>(const Tensor<fp16_t> &A, const Tensor<Index> &flag);
+void isfinite_async<fp16_t>(const Tensor<fp16_t> &A, const Tensor<bool_t> &flag);
 
 
 // Explicit instantiation
 template
-void isfinite<fp32_t>(const Tensor<fp32_t> &A, const Tensor<Index> &flag);
+void isfinite<fp32_t>(const Tensor<fp32_t> &A, const Tensor<bool_t> &flag);
 
 template
-void isfinite<fp64_t>(const Tensor<fp64_t> &A, const Tensor<Index> &flag);
+void isfinite<fp64_t>(const Tensor<fp64_t> &A, const Tensor<bool_t> &flag);
 
 template
-void isfinite<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A, const Tensor<Index> &flag);
+void isfinite<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &A, const Tensor<bool_t> &flag);
 
 template
-void isfinite<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A, const Tensor<Index> &flag);
+void isfinite<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &A, const Tensor<bool_t> &flag);
 
 template
-void isfinite<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A, const Tensor<Index> &flag);
+void isfinite<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &A, const Tensor<bool_t> &flag);
 
 template
-void isfinite<bf16_t>(const Tensor<bf16_t> &A, const Tensor<Index> &flag);
+void isfinite<bf16_t>(const Tensor<bf16_t> &A, const Tensor<bool_t> &flag);
 
 template
-void isfinite<fp16_t>(const Tensor<fp16_t> &A, const Tensor<Index> &flag);
+void isfinite<fp16_t>(const Tensor<fp16_t> &A, const Tensor<bool_t> &flag);
 
 } // namespace nntile::tensor

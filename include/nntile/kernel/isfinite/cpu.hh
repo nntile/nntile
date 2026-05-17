@@ -21,7 +21,7 @@ namespace nntile::kernel::isfinite
 
 // Accumulate flag for Inf and NaN values on CPU
 template<typename T>
-void cpu(Index nelems, const T *src_, Index *dst)
+void cpu(Index nelems, const T *src_, bool_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::isfinite

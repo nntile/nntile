@@ -21,10 +21,10 @@ namespace nntile::tensor
 
 // Tensor-wise norm
 template<typename T>
-void isfinite_async(const Tensor<T> &src, const Tensor<Index> &flag);
+void isfinite_async(const Tensor<T> &src, const Tensor<bool_t> &flag);
 
 // Tensor-wise norm
 template<typename T>
-void isfinite(const Tensor<T> &src, const Tensor<Index> &flag);
+void isfinite(const Tensor<T> &src, const Tensor<bool_t> &flag);
 
 } // namespace nntile::tensor

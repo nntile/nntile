@@ -20,7 +20,7 @@ namespace nntile::kernel::isfinite
 {
 
 template<typename T>
-void cpu(Index nelems, const T *src_, Index *dst)
+void cpu(Index nelems, const T *src_, bool_t *dst)
     noexcept
 //! Test the given array on NaN of Inf values
 /*! For a provided input array of nelems elements test
@@ -32,7 +32,7 @@ void cpu(Index nelems, const T *src_, Index *dst)
  * NaN or Inf
  * */
 {
-    if(dst[0] == 1)
+    if(bool_t::repr_t{dst[0]} == 1)
     {
         return;
     }
@@ -51,22 +51,22 @@ void cpu(Index nelems, const T *src_, Index *dst)
 // Explicit instantiation
 template
 void cpu<fp32_t>(Index nelems, const fp32_t *src,
-        Index *dst)
+        bool_t *dst)
     noexcept;
 
 template
 void cpu<fp64_t>(Index nelems, const fp64_t *src,
-        Index *dst)
+        bool_t *dst)
     noexcept;
 
 template
 void cpu<bf16_t>(Index nelems, const bf16_t *src,
-        Index *dst)
+        bool_t *dst)
     noexcept;
 
 template
 void cpu<fp16_t>(Index nelems, const fp16_t *src,
-        Index *dst)
+        bool_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::isfinite
