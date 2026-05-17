@@ -80,11 +80,6 @@ this step has to be redone every time you restart the gateway
 container. To survive restarts use the SQLite storage backend (set
 `NNTILE_GATEWAY_STORAGE=sqlite` and `NNTILE_GATEWAY_SQLITE_PATH=...`).
 
-> **`docker exec -i …`** is intentional: without `-i` the heredoc
-> bytes never reach the container's stdin, Python sees EOF immediately
-> and exits silently. `-u` keeps stdout unbuffered so per-model
-> "ready" lines arrive as each load finishes rather than at the end.
-
 ```bash
 docker exec -i nntile-gw python -u - <<'PY'
 import urllib.request, json, os, time
@@ -207,7 +202,7 @@ See [`tgbot/nntile_tgbot/config.py`](tgbot/nntile_tgbot/config.py).
 
 ---
 
-## Why does the bot need an HTTP proxy?
+## HTTP proxy
 
 If your host needs an outbound proxy to reach `api.telegram.org` (corporate
 network etc.), forward it into the bot container via
