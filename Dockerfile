@@ -220,10 +220,34 @@ ARG CUDA_ARCHS
 ADD . /workspace/nntile
 
 # Configure the NNTile
+#
+# CMAKE_DISABLE_FIND_PACKAGE_pybind11=ON forces FetchContent to pull
+# pybind11 v2.11.0 from the in-tree external/pybind11 declaration
+# instead of using whatever pybind11 conda transitively installed.
+# Newer pybind11 versions have stricter type_caster SFINAE that fails
+# to compile TileGraph (which holds vector<unique_ptr<...>>) even
+# though the host build (which also lacks an installed pybind11 and
+# therefore falls back to 2.11.0) succeeds. Matches the host's working
+# CMakeCache.
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS} \
     -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
+    -DCMAKE_DISABLE_FIND_PACKAGE_pybind11=ON \
     -GNinja
 
 # Finally, build the NNTile inplace without installation
 RUN cmake --build build -j ${MAKE_JOBS}
+
+# Install the inference gateway and Telegram bot service packages in
+# editable mode against the same conda env that already has nntile on
+# PYTHONPATH. With this, the same image can run either
+# `python -m nntile_gateway` (HTTP gateway, needs --gpus) or
+# `python -m nntile_tgbot` (Telegram front-end, no GPU) -- or both in
+# parallel as two containers / two processes. pip pulls in the
+# missing transitive deps (cachetools for the gateway; aiogram, httpx
+# for the bot). See infra/README.md for deployment recipes.
+RUN pip install -e infra/gateway && pip install -e infra/tgbot
+
+# Default port for the gateway's HTTP API. The bot does not listen on
+# any port (it long-polls the Telegram API outbound).
+EXPOSE 8000

@@ -1,2 +1,12 @@
 .*
 build*
+# HF weights pulled at runtime, not needed in the image
+cache_hf/
+**/cache_hf/
+# Local tarball extractions from manual host-side builds. The tracked
+# `external/{cudnn_frontend,pybind11,googletest,nvbench}` git submodules
+# ARE needed by cmake and must NOT be ignored.
+external/starpu-1.4.7/
+# pip editable metadata from local installs
+**/*.egg-info/
+**/__pycache__/
