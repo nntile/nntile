@@ -51,12 +51,13 @@ multiple_tiles = NormTestParams(
 
 
 def get_ref_value(src):
-    # Compute Euclidean norm of all elements in src
-    return np.any(np.isfinite(src) == False)
+    # Check whether any element equals to NaN or Inf
+    return np.all(np.isfinite(src))
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
-@pytest.mark.parametrize('first_element', [1, float('inf'), -float('inf'), float('nan')])
+@pytest.mark.parametrize('first_element',
+                         [1, float('inf'), -float('inf'), float('nan')])
 @pytest.mark.parametrize('params', [
     pytest.param(single_tile, id='single_tile'),
     pytest.param(multiple_tiles, id='multiple_tiles'),
@@ -78,7 +79,7 @@ def test_isfinite_async(context, dtype, params, first_element):
 
     traits_flag = nntile.tensor.TensorTraits(flag_shape, flag_tile)
     flag = Tensor[bool](traits_flag)
-    flag_init_val = 0
+    flag_init_val = 1
     np_dst_init = np.array([flag_init_val], dtype=bool)
     flag.from_array(np_dst_init)
 
@@ -89,6 +90,6 @@ def test_isfinite_async(context, dtype, params, first_element):
     ref = get_ref_value(np_src)
     nntile_result = nntc.to_numpy(flag)
 
-    print(nntile_result, ref)
+    # print(nntile_result, ref, first_element)
 
     assert np.allclose(nntile_result.flatten(), [ref])

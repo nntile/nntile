@@ -32,7 +32,7 @@ void cpu(Index nelems, const T *src_, bool_t *dst)
  * NaN or Inf
  * */
 {
-    if(bool_t::repr_t{dst[0]} == 1)
+    if(bool_t::repr_t{dst[0]} == 0)
     {
         return;
     }
@@ -42,7 +42,7 @@ void cpu(Index nelems, const T *src_, bool_t *dst)
         Y src_val = static_cast<Y>(src_[i]);
         if(std::isnan(src_val) || std::isinf(src_val))
         {
-            dst[0] = 1;
+            dst[0] = 0;
             break;
         }
     }

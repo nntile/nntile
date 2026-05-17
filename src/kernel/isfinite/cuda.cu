@@ -24,7 +24,7 @@ static __global__
 void cuda_kernel(Index nelems, const T *src, bool_t *dst)
 {
 
-    if(bool_t::repr_t{dst[0]} == 1)
+    if(bool_t::repr_t{dst[0]} == 0)
     {
         return;
     }
@@ -37,7 +37,7 @@ void cuda_kernel(Index nelems, const T *src, bool_t *dst)
         // Check for NaN or Inf
         if(isnan(val) || isinf(val))
         {
-            dst[0] = 1;
+            dst[0] = 0;
         }
     }
 }

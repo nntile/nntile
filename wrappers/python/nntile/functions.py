@@ -642,6 +642,7 @@ def norm_async(
     else:
         raise TypeError
 
+
 def isfinite_async(
     x: Tensor,
     flag: Tensor,
