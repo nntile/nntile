@@ -58,18 +58,19 @@ echo "$ADMIN_TOKEN" > /tmp/nntile-admin-token
 docker run -d --rm --name nntile-gw \
     --gpus all \
     --network nntile-net \
-    -p 8000:8000 \
+    -p 14000:14000 \
     -e NNTILE_ADMIN_TOKEN=$ADMIN_TOKEN \
     -e NNTILE_GATEWAY_HOST=0.0.0.0 \
-    -e NNTILE_GATEWAY_PORT=8000 \
+    -e NNTILE_GATEWAY_PORT=14000 \
     -e NNTILE_GATEWAY_NCPU=1 \
     -e NNTILE_GATEWAY_NCUDA=1 \
+    -e CUDA_VISIBLE_DEVICES=1 \
     -v $HOME/.cache/nntile-hf:/workspace/nntile/cache_hf \
     nntile:latest \
     python -m nntile_gateway
 
 # Wait for /healthz
-until curl -sf http://localhost:8000/healthz >/dev/null; do sleep 2; done
+until curl -sf http://localhost:14000/healthz >/dev/null; do sleep 2; done
 ```
 
 ### 3. Register a few models and issue an API key
@@ -79,12 +80,17 @@ this step has to be redone every time you restart the gateway
 container. To survive restarts use the SQLite storage backend (set
 `NNTILE_GATEWAY_STORAGE=sqlite` and `NNTILE_GATEWAY_SQLITE_PATH=...`).
 
+> **`docker exec -i …`** is intentional: without `-i` the heredoc
+> bytes never reach the container's stdin, Python sees EOF immediately
+> and exits silently. `-u` keeps stdout unbuffered so per-model
+> "ready" lines arrive as each load finishes rather than at the end.
+
 ```bash
-docker exec nntile-gw python - <<'PY'
+docker exec -i nntile-gw python -u - <<'PY'
 import urllib.request, json, os, time
 ADMIN = open("/tmp/nntile-admin-token").read().strip() if False \
     else os.environ["NNTILE_ADMIN_TOKEN"]
-BASE = "http://127.0.0.1:8000"
+BASE = "http://127.0.0.1:14000"
 opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 def post(path, body, timeout=900):
@@ -164,71 +170,6 @@ talking to Telegram.
 docker stop nntile-bot nntile-gw
 docker network rm nntile-net
 ```
-
----
-
-## Recipe B — one container, both processes
-
-For quick experimentation on a single host where you want a single
-`docker run` to give you everything. The shell script starts the
-gateway, registers a couple of models, issues a key, then runs the bot
-in the foreground. When the bot exits, the gateway gets cleaned up.
-
-```bash
-ADMIN_TOKEN=$(openssl rand -hex 32)
-BOT_TOKEN=...   # from @BotFather
-
-docker run --rm -it --gpus all -p 8000:8000 \
-    -e NNTILE_ADMIN_TOKEN=$ADMIN_TOKEN \
-    -e NNTILE_TGBOT_TOKEN=$BOT_TOKEN \
-    -e HTTPS_PROXY="$HTTPS_PROXY" \
-    -e HTTP_PROXY="$HTTP_PROXY" \
-    -v $HOME/.cache/nntile-hf:/workspace/nntile/cache_hf \
-    nntile:latest bash -c '
-set -euo pipefail
-
-# 1. Start gateway in background
-NNTILE_GATEWAY_HOST=127.0.0.1 \
-NNTILE_GATEWAY_NCPU=1 NNTILE_GATEWAY_NCUDA=1 \
-python -m nntile_gateway >/tmp/gw.log 2>&1 &
-GW_PID=$!
-trap "kill $GW_PID 2>/dev/null || true" EXIT
-
-# 2. Wait for /healthz
-until curl -sf http://127.0.0.1:8000/healthz >/dev/null; do sleep 2; done
-
-# 3. Register one model + issue a key
-python - <<PY
-import os, json, urllib.request
-ADMIN = os.environ["NNTILE_ADMIN_TOKEN"]
-opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-def post(path, body, timeout=900):
-    req = urllib.request.Request(
-        f"http://127.0.0.1:8000{path}",
-        headers={"Authorization": f"Bearer {ADMIN}",
-                 "Content-Type": "application/json"},
-        data=json.dumps(body).encode(), method="POST",
-    )
-    return json.loads(opener.open(req, timeout=timeout).read())
-print(post("/admin/models", {
-    "id":"tinyllama","family":"llama",
-    "hf_name":"TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "max_seq_len":256,"dtype":"fp32","batch_size":1,
-    "cache_dir":"cache_hf"}))
-open("/tmp/key","w").write(post("/admin/keys",{"name":"local"})["key"])
-PY
-
-# 4. Run the bot in the foreground
-NNTILE_TGBOT_GATEWAY_URL=http://127.0.0.1:8000 \
-NNTILE_TGBOT_API_KEY="$(cat /tmp/key)" \
-exec python -m nntile_tgbot
-'
-```
-
-Trade-offs vs Recipe A:
-- Pros: single command, no service-discovery setup.
-- Cons: one log stream, gateway dies with the bot, no independent
-  restart, GPU exclusivity per-container instead of per-service.
 
 ---
 
