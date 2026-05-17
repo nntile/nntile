@@ -14,6 +14,13 @@ from threading import Lock
 
 @dataclass
 class ChatState:
+    """Per-chat conversation state.
+
+    `selected_model` is None until the user runs `/select`. `history`
+    is a bounded deque (cap set by `ChatStore.history_turns`) so a
+    long-running chat doesn't grow unbounded -- old turns are dropped
+    silently as new ones arrive."""
+
     selected_model: str | None = None
     # max_seq_len of the selected model, used by handlers to cap
     # outgoing max_tokens so we don't bounce off the gateway's
@@ -36,6 +43,7 @@ class ChatStore:
         self._lock = Lock()
 
     def get(self, chat_id: int) -> ChatState:
+        """Fetch (or lazily create) the state record for a chat."""
         with self._lock:
             state = self._states.get(chat_id)
             if state is None:
@@ -47,6 +55,11 @@ class ChatStore:
         self, chat_id: int, model_id: str,
         max_seq_len: int | None = None,
     ) -> None:
+        """Record a model selection and clear prior conversation.
+
+        Switching to a different model invalidates the assistant
+        context (different tokenizer, different chat template), so we
+        drop the history rather than feed a Llama transcript to T5."""
         with self._lock:
             state = self._states.get(chat_id)
             if state is None:
@@ -54,10 +67,10 @@ class ChatStore:
                 self._states[chat_id] = state
             state.selected_model = model_id
             state.selected_max_seq_len = max_seq_len
-            # Switching model invalidates prior assistant context.
             state.history.clear()
 
     def append(self, chat_id: int, role: str, content: str) -> None:
+        """Add one user/assistant turn to the history deque."""
         with self._lock:
             state = self._states.get(chat_id)
             if state is None:
@@ -66,6 +79,7 @@ class ChatStore:
             state.history.append({"role": role, "content": content})
 
     def messages(self, chat_id: int) -> list[dict[str, str]]:
+        """Snapshot of the chat's message history (most recent last)."""
         with self._lock:
             state = self._states.get(chat_id)
             if state is None:
@@ -73,6 +87,7 @@ class ChatStore:
             return list(state.history)
 
     def reset(self, chat_id: int) -> None:
+        """Forget the message history but keep the selected model."""
         with self._lock:
             state = self._states.get(chat_id)
             if state is not None:

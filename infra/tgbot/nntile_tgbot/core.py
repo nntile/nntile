@@ -1,9 +1,11 @@
-"""
-Pure async logic for the bot, independent of aiogram.
+"""Pure async logic for the bot, independent of aiogram.
 
-Each function takes the gateway client + chat store + chat/user identifiers
-explicitly and returns a string (the reply to send) or a structured result.
-That keeps unit tests free of Telegram primitives.
+Every command's behaviour lives here as a free function taking the
+gateway client + chat store + chat/user identifiers explicitly, and
+returning either a string (the reply text) or a structured result
+(`ModelListReply` for /models, where the renderer also needs the
+inline-keyboard buttons). That keeps unit tests free of Telegram
+primitives -- the aiogram layer in `handlers.py` is a thin shim.
 """
 
 from __future__ import annotations
@@ -27,6 +29,11 @@ WELCOME = (
 
 
 def is_authorized(user_id: int | None, allowed: set[int]) -> bool:
+    """True if `user_id` is allowed to talk to the bot.
+
+    An empty `allowed` set means "open to anyone" (still gated by the
+    gateway API key). With an allowlist set, missing/unknown users
+    are rejected silently (the handler simply returns)."""
     if not allowed:
         return True
     return user_id is not None and user_id in allowed
@@ -34,17 +41,32 @@ def is_authorized(user_id: int | None, allowed: set[int]) -> bool:
 
 @dataclass(frozen=True)
 class ModelButton:
+    """One inline-keyboard button shown for `/models`.
+
+    `callback_data` is a `select:<id>` payload parsed back by
+    `parse_select_callback` when the user taps."""
+
     label: str
     callback_data: str
 
 
 @dataclass(frozen=True)
 class ModelListReply:
+    """Rendered response for `/models`: text body + optional buttons.
+
+    Buttons are only included for models in the `ready` state -- a
+    loading or errored model is listed in the text but isn't tappable."""
+
     text: str
     buttons: list[ModelButton]
 
 
 async def handle_models(client: GatewayClient) -> ModelListReply:
+    """Build the response to a `/models` command.
+
+    Lists every model the gateway exposes with family/status decoration.
+    Ready models also get an inline-keyboard button so the user can
+    tap to select rather than typing `/select <id>`."""
     try:
         models = await client.list_models()
     except GatewayError as exc:
@@ -76,6 +98,11 @@ async def handle_select(
     chat_id: int,
     model_id: str,
 ) -> str:
+    """Validate `model_id` against the gateway and stash it in state.
+
+    Also caches the model's `max_seq_len` so `handle_text` can cap the
+    outgoing `max_tokens` and avoid bouncing off the gateway's 400
+    for short-seq models like flan-t5-small."""
     model_id = model_id.strip()
     if not model_id:
         return "Usage: /select <model_id>. See /models for the list."
@@ -104,6 +131,7 @@ async def handle_select(
 
 
 def handle_current(store: ChatStore, chat_id: int) -> str:
+    """Response to `/current`: which model is currently selected?"""
     state = store.get(chat_id)
     if not state.selected_model:
         return "No model selected. Use /models then /select <id>."
@@ -111,6 +139,7 @@ def handle_current(store: ChatStore, chat_id: int) -> str:
 
 
 def handle_reset(store: ChatStore, chat_id: int) -> str:
+    """Response to `/reset`: drop the message history (keep the model)."""
     store.reset(chat_id)
     return "Conversation history cleared."
 
@@ -122,6 +151,13 @@ async def handle_text(
     text: str,
     max_tokens: int,
 ) -> str:
+    """Default handler for plain user messages -> chat completion.
+
+    Posts the full message history to `/v1/chat/completions` and
+    returns the assistant reply. On a `GatewayError` (or any other
+    failure mode like the gateway crashing mid-request) the user
+    sees a "Gateway error: ..." string and the failed user turn is
+    rolled back so a retry doesn't double-count it."""
     text = text.strip()
     if not text:
         return ""

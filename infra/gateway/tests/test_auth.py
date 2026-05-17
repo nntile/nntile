@@ -1,3 +1,7 @@
+"""Auth primitives in isolation: key generation and hashing,
+`AdminAuth` accept/reject, `ApiKeyAuth` cache hit/miss with
+invalidation, and the expiry guard."""
+
 import time
 
 import pytest

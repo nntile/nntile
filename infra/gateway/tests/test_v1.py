@@ -1,3 +1,8 @@
+"""OpenAI-compatible /v1/* routes: model listing, completions
+and chat-completions happy paths, error paths (unknown model,
+missing/revoked key), and the cache-invalidation hook after
+revoking a key."""
+
 from tests.conftest import admin_headers
 
 MODEL_PAYLOAD = {

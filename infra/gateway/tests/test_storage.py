@@ -1,3 +1,8 @@
+"""Storage-backend contract test, run against both
+`InMemoryStorage` and `SqliteStorage` via parametrization.
+Plus a persistence check that `SqliteStorage` round-trips
+across reopens."""
+
 import time
 
 import pytest

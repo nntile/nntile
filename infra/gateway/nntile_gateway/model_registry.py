@@ -1,3 +1,12 @@
+"""In-process registry of materialized inference engines.
+
+Backs the `/admin/models` and `/v1/models` routes. Holds two things
+for each registered model: its `ModelSpec` (also persisted in
+`Storage`) and the live `engine` object the loader produced (held
+only in memory, never persisted). Restarting the server uses
+`rehydrate_from_storage` to rebuild the engines for every persisted
+spec."""
+
 import threading
 import time
 from dataclasses import dataclass
@@ -10,11 +19,16 @@ from nntile_gateway.storage.base import ModelRecord, Storage
 
 @dataclass
 class LoadedModel:
+    """One entry in the registry: spec + live engine + load state.
+
+    `engine` is duck-typed -- could be a `GatewayEngine` (causal LM /
+    T5) or an `EmbeddingEngine` / `FillMaskEngine` (BERT/RoBERTa).
+    Endpoints route by `hasattr(engine, "generate" | "embed" |
+    "fill_mask")` rather than by family."""
+
     spec: ModelSpec
     status: Literal["loading", "ready", "error"]
     error: str | None = None
-    # GatewayEngine (causal/seq2seq) or EmbeddingEngine (encoder-only).
-    # Endpoints route by hasattr(engine, "generate" | "embed").
     engine: Any = None
     created_at: float = 0.0
 
@@ -33,6 +47,12 @@ class ModelRegistry:
         self._lock = threading.Lock()
 
     def register(self, spec: ModelSpec) -> LoadedModel:
+        """Load `spec` and persist it. Synchronous: model weights are
+        in GPU memory by the time this returns.
+
+        Raises `ValueError` if `spec.id` is already registered, or any
+        loader exception (after rolling the in-memory entry back so a
+        retry is clean)."""
         with self._lock:
             if spec.id in self._models:
                 raise ValueError(f"model {spec.id!r} already registered")
@@ -86,20 +106,28 @@ class ModelRegistry:
         return loaded
 
     def unregister(self, model_id: str) -> bool:
+        """Drop a model from memory and storage.
+
+        Returns True if anything was removed. The engine object is
+        released to the GC; nntile-side tensor cleanup is the engine's
+        responsibility (most just go out of scope)."""
         with self._lock:
             removed = self._models.pop(model_id, None) is not None
             self._storage.remove_model(model_id)
             return removed
 
     def get(self, model_id: str) -> LoadedModel | None:
+        """Look up a registered model by id; None if unknown."""
         with self._lock:
             return self._models.get(model_id)
 
     def list(self) -> list[LoadedModel]:
+        """Snapshot of every registered model in the registry."""
         with self._lock:
             return list(self._models.values())
 
     def to_info(self, loaded: LoadedModel) -> ModelInfo:
+        """Project a `LoadedModel` to the public `ModelInfo` shape."""
         return ModelInfo(
             id=loaded.spec.id,
             family=loaded.spec.family,

@@ -1,3 +1,7 @@
+"""Admin endpoints: `/admin/models` register/list/delete and
+`/admin/keys` create/list/revoke. Covers token gating, error
+paths, and duplicate detection."""
+
 from tests.conftest import admin_headers
 
 MODEL_PAYLOAD = {

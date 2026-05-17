@@ -25,6 +25,7 @@ log = logging.getLogger(__name__)
 
 
 def _keyboard(reply) -> InlineKeyboardMarkup | None:
+    """Convert a `ModelListReply` button list into an aiogram keyboard."""
     if not reply.buttons:
         return None
     rows = [[
@@ -38,6 +39,11 @@ def build_router(
     store: ChatStore,
     config: BotConfig,
 ) -> Router:
+    """Build a Router with all bot commands registered.
+
+    `client`, `store`, and `config` are captured via closure rather
+    than aiogram's DI machinery so the handler bodies stay short and
+    the testable logic lives entirely in `core.py`."""
     router = Router()
     allowed = set(config.allowed_user_ids)
     max_tokens = config.max_tokens

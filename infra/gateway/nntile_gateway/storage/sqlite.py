@@ -1,3 +1,11 @@
+"""SQLite-backed `Storage` implementation.
+
+Selected via `NNTILE_GATEWAY_STORAGE=sqlite`. One connection shared
+across threads (`check_same_thread=False`) under a single lock --
+the gateway throughput is bounded by inference, not by storage, so
+the simpler single-writer model is fine. `isolation_level=None`
+keeps each statement in its own implicit transaction."""
+
 import sqlite3
 import threading
 

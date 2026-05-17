@@ -53,6 +53,7 @@ def _redact_proxy(url: str) -> str:
 
 
 def main() -> None:
+    """Configure logging and run the asyncio event loop."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",

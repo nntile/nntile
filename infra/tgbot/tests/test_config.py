@@ -1,3 +1,7 @@
+"""Env-driven `BotConfig` validation: required-field errors,
+allowlist parsing, and the default values used when nothing
+is set."""
+
 from __future__ import annotations
 
 import pytest

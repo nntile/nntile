@@ -1,3 +1,8 @@
+"""Restart behaviour: SqliteStorage selection from config,
+rehydration of persisted specs into the registry, and
+tolerance of a single failing spec (recorded as status=error
+without aborting startup)."""
+
 from fastapi.testclient import TestClient
 from nntile_gateway.config import GatewayConfig
 from nntile_gateway.server import build_app

@@ -1,3 +1,10 @@
+"""Non-persistent `Storage` implementation.
+
+The default if `NNTILE_GATEWAY_STORAGE` is unset. Useful for tests
+and ephemeral deploys; everything is lost on process restart, which
+means the operator must re-register models and re-issue API keys.
+For durable deploys, use `SqliteStorage`."""
+
 import threading
 import time
 
@@ -5,6 +12,11 @@ from nntile_gateway.storage.base import KeyRecord, ModelRecord
 
 
 class InMemoryStorage:
+    """Dict-backed Storage; thread-safe via a single Lock.
+
+    A `_key_by_hash` reverse index keeps `get_key_by_hash` O(1) --
+    that's the hot path called on every authenticated request."""
+
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._models: dict[str, ModelRecord] = {}

@@ -1,3 +1,15 @@
+"""FastAPI app factory and HTTP route handlers.
+
+`build_app(config, storage=?, loader=?)` is the single entry-point.
+It wires the admin auth, the user-key auth, the model registry, and
+all five route groups: `/admin/models`, `/admin/keys`, `/v1/models`,
+`/v1/{completions,chat/completions}`, and `/v1/{embeddings,fill_mask}`.
+
+The actual inference is serialised by a single `generate_lock`: the
+underlying nntile/StarPU state is shared per process, so concurrent
+generate calls would interleave tasks on the same GPU. We accept the
+latency cost in exchange for not needing per-model locks."""
+
 import threading
 import time
 import uuid
@@ -31,6 +43,16 @@ def build_app(
     storage: Storage | None = None,
     loader: ModelLoader | None = None,
 ) -> FastAPI:
+    """Create the FastAPI app and wire all dependencies.
+
+    `storage` and `loader` are injectable: tests pass an
+    in-memory storage and a `FakeLoader` to exercise the HTTP plane
+    without needing nntile/CUDA. In production both default to
+    `_default_storage(config)` and `NNTileModelLoader()`.
+
+    After wiring, `registry.rehydrate_from_storage()` reloads every
+    persisted model into memory (sqlite storage only; in-memory
+    storage starts empty)."""
     config.validate()
     storage = storage if storage is not None else _default_storage(config)
     loader = loader or NNTileModelLoader()

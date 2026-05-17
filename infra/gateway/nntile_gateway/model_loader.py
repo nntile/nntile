@@ -16,6 +16,14 @@ from nntile_gateway.schemas import ModelSpec
 
 
 class ModelLoader(Protocol):
+    """Materialises one `ModelSpec` into a runnable engine.
+
+    The concrete implementation here is `NNTileModelLoader`; tests
+    inject `FakeLoader` (see `tests/conftest.py`) so the HTTP plane
+    can be exercised without CUDA. The returned engine duck-types as
+    a `GatewayEngine`, `EmbeddingEngine`, or `FillMaskEngine`
+    depending on the task; the server routes by attribute presence."""
+
     def load(
         self, spec: ModelSpec
     ) -> Union[GatewayEngine, EmbeddingEngine, FillMaskEngine]: ...
@@ -107,6 +115,12 @@ class _NNTileEngineAdapter:
 
     def generate(self, prompt: str, options: GenerateOptions
                  ) -> GenerateResult:
+        """Run `LlmSyncInferenceEngine.generate` and unwrap the result.
+
+        Mode is `Greedy` unless `top_k` or `top_p` is set in
+        `options`. Completion-token count is computed by re-tokenising
+        the returned string (an approximate measure -- nntile doesn't
+        return the generated id stream)."""
         from nntile.model.generation.llm import (
             GenerationMode, GenerationParams)
 
@@ -144,6 +158,13 @@ class _NNTileEngineAdapter:
         )
 
     def apply_chat_template(self, messages: list[dict[str, str]]) -> str:
+        """Render chat messages into a single prompt string.
+
+        Uses the tokenizer's native `chat_template` if one exists
+        (tinyllama, instruction-tuned llamas, etc.). Otherwise falls
+        back to concatenating message contents with blank lines -- no
+        `<|user|>` / `<|assistant|>` tags, because non-chat models
+        treat those as plain text and echo the pattern."""
         tok = self._tokenizer
         if hasattr(tok, "apply_chat_template") and getattr(
             tok, "chat_template", None
@@ -187,6 +208,14 @@ class _NNTileEmbeddingAdapter:
         self._family = family
 
     def embed(self, text: str) -> EmbedResult:
+        """Tokenise, write into the model's input slot, forward, and
+        mean-pool the encoder's final hidden state over the real
+        (non-pad) token positions.
+
+        For RoBERTa we also rewrite the position-id tensor with the
+        HF offset convention (positions start at `pad_idx + 1`);
+        without it the model still picks the same top token for
+        fill-mask but the probability mass diverges materially."""
         import numpy as np
 
         import nntile.utils.constructors as nntc
@@ -240,6 +269,14 @@ class _NNTileFillMaskAdapter:
         self._mask_token_id = tokenizer.mask_token_id
 
     def fill_mask(self, text: str, top_k: int) -> FillMaskResult:
+        """Tokenise, locate mask positions, forward once, softmax+top-k
+        per mask position, decode candidates.
+
+        Raises `ValueError("input contains no [MASK]...")` (which the
+        endpoint translates to 400) if the input has no mask token
+        after alias normalisation. The encoder padding mask is set
+        per request so seq_len >> actual_len still gives output that
+        matches the HF `pipeline('fill-mask')` reference."""
         import numpy as np
 
         import nntile.utils.constructors as nntc
@@ -312,6 +349,12 @@ _ENCODER_ONLY_FAMILIES = {"bert", "roberta"}
 
 
 def _resolve_task(spec: ModelSpec) -> str:
+    """Default `spec.task` from the family if the caller left it None.
+
+    Encoder-only families default to embeddings (the cheaper task);
+    everything else defaults to completions. Callers wanting fill-mask
+    must set `task='fill_mask'` explicitly because the same family
+    can serve either."""
     if spec.task is not None:
         return spec.task
     if spec.family in _ENCODER_ONLY_FAMILIES:
@@ -320,7 +363,20 @@ def _resolve_task(spec: ModelSpec) -> str:
 
 
 class NNTileModelLoader:
+    """Production loader -- builds real nntile engines.
+
+    `load()` is the only public entry; everything else is private
+    helpers split per family/task. nntile and transformers are imported
+    lazily inside the helpers so importing this module on a host
+    without StarPU/CUDA still works (tests rely on that)."""
+
     def load(self, spec: ModelSpec):
+        """Dispatch on `(family, resolved_task)` to the right builder.
+
+        Returns one of the three adapter types (`_NNTileEngineAdapter`,
+        `_NNTileEmbeddingAdapter`, `_NNTileFillMaskAdapter`) wrapping
+        the loaded model and tokenizer. Raises `ValueError` for
+        impossible family/task combinations."""
         task = _resolve_task(spec)
         tokenizer = self._build_tokenizer(spec)
 

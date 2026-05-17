@@ -1,3 +1,7 @@
+"""`ChatStore` semantics: bounded history deque, model
+switching clears prior history, reset keeps the model, and
+each chat_id is isolated from the others."""
+
 from __future__ import annotations
 
 import pytest

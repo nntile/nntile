@@ -25,12 +25,21 @@ from aiogram.methods.base import TelegramType
 
 
 class HttpxSession(BaseSession):
+    """aiogram session backed by httpx.AsyncClient.
+
+    The client is created lazily on first request so constructing the
+    session is cheap. `_proxy` is the URL handed to httpx as `proxy=`;
+    httpx supports both `http://` and `https://` schemes natively
+    (terminating TLS to the proxy itself), which aiogram's stock
+    AiohttpSession + aiohttp-socks does not."""
+
     def __init__(self, *args, proxy: Optional[str] = None, **kwargs):
         super().__init__(*args, **kwargs)
         self._proxy = proxy
         self._client: Optional[httpx.AsyncClient] = None
 
     async def _get_client(self) -> httpx.AsyncClient:
+        """Get-or-create the underlying httpx.AsyncClient."""
         if self._client is None:
             kwargs: dict[str, Any] = {"timeout": self.timeout}
             if self._proxy:
@@ -39,6 +48,7 @@ class HttpxSession(BaseSession):
         return self._client
 
     async def close(self) -> None:
+        """Tear down the httpx client. Idempotent."""
         if self._client is not None:
             await self._client.aclose()
             self._client = None
@@ -67,6 +77,10 @@ class HttpxSession(BaseSession):
         method: TelegramMethod[TelegramType],
         timeout: Optional[int] = None,
     ) -> TelegramType:
+        """Serialise an aiogram method to form-urlencoded and POST it.
+
+        Wraps httpx errors as `TelegramNetworkError` so aiogram's retry
+        loop sees them as transport failures rather than crashes."""
         client = await self._get_client()
         url = self.api.api_url(
             token=bot.token, method=method.__api_method__)
@@ -101,6 +115,10 @@ class HttpxSession(BaseSession):
         chunk_size: int = 65536,
         raise_for_status: bool = True,
     ) -> AsyncGenerator[bytes, None]:
+        """Stream a Telegram file (used by aiogram's file-download API).
+
+        Not exercised by our bot today since the bot doesn't fetch
+        media, but aiogram's BaseSession requires it."""
         client = await self._get_client()
         async with client.stream(
             "GET", url, headers=headers or {}, timeout=timeout,

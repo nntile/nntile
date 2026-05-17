@@ -1,3 +1,15 @@
+"""Pytest fixtures for the gateway's fast test suite.
+
+Provides:
+ * `FakeEngine` / `FakeLoader` -- deterministic stand-ins for the
+   nntile loader so the HTTP plane can be exercised without
+   StarPU/CUDA. Tests that need a real model use the live suite
+   (opt-in via the `--live` option declared at the bottom).
+ * Standard `client` fixture wrapping `build_app` with in-memory
+   storage and the fake loader.
+ * `pytest_collection_modifyitems` auto-skips `@pytest.mark.live`
+   tests unless `--live` is passed."""
+
 import os
 import sys
 from pathlib import Path
@@ -46,6 +58,11 @@ class FakeEngine:
 
 
 class FakeLoader(ModelLoader):
+    """`ModelLoader` that returns `FakeEngine` instances without IO.
+
+    `fail_on` lets a test simulate a loader failure for a specific
+    model id (used by `test_register_model_load_failure_returns_500`)."""
+
     def __init__(self) -> None:
         self.engines: dict[str, FakeEngine] = {}
         self.fail_on: set[str] = set()

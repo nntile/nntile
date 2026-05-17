@@ -1,3 +1,6 @@
+"""`GatewayClient` HTTP wrapper, exercised against
+`httpx.MockTransport`. No real network or gateway."""
+
 from __future__ import annotations
 
 import httpx

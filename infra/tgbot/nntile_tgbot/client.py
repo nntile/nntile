@@ -19,6 +19,12 @@ class GatewayError(RuntimeError):
 
 @dataclass(frozen=True)
 class ModelInfo:
+    """One entry from `GET /v1/models`.
+
+    `family`, `task`, and `max_seq_len` are gateway-side extensions
+    (not part of the OpenAI shape). The bot uses `max_seq_len` to
+    cap outgoing `max_tokens` automatically on `/select`."""
+
     id: str
     family: str | None
     status: str | None
@@ -28,6 +34,11 @@ class ModelInfo:
 
 @dataclass(frozen=True)
 class FillMaskCandidate:
+    """One predicted token for a single [MASK] position.
+
+    Mirrors the gateway's response shape; the handler renders these
+    as numbered lines with token, score, and the filled-in sequence."""
+
     token: int
     token_str: str
     score: float
@@ -54,9 +65,11 @@ class GatewayClient:
             timeout=timeout_s, trust_env=False)
 
     async def aclose(self) -> None:
+        """Release the underlying httpx connection pool."""
         await self._client.aclose()
 
     async def list_models(self) -> list[ModelInfo]:
+        """`GET /v1/models` -> [ModelInfo]. Raises `GatewayError`."""
         r = await self._client.get(
             f"{self._base_url}/v1/models", headers=self._headers)
         self._raise_for_status(r)
@@ -104,6 +117,7 @@ class GatewayClient:
         temperature: float | None = None,
         top_p: float | None = None,
     ) -> str:
+        """`POST /v1/chat/completions` -> assistant message text."""
         body: dict[str, Any] = {
             "model": model,
             "messages": messages,

@@ -1,9 +1,22 @@
+"""Entrypoint that boots `nntile.Context` and runs uvicorn.
+
+Invoked as `python -m nntile_gateway`. The Context is created here
+(not in `build_app`) so its lifetime is tied to the process rather
+than the request lifecycle, and so we can run with `workers=1`
+keeping the single shared StarPU/CUDA state inside this process."""
+
 import uvicorn
 from nntile_gateway.config import GatewayConfig
 from nntile_gateway.server import build_app
 
 
 def main() -> None:
+    """Build the app, start uvicorn, and tear StarPU down on exit.
+
+    nntile.Context is bound to a local name (`ctx`) so it isn't GC'd
+    straight after construction -- the temporary would shut StarPU
+    down before the first request arrived. `wait_for_all` plus
+    `ctx.shutdown()` in the `finally` keep the teardown ordered."""
     cfg = GatewayConfig()
     cfg.validate()
     # nntile.Context must be created in-process before any model load and

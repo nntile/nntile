@@ -1,3 +1,9 @@
+"""Pure-async logic in `nntile_tgbot.core`: authorization
+gate, per-command handlers (/models, /select, /current,
+/reset, /fill, plain text), and the rollback semantics on
+errors. Uses `httpx.MockTransport` so no real gateway is
+needed."""
+
 from __future__ import annotations
 
 import httpx

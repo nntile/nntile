@@ -1,0 +1,1 @@
+"""Telegram-bot test package."""

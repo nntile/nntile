@@ -32,6 +32,12 @@ def _parse_int_set(raw: str | None) -> set[int]:
 
 @dataclass
 class BotConfig:
+    """Env-driven runtime settings for the bot.
+
+    See `infra/README.md` for the full env-var table and the proxy
+    notes. The `bot_token` / `gateway_base_url` / `gateway_api_key`
+    are required; everything else has a working default."""
+
     bot_token: str = field(
         default_factory=lambda: _env("NNTILE_TGBOT_TOKEN", "") or "")
     gateway_base_url: str = field(
@@ -68,6 +74,10 @@ class BotConfig:
         ))
 
     def validate(self) -> None:
+        """Raise RuntimeError if required settings are missing.
+
+        Called from `__main__._run` so misconfiguration fails fast at
+        startup rather than on the first Telegram update."""
         if not self.bot_token:
             raise RuntimeError("NNTILE_TGBOT_TOKEN is required")
         if not self.gateway_base_url:
