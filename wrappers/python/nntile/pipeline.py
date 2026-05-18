@@ -14,9 +14,10 @@
 from typing import Any, List
 
 from nntile.model.base_model import BaseModel
-from nntile.nntile_core.starpu import iteration_pop, iteration_push
+from nntile.nntile_core.starpu import (iteration_pop, iteration_push, pause,
+                                       resume)
 from nntile.tensor import Tensor, clear_async, copy_async, log_scalar_async
-from nntile.graph_recorder_sched import graph_recording_begin, graph_recording_end
+from nntile.graph_capture_sched import graph_recording_begin, graph_recording_end
 
 
 class Pipeline(object):
@@ -44,7 +45,7 @@ class Pipeline(object):
             for i_batch, (x_batch, y_batch) in enumerate(zip(self.x, self.y)):
                 # Provide batch number to the FXT trace
                 iteration_push(i_batch)
-                # Start graph recording
+                # StarPU graph batch capture (SGOC policy DSO; no-op for e.g. dmdasd).
                 graph_recording_begin()
                 # Minibatch number 0 clears parameters gradients and output loss
                 i_minibatch = 0
@@ -111,7 +112,7 @@ class Pipeline(object):
                 # Limit parallelism through value of loss
                 if log_loss:
                     log_scalar_async("Train loss", self.loss.val)
-                # End graph recording
+                # End graph batch capture (see graph_capture_sched).
                 graph_recording_end()
                 loss_np = self.loss.get_val()
                 self.loss_hist.append(loss_np[0])
