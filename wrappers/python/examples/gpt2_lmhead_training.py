@@ -60,6 +60,12 @@ parser.add_argument("--hidden-size-tile", type=int, default=-1)
 parser.add_argument("--intermediate-size-tile", type=int, default=-1)
 parser.add_argument("--n-head-tile", type=int, default=-1)
 
+parser.add_argument("--use-scaler", action="store_true")
+parser.add_argument("--init-scale", type=float, default=-1)
+parser.add_argument("--downscale-step", type=float, default=-1)
+parser.add_argument("--upscale-step", type=float, default=-1)
+
+
 parser.add_argument(
     "--dtype", choices=["fp32", "fp64", "tf32",
                         "bf16", "fp32_fast_fp16",
@@ -146,6 +152,11 @@ assert args.force_offload_ram_portion_temporaries >= 0.0
 assert args.force_offload_ram_portion_temporaries <= 1.0
 assert args.force_offload_ram_portion_optimizer >= 0.0
 assert args.force_offload_ram_portion_optimizer <= 1.0
+
+if args.use_scaler:
+    assert args.init_scale > 0
+    assert args.downscale_step > 0
+    assert args.upscale_step > 0
 
 # Load named pretrained PyTorch model
 if args.pretrained == "remote":
@@ -327,7 +338,12 @@ pipeline.print_meminfo()
 # nntile.starpu.pause()
 nntile.starpu.profiling_init()
 nntile.starpu.profiling_enable()
-pipeline.train_async()
+if args.use_scaler:
+    pipeline.train_with_scaler_async(init_scale=args.init_scale,
+                                     downscale_step=args.downscale_step,
+                                     upscale_step=args.upscale_step)
+else:
+    pipeline.train_async()
 # nntile.starpu.resume()
 nntile.starpu.wait_for_all()
 nntile.starpu.profiling_bus_display_summary()
@@ -343,13 +359,11 @@ nflops_minibatch = nflops_fwd_minibatch + nflops_bwd_minibatch
 print("NNTile performance (model flops): {} Tflops/s".format(nflops_minibatch
         * args.nepochs * num_train_batches * num_minibatch
         / time1 * 1e-12))
-loss_np = np.zeros((1), dtype=np.float32)
-loss.val.to_array(loss_np)
-print("NNTile loss on the last batch: {}".format(loss_np[0]))
-model_torch = gpt2lmhead_nntile.to_torch()
-torch.save(
-    {
-        "model_state_dict": model_torch.state_dict(),
-    },
-    args.save_checkpoint_path,
-)
+print("NNTile loss on the last batch: {}".format(pipeline.loss_hist[-1]))
+# model_torch = gpt2lmhead_nntile.to_torch()
+# torch.save(
+#     {
+#         "model_state_dict": model_torch.state_dict(),
+#     },
+#     args.save_checkpoint_path,
+# )

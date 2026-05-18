@@ -112,7 +112,9 @@ class Pipeline(object):
             iteration_pop()
 
     def train_with_scaler_async(self, init_scale: float,
-                                      scaler_step: float,
+                                      downscale_step: float,
+                                      upscale_step: float,
+
                                       log_loss: bool = True):
         loss_scale = init_scale
         traits_flag = TensorTraits([], [])
@@ -130,7 +132,8 @@ class Pipeline(object):
                 iteration_push(i_batch)
                 while True:
                     flag.from_array(np_dst_init)
-                    self.loss.scale = loss_scale
+                    # Scale loss for further de-scale
+                    self.loss.scale *= loss_scale
                     # Zero out gradients of all weights
                     self.model.clear_parameters_grads()
                     clear_async(self.loss.val)
@@ -166,16 +169,19 @@ class Pipeline(object):
                             if t.grad_required:
                                 t.grad.invalidate_submit()
                     isfinite_grads = True
-                    log_scalar_async("Train loss", self.loss.val)
-                    print("Scaler ", loss_scale)
+                    loss_np = self.loss.get_val()
                     for p in self.model.parameters:
                         if p.grad_required:
                             isfinite_async(p.grad, flag)
-                            isfinite_grads = nntc.to_numpy(flag)[0]
-                            if not isfinite_grads:
-                                loss_scale *= scaler_step
-                                break
-                    if isfinite_grads:
+                    isfinite_grads = nntc.to_numpy(flag)[0]
+                    self.loss.scale /= loss_scale
+                    if not isfinite_grads:
+                        print("Inf/NaN in gradients are found for scale {}!"
+                        " Reduce the loss_scale...".format(loss_scale))
+                        loss_scale /= downscale_step
+                    else:
+                        print("Accept the current loss scale = {}!"
+                        " Keep training...".format(loss_scale))
                         break
 
                 # Apply optimizer after gradients for entire batch are
@@ -190,7 +196,8 @@ class Pipeline(object):
                 # Limit parallelism through value of loss
                 if log_loss:
                     log_scalar_async("Train loss", self.loss.val)
-                loss_np = self.loss.get_val()
+                # De-scaling
+                loss_np = self.loss.get_val() / loss_scale
                 self.loss_hist.append(loss_np[0])
                 # print("Loss in {} epoch = {}".format(i_epoch, loss_np[0]))
                 print("Batch={}/{} Epoch={}/{} Loss={}".format(
