@@ -21,6 +21,7 @@
 #include "nntile/graph/tensor/fill.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/fill.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -52,7 +53,10 @@ void check_fill_vs_tensor_api(
 
     gt::fill(val, dst_node);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     // Bind with arbitrary initial data (will be overwritten by fill)
@@ -107,7 +111,7 @@ TEST_CASE("TensorGraph fill structure", "[graph][tensor]")
 
     const auto& ops = graph.ops();
     REQUIRE(ops[0]->op_name() == "FILL");
-    REQUIRE(ops[0]->inputs().size() == 1);
+    REQUIRE(ops[0]->inputs().size() == 0);
     REQUIRE(ops[0]->outputs().size() == 1);
     REQUIRE(ops[0]->outputs()[0] == src);
 }
@@ -144,7 +148,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         gt::fill(val, dst_node);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.execute();
@@ -166,7 +173,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.execute();

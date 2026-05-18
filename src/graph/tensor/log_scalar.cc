@@ -17,24 +17,25 @@
 #include <stdexcept>
 
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/log_scalar.hh"
+#include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/tensor/log_scalar.hh"
 
 namespace nntile::graph::tensor
 {
 
-namespace
+void TensorLogScalarOp::lower_to_tile(const LoweringContext& ctx) const
 {
-
-template<typename T>
-void run_log_scalar(TensorGraph::Runtime& runtime,
-                   const std::string& name,
-                   TensorGraph::TensorNode* value)
-{
-    auto& value_t = runtime.get_tensor<T>(value);
-    nntile::tensor::log_scalar<T>(name, value_t);
+    // Match nntile::tensor::log_scalar_async (src/tensor/log_scalar.cc).
+    const auto& tiles = tile_lower::tiles_of(ctx.tile_map, value);
+    if(tiles.size() != 1)
+    {
+        throw std::runtime_error(
+            "lower_to_tile LOG_SCALAR: value must be single-tile scalar tensor");
+    }
+    tile_graph::log_scalar(name, tiles[0]);
 }
-
-} // namespace
 
 void log_scalar(const std::string& name,
                 TensorGraph::TensorNode* value)
@@ -43,43 +44,6 @@ void log_scalar(const std::string& name,
         throw std::invalid_argument("log_scalar: value tensor must be non-null");
     auto op = std::make_shared<TensorLogScalarOp>(name, value);
     value->graph()->add_op(op);
-}
-
-void TensorLogScalarOp::execute(TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(value);
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_log_scalar<nntile::fp32_t>(runtime, name, value);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_log_scalar<nntile::fp32_fast_tf32_t>(runtime, name, value);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_log_scalar<nntile::fp32_fast_fp16_t>(runtime, name, value);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_log_scalar<nntile::fp32_fast_bf16_t>(runtime, name, value);
-            break;
-        case DataType::FP64:
-            run_log_scalar<nntile::fp64_t>(runtime, name, value);
-            break;
-        case DataType::FP16:
-            throw std::runtime_error(
-                "FP16 not supported for log_scalar (use FP32_FAST_FP16)");
-            break;
-        case DataType::BF16:
-            run_log_scalar<nntile::bf16_t>(runtime, name, value);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " not supported for log_scalar");
-        default:
-            throw std::runtime_error("Unsupported data type for log_scalar");
-    }
 }
 
 } // namespace nntile::graph::tensor

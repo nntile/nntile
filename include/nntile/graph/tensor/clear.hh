@@ -17,6 +17,11 @@
 // NNTile headers
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -29,18 +34,18 @@ struct TensorClearOp : TensorGraph::OpNode
     explicit TensorClearOp(TensorGraph::TensorNode* x_)
         : x(x_)
     {
-        inputs_ = {x};
+        inputs_ = {};
         outputs_ = {x};
     }
 
     std::string op_name() const override { return "CLEAR"; }
 
-    void execute(TensorGraph::Runtime& runtime) const override;
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorClearOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 //! Clear tensor: x = 0

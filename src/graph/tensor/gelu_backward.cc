@@ -20,26 +20,13 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/gelu_backward.hh"
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_gelu_backward(
-    TensorGraph::Runtime& runtime,
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* dy,
-    TensorGraph::TensorNode* dx)
-{
-    auto& x_t = runtime.get_tensor<T>(x);
-    auto& dy_t = runtime.get_tensor<T>(dy);
-    auto& dx_t = runtime.get_tensor<T>(dx);
-    nntile::tensor::gelu_backward<T>(x_t, dy_t, dx_t);
-}
-
-} // namespace
 
 void gelu_backward(
     TensorGraph::TensorNode* x,
@@ -73,42 +60,10 @@ void gelu_backward(
     x->graph()->add_op(op);
 }
 
-void TensorGeluBackwardOp::execute(
-    TensorGraph::Runtime& runtime) const
+void TensorGeluBackwardOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    DataType dtype = runtime.get_dtype(x);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_gelu_backward<nntile::fp32_t>(runtime, x, dy, dx);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_gelu_backward<nntile::fp32_fast_tf32_t>(runtime, x, dy, dx);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_gelu_backward<nntile::fp32_fast_fp16_t>(runtime, x, dy, dx);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_gelu_backward<nntile::fp32_fast_bf16_t>(runtime, x, dy, dx);
-            break;
-        case DataType::FP64:
-            run_gelu_backward<nntile::fp64_t>(runtime, x, dy, dx);
-            break;
-        case DataType::FP16:
-            run_gelu_backward<nntile::fp16_t>(runtime, x, dy, dx);
-            break;
-        case DataType::BF16:
-            run_gelu_backward<nntile::bf16_t>(runtime, x, dy, dx);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for gelu_backward operation");
-        default:
-            throw std::runtime_error("Unsupported data type for gelu_backward");
-    }
+    tile_lower::lower_backward3(x, dy, dx, ctx.tile_map, "GELU_BACKWARD",
+        tile_graph::gelu_backward);
 }
 
 } // namespace nntile::graph::tensor

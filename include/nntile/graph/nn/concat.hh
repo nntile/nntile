@@ -24,7 +24,26 @@
 namespace nntile::graph
 {
 
-//! Concat: output = concat(a, b, axis). Inference-only (no backward).
+//! Concat op: output = concat(a, b, axis). Forward uses TensorGraph CONCAT;
+//! backward is not implemented yet (throws when gradient must flow).
+struct NNConcatOp : NNGraph::OpNode
+{
+    NNGraph::TensorNode* a = nullptr;
+    NNGraph::TensorNode* b = nullptr;
+    Index axis = 0;
+
+    NNConcatOp(NNGraph::TensorNode* a_, NNGraph::TensorNode* b_, Index axis_)
+        : a(a_), b(b_), axis(axis_)
+    {
+        inputs_ = {a, b};
+    }
+
+    NNGraph::TensorNode* forward(const std::string& output_name);
+    void backward() const override;
+};
+
+//! Concat: output = concat(a, b, axis). Inference forward; autograd registration
+//! follows other NN ops, but backward through concat is not supported yet.
 NNGraph::TensorNode* concat(
     NNGraph::TensorNode* a,
     NNGraph::TensorNode* b,

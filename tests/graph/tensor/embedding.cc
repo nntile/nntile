@@ -21,6 +21,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/embedding.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/embedding.hh"
 #include "nntile/tensor/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
@@ -86,7 +87,10 @@ void check_embedding_vs_tensor_api(
 
     gt::embedding(index_node, vocab_node, embed_node, axis);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<std::int64_t> index_data(index_nelems);
@@ -264,7 +268,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         auto* embed_node = gt::embedding(index_node, vocab_node, "embed", axis);
         embed_node->mark_output(true);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("index", index_data);
@@ -299,7 +306,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             }
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("index", index_data);

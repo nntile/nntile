@@ -20,6 +20,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/gelutanh_backward.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/gelutanh_backward.hh"
 #include "nntile/tensor/tensor.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
@@ -48,7 +49,10 @@ void check_gelutanh_backward_vs_tensor_api(
 
     gt::gelutanh_backward(x_node, dy_node, dx_node);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> x_data(nelems), dy_data(nelems), dx_data(nelems);
@@ -196,7 +200,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         dx_node->mark_output(true);
         gt::gelutanh_backward(x_node, dy_node, dx_node);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data("x", x_data);
         runtime.bind_data("dy", dy_data);
@@ -223,7 +230,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             ag->set_tiling((ag->extent + 1) / 2);
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data("x", x_data);
         runtime.bind_data("dy", dy_data);

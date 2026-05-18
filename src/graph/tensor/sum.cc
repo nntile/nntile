@@ -18,27 +18,37 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/sum.hh"
 #include "nntile/tensor/sum.hh"
 
 namespace nntile::graph::tensor
 {
 
-namespace
+void TensorSumOp::lower_to_tile(const LoweringContext& ctx) const
 {
-
-template<typename T>
-void run_sum(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Scalar beta,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst)
-{
-    auto& src_t = runtime.get_tensor<T>(src);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::sum<T>(alpha, src_t, beta, dst_t);
+    // Match nntile::tensor::sum_async (src/tensor/sum.cc).
+    const auto& tiles_src = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto& tiles_dst = tile_lower::tiles_of(ctx.tile_map, dst);
+    if(tiles_dst.size() != 1)
+    {
+        throw std::runtime_error(
+            "lower_to_tile SUM: scalar output must be one tile");
+    }
+    constexpr Scalar one = 1.0;
+    for(size_t i = 0; i < tiles_src.size(); ++i)
+    {
+        if(i == 0)
+        {
+            tile_graph::sum(alpha, tiles_src[i], beta, tiles_dst[0]);
+        }
+        else
+        {
+            tile_graph::sum(alpha, tiles_src[i], one, tiles_dst[0]);
+        }
+    }
 }
-
-} // namespace
 
 void sum(
     TensorGraph::TensorNode* src,
@@ -74,44 +84,6 @@ void sum(
 
     auto op = std::make_shared<TensorSumOp>(src, dst, alpha, beta);
     src->graph()->add_op(op);
-}
-
-void TensorSumOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_sum<nntile::fp32_t>(runtime, alpha, beta, src, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_sum<nntile::fp32_fast_tf32_t>(runtime, alpha, beta, src, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_sum<nntile::fp32_fast_fp16_t>(runtime, alpha, beta, src, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_sum<nntile::fp32_fast_bf16_t>(runtime, alpha, beta, src, dst);
-            break;
-        case DataType::FP64:
-            run_sum<nntile::fp64_t>(runtime, alpha, beta, src, dst);
-            break;
-        case DataType::FP16:
-            run_sum<nntile::fp16_t>(runtime, alpha, beta, src, dst);
-            break;
-        case DataType::BF16:
-            run_sum<nntile::bf16_t>(runtime, alpha, beta, src, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for sum operation");
-        default:
-            throw std::runtime_error("Unsupported data type for sum");
-    }
 }
 
 } // namespace nntile::graph::tensor

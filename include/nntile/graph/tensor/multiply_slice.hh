@@ -21,6 +21,11 @@
 #include <nntile/base_types.hh>
 #include <nntile/graph/tensor/graph.hh>
 
+namespace nntile::graph
+{
+struct LoweringContext;
+}
+
 namespace nntile::graph::tensor
 {
 
@@ -47,12 +52,12 @@ struct TensorMultiplySliceOp : TensorGraph::OpNode
 
     std::string op_name() const override { return "MULTIPLY_SLICE"; }
 
-    void execute(TensorGraph::Runtime& runtime) const override;
-
     std::shared_ptr<TensorGraph::OpNode> clone() const override
     {
         return std::make_shared<TensorMultiplySliceOp>(*this);
     }
+
+    void lower_to_tile(const LoweringContext& ctx) const override;
 };
 
 void multiply_slice(

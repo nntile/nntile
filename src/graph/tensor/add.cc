@@ -24,28 +24,13 @@
 #include <nntile/graph/tensor.hh>
 #include <nntile/tensor/add.hh>
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_add(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha,
-    Scalar beta,
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* y,
-    TensorGraph::TensorNode* z)
-{
-    auto& x_t = runtime.get_tensor<T>(x);
-    auto& y_t = runtime.get_tensor<T>(y);
-    auto& z_t = runtime.get_tensor<T>(z);
-    nntile::tensor::add<T>(alpha, x_t, beta, y_t, z_t);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* add(
     Scalar alpha,
@@ -118,40 +103,22 @@ void add(
     x->graph()->add_op(op);
 }
 
-void TensorAddOp::execute(TensorGraph::Runtime& runtime) const
+void TensorAddOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    DataType dtype = x->dtype();
-
-    switch(dtype)
+    const auto& m = ctx.tile_map;
+    const auto& vx = tile_lower::tiles_of(m, x);
+    const auto& vy = tile_lower::tiles_of(m, y);
+    const auto& vz = tile_lower::tiles_of(m, z);
+    if(vx.size() != vy.size() || vx.size() != vz.size())
     {
-        case DataType::FP32:
-            run_add<nntile::fp32_t>(runtime, alpha, beta, x, y, z);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_add<nntile::fp32_fast_tf32_t>(runtime, alpha, beta, x, y, z);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_add<nntile::fp32_fast_fp16_t>(runtime, alpha, beta, x, y, z);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_add<nntile::fp32_fast_bf16_t>(runtime, alpha, beta, x, y, z);
-            break;
-        case DataType::FP64:
-            run_add<nntile::fp64_t>(runtime, alpha, beta, x, y, z);
-            break;
-        case DataType::FP16:
-            run_add<nntile::fp16_t>(runtime, alpha, beta, x, y, z);
-            break;
-        case DataType::BF16:
-            run_add<nntile::bf16_t>(runtime, alpha, beta, x, y, z);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for add operation");
-        default:
-            throw std::runtime_error("Unsupported data type for add");
+        throw std::runtime_error(
+            "lower_to_tile ADD: tile count mismatch for operands");
+    }
+    tile_lower::assert_same_elementwise_layout(x, y, "ADD x/y");
+    tile_lower::assert_same_elementwise_layout(x, z, "ADD x/z");
+    for(size_t i = 0; i < vx.size(); ++i)
+    {
+        tile_graph::add(alpha, vx[i], beta, vy[i], vz[i]);
     }
 }
 

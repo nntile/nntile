@@ -21,6 +21,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #   include <torch/torch.h>
 #endif
 
@@ -103,6 +104,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
 using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
+using nntile::test::nn_pytorch_tile_heterogeneous_rank4_hs_bn_b0b1;
+using nntile::test::nn_pytorch_tile_mask_nn;
 using nntile::test::permute_rowmajor;
 using nntile::test::pytorch_tolerance;
 
@@ -160,6 +163,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     auto* output = sdpa_eager(q, k, v, "out", mask, 2, 0);
 
+    nn_pytorch_tile_heterogeneous_rank4_hs_bn_b0b1(q);
+    nn_pytorch_tile_heterogeneous_rank4_hs_bn_b0b1(k);
+    nn_pytorch_tile_heterogeneous_rank4_hs_bn_b0b1(v);
+    if(mask)
+        nn_pytorch_tile_mask_nn(mask);
+
     q->mark_input(true);
     k->mark_input(true);
     v->mark_input(true);
@@ -176,7 +185,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     k->grad()->mark_output(true);
     v->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("q", q_data);
     runtime.bind_data("k", k_data);
@@ -230,11 +240,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                                    out_pt.data_ptr<float>() + nelems);
 
     REQUIRE(nntile_out.size() == pytorch_out.size());
-    float max_fwd_diff = 0;
-    for(size_t i = 0; i < nntile_out.size(); ++i)
-        max_fwd_diff = std::max(max_fwd_diff,
-            std::abs(nntile_out[i] - pytorch_out[i]));
-    REQUIRE(max_fwd_diff < pytorch_tolerance);
+    compare_float_vectors(nntile_out, out_pt);
 
     // --- Backward comparison ---
     auto grad_output_pt = torch::full(shape_pt,

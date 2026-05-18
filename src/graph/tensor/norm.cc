@@ -21,25 +21,14 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/norm.hh"
 
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/norm.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_norm(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Scalar beta,
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* y)
-{
-    auto& x_t = runtime.get_tensor<T>(x);
-    auto& y_t = runtime.get_tensor<T>(y);
-    nntile::tensor::norm<T>(alpha, x_t, beta, y_t);
-}
-
-} // namespace
 
 void norm(TensorGraph::TensorNode* x, TensorGraph::TensorNode* y,
           Scalar alpha, Scalar beta)
@@ -73,40 +62,26 @@ void norm(TensorGraph::TensorNode* x, TensorGraph::TensorNode* y,
     x->graph()->add_op(op);
 }
 
-void TensorNormOp::execute(
-    TensorGraph::Runtime& runtime) const
+void TensorNormOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    DataType dtype = runtime.get_dtype(x);
-
-    switch(dtype)
+    // Match nntile::tensor::norm_async (src/tensor/norm.cc).
+    const auto& tiles_x = tile_lower::tiles_of(ctx.tile_map, x);
+    const auto& tiles_y = tile_lower::tiles_of(ctx.tile_map, y);
+    if(tiles_y.size() != 1)
     {
-        case DataType::FP32:
-            run_norm<nntile::fp32_t>(runtime, alpha, beta, x, y);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_norm<nntile::fp32_fast_tf32_t>(runtime, alpha, beta, x, y);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_norm<nntile::fp32_fast_fp16_t>(runtime, alpha, beta, x, y);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_norm<nntile::fp32_fast_bf16_t>(runtime, alpha, beta, x, y);
-            break;
-        case DataType::FP64:
-            run_norm<nntile::fp64_t>(runtime, alpha, beta, x, y);
-            break;
-        case DataType::FP16:
-            run_norm<nntile::fp16_t>(runtime, alpha, beta, x, y);
-            break;
-        case DataType::BF16:
-            run_norm<nntile::bf16_t>(runtime, alpha, beta, x, y);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                "INT64/BOOL data type not supported for norm operation");
-        default:
-            throw std::runtime_error("Unsupported data type for norm");
+        throw std::runtime_error("lower_to_tile NORM: scalar output must be one tile");
+    }
+    constexpr Scalar one = 1.0;
+    for(size_t i = 0; i < tiles_x.size(); ++i)
+    {
+        if(i == 0)
+        {
+            tile_graph::norm(alpha, tiles_x[i], beta, tiles_y[0]);
+        }
+        else
+        {
+            tile_graph::norm(alpha, tiles_x[i], one, tiles_y[0]);
+        }
     }
 }
 

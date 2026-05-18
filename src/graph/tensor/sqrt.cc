@@ -22,24 +22,13 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/sqrt.hh"
 
+#include <nntile/graph/tile/graph_ops.hh>
+#include <nntile/graph/tensor/tile_lowering_helpers.hh>
+
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_sqrt(
-    TensorGraph::Runtime& runtime,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst)
-{
-    auto& src_t = runtime.get_tensor<T>(src);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::sqrt<T>(src_t, dst_t);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* sqrt(
     TensorGraph::TensorNode* src,
@@ -92,43 +81,10 @@ void sqrt(
     src->graph()->add_op(op);
 }
 
-void TensorSqrtOp::execute(
-    TensorGraph::Runtime& runtime) const
+void TensorSqrtOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    DataType dtype = runtime.get_dtype(src);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_sqrt<nntile::fp32_t>(runtime, src, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_sqrt<nntile::fp32_fast_tf32_t>(runtime, src, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_sqrt<nntile::fp32_fast_fp16_t>(runtime, src, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_sqrt<nntile::fp32_fast_bf16_t>(runtime, src, dst);
-            break;
-        case DataType::FP64:
-            run_sqrt<nntile::fp64_t>(runtime, src, dst);
-            break;
-        case DataType::FP16:
-            throw std::runtime_error(
-                "FP16 not supported for sqrt (use FP32_FAST_FP16)");
-            break;
-        case DataType::BF16:
-            run_sqrt<nntile::bf16_t>(runtime, src, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for sqrt operation");
-        default:
-            throw std::runtime_error("Unsupported data type for sqrt");
-    }
+    tile_lower::lower_unary2(
+        src, dst, ctx.tile_map, "SQRT", tile_graph::sqrt);
 }
 
 } // namespace nntile::graph::tensor

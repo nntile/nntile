@@ -17,6 +17,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -76,15 +77,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 #ifdef NNTILE_HAVE_TORCH
 
 using nntile::test::compare_float_vectors;
-using nntile::test::pytorch_tolerance;
+using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "NNGraph multiply forward matches PyTorch", "[graph][nn_graph][pytorch]")
 {
     const auto alpha = GENERATE(Scalar(1.0), Scalar(2.0), Scalar(0.5), Scalar(-1.0));
 
-    constexpr Index dim0 = 4;
-    constexpr Index dim1 = 6;
+    constexpr Index dim0 = 6;
+    constexpr Index dim1 = 7;
     constexpr Index nelems = dim0 * dim1;
 
     std::vector<float> x_data(nelems);
@@ -100,11 +101,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* y = g.tensor({dim0, dim1}, "y", DataType::FP32, true);
     auto* z = multiply(x, y, "z", alpha);
 
+    nn_pytorch_tile_heterogeneous_rank2_6x7(x);
+
     x->mark_input(true);
     y->mark_input(true);
     z->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("x", x_data);
     runtime.bind_data("y", y_data);
@@ -121,12 +125,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
                     .clone().set_requires_grad(false);
 
     auto z_pt = (alpha * x_pt * y_pt).contiguous();
-    std::vector<float> pytorch_out(z_pt.data_ptr<float>(),
-                                   z_pt.data_ptr<float>() + nelems);
-
-    REQUIRE(nntile_out.size() == pytorch_out.size());
-    for(size_t i = 0; i < nntile_out.size(); ++i)
-        REQUIRE(std::abs(nntile_out[i] - pytorch_out[i]) < pytorch_tolerance);
+    compare_float_vectors(nntile_out, z_pt);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -138,8 +137,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(0.5), Scalar(0.5)},
         std::tuple{Scalar(-1.0), Scalar(2.0)});
 
-    constexpr Index dim0 = 3;
-    constexpr Index dim1 = 5;
+    constexpr Index dim0 = 6;
+    constexpr Index dim1 = 7;
     constexpr Index nelems = dim0 * dim1;
 
     std::vector<float> x_data(nelems);
@@ -155,6 +154,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* y = g.tensor({dim0, dim1}, "y", DataType::FP32, true);
     auto* z = multiply(x, y, "z", alpha);
 
+    nn_pytorch_tile_heterogeneous_rank2_6x7(x);
+
     x->mark_input(true);
     y->mark_input(true);
 
@@ -165,7 +166,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     x->grad()->mark_output(true);
     y->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("x", x_data);
     runtime.bind_data("y", y_data);

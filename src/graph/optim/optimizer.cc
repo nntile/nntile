@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/optim/optimizer.hh"
+#include "nntile/graph/tile/graph.hh"
 
 #include <cstring>
 #include <iostream>
@@ -131,7 +132,7 @@ namespace
 {
 
 template<typename T>
-std::vector<std::uint8_t> get_output_bytes(TensorGraph::Runtime& runtime,
+std::vector<std::uint8_t> get_output_bytes(TileGraph::Runtime& runtime,
                                            const std::string& name)
 {
     auto data = runtime.get_output<T>(name);
@@ -140,7 +141,7 @@ std::vector<std::uint8_t> get_output_bytes(TensorGraph::Runtime& runtime,
     return bytes;
 }
 
-std::vector<std::uint8_t> sync_tensor_bytes(TensorGraph::Runtime& runtime,
+std::vector<std::uint8_t> sync_tensor_bytes(TileGraph::Runtime& runtime,
                                             const std::string& name,
                                             DataType dtype)
 {
@@ -164,7 +165,7 @@ std::vector<std::uint8_t> sync_tensor_bytes(TensorGraph::Runtime& runtime,
 
 } // anonymous namespace
 
-void Optimizer::sync_from_runtime(TensorGraph::Runtime& runtime)
+void Optimizer::sync_from_runtime(TileGraph::Runtime& runtime)
 {
     for(auto& ps : param_states_)
     {
@@ -177,58 +178,6 @@ void Optimizer::sync_from_runtime(TensorGraph::Runtime& runtime)
             auto bytes = sync_tensor_bytes(
                 runtime, buf_name, buf_tensor->dtype());
             buf_tensor->data()->set_bind_hint(std::move(bytes));
-        }
-    }
-}
-
-void Optimizer::import_hf(const io::SafeTensorsReader& reader,
-                          const std::string& prefix)
-{
-    for(auto& ps : param_states_)
-    {
-        for(auto& [buf_name, buf_tensor] : ps.buffers)
-        {
-            if(buf_tensor == nullptr)
-            {
-                continue;
-            }
-            std::string hf_name = prefix.empty()
-                ? buf_name
-                : prefix + "." + buf_name;
-            if(!reader.has_tensor(hf_name))
-            {
-                continue;
-            }
-            auto data = reader.read_tensor(hf_name);
-            buf_tensor->data()->set_bind_hint(std::move(data));
-            buf_tensor->mark_input(true);
-        }
-    }
-}
-
-void Optimizer::export_hf(io::SafeTensorsWriter& writer,
-                          const std::string& prefix) const
-{
-    for(const auto& ps : param_states_)
-    {
-        for(const auto& [buf_name, buf_tensor] : ps.buffers)
-        {
-            if(buf_tensor == nullptr)
-            {
-                continue;
-            }
-            const auto* hint = buf_tensor->data()->get_bind_hint();
-            if(hint == nullptr)
-            {
-                continue;
-            }
-            std::string hf_name = prefix.empty()
-                ? buf_name
-                : prefix + "." + buf_name;
-            const auto& idx_shape = buf_tensor->shape();
-            std::vector<std::int64_t> shape(idx_shape.begin(),
-                                            idx_shape.end());
-            writer.add_tensor(hf_name, buf_tensor->dtype(), shape, *hint);
         }
     }
 }

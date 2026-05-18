@@ -22,6 +22,7 @@
 #include "nntile/graph/tensor/subtract_indexed_outputs.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/subtract_indexed_outputs.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -74,7 +75,10 @@ void check_subtract_indexed_outputs_vs_tensor_api(
 
     gt::subtract_indexed_outputs(val, labels_node, dst_node, ignore_index);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     runtime.bind_data("labels", labels_data);
@@ -241,7 +245,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
         gt::subtract_indexed_outputs(val, labels_node, dst_node, ignore_index);
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("labels", labels_data);
@@ -276,7 +283,10 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
             }
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
 
         runtime.bind_data("labels", labels_data);

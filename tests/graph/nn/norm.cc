@@ -61,17 +61,21 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     const auto alpha = GENERATE(Scalar(1.0), Scalar(2.0), Scalar(0.5));
 
     NNGraph g("norm_forward");
-    auto* x = g.tensor({dim_2, dim_3}, "x", DataType::FP32, false);
+    auto* x = g.tensor({6, 7}, "x", DataType::FP32, false);
     auto* y = norm(x, "y", alpha);
+
+    x->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
+    x->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
 
     x->mark_input(true);
     y->mark_output(true);
 
-    std::vector<float> x_data(dim_2 * dim_3);
-    for(Index i = 0; i < dim_2 * dim_3; ++i)
+    std::vector<float> x_data(6 * 7);
+    for(Index i = 0; i < 6 * 7; ++i)
         x_data[i] = static_cast<float>(i + 1);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("x", x_data);
     runtime.execute();

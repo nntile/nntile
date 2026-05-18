@@ -14,6 +14,7 @@
 
 #include "nntile/context.hh"
 #include "nntile/tile/log_scalar.hh"
+#include "nntile/starpu/log_scalar.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -27,7 +28,14 @@ void validate()
     auto value_local = value.acquire(STARPU_W);
     value_local[0] = Y(1.25);
     value_local.release();
-    log_scalar<T>("tile_log_scalar_test", value);
+    // Logging-only op: exercise StarPU submit and tile wrapper separately.
+    Tile<T> value_sp({});
+    auto sp_local = value_sp.acquire(STARPU_W);
+    sp_local[0] = Y(2.5);
+    sp_local.release();
+    starpu::log_scalar.submit<std::tuple<T>>("tile_log_scalar_starpu", value_sp);
+    starpu_task_wait_for_all();
+    log_scalar<T>("tile_log_scalar_tile", value);
 
     TEST_THROW(log_scalar<T>("tile_log_scalar_test_bad", Tile<T>({2})));
 }

@@ -84,7 +84,7 @@ public:
     void mark_input(bool v = true) { is_input_ = v; }
     void mark_output(bool v = true) { is_output_ = v; }
 
-    // Bind hint: data to copy into runtime tensor when Runtime::compile() runs.
+    // Bind hint: data copied into the lowered tile when TileGraph::Runtime::compile() runs.
     void set_bind_hint(std::vector<std::uint8_t> data);
     const std::vector<std::uint8_t>* get_bind_hint() const;
 

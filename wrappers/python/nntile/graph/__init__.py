@@ -13,13 +13,19 @@
 
 from ..nntile_graph import (
     DataType, Module, NNGraph, Runtime, TensorDataNode, TensorGraph,
-    TensorNode, dtype_to_string, nn)
+    TensorNode, TileGraph, dtype_to_string, nn)
+
+# Alias for TileGraph::Runtime (C++);
+# construct as Runtime(TileGraph.from_tensor_graph(g.tensor_graph())).
+TileGraphRuntime = Runtime
 
 __all__ = [
     "DataType",
     "Module",
     "NNGraph",
     "Runtime",
+    "TileGraph",
+    "TileGraphRuntime",
     "TensorDataNode",
     "TensorGraph",
     "TensorNode",

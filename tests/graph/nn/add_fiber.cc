@@ -17,6 +17,7 @@
 
 #ifdef NNTILE_HAVE_TORCH
 #   include "pytorch_helper.hh"
+#   include "pytorch_tile_helpers.hh"
 #endif
 
 #include "context_fixture.hh"
@@ -127,6 +128,9 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 using nntile::test::broadcast_fiber;
 using nntile::test::colmajor_to_rowmajor;
 using nntile::test::compare_float_vectors;
+using nntile::test::nn_pytorch_tile_heterogeneous_1d_len6;
+using nntile::test::nn_pytorch_tile_heterogeneous_1d_len7;
+using nntile::test::nn_pytorch_tile_heterogeneous_rank2_6x7;
 using nntile::test::pytorch_tolerance;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -138,14 +142,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(2.0), Scalar(0.0), Index(1)});
 
     constexpr Index batch_ndim_none = 0;
-    constexpr Index dim0 = 2;
-    constexpr Index dim1 = 4;
-    std::vector<Index> tensor_shape = (axis == 0) ?
-        std::vector<Index>{dim1, dim0} : std::vector<Index>{dim0, dim1};
-    std::vector<Index> fiber_shape_vec = {tensor_shape[axis]};
+    constexpr Index dim_m = 6;
+    constexpr Index dim_n = 7;
+    const std::vector<Index> tensor_shape = {dim_m, dim_n};
+    std::vector<Index> fiber_shape_vec =
+        (axis == 0) ? std::vector<Index>{dim_m} : std::vector<Index>{dim_n};
 
-    const Index tensor_nelems = dim0 * dim1;
-    const Index fiber_nelems = tensor_shape[axis];
+    const Index tensor_nelems = dim_m * dim_n;
+    const Index fiber_nelems = fiber_shape_vec[0];
 
     // Same data pattern as tests/graph/tensor/add_fiber.cc (column-major for NNTile)
     std::vector<float> fiber_data(fiber_nelems);
@@ -163,11 +167,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* out = add_fiber(alpha, fiber, beta, tensor, "out",
                          axis, batch_ndim_none);
 
+    nn_pytorch_tile_heterogeneous_rank2_6x7(tensor);
+    if(axis == 0)
+        nn_pytorch_tile_heterogeneous_1d_len6(fiber);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len7(fiber);
+
     fiber->mark_input(true);
     tensor->mark_input(true);
     out->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("fiber", fiber_data);
     runtime.bind_data("tensor", tensor_data);
@@ -206,14 +217,14 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(0.5), Scalar(2.0), Index(1), Scalar(1.0)});
 
     constexpr Index batch_ndim_none = 0;
-    constexpr Index dim0 = 2;
-    constexpr Index dim1 = 4;
-    std::vector<Index> tensor_shape = (axis == 0) ?
-        std::vector<Index>{dim1, dim0} : std::vector<Index>{dim0, dim1};
-    std::vector<Index> fiber_shape_vec = {tensor_shape[axis]};
+    constexpr Index dim_m = 6;
+    constexpr Index dim_n = 7;
+    const std::vector<Index> tensor_shape = {dim_m, dim_n};
+    std::vector<Index> fiber_shape_vec =
+        (axis == 0) ? std::vector<Index>{dim_m} : std::vector<Index>{dim_n};
 
-    const Index tensor_nelems = dim0 * dim1;
-    const Index fiber_nelems = tensor_shape[axis];
+    const Index tensor_nelems = dim_m * dim_n;
+    const Index fiber_nelems = fiber_shape_vec[0];
 
     std::vector<float> fiber_data(fiber_nelems);
     std::vector<float> tensor_data(tensor_nelems);
@@ -230,6 +241,12 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     auto* out = add_fiber(alpha, fiber, beta, tensor, "out",
                          axis, batch_ndim_none);
 
+    nn_pytorch_tile_heterogeneous_rank2_6x7(tensor);
+    if(axis == 0)
+        nn_pytorch_tile_heterogeneous_1d_len6(fiber);
+    else
+        nn_pytorch_tile_heterogeneous_1d_len7(fiber);
+
     fiber->mark_input(true);
     tensor->mark_input(true);
 
@@ -240,7 +257,8 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     fiber->grad()->mark_output(true);
     tensor->grad()->mark_output(true);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("fiber", fiber_data);
     runtime.bind_data("tensor", tensor_data);

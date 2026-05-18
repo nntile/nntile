@@ -14,30 +14,65 @@
 
 #include "nntile/graph/tensor/scatter.hh"
 
+#include <cstddef>
 #include <stdexcept>
+#include <string>
 
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/copy.hh"
+#include "nntile/graph/tile/copy_intersection.hh"
+#include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/tensor/scatter.hh"
 
 namespace nntile::graph::tensor
 {
 
-namespace
+void TensorScatterOp::lower_to_tile(const LoweringContext& ctx) const
 {
-
-template<typename T>
-void run_scatter(
-    TensorGraph::Runtime& runtime,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst)
-{
-    auto& src_t = runtime.get_tensor<T>(src);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::scatter<T>(src_t, dst_t);
+    // Match nntile::tensor::scatter_async (src/tensor/scatter.cc).
+    const TensorAxisLayout* lay_dst = ctx.tiling.find(dst);
+    if(lay_dst == nullptr)
+    {
+        throw std::runtime_error("lower_to_tile SCATTER: missing tiling for dst");
+    }
+    const auto& tsrc = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto& tdst = tile_lower::tiles_of(ctx.tile_map, dst);
+    if(tsrc.size() != 1)
+    {
+        throw std::runtime_error(
+            "lower_to_tile SCATTER: src must be single-tile tensor");
+    }
+    TileGraph::TileNode* src_tile = tsrc[0];
+    const Index ndim = dst->ndim();
+    if(tdst.size() == 1)
+    {
+        tile_graph::copy(src_tile, tdst[0]);
+        return;
+    }
+    const std::string scratch_name = std::string("__scatter_scr_") +
+        std::to_string(reinterpret_cast<std::uintptr_t>(this));
+    TileGraph::TileNode* scratch = ctx.out.data(
+        std::vector<Index>{2 * ndim}, scratch_name, DataType::INT64);
+    std::vector<Index> src_corner(static_cast<size_t>(ndim), 0);
+    std::vector<Index> dst_corner(static_cast<size_t>(ndim));
+    std::vector<Index> grid_coord;
+    for(Index lin = 0; lin < lay_dst->grid_volume(); ++lin)
+    {
+        lay_dst->grid_coord_from_linear(lin, grid_coord);
+        for(Index k = 0; k < ndim; ++k)
+        {
+            Index lo = 0;
+            Index hi = 0;
+            lay_dst->tile_axis_global_range(grid_coord, k, lo, hi);
+            dst_corner[static_cast<size_t>(k)] = lo;
+        }
+        tile_graph::copy_intersection(src_tile, src_corner,
+            tdst[static_cast<size_t>(lin)], dst_corner, scratch);
+    }
 }
-
-} // namespace
 
 void scatter(
     TensorGraph::TensorNode* src,
@@ -66,44 +101,6 @@ void scatter(
 
     auto op = std::make_shared<TensorScatterOp>(src, dst);
     src->graph()->add_op(op);
-}
-
-void TensorScatterOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_scatter<nntile::fp32_t>(runtime, src, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_scatter<nntile::fp32_fast_tf32_t>(runtime, src, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_scatter<nntile::fp32_fast_fp16_t>(runtime, src, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_scatter<nntile::fp32_fast_bf16_t>(runtime, src, dst);
-            break;
-        case DataType::FP64:
-            run_scatter<nntile::fp64_t>(runtime, src, dst);
-            break;
-        case DataType::FP16:
-            run_scatter<nntile::fp16_t>(runtime, src, dst);
-            break;
-        case DataType::BF16:
-            run_scatter<nntile::bf16_t>(runtime, src, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for scatter operation");
-        default:
-            throw std::runtime_error("Unsupported data type for scatter");
-    }
 }
 
 } // namespace nntile::graph::tensor

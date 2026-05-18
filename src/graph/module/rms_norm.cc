@@ -62,37 +62,4 @@ std::string RMSNorm::repr() const
            ", eps=" + std::to_string(eps_) + ")";
 }
 
-void RMSNorm::import_hf(const graph::io::SafeTensorsReader& reader,
-                        const std::string& hf_prefix)
-{
-    const std::string key = hf_prefix.empty() ? "weight" : hf_prefix + ".weight";
-    if(!reader.has_tensor(key))
-    {
-        throw std::runtime_error("RMSNorm::import_hf: '" + key + "' not found");
-    }
-    const auto& info = reader.tensor_info(key);
-    if(info.shape.size() != 1 ||
-       info.shape[0] != static_cast<std::int64_t>(normalized_shape_))
-    {
-        throw std::runtime_error("RMSNorm::import_hf: shape mismatch for " + key);
-    }
-    auto data = reader.read_tensor(key);
-    gamma_tensor_->data()->set_bind_hint(std::move(data));
-    gamma_tensor_->mark_input(true);
-}
-
-void RMSNorm::export_hf(graph::io::SafeTensorsWriter& writer,
-                        const std::string& hf_prefix) const
-{
-    const std::string key = hf_prefix.empty() ? "weight" : hf_prefix + ".weight";
-    const auto* hint = gamma_tensor_->data()->get_bind_hint();
-    if(hint == nullptr)
-    {
-        throw std::runtime_error("RMSNorm::export_hf: gamma has no data");
-    }
-    writer.add_tensor(key, dtype_,
-                      {static_cast<std::int64_t>(normalized_shape_)},
-                      *hint);
-}
-
 } // namespace nntile::graph::module

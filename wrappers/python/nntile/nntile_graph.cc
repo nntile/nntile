@@ -20,8 +20,10 @@
 #include <nntile/graph/nn/graph_ops.hh>
 
 #include <cstring>
+#include <memory>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace py = pybind11;
@@ -29,18 +31,32 @@ using pybind11::literals::operator""_a;
 using namespace nntile;
 using namespace nntile::graph;
 
+//! Owns a TileGraph (heap) and TileGraph::Runtime (runtime references the graph).
+struct PyGraphRuntime
+{
+    std::shared_ptr<TileGraph> tile_graph;
+    TileGraph::Runtime runtime;
+    explicit PyGraphRuntime(std::shared_ptr<TileGraph> g)
+        : tile_graph(std::move(g))
+        , runtime(*tile_graph)
+    {
+    }
+};
+
 namespace pybind11 { namespace detail {
 template<>
 struct is_copy_constructible<TensorGraph> : std::false_type {};
 template<>
 struct is_copy_constructible<NNGraph> : std::false_type {};
+template<>
+struct is_copy_constructible<PyGraphRuntime> : std::false_type {};
 }} // namespace pybind11::detail
 
 // ---------------------------------------------------------------------------
 // Helpers for numpy <-> Runtime data transfer
 // ---------------------------------------------------------------------------
 
-static void runtime_bind_numpy(TensorGraph::Runtime& rt,
+static void runtime_bind_numpy(TileGraph::Runtime& rt,
                                const std::string& name,
                                py::array arr)
 {
@@ -99,7 +115,7 @@ static void runtime_bind_numpy(TensorGraph::Runtime& rt,
     }
 }
 
-static py::array runtime_get_numpy(TensorGraph::Runtime& rt,
+static py::array runtime_get_numpy(TileGraph::Runtime& rt,
                                    const std::string& name)
 {
     DataType dt = rt.get_dtype(name);
@@ -152,7 +168,8 @@ static py::array runtime_get_numpy(TensorGraph::Runtime& rt,
 
 PYBIND11_MODULE(nntile_graph, m)
 {
-    m.doc() = "NNTile Graph API - computation graph with autograd";
+    m.doc() = "NNTile Graph API - computation graph with autograd. Execute via "
+              "NNGraph.tensor_graph() -> TileGraph.from_tensor_graph -> Runtime.";
 
     // -----------------------------------------------------------------------
     // DataType enum
@@ -205,18 +222,51 @@ PYBIND11_MODULE(nntile_graph, m)
         .def("to_mermaid", &TensorGraph::to_mermaid);
 
     // -----------------------------------------------------------------------
-    // TensorGraph::Runtime
+    // TileGraph (lowered tile-level graph; use with Runtime)
     // -----------------------------------------------------------------------
-    py::class_<TensorGraph::Runtime>(m, "Runtime")
-        .def(py::init<const TensorGraph&>(), "graph"_a)
-        .def("compile", &TensorGraph::Runtime::compile)
-        .def("bind_data", &runtime_bind_numpy,
+    py::class_<TileGraph, std::shared_ptr<TileGraph>>(m, "TileGraph")
+        .def(py::init<std::string>(), "name"_a = "")
+        .def_static(
+            "from_tensor_graph",
+            [](const TensorGraph& tg) {
+                return std::make_shared<TileGraph>(
+                    TileGraph::from_tensor_graph(tg));
+            },
+            "tensor_graph"_a)
+        .def_property_readonly("name", &TileGraph::name)
+        .def_property_readonly("num_data", &TileGraph::num_data)
+        .def_property_readonly("num_ops", &TileGraph::num_ops)
+        .def_property_readonly("num_tensors", &TileGraph::num_tensors)
+        .def("data_names", &TileGraph::data_names)
+        .def("__repr__", &TileGraph::to_string)
+        .def("to_mermaid", &TileGraph::to_mermaid);
+
+    // -----------------------------------------------------------------------
+    // Graph execution: TileGraph::Runtime (owns TileGraph + runtime)
+    // -----------------------------------------------------------------------
+    py::class_<PyGraphRuntime>(
+        m,
+        "Runtime",
+        "Tile graph executor (C++ TileGraph::Runtime). "
+        "Build: TileGraph.from_tensor_graph(nn_graph.tensor_graph()), then Runtime(tile_graph).")
+        .def(py::init<std::shared_ptr<TileGraph>>(), "tile_graph"_a)
+        .def("compile",
+             [](PyGraphRuntime& s) { s.runtime.compile(); })
+        .def("bind_data",
+             [](PyGraphRuntime& s, const std::string& n, py::array a) {
+                 runtime_bind_numpy(s.runtime, n, a);
+             },
              "name"_a, "data"_a)
-        .def("execute", &TensorGraph::Runtime::execute)
-        .def("wait", &TensorGraph::Runtime::wait)
-        .def("get_output", &runtime_get_numpy, "name"_a)
-        .def_property_readonly("is_compiled",
-                               &TensorGraph::Runtime::is_compiled);
+        .def("execute", [](PyGraphRuntime& s) { s.runtime.execute(); })
+        .def("wait", [](PyGraphRuntime& s) { s.runtime.wait(); })
+        .def("get_output",
+             [](PyGraphRuntime& s, const std::string& n) {
+                 return runtime_get_numpy(s.runtime, n);
+             },
+             "name"_a)
+        .def_property_readonly("is_compiled", [](const PyGraphRuntime& s) {
+            return s.runtime.is_compiled();
+        });
 
     // -----------------------------------------------------------------------
     // NNGraph::TensorNode (autograd-aware tensor node)

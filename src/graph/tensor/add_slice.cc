@@ -19,30 +19,16 @@
 
 #include "nntile/base_types.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/add_slice.hh"
+#include "nntile/graph/tile/lowering_context.hh"
 #include "nntile/tensor/add_slice.hh"
 
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_add_slice(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Scalar beta,
-    Index axis,
-    TensorGraph::TensorNode* src1,
-    TensorGraph::TensorNode* src2,
-    TensorGraph::TensorNode* dst)
-{
-    auto& src1_t = runtime.get_tensor<T>(src1);
-    auto& src2_t = runtime.get_tensor<T>(src2);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::add_slice<T>(alpha, src1_t, beta, src2_t, dst_t, axis);
-}
-
-} // namespace
 
 TensorGraph::TensorNode* add_slice(
     Scalar alpha,
@@ -120,48 +106,57 @@ void add_slice(
     src1->graph()->add_op(op);
 }
 
-void TensorAddSliceOp::execute(
-    TensorGraph::Runtime& runtime) const
+void TensorAddSliceOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    DataType dtype = runtime.get_dtype(src1);
-
-    switch(dtype)
+    // Match nntile::tensor::add_slice_async (src/tensor/add_slice.cc):
+    // broadcast src1 along `axis` to each matching dst/src2 tile.
+    const TensorAxisLayout* lay_s1 = ctx.tiling.find(src1);
+    const TensorAxisLayout* lay_d = ctx.tiling.find(dst);
+    if(lay_s1 == nullptr || lay_d == nullptr)
     {
-        case DataType::FP32:
-            run_add_slice<nntile::fp32_t>(
-                runtime, alpha, beta, axis, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_add_slice<nntile::fp32_fast_tf32_t>(
-                runtime, alpha, beta, axis, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_add_slice<nntile::fp32_fast_fp16_t>(
-                runtime, alpha, beta, axis, src1, src2, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_add_slice<nntile::fp32_fast_bf16_t>(
-                runtime, alpha, beta, axis, src1, src2, dst);
-            break;
-        case DataType::FP64:
-            run_add_slice<nntile::fp64_t>(
-                runtime, alpha, beta, axis, src1, src2, dst);
-            break;
-        case DataType::FP16:
-            run_add_slice<nntile::fp16_t>(
-                runtime, alpha, beta, axis, src1, src2, dst);
-            break;
-        case DataType::BF16:
-            run_add_slice<nntile::bf16_t>(
-                runtime, alpha, beta, axis, src1, src2, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for add_slice operation");
-        default:
-            throw std::runtime_error("Unsupported data type for add_slice");
+        throw std::runtime_error(
+            "lower_to_tile ADD_SLICE: missing tiling for src1 and/or dst");
+    }
+
+    tile_lower::assert_same_elementwise_layout(src2, dst, "ADD_SLICE src2/dst");
+
+    const auto& tiles_s1 = tile_lower::tiles_of(ctx.tile_map, src1);
+    const auto& tiles_s2 = tile_lower::tiles_of(ctx.tile_map, src2);
+    const auto& tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
+
+    std::vector<Index> s1_coord;
+    std::vector<Index> dst_coord(static_cast<size_t>(dst->ndim()));
+
+    for(Index lin_s1 = 0; lin_s1 < lay_s1->grid_volume(); ++lin_s1)
+    {
+        lay_s1->grid_coord_from_linear(lin_s1, s1_coord);
+        TileGraph::TileNode* s1_tile = tiles_s1[static_cast<size_t>(lin_s1)];
+
+        for(Index j = 0; j < axis; ++j)
+        {
+            dst_coord[static_cast<size_t>(j)] =
+                s1_coord[static_cast<size_t>(j)];
+        }
+        for(Index j = axis + 1; j < dst->ndim(); ++j)
+        {
+            dst_coord[static_cast<size_t>(j)] =
+                s1_coord[static_cast<size_t>(j - 1)];
+        }
+
+        const Index nseg_along_axis =
+            lay_d->grid_shape()[static_cast<size_t>(axis)];
+        for(Index jj = 0; jj < nseg_along_axis; ++jj)
+        {
+            dst_coord[static_cast<size_t>(axis)] = jj;
+            const Index lin_d = lay_d->grid_linear(dst_coord);
+            tile_graph::add_slice(
+                alpha,
+                s1_tile,
+                beta,
+                tiles_s2[static_cast<size_t>(lin_d)],
+                tiles_d[static_cast<size_t>(lin_d)],
+                axis);
+        }
     }
 }
 

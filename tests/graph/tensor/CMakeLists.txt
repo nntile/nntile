@@ -22,6 +22,7 @@ set(TESTS_TENSOR_CATCH2
     "add_slice_inplace"
     "add_inplace"
     "clear"
+    "concat"
     "conv2d_bwd_input_inplace"
     "conv2d_bwd_weight_inplace"
     "conv2d_inplace"

@@ -12,6 +12,7 @@ set(TESTS_NN_CATCH2
     "add"
     "add_fiber"
     "add_slice"
+    "concat"
     "cross_entropy"
     "embedding"
     "gelu"

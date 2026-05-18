@@ -26,6 +26,7 @@
 #include "context_fixture.hh"
 #include "nntile/graph/tensor/flash_sdpa_fwd_cudnn.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/tensor/clear.hh"
 #include "nntile/tensor/flash_sdpa_fwd_cudnn.hh"
@@ -132,7 +133,10 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
                                         "logsumexp", "A");
     A_node->mark_output(true);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> K_data(kv_nelems);
@@ -294,7 +298,10 @@ TEST_CASE_METHOD(nntile::test::CudaContextFixture,
             }
         }
 
-        TensorGraph::Runtime runtime(graph);
+        TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+        TileGraph::Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data("K", K_data);
         runtime.bind_data("Q", Q_data);

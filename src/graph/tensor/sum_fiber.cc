@@ -22,25 +22,16 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/sum_fiber.hh"
 
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/sum_fiber.hh"
+
 namespace nntile::graph::tensor
 {
 
 namespace
 {
-
-template<typename T>
-void run_sum_fiber(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Scalar beta,
-    Index axis, Index batch_ndim, int redux,
-    TensorGraph::TensorNode* x,
-    TensorGraph::TensorNode* y)
-{
-    auto& x_t = runtime.get_tensor<T>(x);
-    auto& y_t = runtime.get_tensor<T>(y);
-    nntile::tensor::sum_fiber<T>(
-        alpha, x_t, beta, y_t, axis, batch_ndim, redux);
-}
 
 std::vector<Index> sum_fiber_output_shape(
     const std::vector<Index>& x_shape,
@@ -135,48 +126,59 @@ void sum_fiber(
     x->graph()->add_op(op);
 }
 
-void TensorSumFiberOp::execute(
-    TensorGraph::Runtime& runtime) const
+void TensorSumFiberOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    DataType dtype = runtime.get_dtype(x);
-
-    switch(dtype)
+    // Match nntile::tensor::sum_fiber_async (src/tensor/sum_fiber.cc).
+    const TensorAxisLayout* lay_x = ctx.tiling.find(x);
+    const TensorAxisLayout* lay_y = ctx.tiling.find(y);
+    if(lay_x == nullptr || lay_y == nullptr)
     {
-        case DataType::FP32:
-            run_sum_fiber<nntile::fp32_t>(
-                runtime, alpha, beta, axis, batch_ndim, redux, x, y);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_sum_fiber<nntile::fp32_fast_tf32_t>(
-                runtime, alpha, beta, axis, batch_ndim, redux, x, y);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_sum_fiber<nntile::fp32_fast_fp16_t>(
-                runtime, alpha, beta, axis, batch_ndim, redux, x, y);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_sum_fiber<nntile::fp32_fast_bf16_t>(
-                runtime, alpha, beta, axis, batch_ndim, redux, x, y);
-            break;
-        case DataType::FP64:
-            run_sum_fiber<nntile::fp64_t>(
-                runtime, alpha, beta, axis, batch_ndim, redux, x, y);
-            break;
-        case DataType::FP16:
-            run_sum_fiber<nntile::fp16_t>(
-                runtime, alpha, beta, axis, batch_ndim, redux, x, y);
-            break;
-        case DataType::BF16:
-            run_sum_fiber<nntile::bf16_t>(
-                runtime, alpha, beta, axis, batch_ndim, redux, x, y);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for sum_fiber operation");
-        default:
-            throw std::runtime_error("Unsupported data type for sum_fiber");
+        throw std::runtime_error(
+            "lower_to_tile SUM_FIBER: missing tiling for x and/or y");
+    }
+
+    const auto& tiles_x = tile_lower::tiles_of(ctx.tile_map, x);
+    const auto& tiles_y = tile_lower::tiles_of(ctx.tile_map, y);
+
+    std::vector<Index> x_coord;
+    std::vector<Index> y_coord(static_cast<size_t>(y->ndim()));
+
+    const Index fiber_prefix = x->ndim() - batch_ndim;
+
+    for(Index lin_x = 0; lin_x < lay_x->grid_volume(); ++lin_x)
+    {
+        lay_x->grid_coord_from_linear(lin_x, x_coord);
+        TileGraph::TileNode* x_tile = tiles_x[static_cast<size_t>(lin_x)];
+
+        y_coord[0] = x_coord[static_cast<size_t>(axis)];
+        for(Index j = 0; j < batch_ndim; ++j)
+        {
+            y_coord[static_cast<size_t>(j + 1)] =
+                x_coord[static_cast<size_t>(x->ndim() - batch_ndim + j)];
+        }
+        const Index lin_y = lay_y->grid_linear(y_coord);
+        TileGraph::TileNode* y_tile = tiles_y[static_cast<size_t>(lin_y)];
+
+        bool init_first = true;
+        for(Index j = 0; j < fiber_prefix; ++j)
+        {
+            if(j != axis && x_coord[static_cast<size_t>(j)] != 0)
+            {
+                init_first = false;
+                break;
+            }
+        }
+
+        if(init_first)
+        {
+            tile_graph::sum_fiber(
+                alpha, x_tile, beta, y_tile, axis, batch_ndim, redux);
+        }
+        else
+        {
+            tile_graph::sum_fiber(
+                alpha, x_tile, Scalar(1.0), y_tile, axis, batch_ndim, redux);
+        }
     }
 }
 

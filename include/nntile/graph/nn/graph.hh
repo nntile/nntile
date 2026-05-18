@@ -7,8 +7,8 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/nn/graph.hh
- * NNGraph - graph with gradients. Purely symbolic; use TensorGraph::Runtime for
- * execution.
+ * NNGraph - graph with gradients. Purely symbolic; lower to TileGraph and use
+ * TileGraph::Runtime for execution.
  *
  * @version 1.1.0
  * */

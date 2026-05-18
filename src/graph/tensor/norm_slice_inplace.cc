@@ -19,29 +19,72 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/norm_slice_inplace.hh"
 #include "nntile/tensor/norm_slice_inplace.hh"
 
 namespace nntile::graph::tensor
 {
 
-namespace
+void TensorNormSliceInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
-
-template<typename T>
-void run_norm_slice_inplace(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Scalar beta,
-    Index axis, int redux,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst)
-{
-    auto& src_t = runtime.get_tensor<T>(src);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::norm_slice_inplace<T>(
-        alpha, src_t, beta, dst_t, axis, redux);
+    // Match nntile::tensor::norm_slice_inplace_async (src/tensor/norm_slice_inplace.cc).
+    const TensorAxisLayout* lay_d = ctx.tiling.find(dst);
+    const TensorAxisLayout* lay_s = ctx.tiling.find(src);
+    if(lay_d == nullptr || lay_s == nullptr)
+    {
+        throw std::runtime_error(
+            "lower_to_tile NORM_SLICE_INPLACE: missing tiling for dst and/or "
+            "src");
+    }
+    const auto& tiles_s = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto& tiles_d = tile_lower::tiles_of(ctx.tile_map, dst);
+    constexpr Scalar one = 1.0;
+    std::vector<Index> dst_coord;
+    std::vector<Index> s_coord(static_cast<size_t>(src->ndim()));
+    for(Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
+    {
+        lay_d->grid_coord_from_linear(lin_d, dst_coord);
+        for(Index j = 0, k = 0; j < src->ndim(); ++j)
+        {
+            if(j == axis)
+            {
+                continue;
+            }
+            s_coord[static_cast<size_t>(j)] = dst_coord[static_cast<size_t>(k)];
+            ++k;
+        }
+        const Index nseg_along_axis =
+            lay_s->grid_shape()[static_cast<size_t>(axis)];
+        for(Index jj = 0; jj < nseg_along_axis; ++jj)
+        {
+            s_coord[static_cast<size_t>(axis)] = jj;
+            const Index lin_s = lay_s->grid_linear(s_coord);
+            if(jj == 0)
+            {
+                tile_graph::norm_slice_inplace(
+                    alpha,
+                    tiles_s[static_cast<size_t>(lin_s)],
+                    beta,
+                    tiles_d[static_cast<size_t>(lin_d)],
+                    axis,
+                    redux);
+            }
+            else
+            {
+                tile_graph::norm_slice_inplace(
+                    alpha,
+                    tiles_s[static_cast<size_t>(lin_s)],
+                    one,
+                    tiles_d[static_cast<size_t>(lin_d)],
+                    axis,
+                    redux);
+            }
+        }
+    }
 }
-
-} // namespace
 
 void norm_slice_inplace(
     Scalar alpha,
@@ -76,49 +119,6 @@ void norm_slice_inplace(
     auto op = std::make_shared<TensorNormSliceInplaceOp>(
         alpha, beta, src, dst, axis, redux);
     src->graph()->add_op(op);
-}
-
-void TensorNormSliceInplaceOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_norm_slice_inplace<nntile::fp32_t>(
-                runtime, alpha, beta, axis, redux, src, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_norm_slice_inplace<nntile::fp32_fast_tf32_t>(
-                runtime, alpha, beta, axis, redux, src, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_norm_slice_inplace<nntile::fp32_fast_fp16_t>(
-                runtime, alpha, beta, axis, redux, src, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_norm_slice_inplace<nntile::fp32_fast_bf16_t>(
-                runtime, alpha, beta, axis, redux, src, dst);
-            break;
-        case DataType::FP64:
-            run_norm_slice_inplace<nntile::fp64_t>(
-                runtime, alpha, beta, axis, redux, src, dst);
-            break;
-        case DataType::FP16:
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for norm_slice_inplace operation");
-        case DataType::BF16:
-            run_norm_slice_inplace<nntile::bf16_t>(
-                runtime, alpha, beta, axis, redux, src, dst);
-            break;
-        default:
-            throw std::runtime_error(
-                "Unsupported data type for norm_slice_inplace");
-    }
 }
 
 } // namespace nntile::graph::tensor

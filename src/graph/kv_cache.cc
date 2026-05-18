@@ -15,7 +15,8 @@
 #include "nntile/graph/kv_cache.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/nn/graph_data_node.hh"
-#include "nntile/graph/tensor/graph_runtime.hh"
+#include "nntile/graph/tile/graph.hh"
+#include "nntile/graph/tile/graph_runtime.hh"
 
 #include <cstring>
 #include <stdexcept>
@@ -134,7 +135,7 @@ KVCache::create_tensors(NNGraph* graph, const std::string& prefix)
     return tensors_;
 }
 
-void KVCache::bind(TensorGraph::Runtime& runtime,
+void KVCache::bind(TileGraph::Runtime& runtime,
                    const std::string& prefix) const
 {
     size_t nelems = static_cast<size_t>(config_.head_size * config_.max_seq
@@ -209,7 +210,7 @@ void KVCache::bind(TensorGraph::Runtime& runtime,
     }
 }
 
-void KVCache::update_from(TensorGraph::Runtime& runtime,
+void KVCache::update_from(TileGraph::Runtime& runtime,
                          const std::string& prefix)
 {
     size_t nelems = static_cast<size_t>(config_.head_size * config_.max_seq

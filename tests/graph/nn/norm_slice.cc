@@ -66,10 +66,16 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::tuple{Scalar(0.5), Index(1)});
 
     NNGraph g("norm_slice_forward");
-    std::vector<Index> x_shape = (axis == 0) ?
-        std::vector<Index>{dim_4, dim_2} : std::vector<Index>{dim_2, dim_4};
+    const std::vector<Index> x_shape = {6, 7};
     auto* x = g.tensor(x_shape, "x", DataType::FP32, false);
     auto* y = norm_slice(x, "y", axis, redux_none, alpha);
+
+    x->data()->axis(0)->set_tiling(std::vector<Index>{2, 3, 1});
+    x->data()->axis(1)->set_tiling(std::vector<Index>{3, 4});
+    if(axis == 0)
+        y->data()->axis(0)->set_tiling(std::vector<Index>{3, 4});
+    else
+        y->data()->axis(0)->set_tiling(std::vector<Index>{2, 4});
 
     x->mark_input(true);
     y->mark_output(true);
@@ -81,14 +87,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     for(Index i = 0; i < x_nelems; ++i)
         x_data[i] = static_cast<float>(i + 1);
 
-    TensorGraph::Runtime runtime(g.tensor_graph());
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
     runtime.bind_data("x", x_data);
     runtime.execute();
     runtime.wait();
 
     std::vector<float> out = runtime.get_output<float>("y");
-    REQUIRE(out.size() == static_cast<size_t>(dim_2));
+    Index y_nelems = 1;
+    for(Index d : y->shape())
+        y_nelems *= d;
+    REQUIRE(out.size() == static_cast<size_t>(y_nelems));
     for(float v : out)
         REQUIRE(v > 0.0);
 }

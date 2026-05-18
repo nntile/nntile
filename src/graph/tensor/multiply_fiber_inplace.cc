@@ -19,27 +19,36 @@
 #include "nntile/base_types.hh"
 #include "nntile/graph/dtype.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/multiply_fiber_inplace.hh"
 #include "nntile/tensor/multiply_fiber_inplace.hh"
 
 namespace nntile::graph::tensor
 {
 
-namespace
+void TensorMultiplyFiberInplaceOp::lower_to_tile(const LoweringContext& ctx) const
 {
-
-template<typename T>
-void run_multiply_fiber_inplace(
-    TensorGraph::Runtime& runtime,
-    Scalar alpha, Index axis,
-    TensorGraph::TensorNode* src,
-    TensorGraph::TensorNode* dst)
-{
-    auto& src_t = runtime.get_tensor<T>(src);
-    auto& dst_t = runtime.get_tensor<T>(dst);
-    nntile::tensor::multiply_fiber_inplace<T>(alpha, src_t, dst_t, axis);
+    // Match nntile::tensor::multiply_fiber_inplace_async
+    // (src/tensor/multiply_fiber_inplace.cc).
+    const TensorAxisLayout* lay_d = ctx.tiling.find(dst);
+    if(lay_d == nullptr)
+    {
+        throw std::runtime_error(
+            "lower_to_tile MULTIPLY_FIBER_INPLACE: missing tiling for dst");
+    }
+    const auto& ts = tile_lower::tiles_of(ctx.tile_map, src);
+    const auto& td = tile_lower::tiles_of(ctx.tile_map, dst);
+    std::vector<Index> dst_coord;
+    for(Index lin_d = 0; lin_d < lay_d->grid_volume(); ++lin_d)
+    {
+        lay_d->grid_coord_from_linear(lin_d, dst_coord);
+        const Index j = dst_coord[static_cast<size_t>(axis)];
+        tile_graph::multiply_fiber_inplace(
+            alpha, ts[static_cast<size_t>(j)], td[static_cast<size_t>(lin_d)], axis);
+    }
 }
-
-} // namespace
 
 void multiply_fiber_inplace(
     Scalar alpha,
@@ -73,52 +82,6 @@ void multiply_fiber_inplace(
     auto op = std::make_shared<TensorMultiplyFiberInplaceOp>(
         alpha, src, dst, axis);
     src->graph()->add_op(op);
-}
-
-void TensorMultiplyFiberInplaceOp::execute(
-    TensorGraph::Runtime& runtime) const
-{
-    DataType dtype = runtime.get_dtype(src);
-
-    switch(dtype)
-    {
-        case DataType::FP32:
-            run_multiply_fiber_inplace<nntile::fp32_t>(
-                runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_multiply_fiber_inplace<nntile::fp32_fast_tf32_t>(
-                runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_multiply_fiber_inplace<nntile::fp32_fast_fp16_t>(
-                runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_multiply_fiber_inplace<nntile::fp32_fast_bf16_t>(
-                runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP64:
-            run_multiply_fiber_inplace<nntile::fp64_t>(
-                runtime, alpha, axis, src, dst);
-            break;
-        case DataType::FP16:
-            run_multiply_fiber_inplace<nntile::fp16_t>(
-                runtime, alpha, axis, src, dst);
-            break;
-        case DataType::BF16:
-            run_multiply_fiber_inplace<nntile::bf16_t>(
-                runtime, alpha, axis, src, dst);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " data type not supported for multiply_fiber_inplace operation");
-        default:
-            throw std::runtime_error(
-                "Unsupported data type for multiply_fiber_inplace");
-    }
 }
 
 } // namespace nntile::graph::tensor

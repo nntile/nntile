@@ -14,12 +14,45 @@
 
 #include "nntile/graph/nn/concat.hh"
 #include "nntile/graph/nn/graph_data_node.hh"
-#include "nntile/graph/tensor/concat.hh"
 
 #include <stdexcept>
+#include <string>
+
+#include "nntile/graph/tensor/concat.hh"
 
 namespace nntile::graph
 {
+
+NNGraph::TensorNode* NNConcatOp::forward(const std::string& output_name)
+{
+    if(a == nullptr || b == nullptr)
+    {
+        throw std::invalid_argument(
+            "NNConcatOp::forward: a and b must be non-null");
+    }
+    if(a->graph() != b->graph())
+    {
+        throw std::invalid_argument(
+            "NNConcatOp::forward: a and b must belong to the same NNGraph");
+    }
+    NNGraph* graph = a->graph();
+    const bool out_requires_grad = any_input_requires_grad({a, b});
+    TensorGraph::TensorNode* out_data =
+        graph::tensor::concat(a->data(), b->data(), axis, output_name);
+    NNGraph::TensorNode* out = graph->tensor(out_data, out_requires_grad);
+    outputs_ = {out};
+    return out;
+}
+
+void NNConcatOp::backward() const
+{
+    NNGraph::TensorNode* out = output();
+    if(out == nullptr || out->grad() == nullptr)
+    {
+        return;
+    }
+    throw std::runtime_error("NNGraph concat: backward is not supported yet");
+}
 
 NNGraph::TensorNode* concat(
     NNGraph::TensorNode* a,
@@ -28,12 +61,14 @@ NNGraph::TensorNode* concat(
     const std::string& output_name)
 {
     if(a == nullptr || b == nullptr)
+    {
         throw std::invalid_argument("concat: input tensors must be non-null");
-
-    TensorGraph::TensorNode* out_data = graph::tensor::concat(
-        a->data(), b->data(), axis, output_name);
+    }
     NNGraph* graph = a->graph();
-    return graph->tensor(out_data, false);  // no grad for inference
+    auto op = std::make_shared<NNConcatOp>(a, b, axis);
+    NNGraph::TensorNode* out = op->forward(output_name);
+    graph->register_op(std::move(op));
+    return out;
 }
 
 } // namespace nntile::graph

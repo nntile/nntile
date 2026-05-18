@@ -21,6 +21,7 @@
 #include "nntile/graph/tensor/scatter.hh"
 #include "nntile/graph/tensor/axis_descriptor.hh"
 #include "nntile/graph/tensor.hh"
+#include "nntile/graph/tile.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/tensor.hh"
 
@@ -53,7 +54,10 @@ void check_scatter_vs_tensor_api(const std::vector<Index>& shape)
 
     gt::scatter(src_node, dst_node);
 
-    TensorGraph::Runtime runtime(graph);
+    TileGraph tile_graph = TileGraph::from_tensor_graph(graph);
+
+
+    TileGraph::Runtime runtime(tile_graph);
     runtime.compile();
 
     std::vector<float> src_data(nelems);

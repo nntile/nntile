@@ -20,25 +20,15 @@
 #include "nntile/graph/tensor.hh"
 #include "nntile/tensor/mask_scalar.hh"
 
+#include "nntile/graph/tile/lowering_context.hh"
+#include "nntile/graph/tile/mask_scalar.hh"
+#include "nntile/graph/tensor/tensor_graph_tiling.hh"
+#include "nntile/graph/tensor/tile_lowering_helpers.hh"
+
 namespace nntile::graph::tensor
 {
 
-namespace
-{
 
-template<typename T>
-void run_mask_scalar(TensorGraph::Runtime& runtime,
-                     TensorGraph::TensorNode* mask,
-                     Scalar val,
-                     TensorGraph::TensorNode* A,
-                     Index batch_ndim)
-{
-    auto& mask_t = runtime.get_tensor<nntile::bool_t>(mask);
-    auto& A_t = runtime.get_tensor<T>(A);
-    nntile::tensor::mask_scalar<T>(mask_t, val, A_t, batch_ndim);
-}
-
-} // namespace
 
 void mask_scalar(TensorGraph::TensorNode* mask,
                  Scalar val,
@@ -76,39 +66,38 @@ void mask_scalar(TensorGraph::TensorNode* mask,
     A->graph()->add_op(op);
 }
 
-void TensorMaskScalarOp::execute(TensorGraph::Runtime& runtime) const
+void TensorMaskScalarOp::lower_to_tile(const LoweringContext& ctx) const
 {
-    DataType dtype = runtime.get_dtype(A);
-    switch(dtype)
+    // Match nntile::tensor::mask_scalar_async (src/tensor/mask_scalar.cc).
+    const TensorAxisLayout* lay_a = ctx.tiling.find(A);
+    const TensorAxisLayout* lay_m = ctx.tiling.find(mask);
+    if(lay_a == nullptr || lay_m == nullptr)
     {
-        case DataType::FP32:
-            run_mask_scalar<nntile::fp32_t>(runtime, mask, val, A, batch_ndim);
-            break;
-        case DataType::FP32_FAST_TF32:
-            run_mask_scalar<nntile::fp32_fast_tf32_t>(runtime, mask, val, A, batch_ndim);
-            break;
-        case DataType::FP32_FAST_FP16:
-            run_mask_scalar<nntile::fp32_fast_fp16_t>(runtime, mask, val, A, batch_ndim);
-            break;
-        case DataType::FP32_FAST_BF16:
-            run_mask_scalar<nntile::fp32_fast_bf16_t>(runtime, mask, val, A, batch_ndim);
-            break;
-        case DataType::FP64:
-            run_mask_scalar<nntile::fp64_t>(runtime, mask, val, A, batch_ndim);
-            break;
-        case DataType::FP16:
-            run_mask_scalar<nntile::fp16_t>(runtime, mask, val, A, batch_ndim);
-            break;
-        case DataType::BF16:
-            run_mask_scalar<nntile::bf16_t>(runtime, mask, val, A, batch_ndim);
-            break;
-        case DataType::INT64:
-        case DataType::BOOL:
-            throw std::runtime_error(
-                std::string(dtype_to_string(dtype)) +
-                " not supported for mask_scalar (A tensor)");
-        default:
-            throw std::runtime_error("Unsupported data type for mask_scalar");
+        throw std::runtime_error(
+            "lower_to_tile MASK_SCALAR: missing tiling for A and/or mask");
+    }
+
+    const auto& tiles_mask = tile_lower::tiles_of(ctx.tile_map, mask);
+    const auto& tiles_a = tile_lower::tiles_of(ctx.tile_map, A);
+
+    const Index mask_ndim = mask->ndim();
+    std::vector<Index> a_coord;
+    std::vector<Index> mask_coord(static_cast<size_t>(mask_ndim));
+
+    for(Index lin_a = 0; lin_a < lay_a->grid_volume(); ++lin_a)
+    {
+        lay_a->grid_coord_from_linear(lin_a, a_coord);
+        for(Index j = 0; j < mask_ndim; ++j)
+        {
+            mask_coord[static_cast<size_t>(j)] =
+                a_coord[static_cast<size_t>(j)];
+        }
+        const Index lin_m = lay_m->grid_linear(mask_coord);
+        tile_graph::mask_scalar(
+            tiles_mask[static_cast<size_t>(lin_m)],
+            val,
+            tiles_a[static_cast<size_t>(lin_a)],
+            batch_ndim);
     }
 }
 
