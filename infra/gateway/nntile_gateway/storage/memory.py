@@ -8,10 +8,10 @@ For durable deploys, use `SqliteStorage`."""
 import threading
 import time
 
-from nntile_gateway.storage.base import KeyRecord, ModelRecord
+from nntile_gateway.storage.base import KeyRecord, ModelRecord, Storage
 
 
-class InMemoryStorage:
+class InMemoryStorage(Storage):
     """Dict-backed Storage; thread-safe via a single Lock.
 
     A `_key_by_hash` reverse index keeps `get_key_by_hash` O(1) --

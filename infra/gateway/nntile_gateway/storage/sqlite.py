@@ -10,7 +10,7 @@ import sqlite3
 import threading
 
 from nntile_gateway.schemas import ModelSpec
-from nntile_gateway.storage.base import KeyRecord, ModelRecord
+from nntile_gateway.storage.base import KeyRecord, ModelRecord, Storage
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS models (
@@ -32,7 +32,7 @@ CREATE INDEX IF NOT EXISTS api_keys_hash_idx ON api_keys(key_hash);
 """
 
 
-class SqliteStorage:
+class SqliteStorage(Storage):
     """SQLite-backed Storage with the same surface as InMemoryStorage.
 
     Uses a single connection with check_same_thread=False, guarded by a
