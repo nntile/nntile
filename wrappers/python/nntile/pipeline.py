@@ -133,7 +133,7 @@ class Pipeline(object):
     def train_with_scaler_async(self, init_scale: float,
                                       downscale_step: float,
                                       upscale_step: float,
-
+                                      plateau_scale_counter: float,
                                       log_loss: bool = True):
         loss_scale = init_scale
         traits_flag = TensorTraits([], [])
@@ -141,6 +141,7 @@ class Pipeline(object):
         flag_init_val = 1
         np_dst_init = np.array([flag_init_val], dtype=bool)
         flag.from_array(np_dst_init)
+        good_scale_counter = 0
         for i_epoch in range(self.n_epochs):
             # Provide epoch number to the FXT trace
             iteration_push(i_epoch)
@@ -149,6 +150,7 @@ class Pipeline(object):
             for i_batch, (x_batch, y_batch) in enumerate(zip(self.x, self.y)):
                 # Provide batch number to the FXT trace
                 iteration_push(i_batch)
+                num_loss_scale_updates = 0
                 while True:
                     flag.from_array(np_dst_init)
                     # Scale loss for further de-scale
@@ -198,11 +200,14 @@ class Pipeline(object):
                         print("Inf/NaN in gradients are found for scale {}!"
                         " Reduce the loss_scale...".format(loss_scale))
                         loss_scale /= downscale_step
+                        num_loss_scale_updates += 1
+                        good_scale_counter = 0
                     else:
                         print("Accept the current loss scale = {}!"
                         " Keep training...".format(loss_scale))
                         break
-
+                if num_loss_scale_updates == 0:
+                    good_scale_counter += 1
                 # Apply optimizer after gradients for entire batch are
                 # accumulated
                 self.opt.step()
@@ -222,6 +227,12 @@ class Pipeline(object):
                 print("Batch={}/{} Epoch={}/{} Loss={}".format(
                         i_batch + 1, num_batches, i_epoch + 1, self.n_epochs,
                         loss_np[0]), flush=True)
+                if good_scale_counter == plateau_scale_counter:
+                    good_scale_counter = 0
+                    if loss_scale * upscale_step < 0.5 * init_scale:
+                        loss_scale *= upscale_step
+                        print("Increase loss scale to {}...".format(
+                            loss_scale))
                 # Finish current batch in the FXT trace
                 iteration_pop()
             # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")

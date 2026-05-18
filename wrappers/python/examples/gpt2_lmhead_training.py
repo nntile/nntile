@@ -64,6 +64,7 @@ parser.add_argument("--use-scaler", action="store_true")
 parser.add_argument("--init-scale", type=float, default=-1)
 parser.add_argument("--downscale-step", type=float, default=-1)
 parser.add_argument("--upscale-step", type=float, default=-1)
+parser.add_argument("--plateau_scale_counter", type=int, default=-1)
 
 
 parser.add_argument(
@@ -159,6 +160,7 @@ if args.use_scaler:
     assert args.init_scale > 0
     assert args.downscale_step > 0
     assert args.upscale_step > 0
+    assert args.plateau_scale_counter > 0
 if args.seed is not None:
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
@@ -347,7 +349,8 @@ nntile.starpu.profiling_enable()
 if args.use_scaler:
     pipeline.train_with_scaler_async(init_scale=args.init_scale,
                                      downscale_step=args.downscale_step,
-                                     upscale_step=args.upscale_step)
+                                     upscale_step=args.upscale_step,
+                                     plateau_scale_counter=args.plateau_scale_counter)
 else:
     pipeline.train_async()
 # nntile.starpu.resume()
