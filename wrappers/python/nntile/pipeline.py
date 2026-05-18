@@ -13,11 +13,11 @@
 
 from typing import Any, List
 
+from nntile.graph_capture_sched import (
+    graph_recording_begin, graph_recording_end)
 from nntile.model.base_model import BaseModel
-from nntile.nntile_core.starpu import (iteration_pop, iteration_push, pause,
-                                       resume)
+from nntile.nntile_core.starpu import iteration_pop, iteration_push
 from nntile.tensor import Tensor, clear_async, copy_async, log_scalar_async
-from nntile.graph_capture_sched import graph_recording_begin, graph_recording_end
 
 
 class Pipeline(object):
@@ -45,9 +45,9 @@ class Pipeline(object):
             for i_batch, (x_batch, y_batch) in enumerate(zip(self.x, self.y)):
                 # Provide batch number to the FXT trace
                 iteration_push(i_batch)
-                # StarPU graph batch capture (SGOC policy DSO; no-op for e.g. dmdasd).
+                # StarPU graph batch capture (SGOC DSO; no-op for e.g. dmdasd).
                 graph_recording_begin()
-                # Minibatch number 0 clears parameters gradients and output loss
+                # Minibatch 0 clears parameter grads and output loss.
                 i_minibatch = 0
                 iteration_push(i_minibatch)
                 # Zero out gradients of all weights
@@ -57,7 +57,7 @@ class Pipeline(object):
                 iteration_pop()
                 # Accumulate gradients from subbatches
                 for x_minibatch, y_minibatch in zip(x_batch, y_batch):
-                    # Increment minibatch number and mark start of the forward pass
+                    # Next minibatch: mark start of forward pass.
                     i_minibatch += 1
                     iteration_push(i_minibatch)
                     # Copy input batch into activation[0] of the model
