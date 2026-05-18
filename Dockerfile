@@ -43,8 +43,9 @@ ARG CUDA_ARCHS
 # FXT tool version
 ARG FXT_VERSION=0.3.15
 
-# StarPU version
-ARG STARPU_VERSION=1.4.12
+# StarPU: nntile fork (no release tags here). Snapshot = latest commit on this branch (.zip archive).
+ARG STARPU_GITHUB_REPO=nntile/starpu
+ARG STARPU_GIT_BRANCH=master
 
 # Desired Python version
 ARG PYTHON_VERSION=3.12
@@ -66,6 +67,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt install -y --no-install-recommends \
         ca-certificates \
         curl \
+        unzip \
         wget
 
 # Set Conda-related environment variables
@@ -163,18 +165,17 @@ RUN --mount=type=cache,target=/tmp \
     make install && \
     ldconfig
 
-# Build and install StarPU from source into conda environment
-# StarPU is not available in conda-forge
+# Build and install StarPU from source into conda environment (not on conda-forge), then build
+# the SGOC graph scheduler from new_sched/ and install libgraph_sgoc_sched.so to /usr/local/lib (system path).
 RUN --mount=type=cache,target=/tmp \
     set -xe && \
     cd /tmp && \
-    export NAME=starpu-${STARPU_VERSION} && \
-    export URL=https://github.com/starpu-runtime/starpu/archive/refs/tags && \
-    export URL=${URL}/${NAME}.tar.gz && \
-    wget -q ${URL} -O ${NAME}.tar.gz && \
-    mkdir -p ${NAME} && \
-    tar -xzf ${NAME}.tar.gz -C ${NAME} --strip-components=1 && \
-    cd ${NAME} && \
+    export NAME="starpu-${STARPU_GIT_BRANCH}" && \
+    export URL=https://github.com/${STARPU_GITHUB_REPO}/archive/refs/heads/${STARPU_GIT_BRANCH}.zip && \
+    rm -rf "${NAME}" "${NAME}.zip" && \
+    wget -q "${URL}" -O "${NAME}.zip" && \
+    unzip -o -q "${NAME}.zip" && \
+    cd "${NAME}" && \
     ./autogen.sh && \
     ./configure \
         --disable-build-doc \
@@ -192,7 +193,13 @@ RUN --mount=type=cache,target=/tmp \
         --prefix=${CONDA_PREFIX} && \
     make -j ${MAKE_JOBS} && \
     make install && \
+    ldconfig && \
+    cd new_sched && \
+    export PKG_CONFIG_PATH="${CONDA_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}" && \
+    make -j ${MAKE_JOBS} STARPU_BUILD="${CONDA_PREFIX}" EXTRA_CFLAGS=-O2 && \
+    install -D -m 755 libgraph_sgoc_sched.so /usr/local/lib/libgraph_sgoc_sched.so && \
     ldconfig
+# NNTile graph capture: set STARPU_SCHED=sgoc and STARPU_SCHED_LIB=/usr/local/lib/libgraph_sgoc_sched.so
 
 # Set StarPU-specific environment variables
 ENV STARPU_SILENT=1 STARPU_FXT_TRACE=0 STARPU_WORKERS_NOBIND=1
@@ -220,10 +227,34 @@ ARG CUDA_ARCHS
 ADD . /workspace/nntile
 
 # Configure the NNTile
+#
+# CMAKE_DISABLE_FIND_PACKAGE_pybind11=ON forces FetchContent to pull
+# pybind11 v2.11.0 from the in-tree external/pybind11 declaration
+# instead of using whatever pybind11 conda transitively installed.
+# Newer pybind11 versions have stricter type_caster SFINAE that fails
+# to compile TileGraph (which holds vector<unique_ptr<...>>) even
+# though the host build (which also lacks an installed pybind11 and
+# therefore falls back to 2.11.0) succeeds. Matches the host's working
+# CMakeCache.
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS} \
     -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
+    -DCMAKE_DISABLE_FIND_PACKAGE_pybind11=ON \
     -GNinja
 
 # Finally, build the NNTile inplace without installation
 RUN cmake --build build -j ${MAKE_JOBS}
+
+# Install the inference gateway and Telegram bot service packages in
+# editable mode against the same conda env that already has nntile on
+# PYTHONPATH. With this, the same image can run either
+# `python -m nntile_gateway` (HTTP gateway, needs --gpus) or
+# `python -m nntile_tgbot` (Telegram front-end, no GPU) -- or both in
+# parallel as two containers / two processes. pip pulls in the
+# missing transitive deps (cachetools for the gateway; aiogram, httpx
+# for the bot). See infra/README.md for deployment recipes.
+RUN pip install -e infra/gateway && pip install -e infra/tgbot
+
+# Default port for the gateway's HTTP API. The bot does not listen on
+# any port (it long-polls the Telegram API outbound).
+EXPOSE 8000
