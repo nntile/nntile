@@ -44,7 +44,7 @@ parser.add_argument("--pretrained", choices=["local", "remote"],
                     default="local")
 parser.add_argument("--checkpoint-path", type=str, default="")
 parser.add_argument("--config-path", type=str, default="")
-parser.add_argument("--save-checkpoint-path", type=str, default=".model")
+parser.add_argument("--save-checkpoint-path", type=str, default="model.pt")
 parser.add_argument("--optimizer", choices=["sgd", "adam", "adamw"],
                     default="adam")
 
@@ -360,10 +360,10 @@ print("NNTile performance (model flops): {} Tflops/s".format(nflops_minibatch
         * args.nepochs * num_train_batches * num_minibatch
         / time1 * 1e-12))
 print("NNTile loss on the last batch: {}".format(pipeline.loss_hist[-1]))
-# model_torch = gpt2lmhead_nntile.to_torch()
-# torch.save(
-#     {
-#         "model_state_dict": model_torch.state_dict(),
-#     },
-#     args.save_checkpoint_path,
-# )
+model_torch = gpt2lmhead_nntile.to_torch()
+torch.save(
+    {
+        "model_state_dict": model_torch.state_dict(),
+    },
+    args.save_checkpoint_path,
+)
