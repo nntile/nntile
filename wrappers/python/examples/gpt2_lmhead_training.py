@@ -44,7 +44,7 @@ parser.add_argument("--pretrained", choices=["local", "remote"],
                     default="local")
 parser.add_argument("--checkpoint-path", type=str, default="")
 parser.add_argument("--config-path", type=str, default="")
-parser.add_argument("--save-checkpoint-path", type=str, default="model.pt")
+parser.add_argument("--save-checkpoint-path", type=str, default=".model")
 parser.add_argument("--optimizer", choices=["sgd", "adam", "adamw"],
                     default="adam")
 
@@ -64,7 +64,7 @@ parser.add_argument("--use-scaler", action="store_true")
 parser.add_argument("--init-scale", type=float, default=-1)
 parser.add_argument("--downscale-step", type=float, default=-1)
 parser.add_argument("--upscale-step", type=float, default=-1)
-parser.add_argument("--plateau_scale_counter", type=int, default=-1)
+parser.add_argument("--plateau-scale-counter", type=int, default=-1)
 
 parser.add_argument("--layernorm-eps", type=float, default=-1)
 parser.add_argument("--adam-eps", type=float, default=-1)
@@ -393,5 +393,5 @@ torch.save(
     {
         "model_state_dict": model_torch.state_dict(),
     },
-    args.save_checkpoint_path,
+    args.save_checkpoint_path + "/model.pt",
 )

@@ -27,11 +27,11 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for pow operation is not defined
+//! Generic wrapper class for check NaN/Inf operation is not defined
 template<typename T>
 class Isfinite;
 
-//! Specialization of wrapper class for pow operation via std::tuple
+//! Specialization of wrapper class for check NaN/Inf operation via std::tuple
 template<typename T>
 class Isfinite<std::tuple<T>>
 {
@@ -82,7 +82,7 @@ public:
     );
 };
 
-//! Pack of pow operations for different types
+//! Pack of isfinite operations for different types
 using isfinite_pack_t = OperationPack<
     Isfinite,
     std::tuple<nntile::fp64_t>,
@@ -94,7 +94,7 @@ using isfinite_pack_t = OperationPack<
     std::tuple<nntile::fp16_t>
 >;
 
-//! Pack of pow operations for different types
+//! Pack of isfinite operations for different types
 extern isfinite_pack_t isfinite;
 
 } // namespace nntile::starpu

@@ -19,11 +19,11 @@
 namespace nntile::tensor
 {
 
-// Tensor-wise norm
+// Tensor-wise check Inf/NaN
 template<typename T>
 void isfinite_async(const Tensor<T> &src, const Tensor<bool_t> &flag);
 
-// Tensor-wise norm
+// Tensor-wise check Inf/NaN
 template<typename T>
 void isfinite(const Tensor<T> &src, const Tensor<bool_t> &flag);
 

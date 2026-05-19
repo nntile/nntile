@@ -13,7 +13,6 @@
  * */
 
 #include "nntile/kernel/isfinite/cuda.hh"
-#include <algorithm>
 #include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::isfinite
@@ -58,7 +57,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *src, bool_t *dst)
 {
     // Use a single block with up to 1024 threads
     dim3 threads(1024);
-    dim3 blocks(1);
+    dim3 blocks((nelems + threads.x - 1) / threads.x);
 
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
 }

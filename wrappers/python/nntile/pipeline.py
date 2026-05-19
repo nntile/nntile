@@ -133,7 +133,7 @@ class Pipeline(object):
     def train_with_scaler_async(self, init_scale: float,
                                       downscale_step: float,
                                       upscale_step: float,
-                                      plateau_scale_counter: float,
+                                      plateau_scale_counter: int,
                                       log_loss: bool = True):
         loss_scale = init_scale
         traits_flag = TensorTraits([], [])
@@ -190,7 +190,7 @@ class Pipeline(object):
                             if t.grad_required:
                                 t.grad.invalidate_submit()
                     isfinite_grads = True
-                    loss_np = self.loss.get_val()
+                    # loss_np = self.loss.get_val()
                     for p in self.model.parameters:
                         if p.grad_required:
                             isfinite_async(p.grad, flag)
@@ -215,20 +215,6 @@ class Pipeline(object):
                 # Apply optimizer after gradients for entire batch are
                 # accumulated
                 self.opt.step()
-                # for p in self.opt.first_moments:
-                #     isfinite_async(p, flag)
-                # isfinite_grads = nntc.to_numpy(flag)[0]
-                # print("Isfinite first monents", isfinite_grads)
-                # for p in self.opt.second_moments:
-                #     isfinite_async(p, flag)
-                # isfinite_grads = nntc.to_numpy(flag)[0]
-                # print("Isfinite second monents", isfinite_grads)
-                # for p in self.model.parameters:
-                #     isfinite_async(p.value, flag)
-                # isfinite_grads = nntc.to_numpy(flag)[0]
-                # print("Isfinite parameters", isfinite_grads)
-                # # Invalidate gradients of parameters and hint to offload
-                # parameters
                 for p in self.model.parameters:
                     p.value.wont_use()
                     if p.grad_required:

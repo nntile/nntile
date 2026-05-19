@@ -19,11 +19,11 @@
 namespace nntile::tile
 {
 
-// Asynchronous tile-wise power operation
+// Asynchronous tile-wise check Inf/NaN operation
 template<typename T>
 void isfinite_async(const Tile<T> &A, const Tile<bool_t> &flag);
 
-// Blocking version of tile-wise power operation
+// Blocking version of tile-wise check Inf/NaN operation
 template<typename T>
 void isfinite(const Tile<T> &A, const Tile<bool_t> &flag);
 

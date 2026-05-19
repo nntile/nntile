@@ -28,7 +28,7 @@ void cpu(Index nelems, const T *src_, bool_t *dst)
  *
  * @param[in] nelems: Number of elements in the input array
  * @param[in] src_: Input contiguous array of nelems elements
- * @param[inout] dst: Output value true if at least one element is
+ * @param[inout] dst: Output value false if at least one element is
  * NaN or Inf
  * */
 {

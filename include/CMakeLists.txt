@@ -146,6 +146,7 @@ set(KERNEL_HDR
     "nntile/kernel/transpose.hh"
     "nntile/kernel/transpose/cpu.hh"
     "nntile/kernel/isfinite.hh"
+    "nntile/kernel/isfinite/cpu.hh"
     )
 
 if(NNTILE_USE_CUDA)
