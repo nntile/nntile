@@ -66,6 +66,8 @@ parser.add_argument("--downscale-step", type=float, default=-1)
 parser.add_argument("--upscale-step", type=float, default=-1)
 parser.add_argument("--plateau_scale_counter", type=int, default=-1)
 
+parser.add_argument("--layernorm-eps", type=float, default=-1)
+parser.add_argument("--adam-eps", type=float, default=-1)
 
 parser.add_argument(
     "--dtype", choices=["fp32", "fp64", "tf32",
@@ -177,15 +179,25 @@ elif args.pretrained == "local":
         f = open(args.config_path)
         conf_dict = json.load(f)
         f.close()
+        if args.layernorm_eps > 0:
+            conf_dict["layer_norm_epsilon"] = args.layernorm_eps
         config = GPT2ConfigTorch(**conf_dict)
         model_torch = GPT2LMHead_torch(config)
         tokenizer = None
         if args.optimizer == "adam":
-            optimizer = Adam(model_torch.parameters(), args.lr)
+            if args.adam_eps > 0:
+                optimizer = Adam(model_torch.parameters(), args.lr,
+                                 eps=args.adam_eps)
+            else:
+                optimizer = Adam(model_torch.parameters(), args.lr)
         elif args.optimizer == "sgd":
             optimizer = SGD(model_torch.parameters(), args.lr)
         elif args.optimizer == "adamw":
-            optimizer = AdamW(model_torch.parameters(), args.lr)
+            if args.adam_eps > 0:
+                optimizer = AdamW(model_torch.parameters(), args.lr,
+                                  eps=args.adam_eps)
+            else:
+                optimizer = AdamW(model_torch.parameters(), args.lr)
         else:
             raise ValueError
         if args.checkpoint_path:
@@ -230,7 +242,7 @@ if args.hidden_size_tile == -1:
     args.hidden_size_tile = model_torch.config.n_embd
 if args.intermediate_size_tile == -1:
     args.intermediate_size_tile = model_torch.config.n_inner
-
+print(model_torch.config.layer_norm_epsilon)
 gpt2_config_nntile = GPT2ConfigNNTile(
     vocab_size=model_torch.config.vocab_size,
     vocab_embed_dim_tile=model_torch.config.n_embd,
@@ -320,10 +332,18 @@ time1 = time.time() - time0
 print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
 # Set up learning rate and optimizer for training
 if args.optimizer == "adam":
-    optimizer = nntile.optimizer.Adam(gpt2lmhead_nntile.get_parameters(),
+    if args.adam_eps > 0:
+        optimizer = nntile.optimizer.Adam(gpt2lmhead_nntile.get_parameters(),
+            args.lr, eps=args.adam_eps)
+    else:
+        optimizer = nntile.optimizer.Adam(gpt2lmhead_nntile.get_parameters(),
             args.lr)
 elif args.optimizer == "adamw":
-    optimizer = nntile.optimizer.AdamW(gpt2lmhead_nntile.get_parameters(),
+    if args.adam_eps > 0:
+        optimizer = nntile.optimizer.AdamW(gpt2lmhead_nntile.get_parameters(),
+            args.lr, eps=args.adam_eps)
+    else:
+        optimizer = nntile.optimizer.AdamW(gpt2lmhead_nntile.get_parameters(),
             args.lr)
 elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(gpt2lmhead_nntile.get_parameters(),

@@ -22,7 +22,7 @@ from nntile.model.base_model import BaseModel
 from nntile.nntile_core.starpu import iteration_pop, iteration_push
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorTraits, clear_async, copy_async, isfinite_async,
-    log_scalar_async)
+    log_scalar_async, scale_inplace_async)
 
 
 class Pipeline(object):
@@ -208,10 +208,26 @@ class Pipeline(object):
                         break
                 if num_loss_scale_updates == 0:
                     good_scale_counter += 1
+                # De-scale gradients
+                for p in self.model.parameters:
+                    if p.grad_required:
+                        scale_inplace_async(1. / loss_scale, p.grad)
                 # Apply optimizer after gradients for entire batch are
                 # accumulated
                 self.opt.step()
-                # Invalidate gradients of parameters and hint to offload
+                # for p in self.opt.first_moments:
+                #     isfinite_async(p, flag)
+                # isfinite_grads = nntc.to_numpy(flag)[0]
+                # print("Isfinite first monents", isfinite_grads)
+                # for p in self.opt.second_moments:
+                #     isfinite_async(p, flag)
+                # isfinite_grads = nntc.to_numpy(flag)[0]
+                # print("Isfinite second monents", isfinite_grads)
+                # for p in self.model.parameters:
+                #     isfinite_async(p.value, flag)
+                # isfinite_grads = nntc.to_numpy(flag)[0]
+                # print("Isfinite parameters", isfinite_grads)
+                # # Invalidate gradients of parameters and hint to offload
                 # parameters
                 for p in self.model.parameters:
                     p.value.wont_use()
@@ -229,7 +245,7 @@ class Pipeline(object):
                         loss_np[0]), flush=True)
                 if good_scale_counter == plateau_scale_counter:
                     good_scale_counter = 0
-                    if loss_scale * upscale_step < 0.5 * init_scale:
+                    if loss_scale * upscale_step < init_scale:
                         loss_scale *= upscale_step
                         print("Increase loss scale to {}...".format(
                             loss_scale))
