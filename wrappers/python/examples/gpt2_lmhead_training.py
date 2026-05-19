@@ -242,7 +242,6 @@ if args.hidden_size_tile == -1:
     args.hidden_size_tile = model_torch.config.n_embd
 if args.intermediate_size_tile == -1:
     args.intermediate_size_tile = model_torch.config.n_inner
-print(model_torch.config.layer_norm_epsilon)
 gpt2_config_nntile = GPT2ConfigNNTile(
     vocab_size=model_torch.config.vocab_size,
     vocab_embed_dim_tile=model_torch.config.n_embd,
