@@ -142,6 +142,21 @@ class Pipeline(object):
         np_dst_init = np.array([flag_init_val], dtype=bool)
         flag.from_array(np_dst_init)
         good_scale_counter = 0
+        if self.model.dtype in ["fp32", "fp32_fast_tf32",
+                                "fp32_fast_fp16", "fp32_fast_bf16"]:
+            eps = np.finfo(np.float32).eps
+        elif self.model.dtype == "fp64":
+            eps = np.finfo(np.float64).eps
+        elif self.model.dtype == "fp16":
+            eps = np.finfo(np.float16).eps
+        elif self.model.dtype == "bf16":
+            # According to
+            # https://github.com/jax-ml/ml_dtypes/blob/9b8b2471a5ec5fd4c223693f677fcc2416847970/ml_dtypes/_finfo.py#L169
+            eps = 0.00781
+        else:
+            raise ValueError("dtype is unknown or unsupported."
+            "The supported dtypes are [fp32, fp32_fast_tf32, fp32_fast_fp16, \
+            fp32_fast_bf16, bf16, fp16]")
         for i_epoch in range(self.n_epochs):
             # Provide epoch number to the FXT trace
             iteration_push(i_epoch)
@@ -190,7 +205,6 @@ class Pipeline(object):
                             if t.grad_required:
                                 t.grad.invalidate_submit()
                     isfinite_grads = True
-                    # loss_np = self.loss.get_val()
                     for p in self.model.parameters:
                         if p.grad_required:
                             isfinite_async(p.grad, flag)
@@ -202,6 +216,9 @@ class Pipeline(object):
                         loss_scale /= downscale_step
                         num_loss_scale_updates += 1
                         good_scale_counter = 0
+                        if loss_scale < eps:
+                            raise RuntimeError("Loss scale becomes too small"
+                            "for the used dtype")
                     else:
                         print("Accept the current loss scale = {}!"
                         " Keep training...".format(loss_scale))
