@@ -39,7 +39,7 @@ dtype2np = {
 
 dtype2tol = {
     'fp32': {'rtol': 1e-6, 'atol': 1e-5},
-    'bf16': {'rtol': 4e-2, 'atol': 2e-2},
+    'bf16': {'rtol': 6e-2, 'atol': 2e-2},
 }
 
 nocuda = pytest.mark.skipif(

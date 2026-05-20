@@ -23,3 +23,4 @@ class MlpMixerConfig:
     n_classes: int
     layer_norm_epsilon: float = 1e-5
     dtype: str = "fp32"
+    name: str = "mlp_mixer"

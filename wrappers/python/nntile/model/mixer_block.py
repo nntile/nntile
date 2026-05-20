@@ -107,20 +107,7 @@ class MixerBlock(BaseModel):
         x: TensorMoments,
         config: MlpMixerConfig,
     ) -> "MixerBlock":
-        norm_1 = LayerNorm.from_torch(torch_mixer.norm_1, x)
-        mlp_1 = MixerMlp.generate_simple(norm_1.y, 'R')
-        post_mlp1_add = Add.generate_simple(x, mlp_1.y)
-        norm_2 = LayerNorm.from_torch(
-            torch_mixer.norm_2, post_mlp1_add.activations_output[0],
-        )
-        mlp_2 = MixerMlp.generate_simple(norm_2.y, 'L')
-        post_mlp2_add = Add.generate_simple(
-            post_mlp1_add.activations_output[0], mlp_2.y,
-        )
-        block = MixerBlock(
-            x, norm_1, mlp_1, post_mlp1_add, norm_2, mlp_2, post_mlp2_add,
-            config,
-        )
+        block = MixerBlock.generate_simple(x, config)
         _copy_torch_mixer_weights(torch_mixer, block)
         return block
 

@@ -17,8 +17,8 @@ import torch
 from torch import nn
 
 from nntile.tensor import (
-    Tensor_bf16, Tensor_fp16, Tensor_fp32, TensorMoments, TensorTraits,
-    notrans, to_numpy)
+    Tensor_bf16, Tensor_fp16, Tensor_fp32, Tensor_fp32_fast_tf32,
+    TensorMoments, TensorTraits, notrans, to_numpy)
 
 from ..layer.gap import GAP
 from ..layer.linear import Linear
@@ -129,7 +129,13 @@ class MlpMixer(BaseModel):
             "fp32": Tensor_fp32,
             "fp16": Tensor_fp16,
             "bf16": Tensor_bf16,
+            "tf32": Tensor_fp32_fast_tf32,
+            "fp32_fast_tf32": Tensor_fp32_fast_tf32,
         }
+        if config.dtype not in dtype2tensor_type:
+            raise ValueError(
+                f"Unsupported dtype {config.dtype!r} for MlpMixer.from_torch",
+            )
         x_traits = TensorTraits(
             [config.channel_dim, batch_size, config.init_patch_dim],
             [config.channel_dim, batch_size, config.init_patch_dim],
