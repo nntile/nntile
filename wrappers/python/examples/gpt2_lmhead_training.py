@@ -68,6 +68,7 @@ parser.add_argument("--plateau-scale-counter", type=int, default=-1)
 
 parser.add_argument("--layernorm-eps", type=float, default=-1)
 parser.add_argument("--adam-eps", type=float, default=-1)
+parser.add_argument("--min-loss-scale", type=float, default=0)
 
 parser.add_argument(
     "--dtype", choices=["fp32", "fp64", "tf32",
@@ -163,6 +164,23 @@ if args.use_scaler:
     assert args.downscale_step > 0
     assert args.upscale_step > 0
     assert args.plateau_scale_counter > 0
+    assert args.min_loss_scale >= 0
+    if args.min_loss_scale == 0:
+        if args.dtype in ["fp32", "fp32_fast_tf32",
+                            "fp32_fast_fp16", "fp32_fast_bf16"]:
+            min_loss_scale = np.finfo(np.float32).eps
+        elif args.dtype == "fp64":
+            min_loss_scale = np.finfo(np.float64).eps
+        elif args.dtype == "fp16":
+            min_loss_scale = np.finfo(np.float16).eps
+        elif args.dtype == "bf16":
+            # According to
+            # https://github.com/jax-ml/ml_dtypes/blob/9b8b2471a5ec5fd4c223693f677fcc2416847970/ml_dtypes/_finfo.py#L169
+            min_loss_scale = 0.00781
+        elif args.dtype == "tf32":
+            min_loss_scale = np.finfo(np.float16).eps
+    else:
+        min_loss_scale = args.min_loss_scale
 if args.seed is not None:
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
@@ -369,7 +387,8 @@ if args.use_scaler:
     pipeline.train_with_scaler_async(init_scale=args.init_scale,
                                      downscale_step=args.downscale_step,
                                      upscale_step=args.upscale_step,
-                                     plateau_scale_counter=args.plateau_scale_counter)
+                                     plateau_scale_counter=args.plateau_scale_counter,
+                                     min_loss_scale=min_loss_scale)
 else:
     pipeline.train_async()
 # nntile.starpu.resume()
@@ -393,5 +412,5 @@ torch.save(
     {
         "model_state_dict": model_torch.state_dict(),
     },
-    args.save_checkpoint_path + "/model.pt",
+    args.save_checkpoint_path,
 )
