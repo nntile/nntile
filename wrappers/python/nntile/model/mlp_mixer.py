@@ -18,8 +18,7 @@ from torch import nn
 
 from nntile.tensor import (
     Tensor_bf16, Tensor_fp16, Tensor_fp32, TensorMoments, TensorTraits,
-    notrans, to_numpy,
-)
+    notrans, to_numpy)
 
 from ..layer.gap import GAP
 from ..layer.linear import Linear
