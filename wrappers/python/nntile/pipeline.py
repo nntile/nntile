@@ -13,11 +13,16 @@
 
 from typing import Any, List
 
+import numpy as np
+
+import nntile.utils.constructors as nntc
 from nntile.graph_capture_sched import (
     graph_recording_begin, graph_recording_end)
 from nntile.model.base_model import BaseModel
 from nntile.nntile_core.starpu import iteration_pop, iteration_push
-from nntile.tensor import Tensor, clear_async, copy_async, log_scalar_async
+from nntile.tensor import (
+    Tensor, Tensor_bool, TensorTraits, clear_async, copy_async, isfinite_async,
+    log_scalar_async, scale_inplace_async)
 
 
 class Pipeline(object):
@@ -124,6 +129,123 @@ class Pipeline(object):
                 iteration_pop()
                 # Mark end of batch
                 iteration_pop()
+
+    def train_with_scaler_async(self, init_scale: float,
+                                      downscale_step: float,
+                                      upscale_step: float,
+                                      plateau_scale_counter: int,
+                                      min_loss_scale: float,
+                                      log_loss: bool = True):
+        loss_scale = init_scale
+        traits_flag = TensorTraits([], [])
+        flag = Tensor_bool(traits_flag)
+        flag_init_val = 1
+        np_dst_init = np.array([flag_init_val], dtype=bool)
+        flag.from_array(np_dst_init)
+        good_scale_counter = 0
+        for i_epoch in range(self.n_epochs):
+            # Provide epoch number to the FXT trace
+            iteration_push(i_epoch)
+            # print("Epoch ", i_epoch)
+            num_batches = len(self.x)
+            for i_batch, (x_batch, y_batch) in enumerate(zip(self.x, self.y)):
+                # Provide batch number to the FXT trace
+                iteration_push(i_batch)
+                num_loss_scale_updates = 0
+                while True:
+                    flag.from_array(np_dst_init)
+                    # Scale loss for further de-scale
+                    self.loss.scale *= loss_scale
+                    # Zero out gradients of all weights
+                    self.model.clear_parameters_grads()
+                    clear_async(self.loss.val)
+                    # Accumulate gradients from subbatches
+                    for x_minibatch, y_minibatch in zip(x_batch, y_batch):
+                        # Clear gradients of inter-layer activations
+                        self.model.clear_activations_grads()
+                        # Copy input batch into activation[0] of the model
+                        copy_async(x_minibatch,
+                                   self.model.activations[0].value)
+                        # Perform forward pass
+                        self.model.forward_async()
+                        # Copy true result into loss function
+                        copy_async(y_minibatch, self.loss.y)
+                        # Loss function shall be instatiated to read X from
+                        # activations[-1].value of the model and write gradient
+                        # into activations[-1].grad
+                        self.loss.calc_async()
+                        # Now do the backward pass
+                        self.model.backward_async()
+                        # Invalidate activations[2:]. We have to keep
+                        # activations[1] as it holds positional embedding
+                        # indices, that are computed once
+                        if (self.model.config.name == "bert" or
+                            self.model.config.name == "roberta"):
+                            for t in self.model.activations[3:]:
+                                t.value.invalidate_submit()
+                        else:
+                            for t in self.model.activations[2:]:
+                                t.value.invalidate_submit()
+                        # Invalidate gradients of activations
+                        for t in self.model.activations:
+                            if t.grad_required:
+                                t.grad.invalidate_submit()
+                    isfinite_grads = True
+                    for p in self.model.parameters:
+                        if p.grad_required:
+                            isfinite_async(p.grad, flag)
+                    isfinite_grads = nntc.to_numpy(flag)[0]
+                    self.loss.scale /= loss_scale
+                    if not isfinite_grads:
+                        print("Inf/NaN in gradients are found for scale {}! "
+                        " Reduce the loss_scale...".format(loss_scale))
+                        loss_scale /= downscale_step
+                        num_loss_scale_updates += 1
+                        good_scale_counter = 0
+                        if loss_scale < min_loss_scale:
+                            raise RuntimeError("Loss scale becomes too small "
+                            "for the used dtype")
+                    else:
+                        print("Accept the current loss scale = {}!"
+                        " Keep training...".format(loss_scale))
+                        break
+                if num_loss_scale_updates == 0:
+                    good_scale_counter += 1
+                # De-scale gradients
+                for p in self.model.parameters:
+                    if p.grad_required:
+                        scale_inplace_async(1. / loss_scale, p.grad)
+                # Apply optimizer after gradients for entire batch are
+                # accumulated
+                self.opt.step()
+                for p in self.model.parameters:
+                    p.value.wont_use()
+                    if p.grad_required:
+                        p.grad.invalidate_submit()
+                # Limit parallelism through value of loss
+                if log_loss:
+                    log_scalar_async("Train loss", self.loss.val)
+                # De-scaling
+                loss_np = self.loss.get_val() / loss_scale
+                self.loss_hist.append(loss_np[0])
+                # print("Loss in {} epoch = {}".format(i_epoch, loss_np[0]))
+                print("Batch={}/{} Epoch={}/{} Loss={}".format(
+                        i_batch + 1, num_batches, i_epoch + 1, self.n_epochs,
+                        loss_np[0]), flush=True)
+                if good_scale_counter == plateau_scale_counter:
+                    good_scale_counter = 0
+                    if loss_scale * upscale_step < init_scale:
+                        loss_scale *= upscale_step
+                        print("Increase loss scale to {}...".format(
+                            loss_scale))
+                # Finish current batch in the FXT trace
+                iteration_pop()
+            # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
+            # self.loss.get_val(nntile_xentropy_np)
+            # print("Last batch loss after in {} epoch = {}".format(
+            #       i_epoch, nntile_xentropy_np[0]))
+            # Finish current epoch in the FXT trace
+            iteration_pop()
 
     def print_meminfo(self):
         params_nbytes = 0

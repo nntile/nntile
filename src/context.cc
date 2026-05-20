@@ -373,6 +373,7 @@ void Context::restrict_cpu()
     sumprod_slice.restrict_where(STARPU_CPU);
     total_sum_accum.restrict_where(STARPU_CPU);
     transpose.restrict_where(STARPU_CPU);
+    isfinite.restrict_where(STARPU_CPU);
 }
 
 //! Restrict computation to CUDA
@@ -441,6 +442,7 @@ void Context::restrict_cuda()
     sumprod_slice.restrict_where(STARPU_CUDA);
     total_sum_accum.restrict_where(STARPU_CUDA);
     transpose.restrict_where(STARPU_CUDA);
+    isfinite.restrict_where(STARPU_CUDA);
 }
 
 //! Restore computation to all devices
@@ -509,6 +511,7 @@ void Context::restore_where()
     sumprod_slice.restore_where();
     total_sum_accum.restore_where();
     transpose.restore_where();
+    isfinite.restore_where();
 }
 
 } // namespace nntile
