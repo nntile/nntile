@@ -19,8 +19,7 @@ import torch
 
 import nntile
 from nntile.model.mixer_block import (
-    _copy_param_from_torch, _weight_layout_transposed,
-)
+    _copy_param_from_torch, _weight_layout_transposed)
 from nntile.model.mlp_mixer import MlpMixer
 from nntile.model.mlp_mixer_config import MlpMixerConfig
 from nntile.tensor import TensorMoments, TensorTraits
@@ -86,7 +85,9 @@ def _assert_close(ref: torch.Tensor, val: torch.Tensor, dtype: str) -> None:
     )
 
 
-def _grad_to_torch(grad_np: np.ndarray, torch_grad: torch.Tensor) -> torch.Tensor:
+def _grad_to_torch(
+    grad_np: np.ndarray, torch_grad: torch.Tensor
+) -> torch.Tensor:
     grad = torch.tensor(grad_np)
     if _weight_layout_transposed(grad_np.shape, tuple(torch_grad.shape)):
         return grad.T

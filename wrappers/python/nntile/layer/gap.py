@@ -14,8 +14,7 @@
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     TensorMoments, TensorTraits, add_slice_inplace_async, sum_slice_async,
-    transpose_async,
-)
+    transpose_async)
 
 
 class GAP(BaseLayer):

@@ -26,8 +26,7 @@ from ..layer.linear import Linear
 from .base_model import BaseModel
 from .mixer_block import (
     MixerBlock, _copy_param_from_torch, _copy_param_to_torch,
-    _weight_layout_transposed,
-)
+    _weight_layout_transposed)
 from .mlp_mixer_config import MlpMixerConfig
 
 
@@ -150,9 +149,7 @@ class MlpMixer(BaseModel):
         self, torch_mlp_mixer: Optional[nn.Module] = None,
     ) -> nn.Module:
         if torch_mlp_mixer is None:
-            from nntile.torch_models.mlp_mixer import (
-                MlpMixer as TorchMlpMixer,
-            )
+            from nntile.torch_models.mlp_mixer import MlpMixer as TorchMlpMixer
 
             torch_mlp_mixer = TorchMlpMixer(
                 self.config.channel_dim,
