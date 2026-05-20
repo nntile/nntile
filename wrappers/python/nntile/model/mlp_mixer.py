@@ -138,11 +138,20 @@ class MlpMixer(BaseModel):
         x = TensorMoments(x_value, None, False)
         stack = _build_stack(x, config, torch_mlp_mixer)
         model = MlpMixer(x, *stack, config)
+        model.sync_params_from_torch(torch_mlp_mixer)
+        return model
+
+    def sync_params_from_torch(self, torch_mlp_mixer: nn.Module) -> None:
+        """Overwrite NNTile parameters from a compatible PyTorch ``MlpMixer``.
+
+        Used when building with method `from_torch` and when resuming training:
+        load ``model_state_dict`` into a local torch reference model, then copy
+        into this NNTile model.
+        """
         for p_nntile, p_torch in zip(
-            model.parameters, torch_mlp_mixer.parameters(),
+            self.parameters, torch_mlp_mixer.parameters(),
         ):
             _copy_param_from_torch(p_torch, p_nntile)
-        return model
 
     def to_torch(
         self, torch_mlp_mixer: Optional[nn.Module] = None,

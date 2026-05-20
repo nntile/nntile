@@ -18,8 +18,7 @@ import pytest
 import torch
 
 import nntile
-from nntile.model.mixer_block import (
-    _copy_param_from_torch, _weight_layout_transposed)
+from nntile.model.mixer_block import _weight_layout_transposed
 from nntile.model.mlp_mixer import MlpMixer
 from nntile.model.mlp_mixer_config import MlpMixerConfig
 from nntile.tensor import TensorMoments, TensorTraits
@@ -132,10 +131,7 @@ def generate_inputs(dtype: str, params: MlpMixerTestParams):
             ))
 
     model = MlpMixer.generate_simple(X, config)
-    for p_nntile, p_torch in zip(
-        model.parameters, torch_model.parameters(),
-    ):
-        _copy_param_from_torch(p_torch, p_nntile)
+    model.sync_params_from_torch(torch_model)
     model.clear_gradients()
 
     y_grad_np = np.array(
