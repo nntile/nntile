@@ -9,11 +9,11 @@ Import from `nntile.layer`.
 
 | Method | Description |
 |--------|-------------|
-| `generate_simple(...)` | Static factory: build tensors + return layer (per subclass) |
+| `generate_simple(...)` | Static factory: build tensors and return layer (per subclass) |
 | `forward_async()` / `forward()` | Forward pass (blocking waits on StarPU) |
 | `backward_async()` / `backward()` | Backward pass |
 | `forward_dynamic(x)` | Optional dynamic-shape forward (subclasses) |
-| `init_randn_async()` | Randomize parameters |
+| `init_randn_async()` | Randomize parameters initialization|
 | `clear_gradients()` | Zero parameter gradients |
 
 Each layer holds `activations_input`, `activations_output`, `parameters`,

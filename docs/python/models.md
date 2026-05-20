@@ -11,9 +11,9 @@ Import concrete classes from their modules (e.g. `nntile.model.gpt2`).
 |--------------------|-------------|
 | `layers` | Ordered `BaseLayer` list |
 | `parameters` | Aggregated parameter `TensorMoments` |
-| `forward_async()` / `backward_async()` | Run all layers |
+| `forward_async()` / `backward_async()` | Run all layers sequentially with given input to the first layer |
 | `forward_dynamic(x)` | Dynamic-shape forward through layers |
-| `clear_gradients()` | Clear grads on parameters and activations |
+| `clear_gradients()` | Clear gradients and activations |
 | `append(layer)` | Add layer and extend activations |
 
 ## Demo and vision

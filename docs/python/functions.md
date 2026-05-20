@@ -13,7 +13,7 @@ using host-side results.
 
 | Function | Description |
 |----------|-------------|
-| `gemm_async(alpha, trans_a, A, trans_b, B, beta, C)` | General matrix multiply: C = α·op(A)·op(B) + β·C |
+| `gemm_async(alpha, trans_a, A, trans_b, B, beta, C)` | General matrix multiply: C = $\alpha$·op(A)·op(B) + $\beta$·C |
 | `transpose_async(alpha, src, dst, ndim)` | Transpose leading `ndim` dimensions |
 
 ## Activations
@@ -30,11 +30,11 @@ using host-side results.
 
 | Function | Description |
 |----------|-------------|
-| `fill_async(val, x)` | Fill with scalar |
-| `clear_async(x)` | Zero tensor |
-| `pow_async(alpha, exp, x)` | Power (fp32/fp64) |
+| `fill_async(val, x)` | Fill tensor `x` with scalar `val` |
+| `clear_async(x)` | Zero tensor `x` |
+| `pow_async(alpha, exp, x)` | Power $x := \alpha x^{\exp}$ |
 | `multiply_async` / `multiply_inplace_async` | Elementwise multiply |
-| `add_async` / `add_inplace_async` | z = α·x + β·y |
+| `add_async` / `add_inplace_async` | z = $\alpha$·x + $\beta$·y |
 | `scale_async` / `scale_inplace_async` | Scale tensor |
 | `sqrt_async` / `sqrt_inplace_async` | Square root |
 | `hypot_async` / `hypot_inplace_async` | Hypot norm |
@@ -90,8 +90,8 @@ using host-side results.
 
 | Function | Description |
 |----------|-------------|
-| `fused_adam_step` | Single Adam update step |
-| `fused_adamw_step` | AdamW update |
+| `fused_adam_step` | Adam update step |
+| `fused_adamw_step` | AdamW update step|
 | `fused_sgd_step` | SGD with momentum / Nesterov |
 
 ## Transformer and convolution
