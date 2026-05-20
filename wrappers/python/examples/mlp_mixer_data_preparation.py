@@ -7,7 +7,7 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file wrappers/python/examples/mlp_mixer_data_preparation.py
-# Helper module to load MNIST / Fashion-MNIST / CIFAR data for MLP-Mixer training
+# Helper module to load MNIST / Fashion-MNIST / CIFAR data for training
 #
 # @version 1.1.0
 

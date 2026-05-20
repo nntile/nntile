@@ -21,8 +21,7 @@ import torchvision.datasets as dts
 import torchvision.transforms as trnsfrms
 from mlp_mixer_data_preparation import (
     DTYPE_TO_ACTIVATION_TENSOR, cifar_data_loader_to_nntile,
-    mnist_data_loader_to_nntile,
-)
+    mnist_data_loader_to_nntile)
 
 import nntile
 from nntile.model.mlp_mixer import MlpMixer
@@ -41,10 +40,11 @@ def _env_starpu_profiling_on() -> bool:
     """True when STARPU_PROFILING=1 is set before Context (notebook env)."""
     return os.environ.get("STARPU_PROFILING", "0") == "1"
 
+
 parser = argparse.ArgumentParser(
     prog="MLP-Mixer image classifier",
-    description="Train a locally initialized MLP-Mixer on MNIST, Fashion-MNIST, "
-    "or CIFAR-10 "
+    description="Train a locally initialized MLP-Mixer on MNIST, "
+    "Fashion-MNIST, or CIFAR-10 "
     "with NNTile (no remote/HF model). Like gpt_neo_training with "
     "pretrained=local: start from random weights, or pass "
     "--checkpoint-path to load weights produced by --save-checkpoint-path "
