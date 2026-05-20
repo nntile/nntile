@@ -121,7 +121,7 @@ void Isfinite<std::tuple<fp32_fast_bf16_t>>::cuda(void *buffers[], void *cl_args
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for add tasks that depends only on cl_arg
+//! Footprint for isfinite tasks that depends only on cl_arg
 template<typename T>
 uint32_t Isfinite<std::tuple<T>>::footprint(struct starpu_task *task)
 {
@@ -167,7 +167,7 @@ template class Isfinite<std::tuple<nntile::fp32_fast_bf16_t>>;
 template class Isfinite<std::tuple<nntile::bf16_t>>;
 template class Isfinite<std::tuple<nntile::fp16_t>>;
 
-//! Pack of pow operations for different types
+//! Pack of isfinite operations for different types
 isfinite_pack_t isfinite;
 
 } // namespace nntile::starpu

@@ -22,12 +22,10 @@ template<typename T>
 static __global__
 void cuda_kernel(Index nelems, const T *src, bool_t *dst)
 {
-
     if(bool_t::repr_t{dst[0]} == 0)
     {
         return;
     }
-
     using Y = typename T::repr_t;
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if(idx < nelems)
@@ -46,7 +44,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *src, bool_t *dst)
     noexcept
 //! Accumulate flags for Inf and NaN elements in buffer
 /*! For a provided input array of nelems elements indicate
- *  whether there is NaN of Inf elements
+ *  whether there are NaN or Inf elements
 
  *
  * @param[in] stream: CUDA stream
@@ -55,7 +53,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *src, bool_t *dst)
  * @param[inout] dst: Output scalar (single element array)
  * */
 {
-    // Use a single block with up to 1024 threads
+    // Use max threads per block (1024) for efficient parallel reduction
     dim3 threads(1024);
     dim3 blocks((nelems + threads.x - 1) / threads.x);
 

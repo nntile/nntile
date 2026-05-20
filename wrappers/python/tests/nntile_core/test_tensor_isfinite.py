@@ -34,17 +34,17 @@ isfinite = {
 
 
 @dataclass
-class NormTestParams:
+class IsfiniteTestParams:
     shape: list[int]
     shape_tile: list[int]
 
 
-single_tile = NormTestParams(
+single_tile = IsfiniteTestParams(
     shape=[5],
     shape_tile=[5]
 )
 
-multiple_tiles = NormTestParams(
+multiple_tiles = IsfiniteTestParams(
     shape=[10, 20],
     shape_tile=[5, 10]
 )

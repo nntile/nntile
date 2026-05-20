@@ -22,7 +22,7 @@ namespace nntile::kernel::isfinite
 template<typename T>
 void cpu(Index nelems, const T *src_, bool_t *dst)
     noexcept
-//! Test the given array on NaN of Inf values
+//! Test the given array on NaN or Inf values
 /*! For a provided input array of nelems elements test
  * if at least any of the element is NaN or Inf.
  *

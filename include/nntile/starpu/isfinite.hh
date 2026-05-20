@@ -27,11 +27,11 @@
 namespace nntile::starpu
 {
 
-//! Generic wrapper class for check NaN/Inf operation is not defined
+//! Generic wrapper class for checking NaN/Inf operation is not defined
 template<typename T>
 class Isfinite;
 
-//! Specialization of wrapper class for check NaN/Inf operation via std::tuple
+//! Specialization of wrapper class for checking NaN/Inf operation via std::tuple
 template<typename T>
 class Isfinite<std::tuple<T>>
 {
@@ -74,7 +74,7 @@ public:
     static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 
-    //! Submit pow task
+    //! Submit isfinite task
     void submit(
         Index nelems,
         Handle data,
