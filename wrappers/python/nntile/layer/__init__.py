@@ -11,6 +11,7 @@
 #
 # @version 1.1.0
 
+from ..model.mixer_block import MixerBlock
 from .act import Act
 from .add import Add
 from .add_slice import AddSlice
@@ -30,7 +31,6 @@ from .mixer_mlp import MixerMlp
 from .multiply import Multiply
 from .rms_norm import RMSNorm
 from .sdpa import Sdpa
-from ..model.mixer_block import MixerBlock
 
 __all__ = ('Act', 'Add', 'AddSlice', 'Attention', 'AttentionSingleHead',
         'BaseLayer', 'BatchNorm2d', 'Conv2d', 'Embedding',
