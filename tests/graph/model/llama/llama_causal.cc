@@ -9,98 +9,255 @@
  * @file tests/graph/model/llama/llama_causal.cc
  * Tests for LlamaCausal.
  *
+ * Each reference bundle is a **pair**: ``<stem>.json`` (same schema as
+ * ``llama_model*.json`` — ``Llama`` fields, ``sequence_length``, ``batch``,
+ * tolerances) and ``<stem>.safetensors`` (``model.model.*`` weights,
+ * ``model.lm_head.weight``, ``input_ids``, ``rope_cos`` / ``rope_sin``,
+ * ``attn_mask``, ``output_ref`` logits). Tests load the JSON, build
+ * ``LlamaCausal``, ``load()`` weights, then bind RoPE and mask for ``forward``.
+ * Pairs are produced by ``generate_test_data.py`` (``--block causal`` /
+ * ``causal_gqa``).
+ *
  * @version 1.1.0
  * */
 
 #include <catch2/catch_test_macros.hpp>
-#include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
+#include <nlohmann/json.hpp>
+
 #include "context_fixture.hh"
+#include "test_frobenius.hh"
+#include "test_llama_fixture_helpers.hh"
 #include "nntile/graph.hh"
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/llama/llama_causal.hh"
 #include "nntile/graph/model/llama/llama_config.hh"
-#include "nntile/graph/tensor/fill.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::model::llama;
 using namespace nntile::graph::io;
-namespace gt = nntile::graph::tensor;
 
-static LlamaConfig test_config()
+#ifndef LLAMA_DATA_DIR
+
+TEST_CASE("LlamaCausal tests skipped (LLAMA_DATA_DIR undefined)", "[model][llama]")
 {
-    LlamaConfig config;
-    config.vocab_size = 100;
-    config.hidden_size = 8;
-    config.intermediate_size = 16;
-    config.num_hidden_layers = 2;
-    config.num_attention_heads = 1;
-    config.num_key_value_heads = 1;
-    config.compute_head_dim();
-    return config;
+    SKIP("LLAMA_DATA_DIR not defined at compile time.");
 }
 
-static LlamaConfig test_config_gqa()
+#else
+
+namespace causal_fixture_stem
 {
-    LlamaConfig config;
-    config.vocab_size = 100;
-    config.hidden_size = 8;
-    config.intermediate_size = 16;
-    config.num_hidden_layers = 2;
-    config.num_attention_heads = 4;
-    config.num_key_value_heads = 2;
-    config.compute_head_dim();
-    return config;
+
+constexpr char llama_causal[] = "llama_causal";
+constexpr char llama_causal_gqa[] = "llama_causal_gqa";
+
+} // namespace causal_fixture_stem
+
+namespace
+{
+
+using namespace nntile::test::llama_fixture;
+
+//! Parsed ``<stem>.json`` (``version`` 2) — same fields as ``llama_model*.json``.
+struct CausalFixtureSpec
+{
+    LlamaConfig config{};
+    Index seq = 0;
+    Index batch = 0;
+    Index hidden = 0;
+    float forward_tol = 0.f;
+    float backward_tol = 0.f;
+    std::string stem;
+};
+
+inline bool try_load_causal_fixture_spec(
+    const std::string& data_dir,
+    const char* stem_cstr,
+    CausalFixtureSpec& out)
+{
+    out = {};
+    out.stem = stem_cstr;
+    const std::string jpath = data_dir + "/" + out.stem + ".json";
+    std::ifstream jf(jpath);
+    if(!jf)
+    {
+        return false;
+    }
+    nlohmann::json j;
+    try
+    {
+        jf >> j;
+        if(j.at("version").get<int>() != 2)
+        {
+            return false;
+        }
+        if(j.at("stem").get<std::string>() != out.stem)
+        {
+            return false;
+        }
+        const std::string expected_st = out.stem + ".safetensors";
+        if(j.at("safetensors").get<std::string>() != expected_st)
+        {
+            return false;
+        }
+        const auto& L = j.at("llama");
+        out.config.vocab_size = json_index(L, "vocab_size");
+        out.config.hidden_size = json_index(L, "hidden_size");
+        out.config.intermediate_size = json_index(L, "intermediate_size");
+        out.config.num_hidden_layers = json_index(L, "num_hidden_layers");
+        out.config.num_attention_heads = json_index(L, "num_attention_heads");
+        out.config.num_key_value_heads = json_index(L, "num_key_value_heads");
+        out.config.compute_head_dim();
+        out.hidden = out.config.hidden_size;
+        out.seq = json_index(j, "sequence_length");
+        out.batch = json_index(j, "batch");
+        out.forward_tol = static_cast<float>(
+            j.at("tolerances").at("forward").get<double>());
+        out.backward_tol = static_cast<float>(
+            j.at("tolerances").at("backward").get<double>());
+    }
+    catch(...)
+    {
+        return false;
+    }
+    return true;
 }
+
+inline std::string causal_fixture_safetensors_path(
+    const std::string& data_dir,
+    const CausalFixtureSpec& spec)
+{
+    return data_dir + "/" + spec.stem + ".safetensors";
+}
+
+inline bool skip_unless_fixture_ready(const char* stem, CausalFixtureSpec& fx)
+{
+    const std::string dir = std::string(LLAMA_DATA_DIR);
+    if(!try_load_causal_fixture_spec(dir, stem, fx))
+    {
+        return false;
+    }
+    std::ifstream st(causal_fixture_safetensors_path(dir, fx));
+    return st.good();
+}
+
+void causal_forward_compare_ref(const CausalFixtureSpec& fx)
+{
+    const std::string data_dir = std::string(LLAMA_DATA_DIR);
+    const std::string full_path = causal_fixture_safetensors_path(data_dir, fx);
+    const float tol = fx.forward_tol;
+    const LlamaConfig& config = fx.config;
+    const Index n_seq = fx.seq;
+    const Index n_batch = fx.batch;
+
+    SafeTensorsReader reader(full_path);
+
+    std::vector<std::uint8_t> ids_bytes = reader.read_tensor("input_ids");
+    std::vector<std::int64_t> ids_data(ids_bytes.size() / sizeof(std::int64_t));
+    std::memcpy(ids_data.data(), ids_bytes.data(), ids_bytes.size());
+
+    std::vector<std::uint8_t> ref_bytes = reader.read_tensor("output_ref");
+    std::vector<float> ref_data(ref_bytes.size() / sizeof(float));
+    std::memcpy(ref_data.data(), ref_bytes.data(), ref_bytes.size());
+
+    std::vector<float> result;
+    {
+        const std::string gname = std::string("causal_ref_") + fx.stem;
+        NNGraph g(gname);
+        auto* input_ids = g.tensor({n_seq, n_batch}, "input_ids", DataType::INT64);
+        LlamaRopeInputs rope;
+        REQUIRE(load_llama_rope_inputs(
+            g, reader, config, n_seq, n_batch, rope));
+        NNGraph::TensorNode* mask = nullptr;
+        std::vector<std::uint8_t> mask_bytes;
+        REQUIRE(load_attn_mask_bool(g, reader, n_seq, mask, mask_bytes));
+
+        LlamaCausal model(&g, "model", config);
+        auto* output =
+            model.forward(input_ids, rope.sin, rope.cos, mask);
+        input_ids->mark_input(true);
+        output->mark_output(true);
+        mark_rope_inputs(rope);
+        mark_mask_input(mask);
+
+        model.load(full_path);
+
+        TensorGraph& tg = g.tensor_graph();
+        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
+
+        TileGraph::Runtime runtime(tile_graph);
+        runtime.compile();
+        runtime.bind_data("input_ids", ids_data);
+        bind_rope_inputs(runtime, rope);
+        bind_mask_input(runtime, mask, mask_bytes);
+        runtime.execute();
+        runtime.wait();
+
+        result = runtime.get_output<float>(output->name());
+    }
+
+    REQUIRE(result.size() == ref_data.size());
+    require_relative_frobenius_error(result, ref_data, tol);
+}
+
+} // namespace
 
 TEST_CASE("LlamaCausal forward builds output", "[model][llama]")
 {
+    CausalFixtureSpec fx;
+    if(!skip_unless_fixture_ready(causal_fixture_stem::llama_causal, fx))
+    {
+        SKIP("Missing or invalid llama_causal.json / .safetensors.");
+    }
     NNGraph g("llama_causal");
-    auto config = test_config();
-
-    auto* input_ids = g.tensor({4, 2}, "input_ids", DataType::INT64);
-    LlamaCausal model(&g, "model", config);
+    LlamaCausal model(&g, "model", fx.config);
+    auto* input_ids = g.tensor({fx.seq, fx.batch}, "input_ids", DataType::INT64);
     auto* output = model.forward(input_ids);
 
     REQUIRE(output != nullptr);
-    REQUIRE(output->shape() == std::vector<Index>({100, 4, 2}));
+    REQUIRE(output->shape()
+        == std::vector<Index>({fx.config.vocab_size, fx.seq, fx.batch}));
 }
 
 TEST_CASE("LlamaCausal GQA forward builds output", "[model][llama][gqa]")
 {
+    CausalFixtureSpec fx;
+    if(!skip_unless_fixture_ready(causal_fixture_stem::llama_causal_gqa, fx))
+    {
+        SKIP("Missing or invalid llama_causal_gqa.json / .safetensors.");
+    }
     NNGraph g("llama_causal_gqa");
-    auto config = test_config_gqa();
-
-    auto* input_ids = g.tensor({4, 2}, "input_ids", DataType::INT64);
-    LlamaCausal model(&g, "model", config);
+    LlamaCausal model(&g, "model", fx.config);
+    auto* input_ids = g.tensor({fx.seq, fx.batch}, "input_ids", DataType::INT64);
     auto* output = model.forward(input_ids);
 
     REQUIRE(output != nullptr);
-    REQUIRE(output->shape() == std::vector<Index>({100, 4, 2}));
+    REQUIRE(output->shape()
+        == std::vector<Index>({fx.config.vocab_size, fx.seq, fx.batch}));
 }
 
-#ifdef LLAMA_DATA_DIR
 TEST_CASE("LlamaCausal load from safetensors roundtrip", "[model][llama][io]")
 {
-    const std::string data_path =
-        std::string(LLAMA_DATA_DIR) + "/llama_causal_full.safetensors";
-    std::ifstream check(data_path);
-    if(!check.good())
+    CausalFixtureSpec fx;
+    if(!skip_unless_fixture_ready(causal_fixture_stem::llama_causal, fx))
     {
-        SKIP("Llama causal test data not found.");
+        SKIP("Missing or invalid llama_causal.json / .safetensors.");
     }
-
-    auto config = test_config();
+    const std::string data_path =
+        causal_fixture_safetensors_path(std::string(LLAMA_DATA_DIR), fx);
 
     NNGraph g1("load_graph");
-    LlamaCausal model1(&g1, "model", config);
+    LlamaCausal model1(&g1, "model", fx.config);
     model1.load(data_path);
 
     const std::string save_path =
@@ -125,342 +282,23 @@ TEST_CASE("LlamaCausal load from safetensors roundtrip", "[model][llama][io]")
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaCausal matches PyTorch reference", "[model][llama]")
 {
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/llama_causal_full.safetensors";
-    std::ifstream check(full_path);
-    if(!check.good())
+    CausalFixtureSpec fx;
+    if(!skip_unless_fixture_ready(causal_fixture_stem::llama_causal, fx))
     {
-        SKIP("Llama causal full test data not found.");
+        SKIP("Llama causal fixture pair not found.");
     }
-
-    auto config = test_config();
-    const Index head_size = config.head_dim;
-
-    SafeTensorsReader reader(full_path);
-
-    std::vector<std::uint8_t> ids_bytes = reader.read_tensor("input_ids");
-    std::vector<std::int64_t> ids_data(ids_bytes.size() / sizeof(std::int64_t));
-    std::memcpy(ids_data.data(), ids_bytes.data(), ids_bytes.size());
-
-    std::vector<std::uint8_t> ref_bytes = reader.read_tensor("output_ref");
-    std::vector<float> ref_data(ref_bytes.size() / sizeof(float));
-    std::memcpy(ref_data.data(), ref_bytes.data(), ref_bytes.size());
-
-    std::vector<float> result;
-    {
-        NNGraph g("causal_ref");
-        auto* input_ids = g.tensor({4, 2}, "input_ids", DataType::INT64);
-        LlamaCausal model(&g, "model", config);
-        auto* output = model.forward(input_ids);
-        input_ids->mark_input(true);
-        output->mark_output(true);
-
-        model.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input_ids", ids_data);
-        runtime.execute();
-        runtime.wait();
-
-        result = runtime.get_output<float>(output->name());
-    }
-
-    constexpr float tol = 1e-4f;
-    REQUIRE(result.size() == ref_data.size());
-    for(size_t i = 0; i < result.size(); ++i)
-    {
-        REQUIRE(std::abs(result[i] - ref_data[i]) < tol);
-    }
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "LlamaCausal tiled matches untiled", "[model][llama]")
-{
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/llama_causal_full.safetensors";
-    std::ifstream check(full_path);
-    if(!check.good())
-    {
-        SKIP("Llama causal full test data not found.");
-    }
-
-    auto config = test_config();
-
-    SafeTensorsReader reader(full_path);
-
-    std::vector<std::uint8_t> ids_bytes = reader.read_tensor("input_ids");
-    std::vector<std::int64_t> ids_data(ids_bytes.size() / sizeof(std::int64_t));
-    std::memcpy(ids_data.data(), ids_bytes.data(), ids_bytes.size());
-
-    std::vector<float> untiled_result;
-    {
-        NNGraph g("causal_untiled");
-        auto* input_ids = g.tensor({4, 2}, "input_ids", DataType::INT64);
-        LlamaCausal model(&g, "model", config);
-        auto* output = model.forward(input_ids);
-        input_ids->mark_input(true);
-        output->mark_output(true);
-
-        model.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input_ids", ids_data);
-        runtime.execute();
-        runtime.wait();
-
-        untiled_result = runtime.get_output<float>(output->name());
-    }
-
-    std::vector<float> tiled_result;
-    {
-        NNGraph g("causal_tiled");
-        auto* input_ids = g.tensor({4, 2}, "input_ids", DataType::INT64);
-        LlamaCausal model(&g, "model", config);
-        auto* output = model.forward(input_ids);
-        input_ids->mark_input(true);
-        output->mark_output(true);
-
-        model.load(full_path);
-
-        auto axis_has_member = [](
-            const graph::AxisDescriptor* ag,
-            const std::string& name_substr, int axis_idx) -> bool
-        {
-            for(const auto& [node_ptr, axis] : ag->members)
-            {
-                if(axis != axis_idx)
-                    continue;
-                auto* node = static_cast<
-                    const TensorGraph::TensorNode*>(node_ptr);
-                if(node->name().find(name_substr) != std::string::npos)
-                    return true;
-            }
-            return false;
-        };
-
-        TensorGraph& tg = g.tensor_graph();
-        for(auto* ag : tg.axis_groups())
-        {
-            // head_size is axis 1 of q_weight (n_heads, head_size, n_emb)
-            bool is_head_dim = axis_has_member(ag, "q_weight", 1);
-            // vocab_size is axis 1 of embedding vocab (embed_dim, num_embeddings)
-            bool is_vocab_dim = axis_has_member(ag, "vocab", 1);
-            if(!is_head_dim && !is_vocab_dim && ag->extent > 2)
-            {
-                ag->set_tiling((ag->extent + 1) / 2);
-            }
-        }
-
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input_ids", ids_data);
-        runtime.execute();
-        runtime.wait();
-
-        tiled_result = runtime.get_output<float>(output->name());
-    }
-
-    constexpr float tol = 1e-4f;
-    REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
-    }
-}
-
-TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "LlamaCausal backward tiled matches untiled", "[model][llama]")
-{
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/llama_causal_full.safetensors";
-    std::ifstream check(full_path);
-    if(!check.good())
-    {
-        SKIP("Llama causal full test data not found.");
-    }
-
-    auto config = test_config();
-
-    SafeTensorsReader reader(full_path);
-
-    std::vector<std::uint8_t> ids_bytes = reader.read_tensor("input_ids");
-    std::vector<std::int64_t> ids_data(ids_bytes.size() / sizeof(std::int64_t));
-    std::memcpy(ids_data.data(), ids_bytes.data(), ids_bytes.size());
-
-    std::vector<std::uint8_t> grad_out_bytes = reader.read_tensor("grad_output");
-    std::vector<float> grad_out_data(grad_out_bytes.size() / sizeof(float));
-    std::memcpy(grad_out_data.data(), grad_out_bytes.data(),
-        grad_out_bytes.size());
-
-    const std::string grad_name = "model_lm_head_weight_grad";
-
-    std::vector<float> untiled_result;
-    {
-        NNGraph g("causal_bwd_untiled");
-        auto* input_ids = g.tensor({4, 2}, "input_ids", DataType::INT64);
-        LlamaCausal model(&g, "model", config);
-        auto* output = model.forward(input_ids);
-
-        input_ids->mark_input(true);
-        output->mark_output(true);
-
-        auto [grad_output_tensor, _] =
-            g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
-        output->backward();
-
-        for(auto [param, grad] : model.parameter_gradients_recursive())
-        {
-            grad->mark_output(true);
-        }
-
-        model.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input_ids", ids_data);
-        runtime.bind_data("grad_output", grad_out_data);
-        runtime.execute();
-        runtime.wait();
-
-        untiled_result = runtime.get_output<float>(grad_name);
-    }
-
-    std::vector<float> tiled_result;
-    {
-        NNGraph g("causal_bwd_tiled");
-        auto* input_ids = g.tensor({4, 2}, "input_ids", DataType::INT64);
-        LlamaCausal model(&g, "model", config);
-        auto* output = model.forward(input_ids);
-
-        input_ids->mark_input(true);
-        output->mark_output(true);
-
-        auto [grad_output_tensor, _] =
-            g.get_or_create_grad(output, "grad_output");
-        grad_output_tensor->mark_input(true);
-        output->backward();
-
-        for(auto [param, grad] : model.parameter_gradients_recursive())
-        {
-            grad->mark_output(true);
-        }
-
-        model.load(full_path);
-
-        auto axis_has_member = [](
-            const graph::AxisDescriptor* ag,
-            const std::string& name_substr, int axis_idx) -> bool
-        {
-            for(const auto& [node_ptr, axis] : ag->members)
-            {
-                if(axis != axis_idx)
-                    continue;
-                auto* node = static_cast<
-                    const TensorGraph::TensorNode*>(node_ptr);
-                if(node->name().find(name_substr) != std::string::npos)
-                    return true;
-            }
-            return false;
-        };
-
-        TensorGraph& tg = g.tensor_graph();
-        for(auto* ag : tg.axis_groups())
-        {
-            bool is_head_dim = axis_has_member(ag, "q_weight", 1);
-            bool is_vocab_dim = axis_has_member(ag, "vocab", 1);
-            if(!is_head_dim && !is_vocab_dim && ag->extent > 2)
-            {
-                ag->set_tiling((ag->extent + 1) / 2);
-            }
-        }
-
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input_ids", ids_data);
-        runtime.bind_data("grad_output", grad_out_data);
-        runtime.execute();
-        runtime.wait();
-
-        tiled_result = runtime.get_output<float>(grad_name);
-    }
-
-    constexpr float tol = 1e-4f;
-    REQUIRE(tiled_result.size() == untiled_result.size());
-    for(size_t i = 0; i < tiled_result.size(); ++i)
-    {
-        REQUIRE(std::abs(tiled_result[i] - untiled_result[i]) < tol);
-    }
+    causal_forward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
     "LlamaCausal GQA matches PyTorch reference", "[model][llama][gqa]")
 {
-    const std::string full_path =
-        std::string(LLAMA_DATA_DIR) + "/llama_causal_gqa_full.safetensors";
-    std::ifstream check(full_path);
-    if(!check.good())
+    CausalFixtureSpec fx;
+    if(!skip_unless_fixture_ready(causal_fixture_stem::llama_causal_gqa, fx))
     {
-        SKIP("Llama causal GQA test data not found.");
+        SKIP("Llama causal GQA fixture pair not found.");
     }
-
-    auto config = test_config_gqa();
-
-    SafeTensorsReader reader(full_path);
-
-    std::vector<std::uint8_t> ids_bytes = reader.read_tensor("input_ids");
-    std::vector<std::int64_t> ids_data(ids_bytes.size() / sizeof(std::int64_t));
-    std::memcpy(ids_data.data(), ids_bytes.data(), ids_bytes.size());
-
-    std::vector<std::uint8_t> ref_bytes = reader.read_tensor("output_ref");
-    std::vector<float> ref_data(ref_bytes.size() / sizeof(float));
-    std::memcpy(ref_data.data(), ref_bytes.data(), ref_bytes.size());
-
-    std::vector<float> result;
-    {
-        NNGraph g("causal_gqa_ref");
-        auto* input_ids = g.tensor({4, 2}, "input_ids", DataType::INT64);
-        LlamaCausal model(&g, "model", config);
-        auto* output = model.forward(input_ids);
-        input_ids->mark_input(true);
-        output->mark_output(true);
-
-        model.load(full_path);
-
-        TensorGraph& tg = g.tensor_graph();
-        TileGraph tile_graph = TileGraph::from_tensor_graph(tg);
-
-        TileGraph::Runtime runtime(tile_graph);
-        runtime.compile();
-        runtime.bind_data("input_ids", ids_data);
-        runtime.execute();
-        runtime.wait();
-
-        result = runtime.get_output<float>(output->name());
-    }
-
-    constexpr float tol = 1e-4f;
-    REQUIRE(result.size() == ref_data.size());
-    for(size_t i = 0; i < result.size(); ++i)
-    {
-        REQUIRE(std::abs(result[i] - ref_data[i]) < tol);
-    }
+    causal_forward_compare_ref(fx);
 }
+
 #endif

@@ -31,10 +31,6 @@
  *   --load-optim PATH    Load optimizer state before training
  *   --save-config PATH   Save optimizer config (JSON) after training
  *   --load-config PATH   Load optimizer config (JSON) before training
- *   --export-hf PATH     Export model weights in HF SafeTensors format
- *   --import-hf PATH     Import model weights from HF SafeTensors format
- *   --export-hf-optim PATH  Export optimizer state in HF SafeTensors format
- *   --import-hf-optim PATH  Import optimizer state from HF SafeTensors format
  *
  * @version 1.1.0
  * */
@@ -135,10 +131,6 @@ struct Args
     std::string load_optim;
     std::string save_config;
     std::string load_config;
-    std::string export_hf;
-    std::string import_hf;
-    std::string export_hf_optim;
-    std::string import_hf_optim;
 };
 
 Args parse_args(int argc, char** argv)
@@ -173,14 +165,6 @@ Args parse_args(int argc, char** argv)
             args.save_config = argv[++i];
         else if(arg == "--load-config" && i + 1 < argc)
             args.load_config = argv[++i];
-        else if(arg == "--export-hf" && i + 1 < argc)
-            args.export_hf = argv[++i];
-        else if(arg == "--import-hf" && i + 1 < argc)
-            args.import_hf = argv[++i];
-        else if(arg == "--export-hf-optim" && i + 1 < argc)
-            args.export_hf_optim = argv[++i];
-        else if(arg == "--import-hf-optim" && i + 1 < argc)
-            args.import_hf_optim = argv[++i];
         else
         {
             std::cerr << "Unknown option: " << arg << "\n";
@@ -320,13 +304,6 @@ int main(int argc, char** argv)
         model.load(args.load_model);
         std::cout << "Loaded model weights from: " << args.load_model << "\n";
     }
-    else if(!args.import_hf.empty())
-    {
-        io::SafeTensorsReader hf_reader(args.import_hf);
-        model.import_hf(hf_reader, "");
-        std::cout << "Imported model weights from HF: "
-                  << args.import_hf << "\n";
-    }
     else
     {
         io::SafeTensorsWriter writer;
@@ -373,13 +350,6 @@ int main(int argc, char** argv)
         std::cout << "Loaded optimizer state from: "
                   << args.load_optim << "\n";
     }
-    else if(!args.import_hf_optim.empty())
-    {
-        io::SafeTensorsReader hf_reader(args.import_hf_optim);
-        optimizer->import_hf(hf_reader, "");
-        std::cout << "Imported optimizer state from HF: "
-                  << args.import_hf_optim << "\n";
-    }
     else
     {
         auto state_tensors = optimizer->named_state_tensors();
@@ -424,10 +394,8 @@ int main(int argc, char** argv)
     std::cout << "\n";
 
     // ---- Sync trained data from runtime to bind_hints for saving ----
-    bool need_model_sync = !args.save_model.empty()
-                        || !args.export_hf.empty();
-    bool need_optim_sync = !args.save_optim.empty()
-                        || !args.export_hf_optim.empty();
+    bool need_model_sync = !args.save_model.empty();
+    bool need_optim_sync = !args.save_optim.empty();
     auto sync_tensor = [&runtime](NNGraph::TensorNode* t) {
         const auto& tname = t->name();
         std::vector<std::uint8_t> bytes;
@@ -476,31 +444,11 @@ int main(int argc, char** argv)
         std::cout << "Saved model weights to: " << args.save_model << "\n";
     }
 
-    // ---- Export model in HF format ----
-    if(!args.export_hf.empty())
-    {
-        io::SafeTensorsWriter hf_writer;
-        model.export_hf(hf_writer, "");
-        hf_writer.write(args.export_hf);
-        std::cout << "Exported model weights to HF: "
-                  << args.export_hf << "\n";
-    }
-
     // ---- Save optimizer state ----
     if(!args.save_optim.empty())
     {
         optimizer->save(args.save_optim);
         std::cout << "Saved optimizer state to: " << args.save_optim << "\n";
-    }
-
-    // ---- Export optimizer state in HF format ----
-    if(!args.export_hf_optim.empty())
-    {
-        io::SafeTensorsWriter hf_writer;
-        optimizer->export_hf(hf_writer, "");
-        hf_writer.write(args.export_hf_optim);
-        std::cout << "Exported optimizer state to HF: "
-                  << args.export_hf_optim << "\n";
     }
 
     // ---- Save optimizer config (JSON) ----

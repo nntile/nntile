@@ -29,8 +29,6 @@
 namespace nntile::graph::tensor
 {
 
-
-
 TensorGraph::TensorNode* rope(
     TensorGraph::TensorNode* sin,
     TensorGraph::TensorNode* cos,

@@ -86,6 +86,7 @@
 #include <nntile/tile/transpose.hh>
 #include <nntile/tile/hypot_scalar_inverse.hh>
 #include <nntile/tile/log_scalar.hh>
+#include <nntile/tile/isfinite.hh>
 
 //! @namespace nntile::tile
 /*! This namespace holds high-level routines for Tile<T>
