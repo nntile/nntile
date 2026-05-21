@@ -30,9 +30,10 @@ from .mixer_mlp import MixerMlp
 from .multiply import Multiply
 from .rms_norm import RMSNorm
 from .sdpa import Sdpa
+from ..model.mixer_block import MixerBlock
 
 __all__ = ('Act', 'Add', 'AddSlice', 'Attention', 'AttentionSingleHead',
         'BaseLayer', 'BatchNorm2d', 'Conv2d', 'Embedding',
         'GAP', 'LayerNorm', 'Linear',
         'GPTNeoAttention', 'GPTNeoXAttention', 'BertSelfAttention',
-        'MixerMlp', 'RMSNorm', 'Multiply', 'Sdpa')
+        'MixerBlock', 'MixerMlp', 'RMSNorm', 'Multiply', 'Sdpa')

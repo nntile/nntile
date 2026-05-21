@@ -22,7 +22,9 @@ Import concrete classes from their modules (e.g. `nntile.model.gpt2`).
 |-------|--------|-------------------|
 | `DeepReLU` | `deep_relu.py` | — |
 | `DeepLinear` | `deep_linear.py` | — |
-| `MlpMixer` | `mlp_mixer.py` | — |
+| `MlpMixer` | `mlp_mixer.py` | — (`from_torch` via local PyTorch reference in [`torch_models/mlp_mixer.py`](../../wrappers/python/nntile/torch_models/mlp_mixer.py)) |
+| `MlpMixerConfig` | `mlp_mixer_config.py` | — |
+| `MixerBlock` | `mixer_block.py` | — |
 
 ## BERT
 

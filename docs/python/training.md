@@ -49,7 +49,7 @@ Under [`wrappers/python/examples/`](../../wrappers/python/examples/):
 | [`deep_relu_image_classification.py`](../../wrappers/python/examples/deep_relu_image_classification.py) | Image classification (MNIST/CIFAR) |
 | [`deep_relu.py`](../../wrappers/python/examples/deep_relu.py) | Small DeepReLU demo |
 | [`deep_linear.py`](../../wrappers/python/examples/deep_linear.py) | Deep linear demo |
-| [`mlp_mixer_nntile.py`](../../wrappers/python/examples/mlp_mixer_nntile.py) | MLP-Mixer |
+| [`mlp_mixer_training.py`](../../wrappers/python/examples/mlp_mixer_training.py) | MLP-Mixer image classification (MNIST / Fashion-MNIST / CIFAR-10) |
 | [`gpt2_perf_workflow.py`](../../wrappers/python/examples/gpt2_perf_workflow.py) | Forward/backward performance |
 
 Typical CLI knobs: `--batch`, `--minibatch`, `--seq-tile`, `--embd-tile`,
@@ -85,6 +85,7 @@ training cells:
 - `bert.ipynb`, `roberta.ipynb`
 - `gpt2_lmhead.ipynb`, `gpt_neo_lmhead.ipynb`, `gpt_neox_lmhead.ipynb`
 - `llama_lmhead.ipynb`, `Llama.ipynb`, `t5_lmhead.ipynb`
+- `mlp_mixer.ipynb` — MLP-Mixer vision training (calls `mlp_mixer_training.py`)
 
 Six notebooks include **DMDASD vs SGOC** benchmarks — [sgoc/README.md](../sgoc/README.md).
 
