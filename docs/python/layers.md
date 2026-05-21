@@ -41,9 +41,11 @@ Exported in [`layer/__init__.py`](../../wrappers/python/nntile/layer/__init__.py
 | `GPTNeoXAttention` | GPT-NeoX attention |
 | `Conv2d` | 2D convolution |
 | `BatchNorm2d` | 2D batch normalization |
-| `GAP` | Global average pooling |
-| `MixerMlp` | MLP-Mixer MLP block |
-| `Mixer` | Full MLP-Mixer layer |
+| `GAP` | Global average pooling over the patch axis ([`gap.py`](../../wrappers/python/nntile/layer/gap.py)) |
+| `MixerMlp` | MLP-Mixer token- or channel-mixing MLP (`side` `'L'` / `'R'`) |
+| `MixerBlock` | Full Mixer block (LayerNorm + two `MixerMlp` + residuals); implementation in [`model/mixer_block.py`](../../wrappers/python/nntile/model/mixer_block.py), re-exported from `nntile.layer` |
+
+The stacked vision model is [`MlpMixer`](../models.md) in `nntile.model.mlp_mixer`.
 
 Also used by models (not all in `__all__`): `T5Attention` ([`t5_attention.py`](../../wrappers/python/nntile/layer/t5_attention.py)),
 KV cache helpers in [`cache_utils.py`](../../wrappers/python/nntile/layer/cache_utils.py).

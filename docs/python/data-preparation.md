@@ -40,8 +40,31 @@ Used by GPT-2, GPT-Neo, GPT-NeoX, Llama training scripts and notebooks
 
 [`mlp_mixer_data_preparation.py`](../../wrappers/python/examples/mlp_mixer_data_preparation.py)
 
-- MNIST / CIFAR-10 loading and image patching for
-  [`mlp_mixer_nntile.py`](../../wrappers/python/examples/mlp_mixer_nntile.py)
+Helper module used by
+[`mlp_mixer_training.py`](../../wrappers/python/examples/mlp_mixer_training.py):
+
+- `mnist_data_loader_to_nntile` / `cifar_data_loader_to_nntile` — patch images to
+  `[n_patches, minibatch, patch_dim]` and build StarPU batch lists
+- `color_image_patching` — RGB (CIFAR-style) patching
+- `DTYPE_TO_ACTIVATION_TENSOR` — map `--dtype` (`fp32`, `bf16`, `tf32`, …) to
+  activation tensor types (must match the model)
+
+The training script downloads MNIST, Fashion-MNIST, or CIFAR-10 via torchvision
+(`--dataset`, `--data-root`); you do not run the prep module as a standalone CLI.
+
+Example:
+
+```shell
+python wrappers/python/examples/mlp_mixer_training.py \
+  --dataset mnist --data-root ./data \
+  --batch-size 60 --minibatch-size 3 --patch-size 7 \
+  --hidden-dim 2048 --num-mixer-layers 8 \
+  --dtype fp32 --restrict cuda --nepochs 1
+```
+
+Checkpoints: `--save-checkpoint-path` writes a `.pt` with `model_state_dict`;
+resume with `--checkpoint-path` (architecture flags must match). See
+[`mlp_mixer.ipynb`](../../notebooks/mlp_mixer.ipynb) for notebook workflows.
 
 ## Workflow
 
