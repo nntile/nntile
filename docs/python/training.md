@@ -24,9 +24,9 @@ Fused low-level steps: `fused_adam_step`, `fused_adamw_step`, `fused_sgd_step` i
 [`pipeline.py`](../../wrappers/python/nntile/pipeline.py) runs epoch loops:
 
 - Input batches `x`, labels `y`
-- `model.forward_async` / `backward_async` over minibatches
-- `loss.calc_async`
-- `opt.step()` after gradient accumulation
+- `model.forward_async` / `model.backward_async` over minibatches
+- `loss.calc_async()`
+- `opt.step()` after gradient accumulation over minibatches
 - Optional **SGOC** graph capture per batch (`graph_recording_begin` / `end`)
 
 See [sgoc/README.md](../sgoc/README.md).
@@ -37,7 +37,7 @@ Under [`wrappers/python/examples/`](../../wrappers/python/examples/):
 
 | Script | Task |
 |--------|------|
-| [`gpt2_custom_training.py`](../../wrappers/python/examples/gpt2_custom_training.py) | Custom GPT-2 (recommended first training example) |
+| [`gpt2_custom_training.py`](../../wrappers/python/examples/gpt2_custom_training.py) | Custom GPT-2 implementation (recommended first training example) |
 | [`gpt2_lmhead_training.py`](../../wrappers/python/examples/gpt2_lmhead_training.py) | GPT-2 LM head |
 | [`gpt2_training.py`](../../wrappers/python/examples/gpt2_training.py) | GPT-2 (WikiText-103 inline) |
 | [`bert_training.py`](../../wrappers/python/examples/bert_training.py) | BERT masked LM |
@@ -79,7 +79,7 @@ CUDA_VISIBLE_DEVICES=0 STARPU_NCPU=2 \
 
 ## Jupyter notebooks
 
-[`notebooks/`](../../notebooks/) mirror several models with HF comparison and
+[`notebooks/`](../../notebooks/) mirror several models with HuggingFace comparison and
 training cells:
 
 - `bert.ipynb`, `roberta.ipynb`

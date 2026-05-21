@@ -47,7 +47,7 @@ for a full example with tiling and StarPU env vars.
 
 ## TensorMoments
 
-Training uses `TensorMoments`: a value tensor, optional `grad`, and
+Training uses `TensorMoments`: a tensor `value`, optional `grad` tensor, and
 `grad_required` flag. Layers and models wire activations and parameters as
 `TensorMoments` lists.
 
