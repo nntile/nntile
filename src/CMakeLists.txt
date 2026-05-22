@@ -85,6 +85,7 @@ if(NOT HAVE_STARPU_SIMGRID)
         "kernel/sumprod_slice/cpu.cc"
         "kernel/total_sum_accum/cpu.cc"
         "kernel/transpose/cpu.cc"
+        "kernel/isfinite/cpu.cc"
     )
 
     # CUDA-specific low-level kernels
@@ -158,6 +159,7 @@ if(NOT HAVE_STARPU_SIMGRID)
             "kernel/transpose/cuda.cu"
             "kernel/flash_sdpa_fwd_cudnn/cuda.cc"
             "kernel/flash_sdpa_bwd_cudnn/cuda.cc"
+            "kernel/isfinite/cuda.cu"
         )
     endif(NNTILE_USE_CUDA)
 endif(NOT HAVE_STARPU_SIMGRID)
@@ -243,6 +245,7 @@ set(STARPU_CODELET_SRC
     "starpu/sumprod_slice.cc"
     "starpu/total_sum_accum.cc"
     "starpu/transpose.cc"
+    "starpu/isfinite.cc"
 )
 
 # Basic Tile-related sources
@@ -320,6 +323,7 @@ set(TILE_OPERATION_SRC
     "tile/sumprod_fiber.cc"
     "tile/sumprod_slice.cc"
     "tile/total_sum_accum.cc"
+    "tile/isfinite.cc"
 )
 
 # Tensor-related sources
@@ -400,6 +404,7 @@ set(TENSOR_OPERATION_SRC
     "tensor/sumprod_slice.cc"
     "tensor/total_sum_accum.cc"
     "tensor/transpose.cc"
+    "tensor/isfinite.cc"
 )
 
 # Logger-related sources

@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nntile-gateway"
+version = "0.1.0"
+description = "Multi-model, multi-user inference gateway on top of nntile."
+license = {text = "MIT"}
+authors = [
+    {name = "NNTile Contributors"},
+]
+requires-python = ">=3.10,<4"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic>=2",
+    "cachetools>=5",
+]
+
+[project.optional-dependencies]
+sqlite = []
+test = [
+    "pytest>=8.2",
+    "httpx",
+]
+
+[project.scripts]
+nntile-gateway = "nntile_gateway.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["nntile_gateway*"]
+
+[tool.pytest.ini_options]
+minversion = "8.2"
+addopts = "-ra"
+testpaths = ["tests"]
+markers = [
+    "live: live integration tests requiring nntile + StarPU + model weights (opt in with --live)",
+]

@@ -33,6 +33,9 @@ class T5ConfigNNTile:
     num_layers: int = 4
     vocab_size: int = 32100
     dtype: str = "fp32"
+    eos_token_id: int = 1
+    decoder_start_token_id: int = 0
+    pad_token_id: int = 0
 
 
 @dataclass

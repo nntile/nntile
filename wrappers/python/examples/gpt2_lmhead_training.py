@@ -60,6 +60,16 @@ parser.add_argument("--hidden-size-tile", type=int, default=-1)
 parser.add_argument("--intermediate-size-tile", type=int, default=-1)
 parser.add_argument("--n-head-tile", type=int, default=-1)
 
+parser.add_argument("--use-scaler", action="store_true")
+parser.add_argument("--init-scale", type=float, default=-1)
+parser.add_argument("--downscale-step", type=float, default=-1)
+parser.add_argument("--upscale-step", type=float, default=-1)
+parser.add_argument("--plateau-scale-counter", type=int, default=-1)
+
+parser.add_argument("--layernorm-eps", type=float, default=-1)
+parser.add_argument("--adam-eps", type=float, default=-1)
+parser.add_argument("--min-loss-scale", type=float, default=0)
+
 parser.add_argument(
     "--dtype", choices=["fp32", "fp64", "tf32",
                         "bf16", "fp32_fast_fp16",
@@ -75,6 +85,8 @@ parser.add_argument("--dataset-file", default="")
 
 parser.add_argument("--lr", type=float, default=1e-4)
 parser.add_argument("--nepochs", type=int, default=1)
+parser.add_argument("--seed", type=int, default=None,
+                    help="If set, seed PyTorch and NumPy for reproducibility.")
 
 parser.add_argument("--logger", action="store_true")
 parser.add_argument("--logger-server-addr", type=str,
@@ -147,6 +159,33 @@ assert args.force_offload_ram_portion_temporaries <= 1.0
 assert args.force_offload_ram_portion_optimizer >= 0.0
 assert args.force_offload_ram_portion_optimizer <= 1.0
 
+if args.use_scaler:
+    assert args.init_scale > 0
+    assert args.downscale_step > 0
+    assert args.upscale_step > 0
+    assert args.plateau_scale_counter > 0
+    assert args.min_loss_scale >= 0
+    if args.min_loss_scale == 0:
+        if args.dtype in ["fp32", "fp32_fast_tf32",
+                            "fp32_fast_fp16", "fp32_fast_bf16"]:
+            min_loss_scale = np.finfo(np.float32).eps
+        elif args.dtype == "fp64":
+            min_loss_scale = np.finfo(np.float64).eps
+        elif args.dtype == "fp16":
+            min_loss_scale = np.finfo(np.float16).eps
+        elif args.dtype == "bf16":
+            # According to
+            # https://github.com/jax-ml/ml_dtypes/blob/9b8b2471a5ec5fd4c223693f677fcc2416847970/ml_dtypes/_finfo.py#L169
+            min_loss_scale = 0.00781
+        elif args.dtype == "tf32":
+            min_loss_scale = np.finfo(np.float16).eps
+    else:
+        min_loss_scale = args.min_loss_scale
+if args.seed is not None:
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+
 # Load named pretrained PyTorch model
 if args.pretrained == "remote":
     # Newer versions of transformers can use fast attention, so we disable it
@@ -158,15 +197,25 @@ elif args.pretrained == "local":
         f = open(args.config_path)
         conf_dict = json.load(f)
         f.close()
+        if args.layernorm_eps > 0:
+            conf_dict["layer_norm_epsilon"] = args.layernorm_eps
         config = GPT2ConfigTorch(**conf_dict)
         model_torch = GPT2LMHead_torch(config)
         tokenizer = None
         if args.optimizer == "adam":
-            optimizer = Adam(model_torch.parameters(), args.lr)
+            if args.adam_eps > 0:
+                optimizer = Adam(model_torch.parameters(), args.lr,
+                                 eps=args.adam_eps)
+            else:
+                optimizer = Adam(model_torch.parameters(), args.lr)
         elif args.optimizer == "sgd":
             optimizer = SGD(model_torch.parameters(), args.lr)
         elif args.optimizer == "adamw":
-            optimizer = AdamW(model_torch.parameters(), args.lr)
+            if args.adam_eps > 0:
+                optimizer = AdamW(model_torch.parameters(), args.lr,
+                                  eps=args.adam_eps)
+            else:
+                optimizer = AdamW(model_torch.parameters(), args.lr)
         else:
             raise ValueError
         if args.checkpoint_path:
@@ -211,7 +260,6 @@ if args.hidden_size_tile == -1:
     args.hidden_size_tile = model_torch.config.n_embd
 if args.intermediate_size_tile == -1:
     args.intermediate_size_tile = model_torch.config.n_inner
-
 gpt2_config_nntile = GPT2ConfigNNTile(
     vocab_size=model_torch.config.vocab_size,
     vocab_embed_dim_tile=model_torch.config.n_embd,
@@ -301,10 +349,18 @@ time1 = time.time() - time0
 print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
 # Set up learning rate and optimizer for training
 if args.optimizer == "adam":
-    optimizer = nntile.optimizer.Adam(gpt2lmhead_nntile.get_parameters(),
+    if args.adam_eps > 0:
+        optimizer = nntile.optimizer.Adam(gpt2lmhead_nntile.get_parameters(),
+            args.lr, eps=args.adam_eps)
+    else:
+        optimizer = nntile.optimizer.Adam(gpt2lmhead_nntile.get_parameters(),
             args.lr)
 elif args.optimizer == "adamw":
-    optimizer = nntile.optimizer.AdamW(gpt2lmhead_nntile.get_parameters(),
+    if args.adam_eps > 0:
+        optimizer = nntile.optimizer.AdamW(gpt2lmhead_nntile.get_parameters(),
+            args.lr, eps=args.adam_eps)
+    else:
+        optimizer = nntile.optimizer.AdamW(gpt2lmhead_nntile.get_parameters(),
             args.lr)
 elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(gpt2lmhead_nntile.get_parameters(),
@@ -327,7 +383,14 @@ pipeline.print_meminfo()
 # nntile.starpu.pause()
 nntile.starpu.profiling_init()
 nntile.starpu.profiling_enable()
-pipeline.train_async()
+if args.use_scaler:
+    pipeline.train_with_scaler_async(init_scale=args.init_scale,
+                                     downscale_step=args.downscale_step,
+                                     upscale_step=args.upscale_step,
+                                     plateau_scale_counter=args.plateau_scale_counter,
+                                     min_loss_scale=min_loss_scale)
+else:
+    pipeline.train_async()
 # nntile.starpu.resume()
 nntile.starpu.wait_for_all()
 nntile.starpu.profiling_bus_display_summary()
@@ -343,9 +406,7 @@ nflops_minibatch = nflops_fwd_minibatch + nflops_bwd_minibatch
 print("NNTile performance (model flops): {} Tflops/s".format(nflops_minibatch
         * args.nepochs * num_train_batches * num_minibatch
         / time1 * 1e-12))
-loss_np = np.zeros((1), dtype=np.float32)
-loss.val.to_array(loss_np)
-print("NNTile loss on the last batch: {}".format(loss_np[0]))
+print("NNTile loss on the last batch: {}".format(pipeline.loss_hist[-1]))
 model_torch = gpt2lmhead_nntile.to_torch()
 torch.save(
     {

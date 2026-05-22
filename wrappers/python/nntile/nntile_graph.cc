@@ -47,6 +47,9 @@ namespace detail
 template <> struct is_copy_constructible<TensorGraph> : std::false_type
 {
 };
+template <> struct is_copy_constructible<TileGraph> : std::false_type
+{
+};
 template <> struct is_copy_constructible<NNGraph> : std::false_type
 {
 };
