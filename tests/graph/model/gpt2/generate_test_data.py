@@ -140,11 +140,20 @@ def _gpt2_attn_weights(
     o_arr = attn.c_proj.weight.detach().numpy().T.reshape(
         n_emb, n_heads, hs,
     )
+    bias = attn.c_attn.bias.detach().numpy()
+    b_q = bias[0:n_emb].reshape(n_heads, hs).T
+    b_k = bias[n_emb:2 * n_emb].reshape(n_heads, hs).T
+    b_v = bias[2 * n_emb:3 * n_emb].reshape(n_heads, hs).T
     return {
         f"{prefix}.q_weight": fortran_order(q_arr),
         f"{prefix}.k_weight": fortran_order(k_arr),
         f"{prefix}.v_weight": fortran_order(v_arr),
         f"{prefix}.o_weight": fortran_order(o_arr),
+        f"{prefix}.q_bias": fortran_order(b_q),
+        f"{prefix}.k_bias": fortran_order(b_k),
+        f"{prefix}.v_bias": fortran_order(b_v),
+        f"{prefix}.o_bias": fortran_order(
+            attn.c_proj.bias.detach().numpy()),
     }
 
 
@@ -302,7 +311,7 @@ def _gpt2_attn_forward_bidirectional(
     ``attention_mask`` is None, which does not match graph ``sdpa_eager`` with
     a null mask (~0.8 relative Frobenius vs bidirectional refs). This path uses
     ``scaled_dot_product_attention(..., is_causal=False)`` on the same Q/K/V
-    projections as the C++ module (biases are zeroed in fixtures).
+    projections and biases as the C++ module.
     """
     n_emb = x_pt.shape[-1]
     n_head = attn.num_heads
@@ -331,7 +340,6 @@ def generate_attention(
     config = _make_config(dims)
     pt = PtAttention(config, layer_idx=0)
     pt.eval()
-    _zero_gpt2_attn_bias(pt)
     data = _gpt2_attn_weights(pt, "attn", dims)
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
@@ -359,7 +367,6 @@ def generate_block(
     config = _make_config(dims)
     pt = PtBlock(config, layer_idx=0)
     pt.eval()
-    _zero_gpt2_attn_bias(pt.attn)
     data = _gpt2_block(pt, "block", dims)
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
@@ -382,8 +389,6 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS) -> dict[str, np.ndarr
     config = _make_config(dims)
     pt = PtModel(config)
     pt.eval()
-    for _layer in pt.h:
-        _zero_gpt2_attn_bias(_layer.attn)
     data = _model_weights(pt, "model", dims)
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
@@ -398,8 +403,10 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS) -> dict[str, np.ndarr
     ).last_hidden_state
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
-    data["grad_output"] = g_nt
     out.backward(g_pt)
+    data["grad_output"] = g_nt
+    data["grad_wte_vocab"] = fortran_order(
+        pt.wte.weight.grad.detach().numpy().T)
     return data
 
 
@@ -409,8 +416,6 @@ def generate_causal(seed: int, dims: TestDims = CAUSAL_DIMS) -> dict[str, np.nda
     config = _make_config(dims)
     pt = PtCausalLM(config)
     pt.eval()
-    for _layer in pt.transformer.h:
-        _zero_gpt2_attn_bias(_layer.attn)
     data = _model_weights(pt.transformer, "model.transformer", dims)
     data["model.lm_head.weight"] = _lm_head_to_linear_weight(pt.lm_head)
     ids_nt, ids_pt = _ids_input(rng, dims)
@@ -423,8 +428,10 @@ def generate_causal(seed: int, dims: TestDims = CAUSAL_DIMS) -> dict[str, np.nda
     out = pt(input_ids=ids_pt, attention_mask=attn_mask).logits
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
-    data["grad_output"] = g_nt
     out.backward(g_pt)
+    data["grad_output"] = g_nt
+    data["grad_wte_vocab"] = fortran_order(
+        pt.transformer.wte.weight.grad.detach().numpy().T)
     return data
 
 

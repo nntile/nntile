@@ -262,7 +262,7 @@ TEST_CASE("Gpt2Attention forward builds output", "[model][gpt2]")
     REQUIRE(output != nullptr);
     REQUIRE(
         output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
-    REQUIRE(attn.parameters_recursive().size() == 4);
+    REQUIRE(attn.parameters_recursive().size() == 8);
 }
 
 TEST_CASE("Gpt2Attention load from safetensors roundtrip", "[model][gpt2][io]")

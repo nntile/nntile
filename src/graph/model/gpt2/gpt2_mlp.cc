@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/model/gpt2/gpt2_mlp.hh"
-#include "nntile/graph/nn/ops/transpose.hh"
+#include "nntile/graph/nn/ops/gemm.hh"
 
 namespace nntile::model::gpt2
 {
@@ -29,17 +29,22 @@ Gpt2MLP::Gpt2MLP(graph::NNGraph* graph,
                          graph::module::ActivationType::GELUTANH,
                          dtype)
 {
+    config.validate();
 }
 
 graph::NNGraph::TensorNode* Gpt2MLP::forward(
     graph::NNGraph::TensorNode* input)
 {
-    // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for Mlp (ndim=1)
-    graph::NNGraph::TensorNode* x =
-        graph::transpose(input, 1);
-    graph::NNGraph::TensorNode* out = graph::module::Mlp::forward(x);
-    // Transpose back to (hidden, seq, batch)
-    return graph::transpose(out, 2);
+    graph::NNGraph::TensorNode* w1 = fc1().weight_tensor();
+    graph::NNGraph::TensorNode* hidden =
+        graph::gemm(w1, input, 1.0, true, false, 1, 0);
+    hidden->set_name(tensor_name("fc1_out"));
+    hidden = activation().forward(hidden);
+    graph::NNGraph::TensorNode* w2 = fc2().weight_tensor();
+    graph::NNGraph::TensorNode* out =
+        graph::gemm(w2, hidden, 1.0, true, false, 1, 0);
+    out->set_name(tensor_name("output"));
+    return out;
 }
 
 std::string Gpt2MLP::repr() const

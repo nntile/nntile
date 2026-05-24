@@ -60,6 +60,7 @@ struct CausalFixtureSpec
     Index seq = 0;
     Index batch = 0;
     float forward_tol = 0.f;
+    float backward_tol = 0.f;
     std::string stem;
 };
 
@@ -95,6 +96,8 @@ inline bool try_load_causal_fixture_spec(const std::string &data_dir,
         out.batch = json_index(j, "batch");
         out.forward_tol =
             static_cast<float>(j.at("tolerances").at("forward").get<double>());
+        out.backward_tol = static_cast<float>(
+            j.at("tolerances").at("backward").get<double>());
         out.config.validate();
     }
     catch (...)
@@ -120,6 +123,76 @@ inline bool skip_unless_fixture_ready(const char *stem, CausalFixtureSpec &fx)
     std::ifstream st(causal_fixture_safetensors_path(dir, fx));
     return st.good();
 }
+
+void causal_backward_compare_ref(const CausalFixtureSpec &fx)
+{
+    const std::string full_path =
+        causal_fixture_safetensors_path(std::string(GPT2_DATA_DIR), fx);
+    SafeTensorsReader reader(full_path);
+
+    std::vector<std::uint8_t> ids_bytes = reader.read_tensor("input_ids");
+    std::vector<std::int64_t> ids_data(ids_bytes.size() / sizeof(std::int64_t));
+    std::memcpy(ids_data.data(), ids_bytes.data(), ids_bytes.size());
+
+    std::vector<std::uint8_t> grad_out_bytes =
+        reader.read_tensor("grad_output");
+    std::vector<float> grad_out_data(grad_out_bytes.size() / sizeof(float));
+    std::memcpy(
+        grad_out_data.data(), grad_out_bytes.data(), grad_out_bytes.size());
+
+    std::vector<std::uint8_t> ref_bytes =
+        reader.read_tensor("grad_wte_vocab");
+    std::vector<float> grad_wte_ref(ref_bytes.size() / sizeof(float));
+    std::memcpy(grad_wte_ref.data(), ref_bytes.data(), ref_bytes.size());
+
+    std::vector<float> grad_wte_result;
+    {
+        NNGraph g("causal_bwd");
+        auto *input_ids =
+            g.tensor({fx.seq, fx.batch}, DataType::INT64, true)
+                ->set_name("input_ids");
+        NNGraph::TensorNode *position_ids = nullptr;
+        std::vector<std::int64_t> pos_data;
+        REQUIRE(load_position_ids(
+            g, reader, fx.seq, fx.batch, position_ids, pos_data));
+        NNGraph::TensorNode *mask = nullptr;
+        std::vector<std::uint8_t> mask_bytes;
+        REQUIRE(load_attn_mask_bool(g, reader, fx.seq, mask, mask_bytes));
+
+        Gpt2Causal model(&g, "model", fx.config);
+        model.load(full_path);
+        auto *output = model.forward(input_ids, position_ids, mask);
+
+        input_ids->mark_input(true);
+        output->mark_output(true);
+        mark_position_ids_input(position_ids);
+        mark_mask_input(mask);
+
+        auto [grad_output_tensor, _] =
+            g.get_or_create_grad(output, "grad_output");
+        grad_output_tensor->mark_input(true);
+        output->backward();
+        model.model()->wte_vocab_tensor()->grad()->mark_output(true);
+
+        TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+        Runtime runtime(tile_graph);
+        runtime.compile();
+        runtime.bind_data(input_ids, ids_data);
+        runtime.bind_data(grad_output_tensor, grad_out_data);
+        bind_position_ids(runtime, position_ids, pos_data);
+        bind_mask_input(runtime, mask, mask_bytes);
+        runtime.execute();
+        runtime.wait();
+
+        grad_wte_result =
+            runtime.get_output<float>(model.model()->wte_vocab_tensor()->grad());
+    }
+
+    REQUIRE(grad_wte_result.size() == grad_wte_ref.size());
+    require_relative_frobenius_error(
+        grad_wte_result, grad_wte_ref, fx.backward_tol);
+}
+
 
 } // namespace
 
@@ -227,6 +300,19 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     REQUIRE(result.size() == ref_data.size());
     require_relative_frobenius_error(result, ref_data, fx.forward_tol);
+}
+
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "Gpt2Causal backward matches PyTorch reference",
+    "[model][gpt2]")
+{
+    CausalFixtureSpec fx;
+    if (!skip_unless_fixture_ready(causal_fixture_stem::gpt2_causal, fx))
+    {
+        SKIP("GPT-2 causal fixture not found.");
+    }
+    causal_backward_compare_ref(fx);
 }
 
 #endif

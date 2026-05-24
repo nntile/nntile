@@ -30,7 +30,7 @@
 namespace nntile::model::gpt2
 {
 
-//! GPT2Block - Pre-norm: ln_1 -> attention -> residual -> ln_2 -> mlp -> residual
+//! GPT2Block - Pre-norm: ln_1 -> attention -> residual -> ln_2 -> mlp
 class Gpt2Block : public graph::module::Module
 {
 private:
@@ -43,16 +43,15 @@ private:
     graph::DataType dtype_;
 
 public:
-    //! Constructor
     Gpt2Block(graph::NNGraph* graph,
               const std::string& name,
               const Gpt2Config& config,
               graph::DataType dtype = graph::DataType::FP32);
 
-    //! Forward pass
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* mask = nullptr);
+        graph::NNGraph::TensorNode* mask = nullptr,
+        bool causal = false);
 
     std::string repr() const override;
 };

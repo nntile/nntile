@@ -29,7 +29,6 @@
 #include <nntile/graph/nn/ops/gemm.hh>
 #include <nntile/graph/nn/ops/gelu.hh>
 #include <nntile/graph/nn/ops/gelutanh.hh>
-#include <nntile/graph/nn/ops/layer_norm.hh>
 #include <nntile/graph/nn/ops/mse_loss.hh>
 #include <nntile/graph/nn/ops/multiply.hh>
 #include <nntile/graph/nn/ops/multiply_fiber.hh>
@@ -41,6 +40,7 @@
 #include <nntile/graph/nn/ops/rms_norm.hh>
 #include <nntile/graph/nn/ops/rope.hh>
 #include <nntile/graph/nn/ops/sdpa_eager.hh>
+#include <nntile/graph/nn/ops/sdpa_causal_mask.hh>
 #include <nntile/graph/nn/ops/scale.hh>
 #include <nntile/graph/nn/ops/scale_fiber.hh>
 #include <nntile/graph/nn/ops/scale_slice.hh>

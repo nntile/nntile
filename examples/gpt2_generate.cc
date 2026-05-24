@@ -50,7 +50,7 @@
 #include <nntile/graph/io/safetensors.hh>
 #include <nntile/graph/model/gpt2/gpt2_causal.hh>
 #include <nntile/graph/model/gpt2/gpt2_config.hh>
-#include <nntile/graph/model/llama/llama_causal_mask.hh>
+#include <nntile/graph/nn/ops/sdpa_causal_mask.hh>
 #include <nlohmann/json.hpp>
 
 #include "gpt2_config_json.hh"
@@ -58,7 +58,6 @@
 using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::model::gpt2;
-using namespace nntile::model::llama;
 using json = nlohmann::json;
 
 namespace

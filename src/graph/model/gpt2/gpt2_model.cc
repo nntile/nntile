@@ -37,6 +37,7 @@ Gpt2Model::Gpt2Model(graph::NNGraph* graph,
     , config_(config)
     , dtype_(dtype)
 {
+    config_.validate();
     register_module("wte", &wte_);
     register_module("wpe", &wpe_);
     register_module("ln_f", &ln_f_);
@@ -53,7 +54,8 @@ Gpt2Model::Gpt2Model(graph::NNGraph* graph,
 graph::NNGraph::TensorNode* Gpt2Model::forward(
     graph::NNGraph::TensorNode* input_ids,
     graph::NNGraph::TensorNode* position_ids,
-    graph::NNGraph::TensorNode* mask)
+    graph::NNGraph::TensorNode* mask,
+    bool causal)
 {
     if(input_ids == nullptr)
     {
@@ -66,20 +68,16 @@ graph::NNGraph::TensorNode* Gpt2Model::forward(
             "Gpt2Model::forward: position_ids must be non-null");
     }
 
-    // wte: (seq, batch) -> (seq, batch, hidden)
     graph::NNGraph::TensorNode* wte_out = wte_.forward(input_ids);
-    // wpe: (seq, batch) -> (seq, batch, hidden)
     graph::NNGraph::TensorNode* wpe_out = wpe_.forward(position_ids);
-    // add: wte + wpe
     graph::NNGraph::TensorNode* embed =
         graph::add(1.0, wte_out, 1.0, wpe_out);
-    // Transpose to (hidden, seq, batch) for decoder layers
     graph::NNGraph::TensorNode* x =
         graph::transpose(embed, 2);
 
     for(auto& layer : layers_)
     {
-        x = layer->forward(x, mask);
+        x = layer->forward(x, mask, causal);
     }
 
     return ln_f_.forward(x);

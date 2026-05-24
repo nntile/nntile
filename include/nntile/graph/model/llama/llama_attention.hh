@@ -70,7 +70,8 @@ public:
     //! @param cos RoPE cos tensor (head_size/2, seq, batch), may be nullptr to
     //! skip RoPE
     //! @param mask Optional BOOL attention mask (k_seq, q_seq), may be
-    //! nullptr. Build with ``sdpa_causal_mask_bool_fortran_fill`` for causal
+    //! nullptr. Build with ``nntile::graph::sdpa_causal_mask_bool_fortran_fill``
+    //! for causal
     //! LM.
     //! @param k_cache Optional KV cache for K (head_size, max_seq, batch, n_head_kv)
     //! @param v_cache Optional KV cache for V (head_size, max_seq, batch, n_head_kv)

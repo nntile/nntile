@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/model/gpt2/gpt2_causal.hh"
+#include "nntile/graph/nn/ops/gemm.hh"
 #include "nntile/graph/nn/ops/transpose.hh"
 
 #include <stdexcept>
@@ -25,12 +26,24 @@ Gpt2Causal::Gpt2Causal(graph::NNGraph* graph,
                       const Gpt2Config& config,
                       graph::DataType dtype)
     : graph::module::Module(graph, name)
-    , model_(std::make_unique<Gpt2Model>(graph, name + "_transformer", config, dtype))
-    , lm_head_(graph, name + "_lm_head",
-               config.hidden_size, config.vocab_size, false, dtype)
+    , model_(std::make_unique<Gpt2Model>(
+          graph, name + "_transformer", config, dtype))
+    , lm_head_(config.tie_word_embeddings
+          ? graph::module::Linear(
+                graph,
+                name + "_lm_head",
+                model_->wte_vocab_tensor())
+          : graph::module::Linear(
+                graph,
+                name + "_lm_head",
+                config.hidden_size,
+                config.vocab_size,
+                false,
+                dtype))
     , config_(config)
     , dtype_(dtype)
 {
+    config_.validate();
     register_module("transformer", model_.get());
     register_module("lm_head", &lm_head_);
 }
@@ -38,7 +51,8 @@ Gpt2Causal::Gpt2Causal(graph::NNGraph* graph,
 graph::NNGraph::TensorNode* Gpt2Causal::forward(
     graph::NNGraph::TensorNode* input_ids,
     graph::NNGraph::TensorNode* position_ids,
-    graph::NNGraph::TensorNode* mask)
+    graph::NNGraph::TensorNode* mask,
+    bool causal)
 {
     if(input_ids == nullptr)
     {
@@ -51,15 +65,19 @@ graph::NNGraph::TensorNode* Gpt2Causal::forward(
             "Gpt2Causal::forward: position_ids must be non-null");
     }
 
-    // Model output: (hidden, seq, batch)
     graph::NNGraph::TensorNode* hidden =
-        model_->forward(input_ids, position_ids, mask);
-    // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for lm_head
-    graph::NNGraph::TensorNode* hidden_t =
-        graph::transpose(hidden, 1);
-    graph::NNGraph::TensorNode* logits_sbv = lm_head_.forward(hidden_t);
-    // Transpose to (vocab, seq, batch) for output
-    return graph::transpose(logits_sbv, 2);
+        model_->forward(input_ids, position_ids, mask, causal);
+
+    graph::NNGraph::TensorNode* logits =
+        graph::gemm(lm_head_.weight_tensor(),
+            hidden,
+            1.0,
+            true,
+            false,
+            1,
+            0);
+    logits->set_name(tensor_name("logits"));
+    return logits;
 }
 
 std::string Gpt2Causal::repr() const

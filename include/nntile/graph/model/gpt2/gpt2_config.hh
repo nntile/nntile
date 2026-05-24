@@ -42,6 +42,9 @@ struct Gpt2Config
 
     std::string name = "gpt2";
 
+    //! Tie input embeddings to ``lm_head`` (HF default for GPT-2).
+    bool tie_word_embeddings = true;
+
     //! Compute head_dim from hidden_size and num_attention_heads
     Index head_dim() const
     {

@@ -51,7 +51,7 @@
 #include <nntile/graph/dataset/causal_lm_mmap.hh>
 #include <nntile/graph/model/gpt2/gpt2_causal.hh>
 #include <nntile/graph/model/gpt2/gpt2_config.hh>
-#include <nntile/graph/model/llama/llama_causal_mask.hh>
+#include <nntile/graph/nn/ops/sdpa_causal_mask.hh>
 #include <nntile/graph/tensor/ops/clear.hh>
 #include <random>
 #include <stdexcept>
@@ -62,7 +62,6 @@ using json = nlohmann::json;
 using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::model::gpt2;
-using namespace nntile::model::llama;
 using namespace nntile::graph::dataset;
 using namespace nntile::graph::optim;
 

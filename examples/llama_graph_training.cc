@@ -84,12 +84,10 @@
 #include <iostream>
 #include <memory>
 #include <nlohmann/json.hpp>
-
-#include "json_config_helpers.hh"
 #include <nntile.hh>
 #include <nntile/graph/dataset/causal_lm_mmap.hh>
 #include <nntile/graph/model/llama/llama_causal.hh>
-#include <nntile/graph/model/llama/llama_causal_mask.hh>
+#include <nntile/graph/nn/ops/sdpa_causal_mask.hh>
 #include <nntile/graph/model/llama/llama_config.hh>
 #include <nntile/graph/model/llama/llama_rope.hh>
 #include <nntile/graph/tensor/ops/clear.hh>
@@ -98,8 +96,6 @@
 #include <string>
 
 using json = nlohmann::json;
-using nntile::examples::config_get_float;
-using nntile::examples::config_get_int;
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -145,6 +141,47 @@ struct Args
     int warmup_steps = 0;
 };
 
+static int config_get_int(const json &j, const char *key, int default_val)
+{
+    if (!j.contains(key))
+    {
+        return default_val;
+    }
+    const auto &v = j[key];
+    if (v.is_number_integer())
+    {
+        return v.get<int>();
+    }
+    if (v.is_number_float())
+    {
+        return static_cast<int>(v.get<double>());
+    }
+    if (v.is_string())
+    {
+        return std::stoi(v.get<std::string>());
+    }
+    throw std::runtime_error(
+        std::string("config: '") + key + "' must be int or string");
+}
+
+static float config_get_float(const json &j, const char *key, float def)
+{
+    if (!j.contains(key))
+    {
+        return def;
+    }
+    const auto &v = j[key];
+    if (v.is_number_integer() || v.is_number_float())
+    {
+        return static_cast<float>(v.get<double>());
+    }
+    if (v.is_string())
+    {
+        return std::stof(v.get<std::string>());
+    }
+    throw std::runtime_error(
+        std::string("config: '") + key + "' must be number or string");
+}
 
 static LlamaConfig load_llama_config_json(const std::string &path)
 {

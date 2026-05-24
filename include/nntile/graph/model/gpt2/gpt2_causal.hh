@@ -39,17 +39,16 @@ private:
     graph::DataType dtype_;
 
 public:
-    //! Constructor
     Gpt2Causal(graph::NNGraph* graph,
                const std::string& name,
                const Gpt2Config& config,
                graph::DataType dtype = graph::DataType::FP32);
 
-    //! Forward pass
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* input_ids,
-        graph::NNGraph::TensorNode* position_ids = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr);
+        graph::NNGraph::TensorNode* position_ids,
+        graph::NNGraph::TensorNode* mask = nullptr,
+        bool causal = false);
 
     std::string repr() const override;
 

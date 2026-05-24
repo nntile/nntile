@@ -174,6 +174,68 @@ void block_forward_compare_ref(const BlockFixtureSpec &fx)
     require_relative_frobenius_error(result, ref_data, fx.forward_tol);
 }
 
+void block_backward_compare_ref(const BlockFixtureSpec &fx)
+{
+    const std::string full_path =
+        block_fixture_safetensors_path(std::string(GPT2_DATA_DIR), fx);
+    SafeTensorsReader reader(full_path);
+
+    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
+    std::vector<float> input_data(input_bytes.size() / sizeof(float));
+    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
+
+    std::vector<std::uint8_t> grad_out_bytes =
+        reader.read_tensor("grad_output");
+    std::vector<float> grad_out_data(grad_out_bytes.size() / sizeof(float));
+    std::memcpy(
+        grad_out_data.data(), grad_out_bytes.data(), grad_out_bytes.size());
+
+    std::vector<std::uint8_t> ref_bytes = reader.read_tensor("grad_input");
+    std::vector<float> grad_input_ref(ref_bytes.size() / sizeof(float));
+    std::memcpy(grad_input_ref.data(), ref_bytes.data(), ref_bytes.size());
+
+    std::vector<float> grad_input_result;
+    {
+        NNGraph g(std::string("block_bwd_") + fx.stem);
+        auto *input =
+            g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32, true)
+                ->set_name("input");
+        NNGraph::TensorNode *mask = nullptr;
+        std::vector<std::uint8_t> mask_bytes;
+        load_attn_mask_bool(g, reader, fx.seq, mask, mask_bytes);
+
+        Gpt2Block block(&g, "block", fx.config);
+        block.load(full_path);
+        auto *output = block.forward(input, mask);
+
+        input->mark_input(true);
+        output->mark_output(true);
+        mark_mask_input(mask);
+
+        auto [grad_output_tensor, _] =
+            g.get_or_create_grad(output, "grad_output");
+        grad_output_tensor->mark_input(true);
+        output->backward();
+        input->grad()->mark_output(true);
+
+        TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+        Runtime runtime(tile_graph);
+        runtime.compile();
+        runtime.bind_data(input, input_data);
+        runtime.bind_data(grad_output_tensor, grad_out_data);
+        bind_mask_input(runtime, mask, mask_bytes);
+        runtime.execute();
+        runtime.wait();
+
+        grad_input_result = runtime.get_output<float>(input->grad());
+    }
+
+    REQUIRE(grad_input_result.size() == grad_input_ref.size());
+    require_relative_frobenius_error(
+        grad_input_result, grad_input_ref, fx.backward_tol);
+}
+
+
 } // namespace
 
 TEST_CASE("Gpt2Block forward builds output", "[model][gpt2]")
@@ -235,6 +297,19 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         SKIP("GPT-2 block fixture not found.");
     }
     block_forward_compare_ref(fx);
+}
+
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "Gpt2Block backward matches PyTorch reference",
+    "[model][gpt2]")
+{
+    BlockFixtureSpec fx;
+    if (!skip_unless_fixture_ready(block_fixture_stem::gpt2_block, fx))
+    {
+        SKIP("GPT-2 block fixture not found.");
+    }
+    block_backward_compare_ref(fx);
 }
 
 #endif

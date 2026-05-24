@@ -6,17 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/graph/model/llama/llama_causal_mask.cc
- * Causal attention mask buffer fill for Llama.
+ * @file src/graph/nn/ops/sdpa_causal_mask.cc
+ * Causal attention mask buffer fill for ``sdpa_eager``.
  *
  * @version 1.1.0
  * */
 
-#include "nntile/graph/model/llama/llama_causal_mask.hh"
+#include "nntile/graph/nn/ops/sdpa_causal_mask.hh"
 
 #include <stdexcept>
 
-namespace nntile::model::llama
+namespace nntile::graph
 {
 
 void sdpa_causal_mask_bool_fortran_fill(
@@ -45,4 +45,4 @@ void sdpa_causal_mask_bool_fortran_fill(
     }
 }
 
-} // namespace nntile::model::llama
+} // namespace nntile::graph

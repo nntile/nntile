@@ -43,21 +43,25 @@ private:
     graph::DataType dtype_;
 
 public:
-    //! Constructor
     Gpt2Model(graph::NNGraph* graph,
               const std::string& name,
               const Gpt2Config& config,
               graph::DataType dtype = graph::DataType::FP32);
 
-    //! Forward pass
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* input_ids,
         graph::NNGraph::TensorNode* position_ids,
-        graph::NNGraph::TensorNode* mask = nullptr);
+        graph::NNGraph::TensorNode* mask = nullptr,
+        bool causal = false);
 
     std::string repr() const override;
 
     Index num_layers() const { return config_.num_hidden_layers; }
+
+    graph::NNGraph::TensorNode* wte_vocab_tensor() const
+    {
+        return wte_.vocab_tensor();
+    }
 };
 
 } // namespace nntile::model::gpt2

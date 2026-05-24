@@ -34,6 +34,7 @@ Gpt2Block::Gpt2Block(graph::NNGraph* graph,
     , config_(config)
     , dtype_(dtype)
 {
+    config_.validate();
     register_module("ln_1", &ln_1_);
     register_module("attn", &attention_);
     register_module("ln_2", &ln_2_);
@@ -42,7 +43,8 @@ Gpt2Block::Gpt2Block(graph::NNGraph* graph,
 
 graph::NNGraph::TensorNode* Gpt2Block::forward(
     graph::NNGraph::TensorNode* x,
-    graph::NNGraph::TensorNode* mask)
+    graph::NNGraph::TensorNode* mask,
+    bool causal)
 {
     if(x == nullptr)
     {
@@ -50,20 +52,16 @@ graph::NNGraph::TensorNode* Gpt2Block::forward(
             "Gpt2Block::forward: input tensor must be non-null");
     }
 
-    // ln_1 -> attention
     graph::NNGraph::TensorNode* x_norm = ln_1_.forward(x);
     graph::NNGraph::TensorNode* attn_out =
-        attention_.forward(x_norm, mask);
+        attention_.forward(x_norm, mask, causal);
 
-    // residual: x + attn_out
     graph::NNGraph::TensorNode* post_attn =
         graph::add(1.0, x, 1.0, attn_out);
 
-    // ln_2 -> mlp
     graph::NNGraph::TensorNode* mlp_in = ln_2_.forward(post_attn);
     graph::NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
 
-    // residual: post_attn + mlp_out
     return graph::add(1.0, post_attn, 1.0, mlp_out);
 }
 
