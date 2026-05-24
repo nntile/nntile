@@ -175,6 +175,10 @@ while IFS= read -r file; do
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         include/nntile/graph/model/llama/*.hh)
             affected["tests_graph_model_$(basename "$file" .hh)"]=1 ;;
+        src/graph/model/gpt2/*.cc)
+            affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+        include/nntile/graph/model/gpt2/*.hh)
+            affected["tests_graph_model_$(basename "$file" .hh)"]=1 ;;
     esac
 done <<< "$all_changed"
 
