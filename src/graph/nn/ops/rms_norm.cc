@@ -87,7 +87,9 @@ NNGraph::TensorNode *NNRmsNormOp::forward()
         graph->tensor(mean_shape, x->dtype(), false);
     NNGraph::TensorNode *grad_temp =
         graph->tensor(x->shape(), x->dtype(), false);
-    buffers_ = {inv_stddev, tmp_y, mean_buf, grad_temp};
+    NNGraph::TensorNode *tmp_y_grad =
+        graph->tensor(x->shape(), x->dtype(), false);
+    buffers_ = {inv_stddev, tmp_y, mean_buf, grad_temp, tmp_y_grad};
 
     return y;
 }
@@ -106,7 +108,7 @@ void NNRmsNormOp::backward() const
         return;
     }
 
-    if (buffers_.size() < 4)
+    if (buffers_.size() < 5)
     {
         throw std::runtime_error("NNRmsNormOp::backward: buffers are missing");
     }
@@ -114,6 +116,7 @@ void NNRmsNormOp::backward() const
     NNGraph::TensorNode *tmp_y_value = buffers_[1];
     NNGraph::TensorNode *mean_buf = buffers_[2];
     NNGraph::TensorNode *grad_temp = buffers_[3];
+    NNGraph::TensorNode *tmp_y_grad = buffers_[4];
 
     const Index l = x->shape()[axis];
     const Scalar inv_l = -1.0 / static_cast<Scalar>(l);
@@ -143,26 +146,23 @@ void NNRmsNormOp::backward() const
         // grad_temp = gamma * grad_out
         graph::tensor::multiply_fiber(
             1.0, gamma->data(), grad_out->data(), grad_temp->data(), axis);
-        // mean = -1/l * sumprod_slice(grad_temp, tmp_y_value)
+        graph::tensor::copy(tmp_y_value->data(), tmp_y_grad->data());
+        // mean = -1/l * sumprod_slice(grad_temp, tmp_y_grad)
         graph::tensor::sumprod_slice(grad_temp->data(),
-            tmp_y_value->data(),
+            tmp_y_grad->data(),
             mean_buf->data(),
             axis,
             redux,
             inv_l,
             0.0);
-        // tmp_y_value *= mean (in-place)
         graph::tensor::multiply_slice(
-            1.0, mean_buf->data(), tmp_y_value->data(), axis);
-        // tmp_y_value += grad_temp
+            1.0, mean_buf->data(), tmp_y_grad->data(), axis);
         graph::tensor::add_inplace(
-            1.0, grad_temp->data(), 1.0, tmp_y_value->data());
-        // tmp_y_value *= inv_stddev
+            1.0, grad_temp->data(), 1.0, tmp_y_grad->data());
         graph::tensor::multiply_slice(
-            1.0, inv_stddev->data(), tmp_y_value->data(), axis);
-        // grad_x += tmp_y_value
+            1.0, inv_stddev->data(), tmp_y_grad->data(), axis);
         graph::tensor::add_inplace(
-            1.0, tmp_y_value->data(), grad_accumulate, grad_x->data());
+            1.0, tmp_y_grad->data(), grad_accumulate, grad_x->data());
     }
 }
 
