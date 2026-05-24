@@ -53,11 +53,15 @@
 #include <nntile/graph/model/llama/llama_causal_mask.hh>
 #include <nlohmann/json.hpp>
 
+#include "json_config_helpers.hh"
+
 using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::model::gpt2;
 using namespace nntile::model::llama;
 using json = nlohmann::json;
+using nntile::examples::config_get_float;
+using nntile::examples::config_get_int;
 
 namespace
 {
@@ -156,34 +160,6 @@ static std::vector<std::int64_t> parse_ids(const std::string& s)
 // ── Config loader ────────────────────────────────────────────────────────
 
 // Extract int from JSON; accepts both number and string (e.g. "32000").
-static int config_get_int(const json& j, const char* key, int default_val)
-{
-    if(!j.contains(key))
-        return default_val;
-    const auto& v = j[key];
-    if(v.is_number_integer())
-        return v.get<int>();
-    if(v.is_number_float())
-        return static_cast<int>(v.get<double>());
-    if(v.is_string())
-        return std::stoi(v.get<std::string>());
-    throw std::runtime_error(std::string("config: '") + key +
-                            "' must be int or string, got " + v.type_name());
-}
-
-// Extract float from JSON; accepts both number and string.
-static float config_get_float(const json& j, const char* key, float default_val)
-{
-    if(!j.contains(key))
-        return default_val;
-    const auto& v = j[key];
-    if(v.is_number_integer() || v.is_number_float())
-        return static_cast<float>(v.get<double>());
-    if(v.is_string())
-        return std::stof(v.get<std::string>());
-    throw std::runtime_error(std::string("config: '") + key +
-                            "' must be number or string, got " + v.type_name());
-}
 
 static Gpt2Config load_config(const std::string& path)
 {
