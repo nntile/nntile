@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/model/gpt2/gpt2_causal.hh"
-#include "nntile/graph/nn/transpose.hh"
+#include "nntile/graph/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -56,10 +56,10 @@ graph::NNGraph::TensorNode* Gpt2Causal::forward(
         model_->forward(input_ids, position_ids, mask);
     // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for lm_head
     graph::NNGraph::TensorNode* hidden_t =
-        graph::transpose(hidden, tensor_name("hidden_t"), 1);
+        graph::transpose(hidden, 1);
     graph::NNGraph::TensorNode* logits_sbv = lm_head_.forward(hidden_t);
     // Transpose to (vocab, seq, batch) for output
-    return graph::transpose(logits_sbv, tensor_name("logits"), 2);
+    return graph::transpose(logits_sbv, 2);
 }
 
 std::string Gpt2Causal::repr() const

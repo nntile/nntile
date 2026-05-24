@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/optim/optimizer.hh"
+#include "nntile/graph/tile/graph.hh"
 
 #include <cstring>
 #include <iostream>
@@ -46,15 +47,14 @@ void Optimizer::collect_params(module::Module* module)
     for(std::size_t i = 0; i < named_params.size(); ++i)
     {
         const auto& [pname, param] = named_params[i];
-        NNGraph::TensorNode* grad = param->grad();
-        if(grad == nullptr)
+        if(!param->requires_grad())
         {
             continue;
         }
         ParamState ps;
         ps.name = pname;
         ps.param = param;
-        ps.grad = grad;
+        ps.grad = param->grad();
         param_states_.push_back(std::move(ps));
     }
 }
@@ -131,18 +131,20 @@ namespace
 {
 
 template<typename T>
-std::vector<std::uint8_t> get_output_bytes(TensorGraph::Runtime& runtime,
-                                           const std::string& name)
+std::vector<std::uint8_t> get_output_bytes(
+    Runtime& runtime,
+    TensorGraph::TensorNode const* node)
 {
-    auto data = runtime.get_output<T>(name);
+    auto data = runtime.get_output<T>(node);
     std::vector<std::uint8_t> bytes(data.size() * sizeof(T));
     std::memcpy(bytes.data(), data.data(), bytes.size());
     return bytes;
 }
 
-std::vector<std::uint8_t> sync_tensor_bytes(TensorGraph::Runtime& runtime,
-                                            const std::string& name,
-                                            DataType dtype)
+std::vector<std::uint8_t> sync_tensor_bytes(
+    Runtime& runtime,
+    TensorGraph::TensorNode const* node,
+    DataType dtype)
 {
     switch(dtype)
     {
@@ -150,21 +152,20 @@ std::vector<std::uint8_t> sync_tensor_bytes(TensorGraph::Runtime& runtime,
         case DataType::FP32_FAST_TF32:
         case DataType::FP32_FAST_FP16:
         case DataType::FP32_FAST_BF16:
-            return get_output_bytes<float>(runtime, name);
+            return get_output_bytes<float>(runtime, node);
         case DataType::FP64:
-            return get_output_bytes<double>(runtime, name);
+            return get_output_bytes<double>(runtime, node);
         case DataType::INT64:
-            return get_output_bytes<std::int64_t>(runtime, name);
+            return get_output_bytes<std::int64_t>(runtime, node);
         default:
             throw std::runtime_error(
-                "sync_tensor_bytes: unsupported dtype for tensor '" +
-                name + "'");
+                "sync_tensor_bytes: unsupported dtype for tensor");
     }
 }
 
 } // anonymous namespace
 
-void Optimizer::sync_from_runtime(TensorGraph::Runtime& runtime)
+void Optimizer::sync_from_runtime(Runtime& runtime)
 {
     for(auto& ps : param_states_)
     {
@@ -175,60 +176,8 @@ void Optimizer::sync_from_runtime(TensorGraph::Runtime& runtime)
                 continue;
             }
             auto bytes = sync_tensor_bytes(
-                runtime, buf_name, buf_tensor->dtype());
+                runtime, buf_tensor->data(), buf_tensor->dtype());
             buf_tensor->data()->set_bind_hint(std::move(bytes));
-        }
-    }
-}
-
-void Optimizer::import_hf(const io::SafeTensorsReader& reader,
-                          const std::string& prefix)
-{
-    for(auto& ps : param_states_)
-    {
-        for(auto& [buf_name, buf_tensor] : ps.buffers)
-        {
-            if(buf_tensor == nullptr)
-            {
-                continue;
-            }
-            std::string hf_name = prefix.empty()
-                ? buf_name
-                : prefix + "." + buf_name;
-            if(!reader.has_tensor(hf_name))
-            {
-                continue;
-            }
-            auto data = reader.read_tensor(hf_name);
-            buf_tensor->data()->set_bind_hint(std::move(data));
-            buf_tensor->mark_input(true);
-        }
-    }
-}
-
-void Optimizer::export_hf(io::SafeTensorsWriter& writer,
-                          const std::string& prefix) const
-{
-    for(const auto& ps : param_states_)
-    {
-        for(const auto& [buf_name, buf_tensor] : ps.buffers)
-        {
-            if(buf_tensor == nullptr)
-            {
-                continue;
-            }
-            const auto* hint = buf_tensor->data()->get_bind_hint();
-            if(hint == nullptr)
-            {
-                continue;
-            }
-            std::string hf_name = prefix.empty()
-                ? buf_name
-                : prefix + "." + buf_name;
-            const auto& idx_shape = buf_tensor->shape();
-            std::vector<std::int64_t> shape(idx_shape.begin(),
-                                            idx_shape.end());
-            writer.add_tensor(hf_name, buf_tensor->dtype(), shape, *hint);
         }
     }
 }

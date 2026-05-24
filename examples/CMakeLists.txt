@@ -66,6 +66,11 @@ add_example(TARGET_NAME examples_graph_mlp
     SOURCES "graph_mlp_example.cc"
     LINK_LIBRARIES nntile)
 
+add_example(TARGET_NAME examples_autograd_mlp_tile_compare
+    EXEC_NAME "autograd_mlp_tile_compare_example"
+    SOURCES "autograd_mlp_tile_compare_example.cc"
+    LINK_LIBRARIES nntile)
+
 add_example(TARGET_NAME examples_linear_layer
     EXEC_NAME "linear_layer_example"
     SOURCES "linear_layer_example.cc"
@@ -89,4 +94,14 @@ add_example(TARGET_NAME examples_llama_generate
 add_example(TARGET_NAME examples_gpt2_generate
     EXEC_NAME "gpt2_generate"
     SOURCES "gpt2_generate.cc"
+    LINK_LIBRARIES nntile)
+
+add_example(TARGET_NAME examples_llama_graph_training
+    EXEC_NAME "llama_graph_training"
+    SOURCES "llama_graph_training.cc"
+    LINK_LIBRARIES nntile)
+
+add_example(TARGET_NAME examples_gpt2_graph_training
+    EXEC_NAME "gpt2_graph_training"
+    SOURCES "gpt2_graph_training.cc"
     LINK_LIBRARIES nntile)

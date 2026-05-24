@@ -13,13 +13,18 @@
 
 from ..nntile_graph import (
     DataType, Module, NNGraph, Runtime, TensorDataNode, TensorGraph,
-    TensorNode, dtype_to_string, nn)
+    TensorNode, TileGraph, dtype_to_string, nn)
+
+# Alias for backward compatibility (same object as Runtime).
+TileGraphRuntime = Runtime
 
 __all__ = [
     "DataType",
     "Module",
     "NNGraph",
     "Runtime",
+    "TileGraph",
+    "TileGraphRuntime",
     "TensorDataNode",
     "TensorGraph",
     "TensorNode",

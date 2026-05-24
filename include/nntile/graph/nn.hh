@@ -16,6 +16,7 @@
 
 // NNTile headers
 #include <nntile/graph/nn/graph.hh>
-#include <nntile/graph/nn/graph_op_node.hh>
 #include <nntile/graph/nn/graph_data_node.hh>
+#include <nntile/graph/nn/graph_op_node.hh>
 #include <nntile/graph/nn/graph_ops.hh>
+#include <nntile/graph/nn/tensor_node_chain.hh>

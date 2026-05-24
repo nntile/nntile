@@ -3,6 +3,9 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
  * @file src/graph/nn/tensor_node.cc
  * NNGraph::TensorNode implementation.
  *
@@ -36,6 +39,16 @@ NNGraph::TensorNode::TensorNode(
         throw std::invalid_argument(
             "NNGraph::TensorNode: data tensor is nullptr");
     }
+}
+
+void NNGraph::TensorNode::set_bind_hint(std::vector<std::uint8_t> data)
+{
+    data_->set_bind_hint(std::move(data));
+}
+
+const std::vector<std::uint8_t>* NNGraph::TensorNode::get_bind_hint() const
+{
+    return data_->get_bind_hint();
 }
 
 std::string NNGraph::TensorNode::to_string() const

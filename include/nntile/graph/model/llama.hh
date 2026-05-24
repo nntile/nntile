@@ -16,6 +16,8 @@
 
 #include <nntile/graph/model/llama/llama_config.hh>
 #include <nntile/graph/model/llama/llama_mlp.hh>
+#include <nntile/graph/model/llama/llama_rope.hh>
+#include <nntile/graph/model/llama/llama_causal_mask.hh>
 #include <nntile/graph/model/llama/llama_attention.hh>
 #include <nntile/graph/model/llama/llama_decoder.hh>
 #include <nntile/graph/model/llama/llama_model.hh>

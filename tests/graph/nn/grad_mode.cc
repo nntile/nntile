@@ -12,31 +12,32 @@
  * @version 1.1.0
  * */
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/generators/catch_generators_all.hpp>
-
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators_all.hpp>
 
 using namespace nntile;
 using namespace nntile::graph;
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph grad_mode disabled: add does not set producer", "[graph][nn_graph]")
+    "NNGraph grad_mode disabled: add does not set producer",
+    "[graph][nn_graph]")
 {
-    const auto [add_alpha, add_beta] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0)},
-        std::tuple{Scalar(2.0), Scalar(3.0)},
-        std::tuple{Scalar(0.5), Scalar(-1.0)});
+    const auto [add_alpha, add_beta] =
+        GENERATE(std::tuple{Scalar(1.0), Scalar(1.0)},
+            std::tuple{Scalar(2.0), Scalar(3.0)},
+            std::tuple{Scalar(0.5), Scalar(-1.0)});
 
     NNGraph g("no_grad_add");
-    auto* x = g.tensor({2, 3}, "x", DataType::FP32);
-    auto* y = g.tensor({2, 3}, "y", DataType::FP32);
+    auto *x = g.tensor({2, 3}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({2, 3}, DataType::FP32)->set_name("y");
 
-    NNGraph::TensorNode* z = nullptr;
+    NNGraph::TensorNode *z = nullptr;
     {
         auto guard = g.no_grad();
-        z = add(add_alpha, x, add_beta, y, "z");
+        z = add(add_alpha, x, add_beta, y)->set_name("z");
     }
 
     // With grad disabled, add() did not set producer
@@ -46,17 +47,18 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "NNGraph grad_mode enabled: add sets producer", "[graph][nn_graph]")
+    "NNGraph grad_mode enabled: add sets producer",
+    "[graph][nn_graph]")
 {
-    const auto [add_alpha, add_beta] = GENERATE(
-        std::tuple{Scalar(1.0), Scalar(1.0)},
-        std::tuple{Scalar(0.5), Scalar(2.0)});
+    const auto [add_alpha, add_beta] =
+        GENERATE(std::tuple{Scalar(1.0), Scalar(1.0)},
+            std::tuple{Scalar(0.5), Scalar(2.0)});
 
     NNGraph g("grad_add");
-    auto* x = g.tensor({2, 3}, "x", DataType::FP32);
-    auto* y = g.tensor({2, 3}, "y", DataType::FP32);
+    auto *x = g.tensor({2, 3}, DataType::FP32)->set_name("x");
+    auto *y = g.tensor({2, 3}, DataType::FP32)->set_name("y");
 
-    auto* z = add(add_alpha, x, add_beta, y, "z");
+    auto *z = add(add_alpha, x, add_beta, y)->set_name("z");
 
     REQUIRE(z->has_producer());
     REQUIRE_FALSE(z->is_leaf());

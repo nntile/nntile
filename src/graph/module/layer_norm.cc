@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/module/layer_norm.hh"
-#include "nntile/graph/nn/layer_norm.hh"
+#include "nntile/graph/nn/ops/layer_norm.hh"
 
 #include <stdexcept>
 
@@ -36,16 +36,10 @@ LayerNorm::LayerNorm(graph::NNGraph* graph,
     , redux_(redux)
     , dtype_(dtype)
 {
-    gamma_tensor_ = graph_->tensor(
-        {normalized_shape},
-        tensor_name("gamma"),
-        dtype_,
-        true);
-    beta_tensor_ = graph_->tensor(
-        {normalized_shape},
-        tensor_name("beta"),
-        dtype_,
-        true);
+    gamma_tensor_ = graph_->tensor({normalized_shape}, dtype_, true);
+    gamma_tensor_->set_name(tensor_name("gamma"));
+    beta_tensor_ = graph_->tensor({normalized_shape}, dtype_, true);
+    beta_tensor_->set_name(tensor_name("beta"));
     register_parameter("gamma", gamma_tensor_);
     register_parameter("beta", beta_tensor_);
 }

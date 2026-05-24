@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/model/gpt2/gpt2_mlp.hh"
-#include "nntile/graph/nn/transpose.hh"
+#include "nntile/graph/nn/ops/transpose.hh"
 
 namespace nntile::model::gpt2
 {
@@ -36,10 +36,10 @@ graph::NNGraph::TensorNode* Gpt2MLP::forward(
 {
     // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for Mlp (ndim=1)
     graph::NNGraph::TensorNode* x =
-        graph::transpose(input, tensor_name("x"), 1);
+        graph::transpose(input, 1);
     graph::NNGraph::TensorNode* out = graph::module::Mlp::forward(x);
     // Transpose back to (hidden, seq, batch)
-    return graph::transpose(out, tensor_name("mlp_out"), 2);
+    return graph::transpose(out, 2);
 }
 
 std::string Gpt2MLP::repr() const

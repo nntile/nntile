@@ -13,33 +13,37 @@
  * */
 
 #include "nntile/graph/model/llama/llama_mlp.hh"
-#include "nntile/graph/nn/transpose.hh"
+
+#include "nntile/graph/nn/ops/transpose.hh"
 
 namespace nntile::model::llama
 {
 
-LlamaMLP::LlamaMLP(graph::NNGraph* graph,
-                   const std::string& name,
-                   const LlamaConfig& config,
-                   graph::DataType dtype)
-    : graph::module::GatedMlp(graph, name,
-                       config.hidden_size,
-                       config.intermediate_size,
-                       config.hidden_size,
-                       graph::module::ActivationType::SILU,
-                       dtype)
+LlamaMLP::LlamaMLP(graph::NNGraph *graph,
+    const std::string &name,
+    const LlamaConfig &config,
+    graph::DataType dtype) :
+    graph::module::GatedMlp(graph,
+        name,
+        config.hidden_size,
+        config.intermediate_size,
+        config.hidden_size,
+        graph::module::ActivationType::SILU,
+        dtype)
 {
 }
 
-graph::NNGraph::TensorNode* LlamaMLP::forward(
-    graph::NNGraph::TensorNode* input)
+graph::NNGraph::TensorNode *LlamaMLP::forward(
+    graph::NNGraph::TensorNode *input)
 {
-    // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for GatedMlp (ndim=1)
-    graph::NNGraph::TensorNode* x =
-        graph::transpose(input, tensor_name("x"), 1);
-    graph::NNGraph::TensorNode* out = graph::module::GatedMlp::forward(x);
-    // Transpose back to (hidden, seq, batch) (ndim=2)
-    return graph::transpose(out, tensor_name("mlp_out"), 2);
+    // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for GatedMlp
+    // (ndim=1)
+    graph::NNGraph::TensorNode *x = graph::transpose(input, 1);
+    x->set_name(tensor_name("x"));
+    graph::NNGraph::TensorNode *out = graph::module::GatedMlp::forward(x);
+    graph::NNGraph::TensorNode *mlp_out = graph::transpose(out, 2);
+    mlp_out->set_name(tensor_name("mlp_out"));
+    return mlp_out;
 }
 
 std::string LlamaMLP::repr() const

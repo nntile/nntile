@@ -13,8 +13,8 @@
  * */
 
 #include "nntile/graph/model/gpt2/gpt2_model.hh"
-#include "nntile/graph/nn/add.hh"
-#include "nntile/graph/nn/transpose.hh"
+#include "nntile/graph/nn/ops/add.hh"
+#include "nntile/graph/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -72,10 +72,10 @@ graph::NNGraph::TensorNode* Gpt2Model::forward(
     graph::NNGraph::TensorNode* wpe_out = wpe_.forward(position_ids);
     // add: wte + wpe
     graph::NNGraph::TensorNode* embed =
-        graph::add(1.0, wte_out, 1.0, wpe_out, tensor_name("embed"));
+        graph::add(1.0, wte_out, 1.0, wpe_out);
     // Transpose to (hidden, seq, batch) for decoder layers
     graph::NNGraph::TensorNode* x =
-        graph::transpose(embed, tensor_name("embed_t"), 2);
+        graph::transpose(embed, 2);
 
     for(auto& layer : layers_)
     {

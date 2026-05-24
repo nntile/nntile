@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/model/gpt2/gpt2_block.hh"
-#include "nntile/graph/nn/add.hh"
+#include "nntile/graph/nn/ops/add.hh"
 
 #include <stdexcept>
 
@@ -57,14 +57,14 @@ graph::NNGraph::TensorNode* Gpt2Block::forward(
 
     // residual: x + attn_out
     graph::NNGraph::TensorNode* post_attn =
-        graph::add(1.0, x, 1.0, attn_out, tensor_name("post_attn"));
+        graph::add(1.0, x, 1.0, attn_out);
 
     // ln_2 -> mlp
     graph::NNGraph::TensorNode* mlp_in = ln_2_.forward(post_attn);
     graph::NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
 
     // residual: post_attn + mlp_out
-    return graph::add(1.0, post_attn, 1.0, mlp_out, tensor_name("block_out"));
+    return graph::add(1.0, post_attn, 1.0, mlp_out);
 }
 
 std::string Gpt2Block::repr() const

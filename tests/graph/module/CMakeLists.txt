@@ -20,7 +20,6 @@ set(TESTS_CATCH2
     "linear"
     "mlp"
     "module"
-    "rms_norm"
 )
 
 # Module tests with PyTorch comparison

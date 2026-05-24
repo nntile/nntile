@@ -12,11 +12,60 @@
  * @version 1.1.0
  * */
 
-#include <iostream>
+#include "nntile/context.hh"
+#include "nntile/tile/add.hh"
+#include "nntile/starpu/add.hh"
+#include "../testing.hh"
+
+using namespace nntile;
+using namespace nntile::tile;
+
+template<typename T>
+void validate()
+{
+    using Y = typename T::repr_t;
+    Tile<T> src1({2, 3, 4}), src2({2, 3, 4}), dst({2, 3, 4}),
+        dst_ref({2, 3, 4});
+    auto src1_local = src1.acquire(STARPU_W);
+    auto src2_local = src2.acquire(STARPU_W);
+    auto dst_local = dst.acquire(STARPU_W);
+    auto dst_ref_local = dst_ref.acquire(STARPU_W);
+    for(Index i = 0; i < src1.nelems; ++i)
+    {
+        src1_local[i] = Y(0.1 * (i+1));
+        src2_local[i] = Y(0.2 * (i+1));
+        dst_local[i] = Y(0.3 * (i+1));
+        dst_ref_local[i] = dst_local[i];
+    }
+    src1_local.release();
+    src2_local.release();
+    dst_local.release();
+    dst_ref_local.release();
+
+    Scalar alpha = -0.5, beta = 0.3;
+    starpu::add.submit<std::tuple<T>>(src1.nelems, alpha, src1, beta, src2, dst);
+    add<T>(alpha, src1, beta, src2, dst_ref);
+
+    dst_local.acquire(STARPU_R);
+    dst_ref_local.acquire(STARPU_R);
+    for(Index i = 0; i < src1.nelems; ++i)
+    {
+        TEST_ASSERT(Y(dst_local[i]) == Y(dst_ref_local[i]));
+    }
+    dst_local.release();
+    dst_ref_local.release();
+
+    TEST_THROW(add<T>(alpha, Tile<T>({2}), beta, Tile<T>({3}), Tile<T>({2})));
+}
 
 int main(int argc, char **argv)
 {
-    // Not implemented
-    std::cout << "This test is not yet implemented\n";
-    return -1;
+    int ncpu=1, ncuda=0, ooc=0, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto context = Context(ncpu, ncuda, ooc, ooc_path, ooc_size, verbose);
+
+    validate<fp32_t>();
+    validate<fp64_t>();
+    return 0;
 }

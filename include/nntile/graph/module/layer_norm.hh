@@ -52,13 +52,13 @@ public:
         graph::NNGraph::TensorNode* x);
 
     //! Get string representation
-    std::string repr() const override;
+    std::string repr() const;
 
     void import_hf(const graph::io::SafeTensorsReader& reader,
-                   const std::string& hf_prefix) override;
+                   const std::string& hf_prefix);
 
     void export_hf(graph::io::SafeTensorsWriter& writer,
-                   const std::string& hf_prefix) const override;
+                   const std::string& hf_prefix) const;
 
     graph::NNGraph::TensorNode* gamma_tensor() const { return gamma_tensor_; }
     graph::NNGraph::TensorNode* beta_tensor() const { return beta_tensor_; }
