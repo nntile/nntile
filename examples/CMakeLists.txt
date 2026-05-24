@@ -91,11 +91,6 @@ add_example(TARGET_NAME examples_llama_generate
     SOURCES "llama_generate.cc"
     LINK_LIBRARIES nntile)
 
-add_example(TARGET_NAME examples_gpt2_generate
-    EXEC_NAME "gpt2_generate"
-    SOURCES "gpt2_generate.cc"
-    LINK_LIBRARIES nntile)
-
 add_example(TARGET_NAME examples_llama_graph_training
     EXEC_NAME "llama_graph_training"
     SOURCES "llama_graph_training.cc"
@@ -104,4 +99,9 @@ add_example(TARGET_NAME examples_llama_graph_training
 add_example(TARGET_NAME examples_gpt2_graph_training
     EXEC_NAME "gpt2_graph_training"
     SOURCES "gpt2_graph_training.cc"
+    LINK_LIBRARIES nntile)
+
+add_example(TARGET_NAME examples_gpt2_generate
+    EXEC_NAME "gpt2_generate"
+    SOURCES "gpt2_generate.cc"
     LINK_LIBRARIES nntile)
