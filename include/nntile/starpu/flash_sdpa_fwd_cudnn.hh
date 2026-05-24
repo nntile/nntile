@@ -30,8 +30,6 @@
 #include <nntile/starpu/handle.hh>
 
 #ifdef NNTILE_USE_CUDA
-#include <cuda_runtime.h>
-#include <cstdint>
 #include <nntile/kernel/flash_sdpa_fwd_cudnn.hh>
 #endif // NNTILE_USE_CUDA
 
@@ -112,42 +110,9 @@ private:
     struct CacheEntry
     {
         kernel::flash_sdpa_fwd_cudnn::FlashSdpaFwdGraph graph;
-        void *workspace = nullptr;
-        std::int64_t workspace_size = 0;
-        T *mask_scratch = nullptr;  // Mask with -inf replaced by lowest() for cuDNN
-        Index seq = 0;
-        Index head = 0;
-        Index batch = 0;
-
-        CacheEntry() = default;
-        ~CacheEntry() { release(); }
-        CacheEntry(const CacheEntry &) = delete;
-        CacheEntry &operator=(const CacheEntry &) = delete;
-        CacheEntry(CacheEntry &&other) noexcept { move_from(std::move(other)); }
-        CacheEntry &operator=(CacheEntry &&other) noexcept
-        {
-            if (this != &other) { release(); move_from(std::move(other)); }
-            return *this;
-        }
-    private:
-        void release()
-        {
-            if (workspace != nullptr) { cudaFree(workspace); workspace = nullptr; workspace_size = 0; }
-            if (mask_scratch != nullptr) { cudaFree(mask_scratch); mask_scratch = nullptr; }
-        }
-        void move_from(CacheEntry &&other) noexcept
-        {
-            graph = std::move(other.graph);
-            workspace = other.workspace;
-            workspace_size = other.workspace_size;
-            mask_scratch = other.mask_scratch;
-            seq = other.seq;
-            head = other.head;
-            batch = other.batch;
-            other.workspace = nullptr;
-            other.workspace_size = 0;
-            other.mask_scratch = nullptr;
-        }
+        Index seq;
+        Index head;
+        Index batch;
     };
 
     struct WorkerCache
@@ -157,7 +122,7 @@ private:
 
     WorkerCache &get_or_create_worker_cache(int worker_id);
 
-    CacheEntry *find_cached_graph(
+    kernel::flash_sdpa_fwd_cudnn::FlashSdpaFwdGraph find_cached_graph(
         WorkerCache &cache,
         uint32_t hash,
         Index seq,
@@ -165,7 +130,7 @@ private:
         Index batch
     );
 
-    CacheEntry *store_graph(
+    kernel::flash_sdpa_fwd_cudnn::FlashSdpaFwdGraph store_graph(
         WorkerCache &cache,
         uint32_t hash,
         Index seq,
