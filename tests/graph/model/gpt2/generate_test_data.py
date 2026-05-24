@@ -103,7 +103,7 @@ def _lm_head_to_linear_weight(conv) -> np.ndarray:
 
 
 def _conv1d_to_linear_weight(conv) -> np.ndarray:
-    """Transformers Conv1D ``(nf, nx)`` → NNTile Linear ``(nx, nf)`` Fortran."""
+    """HF Conv1D ``(in_features, out_features)`` → graph Linear (same shape)."""
     return fortran_order(conv.weight.detach().numpy())
 
 

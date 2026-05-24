@@ -90,6 +90,23 @@ def _write_safetensors_streaming(
             del arr, raw
 
 
+
+
+def _conv1d_to_nntile_linear_weight(conv_weight: np.ndarray) -> np.ndarray:
+    """Map HF GPT-2 Conv1D weight to graph ``Linear`` storage.
+
+    HuggingFace ``Conv1D`` stores ``weight`` with shape
+    ``(in_features, out_features)`` (e.g. ``c_fc``: ``(hidden, n_inner)``).
+    Graph ``Linear`` uses the same ``[input_dim, output_dim]`` layout and
+    column-major (Fortran) element order via :func:`fortran_order`.
+
+    Do **not** transpose here. Legacy Python ``GPT2MLP.from_torch`` uses
+    ``weight.T`` because the old tile API kept weights in ``(out, in)``
+    form for ``side='R'`` GEMM; that does not apply to the C++ graph API.
+    """
+    return fortran_order(conv_weight)
+
+
 def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
     """Return (nntile_name, shape) for every output tensor."""
     H = config.n_embd
@@ -116,6 +133,7 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
         specs.append((f"{p}.attn.v_weight", (n_head, head_size, H)))
         specs.append((f"{p}.attn.o_weight", (H, n_head, head_size)))
 
+        # MLP Linear weights: [input_dim, output_dim] (matches HF Conv1D)
         specs.append((f"{p}.mlp.fc1.weight", (H, n_inner)))
         specs.append((f"{p}.mlp.fc2.weight", (n_inner, H)))
 
@@ -190,11 +208,11 @@ def _make_converter(
             return fortran_order(o)
 
         if rest == "mlp.fc1.weight":
-            # Conv1D: (in, out), same as NNTile
-            return fortran_order(hf_get(f"{hp}.mlp.c_fc.weight"))
+            return _conv1d_to_nntile_linear_weight(
+                hf_get(f"{hp}.mlp.c_fc.weight"))
         if rest == "mlp.fc2.weight":
-            # Conv1D: (in, out), same as NNTile
-            return fortran_order(hf_get(f"{hp}.mlp.c_proj.weight"))
+            return _conv1d_to_nntile_linear_weight(
+                hf_get(f"{hp}.mlp.c_proj.weight"))
 
         raise ValueError(f"Unknown NNTile tensor: {name}")
 
