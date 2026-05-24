@@ -7,9 +7,9 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/graph/model/gpt2/gpt2_mlp.hh
- * GPT2MLP module - standard MLP (Linear -> GELU -> Linear).
+ * GPT2MLP module - standard MLP (Linear -> GELUTANH -> Linear).
  *
- * GPT-2 uses: c_fc (hidden -> 4*hidden) -> GELU -> c_proj (4*hidden -> hidden)
+ * GPT-2 uses: c_fc (hidden -> 4*hidden) -> GELUTANH (gelu_new) -> c_proj (4*hidden -> hidden)
  *
  * @version 1.1.0
  * */
@@ -28,7 +28,7 @@
 namespace nntile::model::gpt2
 {
 
-//! GPT2MLP - standard MLP using GELU activation
+//! GPT2MLP - standard MLP using GELUTANH (gelu_new) activation
 class Gpt2MLP : public graph::module::Mlp
 {
 public:

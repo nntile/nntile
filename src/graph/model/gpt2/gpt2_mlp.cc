@@ -26,7 +26,7 @@ Gpt2MLP::Gpt2MLP(graph::NNGraph* graph,
                          config.hidden_size,
                          config.intermediate_size,
                          config.hidden_size,
-                         graph::module::ActivationType::GELU,
+                         graph::module::ActivationType::GELUTANH,
                          dtype)
 {
 }
