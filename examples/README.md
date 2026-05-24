@@ -3,6 +3,13 @@
 Runnable programs under `examples/` show the graph API (forward, autograd,
 incremental training phases) and small Llama / GPT-2 workflows.
 
+
+## Shared C++ utilities
+
+- `json_config_helpers.hh` — `config_get_int` / `config_get_float` for JSON configs
+  (used by GPT-2 and Llama graph examples).
+- `gpt2_config_json.hh` — `load_gpt2_config_json` / `save_gpt2_config_json` (HF + NNTile keys).
+
 Build all examples from the repository root:
 
 ```bash
