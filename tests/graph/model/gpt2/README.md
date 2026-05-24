@@ -8,6 +8,11 @@ Tensors use **(hidden_size, seq, batch)** in Fortran (column-major) order unless
 
 ## Test Coverage
 
+Shared building blocks used by GPT-2 (not covered only inside model tests):
+
+- **layer_norm** (NN op): `tests/graph/nn/ops/layer_norm.cc` — structure, autograd, PyTorch forward/backward
+- **LayerNorm** (module): `tests/graph/module/layer_norm.cc` — parameters, forward graph, PyTorch forward/backward
+
 - **gpt2_config**: `Gpt2Config` validation and defaults
 - **gpt2_mlp**: `Gpt2MLP` forward, roundtrip, PyTorch forward/backward
 - **gpt2_attention**: `Gpt2Attention` forward, roundtrip, PyTorch forward/backward (no mask and causal mask)

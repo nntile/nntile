@@ -27,6 +27,7 @@ set(TESTS_MODULE_PYTORCH
     "activation"
     "embedding"
     "gated_mlp"
+    "layer_norm"
     "linear"
     "mlp"
 )

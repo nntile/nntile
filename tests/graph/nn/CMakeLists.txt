@@ -52,6 +52,7 @@ set(TESTS_NN_PYTORCH
     "gelu"
     "gelutanh"
     "gemm"
+    "layer_norm"
     "mse_loss"
     "multiply"
     "multiply_fiber"
