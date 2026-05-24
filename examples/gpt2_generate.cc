@@ -53,15 +53,13 @@
 #include <nntile/graph/model/llama/llama_causal_mask.hh>
 #include <nlohmann/json.hpp>
 
-#include "json_config_helpers.hh"
+#include "gpt2_config_json.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::model::gpt2;
 using namespace nntile::model::llama;
 using json = nlohmann::json;
-using nntile::examples::config_get_float;
-using nntile::examples::config_get_int;
 
 namespace
 {
@@ -157,32 +155,8 @@ static std::vector<std::int64_t> parse_ids(const std::string& s)
     return ids;
 }
 
-// ── Config loader ────────────────────────────────────────────────────────
 
-// Extract int from JSON; accepts both number and string (e.g. "32000").
-
-static Gpt2Config load_config(const std::string& path)
-{
-    std::ifstream f(path);
-    if(!f.good())
-    {
-        throw std::runtime_error("Cannot open config: " + path);
-    }
-    json j = json::parse(f);
-
-    Gpt2Config cfg;
-    cfg.vocab_size           = config_get_int(j, "vocab_size", 50257);
-    cfg.hidden_size          = config_get_int(j, "n_embd", 768);
-    cfg.intermediate_size     = config_get_int(j, "n_inner", 4 * cfg.hidden_size);
-    cfg.num_hidden_layers    = config_get_int(j, "n_layer", 12);
-    cfg.num_attention_heads  = config_get_int(j, "n_head", 12);
-    cfg.max_position_embeddings = config_get_int(j, "n_positions", 1024);
-    cfg.layer_norm_eps       = config_get_float(j, "layer_norm_epsilon", 1e-5f);
-    cfg.eos_token_id         = config_get_int(j, "eos_token_id", 50256);
-    cfg.bos_token_id         = config_get_int(j, "bos_token_id", 50256);
-    cfg.validate();
-    return cfg;
-}
+using nntile::examples::load_gpt2_config_json;
 
 // ── Weight cache ─────────────────────────────────────────────────────────
 
@@ -328,7 +302,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    Gpt2Config config = load_config(args.config_path);
+    Gpt2Config config = load_gpt2_config_json(args.config_path);
     std::cout << "Config: hidden=" << config.hidden_size
               << "  layers=" << config.num_hidden_layers
               << "  heads=" << config.num_attention_heads

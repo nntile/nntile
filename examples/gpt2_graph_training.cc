@@ -46,7 +46,7 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 
-#include "json_config_helpers.hh"
+#include "gpt2_config_json.hh"
 #include <nntile.hh>
 #include <nntile/graph/dataset/causal_lm_mmap.hh>
 #include <nntile/graph/model/gpt2/gpt2_causal.hh>
@@ -58,8 +58,6 @@
 #include <string>
 
 using json = nlohmann::json;
-using nntile::examples::config_get_float;
-using nntile::examples::config_get_int;
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -103,61 +101,9 @@ struct Args
 };
 
 
-static Gpt2Config load_gpt2_config_json(const std::string &path)
-{
-    std::ifstream f(path);
-    if (!f.good())
-    {
-        throw std::runtime_error("Cannot open config: " + path);
-    }
-    json j = json::parse(f);
-    Gpt2Config cfg;
-    cfg.vocab_size = config_get_int(j, "vocab_size", 50257);
-    cfg.hidden_size = config_get_int(
-        j, "hidden_size", config_get_int(j, "n_embd", 768));
-    cfg.num_hidden_layers = config_get_int(
-        j, "num_hidden_layers", config_get_int(j, "n_layer", 12));
-    cfg.num_attention_heads = config_get_int(
-        j, "num_attention_heads", config_get_int(j, "n_head", 12));
-    cfg.max_position_embeddings = config_get_int(
-        j,
-        "max_position_embeddings",
-        config_get_int(j, "n_positions", 1024));
-    cfg.layer_norm_eps = config_get_float(
-        j, "layer_norm_eps", config_get_float(j, "layer_norm_epsilon", 1e-5f));
-    cfg.intermediate_size = config_get_int(
-        j, "intermediate_size", 4 * cfg.hidden_size);
-    cfg.eos_token_id = config_get_int(j, "eos_token_id", 50256);
-    cfg.bos_token_id = config_get_int(j, "bos_token_id", 50256);
-    if (j.contains("name") && j["name"].is_string())
-    {
-        cfg.name = j["name"].get<std::string>();
-    }
-    cfg.validate();
-    return cfg;
-}
 
-static void save_gpt2_config_json(
-    Gpt2Config const &cfg, const std::string &path)
-{
-    json j;
-    j["vocab_size"] = cfg.vocab_size;
-    j["hidden_size"] = cfg.hidden_size;
-    j["intermediate_size"] = cfg.intermediate_size;
-    j["num_hidden_layers"] = cfg.num_hidden_layers;
-    j["num_attention_heads"] = cfg.num_attention_heads;
-    j["max_position_embeddings"] = cfg.max_position_embeddings;
-    j["layer_norm_eps"] = cfg.layer_norm_eps;
-    j["eos_token_id"] = cfg.eos_token_id;
-    j["bos_token_id"] = cfg.bos_token_id;
-    j["name"] = cfg.name;
-    std::ofstream f(path);
-    if (!f.good())
-    {
-        throw std::runtime_error("Cannot write config: " + path);
-    }
-    f << j.dump(2) << "\n";
-}
+using nntile::examples::load_gpt2_config_json;
+using nntile::examples::save_gpt2_config_json;
 
 static Gpt2Config make_tiny_config()
 {
