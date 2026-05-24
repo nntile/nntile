@@ -623,7 +623,6 @@ set(GRAPH_NN_HDR
     "nntile/graph/nn/ops/gelu.hh"
     "nntile/graph/nn/ops/embedding.hh"
     "nntile/graph/nn/ops/gelutanh.hh"
-    "nntile/graph/nn/ops/layer_norm.hh"
     "nntile/graph/nn/ops/mse_loss.hh"
     "nntile/graph/nn/ops/multiply.hh"
     "nntile/graph/nn/ops/multiply_fiber.hh"
@@ -670,6 +669,7 @@ set(GRAPH_MODULE_HDR
     "nntile/graph/module/embedding.hh"
     "nntile/graph/module/mlp.hh"
     "nntile/graph/module/rms_norm.hh"
+    "nntile/graph/module/layer_norm.hh"
     )
 
 set(GRAPH_DATASET_HDR
@@ -677,6 +677,13 @@ set(GRAPH_DATASET_HDR
     )
 
 set(GRAPH_MODEL_HDR
+    "nntile/graph/model/gpt2.hh"
+    "nntile/graph/model/gpt2/gpt2_config.hh"
+    "nntile/graph/model/gpt2/gpt2_attention.hh"
+    "nntile/graph/model/gpt2/gpt2_mlp.hh"
+    "nntile/graph/model/gpt2/gpt2_block.hh"
+    "nntile/graph/model/gpt2/gpt2_model.hh"
+    "nntile/graph/model/gpt2/gpt2_causal.hh"
     "nntile/graph/model/llama.hh"
     "nntile/graph/model/llama/llama_config.hh"
     "nntile/graph/model/llama/llama_mlp.hh"

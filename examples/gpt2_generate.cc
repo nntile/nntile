@@ -50,11 +50,13 @@
 #include <nntile/graph/io/safetensors.hh>
 #include <nntile/graph/model/gpt2/gpt2_causal.hh>
 #include <nntile/graph/model/gpt2/gpt2_config.hh>
+#include <nntile/graph/model/llama/llama_causal_mask.hh>
 #include <nlohmann/json.hpp>
 
 using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::model::gpt2;
+using namespace nntile::model::llama;
 using json = nlohmann::json;
 
 // ── CLI helpers ──────────────────────────────────────────────────────────
@@ -365,32 +367,51 @@ int main(int argc, char** argv)
 
         NNGraph graph("gpt2_step");
 
-        auto* input_ids = graph.tensor(
-            {seq_len, 1}, "input_ids", DataType::INT64, false);
+        auto *input_ids =
+            graph.tensor({seq_len, 1}, DataType::INT64, false)
+                ->set_name("input_ids");
         input_ids->mark_input(true);
 
-        // position_ids: arange(0, seq_len) broadcast to (seq_len, 1)
-        std::vector<std::int64_t> pos_ids(seq_len);
+        std::vector<std::int64_t> pos_ids(
+            static_cast<std::size_t>(seq_len));
         for(Index i = 0; i < seq_len; ++i)
-            pos_ids[i] = static_cast<std::int64_t>(i);
-        auto* position_ids = graph.tensor(
-            {seq_len, 1}, "position_ids", DataType::INT64, false);
+        {
+            pos_ids[static_cast<std::size_t>(i)] =
+                static_cast<std::int64_t>(i);
+        }
+        auto *position_ids =
+            graph.tensor({seq_len, 1}, DataType::INT64, false)
+                ->set_name("position_ids");
         position_ids->mark_input(true);
 
+        auto *attn_mask =
+            graph.tensor({seq_len, seq_len}, DataType::BOOL, false)
+                ->set_name("attn_mask");
+        attn_mask->mark_input(true);
+
         Gpt2Causal model(&graph, "model", config);
-        auto* output = model.forward(input_ids, position_ids);
+        auto *output =
+            model.forward(input_ids, position_ids, attn_mask);
         output->mark_output(true);
 
         apply_weight_cache(model, weights);
 
-        TensorGraph::Runtime runtime(graph.tensor_graph());
+        const std::size_t mask_n =
+            static_cast<std::size_t>(seq_len * seq_len);
+        std::vector<std::uint8_t> mask_data(mask_n);
+        sdpa_causal_mask_bool_fortran_fill(seq_len, mask_data.data());
+
+        TileGraph tile_graph =
+            TileGraph::from_tensor_graph(graph.tensor_graph());
+        Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("input_ids", tokens);
-        runtime.bind_data("position_ids", pos_ids);
+        runtime.bind_data(input_ids, tokens);
+        runtime.bind_data(position_ids, pos_ids);
+        runtime.bind_data(attn_mask, mask_data);
         runtime.execute();
         runtime.wait();
 
-        auto logits = runtime.get_output<float>(output->name());
+        auto logits = runtime.get_output<float>(output);
 
         std::int64_t next_id = argmax_last_position(
             logits, config.vocab_size, seq_len);
