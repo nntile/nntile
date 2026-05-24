@@ -188,7 +188,6 @@ foreach(test_path IN LISTS TESTS_MODEL_GPT2)
                 list(APPEND required_fixtures
                     "tests_graph_model_gpt2_attention_causal_data")
             endif()
-
             set_tests_properties(tests_graph_model_${test_name} PROPERTIES
                 FIXTURES_REQUIRED "${required_fixtures}"
             )
