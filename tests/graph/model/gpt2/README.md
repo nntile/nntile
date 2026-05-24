@@ -15,10 +15,18 @@ Shared building blocks used by GPT-2 (not covered only inside model tests):
 
 - **gpt2_config**: `Gpt2Config` validation and defaults
 - **gpt2_mlp**: `Gpt2MLP` forward, roundtrip, PyTorch forward/backward
-- **gpt2_attention**: `Gpt2Attention` forward, roundtrip, PyTorch forward/backward (no mask and causal mask)
+- **gpt2_attention**: `Gpt2Attention` forward, roundtrip, PyTorch forward/backward (`[nomask]` bidirectional SDPA, `[causal_mask]` causal)
 - **gpt2_block**: `Gpt2Block` forward, roundtrip, PyTorch forward
 - **gpt2_model**: `Gpt2Model` forward, roundtrip, PyTorch forward
 - **gpt2_causal**: `Gpt2Causal` forward, roundtrip, PyTorch forward
+
+
+### Attention masks
+
+- **`[nomask]`** — graph passes `mask=nullptr` (full attention). PyTorch refs use
+  `scaled_dot_product_attention(..., is_causal=False)`, not `GPT2Attention` with
+  `attention_mask=None` (HF still applies a built-in causal mask).
+- **`[causal_mask]`** — BOOL causal mask in safetensors; refs use HF with additive mask.
 
 ## Test Data (Safetensors)
 

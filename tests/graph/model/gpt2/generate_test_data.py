@@ -291,6 +291,35 @@ def generate_mlp(seed: int, dims: TestDims = MLP_DIMS) -> dict[str, np.ndarray]:
     return data
 
 
+
+
+def _gpt2_attn_forward_bidirectional(
+    attn: PtAttention, x_pt: torch.Tensor,
+) -> torch.Tensor:
+    """Full (non-causal) self-attention reference for ``mask=nullptr`` tests.
+
+    HuggingFace ``GPT2Attention`` applies a built-in causal mask even when
+    ``attention_mask`` is None, which does not match graph ``sdpa_eager`` with
+    a null mask (~0.8 relative Frobenius vs bidirectional refs). This path uses
+    ``scaled_dot_product_attention(..., is_causal=False)`` on the same Q/K/V
+    projections as the C++ module (biases are zeroed in fixtures).
+    """
+    n_emb = x_pt.shape[-1]
+    n_head = attn.num_heads
+    head_dim = n_emb // n_head
+    qkv = attn.c_attn(x_pt)
+    q, k, v = qkv.split(n_emb, dim=2)
+    shape = (*x_pt.shape[:2], n_head, head_dim)
+    q = q.view(*shape).transpose(1, 2)
+    k = k.view(*shape).transpose(1, 2)
+    v = v.view(*shape).transpose(1, 2)
+    ctx = torch.nn.functional.scaled_dot_product_attention(
+        q, k, v, attn_mask=None, is_causal=False,
+    )
+    ctx = ctx.transpose(1, 2).contiguous().view(*x_pt.shape)
+    return attn.c_proj(ctx)
+
+
 def generate_attention(
     seed: int,
     dims: TestDims = ATTENTION_DIMS,
@@ -306,13 +335,14 @@ def generate_attention(
     data = _gpt2_attn_weights(pt, "attn", dims)
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
-    attn_mask = None
     if use_causal_mask:
         attn_mask = _causal_additive_mask_torch(
             dims.batch, dims.seq, x_pt.device,
         )
         data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
-    out, _ = pt(x_pt, attention_mask=attn_mask)
+        out, _ = pt(x_pt, attention_mask=attn_mask)
+    else:
+        out = _gpt2_attn_forward_bidirectional(pt, x_pt)
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt

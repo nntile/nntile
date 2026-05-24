@@ -294,6 +294,30 @@ TEST_CASE("Gpt2Attention load from safetensors roundtrip", "[model][gpt2][io]")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "Gpt2Attention forward matches PyTorch reference (no mask)",
+    "[model][gpt2][nomask]")
+{
+    AttentionFixtureSpec fx;
+    if (!skip_unless_fixture_ready(attn_fixture_stem::gpt2_attention, fx))
+    {
+        SKIP("GPT-2 attention fixture not found.");
+    }
+    gpt2_attention_forward_compare_ref(fx);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "Gpt2Attention backward matches PyTorch reference (no mask)",
+    "[model][gpt2][nomask]")
+{
+    AttentionFixtureSpec fx;
+    if (!skip_unless_fixture_ready(attn_fixture_stem::gpt2_attention, fx))
+    {
+        SKIP("GPT-2 attention fixture not found.");
+    }
+    gpt2_attention_backward_compare_ref(fx);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
     "Gpt2Attention causal forward matches PyTorch reference",
     "[model][gpt2][causal_mask]")
 {
