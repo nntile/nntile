@@ -363,3 +363,82 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
         endif()
     endif()
 endforeach()
+
+# T5 test data: generated at test time via CTest fixtures (one per block)
+set(T5_DATA_DIR "${CMAKE_CURRENT_BINARY_DIR}/t5_data")
+set(T5_GENERATE_SCRIPT
+    "${CMAKE_CURRENT_SOURCE_DIR}/t5/generate_test_data.py")
+
+set(TESTS_MODEL_T5
+    "t5/t5_config"
+    "t5/t5_ff"
+    "t5/t5_attention"
+    "t5/t5_cross_attention"
+    "t5/t5_encoder_block"
+    "t5/t5_decoder_block"
+    "t5/t5_model"
+    "t5/t5_conditional"
+)
+
+foreach(test_path IN LISTS TESTS_MODEL_T5)
+    get_filename_component(test_name ${test_path} NAME)
+    add_test_set(TARGET_NAME tests_graph_model_${test_name}
+        EXEC_NAME test_${test_name}
+        SOURCES ${test_path}.cc
+        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_graph_model_${test_name}
+        COV_GLOBAL coverage_graph_model coverage
+    )
+    target_include_directories(tests_graph_model_${test_name} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_CURRENT_SOURCE_DIR}/../..
+        ${CMAKE_CURRENT_SOURCE_DIR}/../nn
+    )
+    set_target_properties(tests_graph_model_${test_name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/t5)
+    if(NOT test_name STREQUAL "t5_config")
+        string(REPLACE "t5_" "" block_name "${test_name}")
+        target_compile_definitions(tests_graph_model_${test_name} PRIVATE
+            T5_DATA_DIR="${T5_DATA_DIR}"
+        )
+        if(Python3_Interpreter_FOUND)
+            add_test(NAME tests_graph_model_${test_name}_data_setup
+                COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${T5_GENERATE_SCRIPT}"
+                    --block "${block_name}" --output "${T5_DATA_DIR}"
+                    --seed 42
+                WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            )
+            set_tests_properties(tests_graph_model_${test_name}_data_setup
+                PROPERTIES
+                    FIXTURES_SETUP "tests_graph_model_${test_name}_data"
+                    ENVIRONMENT
+                        "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+            )
+            set(required_fixtures "tests_graph_model_${test_name}_data")
+
+            if(test_name STREQUAL "t5_attention")
+                add_test(NAME tests_graph_model_t5_attention_causal_data_setup
+                    COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${T5_GENERATE_SCRIPT}"
+                        --block attention_causal
+                        --output "${T5_DATA_DIR}" --seed 42
+                    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                )
+                set_tests_properties(
+                    tests_graph_model_t5_attention_causal_data_setup
+                    PROPERTIES
+                        FIXTURES_SETUP
+                            "tests_graph_model_t5_attention_causal_data"
+                        ENVIRONMENT
+                            "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                )
+                list(APPEND required_fixtures
+                    "tests_graph_model_t5_attention_causal_data")
+            endif()
+            set_tests_properties(tests_graph_model_${test_name} PROPERTIES
+                FIXTURES_REQUIRED "${required_fixtures}"
+            )
+        endif()
+    endif()
+endforeach()

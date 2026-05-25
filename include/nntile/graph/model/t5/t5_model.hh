@@ -65,6 +65,11 @@ public:
 
     std::string repr() const override;
 
+    graph::NNGraph::TensorNode* embed_vocab_tensor() const
+    {
+        return embed_tokens_.vocab_tensor();
+    }
+
     Index num_encoder_layers() const { return config_.num_layers; }
     Index num_decoder_layers() const { return config_.num_decoder_layers; }
 };
