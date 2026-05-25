@@ -25,7 +25,7 @@
 #include <nntile/graph/model/gptneox/gptneox_decoder.hh>
 #include <nntile/graph/module/embedding.hh>
 #include <nntile/graph/module/module.hh>
-#include <nntile/graph/module/rms_norm.hh>
+#include <nntile/graph/module/layer_norm.hh>
 
 namespace nntile::model::gptneox
 {
@@ -36,7 +36,7 @@ class GptneoxModel : public graph::module::Module
 private:
     graph::module::Embedding embed_tokens_;
     std::vector<std::unique_ptr<GptneoxDecoder>> layers_;
-    graph::module::RMSNorm norm_;
+    graph::module::LayerNorm norm_;
 
     GptneoxConfig config_;
     graph::DataType dtype_;

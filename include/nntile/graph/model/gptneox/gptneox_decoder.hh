@@ -26,7 +26,7 @@
 #include <nntile/graph/model/gptneox/gptneox_config.hh>
 #include <nntile/graph/model/gptneox/gptneox_mlp.hh>
 #include <nntile/graph/module/module.hh>
-#include <nntile/graph/module/rms_norm.hh>
+#include <nntile/graph/module/layer_norm.hh>
 
 namespace nntile::model::gptneox
 {
@@ -35,9 +35,9 @@ namespace nntile::model::gptneox
 class GptneoxDecoder : public graph::module::Module
 {
 private:
-    graph::module::RMSNorm input_norm_;
+    graph::module::LayerNorm input_norm_;
     GptneoxAttention attention_;
-    graph::module::RMSNorm post_attn_norm_;
+    graph::module::LayerNorm post_attn_norm_;
     GptneoxMlp mlp_;
 
     GptneoxConfig config_;

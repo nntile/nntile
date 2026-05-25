@@ -102,20 +102,23 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
 
     specs.append(("model.model.embed_tokens.vocab", (H, V)))
     specs.append(("model.model.norm.gamma", (H,)))
+    specs.append(("model.model.norm.beta", (H,)))
     specs.append(("model.lm_head.weight", (H, V)))
 
     for i in range(config.num_hidden_layers):
         p = f"model.model.layers_{i}"
         specs.append((f"{p}.input_norm.gamma", (H,)))
+        specs.append((f"{p}.input_norm.beta", (H,)))
         specs.append((f"{p}.post_attn_norm.gamma", (H,)))
+        specs.append((f"{p}.post_attn_norm.beta", (H,)))
 
         specs.append((f"{p}.attention.q_weight", (nh, hd, H)))
         specs.append((f"{p}.attention.k_weight", (nh, hd, H)))
         specs.append((f"{p}.attention.v_weight", (nh, hd, H)))
         specs.append((f"{p}.attention.o_weight", (H, nh, hd)))
 
-        specs.append((f"{p}.mlp.fc1.weight", (inter, H)))
-        specs.append((f"{p}.mlp.fc2.weight", (H, inter)))
+        specs.append((f"{p}.mlp.fc1.weight", (H, inter)))
+        specs.append((f"{p}.mlp.fc2.weight", (inter, H)))
 
     return specs
 
@@ -136,6 +139,8 @@ def _make_converter(
 
         if name == "model.model.norm.gamma":
             return fortran_order(hf_get("gpt_neox.final_layer_norm.weight"))
+        if name == "model.model.norm.beta":
+            return fortran_order(hf_get("gpt_neox.final_layer_norm.bias"))
 
         if name == "model.lm_head.weight":
             key = (
@@ -152,9 +157,14 @@ def _make_converter(
 
         if rest == "input_norm.gamma":
             return fortran_order(hf_get(f"{hp}.input_layernorm.weight"))
+        if rest == "input_norm.beta":
+            return fortran_order(hf_get(f"{hp}.input_layernorm.bias"))
         if rest == "post_attn_norm.gamma":
-            w = hf_get(f"{hp}.post_attention_layernorm.weight")
-            return fortran_order(w)
+            return fortran_order(
+                hf_get(f"{hp}.post_attention_layernorm.weight"))
+        if rest == "post_attn_norm.beta":
+            return fortran_order(
+                hf_get(f"{hp}.post_attention_layernorm.bias"))
 
         if rest == "attention.q_weight":
             qkv = hf_get(f"{hp}.attention.query_key_value.weight")
@@ -179,11 +189,13 @@ def _make_converter(
             return fortran_order(o.reshape(H, nh, hd))
 
         if rest == "mlp.fc1.weight":
-            # HF dense_h_to_4h: (inter, H); NNTile fc1: (inter, H)
-            return fortran_order(hf_get(f"{hp}.mlp.dense_h_to_4h.weight"))
+            # HF dense_h_to_4h: (inter, H); NNTile fc1 Linear(H, inter)
+            w = hf_get(f"{hp}.mlp.dense_h_to_4h.weight")
+            return fortran_order(w.T)
         if rest == "mlp.fc2.weight":
-            # HF dense_4h_to_h: (H, inter); NNTile fc2: (H, inter)
-            return fortran_order(hf_get(f"{hp}.mlp.dense_4h_to_h.weight"))
+            # HF dense_4h_to_h: (H, inter); NNTile fc2 Linear(inter, H)
+            w = hf_get(f"{hp}.mlp.dense_4h_to_h.weight")
+            return fortran_order(w.T)
 
         raise ValueError(f"Unknown NNTile tensor: {name}")
 
