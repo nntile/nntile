@@ -297,7 +297,7 @@ def main() -> int:
         "n_layer": config.n_layer,
         "n_head": config.n_head,
         "n_positions": config.n_positions,
-        "layer_norm_epsilon": getattr(config, "layer_norm_epsilon", 1e-5),
+        "layer_norm_eps": getattr(config, "layer_norm_epsilon", 1e-5),
         "eos_token_id": getattr(config, "eos_token_id", 50256),
         "bos_token_id": getattr(config, "bos_token_id", 50256),
     }

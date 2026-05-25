@@ -48,8 +48,7 @@ inline model::gpt2::Gpt2Config load_gpt2_config_json(std::string const &path)
         j,
         "max_position_embeddings",
         config_get_int(j, "n_positions", 1024));
-    cfg.layer_norm_eps = config_get_float(
-        j, "layer_norm_eps", config_get_float(j, "layer_norm_epsilon", 1e-5f));
+    cfg.layer_norm_eps = config_get_float(j, "layer_norm_eps", 1e-5f);
     cfg.intermediate_size = config_get_int(
         j, "intermediate_size", config_get_int(j, "n_inner", 0));
     if (cfg.intermediate_size <= 0)
@@ -66,7 +65,7 @@ inline model::gpt2::Gpt2Config load_gpt2_config_json(std::string const &path)
     return cfg;
 }
 
-//! Write ``Gpt2Config`` for training checkpoints (NNTile + HF layer-norm keys).
+//! Write ``Gpt2Config`` for training checkpoints (``layer_norm_eps`` key).
 inline void save_gpt2_config_json(
     model::gpt2::Gpt2Config const &cfg,
     std::string const &path)
@@ -79,7 +78,6 @@ inline void save_gpt2_config_json(
     j["num_attention_heads"] = cfg.num_attention_heads;
     j["max_position_embeddings"] = cfg.max_position_embeddings;
     j["layer_norm_eps"] = cfg.layer_norm_eps;
-    j["layer_norm_epsilon"] = cfg.layer_norm_eps;
     j["eos_token_id"] = cfg.eos_token_id;
     j["bos_token_id"] = cfg.bos_token_id;
     j["name"] = cfg.name;

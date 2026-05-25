@@ -49,8 +49,7 @@ inline model::gptneo::GptneoConfig load_gptneo_config_json(std::string const &pa
         j,
         "max_position_embeddings",
         config_get_int(j, "n_positions", 1024));
-    cfg.layer_norm_eps = config_get_float(
-        j, "layer_norm_eps", config_get_float(j, "layer_norm_epsilon", 1e-5f));
+    cfg.layer_norm_eps = config_get_float(j, "layer_norm_eps", 1e-5f);
     cfg.intermediate_size = config_get_int(
         j, "intermediate_size", config_get_int(j, "n_inner", 0));
     if (cfg.intermediate_size <= 0)
@@ -73,7 +72,7 @@ inline model::gptneo::GptneoConfig load_gptneo_config_json(std::string const &pa
     return cfg;
 }
 
-//! Write ``GptneoConfig`` for training checkpoints (HF ``layer_norm_epsilon``).
+//! Write ``GptneoConfig`` for training checkpoints (``layer_norm_eps`` key).
 inline void save_gptneo_config_json(
     model::gptneo::GptneoConfig const &cfg,
     std::string const &path)
@@ -87,7 +86,7 @@ inline void save_gptneo_config_json(
     j["max_position_embeddings"] = cfg.max_position_embeddings;
     j["head_dim"] = cfg.head_dim;
     j["window_size"] = cfg.window_size;
-    j["layer_norm_epsilon"] = cfg.layer_norm_eps;
+    j["layer_norm_eps"] = cfg.layer_norm_eps;
     j["tie_word_embeddings"] = cfg.tie_word_embeddings;
     j["eos_token_id"] = cfg.eos_token_id;
     j["bos_token_id"] = cfg.bos_token_id;

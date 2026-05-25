@@ -270,7 +270,7 @@ def main() -> int:
         "num_hidden_layers": config.num_layers,
         "num_attention_heads": config.num_heads,
         "max_position_embeddings": config.max_position_embeddings,
-        "layer_norm_epsilon": getattr(config, "layer_norm_epsilon", 1e-5),
+        "layer_norm_eps": getattr(config, "layer_norm_epsilon", 1e-5),
         "tie_word_embeddings": getattr(config, "tie_word_embeddings", True),
         "eos_token_id": getattr(config, "eos_token_id", 50256),
         "bos_token_id": getattr(config, "bos_token_id", 50256),
