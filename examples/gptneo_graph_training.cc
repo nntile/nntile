@@ -434,9 +434,12 @@ int main(int argc, char **argv)
             ->set_name("position_ids");
     auto *attn_mask = graph.tensor({n_seq, n_seq}, DataType::BOOL, false)
                           ->set_name("attn_mask");
+    auto *attn_mask_local = graph.tensor({n_seq, n_seq}, DataType::BOOL, false)
+                                  ->set_name("attn_mask_local");
     input_ids->mark_input(true);
     position_ids->mark_input(true);
     attn_mask->mark_input(true);
+    attn_mask_local->mark_input(true);
 
     auto *labels = graph.tensor({n_seq, n_batch}, DataType::INT64, false)
                        ->set_name("labels");
@@ -474,6 +477,9 @@ int main(int argc, char **argv)
     const std::size_t mask_n = static_cast<std::size_t>(n_seq * n_seq);
     std::vector<std::uint8_t> mask_data(mask_n);
     sdpa_causal_mask_bool_fortran_fill(n_seq, mask_data.data());
+    std::vector<std::uint8_t> mask_local_data(mask_n);
+    sdpa_gptneo_local_mask_bool_fortran_fill(
+        n_seq, config.window_size, mask_local_data.data());
 
     graph.enable_auto_tensor_name_phase_suffix(true);
 
@@ -524,7 +530,7 @@ int main(int argc, char **argv)
             }
 
             NNGraph::TensorNode *logits =
-                model.forward(input_ids, position_ids, attn_mask);
+                model.forward(input_ids, position_ids, attn_mask, attn_mask_local);
             if (logits == nullptr)
             {
                 throw std::runtime_error(
@@ -572,6 +578,7 @@ int main(int argc, char **argv)
             runtime.bind_data(labels, mmap_batch.target_ids);
             runtime.bind_data(position_ids, pos_data);
             runtime.bind_data(attn_mask, mask_data);
+            runtime.bind_data(attn_mask_local, mask_local_data);
 
             auto t0 = std::chrono::high_resolution_clock::now();
             runtime.execute();

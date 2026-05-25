@@ -52,9 +52,11 @@ public:
                     graph::DataType dtype = graph::DataType::FP32);
 
     //! Forward pass
+    //! @param causal Placeholder (not implemented); must be ``false``.
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* x,
-        graph::NNGraph::TensorNode* mask = nullptr);
+        graph::NNGraph::TensorNode* mask = nullptr,
+        bool causal = false);
 
     std::string repr() const override;
 

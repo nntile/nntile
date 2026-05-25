@@ -48,8 +48,9 @@ public:
     //! Forward pass
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* input_ids,
-        graph::NNGraph::TensorNode* position_ids = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr);
+        graph::NNGraph::TensorNode* position_ids,
+        graph::NNGraph::TensorNode* mask = nullptr,
+        graph::NNGraph::TensorNode* local_mask = nullptr);
 
     std::string repr() const override;
 

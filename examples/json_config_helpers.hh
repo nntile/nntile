@@ -74,4 +74,23 @@ inline float config_get_float(
         v.type_name());
 }
 
+//! Read a boolean field.
+inline bool config_get_bool(
+    nlohmann::json const &j,
+    char const *key,
+    bool default_val)
+{
+    if (!j.contains(key))
+    {
+        return default_val;
+    }
+    nlohmann::json const &v = j[key];
+    if (v.is_boolean())
+    {
+        return v.get<bool>();
+    }
+    throw std::runtime_error(
+        std::string("config: '") + key + "' must be bool, got " + v.type_name());
+}
+
 } // namespace nntile::examples

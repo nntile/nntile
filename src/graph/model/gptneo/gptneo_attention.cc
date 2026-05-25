@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/model/gptneo/gptneo_attention.hh"
+#include "nntile/graph/model/gpt2/gpt2_common.hh"
 #include "nntile/graph/nn/ops/add_fiber.hh"
 #include "nntile/graph/nn/ops/gemm.hh"
 #include "nntile/graph/nn/ops/sdpa_eager.hh"
@@ -59,8 +60,10 @@ GptneoAttention::GptneoAttention(graph::NNGraph* graph,
 
 graph::NNGraph::TensorNode* GptneoAttention::forward(
     graph::NNGraph::TensorNode* x,
-    graph::NNGraph::TensorNode* mask)
+    graph::NNGraph::TensorNode* mask,
+    bool causal)
 {
+    gpt2::throw_if_causal_flag_set(causal, "GptneoAttention");
     if(x == nullptr)
     {
         throw std::invalid_argument(

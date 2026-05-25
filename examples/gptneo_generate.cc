@@ -333,10 +333,14 @@ int main(int argc, char** argv)
             graph.tensor({seq_len, seq_len}, DataType::BOOL, false)
                 ->set_name("attn_mask");
         attn_mask->mark_input(true);
+        auto *attn_mask_local =
+            graph.tensor({seq_len, seq_len}, DataType::BOOL, false)
+                ->set_name("attn_mask_local");
+        attn_mask_local->mark_input(true);
 
         GptneoCausal model(&graph, "model", config);
-        auto *output =
-            model.forward(input_ids, position_ids, attn_mask);
+        auto *output = model.forward(
+            input_ids, position_ids, attn_mask, attn_mask_local);
         output->mark_output(true);
 
         apply_weight_cache(model, weights);
@@ -345,6 +349,9 @@ int main(int argc, char** argv)
             static_cast<std::size_t>(seq_len * seq_len);
         std::vector<std::uint8_t> mask_data(mask_n);
         sdpa_causal_mask_bool_fortran_fill(seq_len, mask_data.data());
+        std::vector<std::uint8_t> mask_local_data(mask_n);
+        sdpa_gptneo_local_mask_bool_fortran_fill(
+            seq_len, config.window_size, mask_local_data.data());
 
         TileGraph tile_graph =
             TileGraph::from_tensor_graph(graph.tensor_graph());
@@ -353,6 +360,7 @@ int main(int argc, char** argv)
         runtime.bind_data(input_ids, tokens);
         runtime.bind_data(position_ids, pos_ids);
         runtime.bind_data(attn_mask, mask_data);
+        runtime.bind_data(attn_mask_local, mask_local_data);
         runtime.execute();
         runtime.wait();
 

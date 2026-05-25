@@ -56,6 +56,12 @@ struct GptneoConfig
         }
     }
 
+    //! HF GPT-Neo default: odd layer indices use sliding-window attention.
+    bool is_local_attention_layer(Index layer_id) const
+    {
+        return layer_id % 2 == 1;
+    }
+
     //! Validate configuration
     void validate() const
     {

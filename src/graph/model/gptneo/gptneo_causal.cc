@@ -49,7 +49,8 @@ GptneoCausal::GptneoCausal(graph::NNGraph* graph,
 graph::NNGraph::TensorNode* GptneoCausal::forward(
     graph::NNGraph::TensorNode* input_ids,
     graph::NNGraph::TensorNode* position_ids,
-    graph::NNGraph::TensorNode* mask)
+    graph::NNGraph::TensorNode* mask,
+    graph::NNGraph::TensorNode* local_mask)
 {
     if(input_ids == nullptr)
     {
@@ -63,7 +64,7 @@ graph::NNGraph::TensorNode* GptneoCausal::forward(
     }
 
     graph::NNGraph::TensorNode* hidden =
-        model_->forward(input_ids, position_ids, mask);
+        model_->forward(input_ids, position_ids, mask, local_mask);
 
     graph::NNGraph::TensorNode* logits =
         graph::gemm(lm_head_.weight_tensor(),

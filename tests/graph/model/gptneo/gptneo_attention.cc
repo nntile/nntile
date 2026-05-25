@@ -47,6 +47,7 @@ namespace attn_fixture_stem
 
 constexpr char gptneo_attention[] = "gptneo_attention";
 constexpr char gptneo_attention_causal[] = "gptneo_attention_causal";
+constexpr char gptneo_attention_local[] = "gptneo_attention_local";
 
 } // namespace attn_fixture_stem
 

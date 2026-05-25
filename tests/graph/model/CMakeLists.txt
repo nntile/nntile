@@ -264,6 +264,22 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_gptneo_attention_causal_data")
+                add_test(NAME tests_graph_model_gptneo_attention_local_data_setup
+                    COMMAND "${LLAMA_DATA_PYTHON}" "${GPTNEO_GENERATE_SCRIPT}"
+                        --block attention_local
+                        --output "${GPTNEO_DATA_DIR}" --seed 42
+                    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                )
+                set_tests_properties(
+                    tests_graph_model_gptneo_attention_local_data_setup
+                    PROPERTIES
+                        FIXTURES_SETUP
+                            "tests_graph_model_gptneo_attention_local_data"
+                        ENVIRONMENT
+                            "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                )
+                list(APPEND required_fixtures
+                    "tests_graph_model_gptneo_attention_local_data")
             endif()
             set_tests_properties(tests_graph_model_${test_name} PROPERTIES
                 FIXTURES_REQUIRED "${required_fixtures}"

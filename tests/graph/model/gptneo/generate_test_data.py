@@ -214,6 +214,22 @@ def _sdpa_causal_mask_fortran(seq: int) -> np.ndarray:
     return fortran_order(allowed)
 
 
+def _sdpa_gptneo_local_mask_fortran(seq: int, window: int) -> np.ndarray:
+    kk = np.arange(seq, dtype=np.int64)[:, None]
+    qq = np.arange(seq, dtype=np.int64)[None, :]
+    allowed = ((kk <= qq) & (qq - kk < window)).astype(np.float32)
+    return fortran_order(allowed)
+
+
+def _local_additive_mask_torch(
+    batch: int, seq: int, window: int, device: torch.device,
+) -> torch.Tensor:
+    allowed = _sdpa_gptneo_local_mask_fortran(seq, window)
+    block = (1.0 - allowed) * torch.finfo(torch.float32).min
+    mask_torch = torch.tensor(block, device=device, dtype=torch.float32)
+    return mask_torch[None, None, :, :].expand(batch, 1, -1, -1)
+
+
 def _causal_additive_mask_torch(
     batch: int, seq: int, device: torch.device,
 ) -> torch.Tensor:
@@ -379,6 +395,46 @@ def generate_attention(
     return data
 
 
+
+
+def generate_attention_local(
+    seed: int, dims: TestDims = ATTENTION_DIMS,
+) -> dict[str, np.ndarray]:
+    torch.manual_seed(seed)
+    rng = np.random.default_rng(seed)
+    config = GPTNeoConfig(
+        vocab_size=dims.vocab,
+        hidden_size=dims.hidden,
+        num_layers=2,
+        num_heads=dims.n_heads,
+        intermediate_size=dims.intermediate,
+        max_position_embeddings=max(dims.seq * 2, 128),
+        layer_norm_epsilon=dims.layer_norm_eps,
+        attention_types=[[["global"], 1], [["local"], 1]],
+        resid_dropout=0.0,
+        embed_dropout=0.0,
+        attention_dropout=0.0,
+        _attn_implementation="eager",
+    )
+    pt = PtAttention(config, layer_id=1)
+    pt.eval()
+    data = _gptneo_attn_weights(pt, "attn", dims)
+    x_nt, x_pt = _hidden_input(rng, dims)
+    data["input"] = x_nt
+    window = int(config.window_size)
+    data["attn_mask"] = _sdpa_gptneo_local_mask_fortran(dims.seq, window)
+    attn_mask = _local_additive_mask_torch(
+        dims.batch, dims.seq, window, x_pt.device,
+    )
+    out = _gptneo_attn_forward(pt, x_pt, attn_mask=attn_mask)
+    data["output_ref"] = _out_to_nntile(out)
+    g_nt, g_pt = _grad_output(rng, out)
+    data["grad_output"] = g_nt
+    out.backward(g_pt)
+    data["grad_input"] = _out_to_nntile(x_pt.grad)
+    return data
+
+
 def generate_decoder(
     seed: int, dims: TestDims = DECODER_DIMS, *, use_causal_mask: bool = True,
 ) -> dict[str, np.ndarray]:
@@ -469,6 +525,7 @@ GENERATORS = {
     "attention_causal": lambda seed: generate_attention(
         seed, use_causal_mask=True,
     ),
+    "attention_local": generate_attention_local,
     "decoder": generate_decoder,
     "model": generate_model,
     "causal": generate_causal,
@@ -504,7 +561,7 @@ def main() -> int:
 
     if args.block == "mlp":
         write_fixture_json(out, stem, MLP_DIMS, 2e-5, 2e-5)
-    elif args.block in ("attention", "attention_causal"):
+    elif args.block in ("attention", "attention_causal", "attention_local"):
         write_fixture_json(out, stem, ATTENTION_DIMS, 2e-5, 2e-5)
     elif args.block == "decoder":
         write_fixture_json(out, stem, DECODER_DIMS, 2e-5, 2e-5)

@@ -58,6 +58,7 @@ inline model::gptneo::GptneoConfig load_gptneo_config_json(std::string const &pa
     }
     cfg.head_dim = config_get_int(j, "head_dim", 0);
     cfg.window_size = config_get_int(j, "window_size", 256);
+    cfg.tie_word_embeddings = config_get_bool(j, "tie_word_embeddings", true);
     cfg.eos_token_id = config_get_int(j, "eos_token_id", 50256);
     cfg.bos_token_id = config_get_int(j, "bos_token_id", 50256);
     if (j.contains("name") && j["name"].is_string())
@@ -84,6 +85,7 @@ inline void save_gptneo_config_json(
     j["head_dim"] = cfg.head_dim;
     j["window_size"] = cfg.window_size;
     j["layer_norm_epsilon"] = cfg.layer_norm_eps;
+    j["tie_word_embeddings"] = cfg.tie_word_embeddings;
     j["eos_token_id"] = cfg.eos_token_id;
     j["bos_token_id"] = cfg.bos_token_id;
     j["name"] = cfg.name;

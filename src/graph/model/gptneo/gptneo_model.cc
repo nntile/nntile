@@ -54,7 +54,8 @@ GptneoModel::GptneoModel(graph::NNGraph* graph,
 graph::NNGraph::TensorNode* GptneoModel::forward(
     graph::NNGraph::TensorNode* input_ids,
     graph::NNGraph::TensorNode* position_ids,
-    graph::NNGraph::TensorNode* mask)
+    graph::NNGraph::TensorNode* mask,
+    graph::NNGraph::TensorNode* local_mask)
 {
     if(input_ids == nullptr)
     {
@@ -76,9 +77,14 @@ graph::NNGraph::TensorNode* GptneoModel::forward(
     graph::NNGraph::TensorNode* x = graph::transpose(embed, 2);
     x->set_name(tensor_name("embed_out"));
 
-    for(auto& layer : layers_)
+    for(Index i = 0; i < config_.num_hidden_layers; ++i)
     {
-        x = layer->forward(x, mask);
+        graph::NNGraph::TensorNode* layer_mask = mask;
+        if(config_.is_local_attention_layer(i))
+        {
+            layer_mask = local_mask != nullptr ? local_mask : mask;
+        }
+        x = layers_[static_cast<std::size_t>(i)]->forward(x, layer_mask);
     }
 
     return norm_.forward(x);

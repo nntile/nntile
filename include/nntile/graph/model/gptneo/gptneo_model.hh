@@ -51,12 +51,15 @@ public:
 
     //! Forward pass
     //! @param input_ids (seq, batch) INT64 token indices
-    //! @param position_ids (seq, batch) INT64 position indices (optional; if null, uses arange)
-    //! @param mask Attention mask (optional)
+    //! @param position_ids (seq, batch) INT64 position indices (required)
+    //! @param mask BOOL mask for global-attention layers (even ``layer_id``)
+    //! @param local_mask BOOL mask for local-attention layers (odd ``layer_id``);
+    //!        when null, ``mask`` is used for all layers (legacy / tests only)
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* input_ids,
-        graph::NNGraph::TensorNode* position_ids = nullptr,
-        graph::NNGraph::TensorNode* mask = nullptr);
+        graph::NNGraph::TensorNode* position_ids,
+        graph::NNGraph::TensorNode* mask = nullptr,
+        graph::NNGraph::TensorNode* local_mask = nullptr);
 
     std::string repr() const override;
 
