@@ -79,6 +79,13 @@ add_from_tensor() {
     done
 }
 
+add_gptneo_model_tests() {
+    for t in gptneo_config gptneo_mlp gptneo_attention gptneo_decoder \
+             gptneo_model gptneo_causal; do
+        affected["tests_graph_model_${t}"]=1
+    done
+}
+
 # ---------- classify every changed file ------------------------------------
 while IFS= read -r file; do
     [ -z "$file" ] && continue
@@ -117,6 +124,8 @@ while IFS= read -r file; do
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         tests/graph/model/gptneo/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+        tests/graph/model/test_gptneo_fixture_helpers.hh)
+            add_gptneo_model_tests ;;
         tests/graph/*.cc)
             affected["tests_graph_$(basename "$file" .cc)"]=1 ;;
 
@@ -191,6 +200,8 @@ while IFS= read -r file; do
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         include/nntile/graph/model/gptneo/*.hh)
             affected["tests_graph_model_$(basename "$file" .hh)"]=1 ;;
+        include/nntile/graph/model/gptneo.hh)
+            add_gptneo_model_tests ;;
     esac
 done <<< "$all_changed"
 
