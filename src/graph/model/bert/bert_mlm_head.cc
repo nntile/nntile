@@ -17,6 +17,22 @@
 namespace nntile::model::bert
 {
 
+namespace
+{
+
+graph::NNGraph::TensorNode* require_tied_word_vocab(
+    graph::NNGraph::TensorNode* tied_word_vocab)
+{
+    if(tied_word_vocab == nullptr)
+    {
+        throw std::invalid_argument(
+            "BertMlmHead: tied_word_vocab must be non-null");
+    }
+    return tied_word_vocab;
+}
+
+} // anonymous namespace
+
 BertMlmHead::BertMlmHead(graph::NNGraph* graph,
                          const std::string& name,
                          const BertConfig& config,
@@ -34,16 +50,11 @@ BertMlmHead::BertMlmHead(graph::NNGraph* graph,
                     config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
     , decoder_(graph,
                name + "_decoder",
-               tied_word_vocab,
+               require_tied_word_vocab(tied_word_vocab),
                graph_->tensor({config.vocab_size}, dtype, true))
     , config_(config)
     , dtype_(dtype)
 {
-    if(tied_word_vocab == nullptr)
-    {
-        throw std::invalid_argument(
-            "BertMlmHead: tied_word_vocab must be non-null");
-    }
     config_.validate();
     register_module("transform_dense", &transform_dense_);
     register_module("transform_act", &transform_act_);
