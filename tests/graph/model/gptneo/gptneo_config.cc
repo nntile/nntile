@@ -85,6 +85,24 @@ TEST_CASE(
     }
 }
 
+
+TEST_CASE(
+    "GptneoConfig parse HF default attention_types produces 24 layers",
+    "[model][gptneo]")
+{
+    nlohmann::json j = {
+        {"num_hidden_layers", 24},
+        {"attention_types", {{{"global", "local"}, 12}}}};
+    GptneoConfig config;
+    config.num_hidden_layers = 24;
+    config.hidden_size = 2048;
+    config.num_attention_heads = 16;
+    config.head_dim = 128;
+    parse_gptneo_attention_layers(j, config);
+    REQUIRE(config.attention_layers.size() == 24);
+    REQUIRE_NOTHROW(config.validate());
+}
+
 TEST_CASE(
     "GptneoConfig parse attention_layers array round-trip",
     "[model][gptneo]")
