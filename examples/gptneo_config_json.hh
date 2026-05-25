@@ -69,7 +69,7 @@ inline model::gptneo::GptneoConfig load_gptneo_config_json(std::string const &pa
     return cfg;
 }
 
-//! Write ``GptneoConfig`` using NNTile field names (training checkpoints).
+//! Write ``GptneoConfig`` for training checkpoints (HF ``layer_norm_epsilon`` key).
 inline void save_gptneo_config_json(
     model::gptneo::GptneoConfig const &cfg,
     std::string const &path)
@@ -83,7 +83,7 @@ inline void save_gptneo_config_json(
     j["max_position_embeddings"] = cfg.max_position_embeddings;
     j["head_dim"] = cfg.head_dim;
     j["window_size"] = cfg.window_size;
-    j["layer_norm_eps"] = cfg.layer_norm_eps;
+    j["layer_norm_epsilon"] = cfg.layer_norm_eps;
     j["eos_token_id"] = cfg.eos_token_id;
     j["bos_token_id"] = cfg.bos_token_id;
     j["name"] = cfg.name;
