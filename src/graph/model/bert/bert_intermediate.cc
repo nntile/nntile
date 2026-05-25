@@ -10,6 +10,8 @@
  * */
 
 #include "nntile/graph/model/bert/bert_intermediate.hh"
+#include "nntile/graph/nn/ops/add_fiber.hh"
+#include "nntile/graph/nn/ops/gemm.hh"
 
 namespace nntile::model::bert
 {
@@ -25,8 +27,7 @@ BertIntermediate::BertIntermediate(graph::NNGraph* graph,
              true,
              dtype)
     , activation_(graph, name + "_act",
-                  graph::module::ActivationType::GELUTANH,
-                  dtype)
+                  graph::module::ActivationType::GELUTANH)
     , config_(config)
     , dtype_(dtype)
 {
@@ -38,7 +39,15 @@ BertIntermediate::BertIntermediate(graph::NNGraph* graph,
 graph::NNGraph::TensorNode* BertIntermediate::forward(
     graph::NNGraph::TensorNode* x)
 {
-    graph::NNGraph::TensorNode* hidden = dense_.forward(x);
+    graph::NNGraph::TensorNode* hidden = graph::gemm(
+        dense_.weight_tensor(),
+        x,
+        1.0,
+        true,
+        false,
+        1,
+        0);
+    hidden = graph::add_fiber(1.0, dense_.bias_tensor(), 1.0, hidden, 0, 0);
     return activation_.forward(hidden);
 }
 

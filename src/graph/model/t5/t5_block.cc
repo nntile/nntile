@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/model/t5/t5_block.hh"
-#include "nntile/graph/nn/add.hh"
+#include "nntile/graph/nn/ops/add.hh"
 
 #include <stdexcept>
 
@@ -54,7 +54,7 @@ graph::NNGraph::TensorNode* T5EncoderBlock::forward(
     graph::NNGraph::TensorNode* attn_out =
         self_attn_.forward(x_norm, nullptr, mask);
     graph::NNGraph::TensorNode* post_attn =
-        graph::add(1.0, x, 1.0, attn_out, tensor_name("post_attn"));
+        graph::add(1.0, x, 1.0, attn_out);
 
     // layer_norm_1 -> ff (ff includes residual)
     return ff_.forward(post_attn);
@@ -111,14 +111,14 @@ graph::NNGraph::TensorNode* T5DecoderBlock::forward(
     graph::NNGraph::TensorNode* self_attn_out =
         self_attn_.forward(x_norm, nullptr, self_attn_mask);
     graph::NNGraph::TensorNode* post_self =
-        graph::add(1.0, x, 1.0, self_attn_out, tensor_name("post_self_attn"));
+        graph::add(1.0, x, 1.0, self_attn_out);
 
     // Cross-attention
     graph::NNGraph::TensorNode* x_norm1 = layer_norm_1_.forward(post_self);
     graph::NNGraph::TensorNode* cross_attn_out =
         cross_attn_.forward(x_norm1, encoder_hidden_states, cross_attn_mask);
     graph::NNGraph::TensorNode* post_cross =
-        graph::add(1.0, post_self, 1.0, cross_attn_out, tensor_name("post_cross_attn"));
+        graph::add(1.0, post_self, 1.0, cross_attn_out);
 
     // FF
     return ff_.forward(post_cross);

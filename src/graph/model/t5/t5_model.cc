@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/model/t5/t5_model.hh"
-#include "nntile/graph/nn/transpose.hh"
+#include "nntile/graph/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -76,10 +76,10 @@ graph::NNGraph::TensorNode* T5Model::forward(
         embed_tokens_.forward(decoder_input_ids);
 
     // Transpose to (d_model, seq, batch)
-    graph::NNGraph::TensorNode* encoder_x =
-        graph::transpose(encoder_embed, tensor_name("encoder_x"), 2);
-    graph::NNGraph::TensorNode* decoder_x =
-        graph::transpose(decoder_embed, tensor_name("decoder_x"), 2);
+    graph::NNGraph::TensorNode* encoder_x = graph::transpose(encoder_embed, 2);
+    encoder_x->set_name(tensor_name("encoder_x"));
+    graph::NNGraph::TensorNode* decoder_x = graph::transpose(decoder_embed, 2);
+    decoder_x->set_name(tensor_name("decoder_x"));
 
     // Encoder stack
     graph::NNGraph::TensorNode* enc_hidden = encoder_x;

@@ -13,8 +13,8 @@
  * */
 
 #include "nntile/graph/model/t5/t5_ff.hh"
-#include "nntile/graph/nn/add.hh"
-#include "nntile/graph/nn/transpose.hh"
+#include "nntile/graph/nn/ops/add.hh"
+#include "nntile/graph/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -54,15 +54,13 @@ graph::NNGraph::TensorNode* T5LayerFF::forward(
     graph::NNGraph::TensorNode* x_norm = layer_norm_.forward(input);
 
     // Transpose (d_model, seq, batch) -> (seq, batch, d_model) for GatedMlp
-    graph::NNGraph::TensorNode* x_t =
-        graph::transpose(x_norm, tensor_name("x_t"), 1);
+    graph::NNGraph::TensorNode* x_t = graph::transpose(x_norm, 1);
+    x_t->set_name(tensor_name("x_t"));
     graph::NNGraph::TensorNode* ff_out = dense_.forward(x_t);
-    // Transpose back to (d_model, seq, batch)
-    graph::NNGraph::TensorNode* ff_out_t =
-        graph::transpose(ff_out, tensor_name("ff_out_t"), 2);
+    graph::NNGraph::TensorNode* ff_out_t = graph::transpose(ff_out, 2);
+    ff_out_t->set_name(tensor_name("ff_out_t"));
 
-    // Residual: input + ff_out
-    return graph::add(1.0, input, 1.0, ff_out_t, tensor_name("ff_residual"));
+    return graph::add(1.0, input, 1.0, ff_out_t);
 }
 
 std::string T5LayerFF::repr() const

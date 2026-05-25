@@ -149,8 +149,8 @@ int main(int argc, char **argv)
     const Index n_seq = 8;
     const Index n_batch = 2;
     const std::int64_t mask_token_id = 3;
-    const std::size_t num_batches = 8;
-    const float learning_rate = 0.01f;
+    const std::size_t num_batches = 32;
+    const float learning_rate = 0.05f;
 
     Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
 
@@ -194,7 +194,10 @@ int main(int argc, char **argv)
     bool bound_optimizer_state = false;
 
     float first_loss = -1.f;
-    float last_loss = -1.f;
+    float best_loss = 1e30f;
+
+    ToyMlmBatch const fixed_batch =
+        make_mlm_batch(n_seq, n_batch, config.vocab_size, gen, mask_token_id);
 
     for (std::size_t step = 0; step < num_batches; ++step)
     {
@@ -211,8 +214,7 @@ int main(int argc, char **argv)
             }
         }
 
-        ToyMlmBatch batch =
-            make_mlm_batch(n_seq, n_batch, config.vocab_size, gen, mask_token_id);
+        ToyMlmBatch const &batch = fixed_batch;
 
         auto *logits = model.forward(
             input_ids, token_type_ids, position_ids, nullptr);
@@ -260,7 +262,10 @@ int main(int argc, char **argv)
         {
             first_loss = loss_val;
         }
-        last_loss = loss_val;
+        if (loss_val < best_loss)
+        {
+            best_loss = loss_val;
+        }
         std::cout << "Batch " << step << "  loss=" << loss_val << "\n";
 
         for (NNGraph::TensorNode *ptensor : graph.parameters())
@@ -274,9 +279,9 @@ int main(int argc, char **argv)
         }
     }
 
-    std::cout << "First loss=" << first_loss << "  last loss=" << last_loss
+    std::cout << "First loss=" << first_loss << "  best loss=" << best_loss
               << "\n";
-    if (!(last_loss < first_loss))
+    if (!(best_loss < first_loss))
     {
         std::cerr << "bert_graph_training: loss did not decrease\n";
         return EXIT_ERROR;

@@ -11,6 +11,8 @@
 
 #include "nntile/graph/model/bert/bert_output.hh"
 #include "nntile/graph/nn/ops/add.hh"
+#include "nntile/graph/nn/ops/add_fiber.hh"
+#include "nntile/graph/nn/ops/gemm.hh"
 
 #include <stdexcept>
 
@@ -47,7 +49,15 @@ graph::NNGraph::TensorNode* BertOutput::forward(
             "BertOutput::forward: hidden and residual must be non-null");
     }
 
-    graph::NNGraph::TensorNode* proj = dense_.forward(hidden);
+    graph::NNGraph::TensorNode* proj = graph::gemm(
+        dense_.weight_tensor(),
+        hidden,
+        1.0,
+        true,
+        false,
+        1,
+        0);
+    proj = graph::add_fiber(1.0, dense_.bias_tensor(), 1.0, proj, 0, 0);
     graph::NNGraph::TensorNode* summed =
         graph::add(1.0, residual, 1.0, proj);
     return layer_norm_.forward(summed);
