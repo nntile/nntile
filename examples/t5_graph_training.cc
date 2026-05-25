@@ -275,6 +275,28 @@ static Args parse_args(int argc, char **argv)
     return a;
 }
 
+constexpr Index CE_IGNORE_INDEX = -100;
+
+//! ``cross_entropy`` skips ``ignore_index`` in the sum; scale by valid labels.
+static Scalar mean_cross_entropy_scale(
+    std::vector<std::int64_t> const &labels,
+    Index ignore_index)
+{
+    Index n = 0;
+    for (std::int64_t t : labels)
+    {
+        if (t != static_cast<std::int64_t>(ignore_index))
+        {
+            ++n;
+        }
+    }
+    if (n <= 0)
+    {
+        n = 1;
+    }
+    return 1.0f / static_cast<Scalar>(n);
+}
+
 static Scalar scheduled_lr(Index train_step, Args const &args)
 {
     Scalar const peak = static_cast<Scalar>(args.learning_rate);
@@ -465,9 +487,6 @@ int main(int argc, char **argv)
 
     graph.enable_auto_tensor_name_phase_suffix(true);
 
-    const Scalar ce_scale =
-        1.0f / static_cast<Scalar>(n_dec * n_batch);
-
     bool bound_optimizer_state = false;
 
     TokenMemoryMap train_mmap(args.train_bin);
@@ -528,9 +547,13 @@ int main(int argc, char **argv)
                     "t5_graph_training: model.forward returned null");
             }
 
+            const Scalar ce_scale = mean_cross_entropy_scale(
+                mmap_batch.labels, CE_IGNORE_INDEX);
+
             std::string const loss_name =
                 std::string("loss_s") + std::to_string(train_step);
-            auto *loss = cross_entropy(logits, labels, 0, ce_scale, -100)
+            auto *loss = cross_entropy(
+                logits, labels, 0, ce_scale, CE_IGNORE_INDEX)
                              ->set_name(loss_name);
             loss->mark_output(true);
 
