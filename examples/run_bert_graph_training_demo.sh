@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Demo: build and run tiny BERT MLM graph training (loss should decrease).
+# Demo: tiny BERT MLM graph training. Scratch loss should be much higher than
+# after training or loading a checkpoint for the next step (not zero).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD="${ROOT}/build"

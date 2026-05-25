@@ -6,7 +6,8 @@
  * @file examples/bert_graph_training.cc
  * BERT masked-LM training on the graph API (tiny demo).
  *
- * Uses a small in-memory toy dataset and verifies loss decreases.
+ * Tiny MLM demo: scratch weights give much higher loss than after training or
+ * after loading a saved checkpoint for the next step (loss need not go to zero).
  *
  * @version 1.1.0
  * */
@@ -138,6 +139,40 @@ static ToyMlmBatch make_mlm_batch(
     return b;
 }
 
+static float run_forward_loss(
+    BertMlm &model,
+    NNGraph &graph,
+    NNGraph::TensorNode *input_ids,
+    NNGraph::TensorNode *token_type_ids,
+    NNGraph::TensorNode *position_ids,
+    NNGraph::TensorNode *labels,
+    ToyMlmBatch const &batch,
+    std::vector<std::int64_t> const &pos_data,
+    std::vector<std::int64_t> const &tt_data,
+    Scalar ce_scale)
+{
+    graph.reset_incremental_tile_state();
+
+    auto *logits = model.forward(
+        input_ids, token_type_ids, position_ids, nullptr);
+    auto *loss = cross_entropy(logits, labels, 0, ce_scale, -100)
+                     ->set_name("eval_loss");
+    loss->mark_output(true);
+
+    graph.finish_phase();
+    graph.lower_and_compile();
+    Runtime &runtime = graph.runtime();
+
+    runtime.bind_data(input_ids, batch.input_ids);
+    runtime.bind_data(labels, batch.labels);
+    runtime.bind_data(position_ids, pos_data);
+    runtime.bind_data(token_type_ids, tt_data);
+    runtime.execute();
+    runtime.wait();
+
+    return runtime.get_output<float>(loss)[0];
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -151,6 +186,8 @@ int main(int argc, char **argv)
     const std::int64_t mask_token_id = 3;
     const std::size_t num_batches = 32;
     const float learning_rate = 0.05f;
+    const char *const checkpoint_path =
+        "/tmp/nntile_bert_graph_training_checkpoint.safetensors";
 
     Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
 
@@ -280,12 +317,70 @@ int main(int argc, char **argv)
         }
     }
 
-    std::cout << "First loss=" << first_loss << "  best loss=" << best_loss
-              << "\n";
+    std::cout << "Scratch first loss=" << first_loss
+              << "  best training loss=" << best_loss << "\n";
     if (!(best_loss < first_loss))
     {
-        std::cerr << "bert_graph_training: loss did not decrease\n";
+        std::cerr << "bert_graph_training: training did not lower loss vs scratch\n";
         return EXIT_ERROR;
     }
+
+    model.save(checkpoint_path);
+    std::cout << "Saved checkpoint " << checkpoint_path << "\n";
+
+    // Fresh graph: load checkpoint and evaluate on the same batch (continued
+    // training step), not from scratch.
+    NNGraph graph_loaded("bert_graph_training_loaded");
+    graph_loaded.enable_auto_tensor_name_phase_suffix(true);
+    BertMlm model_loaded(&graph_loaded, "model", config);
+    model_loaded.load(checkpoint_path);
+    model_loaded.mark_parameters_input_recursive();
+
+    auto *input_ids2 =
+        graph_loaded.tensor({n_seq, n_batch}, DataType::INT64, false)
+            ->set_name("input_ids");
+    auto *token_type_ids2 =
+        graph_loaded.tensor({n_seq, n_batch}, DataType::INT64, false)
+            ->set_name("token_type_ids");
+    auto *position_ids2 =
+        graph_loaded.tensor({n_seq, n_batch}, DataType::INT64, false)
+            ->set_name("position_ids");
+    auto *labels2 =
+        graph_loaded.tensor({n_seq, n_batch}, DataType::INT64, false)
+            ->set_name("labels");
+    input_ids2->mark_input(true);
+    token_type_ids2->mark_input(true);
+    position_ids2->mark_input(true);
+    labels2->mark_input(true);
+
+    float const loaded_loss = run_forward_loss(
+        model_loaded,
+        graph_loaded,
+        input_ids2,
+        token_type_ids2,
+        position_ids2,
+        labels2,
+        fixed_batch,
+        pos_data,
+        tt_data,
+        ce_scale);
+
+    std::cout << "Loaded checkpoint loss=" << loaded_loss << "\n";
+
+    if (!(loaded_loss < first_loss * 0.5f))
+    {
+        std::cerr << "bert_graph_training: loaded loss should be much lower "
+                     "than scratch ("
+                  << loaded_loss << " vs scratch " << first_loss << ")\n";
+        return EXIT_ERROR;
+    }
+    if (!(loaded_loss <= best_loss * 1.05f))
+    {
+        std::cerr << "bert_graph_training: loaded loss should match end of "
+                     "training ("
+                  << loaded_loss << " vs best " << best_loss << ")\n";
+        return EXIT_ERROR;
+    }
+
     return EXIT_OK;
 }

@@ -1,13 +1,15 @@
 name: Linting and testing
 
-# Trigger the workflow on push or pull request (only main branch).
+# Trigger on main and graph_api (feature branch for graph models).
 on:
   push:
     branches:
       - main
+      - graph_api
   pull_request:
     branches:
       - main
+      - graph_api
 
 permissions:
   contents: read
@@ -30,8 +32,7 @@ jobs:
           git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
             --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
           git checkout ${{ github.event.pull_request.head.ref }}
-          # Fetch main for common origin.
-          git fetch origin main:main --depth=100
+          git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} --depth=100
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
@@ -42,7 +43,7 @@ jobs:
         if: github.event.pull_request
         with:
           extra_args: >
-            --from-ref "$(git merge-base main HEAD)"
+            --from-ref "$(git merge-base ${{ github.base_ref }} HEAD)"
             --to-ref "${{ github.head_ref }}"
       - name: Run pre-commit on merge
         uses: pre-commit/action@v3.0.0
@@ -129,7 +130,7 @@ jobs:
           git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
             --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
           git checkout ${{ github.event.pull_request.head.ref }}
-          git fetch origin main:main --depth=100
+          git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} --depth=100
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
@@ -175,7 +176,8 @@ jobs:
         run: |
           export LD_LIBRARY_PATH=/opt/starpu/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
           .github/scripts/run-dirty-cpp-tests.sh \
-            ${{ github.event.pull_request.head.ref }}
+            ${{ github.event.pull_request.head.ref }} \
+            ${{ github.base_ref }}
       - name: Run all C++ tests
         if: '!github.event.pull_request'
         run: |
@@ -226,8 +228,7 @@ jobs:
           git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
             --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
           git checkout ${{ github.event.pull_request.head.ref }}
-          # Fetch main for common origin.
-          git fetch origin main:main --depth=100
+          git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} --depth=100
       - name: Install system dependencies
         run: |
           rm -rfv /etc/apt/apt.conf.d/docker*
@@ -283,7 +284,8 @@ jobs:
             python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
           .github/scripts/run-dirty-py-tests.sh \
-            ${{ github.event.pull_request.head.ref }}
+            ${{ github.event.pull_request.head.ref }} \
+            ${{ github.base_ref }}
       # Full testing is temporary enabled even for PRs, as dirty testing is broken
       - name: Run all tests with PyTest
         if: '!github.event.pull_request'

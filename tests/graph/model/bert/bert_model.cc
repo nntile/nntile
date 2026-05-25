@@ -161,14 +161,15 @@ void model_backward_compare_ref(const ModelFixtureSpec &fx)
         std::vector<std::int64_t> tt_data;
         REQUIRE(load_token_type_ids(
             g, reader, fx.seq, fx.batch, token_type_ids, tt_data));
-BertModel model(&g, "model", fx.config);
+        BertModel model(&g, "model", fx.config);
         model.load(full_path);
-        auto *output = model.forward(input_ids, token_type_ids, position_ids, nullptr);
+        auto *output = model.forward(
+            input_ids, token_type_ids, position_ids, nullptr);
 
         input_ids->mark_input(true);
         output->mark_output(true);
         mark_ids_inputs(position_ids, token_type_ids);
-        
+
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
         grad_output_tensor->mark_input(true);
@@ -276,14 +277,15 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::vector<std::int64_t> tt_data;
         REQUIRE(load_token_type_ids(
             g, reader, fx.seq, fx.batch, token_type_ids, tt_data));
-BertModel model(&g, "model", fx.config);
+        BertModel model(&g, "model", fx.config);
         model.load(full_path);
 
-        auto *output = model.forward(input_ids, token_type_ids, position_ids, nullptr);
+        auto *output = model.forward(
+            input_ids, token_type_ids, position_ids, nullptr);
         input_ids->mark_input(true);
         output->mark_output(true);
         mark_ids_inputs(position_ids, token_type_ids);
-        
+
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();

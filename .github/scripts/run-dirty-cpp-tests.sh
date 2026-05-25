@@ -5,12 +5,14 @@
 set -e
 
 branch=$1
+base_branch=${2:-main}
 if [ -z "$branch" ]; then
     branch=$(git branch --show-current)
     echo "no branch specified: assume current branch is $branch"
 fi
 
-all_changed=$(git diff --name-only main..$branch)
+echo ":: Diff base ${base_branch}..${branch}"
+all_changed=$(git diff --name-only "${base_branch}..${branch}")
 
 if [ -z "$all_changed" ]; then
     echo ":: No files changed"
