@@ -72,6 +72,7 @@ inline bool try_load_emb_spec(
         jf >> j;
         const auto &G = j.at("bert");
         out.config.hidden_size = json_index(G, "hidden_size");
+        out.config.num_attention_heads = json_index(G, "num_attention_heads");
         out.config.vocab_size = json_index(G, "vocab_size");
         out.config.type_vocab_size = json_index(G, "type_vocab_size");
         out.config.max_position_embeddings =

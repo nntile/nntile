@@ -65,6 +65,10 @@ inline graph::module::ActivationType activation_type_from_hidden_act(
     {
         return graph::module::ActivationType::RELU;
     }
+    if(hidden_act == "gelu_new")
+    {
+        return graph::module::ActivationType::GELUTANH;
+    }
     if(hidden_act == "silu" || hidden_act == "swish")
     {
         return graph::module::ActivationType::SILU;

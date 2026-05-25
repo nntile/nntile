@@ -22,7 +22,11 @@ BertMlm::BertMlm(graph::NNGraph* graph,
                  graph::DataType dtype)
     : graph::module::Module(graph, name)
     , model_(std::make_unique<BertModel>(graph, name + "_bert", config, dtype))
-    , cls_(graph, name + "_cls", config, dtype)
+    , cls_(graph,
+           name + "_cls",
+           config,
+           model_->word_vocab_tensor(),
+           dtype)
     , config_(config)
     , dtype_(dtype)
 {

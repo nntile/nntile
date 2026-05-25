@@ -260,7 +260,7 @@ TEST_CASE("BertAttention forward builds output", "[model][bert]")
     REQUIRE(output != nullptr);
     REQUIRE(
         output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
-    REQUIRE(attn.parameters_recursive().size() == 8);
+    REQUIRE(attn.parameters_recursive().size() == 10);
 }
 
 TEST_CASE("BertAttention load from safetensors roundtrip", "[model][bert][io]")

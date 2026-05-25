@@ -39,6 +39,7 @@ public:
     BertMlmHead(graph::NNGraph* graph,
                 const std::string& name,
                 const BertConfig& config,
+                graph::NNGraph::TensorNode* tied_word_vocab,
                 graph::DataType dtype = graph::DataType::FP32);
 
     graph::NNGraph::TensorNode* forward(graph::NNGraph::TensorNode* hidden);

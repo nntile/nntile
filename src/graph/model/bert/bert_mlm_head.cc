@@ -20,6 +20,7 @@ namespace nntile::model::bert
 BertMlmHead::BertMlmHead(graph::NNGraph* graph,
                          const std::string& name,
                          const BertConfig& config,
+                         graph::NNGraph::TensorNode* tied_word_vocab,
                          graph::DataType dtype)
     : graph::module::Module(graph, name)
     , transform_dense_(graph, name + "_transform_dense",
@@ -31,14 +32,18 @@ BertMlmHead::BertMlmHead(graph::NNGraph* graph,
                      activation_type_from_config(config))
     , transform_ln_(graph, name + "_transform_ln",
                     config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
-    , decoder_(graph, name + "_decoder",
-               config.hidden_size,
-               config.vocab_size,
-               true,
-               dtype)
+    , decoder_(graph,
+               name + "_decoder",
+               tied_word_vocab,
+               graph_->tensor({config.vocab_size}, dtype, true))
     , config_(config)
     , dtype_(dtype)
 {
+    if(tied_word_vocab == nullptr)
+    {
+        throw std::invalid_argument(
+            "BertMlmHead: tied_word_vocab must be non-null");
+    }
     config_.validate();
     register_module("transform_dense", &transform_dense_);
     register_module("transform_act", &transform_act_);

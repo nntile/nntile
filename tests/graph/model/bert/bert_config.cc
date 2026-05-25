@@ -53,6 +53,9 @@ TEST_CASE("BertConfig hidden_act mapping", "[model][bert]")
     config.hidden_act = "gelu_pytorch_tanh";
     REQUIRE(activation_type_from_config(config) == ActivationType::GELUTANH);
 
+    config.hidden_act = "gelu_new";
+    REQUIRE(activation_type_from_config(config) == ActivationType::GELUTANH);
+
     config.hidden_act = "unsupported_fn";
     REQUIRE_THROWS(config.validate());
 }

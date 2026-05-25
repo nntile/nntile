@@ -44,7 +44,7 @@ class TestDims:
     vocab: int
     num_layers: int
     type_vocab_size: int = 2
-    layer_norm_eps: float = 1e-5
+    layer_norm_eps: float = 1e-12
 
     @property
     def head_size(self) -> int:
@@ -101,7 +101,11 @@ def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
 
 
 def _linear(linear, prefix: str) -> dict[str, np.ndarray]:
-    d = {f"{prefix}.weight": fortran_order(linear.weight.detach().numpy())}
+    # PyTorch Linear weight is (out_features, in_features); NNTile Linear stores
+    # (input_dim, output_dim) for gemm(..., transpose_A=true).
+    d = {
+        f"{prefix}.weight": fortran_order(linear.weight.detach().numpy().T),
+    }
     if linear.bias is not None:
         d[f"{prefix}.bias"] = fortran_order(linear.bias.detach().numpy())
     return d
@@ -136,7 +140,7 @@ def _bert_self_output_weights(out_module, prefix: str, dims: TestDims):
     n_emb = dims.hidden
     n_heads = dims.n_heads
     hs = dims.head_size
-    w = out_module.dense.weight.detach().numpy().T.reshape(
+    w = out_module.dense.weight.detach().numpy().reshape(
         n_emb, n_heads, hs,
     )
     return {
@@ -266,26 +270,6 @@ def generate_intermediate(
     return data
 
 
-def _attn_bidirectional(pt_attn: PtAttention, x_pt: torch.Tensor) -> torch.Tensor:
-    n_emb = x_pt.shape[-1]
-    n_head = pt_attn.self.num_attention_heads
-    head_dim = n_emb // n_head
-    q = pt_attn.self.query(x_pt).view(
-        *x_pt.shape[:2], n_head, head_dim,
-    ).transpose(1, 2)
-    k = pt_attn.self.key(x_pt).view(
-        *x_pt.shape[:2], n_head, head_dim,
-    ).transpose(1, 2)
-    v = pt_attn.self.value(x_pt).view(
-        *x_pt.shape[:2], n_head, head_dim,
-    ).transpose(1, 2)
-    ctx = torch.nn.functional.scaled_dot_product_attention(
-        q, k, v, attn_mask=None, is_causal=False,
-    )
-    ctx = ctx.transpose(1, 2).contiguous().view(*x_pt.shape)
-    return pt_attn.output.dense(ctx)
-
-
 def generate_attention(
     seed: int, dims: TestDims = ATTENTION_DIMS,
 ) -> dict[str, np.ndarray]:
@@ -297,8 +281,7 @@ def generate_attention(
     data = _bert_attention(pt, "attn", dims)
     x_nt, x_pt = _hidden_input(rng, dims)
     data["input"] = x_nt
-    out = _attn_bidirectional(pt, x_pt)
-    out = pt.output.LayerNorm(out + x_pt)
+    out = pt(x_pt)[0]
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
@@ -411,8 +394,8 @@ def generate_mlm(seed: int, dims: TestDims = MLM_DIMS):
     config = _make_config(dims)
     pt = PtMlm(config)
     pt.eval()
-    data = _model_weights(pt.bert, "mlm.bert", dims)
-    data.update(_mlm_head_weights(pt.cls.predictions, "mlm.cls"))
+    data = _model_weights(pt.bert, "model.bert", dims)
+    data.update(_mlm_head_weights(pt.cls.predictions, "model.cls"))
     ids_nt, ids_pt = _ids_input(rng, dims)
     data["input_ids"] = ids_nt
     data["token_type_ids"] = _token_type_ids(dims)

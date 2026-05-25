@@ -162,7 +162,7 @@ TEST_CASE("BertIntermediate load from safetensors roundtrip", "[model][bert][io]
         mlp_fixture_safetensors_path(std::string(BERT_DATA_DIR), fx);
 
     NNGraph g1("load_graph");
-    BertIntermediate mlp1(&g1, "mlp", fx.config);
+    BertIntermediate mlp1(&g1, "intermediate", fx.config);
     mlp1.load(data_path);
 
     const std::string save_path =

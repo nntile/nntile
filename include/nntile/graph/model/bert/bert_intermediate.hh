@@ -4,7 +4,7 @@
  *                              (AIRI), Russia. All rights reserved.
  *
  * @file include/nntile/graph/model/bert/bert_intermediate.hh
- * BertIntermediate - Linear + GELUTANH.
+ * BertIntermediate - Linear + activation from BertConfig::hidden_act.
  *
  * @version 1.1.0
  * */
