@@ -55,7 +55,7 @@ public:
     //! @param decoder_input_ids (dec_seq, batch) INT64
     //! @param encoder_attention_mask Optional (enc_seq, enc_seq) or nullptr
     //! @param decoder_attention_mask Optional causal mask (dec_seq, dec_seq)
-    //! @param cross_attention_mask Optional (dec_seq, enc_seq) or nullptr
+    //! @param cross_attention_mask Optional (enc_seq, dec_seq) or nullptr
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* encoder_input_ids,
         graph::NNGraph::TensorNode* decoder_input_ids,
