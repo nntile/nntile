@@ -167,12 +167,15 @@ def _make_converter(
     n_heads = config.num_heads
     d_kv = getattr(config, "d_kv", d_model // n_heads)
 
-    def _get_ff_wi_2(hp: str, layer_idx: int) -> np.ndarray:
-        key = f"{hp}.layer.{layer_idx}.DenseReluDense.wi_2.weight"
+    def _gated_ff_wi(hp: str, ff_layer: int, wi_idx: int) -> np.ndarray:
+        """Gated T5 v1.1+: wi_0 = gate, wi_1 = up (not wi / wi_2)."""
+        key = (
+            f"{hp}.layer.{ff_layer}.DenseReluDense.wi_{wi_idx}.weight"
+        )
         if not has_tensor(key):
             raise KeyError(
-                "T5 v1.0 (non-gated) models are not supported. "
-                f"Missing {key}. Use T5 v1.1+ (e.g. google/flan-t5-small)."
+                "Expected gated T5 v1.1+ weights at "
+                f"{key}. Use e.g. google/flan-t5-small."
             )
         return hf_get(key)
 
@@ -217,11 +220,9 @@ def _make_converter(
                 return fortran_order(
                     hf_get(f"{hp}.layer.1.layer_norm.weight"))
             if rest == "ff.dense.gate_proj.weight":
-                return fortran_order(
-                    hf_get(f"{hp}.layer.1.DenseReluDense.wi.weight").T)
+                return fortran_order(_gated_ff_wi(hp, 1, 0).T)
             if rest == "ff.dense.up_proj.weight":
-                return fortran_order(
-                    _get_ff_wi_2(hp, 1).T)
+                return fortran_order(_gated_ff_wi(hp, 1, 1).T)
             if rest == "ff.dense.down_proj.weight":
                 return fortran_order(
                     hf_get(f"{hp}.layer.1.DenseReluDense.wo.weight").T)
@@ -269,11 +270,9 @@ def _make_converter(
                 return fortran_order(
                     hf_get(f"{hp}.layer.2.layer_norm.weight"))
             if rest == "ff.dense.gate_proj.weight":
-                return fortran_order(
-                    hf_get(f"{hp}.layer.2.DenseReluDense.wi.weight").T)
+                return fortran_order(_gated_ff_wi(hp, 2, 0).T)
             if rest == "ff.dense.up_proj.weight":
-                return fortran_order(
-                    _get_ff_wi_2(hp, 2).T)
+                return fortran_order(_gated_ff_wi(hp, 2, 1).T)
             if rest == "ff.dense.down_proj.weight":
                 return fortran_order(
                     hf_get(f"{hp}.layer.2.DenseReluDense.wo.weight").T)
