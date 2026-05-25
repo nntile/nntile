@@ -57,22 +57,25 @@ graph::NNGraph::TensorNode* GptneoxDecoder::forward(
     graph::NNGraph::TensorNode* attn_out =
         attention_.forward(x_norm, sin, cos, mask);
 
-    graph::NNGraph::TensorNode* post_attn =
-        graph::add(1.0, x, 1.0, attn_out);
-    post_attn->set_name(tensor_name("post_attn"));
-
     if(config_.use_parallel_residual)
     {
-        // HF: mlp(post_attention_layernorm(x)) + attn + x (not ln2(post_attn)).
+        // HF: x + attn + mlp(ln2(x)); skip post_attn = x + attn intermediate.
         graph::NNGraph::TensorNode* ln2_in = post_attn_norm_.forward(x);
         graph::NNGraph::TensorNode* mlp_out = mlp_.forward(ln2_in);
+        graph::NNGraph::TensorNode* attn_plus_mlp =
+            graph::add(1.0, attn_out, 1.0, mlp_out);
+        attn_plus_mlp->set_name(tensor_name("attn_plus_mlp"));
         graph::NNGraph::TensorNode* out =
-            graph::add(1.0, post_attn, 1.0, mlp_out);
+            graph::add(1.0, x, 1.0, attn_plus_mlp);
         out->set_name(tensor_name("decoder_out"));
         return out;
     }
 
-    // Sequential: ln2(post_attn) -> mlp, like GPT-Neo decoder block.
+    // Sequential: ln2(x + attn) -> mlp, like GPT-Neo decoder block.
+    graph::NNGraph::TensorNode* post_attn =
+        graph::add(1.0, x, 1.0, attn_out);
+    post_attn->set_name(tensor_name("post_attn"));
+
     graph::NNGraph::TensorNode* mlp_in = post_attn_norm_.forward(post_attn);
     graph::NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
     graph::NNGraph::TensorNode* out =
