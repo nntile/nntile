@@ -346,4 +346,31 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     gptneo_attention_backward_compare_ref(fx);
 }
 
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "GptneoAttention local forward matches PyTorch reference",
+    "[model][gptneo][local_mask]")
+{
+    AttentionFixtureSpec fx;
+    if (!skip_unless_fixture_ready(
+            attn_fixture_stem::gptneo_attention_local, fx))
+    {
+        SKIP("GPT-Neo local attention fixture not found.");
+    }
+    gptneo_attention_forward_compare_ref(fx);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "GptneoAttention local backward matches PyTorch reference",
+    "[model][gptneo][local_mask]")
+{
+    AttentionFixtureSpec fx;
+    if (!skip_unless_fixture_ready(
+            attn_fixture_stem::gptneo_attention_local, fx))
+    {
+        SKIP("GPT-Neo local attention fixture not found.");
+    }
+    gptneo_attention_backward_compare_ref(fx);
+}
+
 #endif
