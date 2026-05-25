@@ -26,8 +26,18 @@ GptneoCausal::GptneoCausal(graph::NNGraph* graph,
                            graph::DataType dtype)
     : graph::module::Module(graph, name)
     , model_(std::make_unique<GptneoModel>(graph, name + "_model", config, dtype))
-    , lm_head_(graph, name + "_lm_head",
-               config.hidden_size, config.vocab_size, false, dtype)
+    , lm_head_(config.tie_word_embeddings
+          ? graph::module::Linear(
+                graph,
+                name + "_lm_head",
+                model_->wte_vocab_tensor())
+          : graph::module::Linear(
+                graph,
+                name + "_lm_head",
+                config.hidden_size,
+                config.vocab_size,
+                false,
+                dtype))
     , config_(config)
     , dtype_(dtype)
 {

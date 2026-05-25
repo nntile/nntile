@@ -40,6 +40,8 @@ struct GptneoConfig
 
     float layer_norm_eps = 1e-5f;
 
+    bool tie_word_embeddings = true;
+
     int eos_token_id = 50256;
     int bos_token_id = 50256;
 

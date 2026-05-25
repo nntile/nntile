@@ -231,9 +231,10 @@ def _causal_additive_mask_torch(
 
 
 def _gptneo_mlp_forward(mlp: PtMLP, x_pt: torch.Tensor) -> torch.Tensor:
-    h = mlp.c_fc(x_pt)
+    """Bias-free MLP forward (matches graph ``GptneoMLP``)."""
+    h = F.linear(x_pt, mlp.c_fc.weight, None)
     h = _gelutanh(h)
-    return mlp.c_proj(h)
+    return F.linear(h, mlp.c_proj.weight, None)
 
 
 def _gptneo_attn_forward(
@@ -254,15 +255,13 @@ def _gptneo_attn_forward(
     q = q.view(*shape).transpose(1, 2)
     k = k.view(*shape).transpose(1, 2)
     v = v.view(*shape).transpose(1, 2)
-    is_causal = attn_mask is not None
     ctx = F.scaled_dot_product_attention(
         q, k, v,
         attn_mask=attn_mask,
-        is_causal=is_causal,
+        is_causal=False,
     )
     ctx = ctx.transpose(1, 2).contiguous().view(*x_pt.shape)
-    out = inner.out_proj(ctx)
-    return out + inner.out_proj.bias.view(1, 1, -1)
+    return inner.out_proj(ctx)
 
 
 def _gptneo_decoder_forward(
@@ -427,11 +426,9 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS) -> dict[str, np.ndarr
     data["input_ids"] = ids_nt
     data["position_ids"] = _position_ids(dims)
     data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
-    pos_pt = torch.tensor(
-        np.arange(dims.seq, dtype=np.int64)[:, None]
-        .repeat(dims.batch, axis=1).T.copy(),
-        dtype=torch.long,
-    )
+    pos_pt = torch.arange(
+        dims.seq, dtype=torch.long,
+    ).unsqueeze(0).expand(dims.batch, dims.seq)
     attn_mask = _causal_additive_mask_torch(
         dims.batch, dims.seq, ids_pt.device,
     )
@@ -459,11 +456,9 @@ def generate_causal(seed: int, dims: TestDims = CAUSAL_DIMS) -> dict[str, np.nda
     data["input_ids"] = ids_nt
     data["position_ids"] = _position_ids(dims)
     data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
-    pos_pt = torch.tensor(
-        np.arange(dims.seq, dtype=np.int64)[:, None]
-        .repeat(dims.batch, axis=1).T.copy(),
-        dtype=torch.long,
-    )
+    pos_pt = torch.arange(
+        dims.seq, dtype=torch.long,
+    ).unsqueeze(0).expand(dims.batch, dims.seq)
     attn_mask = _causal_additive_mask_torch(
         dims.batch, dims.seq, ids_pt.device,
     )
