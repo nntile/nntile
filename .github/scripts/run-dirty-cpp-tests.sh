@@ -33,6 +33,10 @@ while IFS= read -r file; do
             run_all=true; break ;;
         tests/graph/model/llama/generate_test_data.py)
             run_all=true; break ;;
+        tests/graph/model/gpt2/generate_test_data.py)
+            run_all=true; break ;;
+        tests/graph/model/gptneo/generate_test_data.py)
+            run_all=true; break ;;
     esac
 done <<< "$all_changed"
 
