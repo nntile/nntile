@@ -118,7 +118,9 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
         specs.append((f"{p}.attention.o_weight", (H, nh, hd)))
 
         specs.append((f"{p}.mlp.fc1.weight", (H, inter)))
+        specs.append((f"{p}.mlp.fc1.bias", (inter,)))
         specs.append((f"{p}.mlp.fc2.weight", (inter, H)))
+        specs.append((f"{p}.mlp.fc2.bias", (H,)))
 
     return specs
 
@@ -192,10 +194,14 @@ def _make_converter(
             # HF dense_h_to_4h: (inter, H); NNTile fc1 Linear(H, inter)
             w = hf_get(f"{hp}.mlp.dense_h_to_4h.weight")
             return fortran_order(w.T)
+        if rest == "mlp.fc1.bias":
+            return fortran_order(hf_get(f"{hp}.mlp.dense_h_to_4h.bias"))
         if rest == "mlp.fc2.weight":
             # HF dense_4h_to_h: (H, inter); NNTile fc2 Linear(inter, H)
             w = hf_get(f"{hp}.mlp.dense_4h_to_h.weight")
             return fortran_order(w.T)
+        if rest == "mlp.fc2.bias":
+            return fortran_order(hf_get(f"{hp}.mlp.dense_4h_to_h.bias"))
 
         raise ValueError(f"Unknown NNTile tensor: {name}")
 
