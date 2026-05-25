@@ -10,6 +10,7 @@
  * */
 
 #include "nntile/graph/model/bert/bert_mlm_head.hh"
+#include "nntile/graph/model/bert/bert_config.hh"
 #include "nntile/graph/nn/ops/add_fiber.hh"
 #include "nntile/graph/nn/ops/gemm.hh"
 
@@ -27,7 +28,7 @@ BertMlmHead::BertMlmHead(graph::NNGraph* graph,
                        true,
                        dtype)
     , transform_act_(graph, name + "_transform_act",
-                     graph::module::ActivationType::GELUTANH)
+                     activation_type_from_config(config))
     , transform_ln_(graph, name + "_transform_ln",
                     config.hidden_size, 0, config.layer_norm_eps, 0, dtype)
     , decoder_(graph, name + "_decoder",

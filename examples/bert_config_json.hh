@@ -50,6 +50,10 @@ inline model::bert::BertConfig load_bert_config_json(std::string const &path)
     {
         cfg.name = j["name"].get<std::string>();
     }
+    if (j.contains("hidden_act") && j["hidden_act"].is_string())
+    {
+        cfg.hidden_act = j["hidden_act"].get<std::string>();
+    }
     cfg.validate();
     return cfg;
 }
@@ -67,6 +71,7 @@ inline void save_bert_config_json(
     j["max_position_embeddings"] = cfg.max_position_embeddings;
     j["type_vocab_size"] = cfg.type_vocab_size;
     j["layer_norm_eps"] = cfg.layer_norm_eps;
+    j["hidden_act"] = cfg.hidden_act;
     j["name"] = cfg.name;
     std::ofstream f(path);
     if (!f.good())

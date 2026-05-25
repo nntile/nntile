@@ -10,6 +10,7 @@
  * */
 
 #include "nntile/graph/model/bert/bert_intermediate.hh"
+#include "nntile/graph/model/bert/bert_config.hh"
 #include "nntile/graph/nn/ops/add_fiber.hh"
 #include "nntile/graph/nn/ops/gemm.hh"
 
@@ -27,7 +28,7 @@ BertIntermediate::BertIntermediate(graph::NNGraph* graph,
              true,
              dtype)
     , activation_(graph, name + "_act",
-                  graph::module::ActivationType::GELUTANH)
+                  activation_type_from_config(config))
     , config_(config)
     , dtype_(dtype)
 {

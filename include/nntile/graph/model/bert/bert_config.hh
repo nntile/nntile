@@ -19,6 +19,7 @@
 #include <string>
 
 #include <nntile/base_types.hh>
+#include <nntile/graph/module/activation.hh>
 
 namespace nntile::model::bert
 {
@@ -45,15 +46,48 @@ struct BertConfig
         return hidden_size / num_attention_heads;
     }
 
-    void validate() const
-    {
-        if(hidden_size % num_attention_heads != 0)
-        {
-            throw std::invalid_argument(
-                "BertConfig: hidden_size must be divisible by "
-                "num_attention_heads");
-        }
-    }
+    void validate() const;
 };
+
+//! Map HuggingFace BertConfig::hidden_act to graph ActivationType.
+inline graph::module::ActivationType activation_type_from_hidden_act(
+    const std::string& hidden_act)
+{
+    if(hidden_act == "gelu")
+    {
+        return graph::module::ActivationType::GELU;
+    }
+    if(hidden_act == "gelu_pytorch_tanh" || hidden_act == "gelutanh")
+    {
+        return graph::module::ActivationType::GELUTANH;
+    }
+    if(hidden_act == "relu")
+    {
+        return graph::module::ActivationType::RELU;
+    }
+    if(hidden_act == "silu" || hidden_act == "swish")
+    {
+        return graph::module::ActivationType::SILU;
+    }
+    throw std::invalid_argument(
+        "BertConfig: unsupported hidden_act '" + hidden_act + "'");
+}
+
+inline graph::module::ActivationType activation_type_from_config(
+    const BertConfig& config)
+{
+    return activation_type_from_hidden_act(config.hidden_act);
+}
+
+inline void BertConfig::validate() const
+{
+    if(hidden_size % num_attention_heads != 0)
+    {
+        throw std::invalid_argument(
+            "BertConfig: hidden_size must be divisible by "
+            "num_attention_heads");
+    }
+    (void)activation_type_from_hidden_act(hidden_act);
+}
 
 } // namespace nntile::model::bert

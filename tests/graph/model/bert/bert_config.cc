@@ -14,6 +14,7 @@
 #include "nntile/graph/model/bert/bert_config.hh"
 
 using namespace nntile::model::bert;
+using namespace nntile::graph::module;
 
 TEST_CASE("BertConfig default values", "[model][bert]")
 {
@@ -37,5 +38,21 @@ TEST_CASE("BertConfig validate fails on bad hidden_size", "[model][bert]")
     BertConfig config;
     config.hidden_size = 511;
     config.num_attention_heads = 8;
+    REQUIRE_THROWS(config.validate());
+}
+
+TEST_CASE("BertConfig hidden_act mapping", "[model][bert]")
+{
+    BertConfig config;
+    REQUIRE(config.hidden_act == "gelu");
+    REQUIRE(activation_type_from_config(config) == ActivationType::GELU);
+
+    config.hidden_act = "relu";
+    REQUIRE(activation_type_from_config(config) == ActivationType::RELU);
+
+    config.hidden_act = "gelu_pytorch_tanh";
+    REQUIRE(activation_type_from_config(config) == ActivationType::GELUTANH);
+
+    config.hidden_act = "unsupported_fn";
     REQUIRE_THROWS(config.validate());
 }

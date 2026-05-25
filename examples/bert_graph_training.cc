@@ -155,6 +155,7 @@ int main(int argc, char **argv)
     Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0, "localhost", 5001, 0);
 
     NNGraph graph("bert_graph_training");
+    graph.enable_auto_tensor_name_phase_suffix(true);
     BertMlm model(&graph, "model", config);
 
     auto *input_ids = graph.tensor({n_seq, n_batch}, DataType::INT64, false)
