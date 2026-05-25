@@ -46,6 +46,7 @@
 #include <nntile/graph/io/safetensors.hh>
 #include <nntile/graph/model/t5/t5_for_conditional_generation.hh>
 #include <nntile/graph/model/t5/t5_config.hh>
+#include <nntile/graph/nn/ops/sdpa_causal_mask.hh>
 
 using namespace nntile;
 using namespace nntile::graph;
@@ -330,16 +331,27 @@ int main(int argc, char** argv)
             {dec_seq, 1}, "decoder_input_ids", DataType::INT64, false);
         decoder_ids->mark_input(true);
 
+        auto* decoder_attn_mask = graph.tensor(
+            {dec_seq, dec_seq}, "decoder_attn_mask", DataType::BOOL, false);
+        decoder_attn_mask->mark_input(true);
+
         T5ForConditionalGeneration model(&graph, "model", config);
-        auto* output = model.forward(encoder_ids, decoder_ids);
+        auto* output = model.forward(
+            encoder_ids, decoder_ids, nullptr, decoder_attn_mask, nullptr);
         output->mark_output(true);
 
         apply_weight_cache(model, weights);
+
+        const std::size_t dec_mask_n =
+            static_cast<std::size_t>(dec_seq * dec_seq);
+        std::vector<std::uint8_t> dec_mask_data(dec_mask_n);
+        sdpa_causal_mask_bool_fortran_fill(dec_seq, dec_mask_data.data());
 
         TensorGraph::Runtime runtime(graph.tensor_graph());
         runtime.compile();
         runtime.bind_data("encoder_input_ids", encoder_tokens);
         runtime.bind_data("decoder_input_ids", decoder_tokens);
+        runtime.bind_data("decoder_attn_mask", dec_mask_data);
         runtime.execute();
         runtime.wait();
 
