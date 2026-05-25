@@ -72,61 +72,25 @@ inline bool try_load_cross_attention_fixture_spec(
     CrossAttentionFixtureSpec &out)
 {
     out = {};
-    out.stem = stem_cstr;
-    const std::string jpath = data_dir + "/" + out.stem + ".json";
-    std::ifstream jf(jpath);
-    if (!jf)
+    nlohmann::json j;
+    if (!try_open_t5_fixture_json(data_dir, stem_cstr, out.stem, j))
     {
         return false;
     }
-    nlohmann::json j;
     try
     {
-        jf >> j;
-        if (j.at("version").get<int>() != 2)
-        {
-            return false;
-        }
-        if (j.at("stem").get<std::string>() != out.stem)
-        {
-            return false;
-        }
-        const std::string expected_st = out.stem + ".safetensors";
-        if (j.at("safetensors").get<std::string>() != expected_st)
-        {
-            return false;
-        }
-        const auto &T = j.at("t5");
-        out.config.vocab_size = json_index(T, "vocab_size");
-        out.config.d_model = json_index(T, "d_model");
-        out.config.d_kv = json_index(T, "d_kv");
-        out.config.d_ff = json_index(T, "d_ff");
-        out.config.num_heads = json_index(T, "num_heads");
-        out.config.num_layers = json_index(T, "num_layers");
-        out.config.num_decoder_layers = json_index(T, "num_decoder_layers");
-        out.config.layer_norm_epsilon = static_cast<float>(
-            T.at("layer_norm_epsilon").get<double>());
+        load_t5_config_from_fixture_json(j, out.config);
         out.hidden = out.config.d_model;
         out.enc_seq = json_index(j, "encoder_sequence_length");
         out.dec_seq = json_index(j, "decoder_sequence_length");
         out.batch = json_index(j, "batch");
-        out.forward_tol =
-            static_cast<float>(j.at("tolerances").at("forward").get<double>());
-        out.backward_tol = static_cast<float>(
-            j.at("tolerances").at("backward").get<double>());
-        prepare_t5_config(out.config);
+        load_t5_fixture_tolerances(j, out.forward_tol, out.backward_tol);
     }
     catch (...)
     {
         return false;
     }
     return true;
-}
-
-inline std::string cross_attention_fixture_safetensors_path(
-    const std::string &data_dir, const CrossAttentionFixtureSpec &spec)
-{
-    return data_dir + "/" + spec.stem + ".safetensors";
 }
 
 inline bool skip_unless_fixture_ready(
@@ -137,14 +101,14 @@ inline bool skip_unless_fixture_ready(
     {
         return false;
     }
-    std::ifstream st(cross_attention_fixture_safetensors_path(dir, fx));
+    std::ifstream st(t5_fixture_safetensors_path(dir, fx.stem));
     return st.good();
 }
 
 void cross_attention_forward_compare_ref(const CrossAttentionFixtureSpec &fx)
 {
     const std::string full_path =
-        cross_attention_fixture_safetensors_path(std::string(T5_DATA_DIR), fx);
+        t5_fixture_safetensors_path(std::string(T5_DATA_DIR), fx.stem);
     SafeTensorsReader reader(full_path);
 
     std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
@@ -206,7 +170,7 @@ void cross_attention_forward_compare_ref(const CrossAttentionFixtureSpec &fx)
 void cross_attention_backward_compare_ref(const CrossAttentionFixtureSpec &fx)
 {
     const std::string full_path =
-        cross_attention_fixture_safetensors_path(std::string(T5_DATA_DIR), fx);
+        t5_fixture_safetensors_path(std::string(T5_DATA_DIR), fx.stem);
     SafeTensorsReader reader(full_path);
 
     std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
@@ -316,7 +280,7 @@ TEST_CASE("T5Attention cross load from safetensors roundtrip",
         SKIP("Missing or invalid t5_cross_attention.json / .safetensors.");
     }
     const std::string data_path =
-        cross_attention_fixture_safetensors_path(std::string(T5_DATA_DIR), fx);
+        t5_fixture_safetensors_path(std::string(T5_DATA_DIR), fx.stem);
 
     NNGraph g1("load_graph");
     T5Attention attn1(&g1, "cross_attn", fx.config, true);

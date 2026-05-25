@@ -69,60 +69,24 @@ inline bool try_load_ff_fixture_spec(
     const std::string &data_dir, const char *stem_cstr, FfFixtureSpec &out)
 {
     out = {};
-    out.stem = stem_cstr;
-    const std::string jpath = data_dir + "/" + out.stem + ".json";
-    std::ifstream jf(jpath);
-    if (!jf)
+    nlohmann::json j;
+    if (!try_open_t5_fixture_json(data_dir, stem_cstr, out.stem, j))
     {
         return false;
     }
-    nlohmann::json j;
     try
     {
-        jf >> j;
-        if (j.at("version").get<int>() != 2)
-        {
-            return false;
-        }
-        if (j.at("stem").get<std::string>() != out.stem)
-        {
-            return false;
-        }
-        const std::string expected_st = out.stem + ".safetensors";
-        if (j.at("safetensors").get<std::string>() != expected_st)
-        {
-            return false;
-        }
-        const auto &T = j.at("t5");
-        out.config.vocab_size = json_index(T, "vocab_size");
-        out.config.d_model = json_index(T, "d_model");
-        out.config.d_kv = json_index(T, "d_kv");
-        out.config.d_ff = json_index(T, "d_ff");
-        out.config.num_heads = json_index(T, "num_heads");
-        out.config.num_layers = json_index(T, "num_layers");
-        out.config.num_decoder_layers = json_index(T, "num_decoder_layers");
-        out.config.layer_norm_epsilon = static_cast<float>(
-            T.at("layer_norm_epsilon").get<double>());
+        load_t5_config_from_fixture_json(j, out.config);
         out.hidden = out.config.d_model;
         out.seq = json_index(j, "sequence_length");
         out.batch = json_index(j, "batch");
-        out.forward_tol =
-            static_cast<float>(j.at("tolerances").at("forward").get<double>());
-        out.backward_tol = static_cast<float>(
-            j.at("tolerances").at("backward").get<double>());
-        prepare_t5_config(out.config);
+        load_t5_fixture_tolerances(j, out.forward_tol, out.backward_tol);
     }
     catch (...)
     {
         return false;
     }
     return true;
-}
-
-inline std::string ff_fixture_safetensors_path(
-    const std::string &data_dir, const FfFixtureSpec &spec)
-{
-    return data_dir + "/" + spec.stem + ".safetensors";
 }
 
 inline bool skip_unless_fixture_ready(const char *stem, FfFixtureSpec &fx)
@@ -132,7 +96,7 @@ inline bool skip_unless_fixture_ready(const char *stem, FfFixtureSpec &fx)
     {
         return false;
     }
-    std::ifstream st(ff_fixture_safetensors_path(dir, fx));
+    std::ifstream st(t5_fixture_safetensors_path(dir, fx.stem));
     return st.good();
 }
 
@@ -165,7 +129,7 @@ TEST_CASE("T5LayerFF load from safetensors roundtrip", "[model][t5][io]")
         SKIP("Missing or invalid t5_ff.json / .safetensors.");
     }
     const std::string data_path =
-        ff_fixture_safetensors_path(std::string(T5_DATA_DIR), fx);
+        t5_fixture_safetensors_path(std::string(T5_DATA_DIR), fx.stem);
 
     NNGraph g1("load_graph");
     T5LayerFF ff1(&g1, "ff", fx.config);
@@ -194,7 +158,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         SKIP("T5 FF fixture pair not found.");
     }
     const std::string full_path =
-        ff_fixture_safetensors_path(std::string(T5_DATA_DIR), fx);
+        t5_fixture_safetensors_path(std::string(T5_DATA_DIR), fx.stem);
 
     SafeTensorsReader reader(full_path);
     std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
@@ -240,7 +204,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         SKIP("T5 FF fixture pair not found.");
     }
     const std::string full_path =
-        ff_fixture_safetensors_path(std::string(T5_DATA_DIR), fx);
+        t5_fixture_safetensors_path(std::string(T5_DATA_DIR), fx.stem);
 
     SafeTensorsReader reader(full_path);
     std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");

@@ -34,7 +34,6 @@
  * @version 1.1.0
  * */
 
-#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -292,11 +291,6 @@ static Scalar scheduled_lr(Index train_step, Args const &args)
     return peak;
 }
 
-static void fill_bool_ones(std::size_t n, std::uint8_t *out)
-{
-    std::fill(out, out + n, static_cast<std::uint8_t>(1));
-}
-
 static void init_random_parameter_hints(
     T5ForConditionalGeneration &model, std::mt19937 &gen)
 {
@@ -431,13 +425,9 @@ int main(int argc, char **argv)
     auto *decoder_attn_mask =
         graph.tensor({n_dec, n_dec}, DataType::BOOL, false)
             ->set_name("decoder_attn_mask");
-    auto *cross_attn_mask =
-        graph.tensor({n_enc, n_dec}, DataType::BOOL, false)
-            ->set_name("cross_attn_mask");
     encoder_input_ids->mark_input(true);
     decoder_input_ids->mark_input(true);
     decoder_attn_mask->mark_input(true);
-    cross_attn_mask->mark_input(true);
 
     auto *labels = graph.tensor({n_dec, n_batch}, DataType::INT64, false)
                        ->set_name("labels");
@@ -472,11 +462,6 @@ int main(int argc, char **argv)
         static_cast<std::size_t>(n_dec * n_dec);
     std::vector<std::uint8_t> dec_mask_data(dec_mask_n);
     sdpa_causal_mask_bool_fortran_fill(n_dec, dec_mask_data.data());
-
-    const std::size_t cross_mask_n =
-        static_cast<std::size_t>(n_enc * n_dec);
-    std::vector<std::uint8_t> cross_mask_data(cross_mask_n);
-    fill_bool_ones(cross_mask_n, cross_mask_data.data());
 
     graph.enable_auto_tensor_name_phase_suffix(true);
 
@@ -536,7 +521,7 @@ int main(int argc, char **argv)
                 decoder_input_ids,
                 nullptr,
                 decoder_attn_mask,
-                cross_attn_mask);
+                nullptr);
             if (logits == nullptr)
             {
                 throw std::runtime_error(
@@ -584,7 +569,6 @@ int main(int argc, char **argv)
             runtime.bind_data(decoder_input_ids, mmap_batch.decoder_input_ids);
             runtime.bind_data(labels, mmap_batch.labels);
             runtime.bind_data(decoder_attn_mask, dec_mask_data);
-            runtime.bind_data(cross_attn_mask, cross_mask_data);
 
             auto t0 = std::chrono::high_resolution_clock::now();
             runtime.execute();
