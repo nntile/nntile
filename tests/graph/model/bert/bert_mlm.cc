@@ -3,13 +3,13 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
- * @file tests/graph/model/bert/bert_causal.cc
- * Tests for BertCausal.
+ * @file tests/graph/model/bert/bert_mlm.cc
+ * Tests for BertMlm.
  *
  * @version 1.1.0
  * */
 
-#include "nntile/graph/model/bert/bert_causal.hh"
+#include "nntile/graph/model/bert/bert_mlm.hh"
 
 #include "context_fixture.hh"
 #include "nntile/graph.hh"
@@ -35,26 +35,26 @@ using namespace nntile::graph::io;
 #ifndef BERT_DATA_DIR
 
 TEST_CASE(
-    "BertCausal tests skipped (BERT_DATA_DIR undefined)", "[model][bert]")
+    "BertMlm tests skipped (BERT_DATA_DIR undefined)", "[model][bert]")
 {
     SKIP("BERT_DATA_DIR not defined at compile time.");
 }
 
 #else
 
-namespace causal_fixture_stem
+namespace mlm_fixture_stem
 {
 
-constexpr char bert_causal[] = "bert_causal";
+constexpr char bert_mlm[] = "bert_mlm";
 
-} // namespace causal_fixture_stem
+} // namespace mlm_fixture_stem
 
 namespace
 {
 
 using namespace nntile::test::bert_fixture;
 
-struct CausalFixtureSpec
+struct MlmFixtureSpec
 {
     BertConfig config{};
     Index seq = 0;
@@ -64,9 +64,9 @@ struct CausalFixtureSpec
     std::string stem;
 };
 
-inline bool try_load_causal_fixture_spec(const std::string &data_dir,
+inline bool try_load_mlm_fixture_spec(const std::string &data_dir,
     const char *stem_cstr,
-    CausalFixtureSpec &out)
+    MlmFixtureSpec &out)
 {
     out = {};
     out.stem = stem_cstr;
@@ -107,27 +107,27 @@ inline bool try_load_causal_fixture_spec(const std::string &data_dir,
     return true;
 }
 
-inline std::string causal_fixture_safetensors_path(
-    const std::string &data_dir, const CausalFixtureSpec &spec)
+inline std::string mlm_fixture_safetensors_path(
+    const std::string &data_dir, const MlmFixtureSpec &spec)
 {
     return data_dir + "/" + spec.stem + ".safetensors";
 }
 
-inline bool skip_unless_fixture_ready(const char *stem, CausalFixtureSpec &fx)
+inline bool skip_unless_fixture_ready(const char *stem, MlmFixtureSpec &fx)
 {
     const std::string dir = std::string(BERT_DATA_DIR);
-    if (!try_load_causal_fixture_spec(dir, stem, fx))
+    if (!try_load_mlm_fixture_spec(dir, stem, fx))
     {
         return false;
     }
-    std::ifstream st(causal_fixture_safetensors_path(dir, fx));
+    std::ifstream st(mlm_fixture_safetensors_path(dir, fx));
     return st.good();
 }
 
-void causal_backward_compare_ref(const CausalFixtureSpec &fx)
+void mlm_backward_compare_ref(const MlmFixtureSpec &fx)
 {
     const std::string full_path =
-        causal_fixture_safetensors_path(std::string(BERT_DATA_DIR), fx);
+        mlm_fixture_safetensors_path(std::string(BERT_DATA_DIR), fx);
     SafeTensorsReader reader(full_path);
 
     std::vector<std::uint8_t> ids_bytes = reader.read_tensor("input_ids");
@@ -147,7 +147,7 @@ void causal_backward_compare_ref(const CausalFixtureSpec &fx)
 
     std::vector<float> grad_wte_result;
     {
-        NNGraph g("causal_bwd");
+        NNGraph g("mlm_bwd");
         auto *input_ids =
             g.tensor({fx.seq, fx.batch}, DataType::INT64, true)
                 ->set_name("input_ids");
@@ -159,14 +159,15 @@ void causal_backward_compare_ref(const CausalFixtureSpec &fx)
         std::vector<std::int64_t> tt_data;
         REQUIRE(load_token_type_ids(
             g, reader, fx.seq, fx.batch, token_type_ids, tt_data));
-BertCausal model(&g, "model", fx.config);
+        BertMlm model(&g, "model", fx.config);
         model.load(full_path);
-        auto *output = model.forward(input_ids, token_type_ids, position_ids, nullptr);
+        auto *output = model.forward(
+            input_ids, token_type_ids, position_ids, nullptr);
 
         input_ids->mark_input(true);
         output->mark_output(true);
         mark_ids_inputs(position_ids, token_type_ids);
-        
+
         auto [grad_output_tensor, _] =
             g.get_or_create_grad(output, "grad_output");
         grad_output_tensor->mark_input(true);
@@ -178,12 +179,13 @@ BertCausal model(&g, "model", fx.config);
         runtime.compile();
         runtime.bind_data(input_ids, ids_data);
         runtime.bind_data(grad_output_tensor, grad_out_data);
-        bind_ids_inputs(runtime, position_ids, pos_data, token_type_ids, tt_data);
+        bind_ids_inputs(
+            runtime, position_ids, pos_data, token_type_ids, tt_data);
         runtime.execute();
         runtime.wait();
 
-        grad_wte_result =
-            runtime.get_output<float>(model.model()->word_vocab_tensor()->grad());
+        grad_wte_result = runtime.get_output<float>(
+            model.model()->word_vocab_tensor()->grad());
     }
 
     REQUIRE(grad_wte_result.size() == grad_wte_ref.size());
@@ -191,45 +193,46 @@ BertCausal model(&g, "model", fx.config);
         grad_wte_result, grad_wte_ref, fx.backward_tol);
 }
 
-
 } // namespace
 
-TEST_CASE("BertCausal forward builds output", "[model][bert]")
+TEST_CASE("BertMlm forward builds logits", "[model][bert]")
 {
-    CausalFixtureSpec fx;
-    if (!skip_unless_fixture_ready(causal_fixture_stem::bert_causal, fx))
+    MlmFixtureSpec fx;
+    if (!skip_unless_fixture_ready(mlm_fixture_stem::bert_mlm, fx))
     {
-        SKIP("Missing or invalid bert_causal.json / .safetensors.");
+        SKIP("Missing or invalid bert_mlm.json / .safetensors.");
     }
-    NNGraph g("bert_causal");
-    BertCausal model(&g, "model", fx.config);
+    NNGraph g("bert_mlm");
+    BertMlm model(&g, "model", fx.config);
     auto *input_ids =
         g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
+    auto *token_type_ids = g.tensor({fx.seq, fx.batch}, DataType::INT64)
+                               ->set_name("token_type_ids");
     auto *position_ids = g.tensor({fx.seq, fx.batch}, DataType::INT64)
                              ->set_name("position_ids");
-    auto *output = model.forward(input_ids, token_type_ids, position_ids, nullptr);
+    auto *output = model.forward(
+        input_ids, token_type_ids, position_ids, nullptr);
 
     REQUIRE(output != nullptr);
     REQUIRE(output->shape() ==
             std::vector<Index>({fx.config.vocab_size, fx.seq, fx.batch}));
 }
 
-TEST_CASE("BertCausal load from safetensors roundtrip", "[model][bert][io]")
+TEST_CASE("BertMlm load from safetensors roundtrip", "[model][bert][io]")
 {
-    CausalFixtureSpec fx;
-    if (!skip_unless_fixture_ready(causal_fixture_stem::bert_causal, fx))
+    MlmFixtureSpec fx;
+    if (!skip_unless_fixture_ready(mlm_fixture_stem::bert_mlm, fx))
     {
-        SKIP("Missing or invalid bert_causal.json / .safetensors.");
+        SKIP("Missing or invalid bert_mlm.json / .safetensors.");
     }
     const std::string data_path =
-        causal_fixture_safetensors_path(std::string(BERT_DATA_DIR), fx);
+        mlm_fixture_safetensors_path(std::string(BERT_DATA_DIR), fx);
 
     NNGraph g1("load_graph");
-    BertCausal model1(&g1, "model", fx.config);
+    BertMlm model1(&g1, "model", fx.config);
     model1.load(data_path);
 
-    const std::string save_path =
-        "/tmp/nntile_bert_causal_roundtrip.safetensors";
+    const std::string save_path = "/tmp/nntile_bert_mlm_roundtrip.safetensors";
     model1.save(save_path);
 
     SafeTensorsReader reader(data_path);
@@ -243,15 +246,15 @@ TEST_CASE("BertCausal load from safetensors roundtrip", "[model][bert][io]")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "BertCausal forward matches PyTorch reference", "[model][bert]")
+    "BertMlm forward matches PyTorch reference", "[model][bert]")
 {
-    CausalFixtureSpec fx;
-    if (!skip_unless_fixture_ready(causal_fixture_stem::bert_causal, fx))
+    MlmFixtureSpec fx;
+    if (!skip_unless_fixture_ready(mlm_fixture_stem::bert_mlm, fx))
     {
-        SKIP("BERT causal fixture not found.");
+        SKIP("BERT MLM fixture not found.");
     }
     const std::string full_path =
-        causal_fixture_safetensors_path(std::string(BERT_DATA_DIR), fx);
+        mlm_fixture_safetensors_path(std::string(BERT_DATA_DIR), fx);
     SafeTensorsReader reader(full_path);
 
     std::vector<std::uint8_t> ids_bytes = reader.read_tensor("input_ids");
@@ -260,7 +263,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
 
     std::vector<float> result;
     {
-        NNGraph g("causal_ref");
+        NNGraph g("mlm_ref");
         auto *input_ids =
             g.tensor({fx.seq, fx.batch}, DataType::INT64)->set_name("input_ids");
         NNGraph::TensorNode *position_ids = nullptr;
@@ -271,19 +274,21 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
         std::vector<std::int64_t> tt_data;
         REQUIRE(load_token_type_ids(
             g, reader, fx.seq, fx.batch, token_type_ids, tt_data));
-BertCausal model(&g, "model", fx.config);
+        BertMlm model(&g, "model", fx.config);
         model.load(full_path);
 
-        auto *output = model.forward(input_ids, token_type_ids, position_ids, nullptr);
+        auto *output = model.forward(
+            input_ids, token_type_ids, position_ids, nullptr);
         input_ids->mark_input(true);
         output->mark_output(true);
         mark_ids_inputs(position_ids, token_type_ids);
-        
+
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
         runtime.compile();
         runtime.bind_data(input_ids, ids_data);
-        bind_ids_inputs(runtime, position_ids, pos_data, token_type_ids, tt_data);
+        bind_ids_inputs(
+            runtime, position_ids, pos_data, token_type_ids, tt_data);
         runtime.execute();
         runtime.wait();
 
@@ -298,17 +303,16 @@ BertCausal model(&g, "model", fx.config);
     require_relative_frobenius_error(result, ref_data, fx.forward_tol);
 }
 
-
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "BertCausal backward matches PyTorch reference",
+    "BertMlm backward matches PyTorch reference",
     "[model][bert]")
 {
-    CausalFixtureSpec fx;
-    if (!skip_unless_fixture_ready(causal_fixture_stem::bert_causal, fx))
+    MlmFixtureSpec fx;
+    if (!skip_unless_fixture_ready(mlm_fixture_stem::bert_mlm, fx))
     {
-        SKIP("BERT causal fixture not found.");
+        SKIP("BERT MLM fixture not found.");
     }
-    causal_backward_compare_ref(fx);
+    mlm_backward_compare_ref(fx);
 }
 
 #endif
