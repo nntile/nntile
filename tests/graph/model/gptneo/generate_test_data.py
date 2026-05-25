@@ -485,6 +485,8 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS) -> dict[str, np.ndarr
     data["grad_output"] = g_nt
     data["grad_wte_vocab"] = fortran_order(
         pt.wte.weight.grad.detach().numpy().T)
+    data["grad_wpe_vocab"] = fortran_order(
+        pt.wpe.weight.grad.detach().numpy().T)
     return data
 
 
@@ -516,6 +518,8 @@ def generate_causal(seed: int, dims: TestDims = CAUSAL_DIMS) -> dict[str, np.nda
     data["grad_output"] = g_nt
     data["grad_wte_vocab"] = fortran_order(
         pt.transformer.wte.weight.grad.detach().numpy().T)
+    data["grad_wpe_vocab"] = fortran_order(
+        pt.transformer.wpe.weight.grad.detach().numpy().T)
     return data
 
 

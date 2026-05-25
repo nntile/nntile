@@ -37,6 +37,7 @@ GptneoModel::GptneoModel(graph::NNGraph* graph,
     , config_(config)
     , dtype_(dtype)
 {
+    config_.build_attention_layers();
     config_.validate();
     register_module("wte", &wte_);
     register_module("wpe", &wpe_);

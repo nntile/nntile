@@ -69,6 +69,11 @@ public:
     {
         return wte_.vocab_tensor();
     }
+
+    graph::NNGraph::TensorNode* wpe_vocab_tensor() const
+    {
+        return wpe_.vocab_tensor();
+    }
 };
 
 } // namespace nntile::model::gptneo

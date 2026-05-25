@@ -142,12 +142,20 @@ void causal_backward_compare_ref(const CausalFixtureSpec &fx)
     std::memcpy(
         grad_out_data.data(), grad_out_bytes.data(), grad_out_bytes.size());
 
-    std::vector<std::uint8_t> ref_bytes =
+    std::vector<std::uint8_t> ref_wte_bytes =
         reader.read_tensor("grad_wte_vocab");
-    std::vector<float> grad_wte_ref(ref_bytes.size() / sizeof(float));
-    std::memcpy(grad_wte_ref.data(), ref_bytes.data(), ref_bytes.size());
+    std::vector<float> grad_wte_ref(ref_wte_bytes.size() / sizeof(float));
+    std::memcpy(
+        grad_wte_ref.data(), ref_wte_bytes.data(), ref_wte_bytes.size());
+
+    std::vector<std::uint8_t> ref_wpe_bytes =
+        reader.read_tensor("grad_wpe_vocab");
+    std::vector<float> grad_wpe_ref(ref_wpe_bytes.size() / sizeof(float));
+    std::memcpy(
+        grad_wpe_ref.data(), ref_wpe_bytes.data(), ref_wpe_bytes.size());
 
     std::vector<float> grad_wte_result;
+    std::vector<float> grad_wpe_result;
     {
         NNGraph g("causal_bwd");
         auto *input_ids =
@@ -175,6 +183,7 @@ void causal_backward_compare_ref(const CausalFixtureSpec &fx)
         grad_output_tensor->mark_input(true);
         output->backward();
         model.model()->wte_vocab_tensor()->grad()->mark_output(true);
+        model.model()->wpe_vocab_tensor()->grad()->mark_output(true);
 
         TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
         Runtime runtime(tile_graph);
@@ -188,11 +197,16 @@ void causal_backward_compare_ref(const CausalFixtureSpec &fx)
 
         grad_wte_result =
             runtime.get_output<float>(model.model()->wte_vocab_tensor()->grad());
+        grad_wpe_result =
+            runtime.get_output<float>(model.model()->wpe_vocab_tensor()->grad());
     }
 
     REQUIRE(grad_wte_result.size() == grad_wte_ref.size());
     require_relative_frobenius_error(
         grad_wte_result, grad_wte_ref, fx.backward_tol);
+    REQUIRE(grad_wpe_result.size() == grad_wpe_ref.size());
+    require_relative_frobenius_error(
+        grad_wpe_result, grad_wpe_ref, fx.backward_tol);
 }
 
 

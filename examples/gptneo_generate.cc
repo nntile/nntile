@@ -59,6 +59,19 @@ using namespace nntile::graph;
 using namespace nntile::model::gptneo;
 using nntile::examples::load_gptneo_config_json;
 
+namespace
+{
+
+constexpr int CONTEXT_NUM_CPU = 1;
+constexpr int CONTEXT_NUM_CUDA = 0;
+constexpr int CONTEXT_OOC = 0;
+constexpr int CONTEXT_OOC_SIZE = 16777216;
+constexpr int CONTEXT_LOGGER = 0;
+constexpr int CONTEXT_VERBOSE = 0;
+constexpr int CONTEXT_LOGGER_PORT = 5001;
+
+} // namespace
+
 // ── CLI helpers ──────────────────────────────────────────────────────────
 
 struct Args
@@ -302,8 +315,15 @@ int main(int argc, char** argv)
     WeightCache weights = load_weights_to_memory(args.weights_path);
     std::cout << "Cached " << weights.size() << " parameter tensors\n";
 
-    Context context(1, 0, 0, "/tmp/nntile_ooc", 16777216, 0,
-                    "localhost", 5001, 0);
+    Context context(CONTEXT_NUM_CPU,
+        CONTEXT_NUM_CUDA,
+        CONTEXT_OOC,
+        "/tmp/nntile_ooc",
+        CONTEXT_OOC_SIZE,
+        CONTEXT_LOGGER,
+        "localhost",
+        CONTEXT_LOGGER_PORT,
+        CONTEXT_VERBOSE);
 
     std::cout << "\n--- Generating (greedy, no KV-cache) ---\n";
     for(int step = 0; step < args.max_tokens; ++step)

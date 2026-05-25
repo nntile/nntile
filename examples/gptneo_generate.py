@@ -276,6 +276,8 @@ def main() -> int:
         "bos_token_id": getattr(config, "bos_token_id", 50256),
         "window_size": getattr(config, "window_size", 256),
     }
+    if getattr(config, "attention_layers", None):
+        nntile_config["attention_layers"] = list(config.attention_layers)
     config_path = out_dir / "config.json"
     config_path.write_text(json.dumps(nntile_config, indent=2) + "\n")
     print(f"Wrote {config_path}")

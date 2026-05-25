@@ -47,6 +47,9 @@ struct GptneoConfig
 
     std::string name = "gpt-neo";
 
+    //! Per-layer attention: "global" or "local". Empty -> HF default.
+    std::vector<std::string> attention_layers;
+
     //! Compute head_dim from hidden_size and num_attention_heads
     void compute_head_dim()
     {
@@ -56,11 +59,11 @@ struct GptneoConfig
         }
     }
 
-    //! HF GPT-Neo default: odd layer indices use sliding-window attention.
-    bool is_local_attention_layer(Index layer_id) const
-    {
-        return layer_id % 2 == 1;
-    }
+    //! Fill ``attention_layers`` when empty (odd layers local).
+    void build_attention_layers();
+
+    //! True when layer uses sliding-window (local) attention.
+    bool is_local_attention_layer(Index layer_id) const;
 
     //! Validate configuration
     void validate() const
@@ -74,6 +77,12 @@ struct GptneoConfig
         {
             throw std::invalid_argument(
                 "GptneoConfig: head_dim must equal hidden_size / num_attention_heads");
+        }
+        if(!attention_layers.empty() &&
+            static_cast<Index>(attention_layers.size()) != num_hidden_layers)
+        {
+            throw std::invalid_argument(
+                "GptneoConfig: attention_layers size must match num_hidden_layers");
         }
     }
 };

@@ -563,6 +563,7 @@ set(GRAPH_MODEL_SRC
     "graph/model/llama/llama_decoder.cc"
     "graph/model/llama/llama_model.cc"
     "graph/model/llama/llama_causal.cc"
+    "graph/model/gptneo/gptneo_config.cc"
     "graph/model/gptneo/gptneo_attention.cc"
     "graph/model/gptneo/gptneo_mlp.cc"
     "graph/model/gptneo/gptneo_decoder.cc"
