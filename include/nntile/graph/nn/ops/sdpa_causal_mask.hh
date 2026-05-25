@@ -30,4 +30,11 @@ void sdpa_causal_mask_bool_fortran_fill(
     Index seq_len,
     std::uint8_t* out);
 
+//! GPT-Neo local (sliding-window) causal mask: allow ``kk`` when
+//! ``kk <= qq`` and ``qq - kk < window_size`` (Fortran layout, 1 = allowed).
+void sdpa_gptneo_local_mask_bool_fortran_fill(
+    Index seq_len,
+    Index window_size,
+    std::uint8_t* out);
+
 } // namespace nntile::graph

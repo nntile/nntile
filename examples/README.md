@@ -9,6 +9,7 @@ incremental training phases) and small Llama / GPT-2 workflows.
 - `json_config_helpers.hh` — `config_get_int` / `config_get_float` for JSON configs
   (used by GPT-2 and Llama graph examples).
 - `gpt2_config_json.hh` — `load_gpt2_config_json` / `save_gpt2_config_json` (HF + NNTile keys).
+- `gptneo_config_json.hh` — load/save for examples; HF `attention_types` parsing lives in `include/nntile/graph/model/gptneo/gptneo_config_json.hh`.
 
 Build all examples from the repository root:
 
@@ -141,6 +142,47 @@ Or let the binary invoke the Python converter:
 
 ```bash
 ./build/examples/gpt2_generate --model gpt2 --prompt "Hello" --max-tokens 16
+```
+
+## GPT-Neo
+
+| Artifact | Role |
+|----------|------|
+| `gptneo_graph_training` | Causal LM training on mmap `train.bin` (global + local attention masks) |
+| `run_gptneo_graph_training_demo.sh` | Tiny data + multi-epoch demo |
+| `gptneo_graph_training.cc` | Full CLI |
+| `gptneo_generate` | Greedy generation (no KV cache; dual BOOL masks per step) |
+| `gptneo_generate.py` | HF GPT-Neo → weights + prompt |
+
+Example (manual training):
+
+```bash
+./build/examples/gptneo_graph_training \
+    --train-bin build/examples/demo_data/gptneo/train.bin \
+    --tiny --seq 8 --batch 2 --epochs 3 --max-batches 24 --lr 0.003
+```
+
+Example (generation):
+
+```bash
+python3 examples/gptneo_generate.py \
+    --model EleutherAI/gpt-neo-125M \
+    --output-dir /tmp/nntile_gptneo \
+    --prompt "The meaning of life is"
+./build/examples/gptneo_generate \
+    --config /tmp/nntile_gptneo/config.json \
+    --weights /tmp/nntile_gptneo/weights.safetensors \
+    --prompt-ids "$(cat /tmp/nntile_gptneo/prompt_ids.txt)" \
+    --max-tokens 32
+```
+
+Or let the binary invoke the Python converter:
+
+```bash
+./build/examples/gptneo_generate \
+    --model EleutherAI/gpt-neo-125M \
+    --prompt "Hello" \
+    --max-tokens 16
 ```
 
 ## Other graph / autograd examples

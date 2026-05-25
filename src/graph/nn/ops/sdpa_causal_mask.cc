@@ -45,4 +45,37 @@ void sdpa_causal_mask_bool_fortran_fill(
     }
 }
 
+void sdpa_gptneo_local_mask_bool_fortran_fill(
+    Index seq_len,
+    Index window_size,
+    std::uint8_t* out)
+{
+    if(out == nullptr)
+    {
+        throw std::invalid_argument(
+            "sdpa_gptneo_local_mask_bool_fortran_fill: out is null");
+    }
+    if(seq_len <= 0)
+    {
+        throw std::invalid_argument(
+            "sdpa_gptneo_local_mask_bool_fortran_fill: seq_len must be positive");
+    }
+    if(window_size <= 0)
+    {
+        throw std::invalid_argument(
+            "sdpa_gptneo_local_mask_bool_fortran_fill: window_size must be positive");
+    }
+    for(Index qq = 0; qq < seq_len; ++qq)
+    {
+        for(Index kk = 0; kk < seq_len; ++kk)
+        {
+            const bool allowed =
+                kk <= qq && (qq - kk) < window_size;
+            out[kk + seq_len * qq] =
+                allowed ? static_cast<std::uint8_t>(1)
+                        : static_cast<std::uint8_t>(0);
+        }
+    }
+}
+
 } // namespace nntile::graph
