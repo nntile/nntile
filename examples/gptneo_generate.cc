@@ -51,12 +51,13 @@
 #include <nntile/graph/model/gptneo/gptneo_causal.hh>
 #include <nntile/graph/model/gptneo/gptneo_config.hh>
 #include <nntile/graph/nn/ops/sdpa_causal_mask.hh>
-#include <nlohmann/json.hpp>
+
+#include "gptneo_config_json.hh"
 
 using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::model::gptneo;
-using json = nlohmann::json;
+using nntile::examples::load_gptneo_config_json;
 
 // ── CLI helpers ──────────────────────────────────────────────────────────
 
@@ -137,33 +138,6 @@ static std::vector<std::int64_t> parse_ids(const std::string& s)
             ids.push_back(std::stoll(tok));
     }
     return ids;
-}
-
-// ── Config loader ────────────────────────────────────────────────────────
-
-static GptneoConfig load_config(const std::string& path)
-{
-    std::ifstream f(path);
-    if(!f.good())
-    {
-        throw std::runtime_error("Cannot open config: " + path);
-    }
-    json j = json::parse(f);
-
-    GptneoConfig cfg;
-    cfg.vocab_size           = j.value("vocab_size", 50257);
-    cfg.hidden_size          = j.value("hidden_size", 2048);
-    cfg.intermediate_size    = j.value("intermediate_size", 8192);
-    cfg.num_hidden_layers    = j.value("num_hidden_layers", 24);
-    cfg.num_attention_heads  = j.value("num_attention_heads", 16);
-    cfg.max_position_embeddings = j.value("max_position_embeddings", 2048);
-    cfg.layer_norm_eps       = j.value("layer_norm_eps", 1e-5f);
-    cfg.eos_token_id         = j.value("eos_token_id", 50256);
-    cfg.bos_token_id         = j.value("bos_token_id", 50256);
-    cfg.window_size          = j.value("window_size", 256);
-    cfg.compute_head_dim();
-    cfg.validate();
-    return cfg;
 }
 
 // ── Weight cache ─────────────────────────────────────────────────────────
@@ -310,7 +284,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    GptneoConfig config = load_config(args.config_path);
+    GptneoConfig config = load_gptneo_config_json(args.config_path);
     std::cout << "Config: hidden=" << config.hidden_size
               << "  layers=" << config.num_hidden_layers
               << "  heads=" << config.num_attention_heads
