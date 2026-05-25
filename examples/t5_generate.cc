@@ -41,16 +41,16 @@
 #include <unistd.h>
 #include <vector>
 
+#include "t5_config_json.hh"
 #include <nntile.hh>
 #include <nntile/graph/io/safetensors.hh>
 #include <nntile/graph/model/t5/t5_for_conditional_generation.hh>
 #include <nntile/graph/model/t5/t5_config.hh>
-#include <nlohmann/json.hpp>
 
 using namespace nntile;
 using namespace nntile::graph;
 using namespace nntile::model::t5;
-using json = nlohmann::json;
+using nntile::examples::load_t5_config_json;
 
 // ── CLI helpers ──────────────────────────────────────────────────────────
 
@@ -135,33 +135,6 @@ static std::vector<std::int64_t> parse_ids(const std::string& s)
             ids.push_back(std::stoll(tok));
     }
     return ids;
-}
-
-// ── Config loader ────────────────────────────────────────────────────────
-
-static T5Config load_config(const std::string& path)
-{
-    std::ifstream f(path);
-    if(!f.good())
-    {
-        throw std::runtime_error("Cannot open config: " + path);
-    }
-    json j = json::parse(f);
-
-    T5Config cfg;
-    cfg.vocab_size           = j.value("vocab_size", 32100);
-    cfg.d_model              = j.value("d_model", 512);
-    cfg.d_kv                 = j.value("d_kv", 64);
-    cfg.d_ff                 = j.value("d_ff", 1024);
-    cfg.num_layers           = j.value("num_layers", 6);
-    cfg.num_decoder_layers   = j.value("num_decoder_layers", 6);
-    cfg.num_heads            = j.value("num_heads", 8);
-    cfg.layer_norm_epsilon   = j.value("layer_norm_epsilon", 1e-5f);
-    cfg.eos_token_id         = j.value("eos_token_id", 1);
-    cfg.pad_token_id         = j.value("pad_token_id", 0);
-    cfg.decoder_start_token_id = j.value("decoder_start_token_id", 0);
-    cfg.validate();
-    return cfg;
 }
 
 // ── Weight cache ─────────────────────────────────────────────────────────
@@ -311,7 +284,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    T5Config config = load_config(args.config_path);
+    T5Config config = load_t5_config_json(args.config_path);
     std::cout << "Config: d_model=" << config.d_model
               << "  encoder_layers=" << config.num_layers
               << "  decoder_layers=" << config.num_decoder_layers
