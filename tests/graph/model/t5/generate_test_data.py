@@ -216,16 +216,6 @@ def _cyclic_transpose(x: torch.Tensor, ndim: int) -> torch.Tensor:
     return x.permute(perm).contiguous()
 
 
-def _gemm_ndim1(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-    """``gemm(a,b, ndim=1, batch_ndim=0)`` for 3D tensors."""
-    return torch.einsum("...ka,...db->...kb", a, b)
-
-
-def _gemm_ndim2(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-    """``gemm(a,b, ndim=2, batch_ndim=0)`` for 4D ``b``."""
-    return torch.einsum("...xy,...xydb->...db", a, b)
-
-
 def _pt_rms_norm(x: torch.Tensor, gamma: torch.Tensor, eps: float) -> torch.Tensor:
     rms = torch.rsqrt(x.pow(2).mean(dim=-1, keepdim=True) + eps)
     return x * rms * gamma
