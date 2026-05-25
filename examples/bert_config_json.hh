@@ -40,7 +40,7 @@ inline model::bert::BertConfig load_bert_config_json(std::string const &path)
     cfg.max_position_embeddings = config_get_int(
         j, "max_position_embeddings", 512);
     cfg.type_vocab_size = config_get_int(j, "type_vocab_size", 2);
-    cfg.layer_norm_eps = config_get_float(j, "layer_norm_eps", 1e-5f);
+    cfg.layer_norm_eps = config_get_float(j, "layer_norm_eps", 1e-12f);
     cfg.intermediate_size = config_get_int(j, "intermediate_size", 0);
     if (cfg.intermediate_size <= 0)
     {

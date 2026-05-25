@@ -35,7 +35,7 @@ struct BertConfig
     Index max_position_embeddings = 512;
     Index type_vocab_size = 2;
 
-    float layer_norm_eps = 1e-5f;
+    float layer_norm_eps = 1e-12f;
 
     std::string hidden_act = "gelu";
 
