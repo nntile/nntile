@@ -25,13 +25,14 @@ TEST_CASE("T5Config default values", "[model][t5]")
     REQUIRE(config.head_dim() == 64);
 }
 
-TEST_CASE("T5Config head_dim", "[model][t5]")
+TEST_CASE("T5Config head_dim and inner_dim", "[model][t5]")
 {
     T5Config config;
     config.d_model = 64;
     config.num_heads = 4;
     config.d_kv = 16;
     REQUIRE(config.head_dim() == 16);
+    REQUIRE(config.inner_dim() == 64);
 }
 
 TEST_CASE("T5Config validate", "[model][t5]")
@@ -43,11 +44,24 @@ TEST_CASE("T5Config validate", "[model][t5]")
     REQUIRE_NOTHROW(config.validate());
 }
 
-TEST_CASE("T5Config validate fails on bad d_kv", "[model][t5]")
+TEST_CASE(
+    "T5Config validate allows d_kv independent of d_model",
+    "[model][t5]")
+{
+    T5Config config;
+    config.d_model = 512;
+    config.num_heads = 6;
+    config.d_kv = 64;
+    REQUIRE(config.inner_dim() == 384);
+    REQUIRE(config.inner_dim() != config.d_model);
+    REQUIRE_NOTHROW(config.validate());
+}
+
+TEST_CASE("T5Config validate fails on non-positive d_kv", "[model][t5]")
 {
     T5Config config;
     config.d_model = 64;
     config.num_heads = 4;
-    config.d_kv = 15;
+    config.d_kv = 0;
     REQUIRE_THROWS(config.validate());
 }

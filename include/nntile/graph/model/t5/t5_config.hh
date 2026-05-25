@@ -49,24 +49,35 @@ struct T5Config
 
     std::string name = "t5";
 
-    //! Compute head_dim from d_model and num_heads
+    //! Per-head key/value projection size (HF ``d_kv``).
     Index head_dim() const
     {
-        return d_model / num_heads;
+        return d_kv;
+    }
+
+    //! Inner attention dimension ``num_heads * d_kv`` (HF Q/K/V out features).
+    Index inner_dim() const
+    {
+        return num_heads * d_kv;
     }
 
     //! Validate configuration
     void validate() const
     {
-        if(d_model % num_heads != 0)
+        if(d_model <= 0)
         {
             throw std::invalid_argument(
-                "T5Config: d_model must be divisible by num_heads");
+                "T5Config: d_model must be positive");
         }
-        if(d_kv * num_heads != d_model)
+        if(num_heads <= 0)
         {
             throw std::invalid_argument(
-                "T5Config: d_kv * num_heads must equal d_model");
+                "T5Config: num_heads must be positive");
+        }
+        if(d_kv <= 0)
+        {
+            throw std::invalid_argument(
+                "T5Config: d_kv must be positive");
         }
     }
 };
