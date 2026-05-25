@@ -137,6 +137,7 @@ def _gptneo_attn_weights(
 def _gptneo_mlp_weights(mlp: PtMLP, prefix: str) -> dict[str, np.ndarray]:
     return {
         f"{prefix}.fc1.weight": fortran_order(
+            # HF nn.Linear: transpose for Fortran GEMM (GPT-2 Conv1D differs)
             mlp.c_fc.weight.detach().numpy().T),
         f"{prefix}.fc2.weight": fortran_order(
             mlp.c_proj.weight.detach().numpy().T),

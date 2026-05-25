@@ -12,6 +12,9 @@
  * Architecture: down_proj(GELU(up_proj(x)))
  * GPT-Neo uses gelutanh activation (GELU with tanh approximation).
  *
+ * HF uses ``nn.Linear`` (not GPT-2 ``Conv1D``); fixtures transpose weights
+ * (``.T``) when writing safetensors so Fortran-order GEMM matches PyTorch.
+ *
  * @version 1.1.0
  * */
 

@@ -10,9 +10,12 @@
  * */
 
 #include <catch2/catch_test_macros.hpp>
+#include <nlohmann/json.hpp>
 
 #include "nntile/graph/model/gptneo/gptneo_config.hh"
+#include "nntile/graph/model/gptneo/gptneo_config_json.hh"
 
+using nntile::Index;
 using namespace nntile::model::gptneo;
 
 TEST_CASE("GptneoConfig default values", "[model][gptneo]")
@@ -49,4 +52,47 @@ TEST_CASE("GptneoConfig validate fails on bad head_dim", "[model][gptneo]")
     config.num_attention_heads = 8;
     config.head_dim = 63;
     REQUIRE_THROWS(config.validate());
+}
+
+TEST_CASE("GptneoConfig build_attention_layers default", "[model][gptneo]")
+{
+    GptneoConfig config;
+    config.num_hidden_layers = 4;
+    config.build_attention_layers();
+    REQUIRE(config.attention_layers.size() == 4);
+    REQUIRE(config.attention_layers[0] == "global");
+    REQUIRE(config.attention_layers[1] == "local");
+    REQUIRE(config.is_local_attention_layer(1));
+    REQUIRE_FALSE(config.is_local_attention_layer(0));
+}
+
+TEST_CASE(
+    "GptneoConfig parse attention_types matches HuggingFace expand",
+    "[model][gptneo]")
+{
+    nlohmann::json j = {
+        {"num_hidden_layers", 12},
+        {"attention_types", {{{"global", "local"}, 6}}}};
+    GptneoConfig config;
+    config.num_hidden_layers = 12;
+    parse_gptneo_attention_layers(j, config);
+    REQUIRE(config.attention_layers.size() == 12);
+    for (Index i = 0; i < 12; ++i)
+    {
+        REQUIRE(
+            config.attention_layers[static_cast<std::size_t>(i)] ==
+            (i % 2 == 0 ? "global" : "local"));
+    }
+}
+
+TEST_CASE(
+    "GptneoConfig parse attention_layers array round-trip",
+    "[model][gptneo]")
+{
+    nlohmann::json j = {
+        {"attention_layers", {"global", "local", "global"}}};
+    GptneoConfig config;
+    parse_gptneo_attention_layers(j, config);
+    REQUIRE(config.attention_layers.size() == 3);
+    REQUIRE(config.attention_layers[2] == "global");
 }

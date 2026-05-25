@@ -79,6 +79,7 @@ add_from_tensor() {
     done
 }
 
+# GPT-Neo graph model: run all block tests when shared code changes.
 add_gptneo_model_tests() {
     for t in gptneo_config gptneo_mlp gptneo_attention gptneo_decoder \
              gptneo_model gptneo_causal; do
@@ -201,6 +202,11 @@ while IFS= read -r file; do
         include/nntile/graph/model/gptneo/*.hh)
             affected["tests_graph_model_$(basename "$file" .hh)"]=1 ;;
         include/nntile/graph/model/gptneo.hh)
+            add_gptneo_model_tests ;;
+        include/nntile/graph/model/gptneo/gptneo_config_json.hh)
+            add_gptneo_model_tests ;;
+        examples/gptneo_config_json.hh | examples/gptneo_generate.cc |
+        examples/gptneo_graph_training.cc | examples/gptneo_generate.py)
             add_gptneo_model_tests ;;
     esac
 done <<< "$all_changed"

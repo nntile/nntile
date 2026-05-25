@@ -2,6 +2,10 @@
 
 Tests for the NNTile C++ GPT-Neo graph model components. Reference data is stored in safetensors (no Python wrappers at test runtime).
 
+## Naming
+
+Same convention as GPT-2 and Llama: types `Gptneo*` (e.g. `GptneoModel`), directory `gptneo/`, namespace `nntile::model::gptneo`. Human-readable docs may say "GPT-Neo".
+
 ## Layout
 
 Tensors use **(hidden_size, seq, batch)** in Fortran (column-major) order unless noted. Embeddings take `input_ids` and `position_ids` with shape `(seq, batch)`. `GptneoCausal` outputs logits `(vocab_size, seq, batch)`.
@@ -13,8 +17,8 @@ Shared building blocks used by GPT-Neo (not covered only inside model tests):
 - **layer_norm** (module): `tests/graph/module/layer_norm.cc`
 - **gelutanh** (NN op): used by `GptneoMLP`
 
-- **gptneo_config**: `GptneoConfig` validation and defaults
-- **gptneo_mlp**: `GptneoMLP` forward, roundtrip, PyTorch forward/backward
+- **gptneo_config**: `GptneoConfig` validation, `attention_layers` / HF `attention_types` JSON parsing
+- **gptneo_mlp**: `GptneoMLP` forward, roundtrip, PyTorch forward/backward (HF `nn.Linear` weights transposed in fixtures; GPT-2 uses `Conv1D` without `.T`)
 - **gptneo_attention**: forward, roundtrip, PyTorch forward/backward (`[nomask]`, `[causal]`, `[local]`)
 - **gptneo_decoder**: `GptneoDecoder` forward, roundtrip, PyTorch forward/backward
 - **gptneo_model**: `GptneoModel` forward, roundtrip, PyTorch forward/backward

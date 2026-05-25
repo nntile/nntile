@@ -9,6 +9,9 @@
  * @file include/nntile/graph/model/gptneo.hh
  * Convenience header for GPT-Neo model components.
  *
+ * Naming follows ``Gpt2*`` / ``Llama*``: PascalCase type prefix ``Gptneo``,
+ * lowercase paths ``gptneo/``, namespace ``nntile::model::gptneo``.
+ *
  * @version 1.1.0
  * */
 

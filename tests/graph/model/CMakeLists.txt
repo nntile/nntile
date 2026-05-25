@@ -12,7 +12,7 @@
 set(LLAMA_DATA_DIR "${CMAKE_CURRENT_BINARY_DIR}/llama_data")
 find_package(Python3 COMPONENTS Interpreter QUIET)
 # Prefer venv Python (has torch, transformers, safetensors); fallback to system
-set(LLAMA_DATA_PYTHON "${Python3_EXECUTABLE}")
+set(GRAPH_MODEL_DATA_PYTHON "${Python3_EXECUTABLE}")
 
 set(LLAMA_GENERATE_SCRIPT
     "${CMAKE_CURRENT_SOURCE_DIR}/llama/generate_test_data.py")
@@ -58,7 +58,7 @@ foreach(test_path IN LISTS TESTS_MODEL)
         )
         if(Python3_Interpreter_FOUND)
             add_test(NAME tests_graph_model_${test_name}_data_setup
-                COMMAND "${LLAMA_DATA_PYTHON}" "${LLAMA_GENERATE_SCRIPT}"
+                COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${LLAMA_GENERATE_SCRIPT}"
                     --block "${block_name}" --output "${LLAMA_DATA_DIR}"
                     --seed 42
                 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
@@ -74,7 +74,7 @@ foreach(test_path IN LISTS TESTS_MODEL)
             # GQA data fixture (for blocks with attention)
             if(NOT block_name STREQUAL "mlp")
                 add_test(NAME tests_graph_model_${test_name}_gqa_data_setup
-                    COMMAND "${LLAMA_DATA_PYTHON}" "${LLAMA_GENERATE_SCRIPT}"
+                    COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${LLAMA_GENERATE_SCRIPT}"
                         --block "${block_name}_gqa"
                         --output "${LLAMA_DATA_DIR}" --seed 42
                     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
@@ -94,7 +94,7 @@ foreach(test_path IN LISTS TESTS_MODEL)
             # Extra LlamaAttention safetensors (no-RoPE / causal / both) for graph tests
             if(test_name STREQUAL "llama_attention")
                 add_test(NAME tests_graph_model_llama_attention_variant_data_setup
-                    COMMAND "${LLAMA_DATA_PYTHON}" "${LLAMA_GENERATE_SCRIPT}"
+                    COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${LLAMA_GENERATE_SCRIPT}"
                         --write-attention-rope-mask-variants
                         --output "${LLAMA_DATA_DIR}" --seed 42
                     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
@@ -157,7 +157,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPT2)
         )
         if(Python3_Interpreter_FOUND)
             add_test(NAME tests_graph_model_${test_name}_data_setup
-                COMMAND "${LLAMA_DATA_PYTHON}" "${GPT2_GENERATE_SCRIPT}"
+                COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPT2_GENERATE_SCRIPT}"
                     --block "${block_name}" --output "${GPT2_DATA_DIR}"
                     --seed 42
                 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
@@ -172,7 +172,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPT2)
 
             if(test_name STREQUAL "gpt2_attention")
                 add_test(NAME tests_graph_model_gpt2_attention_causal_data_setup
-                    COMMAND "${LLAMA_DATA_PYTHON}" "${GPT2_GENERATE_SCRIPT}"
+                    COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPT2_GENERATE_SCRIPT}"
                         --block attention_causal
                         --output "${GPT2_DATA_DIR}" --seed 42
                     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
@@ -194,7 +194,6 @@ foreach(test_path IN LISTS TESTS_MODEL_GPT2)
         endif()
     endif()
 endforeach()
-
 # GPT-Neo test data: generated at test time via CTest fixtures (one per block)
 set(GPTNEO_DATA_DIR "${CMAKE_CURRENT_BINARY_DIR}/gptneo_data")
 set(GPTNEO_GENERATE_SCRIPT
@@ -234,7 +233,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
         )
         if(Python3_Interpreter_FOUND)
             add_test(NAME tests_graph_model_${test_name}_data_setup
-                COMMAND "${LLAMA_DATA_PYTHON}" "${GPTNEO_GENERATE_SCRIPT}"
+                COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPTNEO_GENERATE_SCRIPT}"
                     --block "${block_name}" --output "${GPTNEO_DATA_DIR}"
                     --seed 42
                 WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
@@ -249,7 +248,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
 
             if(test_name STREQUAL "gptneo_attention")
                 add_test(NAME tests_graph_model_gptneo_attention_causal_data_setup
-                    COMMAND "${LLAMA_DATA_PYTHON}" "${GPTNEO_GENERATE_SCRIPT}"
+                    COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPTNEO_GENERATE_SCRIPT}"
                         --block attention_causal
                         --output "${GPTNEO_DATA_DIR}" --seed 42
                     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
@@ -265,7 +264,7 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
                 list(APPEND required_fixtures
                     "tests_graph_model_gptneo_attention_causal_data")
                 add_test(NAME tests_graph_model_gptneo_attention_local_data_setup
-                    COMMAND "${LLAMA_DATA_PYTHON}" "${GPTNEO_GENERATE_SCRIPT}"
+                    COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPTNEO_GENERATE_SCRIPT}"
                         --block attention_local
                         --output "${GPTNEO_DATA_DIR}" --seed 42
                     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"

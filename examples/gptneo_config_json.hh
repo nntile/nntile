@@ -18,6 +18,7 @@
 
 #include <nlohmann/json.hpp>
 #include <nntile/graph/model/gptneo/gptneo_config.hh>
+#include <nntile/graph/model/gptneo/gptneo_config_json.hh>
 
 #include <fstream>
 #include <stdexcept>
@@ -25,69 +26,6 @@
 
 namespace nntile::examples
 {
-
-inline void parse_gptneo_attention_layers(
-    nlohmann::json const &j,
-    model::gptneo::GptneoConfig &cfg)
-{
-    if (j.contains("attention_layers") && j["attention_layers"].is_array())
-    {
-        cfg.attention_layers.clear();
-        for (auto const &entry : j["attention_layers"])
-        {
-            if (!entry.is_string())
-            {
-                throw std::runtime_error(
-                    "config: attention_layers entries must be strings");
-            }
-            cfg.attention_layers.push_back(entry.get<std::string>());
-        }
-        return;
-    }
-    if (!j.contains("attention_types") || !j["attention_types"].is_array())
-    {
-        return;
-    }
-    cfg.attention_layers.clear();
-    for (auto const &group : j["attention_types"])
-    {
-        if (!group.is_array() || group.size() != 2)
-        {
-            throw std::runtime_error(
-                "config: attention_types must be [[types], count], ...");
-        }
-        auto const &types = group[0];
-        int count = group.at(1).get<int>();
-        if (!types.is_array() || count <= 0)
-        {
-            throw std::runtime_error(
-                "config: invalid attention_types group");
-        }
-        std::string layer_type = "global";
-        if (types.size() == 1 && types[0].is_string())
-        {
-            layer_type = types[0].get<std::string>();
-        }
-        else if (types.size() >= 2)
-        {
-            for (int i = 0; i < count && i < static_cast<int>(types.size()); ++i)
-            {
-                if (!types[i].is_string())
-                {
-                    throw std::runtime_error(
-                        "config: attention_types type must be string");
-                }
-                cfg.attention_layers.push_back(types[i].get<std::string>());
-            }
-            continue;
-        }
-        for (int i = 0; i < count; ++i)
-        {
-            cfg.attention_layers.push_back(layer_type);
-        }
-    }
-}
-
 
 //! Load ``GptneoConfig`` from JSON (``gptneo_generate.py``, training save, HF).
 inline model::gptneo::GptneoConfig load_gptneo_config_json(std::string const &path)
@@ -128,14 +66,14 @@ inline model::gptneo::GptneoConfig load_gptneo_config_json(std::string const &pa
     {
         cfg.name = j["name"].get<std::string>();
     }
-    parse_gptneo_attention_layers(j, cfg);
+    model::gptneo::parse_gptneo_attention_layers(j, cfg);
     cfg.build_attention_layers();
     cfg.compute_head_dim();
     cfg.validate();
     return cfg;
 }
 
-//! Write ``GptneoConfig`` for training checkpoints (HF ``layer_norm_epsilon`` key).
+//! Write ``GptneoConfig`` for training checkpoints (HF ``layer_norm_epsilon``).
 inline void save_gptneo_config_json(
     model::gptneo::GptneoConfig const &cfg,
     std::string const &path)
