@@ -225,7 +225,13 @@ while IFS= read -r file; do
             add_t5_model_tests ;;
         include/nntile/graph/model/t5.hh)
             add_t5_model_tests ;;
-        examples/t5_generate.cc | examples/t5_generate.py)
+        examples/t5_generate.cc | examples/t5_generate.py |
+        examples/t5_graph_training.cc | examples/t5_config_json.hh |
+        examples/prepare_tiny_seq2seq_train_bin.py |
+        examples/run_t5_graph_training_demo.sh)
+            add_t5_model_tests ;;
+        src/graph/dataset/seq2seq_lm_mmap.cc |
+        include/nntile/graph/dataset/seq2seq_lm_mmap.hh)
             add_t5_model_tests ;;
     esac
 done <<< "$all_changed"

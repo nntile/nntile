@@ -130,3 +130,8 @@ add_example(TARGET_NAME examples_t5_generate
     EXEC_NAME "t5_generate"
     SOURCES "t5_generate.cc"
     LINK_LIBRARIES nntile)
+
+add_example(TARGET_NAME examples_t5_graph_training
+    EXEC_NAME "t5_graph_training"
+    SOURCES "t5_graph_training.cc"
+    LINK_LIBRARIES nntile)

@@ -9,6 +9,7 @@ incremental training phases) and small Llama / GPT-2 workflows.
 - `json_config_helpers.hh` — `config_get_int` / `config_get_float` for JSON configs
   (used by GPT-2 and Llama graph examples).
 - `gpt2_config_json.hh` — `load_gpt2_config_json` / `save_gpt2_config_json` (HF + NNTile keys).
+- `t5_config_json.hh` — `load_t5_config_json` / `save_t5_config_json` for T5 graph examples.
 - `gptneo_config_json.hh` — load/save for examples; HF `attention_types` parsing lives in `include/nntile/graph/model/gptneo/gptneo_config_json.hh`.
 
 Build all examples from the repository root:
@@ -46,6 +47,13 @@ cmake --build build --target gpt2_graph_training gpt2_generate
 ./examples/run_gpt2_graph_training_demo.sh
 ```
 
+**T5**
+
+```bash
+cmake --build build --target t5_graph_training t5_generate
+./examples/run_t5_graph_training_demo.sh
+```
+
 Each script writes data under `build/examples/demo_data/<model>/` and prints a
 short loss summary (first vs last step). Tune without editing the script:
 
@@ -57,7 +65,9 @@ EPOCHS=6 MAX_BATCHES=48 LR=0.005 ./examples/run_llama_graph_training_demo.sh
 |----------------|---------|----------------------------------------------|
 | `BUILD_DIR`    | `build` | CMake build directory                        |
 | `DATA_DIR`     | auto    | Output folder for `train.bin` and logs       |
-| `SEQ_LEN`      | `8`     | Passed to `--seq`                            |
+| `SEQ_LEN`      | `8`     | Passed to `--seq` (causal demos)             |
+| `ENC_SEQ_LEN`  | `8`     | T5 encoder length (`--enc-seq`)                |
+| `DEC_SEQ_LEN`  | `8`     | T5 decoder length (`--dec-seq`)                |
 | `BATCH_SIZE`   | `2`     | Passed to `--batch`                            |
 | `NUM_BATCHES`  | `8`     | Batches stored in `train.bin`                |
 | `EPOCHS`       | `4`     | Full passes over `train.bin`                 |
@@ -70,6 +80,14 @@ Data prep only (offline, no HuggingFace):
 python3 examples/prepare_tiny_train_bin.py \
     --output build/examples/demo_data/llama/train.bin \
     --seq-len 8 --batch-size 2 --num-batches 8
+```
+
+T5 seq2seq windows (encoder + decoder segments per batch):
+
+```bash
+python3 examples/prepare_tiny_seq2seq_train_bin.py \
+    --output build/examples/demo_data/t5/train.bin \
+    --enc-seq-len 8 --dec-seq-len 8 --batch-size 2 --num-batches 8
 ```
 
 For **real text**, tokenize with
@@ -183,6 +201,40 @@ Or let the binary invoke the Python converter:
     --model EleutherAI/gpt-neo-125M \
     --prompt "Hello" \
     --max-tokens 16
+```
+
+## T5
+
+| Artifact | Role |
+|----------|------|
+| `t5_graph_training` | Seq2seq training on mmap `train.bin` (encoder-decoder, AdamW) |
+| `run_t5_graph_training_demo.sh` | Tiny seq2seq data + multi-epoch demo |
+| `t5_graph_training.cc` | Full CLI (`--tiny`, `--enc-seq`, `--dec-seq`, …) |
+| `prepare_tiny_seq2seq_train_bin.py` | Offline `uint16` train.bin for demos |
+| `t5_generate` | Autoregressive decoding (encoder + decoder steps) |
+| `t5_generate.py` | HF T5 → weights + token ids |
+
+Example (manual training):
+
+```bash
+./build/examples/t5_graph_training \
+    --train-bin build/examples/demo_data/t5/train.bin \
+    --tiny --enc-seq 8 --dec-seq 8 --batch 2 --epochs 3 \
+    --max-batches 24 --lr 0.003
+```
+
+Example (generation):
+
+```bash
+python3 examples/t5_generate.py --model google/flan-t5-small \
+    --output-dir /tmp/nntile_t5 \
+    --encoder-prompt "translate English to German: Hello"
+./build/examples/t5_generate \
+    --config /tmp/nntile_t5/config.json \
+    --weights /tmp/nntile_t5/weights.safetensors \
+    --encoder-ids "$(cat /tmp/nntile_t5/encoder_ids.txt)" \
+    --decoder-ids "$(cat /tmp/nntile_t5/decoder_ids.txt)" \
+    --max-tokens 32
 ```
 
 ## Other graph / autograd examples

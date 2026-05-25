@@ -676,6 +676,7 @@ set(GRAPH_MODULE_HDR
 
 set(GRAPH_DATASET_HDR
     "nntile/graph/dataset/causal_lm_mmap.hh"
+    "nntile/graph/dataset/seq2seq_lm_mmap.hh"
     )
 
 set(GRAPH_MODEL_HDR

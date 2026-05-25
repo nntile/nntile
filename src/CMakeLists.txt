@@ -554,6 +554,7 @@ set(GRAPH_MODULE_SRC
 
 set(GRAPH_DATASET_SRC
     "graph/dataset/causal_lm_mmap.cc"
+    "graph/dataset/seq2seq_lm_mmap.cc"
     )
 
 set(GRAPH_MODEL_SRC
