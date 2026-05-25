@@ -113,6 +113,10 @@ while IFS= read -r file; do
             affected["tests_graph_io_$(basename "$file" .cc)"]=1 ;;
         tests/graph/model/llama/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+        tests/graph/model/gpt2/*.cc)
+            affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+        tests/graph/model/gptneo/*.cc)
+            affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         tests/graph/*.cc)
             affected["tests_graph_$(basename "$file" .cc)"]=1 ;;
 
@@ -182,6 +186,10 @@ while IFS= read -r file; do
         src/graph/model/gpt2/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         include/nntile/graph/model/gpt2/*.hh)
+            affected["tests_graph_model_$(basename "$file" .hh)"]=1 ;;
+        src/graph/model/gptneo/*.cc)
+            affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+        include/nntile/graph/model/gptneo/*.hh)
             affected["tests_graph_model_$(basename "$file" .hh)"]=1 ;;
     esac
 done <<< "$all_changed"
