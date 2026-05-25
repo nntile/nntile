@@ -105,6 +105,7 @@ inline bool try_load_causal_fixture_spec(const std::string &data_dir,
     {
         return false;
     }
+    prepare_gptneo_config(out.config);
     return true;
 }
 

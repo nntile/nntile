@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/model/gptneo/gptneo_causal.hh"
-#include "nntile/graph/nn/transpose.hh"
+#include "nntile/graph/nn/ops/gemm.hh"
 
 #include <stdexcept>
 
@@ -31,6 +31,7 @@ GptneoCausal::GptneoCausal(graph::NNGraph* graph,
     , config_(config)
     , dtype_(dtype)
 {
+    config_.validate();
     register_module("model", model_.get());
     register_module("lm_head", &lm_head_);
 }
@@ -40,13 +41,30 @@ graph::NNGraph::TensorNode* GptneoCausal::forward(
     graph::NNGraph::TensorNode* position_ids,
     graph::NNGraph::TensorNode* mask)
 {
+    if(input_ids == nullptr)
+    {
+        throw std::invalid_argument(
+            "GptneoCausal::forward: input_ids must be non-null");
+    }
+    if(position_ids == nullptr)
+    {
+        throw std::invalid_argument(
+            "GptneoCausal::forward: position_ids must be non-null");
+    }
+
     graph::NNGraph::TensorNode* hidden =
         model_->forward(input_ids, position_ids, mask);
 
-    graph::NNGraph::TensorNode* hidden_t =
-        graph::transpose(hidden, tensor_name("hidden_t"), 1);
-    graph::NNGraph::TensorNode* logits_sbv = lm_head_.forward(hidden_t);
-    return graph::transpose(logits_sbv, tensor_name("logits"), 2);
+    graph::NNGraph::TensorNode* logits =
+        graph::gemm(lm_head_.weight_tensor(),
+            hidden,
+            1.0,
+            true,
+            false,
+            1,
+            0);
+    logits->set_name(tensor_name("logits"));
+    return logits;
 }
 
 std::string GptneoCausal::repr() const

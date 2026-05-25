@@ -115,6 +115,7 @@ inline bool try_load_attention_fixture_spec(const std::string &data_dir,
     {
         return false;
     }
+    prepare_gptneo_config(out.config);
     return true;
 }
 

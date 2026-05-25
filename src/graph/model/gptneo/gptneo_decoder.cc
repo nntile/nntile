@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/model/gptneo/gptneo_decoder.hh"
-#include "nntile/graph/nn/add.hh"
+#include "nntile/graph/nn/ops/add.hh"
 
 #include <stdexcept>
 
@@ -34,6 +34,7 @@ GptneoDecoder::GptneoDecoder(graph::NNGraph* graph,
     , config_(config)
     , dtype_(dtype)
 {
+    config_.validate();
     register_module("input_norm", &input_norm_);
     register_module("self_attn", &attention_);
     register_module("post_attn_norm", &post_attn_norm_);
@@ -55,12 +56,16 @@ graph::NNGraph::TensorNode* GptneoDecoder::forward(
         attention_.forward(x_norm, mask);
 
     graph::NNGraph::TensorNode* post_attn =
-        graph::add(1.0, x, 1.0, attn_out, tensor_name("post_attn"));
+        graph::add(1.0, x, 1.0, attn_out);
+    post_attn->set_name(tensor_name("post_attn"));
 
     graph::NNGraph::TensorNode* mlp_in = post_attn_norm_.forward(post_attn);
     graph::NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
 
-    return graph::add(1.0, post_attn, 1.0, mlp_out, tensor_name("decoder_out"));
+    graph::NNGraph::TensorNode* out =
+        graph::add(1.0, post_attn, 1.0, mlp_out);
+    out->set_name(tensor_name("decoder_out"));
+    return out;
 }
 
 std::string GptneoDecoder::repr() const

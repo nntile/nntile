@@ -13,8 +13,8 @@
  * */
 
 #include "nntile/graph/model/gptneo/gptneo_model.hh"
-#include "nntile/graph/nn/add.hh"
-#include "nntile/graph/nn/transpose.hh"
+#include "nntile/graph/nn/ops/add.hh"
+#include "nntile/graph/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -37,6 +37,7 @@ GptneoModel::GptneoModel(graph::NNGraph* graph,
     , config_(config)
     , dtype_(dtype)
 {
+    config_.validate();
     register_module("wte", &wte_);
     register_module("wpe", &wpe_);
     register_module("norm", &norm_);
@@ -60,25 +61,20 @@ graph::NNGraph::TensorNode* GptneoModel::forward(
         throw std::invalid_argument(
             "GptneoModel::forward: input_ids must be non-null");
     }
-
-    graph::NNGraph::TensorNode* token_embed = wte_.forward(input_ids);
-
-    graph::NNGraph::TensorNode* pos_embed;
-    if(position_ids != nullptr)
-    {
-        pos_embed = wpe_.forward(position_ids);
-    }
-    else
+    if(position_ids == nullptr)
     {
         throw std::invalid_argument(
             "GptneoModel::forward: position_ids required for GPT-Neo");
     }
 
+    graph::NNGraph::TensorNode* token_embed = wte_.forward(input_ids);
+    graph::NNGraph::TensorNode* pos_embed = wpe_.forward(position_ids);
     graph::NNGraph::TensorNode* embed =
-        graph::add(1.0, token_embed, 1.0, pos_embed, tensor_name("embed"));
+        graph::add(1.0, token_embed, 1.0, pos_embed);
+    embed->set_name(tensor_name("embed"));
 
-    graph::NNGraph::TensorNode* x =
-        graph::transpose(embed, tensor_name("embed_out"), 2);
+    graph::NNGraph::TensorNode* x = graph::transpose(embed, 2);
+    x->set_name(tensor_name("embed_out"));
 
     for(auto& layer : layers_)
     {
@@ -87,6 +83,7 @@ graph::NNGraph::TensorNode* GptneoModel::forward(
 
     return norm_.forward(x);
 }
+
 
 std::string GptneoModel::repr() const
 {

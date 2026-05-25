@@ -21,8 +21,17 @@
 #include <stdexcept>
 #include <vector>
 
+#include <nntile/graph/model/gptneo/gptneo_config.hh>
+
+
 namespace nntile::test::gptneo_fixture
 {
+
+inline void prepare_gptneo_config(model::gptneo::GptneoConfig &cfg)
+{
+    cfg.compute_head_dim();
+    cfg.validate();
+}
 
 inline Index json_index(const nlohmann::json &o, const char *key)
 {
