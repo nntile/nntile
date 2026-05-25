@@ -587,6 +587,16 @@ set(GRAPH_MODEL_SRC
     "graph/model/t5/t5_block.cc"
     "graph/model/t5/t5_model.cc"
     "graph/model/t5/t5_for_conditional_generation.cc"
+    "graph/model/bert/bert_self_attention.cc"
+    "graph/model/bert/bert_self_output.cc"
+    "graph/model/bert/bert_attention.cc"
+    "graph/model/bert/bert_intermediate.cc"
+    "graph/model/bert/bert_output.cc"
+    "graph/model/bert/bert_layer.cc"
+    "graph/model/bert/bert_embeddings.cc"
+    "graph/model/bert/bert_model.cc"
+    "graph/model/bert/bert_mlm_head.cc"
+    "graph/model/bert/bert_mlm.cc"
     )
 
 set(GRAPH_OPTIM_SRC
