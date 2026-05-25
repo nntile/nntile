@@ -13,9 +13,7 @@
  * */
 
 #include "nntile/graph/model/gptneox/gptneox_mlp.hh"
-#include "nntile/graph/nn/transpose.hh"
-
-#include <stdexcept>
+#include "nntile/graph/nn/ops/gemm.hh"
 
 namespace nntile::model::gptneox
 {
@@ -36,12 +34,16 @@ GptneoxMlp::GptneoxMlp(graph::NNGraph* graph,
 graph::NNGraph::TensorNode* GptneoxMlp::forward(
     graph::NNGraph::TensorNode* input)
 {
-    // Transpose (hidden, seq, batch) -> (seq, batch, hidden) for Mlp (ndim=1)
-    graph::NNGraph::TensorNode* x =
-        graph::transpose(input, tensor_name("x"), 1);
-    graph::NNGraph::TensorNode* out = graph::module::Mlp::forward(x);
-    // Transpose back to (hidden, seq, batch) (ndim=2)
-    return graph::transpose(out, tensor_name("mlp_out"), 2);
+    graph::NNGraph::TensorNode* w1 = fc1().weight_tensor();
+    graph::NNGraph::TensorNode* hidden =
+        graph::gemm(w1, input, 1.0, true, false, 1, 0);
+    hidden->set_name(tensor_name("fc1_out"));
+    hidden = activation().forward(hidden);
+    graph::NNGraph::TensorNode* w2 = fc2().weight_tensor();
+    graph::NNGraph::TensorNode* out =
+        graph::gemm(w2, hidden, 1.0, true, false, 1, 0);
+    out->set_name(tensor_name("mlp_out"));
+    return out;
 }
 
 std::string GptneoxMlp::repr() const

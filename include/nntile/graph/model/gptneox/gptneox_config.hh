@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 // NNTile headers
 #include <nntile/base_types.hh>
@@ -48,6 +49,9 @@ struct GptneoxConfig
 
     std::string name = "gpt-neox";
 
+    //! Per-layer attention: "global" or "local". Empty -> HF default.
+    std::vector<std::string> attention_layers;
+
     //! Compute head_dim from hidden_size and num_attention_heads
     void compute_head_dim()
     {
@@ -56,6 +60,12 @@ struct GptneoxConfig
             head_dim = hidden_size / num_attention_heads;
         }
     }
+
+    //! Fill ``attention_layers`` when empty (odd layers local).
+    void build_attention_layers();
+
+    //! True when layer uses sliding-window (local) attention.
+    bool is_local_attention_layer(Index layer_id) const;
 
     //! Validate configuration
     void validate() const
@@ -71,6 +81,13 @@ struct GptneoxConfig
             throw std::invalid_argument(
                 "GptneoxConfig: head_dim must equal hidden_size / "
                 "num_attention_heads");
+        }
+        if(!attention_layers.empty() &&
+            static_cast<Index>(attention_layers.size()) != num_hidden_layers)
+        {
+            throw std::invalid_argument(
+                "GptneoxConfig: attention_layers size must match "
+                "num_hidden_layers");
         }
     }
 };

@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/model/gptneox/gptneox_model.hh"
-#include "nntile/graph/nn/transpose.hh"
+#include "nntile/graph/nn/ops/transpose.hh"
 
 #include <stdexcept>
 
@@ -33,6 +33,7 @@ GptneoxModel::GptneoxModel(graph::NNGraph* graph,
     , config_(config)
     , dtype_(dtype)
 {
+    config_.validate();
     register_module("embed_tokens", &embed_tokens_);
     register_module("norm", &norm_);
 
@@ -57,11 +58,9 @@ graph::NNGraph::TensorNode* GptneoxModel::forward(
             "GptneoxModel::forward: input_ids must be non-null");
     }
 
-    // Embedding: (seq, batch) -> (seq, batch, hidden)
     graph::NNGraph::TensorNode* embed = embed_tokens_.forward(input_ids);
-    // Transpose to (hidden, seq, batch) for decoder layers
-    graph::NNGraph::TensorNode* x =
-        graph::transpose(embed, tensor_name("embed_out"), 2);
+    graph::NNGraph::TensorNode* x = graph::transpose(embed, 2);
+    x->set_name(tensor_name("embed_out"));
 
     for(auto& layer : layers_)
     {

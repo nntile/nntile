@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/graph/model/gptneox/gptneox_decoder.hh"
-#include "nntile/graph/nn/add.hh"
+#include "nntile/graph/nn/ops/add.hh"
 
 #include <stdexcept>
 
@@ -34,6 +34,7 @@ GptneoxDecoder::GptneoxDecoder(graph::NNGraph* graph,
     , config_(config)
     , dtype_(dtype)
 {
+    config_.validate();
     register_module("input_norm", &input_norm_);
     register_module("attention", &attention_);
     register_module("post_attn_norm", &post_attn_norm_);
@@ -52,36 +53,37 @@ graph::NNGraph::TensorNode* GptneoxDecoder::forward(
             "GptneoxDecoder::forward: input tensor must be non-null");
     }
 
-    // input_norm -> attention
     graph::NNGraph::TensorNode* x_norm = input_norm_.forward(x);
     graph::NNGraph::TensorNode* attn_out =
         attention_.forward(x_norm, sin, cos, mask);
 
-    // residual: x + attn_out
     graph::NNGraph::TensorNode* post_attn =
-        graph::add(1.0, x, 1.0, attn_out, tensor_name("post_attn"));
+        graph::add(1.0, x, 1.0, attn_out);
+    post_attn->set_name(tensor_name("post_attn"));
 
     if(config_.use_parallel_residual)
     {
-        // Parallel residual: ln_2 normalizes x (not post_attn)
         graph::NNGraph::TensorNode* ln2_in = post_attn_norm_.forward(x);
         graph::NNGraph::TensorNode* mlp_out = mlp_.forward(ln2_in);
-        // post_mlp_add: mlp_out + post_attn
-        return graph::add(1.0, post_attn, 1.0, mlp_out, tensor_name("decoder_out"));
+        graph::NNGraph::TensorNode* out =
+            graph::add(1.0, post_attn, 1.0, mlp_out);
+        out->set_name(tensor_name("decoder_out"));
+        return out;
     }
-    else
-    {
-        // Sequential: post_attn_norm -> mlp
-        graph::NNGraph::TensorNode* mlp_in = post_attn_norm_.forward(post_attn);
-        graph::NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
-        return graph::add(1.0, post_attn, 1.0, mlp_out, tensor_name("decoder_out"));
-    }
+
+    graph::NNGraph::TensorNode* mlp_in = post_attn_norm_.forward(post_attn);
+    graph::NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
+    graph::NNGraph::TensorNode* out =
+        graph::add(1.0, post_attn, 1.0, mlp_out);
+    out->set_name(tensor_name("decoder_out"));
+    return out;
 }
 
 std::string GptneoxDecoder::repr() const
 {
     return "GptneoxDecoder(hidden=" + std::to_string(config_.hidden_size) +
-           ", parallel_residual=" + (config_.use_parallel_residual ? "true" : "false") + ")";
+           ", parallel_residual=" +
+           (config_.use_parallel_residual ? "true" : "false") + ")";
 }
 
 } // namespace nntile::model::gptneox

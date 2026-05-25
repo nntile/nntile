@@ -120,3 +120,8 @@ add_example(TARGET_NAME examples_gpt_neox_generate
     EXEC_NAME "gpt_neox_generate"
     SOURCES "gpt_neox_generate.cc"
     LINK_LIBRARIES nntile)
+
+add_example(TARGET_NAME examples_gptneox_graph_training
+    EXEC_NAME "gptneox_graph_training"
+    SOURCES "gptneox_graph_training.cc"
+    LINK_LIBRARIES nntile)
