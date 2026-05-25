@@ -26,25 +26,22 @@
 namespace nntile::model::gptneox
 {
 
-//! GPT-NeoXMLP - GPT-NeoX-style MLP using GELU activation
-//! Architecture: down_proj(GELU(up_proj(x)))
+//! GPT-NeoXMLP - MLP with GELU and HF ``dense_*`` biases (like ``Gpt2MLP``).
 class GptneoxMlp : public graph::module::Mlp
 {
+private:
+    graph::NNGraph::TensorNode* fc1_bias_ = nullptr;
+    graph::NNGraph::TensorNode* fc2_bias_ = nullptr;
+
 public:
-    //! Constructor
-    //! @param graph Pointer to the neural network graph
-    //! @param name Module name
-    //! @param config GPT-NeoX configuration
     GptneoxMlp(graph::NNGraph* graph,
                const std::string& name,
                const GptneoxConfig& config,
                graph::DataType dtype = graph::DataType::FP32);
 
-    //! Forward pass
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* input);
 
-    //! Get string representation
     std::string repr() const override;
 };
 

@@ -63,6 +63,7 @@ graph::NNGraph::TensorNode* GptneoxDecoder::forward(
 
     if(config_.use_parallel_residual)
     {
+        // HF: mlp(post_attention_layernorm(x)) + attn + x (not ln2(post_attn)).
         graph::NNGraph::TensorNode* ln2_in = post_attn_norm_.forward(x);
         graph::NNGraph::TensorNode* mlp_out = mlp_.forward(ln2_in);
         graph::NNGraph::TensorNode* out =
@@ -71,6 +72,7 @@ graph::NNGraph::TensorNode* GptneoxDecoder::forward(
         return out;
     }
 
+    // Sequential: ln2(post_attn) -> mlp, like GPT-Neo decoder block.
     graph::NNGraph::TensorNode* mlp_in = post_attn_norm_.forward(post_attn);
     graph::NNGraph::TensorNode* mlp_out = mlp_.forward(mlp_in);
     graph::NNGraph::TensorNode* out =

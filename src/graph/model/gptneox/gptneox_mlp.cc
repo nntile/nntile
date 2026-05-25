@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/graph/model/gptneox/gptneox_mlp.hh"
+#include "nntile/graph/nn/ops/add_fiber.hh"
 #include "nntile/graph/nn/ops/gemm.hh"
 
 namespace nntile::model::gptneox
@@ -29,6 +30,15 @@ GptneoxMlp::GptneoxMlp(graph::NNGraph* graph,
                          graph::module::ActivationType::GELU,
                          dtype)
 {
+    config.validate();
+
+    fc1_bias_ = graph_->tensor({config.intermediate_size}, dtype, true);
+    fc1_bias_->set_name(tensor_name("fc1.bias"));
+    register_parameter("fc1.bias", fc1_bias_);
+
+    fc2_bias_ = graph_->tensor({config.hidden_size}, dtype, true);
+    fc2_bias_->set_name(tensor_name("fc2.bias"));
+    register_parameter("fc2.bias", fc2_bias_);
 }
 
 graph::NNGraph::TensorNode* GptneoxMlp::forward(
@@ -38,10 +48,12 @@ graph::NNGraph::TensorNode* GptneoxMlp::forward(
     graph::NNGraph::TensorNode* hidden =
         graph::gemm(w1, input, 1.0, true, false, 1, 0);
     hidden->set_name(tensor_name("fc1_out"));
+    hidden = graph::add_fiber(1.0, fc1_bias_, 1.0, hidden, 0, 0);
     hidden = activation().forward(hidden);
     graph::NNGraph::TensorNode* w2 = fc2().weight_tensor();
     graph::NNGraph::TensorNode* out =
         graph::gemm(w2, hidden, 1.0, true, false, 1, 0);
+    out = graph::add_fiber(1.0, fc2_bias_, 1.0, out, 0, 0);
     out->set_name(tensor_name("mlp_out"));
     return out;
 }

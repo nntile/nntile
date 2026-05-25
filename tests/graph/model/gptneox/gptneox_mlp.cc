@@ -148,7 +148,7 @@ TEST_CASE("GptneoxMlp forward builds output", "[model][gptneox]")
     REQUIRE(output != nullptr);
     REQUIRE(
         output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
-    REQUIRE(mlp.parameters_recursive().size() == 2);
+    REQUIRE(mlp.parameters_recursive().size() == 4);
 }
 
 TEST_CASE("GptneoxMlp load from safetensors roundtrip", "[model][gptneox][io]")

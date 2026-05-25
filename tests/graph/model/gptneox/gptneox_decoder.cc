@@ -12,6 +12,7 @@
 #include "nntile/graph/model/gptneox/gptneox_decoder.hh"
 
 #include "context_fixture.hh"
+#include "nntile/graph/nn/ops/add.hh"
 #include "nntile/graph.hh"
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/gptneox/gptneox_config.hh"
@@ -19,6 +20,7 @@
 #include "test_gptneox_fixture_helpers.hh"
 
 #include <catch2/catch_test_macros.hpp>
+#include <cstring>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -110,6 +112,11 @@ inline bool try_load_decoder_fixture_spec(const std::string &data_dir,
         {
             out.config.rotary_emb_base =
                 static_cast<float>(G.at("rotary_emb_base").get<double>());
+        }
+        if(G.contains("use_parallel_residual"))
+        {
+            out.config.use_parallel_residual =
+                G.at("use_parallel_residual").get<bool>();
         }
         out.hidden = out.config.hidden_size;
         out.seq = json_index(j, "sequence_length");
@@ -260,6 +267,144 @@ void decoder_backward_compare_ref(const DecoderFixtureSpec &fx)
         grad_input_result, grad_input_ref, fx.backward_tol);
 }
 
+void decoder_run_and_compare_ref(
+    const DecoderFixtureSpec &fx,
+    const char *ref_tensor,
+    NNGraph &g,
+    graph::NNGraph::TensorNode *input,
+    graph::NNGraph::TensorNode *out,
+    const GptneoxRopeInputs *rope,
+    graph::NNGraph::TensorNode *mask,
+    const std::vector<std::uint8_t> *mask_bytes,
+    const std::vector<float> &input_data)
+{
+    const std::string full_path =
+        decoder_fixture_safetensors_path(std::string(GPTNEOX_DATA_DIR), fx);
+    SafeTensorsReader reader(full_path);
+    if(!reader.has_tensor(ref_tensor))
+    {
+        SKIP(std::string("Fixture missing intermediate tensor ") + ref_tensor);
+    }
+
+    input->mark_input(true);
+    out->mark_output(true);
+    if(rope != nullptr)
+    {
+        mark_rope_inputs(*rope);
+    }
+    mark_mask_input(mask);
+
+    TileGraph tile_graph = TileGraph::from_tensor_graph(g.tensor_graph());
+    Runtime runtime(tile_graph);
+    runtime.compile();
+    runtime.bind_data(input, input_data);
+    if(rope != nullptr)
+    {
+        bind_rope_inputs(runtime, *rope);
+    }
+    if(mask != nullptr && mask_bytes != nullptr)
+    {
+        bind_mask_input(runtime, mask, *mask_bytes);
+    }
+    runtime.execute();
+    runtime.wait();
+    std::vector<float> result = runtime.get_output<float>(out);
+
+    std::vector<std::uint8_t> ref_bytes = reader.read_tensor(ref_tensor);
+    std::vector<float> ref_data(ref_bytes.size() / sizeof(float));
+    std::memcpy(ref_data.data(), ref_bytes.data(), ref_bytes.size());
+    REQUIRE(result.size() == ref_data.size());
+    require_relative_frobenius_error(result, ref_data, fx.forward_tol);
+}
+
+void decoder_input_norm_compare_ref(const DecoderFixtureSpec &fx)
+{
+    const std::string full_path =
+        decoder_fixture_safetensors_path(std::string(GPTNEOX_DATA_DIR), fx);
+    SafeTensorsReader reader(full_path);
+    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
+    std::vector<float> input_data(input_bytes.size() / sizeof(float));
+    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
+
+    NNGraph g("decoder_input_norm");
+    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+                      ->set_name("input");
+    GptneoxDecoder decoder(&g, "decoder", fx.config);
+    decoder.load(full_path);
+    auto *out = decoder.input_norm().forward(input);
+    decoder_run_and_compare_ref(
+        fx, "input_norm_out", g, input, out, nullptr, nullptr, nullptr, input_data);
+}
+
+void decoder_attn_out_compare_ref(const DecoderFixtureSpec &fx)
+{
+    const std::string full_path =
+        decoder_fixture_safetensors_path(std::string(GPTNEOX_DATA_DIR), fx);
+    SafeTensorsReader reader(full_path);
+    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
+    std::vector<float> input_data(input_bytes.size() / sizeof(float));
+    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
+
+    NNGraph g("decoder_attn");
+    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+                      ->set_name("input");
+    GptneoxRopeInputs rope;
+    load_gptneox_rope_inputs(g, reader, fx.config, fx.seq, fx.batch, rope);
+    NNGraph::TensorNode *mask = nullptr;
+    std::vector<std::uint8_t> mask_bytes;
+    load_attn_mask_bool(g, reader, fx.seq, mask, mask_bytes);
+    GptneoxDecoder decoder(&g, "decoder", fx.config);
+    decoder.load(full_path);
+    auto *x_norm = decoder.input_norm().forward(input);
+    auto *out = decoder.attention().forward(x_norm, rope.sin, rope.cos, mask);
+    decoder_run_and_compare_ref(fx,
+        "attn_out",
+        g,
+        input,
+        out,
+        &rope,
+        mask,
+        &mask_bytes,
+        input_data);
+}
+
+void decoder_mlp_out_compare_ref(const DecoderFixtureSpec &fx)
+{
+    const std::string full_path =
+        decoder_fixture_safetensors_path(std::string(GPTNEOX_DATA_DIR), fx);
+    SafeTensorsReader reader(full_path);
+    std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
+    std::vector<float> input_data(input_bytes.size() / sizeof(float));
+    std::memcpy(input_data.data(), input_bytes.data(), input_bytes.size());
+
+    NNGraph g("decoder_mlp");
+    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+                      ->set_name("input");
+    GptneoxRopeInputs rope;
+    load_gptneox_rope_inputs(g, reader, fx.config, fx.seq, fx.batch, rope);
+    NNGraph::TensorNode *mask = nullptr;
+    std::vector<std::uint8_t> mask_bytes;
+    load_attn_mask_bool(g, reader, fx.seq, mask, mask_bytes);
+    GptneoxDecoder decoder(&g, "decoder", fx.config);
+    decoder.load(full_path);
+    auto *x_norm = decoder.input_norm().forward(input);
+    auto *attn_out =
+        decoder.attention().forward(x_norm, rope.sin, rope.cos, mask);
+    auto *post_attn = graph::add(1.0, input, 1.0, attn_out);
+    auto *mlp_in = fx.config.use_parallel_residual
+        ? decoder.post_attn_norm().forward(input)
+        : decoder.post_attn_norm().forward(post_attn);
+    auto *out = decoder.mlp().forward(mlp_in);
+    decoder_run_and_compare_ref(fx,
+        "mlp_out",
+        g,
+        input,
+        out,
+        &rope,
+        mask,
+        &mask_bytes,
+        input_data);
+}
 
 } // namespace
 
@@ -307,6 +452,39 @@ TEST_CASE("GptneoxDecoder load from safetensors roundtrip", "[model][gptneox][io
         REQUIRE(reader.read_tensor(name) == reader2.read_tensor(name));
     }
     std::remove(save_path.c_str());
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "GptneoxDecoder input_norm matches PyTorch reference", "[model][gptneox]")
+{
+    DecoderFixtureSpec fx;
+    if (!skip_unless_fixture_ready(decoder_fixture_stem::gptneox_decoder, fx))
+    {
+        SKIP("GPT-NeoX decoder fixture not found.");
+    }
+    decoder_input_norm_compare_ref(fx);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "GptneoxDecoder attention matches PyTorch reference", "[model][gptneox]")
+{
+    DecoderFixtureSpec fx;
+    if (!skip_unless_fixture_ready(decoder_fixture_stem::gptneox_decoder, fx))
+    {
+        SKIP("GPT-NeoX decoder fixture not found.");
+    }
+    decoder_attn_out_compare_ref(fx);
+}
+
+TEST_CASE_METHOD(nntile::test::ContextFixture,
+    "GptneoxDecoder mlp matches PyTorch reference", "[model][gptneox]")
+{
+    DecoderFixtureSpec fx;
+    if (!skip_unless_fixture_ready(decoder_fixture_stem::gptneox_decoder, fx))
+    {
+        SKIP("GPT-NeoX decoder fixture not found.");
+    }
+    decoder_mlp_out_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,

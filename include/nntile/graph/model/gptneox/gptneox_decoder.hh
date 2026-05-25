@@ -59,6 +59,8 @@ public:
 
     std::string repr() const override;
 
+    graph::module::LayerNorm& input_norm() { return input_norm_; }
+    graph::module::LayerNorm& post_attn_norm() { return post_attn_norm_; }
     GptneoxAttention& attention() { return attention_; }
     GptneoxMlp& mlp() { return mlp_; }
 };
