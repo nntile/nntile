@@ -24,14 +24,9 @@ import torch
 from safetensors.numpy import save_file
 from transformers import BertConfig
 from transformers.models.bert.modeling_bert import (
-    BertAttention as PtAttention,
-    BertEmbeddings as PtEmbeddings,
-    BertForMaskedLM as PtMlm,
-    BertIntermediate as PtIntermediate,
-    BertLayer as PtLayer,
-    BertModel as PtModel,
-    BertOutput as PtOutput,
-)
+    BertAttention as PtAttention, BertEmbeddings as PtEmbeddings,
+    BertForMaskedLM as PtMlm, BertIntermediate as PtIntermediate,
+    BertLayer as PtLayer, BertModel as PtModel)
 
 
 @dataclass
@@ -101,7 +96,7 @@ def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
 
 
 def _linear(linear, prefix: str) -> dict[str, np.ndarray]:
-    # PyTorch Linear weight is (out_features, in_features); NNTile Linear stores
+    # PyTorch Linear weight is (out_features, in_features); NNTile stores
     # (input_dim, output_dim) for gemm(..., transpose_A=true).
     d = {
         f"{prefix}.weight": fortran_order(linear.weight.detach().numpy().T),
@@ -237,7 +232,11 @@ def _bert_fixture_json(
 
 
 def write_fixture_json(
-    out: Path, stem: str, dims: TestDims, forward_tol: float, backward_tol: float,
+    out: Path,
+    stem: str,
+    dims: TestDims,
+    forward_tol: float,
+    backward_tol: float,
 ) -> None:
     path = out / f"{stem}.json"
     path.write_text(
@@ -343,13 +342,15 @@ def generate_embeddings(
 
 def _model_weights(model: PtModel, prefix: str, dims: TestDims):
     d = {}
-    d.update(_embed(model.embeddings.word_embeddings, f"{prefix}.embeddings.word"))
+    d.update(_embed(
+        model.embeddings.word_embeddings, f"{prefix}.embeddings.word"))
     d.update(_embed(
         model.embeddings.position_embeddings, f"{prefix}.embeddings.position"))
     d.update(_embed(
         model.embeddings.token_type_embeddings,
         f"{prefix}.embeddings.token_type"))
-    d.update(_layer_norm(model.embeddings.LayerNorm, f"{prefix}.embeddings.ln"))
+    d.update(_layer_norm(
+        model.embeddings.LayerNorm, f"{prefix}.embeddings.ln"))
     for i, layer in enumerate(model.encoder.layer):
         d.update(_bert_layer(layer, f"{prefix}.layer_{i}", dims))
     return d
@@ -404,7 +405,11 @@ def generate_mlm(seed: int, dims: TestDims = MLM_DIMS):
     pos_pt = torch.arange(dims.seq, dtype=torch.long).unsqueeze(0).expand(
         dims.batch, -1,
     )
-    out = pt(input_ids=ids_pt, token_type_ids=tt_pt, position_ids=pos_pt).logits
+    out = pt(
+        input_ids=ids_pt,
+        token_type_ids=tt_pt,
+        position_ids=pos_pt,
+    ).logits
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
