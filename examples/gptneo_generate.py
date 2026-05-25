@@ -189,10 +189,10 @@ def _make_converter(
             w = hf_get(f"{hp}.attn.attention.v_proj.weight")
             return fortran_order(w.reshape(nh, hd, H))
         if rest == "self_attn.o_weight":
-            w = hf_get(f"{hp}.attn.attention.c_proj.weight")
+            w = hf_get(f"{hp}.attn.attention.out_proj.weight")
             return fortran_order(w.reshape(H, nh, hd))
         if rest == "self_attn.o_bias":
-            return fortran_order(hf_get(f"{hp}.attn.attention.c_proj.bias"))
+            return fortran_order(hf_get(f"{hp}.attn.attention.out_proj.bias"))
 
         if rest == "mlp.fc1.weight":
             return fortran_order(hf_get(f"{hp}.mlp.c_fc.weight").T)

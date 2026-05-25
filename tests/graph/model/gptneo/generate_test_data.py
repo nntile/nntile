@@ -115,7 +115,7 @@ def _gelutanh(x: torch.Tensor) -> torch.Tensor:
 def _gptneo_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
-    """Map HF q/k/v/c_proj to NNTile layouts (``examples/gptneo_generate.py``)."""
+    """Map HF q/k/v/out_proj to NNTile layouts (``examples/gptneo_generate.py``)."""
     inner = attn.attention
     H = dims.hidden
     nh = dims.n_heads
