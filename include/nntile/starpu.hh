@@ -89,6 +89,7 @@
 #include <nntile/starpu/transpose.hh>
 #include <nntile/starpu/flash_sdpa_fwd_cudnn.hh>
 #include <nntile/starpu/flash_sdpa_bwd_cudnn.hh>
+#include <nntile/starpu/isfinite.hh>
 
 
 //! @namespace nntile::starpu

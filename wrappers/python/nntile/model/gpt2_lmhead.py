@@ -188,7 +188,9 @@ class GPT2LMHead(BaseModel, LLMGenerationMixin):
 
 
 def compare_shapes(iterable1, iterable2):
-    return all(x == y for x, y in zip(iterable1, iterable2))
+    return len(iterable1) == len(iterable2) and all(
+        x == y for x, y in zip(iterable1, iterable2)
+    )
 
 
 PretrainedGpt2Configs = {

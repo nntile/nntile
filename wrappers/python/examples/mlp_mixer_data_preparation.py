@@ -7,7 +7,7 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file wrappers/python/examples/mlp_mixer_data_preparation.py
-# Helper module to load MNIST data for MLP-Mixer training
+# Helper module to load MNIST / Fashion-MNIST / CIFAR data for training
 #
 # @version 1.1.0
 
@@ -15,6 +15,14 @@ import numpy as np
 import torch
 
 import nntile
+
+# Activation / weight tensor type for patched image batches (must match model).
+DTYPE_TO_ACTIVATION_TENSOR = {
+    "fp32": nntile.tensor.Tensor_fp32,
+    "bf16": nntile.tensor.Tensor_bf16,
+    "tf32": nntile.tensor.Tensor_fp32_fast_tf32,
+    "fp32_fast_tf32": nntile.tensor.Tensor_fp32_fast_tf32,
+}
 
 
 def color_image_patching(image, patch_size):
@@ -79,6 +87,7 @@ def cifar_data_loader_to_nntile(
     batch_size,
     minibatch_size,
     patch_size,
+    activation_dtype="fp32",
 ):
     total_len, h, w, num_clr_channels = data_set.shape
     n_batches = total_len // batch_size
@@ -98,6 +107,7 @@ def cifar_data_loader_to_nntile(
     x_traits = nntile.tensor.TensorTraits(X_shape, X_shape)
 
     y_traits = nntile.tensor.TensorTraits(Y_shape, Y_shape)
+    x_tensor_type = DTYPE_TO_ACTIVATION_TENSOR[activation_dtype]
 
     for i in range(n_batches):
         minibatch_input = []
@@ -115,7 +125,7 @@ def cifar_data_loader_to_nntile(
                 tmp_label_tensor[k] = label_set[
                     i * batch_size + j * minibatch_size + k
                 ]
-            x = nntile.tensor.Tensor_fp32(x_traits)
+            x = x_tensor_type(x_traits)
             x.from_array(np.asfortranarray(tmp_data_tensor.numpy()))
             minibatch_input.append(x)
             y = nntile.tensor.Tensor_int64(y_traits)
@@ -136,6 +146,7 @@ def mnist_data_loader_to_nntile(
     batch_size,
     minibatch_size,
     patch_size,
+    activation_dtype="fp32",
 ):
     total_len, h, w = data_set.shape
     n_batches = total_len // batch_size
@@ -156,6 +167,7 @@ def mnist_data_loader_to_nntile(
     x_traits = nntile.tensor.TensorTraits(X_shape, X_shape)
 
     y_traits = nntile.tensor.TensorTraits(Y_shape, Y_shape)
+    x_tensor_type = DTYPE_TO_ACTIVATION_TENSOR[activation_dtype]
 
     for i in range(n_batches):
         minibatch_input = []
@@ -171,7 +183,7 @@ def mnist_data_loader_to_nntile(
                 tmp_label_tensor[k] = label_set[
                     i * batch_size + j * minibatch_size + k
                 ]
-            x = nntile.tensor.Tensor_fp32(x_traits)
+            x = x_tensor_type(x_traits)
             x.from_array(np.asfortranarray(tmp_data_tensor.numpy()))
             minibatch_input.append(x)
             y = nntile.tensor.Tensor_int64(y_traits)

@@ -22,22 +22,23 @@ namespace nntile::graph::module
 {
 
 //! Constructor: creates GatedMLP with specified dimensions
-GatedMlp::GatedMlp(NNGraph* graph,
-                   const std::string& name,
-                   Index input_dim,
-                   Index intermediate_dim,
-                   Index output_dim,
-                   ActivationType activation,
-                   DataType dtype)
-    : Module(graph, name)
-    , gate_proj_(graph, name + "_gate_proj", input_dim, intermediate_dim, dtype)
-    , up_proj_(graph, name + "_up_proj", input_dim, intermediate_dim, dtype)
-    , activation_(graph, name + "_activation", activation)
-    , down_proj_(graph, name + "_down_proj", intermediate_dim, output_dim, dtype)
-    , input_dim_(input_dim)
-    , intermediate_dim_(intermediate_dim)
-    , output_dim_(output_dim)
-    , dtype_(dtype)
+GatedMlp::GatedMlp(NNGraph *graph,
+    const std::string &name,
+    Index input_dim,
+    Index intermediate_dim,
+    Index output_dim,
+    ActivationType activation,
+    DataType dtype) :
+    Module(graph, name),
+    gate_proj_(graph, name + "_gate_proj", input_dim, intermediate_dim, dtype),
+    up_proj_(graph, name + "_up_proj", input_dim, intermediate_dim, dtype),
+    activation_(graph, name + "_activation", activation),
+    down_proj_(
+        graph, name + "_down_proj", intermediate_dim, output_dim, dtype),
+    input_dim_(input_dim),
+    intermediate_dim_(intermediate_dim),
+    output_dim_(output_dim),
+    dtype_(dtype)
 {
     // Register submodules
     register_module("gate_proj", &gate_proj_);
@@ -47,21 +48,20 @@ GatedMlp::GatedMlp(NNGraph* graph,
 }
 
 //! Constructor: creates GatedMLP where output_dim == input_dim
-GatedMlp::GatedMlp(NNGraph* graph,
-                   const std::string& name,
-                   Index input_dim,
-                   Index intermediate_dim,
-                   ActivationType activation,
-                   DataType dtype)
-    : GatedMlp(graph, name, input_dim, intermediate_dim, input_dim, activation,
-               dtype)
+GatedMlp::GatedMlp(NNGraph *graph,
+    const std::string &name,
+    Index input_dim,
+    Index intermediate_dim,
+    ActivationType activation,
+    DataType dtype) :
+    GatedMlp(
+        graph, name, input_dim, intermediate_dim, input_dim, activation, dtype)
 {
 }
 
-NNGraph::TensorNode* GatedMlp::forward(
-    NNGraph::TensorNode* input)
+NNGraph::TensorNode *GatedMlp::forward(NNGraph::TensorNode *input)
 {
-    if(input == nullptr)
+    if (input == nullptr)
     {
         throw std::invalid_argument(
             "GatedMlp::forward: input tensor must be non-null");
@@ -70,8 +70,8 @@ NNGraph::TensorNode* GatedMlp::forward(
     gate_tensor_ = gate_proj_(input);
     up_tensor_ = up_proj_(input);
     gate_act_tensor_ = activation_(gate_tensor_);
-    hidden_tensor_ = graph::multiply(gate_act_tensor_, up_tensor_,
-                                    tensor_name("hidden"));
+    hidden_tensor_ = graph::multiply(gate_act_tensor_, up_tensor_)
+                         ->set_name(tensor_name("hidden"));
     output_tensor_ = down_proj_(hidden_tensor_);
     return output_tensor_;
 }
@@ -82,7 +82,8 @@ std::string GatedMlp::repr() const
     return "GatedMlp(in=" + std::to_string(input_dim_) +
            ", intermediate=" + std::to_string(intermediate_dim_) +
            ", out=" + std::to_string(output_dim_) +
-           ", activation=" + activation_type_to_string(activation_.type()) + ")";
+           ", activation=" + activation_type_to_string(activation_.type()) +
+           ")";
 }
 
 } // namespace nntile::graph::module

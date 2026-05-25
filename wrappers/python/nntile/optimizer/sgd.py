@@ -58,14 +58,19 @@ class SGD:
         for s in self.states:
             s.unregister()
 
-    def step(self):
+    def step(self, lr=None):
+        step_lr = self.lr if lr is None else lr
+        if self.dtype == np.float32:
+            step_lr = np.float32(step_lr)
+        elif self.dtype == np.float64:
+            step_lr = np.float64(step_lr)
         for i, p in enumerate(self.params):
             # Use fused SGD step with nesterov support
             nntile.tensor.fused_sgd_step(
                 p.value,
                 p.grad,
                 self.states[i],
-                self.lr,
+                step_lr,
                 self.momentum,
                 self.weight_decay,
                 self.num_iter,
