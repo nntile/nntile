@@ -50,6 +50,8 @@
 #include <nntile/graph/io/safetensors.hh>
 #include <nntile/graph/model/gptneox/gptneox_causal.hh>
 #include <nntile/graph/model/gptneox/gptneox_config.hh>
+#include <nntile/graph/model/gptneox/gptneox_rope.hh>
+#include <nntile/graph/nn/ops/sdpa_causal_mask.hh>
 #include <nlohmann/json.hpp>
 
 using namespace nntile;
@@ -262,6 +264,19 @@ static std::string read_file_trimmed(const std::string& path)
 
 // ── Greedy argmax over last-position logits ──────────────────────────────
 
+static void fill_arange_position_ids(
+    std::vector<std::int64_t>& pos, Index n_seq, Index n_batch)
+{
+    for(Index b = 0; b < n_batch; ++b)
+    {
+        for(Index s = 0; s < n_seq; ++s)
+        {
+            pos[static_cast<std::size_t>(s + n_seq * b)] =
+                static_cast<std::int64_t>(s);
+        }
+    }
+}
+
 static std::int64_t argmax_last_position(
     const std::vector<float>& logits,
     Index vocab_size,
@@ -330,29 +345,71 @@ int main(int argc, char** argv)
                     "localhost", 5001, 0);
 
     std::cout << "\n--- Generating (greedy, no KV-cache) ---\n";
+    const Index n_batch = 1;
+    const Index rope_half = gptneox_rope_dim(config) / 2;
+
     for(int step = 0; step < args.max_tokens; ++step)
     {
         Index seq_len = static_cast<Index>(tokens.size());
 
         NNGraph graph("gptneox_step");
 
-        auto* input_ids = graph.tensor(
-            {seq_len, 1}, "input_ids", DataType::INT64, false);
+        auto* input_ids = graph.tensor({seq_len, n_batch}, DataType::INT64, false)
+                              ->set_name("input_ids");
         input_ids->mark_input(true);
 
+        auto* rope_sin =
+            graph.tensor({rope_half, seq_len, n_batch}, DataType::FP32, false)
+                ->set_name("rope_sin");
+        auto* rope_cos =
+            graph.tensor({rope_half, seq_len, n_batch}, DataType::FP32, false)
+                ->set_name("rope_cos");
+        auto* attn_mask =
+            graph.tensor({seq_len, seq_len}, DataType::BOOL, false)
+                ->set_name("attn_mask");
+        rope_sin->mark_input(true);
+        rope_cos->mark_input(true);
+        attn_mask->mark_input(true);
+
         GptneoxCausal model(&graph, "model", config);
-        auto* output = model.forward(input_ids);
+        auto* output = model.forward(
+            input_ids, rope_sin, rope_cos, attn_mask);
         output->mark_output(true);
 
         apply_weight_cache(model, weights);
 
-        TensorGraph::Runtime runtime(graph.tensor_graph());
+        std::vector<std::int64_t> pos_data(
+            static_cast<std::size_t>(seq_len * n_batch));
+        fill_arange_position_ids(pos_data, seq_len, n_batch);
+
+        const std::size_t rope_n =
+            static_cast<std::size_t>(rope_half * seq_len * n_batch);
+        std::vector<float> sin_data(rope_n);
+        std::vector<float> cos_data(rope_n);
+        rope_sin_cos_from_position_ids(config,
+            pos_data.data(),
+            seq_len,
+            n_batch,
+            sin_data.data(),
+            cos_data.data());
+
+        const std::size_t mask_n =
+            static_cast<std::size_t>(seq_len * seq_len);
+        std::vector<std::uint8_t> mask_data(mask_n);
+        sdpa_causal_mask_bool_fortran_fill(seq_len, mask_data.data());
+
+        TileGraph tile_graph =
+            TileGraph::from_tensor_graph(graph.tensor_graph());
+        Runtime runtime(tile_graph);
         runtime.compile();
-        runtime.bind_data("input_ids", tokens);
+        runtime.bind_data(input_ids, tokens);
+        runtime.bind_data(rope_sin, sin_data);
+        runtime.bind_data(rope_cos, cos_data);
+        runtime.bind_data(attn_mask, mask_data);
         runtime.execute();
         runtime.wait();
 
-        auto logits = runtime.get_output<float>(output->name());
+        auto logits = runtime.get_output<float>(output);
 
         std::int64_t next_id = argmax_last_position(
             logits, config.vocab_size, seq_len);
