@@ -200,10 +200,8 @@ while IFS= read -r file; do
         src/graph/model/gptneo/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         include/nntile/graph/model/gptneo/*.hh)
-            affected["tests_graph_model_$(basename "$file" .hh)"]=1 ;;
-        include/nntile/graph/model/gptneo.hh)
             add_gptneo_model_tests ;;
-        include/nntile/graph/model/gptneo/gptneo_config_json.hh)
+        include/nntile/graph/model/gptneo.hh)
             add_gptneo_model_tests ;;
         examples/gptneo_config_json.hh | examples/gptneo_generate.cc |
         examples/gptneo_graph_training.cc | examples/gptneo_generate.py)
