@@ -6,71 +6,32 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file examples/llama_graph_training.cc
- * Llama causal LM training on the graph API.
+ * @file examples/gpt2_graph_training.cc
+ * GPT-2 causal LM training on the graph API.
  *
  * Data path: ``--train-bin`` is a flat ``uint16`` token stream read via mmap
  * (``TokenMemoryMap`` / ``CausalLmBatchIterator``). Each batch needs at least
  * ``(seq_len + 1) * batch`` ids; labels are the next-token targets for the
  * same windows. Optional ``--shuffle`` permutes sequence starts (``--seed``).
  *
- * Train.bin generation: ``notebooks/llama.ipynb`` shows TinyStories prep by
- * running ``wrappers/python/examples/causal_lm_data_preparation.py`` (from
- * ``notebooks/``, use the same ``../wrappers/python/examples/...`` paths as
- * the cell). Example:
- *   python ../wrappers/python/examples/causal_lm_data_preparation.py \
- *       --seq-len=1024 --batch-size=1024 --dataset-select=25000
- * The script loads ``--hf-dataset`` (default ``roneneldan/TinyStories``),
- * tokenizes with ``--hf-tokenizer`` (default ``kimihailv/llama-1.3b``),
- * concatenates ids, truncates to full windows of ``(seq_len + 1) *
- * batch_size`` tokens, and writes raw ``uint16`` to ``--dataset-path`` /
- * ``<dataset_name>/train.bin`` (default ``.data/tinystories/train.bin``).
- * HF caches use ``--dataset-path`` and ``--tokenizer-path`` (``.data``,
- * ``.model``). Point ``--train-bin`` at that file; ``LlamaConfig.vocab_size``
+ * Train.bin generation: use ``wrappers/python/examples/causal_lm_data_preparation.py``
+ * with a GPT-2 tokenizer (e.g. ``--hf-tokenizer gpt2``). Point
+ * ``--train-bin`` at the resulting ``train.bin``; ``Gpt2Config.vocab_size``
  * must cover token ids (``--tiny`` uses a 256-id toy vocab).
  *
- * Model path: ``LlamaCausal`` forward takes ``input_ids``, precomputed RoPE
- * sin/cos, and a boolean causal attention mask; logits feed a scaled scalar
- * cross-entropy vs ``labels``. ``--tiny`` selects a built-in small config;
- * ``--config`` loads JSON ``LlamaConfig``; otherwise the tiny default applies.
- * ``--load-weights`` uses ``Module::load`` (SafeTensors): per-parameter
- * ``set_bind_hint`` for keys matching ``named_parameters_recursive`` names,
- * then ``mark_parameters_input_recursive`` (same persistence as random init).
- * Else: fan-in-scaled uniform random bind hints and the same mark call.
+ * Model path: ``Gpt2Causal`` forward takes ``input_ids``, ``position_ids``,
+ * and a boolean causal attention mask; logits feed a scaled scalar cross-entropy
+ * vs ``labels``. ``--tiny`` selects a built-in small config; ``--config`` loads
+ * JSON ``Gpt2Config``; otherwise the tiny default applies.
+ * ``--load-weights`` uses ``Module::load`` (SafeTensors).
  *
- * Training loop (per batch): clear parameter grads, forward, loss,
- * ``backward(true)``, ``optimizer->step(scheduled_lr)`` (linear warmup over
- * ``--warmup-steps`` to ``--lr``, then constant), ``finish_phase()``,
- * ``lower_and_compile()``, bind mmap batch + RoPE + mask. First run binds
- * Adam state tensors to zeros, then ``runtime.execute()``. Parameters and
- * Adam state are copied from tiles back into bind hints for the next step
- * (and for optional save). ``train_step > 0`` calls
- * ``reset_incremental_tile_state()``.
- *
- * Graph notes: persistent tensors use input/output marks; ``finish_phase``
- * clears NN autograd by default. The optimizer advances its internal step
- * count inside ``step()``; each recorded phase bakes a fixed ``Index``
- * timestep into tensor and tile ops. ``step(lr)`` supplies per-phase LR
- * without changing the constructor default;
- * ``enable_auto_tensor_name_phase_suffix`` keeps ``TensorGraph`` names unique
- * across phases. Incremental lowering may reuse tile nodes when
- * ``layout_fingerprint`` matches. ``LlamaCausal`` is a
- * ``Module`` root; ``NNGraph::parameters()`` merges every root tree.
- *
- * ``--epochs`` repeats mmap passes; ``--max-batches`` caps total optimizer
- * steps across epochs (0 = no cap). ``--output-dir`` writes ``config.json``
- * and ``model.safetensors``. Adam extras: ``--weight-decay``, ``--beta1``,
- * ``--beta2``.
+ * Training loop matches ``llama_graph_training``: clear grads, forward, loss,
+ * ``backward(true)``, ``optimizer->step(scheduled_lr)``, ``finish_phase()``,
+ * ``lower_and_compile()``, bind batch tensors, ``runtime.execute()``.
  *
  * Usage:
- *   ./llama_graph_training --train-bin /path/train.bin --seq 8 --batch 2
- *   ./llama_graph_training --train-bin data.bin --tiny --output-dir /tmp/out
- *   ./llama_graph_training --train-bin data.bin --config cfg.json \
- *       --load-weights w.safetensors --output-dir /tmp/out
- *   ./llama_graph_training --train-bin data.bin --tiny --shuffle --seed 1
- *   ./llama_graph_training --train-bin data.bin --tiny --max-batches 100 \
- *       --warmup-steps 10 --lr 3e-4
- *   ./llama_graph_training --train-bin data.bin --tiny --epochs 3
+ *   ./gpt2_graph_training --train-bin /path/train.bin --seq 8 --batch 2
+ *   ./gpt2_graph_training --train-bin data.bin --tiny --output-dir /tmp/out
  *
  * @version 1.1.0
  * */
@@ -85,25 +46,22 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 
-#include "json_config_helpers.hh"
+#include "gpt2_config_json.hh"
 #include <nntile.hh>
 #include <nntile/graph/dataset/causal_lm_mmap.hh>
-#include <nntile/graph/model/llama/llama_causal.hh>
+#include <nntile/graph/model/gpt2/gpt2_causal.hh>
+#include <nntile/graph/model/gpt2/gpt2_config.hh>
 #include <nntile/graph/nn/ops/sdpa_causal_mask.hh>
-#include <nntile/graph/model/llama/llama_config.hh>
-#include <nntile/graph/model/llama/llama_rope.hh>
 #include <nntile/graph/tensor/ops/clear.hh>
 #include <random>
 #include <stdexcept>
 #include <string>
 
 using json = nlohmann::json;
-using nntile::examples::config_get_float;
-using nntile::examples::config_get_int;
 
 using namespace nntile;
 using namespace nntile::graph;
-using namespace nntile::model::llama;
+using namespace nntile::model::gpt2;
 using namespace nntile::graph::dataset;
 using namespace nntile::graph::optim;
 
@@ -132,88 +90,34 @@ struct Args
     unsigned seed = 42;
     bool use_tiny = false;
     bool shuffle = false;
-    //! 0 = run all full batches from ``train_bin``.
     std::size_t max_batches = 0;
-    //! Number of passes over ``train_bin`` (iterator reset each epoch).
     std::size_t epochs = 1;
     float learning_rate = 0.001f;
     float weight_decay = 0.0f;
     float beta1 = 0.9f;
     float beta2 = 0.999f;
-    //! Linear LR warmup: ramp from 0 to ``learning_rate`` over this many
-    //! recorded steps (0 = disabled).
     int warmup_steps = 0;
 };
 
-static LlamaConfig load_llama_config_json(const std::string &path)
-{
-    std::ifstream f(path);
-    if (!f.good())
-    {
-        throw std::runtime_error("Cannot open config: " + path);
-    }
-    json j = json::parse(f);
-    LlamaConfig cfg;
-    cfg.vocab_size = config_get_int(j, "vocab_size", 32000);
-    cfg.hidden_size = config_get_int(j, "hidden_size", 4096);
-    cfg.intermediate_size = config_get_int(j, "intermediate_size", 11008);
-    cfg.num_hidden_layers = config_get_int(j, "num_hidden_layers", 32);
-    cfg.num_attention_heads = config_get_int(j, "num_attention_heads", 32);
-    cfg.num_key_value_heads = config_get_int(j, "num_key_value_heads", 32);
-    cfg.max_position_embeddings =
-        config_get_int(j, "max_position_embeddings", 2048);
-    cfg.rms_norm_eps = config_get_float(j, "rms_norm_eps", 1e-6f);
-    cfg.rope_theta = config_get_float(j, "rope_theta", 10000.0f);
-    cfg.eos_token_id = config_get_int(j, "eos_token_id", 2);
-    cfg.bos_token_id = config_get_int(j, "bos_token_id", 1);
-    cfg.compute_head_dim();
-    cfg.validate();
-    return cfg;
-}
 
-static void save_llama_config_json(
-    LlamaConfig const &cfg, const std::string &path)
-{
-    json j;
-    j["vocab_size"] = cfg.vocab_size;
-    j["hidden_size"] = cfg.hidden_size;
-    j["intermediate_size"] = cfg.intermediate_size;
-    j["num_hidden_layers"] = cfg.num_hidden_layers;
-    j["num_attention_heads"] = cfg.num_attention_heads;
-    j["num_key_value_heads"] = cfg.num_key_value_heads;
-    j["max_position_embeddings"] = cfg.max_position_embeddings;
-    j["rms_norm_eps"] = cfg.rms_norm_eps;
-    j["rope_theta"] = cfg.rope_theta;
-    j["eos_token_id"] = cfg.eos_token_id;
-    j["bos_token_id"] = cfg.bos_token_id;
-    j["name"] = cfg.name;
-    std::ofstream f(path);
-    if (!f.good())
-    {
-        throw std::runtime_error("Cannot write config: " + path);
-    }
-    f << j.dump(2) << "\n";
-}
 
-//! Small default architecture for examples (not a pretrained checkpoint).
-static LlamaConfig make_tiny_config()
+using nntile::examples::load_gpt2_config_json;
+using nntile::examples::save_gpt2_config_json;
+
+static Gpt2Config make_tiny_config()
 {
-    LlamaConfig c;
+    Gpt2Config c;
     c.vocab_size = 256;
     c.hidden_size = 64;
     c.intermediate_size = 128;
     c.num_hidden_layers = 2;
     c.num_attention_heads = 4;
-    c.num_key_value_heads = 2;
     c.max_position_embeddings = 512;
-    c.rms_norm_eps = 1e-6f;
-    c.rope_theta = 10000.0f;
-    c.compute_head_dim();
+    c.layer_norm_eps = 1e-5f;
     c.validate();
     return c;
 }
 
-//! ``--name value`` or ``--name=value``; advances ``i`` on two-token form.
 static bool take_string_opt(
     int argc, char **argv, int &i, char const *name, std::string &out)
 {
@@ -323,7 +227,7 @@ static Args parse_args(int argc, char **argv)
         {
             std::cout
                 << "Usage: " << argv[0] << " [options]\n"
-                << "  --config <path>       Llama JSON (optional if --tiny)\n"
+                << "  --config <path>       GPT-2 JSON (optional if --tiny)\n"
                 << "  --tiny                use built-in tiny architecture\n"
                 << "  --load-weights <path> SafeTensors checkpoint\n"
                 << "  --output-dir <path>   write config.json + "
@@ -331,14 +235,11 @@ static Args parse_args(int argc, char **argv)
                 << "  --train-bin <path>    required: uint16 token file\n"
                 << "  --shuffle             shuffle sequence starts\n"
                 << "  --max-batches <N>     cap batches (0 = all)\n"
-                << "  --epochs <N>          repeat mmap data this many times "
-                   "(default 1)\n"
-                << "  --lr <rate>         AdamW learning rate (default "
-                   "0.001)\n"
-                << "  --weight-decay <v>  AdamW (default 0)\n"
-                << "  --beta1 / --beta2   AdamW (defaults 0.9 / 0.999)\n"
-                << "  --warmup-steps <N>  linear LR warmup steps "
-                   "(0 = off)\n"
+                << "  --epochs <N>          repeat mmap data (default 1)\n"
+                << "  --lr <rate>           AdamW learning rate\n"
+                << "  --weight-decay <v>    AdamW weight decay\n"
+                << "  --beta1 / --beta2     AdamW betas\n"
+                << "  --warmup-steps <N>    linear LR warmup\n"
                 << "  --seq <N>             sequence length (default 8)\n"
                 << "  --batch <N>           batch size (default 2)\n"
                 << "  --seed <N>            RNG seed (default 42)\n"
@@ -352,25 +253,23 @@ static Args parse_args(int argc, char **argv)
             arg == "--lr" || arg == "--weight-decay" || arg == "--beta1" ||
             arg == "--beta2" || arg == "--warmup-steps" || arg == "--epochs")
         {
-            std::cerr << "llama_graph_training: " << arg
+            std::cerr << "gpt2_graph_training: " << arg
                       << " requires a value\n";
             std::exit(EXIT_ERROR);
         }
         if (!arg.empty() && arg[0] == '-')
         {
-            std::cerr << "llama_graph_training: unknown option " << arg
+            std::cerr << "gpt2_graph_training: unknown option " << arg
                       << "\n";
             std::exit(EXIT_ERROR);
         }
-        std::cerr << "llama_graph_training: unexpected argument " << arg
+        std::cerr << "gpt2_graph_training: unexpected argument " << arg
                   << "\n";
         std::exit(EXIT_ERROR);
     }
     return a;
 }
 
-//! LR for this recorded step: linear warmup from 0 to ``learning_rate`` over
-//! ``warmup_steps`` iterations, then constant ``learning_rate``.
 static Scalar scheduled_lr(Index train_step, Args const &args)
 {
     Scalar const peak = static_cast<Scalar>(args.learning_rate);
@@ -387,7 +286,6 @@ static Scalar scheduled_lr(Index train_step, Args const &args)
     return peak;
 }
 
-//! Standard prefill positions: ``(s, b)`` → ``s`` (HF-style arange per row).
 static void fill_arange_position_ids(
     std::vector<std::int64_t> &pos, Index n_seq, Index n_batch)
 {
@@ -400,7 +298,7 @@ static void fill_arange_position_ids(
     }
 }
 
-static void init_random_parameter_hints(LlamaCausal &model, std::mt19937 &gen)
+static void init_random_parameter_hints(Gpt2Causal &model, std::mt19937 &gen)
 {
     for (NNGraph::TensorNode *tensor : model.parameters_recursive())
     {
@@ -430,7 +328,6 @@ static void init_random_parameter_hints(LlamaCausal &model, std::mt19937 &gen)
     model.mark_parameters_input_recursive();
 }
 
-//! Copy parameter tensor from runtime tiles back into bind hints (for save).
 static void sync_param_hint_from_runtime(
     Runtime &runtime, NNGraph::TensorNode *t)
 {
@@ -470,18 +367,18 @@ int main(int argc, char **argv)
 
     if (args.train_bin.empty())
     {
-        std::cerr << "llama_graph_training: --train-bin <path> is required\n";
+        std::cerr << "gpt2_graph_training: --train-bin <path> is required\n";
         return EXIT_ERROR;
     }
 
-    LlamaConfig config;
+    Gpt2Config config;
     if (args.use_tiny)
     {
         config = make_tiny_config();
     }
     else if (!args.config_path.empty())
     {
-        config = load_llama_config_json(args.config_path);
+        config = load_gpt2_config_json(args.config_path);
     }
     else
     {
@@ -495,24 +392,22 @@ int main(int argc, char **argv)
 
     if (args.warmup_steps < 0)
     {
-        std::cerr << "llama_graph_training: --warmup-steps must be >= 0\n";
+        std::cerr << "gpt2_graph_training: --warmup-steps must be >= 0\n";
         return EXIT_ERROR;
     }
     if (args.epochs == 0)
     {
-        std::cerr << "llama_graph_training: --epochs must be >= 1\n";
+        std::cerr << "gpt2_graph_training: --epochs must be >= 1\n";
         return EXIT_ERROR;
     }
 
     const Index n_seq = args.seq_len;
     const Index n_batch = args.batch;
-    const Index half = config.head_dim / 2;
 
-    std::cout << "=== Llama graph training (setup) ===\n"
+    std::cout << "=== GPT-2 graph training (setup) ===\n"
               << "hidden=" << config.hidden_size
               << "  layers=" << config.num_hidden_layers
               << "  heads=" << config.num_attention_heads
-              << "  kv_heads=" << config.num_key_value_heads
               << "  seq=" << n_seq << "  batch=" << n_batch
               << "  epochs=" << args.epochs << "\n";
 
@@ -526,22 +421,18 @@ int main(int argc, char **argv)
         CONTEXT_LOGGER_PORT,
         CONTEXT_VERBOSE);
 
-    NNGraph graph("llama_graph_training");
-    LlamaCausal model(&graph, "model", config);
+    NNGraph graph("gpt2_graph_training");
+    Gpt2Causal model(&graph, "model", config);
 
     auto *input_ids = graph.tensor({n_seq, n_batch}, DataType::INT64, false)
                           ->set_name("input_ids");
-    auto *rope_sin =
-        graph.tensor({half, n_seq, n_batch}, DataType::FP32, false)
-            ->set_name("rope_sin");
-    auto *rope_cos =
-        graph.tensor({half, n_seq, n_batch}, DataType::FP32, false)
-            ->set_name("rope_cos");
+    auto *position_ids =
+        graph.tensor({n_seq, n_batch}, DataType::INT64, false)
+            ->set_name("position_ids");
     auto *attn_mask = graph.tensor({n_seq, n_seq}, DataType::BOOL, false)
                           ->set_name("attn_mask");
     input_ids->mark_input(true);
-    rope_sin->mark_input(true);
-    rope_cos->mark_input(true);
+    position_ids->mark_input(true);
     attn_mask->mark_input(true);
 
     auto *labels = graph.tensor({n_seq, n_batch}, DataType::INT64, false)
@@ -576,17 +467,6 @@ int main(int argc, char **argv)
     std::vector<std::int64_t> pos_data(
         static_cast<std::size_t>(n_seq * n_batch));
     fill_arange_position_ids(pos_data, n_seq, n_batch);
-
-    const std::size_t rope_n =
-        static_cast<std::size_t>(half * n_seq * n_batch);
-    std::vector<float> sin_data(rope_n);
-    std::vector<float> cos_data(rope_n);
-    rope_sin_cos_from_position_ids(config,
-        pos_data.data(),
-        n_seq,
-        n_batch,
-        sin_data.data(),
-        cos_data.data());
 
     const std::size_t mask_n = static_cast<std::size_t>(n_seq * n_seq);
     std::vector<std::uint8_t> mask_data(mask_n);
@@ -641,11 +521,11 @@ int main(int argc, char **argv)
             }
 
             NNGraph::TensorNode *logits =
-                model.forward(input_ids, rope_sin, rope_cos, attn_mask, nullptr);
+                model.forward(input_ids, position_ids, attn_mask);
             if (logits == nullptr)
             {
                 throw std::runtime_error(
-                    "llama_graph_training: model.forward returned null");
+                    "gpt2_graph_training: model.forward returned null");
             }
 
             std::string const loss_name =
@@ -673,6 +553,7 @@ int main(int argc, char **argv)
                 auto state_tensors = optimizer->named_state_tensors();
                 for (const auto &[sname, stensor] : state_tensors)
                 {
+                    (void) sname;
                     Index n = 1;
                     for (auto d : stensor->shape())
                     {
@@ -686,8 +567,7 @@ int main(int argc, char **argv)
 
             runtime.bind_data(input_ids, mmap_batch.input_ids);
             runtime.bind_data(labels, mmap_batch.target_ids);
-            runtime.bind_data(rope_sin, sin_data);
-            runtime.bind_data(rope_cos, cos_data);
+            runtime.bind_data(position_ids, pos_data);
             runtime.bind_data(attn_mask, mask_data);
 
             auto t0 = std::chrono::high_resolution_clock::now();
@@ -736,12 +616,6 @@ int main(int argc, char **argv)
         std::cerr
             << "Warning: no full batches from --train-bin (need at least "
             << "((seq+1)*batch) uint16 tokens).\n";
-        if (!args.output_dir.empty())
-        {
-            std::cerr
-                << "Warning: --output-dir save uses init/load bind hints "
-                   "only (no runtime; no training steps).\n";
-        }
     }
     else
     {
@@ -754,8 +628,7 @@ int main(int argc, char **argv)
         std::filesystem::create_directories(args.output_dir);
         const std::string cfg_path = args.output_dir + "/config.json";
         const std::string w_path = args.output_dir + "/model.safetensors";
-        save_llama_config_json(config, cfg_path);
-        // No batches => no lower_and_compile => NNGraph::runtime() absent.
+        save_gpt2_config_json(config, cfg_path);
         if (graph.has_runtime())
         {
             for (NNGraph::TensorNode *ptensor : graph.parameters())

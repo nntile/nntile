@@ -508,6 +508,7 @@ set(GRAPH_NN_SRC
     "graph/nn/ops/embedding.cc"
     "graph/nn/ops/gemm.cc"
     "graph/nn/ops/gelu.cc"
+    "graph/nn/ops/layer_norm.cc"
     "graph/nn/ops/gelutanh.cc"
     "graph/nn/ops/mse_loss.cc"
     "graph/nn/ops/multiply.cc"
@@ -523,6 +524,7 @@ set(GRAPH_NN_SRC
     "graph/nn/ops/scale_fiber.cc"
     "graph/nn/ops/scale_slice.cc"
     "graph/nn/ops/sdpa_eager.cc"
+    "graph/nn/ops/sdpa_causal_mask.cc"
     "graph/nn/ops/sgd_step.cc"
     "graph/nn/ops/silu.cc"
     "graph/nn/ops/softmax.cc"
@@ -547,6 +549,7 @@ set(GRAPH_MODULE_SRC
     "graph/module/linear.cc"
     "graph/module/embedding.cc"
     "graph/module/rms_norm.cc"
+    "graph/module/layer_norm.cc"
 )
 
 set(GRAPH_DATASET_SRC
@@ -557,10 +560,14 @@ set(GRAPH_MODEL_SRC
     "graph/model/llama/llama_mlp.cc"
     "graph/model/llama/llama_attention.cc"
     "graph/model/llama/llama_rope.cc"
-    "graph/model/llama/llama_causal_mask.cc"
     "graph/model/llama/llama_decoder.cc"
     "graph/model/llama/llama_model.cc"
     "graph/model/llama/llama_causal.cc"
+    "graph/model/gpt2/gpt2_attention.cc"
+    "graph/model/gpt2/gpt2_mlp.cc"
+    "graph/model/gpt2/gpt2_block.cc"
+    "graph/model/gpt2/gpt2_model.cc"
+    "graph/model/gpt2/gpt2_causal.cc"
     )
 
 set(GRAPH_OPTIM_SRC

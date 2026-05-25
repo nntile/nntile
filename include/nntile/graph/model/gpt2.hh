@@ -6,19 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/graph/module.hh
- * Convenience header for NNTile module classes.
+ * @file include/nntile/graph/model/gpt2.hh
+ * Convenience header for GPT-2 model components.
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/graph/module/module.hh>
-#include <nntile/graph/module/activation.hh>
-#include <nntile/graph/module/linear.hh>
-#include <nntile/graph/module/embedding.hh>
-#include <nntile/graph/module/gated_mlp.hh>
-#include <nntile/graph/module/mlp.hh>
-#include <nntile/graph/module/rms_norm.hh>
-#include <nntile/graph/module/layer_norm.hh>
+#include <nntile/graph/model/gpt2/gpt2_attention.hh>
+#include <nntile/graph/model/gpt2/gpt2_block.hh>
+#include <nntile/graph/model/gpt2/gpt2_causal.hh>
+#include <nntile/graph/model/gpt2/gpt2_config.hh>
+#include <nntile/graph/model/gpt2/gpt2_model.hh>
+#include <nntile/graph/model/gpt2/gpt2_mlp.hh>

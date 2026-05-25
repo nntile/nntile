@@ -621,6 +621,7 @@ set(GRAPH_NN_HDR
     "nntile/graph/nn/ops/add_slice.hh"
     "nntile/graph/nn/ops/gemm.hh"
     "nntile/graph/nn/ops/gelu.hh"
+    "nntile/graph/nn/ops/layer_norm.hh"
     "nntile/graph/nn/ops/embedding.hh"
     "nntile/graph/nn/ops/gelutanh.hh"
     "nntile/graph/nn/ops/mse_loss.hh"
@@ -634,6 +635,7 @@ set(GRAPH_NN_HDR
     "nntile/graph/nn/ops/rms_norm.hh"
     "nntile/graph/nn/ops/rope.hh"
     "nntile/graph/nn/ops/sdpa_eager.hh"
+    "nntile/graph/nn/ops/sdpa_causal_mask.hh"
     "nntile/graph/nn/ops/scale.hh"
     "nntile/graph/nn/ops/scale_fiber.hh"
     "nntile/graph/nn/ops/scale_slice.hh"
@@ -669,6 +671,7 @@ set(GRAPH_MODULE_HDR
     "nntile/graph/module/embedding.hh"
     "nntile/graph/module/mlp.hh"
     "nntile/graph/module/rms_norm.hh"
+    "nntile/graph/module/layer_norm.hh"
     )
 
 set(GRAPH_DATASET_HDR
@@ -686,6 +689,14 @@ set(GRAPH_MODEL_HDR
     "nntile/graph/model/llama/llama_model.hh"
     "nntile/graph/model/llama/llama.hh"
     "nntile/graph/model/llama/llama_causal.hh"
+    "nntile/graph/model/gpt2.hh"
+    "nntile/graph/model/gpt2/gpt2_config.hh"
+    "nntile/graph/model/gpt2/gpt2_common.hh"
+    "nntile/graph/model/gpt2/gpt2_attention.hh"
+    "nntile/graph/model/gpt2/gpt2_mlp.hh"
+    "nntile/graph/model/gpt2/gpt2_block.hh"
+    "nntile/graph/model/gpt2/gpt2_model.hh"
+    "nntile/graph/model/gpt2/gpt2_causal.hh"
     )
 
 set(GRAPH_OPTIM_HDR

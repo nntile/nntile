@@ -21,5 +21,4 @@
 #include <nntile/graph/model/llama/llama_attention.hh>
 #include <nntile/graph/model/llama/llama_decoder.hh>
 #include <nntile/graph/model/llama/llama_model.hh>
-#include <nntile/graph/model/llama/llama.hh>
 #include <nntile/graph/model/llama/llama_causal.hh>
