@@ -23,7 +23,7 @@
 #include <nntile/graph/model/gptneo/gptneo_config.hh>
 #include <nntile/graph/model/gptneo/gptneo_mlp.hh>
 #include <nntile/graph/module/module.hh>
-#include <nntile/graph/module/rms_norm.hh>
+#include <nntile/graph/module/layer_norm.hh>
 
 namespace nntile::model::gptneo
 {
@@ -32,9 +32,9 @@ namespace nntile::model::gptneo
 class GptneoDecoder : public graph::module::Module
 {
 private:
-    graph::module::RMSNorm input_norm_;
+    graph::module::LayerNorm input_norm_;
     GptneoAttention attention_;
-    graph::module::RMSNorm post_attn_norm_;
+    graph::module::LayerNorm post_attn_norm_;
     GptneoMLP mlp_;
 
     GptneoConfig config_;

@@ -15,8 +15,7 @@ For each block the script creates ``gptneo_<block>.safetensors`` plus a paired
 ``.json`` sidecar (geometry, tolerances) read by the corresponding C++ tests.
 
 Uses HuggingFace ``modeling_gpt_neo`` with NNTile layout per
-``examples/gptneo_generate.py``. Reference forwards use RMSNorm (gamma only,
-axis=0, ``layer_norm_eps``) instead of HF LayerNorm, GELUTANH for MLP, and
+``examples/gptneo_generate.py``. Reference forwards use HF LayerNorm (gamma/beta), GELUTANH for MLP, and
 separate Q/K/V/O projections with ``out_proj`` bias (add_fiber).
 """
 
@@ -102,15 +101,11 @@ def _make_config(dims: TestDims) -> GPTNeoConfig:
     )
 
 
-def _rms_gamma(ln, prefix: str) -> dict[str, np.ndarray]:
-    """HF LayerNorm weight → NNTile RMSNorm gamma (bias ignored)."""
-    return {f"{prefix}.gamma": fortran_order(ln.weight.detach().numpy())}
-
-
-def _rms_norm_torch(x_pt: torch.Tensor, gamma_pt: torch.Tensor, eps: float):
-    """RMSNorm on last dim of (seq, batch, hidden), matching C++ axis=0 on (H,S,B)."""
-    var = (x_pt * x_pt).mean(dim=-1, keepdim=True)
-    return x_pt / torch.sqrt(var + eps) * gamma_pt.view(1, 1, -1)
+def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
+    return {
+        f"{prefix}.gamma": fortran_order(ln.weight.detach().numpy()),
+        f"{prefix}.beta": fortran_order(ln.bias.detach().numpy()),
+    }
 
 
 def _gelutanh(x: torch.Tensor) -> torch.Tensor:
@@ -152,9 +147,9 @@ def _gptneo_decoder_weights(
     layer: PtBlock, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
     d: dict[str, np.ndarray] = {}
-    d.update(_rms_gamma(layer.ln_1, f"{prefix}.input_norm"))
+    d.update(_layer_norm(layer.ln_1, f"{prefix}.input_norm"))
     d.update(_gptneo_attn_weights(layer.attn, f"{prefix}.self_attn", dims))
-    d.update(_rms_gamma(layer.ln_2, f"{prefix}.post_attn_norm"))
+    d.update(_layer_norm(layer.ln_2, f"{prefix}.post_attn_norm"))
     d.update(_gptneo_mlp_weights(layer.mlp, f"{prefix}.mlp"))
     return d
 
@@ -167,7 +162,7 @@ def _model_weights(model: PtModel, prefix: str, dims: TestDims) -> dict[str, np.
     d: dict[str, np.ndarray] = {}
     d.update(_embed(model.wte, f"{prefix}.wte"))
     d.update(_embed(model.wpe, f"{prefix}.wpe"))
-    d.update(_rms_gamma(model.ln_f, f"{prefix}.norm"))
+    d.update(_layer_norm(model.ln_f, f"{prefix}.norm"))
     for i, layer in enumerate(model.h):
         d.update(_gptneo_decoder_weights(layer, f"{prefix}.layers_{i}", dims))
     return d
@@ -267,18 +262,15 @@ def _gptneo_attn_forward(
 def _gptneo_decoder_forward(
     block: PtBlock,
     x_pt: torch.Tensor,
-    dims: TestDims,
     *,
     attn_mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    eps = dims.layer_norm_eps
-    g1 = block.ln_1.weight.detach()
-    g2 = block.ln_2.weight.detach()
+    """HF LayerNorm + graph-aligned attention/MLP (matches C++ GptneoDecoder)."""
     residual = x_pt
-    x_norm = _rms_norm_torch(x_pt, g1, eps)
+    x_norm = block.ln_1(x_pt)
     attn_out = _gptneo_attn_forward(block.attn, x_norm, attn_mask=attn_mask)
     post_attn = residual + attn_out
-    mlp_in = _rms_norm_torch(post_attn, g2, eps)
+    mlp_in = block.ln_2(post_attn)
     mlp_out = _gptneo_mlp_forward(block.mlp, mlp_in)
     return post_attn + mlp_out
 
@@ -287,17 +279,13 @@ def _gptneo_model_forward(
     model: PtModel,
     ids_pt: torch.Tensor,
     pos_pt: torch.Tensor,
-    dims: TestDims,
     *,
     attn_mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    eps = dims.layer_norm_eps
-    tok = model.wte(ids_pt)
-    pos = model.wpe(pos_pt)
-    x = tok + pos
+    x = model.wte(ids_pt) + model.wpe(pos_pt)
     for layer in model.h:
-        x = _gptneo_decoder_forward(layer, x, dims, attn_mask=attn_mask)
-    return _rms_norm_torch(x, model.ln_f.weight.detach(), eps)
+        x = _gptneo_decoder_forward(layer, x, attn_mask=attn_mask)
+    return model.ln_f(x)
 
 
 def _gptneo_fixture_json(
@@ -406,7 +394,7 @@ def generate_decoder(
         dims.batch, dims.seq, x_pt.device,
     )
     data["attn_mask"] = _sdpa_causal_mask_fortran(dims.seq)
-    out = _gptneo_decoder_forward(pt, x_pt, dims, attn_mask=attn_mask)
+    out = _gptneo_decoder_forward(pt, x_pt, attn_mask=attn_mask)
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
     data["grad_output"] = g_nt
@@ -433,7 +421,7 @@ def generate_model(seed: int, dims: TestDims = MODEL_DIMS) -> dict[str, np.ndarr
         dims.batch, dims.seq, ids_pt.device,
     )
     out = _gptneo_model_forward(
-        pt, ids_pt, pos_pt, dims, attn_mask=attn_mask,
+        pt, ids_pt, pos_pt, attn_mask=attn_mask,
     )
     data["output_ref"] = _out_to_nntile(out)
     g_nt, g_pt = _grad_output(rng, out)
@@ -463,7 +451,7 @@ def generate_causal(seed: int, dims: TestDims = CAUSAL_DIMS) -> dict[str, np.nda
         dims.batch, dims.seq, ids_pt.device,
     )
     hidden = _gptneo_model_forward(
-        pt.transformer, ids_pt, pos_pt, dims, attn_mask=attn_mask,
+        pt.transformer, ids_pt, pos_pt, attn_mask=attn_mask,
     )
     logits = pt.lm_head(hidden)
     data["output_ref"] = _out_to_nntile(logits)

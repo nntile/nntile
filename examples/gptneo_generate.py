@@ -112,12 +112,15 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
     max_pos = config.max_position_embeddings
     specs.append(("model.model.wpe.vocab", (H, max_pos)))
     specs.append(("model.model.norm.gamma", (H,)))
+    specs.append(("model.model.norm.beta", (H,)))
     specs.append(("model.lm_head.weight", (H, V)))
 
     for i in range(config.num_layers):
         p = f"model.model.layers_{i}"
         specs.append((f"{p}.input_norm.gamma", (H,)))
+        specs.append((f"{p}.input_norm.beta", (H,)))
         specs.append((f"{p}.post_attn_norm.gamma", (H,)))
+        specs.append((f"{p}.post_attn_norm.beta", (H,)))
 
         specs.append((f"{p}.self_attn.q_weight", (nh, hd, H)))
         specs.append((f"{p}.self_attn.k_weight", (nh, hd, H)))
@@ -154,6 +157,9 @@ def _make_converter(
         if name == "model.model.norm.gamma":
             return fortran_order(hf_get("transformer.ln_f.weight"))
 
+        if name == "model.model.norm.beta":
+            return fortran_order(hf_get("transformer.ln_f.bias"))
+
         if name == "model.lm_head.weight":
             key = ("lm_head.weight" if has_lm_head
                    else "transformer.wte.weight")
@@ -166,8 +172,12 @@ def _make_converter(
 
         if rest == "input_norm.gamma":
             return fortran_order(hf_get(f"{hp}.ln_1.weight"))
+        if rest == "input_norm.beta":
+            return fortran_order(hf_get(f"{hp}.ln_1.bias"))
         if rest == "post_attn_norm.gamma":
             return fortran_order(hf_get(f"{hp}.ln_2.weight"))
+        if rest == "post_attn_norm.beta":
+            return fortran_order(hf_get(f"{hp}.ln_2.bias"))
 
         if rest == "self_attn.q_weight":
             w = hf_get(f"{hp}.attn.attention.q_proj.weight")

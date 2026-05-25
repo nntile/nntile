@@ -25,7 +25,7 @@
 #include <nntile/graph/model/gptneo/gptneo_decoder.hh>
 #include <nntile/graph/module/embedding.hh>
 #include <nntile/graph/module/module.hh>
-#include <nntile/graph/module/rms_norm.hh>
+#include <nntile/graph/module/layer_norm.hh>
 
 namespace nntile::model::gptneo
 {
@@ -37,7 +37,7 @@ private:
     graph::module::Embedding wte_;
     graph::module::Embedding wpe_;
     std::vector<std::unique_ptr<GptneoDecoder>> layers_;
-    graph::module::RMSNorm norm_;
+    graph::module::LayerNorm norm_;
 
     GptneoConfig config_;
     graph::DataType dtype_;
