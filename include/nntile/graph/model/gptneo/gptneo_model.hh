@@ -61,6 +61,11 @@ public:
     std::string repr() const override;
 
     Index num_layers() const { return config_.num_hidden_layers; }
+
+    graph::NNGraph::TensorNode* wte_vocab_tensor() const
+    {
+        return wte_.vocab_tensor();
+    }
 };
 
 } // namespace nntile::model::gptneo
