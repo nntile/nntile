@@ -37,10 +37,10 @@ void sdpa_causal_mask_bool_fortran_fill(
     {
         for(Index kk = 0; kk < seq_len; ++kk)
         {
-            const bool block = kk > qq;
+            const bool allowed = kk <= qq;
             out[kk + seq_len * qq] =
-                block ? static_cast<std::uint8_t>(1)
-                      : static_cast<std::uint8_t>(0);
+                allowed ? static_cast<std::uint8_t>(1)
+                        : static_cast<std::uint8_t>(0);
         }
     }
 }

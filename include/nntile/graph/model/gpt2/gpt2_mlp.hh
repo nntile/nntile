@@ -28,17 +28,19 @@
 namespace nntile::model::gpt2
 {
 
-//! GPT2MLP - standard MLP using GELUTANH (gelu_new) activation
+//! GPT2MLP - MLP with GELUTANH and HF ``c_fc`` / ``c_proj`` biases
 class Gpt2MLP : public graph::module::Mlp
 {
+private:
+    graph::NNGraph::TensorNode* fc1_bias_ = nullptr;
+    graph::NNGraph::TensorNode* fc2_bias_ = nullptr;
+
 public:
-    //! Constructor
     Gpt2MLP(graph::NNGraph* graph,
             const std::string& name,
             const Gpt2Config& config,
             graph::DataType dtype = graph::DataType::FP32);
 
-    //! Forward pass
     graph::NNGraph::TensorNode* forward(
         graph::NNGraph::TensorNode* input);
 

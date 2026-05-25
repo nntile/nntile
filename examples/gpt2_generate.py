@@ -139,7 +139,9 @@ def _output_specs(config) -> list[tuple[str, tuple[int, ...]]]:
 
         # MLP Linear weights: [input_dim, output_dim] (matches HF Conv1D)
         specs.append((f"{p}.mlp.fc1.weight", (H, n_inner)))
+        specs.append((f"{p}.mlp.fc1.bias", (n_inner,)))
         specs.append((f"{p}.mlp.fc2.weight", (n_inner, H)))
+        specs.append((f"{p}.mlp.fc2.bias", (H,)))
 
     specs.append(("model.transformer.ln_f.gamma", (H,)))
     specs.append(("model.transformer.ln_f.beta", (H,)))
@@ -228,9 +230,13 @@ def _make_converter(
         if rest == "mlp.fc1.weight":
             return _conv1d_to_nntile_linear_weight(
                 hf_get(f"{hp}.mlp.c_fc.weight"))
+        if rest == "mlp.fc1.bias":
+            return fortran_order(hf_get(f"{hp}.mlp.c_fc.bias"))
         if rest == "mlp.fc2.weight":
             return _conv1d_to_nntile_linear_weight(
                 hf_get(f"{hp}.mlp.c_proj.weight"))
+        if rest == "mlp.fc2.bias":
+            return fortran_order(hf_get(f"{hp}.mlp.c_proj.bias"))
 
         raise ValueError(f"Unknown NNTile tensor: {name}")
 

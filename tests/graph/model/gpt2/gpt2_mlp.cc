@@ -147,7 +147,7 @@ TEST_CASE("Gpt2MLP forward builds output", "[model][gpt2]")
     REQUIRE(output != nullptr);
     REQUIRE(
         output->shape() == std::vector<Index>({fx.hidden, fx.seq, fx.batch}));
-    REQUIRE(mlp.parameters_recursive().size() == 2);
+    REQUIRE(mlp.parameters_recursive().size() == 4);
 }
 
 TEST_CASE("Gpt2MLP load from safetensors roundtrip", "[model][gpt2][io]")

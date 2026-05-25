@@ -115,14 +115,6 @@ def _layer_norm(ln, prefix: str) -> dict[str, np.ndarray]:
 
 
 
-def _zero_gpt2_attn_bias(attn: PtAttention) -> None:
-    with torch.no_grad():
-        if attn.c_attn.bias is not None:
-            attn.c_attn.bias.zero_()
-        if attn.c_proj.bias is not None:
-            attn.c_proj.bias.zero_()
-
-
 def _gpt2_attn_weights(
     attn: PtAttention, prefix: str, dims: TestDims,
 ) -> dict[str, np.ndarray]:
@@ -160,7 +152,9 @@ def _gpt2_attn_weights(
 def _gpt2_mlp(mlp: PtMLP, prefix: str) -> dict[str, np.ndarray]:
     return {
         f"{prefix}.fc1.weight": _conv1d_to_linear_weight(mlp.c_fc),
+        f"{prefix}.fc1.bias": fortran_order(mlp.c_fc.bias.detach().numpy()),
         f"{prefix}.fc2.weight": _conv1d_to_linear_weight(mlp.c_proj),
+        f"{prefix}.fc2.bias": fortran_order(mlp.c_proj.bias.detach().numpy()),
     }
 
 
