@@ -286,3 +286,80 @@ foreach(test_path IN LISTS TESTS_MODEL_GPTNEO)
         endif()
     endif()
 endforeach()
+
+# GPT-NeoX test data: generated at test time via CTest fixtures (one per block)
+set(GPTNEOX_DATA_DIR "${CMAKE_CURRENT_BINARY_DIR}/gptneox_data")
+set(GPTNEOX_GENERATE_SCRIPT
+    "${CMAKE_CURRENT_SOURCE_DIR}/gptneox/generate_test_data.py")
+
+set(TESTS_MODEL_GPTNEOX
+    "gptneox/gptneox_config"
+    "gptneox/gptneox_mlp"
+    "gptneox/gptneox_attention"
+    "gptneox/gptneox_decoder"
+    "gptneox/gptneox_model"
+    "gptneox/gptneox_causal"
+)
+
+foreach(test_path IN LISTS TESTS_MODEL_GPTNEOX)
+    get_filename_component(test_name ${test_path} NAME)
+    string(REPLACE "gptneox_" "" block_name "${test_name}")
+    add_test_set(TARGET_NAME tests_graph_model_${test_name}
+        EXEC_NAME test_${test_name}
+        SOURCES ${test_path}.cc
+        LINK_LIBRARIES nntile Catch2::Catch2WithMain
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_graph_model_${test_name}
+        COV_GLOBAL coverage_graph_model coverage
+    )
+    target_include_directories(tests_graph_model_${test_name} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_CURRENT_SOURCE_DIR}/../..
+        ${CMAKE_CURRENT_SOURCE_DIR}/../nn
+    )
+    set_target_properties(tests_graph_model_${test_name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/gptneox)
+    if(NOT test_name STREQUAL "gptneox_config")
+        target_compile_definitions(tests_graph_model_${test_name} PRIVATE
+            GPTNEOX_DATA_DIR="${GPTNEOX_DATA_DIR}"
+        )
+        if(Python3_Interpreter_FOUND)
+            add_test(NAME tests_graph_model_${test_name}_data_setup
+                COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPTNEOX_GENERATE_SCRIPT}"
+                    --block "${block_name}" --output "${GPTNEOX_DATA_DIR}"
+                    --seed 42
+                WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            )
+            set_tests_properties(tests_graph_model_${test_name}_data_setup
+                PROPERTIES
+                    FIXTURES_SETUP "tests_graph_model_${test_name}_data"
+                    ENVIRONMENT
+                        "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+            )
+            set(required_fixtures "tests_graph_model_${test_name}_data")
+
+            if(test_name STREQUAL "gptneox_attention")
+                add_test(NAME tests_graph_model_gptneox_attention_causal_data_setup
+                    COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${GPTNEOX_GENERATE_SCRIPT}"
+                        --block attention_causal
+                        --output "${GPTNEOX_DATA_DIR}" --seed 42
+                    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                )
+                set_tests_properties(
+                    tests_graph_model_gptneox_attention_causal_data_setup
+                    PROPERTIES
+                        FIXTURES_SETUP
+                            "tests_graph_model_gptneox_attention_causal_data"
+                        ENVIRONMENT
+                            "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                )
+                list(APPEND required_fixtures
+                    "tests_graph_model_gptneox_attention_causal_data")
+            endif()
+            set_tests_properties(tests_graph_model_${test_name} PROPERTIES
+                FIXTURES_REQUIRED "${required_fixtures}"
+            )
+        endif()
+    endif()
+endforeach()
