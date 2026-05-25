@@ -554,6 +554,7 @@ set(GRAPH_MODULE_SRC
 
 set(GRAPH_DATASET_SRC
     "graph/dataset/causal_lm_mmap.cc"
+    "graph/dataset/seq2seq_lm_mmap.cc"
     )
 
 set(GRAPH_MODEL_SRC
@@ -581,6 +582,11 @@ set(GRAPH_MODEL_SRC
     "graph/model/gptneox/gptneox_decoder.cc"
     "graph/model/gptneox/gptneox_model.cc"
     "graph/model/gptneox/gptneox_causal.cc"
+    "graph/model/t5/t5_attention.cc"
+    "graph/model/t5/t5_ff.cc"
+    "graph/model/t5/t5_block.cc"
+    "graph/model/t5/t5_model.cc"
+    "graph/model/t5/t5_for_conditional_generation.cc"
     )
 
 set(GRAPH_OPTIM_SRC

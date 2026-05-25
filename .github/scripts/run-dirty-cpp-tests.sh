@@ -37,6 +37,8 @@ while IFS= read -r file; do
             run_all=true; break ;;
         tests/graph/model/gptneo/generate_test_data.py)
             run_all=true; break ;;
+        tests/graph/model/t5/generate_test_data.py)
+            run_all=true; break ;;
     esac
 done <<< "$all_changed"
 
@@ -87,6 +89,13 @@ add_gptneo_model_tests() {
     done
 }
 
+add_t5_model_tests() {
+    for t in t5_config t5_ff t5_attention t5_cross_attention \
+             t5_encoder_block t5_decoder_block t5_model t5_conditional; do
+        affected["tests_graph_model_${t}"]=1
+    done
+}
+
 # ---------- classify every changed file ------------------------------------
 while IFS= read -r file; do
     [ -z "$file" ] && continue
@@ -125,8 +134,12 @@ while IFS= read -r file; do
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         tests/graph/model/gptneo/*.cc)
             affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
+        tests/graph/model/t5/*.cc)
+            affected["tests_graph_model_$(basename "$file" .cc)"]=1 ;;
         tests/graph/model/test_gptneo_fixture_helpers.hh)
             add_gptneo_model_tests ;;
+        tests/graph/model/test_t5_fixture_helpers.hh)
+            add_t5_model_tests ;;
         tests/graph/*.cc)
             affected["tests_graph_$(basename "$file" .cc)"]=1 ;;
 
@@ -206,6 +219,20 @@ while IFS= read -r file; do
         examples/gptneo_config_json.hh | examples/gptneo_generate.cc |
         examples/gptneo_graph_training.cc | examples/gptneo_generate.py)
             add_gptneo_model_tests ;;
+        src/graph/model/t5/*.cc)
+            add_t5_model_tests ;;
+        include/nntile/graph/model/t5/*.hh)
+            add_t5_model_tests ;;
+        include/nntile/graph/model/t5.hh)
+            add_t5_model_tests ;;
+        examples/t5_generate.cc | examples/t5_generate.py |
+        examples/t5_graph_training.cc | examples/t5_config_json.hh |
+        examples/prepare_tiny_seq2seq_train_bin.py |
+        examples/run_t5_graph_training_demo.sh)
+            add_t5_model_tests ;;
+        src/graph/dataset/seq2seq_lm_mmap.cc |
+        include/nntile/graph/dataset/seq2seq_lm_mmap.hh)
+            add_t5_model_tests ;;
     esac
 done <<< "$all_changed"
 
