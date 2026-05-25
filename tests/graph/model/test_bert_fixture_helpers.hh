@@ -133,16 +133,14 @@ inline bool load_attn_mask_bool(nntile::graph::NNGraph &g,
         throw std::runtime_error(
             "BERT test fixture: attn_mask shape mismatch");
     }
-    const auto n_el = static_cast<size_t>(n_seq * n_seq);
+    if (info.dtype != nntile::graph::DataType::BOOL)
+    {
+        return false;
+    }
     out_mask = g.tensor({n_seq, n_seq}, nntile::graph::DataType::BOOL, false)
                    ->set_name("attn_mask");
-    auto raw = reader.read_tensor("attn_mask");
-    if (info.dtype == nntile::graph::DataType::BOOL)
-    {
-        mask_bytes = std::move(raw);
-        return true;
-    }
-    return false;
+    mask_bytes = reader.read_tensor("attn_mask");
+    return true;
 }
 
 inline void mark_mask_input(nntile::graph::NNGraph::TensorNode *mask)
