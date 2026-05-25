@@ -445,8 +445,8 @@ def _pt_t5_model(
             f"{prefix}.decoder_layers_{i}", dims, dec_mask, cross_mask,
         )
     g_dec = _weight_from_fortran(data[f"{prefix}.decoder_final_norm.gamma"])
-    out = _pt_rms_norm(dec_hidden, g_dec, dims.layer_norm_eps)
-    return out.permute(2, 1, 0).contiguous()
+    # ``(B, S, D)`` for ``_out_to_nntile`` / ``_grad_output`` (→ Fortran ``(D,S,B)``).
+    return _pt_rms_norm(dec_hidden, g_dec, dims.layer_norm_eps)
 
 
 def _t5_fixture_json(
@@ -707,19 +707,17 @@ def generate_conditional(
     vocab = _weight_from_fortran(
         data["conditional.model.embed_tokens.vocab"],
     ).T.requires_grad_(True)
-    hidden_dsb = _pt_t5_model(
+    hidden_bsd = _pt_t5_model(
         enc_ids, dec_ids, data, "conditional.model", dims, dec_m, cross_m,
         vocab=vocab,
     )
-    hidden_bsd = hidden_dsb.permute(2, 1, 0).contiguous()
     lm_w = _weight_from_fortran(data["conditional.lm_head.weight"])
     lm_w = lm_w.requires_grad_(True)
     logits = hidden_bsd @ lm_w
-    out = logits.permute(0, 2, 1).contiguous()
-    data["output_ref"] = _out_to_nntile(out)
-    g_nt, g_pt = _grad_output(rng, out)
+    data["output_ref"] = _out_to_nntile(logits)
+    g_nt, g_pt = _grad_output(rng, logits)
     data["grad_output"] = g_nt
-    out.backward(g_pt)
+    logits.backward(g_pt)
     data["grad_embed_tokens_vocab"] = fortran_order(
         vocab.grad.detach().numpy().T,
     )
