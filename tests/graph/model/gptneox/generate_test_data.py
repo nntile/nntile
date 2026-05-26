@@ -358,7 +358,7 @@ class _PtSdpaEagerFn(torch.autograd.Function):
         mask: torch.Tensor | None,
     ) -> torch.Tensor:
         scale = 1.0 / (q.shape[0] ** 0.5)
-        scores = torch.einsum("hsbn,htbn->tsbn", k, q) * scale
+        scores = torch.einsum("hsbn,htbn->stbn", k, q) * scale
         if mask is not None:
             scores = torch.where(
                 mask > 0.5,
@@ -368,18 +368,18 @@ class _PtSdpaEagerFn(torch.autograd.Function):
         attn = torch.softmax(scores, dim=0)
         ctx.save_for_backward(q, k, v, attn)
         ctx.scale = scale
-        return torch.einsum("hsbn,tsbn->htbn", v, attn)
+        return torch.einsum("hsbn,stbn->htbn", v, attn)
 
     @staticmethod
     def backward(ctx, grad_out: torch.Tensor):
         q, k, v, attn = ctx.saved_tensors
         scale = ctx.scale
-        grad_v = torch.einsum("hsbn,tsbn->htbn", grad_out, attn)
-        grad_temp = torch.einsum("hsbn,htbn->tsbn", v, grad_out)
+        grad_v = torch.einsum("hsbn,stbn->htbn", grad_out, attn)
+        grad_temp = torch.einsum("hsbn,htbn->stbn", v, grad_out)
         sumprod = (attn * grad_temp).sum(dim=0, keepdim=True)
         grad_temp = (grad_temp - sumprod) * attn
-        grad_q = scale * torch.einsum("htbn,tsbn->hsbn", k, grad_temp)
-        grad_k = scale * torch.einsum("hsbn,tsbn->htbn", q, grad_temp)
+        grad_q = scale * torch.einsum("htbn,stbn->hsbn", k, grad_temp)
+        grad_k = scale * torch.einsum("hsbn,stbn->htbn", q, grad_temp)
         return grad_q, grad_k, grad_v, None
 
 
