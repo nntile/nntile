@@ -334,9 +334,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         SKIP("GPT-NeoX attention fixture pair not found.");
     }
-    SKIP(
-        "Causal backward: BOOL mask vs SDPA logits (~0.92 rel err); forward "
-        "paths validated separately.");
+    gptneox_attention_backward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
@@ -349,9 +347,7 @@ TEST_CASE_METHOD(nntile::test::ContextFixture,
     {
         SKIP("GPT-NeoX attention fixture pair not found.");
     }
-    SKIP(
-        "Causal backward: BOOL mask vs SDPA logits (~0.92 rel err); forward "
-        "paths validated separately.");
+    gptneox_attention_backward_compare_ref(fx);
 }
 
 #endif

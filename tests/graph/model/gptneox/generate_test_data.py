@@ -493,8 +493,8 @@ def write_attention_rope_mask_variant_files(out: Path, seed: int) -> None:
     """Write extra attention safetensors for RoPE / causal-mask combinations."""
     specs: list[tuple[str, bool, bool, float, float]] = [
         ("gptneox_attention_no_rope", False, False, 1e-6, 1e-6),
-        ("gptneox_attention_causal", True, True, 1e-6, 7e-3),
-        ("gptneox_attention_no_rope_causal", False, True, 1e-6, 7e-3),
+        ("gptneox_attention_causal", True, True, 1e-6, 1e-6),
+        ("gptneox_attention_no_rope_causal", False, True, 1e-6, 1e-6),
     ]
     for stem, rope, causal, fwd_tol, bwd_tol in specs:
         payload = generate_attention(
@@ -760,8 +760,7 @@ def main() -> int:
     if args.block == "mlp":
         write_fixture_json(out, stem, MLP_DIMS, 1e-6, 1e-6)
     elif args.block in ("attention", "attention_causal"):
-        # RoPE forward vs C++ StarPU ~3e-3; backward ~6.5e-3 (kernels vs torch autograd).
-        write_fixture_json(out, stem, ATTENTION_DIMS, 4e-3, 7e-3)
+        write_fixture_json(out, stem, ATTENTION_DIMS, 1e-6, 1e-6)
     elif args.block == "decoder":
         write_fixture_json(out, stem, DECODER_DIMS, 1.6e-2, 5e-3)
     elif args.block in ("model", "causal"):
