@@ -33,13 +33,9 @@ import torch
 from safetensors.numpy import save_file
 from transformers import BertConfig
 from transformers.models.bert.modeling_bert import (
-    BertAttention as PtAttention,
-    BertEmbeddings as PtEmbeddings,
-    BertForMaskedLM as PtMlm,
-    BertIntermediate as PtIntermediate,
-    BertLayer as PtLayer,
-    BertModel as PtModel,
-)
+    BertAttention as PtAttention, BertEmbeddings as PtEmbeddings,
+    BertForMaskedLM as PtMlm, BertIntermediate as PtIntermediate,
+    BertLayer as PtLayer, BertModel as PtModel)
 
 # ── Test dimension bundles ────────────────────────────────────────────────
 
@@ -163,10 +159,14 @@ def _bert_self_output_weights(out_module, prefix: str, dims: TestDims):
     n_emb = dims.hidden
     n_heads = dims.n_heads
     hs = dims.head_size
-    w = out_module.dense.weight.detach().numpy().reshape(
-        n_emb,
-        n_heads,
-        hs,
+    w = (
+        out_module.dense.weight.detach()
+        .numpy()
+        .reshape(
+            n_emb,
+            n_heads,
+            hs,
+        )
     )
     return {
         f"{prefix}.dense.weight": fortran_order(w),
@@ -186,7 +186,13 @@ def _bert_attention_weights(attn: PtAttention, prefix: str, dims: TestDims):
 
 def _bert_layer_weights(layer: PtLayer, prefix: str, dims: TestDims):
     d: dict[str, np.ndarray] = {}
-    d.update(_bert_attention_weights(layer.attention, f"{prefix}.attention", dims))
+    d.update(
+        _bert_attention_weights(
+            layer.attention,
+            f"{prefix}.attention",
+            dims,
+        ),
+    )
     d.update(_linear(layer.intermediate.dense, f"{prefix}.intermediate.dense"))
     d.update(_linear(layer.output.dense, f"{prefix}.output.dense"))
     d.update(_layer_norm(layer.output.LayerNorm, f"{prefix}.output.ln"))
@@ -194,9 +200,12 @@ def _bert_layer_weights(layer: PtLayer, prefix: str, dims: TestDims):
 
 
 def _hidden_input(rng, dims: TestDims, scale: float = 0.1):
-    x = rng.standard_normal(
-        (dims.hidden, dims.seq, dims.batch),
-    ).astype(np.float32) * scale
+    x = (
+        rng.standard_normal(
+            (dims.hidden, dims.seq, dims.batch),
+        ).astype(np.float32)
+        * scale
+    )
     x_nt = fortran_order(x)
     x_pt = torch.tensor(x.transpose(2, 1, 0).copy(), requires_grad=True)
     return x_nt, x_pt
@@ -211,7 +220,9 @@ def _grad_output(rng, pt_out: torch.Tensor, scale: float = 0.1):
 
 def _ids_input(rng, dims: TestDims):
     ids = rng.integers(
-        0, dims.vocab, size=(dims.seq, dims.batch),
+        0,
+        dims.vocab,
+        size=(dims.seq, dims.batch),
     ).astype(np.int64)
     ids_nt = ids.ravel("F").reshape(ids.shape)
     ids_pt = torch.tensor(ids.T.copy(), dtype=torch.long)
@@ -232,8 +243,13 @@ def _position_ids(dims: TestDims) -> np.ndarray:
 def _bert_batch_inputs(dims: TestDims, ids_pt: torch.Tensor):
     """HF BertEmbeddings/BertModel inputs: (batch, seq) ids and masks."""
     tt_pt = torch.zeros(dims.batch, dims.seq, dtype=torch.long)
-    pos_pt = torch.arange(dims.seq, dtype=torch.long).unsqueeze(0).expand(
-        dims.batch, -1,
+    pos_pt = (
+        torch.arange(dims.seq, dtype=torch.long)
+        .unsqueeze(0)
+        .expand(
+            dims.batch,
+            -1,
+        )
     )
     return tt_pt, pos_pt
 
@@ -322,7 +338,8 @@ def write_fixture_json(
 
 
 def generate_intermediate(
-    seed: int, dims: TestDims = INTERMEDIATE_DIMS,
+    seed: int,
+    dims: TestDims = INTERMEDIATE_DIMS,
 ) -> dict[str, np.ndarray]:
     config = _make_config(dims)
     return _run_hidden_block(
@@ -335,7 +352,8 @@ def generate_intermediate(
 
 
 def generate_attention(
-    seed: int, dims: TestDims = ATTENTION_DIMS,
+    seed: int,
+    dims: TestDims = ATTENTION_DIMS,
 ) -> dict[str, np.ndarray]:
     config = _make_config(dims)
     return _run_hidden_block(
@@ -348,7 +366,8 @@ def generate_attention(
 
 
 def generate_layer(
-    seed: int, dims: TestDims = LAYER_DIMS,
+    seed: int,
+    dims: TestDims = LAYER_DIMS,
 ) -> dict[str, np.ndarray]:
     config = _make_config(dims)
     return _run_hidden_block(
@@ -361,7 +380,8 @@ def generate_layer(
 
 
 def generate_embeddings(
-    seed: int, dims: TestDims = EMBEDDINGS_DIMS,
+    seed: int,
+    dims: TestDims = EMBEDDINGS_DIMS,
 ) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
@@ -391,7 +411,12 @@ def generate_embeddings(
 
 def _model_weights(model: PtModel, prefix: str, dims: TestDims):
     d: dict[str, np.ndarray] = {}
-    d.update(_embed(model.embeddings.word_embeddings, f"{prefix}.embeddings.word"))
+    d.update(
+        _embed(
+            model.embeddings.word_embeddings,
+            f"{prefix}.embeddings.word",
+        ),
+    )
     d.update(
         _embed(
             model.embeddings.position_embeddings,
@@ -404,17 +429,27 @@ def _model_weights(model: PtModel, prefix: str, dims: TestDims):
             f"{prefix}.embeddings.token_type",
         ),
     )
-    d.update(_layer_norm(model.embeddings.LayerNorm, f"{prefix}.embeddings.ln"))
+    d.update(
+        _layer_norm(
+            model.embeddings.LayerNorm,
+            f"{prefix}.embeddings.ln",
+        ),
+    )
     for i, layer in enumerate(model.encoder.layer):
         d.update(_bert_layer_weights(layer, f"{prefix}.layer_{i}", dims))
     return d
 
 
-def _mlm_head_weights(head, prefix: str, word_embeddings) -> dict[str, np.ndarray]:
-    """HF ties MLM decoder weight to word embeddings; graph BertMlmHead mirrors."""
+def _mlm_head_weights(
+    head,
+    prefix: str,
+    word_embeddings,
+) -> dict[str, np.ndarray]:
+    """HF ties MLM decoder to word embeddings; graph BertMlmHead mirrors."""
     if head.decoder.weight is not word_embeddings.weight:
         raise RuntimeError(
-            "BertLMPredictionHead decoder weight must be tied to word embeddings",
+            "BertLMPredictionHead decoder weight must be tied to "
+            "word embeddings",
         )
     d: dict[str, np.ndarray] = {}
     d.update(_linear(head.transform.dense, f"{prefix}.transform_dense"))
