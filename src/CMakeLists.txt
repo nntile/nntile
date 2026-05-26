@@ -597,6 +597,10 @@ set(GRAPH_MODEL_SRC
     "graph/model/bert/bert_model.cc"
     "graph/model/bert/bert_mlm_head.cc"
     "graph/model/bert/bert_mlm.cc"
+    "graph/model/roberta/roberta_embeddings.cc"
+    "graph/model/roberta/roberta_model.cc"
+    "graph/model/roberta/roberta_mlm_head.cc"
+    "graph/model/roberta/roberta_mlm.cc"
     )
 
 set(GRAPH_OPTIM_SRC

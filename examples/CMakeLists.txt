@@ -116,6 +116,16 @@ add_example(TARGET_NAME examples_bert_mlm_inference
     SOURCES "bert_mlm_inference.cc"
     LINK_LIBRARIES nntile)
 
+add_example(TARGET_NAME examples_roberta_graph_training
+    EXEC_NAME "roberta_graph_training"
+    SOURCES "roberta_graph_training.cc"
+    LINK_LIBRARIES nntile)
+
+add_example(TARGET_NAME examples_roberta_mlm_inference
+    EXEC_NAME "roberta_mlm_inference"
+    SOURCES "roberta_mlm_inference.cc"
+    LINK_LIBRARIES nntile)
+
 add_example(TARGET_NAME examples_gptneo_generate
     EXEC_NAME "gptneo_generate"
     SOURCES "gptneo_generate.cc"
