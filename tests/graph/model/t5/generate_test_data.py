@@ -629,6 +629,25 @@ def generate_ff(seed: int, dims: TestDims = FF_DIMS) -> dict[str, np.ndarray]:
     return data
 
 
+def write_attention_no_rope_mask_variant_files(out: Path, seed: int) -> None:
+    """Write self-attention fixtures for the no-RoPE / mask matrix (T5 has no RoPE).
+
+    Measured C++ vs reference (StarPU FP32, seed 42, ``ATTN_DIMS``):
+    - ``t5_attention_no_rope_nomask``: forward ~1.2e-7, backward ~2.3e-7
+    - ``t5_attention_no_rope_causal``: forward ~4.9e-8, backward ~2.1e-7
+    """
+    specs: list[tuple[str, bool, float, float]] = [
+        ("t5_attention_no_rope_nomask", False, 1e-6, 1e-6),
+        ("t5_attention_no_rope_causal", True, 1e-6, 1e-6),
+    ]
+    for stem, causal, fwd_tol, bwd_tol in specs:
+        payload = generate_attention(seed, ATTN_DIMS, causal=causal)
+        path = str(out / f"{stem}.safetensors")
+        save_file(payload, path)
+        print(f"Saved {path}")
+        write_fixture_json(out, stem, ATTN_DIMS, fwd_tol, bwd_tol)
+
+
 def generate_attention(
     seed: int,
     dims: TestDims = ATTN_DIMS,
@@ -850,13 +869,26 @@ GENERATORS = {
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate T5 block test data")
-    parser.add_argument("--block", choices=GENERATORS, required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--block", choices=GENERATORS)
+    mode.add_argument(
+        "--write-attention-no-rope-mask-variants",
+        action="store_true",
+        help=(
+            "Write ``t5_attention_no_rope_nomask`` and "
+            "``t5_attention_no_rope_causal`` for C++ graph tests."
+        ),
+    )
     parser.add_argument("--output", "-o", required=True)
     parser.add_argument("--seed", "-s", type=int, default=42)
     args = parser.parse_args()
 
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)
+
+    if args.write_attention_no_rope_mask_variants:
+        write_attention_no_rope_mask_variant_files(out, args.seed)
+        return 0
 
     data = GENERATORS[args.block](args.seed)
     stem = f"t5_{args.block}"

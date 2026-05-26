@@ -3,8 +3,29 @@
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
  *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
  * @file tests/graph/model/t5/t5_attention.cc
- * Tests for T5Attention (self-attention).
+ * Tests for T5Attention (self-attention, ``sdpa_eager``).
+ *
+ * T5 has **no RoPE** in the graph; ``[norope]`` tags mark bundles that use
+ * plain Q/K/V + SDPA only. Each reference bundle is a pair ``<stem>.json`` and
+ * ``<stem>.safetensors`` from ``generate_test_data.py``.
+ *
+ * Catch tags:
+ * ``[nomask]`` / ``[norope_nomask]`` — no ``attn_mask``;
+ * ``[causal_mask]`` / ``[norope]`` — causal BOOL mask.
+ *
+ * Achieved relative Frobenius error (C++ vs PyTorch reference, seed 42):
+ *
+ * | Bundle | Forward | Backward |
+ * |--------|---------|----------|
+ * | no mask, no RoPE | ~1.2e-7 | ~2.3e-7 |
+ * | causal mask, no RoPE | ~4.9e-8 | ~2.1e-7 |
+ *
+ * JSON tolerances: ``1e-6`` for both (see variant writer in
+ * ``generate_test_data.py``).
  *
  * @version 1.1.0
  * */
@@ -16,6 +37,7 @@
 #include "nntile/graph/io/safetensors.hh"
 #include "nntile/graph/model/t5/t5_config.hh"
 #include "test_frobenius.hh"
+#include "test_t5_attention_fixture.hh"
 #include "test_t5_fixture_helpers.hh"
 
 #include <catch2/catch_test_macros.hpp>
@@ -23,7 +45,6 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
-#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 
@@ -42,71 +63,16 @@ TEST_CASE(
 
 #else
 
-namespace attn_fixture_stem
-{
-
-constexpr char t5_attention[] = "t5_attention";
-constexpr char t5_attention_causal[] = "t5_attention_causal";
-
-} // namespace attn_fixture_stem
-
 namespace
 {
 
+using namespace nntile::test::t5_attention_fixture;
 using namespace nntile::test::t5_fixture;
 
-struct AttentionFixtureSpec
-{
-    T5Config config{};
-    Index seq = 0;
-    Index batch = 0;
-    Index hidden = 0;
-    float forward_tol = 0.f;
-    float backward_tol = 0.f;
-    std::string stem;
-};
-
-inline bool try_load_attention_fixture_spec(const std::string &data_dir,
-    const char *stem_cstr,
-    AttentionFixtureSpec &out)
-{
-    out = {};
-    nlohmann::json j;
-    if (!try_open_t5_fixture_json(data_dir, stem_cstr, out.stem, j))
-    {
-        return false;
-    }
-    try
-    {
-        load_t5_config_from_fixture_json(j, out.config);
-        out.hidden = out.config.d_model;
-        out.seq = json_index(j, "sequence_length");
-        out.batch = json_index(j, "batch");
-        load_t5_fixture_tolerances(j, out.forward_tol, out.backward_tol);
-    }
-    catch (...)
-    {
-        return false;
-    }
-    return true;
-}
-
-inline bool skip_unless_fixture_ready(
-    const char *stem, AttentionFixtureSpec &fx)
-{
-    const std::string dir = std::string(T5_DATA_DIR);
-    if (!try_load_attention_fixture_spec(dir, stem, fx))
-    {
-        return false;
-    }
-    std::ifstream st(t5_fixture_safetensors_path(dir, fx.stem));
-    return st.good();
-}
-
-void t5_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
+void t5_attention_forward_compare_ref(const AttentionFixtureSpec& fx)
 {
     const std::string full_path =
-        t5_fixture_safetensors_path(std::string(T5_DATA_DIR), fx.stem);
+        attention_fixture_safetensors_path(std::string(T5_DATA_DIR), fx);
     SafeTensorsReader reader(full_path);
 
     std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
@@ -116,9 +82,9 @@ void t5_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
     std::vector<float> result;
     {
         NNGraph g(std::string("attn_ref_") + fx.stem);
-        auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+        auto* input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
                           ->set_name("input");
-        NNGraph::TensorNode *mask = nullptr;
+        NNGraph::TensorNode* mask = nullptr;
         std::vector<std::uint8_t> mask_bytes;
         load_attn_mask_bool(
             g, reader, "attn_mask", fx.seq, fx.seq, mask, mask_bytes);
@@ -126,7 +92,7 @@ void t5_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
         T5Attention attn(&g, "attn", fx.config);
         attn.load(full_path);
 
-        auto *output = attn.forward(input, nullptr, mask);
+        auto* output = attn.forward(input, nullptr, mask);
         input->mark_input(true);
         output->mark_output(true);
         mark_mask_input(mask);
@@ -150,10 +116,10 @@ void t5_attention_forward_compare_ref(const AttentionFixtureSpec &fx)
     require_relative_frobenius_error(result, ref_data, fx.forward_tol);
 }
 
-void t5_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
+void t5_attention_backward_compare_ref(const AttentionFixtureSpec& fx)
 {
     const std::string full_path =
-        t5_fixture_safetensors_path(std::string(T5_DATA_DIR), fx.stem);
+        attention_fixture_safetensors_path(std::string(T5_DATA_DIR), fx);
     SafeTensorsReader reader(full_path);
 
     std::vector<std::uint8_t> input_bytes = reader.read_tensor("input");
@@ -169,9 +135,9 @@ void t5_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
     std::vector<float> grad_input_result;
     {
         NNGraph g(std::string("attn_bwd_") + fx.stem);
-        auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32, true)
+        auto* input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32, true)
                           ->set_name("input");
-        NNGraph::TensorNode *mask = nullptr;
+        NNGraph::TensorNode* mask = nullptr;
         std::vector<std::uint8_t> mask_bytes;
         load_attn_mask_bool(
             g, reader, "attn_mask", fx.seq, fx.seq, mask, mask_bytes);
@@ -179,7 +145,7 @@ void t5_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
         T5Attention attn(&g, "attn", fx.config);
         attn.load(full_path);
 
-        auto *output = attn.forward(input, nullptr, mask);
+        auto* output = attn.forward(input, nullptr, mask);
 
         input->mark_input(true);
         output->mark_output(true);
@@ -217,15 +183,15 @@ void t5_attention_backward_compare_ref(const AttentionFixtureSpec &fx)
 TEST_CASE("T5Attention forward builds output", "[model][t5]")
 {
     AttentionFixtureSpec fx;
-    if (!skip_unless_fixture_ready(attn_fixture_stem::t5_attention, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::t5_attention, fx))
     {
         SKIP("Missing or invalid t5_attention.json / .safetensors.");
     }
     NNGraph g("t5_attn");
     T5Attention attn(&g, "attn", fx.config);
-    auto *input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
+    auto* input = g.tensor({fx.hidden, fx.seq, fx.batch}, DataType::FP32)
                       ->set_name("input");
-    auto *output = attn.forward(input, nullptr, nullptr);
+    auto* output = attn.forward(input, nullptr, nullptr);
 
     REQUIRE(output != nullptr);
     REQUIRE(
@@ -236,24 +202,23 @@ TEST_CASE("T5Attention forward builds output", "[model][t5]")
 TEST_CASE("T5Attention load from safetensors roundtrip", "[model][t5][io]")
 {
     AttentionFixtureSpec fx;
-    if (!skip_unless_fixture_ready(attn_fixture_stem::t5_attention, fx))
+    if(!skip_unless_fixture_ready(attn_fixture_stem::t5_attention, fx))
     {
         SKIP("Missing or invalid t5_attention.json / .safetensors.");
     }
     const std::string data_path =
-        t5_fixture_safetensors_path(std::string(T5_DATA_DIR), fx.stem);
+        attention_fixture_safetensors_path(std::string(T5_DATA_DIR), fx);
 
     NNGraph g1("load_graph");
     T5Attention attn1(&g1, "attn", fx.config);
     attn1.load(data_path);
 
-    const std::string save_path =
-        "/tmp/nntile_t5_attn_roundtrip.safetensors";
+    const std::string save_path = "/tmp/nntile_t5_attn_roundtrip.safetensors";
     attn1.save(save_path);
 
     SafeTensorsReader reader(data_path);
     SafeTensorsReader reader2(save_path);
-    for (const auto &name : reader2.tensor_names())
+    for(const auto& name : reader2.tensor_names())
     {
         REQUIRE(reader.has_tensor(name));
         REQUIRE(reader.read_tensor(name) == reader2.read_tensor(name));
@@ -262,51 +227,53 @@ TEST_CASE("T5Attention load from safetensors roundtrip", "[model][t5][io]")
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "T5Attention forward matches PyTorch reference (no mask)",
-    "[model][t5][nomask]")
+    "T5Attention forward vs PyTorch (no mask, no RoPE)",
+    "[model][t5][nomask][norope][norope_nomask]")
 {
     AttentionFixtureSpec fx;
-    if (!skip_unless_fixture_ready(attn_fixture_stem::t5_attention, fx))
+    if(!skip_unless_fixture_ready(
+            attn_fixture_stem::t5_attention_no_rope_nomask, fx))
     {
-        SKIP("T5 attention fixture not found.");
+        SKIP("T5 attention no-RoPE / no-mask fixture pair not found.");
     }
     t5_attention_forward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "T5Attention backward matches PyTorch reference (no mask)",
-    "[model][t5][nomask]")
+    "T5Attention backward vs PyTorch (no mask, no RoPE)",
+    "[model][t5][nomask][norope][norope_nomask]")
 {
     AttentionFixtureSpec fx;
-    if (!skip_unless_fixture_ready(attn_fixture_stem::t5_attention, fx))
+    if(!skip_unless_fixture_ready(
+            attn_fixture_stem::t5_attention_no_rope_nomask, fx))
     {
-        SKIP("T5 attention fixture not found.");
+        SKIP("T5 attention no-RoPE / no-mask fixture pair not found.");
     }
     t5_attention_backward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "T5Attention causal forward matches PyTorch reference",
-    "[model][t5][causal_mask]")
+    "T5Attention forward vs PyTorch (causal mask, no RoPE)",
+    "[model][t5][causal_mask][norope]")
 {
     AttentionFixtureSpec fx;
-    if (!skip_unless_fixture_ready(
-            attn_fixture_stem::t5_attention_causal, fx))
+    if(!skip_unless_fixture_ready(
+            attn_fixture_stem::t5_attention_no_rope_causal, fx))
     {
-        SKIP("T5 causal attention fixture not found.");
+        SKIP("T5 attention no-RoPE / causal fixture pair not found.");
     }
     t5_attention_forward_compare_ref(fx);
 }
 
 TEST_CASE_METHOD(nntile::test::ContextFixture,
-    "T5Attention causal backward matches PyTorch reference",
-    "[model][t5][causal_mask]")
+    "T5Attention backward vs PyTorch (causal mask, no RoPE)",
+    "[model][t5][causal_mask][norope]")
 {
     AttentionFixtureSpec fx;
-    if (!skip_unless_fixture_ready(
-            attn_fixture_stem::t5_attention_causal, fx))
+    if(!skip_unless_fixture_ready(
+            attn_fixture_stem::t5_attention_no_rope_causal, fx))
     {
-        SKIP("T5 causal attention fixture not found.");
+        SKIP("T5 attention no-RoPE / causal fixture pair not found.");
     }
     t5_attention_backward_compare_ref(fx);
 }

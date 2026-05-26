@@ -459,6 +459,24 @@ foreach(test_path IN LISTS TESTS_MODEL_T5)
                 )
                 list(APPEND required_fixtures
                     "tests_graph_model_t5_attention_causal_data")
+
+                add_test(
+                    NAME tests_graph_model_t5_attention_variant_data_setup
+                    COMMAND "${GRAPH_MODEL_DATA_PYTHON}" "${T5_GENERATE_SCRIPT}"
+                        --write-attention-no-rope-mask-variants
+                        --output "${T5_DATA_DIR}" --seed 42
+                    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                )
+                set_tests_properties(
+                    tests_graph_model_t5_attention_variant_data_setup
+                    PROPERTIES
+                        FIXTURES_SETUP
+                            "tests_graph_model_t5_attention_variant_data"
+                        ENVIRONMENT
+                            "PYTHONPATH=${CMAKE_BINARY_DIR}/wrappers/python:$ENV{PYTHONPATH}"
+                )
+                list(APPEND required_fixtures
+                    "tests_graph_model_t5_attention_variant_data")
             endif()
             set_tests_properties(tests_graph_model_${test_name} PROPERTIES
                 FIXTURES_REQUIRED "${required_fixtures}"
